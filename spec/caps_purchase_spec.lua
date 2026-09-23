@@ -1748,10 +1748,124 @@ describe("Live price caps -- buying at the player's own price", function()
             runTimers()
 
             assert.equal(1, cancels)
-            assert.is_nil(GC.PurchaseSlot.Owner())
+            assert.equal("sniper", GC.PurchaseSlot.Owner()) -- held for the drain (below)
             assert.equal("expired", row.purchaseStage)
             assert.is_true(d.enabled)
             assert.equal(GC.L["no answer from the auction house"], d.written[#d.written])
+          end)
+
+          -- Final money review I1: a Start cancelled before the server answered it still has that
+          -- answer coming, and commodity events name no attempt. Handed back and the slot released
+          -- at once, BUY started in the gap, the late quote was offered to BUY first (Core/Init.lua)
+          -- and lit its CONFIRM at a total BUY never quoted. The slot stays the Sniper's until that
+          -- Start's drain is over: its late quote consumed here, or the drain's own bound.
+          describe("a Start it cancelled before the server answered it", function()
+            it("keeps the slot until that Start's late quote has been drained here", function()
+              local GC, row, _, _, click = armed()
+              onTheClock(GC)
+              click() -- Start at 100, and no answer
+              clock = 110
+              runTimers()
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              assert.is_false(GC.PurchaseSlot.Claim("buy")) -- BUY cannot start under it
+              assert.is_nil(GC.PurchaseSlot.ConfirmOwed())
+
+              clock = 112
+              GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- the late quote: drained
+
+              assert.equal(2, cancels) -- the Cancel sent again, as for any drained quote
+              assert.equal("expired", row.purchaseStage) -- nothing armed on it
+              assert.is_nil(GC.PurchaseSlot.Owner())
+              assert.is_true(GC.PurchaseSlot.Claim("buy"))
+            end)
+
+            it("gives the slot up at the drain's bound when the late quote never comes", function()
+              local GC, _, _, _, click = armed()
+              onTheClock(GC)
+              click()
+              clock = 110
+              runTimers()
+              clock = 129.9
+              runTimers()
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              clock = 130
+              runTimers()
+              assert.is_nil(GC.PurchaseSlot.Owner())
+            end)
+
+            it("gives it up as soon as a Check of its own proves nothing more is coming", function()
+              local GC, row, deal, _, click = armed()
+              onTheClock(GC)
+              click()
+              clock = 110
+              runTimers()
+              clock = 111
+              click() -- Refresh: a Check, started after the cancel
+              assert.equal("requerying", row.purchaseStage)
+              answer(GC)
+              assert.is_nil(GC.PurchaseSlot.Owner())
+              assert.equal("ready", row.purchaseStage)
+              assert.is_true(row.deal == deal)
+            end)
+
+            -- An auction house close ends the session, and the drain with it -- its timer must not
+            -- then let go of the slot a later drain holds.
+            it("never lets an old drain's timer free the slot a later drain holds", function()
+              local GC, row, deal, _, click = armed()
+              onTheClock(GC)
+              click() -- Start at 100
+              clock = 110
+              runTimers() -- no answer: drained, slot held, its timer due at 130
+              clock = 111
+              getUpvalue(GC.Sniper.OnAuctionHouseClosed, "resetAllPurchases")()
+              assert.is_nil(GC.PurchaseSlot.Owner())
+
+              reopened(GC, row, deal)
+              local book = freshBook()
+              armReadyFn(GC)(row, deal, capLive(GC, 42, book).decision, book)
+              clock = 112
+              click() -- the next visit's Start
+              clock = 122
+              runTimers() -- no answer either: drained, slot held until 142
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+
+              clock = 130
+              runTimers() -- the first drain's timer
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              clock = 142
+              runTimers()
+              assert.is_nil(GC.PurchaseSlot.Owner())
+            end)
+
+            it("releases at once a Start whose quote had already come", function()
+              local GC, row, _, _, click = armed()
+              onTheClock(GC)
+              click()
+              clock = 101
+              GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- quoted: nothing more is coming
+              clock = 121
+              runTimers() -- the Confirm window runs out
+              assert.equal("expired", row.purchaseStage)
+              assert.is_nil(GC.PurchaseSlot.Owner())
+            end)
+          end)
+
+          -- Final money review M1: an error a Sell post alone can raise is the post's, not this
+          -- purchase's -- a Buy window can stay open over the Sell tab. Settling the purchase on it
+          -- released the slot with the Start's answer still coming.
+          it("leaves its purchase alone when the auction house refuses a Sell post", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            GC.Sell = { _ErrorKind = function(code) return code == 7 and "post" or "shared" end }
+            click() -- Start: buying
+            local pending = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase")
+
+            GC.Sniper.OnAuctionHouseError(7)
+
+            assert.equal("buying", row.purchaseStage)
+            assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase") == pending)
+            assert.equal("sniper", GC.PurchaseSlot.Owner())
+            GC.Sell = nil
           end)
 
           -- Fix round 4 (m1): every guard the stall's Cancel stands on, pinned. RP1: Confirm and the
