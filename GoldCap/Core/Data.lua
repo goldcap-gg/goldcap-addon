@@ -570,7 +570,7 @@ function GC.Data.GetItemValue(itemID)
   p = activePayload()
   local ref = p and p.refs[itemID]
   if ref then
-    return { mv = ref.m, listings = ref.l, ts = p.ts, source = "region", kind = "realm_item" }
+    return { mv = ref, listings = p.refListings[itemID], ts = p.ts, source = "region", kind = "realm_item" }
   end
 
   -- 5. Bundled, as before.

@@ -120,13 +120,16 @@ end
 
 -- M (GCM1 only): a realm item's region median and the listings it was measured over -- the
 -- tooltip role the bundled table's realm entries play (`m`, `l`), from this hour instead of
--- release day. Anchored per token like Q, R and T.
-local function readRefs(body, into)
+-- release day. Anchored per token like Q, R and T. Two flat maps, id -> median and id -> listings:
+-- a { m, l } table per item held twice the memory for a region's tens of thousands of them.
+local function readRefs(body, medians, listingsInto)
   local n = 0
   for token in body:gmatch("[^,]+") do
     local id, median, listings = token:match("^(%d+)=(%d+)=(%d+)$")
     if id then
-      into[tonumber(id)] = { m = tonumber(median), l = tonumber(listings) }
+      id = tonumber(id)
+      medians[id] = tonumber(median)
+      listingsInto[id] = tonumber(listings)
       n = n + 1
     end
   end
@@ -229,7 +232,7 @@ function GC.ImportString.ParseRegion(str)
 
   local result = {
     region = region, ts = tonumber(ts),
-    items = {}, verification = {}, quarter = {}, reach = {}, refs = {},
+    items = {}, verification = {}, quarter = {}, reach = {}, refs = {}, refListings = {},
     counts = { items = 0, facts = 0, refs = 0 },
   }
   for section in rest:gmatch("[^;]+") do
@@ -243,7 +246,7 @@ function GC.ImportString.ParseRegion(str)
     elseif kind == "R" then
       readPrices(body, result.reach)
     elseif kind == "M" then
-      result.counts.refs = result.counts.refs + readRefs(body, result.refs)
+      result.counts.refs = result.counts.refs + readRefs(body, result.refs, result.refListings)
     end
   end
 
