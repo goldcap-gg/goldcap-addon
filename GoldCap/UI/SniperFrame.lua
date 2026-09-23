@@ -10130,9 +10130,17 @@ function GC.Sniper.DebugBoard()
     s(GC.Sniper._keysOwner),
     GC.Sniper._keysBatch and #GC.Sniper._keysBatch or "nil",
     s(GC.Sniper._keysThisCycle), s(GC.Sniper._keysLastCycle)))
-  -- The caps' own poll (caps fixes 4a): what it asks about, and where it is in its pacing.
+  -- The caps' own poll (caps fixes 4a): what it asks about, and where it is in its pacing. Ahead of
+  -- that, what became of the prices the file carried (caps fixes 5d): the ones held, the ones the
+  -- last sync dropped as unreadable or as a repeat of an item already held, and any held price the
+  -- poll is not asking about -- none since every cap is polled, and the first thing to look at if
+  -- a price never fires.
   local function ago(at) return at and ("%.1fs ago"):format(GetTime() - at) or "nil" end
-  GC.Print(("caps: targets=%d pending=%s landed=%s roundDone=%s window=%s"):format(
+  local held = GC.Caps and GC.Caps.Count() or 0
+  local malformed, repeated = 0, 0
+  if GC.Caps and GC.Caps.Dropped then malformed, repeated = GC.Caps.Dropped() end
+  GC.Print(("caps: held=%d dropped=%d repeated=%d unpolled=%d targets=%d pending=%s landed=%s roundDone=%s window=%s"):format(
+    held, malformed, repeated, math.max(0, held - GC.Sniper._capPoll:Count()),
     GC.Sniper._capPoll:Count(), s(GC.Sniper._capPoll:HasPending()),
     ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown())))
   GC.Print(("gates: paging=%s passWants=%s fullBrowse=%s playerBusy=%s prewarm=%s quiet=%s apiReady=%s"):format(

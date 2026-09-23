@@ -66,6 +66,26 @@ describe("Caps.Adopt", function()
     end)
   end)
 
+  -- Caps fixes 5d: every drop above is silent by design -- a partly broken write must not block
+  -- the parts that are fine -- which left a player whose price never fired nothing to go on.
+  -- Counted instead, for `/gc board` to print; never a popup.
+  it("counts the prices it dropped as unreadable and the ones it dropped as repeats", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {},
+      caps = { "x", { i = "a" }, { i = 5 }, { i = 6, c = 0 }, { i = 8, c = 10, l = "610" },
+        { i = 7, c = 10 }, { i = 7, c = 20 } } }
+    GC.Caps.Adopt()
+    local malformed, duplicate = GC.Caps.Dropped()
+    assert.equals(5, malformed)
+    assert.equals(1, duplicate)
+
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 2, runs = {}, groups = {}, caps = { { i = 7, c = 10 } } }
+    GC.Caps.Adopt()
+    assert.same({ 0, 0 }, { GC.Caps.Dropped() })
+    _G.GoldCap_AppRuns = nil
+    GC.Caps.Adopt()
+    assert.same({ 0, 0 }, { GC.Caps.Dropped() })
+  end)
+
   it("an absent or unsupported file clears the set", function()
     _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, caps = { { i = 1, c = 1 } } }
     GC.Caps.Adopt()

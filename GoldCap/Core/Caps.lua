@@ -8,6 +8,11 @@ local _, GC = ...
 GC.Caps = {}
 
 local caps, order, generatedAt = {}, {}, nil
+-- What the last Adopt threw away, for `/gc board` (caps fixes 5d): entries it could not read, and
+-- repeats of an item it already held (the first one wins). Both are dropped in silence -- a partly
+-- broken file must not block the parts that are fine -- so without a count a price that never
+-- fires leaves nothing to go on.
+local dropped = { malformed = 0, duplicate = 0 }
 
 -- Final review M9: `v == v` rejects a NaN and nothing else, so an infinity walked straight
 -- through -- and an infinite `c` is a cap no price on earth can break (every lot qualifies,
@@ -22,11 +27,14 @@ end
 function GC.Caps.Adopt()
   local raw = _G.GoldCap_AppRuns
   local next_caps, next_order = {}, {}
+  local next_dropped = { malformed = 0, duplicate = 0 }
   local changed = false
   if type(raw) == "table" and (raw.v == 1 or raw.v == 2 or raw.v == 3) and type(raw.caps) == "table" then
     local groups = type(raw.groups) == "table" and raw.groups or {}
     for _, entry in ipairs(raw.caps) do
-      if type(entry) == "table" then
+      if type(entry) ~= "table" then
+        next_dropped.malformed = next_dropped.malformed + 1
+      else
         local i, c = num(entry.i), num(entry.c)
         -- An ABSENT `l` means "no item-level floor" and is legitimate (a commodity cap has
         -- none). An `l` that is present and unusable is a different thing, and it may not fall
@@ -34,7 +42,11 @@ function GC.Caps.Adopt()
         -- "1500g for anything" and green-light the junk variant at the price meant for the good
         -- one. It drops the entry, exactly as an unusable price does.
         local l = entry.l == nil and 0 or num(entry.l)
-        if i and i > 0 and c and c > 0 and l and not next_caps[i] then
+        if not (i and i > 0 and c and c > 0 and l) then
+          next_dropped.malformed = next_dropped.malformed + 1
+        elseif next_caps[i] then
+          next_dropped.duplicate = next_dropped.duplicate + 1
+        else
           local g = num(entry.g)
           next_caps[i] = {
             c = math.floor(c),
@@ -60,11 +72,13 @@ function GC.Caps.Adopt()
       end
     end
   end
-  caps, order = next_caps, next_order
+  caps, order, dropped = next_caps, next_order, next_dropped
   return changed
 end
 
 function GC.Caps.Count() return #order end
+-- How many entries the last Adopt dropped: unreadable ones, then repeats of an item already held.
+function GC.Caps.Dropped() return dropped.malformed, dropped.duplicate end
 function GC.Caps.For(itemID) return caps[itemID] end
 -- Item ids in DELIVERY order, which is the site's own order and nothing more. Final review M1:
 -- position here is not priority -- Core/KeyPoll.lua's SetTargets sorts what it is handed. This is
