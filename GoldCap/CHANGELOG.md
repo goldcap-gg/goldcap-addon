@@ -62,6 +62,10 @@
   and a caged pet from the live listings of its kind — never from a market figure for other item
   levels or other pets. An item the auction house has not told GoldCap about yet is listed under
   its own heading instead of being left out.
+- With the current Companion, GoldCap knows every commodity in your region, not only the few
+  hundred that sell the most: tooltips show a fresh price for each of them, and the sniper can
+  check thousands more against their own sales. It is kept in memory only, so your saved
+  variables do not grow.
 
 ## 0.14.1 (unreleased)
 

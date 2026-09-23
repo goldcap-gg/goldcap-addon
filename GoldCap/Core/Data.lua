@@ -5,6 +5,14 @@ GC.Data = {}
 local db
 local bundled -- region table from GoldCap_MarketData
 local region
+-- The whole-market region payload (GCM1) the Companion writes beside the import string as
+-- GoldCap_AppData.regionString. Parsed at load and kept HERE, in memory only: it is never copied
+-- into db. GoldCapDB is this addon's one SavedVariables table, written on every logout and read by
+-- the Companion four times a sync, and thousands of facts would add megabytes to both.
+local payload
+-- How far ahead of this machine's clock a payload may be dated: clock skew between the player and
+-- the site, and nothing more (see AdoptRegionPayload).
+local PAYLOAD_FUTURE_SLACK_SECONDS = 3600
 
 local function countItems(t)
   local n = 0
@@ -246,9 +254,56 @@ local function recordAppDataError(reason, writtenAt)
   end
 end
 
+-- The payload, while its region is the one prices are loaded for. Checked on every read, so an
+-- import of another region mid-session (SetImported -> adoptRegion) takes it out of play at once.
+local function activePayload()
+  if payload and payload.region == region then return payload end
+  return nil
+end
+
+function GC.Data.RegionPayload()
+  return activePayload()
+end
+
+--- Parses the Companion's GCM1 payload into memory, replacing whatever was held. A string that does
+-- not parse leaves nothing held -- the import string and the bundled table then answer exactly as
+-- they did before the payload existed. Returns the payload, or nil and the reason: the parser's,
+-- or "bad_ts" for a payload dated 0 or more than PAYLOAD_FUTURE_SLACK_SECONDS ahead of the clock.
+function GC.Data.AdoptRegionPayload(str)
+  payload = nil
+  if type(str) ~= "string" then return nil, "empty" end
+  -- memoryKB is what the parsed tables keep, so both readings are taken on a clean heap: without
+  -- the first collection, garbage already lying around would be subtracted from the figure (down
+  -- to 0); without the second, the parse's own garbage -- half as much again as what it keeps --
+  -- would be added to it. Two full collections, once a load: AdoptAppData is the only caller.
+  collectgarbage("collect")
+  local before = collectgarbage("count")
+  local parsed, reason = GC.ImportString.ParseRegion(str)
+  if not parsed then return nil, reason end
+  -- An item the payload prices without a fact takes the payload's date as its own (GetItemValue),
+  -- so a date of 0, or one ahead of the clock by more than skew, would make those items look fresh
+  -- for as long as the payload stays loaded.
+  if parsed.ts <= 0 or parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "bad_ts" end
+  collectgarbage("collect")
+  parsed.memoryKB = math.max(0, math.floor(collectgarbage("count") - before))
+  payload = parsed
+  return parsed
+end
+
+--- The one answer to "which facts does item X have". The payload's, for every item the payload
+-- prices -- even when it has none for it (nothing sold in a day), since the import's would be the
+-- same snapshot's -- and the import's for everything else.
+function GC.Data.Facts(itemID)
+  local p = activePayload()
+  if p and p.items[itemID] then return p.verification[itemID] end
+  local imp = db and db.imported
+  return imp and imp.verification and imp.verification[itemID] or nil
+end
+
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --
 -- see the .toc's OptionalDeps, which loads it before this one when present -- sets
--- `GoldCap_AppData = { importString = "GCS1;...", writtenAt = <unix ts> }`. This runs that
+-- `GoldCap_AppData = { importString = "GCS1;...", writtenAt = <unix ts> }` (a current Companion
+-- adds `regionString = "GCM1;..."`, see AdoptRegionPayload). This runs the import
 -- string through the SAME ImportString.Parse manual import uses (one parser, one validation
 -- path) and only adopts it over whatever's already in db.imported when strictly newer --
 -- ts equality is a no-op, not churn, same "freshest wins" rule manual import follows. An
@@ -257,13 +312,10 @@ end
 -- said once a session (recordAppDataError above). GC.Print is guarded
 -- because it's only defined once Core/Init.lua has loaded (true by the time this runs for
 -- real, at ADDON_LOADED -- see Init.lua -- but not in specs that load Data.lua on its own).
-function GC.Data.AdoptAppData()
-  local appData = _G.GoldCap_AppData
-  -- No GoldCap_AppData at all is the normal standalone case -- the companion is optional and
-  -- its absence is not a fault. A GoldCap_AppData that IS there and carries no string is a
-  -- different thing: the companion ran and wrote something unusable, which is exactly the
-  -- state the player needs told, and which used to leave through this bare return in silence.
-  if type(appData) ~= "table" then return end
+local function adoptImportString(appData)
+  -- No GoldCap_AppData at all is the normal standalone case (see AdoptAppData). A GoldCap_AppData
+  -- that IS there and carries no string is a different thing: the companion ran and wrote
+  -- something unusable, which is exactly the state the player needs told.
   if type(appData.importString) ~= "string" then
     recordAppDataError("empty", type(appData.writtenAt) == "number" and appData.writtenAt or nil)
     return
@@ -293,7 +345,53 @@ function GC.Data.AdoptAppData()
   end
 end
 
+function GC.Data.AdoptAppData()
+  local appData = _G.GoldCap_AppData
+  if type(appData) ~= "table" then return end
+  adoptImportString(appData)
+  -- The whole-market payload, when the Companion wrote one. After the import string, so the region
+  -- it is checked against is the one this load settled on; on every load, whether or not the
+  -- import string was newer, because the payload is never saved; and dropped from the global once
+  -- parsed -- the raw string is a megabyte the parsed tables already hold.
+  if appData.regionString ~= nil then
+    GC.Data.AdoptRegionPayload(appData.regionString)
+    appData.regionString = nil
+  end
+end
+
+-- The verification fact's fields on a value table: one copy of the list for the two answers that
+-- carry facts (the payload's and the import's).
+local function withFacts(value, fact)
+  value.sourceAt = fact.sourceAt
+  value.estimated = fact.flags % 2 == 1
+  value.stressUnit = fact.stressUnit
+  value.sellThroughBps = fact.sellThroughBps
+  value.liquidityConfidence = fact.liquidityConfidence
+  value.currentQty = fact.currentQty
+  value.listings = fact.listings
+  value.observations = fact.observations
+  value.madBps = fact.madBps
+  return value
+end
+
 function GC.Data.GetItemValue(itemID)
+  -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
+  -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on
+  -- purpose: the same snapshot's figures, for every commodity instead of the busiest 400.
+  local p = activePayload()
+  local pe = p and p.items[itemID]
+  if pe then
+    local value = { mv = pe.m, sold = pe.s, trend = pe.t, ts = p.ts, source = "region",
+      kind = "region_commodity", p25 = p.quarter[itemID], reach = p.reach[itemID] }
+    local fact = GC.Data.Facts(itemID)
+    if fact then return withFacts(value, fact) end
+    -- No fact (nothing sold in a day): still this snapshot's price, so its age is the payload's;
+    -- nothing can arm on it -- Trigger.For needs a stressUnit.
+    value.sourceAt = p.ts
+    return value
+  end
+
+  -- 2. The import, as before: realm items, and commodities whenever no payload prices them.
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
   -- Region reference for a realm item (import T section): what the item goes for across the
@@ -302,46 +400,39 @@ function GC.Data.GetItemValue(itemID)
   -- this realm has no median for at all, which is the case the branch below exists for.
   local target = imp and imp.targets and imp.targets[itemID] or nil
   if e then
-    -- Cheap-quarter line (import Q section). Absent on imports that predate it and on every
-    -- realm item, and now only the fallback ceiling -- see `reach` just below.
+    -- Cheap-quarter line (import Q section) and reach24 (import R section): the Sell tab's
+    -- ceilings for posting above the cheapest ask, R first. Import-path only -- bundled data
+    -- carries neither. trend is import-path only too: bundled entries never carry a `t`.
     local p25 = imp.quarter and imp.quarter[itemID] or nil
-    -- reach24 (import R section): what the item's floor actually reaches within a day. The
-    -- Sell tab's ceiling for posting above the cheapest ask, with p25 above as the fallback
-    -- for imports that predate it. Import-path only, like p25 -- bundled data carries neither.
     local reach = imp.reach and imp.reach[itemID] or nil
-    -- trend (24h market-value momentum) is import-path only: MarketData.lua's
-    -- bundled entries never carry a `t` field (see ImportString.Parse), so
-    -- there's nothing to pass through for the bundled branch below.
-    local fact = imp.verification and imp.verification[itemID]
+    local fact = GC.Data.Facts(itemID)
     if fact then
-      return {
-        mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import",
-        kind = "region_commodity",
-        sourceAt = fact.sourceAt,
-        estimated = fact.flags % 2 == 1,
-        stressUnit = fact.stressUnit,
-        sellThroughBps = fact.sellThroughBps,
-        liquidityConfidence = fact.liquidityConfidence,
-        currentQty = fact.currentQty,
-        listings = fact.listings,
-        observations = fact.observations,
-        madBps = fact.madBps,
-        p25 = p25,
-        reach = reach,
-      }
+      return withFacts({ mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import",
+        kind = "region_commodity", p25 = p25, reach = reach }, fact)
     end
     return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item",
       p25 = p25, reach = reach,
       ref = target and target.ref or nil, refIlvl = target and target.ilvl or nil }
   end
+
+  -- 3. No I entry, but the region named a reference: a realm item this realm has no median for.
+  -- There is no mv to return and nothing pretends there is -- GC.Trigger.RealmReference takes
+  -- whichever of the two exists, and everything that needs an mv (DealMath, the commodity
+  -- decision path) already refuses a value table without one.
   if target then
-    -- No I entry, but the region named a reference: a realm item this realm has no median
-    -- for. There is no mv to return and nothing pretends there is -- GC.Trigger.RealmReference
-    -- takes whichever of the two exists, and everything that needs an mv (DealMath, the
-    -- commodity decision path) already refuses a value table without one.
     return { ts = imp.ts, source = "import", kind = "realm_item",
       ref = target.ref, refIlvl = target.ilvl }
   end
+
+  -- 4. The payload's realm-item reference (M): the region median the bundled table would have
+  -- answered with, from this hour instead of release day. Tooltip role only -- a realm item with
+  -- no `ref` is never a deal (Core/DealMath.lua), and _RealmValue reads imports alone.
+  local ref = p and p.refs[itemID]
+  if ref then
+    return { mv = ref.m, listings = ref.l, ts = p.ts, source = "region", kind = "realm_item" }
+  end
+
+  -- 5. Bundled, as before.
   e = bundled and bundled.items and bundled.items[itemID]
   if e then
     return {
