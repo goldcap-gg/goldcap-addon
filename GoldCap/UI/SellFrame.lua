@@ -758,7 +758,7 @@ local function quoteDriver()
   local function boundedLevels(itemID, commodity)
     local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
       or C_AuctionHouse.GetNumItemSearchResults(C_AuctionHouse.MakeItemKey(itemID))
-    for i = 1, math.min(count or 0, 100) do
+    for i = 1, math.min(count or 0, GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100) do
       local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
         or C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), i)
       local unit = info and (commodity and info.unitPrice
@@ -3080,6 +3080,7 @@ local DR = {
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
   PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
+  WALL_TAG_W = 28,         -- "wall", at the start of its own level's bar: the bar starts after it
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
@@ -3170,15 +3171,21 @@ local function layoutDrawer(row)
     -- The word sits at the LEFT of its level, in the room a right-aligned price leaves in its
     -- own column. It had a column to itself at the right edge, empty on every level but one or
     -- two, so the bars and the unit counts stopped 46px short of the panel they sit in.
-    line.tag:ClearAllPoints()
-    line.tag:SetWidth(DR.TAG_W)
-    line.tag:SetPoint("TOPLEFT", row, "TOPLEFT", left, y - 1)
     line.qty:ClearAllPoints()
     line.qty:SetWidth(DR.UNITS_W)
     line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
+    -- "wall" at the start of its own level's bar, which then starts after the word: a column of
+    -- its own for one level in eight cost the book its width twice before (see the paint).
+    line.tag:ClearAllPoints()
+    line.tag:SetWidth(DR.WALL_TAG_W)
+    line.tag:SetPoint("LEFT", line.bar, "LEFT", 0, 0)
+    -- The marker's and the gap's words, where a level has its bar and its count.
+    line.note:ClearAllPoints()
+    line.note:SetPoint("LEFT", line.bar, "LEFT", 0, 0)
+    line.note:SetPoint("RIGHT", line.qty, "RIGHT", 0, 0)
     line.wash:ClearAllPoints()
     line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 4)
     line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
@@ -3598,9 +3605,13 @@ local function createRow(parent)
     -- a wash behind it. Colour alone carried that, explained once in a hint long enough to be
     -- cut off at the panel's width -- a colour nobody explained is a colour nobody reads.
     line.tag = Theme.Num(row, 9)
-    line.tag:SetJustifyH("LEFT"); line.tag:SetWordWrap(false)
+    line.tag:SetJustifyH("LEFT"); line.tag:SetWordWrap(false); line.tag:SetMaxLines(1)
+    -- The line's words when it is not a level: "your price · 2.3k units ahead of you", or the
+    -- stretch of the book the ladder skips.
+    line.note = Theme.Num(row, 10)
+    line.note:SetJustifyH("LEFT"); line.note:SetWordWrap(false); line.note:SetMaxLines(1)
     line.wash = row:CreateTexture(nil, "BACKGROUND", nil, 2)
-    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     row.bookLines[i] = line
   end
   -- Column headings and the bottom line. Separate FontStrings rather than reusing subItem and
@@ -3949,6 +3960,108 @@ local function updateSummary(filtered)
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
 
+-- Clear, set, hide, show: a one-line FontString on a pooled row that was hidden and shown again
+-- can keep its text undrawn, and SetText with the text it already holds does not redraw it (the
+-- engineering notes' "Text"). Ends shown.
+function INSP.stamp(fs, text)
+  fs:SetText(""); fs:SetText(text or ""); fs:Hide(); fs:Show()
+end
+
+-- THE BOOK's eight lines. A commodity's book is chosen around the player's price (SellViewModel's
+-- ladder): levels, a gap line for the stretch it skips, and a marker for the price itself. A
+-- function of its own: paintHead sits near Lua 5.1's cap on upvalues.
+function INSP.paintLadder(row, book)
+  local widest = book.widest or 0
+  local count = function(n) return GC.Util.FormatCount(n or 0) or tostring(n or 0) end
+  for lineIndex = 1, DR.LINES do
+    local line, entry = row.bookLines[lineIndex], book.rows[lineIndex]
+    line.tag:Hide(); line.note:Hide()
+    if entry and entry.kind == "yours" then
+      -- The player's own price at its sorted place, after the levels at an equal price: it
+      -- would join their tail. What stands ahead of it is the one number this panel is for.
+      local words = entry.pastRead and (GC.L["your price · at least %s units ahead of you"]):format(count(entry.ahead))
+        or (entry.ahead or 0) == 0 and GC.L["your price · first in line"]
+        or (GC.L["your price · %s units ahead of you"]):format(count(entry.ahead))
+      line.price:SetText(formatCell(entry.unit)); setColor(line.price, Theme.color.gold)
+      line.price:Show(); line.qty:Hide(); line.bar:Hide()
+      INSP.stamp(line.note, words); setColor(line.note, Theme.color.goldHi or Theme.color.gold)
+      line.wash:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.10)
+      line.wash:Show()
+    elseif entry and entry.kind == "gap" then
+      line.price:SetText("…"); setColor(line.price, Theme.color.fgDim)
+      line.price:Show(); line.qty:Hide(); line.bar:Hide(); line.wash:Hide()
+      INSP.stamp(line.note, (GC.L["%s units across %d prices"]):format(count(entry.units), entry.prices or 0))
+      setColor(line.note, Theme.color.fgDim)
+    elseif entry then
+      -- Colour carries the facts a single number cannot: gold is where GoldCap's price would
+      -- put you (a realm item's book, which has no marker), blue is stock already yours, red is
+      -- a wall -- a level holding a big share of the day, that sells before anything priced
+      -- over it.
+      local colour, tint, wash = Theme.color.fg, nil, nil
+      if book.yourRow == lineIndex then colour, tint, wash = Theme.color.gold, Theme.color.gold, Theme.color.gold
+      elseif entry.mine then colour, tint, wash = Theme.color.watch, Theme.color.watch, Theme.color.watch end
+      if entry.wall then tint = Theme.color.red end
+      line.price:SetText(formatCell(entry.unit)); setColor(line.price, colour)
+      line.qty:SetText(GC.Util.FormatCount(entry.units) or "—")
+      setColor(line.qty, entry.wall and Theme.color.red or Theme.color.fgDim)
+      -- A wall says so in a word at the start of its own bar, which then starts after it. A
+      -- column for the word on every level held the bars and the figures off an edge of the
+      -- panel for one level in eight (seen in game, twice); this costs only the wall's own bar.
+      local offset = entry.wall and DR.WALL_TAG_W or 0
+      local span = widest > 0 and (entry.units / widest) or 0
+      line.bar.fill:ClearAllPoints()
+      line.bar.fill:SetPoint("TOPLEFT", line.bar, "TOPLEFT", offset, 0)
+      line.bar.fill:SetPoint("BOTTOMLEFT", line.bar, "BOTTOMLEFT", offset, 0)
+      line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor((DR.BAR_MAX - offset) * span + 0.5)))
+      if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
+      else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
+      line.price:Show(); line.qty:Show(); line.bar:Show()
+      if entry.wall then
+        INSP.stamp(line.tag, GC.L["wall"]); setColor(line.tag, Theme.color.red)
+      end
+      if wash then
+        line.wash:SetColorTexture(wash[1], wash[2], wash[3], 0.10)
+        line.wash:Show()
+      else
+        line.wash:Hide()
+      end
+    else
+      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.wash:Hide()
+    end
+  end
+end
+
+-- The line under a commodity's ladder: past the levels read, that the marker's count is a floor
+-- (the read stopped there; nothing past it is counted or guessed); otherwise how long the queue
+-- ahead of the price takes at today's pace -- the sells/day the panel shows, nothing when that
+-- is unknown or nothing is ahead.
+function INSP.standWords(book)
+  if book.pastRead then
+    return (GC.L["past the first %d prices read (%s units)"]):format(book.levels or 0,
+      GC.Util.FormatCount(book.totalUnits or 0) or tostring(book.totalUnits or 0))
+  end
+  local hours = book.hoursToReach
+  if type(hours) ~= "number" then return "" end
+  if hours < 24 then return (GC.L["~%dh to reach you at today's pace"]):format(math.max(1, math.floor(hours + 0.5))) end
+  return (GC.L["~%dd to reach you at today's pace"]):format(math.floor(hours / 24 + 0.5))
+end
+
+-- The walls around a commodity's price, for the facts line: the nearest at or under it and the
+-- first above it. Empty for a book with no price of the player's, or no walls.
+function INSP.wallWords(book)
+  local words = {}
+  local function amount(wall)
+    return GC.Util.FormatCount(wall.units) or tostring(wall.units), formatCell(wall.unit)
+  end
+  if book.commodity and book.wallBelow then
+    words[#words + 1] = (GC.L["wall %s at %s -- price under it to sell first"]):format(amount(book.wallBelow))
+  end
+  if book.commodity and book.wallAbove then
+    words[#words + 1] = (GC.L["wall %s at %s above you"]):format(amount(book.wallAbove))
+  end
+  return words
+end
+
 -- The detail panel's head: the price control, the book it lands in, and the line of facts.
 -- A function of its own rather than a branch of renderRows, which is where it was written:
 -- that function sits two short of Lua 5.1's 60-upvalue cap, and everything this reads -- the
@@ -4070,40 +4183,7 @@ function INSP.paintHead(row, p, d)
     row.headRules[1]:Show()
     row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
     setColor(row.drawerHint, Theme.color.fgDim)
-    local widest = book.widest or 0
-    for lineIndex = 1, DR.LINES do
-      local line, level = row.bookLines[lineIndex], book.rows[lineIndex]
-      if level then
-        -- Colour carries the two facts a single number cannot: gold is where GoldCap's
-        -- price would put you, blue is stock already yours. Same code as the level row.
-        local colour, tint = Theme.color.fg, nil
-        if book.yourRow == lineIndex then colour, tint = Theme.color.gold, Theme.color.gold
-        elseif level.mine then colour, tint = Theme.color.watch, Theme.color.watch end
-        line.price:SetText(formatCell(level.unit)); setColor(line.price, colour)
-        line.qty:SetText(GC.Util.FormatCount(level.units) or "—")
-        setColor(line.qty, Theme.color.fgDim)
-        local span = widest > 0 and (level.units / widest) or 0
-        line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor(DR.BAR_MAX * span + 0.5)))
-        if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
-        else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
-        line.price:Show(); line.qty:Show(); line.bar:Show()
-        -- The same two facts in a word and a wash: where the price lands, what is already
-        -- the seller's. Where they coincide the landing wins -- it is the one being decided.
-        -- A wash and the colour, no word: a word needs a column, and wherever that column was
-        -- put -- right of the counts, left of the prices -- it held the bars and the figures off
-        -- one edge of the panel for the sake of one level in eight (seen in game, twice). The
-        -- line under the book is the key: it is written in the same gold, and names the blue.
-        line.tag:Hide()
-        if tint then
-          line.wash:SetColorTexture(tint[1], tint[2], tint[3], 0.10)
-          line.wash:Show()
-        else
-          line.wash:Hide()
-        end
-      else
-        line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
-      end
-    end
+    INSP.paintLadder(row, book)
     -- How deep the book is rides here, after where the price stands in it: the hint beside the
     -- heading has room for the price to beat and nothing else.
     row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
@@ -4112,7 +4192,13 @@ function INSP.paintHead(row, p, d)
     local ownUnits = 0
     for i = 1, #(book.rows or {}) do ownUnits = ownUnits + (book.rows[i].ownerUnits or 0) end
     local own = ownUnits > 0 and ("  " .. inlineColor(Theme.color.watch, GC.L["yours"] .. " ×" .. ownUnits)) or ""
-    if book.yourRow then
+    if book.commodity and book.yourUnit then
+      -- Where the price stands is the marker's, in the ladder; this line says what it means:
+      -- how long the queue ahead takes at today's pace, or -- past the levels read -- that the
+      -- count is a floor, never a number made up for the rest.
+      row.drawerStand:SetText(INSP.standWords(book) .. own)
+      setColor(row.drawerStand, Theme.color.goldHi)
+    elseif book.yourRow then
       row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
         book.yourRow, book.levels or 0) .. own)
       setColor(row.drawerStand, Theme.color.goldHi)
@@ -4124,7 +4210,7 @@ function INSP.paintHead(row, p, d)
     row.drawerHint:Hide()
     row.headRules[1]:Show()
     for _, line in ipairs(row.bookLines) do
-      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     end
     row.drawerDepth:Hide()
     row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
@@ -4146,6 +4232,9 @@ function INSP.paintHead(row, p, d)
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
+  -- The walls around the price lead: the nearest at or under it (priced under it, a post sells
+  -- first) and the first above it.
+  for _, words in ipairs(book and INSP.wallWords(book) or {}) do facts[#facts + 1] = words end
   if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
   if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
   -- In hours under a day: rounded to whole days, anything that sells through by this
@@ -4684,7 +4773,10 @@ renderRows = function()
         -- cheapest; the lit one is where this price lands -- gold for a price about to be
         -- posted, the watch blue for a lot already standing there, the same two colours the
         -- book itself uses for the same two facts.
-        local standing = rowUnit and GC.SellViewModel.Standing and GC.SellViewModel.Standing(p, rowUnit) or nil
+        -- On TO POST the price is about to be posted and joins any level at the same price, so
+        -- that level counts as ahead -- what THE BOOK's marker says (SellViewModel.UnitsAhead).
+        local standing = rowUnit and GC.SellViewModel.Standing
+          and GC.SellViewModel.Standing(p, rowUnit, not onListedDeck) or nil
         local lit = onListedDeck and Theme.color.watch or Theme.color.gold
         for slot, mark in ipairs(row.standMarks) do
           if not standing then
@@ -5005,7 +5097,7 @@ renderRows = function()
         row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
         row.drawerDepth:Hide(); row.drawerQuote:Hide()
         for _, line in ipairs(row.bookLines) do
-          line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+          line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
         end
       end
       -- The second lines belong to a position alone; a pooled row that was one last render

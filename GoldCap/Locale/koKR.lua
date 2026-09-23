@@ -46,6 +46,7 @@ GC.Locales.koKR = {
   ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
+  ["%s units across %d prices"] = "%s개 · 가격 %d단",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
@@ -479,10 +480,10 @@ GC.Locales.koKR = {
   ["Your minimum"] = "내 최소 기준",
   ["Your price"] = "내 가격",
   ["a unit, at or under your price of %s"] = "개당 가격, 내 가격 %s 이하",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "최저가보다 높게, 저가 구간 안 · 아래에 %d개 대기 중",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "최저가보다 높게, 하루 도달 범위 안 · 아래에 %d개 대기 중",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "최저가보다 높게, 저가 구간 안 · 앞에 %s개",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "최저가보다 높게, 하루 도달 범위 안 · 앞에 %s개",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
   ["any figure here would be invented out of the very number being refused"] =
@@ -591,6 +592,7 @@ GC.Locales.koKR = {
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
+  ["past the first %d prices read (%s units)"] = "읽은 처음 %d단 가격보다 위 (%s개)",
   ["placing bid..."] = "입찰 중...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "이전 상품 구매가 끝남 -- Refresh로 가격을 다시 확인하세요",
@@ -651,6 +653,9 @@ GC.Locales.koKR = {
   ["unknown evidence"] = "알 수 없는 근거",
   ["waiting for previous commodity purchase to settle"] = "이전 상품 구매가 끝나기를 기다리는 중",
   ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
+  ["wall"] = "벽",
+  ["wall %s at %s -- price under it to sell first"] = "%s개 벽 (%s) -- 그보다 낮게 올려야 먼저 팔립니다",
+  ["wall %s at %s above you"] = "%s개 벽 (%s) -- 내 가격보다 위",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -663,7 +668,12 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["your price · %s units ahead of you"] = "내 가격 · 앞에 %s개",
+  ["your price · at least %s units ahead of you"] = "내 가격 · 앞에 최소 %s개",
+  ["your price · first in line"] = "내 가격 · 맨 앞 순서",
   ["yours"] = "내 가격",
+  ["~%dd to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d일",
+  ["~%dh to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d시간",
   ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

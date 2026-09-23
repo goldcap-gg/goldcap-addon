@@ -43,6 +43,7 @@ GC.Locales.ruRU = {
   ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s under you"] = "%s дешевле вас",
+  ["%s units across %d prices"] = "%s шт. по %d ценам",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["1 lot, %s asked"] = "1 лот, просят %s",
@@ -511,10 +512,10 @@ GC.Locales.ruRU = {
   ["Your minimum"] = "Твой минимум",
   ["Your price"] = "Ваша цена",
   ["a unit, at or under your price of %s"] = "за штуку, по вашей цене %s или ниже",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "выше самого дешёвого, в пределах дневного размаха · в очереди ниже %d шт.",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "выше самого дешёвого, в дешёвой четверти · впереди %s шт.",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "выше самого дешёвого, в пределах дневного размаха · впереди %s шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "против региональной цены этого предмета, за вычетом 5% — если он продастся",
   ["any figure here would be invented out of the very number being refused"] =
@@ -628,6 +629,7 @@ GC.Locales.ruRU = {
     "или вставьте строку с goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
+  ["past the first %d prices read (%s units)"] = "дальше первых %d прочитанных цен (%s шт.)",
   ["placing bid..."] = "делаем ставку...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "предыдущая покупка товара завершена -- Refresh, чтобы перепроверить цену",
@@ -692,6 +694,10 @@ GC.Locales.ruRU = {
   ["waiting for previous commodity purchase to settle"] =
     "ждём завершения предыдущей покупки товара",
   ["waiting for previous search result to settle"] = "ждём завершения предыдущего поиска",
+  ["wall"] = "стена",
+  ["wall %s at %s -- price under it to sell first"] =
+    "стена %s шт. по %s -- ставьте ниже, чтобы продать раньше",
+  ["wall %s at %s above you"] = "стена %s шт. по %s выше вас",
   ["watching %s closely -- re-checked every few seconds"] =
     "пристально следим за %s -- перепроверка каждые несколько секунд",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -704,7 +710,12 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
+  ["your price · %s units ahead of you"] = "ваша цена · впереди %s шт.",
+  ["your price · at least %s units ahead of you"] = "ваша цена · впереди не меньше %s шт.",
+  ["your price · first in line"] = "ваша цена · первый в очереди",
   ["yours"] = "ваша",
+  ["~%dd to reach you at today's pace"] = "~%d дн. до вас при сегодняшнем темпе",
+  ["~%dh to reach you at today's pace"] = "~%d ч до вас при сегодняшнем темпе",
   ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

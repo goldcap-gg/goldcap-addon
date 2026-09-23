@@ -301,11 +301,17 @@ function GC.SellViewModel.SummaryText(summary)
     profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
 end
 
--- How many price levels the expanded row shows. The book runs to 100 (Core/SellPositions'
--- boundedLevels), and nobody undercuts the 40th cheapest seller -- what a seller is deciding
--- is where to stand among the first handful. Levels beyond the cut are still counted in the
--- totals, so the header never claims the book is smaller than it is.
+-- How many lines THE BOOK draws: the panel has room for eight and never scrolls (SellFrame's
+-- DR.LINES). Levels beyond them are still counted in the totals, so the header never claims
+-- the book is smaller than it is.
 local BOOK_ROWS = 8
+-- The most price levels the tab reads per item (UI/SellFrame.lua's quote driver reads through
+-- this). A book of this many may have been cut there: a price past its last level has at least
+-- all of it ahead, and an unknown amount more.
+GC.SellViewModel.BOOK_READ_MAX = 100
+-- A level holding this share of a day's sales or more is a wall: priced under it, a post sells
+-- first; at or over it, the post waits for the whole wall to clear.
+local WALL_SHARE = 0.25
 
 -- How much of one price level is the player's own stock. Shared by the book below and by
 -- Standing: both have to agree on what "not mine" means, or the row says one queue depth and
@@ -314,6 +320,61 @@ local function ownUnits(level, units)
   if type(level.ownerQty) == "number" then return level.ownerQty end
   if level.ownerItem == true then return units end -- unsplittable: the whole level is the player's
   return 0
+end
+
+--- Units a post at `unit` waits behind: every unit listed at or under that price that is not
+-- the player's own. At an equal price the auction house sells the older listing first, so the
+-- units already at the exact price are ahead too. THE BOOK's marker, the strategy line under
+-- the price and a TO POST row's standing all say this one count. nil with no book or no price.
+function GC.SellViewModel.UnitsAhead(levels, unit)
+  if type(levels) ~= "table" or type(unit) ~= "number" or unit <= 0 then return nil end
+  local ahead, seen = 0, 0
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      seen = seen + 1
+      if level.unitPrice <= unit then
+        local units = type(level.quantity) == "number" and level.quantity or 0
+        ahead = ahead + math.max(0, units - ownUnits(level, units))
+      end
+    end
+  end
+  return seen > 0 and ahead or nil
+end
+
+local function isCommodity(position)
+  return type(position.positionKey) == "string" and position.positionKey:find("^commodity:") ~= nil
+end
+
+-- Which levels THE BOOK draws for a commodity with a price of the player's: the cheapest
+-- ones, a gap line for what is skipped, the levels just under the price, a marker for the price
+-- itself (after the levels at an equal price -- it would join their tail), and the levels
+-- above. Eight lines in all. Room the levels under the price do not need goes to those above.
+local function ladder(valid, yours)
+  local k = #valid + 1
+  for i = 1, #valid do
+    if valid[i].unit > yours then k = i break end
+  end
+  local below, aboveAvail = k - 1, #valid - k + 1
+  local above = math.min(2, aboveAvail)
+  local rest = BOOK_ROWS - 1 - above
+  local rows = {}
+  if below <= rest then
+    above = math.min(aboveAvail, above + (rest - below))
+    for i = 1, below do rows[#rows + 1] = valid[i] end
+  else
+    local cheap = math.floor((rest - 1) / 2)
+    local near = rest - 1 - cheap
+    for i = 1, cheap do rows[#rows + 1] = valid[i] end
+    local units, prices = 0, 0
+    for i = cheap + 1, below - near do units, prices = units + valid[i].units, prices + 1 end
+    rows[#rows + 1] = { kind = "gap", units = units, prices = prices }
+    for i = below - near + 1, below do rows[#rows + 1] = valid[i] end
+  end
+  rows[#rows + 1] = { kind = "yours", unit = yours }
+  local yourRow = #rows
+  for i = k, k + above - 1 do rows[#rows + 1] = valid[i] end
+  return rows, yourRow
 end
 
 --- The live order book, as the expanded Sell row needs to read it.
@@ -328,40 +389,72 @@ local function book(position)
   local levels = type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 then return nil end
 
-  local rows, totalUnits, sellerLevels, running = {}, 0, 0, 0
+  local valid, totalUnits, running = {}, 0, 0
   for i = 1, #levels do
     local level = levels[i]
     if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
       local units = type(level.quantity) == "number" and level.quantity or 0
       local ownerUnits = ownUnits(level, units)
       totalUnits = totalUnits + units
-      sellerLevels = sellerLevels + 1
-      if #rows < BOOK_ROWS then
-        running = running + units
-        rows[#rows + 1] = { unit = level.unitPrice, units = units, ownerUnits = ownerUnits,
-          mine = ownerUnits > 0, cumulative = running }
+      running = running + units
+      valid[#valid + 1] = { kind = "level", unit = level.unitPrice, units = units, ownerUnits = ownerUnits,
+        mine = ownerUnits > 0, cumulative = running }
+    end
+  end
+  if #valid == 0 then return nil end
+
+  -- Where the price GoldCap picked would sit. `postRecommendation` is the bag-stock answer
+  -- (see its own comment in SellPositions) -- the same number Post lists at, a typed price
+  -- included -- so this marks the place the seller is about to join rather than one they hold.
+  local yours = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
+  if type(yours) ~= "number" or yours <= 0 then yours = nil end
+  local commodity = isCommodity(position)
+  local sold = type(position.soldPerDay) == "number" and position.soldPerDay > 0 and position.soldPerDay or nil
+
+  local rows, yourRow, ahead, pastRead, wallBelow, wallAbove, hoursToReach
+  if commodity and yours then
+    rows, yourRow = ladder(valid, yours)
+    ahead = GC.SellViewModel.UnitsAhead(levels, yours)
+    -- Past the last level read, and the read may have been cut: at least everything read is
+    -- ahead, and nobody knows how much more. A book that ended before the cut is all of it.
+    pastRead = yours > valid[#valid].unit and #levels >= GC.SellViewModel.BOOK_READ_MAX
+    rows[yourRow].ahead, rows[yourRow].pastRead = ahead, pastRead
+    -- Walls, on the stock that is not the player's own. With the day's sales unknown, the
+    -- biggest level read is the one to name.
+    local biggest = 0
+    for i = 1, #valid do biggest = math.max(biggest, valid[i].units - valid[i].ownerUnits) end
+    for i = 1, #valid do
+      local competing = valid[i].units - valid[i].ownerUnits
+      valid[i].wall = competing > 0 and (sold and competing >= sold * WALL_SHARE or (not sold and competing == biggest))
+      if valid[i].wall then
+        local wall = { unit = valid[i].unit, units = competing }
+        if valid[i].unit <= yours then wallBelow = wall
+        elseif not wallAbove then wallAbove = wall end
+      end
+    end
+    if sold and ahead and ahead > 0 and not pastRead then hoursToReach = ahead / sold * 24 end
+  else
+    rows = {}
+    for i = 1, math.min(#valid, BOOK_ROWS) do rows[i] = valid[i] end
+    if yours then
+      for i = 1, #rows do
+        if rows[i].unit >= yours then yourRow = i break end
       end
     end
   end
-  if #rows == 0 then return nil end
 
-  -- Where the price GoldCap picked would sit. `postRecommendation` is the bag-stock answer
-  -- (see its own comment in SellPositions) -- the same number Post lists at -- so this marks
-  -- the row the seller is about to join rather than one they already hold.
-  local yours = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
-  local yourRow
-  if type(yours) == "number" and yours > 0 then
-    for i = 1, #rows do
-      if rows[i].unit >= yours then yourRow = i break end
+  local widest, shown = 0, 0
+  for i = 1, #rows do
+    if rows[i].kind == "level" then
+      shown = shown + 1
+      if rows[i].units > widest then widest = rows[i].units end
     end
   end
-
-  local widest = 0
-  for i = 1, #rows do if rows[i].units > widest then widest = rows[i].units end end
   return {
-    rows = rows, levels = sellerLevels, totalUnits = totalUnits, widest = widest,
-    truncated = sellerLevels > #rows,
-    yourUnit = yours, yourRow = yourRow,
+    rows = rows, levels = #valid, totalUnits = totalUnits, widest = widest,
+    truncated = #valid > shown, commodity = commodity,
+    yourUnit = yours, yourRow = yourRow, ahead = ahead, pastRead = pastRead == true,
+    wallBelow = wallBelow, wallAbove = wallAbove, hoursToReach = hoursToReach,
     cheapestCompeting = GC.SellPositions and GC.SellPositions.CheapestCompetingUnit
       and GC.SellPositions.CheapestCompetingUnit(levels) or nil,
   }
@@ -375,7 +468,12 @@ end
 -- show a position in the queue without opening anything; one past the last level means the
 -- price sits above everything the auction house returned. nil when there is no book or no
 -- price: an absent answer must not read as "nobody is ahead of you".
-function GC.SellViewModel.Standing(position, unit)
+--
+-- `joining`: the price is about to be POSTED on a commodity, so it joins the tail of a level at
+-- the same price and that level is ahead of it too (GC.SellViewModel.UnitsAhead) -- the count
+-- THE BOOK's marker shows. A lot already standing at its price, or a realm item's lot, is not
+-- joining anything: strictly cheaper, as before.
+function GC.SellViewModel.Standing(position, unit, joining)
   local levels = type(position) == "table" and type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 or type(unit) ~= "number" or unit <= 0 then return nil end
   local ahead, slot, seen = 0, nil, 0
@@ -392,6 +490,7 @@ function GC.SellViewModel.Standing(position, unit)
     end
   end
   if seen == 0 then return nil end
+  if joining and isCommodity(position) then ahead = GC.SellViewModel.UnitsAhead(levels, unit) end
   return { ahead = ahead, slot = slot or seen + 1 }
 end
 
@@ -472,12 +571,19 @@ function GC.SellViewModel.Expansion(position)
   -- the cheap quarter is the fallback wording for an import that carries no reach figure yet.
   -- Both spelled out rather than picking a key into a variable: a key has to be a literal at
   -- the lookup or the locale contract scanner cannot see it (the addon's engineering notes).
-  if isOvercut and rec.capBy == "reach" then
-    facts[#facts + 1] =
-      (GC.L["above the cheapest, within the day's reach · %d units queued below"]):format(rec.ahead)
-  elseif isOvercut then
-    facts[#facts + 1] =
-      (GC.L["above the cheapest, inside the cheap quarter · %d units queued below"]):format(rec.ahead)
+  -- The count is THE BOOK's own (UnitsAhead): at or under the price, less the player's own --
+  -- the engine's `ahead` counts strictly below, so the line and the marker could say two
+  -- numbers about one price. The engine's figure stands in only where there is no book to count.
+  if isOvercut then
+    local ahead = GC.SellViewModel.UnitsAhead(position.levels, rec.unit) or rec.ahead
+    ahead = GC.Util and GC.Util.FormatCount and GC.Util.FormatCount(ahead) or tostring(ahead)
+    if rec.capBy == "reach" then
+      facts[#facts + 1] =
+        (GC.L["above the cheapest, within the day's reach · %s units ahead of you"]):format(ahead)
+    else
+      facts[#facts + 1] =
+        (GC.L["above the cheapest, inside the cheap quarter · %s units ahead of you"]):format(ahead)
+    end
   end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end

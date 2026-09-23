@@ -1057,6 +1057,85 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(reused.drawerFacts.shown)
     end)
 
+    -- A commodity's book, as the view model now hands it over: the ladder around the seller's
+    -- price (cheapest, a gap, the levels under it, the marker, the levels above), walls, and
+    -- what stands ahead. See spec/sell_book_spec.lua for how the rows are chosen.
+    local LADDER = {
+      commodity = true, levels = 20, totalUnits = 9000, truncated = true, widest = 420,
+      cheapestCompeting = 101000, yourUnit = 115500, yourRow = 6, ahead = 2321,
+      hoursToReach = 6, pastRead = false,
+      wallBelow = { unit = 115000, units = 420 }, wallAbove = { unit = 117000, units = 400 },
+      rows = {
+        { kind = "level", unit = 101000, units = 10, ownerUnits = 0, mine = false },
+        { kind = "level", unit = 102000, units = 10, ownerUnits = 0, mine = false },
+        { kind = "gap", units = 1100, prices = 11 },
+        { kind = "level", unit = 114000, units = 10, ownerUnits = 0, mine = false },
+        { kind = "level", unit = 115000, units = 420, ownerUnits = 0, mine = false, wall = true },
+        { kind = "yours", unit = 115500, ahead = 2321 },
+        { kind = "level", unit = 116000, units = 10, ownerUnits = 0, mine = false },
+        { kind = "level", unit = 117000, units = 400, ownerUnits = 0, mine = false, wall = true },
+      },
+    }
+
+    it("marks your own price at its place in the ladder, with what stands ahead of it", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, LADDER), "drawer")
+      local marker = drawer.bookLines[6]
+      local GOLD = GC.Theme.color.gold
+      assert.equal("11g55s", marker.price.text)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, marker.price.color)
+      assert.equal("your price · 2.3k units ahead of you", marker.note.text)
+      assert.is_true(marker.note.shown)
+      assert.is_false(marker.qty.shown)
+      assert.is_false(marker.bar.shown)
+      assert.is_true(marker.wash.shown)
+      -- The levels around it are levels, with no note.
+      assert.equal("10", drawer.bookLines[4].qty.text)
+      assert.is_false(drawer.bookLines[4].note.shown)
+    end)
+
+    it("folds the skipped middle of the book into one line", function()
+      local GC = load(620, { calls = {} })
+      local gap = nth(bookRows(GC, LADDER), "drawer").bookLines[3]
+      assert.equal("…", gap.price.text)
+      assert.equal("1.1k units across 11 prices", gap.note.text)
+      assert.is_false(gap.qty.shown)
+      assert.is_false(gap.bar.shown)
+    end)
+
+    it("marks a wall with its own colour and a word, and names the walls around your price", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, LADDER), "drawer")
+      local RED = GC.Theme.color.red
+      local wall = drawer.bookLines[5]
+      assert.equal("wall", wall.tag.text)
+      assert.is_true(wall.tag.shown)
+      assert.same({ RED[1], RED[2], RED[3], 0.8 }, wall.bar.fill.vertexColor)
+      assert.is_false(drawer.bookLines[4].tag.shown)
+      assert.matches("wall 420 at 11g50s -- price under it to sell first", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 400 at 11g70s above you", drawer.drawerFacts.text, 1, true)
+    end)
+
+    it("says how long the queue ahead of your price takes at today's pace", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, LADDER), "drawer")
+      assert.matches("~6h to reach you at today's pace", drawer.drawerStand.text, 1, true)
+    end)
+
+    it("says a price past the levels read has at least that many ahead, and no time", function()
+      local GC = load(620, { calls = {} })
+      local past = {}
+      for k, v in pairs(LADDER) do past[k] = v end
+      past.pastRead, past.levels, past.totalUnits, past.hoursToReach = true, 100, 5605, nil
+      past.rows = { { kind = "level", unit = 101000, units = 10, ownerUnits = 0, mine = false },
+        { kind = "yours", unit = 999999, ahead = 5605, pastRead = true } }
+      past.yourRow = 2
+      local drawer = nth(bookRows(GC, past), "drawer")
+      assert.equal("your price · at least 5.6k units ahead of you", drawer.bookLines[2].note.text)
+      assert.matches("past the first 100 prices read (5.6k units)", drawer.drawerStand.text, 1, true)
+      assert.is_nil(drawer.drawerStand.text:find("to reach you", 1, true))
+    end)
+
     it("draws no book section at all when the addon has no live book", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, nil)
@@ -2329,10 +2408,13 @@ describe("Sell widget geometry and manual cost", function()
       return p
     end
 
-    it("says how much stock is queued under the price and lights the level it lands on", function()
+    -- A price about to be posted joins the tail of the level at the same price: at an equal
+    -- price the auction house sells the older listing first, so those 240 are ahead too -- the
+    -- count THE BOOK's marker shows for the same price (SellViewModel.UnitsAhead). It said 120.
+    it("says how much stock is queued at or under the price and lights the level it lands on", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock() })
-      assert.equal("120 ahead", rows[1].priceStand.text)
+      assert.equal("360 ahead", rows[1].priceStand.text)
       assert.is_true(rows[1].priceStand.shown)
       local GOLD = GC.Theme.color.gold
       assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[1].standMarks[3].colorTexture)
@@ -2340,11 +2422,14 @@ describe("Sell widget geometry and manual cost", function()
       assert.same({ 1, 1, 1, 0.10 }, rows[1].standMarks[4].colorTexture)
     end)
 
-    it("says first in line, in green, when nothing cheaper is not the player's own", function()
+    it("says first in line, in green, when nothing at or under the price is not the player's own", function()
       local GC = load(620, { calls = {} })
-      local rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
+      local rows = topRows(GC, { stock({ postRecommendation = { unit = 178900 } }) })
       assert.equal("first in line", rows[1].priceStand.text)
       assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
+      -- Matching the cheapest joins its tail: its 35 sell first. This used to say first in line.
+      rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
+      assert.equal("35 ahead", rows[1].priceStand.text)
     end)
 
     it("leaves the standing empty rather than claiming an empty queue when there is no book", function()

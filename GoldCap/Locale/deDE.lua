@@ -44,6 +44,7 @@ GC.Locales.deDE = {
   ["%s after the AH cut"] = "%s nach der AH-Gebühr",
   ["%s ahead"] = "%s davor",
   ["%s under you"] = "%s unter dir",
+  ["%s units across %d prices"] = "%s Stück auf %d Preisen",
   ["%s — %d unit%s without a cost"] = "%s — %d Stück%s ohne Einkaufspreis",
   [", %d hidden as unsellable"] = ", %d als unverkäuflich ausgeblendet",
   ["1 lot, %s asked"] = "1 Posten, %s verlangt",
@@ -514,10 +515,10 @@ GC.Locales.deDE = {
   ["Your minimum"] = "Dein Minimum",
   ["Your price"] = "Dein Preis",
   ["a unit, at or under your price of %s"] = "pro Stück, zu oder unter deinem Preis von %s",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "über dem Günstigsten, im günstigen Viertel · %d Einheiten davor in der Schlange",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "über dem Günstigsten, innerhalb der Tagesreichweite · %d Einheiten davor in der Schlange",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "über dem Günstigsten, im günstigen Viertel · %s Einheiten vor dir",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "über dem Günstigsten, innerhalb der Tagesreichweite · %s Einheiten vor dir",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "gegen den Regionspreis dieses Gegenstands, nach 5% Gebühr — falls er sich verkauft",
   ["any figure here would be invented out of the very number being refused"] =
@@ -633,6 +634,8 @@ GC.Locales.deDE = {
     "oder füge mit /goldcap import eine Zeichenkette von goldcap.gg ein.",
   ["over %d position%s"] = "über %d Positionen%s",
   ["paid sale unresolved"] = "bezahlter Verkauf ungeklärt",
+  ["past the first %d prices read (%s units)"] =
+    "hinter den ersten %d gelesenen Preisen (%s Stück)",
   ["placing bid..."] = "Gebot wird abgegeben...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "vorheriger Warenkauf abgeschlossen -- Refresh, um den Preis erneut zu prüfen",
@@ -697,6 +700,10 @@ GC.Locales.deDE = {
   ["waiting for previous commodity purchase to settle"] =
     "warte, bis der vorherige Warenkauf abgeschlossen ist",
   ["waiting for previous search result to settle"] = "warte auf das vorherige Suchergebnis",
+  ["wall"] = "Wand",
+  ["wall %s at %s -- price under it to sell first"] =
+    "Wand %s bei %s -- darunter anbieten, um zuerst zu verkaufen",
+  ["wall %s at %s above you"] = "Wand %s bei %s über dir",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s wird genau beobachtet -- alle paar Sekunden neu geprüft",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -709,7 +716,12 @@ GC.Locales.deDE = {
     "dein Spielclient hat keine Schrift für diese Sprache — der Text erscheint als leere Kästchen",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
+  ["your price · %s units ahead of you"] = "dein Preis · %s Stück vor dir",
+  ["your price · at least %s units ahead of you"] = "dein Preis · mindestens %s Stück vor dir",
+  ["your price · first in line"] = "dein Preis · als Erster dran",
   ["yours"] = "deiner",
+  ["~%dd to reach you at today's pace"] = "~%d Tage bis du dran bist, beim heutigen Tempo",
+  ["~%dh to reach you at today's pace"] = "~%d Std. bis du dran bist, beim heutigen Tempo",
   ["» needs price"] = "» braucht Preis",
   ["×%d in bags"] = "×%d in Taschen",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

@@ -47,6 +47,7 @@ GC.Locales.ukUA = {
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s under you"] = "%s дешевше за вас",
+  ["%s units across %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["1 lot, %s asked"] = "1 лот, просять %s",
@@ -526,10 +527,10 @@ GC.Locales.ukUA = {
   ["Your minimum"] = "Твій мінімум",
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "вище найдешевшого, у межах денного розмаху · у черзі нижче %d шт.",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "вище найдешевшого, у дешевій чверті · попереду %s шт.",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "вище найдешевшого, у межах денного розмаху · попереду %s шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
   ["any figure here would be invented out of the very number being refused"] =
@@ -645,6 +646,7 @@ GC.Locales.ukUA = {
   ["over %d position%s"] = "по %d позиціях%s",
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
+  ["past the first %d prices read (%s units)"] = "далі перших %d прочитаних цін (%s шт.)",
   ["placing bid..."] = "робимо ставку...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "попередню купівлю товару завершено -- Refresh, щоб перевірити ціну ще раз",
@@ -711,6 +713,10 @@ GC.Locales.ukUA = {
     "чекаємо, поки завершиться попередня купівля товару",
   ["waiting for previous search result to settle"] =
     "чекаємо, поки завершиться попередній пошук",
+  ["wall"] = "стіна",
+  ["wall %s at %s -- price under it to sell first"] =
+    "стіна %s шт. по %s -- ставте нижче, щоб продати раніше",
+  ["wall %s at %s above you"] = "стіна %s шт. по %s вище за вас",
   ["watching %s closely -- re-checked every few seconds"] =
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -725,7 +731,12 @@ GC.Locales.ukUA = {
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
   ["your price stands %d of %d"] = "твоя ціна стане %d з %d",
+  ["your price · %s units ahead of you"] = "ваша ціна · попереду %s шт.",
+  ["your price · at least %s units ahead of you"] = "ваша ціна · попереду щонайменше %s шт.",
+  ["your price · first in line"] = "ваша ціна · перший у черзі",
   ["yours"] = "ваша",
+  ["~%dd to reach you at today's pace"] = "~%d дн. до вас за сьогоднішнього темпу",
+  ["~%dh to reach you at today's pace"] = "~%d год до вас за сьогоднішнього темпу",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

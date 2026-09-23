@@ -48,6 +48,7 @@ GC.Locales.zhTW = {
   ["%s after the AH cut"] = "扣除拍賣場手續費後 %s",
   ["%s ahead"] = "前面有 %s",
   ["%s under you"] = "%s 低於你的價格",
+  ["%s units across %d prices"] = "%s 件，分佈在 %d 個價位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
   [", %d hidden as unsellable"] = "，%d 件因無法出售已隱藏",
   ["1 lot, %s asked"] = "1 批，要價 %s",
@@ -467,10 +468,10 @@ GC.Locales.zhTW = {
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的價格",
   ["a unit, at or under your price of %s"] = "單價，不高於你的價格 %s",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "高於最低價，處於低價四分位內 · 下方排隊 %d 件",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "高於最低價，處於當日可達價內 · 下方排隊 %d 件",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "高於最低價，處於低價四分位內 · 前面有 %s 件",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "高於最低價，處於當日可達價內 · 前面有 %s 件",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "對比該物品的區域價格，扣除 5% 手續費後 — 前提是能賣掉",
   ["any figure here would be invented out of the very number being refused"] =
@@ -573,6 +574,7 @@ GC.Locales.zhTW = {
     "或用 /goldcap import 貼上 goldcap.gg 的字串。",
   ["over %d position%s"] = "共 %d 個持倉%s",
   ["paid sale unresolved"] = "已入帳的銷售未匹配",
+  ["past the first %d prices read (%s units)"] = "超出已讀取的前 %d 個價位（%s 件）",
   ["placing bid..."] = "正在出價...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "前一筆商品購買已結算 -- 按 Refresh 重新檢查價格",
@@ -630,6 +632,9 @@ GC.Locales.zhTW = {
   ["unknown evidence"] = "未知的依據",
   ["waiting for previous commodity purchase to settle"] = "等待前一筆商品購買結算",
   ["waiting for previous search result to settle"] = "等待前一次搜尋結果",
+  ["wall"] = "牆",
+  ["wall %s at %s -- price under it to sell first"] = "%s 件的牆在 %s -- 定價低於它才能先賣出",
+  ["wall %s at %s above you"] = "%s 件的牆在 %s，高於你的價格",
   ["watching %s closely -- re-checked every few seconds"] = "密切關注 %s -- 每幾秒重新檢查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最壞情況下，把全部 %d 件按現在掛著的價格賣回去",
@@ -641,7 +646,12 @@ GC.Locales.zhTW = {
     "你的遊戲客戶端沒有這種語言的字型 — 文字會顯示為空白方塊",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
+  ["your price · %s units ahead of you"] = "你的價格 · 前面有 %s 件",
+  ["your price · at least %s units ahead of you"] = "你的價格 · 前面至少有 %s 件",
+  ["your price · first in line"] = "你的價格 · 排在第一位",
   ["yours"] = "你的",
+  ["~%dd to reach you at today's pace"] = "按今天的速度，約 %d 天輪到你",
+  ["~%dh to reach you at today's pace"] = "按今天的速度，約 %d 小時輪到你",
   ["» needs price"] = "» 需要價格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

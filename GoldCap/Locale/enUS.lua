@@ -52,6 +52,7 @@ GC.Locales.enUS = {
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s under you"] = "%s under you",
+  ["%s units across %d prices"] = "%s units across %d prices",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
@@ -150,6 +151,10 @@ GC.Locales.enUS = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
   ["YOUR LOTS"] = "YOUR LOTS",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "above the cheapest, inside the cheap quarter · %s units ahead of you",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "above the cheapest, within the day's reach · %s units ahead of you",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
@@ -160,6 +165,7 @@ GC.Locales.enUS = {
   ["no cost for %d"] = "no cost for %d",
   ["no price"] = "no price",
   ["oldest units sell first"] = "oldest units sell first",
+  ["past the first %d prices read (%s units)"] = "past the first %d prices read (%s units)",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
   ["Remove this run"] = "Remove this run",
@@ -595,10 +601,6 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "above the cheapest, inside the cheap quarter · %d units queued below",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "above the cheapest, within the day's reach · %d units queued below",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["alert group · %d hits"] = "alert group · %d hits",
@@ -790,6 +792,10 @@ GC.Locales.enUS = {
     "vs %s at the auction house · right-click to split",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
+  ["wall"] = "wall",
+  ["wall %s at %s -- price under it to sell first"] =
+    "wall %s at %s -- price under it to sell first",
+  ["wall %s at %s above you"] = "wall %s at %s above you",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
   ["window moved back to the middle of the screen at its default size"] =
     "window moved back to the middle of the screen at its default size",
@@ -805,9 +811,14 @@ GC.Locales.enUS = {
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "your price is above every level shown",
   ["your price stands %d of %d"] = "your price stands %d of %d",
+  ["your price · %s units ahead of you"] = "your price · %s units ahead of you",
+  ["your price · at least %s units ahead of you"] = "your price · at least %s units ahead of you",
+  ["your price · first in line"] = "your price · first in line",
   ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
     "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["yours"] = "yours",
+  ["~%dd to reach you at today's pace"] = "~%dd to reach you at today's pace",
+  ["~%dh to reach you at today's pace"] = "~%dh to reach you at today's pace",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",
