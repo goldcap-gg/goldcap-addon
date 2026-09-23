@@ -2908,16 +2908,28 @@ function GC.Sniper._NotePassSlot(drillStoodAside)
   if drillStoodAside then share.pages = share.pages + 1 end
 end
 
+-- Whether a book row can be told as its item's floor. Not a row of an item the browse list returned
+-- as more than one variant (gear by item level, caged pets by species): it is one of them. Not a
+-- leveled row of anything but a commodity either (final review I1): gear the auction house lists at
+-- a single level is never marked, and its row is that level's floor -- 70,000g for the 623 on offer
+-- said nothing about the 606 in the bags. Gear never gets the line, as the Sell tab never prices it
+-- from a figure for other item levels.
+function GC.Sniper._LiveRow(itemID, row)
+  if type(row) ~= "table" or row.variants or type(row.floor) ~= "number"
+      or type(row.seenAt) ~= "number" then
+    return false
+  end
+  if (tonumber(row.itemLevel) or 0) > 0 and not GC.Sniper._IsCommodityId(itemID) then return false end
+  return true
+end
+
 -- What this session's own browsing last saw of an item, for its tooltip: the book pass's floor and
 -- quantity and how many seconds ago, while that is within LIM.LIVE_TOOLTIP_SECONDS -- including the
--- minutes after the auction house closed (Core/BookPass.lua's Seen). nil otherwise, and nil for an
--- item the browse list returned as more than one variant (gear by item level, caged pets by
--- species): its row is one of them, not the item's floor.
+-- minutes after the auction house closed (Core/BookPass.lua's Seen). nil otherwise, and nil for a
+-- row that is not the item's floor (GC.Sniper._LiveRow).
 function GC.Sniper.LiveFloor(itemID, now)
   local row = GC.Sniper._bookPass and GC.Sniper._bookPass:Seen(itemID)
-  if not row or row.variants or type(row.floor) ~= "number" or type(row.seenAt) ~= "number" then
-    return nil
-  end
+  if not GC.Sniper._LiveRow(itemID, row) then return nil end
   local age = (now or time()) - row.seenAt
   if age < 0 or age > LIM.LIVE_TOOLTIP_SECONDS then return nil end
   return { floor = row.floor, qty = row.qty, age = age }

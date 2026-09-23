@@ -445,6 +445,25 @@ describe("Book pass wiring", function()
     assert.is_nil(GC.Sniper.LiveFloor(777, 1000))
   end)
 
+  -- Final review I1: gear the auction house lists at a single item level is never marked as
+  -- variants, and its one row is that level's floor -- not the price of the copy under the cursor.
+  -- Refused for anything that is not a commodity; a commodity's row is the item's floor, whatever
+  -- level its key states.
+  it("tells the tooltip nothing for gear listed at one item level, and still tells a commodity", function()
+    local GC = loadSniper()
+    GC.db.commodityByItem = { [9] = true }
+    browseResults = {
+      { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 70000, totalQuantity = 1 },
+      browseRow(7, 500, 40),
+      { itemKey = { itemID = 9, itemLevel = 1 }, minPrice = 800, totalQuantity = 12 },
+    }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_nil(GC.Sniper.LiveFloor(6, 1000))
+    assert.same({ floor = 500, qty = 40, age = 0 }, GC.Sniper.LiveFloor(7, 1000))
+    assert.same({ floor = 800, qty = 12, age = 0 }, GC.Sniper.LiveFloor(9, 1000))
+  end)
+
   it("hands the book pass the tooltip's window, so the line outlives closing the auction house", function()
     local GC = loadSniper()
     GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 60 }

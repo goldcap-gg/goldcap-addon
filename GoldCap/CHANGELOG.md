@@ -73,8 +73,7 @@
   instead of dropping it.
 - Hovering an item you have seen at the auction house in the last 15 minutes says what it was
   going for there: "On the AH now", its cheapest price, how many were listed and how long ago,
-  even after you close the auction house. Gear listed at several item levels and caged pets are
-  left out, since one price there would not say which of them it was.
+  even after you close the auction house. Gear and caged pets are left out.
 
 ## 0.14.1 (unreleased)
 

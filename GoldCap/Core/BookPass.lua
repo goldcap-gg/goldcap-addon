@@ -84,7 +84,11 @@ function GC.BookPass.New(driver, opts)
     local variants = (prev and prev.variants) or (carried and carried.variants)
       or (passKeys[itemID] ~= nil and passKeys[itemID] ~= variantKey) or nil
     passKeys[itemID] = passKeys[itemID] or variantKey
-    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind, variants = variants }
+    -- The level is kept too: gear the auction house lists at ONE level is never marked above, and
+    -- its row is that level's floor, not the item's -- the reader refuses a leveled row of anything
+    -- that is not a commodity.
+    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind, variants = variants,
+      itemLevel = itemKey.itemLevel }
     if kind == "classes" then classesSeen[itemID] = true end
     if hit then
       lost[itemID] = nil

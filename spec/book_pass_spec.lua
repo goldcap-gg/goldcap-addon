@@ -507,4 +507,19 @@ describe("BookPass", function()
     bp:Reset()
     assert.is_true(bp:Seen(5).variants)
   end)
+
+  -- Gear the auction house lists at ONE item level is never marked above, so the row keeps the level
+  -- it was listed at: the reader (UI/SniperFrame.lua's LiveFloor) refuses a leveled row of anything
+  -- that is not a commodity, whatever level the player's own copy is.
+  it("keeps the item level of the row it kept, for gear listed at one level", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 300, totalQuantity = 2 },
+      row(7, 500, 9) }
+    bp:OnResultsUpdated()
+    assert.is_nil(bp:Seen(6).variants)
+    assert.equal(600, bp:Seen(6).itemLevel)
+    assert.is_nil(bp:Seen(7).itemLevel)
+  end)
 end)
