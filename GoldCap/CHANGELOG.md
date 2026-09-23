@@ -208,7 +208,6 @@
   left to the vendor. Free accounts can buy the first five lines of a run; Pro buys them all.
   A list synced by companion 1.9 reaches the game the way market data does — after a /reload or
   relog — or paste a run string from the site into Import.
-||||||| 7395efeb
 - **The ITEMS board keeps looking.** After a switch to ITEMS the board checked its items
   once and then stood still for the rest of the visit; it now goes round its list again every
   few seconds for as long as the board is on screen.
