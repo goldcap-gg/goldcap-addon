@@ -388,12 +388,29 @@ describe("Book pass wiring", function()
   it("hands an ordinary hit the drill queue lost back to the book pass, and a cap's to the caps", function()
     local GC = loadSniper()
     local lostToPass, rearmed = {}, {}
-    GC.Sniper._bookPass = { Lost = function(_, itemID) lostToPass[#lostToPass + 1] = itemID end }
+    GC.Sniper._bookPass = { Lost = function(_, itemID, floor) lostToPass[#lostToPass + 1] = { itemID, floor } end }
     GC.Caps = { Rearm = function(itemID) rearmed[#rearmed + 1] = itemID end }
     GC.Sniper._OnDrillLost({ itemID = 5, floor = 100, priority = 0, cap = false })
     GC.Sniper._OnDrillLost({ itemID = 6, floor = 100, priority = 1, cap = true })
-    assert.same({ 5 }, lostToPass)
+    assert.same({ { 5, 100 } }, lostToPass)
     assert.same({ 6 }, rearmed)
+  end)
+
+  -- Fix round 1 (m3): a realm item's hit comes from the key poll, whose ratchet never repeats an
+  -- unchanged floor. Lost, it is re-armed there too -- under the same hold as the book pass's
+  -- re-hit, and only while the poll still shows the floor that was lost.
+  it("re-arms the realm poll for an ordinary hit it lost, at the floor the poll still shows", function()
+    local GC = loadSniper()
+    local rearmedPoll = {}
+    GC.Sniper._bookPass = { Lost = function() end }
+    GC.Sniper._keyPoll = {
+      Book = function() return { [5] = { judged = 100 }, [6] = { judged = 90 } } end,
+      Rearm = function(_, itemID, holdSeconds) rearmedPoll[#rearmedPoll + 1] = { itemID, holdSeconds } end,
+    }
+    GC.Sniper._OnDrillLost({ itemID = 5, floor = 100, priority = 0, cap = false })
+    GC.Sniper._OnDrillLost({ itemID = 6, floor = 100, priority = 0, cap = false }) -- the poll moved on
+    GC.Sniper._OnDrillLost({ itemID = 7, floor = 100, priority = 0, cap = false }) -- never polled
+    assert.same({ { 5, 120 } }, rearmedPoll)
   end)
 
   it("prints the sniper's supply counters on /gc board", function()

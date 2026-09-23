@@ -263,6 +263,14 @@ function GC.DrillQueue.New(driver, opts)
     return false
   end
 
+  -- Whether a Pop now would be allowed a send, charged to nothing. The arbiter asks it when
+  -- drills stand aside for a book-pass page, so /gc board counts that page as one a drill really
+  -- gave up (UI/SniperFrame.lua's fair share), not one a spent budget could never have taken.
+  function obj:HasBudget()
+    pruneWindow(driver.now())
+    return #sentAt < perMinute
+  end
+
   function obj:Pop()
     local now = driver.now()
     pruneExpired(now)
@@ -296,7 +304,7 @@ function GC.DrillQueue.New(driver, opts)
     return #items
   end
 
-  -- Every hit that left undrilled this session (lose above), for /gc board.
+  -- Every hit that left undrilled since /reload (lose above), for /gc board. Clear leaves it.
   function obj:LostCount() return lostCount end
 
   -- Everything queued describes a live order book, and there is no live order book once the

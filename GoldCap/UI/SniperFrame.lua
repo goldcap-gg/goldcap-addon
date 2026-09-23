@@ -2869,16 +2869,22 @@ end
 -- poll no longer reports any) are re-armed, so the next look at the same floor reports it again:
 -- they never repeat an unchanged floor, and without this the lot sat there at the player's price
 -- for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory stays, since
--- nothing has been announced. An ordinary hit's (whole-market coverage): the book pass may report
--- its unchanged floor again after LIM.REHIT_SECONDS, where it used to stay silent until the floor
--- happened to move.
+-- nothing has been announced. An ordinary hit's (whole-market coverage): the book (a commodity)
+-- or the realm poll (a realm item) that reported it may report its unchanged floor again after
+-- LIM.REHIT_SECONDS, where it used to stay silent until the floor happened to move -- each only
+-- while it still shows the floor that was lost (BookPass's Lost checks its own; the realm poll's
+-- is its `judged`, the floor its hits carry).
 function GC.Sniper._OnDrillLost(hit)
   if hit.cap then
     if GC.Caps then GC.Caps.Rearm(hit.itemID) end
     if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
     return
   end
-  if GC.Sniper._bookPass then GC.Sniper._bookPass:Lost(hit.itemID) end
+  if GC.Sniper._bookPass then GC.Sniper._bookPass:Lost(hit.itemID, hit.floor) end
+  local polled = GC.Sniper._keyPoll and GC.Sniper._keyPoll:Book()[hit.itemID]
+  if polled and polled.judged == hit.floor then
+    GC.Sniper._keyPoll:Rearm(hit.itemID, LIM.REHIT_SECONDS)
+  end
 end
 
 GC.Sniper._drillQueue = GC.DrillQueue.New({
@@ -2887,16 +2893,16 @@ GC.Sniper._drillQueue = GC.DrillQueue.New({
 }, { perMinute = LIM.DRILL_PER_MINUTE })
 
 -- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
--- waited (`run`), and over the session how the contended slots went (`drills`, `pages`, for
--- /gc board).
+-- waited (`run`), and since /reload how the contended slots went (`drills`: a drill sent while a
+-- page waited; `pages`: a page a sendable drill stood aside for), for /gc board.
 GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0 }
 
--- A book-pass page the arbiter just granted: the drills' run is over, and when a drill was
--- waiting for the same slot it counts toward /gc board's drillShare.
-function GC.Sniper._NotePassSlot(drillWaiting)
+-- A book-pass page the arbiter just granted: the drills' run is over, and when a drill that could
+-- have gone stood aside for it (`drillStoodAside`) it counts toward /gc board's drillShare.
+function GC.Sniper._NotePassSlot(drillStoodAside)
   local share = GC.Sniper._drillShare
   share.run = 0
-  if drillWaiting then share.pages = share.pages + 1 end
+  if drillStoodAside then share.pages = share.pages + 1 end
 end
 
 -- No isReady in this driver: the pass never decides for itself whether the throttled system
@@ -6648,15 +6654,17 @@ function GC.Sniper.OnThrottleReady()
   -- pass has a page waiting too, drills take at most LIM.DRILL_SHARE slots in a row; the pass
   -- gets the next one (steps 4 and 5 below grant it and end the run through _NotePassSlot).
   -- passWants is the same question step 4 asks; nothing between here and there sends and falls
-  -- through, so it cannot change on the way down.
+  -- through, so it cannot change on the way down. drillStoodAside is what /gc board's drillShare
+  -- counts the pass's page by: a live head that could have been sent -- the throttle, the gates
+  -- and the per-minute budget all allowing it -- stood aside, not merely "something is queued".
   local share = GC.Sniper._drillShare
-  local drillWaiting = GC.Sniper._drillQueue:Depth() > 0
   local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
     and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
   local drillsYield = passWants and share.run >= LIM.DRILL_SHARE
+  local drillStoodAside = false
   for _ = 1, 2 do
     local hit = GC.Sniper._drillQueue:Peek()
-    if not hit or drillsYield or not canDrillNow() then break end
+    if not hit or not canDrillNow() then break end
     -- Any book may be the one that saw this floor: commodities come from the book pass, realm
     -- items from the key poll, caps from their own poll (caps fixes 4a -- the only one that ever
     -- sees a capped item nothing else lists), and none knows about the others' items. The hit is
@@ -6672,6 +6680,9 @@ function GC.Sniper.OnThrottleReady()
       or (capped ~= nil and capped.judged == hit.floor)
     if not live then
       GC.Sniper._drillQueue:Drop(hit)
+    elseif drillsYield then
+      drillStoodAside = GC.Sniper._drillQueue:HasBudget()
+      break
     else
       -- Pop is what charges the per-minute budget, and it REFUSES once that budget is spent.
       -- Its answer was thrown away: the drill went out anyway, past the budget, and the entry
@@ -6757,7 +6768,7 @@ function GC.Sniper.OnThrottleReady()
   -- asked above the drill step, which needs the same answer for its fair share.)
   if passWants and GC.Sniper._slotTurn ~= "tail" then
     if GC.Sniper._bookPass:OnThrottleReady() then
-      GC.Sniper._NotePassSlot(drillWaiting)
+      GC.Sniper._NotePassSlot(drillStoodAside)
       GC.Sniper._slotTurn = "tail"
       return
     end
@@ -6808,7 +6819,7 @@ function GC.Sniper.OnThrottleReady()
   -- This is what keeps "alternate" from manufacturing idle slots: a tail with nothing to do
   -- never costs the scan a page.
   if passWants and GC.Sniper._bookPass:OnThrottleReady() then
-    GC.Sniper._NotePassSlot(drillWaiting)
+    GC.Sniper._NotePassSlot(drillStoodAside)
     GC.Sniper._slotTurn = "tail"
     return
   end
@@ -11322,7 +11333,8 @@ function GC.Sniper.DebugBoard()
     s(C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady())))
   -- Whole-market coverage: the sniper's supply chain -- how many items carry facts at all, how deep
   -- the drill queue is, how many hits it let go undrilled and how many of those the book pass
-  -- reported again, how long the last pass took, and how the contended slots split.
+  -- reported again, how long the last pass took, and how the contended slots split. lost, rehits
+  -- and drillShare count since /reload: closing the auction house does not reset them.
   local share, lastPass = GC.Sniper._drillShare, GC.Sniper._lastPass
   GC.Print(("sniper: facts=%d queue=%d lost=%d rehits=%d lastPass=%s drillShare=%d/%d"):format(
     data.FactItemIds and #data.FactItemIds() or 0,

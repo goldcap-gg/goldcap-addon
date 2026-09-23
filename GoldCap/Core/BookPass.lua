@@ -28,7 +28,7 @@ function GC.BookPass.New(driver, opts)
                             -- session (survives Abort()/Start(), cleared only by Reset())
   local lost = {}          -- itemID -> true: its last hit left the drill queue undrilled (obj:Lost)
   local reportedAt = {}    -- itemID -> driver.now() of its last hit
-  local rehits = 0         -- hits reported again after a loss, this session (/gc board)
+  local rehits = 0         -- hits reported again after a loss, since /reload (/gc board; Reset leaves it)
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
   local pendingStart = false
@@ -188,9 +188,15 @@ function GC.BookPass.New(driver, opts)
   -- clears with it.
   function obj:SeenByClasses(itemID) return classesSeen[itemID] == true end
 
-  -- The drill queue let this item's hit go undrilled (UI/SniperFrame.lua's _OnDrillLost): its
-  -- unchanged floor may be reported again, rehitSeconds after the last report.
-  function obj:Lost(itemID) lost[itemID] = true end
+  -- The drill queue let this item's hit at `floor` go undrilled (UI/SniperFrame.lua's
+  -- _OnDrillLost): its unchanged floor may be reported again, rehitSeconds after the last report.
+  -- Only while the book still shows that floor. An entry for a floor the book has since moved off
+  -- can age out after the new floor's own hit was drilled, and says nothing about the floor on
+  -- offer now; an item the book has never seen is news at its first sighting anyway.
+  function obj:Lost(itemID, floor)
+    local entry = book[itemID]
+    if entry and entry.floor == floor then lost[itemID] = true end
+  end
 
   function obj:Rehits() return rehits end
 

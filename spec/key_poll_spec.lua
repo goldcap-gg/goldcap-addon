@@ -139,6 +139,50 @@ describe("KeyPoll", function()
       assert.equal(2, #hits)
     end)
 
+    -- Whole-market coverage, fix round 1 (m3): an ordinary realm hit the drill queue lost is
+    -- re-armed with the book pass's re-hit hold -- news again no sooner than holdSeconds after it
+    -- was last reported, however often the poll comes round, and the flag waits for it.
+    it("holds a re-armed floor until holdSeconds after its last report", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+      poll:Rearm(7, 120)
+      now = 1000 + 60
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)            -- re-armed, but only 60 s since it was reported
+      now = 1000 + 120
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)            -- the hold is over: reported again
+      now = 1000 + 400
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)            -- once
+    end)
+
+    it("lets a moved floor through a hold at once, and ends the hold", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      poll:Rearm(7, 120)
+      now = 1000 + 5
+      poll:Fold({ row(7, 890, 3) })
+      assert.equal(2, #hits)
+      now = 1000 + 300
+      poll:Fold({ row(7, 890, 3) })
+      assert.equal(2, #hits)
+    end)
+
+    it("re-arms at once for a listing that is gone, even under a hold", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) }, { 7 })
+      poll:Rearm(7, 120)
+      now = 1000 + 5
+      poll:Fold({}, { 7 })              -- 7 has no listing left
+      poll:Fold({ row(7, 900, 3) }, { 7 })
+      assert.equal(2, #hits)
+    end)
+
     -- Round 1: an item the batch asked for and got no row for has no listing left. The ratchet
     -- still held its last floor, so the same price listed again was never news.
     it("re-arms an item it asked for and got no row for", function()

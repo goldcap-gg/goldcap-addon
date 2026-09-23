@@ -346,7 +346,7 @@ describe("BookPass", function()
       local bp = newPass({ rehitSeconds = 120 })
       passOf({ row(1, 500, 10) }, bp)
       assert.equal(1, #hits)
-      bp:Lost(1)
+      bp:Lost(1, 500)
       now = 1000 + 60
       passOf({ row(1, 500, 10) }, bp)
       assert.equal(1, #hits)            -- lost, but only 60 s since it was reported
@@ -364,7 +364,7 @@ describe("BookPass", function()
       sent.triggers[1] = 1000
       local bp = newPass({ rehitSeconds = 120 })
       passOf({ row(1, 500, 10) }, bp)
-      bp:Lost(1)
+      bp:Lost(1, 500)
       now = 1000 + 5
       passOf({ row(1, 490, 10) }, bp)
       assert.equal(2, #hits)
@@ -381,16 +381,63 @@ describe("BookPass", function()
       assert.equal(1, #hits)
     end)
 
+    -- Fix round 1 (m2): an entry for a floor the book has moved off can age out in the queue after
+    -- the new floor's hit was drilled. That loss says nothing about the floor on offer now.
+    it("ignores a loss of a floor the book no longer shows", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      now = 1000 + 10
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      bp:Lost(1, 500)                   -- the 500 entry aged out; 490 is what the book shows
+      now = 1000 + 400
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      bp:Lost(1, 490)
+      now = 1000 + 401
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(3, #hits)
+      assert.is_true(hits[3].rehit)
+    end)
+
     it("forgets what it lost when the auction house closes", function()
       sent.triggers[1] = 1000
       local bp = newPass({ rehitSeconds = 120 })
       passOf({ row(1, 500, 10) }, bp)
-      bp:Lost(1)
+      bp:Lost(1, 500)
       bp:Reset()
       now = 1000 + 5
       passOf({ row(1, 500, 10) }, bp)  -- the first sighting after a reset reports, as always
       assert.equal(2, #hits)
       assert.is_nil(hits[2].rehit)
+    end)
+
+    -- Fix round 1 (m5): Reset also empties the book, so the next sighting is a first one whatever
+    -- `lost` still holds -- the test above cannot tell. Read the two tables Reset must empty.
+    it("empties its loss and report memory on Reset", function()
+      local function upvalue(fn, wanted)
+        for i = 1, math.huge do
+          local name, value = debug.getupvalue(fn, i)
+          if not name then break end
+          if name == wanted then return value end
+        end
+        error("missing upvalue " .. wanted)
+      end
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1, 500)
+      -- From the closures that use them, not from Reset's own: a Reset that stopped touching them
+      -- must fail the assertions below, not the lookup.
+      local lost = upvalue(bp.Lost, "lost")
+      local foldRow = upvalue(upvalue(bp.OnResultsUpdated, "handleResults"), "foldRow")
+      local reportedAt = upvalue(foldRow, "reportedAt")
+      assert.is_true(lost[1])
+      assert.equal(1000, reportedAt[1])
+      bp:Reset()
+      assert.is_nil(next(lost))
+      assert.is_nil(next(reportedAt))
     end)
   end)
 end)

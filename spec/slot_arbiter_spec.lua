@@ -730,6 +730,43 @@ describe("Search slot arbiter", function()
     assert.equal(2, GC.Sniper._drillShare.pages)
   end)
 
+  -- Fix round 1 (m1): /gc board's drillShare counts a page as contended only when a drill that
+  -- could have gone stood aside for it -- not when the drills were out of budget, or could not
+  -- send at all this slot (canDrillNow false: a drill in flight, the player busy, another tab).
+  it("counts a page against the drills only when a sendable drill stood aside for it", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time }, { perMinute = 2 })
+    for i = 1, 9 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    local drillable = true
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return drillable end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 5 do
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+    end
+    -- The budget of two is gone after two drills: every page after them went to a pass nobody
+    -- was waiting behind.
+    assert.same({ "drill", "drill", "page", "page", "page" }, sent)
+    assert.equal(2, GC.Sniper._drillShare.drills)
+    assert.equal(0, GC.Sniper._drillShare.pages)
+
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time })
+    GC.Sniper._drillQueue:Push({ itemID = 41, floor = 900, estProfit = 99 })
+    GC.Sniper._drillShare.run = 2
+    drillable = false
+    armPage(GC)
+    GC.Sniper.OnThrottleReady()
+    assert.same("page", sent[#sent])
+    assert.equal(0, GC.Sniper._drillShare.pages)
+  end)
+
   it("lets drills take every slot when no page is waiting", function()
     local GC, watch = load()
     watch.hungry = false

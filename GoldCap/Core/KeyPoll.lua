@@ -258,15 +258,23 @@ function GC.KeyPoll.New(driver, opts)
           judged, judgedQty = best and best.floor or nil, best and best.qty or nil
         end
         local prev = book[itemID]
+        local now = driver.now()
+        -- A re-armed entry (Rearm below) is news again once its hold, if any, has run out since
+        -- the item was last reported; until then the flag rides along from fold to fold.
+        local rearmDue = prev ~= nil and prev.rearm == true
+          and (now - (prev.reportedAt or 0)) >= (prev.rearmHold or 0)
         local trigger = driver.triggerFor(itemID)
         local hit = trigger and judged and judged < trigger
-          and (not prev or prev.rearm or prev.judged ~= judged
+          and (not prev or rearmDue or prev.judged ~= judged
             or (judgedQty or 0) > (prev.judgedQty or 0))
+        local held = not hit and prev ~= nil and prev.rearm == true and not rearmDue
         -- `itemID` and `variants` make the entry self-describing: the drill is handed the entry
         -- alone (the book is keyed by item id, which a lone entry cannot know) and asks it which
         -- key to search with. See GC.KeyPoll.VariantKeyFor below.
-        book[itemID] = { itemID = itemID, floor = floor, qty = qty, seenAt = driver.now(),
-          variants = variants[itemID], judged = judged, judgedQty = judgedQty }
+        book[itemID] = { itemID = itemID, floor = floor, qty = qty, seenAt = now,
+          variants = variants[itemID], judged = judged, judgedQty = judgedQty,
+          reportedAt = hit and now or (prev and prev.reportedAt) or nil,
+          rearm = held or nil, rearmHold = held and prev.rearmHold or nil }
         if hit then
           driver.onHit({ itemID = itemID, floor = judged, qty = judgedQty, prev = prev })
         end
@@ -275,7 +283,10 @@ function GC.KeyPoll.New(driver, opts)
     if asked then
       for i = 1, #asked do
         local itemID = asked[i]
-        if not variants[itemID] and book[itemID] then book[itemID].rearm = true end
+        if not variants[itemID] and book[itemID] then
+          book[itemID].rearm = true
+          book[itemID].rearmHold = nil -- a listing that is gone owes no hold: the next one is news
+        end
       end
     end
     if driver.onRows then driver.onRows(rows) end
@@ -289,9 +300,18 @@ function GC.KeyPoll.New(driver, opts)
   -- without this the item was not looked at again until its price moved. The fold that follows
   -- writes a fresh entry, which carries no flag. Nothing to do for an item the book has never seen:
   -- its first sighting is news anyway.
-  function obj:Rearm(itemID)
+  --
+  -- Whole-market coverage: `holdSeconds` (optional) is for a lost ORDINARY hit -- the realm poll's
+  -- (UI/SniperFrame.lua's _OnDrillLost, with LIM.REHIT_SECONDS). Its unchanged floor is news again
+  -- no sooner than holdSeconds after it was last reported, however often the poll comes round, so a
+  -- queue that keeps refusing it is not handed it on every visit. Without it (a cap) the very next
+  -- fold reports it, as before.
+  function obj:Rearm(itemID, holdSeconds)
     local entry = book[itemID]
-    if entry then entry.rearm = true end
+    if entry then
+      entry.rearm = true
+      entry.rearmHold = holdSeconds
+    end
   end
 
   -- The book is a claim about one Auction House session's listings and does not outlive it,
