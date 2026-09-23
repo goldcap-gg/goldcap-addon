@@ -27,6 +27,18 @@
   opens shows the cheapest such version rather than whichever one the auction house picks.
 - A realm item listed in several item-level variants is now checked and bought at its cheapest
   variant, not whichever one the auction house answered first.
+- A YOUR PRICE row names its alert group only when there is room for it; hover the row for the
+  group and what YOUR PRICE means. Its PROFIT is what reselling the whole buy at the market
+  would make after the cut, like every other row's.
+- The buy window's Reason line shows its whole sentence instead of cutting it off.
+- Clicking Buy right after a purchase was cancelled or sent back to a Check no longer sits on
+  "waiting for previous commodity purchase to settle": the click checks the price again, and
+  the next Buy goes through.
+- The Auto button says what is holding it — "AUTO · PAUSED: MAILBOX OPEN", "BUY TAB", "WAITING
+  FOR YOU" and so on — and its tooltip says what to do about it. A mailbox you left by walking
+  straight to the auctioneer no longer keeps Auto paused.
+- Rows you watch show their discount, total and estimated profit against the market when the
+  addon knows a market value for the item, dimmed, until a live Check confirms them.
 
 ## 0.14.1 (unreleased)
 
