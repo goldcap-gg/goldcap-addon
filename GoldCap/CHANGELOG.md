@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.16.0 (unreleased)
+
+- GoldCap now runs in WoW: Forever. Selling works from the live auction house there; goldcap.gg
+  prices for Forever arrive later. Type `/gc forever` to see what GoldCap can use in your client.
+
 ## 0.15.1 (2026-09-24)
 
 - The Deals board leaves out finds worth less than your "Min profit per buy", and a refused row
