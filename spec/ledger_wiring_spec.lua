@@ -365,6 +365,18 @@ describe("Ledger event wiring", function()
     assert.equal(222, points[2].copper)
   end)
 
+  -- The Deals board's "not enough gold" line reads the wallet, so gold arriving or leaving has
+  -- to reach it without waiting for anything on the board to move.
+  it("hands PLAYER_MONEY to the Sniper as well as the ledger", function()
+    _G.UnitName = function() return "Belarsa" end
+    _G.GetRealmName = function() return "Dentarg" end
+    _G.GetMoney = function() return 111 end
+    local told = 0
+    GC.Sniper.OnPlayerMoney = function() told = told + 1 end
+    onEvent(nil, "PLAYER_MONEY")
+    assert.equal(1, told)
+  end)
+
   it("registers a /goldcap ledger recap that runs without erroring", function()
     assert.is_function(GC.slashHandlers.ledger)
 

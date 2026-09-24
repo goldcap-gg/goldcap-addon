@@ -130,6 +130,32 @@ describe("BoardRows", function()
       assert.is_true(GC.BoardRows.Rank(nil, true) < GC.BoardRows.Rank(nil, false))
     end)
   end)
+
+  -- A Check the wallet limit alone refused: a deal that needs gold, not a bad one (owner report
+  -- 2026-09-24 -- a character with no gold saw every row go to Hidden).
+  describe("a deal that needs gold", function()
+    local needs = { buyable = false, status = "AVOID", needsGold = 12345678, reason = "wallet" }
+
+    it("is its own bucket, between a buy and a refusal", function()
+      assert.equal("GOLD", GC.BoardRows.Bucket(needs))
+      assert.is_true(GC.BoardRows.Rank({ buyable = true }) < GC.BoardRows.Rank(needs))
+      assert.is_true(GC.BoardRows.Rank(needs) < GC.BoardRows.Rank({ buyable = false, status = "AVOID" }))
+    end)
+
+    -- The gold the character must hold, rounded up, never down: 1,234g 56s 78c is not covered by
+    -- 1,234g. Eleven characters is the whole cell ("SAFE +9999g" was sized to it), so from 10,000g
+    -- it counts in thousands, the way players write gold.
+    it("says how much gold the character needs, rounded up, short enough for its cell", function()
+      assert.equal("needs 1235g", GC.BoardRows.Label(needs))
+      assert.equal("needs 1330g", GC.BoardRows.Label({ needsGold = 13300000 }))
+      assert.equal("needs 5g", GC.BoardRows.Label({ needsGold = 50000 }))
+      assert.equal("needs 1g", GC.BoardRows.Label({ needsGold = 1201 }))
+      assert.equal("needs 5323g", GC.BoardRows.Label({ needsGold = 53224680 }))
+      assert.equal("needs 400k", GC.BoardRows.Label({ needsGold = 4000000000 }))
+      assert.equal("needs 11k", GC.BoardRows.Label({ needsGold = 100000001 }))
+      assert.equal("needs 10k", GC.BoardRows.Label({ needsGold = 99995000 })) -- 9,999g 50s
+    end)
+  end)
 end)
 
 describe("GC.Util.FormatMoney", function()
@@ -184,5 +210,32 @@ describe("GC.Util.FormatGoldFloor", function()
 
   it("keeps the sign on a negative amount", function()
     assert.equal("-61g", GC.Util.FormatGoldFloor(-613500))
+  end)
+end)
+
+-- The gold a character must hold, wherever it is shown (the needs-gold cell, the check pane's
+-- figure, caption and status line, the row tooltip): one figure, rounded UP to whole gold, so a
+-- player holding exactly what it says is never refused by the wallet limit. The cell alone may
+-- count it in thousands -- still rounded up -- to fit its eleven characters.
+describe("GC.Util.FormatGoldCeil", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+  end)
+
+  it("rounds up to whole gold, never down", function()
+    assert.equal("5323g", GC.Util.FormatGoldCeil(53224680)) -- 5,322g 46s 80c
+    assert.equal("1330g", GC.Util.FormatGoldCeil(13300000))
+    assert.equal("2g", GC.Util.FormatGoldCeil(10001))
+    assert.equal("1g", GC.Util.FormatGoldCeil(1))
+  end)
+
+  it("counts in thousands, still rounded up, only when asked for the short form", function()
+    assert.equal("400000g", GC.Util.FormatGoldCeil(4000000000))
+    assert.equal("400k", GC.Util.FormatGoldCeil(4000000000, true))
+    assert.equal("11k", GC.Util.FormatGoldCeil(100000001, true)) -- 10,001g
+    assert.equal("10k", GC.Util.FormatGoldCeil(99995000, true)) -- 9,999g 50s
+    assert.equal("5323g", GC.Util.FormatGoldCeil(53224680, true))
   end)
 end)

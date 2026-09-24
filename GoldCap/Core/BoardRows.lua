@@ -8,7 +8,7 @@ local _, GC = ...
 -- on a row again once a verdict exists.
 GC.BoardRows = {}
 
-local BUCKET_RANK = { CAP = 0, SAFE = 1, WATCH = 2, PENDING = 3, UNVERIFIED = 4 }
+local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, WATCH = 3, PENDING = 4, UNVERIFIED = 5 }
 
 -- SAFE only once the live Check actually approved it; anything else WITH a verdict is a
 -- refusal. Without a verdict there are two different states, and conflating them was a lie:
@@ -22,9 +22,15 @@ local BUCKET_RANK = { CAP = 0, SAFE = 1, WATCH = 2, PENDING = 3, UNVERIFIED = 4 
 -- asked to be told about, so it leads the board regardless of how a commodity cap deal's own
 -- `buyable` field reads (GC.Caps.DecideCommodity sets both `cap` and `buyable`; checking `cap`
 -- first keeps it out of the plain SAFE bucket it would otherwise also qualify for).
+--
+-- GOLD is a Check the wallet limit ALONE refused (SniperDecision.Evaluate's `needsGold`): every
+-- other gate passed, so it is a deal the character cannot pay for yet, not a bad one -- ranked
+-- under the buys and over the refusals. Owner report 2026-09-24: with no gold on the character
+-- every row went to Hidden and the market read as having no deals.
 function GC.BoardRows.Bucket(verdict, pending)
   if verdict and verdict.cap then return "CAP" end
   if verdict and verdict.buyable then return "SAFE" end
+  if verdict and verdict.needsGold then return "GOLD" end
   if verdict then return "WATCH" end
   if pending then return "PENDING" end
   return "UNVERIFIED"
@@ -52,6 +58,11 @@ function GC.BoardRows.Label(verdict, pending)
     -- GC.Util.FormatGoldFloor, not FormatMoney: this cell is a fixed width and FormatMoney's
     -- gold+silver form ("61g35s") is two units, wide enough to clip. Gold only, floored.
     return (GC.L["SAFE +%s"]):format(GC.Util.FormatGoldFloor(verdict.stressProfit or 0))
+  elseif bucket == "GOLD" then
+    -- The gold the character must hold, rounded up (GC.Util.FormatGoldCeil -- the same figure the
+    -- pane and the tooltip print). The short form: the cell holds eleven characters ("SAFE
+    -- +9999g"), and at a 5% wallet share a 600g buy already needs 12,000g.
+    return (GC.L["needs %s"]):format(GC.Util.FormatGoldCeil(verdict.needsGold, true))
   elseif bucket == "WATCH" then
     -- AVOID gets its own word when the live verdict actually said AVOID -- everything else
     -- non-buyable (WATCH itself, Gone, any other refusal status) keeps the WATCH label. Bucket
@@ -74,7 +85,7 @@ function GC.BoardRows.Reason(verdict)
   return verdict.reason
 end
 
--- Board sort order: SAFE before WATCH before pending before everything else, estProfit
+-- Board sort order: CAP, SAFE, a deal that needs gold, WATCH, pending, then everything else, estProfit
 -- descending within each bucket. Pins are partitioned ahead of this by the caller
 -- (renderList), unchanged.
 function GC.BoardRows.Compare(dealA, verdictA, pendingA, dealB, verdictB, pendingB)

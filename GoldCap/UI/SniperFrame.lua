@@ -191,6 +191,11 @@ LIM.VERIFY_TRUST_SECONDS = 120
 -- move on a 30-second clock -- so the walk's scarce one-query-per-tick budget belongs to rows
 -- nothing has looked at yet, not to reconfirming a refusal that hasn't had time to change.
 LIM.VERIFY_AVOID_INTERVAL_SECONDS = 120
+-- How long a refusal is remembered at all. It used to be for the whole visit: a row refused at
+-- one asking price stayed hidden until that price moved, however much the market under it did.
+-- Half an hour on it is a question again -- the row comes back and the walk asks it anew -- and
+-- the entry itself is let go (see verdictFor and stampVerdict).
+LIM.REFUSAL_TTL_SECONDS = 30 * 60
 -- The verify walk runs off the same 0.25s ticker as everything else, but the walk itself
 -- sorts and filters the whole deals list -- once a second is far more often than a 30s
 -- re-check cadence can consume, and four times a second is just wasted work.
@@ -885,13 +890,31 @@ end
 -- being advertised -- the row falls back to plain "Check" rather than keep a gold Buy button up
 -- on a claim nothing has re-tested. A REFUSAL does not expire that way: refusals come from
 -- demand and velocity limits that do not move in two minutes, and expiring them would flicker
--- hidden rows back into the list every couple of minutes for no new information.
+-- hidden rows back into the list every couple of minutes for no new information. It lapses on
+-- its own, longer clock (LIM.REFUSAL_TTL_SECONDS), and is let go of when it does, so the walk --
+-- which reads `verdicts` directly -- sees the same unasked question the board does.
 verdictFor = function(deal)
   local v = deal and deal.itemID and verdicts[deal.itemID]
   if not v then return nil end
   if v.unitPrice ~= deal.unitPrice then return nil end
   if v.buyable and (GetTime() - v.at) > LIM.VERIFY_TRUST_SECONDS then return nil end
+  if GC.Sniper._RefusalLapsed(v, GetTime()) then
+    verdicts[deal.itemID] = nil
+    return nil
+  end
   return v
+end
+
+-- A refusal past LIM.REFUSAL_TTL_SECONDS: not buyable, not a realm lot the check found
+-- (`unverified`), not the player's own price (`cap`). A deal only the wallet limit refused
+-- (`needsGold`) is one too -- it stays on the board, but a "needs" figure half an hour old falls
+-- back to an unchecked row rather than standing for the whole visit (review M-2). Not while the
+-- player is still reading the Check (`manual`, until GC.Sniper._LeavePane): its verdict is not
+-- forgotten under them (review M-1). A field, not a local: this chunk sits near its 200-local
+-- ceiling.
+function GC.Sniper._RefusalLapsed(v, now)
+  return not v.buyable and not v.unverified and not v.cap and not v.manual
+    and (now - v.at) > LIM.REFUSAL_TTL_SECONDS
 end
 
 -- The single entry point refreshRows() renders from: sortedDeals()'s own order, with the
@@ -915,8 +938,9 @@ local function renderList()
     -- items that made the poll set's CAPACITY cut, and a pin squeezed out by capacity is still
     -- a pin.
     local pinned = isPinned(deal.itemID)
-    -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
-    -- this number exists to explain a list that got shorter, and they did not shorten it.
+    -- `manual` rows are not pruned while the player is reading their Check -- see stampVerdict
+    -- and GC.Sniper._LeavePane. And they are not counted either: this number exists to explain
+    -- a list that got shorter, and they did not shorten it.
     -- `unverified` rows are not pruned and not counted either, for the same reason `manual`
     -- ones are not: a realm lot the check found under its region reference did not shorten
     -- this list, it is one of the things ON it (see stampVerdict).
@@ -925,8 +949,11 @@ local function renderList()
     -- filter as a side effect of two unrelated flags -- and a cap decision that ever stops
     -- setting either would silently vanish from the board. A cap is the player's own standing
     -- instruction: whatever its status, it is never one of the rows the live check refused.
+    -- A deal only the wallet limit refused is not one of them either, background or manual: it
+    -- passed every other gate and needs gold, not hiding (owner report 2026-09-24 -- with no gold
+    -- on the character, every row went to Hidden and the market read as empty).
     if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
-        and not verdict.cap and not pinned then
+        and not verdict.cap and not verdict.needsGold and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -1246,6 +1273,8 @@ local function setRowDeal(row, deal)
     (verdict and verdict.cap) and 1 or 0, tostring(deal.capGroup),
     -- A cap row's total can move while its cheapest level and quantity do not.
     tostring(deal.capTotal),
+    -- What a buy only the wallet limit refused needs moves the verdict cell on its own.
+    tostring(verdict and verdict.needsGold),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1279,6 +1308,11 @@ local function setRowDeal(row, deal)
     if verdict and verdict.buyable then
       row.buy:SetLabel(GC.L["Buy"])
       row.buy:SetVariant("primary")
+    elseif verdict and verdict.needsGold then
+      -- A deal the character cannot pay for yet: the cell says what it needs, and this opens
+      -- the pane that says the rest. Not the engine's AVOID, which is the refusal it is not.
+      row.buy:SetLabel(GC.L["Check"])
+      row.buy:SetVariant("ghost")
     elseif verdict then
       -- Only reachable with the toolbar toggle showing refused rows; the status is the engine's
       -- own word for it, and the row tooltip (createRow's OnEnter) carries the reason.
@@ -1310,6 +1344,8 @@ local function setRowDeal(row, deal)
   local verdictColor
   if verdict and verdict.buyable then
     verdictColor = Theme.color.green
+  elseif verdict and verdict.needsGold then
+    verdictColor = Theme.color.gold
   elseif verdict then
     verdictColor = Theme.tier.WATCH
   else
@@ -1543,6 +1579,7 @@ local function refreshRows()
   -- on screen. (The 0.25s ticker also calls it, for the window's first paint.) The empty-state
   -- panel is driven from the same spot for the same reason: it describes THIS render.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
+  GC.Sniper._PaintGoldLine(list)
   if refreshVerifyButton then refreshVerifyButton() end
   -- Same breath, same reason: the Items chip carries a count of a store this render did not
   -- read (the player is on Commodities most of the time), so it is re-derived here rather
@@ -1810,6 +1847,58 @@ local function anyItemArmed()
   return result
 end
 
+-- One line at the top of the board while the character cannot pay for anything on it: no gold at
+-- all, or no row on the board its gold can buy by the rule that board's buy is held to. Owner
+-- report 2026-09-24: a character with no gold watched the board for an hour and concluded the
+-- market had no deals. The rows say what each buy needs (GC.BoardRows' "needs"); this says why
+-- none of them can go.
+--
+-- The rule is each board's own, not an approximation of it (review I-3). A commodity is held to
+-- the per-buy share of the wallet (GC.SniperDecision.BuyLimits -- the capital gate a Check
+-- applies to its smallest buy, one unit at the row's price). A realm lot on the Items board is
+-- held to the wallet itself -- the realm arm's `total > GetMoney()` and PlaceBid, nothing else --
+-- and a YOUR PRICE lot to the share as well, as the realm arm holds `capLot`. The lot's total is
+-- the row's own Total column.
+--
+-- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
+-- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
+-- Fields, not locals: this chunk sits near its 200-local ceiling.
+function GC.Sniper._PaintGoldLine(list)
+  local line = frame and frame.goldLine
+  if not line then return end
+  -- A client global, read defensively for the same reason every cross-module call in this file
+  -- is guarded: the specs that build this window stub only what their own paths call.
+  local wallet = type(GetMoney) == "function" and GetMoney() or nil
+  if not wallet then line:Hide() return end
+  local short = wallet <= 0
+  if not short then
+    local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
+    local items = GC.Sniper._Board() == "items"
+    local candidates, buyable = 0, false
+    for i = 1, #list do
+      local deal = list[i]
+      if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
+        candidates = candidates + 1
+        local fits
+        if items then
+          local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+          fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+        else
+          fits = limits ~= nil and deal.unitPrice <= limits.budget
+        end
+        if fits then buyable = true; break end
+      end
+    end
+    short = candidates > 0 and not buyable
+  end
+  if short then
+    line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
+    line:Show()
+  else
+    line:Hide()
+  end
+end
+
 -- The board's empty state. An empty list used to be exactly that -- rows silently absent,
 -- with the only explanations living in a toolbar counter and a scan-completion status line
 -- that the next write erased. That is the TSM failure mode this addon exists to avoid: the
@@ -1876,7 +1965,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   elseif refusedCount > 0 or screened > 0 then
     local parts = {}
     if screened > 0 then
-      parts[#parts + 1] = GC.L["%d filtered out as hard to resell"]:format(screened)
+      parts[#parts + 1] = GC.L["%d filtered out: hard to resell, or under your Min profit per buy"]:format(screened)
     end
     if refusedCount > 0 then
       parts[#parts + 1] = (GC.L["%d refused by live checks -- press \"HIDDEN %d\" above to review them"]):format(
@@ -2634,9 +2723,10 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   if frame then
     -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
     -- the whole market: a player who cannot see the number cannot tell a quiet market from a
-    -- strict filter.
+    -- strict filter. The count takes the rows under the player's Min profit per buy too
+    -- (Core/FullScan.lua), so the sentence names both reasons.
     local hidden = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[", %d hidden as unsellable"]):format(GC.Sniper._screenedCount) or ""
+      and (GC.L[", %d hidden: hard to resell or under your min profit"]):format(GC.Sniper._screenedCount) or ""
     -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended,
     -- appended to the SAME trailing slot the hidden count uses. Both sentences below already
     -- end in a "%s" for it, and adding a second specifier would reword the key -- which
@@ -4053,7 +4143,9 @@ local function drawVerdict(deal, decision, market)
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" or tone == "unverified" or tone == "cap" then accent = Theme.color.gold end
+  elseif tone == "adjust" or tone == "unverified" or tone == "cap" or tone == "gold" then
+    accent = Theme.color.gold
+  end
 
   if dialog.setHeroTone then dialog.setHeroTone(accent) end
   if dialog.verdictLabel then
@@ -4097,6 +4189,16 @@ local function drawVerdict(deal, decision, market)
     figure = displayDecisionAmount(hero.copper)
     figureColor = Theme.color.gold
     caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
+  elseif hero.kind == "needs" then
+    -- A buy only the wallet limit refused: the gold the character must hold for it, unsigned --
+    -- a sum to have, not a gain -- rounded up (GC.Util.FormatGoldCeil), the same figure the
+    -- board's cell prints. The caption says both that and what the buy costs.
+    figure = GC.Util.FormatGoldCeil(hero.copper)
+    figureColor = Theme.color.gold
+    -- The cost is a price, formatted as the "You would pay" fact under it is; only the gold to
+    -- hold rounds up.
+    caption = (GC.L[CV.HERO_CAPTION.needs]):format(displayDecisionAmount(hero.cost),
+      math.floor((hero.share or 0) * 100 + 0.5), GC.Util.FormatGoldCeil(hero.copper))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
   end
@@ -5369,8 +5471,31 @@ local function applyRequeryResult(row, itemID, live)
       -- A sentence, not the engine's token: "source_stale" names the gate, it does not tell the
       -- player that the import is two hours old and that a Companion sync needs a /reload to be
       -- seen. The token itself is still on the reason line and in the diagnostic above it.
-      armCheck(row, deal, decision,
-        GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
+      --
+      -- A buy only the wallet limit refused (decision.needsGold) is not asked again from here:
+      -- the pane offers Buy, held, with the gold the character needs beside it. A Check would
+      -- only come back with the same answer until the gold is there, and when it is,
+      -- GC.Sniper.OnPlayerMoney asks it again.
+      local needs = decision.needsGold
+      -- A pane can open on a pre-warm a few seconds old, from before gold arrived and after its
+      -- PLAYER_MONEY had fired: then the gold already covers it, and the pane offers its Check
+      -- rather than a held Buy nothing would ask again (review M-3) -- saying so, not repeating
+      -- the wallet-limit refusal the old answer carried.
+      local covered = needs and needs <= GetMoney()
+      local note
+      if covered then
+        needs = nil
+        note = GC.L["you have enough gold for this now -- Check again"]
+      elseif needs then
+        note = (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
+      else
+        note = GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required")
+      end
+      armCheck(row, deal, decision, note, false)
+      if needs and dialog and dialog.row == row then
+        setPrimaryLabel("Buy")
+        dialog.primaryBtn:Disable()
+      end
     end
   else
     showGoneState(row, GC.L["listing gone -- already bought out or price changed"])
@@ -5730,14 +5855,21 @@ end
 -- It does not ring: the ping exists to say "something became buyable while you were not
 -- looking", and somebody reading the dialog they just opened is looking.
 --
--- And the row is never pruned from the list, however the Check turned out. Answering "what
--- about this one?" by making it disappear is not an answer -- the row stays, wearing the
--- engine's own word for the refusal, which is strictly more than it said before. Pruning is
--- for rows nobody asked about. It survives the background walk's own re-checks (a kept row is
--- still on screen, so it still gets re-checked) but not a price change: a new asking price is
--- a new question, and nobody has asked it yet.
+-- And the row is not pruned from the list while the player is reading the answer, however the
+-- Check turned out. Answering "what about this one?" by making it disappear is not an answer --
+-- the row stays, wearing the engine's own word for the refusal. It survives the background
+-- walk's own re-checks (a kept row is still on screen, so it still gets re-checked) but not a
+-- price change: a new asking price is a new question, and nobody has asked it yet. Nor does it
+-- survive the player leaving the pane (GC.Sniper._LeavePane): kept for good, every refused
+-- Check left an AVOID row behind, and in game 2026-09-23 half the board was them.
 stampVerdict = function(deal, data, manual)
   if not deal or not deal.itemID then return end
+  -- The one place the table grows, so the one place it is trimmed: a refusal past
+  -- LIM.REFUSAL_TTL_SECONDS is let go whether or not its item is still on the board to read it.
+  local now = GetTime()
+  for itemID, v in pairs(verdicts) do
+    if GC.Sniper._RefusalLapsed(v, now) then verdicts[itemID] = nil end
+  end
   local previous = verdicts[deal.itemID]
   local samePrice = previous and previous.unitPrice == deal.unitPrice
   local wasBuyable = samePrice and previous.buyable
@@ -5767,6 +5899,9 @@ stampVerdict = function(deal, data, manual)
     -- THIS table, not off `decision` directly -- see verdictFor) can rank/label a cap row ahead
     -- of an ordinary SAFE/WATCH one. GC.Caps.DecideRealm/DecideCommodity both set it.
     cap = decision and decision.cap or nil,
+    -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
+    -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
+    needsGold = decision and decision.needsGold or nil,
   }
   refreshRows()
 
@@ -5777,10 +5912,12 @@ stampVerdict = function(deal, data, manual)
   -- Reported here, at the one place a verdict is ever recorded, rather than from renderList --
   -- that runs on hover and on every repaint, and a status line that fires on hover would say
   -- this over and over about rows that left minutes ago. `manual` is excluded because a Check
-  -- the player ran themselves never removes its own row (see this function's own contract) and
-  -- announcing a removal that did not happen is its own lie. refreshRows above has already
-  -- recomputed refusedCount, so the number quoted is the one the toggle is about to show.
-  if not manual and not buyable and not unverified and not isPinned(deal.itemID) and refusedCount > 0 then
+  -- the player ran themselves does not remove its own row while they read it (see this
+  -- function's own contract) and announcing a removal that did not happen is its own lie; the
+  -- row leaves when the player leaves its pane, which is their own doing. refreshRows above has
+  -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
+  if not manual and not buyable and not unverified and not (decision and decision.needsGold)
+      and not isPinned(deal.itemID) and refusedCount > 0 then
     setStatus((GC.L["%d hidden -- the live check refused them"]):format(refusedCount), 4)
   end
 
@@ -5817,6 +5954,21 @@ stampVerdict = function(deal, data, manual)
       return
     end
   end
+end
+
+-- The player has left the pane that showed `deal`'s Check -- closed it, or opened another row.
+-- The keep stampVerdict gave that Check ends here, so from now on its verdict is filed like any
+-- background one: a refusal hides with the rest and is counted in the toolbar's HIDDEN, a Buy
+-- keeps its own two-minute rule. The answer stayed readable for as long as the pane was open.
+-- A row the player watches (a pin) keeps showing its verdict all the same -- renderList exempts
+-- pins from the refused-rows filter outright. Returns whether there was a keep to let go of, so
+-- a caller with no render of its own ahead knows to ask for one. A field, not a local: this
+-- chunk sits near its 200-local ceiling.
+function GC.Sniper._LeavePane(deal)
+  local v = deal and deal.itemID and verdicts[deal.itemID]
+  if not (v and v.manual) then return false end
+  v.manual = nil
+  return true
 end
 
 -- The pre-warm result landing (or failing to materialize into a live deal): stamps
@@ -5898,22 +6050,36 @@ end
 -- of the two: nothing here has to know which store the caller read.
 function GC.Sniper._VerifySlice(list)
   local slice, realmRows = {}, {}
+  local wallet
   for i = 1, #list do
     local deal = list[i]
-    -- `deal.isCommodity` is not an answer to "is this a commodity". Every row the scan puts on
-    -- the board is built with isCommodity = false -- Core/FullScan.lua fills that field in as a
-    -- constant, and so does the realm poll -- so reading it put EVERY row in the realm half and
-    -- the split this function exists for never happened in the game at all. Only a live
-    -- commodity check ever sets it TRUE (applyRequeryResult); anything else is unknown, and the
-    -- client is asked instead. An item key the client has not cached yet answers nil, which
-    -- counts as commodity-capable: a row must never be parked behind the gear on a fact nobody
-    -- has yet.
-    local info = deal.isCommodity ~= true and driver.getKeyInfo(deal.itemID) or nil
-    local realm = info ~= nil and not info.isCommodity
-    if realm then
-      if #realmRows < LIM.VERIFY_TOP_ROWS then realmRows[#realmRows + 1] = deal end
-    elseif #slice < LIM.VERIFY_TOP_ROWS then
-      slice[#slice + 1] = deal
+    -- A row the wallet limit alone held back (its verdict's needsGold) takes no seat while the
+    -- character's gold does not cover it: it ranks high on the board, and a low-gold character's
+    -- top rows filled with buys it could not make, re-checked every two minutes, while the
+    -- affordable deal beneath them never got its first look (review I-2). Gold arriving gives
+    -- it a seat back -- and the walk's first claim (stepVerifyWalk, GC.Sniper.OnPlayerMoney).
+    local v = verdicts[deal.itemID]
+    local seated = true
+    if v and v.needsGold and v.unitPrice == deal.unitPrice then
+      wallet = wallet or GetMoney()
+      seated = v.needsGold <= wallet
+    end
+    if seated then
+      -- `deal.isCommodity` is not an answer to "is this a commodity". Every row the scan puts on
+      -- the board is built with isCommodity = false -- Core/FullScan.lua fills that field in as a
+      -- constant, and so does the realm poll -- so reading it put EVERY row in the realm half and
+      -- the split this function exists for never happened in the game at all. Only a live
+      -- commodity check ever sets it TRUE (applyRequeryResult); anything else is unknown, and the
+      -- client is asked instead. An item key the client has not cached yet answers nil, which
+      -- counts as commodity-capable: a row must never be parked behind the gear on a fact nobody
+      -- has yet.
+      local info = deal.isCommodity ~= true and driver.getKeyInfo(deal.itemID) or nil
+      local realm = info ~= nil and not info.isCommodity
+      if realm then
+        if #realmRows < LIM.VERIFY_TOP_ROWS then realmRows[#realmRows + 1] = deal end
+      elseif #slice < LIM.VERIFY_TOP_ROWS then
+        slice[#slice + 1] = deal
+      end
     end
   end
   for i = 1, #realmRows do slice[#slice + 1] = realmRows[i] end
@@ -5928,6 +6094,22 @@ local function stepVerifyWalk()
   -- the work. Only a walk that runs before anything has ever rendered builds its own.
   local list = GC.Sniper._verifySlice or GC.Sniper._VerifySlice(renderList())
   local limit = #list
+
+  -- First of all, a row the wallet limit ALONE held back whose gold the character now holds
+  -- (its verdict's needsGold). Gold arriving is the one change that turns it into a buy, so it
+  -- goes to the front of the queue -- ahead of rows nothing has checked -- rather than waiting
+  -- out a refusal's re-check interval. GC.Sniper.OnPlayerMoney also brings the walk forward.
+  for i = 1, limit do
+    local deal = list[i]
+    local v = verdicts[deal.itemID]
+    if v and v.needsGold and v.unitPrice == deal.unitPrice and not deal.pinPlaceholder
+        and not GC.Sniper._IsWatched(deal.itemID) and v.needsGold <= GetMoney() then
+      if maybeStartPrewarm(deal, true) then
+        verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+        return true
+      end
+    end
+  end
 
   -- Two passes over the SAME top-`limit` slice, in renderList()'s own order (best-first as of
   -- Commit 1's estProfit ranking). Pass 1 gives first claim on the walk's one query per tick to
@@ -6004,6 +6186,38 @@ local function tickAutoVerify()
   -- been asked above, so what is being spent here is a turn the walk genuinely wanted.
   verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
   stepVerifyWalk()
+end
+
+-- PLAYER_MONEY (Core/Init.lua). Gold arriving is news for three things, and each hears it at once
+-- rather than on its own clock:
+--   * the "not enough gold" line, which a render repaints (refreshRows -> _PaintGoldLine);
+--   * every row the wallet limit alone held back whose gold is now covered: the walk takes those
+--     first (stepVerifyWalk), and runs on the next tick instead of waiting out its second;
+--   * that row's pane, when it is open on the held Buy: it is asked again through its own Check
+--     (startRequery), exactly what the pane's Check does. A Check, never a purchase -- Buy comes
+--     back only if that Check approves it (applyRequeryResult -> armReady), and the purchase
+--     stays in onDialogPrimaryClick.
+-- A field, not a local: this chunk sits near its 200-local ceiling.
+function GC.Sniper.OnPlayerMoney()
+  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
+  -- over. The next render reads the gold when the window is shown, and so does the walk.
+  if not (frame and frame:IsShown()) then return end
+  local wallet = GetMoney()
+  local row = dialog and dialog.row
+  local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil
+  if held and held.needsGold and held.needsGold <= wallet then
+    dialog.primaryBtn:Disable()
+    setPrimaryLabel("Buy")
+    setDialogStatus(GC.L["checking live safety..."])
+    startRequery(row, row.deal)
+  end
+  for _, v in pairs(verdicts) do
+    if v.needsGold and v.needsGold <= wallet then
+      verifyWalkAt = 0
+      break
+    end
+  end
+  refreshRows()
 end
 
 -- Router functions the Init.lua event frame dispatches into.
@@ -9159,8 +9373,18 @@ local function createDialog()
     dialog.stampedUnit = nil
     dialog.stampedTotal = nil
     dialog.bookLevels = nil -- Fix 2: the Quantity box's clamp ceiling must not survive past this dialog session either
+    -- The player is leaving this Check's pane, however it closed -- Cancel, Escape, a purchase
+    -- that resolved, or a Buy click on another row (abortRowPurchase hides the window first) --
+    -- so its refusal now hides like any other (GC.Sniper._LeavePane).
+    local left = GC.Sniper._LeavePane(dialog.deal)
     local row = dialog.row
-    if not row then return end -- normal close: resolvePurchase already cleared this before hiding
+    if not row then
+      -- Normal close: resolvePurchase already cleared this before hiding, and renders right
+      -- after. A "Gone" window the player closes has no render ahead of it, so ask for one
+      -- whenever a keep was let go.
+      if left then refreshRows() end
+      return
+    end
     dialog.row = nil
     -- Final review m8: the player said no to this lot; stop-and-open waits before offering the
     -- item again.
@@ -9230,6 +9454,11 @@ local function openDialog(row, deal)
     prewarmAttempt = nil
   end
 
+  -- The one way to another row that leaves the window up: one still showing "Gone" (its
+  -- dialog.row is already clear, so nothing hides it on the way). The player has left that
+  -- Check's pane all the same. No render here -- the row being opened is not frozen yet, and
+  -- the next render (its own Check's) files the change.
+  if dialog then GC.Sniper._LeavePane(dialog.deal) end
   dialog = dialog or createDialog()
   dialog.row = row
   -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
@@ -9777,6 +10006,9 @@ createRow = function(parent, index)
       GameTooltip:AddLine(" ")
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
+      elseif verdict.needsGold then
+        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold)), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
         GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
@@ -10568,6 +10800,19 @@ local function createFrame()
   setPlainTooltip(f.boardChips.items,
     GC.L["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."])
   GC.Sniper._PaintBoardChips(f)
+  -- The line that says the character cannot pay for anything on the board (see
+  -- GC.Sniper._PaintGoldLine), in the room the two chips leave in their row: at the top of the
+  -- board, above the headings. Parented to a chip so it leaves the screen with the rest of the
+  -- Deals chrome on Sell and Sold, and shows only while the paint says so.
+  local goldLine = Theme.Label(f.boardChips.items, 10)
+  goldLine:SetPoint("LEFT", f.boardChips.items, "RIGHT", Theme.pad.m, 0)
+  goldLine:SetPoint("RIGHT", f, "RIGHT", -WIN.CONTENT_RIGHT_GUTTER, 0)
+  goldLine:SetJustifyH("LEFT")
+  goldLine:SetWordWrap(false)
+  goldLine:SetMaxLines(1)
+  goldLine:SetTextColor(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
+  goldLine:Hide()
+  f.goldLine = goldLine
 
   -- Deals-only toolbar chrome: setView shows/hides these alongside the scroll/header
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session

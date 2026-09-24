@@ -469,6 +469,80 @@ describe("SniperDecision", function()
     assertNoReason(result, "capital_limit")
   end)
 
+  -- Owner report 2026-09-24: a character with no gold watched the board for an hour, every
+  -- background Check came back capital_limit, every row went to Hidden, and the market read as
+  -- having no deals. A buy the wallet limit alone refuses is a deal that needs gold: the refusal
+  -- stands, and it says what the buy it would plan with the gold costs.
+  describe("a buy only the wallet limit refuses", function()
+    local function broke(input)
+      input = input or validInput()
+      input.walletCopper = 0
+      return input
+    end
+
+    -- The least gold the character must hold for the per-buy wallet limit to let this buy
+    -- through: the same limit the decision itself applies (BuyLimits), so one copper less and
+    -- the wallet limit refuses it again.
+    local function assertLeastWallet(result, config)
+      assert.is_true(GC.SniperDecision.BuyLimits(config, result.needsGold).budget >= result.entryTotal)
+      assert.is_true(GC.SniperDecision.BuyLimits(config, result.needsGold - 1).budget < result.entryTotal)
+    end
+
+    it("stays refused and names the gold the character must hold for it", function()
+      local funded = evaluate()
+      local input = broke()
+      local result = evaluate(input)
+
+      assert.equal("AVOID", result.status)
+      assert.is_false(result.buyable)
+      assert.same({ "capital_limit" }, result.reasons)
+      -- The plan itself, so the panel can show what the buy costs and brings back.
+      assert.equal(funded.quantity, result.quantity)
+      assert.equal(funded.entryTotal, result.entryTotal)
+      assert.equal(funded.stressProfit, result.stressProfit)
+      -- 20,000g of buy at the default 5% per-buy share: 400,000g on the character.
+      assert.equal(0.05, result.walletShare)
+      assert.equal(4000000000, result.needsGold)
+      assertLeastWallet(result, input.config)
+    end)
+
+    it("names the gold for the share the player set, not the default", function()
+      local input = broke()
+      input.config.maxCapitalShare = 0.20
+      local result = evaluate(input)
+      assert.equal(0.20, result.walletShare)
+      assert.equal(1000000000, result.needsGold) -- 20,000g at 20%: 100,000g
+      assertLeastWallet(result, input.config)
+    end)
+
+    it("names nothing when another gate refuses as well", function()
+      local input = broke()
+      input.market.trend24hPct = -10 -- market_falling
+      local result = evaluate(input)
+      assertReason(result, "capital_limit")
+      assertReason(result, "market_falling")
+      assert.is_nil(result.needsGold)
+    end)
+
+    it("names nothing when the buy would miss the profit floor even with the gold", function()
+      local input = broke()
+      input.config.minimumProfitCopper = 1000000000000 -- a hundred million gold
+      local result = evaluate(input)
+      assert.same({ "capital_limit" }, result.reasons)
+      assert.is_nil(result.needsGold)
+    end)
+
+    it("names nothing on a decision the wallet can pay for", function()
+      assert.is_nil(evaluate().needsGold)
+    end)
+
+    it("names nothing on a requote of a fixed quantity", function()
+      local input = broke()
+      input.live.fixedQuantity = 1
+      assert.is_nil(evaluate(input).needsGold)
+    end)
+  end)
+
   it("carries the best profit-short attempt on a profit refusal, so the panel can show the gap", function()
     local input = validInput()
     input.live.levels = {

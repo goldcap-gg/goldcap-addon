@@ -738,14 +738,97 @@ describe("Deals background verification", function()
     api.refreshRows()
     assert.equal("Check", api.rows[1].buy.label)
 
-    -- A refusal is not a claim that decays: it came from demand and velocity limits that do
-    -- not move in two minutes, and expiring it would flicker hidden rows back every so often.
+    -- A refusal does not decay on that clock: it came from demand and velocity limits that do
+    -- not move in two minutes, and expiring it there would flicker hidden rows back every so
+    -- often. It has a clock of its own, half an hour (the test below).
     local refused = loadSniper(avoid)
     board(refused, { deal(1, 100) })
     tickAt(refused, 101)
     refused.GC.Sniper.OnCommoditySearchResults(1)
     clock = 101 + 500
     assert.equal(0, #refused.renderList())
+  end)
+
+  -- A refusal that never lapsed kept its row hidden for the whole visit at that price, however
+  -- much the market moved underneath it. Half an hour on, the row comes back as a question
+  -- nobody has answered yet, and the walk gets to ask it again.
+  it("forgets a refusal after thirty minutes, and the walk looks at the row again", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.same({ 1 }, sent)
+
+    clock = 101 + 1799
+    assert.equal(0, #api.renderList())
+
+    clock = 101 + 1801
+    assert.equal(1, #api.renderList())
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    assert.is_nil(api.verdicts[1])
+
+    api.refreshRows()
+    tickAt(api, 101 + 1802)
+    assert.same({ 1, 1 }, sent)
+  end)
+
+  -- The half hour is also how long a refusal is remembered at all: the entry for an item that
+  -- has left the board is let go on the next verdict, not kept until the auction house closes.
+  it("lets go of a lapsed refusal for an item no longer on the board", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100, 2000), deal(2, 200, 1000) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.is_table(api.verdicts[1])
+
+    board(api, { deal(2, 200, 1000) })
+    tickAt(api, 101 + 1801)
+    api.GC.Sniper.OnCommoditySearchResults(2)
+    assert.is_nil(api.verdicts[1])
+    assert.is_table(api.verdicts[2])
+  end)
+
+  -- The player's own Check is not forgotten under them: the half hour runs only once they have
+  -- left its pane (review M-1). A needs-gold verdict lapses like any refusal, so a stale "needs"
+  -- falls back to an unchecked row rather than standing for the whole visit (review M-2).
+  it("keeps a refusal whose pane is still open past the half hour, and lapses a needs-gold one", function()
+    local api = loadSniper(avoid)
+    local d, g = deal(1, 100, 2000), deal(2, 200, 1000)
+    board(api, { d, g })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    _G.GetMoney = function() return 0 end
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+    stamp(g, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+      reasons = { "capital_limit" }, needsGold = 20000000 } })
+
+    clock = clock + 1801
+    api.renderList()
+    assert.is_table(api.verdicts[1])
+    assert.is_nil(api.verdicts[2])
+
+    api.GC.Sniper._LeavePane(d)
+    api.renderList()
+    assert.is_nil(api.verdicts[1])
+  end)
+
+  -- A SAFE verdict keeps its own two-minute rule, and a realm lot the check found is not a
+  -- refusal at all: neither is touched by the half hour.
+  it("lapses only refusals, not a realm lot the check found", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = false, decision = {
+      status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      candidate = { auctionID = 7, buyout = 90, itemLevel = 623, quantity = 1 },
+    } })
+
+    clock = clock + 1801
+    assert.equal(1, #api.renderList())
+    assert.is_true(api.verdicts[1].unverified)
   end)
 
   it("lets a real Check overrule the background verdict it disagrees with", function()
@@ -801,7 +884,7 @@ describe("Deals background verification", function()
 
   -- Answering "what about this one?" by making it vanish is not an answer. The background
   -- walk prunes rows nobody asked about; a row the player opened stays put and says what the
-  -- Check said, whatever the toggle is set to.
+  -- Check said, whatever the toggle is set to -- for as long as its pane is open (below).
   it("keeps a row the player checked themselves, even when it is refused", function()
     local api = loadSniper(safe)
     local d = deal(1, 100)
@@ -819,6 +902,93 @@ describe("Deals background verification", function()
     assert.equal(0, upvalue(api.renderList, "refusedCount"))
     api.refreshRows()
     assert.equal("AVOID", api.rows[1].buy.label)
+  end)
+
+  -- ...but only while the player is reading it. Kept for good, every refused Check left an AVOID
+  -- row behind, and in game 2026-09-23 half the board was them. Once the player leaves the pane --
+  -- closes it or opens another row -- the row goes where a background refusal goes: hidden,
+  -- counted, one toggle away.
+  it("hides a refused row the player checked once they leave its pane, and counts it", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+    assert.equal(2, #api.renderList())
+
+    api.GC.Sniper._LeavePane(d)
+
+    local list = api.renderList()
+    assert.equal(1, #list)
+    assert.equal(2, list[1].itemID)
+    assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    -- And a background re-check at the same price does not bring the keep back.
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } })
+    assert.equal(1, #api.renderList())
+  end)
+
+  it("keeps showing the verdict on a row the player watches, after its pane closes", function()
+    local api = loadSniper(safe)
+    api.GC.db.settings.sniper.watchPins = { 1 }
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+
+    api.GC.Sniper._LeavePane(d)
+
+    assert.equal(2, #api.renderList())
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    api.refreshRows()
+    assert.equal("AVOID", api.rows[1].buy.label)
+  end)
+
+  it("leaves a Check that said Buy on the board when its pane closes", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "SAFE", buyable = true, quantity = 5, reasons = {} } }, true)
+
+    api.GC.Sniper._LeavePane(d)
+
+    assert.equal(1, #api.renderList())
+    api.refreshRows()
+    assert.equal("Buy", api.rows[1].buy.label)
+  end)
+
+  -- Where the player leaves the pane. The window's own OnHide covers every way it closes --
+  -- Cancel, Escape, a purchase that resolved, and a Buy click on another row, whose
+  -- abortRowPurchase hides it first -- and openDialog covers the one way to another row that
+  -- leaves it up: a window still showing "Gone". The window is too wide to build headlessly;
+  -- these are the lines that wire the two together.
+  it("lets go of the Check's keep wherever the player leaves its pane", function()
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local src = file:read("*a")
+    file:close()
+
+    local start = assert(src:find('d:SetScript("OnHide", function()', 1, true))
+    local body = src:sub(start, src:find("\n  end)\n", start, true))
+    local leave = body:find("GC.Sniper._LeavePane(dialog.deal)", 1, true)
+    local early = body:find("if not row then", 1, true)
+    assert.is_truthy(leave)
+    assert.is_truthy(early)
+    assert.is_true(leave < early)
+
+    local open = assert(src:find("local function openDialog(row, deal)", 1, true))
+    local openBody = src:sub(open, src:find("\nend\n", open, true))
+    local openLeave = openBody:find("GC.Sniper._LeavePane(dialog.deal)", 1, true)
+    local replace = openBody:find("dialog.deal = deal", 1, true)
+    assert.is_truthy(openLeave)
+    assert.is_truthy(replace)
+    assert.is_true(openLeave < replace)
   end)
 
   -- Sniper phase 2. A realm lot is never buyable and never will be, but a check that found one
@@ -976,6 +1146,375 @@ describe("Deals background verification", function()
     -- A pin that is not currently a deal has nothing to check, so it must not be told it is
     -- unchecked -- its own line below says what it actually is.
     assert.is_truthy(branch:find("elseif not self.deal.pinPlaceholder then", 1, true))
+  end)
+
+  -- Owner report 2026-09-24: a character with no gold watched the board for an hour. Every
+  -- background Check came back capital_limit ("Costs more than your per-buy wallet limit
+  -- allows"), every row went to Hidden, and the market read as having no deals. The real engine
+  -- here, not the stub: a market that passes every gate, a book it would buy 200 of, no gold.
+  describe("with no gold on the character", function()
+    local PASSING = { kind = "region_commodity", source = "import", sourceAt = 1000,
+      mv = 3000000, stressUnit = 3000000, sold = 100000, sellThroughBps = 7000,
+      liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12, madBps = 0,
+      trend = -9 }
+    local BOOK = { { unitPrice = 1000000, quantity = 200 }, { unitPrice = 3000001, quantity = 1 } }
+
+    local function realEngine(value, wallet)
+      local api = loadSniper(safe)
+      local GC = api.GC
+      helper.loadModule("Core/Book.lua", GC)
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      _G.GetMoney = function() return wallet() end
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function() return 0 end
+      GC.Data.GetItemValue = function() return value end
+      local sniper = GC.db.settings.sniper
+      sniper.maxCapitalShare, sniper.maxDailyDemandShare, sniper.maxQuantity = 0.05, 0.02, 200
+      sniper.minimumProfitCopper, sniper.minimumRoi = 1000000, 0.10
+      local driver = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+      driver.commodityBook = function() return BOOK end
+      driver.commodityResult = function() return { unitPrice = 1000000, qty = 200, avail = 201 } end
+      return api
+    end
+
+    local function checkInBackground(api)
+      board(api, { deal(1, 1000000) })
+      tickAt(api, 101)
+      api.GC.Sniper.OnCommoditySearchResults(1)
+    end
+
+    it("keeps a deal that passes everything else on the board, saying what it needs", function()
+      local api = realEngine(PASSING, function() return 0 end)
+      checkInBackground(api)
+
+      -- 20,000g of buy at the default 5% per-buy share: the character needs 400,000g.
+      assert.equal(4000000000, api.verdicts[1].needsGold)
+      assert.equal(1, #api.renderList())
+      assert.equal(0, upvalue(api.renderList, "refusedCount"))
+      api.refreshRows()
+      assert.equal("needs 400k", api.rows[1].tierChip.label)
+      -- A deal it cannot buy is not news: no bell.
+      assert.equal(0, #sounds)
+    end)
+
+    it("still hides a deal that another gate refuses as well", function()
+      local falling = {}
+      for k, v in pairs(PASSING) do falling[k] = v end
+      falling.trend = -10 -- market_falling, beside capital_limit
+      local api = realEngine(falling, function() return 0 end)
+      checkInBackground(api)
+
+      assert.is_nil(api.verdicts[1].needsGold)
+      assert.equal(0, #api.renderList())
+      assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    end)
+
+    it("keeps it on the board after the player's own Check too, once they leave the pane", function()
+      local api = loadSniper(safe)
+      local d = deal(1, 100)
+      board(api, { d })
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+      stamp(d, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+        reasons = { "capital_limit" }, needsGold = 5000000 } }, true)
+
+      api.GC.Sniper._LeavePane(d)
+      assert.equal(1, #api.renderList())
+      assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    end)
+
+    -- The pane's Buy is held with the reason beside it, rather than turning into a Check that
+    -- would only come back with the same answer.
+    it("holds the pane's Buy and says what the buy needs", function()
+      local api = loadSniper(safe)
+      _G.GetMoney = function() return 0 end
+      local d = deal(1, 100)
+      board(api, { d })
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local apply = upvalue(finish, "applyRequeryResult")
+      local armCheck = upvalue(apply, "armCheck")
+      set(armCheck, "setDialogHeader", function() end)
+      set(armCheck, "stampDialogFromDecision", function() end)
+      local row = { deal = d }
+      local primary = { enabled = true, text = { SetTextColor = function() end } }
+      function primary:Enable() self.enabled = true end
+      function primary:Disable() self.enabled = false end
+      function primary:IsEnabled() return self.enabled end
+      function primary:SetLabel(t) self.label = t end
+      local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+      set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+        banner = { Hide = function() end }, SetHeight = function() end })
+
+      apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+        reasons = { "capital_limit" }, needsGold = 53224680, walletShare = 0.05, quantity = 5,
+        entryTotal = 2661234 } })
+
+      assert.equal("Buy", primary.label)
+      assert.is_false(primary.enabled)
+      -- 5,322g 46s 80c: rounded up, the same figure the board's cell and the tooltip show.
+      assert.equal("not enough gold on this character -- you need 5323g", status.text)
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = file:read("*a")
+      file:close()
+      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip
+    end)
+
+    -- A row the wallet limit alone held back ranks high on the board, and the walk reaches only
+    -- the top rows. A low-gold character's board filled those seats with rows it could not buy,
+    -- re-checked them every two minutes, and never gave the affordable deal beneath them its first
+    -- look (review I-2). While the gold does not cover it, such a row keeps its place on the board
+    -- but not a seat in the walk; gold arriving gives it one back (the tests below).
+    it("keeps rows it cannot pay for out of the walk, so the deal beneath them gets checked", function()
+      local api = loadSniper(safe)
+      _G.GetMoney = function() return 0 end
+      local deals = {}
+      for i = 1, 25 do deals[i] = deal(i, i * 100, (26 - i) * 10) end
+      board(api, deals)
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+      for i = 1, 24 do
+        stamp(deals[i], { isCommodity = true, levels = {}, decision = { status = "AVOID",
+          buyable = false, reasons = { "capital_limit" }, needsGold = 20000000 + i } })
+      end
+      assert.equal(25, #api.renderList()) -- all still on the board
+
+      tickAt(api, 101)
+      assert.same({ 25 }, sent)
+    end)
+
+    -- Gold arriving is the one thing that turns such a row into a buy, and it used to wait for
+    -- the walk's two-minute re-check of a refusal. PLAYER_MONEY now puts every row whose gold is
+    -- covered at the front of the check queue, and the walk runs on the next tick.
+    describe("when the gold arrives", function()
+      local wallet
+
+      local function heldRow(api)
+        board(api, { deal(1, 100, 3000), deal(2, 200, 2000), deal(3, 300, 1000) })
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+        stamp(deal(1, 100, 3000), { isCommodity = true, levels = {}, decision = {
+          status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 20000000 } })
+      end
+
+      local function load()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        heldRow(api)
+        -- The walk has just spent its turn on a row nobody had checked.
+        tickAt(api, 101)
+        assert.same({ 2 }, sent)
+        api.GC.Sniper.OnCommoditySearchResults(2)
+        return api
+      end
+
+      it("checks a row it covers first, and without waiting out the walk's second", function()
+        local api = load()
+        clock = 101.25
+        wallet = 20000000
+        api.GC.Sniper.OnPlayerMoney()
+        tickAt(api, 101.5)
+        -- Row 3 has never been checked and would otherwise have had the turn.
+        assert.same({ 2, 1 }, sent)
+      end)
+
+      it("leaves a row it does not cover yet where it was", function()
+        local api = load()
+        clock = 101.25
+        wallet = 19999999
+        api.GC.Sniper.OnPlayerMoney()
+        tickAt(api, 101.5)
+        assert.same({ 2 }, sent) -- nothing to hurry for: the walk keeps its second
+        tickAt(api, 102.1)
+        assert.same({ 2, 3 }, sent)
+      end)
+
+      -- The pane showing that row: its held Buy is asked again the way its own Check button asks
+      -- -- a live Check, never a purchase; Buy comes back only if that Check approves it.
+      local function openPane(api)
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local apply = upvalue(finish, "applyRequeryResult")
+        local armCheck = upvalue(apply, "armCheck")
+        set(armCheck, "setDialogHeader", function() end)
+        set(armCheck, "stampDialogFromDecision", function() end)
+        local primary = { enabled = true, text = { SetTextColor = function() end } }
+        function primary:Enable() self.enabled = true end
+        function primary:Disable() self.enabled = false end
+        function primary:IsEnabled() return self.enabled end
+        function primary:SetLabel(t) self.label = t end
+        local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+        local d = deal(1, 100)
+        local row = { deal = d }
+        set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+          banner = { Hide = function() end }, SetHeight = function() end })
+        apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+          reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
+          entryTotal = 2660000 } })
+        assert.equal("check", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        return row, primary, status
+      end
+
+      it("asks the open pane's held Buy again through its own Check", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary, status = openPane(api)
+
+        wallet = 13300000
+        api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("requerying", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        assert.equal("checking live safety...", status.text)
+      end)
+
+      -- A pane can open on a pre-warm a few seconds old, from before the gold arrived and after
+      -- its PLAYER_MONEY had already fired. It offers the Check rather than a held Buy with
+      -- nothing to ask it again (review M-3).
+      it("offers the Check, not a held Buy, when the gold already covers what the answer said", function()
+        local api = loadSniper(safe)
+        wallet = 13300000
+        _G.GetMoney = function() return wallet end
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local apply = upvalue(finish, "applyRequeryResult")
+        local armCheck = upvalue(apply, "armCheck")
+        set(armCheck, "setDialogHeader", function() end)
+        set(armCheck, "stampDialogFromDecision", function() end)
+        local primary = { enabled = false, text = { SetTextColor = function() end } }
+        function primary:Enable() self.enabled = true end
+        function primary:Disable() self.enabled = false end
+        function primary:IsEnabled() return self.enabled end
+        function primary:SetLabel(t) self.label = t end
+        local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+        local row = { deal = deal(1, 100) }
+        set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+          banner = { Hide = function() end }, SetHeight = function() end })
+
+        apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+          reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
+          entryTotal = 2660000 } })
+
+        assert.equal("Check", primary.label)
+        assert.is_true(primary.enabled)
+        -- Not the wallet-limit refusal the answer carried: the gold is there now.
+        assert.equal("you have enough gold for this now -- Check again", status.text)
+      end)
+
+      -- Looting in a raid fires PLAYER_MONEY over and over; a window nobody is looking at does not
+      -- re-sort its board for it (review M-4). The next render, when it is shown, reads the gold.
+      it("does nothing visible while the window is hidden", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local frame = upvalue(api.GC.Sniper.OnAuctionHouseShow, "frame")
+        local renders = 0
+        local real = api.refreshRows
+        set(api.GC.Sniper.OnPlayerMoney, "refreshRows", function() renders = renders + 1 end)
+        frame.IsShown = function() return false end
+        wallet = 20000000
+        api.GC.Sniper.OnPlayerMoney()
+        assert.equal(0, renders)
+        frame.IsShown = function() return true end
+        api.GC.Sniper.OnPlayerMoney()
+        assert.equal(1, renders)
+        set(api.GC.Sniper.OnPlayerMoney, "refreshRows", real)
+      end)
+
+      it("leaves the pane's Buy held while the gold is still short", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary = openPane(api)
+
+        wallet = 13299999
+        api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("check", row.purchaseStage)
+        assert.is_false(primary.enabled)
+      end)
+    end)
+
+    -- One line at the top of the board, for as long as the wallet cannot pay for one unit of the
+    -- cheapest row on it at the player's own wallet limit -- driven by PLAYER_MONEY as well as by
+    -- the board, so gold arriving takes it down without waiting for a scan.
+    it("says so at the top of the board while the gold cannot pay for anything on it", function()
+      local wallet = 0
+      local api = realEngine(PASSING, function() return wallet end)
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      upvalue(api.GC.Sniper.OnAuctionHouseShow, "frame").goldLine = line
+      board(api, { deal(1, 1000000) })
+      assert.is_true(line.shown)
+      assert.is_truthy(line.text:find("gold", 1, true))
+
+      wallet = 20000000 -- five percent of 2,000g pays for one unit at 100g
+      api.GC.Sniper.OnPlayerMoney()
+      assert.is_false(line.shown)
+
+      wallet = 19999999
+      api.GC.Sniper.OnPlayerMoney()
+      assert.is_true(line.shown)
+    end)
+  end)
+
+  -- Each board's own rule for what the gold can buy, the one its buy is held to (review I-3). A
+  -- commodity is held to the per-buy share of the wallet (SniperDecision's capital gate); a realm
+  -- lot only to the wallet itself (the realm arm and PlaceBid), unless it is a YOUR PRICE lot,
+  -- which keeps to the share as well. The line said "not enough gold" over an 80g lot a 1,000g
+  -- character could buy.
+  describe("the not-enough-gold line, board by board", function()
+    local function load(wallet)
+      local api = loadSniper(safe)
+      local GC = api.GC
+      helper.loadModule("Core/Book.lua", GC)
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      _G.GetMoney = function() return wallet end
+      local sniper = GC.db.settings.sniper
+      sniper.maxCapitalShare, sniper.maxDailyDemandShare, sniper.maxQuantity = 0.05, 0.02, 200
+      sniper.minimumProfitCopper, sniper.minimumRoi = 50000, 0.10
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      upvalue(GC.Sniper.OnAuctionHouseShow, "frame").goldLine = line
+      return api, line
+    end
+
+    local function items(api, lot)
+      api.GC.db.settings.sniper.board = "items"
+      api.GC.Sniper._realmDeals = { [7] = lot }
+      api.refreshRows()
+    end
+
+    it("stays off the Items board while the wallet covers a lot, whatever the per-buy share", function()
+      local api, line = load(10000000) -- 1,000g: its 5% share is 50g
+      items(api, deal(7, 800000)) -- an 80g lot
+      assert.is_false(line.shown)
+    end)
+
+    it("shows on the Items board when no lot fits in the wallet", function()
+      local api, line = load(10000000)
+      items(api, deal(7, 12000000)) -- 1,200g
+      assert.is_true(line.shown)
+    end)
+
+    it("holds a YOUR PRICE lot to the per-buy share as well, as its buy is", function()
+      local api, line = load(10000000)
+      local lot = deal(7, 800000)
+      lot.cap = 900000
+      items(api, lot)
+      assert.is_true(line.shown)
+    end)
+
+    it("holds the Commodities board to the per-buy share", function()
+      local api, line = load(10000000)
+      board(api, { deal(1, 800000) }) -- one unit at 80g, over the 50g share
+      assert.is_true(line.shown)
+      board(api, { deal(1, 400000) }) -- 40g fits
+      assert.is_false(line.shown)
+    end)
   end)
 
   it("buys nothing: the verify path holds no purchase call and no click handler", function()

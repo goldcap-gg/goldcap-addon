@@ -24,7 +24,7 @@ GC.Locales.esMX = {
   ["%d days"] = "%d días",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d oportunidades del último escaneo -- pulsa Full Scan para actualizar",
-  ["%d filtered out as hard to resell"] = "%d descartadas por ser difíciles de revender",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d descartadas: difíciles de revender o bajo tu ganancia mínima por compra",
   ["%d held back"] = "%d retenidas",
   ["%d held back from posting"] = "%d sin publicar",
   ["%d hidden -- the live check refused them"] = "%d ocultos -- la comprobación en vivo los rechazó",
@@ -52,7 +52,7 @@ GC.Locales.esMX = {
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin costo",
   ["%s+ ahead"] = "%s+ por delante",
   ["%s+, %d prices read"] = "%s+ en %d precios",
-  [", %d hidden as unsellable"] = ", %d ocultos por no ser vendibles",
+  [", %d hidden: hard to resell or under your min profit"] = ", %d ocultos: difíciles de revender o bajo tu ganancia mínima",
   ["1 lot, %s asked"] = "1 lote, se piden %s",
   ["24h trend"] = "Tendencia 24 h",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -132,7 +132,6 @@ GC.Locales.esMX = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion mantiene los precios al día — /goldcap companion",
   ["Companion sync rejected:"] = "Sincronización de Companion rechazada:",
-  ["Confidence"] = "Confianza",
   ["Confirm"] = "Confirmar",
   ["Confirm the cancel"] = "Confirmar la cancelación",
   ["Confirm the removal"] = "Confirmar la eliminación",
@@ -166,6 +165,7 @@ GC.Locales.esMX = {
   ["Entry price (avg fill)"] = "Precio de entrada (ejecución media)",
   ["Entry total"] = "Total de entrada",
   ["Est. profit"] = "Beneficio est.",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Todo lo demás cuadra. Con más oro en este personaje, sería una compra.",
   ["FIFO allocations"] = "Asignaciones FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Obteniendo un precio nuevo para este objeto — vuelve a pulsar Post en un momento",
@@ -193,6 +193,7 @@ GC.Locales.esMX = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "La sugerencia de GoldCap para este objeto y el precio que usaría.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: comprobado en vivo -- es una oferta, pero necesitas %s en este personaje",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: comprobado en vivo -- seguro comprar",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: aún sin comprobar contra la casa de subastas en vivo",
   ["Gone"] = "Ya no está",
@@ -258,6 +259,7 @@ GC.Locales.esMX = {
   ["NOTHING TO POST"] = "NADA QUE PUBLICAR",
   ["Needs a live price check before it can be bought."] =
     "Necesita una verificación de precio en vivo antes de poder comprarse.",
+  ["Needs gold"] = "Necesita oro",
   ["Never spend more than this share of your gold on one purchase."] =
     "Nunca gastar más de esta parte de tu oro en una sola compra.",
   ["No answer yet -- listening for a minute"] = "Aún sin respuesta -- escuchando un minuto",
@@ -278,6 +280,7 @@ GC.Locales.esMX = {
   ["No sales data for this item."] = "No hay datos de ventas para este objeto.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Aún no hay ventas registradas -- abre el buzón con GoldCap cargado",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Falta oro en este personaje para comprar estas ofertas",
   ["Not enough units on the Auction House to fill that quantity."] =
     "No hay unidades suficientes en la casa de subastas para esa cantidad.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -388,6 +391,7 @@ GC.Locales.esMX = {
   ["Sales are costed from your oldest units first"] =
     "Las ventas se imputan primero a tus unidades más antiguas",
   ["Search"] = "Buscar",
+  ["Sales evidence"] = "Datos de venta",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La pestaña Vender publica un escalón por encima de la oferta más barata cuando el libro indica que se vende igual de rápido.",
   ["Sell-through"] = "Tasa de venta",
@@ -565,10 +569,11 @@ GC.Locales.esMX = {
   ["data from goldcap.gg · synced %s ago"] = "datos de goldcap.gg · sincronizados hace %s",
   ["due -- will be asked next pass"] = "pendiente -- se consultará en la próxima pasada",
   ["expires in %d s"] = "caduca en %d s",
-  ["fair"] = "media",
+  ["fair"] = "aceptables",
   ["far below market"] = "muy por debajo del mercado",
   ["finish the pending buy first"] = "termina primero la compra pendiente",
   ["first in line"] = "primero en la fila",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Cuesta %s. Con tu límite por compra del %d%% necesitas %s en este personaje.",
   ["fresh"] = "reciente",
   ["full scan already in progress"] = "el escaneo completo ya está en marcha",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -582,7 +587,7 @@ GC.Locales.esMX = {
   ["full scan stopped -- press %s to run it again"] =
     "escaneo completo detenido -- pulsa %s para volver a lanzarlo",
   ["gone / price changed"] = "desaparecido / precio cambiado",
-  ["high"] = "alta",
+  ["strong"] = "sólidos",
   ["hold"] = "mantener",
   ["identity unresolved (variant item -- not priced by design)"] =
     "identidad sin resolver (objeto con variantes -- sin precio por diseño)",
@@ -614,10 +619,11 @@ GC.Locales.esMX = {
   ["live safety confirmed -- click Buy to purchase"] =
     "seguridad confirmada en vivo -- pulsa Buy para comprar",
   ["live verification required"] = "se requiere verificación en vivo",
-  ["low"] = "baja",
+  ["weak"] = "escasos",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "importación manual -- Companion lo mantiene al día: /goldcap companion",
   ["market %s"] = "mercado %s",
+  ["needs %s"] = "exige %s",
   ["needs a fresh price -- press Refresh"] = "necesita un precio nuevo -- pulsa Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sin confirmación del servidor -- la compra puede haberse completado igualmente, revisa tu correo. Cerrar esto no la deshará.",
@@ -640,6 +646,7 @@ GC.Locales.esMX = {
   ["not enough gold -- total %s, you have %s"] = "no hay oro suficiente -- total %s, tienes %s",
   ["not enough gold for this quote -- Cancel"] =
     "no hay oro suficiente para esta cotización -- Cancel",
+  ["not enough gold on this character -- you need %s"] = "no hay oro suficiente en este personaje -- necesitas %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "no quedan suficientes unidades para esa cantidad -- revisando de nuevo lo que queda...",
   ["not priced — nothing on hand to sell"] = "sin precio — nada a mano para vender",
@@ -740,6 +747,7 @@ GC.Locales.esMX = {
     "en el peor caso, revendiendo las %d al precio que hay ahora mismo",
   ["worth cancelling"] = "conviene cancelar",
   ["would sell at a loss"] = "se vendería con pérdidas",
+  ["you have enough gold for this now -- Check again"] = "ya tienes oro suficiente -- pulsa Check para comprobar de nuevo",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "aún no has importado los precios del reino -- instala GoldCap Companion (/goldcap companion) o pega una cadena de goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

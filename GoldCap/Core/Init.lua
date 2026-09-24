@@ -848,6 +848,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
+    -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
+    if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
   elseif event == "BAG_UPDATE_DELAYED" then
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.

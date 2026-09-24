@@ -25,7 +25,7 @@ GC.Locales.zhCN = {
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次扫描的 %d 笔交易 -- 按 Full Scan 刷新",
-  ["%d filtered out as hard to resell"] = "%d 笔因难以转卖被过滤",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d 笔因难以转卖或低于单次购买最低利润被过滤",
   ["%d held back"] = "%d 笔已保留",
   ["%d held back from posting"] = "%d 笔未上架",
   ["%d hidden -- the live check refused them"] = "已隐藏 %d 项 -- 实时核对已拒绝",
@@ -52,7 +52,7 @@ GC.Locales.zhCN = {
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
   ["%s+ ahead"] = "前面有 %s+",
   ["%s+, %d prices read"] = "%s+，已读 %d 个价位",
-  [", %d hidden as unsellable"] = "，%d 件因无法出售已隐藏",
+  [", %d hidden: hard to resell or under your min profit"] = "，%d 件因难以转卖或低于你的最低利润已隐藏",
   ["1 lot, %s asked"] = "1 批，要价 %s",
   ["24h trend"] = "24小时走势",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -127,7 +127,6 @@ GC.Locales.zhCN = {
   ["Close"] = "关闭",
   ["Companion keeps prices fresh — /goldcap companion"] = "Companion 会自动更新价格：/goldcap companion",
   ["Companion sync rejected:"] = "Companion 同步被拒绝：",
-  ["Confidence"] = "置信度",
   ["Confirm"] = "确认",
   ["Confirm the cancel"] = "确认取消",
   ["Confirm the removal"] = "确认删除",
@@ -157,6 +156,7 @@ GC.Locales.zhCN = {
   ["Entry price (avg fill)"] = "入场价（平均成交）",
   ["Entry total"] = "入场总额",
   ["Est. profit"] = "预计利润",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "其他条件都满足。这个角色金币再多些，就可以买入。",
   ["FIFO allocations"] = "先进先出分配",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "正在获取该物品的最新价格 — 稍后再按 Post",
@@ -181,6 +181,7 @@ GC.Locales.zhCN = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCap 对这件物品的建议，以及它会用的价格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap：已实时检查 -- 值得买，但这个角色需要 %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已实时检查 -- 可安全购买",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在实时拍卖行核对",
   ["Gone"] = "已消失",
@@ -242,6 +243,7 @@ GC.Locales.zhCN = {
   ["NOTHING TO CANCEL"] = "没有可取消的",
   ["NOTHING TO POST"] = "没有可上架的",
   ["Needs a live price check before it can be bought."] = "需要先做一次实时价格检查才能购买。",
+  ["Needs gold"] = "需要金币",
   ["Never spend more than this share of your gold on one purchase."] = "单次购买花费的金币，永远不超过你金币总量的这个比例。",
   ["No answer yet -- listening for a minute"] = "拍卖行尚未回应 -- 再等待一分钟",
   ["No deals passed the safety checks right now."] = "目前没有交易通过安全检查。",
@@ -257,6 +259,7 @@ GC.Locales.zhCN = {
   ["No sales data for this item."] = "该物品没有成交数据。",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "尚未记录任何销售 -- 请在加载 GoldCap 的情况下打开邮箱",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "此角色金币不足，买不起 GoldCap 找到的交易",
   ["Not enough units on the Auction House to fill that quantity."] = "拍卖行上的数量不足以凑齐这个量。",
   ["Not in your bags or listed — mail or bank?"] = "不在背包也未上架 — 在邮件还是银行？",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
@@ -357,6 +360,7 @@ GC.Locales.zhCN = {
   ["SHOW DETAILS ▸"] = "显示详情 ▸",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
+  ["Sales evidence"] = "销售可信度",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "当挂单簿显示卖得一样快时，出售标签会挂在最低价上方一级。",
   ["Sell-through"] = "售罄率",
@@ -515,6 +519,7 @@ GC.Locales.zhCN = {
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
   ["first in line"] = "排在第一位",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花费 %s。按你 %d%% 的单次购买上限，这个角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -524,7 +529,7 @@ GC.Locales.zhCN = {
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
   ["full scan stopped -- press %s to run it again"] = "完整扫描已停止 -- 按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
-  ["high"] = "高",
+  ["strong"] = "高",
   ["hold"] = "持有",
   ["identity unresolved (variant item -- not priced by design)"] =
     "无法识别（变体物品 -- 按设计不计价）",
@@ -554,10 +559,11 @@ GC.Locales.zhCN = {
   ["listing gone -- bought out or repriced"] = "该拍卖已消失 — 被买走或改价",
   ["live safety confirmed -- click Buy to purchase"] = "已实时确认安全 -- 点击 Buy 购买",
   ["live verification required"] = "需要实时验证",
-  ["low"] = "低",
+  ["weak"] = "低",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "手动导入 -- Companion 会自动更新：/goldcap companion",
   ["market %s"] = "市场 %s",
+  ["needs %s"] = "需要 %s",
   ["needs a fresh price -- press Refresh"] = "需要最新价格 -- 请按 Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "服务器没有返回确认 -- 购买仍可能已完成，请检查邮件。关闭此窗口不会撤销它。",
@@ -577,6 +583,7 @@ GC.Locales.zhCN = {
   ["none"] = "无",
   ["not enough gold -- total %s, you have %s"] = "金币不足 -- 共需 %s，你有 %s",
   ["not enough gold for this quote -- Cancel"] = "该报价所需金币不足 -- Cancel",
+  ["not enough gold on this character -- you need %s"] = "此角色金币不足 -- 需要 %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "剩余数量不足以买这么多 -- 正在重新检查还剩多少...",
   ["not priced — nothing on hand to sell"] = "未定价 — 手头没有可卖的物品",
@@ -665,6 +672,7 @@ GC.Locales.zhCN = {
     "最坏情况下，把全部 %d 件按现在挂着的价格卖回去",
   ["worth cancelling"] = "值得取消",
   ["would sell at a loss"] = "卖出会亏损",
+  ["you have enough gold for this now -- Check again"] = "现在金币已足够 -- 点击 Check 重新检查",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "你还没有导入服务器价格 -- 请安装 GoldCap Companion（/goldcap companion）或粘贴 goldcap.gg 的字符串（/goldcap import）。",
   ["your game client has no font for this language — the text will show as empty boxes"] =

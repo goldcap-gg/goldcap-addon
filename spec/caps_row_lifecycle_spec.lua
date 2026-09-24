@@ -797,7 +797,8 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
 
   -- The same item can be a market deal as well: its own browse row, under the region value,
   -- merged in page by page and rebuilt at the end. Neither may replace the row the player's
-  -- own price built while that price still holds.
+  -- own price built while that price still holds. The market row asks 10g against a 20g stress
+  -- exit, so its planned buy clears the player's 5g minimum profit and really is on the board.
   local MARKET = { kind = "commodity", source = "import", mv = 250000, stressUnit = 200000,
     sold = 12, sellThroughBps = 9000, liquidityConfidence = 90, listings = 20,
     currentQty = 400, trend = 0 }
@@ -807,7 +808,7 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
     values[42] = MARKET
     local capRow = seedCapRow(GC, 140000, 200000)
 
-    runPass(GC, "wide", { browseRow(42, 150000, 50) })
+    runPass(GC, "wide", { browseRow(42, 100000, 50) })
 
     assert.equal(capRow, onBoard(GC, 42))
   end)
@@ -817,12 +818,12 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
     values[42] = MARKET
     set(sortedDeals(GC), "mode", "fullscan")
 
-    runPass(GC, "wide", { browseRow(42, 150000, 50) })
+    runPass(GC, "wide", { browseRow(42, 100000, 50) })
 
     local deal = onBoard(GC, 42)
     assert.is_table(deal)
     assert.is_nil(deal.cap)
-    assert.equal(150000, deal.unitPrice)
+    assert.equal(100000, deal.unitPrice)
   end)
 
   -- Fix round 1: a cap row found before the first full scan of the session goes on the board
