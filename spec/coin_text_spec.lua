@@ -54,17 +54,25 @@ end)
 describe("no bare GetCoinTextureString", function()
   it("is called only inside Core/Util.lua", function()
     local offenders = {}
+    -- Final review M3: a wrong working directory makes `grep -r GoldCap` find nothing at all,
+    -- which left `offenders` empty and this test green without having checked a single line.
+    -- sawUtilHit pins that the grep actually ran against the real tree, by requiring it to have
+    -- found the one call site it is allowed to find (Core/Util.lua's own, inside CoinText).
+    local sawUtilHit = false
     local p = io.popen("grep -rn 'GetCoinTextureString' GoldCap --include='*.lua'")
     for line in p:lines() do
       local file = line:match("^([^:]+):")
       local code = line:gsub("^[^:]+:%d+:", "")
       local isComment = code:match("^%s*%-%-")
       local isCall = code:find("GetCoinTextureString%s*%(")
+      if isCall and file == "GoldCap/Core/Util.lua" then sawUtilHit = true end
       if file ~= "GoldCap/Core/Util.lua" and isCall and not isComment then
         offenders[#offenders + 1] = line
       end
     end
     p:close()
     assert.same({}, offenders)
+    assert.is_true(sawUtilHit,
+      "grep found no GetCoinTextureString( call in Core/Util.lua -- check the working directory")
   end)
 end)
