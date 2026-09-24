@@ -584,6 +584,8 @@ GC.Locales.ptBR = {
   ["full scan stopped -- press %s to run it again"] =
     "varredura completa interrompida -- clique em %s para rodá-la de novo",
   ["gone / price changed"] = "sumiu / preço mudou",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "Os preços do goldcap.gg para WoW: Forever ainda não estão disponíveis.",
   ["strong"] = "sólidos",
   ["hold"] = "segurar",
   ["identity unresolved (variant item -- not priced by design)"] =

@@ -596,6 +596,8 @@ GC.Locales.ukUA = {
   ["full scan stopped -- press %s to run it again"] =
     "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "Ціни goldcap.gg для WoW: Forever ще не доступні.",
   ["strong"] = "надійні",
   ["hold"] = "тримати",
   ["identity unresolved (variant item -- not priced by design)"] =

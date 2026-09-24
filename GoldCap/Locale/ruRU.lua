@@ -581,6 +581,8 @@ GC.Locales.ruRU = {
   ["full scan stopped -- press %s to run it again"] =
     "полное сканирование остановлено -- нажмите %s, чтобы запустить его снова",
   ["gone / price changed"] = "исчезло / цена изменилась",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "Цены goldcap.gg для WoW: Forever пока недоступны.",
   ["strong"] = "надёжные",
   ["hold"] = "держать",
   ["identity unresolved (variant item -- not priced by design)"] =

@@ -544,6 +544,8 @@ GC.Locales.koKR = {
   ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
   ["full scan stopped -- press %s to run it again"] = "전체 검색이 중단됐습니다 -- %s 버튼을 눌러 다시 실행하세요",
   ["gone / price changed"] = "사라짐 / 가격 변경",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "WoW: Forever용 goldcap.gg 가격은 아직 제공되지 않습니다.",
   ["strong"] = "높음",
   ["hold"] = "보류",
   ["identity unresolved (variant item -- not priced by design)"] =

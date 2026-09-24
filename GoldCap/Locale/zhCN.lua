@@ -529,6 +529,8 @@ GC.Locales.zhCN = {
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
   ["full scan stopped -- press %s to run it again"] = "完整扫描已停止 -- 按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "WoW: Forever 的 goldcap.gg 价格还未上线。",
   ["strong"] = "高",
   ["hold"] = "持有",
   ["identity unresolved (variant item -- not priced by design)"] =

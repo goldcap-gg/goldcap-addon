@@ -583,6 +583,8 @@ GC.Locales.frFR = {
   ["full scan stopped -- press %s to run it again"] =
     "scan complet arrêté -- appuyez sur %s pour le relancer",
   ["gone / price changed"] = "disparu / prix modifié",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "Les prix goldcap.gg pour WoW: Forever ne sont pas encore disponibles.",
   ["strong"] = "certaines",
   ["hold"] = "garder",
   ["identity unresolved (variant item -- not priced by design)"] =
