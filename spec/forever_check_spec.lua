@@ -66,4 +66,17 @@ describe("/gc forever self-check", function()
     end)
     assert.truthy(table.concat(printed, "\n"):find("ReplicateItems failed", 1, true))
   end)
+
+  -- Final review M1: ReplicateItems does a full server-side auction-house dump. On retail that
+  -- is exactly the scan GoldCap avoids doing itself, so /gc forever must never trigger one there
+  -- -- it is a WoW: Forever diagnostic, not a general-purpose scan trigger.
+  it("does not scan on retail, and says the test is Forever-only", function()
+    GC.Game.Passport = function() return { interface = 120100, build = "12.1.0.69933", regionId = 3 } end
+    local called = false
+    GC.ForeverCheck.Run(env({
+      C_AuctionHouse = { ReplicateItems = function() called = true end, GetNumReplicateItems = function() return 0 end },
+    }))
+    assert.is_false(called)
+    assert.truthy(printed[#printed]:find("the full-scan test runs only in WoW: Forever", 1, true))
+  end)
 end)

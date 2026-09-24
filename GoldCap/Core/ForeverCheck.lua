@@ -40,6 +40,13 @@ function GC.ForeverCheck.Run(env)
   env = env or realEnv()
   local say = env.print
   for _, line in ipairs(GC.ForeverCheck.Report(env)) do say("forever check: " .. line) end
+  -- The full-scan probe below calls ReplicateItems -- exactly the server-side auction-house
+  -- dump GoldCap otherwise never triggers itself. /gc forever is a WoW: Forever diagnostic;
+  -- run on retail it would fire that dump for no reason (final review M1).
+  local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or nil
+  if not (GC.Game and GC.Game.IsForever and GC.Game.IsForever(p)) then
+    say("forever check: the full-scan test runs only in WoW: Forever"); return
+  end
   local ah = env.C_AuctionHouse
   if not (has(ah, "ReplicateItems") and has(ah, "GetNumReplicateItems")) then
     say("forever check: ReplicateItems is missing -- no full scan in this client"); return
