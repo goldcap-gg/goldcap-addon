@@ -15,6 +15,7 @@
 
 Core/Util.lua
 Core/Game.lua
+Core/ForeverCheck.lua
 Locale/Core.lua
 Locale/deDE.lua
 Locale/enUS.lua

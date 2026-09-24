@@ -116,6 +116,9 @@ describe("locale contract", function()
       ["GoldCap/UI/Theme.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,
+      -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain
+      -- English on purpose like the beta probe -- adds no GC.L keys by design.
+      ["GoldCap/Core/ForeverCheck.lua"] = true,
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 

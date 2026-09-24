@@ -896,6 +896,9 @@ function GC.OnSlash(msg)
 end
 
 GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
+-- Diagnostic: what this client offers GoldCap, plus a full-scan row-count probe at an open
+-- auction house; see Core/ForeverCheck.lua. English on purpose, so not in the help line.
+GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same
 -- thing, but it lives INSIDE the window -- no use at all when the window itself has ended up
