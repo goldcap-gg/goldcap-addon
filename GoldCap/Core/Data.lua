@@ -82,6 +82,11 @@ function GC.Data.WarnRegionUnknown()
   -- cannot answer -- a PTR portal, say.
   if not GetCVar then return nil end
   if portalRegion() then return nil end
+  -- No bundled table loaded at all (WoW: Forever's Camelot TOC omits Data/MarketData.lua) means
+  -- there is no US fallback to warn about, and the warning's advice (/goldcap import,
+  -- /goldcap companion) would point a Forever player at retail data that does not apply to them.
+  -- A check on the data, not the game: retail always has GoldCap_MarketData, so this is unchanged there.
+  if not _G.GoldCap_MarketData then return nil end
   local imported = db and db.imported
   if imported and type(imported.region) == "string" and imported.region ~= "" then return nil end
   warnedRegionUnknown = true

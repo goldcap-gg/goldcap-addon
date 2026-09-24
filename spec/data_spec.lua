@@ -266,6 +266,17 @@ describe("Data", function()
       local _, printed = loadWith("EU")
       assert.equal(0, #printed)
     end)
+
+    -- WoW: Forever's Camelot TOC omits Data/MarketData.lua entirely, so GoldCap_MarketData
+    -- is nil; the beta's portal CVar reads "test", which is not a known region either. The
+    -- warning's advice (/goldcap import, /goldcap companion) points at retail data, so it must
+    -- not fire when there is no bundled table to begin with -- this is a WoW: Forever client,
+    -- not a PTR portal with a US fallback in play.
+    it("says nothing when no bundled table is loaded at all (WoW: Forever)", function()
+      _G.GoldCap_MarketData = nil
+      local _, printed = loadWith("test")
+      assert.equal(0, #printed)
+    end)
   end)
 
   -- Every other entry point here tolerates Init never having run; these two did not, and
