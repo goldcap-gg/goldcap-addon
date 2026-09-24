@@ -176,6 +176,52 @@ describe("FullScan.Evaluate", function()
     assert.equal(0, #deals)
     assert.equal(2, screened)
   end)
+
+  -- "Min profit per buy" used to be honoured only by Check and the fast loop's trigger, so the
+  -- scan put rows on the board that no Check could ever pass: a 97%-off potion worth 2s of
+  -- profit (in game 2026-09-23). The pass turns them away and counts them like any other screen.
+  describe("under the player's Min profit per buy", function()
+    local floored = {
+      hotDiscount = 0.40, hotProfit = 5000000,
+      goodDiscount = 0.25, goodProfit = 1000000,
+      watchDiscount = 0.10, suspectDiscount = 0.90,
+      minimumProfitCopper = 50000, watchPins = {},
+    }
+    local potion = { [163082] = { mv = 10000, stressUnit = 591 } }
+    local function potionOr(id) return potion[id] or values[id] end
+
+    it("leaves a row whose planned buy projects less off the board, and counts it", function()
+      local deals, screened = GC.FullScan.Evaluate({
+        { itemID = 163082, count = 1, buyoutStack = 300 },   -- 97% off, projects 2s 61c
+        { itemID = 10, count = 1, buyoutStack = 500000 },    -- 50% off a 100g market: 45g
+      }, potionOr, floored, 100)
+      assert.equal(1, #deals)
+      assert.equal(10, deals[1].itemID)
+      assert.equal(1, screened)
+    end)
+
+    it("keeps a pinned item on the board under the minimum", function()
+      local pinned = {}
+      for k, v in pairs(floored) do pinned[k] = v end
+      pinned.watchPins = { 163082 }
+      local deals, screened = GC.FullScan.Evaluate({
+        { itemID = 163082, count = 1, buyoutStack = 300 },
+      }, potionOr, pinned, 100)
+      assert.equal(1, #deals)
+      assert.equal(163082, deals[1].itemID)
+      assert.equal(0, screened)
+    end)
+
+    it("applies to a streamed page exactly as to a whole pass", function()
+      local deals, _, screened = GC.FullScan.EvaluateDelta({
+        { itemID = 163082, count = 1, buyoutStack = 300 },
+        { itemID = 10, count = 1, buyoutStack = 500000 },
+      }, 0, potionOr, floored)
+      assert.equal(1, #deals)
+      assert.equal(10, deals[1].itemID)
+      assert.equal(1, screened)
+    end)
+  end)
 end)
 
 -- RowsFromBrowse's estimated quantity is no longer a raw sold/day figure: the deals list used

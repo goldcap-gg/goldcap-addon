@@ -107,6 +107,26 @@ function GC.DealMath.Evaluate(live, value, cfg)
   }
 end
 
+-- Whether the board takes a market row under the player's "Min profit per buy"
+-- (settings.sniper.minimumProfitCopper, `cfg` here). Check (SniperDecision.Evaluate) and the fast
+-- loop's trigger (Core/Trigger.lua) have always honoured it; the scan did not, so a row whose
+-- whole buy projected a few silver sat on the board as a lead until a Check refused it. In game
+-- 2026-09-23 a Coastal Rejuvenation Potion read 97% off and +92s -- its planned buy projected
+-- 2s 61c against a 5g floor -- and half the board wore AVOID.
+--
+-- Measured on `estProfit`: the stress-exit projection Evaluate above already makes for the buy
+-- the row plans, and the one shaped like the figure Check holds against the same setting. Not a
+-- second formula. Two kinds of row are the player's own choice and never turned away: a pinned
+-- item (`cfg.watchPins`) and a YOUR PRICE row (`deal.cap`). No setting, no floor.
+function GC.DealMath.BoardAdmits(deal, cfg)
+  local minimum = type(cfg) == "table" and cfg.minimumProfitCopper or nil
+  if type(minimum) ~= "number" or deal.cap then return true end
+  for _, pin in ipairs(type(cfg.watchPins) == "table" and cfg.watchPins or {}) do
+    if pin == deal.itemID then return true end
+  end
+  return type(deal.estProfit) ~= "number" or deal.estProfit >= minimum
+end
+
 function GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, maxRatio)
   local threshold = quotedTotal * (1 + maxRatio)
   return updatedTotal > threshold + math.abs(threshold) * EPS

@@ -52,6 +52,18 @@ function GC.Util.FormatGoldFloor(copper)
   return ("%ds"):format(math.floor(copper / 100))
 end
 
+-- The gold a character must hold, rounded UP to whole gold: a figure that rounds down promises a
+-- buy for less than the wallet limit lets through, and a player who fetches exactly that much is
+-- refused anyway. The one formatter for it -- the Sniper's needs-gold cell, the check pane's
+-- figure, caption and status line and the row tooltip all print the same figure through here.
+-- `short` is for the cell, whose eleven characters cannot hold six digits: from 10,000g it counts
+-- the same rounded-up gold in thousands, rounded up again, the way players write gold.
+function GC.Util.FormatGoldCeil(copper, short)
+  local gold = math.max(1, math.ceil(copper / 10000))
+  if short and gold >= 10000 then return ("%dk"):format(math.ceil(gold / 1000)) end
+  return ("%dg"):format(gold)
+end
+
 local function finitePositive(value)
   return type(value) == "number" and value == value
     and value ~= math.huge and value ~= -math.huge and value > 0

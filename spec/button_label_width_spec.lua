@@ -191,4 +191,108 @@ describe("row button labels fit the button", function()
       end
     end)
   end
+
+  -- The check pane's facts: Theme.Label(factsBlock, 11) in a DG.FACT_LABEL_W column, one line, no
+  -- wrap (UI/SniperFrame.lua, createDialog). Measured at the default scale with the mono metric:
+  -- exact for the bundled mono face ukUA and ruRU labels are drawn in away from a Russian client
+  -- (Theme.RefreshFonts), an upper bound for a client's own face. The yardstick is the column's
+  -- own: in each language, the longest label already in it that fits. "Sales evidence" is new
+  -- there and must be no longer than that, in English too, and whole words: a label cut to fit
+  -- ("Надёжн.") is not a wording. Its reading (weak/fair/strong) sits in the value cell beside it,
+  -- Theme.Num(factsBlock, 11) in DG.FACT_VALUE_W.
+  local FACT_KEYS = { "Sellers", "Sold per day", "Sell-through", "Live ask", "Snapshot value",
+    "You would pay", "You would get", "Gold tied up", "If it clears", "You pay", "Worst case back",
+    "Your minimum", "Your price" }
+  local sniper
+  local function sniperSource()
+    if not sniper then
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      sniper = file:read("*a")
+      file:close()
+    end
+    return sniper
+  end
+
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("fits the %s Sales evidence label and its readings in the check pane's facts"):format(code), function()
+      assert.is_truthy(sniperSource():find("rowFacts.label = Theme.Label(factsBlock, 11)", 1, true))
+      assert.is_truthy(sniperSource():find("rowFacts.value = Theme.Num(factsBlock, 11)", 1, true))
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      local budget = holds(tonumber(sniperSource():match("DG.FACT_LABEL_W = (%d+)")), 11, 1.0)
+      local yardstick = 0
+      for _, key in ipairs(FACT_KEYS) do
+        local width = displayWidth(translations[key] or key)
+        if width <= budget and width > yardstick then yardstick = width end
+      end
+      local label = assert(translations["Sales evidence"], code .. " is missing Sales evidence")
+      assert.is_true(displayWidth(label) <= yardstick, ("%s: %q is %d wide, the column's longest fitting label %d"):format(
+        code, label, displayWidth(label), yardstick))
+      assert.is_nil(label:find(".", 1, true), ("%s: %q is abbreviated"):format(code, label))
+      local valueBudget = holds(tonumber(sniperSource():match("DG.FACT_VALUE_W = (%d+)")), 11, 1.0)
+      for _, key in ipairs({ "weak", "fair", "strong" }) do
+        local word = assert(translations[key], code .. " is missing " .. key)
+        assert.is_true(displayWidth(word) <= valueBudget, ("%s: %q is %d wide"):format(code, word, displayWidth(word)))
+      end
+    end)
+  end
+
+  -- A deal only the wallet limit refused. Its verdict cell is the tier column's TierMark, mono-10
+  -- bold: 80px less the 11px its dot and gap take (COLUMNS in UI/SniperFrame.lua), the same
+  -- eleven characters "SAFE +9999g" was sized to -- measured with the same four-figure amount.
+  -- Its line at the top of the board is Theme.Label(10) between the ITEMS chip and the window's
+  -- right gutter: at the default 720px window, 688 - 332 = 356px.
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("fits the %s needs-gold cell and the not-enough-gold line"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      local needs = assert(translations["needs %s"], code .. " is missing needs %s"):gsub("%%s", "9999g")
+      assert.is_true(displayWidth(needs) <= holds(69, 10, 1.0), ("%s: %q is %d wide"):format(
+        code, needs, displayWidth(needs)))
+      local key = "Not enough gold on this character to buy what GoldCap finds"
+      local line = assert(translations[key], code .. " is missing " .. key)
+      assert.is_true(displayWidth(line) <= holds(356, 10, 1.0), ("%s: %q is %d wide"):format(
+        code, line, displayWidth(line)))
+    end)
+  end
+
+  -- The needs-gold pane's caption: Theme.Label(10) across the hero (DG.WIDTH less its two margins,
+  -- 296px), two lines tall (DG.HERO_CAPTION_H = 26) and nothing drawn past them. Laid out word by
+  -- word as the client wraps it, with the widest figures a real buy carries -- a 9,999g buy at 20%,
+  -- and the 199,980g it takes at the default 5% -- every language stays on its two lines.
+  local function glyphs(text)
+    local out, i = {}, 1
+    while i <= #text do
+      local byte = text:byte(i)
+      local size = (byte < 0x80 and 1) or (byte < 0xE0 and 2) or (byte < 0xF0 and 3) or 4
+      out[#out + 1] = text:sub(i, i + size - 1)
+      i = i + size
+    end
+    return out
+  end
+  local function wrappedLines(text, width)
+    local lines, used = 1, 0
+    for word in text:gmatch("%S+") do
+      -- A word wider than the line (CJK has no spaces) breaks between its glyphs.
+      local pieces = displayWidth(word) > width and glyphs(word) or { word }
+      for i, piece in ipairs(pieces) do
+        local w = displayWidth(piece)
+        local need = used == 0 and w or used + ((#pieces > 1 and i > 1) and 0 or 1) + w
+        if need > width then lines, used = lines + 1, w else used = need end
+      end
+    end
+    return lines
+  end
+
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps the %s needs-gold caption on its two lines"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local key = "Costs %s. With your %d%% per-buy limit you need %s on this character."
+      local caption = assert(GC.Locales[code][key], code .. " is missing the caption"):format("9999g", 20, "199980g")
+      assert.is_true(wrappedLines(caption, holds(296, 10, 1.0)) <= 2, ("%s: %q"):format(code, caption))
+    end)
+  end
 end)

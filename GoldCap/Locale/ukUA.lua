@@ -25,7 +25,7 @@ GC.Locales.ukUA = {
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
-  ["%d filtered out as hard to resell"] = "%d відсіяно як важкі для перепродажу",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d відсіяно: важко перепродати або нижче вашого мінімального прибутку з купівлі",
   ["%d held back"] = "%d притримано",
   ["%d held back from posting"] = "%d притримано від виставлення",
   ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
@@ -52,7 +52,7 @@ GC.Locales.ukUA = {
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   ["%s+ ahead"] = "%s+ попереду",
   ["%s+, %d prices read"] = "%s+, прочитано %d цін",
-  [", %d hidden as unsellable"] = ", приховано %d як непродавані",
+  [", %d hidden: hard to resell or under your min profit"] = ", приховано %d: важко перепродати або нижче вашого мінімального прибутку",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -130,7 +130,6 @@ GC.Locales.ukUA = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion сам оновлює ціни — /goldcap companion",
   ["Companion sync rejected:"] = "Синхронізацію Companion відхилено:",
-  ["Confidence"] = "Достовірність",
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
@@ -164,6 +163,7 @@ GC.Locales.ukUA = {
   ["Entry total"] = "Разом на вході",
   ["Est. profit"] = "Орієнт. прибуток",
   ["Every position in your bags already has a cost on record"] = "У всього, що в сумках, собівартість уже відома",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Усе інше гаразд. Було б на цьому персонажі більше золота — це була б купівля.",
   ["FIFO allocations"] = "Розподіл FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Отримуємо свіжу ціну для цього предмета — натисніть Post ще раз за мить",
@@ -192,6 +192,7 @@ GC.Locales.ukUA = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Що GoldCap радить щодо цього предмета і за якою ціною.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: перевірено наживо -- вигідно, але на цьому персонажі потрібно %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: перевірено наживо -- безпечно купувати",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ще не перевірено на живому аукціоні",
   ["Gone"] = "Зник",
@@ -262,6 +263,7 @@ GC.Locales.ukUA = {
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкою потрібна жива перевірка ціни.",
+  ["Needs gold"] = "Потрібне золото",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
   ["No answer yet -- listening for a minute"] = "Аукціон ще не відповів -- чекаємо ще хвилину",
@@ -282,6 +284,7 @@ GC.Locales.ukUA = {
   ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Продажів ще не записано -- відкрийте пошту з увімкненим GoldCap",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Бракує золота на цьому персонажі, щоб купити знахідки",
   ["Not enough units on the Auction House to fill that quantity."] =
     "На аукціоні не вистачає одиниць, щоб набрати цю кількість.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -397,6 +400,7 @@ GC.Locales.ukUA = {
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
+  ["Sales evidence"] = "Дані продажів",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -575,10 +579,11 @@ GC.Locales.ukUA = {
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
   ["expires in %d s"] = "спливає за %d с",
-  ["fair"] = "середня",
+  ["fair"] = "прийнятні",
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Коштує %s. З вашим лімітом %d%% на одну купівлю на цьому персонажі потрібно %s.",
   ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -591,7 +596,7 @@ GC.Locales.ukUA = {
   ["full scan stopped -- press %s to run it again"] =
     "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
-  ["high"] = "висока",
+  ["strong"] = "надійні",
   ["hold"] = "тримати",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
@@ -623,10 +628,11 @@ GC.Locales.ukUA = {
   ["live safety confirmed -- click Buy to purchase"] =
     "безпеку підтверджено наживо -- натисніть Buy, щоб купити",
   ["live verification required"] = "потрібна жива перевірка",
-  ["low"] = "низька",
+  ["weak"] = "слабкі",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["market %s"] = "ринок %s",
+  ["needs %s"] = "треба %s",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
@@ -648,6 +654,7 @@ GC.Locales.ukUA = {
   ["none"] = "немає",
   ["not enough gold -- total %s, you have %s"] = "недостатньо золота -- разом %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
+  ["not enough gold on this character -- you need %s"] = "недостатньо золота на цьому персонажі -- потрібно %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такої кількості одиниць уже не вистачає -- перевіряємо ще раз, що лишилося...",
   ["not priced — nothing on hand to sell"] = "без ціни — продавати нічого",
@@ -752,6 +759,7 @@ GC.Locales.ukUA = {
     "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
   ["worth cancelling"] = "варто скасувати",
   ["would sell at a loss"] = "продалося б у збиток",
+  ["you have enough gold for this now -- Check again"] = "тепер золота вистачає -- натисніть Check, щоб перевірити знову",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму -- встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

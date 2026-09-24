@@ -68,6 +68,9 @@ GC.CheckVerdict.TONE_WORD = {
   -- be a lie over an enabled buy button, and "Clear to buy" would be a bigger one.
   unverified = "Your call",
   cap = "At your price",
+  -- A buy the wallet limit alone refused (SniperDecision.Evaluate's `needsGold`): every other
+  -- gate passed. Neither a refusal nor a buy -- a deal this character cannot pay for yet.
+  gold = "Needs gold",
 }
 
 -- What the headline figure is OF. Keyed by the hero's unit rather than by the reason, because
@@ -82,6 +85,7 @@ GC.CheckVerdict.HERO_CAPTION = {
   unpriceable = "any figure here would be invented out of the very number being refused",
   reference = "against the region's own price for this item, after the 5% cut — if it sells",
   cap = "a unit, at or under your price of %s",
+  needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
 -- The sentence under the hero on the verdicts that are not a refusal. A refusal already has
@@ -92,6 +96,7 @@ GC.CheckVerdict.TONE_SENTENCE = {
   clear = "Checked against the live order book a moment ago.",
   unverified = "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
   cap = "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
+  gold = "Everything else checks out. With more gold on this character, this is a buy.",
 }
 
 -- Said beside the board's own tier chip, and only when the two disagree.
@@ -101,12 +106,18 @@ GC.CheckVerdict.RECONCILE_TEXT = {
 }
 
 -- One label per fact id. The ids are stable; the wording is not.
+--
+-- `confidence` is the sales tape's own certainty that listings which vanished were sold rather
+-- than left to expire -- the market's liquidityConfidence, nothing about the price or this
+-- verdict. Labelled "Confidence", it read "Confidence: high" beside "Won't buy -- can't price
+-- this" (in game 2026-09-23). Its label names the sales it is evidence of, and is not
+-- "Sell-through": that is `sellThrough`, a different figure.
 -- @localised-keys
 GC.CheckVerdict.FACT_LABEL = {
   sellers = "Sellers",
   soldPerDay = "Sold per day",
   sellThrough = "Sell-through",
-  confidence = "Confidence",
+  confidence = "Sales evidence",
   liveAsk = "Live ask",
   snapshotValue = "Snapshot value",
   youPay = "You would pay",
@@ -121,12 +132,14 @@ GC.CheckVerdict.FACT_LABEL = {
 
 -- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
 -- The meter beside it carries the precision; this carries the reading. MIN_CONFIDENCE is the
--- engine's own line, so "low" is exactly the band that refuses.
+-- engine's own line, so the `low` band is exactly the one that refuses. The words are evidence's
+-- own -- weak, fair, strong -- since they sit beside "Sales evidence", and each language words
+-- them to agree with its own label.
 -- @localised-keys
 GC.CheckVerdict.CONFIDENCE_WORD = {
-  low = "low",
+  low = "weak",
   fair = "fair",
-  high = "high",
+  high = "strong",
 }
 
 --- Which of CONFIDENCE_WORD's keys a score reads as. Here rather than in the panel because it
@@ -264,6 +277,11 @@ function GC.CheckVerdict.Build(decision, market, context)
     tone = "cap"
   elseif buyable then
     tone = informational.demand_limit and "adjust" or "clear"
+  elseif positive(decision.needsGold) then
+    -- The wallet limit was the one reason this refused, and the plan it would make with the
+    -- gold is a buy (SniperDecision.Evaluate). Its own answer: "Won't buy" is what a character
+    -- with no gold read on every row of a market full of deals (owner report 2026-09-24).
+    tone = "gold"
   elseif type(decision.candidate) == "table" then
     -- Sniper phase 2: a realm decision that named a specific lot. Not an approval -- it is not
     -- buyable and cannot become so -- but not a refusal either: the panel has a real price
@@ -287,6 +305,11 @@ function GC.CheckVerdict.Build(decision, market, context)
   elseif tone == "clear" then
     hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
       or { kind = "unpriceable" }
+  elseif tone == "gold" then
+    -- The gold the character must hold leads; what the buy costs and the per-buy share that
+    -- turns one into the other ride along, for the caption that says both.
+    hero = { kind = "needs", copper = decision.needsGold, cost = decision.entryTotal,
+      share = decision.walletShare }
   elseif tone == "adjust" then
     hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }
       or { kind = "unpriceable" }
@@ -350,7 +373,7 @@ function GC.CheckVerdict.Build(decision, market, context)
     reason = reason,
     hero = hero,
     facts = facts,
-    actionable = tone ~= "refuse",
+    actionable = tone ~= "refuse" and tone ~= "gold",
     -- Only worth saying when the two actually disagree. A refusal under a WATCH tier is
     -- the board and the panel agreeing, and saying so would be noise.
     reconcile = tone == "refuse" and type(context.tier) == "string"

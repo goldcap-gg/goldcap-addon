@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.15.1 (2026-09-24)
+
+- The Deals board leaves out finds worth less than your "Min profit per buy", and a refused row
+  you checked yourself goes to Hidden once you close its buy window. Rows you watch stay.
+- A deal only your "Max wallet per buy %" holds back stays on the board, says how much gold the
+  character needs, and is checked again as soon as the gold arrives.
+- In the buy window, "Confidence" is now "Sales evidence": how sure GoldCap is that listings
+  which disappeared were really sold.
+
 ## 0.15.0 (2026-09-24)
 
 - The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or

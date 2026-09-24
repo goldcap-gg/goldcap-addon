@@ -216,6 +216,18 @@ describe("Sniper pin feedback and empty state", function()
       assert.matches("5 filtered out", emptyText.text)
       assert.matches("3 refused by live checks", emptyText.text)
       assert.matches('"HIDDEN 3"', emptyText.text)
+      -- The pass hides rows under the player's own Min profit per buy in the same count
+      -- (Core/FullScan.lua), so the count says so; "hard to resell" alone was not true of them.
+      assert.is_truthy(emptyText.text:find("hard to resell", 1, true))
+      assert.is_truthy(emptyText.text:find("Min profit per buy", 1, true))
+    end)
+
+    it("says on the scan's own line that the hidden rows include ones under your min profit", function()
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = file:read("*a")
+      file:close()
+      assert.is_truthy(src:find('GC.L[", %d hidden: hard to resell or under your min profit"]', 1, true))
+      assert.is_nil(src:find("hidden as unsellable", 1, true))
     end)
 
     it("suggests scanning when there is simply nothing yet", function()
