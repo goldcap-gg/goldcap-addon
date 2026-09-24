@@ -30,3 +30,13 @@ function GC.Game.IsRetail(passport)
   if passport == nil then return true end
   return passport.interface >= GC.Game.RETAIL_MIN_INTERFACE
 end
+
+-- WoW: Forever's interface numbers (16001 in the beta). A range, not one value: the number
+-- moves with every Forever patch, the way retail's does.
+GC.Game.FOREVER_MIN_INTERFACE = 16000
+GC.Game.FOREVER_MAX_INTERFACE = 16999
+
+function GC.Game.IsForever(passport)
+  if passport == nil or type(passport.interface) ~= "number" then return false end
+  return passport.interface >= GC.Game.FOREVER_MIN_INTERFACE and passport.interface <= GC.Game.FOREVER_MAX_INTERFACE
+end
