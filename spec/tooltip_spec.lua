@@ -324,7 +324,7 @@ describe("Tooltip.BuildLines", function()
       local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
       assert.is_truthy(text:find("GC.Sniper.LiveFloor(itemID, now)", 1, true))
       assert.is_truthy(text:find('ln.kind == "live"', 1, true))
-      assert.is_truthy(text:find('GetCoinTextureString(ln.copper) .. " · " .. ln.detail', 1, true))
+      assert.is_truthy(text:find('GC.Util.CoinText(ln.copper) .. " · " .. ln.detail', 1, true))
     end)
   end)
 

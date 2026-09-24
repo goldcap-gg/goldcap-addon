@@ -19,11 +19,46 @@ function GC.Util.FormatAge(seconds)
   return math.floor(seconds / 86400) .. "d"
 end
 
+-- Money with coin icons, in every client. Retail's global GetCoinTextureString renders this
+-- today, so it is tried first -- byte-identical output there is the whole point. When it is
+-- gone (WoW: Forever, probed 2026-09-24, where calling it throws), C_CurrencyInfo carries the
+-- same texture-icon string; when neither exists this formats the same "12[g] 34[s] 56[c]"
+-- shape itself. Every caller in the addon goes through here -- spec/coin_text_spec.lua fails
+-- on a bare call.
+local ICON = {
+  g = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t",
+  s = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
+  c = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+}
+
+local function coinTextFallback(copper)
+  -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints
+  -- "0<copper icon>", never "-0<copper icon>".
+  local magnitude = math.floor(math.abs(copper) + 0.5)
+  local sign = (copper < 0 and magnitude > 0) and "-" or ""
+  local gold = math.floor(magnitude / 10000)
+  local silver = math.floor((magnitude % 10000) / 100)
+  local rest = magnitude % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = ("%d%s"):format(gold, ICON.g) end
+  if silver > 0 then parts[#parts + 1] = ("%d%s"):format(silver, ICON.s) end
+  if rest > 0 or #parts == 0 then parts[#parts + 1] = ("%d%s"):format(rest, ICON.c) end
+  return sign .. table.concat(parts, " ")
+end
+
+function GC.Util.CoinText(copper)
+  if type(_G.GetCoinTextureString) == "function" then return _G.GetCoinTextureString(copper) end
+  local ci = _G.C_CurrencyInfo
+  if ci and type(ci.GetCoinTextureString) == "function" then return ci.GetCoinTextureString(copper) end
+  return coinTextFallback(copper)
+end
+
 -- Compact gold display: whole gold past 100g, gold+silver below it, a coin-icon string
 -- under a gold. Moved here (Sniper fast loop, phase 1) from UI/SniperFrame.lua's own
 -- formatColumnAmount so Core/BoardRows.lua can format a verdict label without a WoW frame --
--- GetCoinTextureString is still a WoW global, so a caller without the client (this addon's
--- own spec suite) stubs it, exactly as every UI/SniperFrame.lua spec already does.
+-- the sub-gold case goes through GC.Util.CoinText above, so a caller without the client
+-- (this addon's own spec suite) still gets a string back, exactly as every
+-- UI/SniperFrame.lua spec already does.
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 function GC.Util.FormatMoney(copper)
   if copper < 0 then return "-" .. GC.Util.FormatMoney(-copper) end
@@ -36,7 +71,7 @@ function GC.Util.FormatMoney(copper)
     if silver == 0 then return ("%dg"):format(gold) end
     return ("%dg%02ds"):format(gold, silver)
   end
-  return GetCoinTextureString(copper)
+  return GC.Util.CoinText(copper)
 end
 
 -- Whole-gold-or-whole-silver: a context with room for ONE unit, never two, and no coin icon

@@ -34,7 +34,7 @@ end
 
 -- opts.live (optional): { floor, qty, age } -- what this session's own auction house browsing last
 -- saw of the item (GC.Sniper.LiveFloor), inside LIM.LIVE_TOOLTIP_SECONDS. Its own line kind: the
--- floor is drawn as coins by onTooltip, which owns GetCoinTextureString, and the rest is text.
+-- floor is drawn as coins by onTooltip, which owns GC.Util.CoinText, and the rest is text.
 -- The age is clamped at zero: a clock that stepped back says "just now", never a negative minute.
 local function liveLine(live)
   if type(live) ~= "table" or type(live.floor) ~= "number" or live.floor <= 0 then return nil end
@@ -194,9 +194,9 @@ local function onTooltip(tooltip, data)
   if not lines then return end
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
-      tooltip:AddDoubleLine(ln.label, GetCoinTextureString(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(ln.label, GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "live" then
-      tooltip:AddDoubleLine(ln.left, GetCoinTextureString(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(ln.left, GC.Util.CoinText(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "hint" then
       tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
     else

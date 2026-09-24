@@ -676,6 +676,7 @@ describe("Sniper purchase wiring", function()
         minimumProfitCopper = 1000, minimumRoi = 0.10,
       } } },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
@@ -987,6 +988,7 @@ describe("Sniper purchase wiring", function()
         minimumProfitCopper = 1000000, minimumRoi = 0.10,
       } } },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)

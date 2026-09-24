@@ -7383,7 +7383,7 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
     decision = decision,
   }) or nil
   resolvePurchase(row, true,
-    deal and (GC.L["sniped for "] .. GetCoinTextureString(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
+    deal and (GC.L["sniped for "] .. GC.Util.CoinText(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
     facts)
 end
 
@@ -7639,9 +7639,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       if refreshQtyRow then refreshQtyRow() end -- "confirm" is not "ready" -- box/quick-fill stay greyed out
     end
     if affordable then
-      setDialogStatus((GC.L["quote %s -- click Confirm to buy"]):format(GetCoinTextureString(totalPrice)))
+      setDialogStatus((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       if frame then
-        frame.status:SetText((GC.L["quote %s -- click Confirm to buy"]):format(GetCoinTextureString(totalPrice)))
+        frame.status:SetText((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       end
     else
       setDialogStatus(GC.L["not enough gold for this quote -- Cancel"], 1, 0.3, 0.3)
@@ -11414,7 +11414,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   local session = GC.Sniper.session
   if session.buys > 0 then
     GC.Print((GC.L["session: %d snipes, spent %s, ~%s est. profit"]):format(
-      session.buys, GetCoinTextureString(session.spent), GetCoinTextureString(session.estProfit)))
+      session.buys, GC.Util.CoinText(session.spent), GC.Util.CoinText(session.estProfit)))
     session.buys, session.spent, session.estProfit = 0, 0, 0
   end
   -- The wipe above (or a no-op when buys was already 0) can leave f.sessionText showing a

@@ -415,7 +415,7 @@ local function formatAmount(amount)
     if silver == 0 then return ("%dg"):format(gold) end
     return ("%dg%02ds"):format(gold, silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 local function formatCell(value)
@@ -2961,7 +2961,7 @@ end
 local function updateTotalPreview(dialog, copper)
   local preview = dialog.totalPreview
   if not preview then return end
-  preview:SetText(exact(copper) and copper > 0 and GetCoinTextureString(copper) or "")
+  preview:SetText(exact(copper) and copper > 0 and GC.Util.CoinText(copper) or "")
 end
 
 local function pendingRepairFor(position, scope)

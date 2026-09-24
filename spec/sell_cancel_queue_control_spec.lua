@@ -105,6 +105,7 @@ describe("Sell tab, the cancel queue control", function()
         GetEntries = function() return {} end },
       Data = { GetItemValue = function() return { sold = 7447 } end },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/Flips.lua", GC)
     helper.loadModule("Core/QuoteCache.lua", GC)

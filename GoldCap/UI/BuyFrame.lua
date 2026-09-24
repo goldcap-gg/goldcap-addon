@@ -153,11 +153,11 @@ local function formatAmount(amount)
     if silver == 0 then return ("%dg"):format(gold) end
     return ("%dg%02ds"):format(gold, silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 -- Money as plain text, for a list the player copies out of the game. formatAmount's sub-gold
--- branch returns GetCoinTextureString, which is icon ESCAPES: they draw beautifully in a
+-- branch returns GC.Util.CoinText, which is icon ESCAPES: they draw beautifully in a
 -- FontString and come out of an EditBox as |TInterface\MoneyFrame\UI-CopperIcon:0|t.
 local function plainAmount(amount)
   if type(amount) ~= "number" then return "" end

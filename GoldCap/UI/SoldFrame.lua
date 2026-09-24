@@ -57,7 +57,7 @@ local function formatAmount(amount)
     if silver == 0 then return ("%dg"):format(gold) end
     return ("%dg%02ds"):format(gold, silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 -- `_G.date`, not a bare global: `date` is a WoW-injected global that is

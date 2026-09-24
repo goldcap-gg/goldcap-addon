@@ -933,8 +933,8 @@ GC.slashHandlers.craft = function()
       for _, output in ipairs(outcome.outputs or {}) do units = units + output.quantity end
       GC.Print(("recipe %s: %d unit%s, %s total, %s each"):format(
         tostring(outcome.recipeID), units, units == 1 and "" or "s",
-        GetCoinTextureString and GetCoinTextureString(outcome.total) or tostring(outcome.total),
-        GetCoinTextureString and GetCoinTextureString(outcome.unitCost) or tostring(outcome.unitCost)))
+        GC.Util.CoinText(outcome.total),
+        GC.Util.CoinText(outcome.unitCost)))
       -- Whether the Sell tab can attach that cost to a position yet. A craft is recorded
       -- keyless away from the auction house and is keyed on the next Sell refresh there, so
       -- "no key yet" before an auction house visit is expected, and after one is a defect.
@@ -971,8 +971,8 @@ GC.slashHandlers.ledger = function()
     end
   end
   GC.Print((GC.L["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"])
-    :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
-      buys, GetCoinTextureString(spent)))
+    :format(sales, GC.Util.CoinText(gross), GC.Util.CoinText(cut),
+      buys, GC.Util.CoinText(spent)))
 end
 
 -- "What did that actually sell for?" had no answer anywhere in the addon. The
@@ -1007,8 +1007,8 @@ GC.slashHandlers.sales = function()
       if ok then when = formatted end
     end
     GC.Print((GC.L[" %s  %s  x%d at %s each  (%s total, %s cut)%s"]):format(
-      when, sale.itemName, qty, GetCoinTextureString(math.floor(total / qty)),
-      GetCoinTextureString(total), GetCoinTextureString(sale.cut or 0),
+      when, sale.itemName, qty, GC.Util.CoinText(math.floor(total / qty)),
+      GC.Util.CoinText(total), GC.Util.CoinText(sale.cut or 0),
       sale.pending and "  [not yet paid out]" or ""))
   end
 end
