@@ -931,6 +931,6 @@ GC.Locales.enUS = {
     "In WoW: Forever, GoldCap's prices come from players' own auction house scans.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again.",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way.",
 }

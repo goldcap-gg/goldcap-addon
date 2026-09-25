@@ -814,6 +814,6 @@ GC.Locales.koKR = {
     "WoW: Forever에서는 GoldCap의 시세가 플레이어들이 직접 검색한 경매장 결과에서 나옵니다.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "경매장을 열면 GoldCap이 자동으로 검색합니다. 딜 탭의 검색 버튼을 누르면 다시 검색합니다.",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "검색 결과를 공유하고 모두의 시세를 받으려면 GoldCap Companion을 설치하세요: /goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "지금은 검색 결과가 이 컴퓨터에만 저장됩니다. GoldCap Companion을 통한 공유 기능은 곧 추가됩니다.",
 }

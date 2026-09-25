@@ -869,6 +869,6 @@ GC.Locales.frFR = {
     "Dans WoW: Forever, les prix de GoldCap viennent des scans de l'hôtel des ventes faits par les joueurs eux-mêmes.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Ouvrez l'hôtel des ventes et GoldCap le scanne pour vous ; SCAN dans l'onglet Affaires scanne à nouveau.",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "Installez le GoldCap Companion pour partager vos scans et obtenir les prix de tout le monde : /goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "Pour l'instant, vos scans restent sur cet ordinateur ; les partager via le GoldCap Companion arrive bientôt.",
 }

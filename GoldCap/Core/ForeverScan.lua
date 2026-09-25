@@ -375,7 +375,7 @@ function GC.ForeverScan.MaybeIntro()
   s.introShown = true
   GC.Print(GC.L["In WoW: Forever, GoldCap's prices come from players' own auction house scans."])
   GC.Print(GC.L["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."])
-  GC.Print(GC.L["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"])
+  GC.Print(GC.L["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."])
   return true
 end
 

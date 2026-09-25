@@ -318,6 +318,8 @@ describe("ForeverScan", function()
       assert.is_true(GC.ForeverScan.MaybeIntro())
       assert.equal(3, #printed)
       assert.equal("In WoW: Forever, GoldCap's prices come from players' own auction house scans.", printed[1])
+      assert.equal("Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way.",
+        printed[3])
       assert.is_false(GC.ForeverScan.MaybeIntro())
       assert.equal(3, #printed)
       assert.is_true(db.foreverScan.introShown)

@@ -863,6 +863,6 @@ GC.Locales.ruRU = {
     "В WoW: Forever цены GoldCap берутся из сканирований аукциона, которые делают сами игроки.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Откройте аукцион, и GoldCap отсканирует его за вас; СКАН на вкладке Сделки сканирует снова.",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "Установите GoldCap Companion, чтобы делиться своими сканированиями и получать цены всех: /goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "Пока ваши сканирования остаются на этом компьютере; их передача через GoldCap Companion скоро появится.",
 }

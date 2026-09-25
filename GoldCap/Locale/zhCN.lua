@@ -789,6 +789,6 @@ GC.Locales.zhCN = {
     "在 WoW: Forever 中，GoldCap 的价格来自玩家自己对拍卖行的扫描。",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "打开拍卖行，GoldCap 会为你扫描；在交易标签页点击扫描可以再次扫描。",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "安装 GoldCap Companion 以分享你的扫描并获取所有人的价格：/goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "目前你的扫描结果只保存在这台电脑上；通过 GoldCap Companion 分享的功能即将推出。",
 }

@@ -873,6 +873,6 @@ GC.Locales.esMX = {
     "En WoW: Forever, los precios de GoldCap vienen de los escaneos de la casa de subastas que hacen los propios jugadores.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Abre la casa de subastas y GoldCap la escanea por ti; ESCANEAR en la pestaña Ofertas escanea otra vez.",
-  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
-    "Instala el GoldCap Companion para compartir tus escaneos y obtener los precios de todos: /goldcap companion",
+  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
+    "Por ahora tus escaneos se quedan en esta computadora; compartirlos a través del GoldCap Companion llegará pronto.",
 }
