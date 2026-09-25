@@ -208,9 +208,96 @@ function GC.ForeverScan.New(driver)
   return obj
 end
 
+local function count(n)
+  n = math.floor(tonumber(n) or 0)
+  if type(_G.BreakUpLargeNumbers) == "function" then return tostring(_G.BreakUpLargeNumbers(n)) end
+  return tostring(n)
+end
+
+-- What a finished scan tells the player. The Companion (when it wrote GoldCap_AppData into this
+-- install) uploads the fold the game writes on the next /reload; without it the fold only
+-- prices this player's own tooltips. SavedVariables are written on /reload or logout only.
+function GC.ForeverScan._SayDone(summary, companion)
+  if companion == nil then companion = type(_G.GoldCap_AppData) == "table" end
+  if not summary then
+    GC.Print(GC.L["The scan found nothing to save"])
+    return
+  end
+  if summary.replicated then
+    if companion then
+      GC.Print(GC.L["%s lots scanned -- shared on your next /reload"]:format(count(summary.rows)))
+    else
+      GC.Print(GC.L["%s lots scanned and saved"]:format(count(summary.rows)))
+    end
+  elseif companion then
+    GC.Print(GC.L["%s items scanned -- shared on your next /reload"]:format(count(summary.items)))
+  else
+    GC.Print(GC.L["%s items scanned and saved"]:format(count(summary.items)))
+  end
+end
+
+local function notify(kind, a, b)
+  if kind == "started" then
+    GC.Print(GC.L["Scanning the auction house…"])
+  elseif kind == "closed" then
+    GC.Print(GC.L["Open the Auction House first."])
+  elseif kind == "cooldown" then
+    GC.Print(GC.L["The full scan is cooling down (%d min left) -- scanning by browsing instead"]:format(a))
+  elseif kind == "noanswer" then
+    GC.Print(GC.L["The auction house did not answer the full scan -- scanning by browsing instead"])
+  elseif kind == "progress" then
+    if GC.Sniper and GC.Sniper.SetScanStatus then
+      GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)))
+    end
+  elseif kind == "done" then
+    GC.ForeverScan._SayDone(a)
+  end
+end
+
+-- The client, for New. Every call is guarded: a missing API reads as "nothing there", never an
+-- error inside an event handler.
+local function realDriver()
+  -- `or {}`: a client without the namespace makes every pcall below answer false, never throw.
+  local ah = _G.C_AuctionHouse or {}
+  return {
+    now = function() return time() end,
+    after = function(s, fn) C_Timer.After(s, fn) end,
+    replicate = function() return (pcall(ah.ReplicateItems)) end,
+    numRows = function()
+      local ok, n = pcall(ah.GetNumReplicateItems)
+      return ok and tonumber(n) or 0
+    end,
+    rowInfo = function(i)
+      local ok, _, _, count_, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID, hasAll =
+        pcall(ah.GetReplicateItemInfo, i)
+      if not ok then return nil end
+      return itemID, count_, buyout, hasAll
+    end,
+    isGear = function(itemID)
+      local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
+      return classID == 2 or classID == 4
+    end,
+    startBrowse = function(kind)
+      return GC.Sniper and GC.Sniper.StartBrowsePass and GC.Sniper.StartBrowsePass(kind) or nil
+    end,
+    store = function() return GC.ForeverScan.Store() end,
+    passport = function()
+      local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or {}
+      local okR, realm = pcall(GetRealmName)
+      local okF, faction = pcall(UnitFactionGroup, "player")
+      return { interface = p.interface, build = p.build, region = p.regionId,
+        realm = okR and type(realm) == "string" and realm ~= "" and realm or nil,
+        faction = okF and type(faction) == "string" and faction or nil,
+        ruleset = nil } -- no API names the ruleset yet (spec §Facts); nil, never a guess
+    end,
+    notify = notify,
+  }
+end
+
 -- Module state: set once per load by Init (Core/Init.lua's ADDON_LOADED). Everything reads it
 -- and nothing below writes to the save except the scanner and Store.
 function GC.ForeverScan.Init(db, driver)
+  driver = driver or realDriver()
   GC.ForeverScan._db = db
   local p = driver and driver.passport and driver.passport() or nil
   local on = p ~= nil and GC.Game ~= nil and GC.Game.IsForever({ interface = p.interface }) or false

@@ -3125,6 +3125,11 @@ GC.Sniper._bookPass = GC.BookPass.New({
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
     applyFullScanResults(streamRows, info.items, info.kind)
+    -- WoW: Forever's scan folds what this pass saw into the player's own prices
+    -- (Core/ForeverScan.lua); a no-op anywhere else.
+    if GC.ForeverScan and GC.ForeverScan.OnBrowsePassDone then
+      GC.ForeverScan.OnBrowsePassDone(GC.Sniper._bookPass:Book())
+    end
   end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
@@ -3537,7 +3542,7 @@ end
 -- pendingFullScanStart was set) -- SendBrowseQuery silently no-ops while
 -- C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely the case for a
 -- beat right after opening the Auction House.
-local function startFullScan()
+local function startFullScan(kindOverride)
   if scanning then stopScanning() end
   fullScanToken = fullScanToken + 1
   lastBrowseEventAt = 0
@@ -3562,7 +3567,7 @@ local function startFullScan()
   GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
   GC.Sniper._keysThisCycle = 0
   GC.Sniper._keyPoll:BeginCycle()
-  local kind = GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes"
+  local kind = kindOverride or (GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes")
   GC.Sniper._bookPass:Start(kind)
   trace("pass: armed (" .. kind .. "), apiReady=" .. tostring(driver.isReady()))
   -- Start only ARMS the pass now (Core/BookPass.lua): the arbiter is the single sender for
@@ -3752,7 +3757,7 @@ end
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = GC.Sniper._bookPass:IsPaging()
+  local busy = GC.Sniper._bookPass:IsPaging() or (GC.ForeverScan ~= nil and GC.ForeverScan.IsBusy())
   if f.fullScanBtn.lastBusy == busy then return end
   f.fullScanBtn.lastBusy = busy
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -3789,6 +3794,16 @@ local function onFullScanClick()
     return
   end
 
+  -- WoW: Forever: SCAN is the market scan -- a full list when the server's throttle allows,
+  -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself).
+  if isForever() and GC.ForeverScan and GC.ForeverScan.Request then
+    if GC.ForeverScan.Request("button") == "busy" then
+      frame.status:SetText(GC.L["full scan already in progress"])
+    end
+    refreshScanButton()
+    return
+  end
+
   if GC.Sniper._bookPass:IsPaging() then
     frame.status:SetText(GC.L["full scan already in progress"])
     return
@@ -3797,6 +3812,22 @@ local function onFullScanClick()
   frame.status:SetText(GC.L["starting full scan..."])
   startFullScan()
   refreshScanButton()
+end
+
+-- The Forever scan's browse pass (Core/ForeverScan.lua): the ordinary SCAN pass, of the kind it
+-- asks for. nil when the window has never been built; "running" when a pass is already paging,
+-- whose end the scan then takes.
+function GC.Sniper.StartBrowsePass(kind)
+  if not frame or not GC.Sniper.scanner then return nil end
+  if GC.Sniper._bookPass:IsPaging() then return "running" end
+  startFullScan(kind)
+  refreshScanButton()
+  return "started"
+end
+
+-- The Forever scan's progress on the toolbar's status line.
+function GC.Sniper.SetScanStatus(text)
+  if frame then setStatus(text) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -10722,7 +10753,8 @@ local function createFrame()
   fullScanBtn:SetLabel(GC.L["SCAN"])
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
-    GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."])
+    isForever() and GC.L["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."]
+      or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."])
   f.fullScanBtn = fullScanBtn
 
   -- Divider + session block sit further left of Scan, between it and the status line -- the

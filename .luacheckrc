@@ -53,4 +53,7 @@ read_globals = {
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
   -- The tooltip's counts: grouped in thousands with the player's locale's separator.
   "BreakUpLargeNumbers",
+  -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is
+  -- keyed by, alongside region and realm.
+  "UnitFactionGroup",
 }

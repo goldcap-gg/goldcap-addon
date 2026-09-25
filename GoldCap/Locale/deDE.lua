@@ -828,4 +828,19 @@ GC.Locales.deDE = {
     "der Companion hat sie ohne Inhalt gespeichert -- lass ihn synchronisieren und mache dann /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "der Companion hat sie ohne Preise gespeichert -- lass ihn synchronisieren und mache dann /reload",
+  ["Scanning the auction house…"] = "Scanne das Auktionshaus…",
+  ["%s lots scanned -- shared on your next /reload"] =
+    "%s Posten gescannt -- werden bei deinem nächsten /reload geteilt",
+  ["%s lots scanned and saved"] = "%s Posten gescannt und gespeichert",
+  ["%s items scanned -- shared on your next /reload"] =
+    "%s Gegenstände gescannt -- werden bei deinem nächsten /reload geteilt",
+  ["%s items scanned and saved"] = "%s Gegenstände gescannt und gespeichert",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "Der vollständige Scan hat noch Abklingzeit (noch %d Min.) -- es wird stattdessen durchsucht",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "Das Auktionshaus hat auf den vollständigen Scan nicht geantwortet -- es wird stattdessen durchsucht",
+  ["reading the auction house: %s of %s lots"] = "durchsuche das Auktionshaus: %s von %s Posten",
+  ["The scan found nothing to save"] = "Der Scan hat nichts zum Speichern gefunden",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "Durchsucht das gesamte Auktionshaus nach Preisen: eine vollständige Liste höchstens alle 15 Minuten, dazwischen wird durchsucht. GoldCap scannt auch, wenn du das Auktionshaus öffnest.",
 }

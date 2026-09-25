@@ -842,4 +842,19 @@ GC.Locales.ukUA = {
     "Companion записав їх порожніми -- дайте йому синхронізуватися і зробіть /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion записав їх без цін -- дайте йому синхронізуватися і зробіть /reload",
+  ["Scanning the auction house…"] = "Скануємо аукціон…",
+  ["%s lots scanned -- shared on your next /reload"] =
+    "%s лотів відскановано -- буде передано під час наступного /reload",
+  ["%s lots scanned and saved"] = "%s лотів відскановано і збережено",
+  ["%s items scanned -- shared on your next /reload"] =
+    "%s предметів відскановано -- буде передано під час наступного /reload",
+  ["%s items scanned and saved"] = "%s предметів відскановано і збережено",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "Повне сканування ще відновлюється (лишилось %d хв) -- поки що скануємо через огляд",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "Аукціон не відповів на повне сканування -- скануємо через огляд натомість",
+  ["reading the auction house: %s of %s lots"] = "читаємо аукціон: %s з %s лотів",
+  ["The scan found nothing to save"] = "Сканування не знайшло, що зберегти",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "Сканує весь аукціон у пошуках цін: повний список не частіше разу на 15 хвилин, а між ними -- через огляд. GoldCap також сканує, коли ви відкриваєте аукціон.",
 }

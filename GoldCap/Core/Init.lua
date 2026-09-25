@@ -298,6 +298,12 @@ frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player") end)
 pcall(function() frame:RegisterEvent("TRADE_SKILL_ITEM_CRAFTED_RESULT") end)
 
+-- WoW: Forever's full scan (Core/ForeverScan.lua): the server's answer to ReplicateItems. Only
+-- there -- retail registers exactly what it did before.
+if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
+  pcall(function() frame:RegisterEvent("REPLICATE_ITEM_LIST_UPDATE") end)
+end
+
 local function migrateSniperProfitFloor(db)
   local settings = type(db) == "table" and db.settings or nil
   local sniper = type(settings) == "table" and settings.sniper or nil
@@ -404,6 +410,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Rewritten on every load, never merged: the file belongs to whichever client wrote it
     -- last, and that is the one the companion must be told about.
     if GC.Game then GoldCapDB.client = GC.Game.Passport() end
+    -- WoW: Forever's own scan: decides once whether this client is Forever, and holds the save
+    -- GC.Data.GetItemValue reads the scan from. Off (and writing nothing) everywhere else.
+    if GC.ForeverScan then GC.ForeverScan.Init(GC.db) end
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
@@ -654,12 +663,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end
       GC.Sniper.OnAuctionHouseShow()
+      -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
+      if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Util.Trace("ah: closed")
       GC.Sniper.OnAuctionHouseClosed()
+      if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
       -- The BUY tab too: no terminal commodity event can arrive once the session is gone, so an
       -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
       -- down for that item until /reload.
@@ -784,6 +796,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnBrowseResultsAdded then
       GC.Sniper.OnBrowseResultsAdded()
     end
+  elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
+    if GC.ForeverScan then GC.ForeverScan.OnReplicateUpdate() end
   elseif event == "AUCTION_HOUSE_SHOW_ERROR" then
     local errorCode = ...
     -- The Sell tab first: a post it has on the wire is what a refused post answers with, and its
@@ -798,6 +812,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
     end
+    if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
@@ -899,6 +914,10 @@ GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
 -- Diagnostic: what this client offers GoldCap, plus a full-scan row-count probe at an open
 -- auction house; see Core/ForeverCheck.lua. English on purpose, so not in the help line.
 GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
+-- WoW: Forever only: scan now (the same as SCAN on the Deals tab). Not in the help line.
+if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
+  GC.slashHandlers.scan = function() GC.ForeverScan.Request("button") end
+end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same
 -- thing, but it lives INSIDE the window -- no use at all when the window itself has ended up

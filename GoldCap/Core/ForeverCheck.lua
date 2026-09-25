@@ -14,8 +14,16 @@ GC.ForeverCheck = GC.ForeverCheck or {}
 
 local POLL_SECONDS = 0.5
 local WATCH_SECONDS = 40
-local COOLDOWN_SECONDS = 15 * 60
 local LINEN_CLOTH = 2589 -- a commodity the beta lists (spec: item 2589 isCommodity=true)
+
+-- One number governs both this probe's throttle guess and Core/ForeverScan.lua's real one:
+-- GC.ForeverScan.C.COOLDOWN_SECONDS (both read the same stamp, GoldCapDB.foreverScan.requestedAt).
+-- Core/ForeverCheck.lua loads before Core/ForeverScan.lua (GoldCap.toc), so this can only be read
+-- at call time, not at load time -- and a fallback covers a client that never loaded that module
+-- at all (a spec, or a build that dropped it).
+local function cooldownSeconds()
+  return (GC.ForeverScan and GC.ForeverScan.C and GC.ForeverScan.C.COOLDOWN_SECONDS) or 15 * 60
+end
 
 local function realEnv()
   return {
@@ -67,7 +75,7 @@ function GC.ForeverCheck.Report(env)
     local ok, s = pcall(ah.SupportsCopperValues)
     if ok then copper = tostring(s) end
   end
-  return {
+  local lines = {
     ("game: %s (interface %s, build %s, region id %s)"):format(
       game, p and tostring(p.interface) or "?", p and p.build or "?", p and tostring(p.regionId) or "?"),
     ("realm %s, faction %s, portal %s"):format(tostring(call(env, "realm")), tostring(call(env, "faction")),
@@ -78,6 +86,10 @@ function GC.ForeverCheck.Report(env)
     "GetNumReplicateItems: " .. (has(ah, "GetNumReplicateItems") and "present" or "missing"),
     ("deposit for 1 Linen Cloth (duration 1): %s; copper prices: %s"):format(deposit, copper),
   }
+  if GC.ForeverScan and GC.ForeverScan.Summary then
+    for _, line in ipairs(GC.ForeverScan.Summary(env.now and env.now() or time())) do lines[#lines + 1] = line end
+  end
+  return lines
 end
 
 -- Every row of the dump, counted the ways the scan design needs. GetReplicateItemInfo(i) is
@@ -152,9 +164,10 @@ function GC.ForeverCheck.Run(env)
   local now = env.now()
   local last = store and store.requestedAt
   local since = type(last) == "number" and now - last or nil
-  if since and since >= 0 and since < COOLDOWN_SECONDS then
+  local cooldown = cooldownSeconds()
+  if since and since >= 0 and since < cooldown then
     say(("forever check: last full-scan request %ds ago -- skipped, the auction house ignores another inside ~15 minutes (%d min left)")
-      :format(since, math.ceil((COOLDOWN_SECONDS - since) / 60)))
+      :format(since, math.ceil((cooldown - since) / 60)))
     return
   end
   say("forever check: last full-scan request: " .. (since and (since .. "s ago") or "none on record"))

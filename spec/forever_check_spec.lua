@@ -173,4 +173,10 @@ describe("/gc forever self-check", function()
     assert.is_nil(store.requestedAt)
     assert.truthy(said("runs only in WoW: Forever"))
   end)
+
+  it("prints the own scan's summary when the scanner is loaded", function()
+    GC.ForeverScan = { Summary = function() return { "own scan: scanner idle" } end }
+    local text = table.concat(GC.ForeverCheck.Report(env()), "\n")
+    assert.truthy(text:find("own scan: scanner idle", 1, true))
+  end)
 end)

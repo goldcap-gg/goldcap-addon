@@ -776,4 +776,17 @@ GC.Locales.koKR = {
     "Companion이 빈 자료를 기록했습니다 -- 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion이 시세 없는 자료를 기록했습니다 -- 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
+  ["Scanning the auction house…"] = "경매장을 검색하는 중…",
+  ["%s lots scanned -- shared on your next /reload"] = "%s개 경매 항목 검색됨 -- 다음 /reload 때 공유됩니다",
+  ["%s lots scanned and saved"] = "%s개 경매 항목 검색되어 저장됨",
+  ["%s items scanned -- shared on your next /reload"] = "%s개 아이템 검색됨 -- 다음 /reload 때 공유됩니다",
+  ["%s items scanned and saved"] = "%s개 아이템 검색되어 저장됨",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "전체 검색이 쿨다운 중입니다 (%d분 남음) -- 대신 둘러보기로 검색합니다",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "경매장이 전체 검색에 응답하지 않았습니다 -- 대신 둘러보기로 검색합니다",
+  ["reading the auction house: %s of %s lots"] = "경매장 읽는 중: %s / %s 경매 항목",
+  ["The scan found nothing to save"] = "저장할 검색 결과가 없습니다",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "경매장 전체를 검색해 가격을 확인합니다: 전체 목록은 최대 15분에 한 번, 그 사이에는 둘러보기로 검색합니다. 경매장을 열면 GoldCap도 자동으로 검색합니다.",
 }

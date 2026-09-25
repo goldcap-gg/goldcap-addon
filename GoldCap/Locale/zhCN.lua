@@ -751,4 +751,17 @@ GC.Locales.zhCN = {
     "Companion 写入的是空数据 -- 请等它再次同步后执行 /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion 写入的数据不含任何价格 -- 请等它再次同步后执行 /reload",
+  ["Scanning the auction house…"] = "正在扫描拍卖行…",
+  ["%s lots scanned -- shared on your next /reload"] = "已扫描 %s 个拍卖项 -- 将在下次 /reload 时共享",
+  ["%s lots scanned and saved"] = "已扫描并保存 %s 个拍卖项",
+  ["%s items scanned -- shared on your next /reload"] = "已扫描 %s 件物品 -- 将在下次 /reload 时共享",
+  ["%s items scanned and saved"] = "已扫描并保存 %s 件物品",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "完整扫描仍在冷却中(还剩 %d 分钟) -- 期间改用浏览方式扫描",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "拍卖行未响应完整扫描 -- 改用浏览方式扫描",
+  ["reading the auction house: %s of %s lots"] = "正在读取拍卖行:%s / %s 个拍卖项",
+  ["The scan found nothing to save"] = "扫描没有找到可保存的内容",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "扫描整个拍卖行以获取价格:完整列表最多每 15 分钟一次,期间通过浏览进行扫描。打开拍卖行时 GoldCap 也会自动扫描。",
 }

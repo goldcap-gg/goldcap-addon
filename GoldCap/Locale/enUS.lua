@@ -892,4 +892,19 @@ GC.Locales.enUS = {
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
+  -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
+  -- on the Deals tab.
+  ["Scanning the auction house…"] = "Scanning the auction house…",
+  ["%s lots scanned -- shared on your next /reload"] = "%s lots scanned -- shared on your next /reload",
+  ["%s lots scanned and saved"] = "%s lots scanned and saved",
+  ["%s items scanned -- shared on your next /reload"] = "%s items scanned -- shared on your next /reload",
+  ["%s items scanned and saved"] = "%s items scanned and saved",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "The full scan is cooling down (%d min left) -- scanning by browsing instead",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "The auction house did not answer the full scan -- scanning by browsing instead",
+  ["reading the auction house: %s of %s lots"] = "reading the auction house: %s of %s lots",
+  ["The scan found nothing to save"] = "The scan found nothing to save",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house.",
 }

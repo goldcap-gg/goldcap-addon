@@ -752,4 +752,17 @@ GC.Locales.zhTW = {
     "Companion 寫入的是空資料 -- 請等它再次同步後執行 /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion 寫入的資料不含任何價格 -- 請等它再次同步後執行 /reload",
+  ["Scanning the auction house…"] = "正在掃描拍賣場…",
+  ["%s lots scanned -- shared on your next /reload"] = "已掃描 %s 個拍賣項 -- 將於下次 /reload 時共享",
+  ["%s lots scanned and saved"] = "已掃描並儲存 %s 個拍賣項",
+  ["%s items scanned -- shared on your next /reload"] = "已掃描 %s 件物品 -- 將於下次 /reload 時共享",
+  ["%s items scanned and saved"] = "已掃描並儲存 %s 件物品",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "完整掃描仍在冷卻中(還剩 %d 分鐘) -- 期間改用瀏覽方式掃描",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "拍賣場未回應完整掃描 -- 改用瀏覽方式掃描",
+  ["reading the auction house: %s of %s lots"] = "正在讀取拍賣場:%s / %s 個拍賣項",
+  ["The scan found nothing to save"] = "掃描沒有找到可儲存的內容",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "掃描整個拍賣場以取得價格:完整清單最多每 15 分鐘一次,期間透過瀏覽進行掃描。開啟拍賣場時 GoldCap 也會自動掃描。",
 }

@@ -827,4 +827,19 @@ GC.Locales.ptBR = {
     "o Companion os gravou vazios -- deixe-o sincronizar e faça /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "o Companion os gravou sem preços -- deixe-o sincronizar e faça /reload",
+  ["Scanning the auction house…"] = "Varrendo a casa de leilões…",
+  ["%s lots scanned -- shared on your next /reload"] =
+    "%s lotes varridos -- compartilhados no seu próximo /reload",
+  ["%s lots scanned and saved"] = "%s lotes varridos e salvos",
+  ["%s items scanned -- shared on your next /reload"] =
+    "%s itens varridos -- compartilhados no seu próximo /reload",
+  ["%s items scanned and saved"] = "%s itens varridos e salvos",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "A varredura completa está em recarga (%d min restantes) -- varrendo por navegação enquanto isso",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "A casa de leilões não respondeu à varredura completa -- varrendo por navegação em vez disso",
+  ["reading the auction house: %s of %s lots"] = "lendo a casa de leilões: %s de %s lotes",
+  ["The scan found nothing to save"] = "A varredura não encontrou nada para salvar",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "Varre toda a casa de leilões em busca de preços: uma lista completa no máximo a cada 15 minutos, navegando enquanto isso. O GoldCap também varre quando você abre a casa de leilões.",
 }
