@@ -490,6 +490,13 @@ local function adoptImportString(appData)
 end
 
 function GC.Data.AdoptAppData()
+  -- WoW: Forever: every string the Companion writes today is retail's (GCS1 import, GCM1 region
+  -- payload), and feeding one into a Forever install prices the tooltip, Deals and Sell with
+  -- another game's market. Refused here, at the one place both are adopted, like the manual
+  -- import (UI/ImportDialog.lua). A Forever payload of its own is a later plan's.
+  if GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport and GC.Game.Passport()) then
+    return
+  end
   local appData = _G.GoldCap_AppData
   if type(appData) ~= "table" then return end
   adoptImportString(appData)
@@ -586,6 +593,11 @@ function GC.Data.GetItemValue(itemID)
       kind = e.s and "region_commodity" or "realm_item",
     }
   end
+
+  -- 6. WoW: Forever: the player's own last scan (Core/ForeverScan.lua), when nothing above
+  -- prices the item -- last on purpose, so bundled or companion Forever data outranks it with no
+  -- change here. nil everywhere else: ValueFor answers only in Forever, and only reads.
+  if GC.ForeverScan and GC.ForeverScan.ValueFor then return GC.ForeverScan.ValueFor(itemID) end
   return nil
 end
 

@@ -16,6 +16,9 @@ local EPS = 1e-9
 -- else).
 function GC.DealMath.Measure(unitPrice, qty, value, cost)
   if not value or not value.mv or value.mv <= 0 then return nil end
+  -- One player's own scan (WoW: Forever, Core/ForeverScan.lua) is not a market: no Deals row,
+  -- no pinned row's profit is measured against it.
+  if value.source == "scan" then return nil end
   if value.kind == "realm_item" and not value.ref then return nil end
   return { discount = 1 - (unitPrice / value.mv),
     profit = math.floor(value.mv * 0.95) * qty - (cost or unitPrice * qty) }
