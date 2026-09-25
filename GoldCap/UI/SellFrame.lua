@@ -2321,12 +2321,16 @@ local function onPostClick(row)
       return
     end
     -- The same busy look the first click gave it: disabled, saying so, the spinner turning.
+    -- Direct Blizzard widget calls and plain field writes, not a GoldCap-table read -- safe
+    -- ahead of the protected call below (see that call's own comment on why _NotePost is not).
     row.postStage = "confirming"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
     if row.action.SetBusy then row.action:SetBusy(true) end
-    GC.Sell._NotePost(GC.L["Posting…"])
     -- The confirming click gets its own full window. Sharing the first click's clock meant the
     -- time a player spent reading the confirmation came out of the time the server had to
-    -- answer it -- see schedulePostTimeout.
+    -- answer it -- see schedulePostTimeout. Armed BEFORE the call for the same reason the first
+    -- click arms it before posting: a call that raises aborts this handler, and the timeout is
+    -- what recovers the row if that happens. C_Timer.After only registers a callback -- it does
+    -- not read anything GoldCap-owned synchronously, so arming here is not a taint risk.
     schedulePostTimeout(row)
     if pin.isCommodity then
       C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
@@ -2336,8 +2340,21 @@ local function onPostClick(row)
     -- Sent once the call returns, as on the first click: an error the client raises inside the
     -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
     -- own), not an older late post's answer -- which left this one "confirming", then held it a
-    -- minute for a post refused on the spot (review NM-B).
-    if postingPin == pin then pin.sent, pin.clean = true, GC.Sell._Certain() end
+    -- minute for a post refused on the spot (review NM-B). The same guard now also protects the
+    -- "Posting…" note below: an error raised inside the call already ran OnAuctionHouseError's
+    -- own disarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
+    -- catches -- overwriting that message with "Posting…" would hide the refusal from the player.
+    if postingPin == pin then
+      -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
+      -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
+      -- setStatus -> paintRefreshButton -> refresh.deckProgress() (this file, above) is one of
+      -- the reads it flags. Said the instant the call returns rather than the instant it was
+      -- about to be made -- the player sees the same "Posting…" note either way, just a beat
+      -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
+      -- same guard the first click's own note now reads).
+      GC.Sell._NotePost(pin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
+      pin.sent, pin.clean = true, GC.Sell._Certain()
+    end
     return
   end
   local bagState = liveBagState(position)
@@ -2400,14 +2417,16 @@ local function onPostClick(row)
     duration = duration, override = chosenKey and priceOverrides[chosenKey] or nil }
   -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
   -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
-  -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
+  -- dead one when it only dimmed. Direct Blizzard widget calls and plain field writes, not a
+  -- GoldCap-table read -- safe ahead of the protected call below (see that call's own comment).
   row.postStage = "posting"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
   if row.action.SetBusy then row.action:SetBusy(true) end
-  GC.Sell._NotePost(GC.L["Posting…"])
   -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts this handler,
   -- and armed after it the row and the dock stayed on "Posting…" until the auction house
   -- closed, with every other Post answering "Finish the pending post first" (review I2). An
   -- answer that lands inside the call lets this go through disarmPost's token, like any other.
+  -- C_Timer.After only registers a callback -- it does not read anything GoldCap-owned
+  -- synchronously, so arming here is not a taint risk the way _NotePost below is.
   schedulePostTimeout(row)
   local needsConfirmation
   if info.isCommodity then
@@ -2416,9 +2435,23 @@ local function onPostClick(row)
     needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
   -- The client can answer inside the call itself (an error it raises on the spot). That answer
-  -- has already given the row back; turning it into a Confirm, or arming a watchdog for it,
-  -- would undo it.
+  -- has already given the row back (OnAuctionHouseError's own disarmPost) and noted its own
+  -- message -- so the "Posting…" note below must not run over it; this guard, already needed to
+  -- stop the call from being turned into a Confirm or a watchdog it never asked for, is what
+  -- protects the note too now that it runs after the call instead of before.
   if postingRow ~= row then return end
+  -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once the
+  -- same hardware click has read certain GoldCap runtime state, and _NotePost -> setStatus ->
+  -- paintRefreshButton -> refresh.deckProgress() (this file, above) is one of the reads it
+  -- flags. Said the instant the call returns rather than the instant it was about to be made --
+  -- the dock says "Posting…" either way, just a beat later in the same tick, and only when
+  -- nothing inside the call already answered it (the guard just above). The client can also
+  -- QUEUE the post inside the call itself (GC.Sell.OnThrottleQueued, fired synchronously from
+  -- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED): that already noted "Waiting for the Auction
+  -- House…" and set postingPin.queued, so re-noting "Posting…" unconditionally here would talk
+  -- over it the instant it was said -- read the same flag _EndPostNote already reads to pick
+  -- the right words instead of assuming nothing answered.
+  GC.Sell._NotePost(postingPin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
   if needsConfirmation then
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
     if row.action.SetBusy then row.action:SetBusy(false) end
