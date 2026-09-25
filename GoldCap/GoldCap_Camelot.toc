@@ -54,6 +54,7 @@ Core/Trigger.lua
 Core/Scanner.lua
 Core/FullScan.lua
 Core/BookPass.lua
+Core/ForeverFold.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/BuyRun.lua
