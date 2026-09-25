@@ -2090,6 +2090,70 @@ local function liveBagState(position, requiredQty)
     bag = matchedBag, slot = matchedSlot, stackQty = matchedStack }
 end
 
+-- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
+-- through the two call sites below), never inside a click. WoW: Forever's taint engine blocks a
+-- protected auction house call once the same hardware click has run Blizzard's own Lua-side
+-- ItemLocation mixin code ahead of it -- whether or not the result is kept -- so onPostClick below
+-- never calls ItemLocation:CreateFromBagAndSlot, or GC.Sell._SlotKey (which does, for a
+-- non-commodity stack), itself. Mirrors Auctionator: it builds itemInfo.location when a bag item
+-- is picked, well before its own Post click (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem),
+-- and the click only reads that stored field.
+local bagLocationCache = {}
+
+local function cacheBagLocation(position, bagState)
+  if not (bagState and bagState.bag and bagState.slot and bagState.itemID
+      and ItemLocation and ItemLocation.CreateFromBagAndSlot) then
+    bagLocationCache[position.positionKey] = nil
+    return
+  end
+  local ok, location = pcall(ItemLocation.CreateFromBagAndSlot, ItemLocation, bagState.bag, bagState.slot)
+  bagLocationCache[position.positionKey] = (ok and location) and { itemID = bagState.itemID,
+    bag = bagState.bag, slot = bagState.slot, location = location, positionKey = bagState.positionKey } or nil
+end
+
+-- The click-time half of the cache above: a plain C API on plain numbers, never a Blizzard mixin
+-- method. Confirms the exact bag/slot the cache pinned still holds this item, with enough of it,
+-- before the location cacheBagLocation already built is trusted. A stack that moved is refused
+-- here rather than re-resolved -- the next paint recaches it (see the click handlers below).
+local function verifyBagStack(bag, slot, itemID, requiredQty)
+  if not (bag and slot and itemID and C_Container and C_Container.GetContainerItemInfo) then return nil end
+  local info = C_Container.GetContainerItemInfo(bag, slot)
+  if not info or info.itemID ~= itemID or info.isBound == true then return nil end
+  local qty = info.stackCount or 1
+  if not exact(qty) or qty <= 0 then return nil end
+  if requiredQty and (not exact(requiredQty) or qty < requiredQty) then return nil end
+  return qty
+end
+
+-- liveBagState's own loop calls GC.Sell._SlotKey for a non-commodity stack, to ask the client what
+-- ItemKey a slot files under -- and that builds an ItemLocation, exactly the Blizzard mixin call a
+-- click must not make (see cacheBagLocation above). For a commodity position liveBagState never
+-- does this: its loop only sums plain C_Container reads for a matching itemID, so it stays safe to
+-- call fresh inside a click. Only the non-commodity branch below needs the cache instead of a live
+-- rescan.
+local function clickSafeBagState(position, requiredQty)
+  local commodity = type(position.positionKey) == "string" and position.positionKey:match("^commodity:")
+  if commodity then return liveBagState(position, requiredQty) end
+  local cached = bagLocationCache[position.positionKey]
+  if not cached or cached.itemID ~= position.itemID then return { itemID = position.itemID, exactQty = nil } end
+  local qty = verifyBagStack(cached.bag, cached.slot, position.itemID, requiredQty)
+  if not qty then return { itemID = position.itemID, exactQty = nil } end
+  return { itemID = position.itemID, exactQty = qty, positionKey = cached.positionKey,
+    bag = cached.bag, slot = cached.slot, stackQty = qty }
+end
+
+-- The location cacheBagLocation already built for this position, reused only once a plain C API
+-- proves its own cached bag/slot still holds the item -- never rebuilt here. The cache's own slot
+-- is what is asked about, not bagState's: a commodity posts by itemID, and liveBagState's live
+-- aggregate scan (clickSafeBagState above) can find a different "first" stack than the one the
+-- cache anchored at the last paint without that meaning the cached stack is gone.
+local function resolvePostLocation(position)
+  local cached = bagLocationCache[position.positionKey]
+  if not cached or cached.itemID ~= position.itemID then return nil end
+  if not verifyBagStack(cached.bag, cached.slot, cached.itemID, nil) then return nil end
+  return cached.location
+end
+
 -- Post and Repost both need a quote fresher than they have. This used to call
 -- the full Refresh, which re-queried the owned auctions and then every priced
 -- item in the tab, one throttled round trip at a time -- so the "press it again
@@ -2306,7 +2370,7 @@ local function onPostClick(row)
   if row.postStage == "confirm" then
     local pin = postingPin
     local scope, scopeKey = activeScope(position)
-    local bagState = pin and liveBagState(position, pin.isCommodity and nil or pin.quantity) or nil
+    local bagState = pin and clickSafeBagState(position, pin.isCommodity and nil or pin.quantity) or nil
     local sameQuote = pin and quote == pin.quote and quote.at == pin.quoteAt and quote.unit == pin.quoteUnit
     local checkedTotal = pin and safeMultiply(pin.unitPrice, pin.quantity) or nil
     local confirmAvailable = pin and C_AuctionHouse
@@ -2365,7 +2429,7 @@ local function onPostClick(row)
     end
     return
   end
-  local bagState = liveBagState(position)
+  local bagState = clickSafeBagState(position)
   -- Passed explicitly as well as through the decoration above: BuildPostPlan's own floor and
   -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
   -- the choice. The override branch there skips both.
@@ -2398,18 +2462,23 @@ local function onPostClick(row)
     setStatus(GC.L["No exact bag stack"])
     return
   end
-  if not ItemLocation or not ItemLocation.CreateFromBagAndSlot or not bagState.bag or not bagState.slot then
+  if not bagState.bag or not bagState.slot then
     setStatus(GC.L["No exact bag stack"])
     return
   end
   if not info.isCommodity then
-    bagState = liveBagState(position, plan.quantity)
+    bagState = clickSafeBagState(position, plan.quantity)
     if not bagState.bag or not bagState.slot or not bagState.stackQty or bagState.stackQty < plan.quantity then
       setStatus(GC.L["No exact bag stack"])
       return
     end
   end
-  local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
+  -- Never build the bag/slot location fresh here: resolvePostLocation only reuses the one
+  -- cacheBagLocation already built at the last paint, re-proven by a plain C API just above (and,
+  -- for a commodity, again inside resolvePostLocation itself) -- see the comment above
+  -- liveBagState for why building it in this click is exactly what WoW: Forever's taint engine
+  -- blocks ahead of the protected call below.
+  local location = resolvePostLocation(position)
   if not location then setStatus(GC.L["No exact bag stack"]); return end
   postingRow = row
   -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
@@ -4923,6 +4992,13 @@ renderRows = function()
   local openPosition
   local function pushPosition(position)
     entries[#entries + 1] = { kind = "position", position = position }
+    -- Cached here for every position this render pushes, not only an expanded one: the row's own
+    -- Post button (below, "bagQty > 0 and not onListed") is live whether or not the drawer is
+    -- open, and onPostClick never builds an ItemLocation itself -- see cacheBagLocation's own
+    -- comment above liveBagState.
+    if (position.bagQty or 0) > 0 then
+      cacheBagLocation(position, liveBagState(position))
+    end
     if expanded[position.positionKey] and not openPosition then
       openPosition = position
       local first = #entries + 1
@@ -4944,6 +5020,7 @@ renderRows = function()
       -- does not: that one click lists only part of the stock, that no stack can be pinned
       -- down, or that some of it has no cost and can be given one here.
       local bagState = inBags > 0 and liveBagState(position) or nil
+      cacheBagLocation(position, bagState)
       local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
       local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
       -- On MY LOTS the lots ARE the subject, so they open the panel -- each with its own
@@ -5523,6 +5600,7 @@ renderRows = function()
         -- aggregates across the bags and can.
         local inBags = p.bagQty or 0
         local bagState = liveBagState(p)
+        cacheBagLocation(p, bagState)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
         setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         if postable > 0 and postable < inBags then
@@ -6037,6 +6115,10 @@ function GC.Sell.Reset()
   refresh.waitingNoted = false
   for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
   for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
+  -- Cached ItemLocations are a live session's own bag snapshot; the next visit's first paint
+  -- rebuilds whatever it finds (cacheBagLocation), so nothing here is lost, only stopped from
+  -- outliving the visit it was pinned to.
+  for key in pairs(bagLocationCache) do bagLocationCache[key] = nil end
   -- Nothing is answered once the auction house has closed: every post that went out and was never
   -- answered -- the late ones and the one on the wire -- drops the price typed for it
   -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.

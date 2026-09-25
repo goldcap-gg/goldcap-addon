@@ -142,6 +142,69 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end)
   end)
 
+  -- Fresh beta evidence (itemlocation-fix-report.md): the block moved on, from GoldCap's own
+  -- paint/status reads to Blizzard's own ItemLocation mixin code -- ItemLocation:CreateFromBagAndSlot,
+  -- called from onPostClick, tainted execution for the rest of that click even though its own
+  -- arguments were clean locals. Any Blizzard Lua/mixin call reached from inside a click -- not
+  -- just GoldCap's own tables -- risks the same block, so every protected-call click handler is
+  -- pinned source-text clean of the whole family: ItemLocation's own methods, Item:CreateFrom*,
+  -- ContinuableContainer and CreateFromMixins. A location built at paint time (SellFrame.lua's
+  -- cacheBagLocation, above liveBagState) and only read, never rebuilt, in the click is the fix --
+  -- see spec/sell_action_safety_spec.lua's "[Forever]" tests for the behavioural half of it.
+  describe("No Blizzard mixin/location code inside a protected-call click handler", function()
+    local BANNED = {
+      "ItemLocation:", "ItemLocation.CreateFromBagAndSlot", "ItemLocation.CreateFromItemID",
+      ":CreateFromBagAndSlot(", ":CreateFromItemID(", "Item:CreateFrom", "ContinuableContainer",
+      "CreateFromMixins",
+    }
+
+    local function assertClean(click, label)
+      for _, pattern in ipairs(BANNED) do
+        assert.is_nil(click:find(pattern, 1, true),
+          label .. " must not run " .. pattern .. " -- Blizzard Lua/mixin code -- before its protected call")
+      end
+    end
+
+    it("onPostClick (Post/Confirm)", function()
+      local text = source("GoldCap/UI/SellFrame.lua")
+      local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
+      local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
+      assertClean(text:sub(clickStart, clickEnd - 1), "onPostClick")
+    end)
+
+    it("onRepostClick (Cancel lot)", function()
+      local text = source("GoldCap/UI/SellFrame.lua")
+      local clickStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
+      local clickEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", clickStart, true))
+      assertClean(text:sub(clickStart, clickEnd - 1), "onRepostClick")
+    end)
+
+    it("onDialogPrimaryClick (Sniper Start/Confirm/PlaceBid)", function()
+      local text = source("GoldCap/UI/SniperFrame.lua")
+      local clickStart = assert(text:find("local function onDialogPrimaryClick()", 1, true))
+      local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
+      assertClean(text:sub(clickStart, clickEndStop), "onDialogPrimaryClick")
+    end)
+
+    it("onBuyClick (BUY tab)", function()
+      local text = source("GoldCap/UI/BuyFrame.lua")
+      local clickStart = assert(text:find("local function onBuyClick(line)", 1, true))
+      local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
+      assertClean(text:sub(clickStart, clickEndStop), "onBuyClick")
+    end)
+
+    it("onPostClick resolves its location from the paint-time cache, never builds one itself", function()
+      local text = source("GoldCap/UI/SellFrame.lua")
+      local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
+      local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
+      local click = text:sub(clickStart, clickEnd - 1)
+      assert.is_truthy(click:find("resolvePostLocation(position)", 1, true),
+        "onPostClick must resolve its location through the paint-time cache")
+      assert.is_truthy(click:find("clickSafeBagState(", 1, true),
+        "onPostClick must read bag state through the click-safe wrapper, not liveBagState directly")
+    end)
+  end)
+
   describe("BuyFrame.lua onBuyClick", function()
     local text = source("GoldCap/UI/BuyFrame.lua")
     local clickStart = assert(text:find("local function onBuyClick(line)", 1, true))
