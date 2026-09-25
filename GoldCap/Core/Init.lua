@@ -914,9 +914,11 @@ GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
 -- Diagnostic: what this client offers GoldCap, plus a full-scan row-count probe at an open
 -- auction house; see Core/ForeverCheck.lua. English on purpose, so not in the help line.
 GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
--- WoW: Forever only: scan now (the same as SCAN on the Deals tab). Not in the help line.
+-- WoW: Forever only: scan now (the same as SCAN on the Deals tab), and the bag totals the scan
+-- itself already prints (Core/ForeverValue.lua's PrintBags). Neither is in the help line.
 if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.scan = function() GC.ForeverScan.Request("button") end
+  GC.slashHandlers.bags = function() GC.ForeverValue.PrintBags() end
 end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same

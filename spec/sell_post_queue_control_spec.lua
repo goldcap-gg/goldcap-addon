@@ -208,4 +208,33 @@ describe("Sell tab, the posting queue control", function()
     assert.equal("position", rows[1].kind)
     assert.equal("commodity:23427", rows[1].position.positionKey)
   end)
+
+  it("holds Eternium Ore back in WoW: Forever when a vendor pays more for it", function()
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    compose()
+    local entries = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+    local skipped = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped")
+    for _, entry in ipairs(entries) do
+      assert.is_not.equal("commodity:23427", entry.positionKey)
+    end
+    local sawEternium = false
+    for _, skip in ipairs(skipped) do
+      if skip.positionKey == "commodity:23427" then sawEternium = true end
+    end
+    assert.is_true(sawEternium)
+    local button = container.queueButton
+    assert.matches("NOTHING", button.label)
+    local hit = container.queueHeldBackHit
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    hit.scripts.OnEnter(hit)
+    local joined = table.concat(tooltipLines, " ")
+    assert.matches("a vendor pays more -- sell it there", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
 end)

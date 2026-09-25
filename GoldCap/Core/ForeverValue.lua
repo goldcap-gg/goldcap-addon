@@ -45,3 +45,62 @@ function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)
   if gain <= depositUnit then return "deposit" end
   return "ah"
 end
+
+-- The bags GoldCap counts: UI/SellFrame.lua's SELL_BAGS (bag 5 is the reagent bag; a bag the
+-- client does not have reports no slots).
+GC.ForeverValue.BAGS = { 0, 1, 2, 3, 4, 5 }
+
+function GC.ForeverValue.BagTotals(driver, valueFor, vendorFor)
+  local t = { vendor = 0, ah = 0, priced = 0, unpriced = 0 }
+  for _, bag in ipairs(GC.ForeverValue.BAGS) do
+    for slot = 1, driver.numSlots(bag) or 0 do
+      local info = driver.itemInfo(bag, slot)
+      local id, n = info and info.itemID, info and info.stackCount
+      if type(id) == "number" and type(n) == "number" and n > 0 then
+        local vendor = not info.hasNoValue and vendorFor(id) or nil
+        if type(vendor) == "number" and vendor > 0 then t.vendor = t.vendor + vendor * n end
+        if not info.isBound then
+          local value = valueFor(id)
+          local mv = type(value) == "table" and value.mv or nil
+          if type(mv) == "number" and mv > 0 then
+            t.ah = t.ah + math.floor(mv * KEEP) * n
+            t.priced = t.priced + 1
+          else
+            t.unpriced = t.unpriced + 1
+          end
+        end
+      end
+    end
+  end
+  return t
+end
+
+local function realBags()
+  local c = _G.C_Container
+  return {
+    numSlots = function(bag)
+      local ok, n = pcall(c.GetContainerNumSlots, bag)
+      return ok and tonumber(n) or 0
+    end,
+    itemInfo = function(bag, slot)
+      local ok, info = pcall(c.GetContainerItemInfo, bag, slot)
+      return ok and type(info) == "table" and info or nil
+    end,
+  }
+end
+
+-- "your bags: X at a vendor, Y on the AH" (spec §3 Bag value), in chat: after every saved scan
+-- and on /gc bags. The way to post the AH half is the Sell tab's POST queue, which in Forever
+-- holds back anything a vendor pays more for (GC.Sell._QueueOpts).
+function GC.ForeverValue.PrintBags(driver)
+  local t = GC.ForeverValue.BagTotals(driver or realBags(), GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+  if t.priced > 0 then
+    GC.Print(GC.L["Your bags: %s at a vendor, %s on the AH after its cut"]:format(
+      GC.Util.CoinText(t.vendor), GC.Util.CoinText(t.ah)))
+    GC.Print(GC.L["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."])
+  else
+    GC.Print(GC.L["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."]
+      :format(GC.Util.CoinText(t.vendor)))
+  end
+  return t
+end

@@ -773,4 +773,16 @@ GC.Locales.zhCN = {
   ["The scan found nothing to save"] = "扫描没有找到可保存的内容",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "扫描整个拍卖行以获取价格:完整列表最多每 15 分钟一次,期间通过浏览进行扫描。打开拍卖行时 GoldCap 也会自动扫描。",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "你的背包:%s 卖给商人,%s 在拍卖行(已扣除手续费)",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "出售标签的上架按钮会列出所有价值高于商人收购价的物品,每次点击上架一件。",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "你的背包:%s 卖给商人。扫描拍卖行以查看在那里能卖多少。",
+  ["a vendor pays more -- sell it there"] =
+    "商人出价更高 -- 卖给他",
+  ["vendor pays more"] =
+    "商人出价更高",
 }

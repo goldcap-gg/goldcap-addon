@@ -234,6 +234,10 @@ function GC.ForeverScan._SayDone(summary, companion)
   else
     GC.Print(GC.L["%s items scanned and saved"]:format(count(summary.items)))
   end
+  -- "your bags: X at a vendor, Y on the AH" after every saved scan (Core/ForeverValue.lua).
+  -- Guarded: this file's own _SayDone spec never loads Core/ForeverValue.lua, so GC.ForeverValue
+  -- is nil there -- degrade to nothing printed rather than an error.
+  if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags() end
 end
 
 local function notify(kind, a, b)

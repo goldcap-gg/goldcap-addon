@@ -851,4 +851,16 @@ GC.Locales.ptBR = {
   ["The scan found nothing to save"] = "A varredura não encontrou nada para salvar",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Varre toda a casa de leilões em busca de preços: uma lista completa no máximo a cada 15 minutos, navegando enquanto isso. O GoldCap também varre quando você abre a casa de leilões.",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "Suas bolsas: %s a um vendedor, %s na CdL após a taxa",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "O botão ANUNCIAR da aba Vender lista tudo que vale mais do que um vendedor paga, um clique por vez.",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "Suas bolsas: %s a um vendedor. Escaneie a casa de leilões para ver quanto renderiam lá.",
+  ["a vendor pays more -- sell it there"] =
+    "um vendedor paga mais -- venda lá",
+  ["vendor pays more"] =
+    "vendedor paga mais",
 }

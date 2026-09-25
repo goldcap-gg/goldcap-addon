@@ -85,6 +85,13 @@ describe("WoW: Forever scan wiring", function()
       local slash = init:find("GC.slashHandlers.scan", 1, true)
       assert.truthy(slash)
       assert.truthy(init:sub(slash - 300, slash):find("IsForever", 1, true))
+      local bags = init:find("GC.slashHandlers.bags", 1, true)
+      assert.truthy(bags)
+      assert.truthy(init:sub(bags - 300, bags):find("IsForever", 1, true))
+    end)
+
+    it("builds the post queue with the Sell tab's own WoW: Forever options", function()
+      assert.truthy(sell:find("GC.PostQueue.Build(positions, GC.Sell._QueueOpts())", 1, true))
     end)
 
     it("routes the dump event, the auction house's open and close, and the load", function()

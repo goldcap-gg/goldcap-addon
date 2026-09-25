@@ -798,4 +798,16 @@ GC.Locales.koKR = {
   ["The scan found nothing to save"] = "저장할 검색 결과가 없습니다",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "경매장 전체를 검색해 가격을 확인합니다: 전체 목록은 최대 15분에 한 번, 그 사이에는 둘러보기로 검색합니다. 경매장을 열면 GoldCap도 자동으로 검색합니다.",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "가방: 상인에게 %s, 경매장에서는 수수료 제외 %s",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "매도 탭의 등록 버튼은 상인이 주는 값보다 비싼 모든 것을 나열하며, 클릭 한 번에 하나씩 등록합니다.",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "가방: 상인에게 %s. 경매장을 검색하면 그곳에서 받을 수 있는 값을 알 수 있습니다.",
+  ["a vendor pays more -- sell it there"] =
+    "상인이 더 쳐줍니다 -- 거기서 파세요",
+  ["vendor pays more"] =
+    "상인이 더 쳐줌",
 }

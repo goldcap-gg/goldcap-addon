@@ -853,4 +853,16 @@ GC.Locales.frFR = {
   ["The scan found nothing to save"] = "Le scan n'a rien trouvé à enregistrer",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Scanne tout l'hôtel des ventes pour les prix : une liste complète au plus une fois toutes les 15 minutes, avec un scan par parcours entre-temps. GoldCap scanne aussi à l'ouverture de l'hôtel des ventes.",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "Vos sacs : %s chez un marchand, %s à l'HV après commission",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "Le bouton VENDRE de l'onglet Vente liste tout ce qui vaut plus qu'un marchand ne paie, un clic à la fois.",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "Vos sacs : %s chez un marchand. Scannez l'hôtel des ventes pour voir ce qu'ils rapporteraient là-bas.",
+  ["a vendor pays more -- sell it there"] =
+    "un marchand paie plus -- vends-le là-bas",
+  ["vendor pays more"] =
+    "le marchand paie plus",
 }

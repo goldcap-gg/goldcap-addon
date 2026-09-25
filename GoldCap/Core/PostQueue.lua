@@ -84,8 +84,14 @@ end
 --      loss. A queue whose whole purpose is "money first" must not silently rank, let alone
 --      recommend clicking through, a loss.
 --
+--   4. below_vendor -- WoW: Forever only (opts.vendorUnit is set, which only the Sell tab's own
+--      GC.Sell._QueueOpts does): postRecommendation.unit is real and positive, but after the 5%
+--      cut a vendor pays at least as much for it. "Post everything worth more than a vendor
+--      pays" is this queue's whole design there, so such a position is held back and says why.
+--      Retail passes no opts at all, so this branch never runs there.
+--
 -- Returns reason, unit, value -- unit/value are only meaningful when reason is nil.
-local function evaluate(position)
+local function evaluate(position, opts)
   if position.unresolved or position.protectedAction == false or position.invalid then
     return "unresolved_identity"
   end
@@ -102,6 +108,14 @@ local function evaluate(position)
   end
   if recommendation.belowCost == true then
     return "below_breakeven"
+  end
+  -- WoW: Forever only (the Sell tab passes opts there, GC.Sell._QueueOpts): the queue is "post
+  -- everything worth more than the vendor", so a position whose price, after the 5% cut, a
+  -- vendor matches is held back and says so. No opts, no change: retail's queue is built as
+  -- before.
+  local vendorUnit = opts and opts.vendorUnit and opts.vendorUnit(position.itemID) or nil
+  if type(vendorUnit) == "number" and vendorUnit > 0 and math.floor(unit * 0.95) <= vendorUnit then
+    return "below_vendor"
   end
   -- Ranked on what one click actually LISTS, not on what is in the bags. A normal item posts a
   -- single stack (PostItem pins one ItemLocation -- see GC.BagStock.PostableQuantity and
@@ -132,7 +146,7 @@ local function skipLess(left, right)
   return (left.positionKey or "") < (right.positionKey or "")
 end
 
---- GC.PostQueue.Build(positions) -> entries, skipped
+--- GC.PostQueue.Build(positions, opts) -> entries, skipped
 --
 -- `positions` is GC.SellPositions.Build's own return array -- every field this function reads
 -- (`bagQty`, `postRecommendation`, `freshMarketUnit`, `unresolved`, `invalid`, ...) is set by
@@ -143,11 +157,15 @@ end
 -- `skipped`: there is nothing in the player's bags to post and so nothing to explain. Every
 -- other position that fails to qualify gets a `skipped` entry -- a silently short queue is the
 -- same lie as a silently short deals list.
-function GC.PostQueue.Build(positions)
+--
+-- `opts` is nil on retail (the queue is built exactly as before). In WoW: Forever, the Sell tab
+-- passes `GC.Sell._QueueOpts()`: `{ vendorUnit = function(itemID) ... }`, read by `evaluate`'s
+-- `below_vendor` case above.
+function GC.PostQueue.Build(positions, opts)
   local entries, skipped = {}, {}
   for _, position in ipairs(positions or {}) do
     if type(position) == "table" and positive(position.bagQty) then
-      local reason, unit, value, postable = evaluate(position)
+      local reason, unit, value, postable = evaluate(position, opts)
       if reason then
         skipped[#skipped + 1] = { positionKey = position.positionKey, itemID = position.itemID,
           itemName = position.itemName, reason = reason }

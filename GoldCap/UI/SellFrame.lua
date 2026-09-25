@@ -447,6 +447,7 @@ local ROW_TAG_TEXT = {
   no_fresh_price = "no price",
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
+  below_vendor = "vendor pays more",
 }
 local function inlineColor(color, text)
   return ("|cff%02x%02x%02x%s|r"):format(
@@ -498,6 +499,9 @@ local QUEUE_SKIP_TEXT = {
   no_fresh_price = "needs a fresh price -- press Refresh",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
+  -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
+  -- it after the AH's cut.
+  below_vendor = "a vendor pays more -- sell it there",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall -- hold",
@@ -774,6 +778,15 @@ function GC.Sell._QuoteItemKey(id)
   return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
 end
 
+-- WoW: Forever: the POST queue holds back what a vendor pays at least as much for (see
+-- Core/PostQueue.lua's below_vendor). nil anywhere else, so retail's queue is built exactly as
+-- before. Read-only lookups: it runs inside composePositions, which the Cancel click also calls.
+function GC.Sell._QueueOpts()
+  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return nil end
+  if not (GC.ForeverValue and GC.ForeverValue.VendorUnit) then return nil end
+  return { vendorUnit = GC.ForeverValue.VendorUnit }
+end
+
 local function quoteDriver()
   local function boundedLevels(itemID, commodity)
     local _, itemKey = GC.Sell._QuoteItemKey(itemID)
@@ -1032,7 +1045,7 @@ local function composePositions(skipPaint)
   -- older fixtures in this spec suite load UI/SellFrame.lua without it, and a missing queue
   -- module must degrade to "nothing queued," never a crash.
   if GC.PostQueue and GC.PostQueue.Build then
-    queueEntries, queueSkipped = GC.PostQueue.Build(positions)
+    queueEntries, queueSkipped = GC.PostQueue.Build(positions, GC.Sell._QueueOpts())
   else
     queueEntries, queueSkipped = {}, {}
   end

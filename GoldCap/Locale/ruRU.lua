@@ -847,4 +847,16 @@ GC.Locales.ruRU = {
   ["The scan found nothing to save"] = "Сканирование не нашло, что сохранить",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
     "Сканирует весь аукцион в поисках цен: полный список не чаще раза в 15 минут, а между ними -- через обзор. GoldCap также сканирует при открытии аукциона.",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "Ваши сумки: %s у торговца, %s на аукционе после комиссии",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "Кнопка ВЫСТАВИТЬ на вкладке Продажа перечисляет всё, что стоит дороже, чем платит торговец, по одному клику за раз.",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "Ваши сумки: %s у торговца. Отсканируйте аукцион, чтобы узнать, сколько бы за них дали там.",
+  ["a vendor pays more -- sell it there"] =
+    "торговец платит больше -- продайте ему",
+  ["vendor pays more"] =
+    "торговец платит больше",
 }
