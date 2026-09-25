@@ -445,6 +445,18 @@ function GC.AuctionHouseTab.Install()
       -- same. SetTitle runs after: SetDisplayMode's own UpdateTitle only knows Blizzard's
       -- three tab indices and would have fallen back to the Buy title.
       pcall(frame.SetDisplayMode, frame, DISPLAY_MODE)
+      -- Stomped back in the same breath, mirroring LibAHTab.lua:89-90
+      -- (`AuctionHouseFrame:SetDisplayMode({}); AuctionHouseFrame.displayMode = nil`). Without
+      -- this, Blizzard's own field sits holding a GoldCap-owned table reference for the entire
+      -- time our tab is the active panel -- exactly the window during which the player posts --
+      -- and a later protected call (PostCommodity/PostItem) made while that reference lingers is
+      -- what the owner's taint log named ("taint from GoldCap"), with Blizzard's own Browse
+      -- search broken until /reload. currentMode above has already read the resolved field
+      -- inside the hooksecurefunc this call triggered, so nothing downstream loses track of
+      -- "our mode is active" -- see PlayerIsPosting/PlayerIsUsingAnotherTab, which already
+      -- tolerate a nil ah.displayMode while the dock is shown (the LibAHTab path always looked
+      -- like this).
+      frame.displayMode = nil
       pcall(function() frame:SetTitle("GoldCap") end)
     else
       -- Fallback button on a template-less client: plain entry point, old behaviour.
@@ -616,10 +628,10 @@ end
 function GC.AuctionHouseTab.OnWindowHidden()
   local ah = _G.AuctionHouseFrame
   if not ah or not dock or not dock:IsShown() then return end
-  -- On the LibAHTab path the auction house's own displayMode is nil while our tab is selected
-  -- (the library sets it to nil after clearing the mode), so the dock being up is the whole
-  -- condition there.
-  if not libRegistered and ah.displayMode ~= DISPLAY_MODE then return end
+  -- Both paths now leave AuctionHouseFrame.displayMode nil while our tab is selected -- the
+  -- native tab's OnClick stomps it back the same way LibAHTab's SetSelected always did -- so the
+  -- dock being up (checked above) is the whole condition on either path; a second check against
+  -- DISPLAY_MODE would never see it there to compare against.
   local buy = _G.AuctionHouseFrameDisplayMode and _G.AuctionHouseFrameDisplayMode.Buy
   if buy and ah.SetDisplayMode then
     pcall(ah.SetDisplayMode, ah, buy) -- the hook above hides the dock
