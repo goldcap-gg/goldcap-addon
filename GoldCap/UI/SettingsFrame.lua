@@ -266,12 +266,12 @@ local function bindCheckbox(box, key)
 end
 
 -- GC.db.settings.sniper.postDuration stores one of the three durations
--- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = 12h, 2 = 24h, 3 = 48h, see Core/Init.lua's
--- own comment on that field. DURATION_INDEX maps the segment's own label hours (12/24/48) to
--- that stored index; a numeric field (like the ones bindNumberField above builds) would happily
--- let a player type a 4th value the API would reject, and a three-state segment group can't
--- express a duration that does not exist.
-local DURATION_INDEX = { [12] = 1, [24] = 2, [48] = 3 }
+-- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = shortest, 2 = middle, 3 = longest, see
+-- Core/Init.lua's own comment on that field. The WIRE value is a plain index, never an hour
+-- count -- Blizzard's own API never sees hours, only 1/2/3 -- so it means 12h/24h/48h on retail
+-- and 2h/8h/24h in WoW: Forever (Auctionator 339's Source_Forever/Constants.lua; Blizzard's own
+-- Forever window shows "8 Hours", "2 Hours") without changing at all. Only the LABEL a player
+-- reads depends on which client this is; see durationHours below.
 
 -- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
 -- postDuration() reader -- these controls must never show, let alone write, a value that
@@ -285,24 +285,34 @@ local function storedDurationIndex()
   return (default == 1 or default == 2 or default == 3) and default or 2
 end
 
--- Binds the three 12H/24H/48H segment buttons: `buttons`/`hoursList` are parallel arrays
--- (buttons[i] labeled hoursList[i] .. "H"). display() paints the current duration's button
--- "active" and every other "ghost"; each button writes DURATION_INDEX[its own hours] on click,
--- then repaints -- same db key, same 1/2/3 value type the old cycling button wrote.
-local function bindDurationSegments(buttons, hoursList)
+-- The three hour labels the wire's 1/2/3 map to on THIS client, shortest first. Read fresh
+-- (like every other GC.Game.IsForever gate in this addon) rather than cached once, so a build
+-- that could not tell would never wedge into the wrong table for the session.
+local function durationHours()
+  if GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport and GC.Game.Passport()) then
+    return { 2, 8, 24 }
+  end
+  return { 12, 24, 48 }
+end
+
+-- Binds the three segment buttons, ordered shortest to longest: `buttons[i]` is the wire value
+-- `i`, directly -- no separate hours-keyed lookup needed, since the segments are always built in
+-- wire order (see the caller). display() paints the current duration's button "active" and every
+-- other "ghost"; each button writes its own position on click, then repaints -- same db key,
+-- same 1/2/3 value type the old cycling button wrote.
+local function bindDurationSegments(buttons)
   local function display()
     local current = storedDurationIndex()
     for i, button in ipairs(buttons) do
-      button:SetVariant(DURATION_INDEX[hoursList[i]] == current and "active" or "ghost")
+      button:SetVariant(i == current and "active" or "ghost")
     end
   end
 
   for i, button in ipairs(buttons) do
-    local hours = hoursList[i]
     button:SetScript("OnClick", function()
       local c = cfg()
       if not c then return end
-      c.postDuration = DURATION_INDEX[hours]
+      c.postDuration = i
       display()
     end)
   end
@@ -644,41 +654,46 @@ local function build(sniperFrame)
     GC.L["How many hours of normal sales a wall under your exit may hold before the deal is refused."])
 
   -- Segmented duration, not a fieldRow: three 40x20 kit buttons chained from the card's right
-  -- edge, rightmost (48H) placed first so each earlier one anchors off the one already placed.
+  -- edge, rightmost (longest) placed first so each earlier one anchors off the one already
+  -- placed. Labels come from durationHours() -- 12H/24H/48H on retail, 2H/8H/24H in WoW: Forever
+  -- -- shortest to longest, matching the wire order bindDurationSegments assumes.
   do
-    local h48 = Theme.Button(posting, "ghost", "badge")
-    h48:SetSize(40, ROW_H)
-    h48:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
-    h48:SetLabel("48H")
+    local hours = durationHours()
 
-    local h24 = Theme.Button(posting, "ghost", "badge")
-    h24:SetSize(40, ROW_H)
-    h24:SetPoint("RIGHT", h48, "LEFT", -2, 0)
-    h24:SetLabel("24H")
+    local hLong = Theme.Button(posting, "ghost", "badge")
+    hLong:SetSize(40, ROW_H)
+    hLong:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
+    hLong:SetLabel(hours[3] .. "H")
 
-    local h12 = Theme.Button(posting, "ghost", "badge")
-    h12:SetSize(40, ROW_H)
-    h12:SetPoint("RIGHT", h24, "LEFT", -2, 0)
-    h12:SetLabel("12H")
+    local hMid = Theme.Button(posting, "ghost", "badge")
+    hMid:SetSize(40, ROW_H)
+    hMid:SetPoint("RIGHT", hLong, "LEFT", -2, 0)
+    hMid:SetLabel(hours[2] .. "H")
+
+    local hShort = Theme.Button(posting, "ghost", "badge")
+    hShort:SetSize(40, ROW_H)
+    hShort:SetPoint("RIGHT", hMid, "LEFT", -2, 0)
+    hShort:SetLabel(hours[1] .. "H")
 
     local label = Theme.Label(posting, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
-    label:SetPoint("RIGHT", h12, "LEFT", -Theme.pad.s, 0)
+    label:SetPoint("RIGHT", hShort, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
     -- relabeled to the shorter "Duration" (no spec pins on the string).
     label:SetText(GC.L["Duration"])
 
-    refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
+    refreshers[#refreshers + 1] = bindDurationSegments({ hShort, hMid, hLong })
 
     -- Not a fieldRow, so it gets its own explanation wiring: the "control" side is all three
     -- segment buttons rather than one edit box. Default hours read off GC.DEFAULTS.postDuration
-    -- through the same 1/2/3 -> hours mapping DURATION_INDEX inverts for storedDurationIndex.
-    local DEFAULT_HOURS = { [1] = 12, [2] = 24, [3] = 48 }
+    -- through the same wire index, into the same hours table the segments themselves used.
     local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
-    local defaultHours = (d and DEFAULT_HOURS[d.postDuration]) or 24
-    attachExplanation({ label, h12, h24, h48 }, GC.L["Duration"],
+    local defaultIndex = d and (d.postDuration == 1 or d.postDuration == 2 or d.postDuration == 3)
+      and d.postDuration or 2
+    local defaultHours = hours[defaultIndex]
+    attachExplanation({ label, hShort, hMid, hLong }, GC.L["Duration"],
       GC.L["Default listing length for the Sell tab."],
       GC.L["Default: %s"]:format(defaultHours .. " h"))
   end

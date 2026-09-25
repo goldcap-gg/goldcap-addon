@@ -322,6 +322,55 @@ describe("Settings controls", function()
     assert.equal("ghost", seg["24H"].variant)
   end)
 
+  -- WoW: Forever's own auction house offers 2/8/24-hour listings, not retail's 12/24/48
+  -- (Auctionator 339's Source_Forever/Constants.lua; Blizzard's own Forever window shows
+  -- "8 Hours", "2 Hours"). The wire value C_AuctionHouse.PostCommodity/PostItem take is the
+  -- same index (1/2/3) either way -- only the hour label a player reads was wrong.
+  describe("in WoW: Forever", function()
+    local function segmentsOfHours(panel, labels)
+      local found = {}
+      walk(panel, function(node)
+        if node.kind == "Button" then
+          for _, label in ipairs(labels) do
+            if node.label == label then found[label] = node end
+          end
+        end
+      end)
+      return found
+    end
+
+    before_each(function()
+      helper.loadModule("Core/Game.lua", GC)
+      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+    end)
+
+    after_each(function() _G.GetBuildInfo = nil end)
+
+    it("labels the three segments 2H/8H/24H instead of 12H/24H/48H", function()
+      GC.db.settings.sniper.postDuration = 2
+      GC.SettingsUI.Toggle()
+      local seg = segmentsOfHours(_G.GoldCapSniperFrame, { "2H", "8H", "24H" })
+      assert.is_not_nil(seg["2H"])
+      assert.is_not_nil(seg["8H"])
+      assert.is_not_nil(seg["24H"])
+      assert.equal("active", seg["8H"].variant) -- postDuration 2 == the middle tier
+      assert.equal("ghost", seg["2H"].variant)
+      assert.equal("ghost", seg["24H"].variant)
+    end)
+
+    it("still writes the same wire value (1/2/3) a click always did -- only the label changed",
+      function()
+        GC.SettingsUI.Toggle()
+        local seg = segmentsOfHours(_G.GoldCapSniperFrame, { "2H", "8H", "24H" })
+        seg["8H"].scripts.OnClick(seg["8H"])
+        assert.equal(2, GC.db.settings.sniper.postDuration)
+        seg["2H"].scripts.OnClick(seg["2H"])
+        assert.equal(1, GC.db.settings.sniper.postDuration)
+        seg["24H"].scripts.OnClick(seg["24H"])
+        assert.equal(3, GC.db.settings.sniper.postDuration)
+      end)
+  end)
+
   it("toggle knob follows the checked state and a click flips the setting", function()
     GC.db.settings.sniper.sound = true
     GC.SettingsUI.Toggle()
