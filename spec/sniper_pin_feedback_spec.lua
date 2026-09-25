@@ -201,6 +201,24 @@ describe("Sniper pin feedback and empty state", function()
       assert.matches("goldcap import", emptyText.text)
     end)
 
+    -- goldcap.gg has no WoW: Forever prices yet (Core/Data.lua's import guard already refuses
+    -- a pasted string there), so the companion/import advice would send a Forever player
+    -- chasing an import that can never succeed. Same "not out yet" key ImportDialog.lua
+    -- already shows when the paste itself is refused; no new locale key.
+    it("says goldcap.gg has no Forever prices yet, instead of the companion/import advice", function()
+      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+      local GC, _, emptyText = loadSniper()
+      helper.loadModule("Core/Game.lua", GC)
+      GC.Sniper._UpdateEmptyState(0)
+      assert.is_true(emptyText.shown)
+      assert.matches("no realm prices yet", emptyText.text)
+      assert.is_truthy(emptyText.text:find(
+        "goldcap.gg prices for WoW: Forever are not out yet.", 1, true))
+      assert.is_nil(emptyText.text:find("goldcap companion", 1, true))
+      assert.is_nil(emptyText.text:find("goldcap import", 1, true))
+      _G.GetBuildInfo = nil
+    end)
+
     it("names the hidden and refused counts when the filters emptied the board", function()
       local GC, _, emptyText = loadSniper()
       GC.db.imported = { ts = 990 }

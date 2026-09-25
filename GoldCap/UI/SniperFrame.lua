@@ -1698,6 +1698,14 @@ function GC.Sniper._SetBoard(id)
   if board == "items" and GC.Sniper._TrySendKeysBatch then GC.Sniper._TrySendKeysBatch() end
 end
 
+-- Read fresh, the same shape as every other GC.Game.IsForever gate in this addon (see
+-- UI/ImportDialog.lua's own import guard): goldcap.gg has no WoW: Forever prices yet, so the
+-- three places below that would otherwise point a player at /goldcap companion or /goldcap
+-- import -- an import that can never succeed there -- say why instead.
+local function isForever()
+  return GC.Game and GC.Game.IsForever(GC.Game.Passport())
+end
+
 -- B: import staleness, in seconds since GC.db.imported.ts (nil = never imported this realm).
 local function importAgeSeconds()
   local ts = GC.db and GC.db.imported and GC.db.imported.ts
@@ -1761,7 +1769,11 @@ local function refreshStaleText()
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    if isForever() then
+      text = GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
+    else
+      text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    end
     color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
@@ -1955,6 +1967,12 @@ function GC.Sniper._UpdateEmptyState(shownCount)
     if appErr then
       text = GC.L["The Companion is syncing, but this addon could not read what it wrote:"] .. "\n"
         .. GC.Data.DescribeImportError(appErr.reason) .. "."
+    elseif isForever() then
+      -- goldcap.gg has no Forever prices yet, so the companion/import advice below would send
+      -- a Forever player chasing an import that can never succeed (Core/Data.lua's import
+      -- guard already refuses a pasted string here).
+      text = GC.L["No deals to show -- and no realm prices yet."] .. "\n"
+        .. GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
     else
       text = GC.L["No deals to show -- and no realm prices yet."] .. "\n"
         .. GC.L["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] .. "\n"
@@ -1995,7 +2013,9 @@ local function maybeWarnStale()
       msg = msg .. GC.L[" Companion keeps this fresh: /goldcap companion."]
     end
     GC.Print(msg)
-  else
+  elseif not isForever() then
+    -- goldcap.gg has no Forever prices yet, so this line has nothing true to say there -- the
+    -- header banner and the Deals empty state already say why, in Forever's own terms.
     GC.Print(GC.L["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."])
   end
 end
