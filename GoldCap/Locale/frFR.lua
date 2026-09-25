@@ -59,6 +59,8 @@ GC.Locales.frFR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si plusieurs achats sont regroupés sur une seule ligne, tous sont supprimés.",
   ["AH answered empty %ds ago"] = "l'hôtel des ventes a répondu vide il y a %ds",
+  ["AH value"] = "Valeur HV",
+  ["AH, cheapest version"] = "HV, version la moins chère",
   ["ASKING"] = "DEMANDÉ",
   ["AT MARKET"] = "AU MARCHÉ",
   ["AUTO"] = "AUTO",
@@ -282,6 +284,7 @@ GC.Locales.frFR = {
     "Ni dans tes sacs ni en vente — courrier ou banque ?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Pas sous la main — le stock est dans le courrier, à la banque ou sur un autre personnage",
+  ["Not worth the deposit on the AH"] = "Ne vaut pas la caution à l'HV",
   ["Nothing is being held back."] = "Rien n'est retenu.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Après cet achat il ne reste rien contre quoi vendre : il n'y a donc pas de prix de sortie.",
@@ -388,6 +391,9 @@ GC.Locales.frFR = {
     "Les ventes sont imputées d'abord sur tes unités les plus anciennes",
   ["Search"] = "Rechercher",
   ["Sales evidence"] = "Ventes réelles",
+  ["Sell it on the AH"] = "Vends-le à l'HV",
+  ["Sell it on the AH (deposit not counted)"] = "Vends-le à l'HV (caution non comptée)",
+  ["Sell it to a vendor"] = "Vends-le à un marchand",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "L'onglet Vente poste un palier au-dessus de l'offre la moins chère quand le carnet montre qu'elle se vend tout aussi vite.",
   ["Sell-through"] = "Taux d'écoulement",
@@ -406,6 +412,7 @@ GC.Locales.frFR = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Triez dessus pour décider quoi vérifier en premier, pas quoi acheter.",
   ["Sound on SAFE deal"] = "Son sur une affaire SAFE",
+  ["Source"] = "Source",
   ["Source age"] = "Ancienneté de la source",
   ["Spike-trend threshold %"] = "Seuil de flambée %",
   ["Start scanning as soon as the auction house opens."] =
@@ -477,6 +484,7 @@ GC.Locales.frFR = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Inconnu signifie que le coût est incomplet — complétez-le avec Définir le coût.",
   ["VERDICT"] = "VERDICT",
+  ["Vendor"] = "Marchand",
   ["Verdict"] = "Verdict",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "EN ATTENTE DE L'HÔTEL DES VENTES %d",
   ["WATCH"] = "SURVEILLER",
@@ -753,6 +761,7 @@ GC.Locales.frFR = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "votre import date de %d heures -- les prix peuvent être faux. Collez une chaîne fraîche depuis goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "ton prix dépasse tous les niveaux",
+  ["your scan, %s ago"] = "ton scan, il y a %s",
   ["yours"] = "le tien",
   ["yours ×%s"] = "à toi ×%s",
   ["~%dd to reach you"] = "~%d j avant ton tour",

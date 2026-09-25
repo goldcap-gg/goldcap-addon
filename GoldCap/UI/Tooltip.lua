@@ -10,6 +10,9 @@ GC.Tooltip = {}
 local STALE_YELLOW_SECONDS = 6 * 3600
 local STALE_RED_SECONDS = 24 * 3600
 
+-- The verdict's colours: green to the auction house, grey to a vendor, amber for the deposit.
+local VERDICT_COLOR = { good = { 0.3, 0.85, 0.4 }, dim = { 0.65, 0.65, 0.65 }, warn = { 1, 0.6, 0.2 } }
+
 -- A count as a whole number grouped in thousands: "98,470", not "98470". The client's own
 -- BreakUpLargeNumbers groups with the player's locale's separator (a German client writes
 -- 98.470), so it is used wherever it exists; the plain comma grouping below is for a runtime
@@ -54,6 +57,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   local live = liveLine(opts.live)
   if not v then return live and { live } or nil end
   local lines = {}
+  local scan = v.source == "scan"
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
   -- a realm item can sit at two listings for days, so a median of two is whatever the odd
   -- one out happens to be. Core/DealMath.lua and Core/Trigger.lua both refuse it for exactly
@@ -90,7 +94,11 @@ function GC.Tooltip.BuildLines(v, now, opts)
     end
   else
     if not v.mv then return live and { live } or nil end
-    lines[1] = { kind = "money", label = GC.L["GoldCap value"], copper = v.mv }
+    local label = GC.L["GoldCap value"]
+    -- WoW: Forever's own scan (Core/ForeverScan.lua): the auction house's price for it, and for
+    -- gear the cheapest version's -- several random suffixes share one item id.
+    if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value"] end
+    lines[1] = { kind = "money", label = label, copper = v.mv }
   end
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
   -- fields ride commodity tokens (a realm item's I token carries neither -- see itemToken in
@@ -126,6 +134,25 @@ function GC.Tooltip.BuildLines(v, now, opts)
   if opts.unitCost then
     lines[#lines + 1] = { kind = "money", label = GC.L["You paid"], copper = opts.unitCost }
   end
+  -- WoW: Forever (opts.forever, from onTooltip only there): what a vendor pays for one, and where
+  -- the item should go. Absent everywhere else, so retail's lines are unchanged.
+  local fv = opts.forever
+  if type(fv) == "table" then
+    if type(fv.vendorUnit) == "number" and fv.vendorUnit > 0 then
+      lines[#lines + 1] = { kind = "money", label = GC.L["Vendor"], copper = fv.vendorUnit }
+    end
+    local verdict = GC.ForeverValue and GC.ForeverValue.Verdict
+      and GC.ForeverValue.Verdict(v.mv, fv.vendorUnit, fv.depositUnit, v.gear == true) or nil
+    if verdict == "ah" then
+      lines[#lines + 1] = { kind = "verdict", tone = "good", text = GC.L["Sell it on the AH"] }
+    elseif verdict == "ah_nodeposit" then
+      lines[#lines + 1] = { kind = "verdict", tone = "good", text = GC.L["Sell it on the AH (deposit not counted)"] }
+    elseif verdict == "vendor" then
+      lines[#lines + 1] = { kind = "verdict", tone = "dim", text = GC.L["Sell it to a vendor"] }
+    elseif verdict == "deposit" then
+      lines[#lines + 1] = { kind = "verdict", tone = "warn", text = GC.L["Not worth the deposit on the AH"] }
+    end
+  end
   -- Clamped like the live line's: data stamped ahead of this client's clock is new, not
   -- negatively old.
   local age = math.max(0, now - (v.ts or 0))
@@ -137,6 +164,11 @@ function GC.Tooltip.BuildLines(v, now, opts)
     local label = opts.region and (GC.L["Bundled %s data"]):format(string.upper(opts.region))
       or GC.L["Bundled data"]
     lines[#lines + 1] = { kind = "text", left = label, right = GC.Util.FormatAge(age) }
+  elseif scan then
+    -- The player's own scan always says so, and how old it is: it is one look at one auction
+    -- house, not a market measurement.
+    lines[#lines + 1] = { kind = "text", left = GC.L["Source"],
+      right = (GC.L["your scan, %s ago"]):format(GC.Util.FormatElapsed(age) or "0s") }
   elseif age >= STALE_YELLOW_SECONDS then
     lines[#lines + 1] = { kind = "text", left = GC.L["GoldCap data age"], right = GC.Util.FormatAge(age) }
   end
@@ -146,7 +178,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- GC.Data.OriginState()'s word for the save as a whole (an "app" player never sees this,
   -- whatever table answered for this one item), passed by the caller like `region` is, and
   -- allowlisted so a caller that does not know the origin nudges nobody.
-  if (opts.origin == "none" or opts.origin == "manual")
+  if not scan and (opts.origin == "none" or opts.origin == "manual")
       and (v.source == "bundled" or age >= STALE_RED_SECONDS) then
     lines[#lines + 1] = { kind = "hint", text = GC.L["Companion keeps prices fresh — /goldcap companion"] }
   end
@@ -184,12 +216,17 @@ local function onTooltip(tooltip, data)
     return
   end
   local now = time()
+  -- WoW: Forever: the vendor price and a commodity's deposit, for the verdict line.
+  local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
+    and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
+      depositUnit = GC.ForeverValue.DepositUnit(itemID) } or nil
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
     region = GC.Data.Region and GC.Data.Region() or nil,
     origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
     live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
+    forever = forever,
   })
   if not lines then return end
   for _, ln in ipairs(lines) do
@@ -199,6 +236,9 @@ local function onTooltip(tooltip, data)
       tooltip:AddDoubleLine(ln.left, GC.Util.CoinText(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "hint" then
       tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
+    elseif ln.kind == "verdict" then
+      local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
+      tooltip:AddLine(ln.text, c[1], c[2], c[3])
     else
       tooltip:AddDoubleLine(ln.left, ln.right, 0.65, 0.82, 1, 1, 1, 1)
     end

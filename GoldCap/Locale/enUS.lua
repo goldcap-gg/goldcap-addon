@@ -71,6 +71,8 @@ GC.Locales.enUS = {
     "A run of several purchases collapsed onto one line removes every one of them.",
   ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
+  ["AH value"] = "AH value",
+  ["AH, cheapest version"] = "AH, cheapest version",
   ["ASKING"] = "ASKING",
   ["AT MARKET"] = "AT MARKET",
   ["AUTO"] = "AUTO",
@@ -391,6 +393,7 @@ GC.Locales.enUS = {
   ["Not in your bags or listed — mail or bank?"] = "Not in your bags or listed — mail or bank?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Not on hand — the stock is in the mail, the bank, or on another character",
+  ["Not worth the deposit on the AH"] = "Not worth the deposit on the AH",
   ["Nothing in your bags to list"] = "Nothing in your bags to list",
   ["Nothing is being held back."] = "Nothing is being held back.",
   ["Nothing is priced yet - the Auction House is still answering"] = "Nothing is priced yet - the Auction House is still answering",
@@ -492,6 +495,9 @@ GC.Locales.enUS = {
   ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sales evidence"] = "Sales evidence",
+  ["Sell it on the AH"] = "Sell it on the AH",
+  ["Sell it on the AH (deposit not counted)"] = "Sell it on the AH (deposit not counted)",
+  ["Sell it to a vendor"] = "Sell it to a vendor",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Sell tab posts one rung above the cheapest ask when the book says it sells just as fast.",
   ["Sell-through"] = "Sell-through",
@@ -509,6 +515,7 @@ GC.Locales.enUS = {
   ["Sold/day"] = "Sold/day",
   ["Sort by it to decide what to Check first, not to decide what to buy."] = "Sort by it to decide what to Check first, not to decide what to buy.",
   ["Sound on SAFE deal"] = "Sound on SAFE deal",
+  ["Source"] = "Source",
   ["Source age"] = "Source age",
   ["Spike-trend threshold %"] = "Spike-trend threshold %",
   ["Split into reagents (craft %d×)"] = "Split into reagents (craft %d×)",
@@ -582,6 +589,7 @@ GC.Locales.enUS = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unknown means the cost side is incomplete -- fill it in with Set cost.",
   ["VERDICT"] = "VERDICT",
+  ["Vendor"] = "Vendor",
   ["Vendor list"] = "Vendor list",
   ["Verdict"] = "Verdict",
   ["WATCH"] = "WATCH",
@@ -873,6 +881,7 @@ GC.Locales.enUS = {
   ["your price is above every level shown"] = "your price is above every level shown",
   ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
     "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
+  ["your scan, %s ago"] = "your scan, %s ago",
   ["yours"] = "yours",
   ["yours ×%s"] = "yours ×%s",
   ["~%dd to reach you"] = "~%dd to reach you",

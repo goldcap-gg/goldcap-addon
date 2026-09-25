@@ -63,6 +63,8 @@ GC.Locales.zhTW = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
+  ["AH value"] = "拍賣場估價",
+  ["AH, cheapest version"] = "拍賣場，最便宜版本",
   ["ASKING"] = "開價",
   ["AT MARKET"] = "依市價",
   ["AUTO"] = "自動",
@@ -265,6 +267,7 @@ GC.Locales.zhTW = {
   ["Not in your bags or listed — mail or bank?"] = "不在背包也未上架 — 在信箱或銀行嗎？",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "不在手邊 — 存貨在信箱、銀行或其他角色身上",
+  ["Not worth the deposit on the AH"] = "不值得支付拍賣場手續費",
   ["Nothing is being held back."] = "沒有任何項目被保留。",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "買完之後沒有可對手的掛單，也就沒有出貨價。",
@@ -362,6 +365,9 @@ GC.Locales.zhTW = {
   ["Sales are costed from your oldest units first"] = "販售成本自最舊的存貨先扣",
   ["Search"] = "搜尋",
   ["Sales evidence"] = "銷售可信度",
+  ["Sell it on the AH"] = "在拍賣場出售",
+  ["Sell it on the AH (deposit not counted)"] = "在拍賣場出售（未計手續費）",
+  ["Sell it to a vendor"] = "賣給商人",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "當掛單簿顯示賣得一樣快時，出售標籤會掛在最低價上方一級。",
   ["Sell-through"] = "售罄率",
@@ -377,6 +383,7 @@ GC.Locales.zhTW = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序決定先檢查什麼，而不是決定買什麼。",
   ["Sound on SAFE deal"] = "SAFE 交易時播放提示音",
+  ["Source"] = "來源",
   ["Source age"] = "資料年齡",
   ["Spike-trend threshold %"] = "暴漲門檻 %",
   ["Start scanning as soon as the auction house opens."] = "一進入拍賣場就立即開始掃描。",
@@ -434,6 +441,7 @@ GC.Locales.zhTW = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "顯示為未知說明成本側不完整 — 用「填寫成本」補上。",
   ["VERDICT"] = "判定",
+  ["Vendor"] = "商人",
   ["Verdict"] = "判定",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍賣場 %d",
   ["WATCH"] = "觀察",
@@ -683,6 +691,7 @@ GC.Locales.zhTW = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
   ["your price is above every level shown"] = "你的價格高於所有顯示的價位",
+  ["your scan, %s ago"] = "你的掃描，%s前",
   ["yours"] = "你的",
   ["yours ×%s"] = "你的 ×%s",
   ["~%dd to reach you"] = "約 %d 天輪到你",

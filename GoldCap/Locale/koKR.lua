@@ -61,6 +61,8 @@ GC.Locales.koKR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "여러 건의 구매가 한 줄로 합쳐져 있으면 그 전부가 삭제됩니다.",
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
+  ["AH value"] = "경매장 시세",
+  ["AH, cheapest version"] = "경매장, 최저가 버전",
   ["ASKING"] = "호가",
   ["AT MARKET"] = "시장가",
   ["AUTO"] = "자동",
@@ -266,6 +268,7 @@ GC.Locales.koKR = {
   ["Not in your bags or listed — mail or bank?"] = "가방에도 없고 등록도 안 됨 — 우편함이나 은행인가요?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "보유 중이 아님 — 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
+  ["Not worth the deposit on the AH"] = "경매장 등록비만큼의 가치가 없습니다",
   ["Nothing is being held back."] = "보류된 것이 없습니다.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "이번 구매 뒤에는 되팔 상대 물량이 남지 않아 매도 기준가가 없습니다.",
@@ -366,6 +369,9 @@ GC.Locales.koKR = {
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Search"] = "검색",
   ["Sales evidence"] = "판매 신뢰도",
+  ["Sell it on the AH"] = "경매장에 판매하세요",
+  ["Sell it on the AH (deposit not counted)"] = "경매장에 판매하세요 (등록비 미포함)",
+  ["Sell it to a vendor"] = "상인에게 파세요",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",
@@ -383,6 +389,7 @@ GC.Locales.koKR = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",
   ["Sound on SAFE deal"] = "SAFE 매물에 소리 알림",
+  ["Source"] = "출처",
   ["Source age"] = "자료 경과 시간",
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
   ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
@@ -446,6 +453,7 @@ GC.Locales.koKR = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
   ["VERDICT"] = "판정",
+  ["Vendor"] = "상인",
   ["Verdict"] = "판정",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "경매장 대기 중 %d",
   ["WATCH"] = "관찰",
@@ -705,6 +713,7 @@ GC.Locales.koKR = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
   ["your price is above every level shown"] = "내 가격이 표시된 모든 단계보다 높음",
+  ["your scan, %s ago"] = "내 검색, %s 전",
   ["yours"] = "내 가격",
   ["yours ×%s"] = "내 것 ×%s",
   ["~%dd to reach you"] = "내 차례까지 ~%d일",

@@ -59,6 +59,8 @@ GC.Locales.itIT = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se più acquisti sono raggruppati su una riga, vengono rimossi tutti.",
   ["AH answered empty %ds ago"] = "la casa d'aste ha risposto vuota %ds fa",
+  ["AH value"] = "Valore d'asta",
+  ["AH, cheapest version"] = "Asta, versione più economica",
   ["ASKING"] = "RICHIESTO",
   ["AT MARKET"] = "A MERCATO",
   ["AUTO"] = "AUTO",
@@ -283,6 +285,7 @@ GC.Locales.itIT = {
     "Né nelle borse né in vendita — posta o banca?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Non a portata di mano — la scorta è nella posta, in banca o su un altro personaggio",
+  ["Not worth the deposit on the AH"] = "Non vale il deposito all'asta",
   ["Nothing is being held back."] = "Non è trattenuto nulla.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Dopo questo acquisto non resta nulla contro cui vendere, quindi non c'è prezzo di uscita.",
@@ -389,6 +392,9 @@ GC.Locales.itIT = {
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Search"] = "Cerca",
   ["Sales evidence"] = "Dati vendite",
+  ["Sell it on the AH"] = "Vendilo all'asta",
+  ["Sell it on the AH (deposit not counted)"] = "Vendilo all'asta (deposito non conteggiato)",
+  ["Sell it to a vendor"] = "Vendilo a un venditore",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La scheda Vendi pubblica un gradino sopra l'offerta più economica quando il libro ordini indica che si vende altrettanto in fretta.",
   ["Sell-through"] = "Tasso di vendita",
@@ -407,6 +413,7 @@ GC.Locales.itIT = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordina in base a esso per decidere cosa controllare per primo, non cosa comprare.",
   ["Sound on SAFE deal"] = "Suono su affare SAFE",
+  ["Source"] = "Fonte",
   ["Source age"] = "Età della fonte",
   ["Spike-trend threshold %"] = "Soglia di impennata %",
   ["Start scanning as soon as the auction house opens."] =
@@ -477,6 +484,7 @@ GC.Locales.itIT = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
   ["VERDICT"] = "VERDETTO",
+  ["Vendor"] = "Venditore",
   ["Verdict"] = "Verdetto",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "IN ATTESA DELLA CASA D'ASTE %d",
   ["WATCH"] = "OSSERVA",
@@ -753,6 +761,7 @@ GC.Locales.itIT = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "la tua importazione ha %d ore -- i prezzi possono essere sbagliati. Incolla una stringa fresca da goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "il tuo prezzo supera ogni livello",
+  ["your scan, %s ago"] = "la tua scansione, %s fa",
   ["yours"] = "il tuo",
   ["yours ×%s"] = "tuoi ×%s",
   ["~%dd to reach you"] = "~%d g al tuo turno",

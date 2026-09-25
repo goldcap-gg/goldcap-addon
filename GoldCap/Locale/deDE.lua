@@ -59,6 +59,8 @@ GC.Locales.deDE = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Sind mehrere Käufe zu einer Zeile zusammengefasst, werden alle davon entfernt.",
   ["AH answered empty %ds ago"] = "Auktionshaus antwortete vor %ds leer",
+  ["AH value"] = "AH-Wert",
+  ["AH, cheapest version"] = "AH, günstigste Version",
   ["ASKING"] = "ANGEBOT",
   ["AT MARKET"] = "AM MARKT",
   ["AUTO"] = "AUTO",
@@ -282,6 +284,7 @@ GC.Locales.deDE = {
     "Weder in den Taschen noch eingestellt — Post oder Bank?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Nicht greifbar — der Bestand liegt in der Post, der Bank oder auf einem anderen Charakter",
+  ["Not worth the deposit on the AH"] = "Lohnt die AH-Gebühr nicht",
   ["Nothing is being held back."] = "Es wird nichts zurückgehalten.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nach diesem Kauf bleibt nichts übrig, wogegen man verkaufen könnte — es gibt also keinen Ausstiegspreis.",
@@ -389,6 +392,9 @@ GC.Locales.deDE = {
     "Verkäufe werden zuerst gegen deine ältesten Stück gerechnet",
   ["Search"] = "Suche",
   ["Sales evidence"] = "Verkaufsdaten",
+  ["Sell it on the AH"] = "Beim AH verkaufen",
+  ["Sell it on the AH (deposit not counted)"] = "Beim AH verkaufen (Gebühr nicht eingerechnet)",
+  ["Sell it to a vendor"] = "Beim Händler verkaufen",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Der Verkaufen-Tab bietet eine Stufe über dem günstigsten Gebot an, wenn das Orderbuch zeigt, dass es genauso schnell verkauft.",
   ["Sell-through"] = "Abverkaufsquote",
@@ -407,6 +413,7 @@ GC.Locales.deDE = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Danach sortieren, um zu entscheiden, was zuerst geprüft wird — nicht, was gekauft wird.",
   ["Sound on SAFE deal"] = "Ton bei SAFE-Angebot",
+  ["Source"] = "Quelle",
   ["Source age"] = "Alter der Quelle",
   ["Spike-trend threshold %"] = "Schwelle für Kursspitze %",
   ["Start scanning as soon as the auction house opens."] =
@@ -479,6 +486,7 @@ GC.Locales.deDE = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unbekannt heißt, die Kostenseite ist unvollständig — trage sie mit „Kosten eintragen“ nach.",
   ["VERDICT"] = "URTEIL",
+  ["Vendor"] = "Händler",
   ["Verdict"] = "Urteil",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WARTET AUFS AUKTIONSHAUS %d",
   ["WATCH"] = "BEOBACHTEN",
@@ -755,6 +763,7 @@ GC.Locales.deDE = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
   ["your price is above every level shown"] = "dein Preis liegt über allen Stufen",
+  ["your scan, %s ago"] = "dein Scan, vor %s",
   ["yours"] = "deiner",
   ["yours ×%s"] = "deins ×%s",
   ["~%dd to reach you"] = "~%d Tg. bis zu dir",

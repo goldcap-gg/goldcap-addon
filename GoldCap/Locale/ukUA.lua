@@ -62,6 +62,8 @@ GC.Locales.ukUA = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
+  ["AH value"] = "Оцінка на аукціоні",
+  ["AH, cheapest version"] = "Аукціон, найдешевша версія",
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
@@ -291,6 +293,7 @@ GC.Locales.ukUA = {
     "Немає в сумках і не виставлено — пошта чи банк?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою — запас у пошті, банку або на іншому персонажі",
+  ["Not worth the deposit on the AH"] = "Не окупає заставу на аукціоні",
   ["Nothing in your bags to list"] = "У сумках немає чого виставити",
   ["Nothing is being held back."] = "Нічого не притримано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
@@ -401,6 +404,9 @@ GC.Locales.ukUA = {
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
   ["Sales evidence"] = "Дані продажів",
+  ["Sell it on the AH"] = "Продайте на аукціоні",
+  ["Sell it on the AH (deposit not counted)"] = "Продайте на аукціоні (застава не врахована)",
+  ["Sell it to a vendor"] = "Продайте торговцю",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -419,6 +425,7 @@ GC.Locales.ukUA = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",
   ["Sound on SAFE deal"] = "Звук на угоді SAFE",
+  ["Source"] = "Джерело",
   ["Source age"] = "Вік джерела",
   ["Spike-trend threshold %"] = "Поріг стрибка ціни %",
   ["Start scanning as soon as the auction house opens."] =
@@ -490,6 +497,7 @@ GC.Locales.ukUA = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
   ["VERDICT"] = "ВЕРДИКТ",
+  ["Vendor"] = "Торговець",
   ["Verdict"] = "Вердикт",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "ЧЕКАЄМО НА АУКЦІОН %d",
   ["WATCH"] = "СТЕЖИТИ",
@@ -769,6 +777,7 @@ GC.Locales.ukUA = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
+  ["your scan, %s ago"] = "твоє сканування, %s тому",
   ["yours"] = "ваша",
   ["yours ×%s"] = "ваші ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",

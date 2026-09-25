@@ -62,6 +62,8 @@ GC.Locales.zhCN = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多笔购买被合并成一行，会一并全部删除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍卖行返回为空",
+  ["AH value"] = "拍卖行估价",
+  ["AH, cheapest version"] = "拍卖行，最便宜版本",
   ["ASKING"] = "要价",
   ["AT MARKET"] = "按市价",
   ["AUTO"] = "自动",
@@ -264,6 +266,7 @@ GC.Locales.zhCN = {
   ["Not in your bags or listed — mail or bank?"] = "不在背包也未上架 — 在邮件还是银行？",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "不在手头 — 库存在邮件、银行或其他角色身上",
+  ["Not worth the deposit on the AH"] = "不值得支付拍卖行手续费",
   ["Nothing is being held back."] = "没有任何条目被保留。",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "买完之后没有可对手的挂单，也就没有出货价。",
@@ -361,6 +364,9 @@ GC.Locales.zhCN = {
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
   ["Sales evidence"] = "销售可信度",
+  ["Sell it on the AH"] = "在拍卖行出售",
+  ["Sell it on the AH (deposit not counted)"] = "在拍卖行出售（未计手续费）",
+  ["Sell it to a vendor"] = "卖给商人",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "当挂单簿显示卖得一样快时，出售标签会挂在最低价上方一级。",
   ["Sell-through"] = "售罄率",
@@ -376,6 +382,7 @@ GC.Locales.zhCN = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序来决定先检查什么，而不是决定买什么。",
   ["Sound on SAFE deal"] = "SAFE 交易时播放提示音",
+  ["Source"] = "来源",
   ["Source age"] = "数据年龄",
   ["Spike-trend threshold %"] = "暴涨阈值 %",
   ["Start scanning as soon as the auction house opens."] = "一进入拍卖行就立即开始扫描。",
@@ -433,6 +440,7 @@ GC.Locales.zhCN = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
   ["VERDICT"] = "判定",
+  ["Vendor"] = "商人",
   ["Verdict"] = "判定",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍卖行 %d",
   ["WATCH"] = "观察",
@@ -682,6 +690,7 @@ GC.Locales.zhCN = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的导入数据已过 %d 小时 -- 价格可能有偏差。请从 goldcap.gg 粘贴新的字符串（/goldcap import）。",
   ["your price is above every level shown"] = "你的价格高于所有显示的价位",
+  ["your scan, %s ago"] = "你的扫描，%s前",
   ["yours"] = "你的",
   ["yours ×%s"] = "你的 ×%s",
   ["~%dd to reach you"] = "约 %d 天轮到你",

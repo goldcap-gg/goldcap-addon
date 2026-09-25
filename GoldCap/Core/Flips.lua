@@ -608,6 +608,26 @@ function GC.Flips.SilverUp(copper)
   return math.max(step, math.ceil(copper / step) * step)
 end
 
+--- The listing duration index the player posts at: settings.sniper.postDuration, 1/2/3 (12/24/48 h
+-- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. UI/SellFrame.lua's postDuration and
+-- UI/SniperFrame.lua's depositFor keep their own copies ON PURPOSE: both run inside the Post and
+-- purchase clicks, and the beta's taint log flagged exactly a GoldCap table-field call made there
+-- ahead of the protected call. New code outside those clicks reads this one.
+function GC.Flips.PostDurationIndex()
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper
+  local value = settings and settings.postDuration
+  if value == 1 or value == 2 or value == 3 then return value end
+  return 2
+end
+
+--- What listing `quantity` units of a commodity costs up front at the player's post duration --
+-- the call UI/SniperFrame.lua's depositFor makes. nil when the client has no such API.
+function GC.Flips.CommodityDeposit(itemID, quantity)
+  local ah = _G.C_AuctionHouse
+  if type(ah) ~= "table" or type(ah.CalculateCommodityDeposit) ~= "function" then return nil end
+  return ah.CalculateCommodityDeposit(itemID, GC.Flips.PostDurationIndex(), quantity)
+end
+
 -- Overcut v2 (docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). The
 -- position-in-the-book study (docs/research/2026-08-31-position-in-the-book.md) measured the
 -- 24h sale rate at the cheapest ask and anywhere inside the cheapest quarter of an item's

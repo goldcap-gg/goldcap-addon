@@ -434,3 +434,53 @@ describe("Tooltip.BuildLines", function()
   end)
 
 end)
+
+describe("Tooltip.BuildLines in WoW: Forever", function()
+  local GC
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/ForeverValue.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  local SCAN = { mv = 1000, currentQty = 4060, listings = 31, ts = 1000, source = "scan", kind = "own_scan" }
+
+  local function find(lines, pred)
+    for _, ln in ipairs(lines) do if pred(ln) then return ln end end
+  end
+
+  it("names the scan's value, the vendor, the verdict and the scan's age", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
+    assert.equal("AH value", lines[1].label)
+    assert.equal(1000, lines[1].copper)
+    assert.truthy(find(lines, function(l) return l.left == "Listed" and l.right == "4,060" end))
+    assert.truthy(find(lines, function(l) return l.label == "Vendor" and l.copper == 100 end))
+    assert.truthy(find(lines, function(l) return l.kind == "verdict" and l.text == "Sell it on the AH" end))
+    assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
+    assert.is_nil(find(lines, function(l) return l.kind == "hint" end))
+  end)
+
+  it("labels gear by its cheapest version", function()
+    local gear = { mv = 5000, ts = 1000, source = "scan", kind = "own_scan", gear = true }
+    assert.equal("AH, cheapest version", GC.Tooltip.BuildLines(gear, 1000, { forever = {} })[1].label)
+  end)
+
+  it("tells the deposit apart", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900, depositUnit = 60 } })
+    assert.truthy(find(lines, function(l) return l.text == "Not worth the deposit on the AH" end))
+    lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900 } })
+    assert.truthy(find(lines, function(l) return l.text == "Sell it on the AH (deposit not counted)" end))
+    lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 2000, depositUnit = 1 } })
+    assert.truthy(find(lines, function(l) return l.text == "Sell it to a vendor" end))
+  end)
+
+  it("changes nothing without the Forever options", function()
+    local plain = GC.Tooltip.BuildLines({ mv = 123400, sold = 52.34, ts = 1000 }, 2000)
+    local withNil = GC.Tooltip.BuildLines({ mv = 123400, sold = 52.34, ts = 1000 }, 2000, { forever = nil })
+    assert.same(plain, withNil)
+    assert.equal("GoldCap value", plain[1].label)
+    assert.equal(2, #plain)
+  end)
+end)

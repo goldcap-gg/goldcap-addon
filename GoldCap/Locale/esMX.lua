@@ -62,6 +62,8 @@ GC.Locales.esMX = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si varias compras están agrupadas en una sola línea, se eliminan todas.",
   ["AH answered empty %ds ago"] = "la casa de subastas respondió vacío hace %ds",
+  ["AH value"] = "Valor de subasta",
+  ["AH, cheapest version"] = "Subasta, versión más barata",
   ["ASKING"] = "PEDIDO",
   ["AT MARKET"] = "A MERCADO",
   ["AUTO"] = "AUTO",
@@ -287,6 +289,7 @@ GC.Locales.esMX = {
     "Ni en tus bolsas ni publicado — ¿correo o banco?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "No disponible — las existencias están en el correo, el banco u otro personaje",
+  ["Not worth the deposit on the AH"] = "No compensa el depósito en la subasta",
   ["Nothing is being held back."] = "No se está reteniendo nada.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Tras esta compra no queda nada contra lo que vender, así que no hay precio de salida.",
@@ -392,6 +395,9 @@ GC.Locales.esMX = {
     "Las ventas se imputan primero a tus unidades más antiguas",
   ["Search"] = "Buscar",
   ["Sales evidence"] = "Datos de venta",
+  ["Sell it on the AH"] = "Véndelo en la subasta",
+  ["Sell it on the AH (deposit not counted)"] = "Véndelo en la subasta (depósito no incluido)",
+  ["Sell it to a vendor"] = "Véndelo a un vendedor",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La pestaña Vender publica un escalón por encima de la oferta más barata cuando el libro indica que se vende igual de rápido.",
   ["Sell-through"] = "Tasa de venta",
@@ -410,6 +416,7 @@ GC.Locales.esMX = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordena por él para decidir qué comprobar primero, no qué comprar.",
   ["Sound on SAFE deal"] = "Sonido en oferta SAFE",
+  ["Source"] = "Fuente",
   ["Source age"] = "Antigüedad de la fuente",
   ["Spike-trend threshold %"] = "Umbral de subida repentina %",
   ["Start scanning as soon as the auction house opens."] =
@@ -480,6 +487,7 @@ GC.Locales.esMX = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconocido significa que falta parte del costo: complétalo con Fijar costo.",
   ["VERDICT"] = "VEREDICTO",
+  ["Vendor"] = "Vendedor",
   ["Verdict"] = "Veredicto",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "ESPERANDO A LA CASA DE SUBASTAS %d",
   ["WATCH"] = "VIGILAR",
@@ -757,6 +765,7 @@ GC.Locales.esMX = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "tu importación tiene %d horas -- los precios pueden estar desviados. Pega una cadena nueva de goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "tu precio supera todos los niveles",
+  ["your scan, %s ago"] = "tu escaneo, hace %s",
   ["yours"] = "tuyo",
   ["yours ×%s"] = "tuyo ×%s",
   ["~%dd to reach you"] = "~%d d hasta tu turno",

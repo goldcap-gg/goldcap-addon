@@ -58,6 +58,8 @@ GC.Locales.ruRU = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Если несколько покупок свёрнуты в одну строку, удалятся они все.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
+  ["AH value"] = "Оценка на аукционе",
+  ["AH, cheapest version"] = "Аукцион, самая дешёвая версия",
   ["ASKING"] = "ЗАПРОС",
   ["AT MARKET"] = "ПО РЫНКУ",
   ["AUTO"] = "АВТО",
@@ -281,6 +283,7 @@ GC.Locales.ruRU = {
     "Нет в сумках и не выставлено — почта или банк?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Нет под рукой — запас в почте, банке или на другом персонаже",
+  ["Not worth the deposit on the AH"] = "Не окупает залог на аукционе",
   ["Nothing is being held back."] = "Ничего не придержано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "После этой покупки не останется того, во что продавать, — цены выхода нет.",
@@ -387,6 +390,9 @@ GC.Locales.ruRU = {
     "Продажи списываются сначала со старейших единиц",
   ["Search"] = "Поиск",
   ["Sales evidence"] = "Данные продаж",
+  ["Sell it on the AH"] = "Продайте на аукционе",
+  ["Sell it on the AH (deposit not counted)"] = "Продайте на аукционе (залог не учтён)",
+  ["Sell it to a vendor"] = "Продайте торговцу",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
@@ -405,6 +411,7 @@ GC.Locales.ruRU = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортируйте по нему, чтобы решить, что проверить первым, а не что покупать.",
   ["Sound on SAFE deal"] = "Звук на сделке SAFE",
+  ["Source"] = "Источник",
   ["Source age"] = "Возраст источника",
   ["Spike-trend threshold %"] = "Порог всплеска цены %",
   ["Start scanning as soon as the auction house opens."] =
@@ -476,6 +483,7 @@ GC.Locales.ruRU = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Неизвестно» значит, что себестоимость заполнена не вся — допишите её через «Указать цену».",
   ["VERDICT"] = "ВЕРДИКТ",
+  ["Vendor"] = "Торговец",
   ["Verdict"] = "Вердикт",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "ЖДЁМ АУКЦИОН %d",
   ["WATCH"] = "СЛЕДИТЬ",
@@ -750,6 +758,7 @@ GC.Locales.ruRU = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя цена выше всех уровней",
+  ["your scan, %s ago"] = "твоё сканирование, %s назад",
   ["yours"] = "ваша",
   ["yours ×%s"] = "ваши ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",
