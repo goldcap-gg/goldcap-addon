@@ -865,4 +865,10 @@ GC.Locales.frFR = {
     "un marchand paie plus -- vends-le là-bas",
   ["vendor pays more"] =
     "le marchand paie plus",
+  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
+    "Dans WoW: Forever, les prix de GoldCap viennent des scans de l'hôtel des ventes faits par les joueurs eux-mêmes.",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "Ouvrez l'hôtel des ventes et GoldCap le scanne pour vous ; SCAN dans l'onglet Affaires scanne à nouveau.",
+  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
+    "Installez le GoldCap Companion pour partager vos scans et obtenir les prix de tout le monde : /goldcap companion",
 }

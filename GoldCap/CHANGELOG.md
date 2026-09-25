@@ -4,6 +4,13 @@
 
 - GoldCap now runs in WoW: Forever. Selling works from the live auction house there; goldcap.gg
   prices for Forever arrive later. Type `/gc forever` to see what GoldCap can use in your client.
+- In WoW: Forever, GoldCap scans the auction house when you open it (the game allows a full scan
+  once every 15 minutes) and when you press SCAN on the Deals tab. Tooltips there show the item's
+  auction house value from your latest scan and how old it is, what a vendor pays, and whether to
+  sell it on the auction house, to a vendor, or not at all because it is not worth the deposit.
+- In WoW: Forever the Sell tab prices from your scan, and its POST queue skips anything a vendor
+  pays more for. Type `/gc bags` to see what your bags are worth at a vendor and on the auction
+  house.
 
 ## 0.15.1 (2026-09-24)
 

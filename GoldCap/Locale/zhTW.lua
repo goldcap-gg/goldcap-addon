@@ -786,4 +786,10 @@ GC.Locales.zhTW = {
     "商人出價更高 -- 賣給他",
   ["vendor pays more"] =
     "商人出價更高",
+  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
+    "在 WoW: Forever 中，GoldCap 的價格來自玩家自己對拍賣場的掃描。",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "開啟拍賣場，GoldCap 會為你掃描；在交易分頁點擊掃描可以再次掃描。",
+  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
+    "安裝 GoldCap Companion 以分享你的掃描並取得所有人的價格：/goldcap companion",
 }

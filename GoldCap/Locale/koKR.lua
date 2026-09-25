@@ -810,4 +810,10 @@ GC.Locales.koKR = {
     "상인이 더 쳐줍니다 -- 거기서 파세요",
   ["vendor pays more"] =
     "상인이 더 쳐줌",
+  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
+    "WoW: Forever에서는 GoldCap의 시세가 플레이어들이 직접 검색한 경매장 결과에서 나옵니다.",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "경매장을 열면 GoldCap이 자동으로 검색합니다. 딜 탭의 검색 버튼을 누르면 다시 검색합니다.",
+  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
+    "검색 결과를 공유하고 모두의 시세를 받으려면 GoldCap Companion을 설치하세요: /goldcap companion",
 }

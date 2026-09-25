@@ -926,4 +926,11 @@ GC.Locales.enUS = {
     "Your bags: %s at a vendor. Scan the auction house to see what they would fetch there.",
   ["a vendor pays more -- sell it there"] = "a vendor pays more -- sell it there",
   ["vendor pays more"] = "vendor pays more",
+  -- The three first-run lines (Core/ForeverScan.lua's MaybeIntro), shown once per account.
+  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
+    "In WoW: Forever, GoldCap's prices come from players' own auction house scans.",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again.",
+  ["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"] =
+    "Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion",
 }

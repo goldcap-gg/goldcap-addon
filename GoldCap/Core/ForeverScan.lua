@@ -367,6 +367,18 @@ function GC.ForeverScan.Summary(now)
   return lines
 end
 
+-- The first time GoldCap loads in WoW: Forever on this account (spec §3 "First run in Forever"):
+-- where prices come from, how to scan, and what the Companion adds. Once, ever.
+function GC.ForeverScan.MaybeIntro()
+  local s = GC.ForeverScan.Store()
+  if not s or s.introShown then return false end
+  s.introShown = true
+  GC.Print(GC.L["In WoW: Forever, GoldCap's prices come from players' own auction house scans."])
+  GC.Print(GC.L["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."])
+  GC.Print(GC.L["Install the GoldCap Companion to share your scans and get everyone's prices: /goldcap companion"])
+  return true
+end
+
 local function scanner() return GC.ForeverScan._scanner end
 function GC.ForeverScan.Request(reason) local s = scanner(); return s and s:Request(reason) or nil end
 function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate() end end
