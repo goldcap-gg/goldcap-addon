@@ -3003,6 +3003,54 @@ local function copperToGoldText(copper)
   return text
 end
 
+-- YOUR PRICE only (row.priceBox below) -- everything above (the Set-Cost dialog's Unit/Total
+-- fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
+-- purchase cost is always gold-denominated regardless of what the auction house can post.
+--
+-- Exact copper -> plain coin text ("90c", "1g22s90c", never "1g" with a silent 90c dropped),
+-- for the one client where a price can actually carry a copper remainder
+-- (GC.Flips.PriceStep() == 1 -- see that function's own comment). The owner's own bug report:
+-- the gold-decimal box above showed "0.009" for 90c -- correct arithmetic, unreadable, and
+-- easy to mistype back wrong. No coin ICONS (GC.Util.CoinText): this is an EditBox the seller
+-- retypes, not a read-only label, and `|T...|t` escapes are not something a person can edit.
+-- Falls back to the gold-decimal text unconditionally on any other client -- retail's box is
+-- byte-identical to before this existed.
+local function copperToPriceText(copper)
+  if not exact(copper) then return "" end
+  if GC.Flips.PriceStep() ~= 1 then return copperToGoldText(copper) end
+  if copper == 0 then return "0c" end
+  local gold = math.floor(copper / COPPER_PER_GOLD)
+  local silver = math.floor((copper % COPPER_PER_GOLD) / 100)
+  local rest = copper % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = gold .. "g" end
+  if silver > 0 then parts[#parts + 1] = silver .. "s" end
+  if rest > 0 then parts[#parts + 1] = rest .. "c" end
+  return table.concat(parts)
+end
+
+-- The inverse of copperToPriceText, and YOUR PRICE's own parse -- everywhere else (the Set-Cost
+-- dialog) keeps reading dialogGoldPositive/dialogGoldCopper directly, gold-decimal always.
+-- Accepts "1g22s90c" or any subset of those three suffixes, in order, each optional; a bare
+-- number with none of them is read as COPPER, not gold -- Forever's own book is copper-precise,
+-- so that is the natural unit here, the opposite of what a bare number means on retail's box.
+-- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing (a
+-- bare number as gold) is exactly what it always was.
+local function priceBoxCopper(box)
+  if GC.Flips.PriceStep() ~= 1 then return dialogGoldPositive(box) end
+  local text = (box:GetText() or ""):gsub("%s+", ""):lower()
+  if text == "" then return nil end
+  if not text:find("[gsc]") then
+    local copper = tonumber(text)
+    return exact(copper) and copper > 0 and copper or nil
+  end
+  local gold = tonumber(text:match("^(%d+)g")) or 0
+  local silver = tonumber(text:match("g?(%d+)s")) or 0
+  local rest = tonumber(text:match("s?(%d+)c")) or 0
+  local copper = gold * COPPER_PER_GOLD + silver * 100 + rest
+  return exact(copper) and copper > 0 and copper or nil
+end
+
 -- The live "what this will actually record" readout under the Total field. Typing "12.5" is
 -- ambiguous on its own -- seeing "12g 50s 0c" appear while typing is what makes the unit
 -- unambiguous no matter what the player assumed it was.
@@ -4164,7 +4212,7 @@ local function createRow(parent)
     if text:match("^%s*$") then
       priceOverrides[key] = nil
     else
-      local copper = dialogGoldPositive(box)
+      local copper = priceBoxCopper(box)
       if not copper then
         setStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
         return
@@ -4201,7 +4249,7 @@ local function createRow(parent)
     if text:match("^%s*$") then
       priceOverrides[key] = nil
     else
-      local copper = dialogGoldPositive(box)
+      local copper = priceBoxCopper(box)
       -- Half-typed text ("39." between two keystrokes) parses to nothing. Keep the last price
       -- that did read as one and leave the box alone rather than snapping it back.
       if not copper then return end
@@ -4548,7 +4596,7 @@ function INSP.paintHead(row, p, d)
         box:ClearFocus()
         row.priceCommitting = false
       end
-      box:SetText(unit and copperToGoldText(unit) or "")
+      box:SetText(unit and copperToPriceText(unit) or "")
     end
     box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
     -- The ring says whose price this is before a word is read: red under cost or under the

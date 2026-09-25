@@ -682,6 +682,26 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("×5", row.priceNote.text, 1, true)
     end)
 
+    -- The owner's own bug report: WoW: Forever's book carries copper remainders, and the
+    -- gold-decimal box showed "0.009" for 90c -- correct arithmetic, unreadable. Only where
+    -- GC.Flips.PriceStep() == 1 (C_AuctionHouse.SupportsCopperValues); retail's box, tested
+    -- above with no such function, is untouched by this branch.
+    it("shows a copper price in coin text on WoW: Forever, not a gold fraction", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 90 } })
+      assert.equal("90c", row.priceBox.text)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("shows gold, silver and copper together on WoW: Forever, no unit at zero", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 } }) -- 1g 22s 90c
+      assert.equal("1g22s90c", row.priceBox.text)
+      _G.C_AuctionHouse = nil
+    end)
+
     -- A real commit starts in the box: the focus is what tells the row which position the
     -- typing belongs to, and a commit with no focus behind it is refused (pooled rows).
     local function typePrice(row, text)
@@ -702,6 +722,33 @@ describe("Sell widget geometry and manual cost", function()
       local after = priceRow(GC)
       assert.equal("45", after.priceBox.text)
       assert.matches("yours", after.priceNote.text, 1, true)
+    end)
+
+    -- The inverse of the two display tests above: what the seller types on Forever is read as
+    -- coin text, a bare number included -- Forever's book is copper-precise, so an unsuffixed
+    -- number means copper here, not the gold a bare number means on retail (tested elsewhere
+    -- in this file already, e.g. "takes a price the seller types and says it is theirs now").
+    it("accepts a copper price typed into the box on WoW: Forever", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      -- knownCost = 0: takes the below-cost warning out of the way, so this test is purely
+      -- about whether the typed coin text parses and round-trips, not about PriceRisk.
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(row, "90c")
+      local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      assert.equal("90c", after.priceBox.text)
+      assert.matches("yours", after.priceNote.text, 1, true)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("accepts a bare number typed into the box on WoW: Forever as copper, not gold", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(row, "150")
+      local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      assert.equal("1s50c", after.priceBox.text)
+      _G.C_AuctionHouse = nil
     end)
 
     -- Emptying the box is an answer, not a failure to give one.
