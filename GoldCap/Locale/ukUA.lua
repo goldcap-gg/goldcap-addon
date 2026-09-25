@@ -878,8 +878,8 @@ GC.Locales.ukUA = {
     "торговець платить більше -- продайте йому",
   ["vendor pays more"] =
     "торговець платить більше",
-  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
-    "У WoW: Forever ціни GoldCap беруться зі сканувань аукціону, які роблять самі гравці.",
+  ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
+    "У WoW: Forever ціни GoldCap беруться з твоїх власних сканувань аукціону.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Відкрийте аукціон, і GoldCap відсканує його за вас; СКАН на вкладці Угоди сканує знову.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =

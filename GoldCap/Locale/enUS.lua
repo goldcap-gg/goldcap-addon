@@ -249,7 +249,6 @@ GC.Locales.enUS = {
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Costs more than your per-buy wallet limit allows.",
-  ["Could not find the queue's next item to post — try again"] = "Could not find the queue's next item to post — try again",
   ["Could not find the queue's next lot to cancel — try again"] = "Could not find the queue's next lot to cancel — try again",
   ["DEFAULTS"] = "DEFAULTS",
   ["DISC"] = "DISC",
@@ -904,9 +903,7 @@ GC.Locales.enUS = {
   -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
   -- on the Deals tab.
   ["Scanning the auction house…"] = "Scanning the auction house…",
-  ["%s lots scanned -- shared on your next /reload"] = "%s lots scanned -- shared on your next /reload",
   ["%s lots scanned and saved"] = "%s lots scanned and saved",
-  ["%s items scanned -- shared on your next /reload"] = "%s items scanned -- shared on your next /reload",
   ["%s items scanned and saved"] = "%s items scanned and saved",
   ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
     "The full scan is cooling down (%d min left) -- scanning by browsing instead",
@@ -927,10 +924,13 @@ GC.Locales.enUS = {
   ["a vendor pays more -- sell it there"] = "a vendor pays more -- sell it there",
   ["vendor pays more"] = "vendor pays more",
   -- The three first-run lines (Core/ForeverScan.lua's MaybeIntro), shown once per account.
-  ["In WoW: Forever, GoldCap's prices come from players' own auction house scans."] =
-    "In WoW: Forever, GoldCap's prices come from players' own auction house scans.",
+  ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
+    "In WoW: Forever, GoldCap's prices come from your own auction house scans.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way.",
+  -- onQueueClick (final review C1): the click that switches into queue mode and renders it makes
+  -- no protected call itself -- a second press is what posts the head.
+  ["Queue ready — press POST again to post it"] = "Queue ready — press POST again to post it",
 }
