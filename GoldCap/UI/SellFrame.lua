@@ -933,7 +933,15 @@ local function seedPersistedQuotes()
   end
 end
 
-local function composePositions()
+-- `skipPaint`: WoW: Forever's taint engine blocks a protected AH call once the same hardware
+-- click has read certain GoldCap runtime state -- and `container.paintDeckSwitch()` below,
+-- which reads `position.listedQty`/`bagQty` off `positions`, is one of the reads it flags
+-- (see onRepostClick's own comment on this). onRepostClick's pre-cancel validation needs this
+-- function's DATA (fresh `ownedLots`/`positions`) but must not trigger that paint before its own
+-- protected call further down; it passes true here and repaints the deck switch itself, once,
+-- right after that call. Every other caller leaves this at its default (false) and keeps the
+-- paint exactly where it always was.
+local function composePositions(skipPaint)
   if not quotesSeeded then seedPersistedQuotes() end
   local scope = context()
   if scanBagStock then scanBagStock() end
@@ -1043,7 +1051,7 @@ local function composePositions()
   -- empty table, and after that only when the player clicked one of its own two buttons. So it
   -- sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is what made a fixed
   -- bag-stock bug look like it was still broken, twice, to two different readers.
-  if container and container.paintDeckSwitch then container.paintDeckSwitch() end
+  if not skipPaint and container and container.paintDeckSwitch then container.paintDeckSwitch() end
 end
 
 -- Which items the pricing walk asks the server about.
@@ -2511,7 +2519,12 @@ local function onRepostClick(row, auctionID)
     end
     ownedLots = GC.SellPositions.NormalizeOwnedLots(
       classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
-    composePositions()
+    -- `true`: skip composePositions' own trailing container.paintDeckSwitch() call. That paint
+    -- reads position.listedQty/bagQty off `positions` -- one of the reads WoW: Forever's taint
+    -- engine flags on the path to a protected call (see composePositions' own comment on this
+    -- parameter) -- and this validation runs right before C_AuctionHouse.CancelAuction below.
+    -- The deck switch is repainted explicitly, once, right after that call instead.
+    composePositions(true)
     local livePosition = currentPosition(pin.positionKey)
     local current
     for _, candidate in ipairs(livePosition and livePosition.scopeKey == pin.scopeKey
@@ -2533,6 +2546,8 @@ local function onRepostClick(row, auctionID)
     end
     row.repostStage = "cancelling"; row.action:Disable()
     C_AuctionHouse.CancelAuction(plan.auctionID)
+    -- The paint composePositions(true) above skipped, now that the protected call is behind us.
+    if container and container.paintDeckSwitch then container.paintDeckSwitch() end
     if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
       GC.Data.MarkOwnedLotCancelled(GC.db, plan.auctionID, scope, time())
     end

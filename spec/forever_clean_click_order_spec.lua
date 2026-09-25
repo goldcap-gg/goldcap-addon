@@ -69,4 +69,33 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       assert.is_true(postTimeout < postCall)
     end)
   end)
+
+  describe("SellFrame.lua Cancel lot (onRepostClick)", function()
+    local text = source("GoldCap/UI/SellFrame.lua")
+    local clickStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
+    local clickEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", clickStart, true))
+    local click = text:sub(clickStart, clickEnd - 1)
+
+    it("recomposes positions without repainting the deck switch before CancelAuction", function()
+      local composeAt = assert(click:find("composePositions(true)", 1, true),
+        "onRepostClick must skip composePositions' own paint before its protected call")
+      local callAt = assert(click:find("C_AuctionHouse.CancelAuction(plan.auctionID)", composeAt, true))
+      local between = click:sub(composeAt, callAt - 1)
+      assert.is_nil(between:find("paintDeckSwitch()", 1, true),
+        "paintDeckSwitch must not run between the recompose and the protected Cancel call")
+      local paintAt = assert(click:find("paintDeckSwitch()", callAt, true),
+        "the deck switch must still be repainted after the call")
+      assert.is_true(paintAt > callAt)
+    end)
+  end)
+
+  describe("SellFrame.lua composePositions", function()
+    it("only repaints the deck switch by default; the caller can skip it", function()
+      local text = source("GoldCap/UI/SellFrame.lua")
+      local defAt = assert(text:find("local function composePositions(skipPaint)", 1, true))
+      local endAt = assert(text:find("\nend\n", defAt, true))
+      local body = text:sub(defAt, endAt)
+      assert.is_truthy(body:find("if not skipPaint and container and container.paintDeckSwitch then", 1, true))
+    end)
+  end)
 end)
