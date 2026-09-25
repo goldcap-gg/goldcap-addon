@@ -56,18 +56,17 @@ describe("WoW: Forever scan wiring", function()
     assert.is_nil(db.foreverScan)
   end)
 
-  it("words the result by what was read and whether the Companion shares it", function()
+  -- There is no Forever Companion or upload in this build (final review I1): a scan always says
+  -- it stayed here, whether or not GoldCap_AppData happens to be sitting in this install.
+  it("always says the scan stayed here -- there is no Forever Companion upload yet", function()
     load(16001)
-    GC.ForeverScan._SayDone({ rows = 8412, items = 900, replicated = true }, true)
-    GC.ForeverScan._SayDone({ rows = 8412, items = 900, replicated = true }, false)
-    GC.ForeverScan._SayDone({ items = 300, replicated = false }, true)
-    GC.ForeverScan._SayDone({ items = 300, replicated = false }, false)
-    GC.ForeverScan._SayDone(nil, false)
-    assert.equal("8412 lots scanned -- shared on your next /reload", printed[1])
-    assert.equal("8412 lots scanned and saved", printed[2])
-    assert.equal("300 items scanned -- shared on your next /reload", printed[3])
-    assert.equal("300 items scanned and saved", printed[4])
-    assert.equal("The scan found nothing to save", printed[5])
+    _G.GoldCap_AppData = { region = "eu" }
+    GC.ForeverScan._SayDone({ rows = 8412, items = 900, replicated = true })
+    GC.ForeverScan._SayDone({ items = 300, replicated = false })
+    GC.ForeverScan._SayDone(nil)
+    assert.equal("8412 lots scanned and saved", printed[1])
+    assert.equal("300 items scanned and saved", printed[2])
+    assert.equal("The scan found nothing to save", printed[3])
   end)
 
   describe("source wiring", function()

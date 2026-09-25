@@ -180,6 +180,37 @@ describe("ForeverScan", function()
     assert.equal("wide", d.browse)
   end)
 
+  -- Final review I3: pressing SCAN inside the cooldown starts a browse-only accumulator (an
+  -- empty GC.ForeverFold.New(), not derived from the stored fold at all), and completing it must
+  -- not replace the fuller fold the earlier full scan already saved.
+  it("merges a cooldown SCAN's browse-only result into the stored fold instead of replacing it", function()
+    local s = GC.ForeverScan.New(driver())
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    local original = store.fold
+    assert.equal("replicate", original.source)
+    assert.equal(1, original.rows)
+    local originalMin = GC.ForeverFold.Decode(original.items[2589]).min
+    now = now + 60
+    d.browseAnswer = "started"
+    assert.equal("cooldown", s:Request("button"))
+    assert.equal("wide", d.browse)
+    -- Priced at a much cheaper floor than the dump's own ladder -- proves the merge keeps the
+    -- dump's own entry rather than letting a thin browse row overwrite it.
+    s:OnBrowsePassDone({ [2589] = { floor = 1, qty = 500 }, [3000] = { floor = 250, qty = 4 } })
+    runAll()
+    local fold = store.fold
+    assert.equal("replicate", fold.source)  -- honest: still the dump's own fold, only topped up
+    assert.equal(1, fold.rows)              -- unchanged: no new replicate rows were read
+    assert.is_true(fold.partial)
+    assert.equal(2, fold.itemCount)
+    assert.equal(originalMin, GC.ForeverFold.Decode(fold.items[2589]).min) -- kept, not overwritten
+    local added = GC.ForeverFold.Decode(fold.items[3000])
+    assert.equal(250, added.min)
+    assert.is_true(added.browse)
+  end)
+
   it("never lets a stamp from the future lock the scan", function()
     store.requestedAt = now + 3600
     local s = GC.ForeverScan.New(driver())
@@ -317,7 +348,7 @@ describe("ForeverScan", function()
       GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
       assert.is_true(GC.ForeverScan.MaybeIntro())
       assert.equal(3, #printed)
-      assert.equal("In WoW: Forever, GoldCap's prices come from players' own auction house scans.", printed[1])
+      assert.equal("In WoW: Forever, GoldCap's prices come from your own auction house scans.", printed[1])
       assert.equal("Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way.",
         printed[3])
       assert.is_false(GC.ForeverScan.MaybeIntro())

@@ -40,6 +40,19 @@ function GC.ForeverScan.New(driver)
     token = token + 1
   end
 
+  -- The rule (final review I3): a browse-only result never REPLACES a stored fold that came
+  -- from a real ReplicateItems dump -- only the cooldown-SCAN path (Request, "button" reason,
+  -- inside C.COOLDOWN_SECONDS) and a browse watchdog firing on that same empty accumulator ever
+  -- produce one, and either would otherwise throw away every ladder/lot-count the dump priced
+  -- for the single cheapest-listing floor a browse row carries. So: merge. Every item the stored
+  -- fold already has stays exactly as it was folded; a browse item is added only for an item the
+  -- stored fold lacks entirely -- the same "only what the dump didn't cover" rule AddBrowse
+  -- already applies inside one scan, now applied across two.
+  local function isFullFold(fold)
+    return type(fold) == "table" and type(fold.items) == "table"
+      and (fold.source == "replicate" or fold.source == "replicate+browse")
+  end
+
   local function commit()
     local a = acc
     reset()
@@ -52,10 +65,31 @@ function GC.ForeverScan.New(driver)
     local source = a.replicated and (a.browsed and "replicate+browse" or "replicate") or "browse"
     local s = driver.store()
     if s then
-      s.fold = { v = 1, interface = p.interface, build = p.build, region = p.region, realm = p.realm,
-        faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
-        rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
-        items = items }
+      local existing = s.fold
+      if source == "browse" and isFullFold(existing) then
+        local merged, mergedCount = {}, 0
+        for itemID, encoded in pairs(existing.items) do
+          merged[itemID] = encoded
+          mergedCount = mergedCount + 1
+        end
+        for itemID, encoded in pairs(items) do
+          if merged[itemID] == nil then
+            merged[itemID] = encoded
+            mergedCount = mergedCount + 1
+          end
+        end
+        -- Honest source/age (final review I3): still fundamentally the dump's own fold -- its
+        -- `rows` (a raw-row count only a real dump produces) is unchanged -- just topped up with
+        -- a few more items' floors, which is exactly what `partial` is for elsewhere in this file.
+        s.fold = { v = 1, interface = p.interface, build = p.build, region = p.region, realm = p.realm,
+          faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = existing.source,
+          rows = existing.rows, itemCount = mergedCount, partial = true, items = merged }
+      else
+        s.fold = { v = 1, interface = p.interface, build = p.build, region = p.region, realm = p.realm,
+          faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
+          rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
+          items = items }
+      end
     end
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
       partial = a.partial == true, replicated = a.replicated == true, pending = a.pending,
@@ -214,23 +248,18 @@ local function count(n)
   return tostring(n)
 end
 
--- What a finished scan tells the player. The Companion (when it wrote GoldCap_AppData into this
--- install) uploads the fold the game writes on the next /reload; without it the fold only
--- prices this player's own tooltips. SavedVariables are written on /reload or logout only.
-function GC.ForeverScan._SayDone(summary, companion)
-  if companion == nil then companion = type(_G.GoldCap_AppData) == "table" end
+-- What a finished scan tells the player. There is no Forever Companion or upload in this build
+-- (final review I1) -- GC.Data.AdoptAppData refuses a retail Companion's GoldCap_AppData table
+-- in Forever, and nothing here writes one of its own -- so a scan always stays on this computer,
+-- and says so unconditionally, until plan 3c ships the upload. SavedVariables are written on
+-- /reload or logout only; "saved" reads that way.
+function GC.ForeverScan._SayDone(summary)
   if not summary then
     GC.Print(GC.L["The scan found nothing to save"])
     return
   end
   if summary.replicated then
-    if companion then
-      GC.Print(GC.L["%s lots scanned -- shared on your next /reload"]:format(count(summary.rows)))
-    else
-      GC.Print(GC.L["%s lots scanned and saved"]:format(count(summary.rows)))
-    end
-  elseif companion then
-    GC.Print(GC.L["%s items scanned -- shared on your next /reload"]:format(count(summary.items)))
+    GC.Print(GC.L["%s lots scanned and saved"]:format(count(summary.rows)))
   else
     GC.Print(GC.L["%s items scanned and saved"]:format(count(summary.items)))
   end
@@ -373,7 +402,7 @@ function GC.ForeverScan.MaybeIntro()
   local s = GC.ForeverScan.Store()
   if not s or s.introShown then return false end
   s.introShown = true
-  GC.Print(GC.L["In WoW: Forever, GoldCap's prices come from players' own auction house scans."])
+  GC.Print(GC.L["In WoW: Forever, GoldCap's prices come from your own auction house scans."])
   GC.Print(GC.L["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."])
   GC.Print(GC.L["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."])
   return true
