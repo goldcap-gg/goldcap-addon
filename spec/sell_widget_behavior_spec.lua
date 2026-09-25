@@ -815,6 +815,44 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(row2.priceChips[2].enabled)
     end)
 
+    -- Fix round 1: this arithmetic used a hardcoded 1-silver step, not GC.Flips.PriceStep() --
+    -- on WoW: Forever's copper grid, undercutting a 150c ask offered 50c instead of 149c. Route
+    -- it through the same step SilverUp/SilverDown already use (Core/Flips.lua), so every price
+    -- this drawer can hand back agrees.
+    it("undercuts by the auction house's own price step, not a hardcoded silver", function()
+      local function underSource(competing)
+        local GC = load(700, { calls = {} })
+        GC.SellViewModel.Expansion = function()
+          return { batches = {}, ownedLots = {}, note = "FIFO allocations",
+            book = { rows = {}, levels = 1, totalUnits = 10, widest = 10,
+              cheapestCompeting = competing, yourUnit = nil, yourRow = nil } }
+        end
+        local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0,
+          bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
+          postRecommendation = { unit = 430000 } }
+        local render = upvalue(GC.Sell.Attach, "renderRows")
+        set(render, "expanded", { ["commodity:42"] = true })
+        local rows = topRows(GC, { p })
+        for _, row in ipairs(rows) do
+          if row.kind == "drawer" then return row.priceChips[3].priceSource end
+        end
+        error("no drawer rendered")
+      end
+
+      -- WoW: Forever -- SupportsCopperValues true, a 1-copper step: 150c cheapest ask -> 149c.
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      assert.equal(149, underSource(150))
+
+      -- Retail -- no such function, the same 100-copper step as before: byte-identical.
+      _G.C_AuctionHouse = nil
+      assert.equal(50, underSource(150))
+
+      -- A competing ask at or below one step still yields no UNDERCUT price, on either grid.
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      assert.is_nil(underSource(1))
+    end)
+
     -- The first chip is the way back: it carries no price, it clears the seller's own, and it
     -- is the lit one for as long as the price on screen is GoldCap's.
     it("hands the price back to GoldCap from the GOLDCAP chip, and lights the chip in force", function()

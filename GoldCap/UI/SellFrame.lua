@@ -4543,16 +4543,18 @@ function INSP.paintHead(row, p, d)
     end
     row.priceNetNote:SetText(netNote); setColor(row.priceNetNote, Theme.color.fgDim)
     row.priceNetHead:Show(); row.priceNet:Show(); row.priceNetNote:Show()
-    -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a
-    -- silver or less is zero or negative. Zero is truthy in Lua, so the chip enabled
-    -- itself, stored a price of 0 as the seller's choice, and effectivePostUnit then
-    -- refused it -- which emptied the box the player had just filled. Nothing here may
-    -- offer a price that is not a price.
+    -- UNDERCUT is a rung BELOW the cheapest competing ask, one step of the auction house's own
+    -- grid (GC.Flips.PriceStep() -- 1 copper where the client takes copper, a silver
+    -- otherwise), and a step under an ask of a step or less is zero or negative. Zero is
+    -- truthy in Lua, so the chip enabled itself, stored a price of 0 as the seller's choice,
+    -- and effectivePostUnit then refused it -- which emptied the box the player had just
+    -- filled. Nothing here may offer a price that is not a price.
+    local step = GC.Flips.PriceStep()
     local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
       and book.cheapestCompeting or nil
     local sources = {
       match = competing,
-      under = competing and competing > 100 and (competing - 100) or nil,
+      under = competing and competing > step and (competing - step) or nil,
       market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
       cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
     }
