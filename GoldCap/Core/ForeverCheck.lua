@@ -58,7 +58,9 @@ function GC.ForeverCheck.Report(env)
   local deposit = "unavailable"
   if has(ah, "CalculateCommodityDeposit") then
     local ok, d = pcall(ah.CalculateCommodityDeposit, LINEN_CLOTH, 1, 1)
-    if ok and type(d) == "number" then deposit = tostring(d) end
+    -- Money always renders through GC.Util.CoinText (docs/addon/AGENTS.md "Money text"); the
+    -- raw copper stays in parentheses because this line is a diagnostic, not a UI label.
+    if ok and type(d) == "number" then deposit = ("%s (%dc)"):format(GC.Util.CoinText(d), d) end
   end
   local copper = "unknown"
   if has(ah, "SupportsCopperValues") then
@@ -166,9 +168,12 @@ function GC.ForeverCheck.Run(env)
     if not okN or type(n) ~= "number" or n <= 0 then return end
     w.read = true
     local s = GC.ForeverCheck.Walk(ah, n, call(env, "commodities"))
+    -- Money always renders through GC.Util.CoinText; the raw copper stays in parentheses
+    -- because this line is a diagnostic, not a UI label.
+    local cheapest = s.linenMin and ("%s (%dc)"):format(GC.Util.CoinText(s.linenMin), s.linenMin) or "none"
     say(("forever check: dump read at +%.1fs (%s): %d rows, %d with a buyout, %d bid-only, %d missing item data, %d unreadable, %d distinct items, %d rows of %d known commodities, Linen Cloth: %d rows / %d units / cheapest %s")
       :format(elapsed(), trigger, s.rows, s.buyout, s.bidOnly, s.pending, s.unreadable, s.items,
-        s.commodityRows, s.commodityItems, s.linenRows, s.linenUnits, s.linenMin and (s.linenMin .. "c") or "none"))
+        s.commodityRows, s.commodityItems, s.linenRows, s.linenUnits, cheapest))
     say("forever check: first row: " .. s.sample)
   end
 

@@ -7,9 +7,15 @@ describe("/gc forever self-check", function()
     printed, timers, clock, store, rows, replicateCalls = {}, {}, 0, {}, {}, 0
     listener = nil
     GC = helper.loadModule("Core/Game.lua")
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/ForeverCheck.lua", GC)
     GC.Game.Passport = function() return { interface = 16001, build = "1.60.1.70009", regionId = 90 } end
+    -- GC.Util.CoinText tries this global first; stub it distinctly from the raw copper so a
+    -- line's CoinText part and its "(Nc)" part are both provably present.
+    _G.GetCoinTextureString = function(c) return "$" .. tostring(c) end
   end)
+
+  after_each(function() _G.GetCoinTextureString = nil end)
 
   -- rows: array of { itemID, count, buyout, hasAllInfo }; GetReplicateItemInfo is 0-based.
   local function ahApi(over)
@@ -83,7 +89,7 @@ describe("/gc forever self-check", function()
     assert.truthy(text:find("realm Forever-Normal", 1, true))
     assert.truthy(text:find("faction Horde", 1, true))
     assert.truthy(text:find("portal test", 1, true))
-    assert.truthy(text:find("deposit for 1 Linen Cloth (duration 1): 12", 1, true))
+    assert.truthy(text:find("deposit for 1 Linen Cloth (duration 1): $12 (12c)", 1, true))
     assert.truthy(text:find("copper prices: true", 1, true))
   end)
 
@@ -105,7 +111,7 @@ describe("/gc forever self-check", function()
     assert.truthy(line:find("4 rows, 3 with a buyout, 1 bid-only, 1 missing item data", 1, true))
     assert.truthy(line:find("3 distinct items", 1, true))
     assert.truthy(line:find("3 rows of 2 known commodities", 1, true))
-    assert.truthy(line:find("Linen Cloth: 2 rows / 25 units / cheapest 67c", 1, true))
+    assert.truthy(line:find("Linen Cloth: 2 rows / 25 units / cheapest $67 (67c)", 1, true))
     assert.truthy(said("first row: "))
   end)
 
