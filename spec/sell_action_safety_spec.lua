@@ -571,7 +571,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return position() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal(0, cancelCalls)
@@ -613,7 +612,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return { positionKey = "commodity:42", scopeKey = "other", ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 1 } } } end)
     local p = position(); p.scopeKey = "mine"
     local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7); row.repostReady = true; repost(row, 7)
@@ -656,7 +654,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return position() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     row.repostReady = true
@@ -681,7 +678,11 @@ describe("Sell protected action state", function()
     local cancelCalls, cancelID = 0, nil
     _G.C_AuctionHouse = {
       CancelAuction = function(auctionID) cancelCalls = cancelCalls + 1; cancelID = auctionID end,
-      GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+      -- A real-shaped owned auction (itemID, isCommodity, quantity, unitPrice), not the bare
+      -- {auctionID=7} the pre-C2 fix's composePositions(true)/currentPosition stub let stand in
+      -- for: the confirming click now validates the armed lot against exactly what real
+      -- NormalizeOwnedLots turns this into.
+      GetOwnedAuctions = function() return { { auctionID = 7, itemID = 42, isCommodity = true, quantity = 1, unitPrice = 200 } } end,
     }
     local quote = { unit = 200, at = 100 }
     local function overcutPosition()
@@ -690,14 +691,14 @@ describe("Sell protected action state", function()
         ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 200 } },
         recommendation = { action = "repost", rec = { mode = "overcut", unit = 11500, ahead = 12 } } }
     end
-    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end } }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end },
+      Acquisitions = { PositionKey = function(itemID) return ("commodity:%d"):format(itemID) end } }
     -- The REAL BuildRepostPlan/NormalizeOwnedLots, not a stub: a double that just passes
     -- fresh.unit through would prove nothing about the guard this test exists to protect.
     GC = helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return overcutPosition() end)
     local row = { position = overcutPosition(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal("armed", row.repostStage)
@@ -789,11 +790,6 @@ describe("Sell protected action state", function()
       helper.loadModule("UI/SellFrame.lua", GC)
       local _, repost = handlers(GC)
       set(repost, "composePositions", function() end)
-      set(repost, "currentPosition", function()
-        local p = position()
-        p.ownedLots[1].unitPrice = case.unit
-        return p
-      end)
       local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
       repost(row, 7)
       row.repostReady = true
@@ -1379,8 +1375,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    local live = position(); live.scopeKey = "eu\1A-R\1commodity:42"
-    set(repost, "currentPosition", function() return live end)
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)

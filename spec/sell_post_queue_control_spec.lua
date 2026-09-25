@@ -168,6 +168,10 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
+    -- The first click only switches into queue mode and renders it -- no protected call runs in
+    -- that same click (final review C1). The second click is the one that finds row 1 already
+    -- the queue's rendered head and posts it.
+    button.scripts.OnClick(button)
     button.scripts.OnClick(button)
     local rows = upvalue(render, "rows")
     -- Row 1 is now the queue's head, mid-post: onPostClick's own pin has taken over its label.
@@ -182,7 +186,8 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
-    button.scripts.OnClick(button)
+    button.scripts.OnClick(button) -- switches into queue mode and renders it only (final review C1)
+    button.scripts.OnClick(button) -- posts row 1 -> postStage "confirm"
     assert.equal("CONFIRM", button.label)
     assert.is_true(button.enabled)
     button.scripts.OnClick(button)
@@ -193,6 +198,7 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
+    button.scripts.OnClick(button) -- switches into queue mode and renders it only (final review C1)
     button.scripts.OnClick(button) -- PostCommodity returns false above: lands on postStage "posting"
     assert.is_false(button.enabled)
   end)

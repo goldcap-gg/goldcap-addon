@@ -76,16 +76,20 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     local clickEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", clickStart, true))
     local click = text:sub(clickStart, clickEnd - 1)
 
-    it("recomposes positions without repainting the deck switch before CancelAuction", function()
-      local composeAt = assert(click:find("composePositions(true)", 1, true),
-        "onRepostClick must skip composePositions' own paint before its protected call")
-      local callAt = assert(click:find("C_AuctionHouse.CancelAuction(plan.auctionID)", composeAt, true))
-      local between = click:sub(composeAt, callAt - 1)
-      assert.is_nil(between:find("paintDeckSwitch()", 1, true),
-        "paintDeckSwitch must not run between the recompose and the protected Cancel call")
-      local paintAt = assert(click:find("paintDeckSwitch()", callAt, true),
-        "the deck switch must still be repainted after the call")
-      assert.is_true(paintAt > callAt)
+    -- The armed lot is validated against a fresh, plain GetOwnedAuctions/NormalizeOwnedLots
+    -- read, never against a recompose: composePositions() runs scanBagStock(), and bag stock
+    -- plays no part in whether a lot can be cancelled (final review C2). The full recompose,
+    -- with its paints, moves to after the call.
+    it("reads the owned-auctions list fresh but never recomposes positions before CancelAuction", function()
+      local ownedAt = assert(click:find("GC.SellPositions.NormalizeOwnedLots(", 1, true),
+        "onRepostClick must refresh the owned-auctions list before its protected call")
+      local callAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", ownedAt, true))
+      local between = click:sub(ownedAt, callAt - 1)
+      assert.is_nil(between:find("composePositions(", 1, true),
+        "composePositions must not run before the protected Cancel call -- it scans the bags")
+      local composeAt = assert(click:find("composePositions()", callAt, true),
+        "positions must still be recomposed, with their paints, after the call")
+      assert.is_true(composeAt > callAt)
     end)
   end)
 

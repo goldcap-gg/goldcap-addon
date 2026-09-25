@@ -124,7 +124,7 @@ describe("Owned lots event wiring", function()
 
     it("the repost flow's own cancel stamps the lot cancelled the moment it fires", function()
       local text = fileText("GoldCap/UI/SellFrame.lua")
-      local cancelAt = text:find("C_AuctionHouse.CancelAuction(plan.auctionID)", 1, true)
+      local cancelAt = text:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true)
       local markAt = text:find("GC.Data.MarkOwnedLotCancelled(", 1, true)
       assert.is_truthy(cancelAt)
       assert.is_truthy(markAt)
