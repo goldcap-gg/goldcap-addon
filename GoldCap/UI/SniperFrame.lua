@@ -8255,7 +8255,15 @@ local function onDialogPrimaryClick()
   local token = row.purchaseToken
   row.purchaseStage = "buying"
   dialog.primaryBtn:Disable()
-  if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call about to fire -- box/quick-fill must not be editable while it's in flight
+  -- The Quantity row's own repaint used to run right here, before either protected call below,
+  -- to grey out the box/quick-fill the instant a purchase call is about to fire (Fix 2). WoW:
+  -- Forever's taint engine blocks a protected AH call once the same hardware click has read
+  -- certain GoldCap runtime state, and that repaint reads dialog.bookLevels and calls
+  -- GC.Sniper._RowCap -- exactly that kind of read. Moved to just after each protected call
+  -- instead (and kept on the claim-refused branch below, which never reaches a protected call
+  -- this click): dialog.primaryBtn is already disabled above by a plain Blizzard widget call,
+  -- so the button reads busy either way -- the repaint only catches up the box/quick-fill state
+  -- a beat later in the same tick.
   if deal.isCommodity then
     if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
       -- The BUY tab owns the shared commodity purchase slot right now -- refuse exactly as the
@@ -8271,6 +8279,7 @@ local function onDialogPrimaryClick()
     row.purchaseDeal = purchaseDeal
     commodityPurchase = { row = row, itemID = deal.itemID, token = token }
     C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)
+    if refreshQtyRow then refreshQtyRow() end
     setDialogStatus(GC.L["buying commodity..."])
     if frame then frame.status:SetText(GC.L["buying commodity..."]) end
   else
@@ -8309,6 +8318,7 @@ local function onDialogPrimaryClick()
     -- the dialog. It is passed through untouched rather than recomputed from unitPrice * qty,
     -- which floors and could bid a copper under the buyout.
     C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)
+    if refreshQtyRow then refreshQtyRow() end
     setDialogStatus(GC.L["placing bid..."])
     if frame then frame.status:SetText(GC.L["placing bid..."]) end
   end
