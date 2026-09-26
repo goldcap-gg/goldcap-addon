@@ -120,6 +120,7 @@ GC.Locales.zhTW = {
   ["Checked against the live order book a moment ago."] = "剛剛與即時掛單簿核對過。",
   ["Checked: %d of the top %d on screen"] = "已檢查：%d 筆（畫面前 %d 筆中）",
   ["Checking prices…"] = "正在檢查價格…",
+  ["Checking prices — waiting for the Auction House…"] = "正在檢查價格 — 等待拍賣場…",
   ["Checking this item's price…"] = "正在檢查這個道具的價格…",
   ["Checking..."] = "正在核對...",
   ["Clear to buy"] = "可以買入",
@@ -242,6 +243,7 @@ GC.Locales.zhTW = {
   ["Min profit per buy (gold)"] = "單次購買最低利潤（金）",
   ["Min return per buy %"] = "單次購買最低回報率 %",
   ["Missing cost"] = "缺少成本",
+  ["NO LIVE PRICE YET"] = "尚無即時價格",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "尚未同步到 GOLDCAP.GG — /RELOAD 或登出時同步",
   ["NOT ON HAND %d"] = "不在手邊 %d",
@@ -591,10 +593,10 @@ GC.Locales.zhTW = {
   ["no cost"] = "無成本",
   ["no cost for %d"] = "%d 件無成本",
   ["no live price yet"] = "還沒有即時價格",
+  ["no live price"] = "無即時價格",
   ["no live quote yet — pricing…"] = "尚無即時報價 — 正在定價…",
   ["no market figure for caged pets"] = "籠中寵物沒有市場資料",
   ["no market figure for this item level"] = "此物品等級沒有市場資料",
-  ["no price"] = "無價格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "還沒有價格 -- /goldcap companion 或 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] = "沒有收到購買確認 -- 按 Cancel 後重試",

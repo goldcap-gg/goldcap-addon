@@ -119,6 +119,7 @@ GC.Locales.itIT = {
     "Verificato poco fa sul book degli ordini in tempo reale.",
   ["Checked: %d of the top %d on screen"] = "Controllate: %d delle prime %d a schermo",
   ["Checking prices…"] = "Controllo dei prezzi…",
+  ["Checking prices — waiting for the Auction House…"] = "Controllo dei prezzi — in attesa della casa d'aste…",
   ["Checking this item's price…"] = "Controllo del prezzo di questo oggetto…",
   ["Checking..."] = "Verifica...",
   ["Clear to buy"] = "Via libera all'acquisto",
@@ -252,6 +253,7 @@ GC.Locales.itIT = {
   ["Min profit per buy (gold)"] = "Profitto min. per acquisto (oro)",
   ["Min return per buy %"] = "Rendimento min. per acquisto %",
   ["Missing cost"] = "Costo mancante",
+  ["NO LIVE PRICE YET"] = "ANCORA NESSUN PREZZO DAL VIVO",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "NON ANCORA SU GOLDCAP.GG — SI SINCRONIZZA CON /RELOAD O ALL'USCITA",
   ["NOT ON HAND %d"] = "NON A PORTATA %d",
@@ -647,10 +649,10 @@ GC.Locales.itIT = {
   ["no cost"] = "nessun costo",
   ["no cost for %d"] = "nessun costo per %d",
   ["no live price yet"] = "ancora nessun prezzo dal vivo",
+  ["no live price"] = "nessun prezzo dal vivo",
   ["no live quote yet — pricing…"] = "ancora nessuna quotazione dal vivo — calcolo del prezzo…",
   ["no market figure for caged pets"] = "nessun dato di mercato per le mascotte in gabbia",
   ["no market figure for this item level"] = "nessun dato di mercato per questo livello oggetto",
-  ["no price"] = "nessun prezzo",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ancora nessun prezzo -- /goldcap companion o /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =

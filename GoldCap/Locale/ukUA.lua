@@ -120,6 +120,7 @@ GC.Locales.ukUA = {
   ["Checked against the live order book a moment ago."] = "Щойно звірено з живим стаканом заявок.",
   ["Checked: %d of the top %d on screen"] = "Перевірено: %d з %d верхніх на екрані",
   ["Checking prices…"] = "Перевіряємо ціни…",
+  ["Checking prices — waiting for the Auction House…"] = "Перевіряємо ціни — чекаємо на аукціон…",
   ["Checking this item's price…"] = "Перевіряємо ціну цього предмета…",
   ["Checking..."] = "Перевіряю...",
   ["Clear to buy"] = "Можна купувати",
@@ -259,6 +260,7 @@ GC.Locales.ukUA = {
   ["Min profit per buy (gold)"] = "Мінімальний прибуток з купівлі (золото)",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
+  ["NO LIVE PRICE YET"] = "ПОКИ НЕМАЄ ЖИВОЇ ЦІНИ",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
   ["NO COST"] = "БЕЗ ЧЕКА",
@@ -659,10 +661,10 @@ GC.Locales.ukUA = {
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no live price"] = "немає живої ціни",
   ["no live quote yet — pricing…"] = "живого котирування ще немає — оцінюємо ціну…",
   ["no market figure for caged pets"] = "немає ринкових даних для вихованців у клітці",
   ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
-  ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =

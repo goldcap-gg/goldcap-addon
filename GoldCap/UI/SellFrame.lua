@@ -448,7 +448,7 @@ local MONEY_HEX = "|cffc9a957"
 -- GC.CancelQueue's own reason tokens; `alarm` paints red, `wait` the watch blue, the rest dim.
 -- @localised-keys
 local ROW_TAG_TEXT = {
-  no_fresh_price = "no price",
+  no_fresh_price = "no live price",
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
   below_vendor = "vendor pays more",
@@ -638,7 +638,13 @@ paintCancelButton = function()
     end
   elseif not head then
     button:SetVariant("ghost")
-    button:SetLabel(GC.L["NOTHING TO CANCEL"])
+    -- Empty only because every lot is waiting on a live price: that is not "nothing to cancel",
+    -- and beside My Lots' own list it read as a contradiction (WoW: Forever, 2026-09-26).
+    local waiting = #cancelSkipped > 0
+    for _, skip in ipairs(cancelSkipped) do
+      if skip.reason ~= "no_fresh_price" then waiting = false; break end
+    end
+    button:SetLabel(waiting and GC.L["NO LIVE PRICE YET"] or GC.L["NOTHING TO CANCEL"])
     button:Disable()
   else
     button:SetVariant("danger")
@@ -1039,6 +1045,10 @@ local function composePositions(skipPaint)
     -- this file has twice shipped a bug where the price shown and the price sent were two
     -- different numbers.
     chosenUnits = priceOverrides,
+    -- WoW: Forever only (Core/SellPositions.lua's decoratePosition): the player's own scan is
+    -- the market there, so the projection prices bag stock from it while the live walk is still
+    -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
+    scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose
@@ -1509,7 +1519,10 @@ advanceQuote = function()
     markProgress()
     if not refresh.waitingNoted then
       refresh.waitingNoted = true
-      setStatus(GC.L["Waiting for the Auction House…"])
+      -- Its own words, not the posting line's: this is the walk pricing rows in the
+      -- background, and "Waiting for the Auction House…" beside a queue with nothing posting
+      -- read as though a post the player never made was stuck (2026-09-26).
+      setStatus(GC.L["Checking prices — waiting for the Auction House…"])
     end
     retryLater()
     return

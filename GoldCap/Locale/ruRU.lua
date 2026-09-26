@@ -117,6 +117,7 @@ GC.Locales.ruRU = {
     "Только что сверено с живым стаканом заявок.",
   ["Checked: %d of the top %d on screen"] = "Проверено: %d из %d верхних на экране",
   ["Checking prices…"] = "Проверяем цены…",
+  ["Checking prices — waiting for the Auction House…"] = "Проверяем цены — ждём аукцион…",
   ["Checking this item's price…"] = "Проверяем цену этого предмета…",
   ["Checking..."] = "Проверяю...",
   ["Clear to buy"] = "Можно покупать",
@@ -251,6 +252,7 @@ GC.Locales.ruRU = {
   ["Min profit per buy (gold)"] = "Минимальная прибыль с покупки (золото)",
   ["Min return per buy %"] = "Мин. доходность покупки %",
   ["Missing cost"] = "Нет себестоимости",
+  ["NO LIVE PRICE YET"] = "ПОКА НЕТ ЖИВОЙ ЦЕНЫ",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЕЩЁ НЕ НА GOLDCAP.GG — СИНХРОНИЗИРУЕТСЯ ПОСЛЕ /RELOAD ИЛИ ВЫХОДА",
   ["NOT ON HAND %d"] = "НЕТ НА РУКАХ %d",
@@ -644,10 +646,10 @@ GC.Locales.ruRU = {
   ["no cost"] = "нет себестоимости",
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
+  ["no live price"] = "нет живой цены",
   ["no live quote yet — pricing…"] = "живой котировки пока нет — оцениваем цену…",
   ["no market figure for caged pets"] = "нет рыночных данных для питомцев в клетке",
   ["no market figure for this item level"] = "нет рыночных данных для этого уровня предмета",
-  ["no price"] = "нет цены",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =

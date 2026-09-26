@@ -839,6 +839,42 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
+  -- WoW: Forever (Decision 11, 3c task 9): the player's own full scan IS the market there, and
+  -- the live walk often waits on the throttle -- so with no fresh quote, the projection prices
+  -- from the scan's value instead of sitting unknown. Posting and cancelling are untouched: they
+  -- still wait for a live price (see Core/CancelQueue.lua and GC.PostQueue's own no_fresh_price).
+  describe("WoW: Forever's scan fallback (args.scanProjects)", function()
+    before_each(function()
+      -- The copper-level grid a client with SupportsCopperValues true reports (GC.Flips.PriceStep)
+      -- -- Forever's own book, unlike retail's whole-silver-only one.
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    it("projects bag stock at the scan's value when no live quote is fresh", function()
+      local args = { acquisitions = { batch("acq:1", "goldcap", 10, 500, 1, nil, nil, 2589, "commodity:2589") },
+        bagStock = { { positionKey = "commodity:2589", itemID = 2589, quantity = 10, isCommodity = true } },
+        quotes = {}, statsByItemID = { [2589] = { mv = 70, source = "scan" } } }
+      args.scanProjects = true
+      local p = build(args)[1]
+      assert.equal(math.floor(10 * 70 * 95 / 100), p.projectedNet)
+      assert.is_true(p.projectedFromScan)
+
+      args.scanProjects = nil
+      -- Retail (or Forever before the flag is set): unchanged -- mv alone still never projects.
+      assert.is_nil(build(args)[1].projectedNet)
+    end)
+
+    it("never projects from an imported value, only from the player's own scan", function()
+      local args = { acquisitions = { batch("acq:1", "goldcap", 10, 500, 1, nil, nil, 2589, "commodity:2589") },
+        bagStock = { { positionKey = "commodity:2589", itemID = 2589, quantity = 10, isCommodity = true } },
+        quotes = {}, statsByItemID = { [2589] = { mv = 70, source = "import" } } }
+      args.scanProjects = true
+      assert.is_nil(build(args)[1].projectedNet)
+    end)
+  end)
+
   -- The figures here are scaled up from the original 150-copper fixture so the item is worth
   -- an ordinary couple of silver: at the very bottom of the grid the recommendation lands on
   -- the 100-copper clamp, under this fixture's breakeven, and the whole RepostAdvice outcome

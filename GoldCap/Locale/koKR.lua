@@ -118,6 +118,7 @@ GC.Locales.koKR = {
   ["Checked against the live order book a moment ago."] = "방금 실시간 호가창과 대조했습니다.",
   ["Checked: %d of the top %d on screen"] = "확인: %d개 (화면 상위 %d개 중)",
   ["Checking prices…"] = "가격 확인 중…",
+  ["Checking prices — waiting for the Auction House…"] = "가격 확인 중 — 경매장을 기다리는 중…",
   ["Checking this item's price…"] = "이 아이템의 가격을 확인하는 중…",
   ["Checking..."] = "확인 중...",
   ["Clear to buy"] = "구매해도 좋음",
@@ -243,6 +244,7 @@ GC.Locales.koKR = {
   ["Min profit per buy (gold)"] = "1회 구매 최소 수익 (골드)",
   ["Min return per buy %"] = "1회 구매 최소 수익률 %",
   ["Missing cost"] = "매입가 없음",
+  ["NO LIVE PRICE YET"] = "아직 실시간 가격 없음",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "아직 GOLDCAP.GG에 없음 — /RELOAD 또는 접속 종료 시 동기화",
   ["NOT ON HAND %d"] = "수중에 없음 %d",
@@ -606,10 +608,10 @@ GC.Locales.koKR = {
   ["no cost"] = "원가 없음",
   ["no cost for %d"] = "%d개 원가 없음",
   ["no live price yet"] = "아직 실시간 가격 없음",
+  ["no live price"] = "실시간 가격 없음",
   ["no live quote yet — pricing…"] = "아직 실시간 시세가 없습니다 — 가격 확인 중…",
   ["no market figure for caged pets"] = "우리에 든 애완동물은 시장 수치 없음",
   ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
-  ["no price"] = "가격 없음",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
