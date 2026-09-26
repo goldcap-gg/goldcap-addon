@@ -134,6 +134,21 @@ describe("ForeverDeals", function()
       assert.equal("vendor", rows[1].forever)
     end)
 
+    it("falls through to a market row when the vendor row fails the minimum profit", function()
+      -- vendor 31: only the 30c level qualifies (5 units * 1c profit = 5c), under the 20c minimum.
+      commodity[2592], vendor[2592] = true, 31
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal(1, #rows)
+      assert.equal("market", rows[1].forever)
+    end)
+
+    it("emits nothing when neither the vendor nor the market row clears the minimum", function()
+      -- Same too-small vendor row as above, and the market candidate is refused too (no deposit).
+      commodity[2592], vendor[2592] = true, 31
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx({ depositFor = function() return nil end }))
+      assert.equal(0, #rows)
+    end)
+
     it("needs 20 units, 3 price levels, a known commodity and a deposit", function()
       commodity[1], commodity[2], commodity[3], commodity[4] = true, true, nil, true
       local f = fold({
@@ -155,6 +170,40 @@ describe("ForeverDeals", function()
       -- p50 100c, deposit 30c: 95 - 30 - 1 = 64 caps the ceiling under 70.
       local rows = D.Build(fold({ [5] = WOOL }), marketCtx({ depositFor = function() return 30 end }))
       assert.equal(64, rows[1].ceiling)
+    end)
+
+    -- p50 not a multiple of 20, so 0.70 x p50 and 0.95 x p50 are not already whole numbers:
+    -- a math.floor dropped from either formula would leave the ceiling non-integer or a copper
+    -- too high, and these three fail on it.
+
+    it("floors the 0.70 x p50 share (p50 37, the deposit branch not binding)", function()
+      -- floor(37 * 0.70) = 25 (37 * 0.7 = 25.9); net - deposit - 1 = 35 - 0 - 1 = 34 does not bind.
+      commodity[6] = true
+      local f = fold({ [6] = "10,25,3,;0x10 15x10 65x5|5,27,3" })   -- min 10, p50 37, 3 levels, 25 units
+      local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
+      assert.equal(25, rows[1].ceiling)
+      assert.equal(20, rows[1].qty)          -- the 10c and 25c levels (10 + 10 units)
+      assert.equal(350, rows[1].profit)      -- (35-10)*10 + (35-25)*10
+    end)
+
+    it("floors the 0.95 x p50 - deposit - 1 share (p50 101, that branch binding)", function()
+      -- net = floor(101 * 0.95) = 95 (101 * 0.95 = 95.95); net - 32 - 1 = 62, under floor(101*0.7) = 70.
+      commodity[7] = true
+      local f = fold({ [7] = "20,30,3,;0x10 40x15 50x5|40,81,3" })  -- min 20, p50 101, 3 levels, 30 units
+      local rows = D.Build(f, marketCtx({ depositFor = function() return 32 end }))
+      assert.equal(62, rows[1].ceiling)
+      assert.equal(25, rows[1].qty)          -- the 20c and 60c levels (10 + 15 units)
+      assert.equal(475, rows[1].profit)      -- (95-20-32)*10 + (95-60-32)*15
+    end)
+
+    it("floors the 0.70 x p50 share again at a larger scale (p50 143)", function()
+      -- floor(143 * 0.70) = 100 (143 * 0.7 = 100.1); net - deposit - 1 = 135 - 0 - 1 = 134 does not bind.
+      commodity[8] = true
+      local f = fold({ [8] = "50,25,3,;0x10 50x10 60x5|50,93,3" })  -- min 50, p50 143, 3 levels, 25 units
+      local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
+      assert.equal(100, rows[1].ceiling)
+      assert.equal(20, rows[1].qty)          -- the 50c and 100c levels (10 + 10 units)
+      assert.equal(1200, rows[1].profit)     -- (135-50)*10 + (135-100)*10
     end)
   end)
 

@@ -79,10 +79,10 @@ local function belowVendor(itemID, e, vendor)
   return lead(itemID, e, "vendor", ceiling, vendor, units, cost, profit)
 end
 
-local function underMarket(itemID, e, ctx)
+local function underMarket(itemID, e, ctx, isCommodity)
   if not (e.p50 and e.levels and e.qty) then return nil end
   if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
-  if ctx.isCommodity(itemID, e) ~= true then return nil end
+  if isCommodity ~= true then return nil end
   local deposit = ctx.depositFor(itemID)
   if type(deposit) ~= "number" or deposit < 0 then return nil end
   local net = math.floor(e.p50 * KEEP)
@@ -112,15 +112,25 @@ function GC.ForeverDeals.Build(fold, ctx)
     local e = GC.ForeverFold.Decode(encoded)
     if e and not e.browse and #e.ladder > 0 then
       local vendor = ctx.vendorFor(itemID)
-      local row
+      local vendorRow
       if type(vendor) == "number" and vendor > 0 then
-        row = belowVendor(itemID, e, vendor)
+        vendorRow = belowVendor(itemID, e, vendor)
       else
         missing[#missing + 1] = itemID
       end
-      if not row then row = underMarket(itemID, e, ctx) end
-      if row and GC.DealMath.BoardAdmits(row, admit) then
-        local commodity = ctx.isCommodity(itemID, e)
+      -- One isCommodity call per item, shared by the market candidate and the board placement
+      -- below. Both candidates are built before either is judged: a vendor row too small for the
+      -- Forever minimum (or otherwise refused) must not block a market row that would otherwise
+      -- qualify. The vendor row wins only when it is itself admitted; never both for one item.
+      local commodity = ctx.isCommodity(itemID, e)
+      local marketRow = underMarket(itemID, e, ctx, commodity)
+      local row
+      if vendorRow and GC.DealMath.BoardAdmits(vendorRow, admit) then
+        row = vendorRow
+      elseif marketRow and GC.DealMath.BoardAdmits(marketRow, admit) then
+        row = marketRow
+      end
+      if row then
         if commodity == nil and e.gear then commodity = false end
         row.isCommodity = commodity == true
         row.board = commodity == false and "items" or "commodities"
