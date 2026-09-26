@@ -1,5 +1,20 @@
 # GoldCap
 
+## 0.15.3 (2026-09-27)
+
+- A deal your "Max wallet per buy %" holds back now says the least gold that buys any of it,
+  not the gold for the biggest buy: "needs 2,000g" for one unit instead of "needs 400k" for
+  two hundred. It is checked again as soon as the character holds that much.
+- Changing a setting now checks the deals it held back for gold again right away, including
+  the one open in the buy window. Before, raising your wallet limit changed nothing until your
+  gold did.
+- Flips no longer queue behind a wall for one silver. Goods bought through the sniper are
+  priced towards the exit they were bought for, and that price could land one step above a
+  huge stack of listings. It now weighs the wait in front of each price the same way every
+  other GoldCap price does, and joins the front of that stack instead.
+- With no gold on the character, the "Not enough gold" line no longer shows over an empty
+  Deals board.
+
 ## 0.15.2 (2026-09-27)
 
 - Fixed: the Sell tab priced gear, bags and other non-stacking items far too low when several

@@ -1870,28 +1870,26 @@ function GC.Sniper._PaintGoldLine(list)
   -- is guarded: the specs that build this window stub only what their own paths call.
   local wallet = type(GetMoney) == "function" and GetMoney() or nil
   if not wallet then line:Hide() return end
-  local short = wallet <= 0
-  if not short then
-    local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
-    local items = GC.Sniper._Board() == "items"
-    local candidates, buyable = 0, false
-    for i = 1, #list do
-      local deal = list[i]
-      if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
-        candidates = candidates + 1
-        local fits
-        if items then
-          local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
-          fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
-        else
-          fits = limits ~= nil and deal.unitPrice <= limits.budget
-        end
-        if fits then buyable = true; break end
+  -- An empty wallet goes through the same walk: nothing fits in it, so the line is up exactly
+  -- when there is something on the board -- never over an empty one (review 2026-09-27).
+  local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
+  local items = GC.Sniper._Board() == "items"
+  local candidates, buyable = 0, false
+  for i = 1, #list do
+    local deal = list[i]
+    if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
+      candidates = candidates + 1
+      local fits
+      if items then
+        local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+        fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+      else
+        fits = limits ~= nil and deal.unitPrice <= limits.budget
       end
+      if fits then buyable = true; break end
     end
-    short = candidates > 0 and not buyable
   end
-  if short then
+  if candidates > 0 and not buyable then
     line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
     line:Show()
   else
@@ -6202,19 +6200,26 @@ end
 --     back only if that Check approves it (applyRequeryResult -> armReady), and the purchase
 --     stays in onDialogPrimaryClick.
 -- A field, not a local: this chunk sits near its 200-local ceiling.
-function GC.Sniper.OnPlayerMoney()
-  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
-  -- over. The next render reads the gold when the window is shown, and so does the walk.
-  if not (frame and frame:IsShown()) then return end
-  local wallet = GetMoney()
+-- The open pane's Buy, held because only the wallet limit refused it (its decision's needsGold),
+-- asked again the way its own Check asks -- a live Check, never a purchase. `covered` says
+-- whether the needsGold it names still stands in the way.
+local function askHeldPaneAgain(covered)
   local row = dialog and dialog.row
   local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil
-  if held and held.needsGold and held.needsGold <= wallet then
+  if held and held.needsGold and covered(held.needsGold) then
     dialog.primaryBtn:Disable()
     setPrimaryLabel("Buy")
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, row.deal)
   end
+end
+
+function GC.Sniper.OnPlayerMoney()
+  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
+  -- over. The next render reads the gold when the window is shown, and so does the walk.
+  if not (frame and frame:IsShown()) then return end
+  local wallet = GetMoney()
+  askHeldPaneAgain(function(needsGold) return needsGold <= wallet end)
   for _, v in pairs(verdicts) do
     if v.needsGold and v.needsGold <= wallet then
       verifyWalkAt = 0
@@ -6222,6 +6227,21 @@ function GC.Sniper.OnPlayerMoney()
     end
   end
   refreshRows()
+end
+
+-- A saved setting changed (UI/SettingsFrame.lua). The gold a held row names was worked out at
+-- the wallet share, units and floors the player had then, and gold arriving -- PLAYER_MONEY,
+-- above -- was the only thing that asked such a row again: raise the share to get past a
+-- "needs 40k" and nothing moved until the verdict aged out (review 2026-09-27). Those verdicts
+-- are thrown away, which puts their rows back among the ones nothing has checked, and the walk
+-- runs on the next tick; the open pane's held Buy is asked again at once.
+function GC.Sniper.OnSettingsChanged()
+  for itemID, v in pairs(verdicts) do
+    if v.needsGold then verdicts[itemID] = nil end
+  end
+  verifyWalkAt = 0
+  askHeldPaneAgain(function() return true end)
+  if frame and frame:IsShown() then refreshRows() end
 end
 
 -- Router functions the Init.lua event frame dispatches into.

@@ -1186,12 +1186,13 @@ describe("Deals background verification", function()
       local api = realEngine(PASSING, function() return 0 end)
       checkInBackground(api)
 
-      -- 20,000g of buy at the default 5% per-buy share: the character needs 400,000g.
-      assert.equal(4000000000, api.verdicts[1].needsGold)
+      -- The least gold for any buy: one unit, 100g, at the default 5% per-buy share -- 2,000g,
+      -- not the 400,000g the 200 an unlimited wallet would take needs (review 2026-09-27).
+      assert.equal(20000000, api.verdicts[1].needsGold)
       assert.equal(1, #api.renderList())
       assert.equal(0, upvalue(api.renderList, "refusedCount"))
       api.refreshRows()
-      assert.equal("needs 400k", api.rows[1].tierChip.label)
+      assert.equal("needs 2000g", api.rows[1].tierChip.label)
       -- A deal it cannot buy is not news: no bell.
       assert.equal(0, #sounds)
     end)
@@ -1206,6 +1207,27 @@ describe("Deals background verification", function()
       assert.is_nil(api.verdicts[1].needsGold)
       assert.equal(0, #api.renderList())
       assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    end)
+
+    -- Review 2026-09-27: with no gold at all the line went up over an empty board -- blaming the
+    -- gold for finds GoldCap had not made, which a character with any gold never saw. It speaks
+    -- about what is on the board, whatever the wallet holds.
+    it("says nothing about gold over an empty board, even with none on the character", function()
+      local api = loadSniper(safe)
+      helper.loadModule("Core/Book.lua", api.GC)
+      helper.loadModule("Core/SniperDecision.lua", api.GC)
+      _G.GetMoney = function() return 0 end
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      set(api.GC.Sniper._PaintGoldLine, "frame", { goldLine = line, IsShown = function() return true end })
+
+      api.GC.Sniper._PaintGoldLine({})
+      assert.is_false(line.shown)
+
+      api.GC.Sniper._PaintGoldLine({ deal(1, 100) })
+      assert.is_true(line.shown)
     end)
 
     it("keeps it on the board after the player's own Check too, once they leave the pane", function()
@@ -1317,6 +1339,19 @@ describe("Deals background verification", function()
         assert.same({ 2, 1 }, sent)
       end)
 
+      -- Review 2026-09-27: the gold a held row names was worked out at the wallet share the
+      -- player had then. Raising the share changes nothing about the gold on the character, so
+      -- PLAYER_MONEY never came and the row sat held until its verdict aged out. A saved setting
+      -- throws those verdicts away and the walk checks the rows again, now.
+      it("checks a held row again as soon as a setting changes, whatever the gold", function()
+        local api = load()
+        clock = 101.25
+        api.GC.Sniper.OnSettingsChanged()
+        assert.is_nil(api.verdicts[1])
+        tickAt(api, 101.5)
+        assert.same({ 2, 1 }, sent)
+      end)
+
       it("leaves a row it does not cover yet where it was", function()
         local api = load()
         clock = 101.25
@@ -1362,6 +1397,19 @@ describe("Deals background verification", function()
 
         wallet = 13300000
         api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("requerying", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        assert.equal("checking live safety...", status.text)
+      end)
+
+      it("asks the open pane's held Buy again when a setting changes, with the same gold", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary, status = openPane(api)
+
+        api.GC.Sniper.OnSettingsChanged()
 
         assert.equal("requerying", row.purchaseStage)
         assert.is_false(primary.enabled)
