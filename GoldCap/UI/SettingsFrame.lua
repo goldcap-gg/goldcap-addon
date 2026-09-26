@@ -193,6 +193,13 @@ end
 -- out-of-range input on focus-lost is clamped/reverted and the box is re-stamped from the
 -- stored value -- never left showing something that was silently rejected without visual
 -- feedback.
+--
+-- A saved change tells the sniper (settingsChanged): the verdicts it holds were reached under
+-- the value that was there before.
+local function settingsChanged()
+  if GC.Sniper and GC.Sniper.OnSettingsChanged then GC.Sniper.OnSettingsChanged() end
+end
+
 local function bindNumberField(box, key, opts)
   local eb = box.editBox
   local toUI = opts.toUI or function(v) return v end
@@ -235,8 +242,10 @@ local function bindNumberField(box, key, opts)
     if num < opts.min then num = opts.min end
     if num > opts.max then num = opts.max end
     num = math.floor(num + 0.5) -- every field here is whole-number in UI units
+    local before = c[key]
     c[key] = toStorage(num)
     display()
+    if c[key] ~= before then settingsChanged() end
   end)
 
   display()
@@ -548,6 +557,7 @@ local function build(sniperFrame)
         if not (cfgTable and d) then return end
         for _, key in ipairs(c.resets) do cfgTable[key] = d[key] end
         for _, display in ipairs(c.displays) do display() end
+        settingsChanged()
       end)
     end
     return c

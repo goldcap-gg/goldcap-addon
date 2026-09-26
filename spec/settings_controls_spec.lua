@@ -6,7 +6,7 @@ local helper = require("spec.spec_helper")
 -- covers via loadorder_spec.lua's real-Theme construction pass.
 describe("Settings controls", function()
   local GC
-  local refreshRailActiveCalls
+  local refreshRailActiveCalls, settingsChangedCalls
 
   -- Same recording double shape as soldframe_spec.lua/sell_widget_behavior_spec.lua's own
   -- region() -- `.points`/`.scripts`/`.variant`/`.label` are bookkeeping the double alone
@@ -280,9 +280,11 @@ describe("Settings controls", function()
     -- fake just counts calls; which tab it would restore is SniperFrame.lua's own concern,
     -- covered by SniperFrame's specs, not this one.
     refreshRailActiveCalls = 0
+    settingsChangedCalls = 0
     GC.Sniper = {
       DefaultWindowSize = function() return 720, 600 end,
       RefreshRailActive = function() refreshRailActiveCalls = refreshRailActiveCalls + 1 end,
+      OnSettingsChanged = function() settingsChangedCalls = settingsChangedCalls + 1 end,
     }
     _G.GoldCapSniperFrame = region("Frame")
     -- T6: SettingsFrame.lua reads the gear off sniperFrame.rail.gear (SniperFrame.lua's own
@@ -469,6 +471,29 @@ describe("Settings controls", function()
     local resetBtn = buttonIn(whatCounts, "DEFAULTS")
     resetBtn.scripts.OnClick(resetBtn)
     assert.equal(200, GC.db.settings.sniper.maxQuantity)
+  end)
+
+  -- Review 2026-09-27: raising "Max wallet per buy %" to get past a "needs 40k" changed nothing
+  -- on the board -- the verdicts still carried the gold worked out at the old share, and the
+  -- rows holding them stayed out of the background check until the gold itself changed. A
+  -- saved change tells the sniper, which throws those verdicts away; an unchanged one does not.
+  it("tells the sniper when a saved setting changes, and only then", function()
+    GC.SettingsUI.Toggle()
+    local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+    local box = fieldOf(whatCounts, "Max wallet per buy %")
+
+    box.editBox:SetText("20")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(0.20, GC.db.settings.sniper.maxCapitalShare)
+    assert.equal(1, settingsChangedCalls)
+
+    box.editBox:SetText("20")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(1, settingsChangedCalls)
+
+    local resetBtn = buttonIn(whatCounts, "DEFAULTS")
+    resetBtn.scripts.OnClick(resetBtn)
+    assert.equal(2, settingsChangedCalls)
   end)
 
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()

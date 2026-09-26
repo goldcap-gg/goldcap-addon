@@ -1318,6 +1318,19 @@ describe("Deals background verification", function()
         assert.same({ 2, 1 }, sent)
       end)
 
+      -- Review 2026-09-27: the gold a held row names was worked out at the wallet share the
+      -- player had then. Raising the share changes nothing about the gold on the character, so
+      -- PLAYER_MONEY never came and the row sat held until its verdict aged out. A saved setting
+      -- throws those verdicts away and the walk checks the rows again, now.
+      it("checks a held row again as soon as a setting changes, whatever the gold", function()
+        local api = load()
+        clock = 101.25
+        api.GC.Sniper.OnSettingsChanged()
+        assert.is_nil(api.verdicts[1])
+        tickAt(api, 101.5)
+        assert.same({ 2, 1 }, sent)
+      end)
+
       it("leaves a row it does not cover yet where it was", function()
         local api = load()
         clock = 101.25
@@ -1363,6 +1376,19 @@ describe("Deals background verification", function()
 
         wallet = 13300000
         api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("requerying", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        assert.equal("checking live safety...", status.text)
+      end)
+
+      it("asks the open pane's held Buy again when a setting changes, with the same gold", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary, status = openPane(api)
+
+        api.GC.Sniper.OnSettingsChanged()
 
         assert.equal("requerying", row.purchaseStage)
         assert.is_false(primary.enabled)
