@@ -861,6 +861,26 @@ GC.Locales.ruRU = {
     "торговец платит больше -- продайте ему",
   ["vendor pays more"] =
     "торговец платит больше",
+  ["Below vendor"] =
+    "Ниже цены торговца",
+  ["Under market"] =
+    "Ниже рынка",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · купить за %s или меньше, торговец платит %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · купить за %s или меньше, половина цены %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Купить за %s или меньше: торговец платит %s за штуку. Эта покупка приносит %s.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Купить за %s или меньше: половина выставленных единиц просит %s или больше. Скорость перепродажи неизвестна, поэтому это рискованнее сделки с торговцем. Эта покупка приносит примерно %s после комиссии 5%% и залога.",
+  ["No deals in your last scan."] =
+    "Нет сделок в последнем скане.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap ищет предметы, выставленные дешевле, чем они стоят. СКАН сканирует снова.",
+  ["No scan of this auction house yet."] =
+    "Этот аукцион ещё не сканировался.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap сканирует, когда вы открываете аукцион; СКАН на этой доске сканирует снова.",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "В WoW: Forever цены GoldCap берутся из ваших собственных сканирований аукциона.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =

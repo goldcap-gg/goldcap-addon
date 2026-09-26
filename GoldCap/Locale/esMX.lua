@@ -871,6 +871,26 @@ GC.Locales.esMX = {
     "un vendedor paga más -- véndelo ahí",
   ["vendor pays more"] =
     "el vendedor paga más",
+  ["Below vendor"] =
+    "Bajo el vendedor",
+  ["Under market"] =
+    "Bajo el mercado",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · compra a %s o menos, el vendedor paga %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · compra a %s o menos, mitad del precio de venta %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Compra a %s o menos: un vendedor paga %s por unidad. Esta compra genera %s.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Compra a %s o menos: la mitad de las unidades listadas piden %s o más. Se desconoce la velocidad de reventa, así que esto es más arriesgado que un trato con el vendedor. Esta compra genera unos %s tras la comisión del 5%% y el depósito.",
+  ["No deals in your last scan."] =
+    "Sin ofertas en tu último escaneo.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap busca objetos listados por menos de lo que valen. ESCANEAR vuelve a escanear.",
+  ["No scan of this auction house yet."] =
+    "Aún no hay ningún escaneo de esta casa de subastas.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap escanea cuando abres la casa de subastas; ESCANEAR en este panel escanea otra vez.",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "En WoW: Forever, los precios de GoldCap vienen de tus propios escaneos de la casa de subastas.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =

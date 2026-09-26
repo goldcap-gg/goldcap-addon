@@ -867,6 +867,26 @@ GC.Locales.frFR = {
     "un marchand paie plus -- vends-le là-bas",
   ["vendor pays more"] =
     "le marchand paie plus",
+  ["Below vendor"] =
+    "Sous le marchand",
+  ["Under market"] =
+    "Sous le marché",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · achetez à %s ou moins, le marchand paie %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · achetez à %s ou moins, moitié de la demande %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Achetez à %s ou moins : un marchand paie %s l'unité. Cet achat rapporte %s.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Achetez à %s ou moins : la moitié des unités en vente en demandent %s ou plus. La vitesse de revente est inconnue, ce qui rend cet achat plus risqué qu'une affaire chez le marchand. Cet achat rapporte environ %s après la commission de 5%% et la caution.",
+  ["No deals in your last scan."] =
+    "Aucune affaire dans votre dernier scan.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap recherche les objets vendus moins cher que leur valeur. SCAN scanne à nouveau.",
+  ["No scan of this auction house yet."] =
+    "Aucun scan de cet hôtel des ventes pour l'instant.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap scanne quand vous ouvrez l'hôtel des ventes ; SCAN sur ce tableau scanne à nouveau.",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "Dans WoW: Forever, les prix de GoldCap viennent de vos propres scans de l'hôtel des ventes.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =

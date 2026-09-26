@@ -812,6 +812,26 @@ GC.Locales.koKR = {
     "상인이 더 쳐줍니다 -- 거기서 파세요",
   ["vendor pays more"] =
     "상인이 더 쳐줌",
+  ["Below vendor"] =
+    "상인가 이하",
+  ["Under market"] =
+    "시세 이하",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · %s 이하에 구매, 상인가 %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · %s 이하에 구매, 절반가 %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "%s 이하로 구매: 등록된 물량의 절반이 %s 이상을 요구합니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 5%% 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다.",
+  ["No deals in your last scan."] =
+    "최근 스캔에 거래가 없습니다.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap은 가치보다 싸게 등록된 아이템을 찾습니다. 검색을 누르면 다시 검색합니다.",
+  ["No scan of this auction house yet."] =
+    "이 경매장은 아직 스캔되지 않았습니다.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "경매장을 열면 GoldCap이 스캔합니다; 이 보드의 검색을 누르면 다시 스캔합니다.",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "WoW: Forever에서는 GoldCap의 시세가 당신이 직접 검색한 경매장 결과에서 나옵니다.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =

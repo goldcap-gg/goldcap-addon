@@ -744,6 +744,16 @@ local function sortedDeals()
     return not activeItemID[itemID] and itemID ~= hoveredItemID
       and not (frozen and frozen[itemID])
   end
+  -- WoW: Forever: the board is the player's own scan's leads (Core/ForeverDeals.lua), split by
+  -- board the same way. The stores below hold nothing there -- GC.DealMath.Measure refuses a
+  -- scan value -- so this is not a second source beside them but the only one.
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() and GC.ForeverDeals then
+    local board = GC.Sniper._Board()
+    for _, deal in ipairs(GC.ForeverDeals.Rows()) do
+      if deal.board == board and renders(deal.itemID) then list[#list + 1] = deal end
+    end
+    return list
+  end
   -- The Items board is the key poll's own store, in BOTH modes. The poll answers about realm
   -- items whether or not a full scan has ever run, so gating this board on `mode` would leave
   -- the player looking at an empty board with rows in hand.
@@ -1275,6 +1285,8 @@ local function setRowDeal(row, deal)
     tostring(deal.capTotal),
     -- What a buy only the wallet limit refused needs moves the verdict cell on its own.
     tostring(verdict and verdict.needsGold),
+    -- WoW: Forever: the kind and ceiling drive the chip and the name suffix.
+    tostring(deal.forever), tostring(deal.ceiling),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1351,8 +1363,14 @@ local function setRowDeal(row, deal)
   else
     verdictColor = Theme.color.fgDim
   end
-  row.tierChip:SetLabel(
-    GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID]), verdictColor)
+  -- WoW: Forever: a lead no Check has answered yet says which kind it is -- green for a vendor
+  -- deal, amber for a market one, the riskier of the two. A verdict, once there, speaks instead.
+  local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
+  if not verdict and deal.forever then
+    chip = GC.Sniper._ForeverLabel(deal.forever)
+    verdictColor = deal.forever == "market" and Theme.color.gold or Theme.color.green
+  end
+  row.tierChip:SetLabel(chip, verdictColor)
 
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
@@ -1457,7 +1475,8 @@ local function setRowDeal(row, deal)
   -- beside it ran the cell out of room -- "x400 Test caps · yo..." (in game 2026-09-23). Only
   -- when the cell has room for it, too: a name the client had to cut drops the group, which the
   -- row's tooltip names either way (GC.Sniper._CapNote).
-  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
+  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup)
+    or GC.Sniper._ForeverSuffix(deal)
   local function stampName(named)
     row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix }
     GC.Sniper._FitRowName(row)
@@ -1592,6 +1611,12 @@ local function refreshRows()
   -- the same way CollectNewHot's own HOT deals are. Rings only (caps fixes 3e): an open waits
   -- for the ticker, because a render runs inside a closing dialog's own OnHide too.
   if #pendingCapPings > 0 then drainCapPings(false) end
+end
+
+-- WoW: Forever: a fold landed (Core/ForeverScan.lua), or the vendor prices a row was waiting on
+-- have loaded (GC.ForeverDeals.Due): the board reads GC.ForeverDeals.Rows, so it repaints.
+function GC.Sniper.OnForeverFold()
+  if frame then refreshRows() end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -1938,6 +1963,19 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   end
   local screened = GC.Sniper._screenedCount or 0
   local text
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() then
+    -- WoW: Forever: the rows are the player's own scan's (Core/ForeverDeals.lua), on both boards.
+    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
+      text = GC.L["No deals in your last scan."] .. "\n"
+        .. GC.L["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."]
+    else
+      text = GC.L["No scan of this auction house yet."] .. "\n"
+        .. GC.L["GoldCap scans when you open the auction house; SCAN on this board scans again."]
+    end
+    label:SetText(text)
+    label:Show()
+    return
+  end
   if board == "items" and GC.Data.OriginState() ~= "none" then
     -- Count(), not the store: an empty poll set means the import carries no region reference
     -- for anything this board could watch, which is a different problem from a full poll set
@@ -1967,12 +2005,6 @@ function GC.Sniper._UpdateEmptyState(shownCount)
     if appErr then
       text = GC.L["The Companion is syncing, but this addon could not read what it wrote:"] .. "\n"
         .. GC.Data.DescribeImportError(appErr.reason) .. "."
-    elseif isForever() then
-      -- goldcap.gg has no Forever prices yet, so the companion/import advice below would send
-      -- a Forever player chasing an import that can never succeed (Core/Data.lua's import
-      -- guard already refuses a pasted string here).
-      text = GC.L["No deals to show -- and no realm prices yet."] .. "\n"
-        .. GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
     else
       text = GC.L["No deals to show -- and no realm prices yet."] .. "\n"
         .. GC.L["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] .. "\n"
@@ -5272,6 +5304,28 @@ function GC.Sniper._CapNote(deal)
     return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
   end
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+end
+
+-- WoW: Forever rows (Core/ForeverDeals.lua): the kind, the dim instruction after the name, and
+-- the whole sentence. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
+-- (far under the scan's half-way price: a resale nobody has measured the speed of).
+function GC.Sniper._ForeverLabel(kind)
+  return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
+end
+
+function GC.Sniper._ForeverSuffix(deal)
+  if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return "" end
+  local text = deal.forever == "market"
+    and GC.L[" · buy at %s or less, half ask %s+"] or GC.L[" · buy at %s or less, vendor pays %s"]
+  return ("|cff8c8a85%s|r"):format(text:format(GC.Util.FormatMoney(deal.ceiling),
+    GC.Util.FormatMoney(deal.refUnit)))
+end
+
+function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
+  local text = kind == "market"
+    and GC.L["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
+    or GC.L["Buy at or under %s: a vendor pays %s each. This buy makes %s."]
+  return text:format(GC.Util.FormatMoney(ceiling), GC.Util.FormatMoney(ref), GC.Util.FormatMoney(profit or 0))
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
@@ -10084,6 +10138,11 @@ createRow = function(parent, index)
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
+    if self.deal.forever then
+      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
+        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+        self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+    end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
     -- verified market of its own, and the row's WATCH cell has no room to say so. The
     -- tooltip does -- with the reference itself and the item level it was measured on, so
@@ -11348,6 +11407,7 @@ function GC.Sniper.OnAuctionHouseShow()
     autoScan:Tick(GetTime())
     refreshAutoButton()
     refreshScanButton()
+    if GC.ForeverDeals and GC.ForeverDeals.Due and GC.ForeverDeals.Due(time()) then GC.Sniper.OnForeverFold() end
     -- Background verification rides the same clock, for the same reason the two buttons above
     -- do: one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()

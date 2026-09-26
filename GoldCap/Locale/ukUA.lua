@@ -880,6 +880,26 @@ GC.Locales.ukUA = {
     "торговець платить більше -- продайте йому",
   ["vendor pays more"] =
     "торговець платить більше",
+  ["Below vendor"] =
+    "Нижче за торговця",
+  ["Under market"] =
+    "Нижче за ринок",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · купити за %s або менше, торговець платить %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · купити за %s або менше, половина ціни %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Купити за %s або менше: половина виставлених одиниць просить %s або більше. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
+  ["No deals in your last scan."] =
+    "Немає угод в останньому скані.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap шукає предмети, виставлені дешевше, ніж вони коштують. СКАН сканує знову.",
+  ["No scan of this auction house yet."] =
+    "Цей аукціон ще не сканувався.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap сканує, коли ви відкриваєте аукціон; СКАН на цій дошці сканує знову.",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "У WoW: Forever ціни GoldCap беруться з твоїх власних сканувань аукціону.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =

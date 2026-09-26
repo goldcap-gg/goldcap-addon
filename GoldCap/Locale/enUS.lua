@@ -925,6 +925,23 @@ GC.Locales.enUS = {
     "Your bags: %s at a vendor. Scan the auction house to see what they would fetch there.",
   ["a vendor pays more -- sell it there"] = "a vendor pays more -- sell it there",
   ["vendor pays more"] = "vendor pays more",
+  -- The Deals board in WoW: Forever (UI/SniperFrame.lua, task 4 of the 3c plan): the scan's own
+  -- rows, the kind on the chip, the dim name suffix, the row tooltip's whole sentence, and the
+  -- two empty states. No "≤": the bundled monospace font has no glyph for it.
+  ["Below vendor"] = "Below vendor",
+  ["Under market"] = "Under market",
+  [" · buy at %s or less, vendor pays %s"] = " · buy at %s or less, vendor pays %s",
+  [" · buy at %s or less, half ask %s+"] = " · buy at %s or less, half ask %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
+  ["No deals in your last scan."] = "No deals in your last scan.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
+  ["No scan of this auction house yet."] = "No scan of this auction house yet.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap scans when you open the auction house; SCAN on this board scans again.",
   -- The three first-run lines (Core/ForeverScan.lua's MaybeIntro), shown once per account.
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "In WoW: Forever, GoldCap's prices come from your own auction house scans.",

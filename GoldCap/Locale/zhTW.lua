@@ -788,6 +788,26 @@ GC.Locales.zhTW = {
     "商人出價更高 -- 賣給他",
   ["vendor pays more"] =
     "商人出價更高",
+  ["Below vendor"] =
+    "低於商人收購價",
+  ["Under market"] =
+    "低於市場價",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · %s 或更低購買，商人收購價 %s",
+  [" · buy at %s or less, half ask %s+"] =
+    " · %s 或更低購買，半價 %s+",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "以 %s 或更低購買：商人每件收購價 %s。這次購買可賺 %s。",
+  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "以 %s 或更低購買：上架數量的一半要價 %s 或更高。轉售速度未知，因此比商人交易更冒險。扣除 5%% 手續費和押金後，這次購買可賺約 %s。",
+  ["No deals in your last scan."] =
+    "上次掃描沒有交易。",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap 會尋找定價低於價值的物品。點擊掃描可再次掃描。",
+  ["No scan of this auction house yet."] =
+    "這個拍賣場還沒有掃描過。",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "開啟拍賣場時 GoldCap 會掃描；點擊此看板上的掃描可再次掃描。",
   ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
     "在 WoW: Forever 中，GoldCap 的價格來自你自己對拍賣場的掃描。",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
