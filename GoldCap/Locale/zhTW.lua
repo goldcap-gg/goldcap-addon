@@ -337,6 +337,7 @@ GC.Locales.zhTW = {
   ["QTY"] = "數量",
   ["Quantity exceeds missing units"] = "數量超過缺少的件數",
   ["Quantity is capped by how fast this item actually sells."] = "數量受限於該物品實際的出貨速度。",
+  ["Queue ready — press POST again to post it"] = "佇列已就緒 — 再次點擊上架即可上架",
   ["REALIZED PROFIT"] = "已實現利潤",
   ["REFRESH"] = "重新整理",
   ["RESET WINDOW"] = "重設視窗",

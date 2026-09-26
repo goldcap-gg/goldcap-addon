@@ -182,4 +182,36 @@ describe("locale layer", function()
     assert.equal("enUS", GC.ResolveLocale("auto", "enGB"))
     assert.equal("enUS", GC.ResolveLocale("auto", "xxXX"))
   end)
+
+  -- Owner rule: i18n in all twelve. The contract spec lets a key fall back to English; these may
+  -- not. The 3b follow-up key and every key plan 3c added.
+  it("carries the Forever keys in all twelve languages", function()
+    local keys = {
+      "Queue ready — press POST again to post it",
+      "What this buy would make is under your minimum profit.",
+      "Below vendor", "Under market",
+      " · buy at %s or less, vendor pays %s", " · buy at %s or less, half ask %s+",
+      "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
+      "Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
+      "No deals in your last scan.",
+      "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
+      "No scan of this auction house yet.",
+      "GoldCap scans when you open the auction house; SCAN on this board scans again.",
+      "under the vendor price -- click Buy to purchase",
+      "far under the market, resale speed unknown -- click Buy to purchase",
+      "AH value (cheapest lots skipped)",
+      "no live price", "NO LIVE PRICE YET", "Checking prices — waiting for the Auction House…",
+      "last live price %s ago",
+      "Press Buy again to buy this quantity",
+    }
+    for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
+        "ukUA", "zhCN", "zhTW" }) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
 end)

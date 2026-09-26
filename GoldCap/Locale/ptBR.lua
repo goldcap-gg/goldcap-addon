@@ -360,6 +360,7 @@ GC.Locales.ptBR = {
   ["Quantity exceeds missing units"] = "A quantidade passa das unidades que faltam",
   ["Quantity is capped by how fast this item actually sells."] =
     "A quantidade é limitada pela rapidez com que este item realmente vende.",
+  ["Queue ready — press POST again to post it"] = "Fila pronta — pressione Anunciar novamente para anunciá-lo",
   ["REALIZED PROFIT"] = "LUCRO REALIZADO",
   ["REFRESH"] = "ATUALIZAR",
   ["RESET WINDOW"] = "REDEFINIR JANELA",

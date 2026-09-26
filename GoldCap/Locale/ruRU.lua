@@ -357,6 +357,7 @@ GC.Locales.ruRU = {
   ["Quantity exceeds missing units"] = "Количество превышает недостающие единицы",
   ["Quantity is capped by how fast this item actually sells."] =
     "Количество ограничено тем, как быстро предмет реально продаётся.",
+  ["Queue ready — press POST again to post it"] = "Очередь готова — нажмите Выставить ещё раз, чтобы выставить его",
   ["REALIZED PROFIT"] = "РЕАЛИЗОВАННАЯ ПРИБЫЛЬ",
   ["REFRESH"] = "ОБНОВИТЬ",
   ["RESET WINDOW"] = "СБРОСИТЬ ОКНО",

@@ -336,6 +336,7 @@ GC.Locales.zhCN = {
   ["QTY"] = "数量",
   ["Quantity exceeds missing units"] = "数量超过缺少的件数",
   ["Quantity is capped by how fast this item actually sells."] = "数量受限于该物品实际的出货速度。",
+  ["Queue ready — press POST again to post it"] = "队列已就绪 — 再次点击上架即可上架",
   ["REALIZED PROFIT"] = "已实现利润",
   ["REFRESH"] = "刷新",
   ["RESET WINDOW"] = "重置窗口",

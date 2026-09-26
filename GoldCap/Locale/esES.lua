@@ -363,6 +363,7 @@ GC.Locales.esES = {
   ["Quantity exceeds missing units"] = "La cantidad supera las unidades que faltan",
   ["Quantity is capped by how fast this item actually sells."] =
     "La cantidad está limitada por lo rápido que se vende realmente este objeto.",
+  ["Queue ready — press POST again to post it"] = "Cola lista — pulsa Publicar de nuevo para publicarlo",
   ["REALIZED PROFIT"] = "BENEFICIO REALIZADO",
   ["REFRESH"] = "ACTUALIZAR",
   ["RESET WINDOW"] = "RESTABLECER VENTANA",

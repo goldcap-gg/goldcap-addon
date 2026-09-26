@@ -360,6 +360,7 @@ GC.Locales.itIT = {
   ["Quantity exceeds missing units"] = "La quantità supera le unità mancanti",
   ["Quantity is capped by how fast this item actually sells."] =
     "La quantità è limitata da quanto in fretta l'oggetto si vende davvero.",
+  ["Queue ready — press POST again to post it"] = "Coda pronta — premi di nuovo Vendi per metterlo in vendita",
   ["REALIZED PROFIT"] = "PROFITTO REALIZZATO",
   ["REFRESH"] = "AGGIORNA",
   ["RESET WINDOW"] = "REIMPOSTA FINESTRA",

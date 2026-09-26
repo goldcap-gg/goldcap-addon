@@ -359,6 +359,7 @@ GC.Locales.frFR = {
   ["Quantity exceeds missing units"] = "La quantité dépasse les unités manquantes",
   ["Quantity is capped by how fast this item actually sells."] =
     "La quantité est plafonnée par la vitesse réelle de vente de cet objet.",
+  ["Queue ready — press POST again to post it"] = "File prête — clique de nouveau sur Vendre pour le mettre en vente",
   ["REALIZED PROFIT"] = "BÉNÉFICE RÉALISÉ",
   ["REFRESH"] = "ACTUALISER",
   ["RESET WINDOW"] = "RÉINITIALISER LA FENÊTRE",

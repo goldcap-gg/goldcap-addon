@@ -371,6 +371,7 @@ GC.Locales.ukUA = {
   ["Quantity is capped by how fast this item actually sells."] =
     "Кількість обмежена тим, як швидко предмет реально продається.",
   ["READY"] = "ГОТОВЕ",
+  ["Queue ready — press POST again to post it"] = "Черга готова — натисніть Виставити ще раз, щоб виставити його",
   ["REALIZED PROFIT"] = "РЕАЛІЗОВАНИЙ ПРИБУТОК",
   ["REFRESH"] = "ОНОВИТИ",
   ["RESET WINDOW"] = "СКИНУТИ ВІКНО",

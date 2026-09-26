@@ -340,6 +340,7 @@ GC.Locales.koKR = {
   ["QTY"] = "수량",
   ["Quantity exceeds missing units"] = "수량이 부족분을 초과합니다",
   ["Quantity is capped by how fast this item actually sells."] = "수량은 이 아이템이 실제로 팔리는 속도에 의해 제한됩니다.",
+  ["Queue ready — press POST again to post it"] = "대기열 준비 완료 — 등록하려면 등록을 다시 누르세요",
   ["REALIZED PROFIT"] = "실현 수익",
   ["REFRESH"] = "새로고침",
   ["RESET WINDOW"] = "창 초기화",
