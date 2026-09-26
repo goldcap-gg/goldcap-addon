@@ -8358,17 +8358,18 @@ local function onDialogPrimaryClick()
     return -- every other stage's primary button is disabled; guard anyway against a stray click
   end
 
-  -- Fix 2 (review): a qty typed into the Quantity box only commits on OnEditFocusLost -- and a
-  -- WoW EditBox KEEPS focus when the player clicks a Button, so a Buy click straight from the
-  -- box would otherwise fire the purchase against the last-committed qty while the box shows
-  -- the new number. ClearFocus() runs OnEditFocusLost synchronously (qtyBox.onCommit ->
-  -- applyChosenQty), so by the time row.deal is read below it already carries the typed qty.
-  -- That commit can also flip the button off ("not enough gold" -- updateBuyAffordance runs
-  -- inside applyChosenQty), so re-check and bail rather than buy past the affordance gate the
-  -- player hasn't even seen yet.
+  -- A quantity typed into the box commits on OnEditFocusLost, and a WoW EditBox keeps focus when
+  -- the player clicks a Button. Committing it runs GoldCap's own re-evaluation and repaint
+  -- (applyChosenQty -> evaluateLive, stampDialogFromDecision -> FormatMoney), and WoW: Forever's
+  -- taint engine blocks a protected call that follows such reads in the same click (3b ledger).
+  -- So this click only commits: the player sees the total for the quantity they typed, and the
+  -- next click buys it -- a total nobody has seen is not bought on the same click.
   if dialog.qtyBox and dialog.qtyBox.editBox:HasFocus() then
     dialog.qtyBox.editBox:ClearFocus()
-    if row.purchaseStage ~= "ready" or not dialog.primaryBtn:IsEnabled() then return end
+    if row.purchaseStage == "ready" and dialog.primaryBtn:IsEnabled() then
+      setDialogStatus(GC.L["Press Buy again to buy this quantity"], 0.25, 0.85, 0.25)
+    end
+    return
   end
 
   -- Second overall click. Two shapes of purchase reach this point, and each has its own gate.

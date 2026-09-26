@@ -457,6 +457,7 @@ GC.Locales.enUS = {
   ["Profit per unit"] = "Profit per unit",
   ["Profit tracking is a goldcap.gg Pro feature"] = "Profit tracking is a goldcap.gg Pro feature",
   ["Purchases are turned off in this build."] = "Purchases are turned off in this build.",
+  ["Press Buy again to buy this quantity"] = "Press Buy again to buy this quantity",
   ["QTY"] = "QTY",
   ["Quantity exceeds missing units"] = "Quantity exceeds missing units",
   ["Quantity is capped by how fast this item actually sells."] =

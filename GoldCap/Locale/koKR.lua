@@ -334,6 +334,7 @@ GC.Locales.koKR = {
   ["Profit per unit"] = "개당 수익",
   ["Profit tracking is a goldcap.gg Pro feature"] = "수익 추적은 goldcap.gg Pro 기능입니다",
   ["Purchases are turned off in this build."] = "이 빌드에서는 구매가 꺼져 있습니다.",
+  ["Press Buy again to buy this quantity"] = "이 수량을 구매하려면 구매를 다시 누르세요",
   ["QTY"] = "수량",
   ["Quantity exceeds missing units"] = "수량이 부족분을 초과합니다",
   ["Quantity is capped by how fast this item actually sells."] = "수량은 이 아이템이 실제로 팔리는 속도에 의해 제한됩니다.",

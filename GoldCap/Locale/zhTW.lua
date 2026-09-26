@@ -331,6 +331,7 @@ GC.Locales.zhTW = {
   ["Profit per unit"] = "每件利潤",
   ["Profit tracking is a goldcap.gg Pro feature"] = "利潤追蹤是 goldcap.gg Pro 功能",
   ["Purchases are turned off in this build."] = "該版本中已關閉購買功能。",
+  ["Press Buy again to buy this quantity"] = "再次點擊購買以購買此數量",
   ["QTY"] = "數量",
   ["Quantity exceeds missing units"] = "數量超過缺少的件數",
   ["Quantity is capped by how fast this item actually sells."] = "數量受限於該物品實際的出貨速度。",

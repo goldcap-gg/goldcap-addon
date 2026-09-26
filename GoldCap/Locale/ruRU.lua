@@ -350,6 +350,7 @@ GC.Locales.ruRU = {
   ["Profit per unit"] = "Прибыль за штуку",
   ["Profit tracking is a goldcap.gg Pro feature"] = "Учёт прибыли — функция goldcap.gg Pro",
   ["Purchases are turned off in this build."] = "В этой сборке покупки отключены.",
+  ["Press Buy again to buy this quantity"] = "Нажмите Купить ещё раз, чтобы купить это количество",
   ["QTY"] = "КОЛ-ВО",
   ["Quantity exceeds missing units"] = "Количество превышает недостающие единицы",
   ["Quantity is capped by how fast this item actually sells."] =

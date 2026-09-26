@@ -17,6 +17,8 @@
   and what a vendor gives. Check looks at the auction house live, and Buy buys only what is
   still under that price, within your per-buy wallet limit. While "Max wallet per buy %" is at
   its default, these buys may use up to half your gold.
+- In the buy window, pressing Buy while you are still typing a quantity now shows the total for
+  that quantity first; press Buy again to buy it.
 
 ## 0.15.1 (2026-09-24)
 

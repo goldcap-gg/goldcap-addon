@@ -363,6 +363,7 @@ GC.Locales.ukUA = {
   ["Profit tracking is a goldcap.gg Pro feature"] =
     "Облік прибутку — функція goldcap.gg Pro",
   ["Purchases are turned off in this build."] = "У цій збірці покупки вимкнено.",
+  ["Press Buy again to buy this quantity"] = "Натисніть Купити ще раз, щоб купити цю кількість",
   ["QTY"] = "К-ТЬ",
   ["Quantity exceeds missing units"] = "Кількість перевищує відсутні одиниці",
   ["Quantity is capped by how fast this item actually sells."] =

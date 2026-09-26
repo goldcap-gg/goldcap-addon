@@ -330,6 +330,7 @@ GC.Locales.zhCN = {
   ["Profit per unit"] = "每件利润",
   ["Profit tracking is a goldcap.gg Pro feature"] = "利润追踪是 goldcap.gg Pro 功能",
   ["Purchases are turned off in this build."] = "该版本中已关闭购买功能。",
+  ["Press Buy again to buy this quantity"] = "再次点击购买以购买此数量",
   ["QTY"] = "数量",
   ["Quantity exceeds missing units"] = "数量超过缺少的件数",
   ["Quantity is capped by how fast this item actually sells."] = "数量受限于该物品实际的出货速度。",

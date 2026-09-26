@@ -353,6 +353,7 @@ GC.Locales.ptBR = {
   ["Profit tracking is a goldcap.gg Pro feature"] =
     "O acompanhamento de lucro é um recurso do goldcap.gg Pro",
   ["Purchases are turned off in this build."] = "As compras estão desligadas nesta versão.",
+  ["Press Buy again to buy this quantity"] = "Pressione Comprar novamente para comprar esta quantidade",
   ["QTY"] = "QTD",
   ["Quantity exceeds missing units"] = "A quantidade passa das unidades que faltam",
   ["Quantity is capped by how fast this item actually sells."] =

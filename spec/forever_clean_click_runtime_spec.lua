@@ -1024,5 +1024,26 @@ describe("Clean click ordering, driven end to end", function()
       click()
       assertCleanCall("PlaceBid")
     end)
+
+    it("a Buy click with the quantity box focused commits the quantity and buys nothing", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local live = capLive(GC, 42, { { unitPrice = 900000, quantity = 200 } })
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = armOnDialog(GC, row, deal, live.decision, { { unitPrice = 900000, quantity = 200 } })
+      local focused = true
+      d.qtyBox.editBox.HasFocus = function() return focused end
+      d.qtyBox.editBox.ClearFocus = function() focused = false; log[#log + 1] = "EditBox:ClearFocus" end
+      local click = clickHandler(GC)
+      log = {}
+      click()
+      assertNoProtectedCall()
+      assert.equal("EditBox:ClearFocus", log[1])
+      assert.equal("ready", row.purchaseStage)
+      log = {}
+      click() -- the box no longer has focus: this is the buy
+      assertCleanCall("StartCommoditiesPurchase")
+    end)
   end)
 end)
