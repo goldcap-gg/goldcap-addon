@@ -12,11 +12,22 @@ local _, GC = ...
 -- charges no fee, so the profit is exact: vendor - price, per unit. Ceiling: vendor - 1.
 -- Only the fold's five cheapest levels are seen, so qty can be short of what the live book
 -- holds; the Check reads the book itself.
+--
+-- Kind "market" ("Under market"), commodities only: levels at or under 70% of p50 -- the price
+-- half of the listed units ask at most (Core/ForeverFold.lua's depth part, fold version 2) --
+-- whose resale at p50, after the 5% cut and the deposit, still makes at least a copper each.
+-- Riskier than a vendor deal: nothing in Forever measures how fast an item sells. A thin book
+-- (under 20 units, or under three prices) is no market at all, and an item auction is left out:
+-- its deposit needs a bag location a scan has not got, and it has no quote step to catch a bad
+-- resale estimate before PlaceBid.
 GC.ForeverDeals = GC.ForeverDeals or {}
 
 local C = {
   MIN_PROFIT_COPPER = 20,            -- a Forever row's whole buy, unless the player changed theirs
   RETAIL_DEFAULT_MIN_PROFIT = 50000, -- Core/Init.lua's default for settings.sniper.minimumProfitCopper
+  MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the half-way price
+  MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
+  MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
   ROW_CAP = 100,                     -- per board, as UI/SniperFrame.lua's WIN.ROW_CAP
   REBUILD_SECONDS = 5,               -- while vendor prices the rows need are still loading
   REQUEST_PER_BUILD = 100,           -- item-data requests per build
@@ -39,6 +50,8 @@ function GC.ForeverDeals.MinimumProfit(settings)
   end
   return C.MIN_PROFIT_COPPER
 end
+
+local KEEP = 0.95 -- the 5% cut, as Core/ForeverValue.lua and Core/DealMath.lua apply it
 
 local function lead(itemID, e, kind, ceiling, refUnit, units, cost, profit)
   local unit = e.ladder[1][1]
@@ -66,6 +79,28 @@ local function belowVendor(itemID, e, vendor)
   return lead(itemID, e, "vendor", ceiling, vendor, units, cost, profit)
 end
 
+local function underMarket(itemID, e, ctx)
+  if not (e.p50 and e.levels and e.qty) then return nil end
+  if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
+  if ctx.isCommodity(itemID, e) ~= true then return nil end
+  local deposit = ctx.depositFor(itemID)
+  if type(deposit) ~= "number" or deposit < 0 then return nil end
+  local net = math.floor(e.p50 * KEEP)
+  local ceiling = math.min(math.floor(e.p50 * C.MARKET_SHARE), net - deposit - 1)
+  if ceiling < 1 then return nil end
+  local units, cost, profit = 0, 0, 0
+  for _, level in ipairs(e.ladder) do
+    if level[1] > ceiling then break end
+    units = units + level[2]
+    cost = cost + level[1] * level[2]
+    profit = profit + (net - level[1] - deposit) * level[2]
+  end
+  if units == 0 then return nil end
+  local row = lead(itemID, e, "market", ceiling, e.p50, units, cost, profit)
+  row.depositUnit = deposit
+  return row
+end
+
 function GC.ForeverDeals.Build(fold, ctx)
   local rows, missing = {}, {}
   if type(fold) ~= "table" or type(fold.items) ~= "table" or type(ctx) ~= "table" then
@@ -83,6 +118,7 @@ function GC.ForeverDeals.Build(fold, ctx)
       else
         missing[#missing + 1] = itemID
       end
+      if not row then row = underMarket(itemID, e, ctx) end
       if row and GC.DealMath.BoardAdmits(row, admit) then
         local commodity = ctx.isCommodity(itemID, e)
         if commodity == nil and e.gear then commodity = false end

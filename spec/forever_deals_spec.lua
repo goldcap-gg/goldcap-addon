@@ -102,6 +102,62 @@ describe("ForeverDeals", function()
     end)
   end)
 
+  describe("Build, kind market", function()
+    -- 30c x5, 40c x5, 90c x20, 100c x30, 110c x40: 100 units, p25 90c, p50 100c, five levels.
+    local WOOL = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5"
+
+    -- ctx() with a 2c deposit per unit, the answer GC.ForeverValue.DepositUnit gives a known commodity.
+    local function marketCtx(over)
+      local o = { depositFor = function() return 2 end }
+      for k, v in pairs(over or {}) do o[k] = v end
+      return ctx(o)
+    end
+
+    it("lists the levels at or under 70% of the half-way price, net of the cut and the deposit", function()
+      commodity[2592] = true
+      local rows, missing = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.same({ 2592 }, missing)          -- no vendor price: asked for, and market still judged
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(70, r.ceiling)             -- min(70, 95 - 2 - 1)
+      assert.equal(100, r.refUnit)
+      assert.equal(10, r.qty)
+      assert.equal(350, r.capTotal)
+      assert.equal(580, r.profit)             -- (95-30-2)*5 + (95-40-2)*5
+      assert.equal(2, r.depositUnit)
+      assert.is_true(math.abs(r.discount - 0.7) < 1e-9)
+    end)
+
+    it("prefers a vendor deal when both hold", function()
+      commodity[2592], vendor[2592] = true, 35
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
+      assert.equal("vendor", rows[1].forever)
+    end)
+
+    it("needs 20 units, 3 price levels, a known commodity and a deposit", function()
+      commodity[1], commodity[2], commodity[3], commodity[4] = true, true, nil, true
+      local f = fold({
+        [1] = "30,19,5,;0x5 10x5 50x5 10x2 10x2|60,70,5",   -- 19 units
+        [2] = "30,100,2,;0x50 70x50|0,0,2",                   -- 2 levels
+        [3] = WOOL,                                           -- commodity unknown
+      })
+      assert.equal(0, #D.Build(f, marketCtx()))
+      assert.equal(0, #D.Build(fold({ [4] = WOOL }), marketCtx({ depositFor = function() return nil end })))
+    end)
+
+    it("makes no market row from a version-1 fold", function()
+      commodity[2592] = true
+      assert.equal(0, #D.Build(fold({ [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40" }), marketCtx()))
+    end)
+
+    it("never sets a ceiling that loses money after the deposit", function()
+      commodity[5] = true
+      -- p50 100c, deposit 30c: 95 - 30 - 1 = 64 caps the ceiling under 70.
+      local rows = D.Build(fold({ [5] = WOOL }), marketCtx({ depositFor = function() return 30 end }))
+      assert.equal(64, rows[1].ceiling)
+    end)
+  end)
+
   describe("MinimumProfit", function()
     it("is 20c unless the player changed Min profit per buy from its default", function()
       assert.equal(20, D.MinimumProfit({ minimumProfitCopper = 50000 }))
@@ -173,6 +229,15 @@ describe("ForeverDeals", function()
       assert.is_nil(D.CeilingFor(2589))
       saved = { at = 7000, items = saved.items }
       assert.equal(1, #D.Rows(clock + 2))
+    end)
+
+    it("hands out a market ceiling with its deposit", function()
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5" } }
+      GC.db.commodityByItem[2592] = true
+      GC.ForeverValue.DepositUnit = function() return 2 end
+      D.Rows(clock)
+      assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
+        D.CeilingFor(2592))
     end)
   end)
 

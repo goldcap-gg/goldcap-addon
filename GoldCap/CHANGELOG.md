@@ -17,6 +17,9 @@
   and what a vendor gives. Check looks at the auction house live, and Buy buys only what is
   still under that price, within your per-buy wallet limit. While "Max wallet per buy %" is at
   its default, these buys may use up to half your gold.
+- The Deals board in WoW: Forever also lists commodities offered far under what half of their
+  supply asks, after the auction house cut and deposit. These are riskier than vendor deals, and
+  the row says so: your scan cannot tell how fast an item sells.
 - In the buy window, pressing Buy while you are still typing a quantity now shows the total for
   that quantity first; press Buy again to buy it.
 
