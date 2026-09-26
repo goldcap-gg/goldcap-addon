@@ -62,7 +62,7 @@ GC.Locales.zhCN = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多笔购买被合并成一行，会一并全部删除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍卖行返回为空",
-  ["AH value"] = "拍卖行估价",
+  ["AH value (cheapest lots skipped)"] = "拍卖行估价（不含最便宜批次）",
   ["AH, cheapest version"] = "拍卖行，最便宜版本",
   ["ASKING"] = "要价",
   ["AT MARKET"] = "按市价",
@@ -445,7 +445,6 @@ GC.Locales.zhCN = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
   ["VERDICT"] = "判定",
-  ["Vendor"] = "商人",
   ["Verdict"] = "判定",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍卖行 %d",
   ["WATCH"] = "观察",

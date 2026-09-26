@@ -59,7 +59,7 @@ GC.Locales.deDE = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Sind mehrere Käufe zu einer Zeile zusammengefasst, werden alle davon entfernt.",
   ["AH answered empty %ds ago"] = "Auktionshaus antwortete vor %ds leer",
-  ["AH value"] = "AH-Wert",
+  ["AH value (cheapest lots skipped)"] = "AH-Wert (günstigste Posten übersprungen)",
   ["AH, cheapest version"] = "AH, günstigste Version",
   ["ASKING"] = "ANGEBOT",
   ["AT MARKET"] = "AM MARKT",
@@ -491,7 +491,6 @@ GC.Locales.deDE = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unbekannt heißt, die Kostenseite ist unvollständig — trage sie mit „Kosten eintragen“ nach.",
   ["VERDICT"] = "URTEIL",
-  ["Vendor"] = "Händler",
   ["Verdict"] = "Urteil",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WARTET AUFS AUKTIONSHAUS %d",
   ["WATCH"] = "BEOBACHTEN",

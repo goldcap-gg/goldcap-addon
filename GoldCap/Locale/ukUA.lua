@@ -62,7 +62,7 @@ GC.Locales.ukUA = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
-  ["AH value"] = "Оцінка на аукціоні",
+  ["AH value (cheapest lots skipped)"] = "Оцінка на аукціоні (без найдешевших лотів)",
   ["AH, cheapest version"] = "Аукціон, найдешевша версія",
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",
@@ -502,7 +502,6 @@ GC.Locales.ukUA = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
   ["VERDICT"] = "ВЕРДИКТ",
-  ["Vendor"] = "Торговець",
   ["Verdict"] = "Вердикт",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "ЧЕКАЄМО НА АУКЦІОН %d",
   ["WATCH"] = "СТЕЖИТИ",

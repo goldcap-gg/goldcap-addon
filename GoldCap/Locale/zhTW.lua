@@ -63,7 +63,7 @@ GC.Locales.zhTW = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
-  ["AH value"] = "拍賣場估價",
+  ["AH value (cheapest lots skipped)"] = "拍賣場估價（不含最便宜批次）",
   ["AH, cheapest version"] = "拍賣場，最便宜版本",
   ["ASKING"] = "開價",
   ["AT MARKET"] = "依市價",
@@ -446,7 +446,6 @@ GC.Locales.zhTW = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "顯示為未知說明成本側不完整 — 用「填寫成本」補上。",
   ["VERDICT"] = "判定",
-  ["Vendor"] = "商人",
   ["Verdict"] = "判定",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍賣場 %d",
   ["WATCH"] = "觀察",

@@ -59,7 +59,7 @@ GC.Locales.frFR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si plusieurs achats sont regroupés sur une seule ligne, tous sont supprimés.",
   ["AH answered empty %ds ago"] = "l'hôtel des ventes a répondu vide il y a %ds",
-  ["AH value"] = "Valeur HV",
+  ["AH value (cheapest lots skipped)"] = "Valeur HV (lots les moins chers ignorés)",
   ["AH, cheapest version"] = "HV, version la moins chère",
   ["ASKING"] = "DEMANDÉ",
   ["AT MARKET"] = "AU MARCHÉ",
@@ -489,7 +489,6 @@ GC.Locales.frFR = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Inconnu signifie que le coût est incomplet — complétez-le avec Définir le coût.",
   ["VERDICT"] = "VERDICT",
-  ["Vendor"] = "Marchand",
   ["Verdict"] = "Verdict",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "EN ATTENTE DE L'HÔTEL DES VENTES %d",
   ["WATCH"] = "SURVEILLER",

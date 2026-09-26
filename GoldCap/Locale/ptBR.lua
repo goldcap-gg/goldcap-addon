@@ -60,7 +60,7 @@ GC.Locales.ptBR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se várias compras estiverem agrupadas em uma linha, todas são removidas.",
   ["AH answered empty %ds ago"] = "a casa de leilões respondeu vazia há %ds",
-  ["AH value"] = "Valor no leilão",
+  ["AH value (cheapest lots skipped)"] = "Valor no leilão (lotes mais baratos ignorados)",
   ["AH, cheapest version"] = "Leilão, versão mais barata",
   ["ASKING"] = "PEDIDO",
   ["AT MARKET"] = "A MERCADO",
@@ -490,7 +490,6 @@ GC.Locales.ptBR = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconhecido significa que falta parte do custo — complete com Definir custo.",
   ["VERDICT"] = "VEREDITO",
-  ["Vendor"] = "Vendedor",
   ["Verdict"] = "Veredito",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "AGUARDANDO A CASA DE LEILÕES %d",
   ["WATCH"] = "OBSERVAR",

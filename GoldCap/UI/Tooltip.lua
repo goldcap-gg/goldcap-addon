@@ -97,7 +97,10 @@ function GC.Tooltip.BuildLines(v, now, opts)
     local label = GC.L["GoldCap value"]
     -- WoW: Forever's own scan (Core/ForeverScan.lua): the auction house's price for it, and for
     -- gear the cheapest version's -- several random suffixes share one item id.
-    if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value"] end
+    -- The figure is the price level a tenth of the listed units reach (GC.ForeverFold.VALUE_SHARE),
+    -- not the item's usual price, so the label says exactly that; "On the AH now", when shown
+    -- below, is the live cheapest, and the two no longer share one vague name.
+    if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value (cheapest lots skipped)"] end
     lines[1] = { kind = "money", label = label, copper = v.mv }
   end
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
@@ -119,12 +122,14 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- construction: the bundled snapshot carries no verification at all. The shelf count is
     -- the better answer to the same question the auction count was answering, so it takes
     -- that slot rather than adding a fourth number.
-    if v.currentQty and v.currentQty > 0 then
+    -- In Forever the live line below already says how many are listed right now; a second,
+    -- older count beside it would read as a contradiction rather than as two different things.
+    if v.currentQty and v.currentQty > 0 and not (scan and live) then
       local right = wholeCount(v.currentQty)
       local supply = GC.Util.FormatSupplyDays(v.currentQty, v.sold)
       if supply then right = right .. " · " .. supply end
       lines[#lines + 1] = { kind = "text", left = GC.L["Listed"], right = right }
-    elseif v.listings and not v.sold then
+    elseif v.listings and not v.sold and not (scan and live) then
       -- `not v.sold` keeps the exclusivity these two lines had when they were one if/elseif:
       -- no item has ever shown a sales rate and an auction count together.
       lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = wholeCount(v.listings) }
@@ -134,13 +139,12 @@ function GC.Tooltip.BuildLines(v, now, opts)
   if opts.unitCost then
     lines[#lines + 1] = { kind = "money", label = GC.L["You paid"], copper = opts.unitCost }
   end
-  -- WoW: Forever (opts.forever, from onTooltip only there): what a vendor pays for one, and where
-  -- the item should go. Absent everywhere else, so retail's lines are unchanged.
+  -- WoW: Forever (opts.forever, from onTooltip only there): where the item should go. Absent
+  -- everywhere else, so retail's lines are unchanged. The vendor price itself is not printed
+  -- here -- the game's own tooltip already prints "Sell Price" for the same figure -- but the
+  -- verdict below still weighs it.
   local fv = opts.forever
   if type(fv) == "table" then
-    if type(fv.vendorUnit) == "number" and fv.vendorUnit > 0 then
-      lines[#lines + 1] = { kind = "money", label = GC.L["Vendor"], copper = fv.vendorUnit }
-    end
     local verdict = GC.ForeverValue and GC.ForeverValue.Verdict
       and GC.ForeverValue.Verdict(v.mv, fv.vendorUnit, fv.depositUnit, v.gear == true) or nil
     if verdict == "ah" then

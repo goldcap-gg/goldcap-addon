@@ -71,7 +71,7 @@ GC.Locales.enUS = {
     "A run of several purchases collapsed onto one line removes every one of them.",
   ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
-  ["AH value"] = "AH value",
+  ["AH value (cheapest lots skipped)"] = "AH value (cheapest lots skipped)",
   ["AH, cheapest version"] = "AH, cheapest version",
   ["ASKING"] = "ASKING",
   ["AT MARKET"] = "AT MARKET",
@@ -593,7 +593,6 @@ GC.Locales.enUS = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unknown means the cost side is incomplete -- fill it in with Set cost.",
   ["VERDICT"] = "VERDICT",
-  ["Vendor"] = "Vendor",
   ["Vendor list"] = "Vendor list",
   ["Verdict"] = "Verdict",
   ["WATCH"] = "WATCH",

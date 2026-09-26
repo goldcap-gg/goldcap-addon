@@ -59,7 +59,7 @@ GC.Locales.itIT = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se più acquisti sono raggruppati su una riga, vengono rimossi tutti.",
   ["AH answered empty %ds ago"] = "la casa d'aste ha risposto vuota %ds fa",
-  ["AH value"] = "Valore d'asta",
+  ["AH value (cheapest lots skipped)"] = "Valore d'asta (lotti più economici esclusi)",
   ["AH, cheapest version"] = "Asta, versione più economica",
   ["ASKING"] = "RICHIESTO",
   ["AT MARKET"] = "A MERCATO",
@@ -489,7 +489,6 @@ GC.Locales.itIT = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
   ["VERDICT"] = "VERDETTO",
-  ["Vendor"] = "Venditore",
   ["Verdict"] = "Verdetto",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "IN ATTESA DELLA CASA D'ASTE %d",
   ["WATCH"] = "OSSERVA",

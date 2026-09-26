@@ -58,7 +58,7 @@ GC.Locales.ruRU = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Если несколько покупок свёрнуты в одну строку, удалятся они все.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
-  ["AH value"] = "Оценка на аукционе",
+  ["AH value (cheapest lots skipped)"] = "Оценка на аукционе (без самых дешёвых лотов)",
   ["AH, cheapest version"] = "Аукцион, самая дешёвая версия",
   ["ASKING"] = "ЗАПРОС",
   ["AT MARKET"] = "ПО РЫНКУ",
@@ -488,7 +488,6 @@ GC.Locales.ruRU = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Неизвестно» значит, что себестоимость заполнена не вся — допишите её через «Указать цену».",
   ["VERDICT"] = "ВЕРДИКТ",
-  ["Vendor"] = "Торговец",
   ["Verdict"] = "Вердикт",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "ЖДЁМ АУКЦИОН %d",
   ["WATCH"] = "СЛЕДИТЬ",

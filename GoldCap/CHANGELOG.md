@@ -22,6 +22,9 @@
   the row says so: your scan cannot tell how fast an item sells.
 - In the buy window, pressing Buy while you are still typing a quantity now shows the total for
   that quantity first; press Buy again to buy it.
+- In WoW: Forever, item tooltips no longer repeat the game's own sell price, show one listed
+  count rather than two while the auction house is open, and call the scan's figure "AH value
+  (cheapest lots skipped)".
 
 ## 0.15.1 (2026-09-24)
 

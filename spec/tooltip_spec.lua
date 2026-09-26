@@ -451,15 +451,28 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     for _, ln in ipairs(lines) do if pred(ln) then return ln end end
   end
 
-  it("names the scan's value, the vendor, the verdict and the scan's age", function()
+  it("names the scan's value honestly, leaves the vendor price to the game, and gives the verdict", function()
     local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
-    assert.equal("AH value", lines[1].label)
+    assert.equal("AH value (cheapest lots skipped)", lines[1].label)
     assert.equal(1000, lines[1].copper)
     assert.truthy(find(lines, function(l) return l.left == "Listed" and l.right == "4,060" end))
-    assert.truthy(find(lines, function(l) return l.label == "Vendor" and l.copper == 100 end))
+    assert.is_nil(find(lines, function(l) return l.label == "Vendor" end))
+    assert.is_nil(find(lines, function(l) return l.copper == 100 end))
     assert.truthy(find(lines, function(l) return l.kind == "verdict" and l.text == "Sell it on the AH" end))
     assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
-    assert.is_nil(find(lines, function(l) return l.kind == "hint" end))
+  end)
+
+  it("shows one listed count: the live one when the auction house is open", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 100, depositUnit = 50 },
+      live = { floor = 15, qty = 2313, age = 60 } })
+    assert.is_nil(find(lines, function(l) return l.left == "Listed" end))
+    assert.truthy(find(lines, function(l) return l.kind == "live" and l.copper == 15 end))
+  end)
+
+  it("still prints a retail item's depth beside a live line", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 123400, sold = 52, currentQty = 900, ts = 1000 }, 1000,
+      { live = { floor = 120000, qty = 880, age = 60 } })
+    assert.truthy(find(lines, function(l) return l.left == "Listed" end))
   end)
 
   it("labels gear by its cheapest version", function()

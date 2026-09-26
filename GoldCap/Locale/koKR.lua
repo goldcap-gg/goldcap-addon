@@ -61,7 +61,7 @@ GC.Locales.koKR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "여러 건의 구매가 한 줄로 합쳐져 있으면 그 전부가 삭제됩니다.",
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
-  ["AH value"] = "경매장 시세",
+  ["AH value (cheapest lots skipped)"] = "경매장 시세 (최저가 물량 제외)",
   ["AH, cheapest version"] = "경매장, 최저가 버전",
   ["ASKING"] = "호가",
   ["AT MARKET"] = "시장가",
@@ -458,7 +458,6 @@ GC.Locales.koKR = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
   ["VERDICT"] = "판정",
-  ["Vendor"] = "상인",
   ["Verdict"] = "판정",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "경매장 대기 중 %d",
   ["WATCH"] = "관찰",
