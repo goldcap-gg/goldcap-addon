@@ -161,6 +161,21 @@ describe("Variant drill", function()
     assert.equal(211111, driver.itemResult(159840).unitPrice)
   end)
 
+  -- An item search row is identical auctions grouped, and buyoutAmount is the price of ONE
+  -- (Blizzard's AuctionHouseItemSellFrame takes it as its per-unit price). Divided by the row's
+  -- quantity, 150 bags at 1,800g read as a 12g lot -- a deal on the board and a 12g floor in the
+  -- live observation (player report, EU-Draenor, 2026-09-26).
+  it("reads a grouped row's buyoutAmount as the price of one lot", function()
+    local GC = loadSniper()
+    results["240158:0:0:0"] = { { auctionID = 9, buyoutAmount = 18000000, quantity = 150,
+      itemKey = { itemID = 240158, itemLevel = 0 } } }
+    local driver = driverOf(GC)
+    driver.sendSearch(240158)
+    local res = driver.itemResult(240158)
+    assert.equal(18000000, res.unitPrice)
+    assert.equal(150, res.qty)
+  end)
+
   -- The floor the drill aims above is the one the decision it feeds will apply: a cap's own `l`
   -- (Core/Caps.lua's DecideRealm) ahead of the realm reference's refIlvl
   -- (GC.SniperDecision.EvaluateRealm).

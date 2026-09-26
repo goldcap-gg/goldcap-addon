@@ -783,8 +783,10 @@ local function quoteDriver()
     for i = 1, math.min(count or 0, cap) do
       local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
         or C_AuctionHouse.GetItemSearchResultInfo(itemKey, i)
-      local unit = info and (commodity and info.unitPrice
-        or (info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity)))
+      -- An item row groups identical auctions, and its buyoutAmount is what ONE of them costs --
+      -- Blizzard's own sell frame takes it as the unit price. Divided by the row's quantity, 150
+      -- bags at 1,800g read as 12g (player report, 2026-09-26).
+      local unit = info and (commodity and info.unitPrice or info.buyoutAmount)
       if unit and unit > 0 then
         levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
           ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
