@@ -488,22 +488,36 @@ describe("SniperDecision", function()
       assert.is_true(GC.SniperDecision.BuyLimits(config, result.needsGold - 1).budget < result.entryTotal)
     end
 
-    it("stays refused and names the gold the character must hold for it", function()
-      local funded = evaluate()
+    -- And the least gold for ANY buy the decision would make, not for the one it would make with
+    -- unlimited gold. Review 2026-09-27: needsGold was the wallet for the funded plan -- the most
+    -- profitable, so usually the largest, buy -- while one unit already passed every gate. The
+    -- row asked for 400,000g, stayed out of the background check and held its Buy until the
+    -- character had it, when 2,000g would have bought one.
+    local function assertLeastBuyingWallet(input, result)
+      local at = {}
+      for k, v in pairs(input) do at[k] = v end
+      at.walletCopper = result.needsGold
+      assert.is_true(evaluate(at).buyable)
+      at.walletCopper = result.needsGold - 1
+      assert.is_false(evaluate(at).buyable)
+    end
+
+    it("stays refused and names the least gold that buys anything", function()
       local input = broke()
       local result = evaluate(input)
 
       assert.equal("AVOID", result.status)
       assert.is_false(result.buyable)
       assert.same({ "capital_limit" }, result.reasons)
-      -- The plan itself, so the panel can show what the buy costs and brings back.
-      assert.equal(funded.quantity, result.quantity)
-      assert.equal(funded.entryTotal, result.entryTotal)
-      assert.equal(funded.stressProfit, result.stressProfit)
-      -- 20,000g of buy at the default 5% per-buy share: 400,000g on the character.
+      -- The plan that gold buys, so the panel can show what it costs and brings back: one unit
+      -- at 100g, not the 200 an unlimited wallet would take.
+      assert.equal(1, result.quantity)
+      assert.equal(1000000, result.entryTotal)
+      -- 100g of buy at the default 5% per-buy share: 2,000g on the character.
       assert.equal(0.05, result.walletShare)
-      assert.equal(4000000000, result.needsGold)
+      assert.equal(20000000, result.needsGold)
       assertLeastWallet(result, input.config)
+      assertLeastBuyingWallet(input, result)
     end)
 
     it("names the gold for the share the player set, not the default", function()
@@ -511,8 +525,18 @@ describe("SniperDecision", function()
       input.config.maxCapitalShare = 0.20
       local result = evaluate(input)
       assert.equal(0.20, result.walletShare)
-      assert.equal(1000000000, result.needsGold) -- 20,000g at 20%: 100,000g
+      assert.equal(5000000, result.needsGold) -- 100g at 20%: 500g
       assertLeastWallet(result, input.config)
+      assertLeastBuyingWallet(input, result)
+    end)
+
+    -- A wallet that already buys something is never short: the search starts above it.
+    it("names the least gold above what the character holds", function()
+      local input = validInput()
+      input.walletCopper = 19999999 -- one copper short of 2,000g
+      local result = evaluate(input)
+      assert.same({ "capital_limit" }, result.reasons)
+      assert.equal(20000000, result.needsGold)
     end)
 
     it("names nothing when another gate refuses as well", function()

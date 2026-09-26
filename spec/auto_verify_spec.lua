@@ -1186,12 +1186,13 @@ describe("Deals background verification", function()
       local api = realEngine(PASSING, function() return 0 end)
       checkInBackground(api)
 
-      -- 20,000g of buy at the default 5% per-buy share: the character needs 400,000g.
-      assert.equal(4000000000, api.verdicts[1].needsGold)
+      -- The least gold for any buy: one unit, 100g, at the default 5% per-buy share -- 2,000g,
+      -- not the 400,000g the 200 an unlimited wallet would take needs (review 2026-09-27).
+      assert.equal(20000000, api.verdicts[1].needsGold)
       assert.equal(1, #api.renderList())
       assert.equal(0, upvalue(api.renderList, "refusedCount"))
       api.refreshRows()
-      assert.equal("needs 400k", api.rows[1].tierChip.label)
+      assert.equal("needs 2000g", api.rows[1].tierChip.label)
       -- A deal it cannot buy is not news: no bell.
       assert.equal(0, #sounds)
     end)
