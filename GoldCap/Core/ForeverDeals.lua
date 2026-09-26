@@ -208,6 +208,12 @@ function GC.ForeverDeals.Due(now)
   return now < cache.waitUntil and now - cache.builtAt >= C.REBUILD_SECONDS
 end
 
+-- The board's rows. Rebuilt here only for a fold it has not built yet -- the scan that landed it
+-- repaints straight away (Core/ForeverScan.lua), so that rebuild runs in the scan's own execution.
+-- The rebuilds that pick up vendor prices as they load are GC.ForeverDeals.Refresh's, on the
+-- board's own clock (UI/SniperFrame.lua, OnAuctionHouseShow). Not in whatever render asks first:
+-- the deal tables this makes are what a Buy click reads, and a render also runs inside the
+-- auction house ticker, whose execution WoW: Forever's beta caught tainted (3c taint fix).
 function GC.ForeverDeals.Rows(now)
   now = now or time()
   local fold = currentFold()
@@ -215,8 +221,18 @@ function GC.ForeverDeals.Rows(now)
     cache.at, cache.rows, cache.byItem, cache.waitUntil = nil, {}, {}, 0
     return cache.rows
   end
-  if GC.ForeverDeals.Due(now) then rebuild(fold, now) end
+  if cache.at ~= fold.at then rebuild(fold, now) end
   return cache.rows
+end
+
+-- Rebuilds when due (a new fold, or vendor prices still loading). True when it did, so the caller
+-- repaints.
+function GC.ForeverDeals.Refresh(now)
+  now = now or time()
+  local fold = currentFold()
+  if not (fold and GC.ForeverDeals.Due(now)) then return false end
+  rebuild(fold, now)
+  return true
 end
 
 function GC.ForeverDeals.CeilingFor(itemID)

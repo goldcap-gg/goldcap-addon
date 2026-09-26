@@ -51,6 +51,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     local m = { exec = nil, calls = {} }
     local backing = setmetatable({}, { __mode = "k" })
     local marks = setmetatable({}, { __mode = "k" })
+    local fallbacks = setmetatable({}, { __mode = "k" })
     local meta = {
       __index = function(proxy, key)
         local taint = marks[proxy][key]
@@ -58,7 +59,9 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
           m.exec = taint
           m.via = tostring(key) -- the field this execution picked the taint up from
         end
-        return backing[proxy][key]
+        local value = backing[proxy][key]
+        if value == nil and fallbacks[proxy] then return fallbacks[proxy](proxy, key) end
+        return value
       end,
       __newindex = function(proxy, key, value)
         backing[proxy][key] = value
@@ -70,9 +73,11 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
 
     -- Puts `tbl`'s fields behind a watched proxy and returns the proxy: every reference that
     -- should be watched must be the proxy from here on.
-    function m.track(tbl)
+    -- `fallback(proxy, key)` answers a key the table does not hold (a frame's C-side methods),
+    -- untracked, the way a real frame's metatable does.
+    function m.track(tbl, fallback)
       local proxy = setmetatable({}, meta)
-      backing[proxy], marks[proxy] = tbl, {}
+      backing[proxy], marks[proxy], fallbacks[proxy] = tbl, {}, fallback
       return proxy
     end
 
@@ -141,15 +146,15 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       :format(name, tostring(seen.taint), tostring(seen.via)))
   end
 
-  -- A frame double: every Capitalised key is a no-op method unless named below, every other
-  -- key a plain field -- so `frame.autoBtn` reads nil until someone sets it, the way a real
-  -- frame table does.
+  -- A frame double, and every one of them watched by the model: every Capitalised key is a
+  -- no-op method unless named below, every other key a plain field -- so `frame.autoBtn` reads
+  -- nil until someone sets it, the way a real frame table does.
   local stubFrame
   local METHODS = {
-    SetScript = function(self, name, fn) rawget(self, "scripts")[name] = fn end,
-    GetScript = function(self, name) return rawget(self, "scripts")[name] end,
+    SetScript = function(self, name, fn) self.scripts[name] = fn end,
+    GetScript = function(self, name) return self.scripts[name] end,
     HookScript = function(self, name, fn)
-      local scripts = rawget(self, "scripts")
+      local scripts = self.scripts
       local prev = scripts[name]
       scripts[name] = function(...)
         if prev then prev(...) end
@@ -157,19 +162,19 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       end
     end,
     Show = function(self)
-      rawset(self, "shown", true)
-      local onShow = rawget(self, "scripts").OnShow
+      self.shown = true
+      local onShow = self.scripts.OnShow
       if onShow then onShow(self) end
     end,
     Hide = function(self)
-      rawset(self, "shown", false)
-      local onHide = rawget(self, "scripts").OnHide
+      self.shown = false
+      local onHide = self.scripts.OnHide
       if onHide then onHide(self) end
     end,
-    IsShown = function(self) return rawget(self, "shown") == true end,
-    IsVisible = function(self) return rawget(self, "shown") == true end,
-    SetText = function(self, text) rawset(self, "text", text) end,
-    GetText = function(self) return rawget(self, "text") or "" end,
+    IsShown = function(self) return self.shown == true end,
+    IsVisible = function(self) return self.shown == true end,
+    SetText = function(self, text) self.text = text end,
+    GetText = function(self) return self.text or "" end,
     GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
     IsEnabled = function() return true end,
     HasFocus = function() return false end,
@@ -192,24 +197,33 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     "Update", "Refresh", "Insert", "Highlight", "Unhighlight", "Resume", "Pause", "Restart" }
   local function noop() end
   local function zero() return 0 end
-  local frameMeta = {
-    __index = function(_, key)
-      if METHODS[key] then return METHODS[key] end
-      if ZERO[key] then return zero end
-      if type(key) ~= "string" then return nil end
-      for _, verb in ipairs(VERBS) do
-        if key:sub(1, #verb) == verb then return noop end
-      end
-      return nil
-    end,
-  }
+  local function frameMethod(_, key)
+    if METHODS[key] then return METHODS[key] end
+    if ZERO[key] then return zero end
+    if type(key) ~= "string" then return nil end
+    for _, verb in ipairs(VERBS) do
+      if key:sub(1, #verb) == verb then return noop end
+    end
+    return nil
+  end
   stubFrame = function()
-    return setmetatable({ scripts = {}, shown = false }, frameMeta)
+    return model.track({ scripts = {}, shown = false }, frameMethod)
   end
 
-  local GC, frame, tick
+  -- The clocks OnAuctionHouseShow starts, in the order it starts them: the auction house ticker
+  -- (`tick`, the one the beta's log caught tainted), then the purchase clock and, in WoW: Forever,
+  -- the board clock (`tickers.purchase`, `tickers.board`; absent before the round 1 fix).
+  local GC, frame, tick, tickers
 
-  local function loadForever()
+  -- One quarter-second of every clock: the auction house ticker first, under `taint` if given,
+  -- then the others, each its own clean execution as the client runs them.
+  local function quarterSecond(taint)
+    if taint then model.taintedEntry(taint, tick) else model.entry(tick) end
+    if tickers.purchase then model.entry(tickers.purchase) end
+    if tickers.board then model.entry(tickers.board) end
+  end
+
+  local function loadClient(retail)
     model = newModel()
     local frames = {}
     _G.CreateFrame = function(_, name)
@@ -218,7 +232,8 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       if name and name ~= "" then _G[name] = f end
       return f
     end
-    _G.GetBuildInfo = function() return "1.60.1", "70009", "Sep 1 2026", 16001 end
+    _G.GetBuildInfo = retail and function() return "12.0.7", "64000", "Sep 1 2026", 120007 end
+      or function() return "1.60.1", "70009", "Sep 1 2026", 16001 end
     _G.UISpecialFrames = {}
     _G.SlashCmdList = {}
     _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
@@ -261,7 +276,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     }
 
     GC = {}
-    local toc = assert(io.open("GoldCap/GoldCap_Camelot.toc", "r"))
+    local toc = assert(io.open(retail and "GoldCap/GoldCap.toc" or "GoldCap/GoldCap_Camelot.toc", "r"))
     for rawLine in toc:lines() do
       local line = rawLine:gsub("%s+$", "")
       if line ~= "" and not line:match("^##") and not line:match("^#") then
@@ -272,6 +287,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     end
     toc:close()
 
+    GC.Print = function() end -- chat lines are not what this is about
     -- ADDON_LOADED, as the client fires it: builds GC.db from GoldCapDB.
     for _, f in ipairs(frames) do
       local onEvent = f.scripts.OnEvent
@@ -283,22 +299,21 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     frame = _G.GoldCapSniperFrame
     assert(frame and frame.verifyBtn, "no Deals window was built")
     GC.Sniper.OnAuctionHouseShow()
-    assert.equal(1, #ticks, "OnAuctionHouseShow did not start the auction house ticker")
+    assert.is_true(#ticks >= 1, "OnAuctionHouseShow did not start the auction house ticker")
     tick = ticks[1]
+    tickers = { purchase = ticks[2], board = ticks[3] }
 
-    -- Watched from here on: the tables the ticker and the clicks share.
+    -- Watched from here on, beside every frame: the tables the ticker and the clicks share.
     GC.Sniper = model.track(GC.Sniper)
     GC.Buy = model.track(GC.Buy)
-    frame.autoBtn = model.track(frame.autoBtn)
-    frame.fullScanBtn = model.track(frame.fullScanBtn)
-    frame.verifyBtn = model.track(frame.verifyBtn)
-    for id, chip in pairs(frame.boardChips or {}) do frame.boardChips[id] = model.track(chip) end
     model.trackState(GC.PurchaseSlot, { "Claim", "Release", "Owner", "IsBusy" }, { "Claim", "Release" })
     for _, name in ipairs({ "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase", "PlaceBid" }) do
       model.protect(_G.C_AuctionHouse, name)
     end
     return GC
   end
+
+  local function loadForever() return loadClient(false) end
 
   after_each(function()
     for _, name in ipairs({ "CreateFrame", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
@@ -448,7 +463,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     it("Start (StartCommoditiesPurchase)", function()
       local _, _, click = armedCommodity()
       seedTheLoggedField()
-      model.entry(tick)
+      quarterSecond()
       model.entry(click)
       assertCalledClean("StartCommoditiesPurchase")
     end)
@@ -459,7 +474,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       model.entry(GC.Sniper.OnCommodityPriceUpdated, 11, 610)
       assert.equal("confirm", row.purchaseStage)
       seedTheLoggedField()
-      model.entry(tick)
+      quarterSecond()
       model.entry(click)
       assertCalledClean("ConfirmCommoditiesPurchase")
     end)
@@ -467,9 +482,116 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     it("PlaceBid", function()
       local _, _, click = armedLot()
       seedTheLoggedField()
-      model.entry(tick)
+      quarterSecond()
       model.entry(click)
       assertCalledClean("PlaceBid")
+    end)
+  end)
+
+  -- Review F1 (round 1): a ticker that is not quiet. On Forever the Deals board is rebuilt while
+  -- vendor prices load, and a caps stop-and-open opens the buy window by itself; both wrote,
+  -- from inside the ticker, the row, the deal and the window a Buy click reads first. Driven here
+  -- through the real board, the real row click, the real buy window and its real Buy button.
+  describe("a ticker tainted from its first line, and busy", function()
+    local LINEN = 2589
+
+    -- Reads the spec makes itself are not an execution of the addon's: forget what they touched.
+    local function look(fn)
+      local value = fn()
+      model.exec, model.via = nil, nil
+      return value
+    end
+
+    local function foreverBoard()
+      loadForever()
+      local vendor
+      local fold = { at = 5000, items = { [LINEN] = "8,355,5,;0x5 1x10 3x40 1x100 2x200" } }
+      GC.ForeverScan.Enabled = function() return true end
+      GC.ForeverScan.Fold = function() return fold end
+      GC.ForeverValue.VendorUnit = function() return vendor end
+      GC.ForeverValue.DepositUnit = function() return nil end
+      GC.db.commodityByItem = GC.db.commodityByItem or {}
+      GC.db.commodityByItem[LINEN] = true
+      _G.C_Item = { RequestLoadItemDataByID = function() end }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+        isReady = function() return true end,
+        claimSend = function() return true end,
+        getKeyInfo = function() return { isCommodity = true } end,
+        sendSearch = function() end,
+        commodityBook = function() return BOOK end,
+        commodityResult = function() return { avail = 1 } end,
+        itemResult = function() return {} end,
+        itemLots = function() return {} end,
+        onStatus = function() end,
+      })
+      model.entry(GC.Sniper.OnForeverFold) -- the scan's own repaint: no vendor price yet, no row
+      vendor = 13 -- the client has loaded it since, and a rebuild is due
+      _G.time = function() return 100010 end
+      return GC
+    end
+
+    local function boardRow()
+      return look(function()
+        local refreshRows = upvalue(upvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals"), "refreshRows")
+        for _, row in ipairs(upvalue(refreshRows, "rows")) do
+          if row.deal and row.deal.itemID == LINEN then return row end
+        end
+      end)
+    end
+
+    local function onBuyClick()
+      local refreshRows = upvalue(upvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals"), "refreshRows")
+      return upvalue(upvalue(upvalue(refreshRows, "createRow"), "buildRowCell"), "onBuyClick")
+    end
+
+    -- The Check's answer (an event: a background check's search still out for the same item
+    -- answers first, then the window's own), then the buy window's own Buy button.
+    local function checkAndBuy()
+      local d = look(function() return upvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog") end)
+      for _ = 1, 6 do
+        local stage = look(function() return d.row.purchaseStage end)
+        if stage == "ready" then break end
+        model.entry(GC.Sniper.OnCommoditySearchResults, LINEN) -- whichever search is out answers
+        if look(function() return d.row.purchaseStage end) == "check" then
+          -- Held behind the background check's search: the player presses Check again.
+          model.entry(look(function() return d.primaryBtn.scripts.OnClick end), d.primaryBtn)
+        end
+        quarterSecond() -- a clean quarter: a parked send goes out
+      end
+      assert.equal("ready", look(function() return d.row.purchaseStage end))
+      model.entry(look(function() return d.primaryBtn.scripts.OnClick end), d.primaryBtn)
+      assertCalledClean("StartCommoditiesPurchase")
+    end
+
+    it("while vendor prices load and the board is rebuilt: row click, Check, Buy", function()
+      foreverBoard()
+      quarterSecond("the ticker")
+      -- A minute on, with the row on the board: the tainted ticker's background check walks it.
+      _G.GetTime = function() return 160 end
+      quarterSecond("the ticker")
+      local row = boardRow()
+      assert.is_not_nil(row, "the board never listed the Below vendor row")
+      model.entry(onBuyClick(), row)
+      checkAndBuy()
+    end)
+
+    it("with a caps stop-and-open waiting: the window opens itself, Check, Buy", function()
+      foreverBoard()
+      quarterSecond() -- the board lists the row
+      local row = boardRow()
+      assert.is_not_nil(row)
+      look(function()
+        GC.db.settings.sniper.capStopAndOpen = true
+        GC.Caps.IsNews = function() return true end
+        GC.Caps.Announce = function() return true end
+        GC.Sniper._BoardCapRow = function(deal) return deal end
+        GC.Sniper._RowOnScreen = function() return true end
+        GC.Sniper._QueueCapPing(row.deal)
+      end)
+      quarterSecond("the ticker") -- the open
+      local d = look(function() return upvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog") end)
+      assert.is_not_nil(d, "stop-and-open opened no window")
+      checkAndBuy()
     end)
   end)
 
@@ -502,6 +624,59 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     end)
   end)
 
+  -- Round 1: the auction house ticker keeps nothing that writes a Buy click's state. Pinned at
+  -- the source as well as by the runs above, since a line added back to its body is all it takes.
+  describe("the clocks", function()
+    local function body(src, head)
+      local start = assert(src:find(head, 1, true), head)
+      -- Comments blanked: only code counts.
+      return (src:sub(start, src:find("\n  end)\n", start, true)):gsub("%-%-[^\n]*", ""))
+    end
+
+    it("keeps the board, the purchase path and BUY's lines off the auction house ticker", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = f:read("*a")
+      f:close()
+      local tickBody = body(src, "autoScanTicker = autoScanTicker or C_Timer.NewTicker(")
+      for _, name in ipairs({ "_TickCapPings", "_TickOwedHold", "_TickConfirmCountdown", "TickCountdown",
+        "OnForeverFold", "ForeverDeals", "RefreshIfShown", "refreshRows" }) do
+        assert.is_nil(tickBody:find(name, 1, true), name .. " is back on the auction house ticker")
+      end
+      local purchaseBody = body(src, "GC.Sniper._purchaseTicker = GC.Sniper._purchaseTicker or C_Timer.NewTicker(")
+      for _, name in ipairs({ "GC.Sniper._TickCapPings()", "GC.Sniper._TickOwedHold()",
+        "GC.Sniper._TickConfirmCountdown()", "GC.Buy.TickCountdown()" }) do
+        assert.is_truthy(purchaseBody:find(name, 1, true), name .. " left the purchase clock")
+      end
+    end)
+
+    it("starts the board clock in WoW: Forever only", function()
+      loadForever()
+      assert.is_function(tickers.purchase)
+      assert.is_function(tickers.board)
+    end)
+
+    -- One build serves both games: retail keeps the purchase clock (caps stop-and-open, the BUY
+    -- hand-off, both countdowns -- the same work at the same cadence) and has no board clock.
+    it("on retail: the purchase clock, and no board clock", function()
+      loadClient(true)
+      assert.is_function(tickers.purchase)
+      assert.is_nil(tickers.board)
+    end)
+
+    -- A render no longer paints the toolbar (refreshRows); the ticker does, every tick, and the
+    -- HIDDEN toggle's own click repaints at once.
+    it("on retail: the ticker paints HIDDEN and the board chips, the toggle repaints at once", function()
+      loadClient(true)
+      frame.verifyBtn.label = "stale"
+      frame.boardChips.items.label = "stale"
+      quarterSecond()
+      assert.equal("HIDDEN 0", frame.verifyBtn.label)
+      assert.equal("ITEMS", frame.boardChips.items.label)
+      frame.verifyBtn.scripts.OnClick()
+      assert.equal("REFUSED 0", frame.verifyBtn.label)
+    end)
+  end)
+
   -- The BUY tab's Start/Confirm click (UI/BuyFrame.lua onBuyClick) asks owedElsewhere before its
   -- protected call; the ticker asks the same questions four times a second.
   describe("the BUY tab's purchase guard", function()
@@ -514,7 +689,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     it("reads nothing a tainted ticker wrote", function()
       loadForever()
       local guard = owedElsewhere()
-      model.taintedEntry("the ticker", tick)
+      quarterSecond("the ticker")
       assert.is_nil(model.entry(guard))
     end)
 
@@ -522,7 +697,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       loadForever()
       local guard = owedElsewhere()
       seedTheLoggedField()
-      model.entry(tick)
+      quarterSecond()
       assert.is_nil(model.entry(guard))
     end)
   end)
@@ -553,7 +728,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
   describe("a ticker tainted from its first line", function()
     it("Start (StartCommoditiesPurchase)", function()
       local _, _, click = armedCommodity()
-      model.taintedEntry("the ticker", tick)
+      quarterSecond("the ticker")
       model.entry(click)
       assertCalledClean("StartCommoditiesPurchase")
     end)
@@ -563,14 +738,14 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       model.entry(click) -- Start
       model.entry(GC.Sniper.OnCommodityPriceUpdated, 11, 610)
       assert.equal("confirm", row.purchaseStage)
-      model.taintedEntry("the ticker", tick)
+      quarterSecond("the ticker")
       model.entry(click)
       assertCalledClean("ConfirmCommoditiesPurchase")
     end)
 
     it("PlaceBid", function()
       local _, _, click = armedLot()
-      model.taintedEntry("the ticker", tick)
+      quarterSecond("the ticker")
       model.entry(click)
       assertCalledClean("PlaceBid")
     end)

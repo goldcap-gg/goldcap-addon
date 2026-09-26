@@ -236,6 +236,7 @@ describe("ForeverDeals", function()
     it("answers nothing on retail", function()
       GC.ForeverScan.Enabled = function() return false end
       vendor[2589] = 13
+      assert.is_false(D.Refresh(clock))
       assert.same({}, D.Rows(clock))
       assert.is_nil(D.CeilingFor(2589))
     end)
@@ -248,14 +249,19 @@ describe("ForeverDeals", function()
       assert.equal(1, #requests)           -- cached: no second request, no rebuild
       vendor[2589] = 13
       assert.is_true(D.Due(clock + 5))
+      -- A render does not rebuild for a vendor price (it may run in the auction house ticker);
+      -- the board's own clock does, through Refresh.
+      assert.equal(0, #D.Rows(clock + 5))
+      assert.is_true(D.Refresh(clock + 5))
       assert.equal(1, #D.Rows(clock + 5))
       assert.equal(1, #requests)
+      assert.is_false(D.Refresh(clock + 6)) -- nothing left to wait for
     end)
 
     it("stops rebuilding for an item whose vendor price never comes", function()
       D.Rows(clock)
       assert.is_true(D.Due(clock + 5))
-      D.Rows(clock + 5)
+      assert.is_true(D.Refresh(clock + 5))
       assert.is_true(D.Due(clock + 10))
       assert.is_false(D.Due(clock + 40))   -- asked 40 s ago: treated as no vendor price
     end)

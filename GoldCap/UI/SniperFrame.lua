@@ -1593,17 +1593,14 @@ local function refreshRows()
   end
 
   content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
-  -- renderList() just recomputed refusedCount for exactly this list -- publish it in the same
-  -- breath, so the number beside the list can never describe a different render than the one
-  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.) The empty-state
-  -- panel is driven from the same spot for the same reason: it describes THIS render.
+  -- The empty-state panel describes THIS render, so it is driven from here.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   GC.Sniper._PaintGoldLine(list)
-  if refreshVerifyButton then refreshVerifyButton() end
-  -- Same breath, same reason: the Items chip carries a count of a store this render did not
-  -- read (the player is on Commodities most of the time), so it is re-derived here rather
-  -- than at each of the half-dozen places a realm row can appear or leave.
-  GC.Sniper._PaintBoardChips()
+  -- The toolbar's HIDDEN count and board chips are NOT painted here any more (WoW: Forever, 3c
+  -- taint fix, round 1): a render runs inside the row click, the Check's answer and the board
+  -- rebuild -- every execution a Buy click's state comes from -- and a paint reads the buttons
+  -- it paints. The auction house ticker paints both, last in its tick, a quarter of a second on;
+  -- renderList has already published refusedCount for it.
 
   -- Live price caps, addon task 6: the row-painting loop above has just stamped `row.deal` for
   -- this render, so a cap row queued earlier this call chain (GC.Sniper._QueueCapPing, from
@@ -1614,7 +1611,8 @@ local function refreshRows()
 end
 
 -- WoW: Forever: a fold landed (Core/ForeverScan.lua), or the vendor prices a row was waiting on
--- have loaded (GC.ForeverDeals.Due): the board reads GC.ForeverDeals.Rows, so it repaints.
+-- have loaded (GC.ForeverDeals.Refresh, on the board clock in OnAuctionHouseShow): the board
+-- reads GC.ForeverDeals.Rows, so it repaints.
 function GC.Sniper.OnForeverFold()
   if frame then refreshRows() end
 end
@@ -10881,7 +10879,8 @@ local function createFrame()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     if not cfg then return end
     cfg.showRefused = not showRefused()
-    refreshRows() -- re-renders and, through it, re-labels this button
+    refreshRows()
+    refreshVerifyButton() -- a render no longer paints the toolbar (see refreshRows)
   end)
   -- A live tooltip rather than setPlainTooltip's fixed text. "It seems to work sometimes" is
   -- not a report anyone can act on, and the walk is invisible by nature -- so it says what it
@@ -11521,7 +11520,6 @@ function GC.Sniper.OnAuctionHouseShow()
   -- click that was then blocked. Nothing written after a repaint can carry what a repaint read.
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
-    if GC.ForeverDeals and GC.ForeverDeals.Due and GC.ForeverDeals.Due(time()) then GC.Sniper.OnForeverFold() end
     -- Background verification rides the same clock, for the same reason the toolbar buttons do
     -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()
@@ -11548,25 +11546,46 @@ function GC.Sniper.OnAuctionHouseShow()
       GC.Sniper._keysPokeAt = now
       GC.Sniper._TickKeys()
     end
-    -- And a "your price" ring or open still waiting for its row (caps fixes 3e): a row can come
-    -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
-    -- notice, and every stop-and-open comes from here.
-    GC.Sniper._TickCapPings()
-    -- And the edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
-    -- landed, failed or given up (fix rounds 2-3): BUY's terminal paths hand nothing to this
-    -- window, so every armed window is handed Refresh from here.
-    GC.Sniper._TickOwedHold()
-    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2).
-    GC.Sniper._TickConfirmCountdown()
-    if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
     -- The repaints, last (see above). Auto and Scan read the machine the tick just drove; the
     -- session readout rides the same clock so a path that changes GC.Sniper.session cannot
-    -- leave it stale.
+    -- leave it stale; HIDDEN and the board chips are painted here rather than by every render
+    -- (see refreshRows).
     refreshAutoButton()
     refreshScanButton()
     refreshVerifyButton()
+    GC.Sniper._PaintBoardChips()
     refreshSessionText()
   end)
+  -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
+  -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and
+  -- starts clean in the client; the tick above reads the widest set of fields in the addon --
+  -- the Auto machine first, which Blizzard's own AuctionHouseFrame:SetDisplayMode hook feeds, the
+  -- verify walk, the scan pass, the toolbar -- and the beta's log caught exactly that execution
+  -- tainted. What it wrote, the Buy click read, and the Buy was blocked. The purchase clock reads
+  -- only the purchase path's own state; the board clock only the scan's fold.
+  GC.Sniper._purchaseTicker = GC.Sniper._purchaseTicker or C_Timer.NewTicker(0.25, function()
+    -- A "your price" ring or open still waiting for its row (caps fixes 3e): a row can come on
+    -- screen, a dialog close or the player stop using Blizzard's panes with no render to notice,
+    -- and every stop-and-open comes from here -- an open writes the buy window's row.
+    GC.Sniper._TickCapPings()
+    -- The edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
+    -- landed, failed or given up (fix rounds 2-3): BUY's terminal paths hand nothing to this
+    -- window, so every armed window is handed Refresh from here.
+    GC.Sniper._TickOwedHold()
+    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2). BUY's
+    -- repaints its lines, which its Buy/Confirm click reads.
+    GC.Sniper._TickConfirmCountdown()
+    if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
+  end)
+  -- WoW: Forever: the vendor prices a Deals row waits on load after the fold did, and each one
+  -- that lands is a new row (GC.ForeverDeals.Refresh). The rebuild makes the deal tables the Buy
+  -- click reads, and the render writes them onto the rows the player clicks. A fold landing
+  -- repaints from the scan itself (Core/ForeverScan.lua). Nothing on retail: no fold.
+  if isForever() and GC.ForeverDeals and GC.ForeverDeals.Refresh then
+    GC.Sniper._boardTicker = GC.Sniper._boardTicker or C_Timer.NewTicker(0.25, function()
+      if GC.ForeverDeals.Refresh(time()) then GC.Sniper.OnForeverFold() end
+    end)
+  end
   feedAuto("ahOpened")
   GC.Sniper._ClearStaleMailPause()
   if GC.db.settings.sniper.auto then
@@ -11639,6 +11658,12 @@ function GC.Sniper.OnAuctionHouseClosed()
   if autoScanTicker then
     autoScanTicker:Cancel()
     autoScanTicker = nil
+  end
+  for _, key in ipairs({ "_purchaseTicker", "_boardTicker" }) do
+    if GC.Sniper[key] then
+      GC.Sniper[key]:Cancel()
+      GC.Sniper[key] = nil
+    end
   end
   feedAuto("ahClosed")
   -- Defensive: Blizzard's search EditBox isn't guaranteed to fire OnEditFocusLost as part of
