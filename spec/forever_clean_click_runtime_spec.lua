@@ -440,7 +440,7 @@ describe("Clean click ordering, driven end to end", function()
       error("missing upvalue " .. wanted)
     end
 
-    local books, money, cancels, confirms
+    local books, money, cancels, confirms, saved
 
     local function loadSniper()
       books, money, cancels, confirms = {}, 10000000000, 0, 0
@@ -501,7 +501,7 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/Caps.lua", GC)
       helper.loadModule("Core/Ledger.lua", GC)
       helper.loadModule("Core/Acquisitions.lua", GC)
-      local saved = {}
+      saved = {}
       GC.Ledger.Init(saved)
       GC.Acquisitions.Init(saved)
       helper.loadModule("UI/SniperFrame.lua", GC)
@@ -622,11 +622,11 @@ describe("Clean click ordering, driven end to end", function()
     local FOREVER_BOOK = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
       { unitPrice = 12, quantity = 40 }, { unitPrice = 13, quantity = 100 } }
 
-    local function foreverCeiling(GC, itemID, ceilingUnit, exitUnit)
+    local function foreverCeiling(GC, itemID, ceilingUnit, exitUnit, kind)
       helper.loadModule("Core/ForeverDeals.lua", GC)
       GC.ForeverDeals.CeilingFor = function(id)
         if id ~= itemID then return nil end
-        return { ceilingUnit = ceilingUnit, kind = "vendor", exitUnit = exitUnit, minimumProfit = 20 }
+        return { ceilingUnit = ceilingUnit, kind = kind or "vendor", exitUnit = exitUnit, minimumProfit = 20 }
       end
       GC.ForeverDeals.Drop = function(id) GC._dropped = id end
     end
@@ -634,6 +634,26 @@ describe("Clean click ordering, driven end to end", function()
     local function foreverDeal(itemID, isCommodity)
       return { itemID = itemID, isCommodity = isCommodity, forever = "vendor", ceiling = 12, refUnit = 13,
         unitPrice = 8, qty = 55, capTotal = 610, profit = 105, estProfit = 105, stale = true }
+    end
+
+    -- The check panel's own words (drawVerdict): the tone word, the figure's caption and the
+    -- sentence under it, recorded on a buy window that has those slots.
+    local function panelDialog(row, deal)
+      local d = fakeDialog(row, deal)
+      d.verdictLabel, d.verdictAmount, d.verdictAmountNote = recorder(), recorder(), recorder()
+      return d
+    end
+
+    -- None of the retail answers may speak for a Forever row: they are about a market engine's
+    -- resale estimate or a region reference, and a Forever row has neither.
+    local function assertNoRetailWords(d)
+      for _, text in ipairs({ d.verdictLabel.text, d.verdictAmountNote.text, d.verdictHead.text }) do
+        assert.is_nil(text:find("worst case", 1, true), text)
+        assert.is_nil(text:find("selling all", 1, true), text)
+        assert.is_nil(text:find("Your call", 1, true), text)
+        assert.is_nil(text:find("region", 1, true), text)
+        assert.is_nil(text:find("if it sells", 1, true), text)
+      end
     end
 
     after_each(function()
@@ -726,6 +746,126 @@ describe("Clean click ordering, driven end to end", function()
       log = {}
       click()
       assertCleanCall("PlaceBid")
+    end)
+
+    it("the check panel says a Below vendor commodity in its own words", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = panelDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      armReadyFn(GC)(row, deal, live.decision, FOREVER_BOOK)
+      assert.equal("Below vendor", d.verdictLabel.text)
+      assert.equal("+" .. GC.Util.FormatMoney(105), d.verdictAmount.text)
+      assert.equal(("sure profit: a vendor pays %s each"):format(GC.Util.FormatMoney(13)), d.verdictAmountNote.text)
+      assert.equal("Checked against the live auction house a moment ago.", d.verdictHead.text)
+      assertNoRetailWords(d)
+    end)
+
+    it("the check panel says a Below vendor lot in its own words, not \"Your call\"", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      local decision = GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = { { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 } },
+        minimumProfit = 20 })
+      local deal = foreverDeal(42, false)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = panelDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      assert.equal("Below vendor", d.verdictLabel.text)
+      assert.equal("+" .. GC.Util.FormatMoney(40), d.verdictAmount.text)
+      assert.equal(("sure profit: a vendor pays %s each"):format(GC.Util.FormatMoney(100)), d.verdictAmountNote.text)
+      assertNoRetailWords(d)
+    end)
+
+    it("the check panel says an Under market commodity is a resale at the scan's median, speed unknown", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 20, "market")
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      local deal = foreverDeal(42, true)
+      deal.forever, deal.refUnit = "market", 20
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = panelDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      armReadyFn(GC)(row, deal, live.decision, FOREVER_BOOK)
+      assert.equal("Under market", d.verdictLabel.text)
+      -- 55 units resold at 20c: 1,100c, less the 55c cut, the 0c deposit and the 610c paid.
+      assert.equal("+" .. GC.Util.FormatMoney(435), d.verdictAmount.text)
+      assert.equal(("resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown")
+        :format(GC.Util.FormatMoney(20)), d.verdictAmountNote.text)
+      assertNoRetailWords(d)
+    end)
+
+    -- How a Forever buy is recorded (purchaseFacts): in the evidence-free shape a YOUR PRICE buy
+    -- has (`cap = true`: no engine decision, stress exit or region reference to keep), at what it
+    -- cost, with the profit its own ceiling decision worked out -- the ledger's kind "buy" row,
+    -- the acquisition batch the Sell tab's cost basis comes from, and the session's estimate.
+    local function assertForeverRecord(GC, quantity, total, profit)
+      local entry = saved.ledger[#saved.ledger]
+      assert.is_table(entry)
+      assert.equal("buy", entry.kind)
+      assert.equal("goldcap_sniper", entry.source)
+      assert.is_true(entry.cap)
+      assert.is_nil(entry.decisionVersion)
+      assert.equal(42, entry.itemID)
+      assert.equal(quantity, entry.qty)
+      assert.equal(total, entry.total)
+      -- The cost basis the Sell tab reads: what was paid for how many, and no resale target
+      -- (no stress exit was measured).
+      local batch = saved.acquisitions[#saved.acquisitions]
+      assert.equal("goldcap", batch.source)
+      assert.equal(quantity, batch.originalQty)
+      assert.equal(total, batch.originalTotal)
+      assert.is_nil(batch.targetUnit)
+      assert.equal(1, GC.Sniper.session.buys)
+      assert.equal(total, GC.Sniper.session.spent)
+      assert.equal(profit, GC.Sniper.session.estProfit)
+    end
+
+    it("records a Forever commodity buy at its quote, with the ceiling decision's profit", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseToken = 1 }
+      armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      local click = clickHandler(GC)
+      click() -- Start
+      GC.Sniper.OnCommodityPriceUpdated(11, 610)
+      click() -- Confirm
+      assert.equal(1, confirms)
+      local facts = getUpvalue(GC.Sniper.OnPurchaseCompleted, "purchaseFacts")(deal, row.quoteSnapshot)
+      assert.same({ itemID = 42, quantity = 55, total = 610, unitDisplay = 11, cap = true,
+        expectedProfit = 105 }, facts)
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+      assertForeverRecord(GC, 55, 610, 105)
+      assert.equal(42, GC._dropped) -- and the lead leaves the board
+    end)
+
+    it("records a Forever lot at its buyout, with what the vendor pays over it", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      local decision = GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = { { auctionID = 9, buyout = 180, quantity = 3, itemLevel = 18 } },
+        minimumProfit = 20 })
+      local deal = foreverDeal(42, false)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", fakeDialog(row, deal))
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      clickHandler(GC)() -- PlaceBid
+      local facts = getUpvalue(GC.Sniper.OnPurchaseCompleted, "purchaseFacts")(deal,
+        { itemID = 42, quantity = 3, total = 180, decision = decision })
+      -- A stack of 3 at 60c each, which a vendor takes at 100c each: 120c.
+      assert.same({ itemID = 42, quantity = 3, total = 180, unitDisplay = 60, cap = true,
+        expectedProfit = 120 }, facts)
+      GC.Sniper.OnPurchaseCompleted(9)
+      assertForeverRecord(GC, 3, 180, 120)
     end)
 
     it("takes a Forever row down when its Check finds the listing gone", function()

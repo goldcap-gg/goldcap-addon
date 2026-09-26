@@ -487,6 +487,12 @@ GC.Locales.zhTW = {
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的價格",
   ["a unit, at or under your price of %s"] = "單價，不高於你的價格 %s",
+  ["sure profit: a vendor pays %s each"] =
+    "穩賺：商人每件收購 %s",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "按你掃描的中位價每件 %s 轉售，扣除 5%% 手續費和押金；速度未知",
+  ["Checked against the live auction house a moment ago."] =
+    "剛剛已對照即時拍賣場核對。",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "高於最低價，處於低價四分位內 · 前面有 %s 件",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

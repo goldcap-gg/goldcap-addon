@@ -499,6 +499,12 @@ GC.Locales.koKR = {
   ["Your minimum"] = "내 최소 기준",
   ["Your price"] = "내 가격",
   ["a unit, at or under your price of %s"] = "개당 가격, 내 가격 %s 이하",
+  ["sure profit: a vendor pays %s each"] =
+    "확실한 이익: 상인이 개당 %s 지급",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "스캔 중앙값 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
+  ["Checked against the live auction house a moment ago."] =
+    "방금 실시간 경매장과 대조했습니다.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "최저가보다 높게, 저가 구간 안 · 앞에 %s개",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

@@ -636,6 +636,12 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
+  ["sure profit: a vendor pays %s each"] =
+    "sure profit: a vendor pays %s each",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
+  ["Checked against the live auction house a moment ago."] =
+    "Checked against the live auction house a moment ago.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["alert group · %d hits"] = "alert group · %d hits",

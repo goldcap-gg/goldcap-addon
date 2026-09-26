@@ -533,6 +533,12 @@ GC.Locales.deDE = {
   ["Your minimum"] = "Dein Minimum",
   ["Your price"] = "Dein Preis",
   ["a unit, at or under your price of %s"] = "pro Stück, zu oder unter deinem Preis von %s",
+  ["sure profit: a vendor pays %s each"] =
+    "sicherer Gewinn: ein Händler zahlt %s pro Stück",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "Wiederverkauf zum Scan-Median, %s pro Stück, abzgl. 5%% Provision und Gebühr; Tempo unbekannt",
+  ["Checked against the live auction house a moment ago."] =
+    "Eben mit dem Live-Auktionshaus abgeglichen.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "über dem Günstigsten, im günstigen Viertel · %s Einheiten vor dir",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

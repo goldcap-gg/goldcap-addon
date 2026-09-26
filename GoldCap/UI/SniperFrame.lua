@@ -1895,7 +1895,8 @@ end
 -- applies to its smallest buy, one unit at the row's price). A realm lot on the Items board is
 -- held to the wallet itself -- the realm arm's `total > GetMoney()` and PlaceBid, nothing else --
 -- and a YOUR PRICE lot to the share as well, as the realm arm holds `capLot`. The lot's total is
--- the row's own Total column.
+-- the row's own Total column. A WoW: Forever row, on either board, is held to the Forever limits
+-- (GC.ForeverDeals.BuyLimits), as its Check and the realm arm's `ceilingLot` are.
 --
 -- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
 -- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
@@ -1916,12 +1917,19 @@ function GC.Sniper._PaintGoldLine(list)
       local deal = list[i]
       if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
         candidates = candidates + 1
+        -- A WoW: Forever row is held to the Forever limits its own buy keeps to
+        -- (GC.ForeverDeals.BuyLimits: half the wallet for "Below vendor" at the default share).
+        local rowLimits = limits
+        if deal.forever and GC.ForeverDeals and GC.ForeverDeals.BuyLimits then
+          rowLimits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, wallet, deal.forever)
+        end
         local fits
         if items then
           local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
-          fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+          fits = total <= wallet and (not (deal.cap or deal.forever)
+            or (rowLimits ~= nil and total <= rowLimits.budget))
         else
-          fits = limits ~= nil and deal.unitPrice <= limits.budget
+          fits = rowLimits ~= nil and deal.unitPrice <= rowLimits.budget
         end
         if fits then buyable = true; break end
       end
@@ -4263,11 +4271,13 @@ end
 -- never fail because a cosmetic slot is missing.
 local function drawVerdict(deal, decision, market)
   local CV = GC.CheckVerdict
-  local verdict = CV.Build(decision, market, { tier = deal.tier })
+  -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption.
+  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever })
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" or tone == "unverified" or tone == "cap" or tone == "gold" then
+  elseif tone == "adjust" or tone == "unverified" or tone == "cap" or tone == "gold"
+      or tone == "market" then
     accent = Theme.color.gold
   end
 
@@ -4298,6 +4308,14 @@ local function drawVerdict(deal, decision, market)
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = up and Theme.color.green or Theme.color.red
     caption = GC.L[CV.HERO_CAPTION.reference]
+  elseif hero.kind == "forever" then
+    -- WoW: Forever: what the buy makes, captioned by what it is measured against -- the
+    -- vendor's exact price, or the scan's median and an unknown resale speed.
+    local up = hero.copper >= 0
+    figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
+    figureColor = up and Theme.color.green or Theme.color.red
+    caption = (GC.L[CV.HERO_CAPTION[hero.forever == "market" and "market" or "vendor"]])
+      :format(displayDecisionAmount(hero.ref))
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold

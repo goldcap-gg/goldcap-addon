@@ -545,6 +545,12 @@ GC.Locales.ukUA = {
   ["Your minimum"] = "Твій мінімум",
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
+  ["sure profit: a vendor pays %s each"] =
+    "певний прибуток: торговець платить %s за штуку",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "перепродаж за медіаною сканування, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["Checked against the live auction house a moment ago."] =
+    "Щойно звірено з аукціоном у реальному часі.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "вище найдешевшого, у дешевій чверті · попереду %s шт.",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

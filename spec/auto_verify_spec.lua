@@ -1515,6 +1515,46 @@ describe("Deals background verification", function()
       board(api, { deal(1, 400000) }) -- 40g fits
       assert.is_false(line.shown)
     end)
+
+    -- WoW: Forever rows (plan 3c, Decision 5): each is held to the limit its own buy is --
+    -- GC.ForeverDeals.BuyLimits -- which gives a "Below vendor" row half the wallet while the
+    -- per-buy share is at its default. 13s in the bags: 65c at 5%, 650c at half.
+    local function foreverRow(itemID, unitPrice, kind, isCommodity)
+      local row = deal(itemID, unitPrice)
+      row.forever, row.isCommodity, row.ceiling, row.refUnit = kind, isCommodity, unitPrice, unitPrice + 1
+      return row
+    end
+
+    local function foreverLoad(wallet, boardName)
+      local api, line = load(wallet)
+      helper.loadModule("Core/ForeverDeals.lua", api.GC)
+      api.GC.db.settings.sniper.board = boardName
+      return api, line
+    end
+
+    it("stays off the Commodities board for a Below vendor row half the wallet can buy", function()
+      local api, line = foreverLoad(1300, "commodities")
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 100, "vendor", true) }) -- 1s: over 65c, under 650c
+      assert.is_false(line.shown)
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 700, "vendor", true) }) -- 7s: over half of 13s
+      assert.is_true(line.shown)
+    end)
+
+    it("holds an Under market row to the per-buy share, as its buy is", function()
+      local api, line = foreverLoad(1300, "commodities")
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 100, "market", true) })
+      assert.is_true(line.shown)
+      api.GC.Sniper._PaintGoldLine({ foreverRow(1, 60, "market", true) })
+      assert.is_false(line.shown)
+    end)
+
+    it("holds a Below vendor lot on the Items board to the Forever share, as its buy is", function()
+      local api, line = foreverLoad(1300, "items")
+      api.GC.Sniper._PaintGoldLine({ foreverRow(7, 600, "vendor", false) }) -- 6s: fits in 6s50c
+      assert.is_false(line.shown)
+      api.GC.Sniper._PaintGoldLine({ foreverRow(7, 700, "vendor", false) }) -- 7s: in the bags, over the share
+      assert.is_true(line.shown)
+    end)
   end)
 
   it("buys nothing: the verify path holds no purchase call and no click handler", function()

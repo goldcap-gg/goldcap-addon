@@ -532,6 +532,12 @@ GC.Locales.ptBR = {
   ["Your minimum"] = "Seu mínimo",
   ["Your price"] = "Seu preço",
   ["a unit, at or under your price of %s"] = "por unidade, no seu preço de %s ou abaixo",
+  ["sure profit: a vendor pays %s each"] =
+    "lucro garantido: um vendedor paga %s por unidade",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "revenda pela mediana do escaneamento, %s cada, menos 5%% e depósito; velocidade incerta",
+  ["Checked against the live auction house a moment ago."] =
+    "Verificado na casa de leilões ao vivo há um instante.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "acima do mais barato, dentro do quarto barato · %s unidades à frente",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

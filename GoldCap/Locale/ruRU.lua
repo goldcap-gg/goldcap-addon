@@ -530,6 +530,12 @@ GC.Locales.ruRU = {
   ["Your minimum"] = "Твой минимум",
   ["Your price"] = "Ваша цена",
   ["a unit, at or under your price of %s"] = "за штуку, по вашей цене %s или ниже",
+  ["sure profit: a vendor pays %s each"] =
+    "верная прибыль: торговец платит %s за штуку",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "перепродажа по медиане скана, %s/шт., за вычетом 5%% комиссии и залога; скорость неизвестна",
+  ["Checked against the live auction house a moment ago."] =
+    "Только что сверено с аукционом в реальном времени.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "выше самого дешёвого, в дешёвой четверти · впереди %s шт.",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

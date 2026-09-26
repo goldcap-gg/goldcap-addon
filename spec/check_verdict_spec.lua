@@ -413,6 +413,92 @@ describe("CheckVerdict", function()
     end)
   end)
 
+  -- WoW: Forever rows (plan 3c), routed by the row's own kind (context.forever). No market
+  -- engine measured them, so no retail tone may speak for them: not "Clear to buy" with its
+  -- "worst case, selling all back" caption, not "Your call" with its region reference.
+  describe("a WoW: Forever row", function()
+    local function vendorPass()
+      return { status = "SAFE", buyable = true, reasons = {}, quantity = 55, entryTotal = 610,
+        entryUnitDisplay = 11, unit = 12, ceiling = 12, forever = "vendor", exitUnit = 13,
+        deposit = 0, stressProfit = 105, requiredProfit = 20 }
+    end
+
+    local function vendorLot()
+      return { status = "WATCH", buyable = false, reasons = {}, quantity = 1, entryTotal = 60,
+        entryUnitDisplay = 60, unit = 60, ceiling = 99, forever = "vendor", exitUnit = 100,
+        stressProfit = 40, estProfit = 40, reference = 100,
+        candidate = { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 } }
+    end
+
+    local function marketPass()
+      return { status = "SAFE", buyable = true, reasons = {}, quantity = 55, entryTotal = 610,
+        entryUnitDisplay = 11, unit = 12, ceiling = 12, forever = "market", exitUnit = 20,
+        deposit = 0, stressProfit = 435, requiredProfit = 20 }
+    end
+
+    -- Forever's own market snapshot is the player's scan: no sales, no sell-through.
+    local scanMarket = market({ soldPerDay = NONE, sellThroughBps = NONE, liquidityConfidence = NONE })
+
+    it("says a vendor deal in its own words: what a vendor pays, and the sure profit", function()
+      local v = GC.CheckVerdict.Build(vendorPass(), scanMarket, { forever = "vendor" })
+      assert.equal("vendor", v.tone)
+      assert.is_true(v.actionable)
+      assert.same({ kind = "forever", forever = "vendor", copper = 105, ref = 13 }, v.hero)
+      assert.equal("Below vendor", GC.CheckVerdict.TONE_WORD.vendor)
+      assert.is_truthy(GC.CheckVerdict.HERO_CAPTION.vendor:find("a vendor pays", 1, true))
+      assert.is_truthy(GC.CheckVerdict.HERO_CAPTION.vendor:find("sure profit", 1, true))
+    end)
+
+    it("shows what the buy costs and what the vendor gives back, and nothing about a market", function()
+      local v = GC.CheckVerdict.Build(vendorPass(), scanMarket, { forever = "vendor" })
+      assert.equal(2, #v.facts)
+      assert.equal(610, factById(v, "youPay").copper)
+      assert.equal(715, factById(v, "youGet").copper)
+    end)
+
+    it("answers a vendor lot as a vendor deal, not as \"Your call\"", function()
+      local v = GC.CheckVerdict.Build(vendorLot(), scanMarket, { forever = "vendor" })
+      assert.equal("vendor", v.tone)
+      assert.is_true(v.actionable)
+      assert.same({ kind = "forever", forever = "vendor", copper = 40, ref = 100 }, v.hero)
+      assert.is_nil(factById(v, "snapshotValue"))
+    end)
+
+    it("says a market deal is a resale at the scan's median after the cut, speed unknown", function()
+      local v = GC.CheckVerdict.Build(marketPass(), scanMarket, { forever = "market" })
+      assert.equal("market", v.tone)
+      assert.same({ kind = "forever", forever = "market", copper = 435, ref = 20 }, v.hero)
+      assert.equal("Under market", GC.CheckVerdict.TONE_WORD.market)
+      local caption = GC.CheckVerdict.HERO_CAPTION.market
+      assert.is_truthy(caption:find("median", 1, true))
+      assert.is_truthy(caption:find("cut", 1, true))
+      assert.is_truthy(caption:find("speed unknown", 1, true))
+    end)
+
+    it("keeps a refusal a refusal, with the Forever figure rather than the resale caption", function()
+      local refused = vendorPass()
+      refused.status, refused.buyable, refused.reasons = "AVOID", false, { "profit_below_minimum" }
+      refused.stressProfit = 5
+      local v = GC.CheckVerdict.Build(refused, scanMarket, { forever = "vendor" })
+      assert.equal("refuse", v.tone)
+      assert.same({ kind = "forever", forever = "vendor", copper = 5, ref = 13 }, v.hero)
+      assert.equal(20, factById(v, "yourMinimum").copper)
+    end)
+
+    it("leaves a row with no Forever kind to the retail tones", function()
+      assert.equal("clear", GC.CheckVerdict.Build(vendorPass(), scanMarket).tone)
+      assert.equal("unverified", GC.CheckVerdict.Build(vendorLot(), scanMarket, {}).tone)
+    end)
+
+    it("has its words in every table the panel reads", function()
+      for _, kind in ipairs({ "vendor", "market" }) do
+        assert.is_string(GC.CheckVerdict.TONE_WORD[kind])
+        assert.is_string(GC.CheckVerdict.TONE_SENTENCE[kind])
+        assert.is_string(GC.CheckVerdict.HERO_CAPTION[kind])
+      end
+    end)
+  end)
+
   -- The fact is the sales tape's own certainty that listings which vanished were sold rather
   -- than left to expire. Labelled "Confidence", it read "Confidence: high" beside "Won't buy --
   -- can't price this" (in game 2026-09-23), as if it were about the verdict or the price. Its

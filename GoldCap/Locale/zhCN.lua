@@ -486,6 +486,12 @@ GC.Locales.zhCN = {
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的价格",
   ["a unit, at or under your price of %s"] = "单价，不高于你的价格 %s",
+  ["sure profit: a vendor pays %s each"] =
+    "稳赚：商人每件收购 %s",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "按你扫描的中位价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
+  ["Checked against the live auction house a moment ago."] =
+    "刚刚已对照实时拍卖行核对。",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "高于最低价，处于低价四分位内 · 前面有 %s 件",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

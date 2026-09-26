@@ -531,6 +531,12 @@ GC.Locales.itIT = {
   ["Your minimum"] = "Il tuo minimo",
   ["Your price"] = "Il tuo prezzo",
   ["a unit, at or under your price of %s"] = "a unità, al tuo prezzo di %s o meno",
+  ["sure profit: a vendor pays %s each"] =
+    "profitto sicuro: un venditore paga %s a unità",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "rivendita alla mediana del scan, %s l'una, meno 5%% e cauzione; velocità ignota",
+  ["Checked against the live auction house a moment ago."] =
+    "Verificato sulla casa d'aste dal vivo un momento fa.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "sopra il più economico, nel quarto economico · %s unità davanti",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

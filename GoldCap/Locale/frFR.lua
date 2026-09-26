@@ -531,6 +531,12 @@ GC.Locales.frFR = {
   ["Your minimum"] = "Ton minimum",
   ["Your price"] = "Ton prix",
   ["a unit, at or under your price of %s"] = "l'unité, à ton prix de %s ou en dessous",
+  ["sure profit: a vendor pays %s each"] =
+    "profit assuré : un marchand paie %s l'unité",
+  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "revente à la médiane du scan, %s l'unité, moins 5%% et caution ; vitesse inconnue",
+  ["Checked against the live auction house a moment ago."] =
+    "Vérifié à l'instant sur l'hôtel des ventes en direct.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "au-dessus du moins cher, dans le quart bon marché · %s unités devant",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
