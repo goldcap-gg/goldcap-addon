@@ -68,9 +68,9 @@ function GC.ForeverFold.AddRow(acc, itemID, count, buyout, hasAllInfo)
   e.lots = e.lots + 1
   insertLevel(e.ladder, unit, count)
   -- Every level, not only the ladder's five: the depth part needs the whole book. This scan's
-  -- memory only -- Encode reads it, and it is never written to the save.
+  -- memory only -- Depths counts distinct prices straight off this table, and it is never
+  -- written to the save.
   e.all = e.all or {}
-  if e.all[unit] == nil then e.levels = (e.levels or 0) + 1 end
   e.all[unit] = (e.all[unit] or 0) + count
   acc.rows = acc.rows + 1
   return true

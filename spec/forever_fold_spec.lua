@@ -112,6 +112,21 @@ describe("ForeverFold", function()
     assert.equal(5, #e.ladder)
   end)
 
+  it("rounds the 25%/50% depth threshold up, not down, when the two disagree", function()
+    -- 9 units total: 25% = 2.25 (ceil 3, floor 2), 50% = 4.5 (ceil 5, floor 4). Placing a level
+    -- boundary between the ceil and floor cumulative for each share pins which one Depths uses.
+    local acc = F.New()
+    F.AddRow(acc, 4200, 2, 2 * 5, true)  -- 5c x2  (cum 2)              floor-25 would stop here
+    F.AddRow(acc, 4200, 1, 6, true)      -- 6c x1  (cum 3)  <- ceil-25 stops here
+    F.AddRow(acc, 4200, 1, 7, true)      -- 7c x1  (cum 4)              floor-50 would stop here
+    F.AddRow(acc, 4200, 1, 8, true)      -- 8c x1  (cum 5)  <- ceil-50 stops here
+    F.AddRow(acc, 4200, 4, 4 * 9, true)  -- 9c x4  (cum 9)
+    local p25, p50, levels = F.Depths(acc.items[4200])
+    assert.equal(6, p25)  -- floor(9*0.25)=2 would have picked 5c instead
+    assert.equal(8, p50)  -- floor(9*0.50)=4 would have picked 7c instead
+    assert.equal(5, levels)
+  end)
+
   it("decodes a version-1 string with no depth, and a browse entry never carries one", function()
     local e = F.Decode("67,4060,31,;0x936 3x3000")
     assert.equal(67, e.min); assert.equal(70, e.ladder[2][1])
