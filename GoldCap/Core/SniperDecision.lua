@@ -924,6 +924,17 @@ local function refusal(reason, plan)
   return out
 end
 
+-- Shared shape guard for a book/lot entry: a table whose two named fields are both positive
+-- integers. Neither Caps.lua's DecideCommodity (levels: unitPrice/quantity) nor DecideRealm
+-- (lots: auctionID/buyout, called through here already filtered) type-checks its input -- both
+-- assume the caller's book is trustworthy, which a live commodity/browse result always is but a
+-- caller of this file need not be. A malformed entry is dropped rather than failing the whole
+-- call: one bad line in an otherwise good book should not refuse the units that are fine.
+local function positiveEntry(entry, field1, field2)
+  return type(entry) == "table" and isInteger(entry[field1]) and entry[field1] > 0
+    and isInteger(entry[field2]) and entry[field2] > 0
+end
+
 local function ceilingProfit(kind, exitUnit, quantity, entryTotal, deposit)
   local gross = exitUnit * quantity
   if kind == "vendor" then return gross - entryTotal end
@@ -935,14 +946,21 @@ function GC.SniperDecision.EvaluateCeiling(input)
       or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
       or not isInteger(input.exitUnit) or input.exitUnit <= 0
       or type(input.levels) ~= "table" or type(input.limits) ~= "table"
-      or not isSignedInteger(input.minimumProfit) then
+      or not isInteger(input.limits.maxQuantity) or input.limits.maxQuantity <= 0
+      or not isInteger(input.limits.budget)
+      or not isInteger(input.minimumProfit) then
     return refusal("invalid_input")
   end
   local cap = { c = input.ceilingUnit, l = 0 }
-  local plan = GC.Caps.DecideCommodity(cap, input.levels, input.limits, input.fixedQuantity)
+  local levels = {}
+  for i = 1, #input.levels do
+    local level = input.levels[i]
+    if positiveEntry(level, "unitPrice", "quantity") then levels[#levels + 1] = level end
+  end
+  local plan = GC.Caps.DecideCommodity(cap, levels, input.limits, input.fixedQuantity)
   if not plan then
     if input.fixedQuantity ~= nil then return refusal("book_exhausted") end
-    local any = GC.Caps.DecideCommodity(cap, input.levels, { maxQuantity = 1, budget = math.huge })
+    local any = GC.Caps.DecideCommodity(cap, levels, { maxQuantity = 1, budget = math.huge })
     return refusal(any and "capital_limit" or "price_rose")
   end
   if input.quotedTotal ~= nil and (not isInteger(input.quotedTotal) or input.quotedTotal > plan.entryTotal) then
@@ -981,15 +999,12 @@ function GC.SniperDecision.EvaluateCeilingLot(input)
   if type(input) ~= "table" or input.kind ~= "vendor"
       or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
       or not isInteger(input.exitUnit) or input.exitUnit <= 0
-      or type(input.lots) ~= "table" or not isSignedInteger(input.minimumProfit) then
+      or type(input.lots) ~= "table" or not isInteger(input.minimumProfit) then
     return refusal("invalid_input")
   end
   local priced = {}
   for _, lot in ipairs(input.lots) do
-    if type(lot) == "table" and isInteger(lot.auctionID) and lot.auctionID > 0
-        and isInteger(lot.buyout) and lot.buyout > 0 then
-      priced[#priced + 1] = lot
-    end
+    if positiveEntry(lot, "auctionID", "buyout") then priced[#priced + 1] = lot end
   end
   local picked = GC.Caps.DecideRealm({ c = input.ceilingUnit, l = 0 }, priced)
   if not picked then return refusal("price_rose") end

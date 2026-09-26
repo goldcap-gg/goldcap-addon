@@ -105,6 +105,35 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
       assert.same({ "invalid_input" }, S.EvaluateCeiling(vendorInput({ kind = "retail" })).reasons)
       assert.same({ "invalid_input" }, S.EvaluateCeiling(nil).reasons)
     end)
+
+    it("fails closed on a limits table missing or mistyping maxQuantity or budget", function()
+      assert.same({ "invalid_input" },
+        S.EvaluateCeiling(vendorInput({ limits = { maxQuantity = 200 } })).reasons)     -- no budget
+      assert.same({ "invalid_input" },
+        S.EvaluateCeiling(vendorInput({ limits = { budget = 100000 } })).reasons)       -- no maxQuantity
+      assert.same({ "invalid_input" },
+        S.EvaluateCeiling(vendorInput({ limits = { maxQuantity = 0, budget = 100000 } })).reasons)
+      assert.same({ "invalid_input" },
+        S.EvaluateCeiling(vendorInput({ limits = { maxQuantity = "200", budget = 100000 } })).reasons)
+      assert.same({ "invalid_input" },
+        S.EvaluateCeiling(vendorInput({ limits = { maxQuantity = 200, budget = -1 } })).reasons)
+    end)
+
+    it("drops a malformed level instead of crashing, and still prices the good ones", function()
+      local d = S.EvaluateCeiling(vendorInput({ levels = { "junk", { unitPrice = 8, quantity = 5 } } }))
+      assert.is_true(d.buyable)
+      assert.equal(5, d.quantity); assert.equal(40, d.entryTotal)
+    end)
+
+    it("refuses cleanly, never crashes, when every level is malformed", function()
+      local d = S.EvaluateCeiling(vendorInput({ levels = { "junk", { quantity = 5 }, { unitPrice = -1, quantity = 5 } } }))
+      assert.same({ "price_rose" }, d.reasons)
+    end)
+
+    it("fails closed on a negative or non-integer minimum profit", function()
+      assert.same({ "invalid_input" }, S.EvaluateCeiling(vendorInput({ minimumProfit = -1 })).reasons)
+      assert.same({ "invalid_input" }, S.EvaluateCeiling(vendorInput({ minimumProfit = 1.5 })).reasons)
+    end)
   end)
 
   describe("EvaluateCeilingLot", function()
@@ -134,6 +163,22 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
     it("is vendor-only", function()
       assert.same({ "invalid_input" }, S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "market",
         exitUnit = 100, lots = LOTS, minimumProfit = 1 }).reasons)
+    end)
+
+    it("prices a multi-unit lot by its per-unit price against the ceiling, and profit on the whole lot", function()
+      local d = S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor", exitUnit = 100,
+        lots = { { auctionID = 5, buyout = 480, quantity = 5, itemLevel = 10 } }, minimumProfit = 20 })
+      assert.equal("WATCH", d.status); assert.is_false(d.buyable)
+      assert.same({ auctionID = 5, buyout = 480, quantity = 5, itemLevel = 10 }, d.candidate)
+      assert.equal(5, d.quantity); assert.equal(480, d.entryTotal); assert.equal(96, d.entryUnitDisplay)
+      assert.equal(20, d.stressProfit); assert.equal(20, d.estProfit)    -- 100 * 5 - 480
+    end)
+
+    it("fails closed on a negative or non-integer minimum profit", function()
+      assert.same({ "invalid_input" }, S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = LOTS, minimumProfit = -1 }).reasons)
+      assert.same({ "invalid_input" }, S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = LOTS, minimumProfit = 1.5 }).reasons)
     end)
   end)
 
