@@ -249,6 +249,8 @@ GC.Locales.enUS = {
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Costs more than your per-buy wallet limit allows.",
+  ["This lot holds more units than your Max units per buy."] =
+    "This lot holds more units than your Max units per buy.",
   ["Could not find the queue's next lot to cancel — try again"] = "Could not find the queue's next lot to cancel — try again",
   ["DEFAULTS"] = "DEFAULTS",
   ["DISC"] = "DISC",

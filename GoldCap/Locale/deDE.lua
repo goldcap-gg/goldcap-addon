@@ -139,6 +139,8 @@ GC.Locales.deDE = {
   ["Cost unknown for %d of %d"] = "Einkaufspreis unbekannt für %d von %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Kostet mehr, als dein Limit pro Kauf zulässt.",
+  ["This lot holds more units than your Max units per buy."] =
+    "Dieser Posten hat mehr Stück als dein „Max. Stück pro Kauf“.",
   ["Could not find the queue's next item to post — try again"] =
     "Nächster Gegenstand der Einstellwarteschlange nicht gefunden — nochmal versuchen",
   ["Could not find the queue's next lot to cancel — try again"] =

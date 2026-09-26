@@ -141,6 +141,8 @@ GC.Locales.ukUA = {
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Коштує більше, ніж дозволяє ваш ліміт на одну купівлю.",
+  ["This lot holds more units than your Max units per buy."] =
+    "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
   ["Could not find the queue's next item to post — try again"] =
     "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -546,7 +548,7 @@ GC.Locales.ukUA = {
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
   ["sure profit: a vendor pays %s each"] =
-    "певний прибуток: торговець платить %s за штуку",
+    "гарантований прибуток: торговець платить %s за штуку",
   ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
     "перепродаж за медіаною сканування, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
   ["Checked against the live auction house a moment ago."] =

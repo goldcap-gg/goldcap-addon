@@ -444,10 +444,16 @@ describe("Clean click ordering, driven end to end", function()
 
     local function loadSniper()
       books, money, cancels, confirms = {}, 10000000000, 0, 0
+      log = {}
       _G.time = function() return 100000 end
       _G.GetTime = function() return 100 end
       _G.GetMoney = function() return money end
-      _G.GetCoinTextureString = function(value) return tostring(value) end
+      -- Logged: Blizzard's money formatter is the Sniper's named taint risk (3b ledger), so a
+      -- click that formats money ahead of its protected call must fail assertCleanCall.
+      _G.GetCoinTextureString = function(value)
+        record("GetCoinTextureString")
+        return tostring(value)
+      end
       _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
       _G.SOUNDKIT = { RAID_WARNING = 1, MAP_PING = 2, READY_CHECK = 3 }
       _G.PlaySound = function() end
@@ -624,7 +630,15 @@ describe("Clean click ordering, driven end to end", function()
 
     local function foreverCeiling(GC, itemID, ceilingUnit, exitUnit, kind)
       helper.loadModule("Core/ForeverDeals.lua", GC)
+      -- Both logged: a Forever decision re-run inside a Buy click, ahead of its protected call,
+      -- must fail assertCleanCall rather than pass unseen.
+      local buyLimits = GC.ForeverDeals.BuyLimits
+      GC.ForeverDeals.BuyLimits = function(...)
+        record("ForeverDeals.BuyLimits")
+        return buyLimits(...)
+      end
       GC.ForeverDeals.CeilingFor = function(id)
+        record("ForeverDeals.CeilingFor")
         if id ~= itemID then return nil end
         return { ceilingUnit = ceilingUnit, kind = kind or "vendor", exitUnit = exitUnit, minimumProfit = 20 }
       end
@@ -866,6 +880,88 @@ describe("Clean click ordering, driven end to end", function()
         expectedProfit = 120 }, facts)
       GC.Sniper.OnPurchaseCompleted(9)
       assertForeverRecord(GC, 3, 180, 120)
+    end)
+
+    -- The Forever buy limits (plan 3c, Decision 5: GC.ForeverDeals.BuyLimits), where they bite.
+    -- Every other spec here runs with a wallet no budget ever reaches. A refused lot is held by
+    -- its disabled Buy button -- the client fires no OnClick on a disabled Button -- exactly as a
+    -- YOUR PRICE lot over its limit is, so `d.enabled` is the gate these pin.
+    local function applyLot(GC, lot)
+      local decision = GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = { lot }, minimumProfit = 20 })
+      local deal = foreverDeal(42, false)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      return d
+    end
+
+    local function said(d, text)
+      for _, line in ipairs(d.written) do
+        if line:find(text, 1, true) then return true end
+      end
+      return false
+    end
+
+    it("holds a Forever lot to the Forever per-buy share, not to the whole wallet", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      money = 100 -- the vendor share at the default setting: half, 50c
+      local d = applyLot(GC, { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 })
+      assert.is_false(d.enabled)
+      assert.is_true(said(d, "Costs more than your per-buy wallet limit allows."))
+
+      d = applyLot(GC, { auctionID = 9, buyout = 50, quantity = 1, itemLevel = 18 })
+      assert.is_true(d.enabled)
+    end)
+
+    it("holds a Forever lot to Max units per buy", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      GC.db.settings.sniper.maxQuantity = 5
+      local d = applyLot(GC, { auctionID = 9, buyout = 360, quantity = 6, itemLevel = 18 })
+      assert.is_false(d.enabled)
+      assert.is_true(said(d, "This lot holds more units than your Max units per buy."))
+
+      d = applyLot(GC, { auctionID = 9, buyout = 300, quantity = 5, itemLevel = 18 })
+      assert.is_true(d.enabled)
+    end)
+
+    it("plans a Below vendor Check inside half the wallet while the share is at its default", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      money = 200 -- half: 100c buys 5 at 8c and 6 at 9c; the retail 5% (10c) buys one, under 20c
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      assert.equal(11, live.decision.quantity)
+      assert.equal(94, live.decision.entryTotal)
+      assert.equal(49, live.decision.stressProfit)
+    end)
+
+    it("plans a Below vendor Check inside the player's own share once they changed it", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      GC.db.settings.sniper.maxCapitalShare = 0.10
+      money = 1000 -- 10%: 100c, not half the wallet (which would buy all 55)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      assert.equal(11, live.decision.quantity)
+      assert.equal(94, live.decision.entryTotal)
+    end)
+
+    it("walks an item's lots for a Forever ceiling only when the item has one", function()
+      local GC = loadSniper()
+      local walks = 0
+      local driver = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver")
+      driver.itemLots = function() walks = walks + 1; return {} end
+      local evaluate = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+      evaluate(42) -- retail: no ceiling, and no realm value to walk them for either
+      assert.equal(0, walks)
+      foreverCeiling(GC, 42, 99, 100)
+      evaluate(42)
+      assert.equal(1, walks)
     end)
 
     it("takes a Forever row down when its Check finds the listing gone", function()

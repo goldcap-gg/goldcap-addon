@@ -137,6 +137,8 @@ GC.Locales.koKR = {
   ["Cost per unit"] = "개당 매입가",
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
   ["Costs more than your per-buy wallet limit allows."] = "1회 구매 한도보다 비쌉니다.",
+  ["This lot holds more units than your Max units per buy."] =
+    "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
   ["Could not find the queue's next item to post — try again"] =
     "등록 대기열의 다음 아이템을 찾지 못했습니다 — 다시 시도하세요",
   ["Could not find the queue's next lot to cancel — try again"] =

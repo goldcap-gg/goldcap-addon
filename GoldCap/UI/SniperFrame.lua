@@ -5630,6 +5630,11 @@ local function applyRequeryResult(row, itemID, live)
         elseif (capLot or ceilingLot) and not (limits and total <= limits.budget) then
           dialog.primaryBtn:Disable()
           setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
+        elseif ceilingLot and (decision.candidate.quantity or 1) > limits.maxQuantity then
+          -- Plan 3c, Decision 5: Max units per buy holds for a Forever buy of either kind, and a
+          -- lot is bought whole.
+          dialog.primaryBtn:Disable()
+          setDialogStatus(GC.L["This lot holds more units than your Max units per buy."], 1, 0.3, 0.3)
         else
           if capMiss then
             armLoudConfirm(row, label)
@@ -7472,7 +7477,9 @@ local function evaluateLiveItemDeal(itemID)
   end
   -- WoW: Forever: a row from the player's own scan buys one auction at or under its ceiling,
   -- named by its auctionID -- the live per-auction walk's own answer (GC.Sniper._DecideCeilingLot).
-  local ceilingLot = GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
+  -- The lots are walked only for an item with a ceiling: on retail, never.
+  local ceilingLot = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+    and GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
   if ceilingLot then return { isCommodity = false, decision = ceilingLot } end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured

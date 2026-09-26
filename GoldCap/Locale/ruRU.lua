@@ -138,6 +138,8 @@ GC.Locales.ruRU = {
   ["Cost unknown for %d of %d"] = "Себестоимость неизвестна для %d из %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Стоит больше, чем позволяет ваш лимит на одну покупку.",
+  ["This lot holds more units than your Max units per buy."] =
+    "В этом лоте больше штук, чем ваш «Макс. штук за одну покупку».",
   ["Could not find the queue's next item to post — try again"] =
     "Не нашли следующий предмет в очереди на выставление — попробуйте ещё раз",
   ["Could not find the queue's next lot to cancel — try again"] =

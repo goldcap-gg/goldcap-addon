@@ -140,6 +140,8 @@ GC.Locales.itIT = {
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Costa più di quanto consenta il tuo limite per acquisto.",
+  ["This lot holds more units than your Max units per buy."] =
+    "Questo lotto ha più unità del tuo «Max. unità per acquisto».",
   ["Could not find the queue's next item to post — try again"] =
     "Non trovo il prossimo oggetto in coda da mettere in vendita — riprova",
   ["Could not find the queue's next lot to cancel — try again"] =

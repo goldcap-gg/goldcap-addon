@@ -137,6 +137,8 @@ GC.Locales.zhTW = {
   ["Cost per unit"] = "每件成本",
   ["Cost unknown for %d of %d"] = "成本未知：%d 筆 / 共 %d 筆",
   ["Costs more than your per-buy wallet limit allows."] = "花費超過你設定的單次購買上限。",
+  ["This lot holds more units than your Max units per buy."] =
+    "此拍賣的數量超過了你的「單次購買最大數量」。",
   ["Could not find the queue's next item to post — try again"] =
     "找不到佇列中下一個要上架的道具 — 請再試一次",
   ["Could not find the queue's next lot to cancel — try again"] =

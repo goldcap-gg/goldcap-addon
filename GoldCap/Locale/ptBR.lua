@@ -141,6 +141,8 @@ GC.Locales.ptBR = {
   ["Cost unknown for %d of %d"] = "Custo desconhecido em %d de %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Custa mais do que o seu limite por compra permite.",
+  ["This lot holds more units than your Max units per buy."] =
+    "Este lote tem mais unidades que o seu \"Máx. de unidades por compra\".",
   ["Could not find the queue's next item to post — try again"] =
     "Não achei o próximo item da fila para anunciar — tente de novo",
   ["Could not find the queue's next lot to cancel — try again"] =

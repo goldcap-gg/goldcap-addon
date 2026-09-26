@@ -140,6 +140,8 @@ GC.Locales.frFR = {
   ["Cost unknown for %d of %d"] = "Prix d'achat inconnu pour %d sur %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Coûte plus que ne l'autorise votre limite par achat.",
+  ["This lot holds more units than your Max units per buy."] =
+    "Ce lot contient plus d'unités que ton « Unités max. par achat ».",
   ["Could not find the queue's next item to post — try again"] =
     "Objet suivant de la file de mise en vente introuvable — réessaie",
   ["Could not find the queue's next lot to cancel — try again"] =
