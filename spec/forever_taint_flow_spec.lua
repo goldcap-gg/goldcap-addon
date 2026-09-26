@@ -716,9 +716,15 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       local before = model.taintOf(GC.Sniper, "_lastOwed")
       GC.slashHandlers.taint()
       _G.issecure, _G.issecurevariable = nil, nil
+      local said = {}
+      for _, line in ipairs(printed) do said[line] = true end
       assert.equal("taint: this command itself runs TAINTED", printed[1])
-      assert.equal("taint: GC.Sniper._lastOwed (ticker) TAINTED by GoldCap", printed[2])
-      assert.equal("taint: GC.Buy._owedUntil secure", printed[7])
+      assert.is_true(said["taint: GC.Sniper._lastOwed (purchase clock) TAINTED by GoldCap"])
+      assert.is_true(said["taint: GC.Buy._owedUntil secure"])
+      assert.is_true(said["taint: verifyBtn.bg (built) secure"])
+      assert.is_true(said["taint: autoBtn.roundedMargin (built) secure"])
+      assert.is_true(said["taint: board rows[1].deal secure"] or said["taint: board rows[1].deal -- not there"])
+      assert.is_true(said["taint: dialog.row -- not there"] or said["taint: dialog.row secure"])
       assert.equal(before, model.taintOf(GC.Sniper, "_lastOwed"))
     end)
   end)

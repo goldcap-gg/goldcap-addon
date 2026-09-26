@@ -11825,12 +11825,25 @@ function GC.Sniper.DebugTaint()
       GC.Print(("taint: %s TAINTED by %s"):format(name, tostring(by)))
     end
   end
-  -- What the ticker writes every tick, and the toolbar labels it stamps last.
-  report("GC.Sniper._lastOwed (ticker)", GC.Sniper, "_lastOwed")
+  -- What the clocks write: the auction house ticker's own, the purchase clock's, and the toolbar
+  -- labels the ticker stamps last.
   report("GC.Sniper._keysPokeAt (ticker)", GC.Sniper, "_keysPokeAt")
-  report("GC.Buy._lastWaiting (ticker)", GC.Buy, "_lastWaiting")
   report("verifyBtn.label (ticker, last)", frame and frame.verifyBtn, "label")
   report("autoBtn.label (ticker, last)", frame and frame.autoBtn, "label")
+  report("GC.Sniper._lastOwed (purchase clock)", GC.Sniper, "_lastOwed")
+  report("GC.Buy._lastWaiting (purchase clock)", GC.Buy, "_lastWaiting")
+  -- What a paint reads off the toolbar buttons: written once, when the window was built -- so
+  -- TAINTED here means the window itself was built by a tainted execution.
+  for _, name in ipairs({ "verifyBtn", "autoBtn" }) do
+    local button = frame and frame[name]
+    for _, key in ipairs({ "text", "bg", "roundedMargin" }) do
+      report(("%s.%s (built)"):format(name, key), button, key)
+    end
+  end
+  -- The board: what a row click reads.
+  local boardRow = rows[1]
+  report("board rows[1].deal", boardRow, "deal")
+  report("board rows[1].deal.itemID", boardRow and boardRow.deal, "itemID")
   -- What a Buy click reads before its protected call.
   report("GC.Buy._owedUntil", GC.Buy, "_owedUntil")
   report("GC.Buy._attempt", GC.Buy, "_attempt")
