@@ -590,6 +590,7 @@ GC.Locales.koKR = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "최근 24시간 — 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
+  ["last live price %s ago"] = "마지막 실시간 가격, %s 전",
   ["leave these alone"] = "그대로 두세요",
   ["level %d"] = "레벨 %d",
   ["listing gone -- already bought out or price changed"] =
@@ -691,7 +692,6 @@ GC.Locales.koKR = {
   ["sniped (listing changed on rescan)"] = "저격됨 (재검색에서 등록이 바뀜)",
   ["sniped for "] = "낚아챈 금액 ",
   ["stack not identified"] = "묶음 식별 불가",
-  ["stale"] = "오래됨",
   ["starting full scan..."] = "전체 검색을 시작합니다...",
   ["stopped watching %s"] = "%s 주시를 멈췄습니다",
   ["the Companion wrote prices this addon could not read --"] =

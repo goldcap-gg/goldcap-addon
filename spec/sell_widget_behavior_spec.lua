@@ -1318,6 +1318,26 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("aktuell · vor 3s", drawer.drawerQuote.text)
     end)
 
+    -- Right after a full scan the last live quote is old, and a red "stale" read as an error
+    -- (WoW: Forever, 2026-09-26): the label now says its age, dim, like the fresh case.
+    it("says how old the last live price is, dim, instead of a red 'stale'", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.Expansion = function(position)
+        return { note = "FIFO allocations", batches = {}, ownedLots = {},
+          displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+          marketState = position.marketState, marketFresh = position.marketFresh,
+          marketStale = position.marketStale }
+      end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
+        marketState = "stale", marketFresh = false, marketStale = true, status = "UNLISTED" } }), "drawer")
+      assert.equal("last live price 3m ago", drawer.drawerQuote.text)
+      assert.same({ .5, .5, .5, 1 }, drawer.drawerQuote.color)
+    end)
+
     it("says the empty foot in the panel's language", function()
       local GC = load(620, { calls = {} })
       local german = { ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
@@ -2298,9 +2318,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then staleDetail = row end
     end
-    -- A stale quote is the one thing at the foot of the book worth a second look: red.
-    assert.equal("stale · age 51s", staleDetail.drawerQuote.text)
-    assert.same({ 1, 0, 0, 1 }, staleDetail.drawerQuote.color)
+    -- The last live quote's age, dim, not a red "stale" (WoW: Forever, 2026-09-26).
+    assert.equal("last live price 51s ago", staleDetail.drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, staleDetail.drawerQuote.color)
 
     -- Item 42 is unlisted and item 43 is a live lot, so they sit on opposite decks: everything
     -- above is the post deck's half of this test, everything below is the listed deck's. One

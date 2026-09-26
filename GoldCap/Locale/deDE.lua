@@ -632,6 +632,7 @@ GC.Locales.deDE = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "letzte 24h — %d Verkäufe, %s brutto, %s Auktionsgebühr, %d Käufe, %s ausgegeben",
+  ["last live price %s ago"] = "letzter Live-Preis vor %s",
   ["leave these alone"] = "diese in Ruhe lassen",
   ["level %d"] = "Stufe %d",
   ["listing gone -- already bought out or price changed"] =
@@ -738,7 +739,6 @@ GC.Locales.deDE = {
   ["sniped (listing changed on rescan)"] = "weggeschnappt (Angebot beim erneuten Scan geändert)",
   ["sniped for "] = "geschnappt für ",
   ["stack not identified"] = "Stapel nicht zugeordnet",
-  ["stale"] = "veraltet",
   ["starting full scan..."] = "vollständiger Scan startet...",
   ["stopped watching %s"] = "%s wird nicht mehr beobachtet",
   ["the Companion wrote prices this addon could not read --"] =

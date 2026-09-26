@@ -642,6 +642,7 @@ GC.Locales.ukUA = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "останні 24 год — %d продажів, %s валовий, %s комісія аукціону, %d купівель, %s витрачено",
+  ["last live price %s ago"] = "остання жива ціна, %s тому",
   ["leave these alone"] = "ці не чіпати",
   ["level %d"] = "рівень %d",
   ["listing gone -- already bought out or price changed"] =
@@ -750,7 +751,6 @@ GC.Locales.ukUA = {
   ["sniped (listing changed on rescan)"] = "перехоплено (лот змінився при перескануванні)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не розпізнано",
-  ["stale"] = "застаріле",
   ["starting full scan..."] = "починаємо повне сканування...",
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =

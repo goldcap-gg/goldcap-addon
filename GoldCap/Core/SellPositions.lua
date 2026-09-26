@@ -522,7 +522,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   --    nothing underwrites that price, and projecting it would flatter a mistake.
   --  * BAG stock projects at what Post would actually list it at (postRecommendation.unit,
   --    floor/queue raises included) rather than the raw cheapest ask, for the same reason.
-  --    Still only with a fresh live quote, exactly as before -- mv alone never projects.
+  --    Priced through `projectFrom` (above): a fresh live quote, or -- in WoW: Forever, with
+  --    none yet -- the player's own scan value. On retail that fallback does not exist, so
+  --    the imported mv alone still never projects there.
   --
   -- Both branches must cover the SAME quantity knownCost was allocated over (heldQty, above),
   -- or PROFIT/UNIT subtracts a cost basis wider than the revenue it was compared against --

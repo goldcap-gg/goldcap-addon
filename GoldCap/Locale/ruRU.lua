@@ -627,6 +627,7 @@ GC.Locales.ruRU = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "за 24 ч — %d продаж, %s валовая, %s комиссия аукциона, %d покупок, %s потрачено",
+  ["last live price %s ago"] = "последняя живая цена, %s назад",
   ["leave these alone"] = "эти не трогать",
   ["level %d"] = "уровень %d",
   ["listing gone -- already bought out or price changed"] =
@@ -733,7 +734,6 @@ GC.Locales.ruRU = {
   ["sniped (listing changed on rescan)"] = "перехвачено (лот изменился при пересканировании)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не опознан",
-  ["stale"] = "устарела",
   ["starting full scan..."] = "начинаем полное сканирование...",
   ["stopped watching %s"] = "перестали следить за %s",
   ["the Companion wrote prices this addon could not read --"] =

@@ -734,6 +734,7 @@ GC.Locales.enUS = {
   ["its date cannot be right -- check this computer's clock"] =
     "its date cannot be right -- check this computer's clock",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] = "last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent",
+  ["last live price %s ago"] = "last live price %s ago",
   ["listing gone -- already bought out or price changed"] = "listing gone -- already bought out or price changed",
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
@@ -826,7 +827,6 @@ GC.Locales.enUS = {
   ["sniped for "] = "sniped for ",
   ["spent %s · left ~%s"] = "spent %s · left ~%s",
   ["stack not identified"] = "stack not identified",
-  ["stale"] = "stale",
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
   ["that does not look like a GoldCap import string"] = "that does not look like a GoldCap import string",

@@ -29,6 +29,8 @@
   says "NO LIVE PRICE YET" instead of "NOTHING TO CANCEL" while it waits. In WoW: Forever, AT
   MARKET counts what your scan says your stock is worth when the auction house has not answered
   a live price yet.
+- The Sell panel says how long ago it last saw a live price for the item, instead of a red
+  "stale".
 
 ## 0.15.1 (2026-09-24)
 

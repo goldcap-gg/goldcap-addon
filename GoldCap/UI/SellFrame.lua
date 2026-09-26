@@ -4915,9 +4915,14 @@ function INSP.paintHead(row, p, d)
     -- The market price is said in words only when there is no book to read it off: with one,
     -- it is the first level and the hint beside the heading.
     if not book then facts[#facts + 1] = (GC.L["market %s"]):format(formatCell(d.displayMarketUnit)) end
-    quote = d.marketState == "fresh" and GC.L["fresh"] or d.marketState == "stale" and GC.L["stale"]
-      or GC.L["unavailable"]
-    if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end
+    if d.marketState == "stale" and type(d.quoteAge) == "number" then
+      -- The age of the last LIVE quote for this item, not of the prices behind the tab: right
+      -- after a full scan a red "stale" read as an error (WoW: Forever, 2026-09-26).
+      quote = (GC.L["last live price %s ago"]):format(GC.Util.FormatElapsed(d.quoteAge) or "0s")
+    else
+      quote = d.marketState == "fresh" and GC.L["fresh"] or GC.L["unavailable"]
+      if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end
+    end
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
@@ -4947,9 +4952,10 @@ function INSP.paintHead(row, p, d)
     or (quote and "" or (notPriced and GC.L["not priced — nothing on hand to sell"] or GC.L["no live quote yet — pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
-  -- A stale quote is the one thing down here worth a second look, so it alone is not dim.
+  -- The words already say whether this is the last live price or a fresh one, so the color
+  -- no longer has to carry that too (WoW: Forever, 2026-09-26).
   row.drawerQuote:SetText(quote or "")
-  setColor(row.drawerQuote, d and d.marketStale and Theme.color.red or Theme.color.fgDim)
+  setColor(row.drawerQuote, Theme.color.fgDim)
   row.drawerQuote:Show()
 
   -- What GoldCap would do and at what price -- the text the expansion's own detail row

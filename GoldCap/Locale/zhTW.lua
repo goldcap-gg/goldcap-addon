@@ -576,6 +576,7 @@ GC.Locales.zhTW = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小時 — %d 筆販售、總額 %s、手續費 %s、%d 筆購買、支出 %s",
+  ["last live price %s ago"] = "最近即時價格，%s前",
   ["leave these alone"] = "這些不用動",
   ["level %d"] = "等級 %d",
   ["listing gone -- already bought out or price changed"] = "上架已消失 -- 已被買走或價格已變",
@@ -670,7 +671,6 @@ GC.Locales.zhTW = {
   ["sniped (listing changed on rescan)"] = "已被搶先（重新掃描時上架已變）",
   ["sniped for "] = "搶到，花費 ",
   ["stack not identified"] = "未識別的堆疊",
-  ["stale"] = "已過時",
   ["starting full scan..."] = "開始完整掃描...",
   ["stopped watching %s"] = "已停止關注 %s",
   ["the Companion wrote prices this addon could not read --"] =

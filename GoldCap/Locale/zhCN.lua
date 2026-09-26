@@ -575,6 +575,7 @@ GC.Locales.zhCN = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小时 — %d 笔销售、总额 %s、手续费 %s、%d 笔购买、支出 %s",
+  ["last live price %s ago"] = "最近实时价格，%s前",
   ["leave these alone"] = "这些不用动",
   ["level %d"] = "等级 %d",
   ["listing gone -- already bought out or price changed"] = "挂单已消失 -- 已被买走或价格已变",
@@ -669,7 +670,6 @@ GC.Locales.zhCN = {
   ["sniped (listing changed on rescan)"] = "被抢先（重新扫描时挂单已变）",
   ["sniped for "] = "抢到，花费 ",
   ["stack not identified"] = "未识别的堆叠",
-  ["stale"] = "已过时",
   ["starting full scan..."] = "开始完整扫描...",
   ["stopped watching %s"] = "已停止关注 %s",
   ["the Companion wrote prices this addon could not read --"] =
