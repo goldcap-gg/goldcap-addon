@@ -15,8 +15,8 @@
 - In WoW: Forever, the Deals board lists what your last scan found under the vendor price: items
   you can buy on the auction house and sell to a vendor for more. Each row says the most to pay
   and what a vendor gives. Check looks at the auction house live, and Buy buys only what is
-  still under that price, within your per-buy wallet limit. While "Max wallet per buy %" is at
-  its default, these buys may use up to half your gold.
+  still under that price, within your per-buy wallet limit and your "Max units per buy". While
+  "Max wallet per buy %" is at its default, these buys may use up to half your gold.
 - The Deals board in WoW: Forever also lists commodities offered far under what half of their
   supply asks, after the auction house cut and deposit. These are riskier than vendor deals, and
   the row says so: your scan cannot tell how fast an item sells.
