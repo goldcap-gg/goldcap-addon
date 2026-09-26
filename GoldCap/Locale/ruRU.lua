@@ -58,7 +58,7 @@ GC.Locales.ruRU = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Если несколько покупок свёрнуты в одну строку, удалятся они все.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
-  ["AH value (cheapest lots skipped)"] = "Оценка на аукционе (без самых дешёвых лотов)",
+  ["AH value"] = "Оценка на аукционе",
   ["AH, cheapest version"] = "Аукцион, самая дешёвая версия",
   ["ASKING"] = "ЗАПРОС",
   ["AT MARKET"] = "ПО РЫНКУ",

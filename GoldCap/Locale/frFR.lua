@@ -59,7 +59,7 @@ GC.Locales.frFR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si plusieurs achats sont regroupés sur une seule ligne, tous sont supprimés.",
   ["AH answered empty %ds ago"] = "l'hôtel des ventes a répondu vide il y a %ds",
-  ["AH value (cheapest lots skipped)"] = "Valeur HV (lots les moins chers ignorés)",
+  ["AH value"] = "Valeur HV",
   ["AH, cheapest version"] = "HV, version la moins chère",
   ["ASKING"] = "DEMANDÉ",
   ["AT MARKET"] = "AU MARCHÉ",

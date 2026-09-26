@@ -62,7 +62,7 @@ GC.Locales.esMX = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si varias compras están agrupadas en una sola línea, se eliminan todas.",
   ["AH answered empty %ds ago"] = "la casa de subastas respondió vacío hace %ds",
-  ["AH value (cheapest lots skipped)"] = "Valor de subasta (lotes más baratos omitidos)",
+  ["AH value"] = "Valor de subasta",
   ["AH, cheapest version"] = "Subasta, versión más barata",
   ["ASKING"] = "PEDIDO",
   ["AT MARKET"] = "A MERCADO",

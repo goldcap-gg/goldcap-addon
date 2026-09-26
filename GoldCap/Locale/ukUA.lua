@@ -62,7 +62,7 @@ GC.Locales.ukUA = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
-  ["AH value (cheapest lots skipped)"] = "Оцінка на аукціоні (без найдешевших лотів)",
+  ["AH value"] = "Оцінка на аукціоні",
   ["AH, cheapest version"] = "Аукціон, найдешевша версія",
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",

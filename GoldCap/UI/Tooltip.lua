@@ -98,9 +98,10 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- WoW: Forever's own scan (Core/ForeverScan.lua): the auction house's price for it, and for
     -- gear the cheapest version's -- several random suffixes share one item id.
     -- The figure is the price level a tenth of the listed units reach (GC.ForeverFold.VALUE_SHARE),
-    -- not the item's usual price, so the label says exactly that; "On the AH now", when shown
-    -- below, is the live cheapest, and the two no longer share one vague name.
-    if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value (cheapest lots skipped)"] end
+    -- not the item's usual price or the single cheapest lot -- see ForeverFold.lua's header
+    -- comment. "On the AH now", when shown below, is the live cheapest, so the two never mean
+    -- the same thing.
+    if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value"] end
     lines[1] = { kind = "money", label = label, copper = v.mv }
   end
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold

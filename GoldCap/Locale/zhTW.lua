@@ -63,7 +63,7 @@ GC.Locales.zhTW = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
-  ["AH value (cheapest lots skipped)"] = "拍賣場估價（不含最便宜批次）",
+  ["AH value"] = "拍賣場估價",
   ["AH, cheapest version"] = "拍賣場，最便宜版本",
   ["ASKING"] = "開價",
   ["AT MARKET"] = "依市價",

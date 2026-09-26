@@ -59,7 +59,7 @@ GC.Locales.deDE = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Sind mehrere Käufe zu einer Zeile zusammengefasst, werden alle davon entfernt.",
   ["AH answered empty %ds ago"] = "Auktionshaus antwortete vor %ds leer",
-  ["AH value (cheapest lots skipped)"] = "AH-Wert (günstigste Posten übersprungen)",
+  ["AH value"] = "AH-Wert",
   ["AH, cheapest version"] = "AH, günstigste Version",
   ["ASKING"] = "ANGEBOT",
   ["AT MARKET"] = "AM MARKT",

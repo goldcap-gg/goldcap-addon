@@ -14,8 +14,8 @@ local _, GC = ...
 -- version-1 string both still work.
 GC.ForeverFold = {}
 GC.ForeverFold.LADDER_LEVELS = 5
--- "AH value (cheapest lots skipped)": the cheapest level a tenth of the listed units reach. One
--- troll lot at 1c among four thousand units is not what the item fetches.
+-- "AH value": the cheapest level a tenth of the listed units reach, not the single cheapest lot.
+-- One troll lot at 1c among four thousand units is not what the item fetches.
 GC.ForeverFold.VALUE_SHARE = 0.10
 
 -- Fold version 2 (plan 3c): every string may carry a depth part after the ladder -- the unit

@@ -71,7 +71,7 @@ GC.Locales.enUS = {
     "A run of several purchases collapsed onto one line removes every one of them.",
   ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
-  ["AH value (cheapest lots skipped)"] = "AH value (cheapest lots skipped)",
+  ["AH value"] = "AH value",
   ["AH, cheapest version"] = "AH, cheapest version",
   ["ASKING"] = "ASKING",
   ["AT MARKET"] = "AT MARKET",

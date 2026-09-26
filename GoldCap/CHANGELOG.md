@@ -23,8 +23,7 @@
 - In the buy window, pressing Buy while you are still typing a quantity now shows the total for
   that quantity first; press Buy again to buy it.
 - In WoW: Forever, item tooltips no longer repeat the game's own sell price, show one listed
-  count rather than two while the auction house is open, and call the scan's figure "AH value
-  (cheapest lots skipped)".
+  count rather than two while the auction house is open, and call the scan's figure "AH value".
 - In the Sell tab, a lot waiting for a live price now says "no live price", and the cancel button
   says "NO LIVE PRICE YET" instead of "NOTHING TO CANCEL" while it waits. In WoW: Forever, AT
   MARKET counts what your scan says your stock is worth when the auction house has not answered

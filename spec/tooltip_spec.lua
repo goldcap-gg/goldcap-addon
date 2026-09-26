@@ -453,7 +453,7 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
 
   it("names the scan's value honestly, leaves the vendor price to the game, and gives the verdict", function()
     local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
-    assert.equal("AH value (cheapest lots skipped)", lines[1].label)
+    assert.equal("AH value", lines[1].label)
     assert.equal(1000, lines[1].copper)
     assert.truthy(find(lines, function(l) return l.left == "Listed" and l.right == "4,060" end))
     assert.is_nil(find(lines, function(l) return l.label == "Vendor" end))

@@ -60,7 +60,7 @@ GC.Locales.ptBR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se várias compras estiverem agrupadas em uma linha, todas são removidas.",
   ["AH answered empty %ds ago"] = "a casa de leilões respondeu vazia há %ds",
-  ["AH value (cheapest lots skipped)"] = "Valor no leilão (lotes mais baratos ignorados)",
+  ["AH value"] = "Valor no leilão",
   ["AH, cheapest version"] = "Leilão, versão mais barata",
   ["ASKING"] = "PEDIDO",
   ["AT MARKET"] = "A MERCADO",

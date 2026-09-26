@@ -61,7 +61,7 @@ GC.Locales.koKR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "여러 건의 구매가 한 줄로 합쳐져 있으면 그 전부가 삭제됩니다.",
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
-  ["AH value (cheapest lots skipped)"] = "경매장 시세 (최저가 물량 제외)",
+  ["AH value"] = "경매장 시세",
   ["AH, cheapest version"] = "경매장, 최저가 버전",
   ["ASKING"] = "호가",
   ["AT MARKET"] = "시장가",

@@ -59,7 +59,7 @@ GC.Locales.itIT = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se più acquisti sono raggruppati su una riga, vengono rimossi tutti.",
   ["AH answered empty %ds ago"] = "la casa d'aste ha risposto vuota %ds fa",
-  ["AH value (cheapest lots skipped)"] = "Valore d'asta (lotti più economici esclusi)",
+  ["AH value"] = "Valore d'asta",
   ["AH, cheapest version"] = "Asta, versione più economica",
   ["ASKING"] = "RICHIESTO",
   ["AT MARKET"] = "A MERCATO",

@@ -199,7 +199,7 @@ describe("locale layer", function()
       "GoldCap scans when you open the auction house; SCAN on this board scans again.",
       "under the vendor price -- click Buy to purchase",
       "far under the market, resale speed unknown -- click Buy to purchase",
-      "AH value (cheapest lots skipped)",
+      "AH value",
       "no live price", "NO LIVE PRICE YET", "Checking prices — waiting for the Auction House…",
       "last live price %s ago",
       "Press Buy again to buy this quantity",
