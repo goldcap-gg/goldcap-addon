@@ -1651,6 +1651,31 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal("expired", realmRow.purchaseStage)
         end)
 
+        -- The click asks the slot, not the ticker's memory (WoW: Forever 3c: the ticker's writes
+        -- carried taint into the click). A BUY purchase that came and went BEFORE this window armed
+        -- is already in the decision the arm made, so it must not cost the click.
+        it("still bids when the BUY tab's purchase settled before the window armed", function()
+          local GC, _, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          GC.Buy = { ConfirmOwed = function() return false end, RefreshIfShown = function() end }
+          GC.PurchaseSlot.Claim("buy")
+          GC.PurchaseSlot.Release("buy") -- landed before the Check below
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = reopened(GC, realmRow, lot)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+          assert.is_true(d.enabled)
+          local bids = 0
+          _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+
+          click()
+
+          assert.equal(1, bids)
+        end)
+
         -- Fix round 3 (review n2): a BUY purchase started and not yet confirmed holds the shared slot.
         -- The Sniper's Buy met it lit and refusing ("finish the pending buy first"); it waits, dark.
         it("waits, dark, while the BUY tab holds a purchase it started", function()

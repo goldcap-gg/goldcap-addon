@@ -977,7 +977,11 @@ function GC.Buy.ConfirmOwed()
   if attempt ~= nil and attempt.stage == "confirming" then return true end
   local untilAt = GC.Buy._owedUntil
   if untilAt and (GetTime and GetTime() or time()) < untilAt then return true end
-  GC.Buy._owedUntil = nil
+  -- A question only: it used to clear the lapsed stamp here, and the 0.25 s auction house ticker
+  -- asks it four times a second (GC.Sniper._TickOwedHold), so that write rode every tick into the
+  -- one field both purchase clicks read before their protected call. In WoW: Forever the ticker's
+  -- execution was tainted, and the Buy it reached was blocked (3c beta taint log). A lapsed stamp
+  -- answers false all the same.
   return false
 end
 

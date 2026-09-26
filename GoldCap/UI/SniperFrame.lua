@@ -1684,17 +1684,11 @@ function GC.Sniper._PaintBoardChips(target)
     items = count > 0 and (GC.L["ITEMS %d"]):format(count) or GC.L["ITEMS"],
   }
   local board = GC.Sniper._Board()
+  -- Stamped every time, for the reason refreshAutoButton gives.
   for id, chip in pairs(chips) do
     local text = labels[id]
-    if text and chip.lastText ~= text then
-      chip:SetLabel(text)
-      chip.lastText = text
-    end
-    local on = (board == id)
-    if chip.lastOn ~= on then
-      chip.lastOn = on
-      chip:SetVariant(on and "active" or "ghost")
-    end
+    if text then chip:SetLabel(text) end
+    chip:SetVariant(board == id and "active" or "ghost")
   end
 end
 
@@ -3804,27 +3798,26 @@ refreshAutoButton = function(targetFrame)
   if not f or not f.autoBtn then return end
   local state = autoScan:State()
   local on = state ~= "OFF"
-  if f.autoBtn.lastOn ~= on then
-    f.autoBtn.lastOn = on
-    -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
-    -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
-    -- button. `active` carries the on-state in gold text, which cannot become unreadable.
-    f.autoBtn:SetVariant(on and "active" or "ghost")
-  end
+  -- Stamped every time, never compared with what was stamped last (WoW: Forever, 3c beta): a
+  -- remembered value is only ever rewritten by the execution that has just read it, so once some
+  -- other execution left it tainted every paint picked the taint up again -- the ticker's did,
+  -- four times a second, and carried it into the Buy click (see the ticker in
+  -- GC.Sniper.OnAuctionHouseShow). Setting the look and text a button already has costs nothing.
+  -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
+  -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
+  -- button. `active` carries the on-state in gold text, which cannot become unreadable.
+  f.autoBtn:SetVariant(on and "active" or "ghost")
   local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
-  if f.autoBtn.lastText ~= text then
-    f.autoBtn:SetLabel(text)
-    f.autoBtn.lastText = text
-    -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
-    -- rather than cutting it, and the status line anchored to its right edge moves with it.
-    -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
-    -- answers with the width the button has already cut it to (review I1).
-    local label = f.autoBtn.text
-    local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
-      or label.GetStringWidth and label:GetStringWidth())
-    if type(width) == "number" and f.autoBtn.SetWidth then
-      f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
-    end
+  f.autoBtn:SetLabel(text)
+  -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
+  -- rather than cutting it, and the status line anchored to its right edge moves with it.
+  -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
+  -- answers with the width the button has already cut it to (review I1).
+  local label = f.autoBtn.text
+  local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
+    or label.GetStringWidth and label:GetStringWidth())
+  if type(width) == "number" and f.autoBtn.SetWidth then
+    f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
   end
 end
 
@@ -3839,8 +3832,7 @@ refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
   local busy = GC.Sniper._bookPass:IsPaging() or (GC.ForeverScan ~= nil and GC.ForeverScan.IsBusy())
-  if f.fullScanBtn.lastBusy == busy then return end
-  f.fullScanBtn.lastBusy = busy
+  -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
@@ -5163,6 +5155,24 @@ function GC.Sniper._TickOwedHold()
   if was == "buy" and owed == nil then GC.Sniper._HandOffSettled() end
 end
 
+-- The Buy click's half of the same edge, without the ticker's memory (onDialogPrimaryClick reads
+-- nothing the ticker writes before its protected call). An arm notes the BUY tab's side of it:
+-- how many times BUY had taken the shared slot (GC.PurchaseSlot.Takes) and whether BUY was owed
+-- an answer. A click then asks whether BUY has taken the slot since, or was owed at the arm and
+-- is not now (the caller has just asked GC.Sniper._HoldWhileOwed) -- either way, a BUY purchase
+-- may have spent what this window's decision counted on, and the window is handed Refresh.
+function GC.Sniper._NoteArmForBuy(row)
+  local slot = GC.PurchaseSlot
+  row.armedBuy = (slot and slot.Takes)
+    and { takes = slot.Takes("buy"), owed = GC.Sniper._PurchaseOwed() == "buy" } or nil
+end
+
+function GC.Sniper._BuySpentSinceArm(row)
+  local armed, slot = row.armedBuy, GC.PurchaseSlot
+  if not (armed and slot and slot.Takes) then return false end
+  return armed.owed or slot.Takes("buy") ~= armed.takes
+end
+
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
@@ -5195,6 +5205,7 @@ local function armReady(row, deal, decision, levels, hold)
   row.purchaseDeal = nil
   row.decisionSnapshot = decision
   row.quoteSnapshot = nil
+  GC.Sniper._NoteArmForBuy(row)
   -- The book this decision was made on, kept ON THE ROW and stamped with the item it belongs
   -- to. The client holds ONE commodity search buffer, and a dialog armed off a hover pre-warm
   -- cache (openDialog's own shortcut, up to LIM.PREWARM_TTL_SECONDS old) opens with that
@@ -5604,6 +5615,7 @@ local function applyRequeryResult(row, itemID, live)
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
       row.quoteSnapshot = nil
+      GC.Sniper._NoteArmForBuy(row)
       activeItemID[deal.itemID] = true
       if dialog and dialog.row == row then
         hideRequoteBanner()
@@ -8402,12 +8414,18 @@ local function onDialogPrimaryClick()
   -- cannot retire it, only its answer or the stranded release can -- and the moment one does, this
   -- window is handed Refresh (GC.Sniper._HandOffSettled, follow-up P1; GC.Sniper._TickOwedHold for
   -- the BUY tab's).
+  if GC.Sniper._HoldWhileOwed(row) then return end
   -- The ticker's hand-off, asked now rather than up to a quarter of a second from now (fix round 4,
   -- n2): a click that lands just after the BUY tab let go of a purchase must not buy on a decision
   -- that purchase has overtaken. The hand-off turns this window into Refresh; the click is spent.
-  GC.Sniper._TickOwedHold()
-  if row.purchaseStage ~= "ready" then return end
-  if GC.Sniper._HoldWhileOwed(row) then return end
+  -- Asked of the purchase slot and of what this row's own arm noted (GC.Sniper._BuySpentSinceArm),
+  -- never of GC.Sniper._TickOwedHold's memory: that is written by the 0.25 s auction house ticker,
+  -- and WoW: Forever blocked this click for reading state the ticker writes (3c beta taint log --
+  -- the ticker's execution was tainted, and the taint rode in on GC.Buy._owedUntil).
+  if GC.Sniper._BuySpentSinceArm(row) then
+    GC.Sniper._HandOffSettled()
+    return
+  end
   if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
@@ -10473,17 +10491,9 @@ local function setView(v)
   -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
   -- away instead of trusting that Show and waiting up to 0.25s for the ticker to hide it again.
   if isDeals then refreshSessionText() end
-  -- AUTO, SCAN and HIDDEN each remember the label they last stamped and skip an identical
-  -- restamp -- worth it off the 0.25s ticker, wrong here: a label that comes back from the
-  -- hide above undrawn (the same thing that blanks the headings) would never be written
-  -- again, leaving three blank buttons on the toolbar. Forget what was stamped, re-derive.
+  -- A label that comes back from the hide above undrawn (the same thing that blanks the
+  -- headings) is written again: AUTO, SCAN, HIDDEN and the board chips stamp every time.
   if isDeals then
-    if frame.autoBtn then frame.autoBtn.lastText, frame.autoBtn.lastOn = nil, nil end
-    if frame.fullScanBtn then frame.fullScanBtn.lastBusy = nil end
-    if frame.verifyBtn then frame.verifyBtn.lastText, frame.verifyBtn.lastOn = nil, nil end
-    -- The board chips remember their last label for the same reason and come back from a hide
-    -- undrawn for the same reason: forget, then re-derive.
-    for _, chip in pairs(frame.boardChips or {}) do chip.lastText, chip.lastOn = nil, nil end
     refreshAutoButton()
     refreshScanButton()
     if refreshVerifyButton then refreshVerifyButton() end
@@ -10951,15 +10961,10 @@ local function createFrame()
     -- Through GC.L: these two were the last labels on the toolbar still stamped in English on
     -- every client, because the first paint used the wrapped "HIDDEN 0" and every repaint after
     -- it came through here.
-    local text = (show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount)
-    if btn.lastText ~= text then
-      btn:SetLabel(text)
-      btn.lastText = text
-    end
-    if btn.lastOn ~= show then
-      btn.lastOn = show
-      btn:SetVariant(show and "active" or "ghost")
-    end
+    -- Stamped every time, for the reason refreshAutoButton gives -- this button's remembered
+    -- on/off is the very field the 3c beta's taint log named.
+    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount))
+    btn:SetVariant(show and "active" or "ghost")
   end
   refreshVerifyButton(f)
 
@@ -11509,13 +11514,16 @@ function GC.Sniper.OnAuctionHouseShow()
   if GC.AuctionHouseTab and GC.AuctionHouseTab.Install then
     pcall(GC.AuctionHouseTab.Install)
   end
+  -- The toolbar repaints come LAST in a tick, after everything the tick writes for the board and
+  -- the purchase path (WoW: Forever, 3c beta). A repaint reads the buttons it paints, and the
+  -- beta's taint log showed this ticker's execution picking taint up at exactly such a read
+  -- (refreshVerifyButton) and carrying it, through what the rest of the tick wrote, into a Buy
+  -- click that was then blocked. Nothing written after a repaint can carry what a repaint read.
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
-    refreshAutoButton()
-    refreshScanButton()
     if GC.ForeverDeals and GC.ForeverDeals.Due and GC.ForeverDeals.Due(time()) then GC.Sniper.OnForeverFold() end
-    -- Background verification rides the same clock, for the same reason the two buttons above
-    -- do: one place drives it, so it cannot be forgotten by a path that changes state.
+    -- Background verification rides the same clock, for the same reason the toolbar buttons do
+    -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()
     -- And so does the one send that has nothing to ride on. A pass start parks until a grant
     -- (Core/BookPass.lua), but AUCTION_HOUSE_THROTTLED_SYSTEM_READY fires when the system
@@ -11540,10 +11548,6 @@ function GC.Sniper.OnAuctionHouseShow()
       GC.Sniper._keysPokeAt = now
       GC.Sniper._TickKeys()
     end
-    refreshVerifyButton()
-    -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
-    -- GC.Sniper.session either.
-    refreshSessionText()
     -- And a "your price" ring or open still waiting for its row (caps fixes 3e): a row can come
     -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
     -- notice, and every stop-and-open comes from here.
@@ -11555,6 +11559,13 @@ function GC.Sniper.OnAuctionHouseShow()
     -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2).
     GC.Sniper._TickConfirmCountdown()
     if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
+    -- The repaints, last (see above). Auto and Scan read the machine the tick just drove; the
+    -- session readout rides the same clock so a path that changes GC.Sniper.session cannot
+    -- leave it stale.
+    refreshAutoButton()
+    refreshScanButton()
+    refreshVerifyButton()
+    refreshSessionText()
   end)
   feedAuto("ahOpened")
   GC.Sniper._ClearStaleMailPause()
