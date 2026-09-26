@@ -212,6 +212,30 @@ describe("ForeverScan", function()
     assert.is_true(added.browse)
   end)
 
+  -- Parked N1 (plan 3b, final review): a cooldown SCAN's browse-only result must not merge into
+  -- a full fold from a DIFFERENT auction house -- another realm inside the same account-wide
+  -- 15-minute window, say -- or that realm's saved prices get stamped with this realm's passport.
+  it("never merges a browse-only scan into another auction house's fold", function()
+    local realm = "Forever"
+    local s = GC.ForeverScan.New(driver({ passport = function()
+      return { interface = 16001, build = "1.60.1.70009", region = 90, realm = realm, faction = "Horde" }
+    end }))
+    rows = { { 2589, 20, 1340, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.equal("Forever", store.fold.realm)
+    realm = "Forever-PvP"
+    now = now + 60
+    d.browseAnswer = "started"
+    assert.equal("cooldown", s:Request("button"))
+    s:OnBrowsePassDone({ [3000] = { floor = 250, qty = 4 } })
+    runAll()
+    assert.equal("Forever-PvP", store.fold.realm)
+    assert.equal("browse", store.fold.source)
+    assert.is_nil(store.fold.items[2589])      -- realm A's price is not carried into realm B
+    assert.equal(250, GC.ForeverFold.Decode(store.fold.items[3000]).min)
+  end)
+
   it("never lets a stamp from the future lock the scan", function()
     store.requestedAt = now + 3600
     local s = GC.ForeverScan.New(driver())

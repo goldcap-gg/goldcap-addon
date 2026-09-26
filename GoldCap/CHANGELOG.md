@@ -31,6 +31,7 @@
   a live price yet.
 - The Sell panel says how long ago it last saw a live price for the item, instead of a red
   "stale".
+- In WoW: Forever, a scan on one realm no longer mixes into the prices saved from another.
 
 ## 0.15.1 (2026-09-24)
 

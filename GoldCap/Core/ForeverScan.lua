@@ -53,6 +53,14 @@ function GC.ForeverScan.New(driver)
       and (fold.source == "replicate" or fold.source == "replicate+browse")
   end
 
+  -- Final review N1 (plan 3b): a fold is one auction house's. A browse-only result tops up the
+  -- saved one only when both are of the same region, realm, faction and ruleset -- otherwise a
+  -- SCAN on another realm inside the 15-minute window carried the first realm's prices over.
+  local function sameHouse(fold, p)
+    return fold.region == p.region and fold.realm == p.realm and fold.faction == p.faction
+      and fold.ruleset == p.ruleset
+  end
+
   local function commit()
     local a = acc
     reset()
@@ -66,7 +74,7 @@ function GC.ForeverScan.New(driver)
     local s = driver.store()
     if s then
       local existing = s.fold
-      if source == "browse" and isFullFold(existing) then
+      if source == "browse" and isFullFold(existing) and sameHouse(existing, p) then
         local merged, mergedCount = {}, 0
         for itemID, encoded in pairs(existing.items) do
           merged[itemID] = encoded
