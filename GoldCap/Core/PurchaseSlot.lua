@@ -13,8 +13,9 @@ GC.PurchaseSlot = {}
 GC.PurchaseSlot.MAX_SECONDS = 30
 
 local owner, claimedAt = nil, nil
--- How many times each claimant has taken the slot from nobody or from someone else (a re-stamp by
--- the same owner is not a take). Read by the Sniper's Buy click (GC.Sniper._BuySpentSinceArm):
+-- How many times each claimant has taken the slot: whenever it did not already hold a live claim
+-- -- from nobody, from someone else, or over its own stale one (only a re-stamp of a live claim is
+-- not a take). Read by the Sniper's Buy click (GC.Sniper._BuySpentSinceArm):
 -- whether the BUY tab took the slot since the window armed, answered from the slot's own state
 -- rather than from anything the 0.25 s auction house ticker writes.
 local takes = {}
@@ -30,7 +31,9 @@ function GC.PurchaseSlot.Claim(claimant, now)
   if owner and owner ~= claimant and (now - claimedAt) <= GC.PurchaseSlot.MAX_SECONDS then
     return false
   end
-  if owner ~= claimant then takes[claimant] = (takes[claimant] or 0) + 1 end
+  if owner ~= claimant or (now - claimedAt) > GC.PurchaseSlot.MAX_SECONDS then
+    takes[claimant] = (takes[claimant] or 0) + 1
+  end
   owner = claimant
   claimedAt = now
   return true
