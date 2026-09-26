@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.15.2 (2026-09-26)
+
+- Fixed: the Sell tab priced gear, bags and other non-stacking items far too low when several
+  identical listings shared one price. THE BOOK divided the price by how many were listed, so
+  150 bags at 1,800g each read as 12g, and MATCH and UNDERCUT suggested 12g. They now read
+  1,800g, the same as the auction house's own list.
+- Fixed: for the same reason, the sniper could see such an item as a far cheaper deal than it
+  was.
+
 ## 0.15.1 (2026-09-24)
 
 - The Deals board leaves out finds worth less than your "Min profit per buy", and a refused row

@@ -2241,13 +2241,13 @@ driver = {
     local info = C_AuctionHouse.GetItemSearchResultInfo(key, 1)
     if not info or not info.buyoutAmount or info.buyoutAmount == 0 then return nil end
     if not info.quantity or info.quantity <= 0 then return nil end
-    -- info.buyoutAmount is the TOTAL price for the whole lot, not a per-unit price (unlike
-    -- GetCommoditySearchResultInfo's unitPrice below) -- divide down so GC.DealMath.Evaluate
-    -- compares against value.mv (a per-unit market value) correctly, matching how
-    -- FullScan.Evaluate derives unitPrice from a row's per-group buyoutStack total.
+    -- An item search row groups identical auctions, and info.buyoutAmount is what ONE of them
+    -- costs -- Blizzard's AuctionHouseItemSellFrame takes it as its per-unit price. It is not a
+    -- stack total like a replicate row's buyoutStack (FullScan.Evaluate divides that one):
+    -- divided by the row's quantity, 150 bags at 1,800g read as a 12g deal.
     return {
       auctionID = info.auctionID,
-      unitPrice = math.floor(info.buyoutAmount / info.quantity),
+      unitPrice = info.buyoutAmount,
       qty = info.quantity,
     }
   end,
