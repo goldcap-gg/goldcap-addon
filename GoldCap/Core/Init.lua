@@ -936,6 +936,9 @@ GC.slashHandlers.sell = function() if GC.Sell and GC.Sell.DebugPrint then GC.Sel
 GC.slashHandlers.board = function() if GC.Sniper and GC.Sniper.DebugBoard then GC.Sniper.DebugBoard() end end
 -- Diagnostics for the commodity purchase path (why a Buy is refused); see GC.Sniper.DebugPurchase.
 GC.slashHandlers.purchase = function() if GC.Sniper and GC.Sniper.DebugPurchase then GC.Sniper.DebugPurchase() end end
+-- Which fields a purchase click reads, or the auction house ticker writes, count as tainted; see
+-- GC.Sniper.DebugTaint. Off the help line like the other diagnostics.
+GC.slashHandlers.taint = function() if GC.Sniper and GC.Sniper.DebugTaint then GC.Sniper.DebugTaint() end end
 -- Diagnostics for the BUY tab's run/attempt state; see GC.Buy.DebugPrint.
 GC.slashHandlers.buy = function() if GC.Buy and GC.Buy.DebugPrint then GC.Buy.DebugPrint() end end
 

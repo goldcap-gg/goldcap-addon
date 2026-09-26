@@ -11772,6 +11772,57 @@ end
 -- here: the shared slot and its age, the attempt in flight and its stage, the tombstone and
 -- whether it is confirmed (a confirmed one is never retired on a timer), the record-only
 -- stranded confirms, and the requeries still waiting for a result.
+-- /gc taint: which of the fields a purchase click reads, or the auction house ticker writes, the
+-- client counts as tainted right now (WoW: Forever, 3c beta: a Buy blocked because the ticker's
+-- taint reached it). Read-only on purpose -- a typed command may itself run tainted, and a probe
+-- that wrote anything could taint what it measures; issecurevariable answers about the field,
+-- not about whoever asks. Plain English, like /gc purchase: it is pasted into a bug report.
+function GC.Sniper.DebugTaint()
+  local check = _G.issecurevariable
+  if type(check) ~= "function" then
+    GC.Print("taint: this client has no issecurevariable")
+    return
+  end
+  if type(_G.issecure) == "function" then
+    GC.Print(("taint: this command itself runs %s"):format(_G.issecure() and "secure" or "TAINTED"))
+  end
+  local function report(name, owner, key)
+    if type(owner) ~= "table" then
+      GC.Print(("taint: %s -- not there"):format(name))
+      return
+    end
+    local ok, secure, by = pcall(check, owner, key)
+    if not ok then
+      GC.Print(("taint: %s -- %s"):format(name, tostring(secure)))
+    elseif secure then
+      GC.Print(("taint: %s secure"):format(name))
+    else
+      GC.Print(("taint: %s TAINTED by %s"):format(name, tostring(by)))
+    end
+  end
+  -- What the ticker writes every tick, and the toolbar labels it stamps last.
+  report("GC.Sniper._lastOwed (ticker)", GC.Sniper, "_lastOwed")
+  report("GC.Sniper._keysPokeAt (ticker)", GC.Sniper, "_keysPokeAt")
+  report("GC.Buy._lastWaiting (ticker)", GC.Buy, "_lastWaiting")
+  report("verifyBtn.label (ticker, last)", frame and frame.verifyBtn, "label")
+  report("autoBtn.label (ticker, last)", frame and frame.autoBtn, "label")
+  -- What a Buy click reads before its protected call.
+  report("GC.Buy._owedUntil", GC.Buy, "_owedUntil")
+  report("GC.Buy._attempt", GC.Buy, "_attempt")
+  local row = dialog and dialog.row
+  report("dialog.row", dialog, "row")
+  report("row.purchaseStage", row, "purchaseStage")
+  report("row.deal", row, "deal")
+  report("row.decisionSnapshot", row, "decisionSnapshot")
+  report("row.armedBuy", row, "armedBuy")
+  local deal = row and row.deal
+  report("deal.itemID", deal, "itemID")
+  report("deal.isCommodity", deal, "isCommodity")
+  local decision = row and row.decisionSnapshot
+  report("decision.status", decision, "status")
+  report("decision.quantity", decision, "quantity")
+end
+
 function GC.Sniper.DebugPurchase()
   local function s(v) return tostring(v) end
   local now = GetTime()

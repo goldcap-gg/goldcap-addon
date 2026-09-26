@@ -527,6 +527,27 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     end)
   end)
 
+  -- /gc taint: the owner's in-game check of the fields above, from the client's own answer.
+  describe("/gc taint", function()
+    it("names each field's taint from issecurevariable and changes nothing", function()
+      loadForever()
+      local printed = {}
+      GC.Print = function(text) printed[#printed + 1] = text end
+      _G.issecure = function() return false end
+      _G.issecurevariable = function(_, key)
+        if key == "_lastOwed" then return false, "GoldCap" end
+        return true, nil
+      end
+      local before = model.taintOf(GC.Sniper, "_lastOwed")
+      GC.slashHandlers.taint()
+      _G.issecure, _G.issecurevariable = nil, nil
+      assert.equal("taint: this command itself runs TAINTED", printed[1])
+      assert.equal("taint: GC.Sniper._lastOwed (ticker) TAINTED by GoldCap", printed[2])
+      assert.equal("taint: GC.Buy._owedUntil secure", printed[7])
+      assert.equal(before, model.taintOf(GC.Sniper, "_lastOwed"))
+    end)
+  end)
+
   -- Whatever taints the ticker next -- a field this spec has not thought of -- the clicks must
   -- not read what it writes before their protected call.
   describe("a ticker tainted from its first line", function()
