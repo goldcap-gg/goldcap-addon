@@ -463,6 +463,8 @@ GC.Locales.frFR = {
     "Le prix a bougé et l'opération n'est plus sûre.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "Le profit n'atteint pas votre minimum une fois la commission de 5 % et la caution payées.",
+  ["What this buy would make is under your minimum profit."] =
+    "Ce que cet achat rapporterait est inférieur à votre profit minimum.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Aucune annulation possible. Le premier clic en demande un second pour confirmer.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

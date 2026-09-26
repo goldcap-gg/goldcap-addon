@@ -467,6 +467,8 @@ GC.Locales.esMX = {
     "El precio se movió y la operación ya no es segura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "La ganancia no llega a tu mínimo una vez pagados el 5 % de comisión y el depósito.",
+  ["What this buy would make is under your minimum profit."] =
+    "Lo que esta compra generaría está por debajo de tu ganancia mínima.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "No se puede deshacer. El primer clic pide un segundo para confirmar.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

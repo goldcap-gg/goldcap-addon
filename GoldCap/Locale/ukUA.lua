@@ -476,6 +476,8 @@ GC.Locales.ukUA = {
     "Ціна зрушила, і угода більше не безпечна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "Прибуток не дотягує до вашого мінімуму після 5% комісії та застави.",
+  ["What this buy would make is under your minimum profit."] =
+    "Прибуток від цієї покупки менший за ваш мінімум.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

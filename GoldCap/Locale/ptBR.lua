@@ -464,6 +464,8 @@ GC.Locales.ptBR = {
     "O preço se moveu e a operação não é mais segura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "O lucro não alcança o seu mínimo depois de pagas a comissão de 5 % e o depósito.",
+  ["What this buy would make is under your minimum profit."] =
+    "O que esta compra renderia está abaixo do seu lucro mínimo.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Não há como desfazer. O primeiro clique pede um segundo para confirmar.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

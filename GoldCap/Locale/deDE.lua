@@ -464,6 +464,8 @@ GC.Locales.deDE = {
     "Der Preis hat sich bewegt, der Handel ist nicht mehr sicher.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "Der Gewinn erreicht dein Minimum nicht, sobald die 5 % Gebühr und die Einstellgebühr bezahlt sind.",
+  ["What this buy would make is under your minimum profit."] =
+    "Was dieser Kauf einbringen würde, liegt unter deinem Mindestgewinn.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Das lässt sich nicht rückgängig machen. Ein Klick verlangt einen zweiten zur Bestätigung.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

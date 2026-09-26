@@ -241,6 +241,7 @@ local REASON_TEXT = {
   demand_limit = "Quantity is capped by how fast this item actually sells.",
   stress_exit_missing = "No safe resale price could be worked out.",
   stress_profit_below_buffer = "The profit does not clear your minimum once the 5% cut and deposit are paid.",
+  profit_below_minimum = "What this buy would make is under your minimum profit.",
   wall_absorbed = "Cheaper listings remain, but at this item's pace they sell through within hours.",
   invalid_input = "The data for this item is malformed, so GoldCap refuses to guess.",
   requote_broke_safety = "The price moved and the trade is no longer safe.",
@@ -265,7 +266,7 @@ local REASON_ORDER = {
   book_missing = 30, book_exhausted = 31, competing_ask_missing = 32, deposit_missing = 33,
   no_comparable_lot = 34, price_rose = 35,
   capital_limit = 40, demand_limit = 41, wall_absorbed = 42,
-  stress_exit_missing = 50, stress_profit_below_buffer = 51,
+  stress_exit_missing = 50, stress_profit_below_buffer = 51, profit_below_minimum = 52,
   invalid_input = 60, requote_broke_safety = 70,
 }
 
@@ -905,6 +906,104 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
   -- then multiplied back out -- buying the whole stack is the only way to buy any of it.
   out.estProfit = (math.floor(reference * 0.95) - bestUnit) * quantity
   return out
+end
+
+-- WoW: Forever (Core/ForeverDeals.lua): the live Check of a row the player's own scan found.
+-- Evaluate above cannot answer it -- every gate it has reads a region market (sale speed,
+-- sell-through, a stress exit) Forever does not publish. What a Forever row knows is a CEILING:
+-- the most one unit may cost and still pay (under the vendor price, or far under the scan's
+-- median). So this buys the units at or under it, cheapest first, inside the player's own
+-- per-buy limits -- GC.Caps.DecideCommodity is the picker, the one rule a live price cap already
+-- buys by -- holds a server quote to what those same units cost on the book, and asks whether
+-- the buy still clears the Forever minimum profit.
+local CEILING_KINDS = { vendor = true, market = true }
+
+local function refusal(reason, plan)
+  local out = { version = GC.SniperDecision.VERSION, status = "AVOID", buyable = false, reasons = { reason } }
+  for k, v in pairs(plan or {}) do out[k] = v end
+  return out
+end
+
+local function ceilingProfit(kind, exitUnit, quantity, entryTotal, deposit)
+  local gross = exitUnit * quantity
+  if kind == "vendor" then return gross - entryTotal end
+  return gross - safeCeilDiv(gross * 5, 100) - entryTotal - deposit
+end
+
+function GC.SniperDecision.EvaluateCeiling(input)
+  if type(input) ~= "table" or not CEILING_KINDS[input.kind]
+      or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
+      or not isInteger(input.exitUnit) or input.exitUnit <= 0
+      or type(input.levels) ~= "table" or type(input.limits) ~= "table"
+      or not isSignedInteger(input.minimumProfit) then
+    return refusal("invalid_input")
+  end
+  local cap = { c = input.ceilingUnit, l = 0 }
+  local plan = GC.Caps.DecideCommodity(cap, input.levels, input.limits, input.fixedQuantity)
+  if not plan then
+    if input.fixedQuantity ~= nil then return refusal("book_exhausted") end
+    local any = GC.Caps.DecideCommodity(cap, input.levels, { maxQuantity = 1, budget = math.huge })
+    return refusal(any and "capital_limit" or "price_rose")
+  end
+  if input.quotedTotal ~= nil and (not isInteger(input.quotedTotal) or input.quotedTotal > plan.entryTotal) then
+    return refusal("requote_broke_safety")
+  end
+  local entryTotal = input.quotedTotal or plan.entryTotal
+  local deposit = 0
+  if input.kind == "market" then
+    deposit = type(input.depositForQuantity) == "function" and input.depositForQuantity(plan.quantity) or nil
+    if not isInteger(deposit) then return refusal("deposit_missing") end
+  end
+  local figures = {
+    quantity = plan.quantity, entryTotal = entryTotal,
+    entryUnitDisplay = math.floor(entryTotal / plan.quantity), unit = plan.unit,
+    ceiling = input.ceilingUnit, forever = input.kind, exitUnit = input.exitUnit, deposit = deposit,
+    stressProfit = ceilingProfit(input.kind, input.exitUnit, plan.quantity, entryTotal, deposit),
+    requiredProfit = input.minimumProfit,
+  }
+  if figures.stressProfit < input.minimumProfit then return refusal("profit_below_minimum", figures) end
+  local out = { version = GC.SniperDecision.VERSION, status = "SAFE", buyable = true, reasons = {} }
+  for k, v in pairs(figures) do out[k] = v end
+  -- The same one-word rollback Evaluate's own SAFE answers obey (SAFE_PURCHASES_ENABLED).
+  if not GC.SniperDecision.SAFE_PURCHASES_ENABLED then
+    out.computedStatus, out.status, out.buyable, out.reasons = "SAFE", "WATCH", false, { "shadow_validation" }
+  end
+  return out
+end
+
+-- The same question for one auction (gear, most often): the cheapest lot at or under the
+-- ceiling, by unit, from the live per-auction walk. An item auction has no quote step, so the
+-- lot IS the purchase -- its auctionID and exact buyout -- and the shape is the one
+-- onDialogPrimaryClick buys a lot on: WATCH plus a candidate. Kind "vendor" only (plan 3c,
+-- Decision 3): the vendor's price for the lot is exact; a resale estimate for a single
+-- auction is not, and nothing would catch it before PlaceBid.
+function GC.SniperDecision.EvaluateCeilingLot(input)
+  if type(input) ~= "table" or input.kind ~= "vendor"
+      or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
+      or not isInteger(input.exitUnit) or input.exitUnit <= 0
+      or type(input.lots) ~= "table" or not isSignedInteger(input.minimumProfit) then
+    return refusal("invalid_input")
+  end
+  local priced = {}
+  for _, lot in ipairs(input.lots) do
+    if type(lot) == "table" and isInteger(lot.auctionID) and lot.auctionID > 0
+        and isInteger(lot.buyout) and lot.buyout > 0 then
+      priced[#priced + 1] = lot
+    end
+  end
+  local picked = GC.Caps.DecideRealm({ c = input.ceilingUnit, l = 0 }, priced)
+  if not picked then return refusal("price_rose") end
+  local profit = input.exitUnit * picked.quantity - picked.entryTotal
+  if profit < input.minimumProfit then return refusal("profit_below_minimum") end
+  return {
+    version = GC.SniperDecision.VERSION, status = "WATCH", buyable = false, reasons = {},
+    candidate = picked.candidate, quantity = picked.quantity, entryTotal = picked.entryTotal,
+    entryUnitDisplay = picked.entryUnitDisplay, unit = picked.unit, ceiling = input.ceilingUnit,
+    forever = input.kind, exitUnit = input.exitUnit, stressProfit = profit,
+    -- The two figures the check panel's lot view reads (Core/CheckVerdict.lua, tone
+    -- "unverified"): what the buy makes, and the price it is measured against.
+    estProfit = profit, reference = input.exitUnit,
+  }
 end
 
 -- Discovery-time screen. A browse aggregate has no order book, so Evaluate cannot run on it --

@@ -424,6 +424,8 @@ GC.Locales.zhTW = {
   ["The price moved and the trade is no longer safe."] = "價格變動了，這筆交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手續費和上架費後，利潤達不到你設定的下限。",
+  ["What this buy would make is under your minimum profit."] =
+    "這筆購買帶來的利潤低於你設定的最低利潤。",
   ["There is no undo. Clicking asks for a second click to confirm."] = "無法復原。點擊後需再點一次確認。",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "這是伺服器物品，而 GoldCap 只校驗商品類價格。",

@@ -565,6 +565,8 @@ GC.Locales.enUS = {
     "The price moved and the trade is no longer safe.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "The profit does not clear your minimum once the 5% cut and deposit are paid.",
+  ["What this buy would make is under your minimum profit."] =
+    "What this buy would make is under your minimum profit.",
   ["The run's vendor reagents. Press Ctrl+C to copy the list."] =
     "The run's vendor reagents. Press Ctrl+C to copy the list.",
   ["There is no undo. Clicking asks for a second click to confirm."] =

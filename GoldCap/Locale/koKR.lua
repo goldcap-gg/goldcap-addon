@@ -434,6 +434,8 @@ GC.Locales.koKR = {
   ["The price moved and the trade is no longer safe."] = "가격이 움직여 더 이상 안전한 거래가 아닙니다.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "5% 수수료와 등록비를 내고 나면 설정한 최소 수익에 미치지 못합니다.",
+  ["What this buy would make is under your minimum profit."] =
+    "이 구매로 얻는 수익이 설정한 최소 수익보다 적습니다.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "되돌릴 수 없습니다. 한 번 누르면 확인을 위해 한 번 더 눌러야 합니다.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

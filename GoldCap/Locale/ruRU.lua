@@ -461,6 +461,8 @@ GC.Locales.ruRU = {
     "Цена сдвинулась, и сделка больше не безопасна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "Прибыль не дотягивает до вашего минимума после 5% комиссии и залога.",
+  ["What this buy would make is under your minimum profit."] =
+    "Прибыль от этой покупки меньше вашего минимума.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Отменить нельзя. Первый клик просит второй для подтверждения.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =

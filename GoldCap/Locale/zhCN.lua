@@ -423,6 +423,8 @@ GC.Locales.zhCN = {
   ["The price moved and the trade is no longer safe."] = "价格变动了，这笔交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手续费和上架费后，利润达不到你设定的下限。",
+  ["What this buy would make is under your minimum profit."] =
+    "这笔购买带来的利润低于你设定的最低利润。",
   ["There is no undo. Clicking asks for a second click to confirm."] = "无法撤销。点击后需再点一次确认。",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "这是服务器物品，而 GoldCap 只校验商品类价格。",
