@@ -72,6 +72,7 @@ describe("ForeverScan", function()
     assert.is_nil(fold.ruleset)
     assert.is_nil(fold.partial)
     assert.equal(now, fold.at)
+    assert.equal(2, store.fold.v)
     local e = GC.ForeverFold.Decode(fold.items[2589])
     assert.equal(67, e.min); assert.equal(25, e.qty); assert.equal(2, e.lots)
     assert.equal("started", notes[1][1])
@@ -324,6 +325,17 @@ describe("ForeverScan", function()
       db.foreverScan.fold.region = 90
       db.foreverScan.fold.realm = "Forever-PvP"
       assert.is_nil(GC.ForeverScan.ValueFor(2589))
+    end)
+
+    it("hands out the fold only for this region and realm, and saves fold version 2", function()
+      GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
+      assert.is_nil(GC.ForeverScan.Fold())
+      db.foreverScan = { fold = { region = 90, realm = "Forever", at = 5000, items = { [7] = "900,1,,gb;" } } }
+      assert.equal(5000, GC.ForeverScan.Fold().at)
+      db.foreverScan.fold.realm = "Forever-PvP"
+      assert.is_nil(GC.ForeverScan.Fold())
+      GC.ForeverScan.Init(db, passport(120100, 3, "Silvermoon"))
+      assert.is_nil(GC.ForeverScan.Fold())
     end)
 
     it("creates its store only in Forever, and summarises it in English", function()

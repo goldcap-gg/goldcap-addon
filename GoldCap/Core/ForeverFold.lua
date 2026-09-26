@@ -5,15 +5,25 @@ local _, GC = ...
 -- GoldCapDB.foreverScan.fold.
 --
 -- Per item: the cheapest unit, the units listed, the lots holding them, and the five cheapest
--- price levels. One string per item, not a table, because SavedVariables writes every table
--- field on a line of its own -- a table per item would triple the file (spec target ~300-600 KB).
--- Ladder levels are stored as their distance from the level below, the first from `min`: prices
--- repeat their leading digits, deltas do not.
+-- price levels, plus (fold version 2) the quarter- and half-way unit prices and the count of
+-- distinct price levels the item was listed at. One string per item, not a table, because
+-- SavedVariables writes every table field on a line of its own -- a table per item would triple
+-- the file (spec target ~300-600 KB). Ladder levels are stored as their distance from the level
+-- below, the first from `min`: prices repeat their leading digits, deltas do not. The depth part
+-- rides after the ladder, behind a `|`, as distances from `min` too, so a version-1 reader and a
+-- version-1 string both still work.
 GC.ForeverFold = {}
 GC.ForeverFold.LADDER_LEVELS = 5
 -- "AH value": the cheapest level a tenth of the listed units reach. One troll lot at 1c among
 -- four thousand units is not what the item fetches.
 GC.ForeverFold.VALUE_SHARE = 0.10
+
+-- Fold version 2 (plan 3c): every string may carry a depth part after the ladder -- the unit
+-- prices at a quarter and at half of the listed units, and how many distinct prices the item
+-- was listed at. The Deals board's "Under market" kind measures against the half-way price,
+-- which the five-level ladder cannot reach. A version-1 string simply has no depth part.
+GC.ForeverFold.VERSION = 2
+GC.ForeverFold.DEPTH_SHARES = { 0.25, 0.50 }
 
 local MAX_EXACT = 9007199254740991
 
@@ -57,6 +67,11 @@ function GC.ForeverFold.AddRow(acc, itemID, count, buyout, hasAllInfo)
   e.qty = e.qty + count
   e.lots = e.lots + 1
   insertLevel(e.ladder, unit, count)
+  -- Every level, not only the ladder's five: the depth part needs the whole book. This scan's
+  -- memory only -- Encode reads it, and it is never written to the save.
+  e.all = e.all or {}
+  if e.all[unit] == nil then e.levels = (e.levels or 0) + 1 end
+  e.all[unit] = (e.all[unit] or 0) + count
   acc.rows = acc.rows + 1
   return true
 end
@@ -82,6 +97,27 @@ function GC.ForeverFold.Value(e)
   return ladder[#ladder][1]
 end
 
+-- The unit prices at which a quarter and half of the listed units sit at or under, and how many
+-- distinct prices the item was listed at -- from every level this scan saw. nil, nil, nil for an
+-- entry with no levels in memory (a browse row, or one decoded from the save).
+function GC.ForeverFold.Depths(e)
+  local all = type(e) == "table" and e.all or nil
+  if type(all) ~= "table" or type(e.qty) ~= "number" or e.qty <= 0 then return nil, nil, nil end
+  local units = {}
+  for unit in pairs(all) do units[#units + 1] = unit end
+  table.sort(units)
+  local shares, found, seen, s = GC.ForeverFold.DEPTH_SHARES, {}, 0, 1
+  for _, unit in ipairs(units) do
+    seen = seen + all[unit]
+    while s <= #shares and seen >= math.max(1, math.ceil(e.qty * shares[s])) do
+      found[s] = unit
+      s = s + 1
+    end
+  end
+  for i = s, #shares do found[i] = units[#units] end
+  return found[1], found[2], #units
+end
+
 function GC.ForeverFold.Encode(e, gear)
   local flags = (gear and "g" or "") .. (e.browse and "b" or "")
   local parts, prev = {}, e.min
@@ -89,13 +125,19 @@ function GC.ForeverFold.Encode(e, gear)
     parts[i] = ("%dx%d"):format(level[1] - prev, level[2])
     prev = level[1]
   end
-  return ("%d,%d,%s,%s;%s"):format(e.min, e.qty or 0, e.lots and ("%d"):format(e.lots) or "", flags,
+  local s = ("%d,%d,%s,%s;%s"):format(e.min, e.qty or 0, e.lots and ("%d"):format(e.lots) or "", flags,
     table.concat(parts, " "))
+  local p25, p50, levels = GC.ForeverFold.Depths(e)
+  if p25 and p50 and levels then
+    s = s .. ("|%d,%d,%d"):format(p25 - e.min, p50 - e.min, levels)
+  end
+  return s
 end
 
 function GC.ForeverFold.Decode(s)
   if type(s) ~= "string" then return nil end
-  local min, qty, lots, flags, ladder = s:match("^(%d+),(%d+),(%d*),(%a*);(.*)$")
+  local body, depth = s:match("^([^|]*)|?(.*)$")
+  local min, qty, lots, flags, ladder = body:match("^(%d+),(%d+),(%d*),(%a*);(.*)$")
   min = tonumber(min)
   if not min or min <= 0 then return nil end
   local e = { min = min, qty = tonumber(qty), lots = tonumber(lots),
@@ -104,6 +146,10 @@ function GC.ForeverFold.Decode(s)
   for delta, q in ladder:gmatch("(%d+)x(%d+)") do
     unit = unit + tonumber(delta)
     e.ladder[#e.ladder + 1] = { unit, tonumber(q) }
+  end
+  local d25, d50, levels = depth:match("^(%d+),(%d+),(%d+)$")
+  if d25 then
+    e.p25, e.p50, e.levels = min + tonumber(d25), min + tonumber(d50), tonumber(levels)
   end
   e.value = GC.ForeverFold.Value(e)
   return e

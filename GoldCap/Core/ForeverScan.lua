@@ -81,12 +81,13 @@ function GC.ForeverScan.New(driver)
         -- Honest source/age (final review I3): still fundamentally the dump's own fold -- its
         -- `rows` (a raw-row count only a real dump produces) is unchanged -- just topped up with
         -- a few more items' floors, which is exactly what `partial` is for elsewhere in this file.
-        s.fold = { v = 1, interface = p.interface, build = p.build, region = p.region, realm = p.realm,
-          faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = existing.source,
-          rows = existing.rows, itemCount = mergedCount, partial = true, items = merged }
+        s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
+          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(),
+          source = existing.source, rows = existing.rows, itemCount = mergedCount, partial = true,
+          items = merged }
       else
-        s.fold = { v = 1, interface = p.interface, build = p.build, region = p.region, realm = p.realm,
-          faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
+        s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
+          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
           rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
           items = items }
       end
@@ -353,11 +354,9 @@ function GC.ForeverScan.Store()
   return db.foreverScan
 end
 
--- The player's own scan as a GC.Data.GetItemValue answer (Core/Data.lua, its last source), or
--- nil. Reads only: it runs wherever GetItemValue does, the Sell tab's compose included. A fold
--- from another region, or from another realm when both are named (a different ruleset's
--- auction house), answers nothing.
-function GC.ForeverScan.ValueFor(itemID)
+-- The saved fold, when it is this game's, this region's and -- when both are named -- this
+-- realm's (a different ruleset's auction house is another market). Read-only; nil anywhere else.
+function GC.ForeverScan.Fold()
   if not GC.ForeverScan._on then return nil end
   local db = GC.ForeverScan._db
   local s = type(db) == "table" and db.foreverScan or nil
@@ -368,6 +367,14 @@ function GC.ForeverScan.ValueFor(itemID)
       and fold.realm ~= GC.ForeverScan._realm then
     return nil
   end
+  return fold
+end
+
+-- The player's own scan as a GC.Data.GetItemValue answer (Core/Data.lua, its last source), or
+-- nil. Reads only: it runs wherever GetItemValue does, the Sell tab's compose included.
+function GC.ForeverScan.ValueFor(itemID)
+  local fold = GC.ForeverScan.Fold()
+  if not fold then return nil end
   local e = GC.ForeverFold.Decode(fold.items[itemID])
   if not e then return nil end
   return { mv = e.value, min = e.min, currentQty = e.qty, listings = e.lots, ts = fold.at,
