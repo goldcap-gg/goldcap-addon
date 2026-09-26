@@ -735,7 +735,7 @@ end
 -- F1 (lifecycle fix): NO LONGER prunes on `f.posted`. The old rule pruned a flip the instant
 -- MarkFlipPosted fired (AUCTION_HOUSE_AUCTION_CREATED, see UI/SellFrame.lua's OnAuctionCreated)
 -- -- meaning the exact moment a player posted a lot, its cost basis vanished from db.flips and
--- the live lot degraded to a basis-less orphan row (Core/Flips.lua's OrphanLotRows) for the
+-- the live lot degraded to a basis-less orphan row (the Sell tab's old row model) for the
 -- REST of its time on the AH. Direct player requirement: the paid price must always stay
 -- visible while the lot is up, through a sale AND through a cancel-and-repost. Age alone is now
 -- the only prune condition -- a posted flip ages out same as any other, FLIP_MAX_AGE_SECONDS
@@ -764,9 +764,9 @@ end
 -- index is a position into the array GetFlips() most recently returned (the live db.flips
 -- table). F1: marking a flip posted no longer causes it to be pruned at all (see GetFlips'
 -- own comment) -- `postedAt` (defaulting to time(), injectable for tests same as RecordFlip's
--- `now`) is stamped alongside `posted` purely as a timestamp for Core/Flips.lua's BuildRow to
--- compare a ledger sale's `at` against (the SOLD status floor), replacing boughtAt for that one
--- purpose once a flip has actually been posted.
+-- `now`) is stamped alongside `posted`. The Sell tab's old row model read it as the floor a
+-- ledger sale had to land after; nothing reads it since that model was removed, and it is kept
+-- only because it is already in players' saved flips.
 function GC.Data.MarkFlipPosted(index, now)
   local f = db and db.flips and db.flips[index]
   if f then
