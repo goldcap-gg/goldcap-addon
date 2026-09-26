@@ -165,15 +165,38 @@ describe("Variant drill", function()
   -- (Blizzard's AuctionHouseItemSellFrame takes it as its per-unit price). Divided by the row's
   -- quantity, 150 bags at 1,800g read as a 12g lot -- a deal on the board and a 12g floor in the
   -- live observation (player report, EU-Draenor, 2026-09-26).
-  it("reads a grouped row's buyoutAmount as the price of one lot", function()
-    local GC = loadSniper()
+  --
+  -- And the row's quantity is how many such auctions there are, not what one purchase buys:
+  -- PlaceBid takes one auctionID and pays its buyoutAmount -- Blizzard's item buy frame has no
+  -- quantity at all. Carried as the lot's size it made the pin's Total 150 x 1,800g, and further
+  -- down it was divided back out of the buyout (review, 2026-09-27).
+  local function groupedBags()
     results["240158:0:0:0"] = { { auctionID = 9, buyoutAmount = 18000000, quantity = 150,
       itemKey = { itemID = 240158, itemLevel = 0 } } }
+  end
+
+  it("reads a grouped row as one purchase at the price of one", function()
+    local GC = loadSniper()
+    groupedBags()
     local driver = driverOf(GC)
     driver.sendSearch(240158)
     local res = driver.itemResult(240158)
     assert.equal(18000000, res.unitPrice)
-    assert.equal(150, res.qty)
+    assert.equal(1, res.qty)
+    local lots = driver.itemLots(240158)
+    assert.equal(18000000, lots[1].buyout)
+    assert.equal(1, lots[1].quantity)
+  end)
+
+  it("never lets YOUR PRICE fire on a grouped row that costs more than the cap", function()
+    local GC = loadSniper()
+    groupedBags()
+    local driver = driverOf(GC)
+    driver.sendSearch(240158)
+    assert.is_nil(GC.Caps.DecideRealm({ c = 1000000, l = 0 }, driver.itemLots(240158)))
+    local decision = GC.Caps.DecideRealm({ c = 18000000, l = 0 }, driver.itemLots(240158))
+    assert.equal(18000000, decision.entryTotal)
+    assert.equal(1, decision.candidate.quantity)
   end)
 
   -- The floor the drill aims above is the one the decision it feeds will apply: a cap's own `l`

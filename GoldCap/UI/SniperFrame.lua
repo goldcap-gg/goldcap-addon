@@ -2244,11 +2244,14 @@ driver = {
     -- An item search row groups identical auctions, and info.buyoutAmount is what ONE of them
     -- costs -- Blizzard's AuctionHouseItemSellFrame takes it as its per-unit price. It is not a
     -- stack total like a replicate row's buyoutStack (FullScan.Evaluate divides that one):
-    -- divided by the row's quantity, 150 bags at 1,800g read as a 12g deal.
+    -- divided by the row's quantity, 150 bags at 1,800g read as a 12g deal. And the row's
+    -- quantity is how many such auctions there are, not what a purchase buys: PlaceBid takes one
+    -- auctionID and pays its buyoutAmount for one item. As the deal's qty it made a pin's Total
+    -- 150 x 1,800g.
     return {
       auctionID = info.auctionID,
       unitPrice = info.buyoutAmount,
-      qty = info.quantity,
+      qty = 1,
     }
   end,
 
@@ -2331,9 +2334,10 @@ driver = {
 
   -- Every lot currently listed for a realm item, from results the drill's own SendSearchQuery
   -- has already landed -- this never issues a query of its own, exactly like commodityBook.
-  -- buyoutAmount is the whole lot's price (see itemResult above), and it is left that way:
-  -- GC.SniperDecision.EvaluateRealm compares lots to each other and to a reference, and
-  -- dividing here would only invent a per-unit price for a lot that cannot be split.
+  -- A lot is one purchase: PlaceBid on its auctionID pays buyoutAmount for one item. A search
+  -- row groups identical auctions and its quantity counts them, so it is NOT the lot's size --
+  -- read as one, GC.Caps.DecideRealm and GC.SniperDecision.EvaluateRealm divided the buyout by
+  -- it, and a cap of 100g fired on 150 bags at 1,800g each (review, 2026-09-27).
   --
   -- The player's own listings are skipped. Buying one is impossible, and letting one become
   -- the "cheapest comparable lot" would have the addon offer the player their own auction.
@@ -2357,7 +2361,7 @@ driver = {
           -- The variant's own item level, which is the whole reason a realm item needs its
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
-          quantity = info.quantity or 1,
+          quantity = 1,
         }
       end
     end

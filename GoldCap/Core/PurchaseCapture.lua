@@ -167,7 +167,11 @@ function GC.PurchaseCapture.OnItemSearchResults(itemKey)
         auctionID = info.auctionID,
         itemID = itemKey.itemID,
         positionKey = identityComplete and GC.Acquisitions.PositionKey(itemKey.itemID, itemKey, false) or nil,
-        quantity = info.quantity,
+        -- One: PlaceBid buys the one auction it names, for its buyoutAmount. The row's quantity
+        -- counts the identical auctions grouped into it -- recorded as the purchase, one bag at
+        -- 1,800g went into the ledger as 150 at 12g. A row that states no quantity at all still
+        -- stays pending evidence, as before.
+        quantity = isPositiveInteger(info.quantity) and 1 or nil,
         total = info.buyoutAmount,
         identityComplete = identityComplete,
       }
