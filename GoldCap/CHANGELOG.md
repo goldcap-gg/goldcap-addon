@@ -1,13 +1,16 @@
 # GoldCap
 
-## 0.15.2 (2026-09-26)
+## 0.15.2 (2026-09-27)
 
 - Fixed: the Sell tab priced gear, bags and other non-stacking items far too low when several
   identical listings shared one price. THE BOOK divided the price by how many were listed, so
   150 bags at 1,800g each read as 12g, and MATCH and UNDERCUT suggested 12g. They now read
   1,800g, the same as the auction house's own list.
 - Fixed: for the same reason, the sniper could see such an item as a far cheaper deal than it
-  was.
+  was, and a price from your alert groups could show a YOUR PRICE row for a listing that costs
+  more than that price. A buy now always reads as one item at the listed price.
+- Fixed: buying one such item, in the sniper or in the auction house's own window, was
+  recorded in your ledger as every identical listing at a fraction of the price each.
 
 ## 0.15.1 (2026-09-24)
 
