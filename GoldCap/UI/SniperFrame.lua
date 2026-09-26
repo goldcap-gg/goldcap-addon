@@ -1870,28 +1870,26 @@ function GC.Sniper._PaintGoldLine(list)
   -- is guarded: the specs that build this window stub only what their own paths call.
   local wallet = type(GetMoney) == "function" and GetMoney() or nil
   if not wallet then line:Hide() return end
-  local short = wallet <= 0
-  if not short then
-    local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
-    local items = GC.Sniper._Board() == "items"
-    local candidates, buyable = 0, false
-    for i = 1, #list do
-      local deal = list[i]
-      if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
-        candidates = candidates + 1
-        local fits
-        if items then
-          local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
-          fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
-        else
-          fits = limits ~= nil and deal.unitPrice <= limits.budget
-        end
-        if fits then buyable = true; break end
+  -- An empty wallet goes through the same walk: nothing fits in it, so the line is up exactly
+  -- when there is something on the board -- never over an empty one (review 2026-09-27).
+  local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
+  local items = GC.Sniper._Board() == "items"
+  local candidates, buyable = 0, false
+  for i = 1, #list do
+    local deal = list[i]
+    if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
+      candidates = candidates + 1
+      local fits
+      if items then
+        local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+        fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+      else
+        fits = limits ~= nil and deal.unitPrice <= limits.budget
       end
+      if fits then buyable = true; break end
     end
-    short = candidates > 0 and not buyable
   end
-  if short then
+  if candidates > 0 and not buyable then
     line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
     line:Show()
   else

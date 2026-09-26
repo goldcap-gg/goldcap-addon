@@ -1209,6 +1209,27 @@ describe("Deals background verification", function()
       assert.equal(1, upvalue(api.renderList, "refusedCount"))
     end)
 
+    -- Review 2026-09-27: with no gold at all the line went up over an empty board -- blaming the
+    -- gold for finds GoldCap had not made, which a character with any gold never saw. It speaks
+    -- about what is on the board, whatever the wallet holds.
+    it("says nothing about gold over an empty board, even with none on the character", function()
+      local api = loadSniper(safe)
+      helper.loadModule("Core/Book.lua", api.GC)
+      helper.loadModule("Core/SniperDecision.lua", api.GC)
+      _G.GetMoney = function() return 0 end
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      set(api.GC.Sniper._PaintGoldLine, "frame", { goldLine = line, IsShown = function() return true end })
+
+      api.GC.Sniper._PaintGoldLine({})
+      assert.is_false(line.shown)
+
+      api.GC.Sniper._PaintGoldLine({ deal(1, 100) })
+      assert.is_true(line.shown)
+    end)
+
     it("keeps it on the board after the player's own Check too, once they leave the pane", function()
       local api = loadSniper(safe)
       local d = deal(1, 100)
