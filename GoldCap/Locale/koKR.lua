@@ -824,6 +824,10 @@ GC.Locales.koKR = {
     "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "%s 이하로 구매: 등록된 물량의 절반이 %s 이상을 요구합니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 5%% 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "상인가 미만 -- Buy를 눌러 구매하세요",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "시세보다 훨씬 낮음, 재판매 속도는 알 수 없음 -- Buy를 눌러 구매하세요",
   ["No deals in your last scan."] =
     "최근 스캔에 거래가 없습니다.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =

@@ -63,6 +63,11 @@ describe("BoardRows", function()
       assert.equal("SAFE +64s", GC.BoardRows.Label({ buyable = true, stressProfit = 6435 }))
     end)
 
+    -- WoW: Forever's copper economy (plan 3c, Review Focus 4): a 25c buy read "SAFE +0s".
+    it("shows whole copper below 1s", function()
+      assert.equal("SAFE +25c", GC.BoardRows.Label({ buyable = true, stressProfit = 25 }))
+    end)
+
     -- The cell is one column on a row, not a place to put a sentence: the reason lives in the
     -- row tooltip and in the dialog, where there is room to read it.
     it("reads AVOID for a refused verdict whose live status is AVOID", function()
@@ -210,6 +215,13 @@ describe("GC.Util.FormatGoldFloor", function()
 
   it("keeps the sign on a negative amount", function()
     assert.equal("-61g", GC.Util.FormatGoldFloor(-613500))
+  end)
+
+  it("shows whole copper below 1s, for WoW: Forever's copper economy", function()
+    assert.equal("25c", GC.Util.FormatGoldFloor(25))
+    assert.equal("99c", GC.Util.FormatGoldFloor(99))
+    assert.equal("1s", GC.Util.FormatGoldFloor(100))
+    assert.equal("0c", GC.Util.FormatGoldFloor(0))
   end)
 end)
 

@@ -878,6 +878,10 @@ GC.Locales.deDE = {
     "Kaufe für %s oder weniger: Ein Händler zahlt %s pro Stück. Dieser Kauf bringt %s.",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "Kaufe für %s oder weniger: Die Hälfte der gelisteten Stückzahl verlangt %s oder mehr. Wie schnell es weiterverkauft wird, ist ungewiss, das macht diesen Kauf riskanter als ein Händlergeschäft. Nach 5%% Provision und der Gebühr bringt dieser Kauf etwa %s.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "unter dem Händlerpreis -- Buy klicken zum Kaufen",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "weit unter Marktpreis, Weiterverkaufstempo unbekannt -- Buy klicken zum Kaufen",
   ["No deals in your last scan."] =
     "Keine Angebote in deinem letzten Scan.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =

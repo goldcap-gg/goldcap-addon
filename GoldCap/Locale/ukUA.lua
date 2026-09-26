@@ -892,6 +892,10 @@ GC.Locales.ukUA = {
     "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "Купити за %s або менше: половина виставлених одиниць просить %s або більше. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "нижче за ціну торговця -- натисніть Buy, щоб купити",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "набагато нижче за ринок, швидкість перепродажу невідома -- натисніть Buy, щоб купити",
   ["No deals in your last scan."] =
     "Немає угод в останньому скані.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =

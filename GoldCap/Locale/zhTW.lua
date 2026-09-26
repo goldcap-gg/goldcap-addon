@@ -800,6 +800,10 @@ GC.Locales.zhTW = {
     "以 %s 或更低購買：商人每件收購價 %s。這次購買可賺 %s。",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "以 %s 或更低購買：上架數量的一半要價 %s 或更高。轉售速度未知，因此比商人交易更冒險。扣除 5%% 手續費和押金後，這次購買可賺約 %s。",
+  ["under the vendor price -- click Buy to purchase"] =
+    "低於商人收購價 -- 按 Buy 購買",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "遠低於市場價，轉售速度未知 -- 按 Buy 購買",
   ["No deals in your last scan."] =
     "上次掃描沒有交易。",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =

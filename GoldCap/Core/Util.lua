@@ -74,17 +74,21 @@ function GC.Util.FormatMoney(copper)
   return GC.Util.CoinText(copper)
 end
 
--- Whole-gold-or-whole-silver: a context with room for ONE unit, never two, and no coin icon
--- (a plain string, for a FontString cell rather than a coin-texture readout). Sniper's SAFE
--- board label is the reason this exists -- FormatMoney's "61g35s" is two units wide, and the
+-- Whole gold, whole silver or whole copper: a context with room for ONE unit, never two, and no
+-- coin icon (a plain string, for a FontString cell rather than a coin-texture readout). Sniper's
+-- SAFE board label is the reason this exists -- FormatMoney's "61g35s" is two units wide, and the
 -- 72px verdict cell it renders into clips it. Floors rather than rounds, same rule as
 -- FormatAge/FormatElapsed above: a figure that rounds up promises gold the trade didn't clear.
+-- The copper tier is WoW: Forever's (below).
 function GC.Util.FormatGoldFloor(copper)
   if copper < 0 then return "-" .. GC.Util.FormatGoldFloor(-copper) end
   if copper >= 10000 then
     return ("%dg"):format(math.floor(copper / 10000))
   end
-  return ("%ds"):format(math.floor(copper / 100))
+  -- WoW: Forever's economy is copper: "SAFE +0s" on a 25c buy said nothing. Retail never gets
+  -- here with a SAFE -- its profit floor is 1g (SniperDecision's normalizeConfig).
+  if copper >= 100 then return ("%ds"):format(math.floor(copper / 100)) end
+  return ("%dc"):format(math.floor(copper))
 end
 
 -- The gold a character must hold, rounded UP to whole gold: a figure that rounds down promises a

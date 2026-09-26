@@ -2073,6 +2073,45 @@ local function depositFor(itemID, quantity)
   return C_AuctionHouse.CalculateCommodityDeposit(itemID, duration, quantity)
 end
 
+-- WoW: Forever (Core/ForeverDeals.lua): a row from the player's own scan is judged against its
+-- ceiling -- the most one unit may cost and still pay -- and never against a market the scan
+-- does not have. Every live decision on such an item comes through here: the Check, the hover
+-- pre-warm, the verify walk, a typed quantity and the server's quote before Confirm (all of them
+-- reach evaluateLive). nil for any item without a Forever ceiling, which is every item on
+-- retail. The per-buy limits are the Forever ones (GC.ForeverDeals.BuyLimits, plan 3c
+-- Decision 5), for the kind the row was built as. Fields, not locals: this chunk sits near
+-- Lua's 200-local ceiling.
+function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
+  local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+  if not ceiling then return nil end
+  if type(levels) ~= "table" then
+    return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
+  end
+  return GC.SniperDecision.EvaluateCeiling({
+    ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind, exitUnit = ceiling.exitUnit,
+    levels = levels, limits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, GetMoney(), ceiling.kind),
+    fixedQuantity = fixedQuantity, quotedTotal = quotedTotal,
+    depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
+    minimumProfit = ceiling.minimumProfit,
+  })
+end
+
+function GC.Sniper._DecideCeilingLot(itemID, lots)
+  local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+  if not ceiling then return nil end
+  return GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
+    exitUnit = ceiling.exitUnit, lots = type(lots) == "table" and lots or {},
+    minimumProfit = ceiling.minimumProfit })
+end
+
+-- What the buy window says once a Forever row's Check armed Buy.
+function GC.Sniper._ForeverArmText(decision)
+  if decision and decision.forever == "market" then
+    return GC.L["far under the market, resale speed unknown -- click Buy to purchase"]
+  end
+  return GC.L["under the vendor price -- click Buy to purchase"]
+end
+
 -- How many units of one commodity price level belong to the player. A commodity result is a
 -- whole price point aggregated across every seller, and the player's own stock sits inside it:
 -- C_AuctionHouse.GetCommoditySearchResultInfo reports `numOwnerItems` (and `containsOwnerItem`)
@@ -2087,6 +2126,8 @@ local function ownedUnits(info)
 end
 
 local function evaluateLive(itemID, levels, fixedQuantity, quotedTotal)
+  local ceiling = GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
+  if ceiling then return ceiling end
   return GC.SniperDecision.Evaluate({
     now = time(),
     market = marketForDecision(itemID),
@@ -4412,8 +4453,15 @@ local function stampDialogFromDecision(deal, decision)
   -- (createDialog), and a sentence stamped after the layout was measured at the old one's size.
   -- A cap decision carries no reasons -- nothing refused it -- and the fallback token read "Needs
   -- a live price check" over a Buy the live check had just armed (in game 2026-09-23).
+  --
+  -- A Forever decision that passed (GC.Sniper._DecideCeiling/_DecideCeilingLot) carries its
+  -- `ceiling` and no reasons either; the line says which kind of deal it is and what it makes.
+  -- A Forever refusal carries its reason, and reads it like any other.
+  local foreverPass = decision.ceiling ~= nil and #(decision.reasons or {}) == 0
   dialog.reasonText:SetText(decision.cap
     and GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling, decision.exitUnit,
+      decision.stressProfit)
     or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
@@ -4429,6 +4477,8 @@ local function stampDialogFromDecision(deal, decision)
     -- WATCH plus a candidate (the shape onDialogPrimaryClick buys a lot on) and a commodity as
     -- SAFE, and neither word says why the Buy is offered. The board's chip says YOUR PRICE.
     dialog.decisionStatusText:SetText(GC.L["YOUR PRICE"])
+  elseif foreverPass then
+    dialog.decisionStatusText:SetText(GC.Sniper._ForeverLabel(decision.forever))
   elseif decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
     dialog.decisionStatusText:SetText(GC.L["WATCH (computed SAFE)"])
   else
@@ -4489,7 +4539,11 @@ local function purchaseFacts(deal, quote)
   -- each store takes what it honestly can: the ledger row goes up with no evidence group at all
   -- (GC.Ledger.RecordSniperBuy), the acquisition batch has no resale target, and the old flip
   -- queue, which cannot hold a buy without one, records nothing. It claims no profit either.
-  if decision.cap then
+  --
+  -- A WoW: Forever buy (a decision carrying its `ceiling`) has no engine evidence either, so it
+  -- is recorded in the same evidence-free shape (`cap = true` is the stores' "no decision
+  -- evidence" flag), with the profit its own decision worked out.
+  if decision.cap or decision.ceiling then
     local candidate = type(decision.candidate) == "table" and decision.candidate or nil
     local quantity
     if candidate then
@@ -4506,7 +4560,7 @@ local function purchaseFacts(deal, quote)
       total = quote.total,
       unitDisplay = math.floor(quote.total / quantity),
       cap = true,
-      expectedProfit = 0,
+      expectedProfit = decision.ceiling and math.max(0, decision.stressProfit or 0) or 0,
     }
   end
   -- Sniper phase 2: a realm lot has no SAFE decision to anchor a cost basis to -- it is bought
@@ -4632,6 +4686,8 @@ local function consumePurchasedDeal(deal)
   for i = #scanDeals, 1, -1 do
     if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
   end
+  -- WoW: Forever: the bought lead leaves the board until the next scan (GC.ForeverDeals.Drop).
+  if GC.ForeverDeals and GC.ForeverDeals.Drop then GC.ForeverDeals.Drop(deal.itemID) end
 end
 
 local function recordPurchaseFacts(deal, purchase)
@@ -5498,6 +5554,7 @@ local function applyRequeryResult(row, itemID, live)
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
         frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
+          or decision.ceiling and GC.Sniper._ForeverArmText(decision)
           or GC.L["live safety confirmed -- click Buy to purchase"])
       end
       armReady(row, deal, decision, live.levels, hold)
@@ -5519,8 +5576,12 @@ local function applyRequeryResult(row, itemID, live)
       -- step to catch it. So the window says so (GC.Sniper._CapMiss) and holds Buy the way a
       -- loud requote holds Confirm.
       local capLot = decision.cap == true
+      -- WoW: Forever: a lot under the row's ceiling (GC.Sniper._DecideCeilingLot). Its profit is
+      -- the vendor's exact price, not a guess at resale, so it arms as a plain Buy, inside the
+      -- Forever per-buy wallet limit (GC.ForeverDeals.BuyLimits).
+      local ceilingLot = decision.ceiling ~= nil
       local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
-      local label = capLot and "Buy" or GC.L["BUY — unverified"]
+      local label = (capLot or ceilingLot) and "Buy" or GC.L["BUY — unverified"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -5541,12 +5602,14 @@ local function applyRequeryResult(row, itemID, live)
         -- price, their own per-buy wallet limit -- the one a commodity at it already keeps to
         -- (GC.Caps.DecideCommodity).
         local total = decision.candidate.buyout
-        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()) or nil
+        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney())
+          or ceilingLot and GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, GetMoney(), deal.forever or decision.forever)
+          or nil
         if total > GetMoney() then
           dialog.primaryBtn:Disable()
           setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
-        elseif capLot and not (limits and total <= limits.budget) then
+        elseif (capLot or ceilingLot) and not (limits and total <= limits.budget) then
           dialog.primaryBtn:Disable()
           setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
         else
@@ -5556,10 +5619,14 @@ local function applyRequeryResult(row, itemID, live)
           elseif hold then
             armLoudConfirm(row, label, true)
             setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+              or ceilingLot and GC.Sniper._ForeverArmText(decision)
               or GC.L["price checked, sale speed unknown -- this one is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
+          elseif ceilingLot then
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
@@ -5615,6 +5682,9 @@ local function applyRequeryResult(row, itemID, live)
     end
     if deals[itemID] then deals[itemID] = nil end
     if GC.Sniper._realmDeals then GC.Sniper._realmDeals[itemID] = nil end -- same reason as consumePurchasedDeal
+    -- WoW: Forever: the lead comes off the board until the next scan says otherwise
+    -- (GC.ForeverDeals.Drop); a board rebuilt from the same fold would put it straight back.
+    if GC.ForeverDeals and GC.ForeverDeals.Drop then GC.ForeverDeals.Drop(itemID) end
     for i = #scanDeals, 1, -1 do
       if scanDeals[i].itemID == itemID then table.remove(scanDeals, i) end
     end
@@ -7382,6 +7452,10 @@ local function evaluateLiveItemDeal(itemID)
     local held = GC.Sniper._realmDeals[itemID]
     if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
   end
+  -- WoW: Forever: a row from the player's own scan buys one auction at or under its ceiling,
+  -- named by its auctionID -- the live per-auction walk's own answer (GC.Sniper._DecideCeilingLot).
+  local ceilingLot = GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
+  if ceilingLot then return { isCommodity = false, decision = ceilingLot } end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and
@@ -8454,6 +8528,10 @@ local function qtyMaxAvailable(deal)
     local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
     return most and most.quantity or 1
   end
+  -- A Forever row: what its ceiling allows on this book now, inside the player's own limits --
+  -- never the whole book, whose dearer units the ceiling refuses.
+  local ceilingPlan = dialog and dialog.bookLevels and GC.Sniper._DecideCeiling(deal.itemID, dialog.bookLevels)
+  if ceilingPlan then return ceilingPlan.buyable and ceilingPlan.quantity or 1 end
   local maxQty
   if dialog and dialog.bookLevels then
     maxQty = sumLevelQty(dialog.bookLevels)
@@ -8488,9 +8566,11 @@ refreshQtyRow = function()
     -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book --
     -- but never below the quantity the box is showing, which is exactly what Buy starts: after
     -- the wallet drops the rule's ceiling can sit under the armed number until the player picks
-    -- a new one.
-    if GC.Sniper._RowCap(dialog.row, deal) then
-      known = math.max(qtyMaxAvailable(deal), dialog.row.decisionSnapshot.quantity or 1)
+    -- a new one. A Forever row armed by its ceiling reads the same way: the box clamps to what
+    -- the ceiling allows (qtyMaxAvailable), and "of" the whole book would offer units it refuses.
+    local armed = dialog.row and dialog.row.decisionSnapshot
+    if GC.Sniper._RowCap(dialog.row, deal) or (armed and armed.ceiling) then
+      known = math.max(qtyMaxAvailable(deal), armed.quantity or 1)
     end
     if known then
       dialog.qtyOfLabel:SetText((GC.L["of %d"]):format(known))

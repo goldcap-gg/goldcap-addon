@@ -873,6 +873,10 @@ GC.Locales.ruRU = {
     "Купить за %s или меньше: торговец платит %s за штуку. Эта покупка приносит %s.",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "Купить за %s или меньше: половина выставленных единиц просит %s или больше. Скорость перепродажи неизвестна, поэтому это рискованнее сделки с торговцем. Эта покупка приносит примерно %s после комиссии 5%% и залога.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "ниже цены торговца -- нажмите Buy, чтобы купить",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "намного ниже рынка, скорость перепродажи неизвестна -- нажмите Buy, чтобы купить",
   ["No deals in your last scan."] =
     "Нет сделок в последнем скане.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =

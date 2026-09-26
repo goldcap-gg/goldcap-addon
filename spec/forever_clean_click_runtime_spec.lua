@@ -614,10 +614,129 @@ describe("Clean click ordering, driven end to end", function()
       return getUpvalue(createDialog, "onDialogPrimaryClick")
     end
 
+
+    -- WoW: Forever rows (plan 3c): the ceiling a Check is held to, as GC.ForeverDeals.CeilingFor
+    -- hands it out, and a board row as GC.ForeverDeals.Build makes one. The real module is
+    -- loaded so the buy limits are its own (GC.ForeverDeals.BuyLimits); only the fold-backed
+    -- CeilingFor/Drop are stood in for.
+    local FOREVER_BOOK = { { unitPrice = 8, quantity = 5 }, { unitPrice = 9, quantity = 10 },
+      { unitPrice = 12, quantity = 40 }, { unitPrice = 13, quantity = 100 } }
+
+    local function foreverCeiling(GC, itemID, ceilingUnit, exitUnit)
+      helper.loadModule("Core/ForeverDeals.lua", GC)
+      GC.ForeverDeals.CeilingFor = function(id)
+        if id ~= itemID then return nil end
+        return { ceilingUnit = ceilingUnit, kind = "vendor", exitUnit = exitUnit, minimumProfit = 20 }
+      end
+      GC.ForeverDeals.Drop = function(id) GC._dropped = id end
+    end
+
+    local function foreverDeal(itemID, isCommodity)
+      return { itemID = itemID, isCommodity = isCommodity, forever = "vendor", ceiling = 12, refUnit = 13,
+        unitPrice = 8, qty = 55, capTotal = 610, profit = 105, estProfit = 105, stale = true }
+    end
+
     after_each(function()
       _G.time, _G.GetTime, _G.GetMoney, _G.GetCoinTextureString = os.time, nil, nil, nil
       _G.C_Timer, _G.SOUNDKIT, _G.PlaySound, _G.ITEM_QUALITY_COLORS, _G.Item = nil, nil, nil, nil, nil
       _G.C_AuctionHouse, _G.GoldCap_AppRuns, _G.CreateFrame = nil, nil, nil
+    end)
+
+    it("a Forever row's Check is its ceiling's; without one the market engine answers as before", function()
+      local GC = loadSniper()
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      books[42] = FOREVER_BOOK
+      local retail = evaluate(42, FOREVER_BOOK)
+      assert.equal("AVOID", retail.decision.status)
+      assert.is_nil(retail.decision.ceiling)
+      foreverCeiling(GC, 42, 12, 13)
+      local live = evaluate(42, FOREVER_BOOK)
+      assert.equal("SAFE", live.decision.status)
+      assert.equal(55, live.decision.quantity)
+      assert.equal(12, live.decision.ceiling)
+      assert.equal(105, live.decision.stressProfit)
+    end)
+
+    it("Start (StartCommoditiesPurchase), on a Forever row armed by its ceiling", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      -- The quantity row offers what the ceiling allows, not the whole book's 155.
+      assert.equal("of 55", d.qtyOfLabel.text)
+      local click = clickHandler(GC)
+      log = {}
+      click()
+      assertCleanCall("StartCommoditiesPurchase")
+    end)
+
+    it("Confirm (ConfirmCommoditiesPurchase), once the quote holds against the ceiling plan", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      local click = clickHandler(GC)
+      click() -- Start
+      GC.Sniper.OnCommodityPriceUpdated(11, 610) -- the server's quote: what those 55 units cost on the book
+      assert.equal("confirm", row.purchaseStage)
+      assert.is_true(d.enabled)
+      log = {}
+      click()
+      assertCleanCall("ConfirmCommoditiesPurchase")
+    end)
+
+    it("cancels a quote dearer than the ceiling plan, and never offers Confirm on it", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseToken = 1 }
+      armOnDialog(GC, row, deal, live.decision, FOREVER_BOOK)
+      clickHandler(GC)() -- Start
+      local before = cancels
+      GC.Sniper.OnCommodityPriceUpdated(12, 660) -- 55 units quoted at 660: dearer than the 610 on the book
+      assert.is_true(cancels > before)
+      assert.are_not.equal("confirm", row.purchaseStage)
+    end)
+
+    it("PlaceBid, on a Forever lot under the vendor price", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      local decision = GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
+        exitUnit = 100, lots = { { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 } },
+        minimumProfit = 20 })
+      local deal = foreverDeal(42, false)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      assert.equal("ready", row.purchaseStage)
+      assert.is_true(d.enabled)
+      local said = false
+      for _, text in ipairs(d.written) do
+        if text:find("under the vendor price", 1, true) then said = true end
+      end
+      assert.is_true(said)
+      local click = clickHandler(GC)
+      log = {}
+      click()
+      assertCleanCall("PlaceBid")
+    end)
+
+    it("takes a Forever row down when its Check finds the listing gone", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 12, 13)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", fakeDialog(row, deal))
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, nil)
+      assert.equal(42, GC._dropped)
     end)
 
     it("Start (StartCommoditiesPurchase), on a cap decision's own Buy", function()

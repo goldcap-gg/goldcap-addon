@@ -936,6 +936,10 @@ GC.Locales.enUS = {
     "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
   ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
     "Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "under the vendor price -- click Buy to purchase",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "far under the market, resale speed unknown -- click Buy to purchase",
   ["No deals in your last scan."] = "No deals in your last scan.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",

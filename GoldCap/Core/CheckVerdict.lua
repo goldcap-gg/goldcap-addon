@@ -358,9 +358,11 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- import carries none of them for a realm item, and a dash in a row is not a fact.
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
       flat("snapshotValue", "copper", decision.reference, "muted"))
-  elseif tone == "refuse" and reason == "stress_profit_below_buffer" then
+  elseif tone == "refuse" and (reason == "stress_profit_below_buffer" or reason == "profit_below_minimum") then
     -- The refusal is a comparison -- what came back against what the player asked for -- so
-    -- the floor it fell short of is the third fact, ahead of anything about the market.
+    -- the floor it fell short of is the third fact, ahead of anything about the market. A WoW:
+    -- Forever refusal (profit_below_minimum, GC.SniperDecision.EvaluateCeiling) is the same
+    -- comparison, against the Forever minimum.
     take(facts, pay, get, flat("yourMinimum", "copper", decision.requiredProfit),
       sellThroughFact(market), sellersFact(market))
   else
