@@ -38,6 +38,11 @@ describe("Clean click ordering, driven end to end", function()
     log[#log + 1] = name
   end
 
+  local function logged(name)
+    for i, entry in ipairs(log) do if entry == name then return i end end
+    return nil
+  end
+
   local function assertCleanCall(name)
     assert.is_true(#log > 0, name .. " was never logged -- the click made no protected call")
     assert.equal(name, log[1], ("%s was not first: %s ran before it in the same click")
@@ -97,6 +102,12 @@ describe("Clean click ordering, driven end to end", function()
       function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
       function v:SetLabel(t) self.label = t end
       function v:SetVariant(name) self.variant = name end
+      -- Theme.lua's own SetBusy (UI/Theme.lua:889): the first busy look mints a SpinnerTemplate.
+      function v:SetBusy(on)
+        if on and not self.spinner then
+          self.spinner = _G.CreateFrame("Frame", nil, self, "SpinnerTemplate")
+        end
+      end
       function v:SetScript(n, f) self.scripts[n] = f end
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
@@ -213,6 +224,9 @@ describe("Clean click ordering, driven end to end", function()
       local row = oreRow()
       row.action.scripts.OnClick(row.action)
       assertCleanCall("PostCommodity")
+      -- Reach: the busy look really ran in this click -- after the call, never before it.
+      assert.is_truthy(logged("CreateFrame:SpinnerTemplate"))
+      assert.is_true(logged("CreateFrame:SpinnerTemplate") > logged("PostCommodity"))
     end)
 
     it("Post's Confirm click, once PostCommodity itself asked for one", function()
@@ -264,6 +278,12 @@ describe("Clean click ordering, driven end to end", function()
       function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
       function v:SetLabel(t) self.label = t end
       function v:SetVariant(name) self.variant = name end
+      -- Theme.lua's own SetBusy (UI/Theme.lua:889): the first busy look mints a SpinnerTemplate.
+      function v:SetBusy(on)
+        if on and not self.spinner then
+          self.spinner = _G.CreateFrame("Frame", nil, self, "SpinnerTemplate")
+        end
+      end
       function v:SetScript(n, f) self.scripts[n] = f end
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
@@ -310,7 +330,10 @@ describe("Clean click ordering, driven end to end", function()
       }
       _G.C_AuctionHouse = {
         MakeItemKey = function(itemID) return { itemID = itemID } end,
-        GetItemKeyInfo = function() return { isCommodity = true } end,
+        -- Thunderfury (19019) answers as an ITEM, not a commodity, so classifyBagItem's
+        -- IsSellItemValid branch is actually reachable -- previously every key answered
+        -- "commodity" and that branch was dead code as far as this fixture went.
+        GetItemKeyInfo = function(key) return { isCommodity = not (key and key.itemID == 19019) } end,
         GetOwnedAuctions = function() return OWNED end,
         QueryOwnedAuctions = function() end,
         CancelAuction = function() end,
@@ -319,13 +342,16 @@ describe("Clean click ordering, driven end to end", function()
         -- composePositions(true) before CancelAuction fails loudly here, not just in-client.
         IsSellItemValid = function() return true end,
       }
-      wrapAH({ "CancelAuction" })
+      wrapAH({ "CancelAuction", "IsSellItemValid" })
       _G.C_Item = { GetItemNameByID = function() return "Sanguithorn Tea" end }
       _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
       wrapItemLocation()
 
       GC = {
         Sell = {},
+        -- classifyBagItem's IsSellItemValid branch also requires GC.Sniper.IsAHOpen(): absent
+        -- before, so the branch was unreachable on that count too.
+        Sniper = { IsAHOpen = function() return true end },
         Theme = {
           color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, fgMuted = { .72, .71, .69 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
             zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
@@ -389,6 +415,13 @@ describe("Clean click ordering, driven end to end", function()
       return nil
     end
 
+    it("reaches the item branch at a render, so the confirm test below is not blind to it", function()
+      log = {}
+      compose(); render()
+      assert.is_truthy(logged("IsSellItemValid"))
+      assert.is_truthy(logged("ItemLocation.CreateFromBagAndSlot"))
+    end)
+
     it("Cancel lot's confirming click, from the row's own button", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose(); render()
@@ -406,16 +439,37 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     it("the cancel queue control, on the confirming click", function()
+      -- The dock's cancel button renders only the CANCELLED positions (filterMode
+      -- "cancelqueue"), never the whole "listed" deck -- so the reach check below needs the
+      -- lot's OWN item to have bag stock, not Thunderfury's (which this deck never draws).
+      -- Local to this test, and commodity-only, so it never touches classifyBagItem's
+      -- IsSellItemValid branch itself (that would double-count with the confirming click's own
+      -- post-cancel refresh below, which is free to rescan the whole bag -- see the comment on
+      -- CancelAuction's own logged() check).
+      _G.C_Container.GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end
+      _G.C_Container.GetContainerItemInfo = function(bag, slot)
+        return (bag == 0 and slot == 1) and { itemID = 23427, stackCount = 50, itemName = "Sanguithorn Tea" } or nil
+      end
+      _G.C_Container.GetContainerItemLink = function() return nil end
+      -- Covers the 50 units now in bags too, at the lot's own 10000cp/unit cost, so coverage
+      -- stays COMPLETE and the repost advice this test's cancelEntries depend on is unaffected.
+      assert(GC.Acquisitions.RecordManual({ itemID = 23427, positionKey = "commodity:23427",
+        itemName = "Sanguithorn Tea", quantity = 50, total = 500000, acquiredAt = 950,
+        character = "Owner-Dentarg", region = "eu" }))
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose()
       local button = container.cancelButton
       log = {}
       button.scripts.OnClick(button) -- arm through ROW.armLot: no protected call
       assertNoProtectedCall()
+      -- Reach: the arming click did render (ROW.armLot -> renderRows), which is what built the
+      -- ItemLocation; the confirming click below must not need to build one of its own.
+      assert.is_truthy(logged("ItemLocation.CreateFromBagAndSlot"))
       armedLotRow().repostReady = true
       log = {}
       button.scripts.OnClick(button) -- confirm
       assertCleanCall("CancelAuction")
+      assert.is_nil(logged("IsSellItemValid"))
     end)
   end)
 
