@@ -57,23 +57,38 @@ end
 -- client does not have reports no slots).
 GC.ForeverValue.BAGS = { 0, 1, 2, 3, 4, 5 }
 
+-- vendor/ah/priced/unpriced: /gc bags and the scan's chat line. best: each stack at the better of
+-- a vendor and the AH after its cut -- Road to 40's "bags" (Core/ForeverRoad.lua); a soulbound
+-- stack counts at a vendor only. gain/gainItems: what the AH adds over a vendor, where both pay.
 function GC.ForeverValue.BagTotals(driver, valueFor, vendorFor)
-  local t = { vendor = 0, ah = 0, priced = 0, unpriced = 0 }
+  local t = { vendor = 0, ah = 0, priced = 0, unpriced = 0, best = 0, gain = 0, gainItems = 0 }
+  local gainSeen = {}
   for _, bag in ipairs(GC.ForeverValue.BAGS) do
     for slot = 1, driver.numSlots(bag) or 0 do
       local info = driver.itemInfo(bag, slot)
       local id, n = info and info.itemID, info and info.stackCount
       if type(id) == "number" and type(n) == "number" and n > 0 then
         local vendor = not info.hasNoValue and vendorFor(id) or nil
-        if type(vendor) == "number" and vendor > 0 then t.vendor = t.vendor + vendor * n end
+        local vendorTotal = (type(vendor) == "number" and vendor > 0) and vendor * n or 0
+        t.vendor = t.vendor + vendorTotal
+        local ahTotal = 0
         if not info.isBound then
           local value = valueFor(id)
           local mv = type(value) == "table" and value.mv or nil
           if type(mv) == "number" and mv > 0 then
-            t.ah = t.ah + math.floor(mv * KEEP) * n
+            ahTotal = math.floor(mv * KEEP) * n
+            t.ah = t.ah + ahTotal
             t.priced = t.priced + 1
           else
             t.unpriced = t.unpriced + 1
+          end
+        end
+        t.best = t.best + math.max(vendorTotal, ahTotal)
+        if vendorTotal > 0 and ahTotal > vendorTotal then
+          t.gain = t.gain + (ahTotal - vendorTotal)
+          if not gainSeen[id] then
+            gainSeen[id] = true
+            t.gainItems = t.gainItems + 1
           end
         end
       end
@@ -96,11 +111,17 @@ local function realBags()
   }
 end
 
+-- The client's own bags, priced the way the tooltip prices them.
+function GC.ForeverValue.RealBagTotals()
+  return GC.ForeverValue.BagTotals(realBags(), GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+end
+
 -- "your bags: X at a vendor, Y on the AH" (spec §3 Bag value), in chat: after every saved scan
 -- and on /gc bags. The way to post the AH half is the Sell tab's POST queue, which in Forever
 -- holds back anything a vendor pays more for (GC.Sell._QueueOpts).
 function GC.ForeverValue.PrintBags(driver)
-  local t = GC.ForeverValue.BagTotals(driver or realBags(), GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+  local t = driver and GC.ForeverValue.BagTotals(driver, GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+    or GC.ForeverValue.RealBagTotals()
   if t.priced > 0 then
     GC.Print(GC.L["Your bags: %s at a vendor, %s on the AH after its cut"]:format(
       GC.Util.CoinText(t.vendor), GC.Util.CoinText(t.ah)))

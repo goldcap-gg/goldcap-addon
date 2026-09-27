@@ -116,4 +116,27 @@ describe("ForeverValue bags", function()
     GC.ForeverValue.PrintBags(driver)
     assert.truthy(printed[3]:find("Scan the auction house to see what they would fetch there.", 1, true))
   end)
+
+  it("adds each stack at the better of a vendor and the AH, and what the AH adds over a vendor", function()
+    local t = GC.ForeverValue.BagTotals(driver,
+      function(id) return AH[id] and { mv = AH[id] } or nil end,
+      function(id) return VENDOR[id] end)
+    -- Linen: 20 x max(13, 63); bound: 2 x 50 at a vendor; 3 x 5; the reagent: 950 on the AH, no vendor price.
+    assert.equal(20 * 63 + 2 * 50 + 3 * 5 + 950, t.best)
+    assert.equal(20 * (63 - 13), t.gain)        -- only where a vendor pays something to compare with
+    assert.equal(1, t.gainItems)
+    -- The four fields the tooltip and /gc bags read are unchanged.
+    assert.equal(20 * 13 + 2 * 50 + 3 * 5, t.vendor)
+    assert.equal(2, t.priced)
+  end)
+
+  it("gives the same totals from the client's own bags", function()
+    GC.Data = { GetItemValue = function(id) return AH[id] and { mv = AH[id] } or nil end }
+    GC.ForeverValue.VendorUnit = function(id) return VENDOR[id] end
+    local was = _G.C_Container
+    _G.C_Container = { GetContainerNumSlots = driver.numSlots, GetContainerItemInfo = driver.itemInfo }
+    local t = GC.ForeverValue.RealBagTotals()
+    _G.C_Container = was
+    assert.equal(20 * 63 + 2 * 50 + 3 * 5 + 950, t.best)
+  end)
 end)
