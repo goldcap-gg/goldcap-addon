@@ -160,12 +160,38 @@ describe("ForeverLoot in the client", function()
     GC.ForeverLoot.OnLootReady()
     GC.ForeverLoot.OnLootReady()                  -- the same window's second event: same spell, same row
     assert.equal("1,35,12,12,0;2589:1:2", db.foreverLoot.rows["s:448:1429:8613"])
+    GC.ForeverLoot.OnLootClosed()                 -- the session ends; the next window decides its own spell
     slots[1].sources = { "Creature-0-1-0-2-448-0000BB", 20 }
     slots[2].sources = { "Creature-0-1-0-2-448-0000BB", 1 }
-    GC.ForeverLoot.OnSpellSucceeded(133)
+    GC.ForeverLoot.OnSpellSucceeded(133)          -- Fireball -- not a gathering spell, so lastSpell is untouched
     clock = 11
-    GC.ForeverLoot.OnLootReady()                  -- 0.7 s after that spell: not the loot's
+    GC.ForeverLoot.OnLootReady()                  -- 0.7 s after the earlier skinning cast: not the loot's
     assert.equal("1,20,12,12,0;2589:1:1", db.foreverLoot.rows["c:448:1429"])
+  end)
+
+  -- Final review I3: UNIT_SPELLCAST_SUCCEEDED fires for Auto Shot too, not just gathering spells.
+  it("never files a corpse under a spell that is not Skinning or Pick Pocket, even inside the window", function()
+    init(16001)
+    GC.ForeverLoot.OnSpellSucceeded(75)   -- Auto Shot
+    clock = 10.2
+    GC.ForeverLoot.OnLootReady()
+    assert.equal("1,35,12,12,0;2589:1:2", db.foreverLoot.rows["c:448:1429"])
+    assert.is_nil(db.foreverLoot.rows["s:448:1429:75"])
+  end)
+
+  -- Final review I3: LOOT_READY decides the row once; LOOT_OPENED must reuse that same decision
+  -- even after the 0.5 s window has since passed, or the two events would file the one corpse
+  -- under two different keys and double-count it.
+  it("decides the loot session's spell once, at the first event, not re-checked on the second", function()
+    init(16001)
+    GC.ForeverLoot.OnSpellSucceeded(8613)   -- Skinning
+    clock = 10.4
+    GC.ForeverLoot.OnLootReady()             -- LOOT_READY: inside the window, decides spell 8613
+    clock = 11.0                             -- now outside SPELL_WINDOW
+    GC.ForeverLoot.OnLootReady()             -- LOOT_OPENED: must still be the same session's decision
+    GC.ForeverLoot.OnLootClosed()
+    assert.equal("1,35,12,12,0;2589:1:2", db.foreverLoot.rows["s:448:1429:8613"])
+    assert.is_nil(db.foreverLoot.rows["c:448:1429"])   -- never split into a second, undertagged row
   end)
 
   it("skips fishing, and stops and starts with /gc loot", function()
@@ -181,7 +207,26 @@ describe("ForeverLoot in the client", function()
     GC.ForeverLoot.Slash("on")
     assert.is_nil(db.forever.lootOff)
     GC.ForeverLoot.Slash("")
-    assert.same({ "Loot counting is off.", "Loot counting is on.", "Loot counting is on." }, printed)
+    assert.same({
+      "Loot counting is off. Type /gc loot clear to remove what was recorded.",
+      "Loot counting is on.",
+      "Loot counting is on.",
+    }, printed)
+  end)
+
+  -- Final review M7: /gc loot off only stops counting; /gc loot clear removes what is already
+  -- recorded, a separate act the player has to ask for.
+  it("removes the loot record with /gc loot clear, leaving the off/on setting untouched", function()
+    init(16001)
+    GC.ForeverLoot.OnLootReady()
+    assert.truthy(db.foreverLoot)
+    GC.ForeverLoot.Slash("clear")
+    assert.is_nil(db.foreverLoot)
+    assert.is_nil(db.forever.lootOff)   -- clearing the record does not turn counting off
+    assert.equal("Loot record cleared.", printed[#printed])
+    -- Counting resumes into a fresh record on the next loot.
+    GC.ForeverLoot.OnLootReady()
+    assert.truthy(db.foreverLoot)
   end)
 
   it("says once what it counts and how to stop it, only in Forever", function()
@@ -198,7 +243,9 @@ describe("ForeverLoot in the client", function()
     init(120100)
     GC.ForeverLoot.OnSpellSucceeded(8613)
     GC.ForeverLoot.OnLootReady()
+    GC.ForeverLoot.OnLootClosed()
     GC.ForeverLoot.Slash("off")
+    GC.ForeverLoot.Slash("clear")
     assert.is_nil(db.foreverLoot)
     assert.is_nil(db.forever)
     assert.same({}, printed)

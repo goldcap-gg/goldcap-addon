@@ -143,8 +143,10 @@ GC.Locales.enUS = {
   ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
-  ["Loot counting is off."] = "Loot counting is off.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
+  ["Loot record cleared."] = "Loot record cleared.",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["Mount cost cleared."] = "Mount cost cleared.",

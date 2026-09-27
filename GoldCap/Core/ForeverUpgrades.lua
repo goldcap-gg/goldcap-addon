@@ -111,6 +111,17 @@ local WEAPON = {
   WARLOCK = set({ 7, 10, 15, 19 }),
 }
 
+-- Final review I1: dual-wield is not a red tooltip line (a mage's off-hand dagger tooltip shows
+-- white), so it must be checked separately from ClassAllows. The client's own CanDualWield() is
+-- authoritative when it exists; the Classic fallback below is only for a client or spec driver
+-- that lacks it. Rogues always can; warriors and hunters from level 20; nobody else.
+local DUAL_WIELD_FROM = { WARRIOR = 20, HUNTER = 20 }
+local function classCanDualWield(classFile, level)
+  if classFile == "ROGUE" then return true end
+  local from = DUAL_WIELD_FROM[classFile]
+  return from ~= nil and (level or 0) >= from
+end
+
 function GC.ForeverUpgrades.ClassAllows(classFile, classID, subclassID, level)
   if classID == 4 then
     local t = ARMOR[classFile]
@@ -238,6 +249,25 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
   end
   local twoHandWorn = driver.instant(itemIdOf(driver.equipped(16)) or 0) == "INVTYPE_2HWEAPON"
 
+  -- I1: an off-hand WEAPON (not a shield or held item) needs dual-wield, which is not a red
+  -- tooltip line -- ClassAllows alone would offer a mage an off-hand dagger it cannot equip.
+  local dualWield
+  local function canDualWield()
+    if dualWield == nil then
+      if type(driver.canDualWield) == "function" then
+        local ok, v = pcall(driver.canDualWield)
+        if ok and type(v) == "boolean" then
+          dualWield = v
+        else
+          dualWield = classCanDualWield(class, level)
+        end
+      else
+        dualWield = classCanDualWield(class, level)
+      end
+    end
+    return dualWield
+  end
+
   local function base(group, equipLoc)
     if group == "FINGER" then
       local a, b = wornAt(11), wornAt(12)
@@ -256,7 +286,8 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
     local group = GROUP_OF[equipLoc]
-    if group and not (group == "OFFHAND" and twoHandWorn) then
+    if group and not (group == "OFFHAND" and twoHandWorn)
+        and not (equipLoc == "INVTYPE_WEAPONOFFHAND" and not canDualWield()) then
       for _, lot in ipairs(GC.ForeverGear.Decode(encoded)) do
         local str = GC.ForeverGear.ItemString(itemID, lot)
         local minLevel, link = driver.info(str)
@@ -302,8 +333,16 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
         end
       end
       if not pick then
+        -- M4 (final review): the same tooltip check usable-now picks get, not the class table
+        -- alone -- otherwise a profession-required piece a class table says nothing against (an
+        -- engineering item, say) could be offered "at level N" on class rules alone.
+        local laterChecks = 0
         for _, c in ipairs(list) do
-          if c.later and c.known then pick = c; break end
+          if c.later and laterChecks < C.TOOLTIP_CHECKS then
+            laterChecks = laterChecks + 1
+            local u = driver.usable(c.itemString)
+            if u == true or (u == nil and c.known) then pick = c; break end
+          end
         end
       end
       if pick then
@@ -321,6 +360,10 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
       driver.requestLoad(itemID)
     end
   end
+  -- M1 (final review): the exact ids this build is still waiting on, so a caller (the upgrades
+  -- window) can tell a GET_ITEM_INFO_RECEIVED it was not waiting for from one that might resolve
+  -- something, instead of rebuilding on every arrival regardless.
+  out.loadingIds = loading
   return out
 end
 
@@ -405,6 +448,13 @@ local function realDriver(getStats)
     end,
     usable = function(s) return GC.ForeverUpgrades.TooltipUsable(s) end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
+    -- I1: the client's own answer, when it has the call; Build falls back to Classic's rule
+    -- (rogue always, warrior/hunter from level 20) when this is absent or errors.
+    canDualWield = function()
+      local ok, v = pcall(_G.CanDualWield)
+      if ok and type(v) == "boolean" then return v end
+      return nil
+    end,
   }
 end
 

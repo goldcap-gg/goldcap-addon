@@ -152,7 +152,23 @@ end
 
 -- The client. Every read guarded: a missing API reads as nothing to record, never an error.
 
+-- Final review I3: UNIT_SPELLCAST_SUCCEEDED fires for every player spell -- Auto Shot, Shoot, a
+-- wand, melee "next swing" abilities, instants, some procs -- not only the ones that open a
+-- creature's loot. Only these open one: Skinning (every rank) and Pick Pocket.
+local GATHER_SPELLS = {
+  [921] = true,   -- Pick Pocket
+  [8613] = true,  -- Skinning (Apprentice)
+  [8617] = true,  -- Skinning (Journeyman)
+  [8618] = true,  -- Skinning (Expert)
+  [10768] = true, -- Skinning (Artisan)
+}
+
 local lastSpell
+-- The spell this loot session (LOOT_READY through LOOT_CLOSED) is filed under, decided once at
+-- its first event -- never re-derived from the clock on a later one. Without this, LOOT_READY
+-- inside SPELL_WINDOW and LOOT_OPENED just outside it would disagree on the mark ("guid|8613"
+-- against "guid|") and count the same corpse twice, once under each key.
+local sessionOpen, sessionSpell
 local seenMarks = { list = {}, set = {} }
 
 local function prefs()
@@ -234,8 +250,13 @@ end
 -- window's LOOT_READY and LOOT_OPENED must both see it.
 function GC.ForeverLoot.OnSpellSucceeded(spellID)
   if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return end
-  if type(spellID) ~= "number" then return end
+  if type(spellID) ~= "number" or not GATHER_SPELLS[spellID] then return end
   lastSpell = { id = spellID, at = clock() }
+end
+
+-- LOOT_CLOSED: the session ends, so the next LOOT_READY decides its own spell fresh.
+function GC.ForeverLoot.OnLootClosed()
+  sessionOpen, sessionSpell = false, nil
 end
 
 -- LOOT_READY and LOOT_OPENED (both registered: whichever this client sends; one window counts once).
@@ -243,9 +264,12 @@ function GC.ForeverLoot.OnLootReady()
   local now = time()
   local store = GC.ForeverLoot.Store(now)
   if not store then return end
-  local spell = lastSpell and clock() - lastSpell.at <= C.SPELL_WINDOW and lastSpell.id or nil
+  if not sessionOpen then
+    sessionOpen = true
+    sessionSpell = (lastSpell and clock() - lastSpell.at <= C.SPELL_WINDOW) and lastSpell.id or nil
+  end
   local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or {}
-  local ctx = { map = mapID(), level = playerLevel(), spell = spell, now = now, region = p.regionId, build = p.build }
+  local ctx = { map = mapID(), level = playerLevel(), spell = sessionSpell, now = now, region = p.regionId, build = p.build }
   GC.ForeverLoot.Ensure(store, ctx)
   GC.ForeverLoot.Record(store, readWindow(), ctx, seenMarks)
 end
@@ -259,17 +283,25 @@ function GC.ForeverLoot.MaybeIntro()
   return true
 end
 
--- /gc loot [on | off]
+-- /gc loot [on | off | clear]
 function GC.ForeverLoot.Slash(rest)
   local p = prefs()
   if not p then return end
   local word = (type(rest) == "string" and rest or ""):lower()
-  if word == "off" then
+  if word == "clear" then
+    -- M7 (final review): /gc loot off only stops counting; this is the separate act of removing
+    -- what has already been recorded.
+    local root = GC.ForeverScan.Root()
+    if root then root.foreverLoot = nil end
+    GC.Print(GC.L["Loot record cleared."])
+    return
+  elseif word == "off" then
     p.lootOff = true
   elseif word == "on" then
     p.lootOff = nil
   end
-  GC.Print(p.lootOff and GC.L["Loot counting is off."] or GC.L["Loot counting is on."])
+  GC.Print(p.lootOff and GC.L["Loot counting is off. Type /gc loot clear to remove what was recorded."]
+    or GC.L["Loot counting is on."])
 end
 
 -- For /gc forever (Core/ForeverCheck.lua): plain English, a diagnostic.

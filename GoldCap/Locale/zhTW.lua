@@ -150,8 +150,10 @@ GC.Locales.zhTW = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍賣場比賣給商人更值錢的物品：%d 件（多 %s）。",
   ["Items still loading: %d. Open this again in a moment."] = "仍在載入的物品：%d 件。請稍後再打開。",
-  ["Loot counting is off."] = "掉落統計已關閉。",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "掉落統計已關閉。輸入 /gc loot clear 可刪除已記錄的內容。",
   ["Loot counting is on."] = "掉落統計已開啟。",
+  ["Loot record cleared."] = "掉落記錄已清除。",
   ["Mount cost cleared."] = "坐騎費用已清除。",
   ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

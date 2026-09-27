@@ -154,8 +154,10 @@ GC.Locales.deDE = {
     "Gegenstände in deinen Taschen, die im Auktionshaus mehr bringen als beim Händler: %d (%s mehr).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Gegenstände, die noch laden: %d. Öffne dies gleich noch einmal.",
-  ["Loot counting is off."] = "Beutezählung ist aus.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Beutezählung ist aus. Tippe /gc loot clear, um das Aufgezeichnete zu entfernen.",
   ["Loot counting is on."] = "Beutezählung ist an.",
+  ["Loot record cleared."] = "Beuteaufzeichnung gelöscht.",
   ["Mount cost cleared."] = "Reitkosten gelöscht.",
   ["Mount cost set to %s."] = "Reitkosten auf %s gesetzt.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

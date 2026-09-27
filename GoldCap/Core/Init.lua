@@ -312,9 +312,11 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
   pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
   -- Plan 3e, the loot recorder (Core/ForeverLoot.lua): both loot events (one window counts once),
-  -- and the player's own spells, which say a window was opened by skinning or gathering.
+  -- LOOT_CLOSED to end that session (final review I3), and the player's own spells, which say a
+  -- window was opened by skinning or gathering.
   pcall(function() frame:RegisterEvent("LOOT_READY") end)
   pcall(function() frame:RegisterEvent("LOOT_OPENED") end)
+  pcall(function() frame:RegisterEvent("LOOT_CLOSED") end)
   pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end)
 end
 
@@ -885,11 +887,23 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- WoW: Forever's Road to 40 (a no-op anywhere else).
     if GC.ForeverRoad then GC.ForeverRoad.OnMoney() end
   elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
-    -- Registered in Forever only (the gate above).
-    if GC.ForeverRoad then GC.ForeverRoad.OnTick() end
+    -- Registered in Forever only (the gate above). PLAYER_LEVEL_UP fires a moment before the
+    -- client settles the new level and XP (final review M3) -- read them next frame instead of a
+    -- stale value landing in a pace sample.
+    if GC.ForeverRoad then
+      if _G.C_Timer and _G.C_Timer.After then
+        C_Timer.After(0, GC.ForeverRoad.OnTick)
+      else
+        GC.ForeverRoad.OnTick()
+      end
+    end
   elseif event == "LOOT_READY" or event == "LOOT_OPENED" then
     -- Registered in Forever only.
     if GC.ForeverLoot then GC.ForeverLoot.OnLootReady() end
+  elseif event == "LOOT_CLOSED" then
+    -- Registered in Forever only. Ends the loot session (final review I3): the next LOOT_READY
+    -- decides its own spell fresh instead of inheriting this one's.
+    if GC.ForeverLoot then GC.ForeverLoot.OnLootClosed() end
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
     local _, _, spellID = ...
     if GC.ForeverLoot then GC.ForeverLoot.OnSpellSucceeded(spellID) end
@@ -917,8 +931,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
     -- The upgrades window repaints once the items it counted as loading arrive (Forever only: the
-    -- window never exists elsewhere).
-    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo() end
+    -- window never exists elsewhere). itemID lets it ignore an answer it was not waiting for (M1).
+    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo(itemID) end
   elseif event == "UNIT_SPELLCAST_SENT" then
     local _, _, _, spellID = ...
     if GC.CraftCapture then

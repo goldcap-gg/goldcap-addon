@@ -156,8 +156,10 @@ GC.Locales.ptBR = {
     "Itens nas suas bolsas que valem mais na casa de leilões do que no vendedor: %d (%s a mais).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Itens ainda carregando: %d. Abra de novo em um instante.",
-  ["Loot counting is off."] = "A contagem de saque está desligada.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "A contagem de saque está desligada. Digite /gc loot clear para remover o que foi registrado.",
   ["Loot counting is on."] = "A contagem de saque está ligada.",
+  ["Loot record cleared."] = "Registro de saque removido.",
   ["Mount cost cleared."] = "Custo da montaria apagado.",
   ["Mount cost set to %s."] = "Custo da montaria definido em %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

@@ -128,4 +128,35 @@ describe("Upgrades window", function()
     U.OnItemInfo()
     assert.equal(1, #timers)
   end)
+
+  -- Final review M1: an id nobody was waiting for must not itself trigger a rebuild, and an id
+  -- that never resolves must not keep the window rebuilding forever.
+  it("ignores an item it was not waiting for, and gives up once the loading count stops shrinking", function()
+    local timers = {}
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local builds = 0
+    GC.ForeverUpgrades.Current = function()
+      builds = builds + 1
+      return { rows = {}, loading = 1, loadingIds = { [42] = true } }
+    end
+    U.Show()
+    assert.equal(1, builds)
+    U.OnItemInfo(7)                      -- not one of the ids the last build is waiting on
+    assert.equal(0, #timers)
+    U.OnItemInfo(42)                     -- one it IS waiting on
+    assert.equal(1, #timers)
+    -- Item 42 never actually resolves -- loading stays at 1 every time. Run the storm cap's limit.
+    for _ = 1, U.C.STALE_LIMIT do
+      timers[#timers]()
+      U.OnItemInfo(42)
+    end
+    local before = #timers
+    timers[#timers]()
+    U.OnItemInfo(42)
+    assert.equal(before, #timers)        -- the storm cap has kicked in: no new timer
+    -- Reopening the window resets the cap.
+    U.Show()
+    U.OnItemInfo(42)
+    assert.equal(before + 1, #timers)
+  end)
 end)

@@ -43,4 +43,20 @@ describe("ForeverGear", function()
     assert.equal("item:6125", G.ItemString(6125, lots[2]))
     assert.same({}, G.Decode(nil))
   end)
+
+  -- Final review I2: two real auction lots of "... of the Bear" carry different large,
+  -- per-instance uniqueIDs (1999963695 and 1583 both end in the same low 16 bits, 1583) -- they
+  -- must count as ONE version, not two, or the 3-lot cap fills with one suffix and crowds out a
+  -- different, cheaper one ("... of the Eagle").
+  it("dedupes a random suffix by its low 16 bits, never the whole per-instance unique id", function()
+    local acc = G.New()
+    assert.equal(1999963695 % 65536, 1583)   -- the fixture below relies on this
+    G.AddRow(acc, 15210, 1, 900, "item:15210:0:0:0:0:0:-9:1583")
+    G.AddRow(acc, 15210, 1, 700, "item:15210:0:0:0:0:0:-9:1999963695")   -- same Bear, cheaper lot
+    G.AddRow(acc, 15210, 1, 800, "item:15210:0:0:0:0:0:-12:1583")        -- a different suffix: the Eagle
+    assert.same({ v = 1, at = 1, items = {
+      -- The Bear kept at its cheapest lot's own uniqueID; the Eagle survives as its own version.
+      [15210] = "700:-9:1999963695 800:-12:1583",
+    } }, G.Freeze(acc, 1))
+  end)
 end)

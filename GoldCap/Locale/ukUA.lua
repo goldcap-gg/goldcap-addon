@@ -156,8 +156,10 @@ GC.Locales.ukUA = {
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
-  ["Loot counting is off."] = "Підрахунок здобичі вимкнено.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Підрахунок здобичі вимкнено. Введіть /gc loot clear, щоб видалити записане.",
   ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
+  ["Loot record cleared."] = "Запис здобичі видалено.",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

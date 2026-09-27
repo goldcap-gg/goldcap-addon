@@ -151,8 +151,10 @@ GC.Locales.koKR = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
-  ["Loot counting is off."] = "전리품 집계가 꺼져 있습니다.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "전리품 집계가 꺼져 있습니다. 기록된 내용을 지우려면 /gc loot clear를 입력하세요.",
   ["Loot counting is on."] = "전리품 집계가 켜져 있습니다.",
+  ["Loot record cleared."] = "전리품 기록을 지웠습니다.",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

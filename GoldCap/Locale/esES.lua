@@ -156,8 +156,10 @@ GC.Locales.esES = {
     "Objetos de tus bolsas que valen más en la casa de subastas que en un vendedor: %d (%s más).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objetos que aún se cargan: %d. Vuelve a abrir esto en un momento.",
-  ["Loot counting is off."] = "El recuento de botín está desactivado.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "El recuento de botín está desactivado. Escribe /gc loot clear para eliminar lo registrado.",
   ["Loot counting is on."] = "El recuento de botín está activado.",
+  ["Loot record cleared."] = "Registro de botín eliminado.",
   ["Mount cost cleared."] = "Coste de la montura borrado.",
   ["Mount cost set to %s."] = "Coste de la montura fijado en %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

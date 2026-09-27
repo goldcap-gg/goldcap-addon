@@ -8,9 +8,17 @@ local _, GC = ...
 -- the player searches the item on the auction house (plan 3e, D4).
 GC.ForeverUpgradesUI = GC.ForeverUpgradesUI or {}
 
-local UP = { W = 560, ROW_H = 20, ROWS = 14, TOP = 64, NAME = "GoldCapUpgradesFrame" }
+-- M5 (final review): TOP gives the header enough room for a 3-line translation plus the loading
+-- suffix (de/ru) before row 1 starts; the price column is widened so three coin icons don't clip.
+local UP = { W = 560, ROW_H = 20, ROWS = 14, TOP = 92, NAME = "GoldCapUpgradesFrame", STALE_LIMIT = 6 }
+GC.ForeverUpgradesUI.C = UP
 local frame
 local pending = false
+-- M1 (final review): the exact ids the last render is still waiting on, and how many repaints in
+-- a row have not shrunk that count -- so an item that never answers cannot keep the window
+-- rebuilding at 2 Hz for as long as it stays open.
+local lastLoadingIds
+local staleRepaints, lastLoadingCount = 0, nil
 
 local function createRow(parent, i)
   local row = CreateFrame("Button", nil, parent)
@@ -32,8 +40,8 @@ local function createRow(parent, i)
   end
   row.slot = cell("GameFontNormalSmall", 4, 90, "LEFT")
   row.item = cell("GameFontHighlightSmall", 98, 200, "LEFT")
-  row.gain = cell("GameFontHighlightSmall", 302, 150, "LEFT")
-  row.price = cell("GameFontHighlightSmall", 456, 76, "RIGHT")
+  row.gain = cell("GameFontHighlightSmall", 302, 130, "LEFT")
+  row.price = cell("GameFontHighlightSmall", 436, 96, "RIGHT")
   -- The item's own tooltip is information, not a hover look.
   row:SetScript("OnEnter", function(self)
     if not (self.link and GameTooltip) then return end
@@ -80,8 +88,18 @@ local function build()
 end
 GC.ForeverUpgradesUI._Build = build
 
+-- M5 (final review): SetText with the text a FontString already holds is a no-op and does not
+-- redraw it (docs/addon/AGENTS.md "Text") -- a row hidden then shown again, or the window closed
+-- and reopened with nothing changed, could come back blank. Clear before every set, here and on
+-- every cell below.
+local function setText(fs, text)
+  fs:SetText("")
+  fs:SetText(text)
+end
+
 function GC.ForeverUpgradesUI.Render(r, now)
   local f = build()
+  lastLoadingIds = r.loadingIds
   local header
   if r.noScan then
     header = GC.L["No scan with gear in it yet. Open the auction house and let GoldCap scan it."]
@@ -99,17 +117,18 @@ function GC.ForeverUpgradesUI.Render(r, now)
   if (r.loading or 0) > 0 then
     header = header .. " " .. GC.L["Items still loading: %d. Open this again in a moment."]:format(r.loading)
   end
-  f.header:SetText(header)
+  setText(f.header, header)
   for i = 1, UP.ROWS do
     local row, data = f.rows[i], r.rows[i]
     if data then
       row.link = data.link or data.itemString
-      row.slot:SetText(_G[data.labelKey] or data.labelKey or "")
-      row.item:SetText(row.link)
+      setText(row.slot, _G[data.labelKey] or data.labelKey or "")
+      setText(row.item, row.link)
       local gain = GC.ForeverUpgrades.DiffText(data.diffs)
       if data.later then gain = gain .. "  " .. GC.L["at level %d"]:format(data.later) end
-      row.gain:SetText(gain)
-      row.price:SetText(GC.Util.CoinText(data.unit))
+      setText(row.gain, gain)
+      setText(row.price, GC.Util.CoinText(data.unit))
+      row:Hide()
       row:Show()
     else
       row.link = nil
@@ -127,6 +146,8 @@ function GC.ForeverUpgradesUI.Show()
   local f = build()
   f:Show()
   if f.Raise then f:Raise() end
+  -- M1: a fresh open always gets a fresh chance, whatever a previous visit's storm cap reached.
+  staleRepaints, lastLoadingCount = 0, nil
   GC.ForeverUpgradesUI.Render(current(), time())
 end
 
@@ -139,14 +160,30 @@ function GC.ForeverUpgradesUI.Toggle()
 end
 
 function GC.ForeverUpgradesUI.RefreshIfShown()
-  if frame and frame:IsShown() then GC.ForeverUpgradesUI.Render(current(), time()) end
+  if not (frame and frame:IsShown()) then return end
+  local r = current()
+  local loading = r.loading or 0
+  -- M1: a repaint that did not shrink the loading count is one item (or more) that still has not
+  -- answered; after STALE_LIMIT of those in a row, stop chasing it until the window reopens.
+  if lastLoadingCount ~= nil and loading > 0 and loading >= lastLoadingCount then
+    staleRepaints = staleRepaints + 1
+  else
+    staleRepaints = 0
+  end
+  lastLoadingCount = loading
+  GC.ForeverUpgradesUI.Render(r, time())
 end
 
 -- GET_ITEM_INFO_RECEIVED: an item the last build counted as loading may have arrived. One repaint
 -- half a second after the first answer, not one per answer; nothing at all while the window is not
--- up (retail, where it never is, included).
-function GC.ForeverUpgradesUI.OnItemInfo()
+-- up (retail, where it never is, included). M1 (final review): itemID, when given, is checked
+-- against the last render's own loading set -- an answer for something nobody asked about should
+-- not itself trigger a rebuild -- and a storm that has stopped shrinking the loading count gives up
+-- until the window is reopened.
+function GC.ForeverUpgradesUI.OnItemInfo(itemID)
   if pending or not (frame and frame:IsShown()) then return end
+  if lastLoadingIds and itemID ~= nil and not lastLoadingIds[itemID] then return end
+  if staleRepaints >= UP.STALE_LIMIT then return end
   local timer = _G.C_Timer
   if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
   pending = true

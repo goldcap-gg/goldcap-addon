@@ -254,7 +254,9 @@ describe("locale layer", function()
       "Unknown stat %s. Use one of: %s",
       "GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop.",
       "Loot counting is on.",
-      "Loot counting is off.",
+      -- Final review fix dispatch, M7: the off message also points at the new /gc loot clear.
+      "Loot counting is off. Type /gc loot clear to remove what was recorded.",
+      "Loot record cleared.",
     }
     for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
         "ukUA", "zhCN", "zhTW" }) do

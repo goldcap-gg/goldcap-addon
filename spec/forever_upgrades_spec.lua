@@ -67,6 +67,8 @@ describe("ForeverUpgrades", function()
     assert.equal(2, r.loading)
     table.sort(requested)
     assert.same({ 300, 301 }, requested)
+    -- M1 (final review): the exact ids still loading, for the window to filter arrivals against.
+    assert.same({ [300] = true, [301] = true }, r.loadingIds)
   end)
 
   it("keeps out what the class cannot use: its armour rules, and a red line on the tooltip", function()
@@ -98,6 +100,20 @@ describe("ForeverUpgrades", function()
     assert.is_nil(r.rows[1].later)
   end)
 
+  -- Final review M4: a level-ahead pick used to trust only the class table, so a class the table
+  -- does not know could never get one -- even when the tooltip itself says yes.
+  it("runs the tooltip usability check for a level-ahead pick too, not just the class table", function()
+    items[1200] = { loc = "INVTYPE_LEGS", class = 4, sub = 1, minLevel = 22 }   -- TINKER: not in ARMOR
+    statsOf["item:1200"] = STR(5)
+    local tinker = drv({ classFile = function() return "TINKER" end })
+    assert.equal(0, #U.Build(gear({ [1200] = "10:0:0" }), tinker, W).rows)
+    usableOf["item:1200"] = true
+    local r = U.Build(gear({ [1200] = "10:0:0" }), tinker, W)
+    assert.equal(1, #r.rows)
+    assert.equal(1200, r.rows[1].itemID)
+    assert.equal(22, r.rows[1].later)
+  end)
+
   it("compares a two-hander with main and off hand together, and skips the off hand under a two-hander", function()
     items[910] = { loc = "INVTYPE_WEAPON", class = 2, sub = 7 }
     items[911] = { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
@@ -116,6 +132,35 @@ describe("ForeverUpgrades", function()
     items[702] = { loc = "INVTYPE_SHIELD", class = 4, sub = 6 }
     statsOf["item:702"] = { ITEM_MOD_STAMINA_SHORT = 20 }
     assert.equal(0, #U.Build(gear({ [702] = "1:0:0" }), drv(), W).rows)
+  end)
+
+  -- Final review I1: a class that can equip a dagger (per the WEAPON table) is not necessarily
+  -- allowed to WEAR ONE IN THE OFF HAND -- that is a separate dual-wield restriction the tooltip
+  -- does not redline, so ClassAllows alone offered it.
+  it("offers an off-hand weapon only to a class and level that can dual-wield", function()
+    items[1100] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }   -- dagger
+    statsOf["item:1100"] = STR(5)
+    -- The default driver: a level-20 warrior -- dual-wields from level 20.
+    assert.equal(1, #U.Build(gear({ [1100] = "10:0:0" }), drv(), W).rows)
+    -- A level-19 warrior cannot yet.
+    assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }), drv({ level = function() return 19 end }), W).rows)
+    -- A rogue always can, at any level.
+    assert.equal(1, #U.Build(gear({ [1100] = "10:0:0" }),
+      drv({ classFile = function() return "ROGUE" end, level = function() return 1 end }), W).rows)
+    -- A mage can equip a dagger (ClassAllows says yes) but can never dual-wield one.
+    assert.equal(0, #U.Build(gear({ [1100] = "10:0:0" }),
+      drv({ classFile = function() return "MAGE" end, level = function() return 60 end }), W).rows)
+  end)
+
+  it("trusts the client's own CanDualWield over the Classic fallback when it answers", function()
+    items[1101] = { loc = "INVTYPE_WEAPONOFFHAND", class = 2, sub = 15 }
+    statsOf["item:1101"] = STR(5)
+    -- A rogue would fall back to true, but the client says no.
+    assert.equal(0, #U.Build(gear({ [1101] = "10:0:0" }),
+      drv({ classFile = function() return "ROGUE" end, canDualWield = function() return false end }), W).rows)
+    -- A class the Classic fallback table does not list, but the client says yes.
+    assert.equal(1, #U.Build(gear({ [1101] = "10:0:0" }),
+      drv({ classFile = function() return "SHAMAN" end, canDualWield = function() return true end }), W).rows)
   end)
 
   it("measures a ring against the weaker of the two worn", function()

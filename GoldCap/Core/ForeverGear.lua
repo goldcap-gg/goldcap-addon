@@ -45,6 +45,19 @@ function GC.ForeverGear.New()
   return { items = {}, rows = 0, nolink = 0 }
 end
 
+-- Final review I2: for a random-suffix item (a negative suffixID), only the low 16 bits of field 8
+-- pick the suffix's stat roll ("factor") -- the rest of a real link's uniqueID is per-instance
+-- noise the client's stats do not depend on. Dedupe on that factor, never the whole uniqueID, or
+-- every lot of one suffix ("... of the Owl") reads as its own version and fills the 3-lot cap,
+-- crowding out a different, cheaper suffix ("... of the Bear") entirely. A non-random piece
+-- (suffixID 0 or a positive random property) has no such factor: its stats do not depend on field
+-- 8 at all, so the whole field is ignored.
+local function versionKey(suffix, unique)
+  local n = tonumber(suffix) or 0
+  if n >= 0 then return suffix end
+  return suffix .. ":" .. tostring((tonumber(unique) or 0) % 65536)
+end
+
 -- One gear row of the dump. A row whose link the client has not loaded yet is only counted: its
 -- version is unknown, and a guessed one would score another version's stats.
 function GC.ForeverGear.AddRow(acc, itemID, count, buyout, link)
@@ -55,27 +68,34 @@ function GC.ForeverGear.AddRow(acc, itemID, count, buyout, link)
     return false
   end
   local unit = math.max(1, math.floor(buyout / count + 0.5))
-  local key = suffix .. ":" .. unique
+  local key = versionKey(suffix, unique)
   local lots = acc.items[itemID]
   if not lots then
     lots = {}
     acc.items[itemID] = lots
   end
-  if lots[key] == nil or unit < lots[key] then lots[key] = unit end
+  local cur = lots[key]
+  -- The full uniqueID of whichever lot is currently cheapest is kept for ItemString -- which
+  -- exact per-instance id survives does not matter, since the client's stats only follow the
+  -- suffix and its factor (above), never the rest of the id.
+  if cur == nil or unit < cur.unit then
+    lots[key] = { unit = unit, suffix = suffix, unique = unique }
+  end
   acc.rows = acc.rows + 1
   return true
 end
 
 local function encode(lots)
   local list = {}
-  for key, unit in pairs(lots) do list[#list + 1] = { unit, key } end
+  for _, lot in pairs(lots) do list[#list + 1] = lot end
   table.sort(list, function(a, b)
-    if a[1] ~= b[1] then return a[1] < b[1] end
-    return a[2] < b[2]
+    if a.unit ~= b.unit then return a.unit < b.unit end
+    if a.suffix ~= b.suffix then return a.suffix < b.suffix end
+    return a.unique < b.unique
   end)
   local parts = {}
   for i = 1, math.min(#list, GC.ForeverGear.VARIANTS) do
-    parts[i] = ("%d:%s"):format(list[i][1], list[i][2])
+    parts[i] = ("%d:%s:%s"):format(list[i].unit, list[i].suffix, list[i].unique)
   end
   return table.concat(parts, " ")
 end

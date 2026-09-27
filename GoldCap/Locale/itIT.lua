@@ -155,8 +155,10 @@ GC.Locales.itIT = {
     "Oggetti nelle borse che valgono di più alla casa d'aste che da un mercante: %d (%s in più).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Oggetti ancora in caricamento: %d. Riapri tra un momento.",
-  ["Loot counting is off."] = "Il conteggio del bottino è disattivato.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Il conteggio del bottino è disattivato. Scrivi /gc loot clear per rimuovere quanto registrato.",
   ["Loot counting is on."] = "Il conteggio del bottino è attivo.",
+  ["Loot record cleared."] = "Registro del bottino rimosso.",
   ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
   ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

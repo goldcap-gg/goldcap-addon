@@ -327,6 +327,23 @@ describe("ForeverScan", function()
     for _, encoded in pairs(store.fold.items) do assert.is_nil(encoded:find("item:", 1, true)) end
   end)
 
+  -- Final review M6: gear lots are a narrower question than the fold's own "g" flag -- the
+  -- Upgrade Finder never compares a trinket or a shirt -- so it is its own driver field, checked
+  -- separately from isGear (which still covers every weapon/armor item for the fold).
+  it("keeps trinkets and shirts out of the gear lots via isGearLot, even when isGear allows them", function()
+    local s = GC.ForeverScan.New(driver({
+      isGear = function() return true end,               -- the fold's flag: unaffected by M6
+      isGearLot = function(id) return id ~= 999 end,      -- 999 is a trinket, say
+      rowLink = function() return "item:15210" end,
+    }))
+    rows = { { 15210, 1, 900, true }, { 999, 1, 100, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.is_nil(store.gear.items[999])
+    assert.truthy(store.gear.items[15210])
+    assert.truthy(store.fold.items[999])   -- still folded normally, just not lotted
+  end)
+
   it("saves no gear lots from a driver that reads no links, and the fold as before", function()
     local s = GC.ForeverScan.New(driver({ isGear = function() return true end }))
     rows = { { 15210, 1, 900, true } }

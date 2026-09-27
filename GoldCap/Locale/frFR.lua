@@ -155,8 +155,10 @@ GC.Locales.frFR = {
     "Objets de vos sacs qui valent plus à l'hôtel des ventes que chez un marchand : %d (%s de plus).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objets encore en chargement : %d. Rouvrez ceci dans un instant.",
-  ["Loot counting is off."] = "Le comptage du butin est désactivé.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Le comptage du butin est désactivé. Tapez /gc loot clear pour supprimer ce qui a été enregistré.",
   ["Loot counting is on."] = "Le comptage du butin est activé.",
+  ["Loot record cleared."] = "Journal de butin supprimé.",
   ["Mount cost cleared."] = "Coût de la monture effacé.",
   ["Mount cost set to %s."] = "Coût de la monture fixé à %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

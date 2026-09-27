@@ -153,8 +153,10 @@ GC.Locales.ruRU = {
     "Предметов в сумках, которые на аукционе стоят больше, чем у торговца: %d (на %s больше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ещё загружается предметов: %d. Откройте это снова через минуту.",
-  ["Loot counting is off."] = "Подсчёт добычи выключен.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Подсчёт добычи выключен. Введите /gc loot clear, чтобы удалить записанное.",
   ["Loot counting is on."] = "Подсчёт добычи включён.",
+  ["Loot record cleared."] = "Запись добычи удалена.",
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

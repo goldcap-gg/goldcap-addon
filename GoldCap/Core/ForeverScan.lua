@@ -129,12 +129,14 @@ function GC.ForeverScan.New(driver)
     if not toBrowse(acc.partial and "wide" or "classes") then commit() end
   end
 
-  -- driver.isGear once per item id per scan: tens of thousands of rows share a few thousand ids.
+  -- driver.isGearLot once per item id per scan: tens of thousands of rows share a few thousand
+  -- ids. Falls back to driver.isGear for a driver that only offers that (M6, final review, is a
+  -- narrower question than the fold's own "g" flag, so it is its own driver field).
   local function isGearRow(itemID)
     if type(itemID) ~= "number" then return false end
     local known = acc.gearIds[itemID]
     if known == nil then
-      local ok, g = pcall(driver.isGear, itemID)
+      local ok, g = pcall(driver.isGearLot or driver.isGear, itemID)
       known = ok and g == true
       acc.gearIds[itemID] = known
     end
@@ -355,6 +357,15 @@ local function realDriver()
     end,
     isGear = function(itemID)
       local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
+      return classID == 2 or classID == 4
+    end,
+    -- Final review M6: this flag above covers every weapon/armor item generically (the fold's "g"
+    -- flag); gear LOTS (Core/ForeverGear.lua) are read only for the Upgrade Finder, which never
+    -- compares a trinket or a shirt -- their worth is mostly effects GetItemStats does not list.
+    -- Excluding them here saves SavedVariables space that would otherwise sit unread.
+    isGearLot = function(itemID)
+      local _, _, _, equipLoc, _, classID = C_Item.GetItemInfoInstant(itemID)
+      if equipLoc == "INVTYPE_TRINKET" or equipLoc == "INVTYPE_BODY" then return false end
       return classID == 2 or classID == 4
     end,
     startBrowse = function(kind)
