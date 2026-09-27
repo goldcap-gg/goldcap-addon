@@ -232,9 +232,6 @@ describe("Sell tab, a Post says what it is doing", function()
 
     it("from the dock's POST, busies the row it is posting as well", function()
       ready()
-      -- The first click only switches into queue mode and renders it; no protected call runs in
-      -- that same click (final review C1). The second click posts row 1.
-      container.queueButton.scripts.OnClick(container.queueButton)
       container.queueButton.scripts.OnClick(container.queueButton)
       assert.equal(1, posts)
       local row = oreRow()
@@ -474,9 +471,6 @@ describe("Sell tab, a Post says what it is doing", function()
       pressRowPost(23427)
       fire(8)
       assert.matches("Mycobloom", container.queueLabel.text, 1, true)
-      -- The first click only switches into queue mode and renders it; the second posts row 1
-      -- (final review C1).
-      container.queueButton.scripts.OnClick(container.queueButton)
       container.queueButton.scripts.OnClick(container.queueButton)
       assert.equal(2, posts)
       assert.equal(3, postedSlots[2]) -- Mycobloom's own slot

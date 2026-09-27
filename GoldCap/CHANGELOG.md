@@ -11,6 +11,8 @@
 - In WoW: Forever the Sell tab prices from your scan, and its POST queue skips anything a vendor
   pays more for. Type `/gc bags` to see what your bags are worth at a vendor and on the auction
   house.
+- In WoW: Forever, the Sell tab's POST button and its key binding first bring up the posting queue
+  when it is not already showing, and post on the next press.
 - In WoW: Forever, the Deals board lists what your last scan found under the vendor price: items
   you can buy on the auction house and sell to a vendor for more. Each row says the most to pay
   and what a vendor gives. Check looks at the auction house live, and Buy buys only what is

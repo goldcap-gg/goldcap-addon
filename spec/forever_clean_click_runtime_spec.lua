@@ -200,6 +200,7 @@ describe("Clean click ordering, driven end to end", function()
     after_each(function()
       _G.time, _G.CreateFrame, _G.GetCoinTextureString = os.time, nil, nil
       _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
+      _G.GetBuildInfo = nil
     end)
 
     local function compose()
@@ -242,7 +243,15 @@ describe("Clean click ordering, driven end to end", function()
       assertCleanCall("ConfirmPostCommodity")
     end)
 
+    -- The dock's two-press split is WoW: Forever's only (retail drift audit F1): the passport
+    -- below is Forever's, read fresh by onQueueClick through the real Core/Game.lua.
+    local function forever()
+      helper.loadModule("Core/Game.lua", GC)
+      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+    end
+
     it("the dock's POST queue button, on the click that actually posts", function()
+      forever()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       local button = container.queueButton
@@ -256,6 +265,7 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     it("the POST keybinding (f.GoldCapPostNext), the same handler onQueueClick is", function()
+      forever()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       root.GoldCapPostNext()
@@ -263,6 +273,17 @@ describe("Clean click ordering, driven end to end", function()
       log = {}
       root.GoldCapPostNext()
       assertCleanCall("PostCommodity")
+    end)
+
+    -- Retail keeps addon-v0.15.3's one press: the render runs inside the same click, ahead of the
+    -- call, exactly as it always has there. Pinned so the Forever split never leaks back in.
+    it("on retail the dock's POST and the keybinding post on the first press, as 0.15.3 did", function()
+      helper.loadModule("Core/Game.lua", GC)
+      _G.GetBuildInfo = function() return "12.1.0", "69933", "Sep 23 2026", 120100 end
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.is_truthy(logged("PostCommodity"))
     end)
   end)
 

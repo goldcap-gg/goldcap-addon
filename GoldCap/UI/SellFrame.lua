@@ -5930,25 +5930,39 @@ end
 -- timeout. There is no second posting implementation here, and nothing here calls a protected
 -- API directly; see spec/sell_post_wiring_spec.lua for the static guard on both.
 --
--- renderRows() -> pushPosition -> cacheBagLocation runs Blizzard's ItemLocation:
--- CreateFromBagAndSlot for every position with bag stock, plus GC.Sell._SlotKey for every
--- non-commodity one, and paints besides -- all of it Blizzard or GoldCap Lua a click that ends
--- in PostCommodity/PostItem must not run ahead of that call (final review C1). So a click that
--- would have to render first -- switching into queue mode, or the queue's own head having moved
--- since the last render -- renders ONLY, and asks for one more press once row 1 is actually the
--- rendered head; it never falls through into onPostClick in the same click that just rendered.
--- Only a click that finds row 1 already the queue's rendered, shown head posts -- and then
--- through onPostClick EXACTLY, with no render of its own.
+-- Retail posts on the first press, exactly as addon-v0.15.3 did: switch into queue mode, render,
+-- post row 1, all in the same click. If row 1 does not come back as a rendered "position" row
+-- after that render -- the container hidden, a render some other in-flight arm is still
+-- deferring -- no protected call is attempted on a guess; the status line says so and the player
+-- can press again.
 --
--- Failure mode, spelled out rather than reassured about: if row 1 does not come back as a
--- rendered "position" row after this -- the container hidden, a render some other in-flight
--- arm is still deferring, or (the one this file's own code cannot create today, but a future
--- edit might) the queue's head position vanishing from `positions` between compose and render
--- -- this does nothing further. No protected call is attempted on a guess. The player sees a
--- status line saying so and can press the control again once a render has actually happened.
+-- WoW: Forever only: renderRows() -> pushPosition -> cacheBagLocation runs Blizzard's
+-- ItemLocation:CreateFromBagAndSlot for every position with bag stock, plus GC.Sell._SlotKey for
+-- every non-commodity one, and paints besides -- all of it Blizzard or GoldCap Lua a click that
+-- ends in PostCommodity/PostItem must not run ahead of that call there (final review C1). So in
+-- Forever a click that would have to render first -- switching into queue mode, or the queue's
+-- own head having moved since the last render -- renders ONLY, and asks for one more press once
+-- row 1 is actually the rendered head; it never falls through into onPostClick in the same click
+-- that just rendered. Only a click that finds row 1 already the queue's rendered, shown head
+-- posts -- and then through onPostClick EXACTLY, with no render of its own. The split is gated on
+-- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: this file's top-level
+-- local headroom is not spent on it) because retail has always rendered inside this click and a
+-- retail player never had to press twice (retail drift audit F1).
 local function onQueueClick()
   if #queueEntries == 0 then
     setStatus(GC.L["Nothing queued to post"])
+    return
+  end
+  if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
+    filterMode = "queue"
+    renderRows()
+    local row = rows[1]
+    -- `row:IsShown()`, never `row.shown` -- see the Forever branch's own comment below.
+    if row and row.IsShown and row:IsShown() and row.kind == "position" then
+      onPostClick(row)
+    else
+      setStatus(GC.L["Could not find the queue's next item to post — try again"])
+    end
     return
   end
   local head = queueEntries[1]

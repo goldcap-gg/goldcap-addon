@@ -116,6 +116,7 @@ describe("Sell tab, the posting queue control", function()
   after_each(function()
     _G.time, _G.CreateFrame, _G.GetCoinTextureString = os.time, nil, nil
     _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
+    _G.GetBuildInfo = nil
   end)
 
   local function compose()
@@ -168,10 +169,6 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
-    -- The first click only switches into queue mode and renders it -- no protected call runs in
-    -- that same click (final review C1). The second click is the one that finds row 1 already
-    -- the queue's rendered head and posts it.
-    button.scripts.OnClick(button)
     button.scripts.OnClick(button)
     local rows = upvalue(render, "rows")
     -- Row 1 is now the queue's head, mid-post: onPostClick's own pin has taken over its label.
@@ -186,8 +183,7 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
-    button.scripts.OnClick(button) -- switches into queue mode and renders it only (final review C1)
-    button.scripts.OnClick(button) -- posts row 1 -> postStage "confirm"
+    button.scripts.OnClick(button)
     assert.equal("CONFIRM", button.label)
     assert.is_true(button.enabled)
     button.scripts.OnClick(button)
@@ -198,7 +194,6 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     local button = container.queueButton
-    button.scripts.OnClick(button) -- switches into queue mode and renders it only (final review C1)
     button.scripts.OnClick(button) -- PostCommodity returns false above: lands on postStage "posting"
     assert.is_false(button.enabled)
   end)
@@ -242,5 +237,80 @@ describe("Sell tab, the posting queue control", function()
     local joined = table.concat(tooltipLines, " ")
     assert.matches("a vendor pays more -- sell it there", joined, 1, true)
     _G.GameTooltip = nil
+  end)
+
+  -- The tests above run with no GC.Game at all, which is retail: one press posts, exactly as
+  -- addon-v0.15.3 did (retail drift audit F1). These pin the retail passport explicitly, and the
+  -- WoW: Forever split -- where the press that has to render first renders only, and the next
+  -- press posts (final review C1).
+  describe("per game", function()
+    local function passport(interface)
+      helper.loadModule("Core/Game.lua", GC)
+      _G.GetBuildInfo = function() return "x", "1", "Sep 27 2026", interface end
+    end
+
+    local function postCounter()
+      local posts = 0
+      _G.C_AuctionHouse.PostCommodity = function() posts = posts + 1; return false end
+      return function() return posts end
+    end
+
+    it("on retail the dock's POST posts the head on the first press, from any deck", function()
+      passport(120100)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+    end)
+
+    it("on retail the POST keybinding posts on the first press too", function()
+      passport(120100)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      root.GoldCapPostNext()
+      assert.equal(1, posts())
+    end)
+
+    it("in WoW: Forever the first press only switches into queue mode, and the second posts", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button)
+      assert.equal(0, posts())
+      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+      assert.equal("Queue ready — press POST again to post it", root.status.text)
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+    end)
+
+    it("in WoW: Forever the POST keybinding takes the same two presses", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      root.GoldCapPostNext()
+      assert.equal(0, posts())
+      root.GoldCapPostNext()
+      assert.equal(1, posts())
+    end)
+
+    it("in WoW: Forever one press posts once the queue is already the rendered view", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button) -- into queue mode, rendered
+      assert.equal(0, posts())
+      render()
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+    end)
   end)
 end)
