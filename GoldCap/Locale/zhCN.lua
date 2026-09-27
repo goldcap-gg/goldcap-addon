@@ -142,18 +142,25 @@ GC.Locales.zhCN = {
   ["Cost unknown for %d of %d"] = "成本未知：%d 笔 / 共 %d 笔",
   ["Costs more than your per-buy wallet limit allows."] = "花费超过你设定的单次购买上限。",
   ["Could not read that amount. Type it like 12g 50s."] = "无法识别这个金额。请这样输入：12g 50s。",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "来自你 %s 前的扫描。只计算 %s。用 /gc weights 修改。",
+  ["Gear upgrades on the auction house"] = "拍卖行上的装备升级",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍卖行比卖给商人更值钱的物品：%d 件（多 %s）。",
+  ["Items still loading: %d. Open this again in a moment."] = "仍在加载的物品：%d 件。请稍后再打开。",
   ["Mount cost cleared."] = "坐骑费用已清除。",
   ["Mount cost set to %s."] = "坐骑费用已设为 %s。",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "还没有包含装备的扫描。打开拍卖行，让 GoldCap 扫描。",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "你的职业还没有属性权重。这样设置：/gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] = "在你的等级，拍卖行上没有比你身上更好的装备。",
   ["Play a little longer for an estimate of your pace."] = "再玩一会儿，才能估算你的速度。",
   ["ROAD TO 40"] = "40级之路",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 走向 40 级：我的坐骑 %s / %s（%d%%）。",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40级之路：%s / %s（金币 %s，背包 %s）。",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40级之路：你有 %s（金币 %s，背包 %s）。",
   ["Stat weights: %s"] = "属性权重：%s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] = "此客户端不提供物品属性，GoldCap 无法比较装备。",
   ["This lot holds more units than your Max units per buy."] =
     "此拍卖的数量超过了你的“单次购买最大数量”。",
   ["Could not find the queue's next item to post — try again"] =
@@ -515,6 +522,7 @@ GC.Locales.zhCN = {
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的价格",
   ["a unit, at or under your price of %s"] = "单价，不高于你的价格 %s",
+  ["at level %d"] = "%d 级可用",
   ["sure profit: a vendor pays %s each"] =
     "稳赚：商人每件收购 %s",
   ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =

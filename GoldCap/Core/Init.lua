@@ -904,6 +904,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
+    -- The upgrades window repaints once the items it counted as loading arrive (Forever only: the
+    -- window never exists elsewhere).
+    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo() end
   elseif event == "UNIT_SPELLCAST_SENT" then
     local _, _, _, spellID = ...
     if GC.CraftCapture then
@@ -948,6 +951,8 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end
   -- Plan 3e: the upgrade finder's stat weights.
   GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end
+  -- Plan 3e: the AH Upgrade Finder's window.
+  GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end
 end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same

@@ -128,11 +128,16 @@ GC.Locales.enUS = {
   ["Cancel lot"] = "Cancel lot",
   ["Could not read that amount. Type it like 12g 50s."] = "Could not read that amount. Type it like 12g 50s.",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
+    "From your scan %s ago. Counts only %s. Change with /gc weights.",
   ["GOLDCAP"] = "GOLDCAP",
+  ["Gear upgrades on the auction house"] = "Gear upgrades on the auction house",
   ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: checked live -- a deal, but you need %s on this character",
   ["HOLDING %d"] = "HOLDING %d",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
+  ["Items still loading: %d. Open this again in a moment."] =
+    "Items still loading: %d. Open this again in a moment.",
   ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
@@ -143,9 +148,13 @@ GC.Locales.enUS = {
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Needs gold"] = "Needs gold",
   ["No answer yet -- listening for a minute"] = "No answer yet -- listening for a minute",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "No scan with gear in it yet. Open the auction house and let GoldCap scan it.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Not enough gold on this character to buy what GoldCap finds",
+  ["Nothing on the auction house beats what you wear at your level."] =
+    "Nothing on the auction house beats what you wear at your level.",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
@@ -174,6 +183,8 @@ GC.Locales.enUS = {
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] =
+    "This client does not report item stats, so GoldCap cannot compare gear.",
   ["UNDERCUT %d"] = "UNDERCUT %d",
   ["Unknown stat %s. Use one of: %s"] = "Unknown stat %s. Use one of: %s",
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
@@ -192,6 +203,7 @@ GC.Locales.enUS = {
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "above the cheapest, within the day's reach · %s units ahead of you",
   ["age %ss"] = "age %ss",
+  ["at level %d"] = "at level %d",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
   ["crafted %s"] = "crafted %s",

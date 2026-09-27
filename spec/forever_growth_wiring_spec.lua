@@ -70,5 +70,15 @@ describe("plan 3e wiring", function()
     assert.truthy(scan:find("GC.ForeverUpgrades.PrintCount()", bags, true))
   end)
 
-  -- Later tasks (10, 12) append their `it(...)` blocks here, inside this describe.
+  it("opens the upgrades window only in Forever, and repaints it on item data and a finished scan", function()
+    assert.truthy(foreverSlashBlock(init):find(
+      "GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end", 1, true))
+    assert.equal(1, select(2, init:gsub("slashHandlers%.upgrades =", "")))
+    local info = assert(init:find('event == "GET_ITEM_INFO_RECEIVED"', 1, true))
+    assert.truthy(init:find("GC.ForeverUpgradesUI.OnItemInfo()", info, true))
+    local scan = read("GoldCap/Core/ForeverScan.lua")
+    assert.truthy(scan:find("GC.ForeverUpgradesUI.RefreshIfShown()", 1, true))
+  end)
+
+  -- Later task (12) appends its `it(...)` block here, inside this describe.
 end)

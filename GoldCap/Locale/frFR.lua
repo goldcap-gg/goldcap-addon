@@ -146,12 +146,21 @@ GC.Locales.frFR = {
   ["Costs more than your per-buy wallet limit allows."] =
     "Coûte plus que ne l'autorise votre limite par achat.",
   ["Could not read that amount. Type it like 12g 50s."] = "Montant illisible. Écrivez-le comme 12g 50s.",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
+    "D'après votre scan d'il y a %s. Compte seulement %s. À modifier avec /gc weights.",
+  ["Gear upgrades on the auction house"] = "Améliorations d'équipement à l'hôtel des ventes",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Objets de vos sacs qui valent plus à l'hôtel des ventes que chez un marchand : %d (%s de plus).",
+  ["Items still loading: %d. Open this again in a moment."] =
+    "Objets encore en chargement : %d. Rouvrez ceci dans un instant.",
   ["Mount cost cleared."] = "Coût de la monture effacé.",
   ["Mount cost set to %s."] = "Coût de la monture fixé à %s.",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "Aucun scan contenant de l'équipement pour l'instant. Ouvrez l'hôtel des ventes et laissez GoldCap le scanner.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "Pas encore de pondérations pour votre classe. Définissez-les ainsi : /gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] =
+    "Rien à l'hôtel des ventes ne dépasse ce que vous portez à votre niveau.",
   ["Play a little longer for an estimate of your pace."] =
     "Jouez encore un peu pour une estimation de votre rythme.",
   ["ROAD TO 40"] = "EN ROUTE VERS LE NIVEAU 40",
@@ -160,6 +169,8 @@ GC.Locales.frFR = {
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "En route vers le niveau 40 : %s sur %s (or %s, sacs %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "En route vers le niveau 40 : vous avez %s (or %s, sacs %s).",
   ["Stat weights: %s"] = "Pondérations : %s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] =
+    "Ce client ne fournit pas les caractéristiques des objets, GoldCap ne peut donc pas comparer l'équipement.",
   ["This lot holds more units than your Max units per buy."] =
     "Ce lot contient plus d'unités que ton « Unités max. par achat ».",
   ["Could not find the queue's next item to post — try again"] =
@@ -563,6 +574,7 @@ GC.Locales.frFR = {
   ["Your minimum"] = "Ton minimum",
   ["Your price"] = "Ton prix",
   ["a unit, at or under your price of %s"] = "l'unité, à ton prix de %s ou en dessous",
+  ["at level %d"] = "au niveau %d",
   ["sure profit: a vendor pays %s each"] =
     "profit assuré : un marchand paie %s l'unité",
   ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =

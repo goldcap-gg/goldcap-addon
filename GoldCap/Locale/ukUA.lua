@@ -147,12 +147,21 @@ GC.Locales.ukUA = {
   ["Costs more than your per-buy wallet limit allows."] =
     "Коштує більше, ніж дозволяє ваш ліміт на одну купівлю.",
   ["Could not read that amount. Type it like 12g 50s."] = "Не вдалося прочитати суму. Введіть так: 12g 50s.",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
+    "За вашим скануванням %s тому. Враховує лише %s. Змінити: /gc weights.",
+  ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
+  ["Items still loading: %d. Open this again in a moment."] =
+    "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "Ще немає сканування зі спорядженням. Відкрийте аукціон, і GoldCap його просканує.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "Для вашого класу ще немає ваг характеристик. Задайте їх так: /gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] =
+    "На аукціоні немає нічого кращого за ваше спорядження для вашого рівня.",
   ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
   ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
@@ -160,6 +169,8 @@ GC.Locales.ukUA = {
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Шлях до 40 рівня: у вас %s (золото %s, сумки %s).",
   ["Stat weights: %s"] = "Ваги характеристик: %s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] =
+    "Цей клієнт не повідомляє характеристики предметів, тому GoldCap не може порівняти спорядження.",
   ["This lot holds more units than your Max units per buy."] =
     "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
   ["Could not find the queue's next item to post — try again"] =
@@ -576,6 +587,7 @@ GC.Locales.ukUA = {
   ["Your minimum"] = "Твій мінімум",
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
+  ["at level %d"] = "з %d рівня",
   ["sure profit: a vendor pays %s each"] =
     "гарантований прибуток: торговець платить %s за штуку",
   ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =

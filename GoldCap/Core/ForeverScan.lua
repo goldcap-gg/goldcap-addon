@@ -324,6 +324,7 @@ local function notify(kind, a, b)
   elseif kind == "done" then
     GC.ForeverScan._SayDone(a)
     if GC.Sniper and GC.Sniper.OnForeverFold then GC.Sniper.OnForeverFold() end
+    if GC.ForeverUpgradesUI and GC.ForeverUpgradesUI.RefreshIfShown then GC.ForeverUpgradesUI.RefreshIfShown() end
   end
 end
 

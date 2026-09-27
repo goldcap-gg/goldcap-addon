@@ -143,18 +143,27 @@ GC.Locales.koKR = {
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
   ["Costs more than your per-buy wallet limit allows."] = "1회 구매 한도보다 비쌉니다.",
   ["Could not read that amount. Type it like 12g 50s."] = "금액을 읽을 수 없습니다. 12g 50s처럼 입력하세요.",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
+    "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
+  ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
+  ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "아직 장비가 담긴 스캔이 없습니다. 경매장을 열어 GoldCap이 스캔하게 하세요.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
     "직업의 능력치 가중치가 아직 없습니다. 이렇게 설정하세요: /gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] = "경매장에 현재 레벨에서 착용 장비보다 나은 것이 없습니다.",
   ["Play a little longer for an estimate of your pace."] = "속도를 추정하려면 조금 더 플레이하세요.",
   ["ROAD TO 40"] = "40레벨까지",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "GoldCap과 함께 40레벨까지: 내 탈것 %s / %s (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40레벨까지: %s / %s (골드 %s, 가방 %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40레벨까지: 보유 %s (골드 %s, 가방 %s).",
   ["Stat weights: %s"] = "능력치 가중치: %s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] =
+    "이 클라이언트는 아이템 능력치를 알려주지 않아 GoldCap이 장비를 비교할 수 없습니다.",
   ["This lot holds more units than your Max units per buy."] =
     "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
   ["Could not find the queue's next item to post — try again"] =
@@ -528,6 +537,7 @@ GC.Locales.koKR = {
   ["Your minimum"] = "내 최소 기준",
   ["Your price"] = "내 가격",
   ["a unit, at or under your price of %s"] = "개당 가격, 내 가격 %s 이하",
+  ["at level %d"] = "%d레벨부터",
   ["sure profit: a vendor pays %s each"] =
     "확실한 이익: 상인이 개당 %s 지급",
   ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =

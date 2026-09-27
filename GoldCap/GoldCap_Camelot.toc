@@ -91,6 +91,7 @@ UI/AuctionHouseTab.lua
 UI/SellViewModel.lua
 UI/SellFrame.lua
 UI/SoldFrame.lua
+UI/ForeverUpgradesFrame.lua
 UI/BuyFrame.lua
 UI/SettingsFrame.lua
 Core/Init.lua
