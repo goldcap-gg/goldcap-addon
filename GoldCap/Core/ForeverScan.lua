@@ -53,14 +53,15 @@ function GC.ForeverScan.New(driver)
     token = token + 1
   end
 
-  -- The rule (final review I3): a browse-only result never REPLACES a stored fold that came
-  -- from a real ReplicateItems dump -- only the cooldown-SCAN path (Request, "button" reason,
-  -- inside C.COOLDOWN_SECONDS) and a browse watchdog firing on that same empty accumulator ever
-  -- produce one, and either would otherwise throw away every ladder/lot-count the dump priced
-  -- for the single cheapest-listing floor a browse row carries. So: merge. Every item the stored
-  -- fold already has stays exactly as it was folded; a browse item is added only for an item the
-  -- stored fold lacks entirely -- the same "only what the dump didn't cover" rule AddBrowse
-  -- already applies inside one scan, now applied across two.
+  -- The rule (final review I3, widened for the partial-replicate case): neither a browse-only
+  -- result nor a ReplicateItems read that came back partial itself (the dump capped at
+  -- SUSPECT_CAP, emptied under the read, or the browse watchdog firing) may REPLACE a stored fold
+  -- that came from a real dump -- either would otherwise throw away every ladder/lot-count the
+  -- fuller fold priced for a thinner read's single floor. So: merge. Every item the stored fold
+  -- already has keeps its saved entry, UNLESS the saved fold was itself partial and this read is
+  -- a real dump -- both reads are then incomplete, and this read's entry, the newer one, wins. An
+  -- item the stored fold lacks entirely is added -- the same "only what the dump didn't cover"
+  -- rule AddBrowse already applies inside one scan, now applied across two.
   local function isFullFold(fold)
     return type(fold) == "table" and type(fold.items) == "table"
       and (fold.source == "replicate" or fold.source == "replicate+browse")
@@ -87,7 +88,10 @@ function GC.ForeverScan.New(driver)
     local s = driver.store()
     if s then
       local existing = s.fold
-      if source == "browse" and isFullFold(existing) and sameHouse(existing, p) then
+      if (source == "browse" or a.partial) and isFullFold(existing) and sameHouse(existing, p) then
+        -- Both reads incomplete: this attempt's entry is the newer one, so it wins over the
+        -- saved fold's for any item they both priced.
+        local overwrite = existing.partial == true and a.replicated == true
         local merged, mergedCount = {}, 0
         for itemID, encoded in pairs(existing.items) do
           merged[itemID] = encoded
@@ -97,6 +101,8 @@ function GC.ForeverScan.New(driver)
           if merged[itemID] == nil then
             merged[itemID] = encoded
             mergedCount = mergedCount + 1
+          elseif overwrite then
+            merged[itemID] = encoded
           end
         end
         -- Honest source/age (final review I3, re-review I2b): still fundamentally the dump's own

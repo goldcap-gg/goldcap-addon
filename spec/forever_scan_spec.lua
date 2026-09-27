@@ -102,6 +102,40 @@ describe("ForeverScan", function()
     assert.equal("wide", d.browse)               -- partial: the browse pass covers everything
   end)
 
+  -- A partial ReplicateItems read (the dump capped at SUSPECT_CAP, emptied under the read, or the
+  -- browse watchdog firing) must merge into a fuller saved fold exactly as a browse-only top-up
+  -- does -- not replace it wholesale and lose every item the saved fold priced that this thin
+  -- read never reached.
+  it("merges a partial replicate read into a fuller saved fold instead of replacing it", function()
+    store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
+      ruleset = nil, at = now - 500, rows = 9000, items = { [9999] = "70,40,4,;5x10 5x30" } }
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(5000)
+    s:OnReplicateUpdate()                        -- first batch (2000 rows) now
+    rows = {}                                    -- the beta: gone by +10 s
+    assert.has_no.errors(runAll)
+    assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999]) -- the saved fold's own item, kept
+    assert.is_true(store.fold.partial)
+    assert.equal(now - 500, store.fold.at)
+  end)
+
+  -- Both reads are incomplete; an item both the saved fold and this attempt priced takes this
+  -- attempt's entry, since it is the newer of the two.
+  it("takes the new partial replicate's entry over an already-partial saved fold's", function()
+    store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
+      ruleset = nil, at = now - 500, rows = 9000, partial = true,
+      items = { [1000] = "999,1,1,;", [9999] = "70,40,4,;5x10 5x30" } }
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(5000)                            -- item 1000 is among the first 2000 rows read
+    s:OnReplicateUpdate()
+    rows = {}
+    assert.has_no.errors(runAll)
+    assert.not_equal("999,1,1,;", store.fold.items[1000])      -- replaced: this read saw it too
+    assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999]) -- kept: this read never saw it
+  end)
+
   it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
     local ms = 0
     local s = GC.ForeverScan.New(driver({
