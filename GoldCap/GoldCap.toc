@@ -12,6 +12,17 @@
 ## AddonCompartmentFuncOnEnter: GoldCap_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: GoldCap_OnAddonCompartmentLeave
 ## OptionalDeps: GoldCap_AppData
+## Category-enUS: Auctions
+## Category-deDE: Auktionen
+## Category-esES: Subastas
+## Category-esMX: Subastas
+## Category-frFR: Ventes
+## Category-itIT: Aste
+## Category-koKR: 경매
+## Category-ptBR: Leilões
+## Category-ruRU: Лоты
+## Category-zhCN: 拍卖
+## Category-zhTW: 拍賣
 
 Core/Util.lua
 Core/Game.lua

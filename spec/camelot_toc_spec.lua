@@ -41,3 +41,21 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     assert.same(expected, foreverF)
   end)
 end)
+
+-- The AddOns list groups by category: GoldCap sits under "Auctions" beside Auctionator, with
+-- Auctionator's own word for it in each client language.
+describe("the AddOns list category", function()
+  local CATEGORY = {
+    enUS = "Auctions", deDE = "Auktionen", esES = "Subastas", esMX = "Subastas", frFR = "Ventes",
+    itIT = "Aste", koKR = "경매", ptBR = "Leilões", ruRU = "Лоты", zhCN = "拍卖", zhTW = "拍賣",
+  }
+
+  for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) do
+    it("is Auctions in every language, in " .. toc, function()
+      local directives = split(read(toc))
+      for code, word in pairs(CATEGORY) do
+        assert.equal(word, directives["Category-" .. code], code)
+      end
+    end)
+  end
+end)
