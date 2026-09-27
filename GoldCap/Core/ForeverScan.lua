@@ -301,6 +301,8 @@ function GC.ForeverScan._SayDone(summary)
   -- Guarded: this file's own _SayDone spec never loads Core/ForeverValue.lua, so GC.ForeverValue
   -- is nil there -- degrade to nothing printed rather than an error.
   if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags() end
+  -- Plan 3e: how many upgrades the scan holds for this character's gear, when there are any.
+  if GC.ForeverUpgrades and GC.ForeverUpgrades.PrintCount then GC.ForeverUpgrades.PrintCount() end
   if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() then
     GC.Print(GC.L["Shared with goldcap.gg on your next /reload"])
   end

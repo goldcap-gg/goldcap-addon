@@ -946,6 +946,8 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.bags = function() GC.ForeverValue.PrintBags() end
   -- Plan 3e: Road to 40 -- set, clear or share the riding cost, or print the road.
   GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end
+  -- Plan 3e: the upgrade finder's stat weights.
+  GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end
 end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same

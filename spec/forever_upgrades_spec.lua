@@ -179,3 +179,103 @@ describe("ForeverUpgrades", function()
     assert.is_nil(U.ClassAllows("TINKER", 4, 2, 20))
   end)
 end)
+
+describe("ForeverUpgrades in the client", function()
+  local GC, db, printed, saved
+  local INFO = { [101] = { loc = "INVTYPE_HEAD", class = 4, sub = 2, stats = { ITEM_MOD_STRENGTH_SHORT = 8 } } }
+  local KEYS = { "C_Item", "UnitLevel", "UnitClass", "GetInventoryItemLink", "C_TooltipInfo", "GetItemStats",
+    "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT" }
+
+  local function init(interface)
+    GC.ForeverScan.Init(db, { passport = function() return { interface = interface, region = 90, realm = "Forever" } end })
+  end
+
+  before_each(function()
+    saved = {}
+    for _, k in ipairs(KEYS) do saved[k] = _G[k] end
+    local function idOf(s) return tonumber(tostring(s):match("item:(%d+)")) end
+    _G.C_Item = {
+      GetItemInfoInstant = function(id)
+        local it = INFO[id]
+        if it then return id, "Armor", "Leather", it.loc, 0, it.class, it.sub end
+      end,
+      GetItemInfo = function(s) if INFO[idOf(s)] then return "Cap", "|Hitem:" .. idOf(s) .. "|h[Cap]|h", 2, 20, 18 end end,
+      GetItemStats = function(s) return INFO[idOf(s)] and INFO[idOf(s)].stats or nil end,
+      RequestLoadItemDataByID = function() end,
+    }
+    _G.UnitLevel = function() return 20 end
+    _G.UnitClass = function() return "Warrior", "WARRIOR", 1 end
+    _G.GetInventoryItemLink = function() return nil end
+    _G.C_TooltipInfo, _G.GetItemStats = nil, nil
+    _G.ITEM_MOD_STRENGTH_SHORT, _G.ITEM_MOD_STAMINA_SHORT = "Strength", "Stamina"
+    GC = helper.loadModule("Core/Util.lua")
+    for _, f in ipairs({ "Core/Game.lua", "Core/ForeverFold.lua", "Core/ForeverGear.lua", "Core/ForeverScan.lua",
+        "Core/ForeverUpgrades.lua" }) do
+      helper.loadModule(f, GC)
+    end
+    printed = {}
+    GC.Print = function(m) printed[#printed + 1] = m end
+    db = { foreverScan = { fold = { region = 90, realm = "Forever", at = 5000, items = {} },
+      gear = { v = 1, at = 5000, items = { [101] = "250:0:0" } } } }
+  end)
+
+  after_each(function() for _, k in ipairs(KEYS) do _G[k] = saved[k] end end)
+
+  it("counts the upgrades after a scan through the client's own reads", function()
+    init(16001)
+    GC.ForeverUpgrades.PrintCount()
+    assert.same({ "Upgrades for your gear on the auction house: 1. Type /gc upgrades to see them." }, printed)
+    local r = GC.ForeverUpgrades.Current()
+    assert.equal("|Hitem:101|h[Cap]|h", r.rows[1].link)
+    assert.equal(5000, r.at)
+  end)
+
+  it("says nothing when nothing beats the worn piece, and reports a client with no stats call", function()
+    init(16001)
+    _G.GetInventoryItemLink = function(_, slot) return slot == 1 and "item:101" or nil end
+    GC.ForeverUpgrades.PrintCount()
+    assert.same({}, printed)
+    _G.C_Item.GetItemStats = nil
+    assert.is_true(GC.ForeverUpgrades.Current().noStats)
+  end)
+
+  it("says there is no scan when the saved gear lots are not this fold's", function()
+    init(16001)
+    db.foreverScan.gear.at = 4000
+    assert.is_true(GC.ForeverUpgrades.Current().noScan)
+  end)
+
+  it("shows, changes and resets the class's stat weights with /gc weights", function()
+    init(16001)
+    GC.ForeverUpgrades.SlashWeights("")
+    assert.equal("Stat weights: Strength 1, AGI 0.5, Stamina 0.5, ARMOR 0.01, DPS 2, AP 0.5", printed[1])
+    GC.ForeverUpgrades.SlashWeights("str 2 dps 0")
+    assert.same({ STR = 2, AGI = 0.5, STA = 0.5, AP = 0.5, ARMOR = 0.01 }, db.forever.weights.WARRIOR)
+    assert.equal("Stat weights: Strength 2, AGI 0.5, Stamina 0.5, ARMOR 0.01, AP 0.5", printed[2])
+    GC.ForeverUpgrades.SlashWeights("LUCK 3")
+    assert.equal("Unknown stat LUCK. Use one of: STR, AGI, STA, INT, SPI, ARMOR, DPS, AP, SP", printed[3])
+    GC.ForeverUpgrades.SlashWeights("STR lots")
+    assert.equal("Unknown stat STR lots. Use one of: STR, AGI, STA, INT, SPI, ARMOR, DPS, AP, SP", printed[4])
+    assert.equal(2, db.forever.weights.WARRIOR.STR)          -- a refused line changes nothing
+    GC.ForeverUpgrades.SlashWeights("reset")
+    assert.is_nil(db.forever.weights.WARRIOR)
+    assert.equal(printed[1], printed[5])
+  end)
+
+  it("asks for weights for a class it has none for", function()
+    init(16001)
+    _G.UnitClass = function() return "Tinker", "TINKER", 13 end
+    GC.ForeverUpgrades.SlashWeights("")
+    assert.equal("No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5", printed[1])
+    assert.is_true(GC.ForeverUpgrades.Current().noWeights)
+  end)
+
+  it("does nothing on retail", function()
+    init(120100)
+    GC.ForeverUpgrades.PrintCount()
+    GC.ForeverUpgrades.SlashWeights("STR 2")
+    assert.is_nil(GC.ForeverUpgrades.Current())
+    assert.same({}, printed)
+    assert.is_nil(db.forever)
+  end)
+end)

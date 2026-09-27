@@ -150,12 +150,15 @@ GC.Locales.itIT = {
     "Oggetti nelle borse che valgono di più alla casa d'aste che da un mercante: %d (%s in più).",
   ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
   ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Nessun peso delle statistiche per la tua classe. Impostali così: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "Gioca ancora un po' per una stima del tuo ritmo.",
   ["ROAD TO 40"] = "VERSO IL LIVELLO 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Verso il livello 40 con GoldCap: %s su %s per la mia cavalcatura (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Verso il livello 40: %s su %s (oro %s, borse %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Verso il livello 40: hai %s (oro %s, borse %s).",
+  ["Stat weights: %s"] = "Pesi delle statistiche: %s",
   ["This lot holds more units than your Max units per buy."] =
     "Questo lotto ha più unità del tuo «Max. unità per acquisto».",
   ["Could not find the queue's next item to post — try again"] =
@@ -267,6 +270,9 @@ GC.Locales.itIT = {
   ["Max wallet per buy %"] = "Max. del tuo oro per acquisto %",
   ["Min profit per buy (gold)"] = "Profitto min. per acquisto (oro)",
   ["Min profit per buy (copper)"] = "Profitto min. per acquisto (rame)",
+  ["Unknown stat %s. Use one of: %s"] = "Statistica sconosciuta %s. Usa una tra: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Miglioramenti per il tuo equipaggiamento alla casa d'aste: %d. Scrivi /gc upgrades per vederli.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Finché resta al valore predefinito del 5%, un'occasione al prezzo del venditore può usare fino a metà del tuo oro.",
   ["Min return per buy %"] = "Rendimento min. per acquisto %",
   ["Missing cost"] = "Costo mancante",

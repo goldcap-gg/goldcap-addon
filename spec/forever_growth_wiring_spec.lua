@@ -61,5 +61,14 @@ describe("plan 3e wiring", function()
     assert.equal(1, select(2, init:gsub("slashHandlers%.mount =", "")))
   end)
 
-  -- Later tasks (9, 10, 12) append their `it(...)` blocks here, inside this describe.
+  it("gives /gc weights only in Forever, and counts upgrades after the bag line of a finished scan", function()
+    assert.truthy(foreverSlashBlock(init):find(
+      "GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end", 1, true))
+    assert.equal(1, select(2, init:gsub("slashHandlers%.weights =", "")))
+    local scan = read("GoldCap/Core/ForeverScan.lua")
+    local bags = assert(scan:find("GC.ForeverValue.PrintBags()", 1, true))
+    assert.truthy(scan:find("GC.ForeverUpgrades.PrintCount()", bags, true))
+  end)
+
+  -- Later tasks (10, 12) append their `it(...)` blocks here, inside this describe.
 end)

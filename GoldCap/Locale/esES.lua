@@ -151,12 +151,15 @@ GC.Locales.esES = {
     "Objetos de tus bolsas que valen más en la casa de subastas que en un vendedor: %d (%s más).",
   ["Mount cost cleared."] = "Coste de la montura borrado.",
   ["Mount cost set to %s."] = "Coste de la montura fijado en %s.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Aún no hay pesos de estadísticas para tu clase. Defínelos así: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "Juega un poco más para estimar tu ritmo.",
   ["ROAD TO 40"] = "CAMINO AL NIVEL 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Camino al nivel 40 con GoldCap: %s de %s para mi montura (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Camino al nivel 40: %s de %s (oro %s, bolsas %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Camino al nivel 40: tienes %s (oro %s, bolsas %s).",
+  ["Stat weights: %s"] = "Pesos de estadísticas: %s",
   ["This lot holds more units than your Max units per buy."] =
     "Este lote tiene más unidades que tu «Máx. de unidades por compra».",
   ["Could not find the queue's next item to post — try again"] =
@@ -269,6 +272,9 @@ GC.Locales.esES = {
   ["Max wallet per buy %"] = "Máx. de tu oro por compra %",
   ["Min profit per buy (gold)"] = "Beneficio mínimo por compra (oro)",
   ["Min profit per buy (copper)"] = "Beneficio mínimo por compra (cobre)",
+  ["Unknown stat %s. Use one of: %s"] = "Estadística desconocida %s. Usa una de: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Mejoras para tu equipo en la casa de subastas: %d. Escribe /gc upgrades para verlas.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Mientras esto se mantenga en el 5% por defecto, una pista con precio de vendedor puede usar hasta la mitad de tu oro.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Falta el coste",

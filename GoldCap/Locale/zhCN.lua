@@ -146,11 +146,14 @@ GC.Locales.zhCN = {
     "背包中在拍卖行比卖给商人更值钱的物品：%d 件（多 %s）。",
   ["Mount cost cleared."] = "坐骑费用已清除。",
   ["Mount cost set to %s."] = "坐骑费用已设为 %s。",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "你的职业还没有属性权重。这样设置：/gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "再玩一会儿，才能估算你的速度。",
   ["ROAD TO 40"] = "40级之路",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 走向 40 级：我的坐骑 %s / %s（%d%%）。",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40级之路：%s / %s（金币 %s，背包 %s）。",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40级之路：你有 %s（金币 %s，背包 %s）。",
+  ["Stat weights: %s"] = "属性权重：%s",
   ["This lot holds more units than your Max units per buy."] =
     "此拍卖的数量超过了你的“单次购买最大数量”。",
   ["Could not find the queue's next item to post — try again"] =
@@ -255,6 +258,9 @@ GC.Locales.zhCN = {
   ["Max wallet per buy %"] = "单次购买最大资金占比 %",
   ["Min profit per buy (gold)"] = "单次购买最低利润（金）",
   ["Min profit per buy (copper)"] = "单次购买最低利润（铜）",
+  ["Unknown stat %s. Use one of: %s"] = "未知属性 %s。请使用以下之一：%s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "拍卖行上的装备升级：%d 件。输入 /gc upgrades 查看。",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "只要该值保持默认的 5%，按商人价格计算的线索最多可使用你钱包的一半。",
   ["Min return per buy %"] = "单次购买最低回报率 %",
   ["Missing cost"] = "缺少成本",

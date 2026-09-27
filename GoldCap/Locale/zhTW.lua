@@ -147,11 +147,14 @@ GC.Locales.zhTW = {
     "背包中在拍賣場比賣給商人更值錢的物品：%d 件（多 %s）。",
   ["Mount cost cleared."] = "坐騎費用已清除。",
   ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "你的職業還沒有屬性權重。這樣設定：/gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "再玩一會兒，才能估算你的速度。",
   ["ROAD TO 40"] = "40級之路",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 邁向 40 級：我的坐騎 %s / %s（%d%%）。",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40級之路：%s / %s（金幣 %s，背包 %s）。",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40級之路：你有 %s（金幣 %s，背包 %s）。",
+  ["Stat weights: %s"] = "屬性權重：%s",
   ["This lot holds more units than your Max units per buy."] =
     "此拍賣的數量超過了你的「單次購買最大數量」。",
   ["Could not find the queue's next item to post — try again"] =
@@ -256,6 +259,9 @@ GC.Locales.zhTW = {
   ["Max wallet per buy %"] = "單次購買最大資金佔比 %",
   ["Min profit per buy (gold)"] = "單次購買最低利潤（金）",
   ["Min profit per buy (copper)"] = "單次購買最低利潤（銅）",
+  ["Unknown stat %s. Use one of: %s"] = "未知屬性 %s。請使用以下之一：%s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "拍賣場上的裝備升級：%d 件。輸入 /gc upgrades 查看。",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "只要該值保持預設的 5%，按商人價格計算的線索最多可使用你錢包的一半。",
   ["Min return per buy %"] = "單次購買最低回報率 %",
   ["Missing cost"] = "缺少成本",

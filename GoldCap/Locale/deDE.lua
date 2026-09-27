@@ -149,6 +149,8 @@ GC.Locales.deDE = {
     "Gegenstände in deinen Taschen, die im Auktionshaus mehr bringen als beim Händler: %d (%s mehr).",
   ["Mount cost cleared."] = "Reitkosten gelöscht.",
   ["Mount cost set to %s."] = "Reitkosten auf %s gesetzt.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Für deine Klasse gibt es noch keine Wertgewichte. Setze sie so: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] =
     "Spiel noch etwas weiter, dann gibt es eine Schätzung deines Tempos.",
   ["ROAD TO 40"] = "WEG ZU STUFE 40",
@@ -156,6 +158,7 @@ GC.Locales.deDE = {
     "Weg zu Stufe 40 mit GoldCap: %s von %s für mein Reittier (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Weg zu Stufe 40: %s von %s (Gold %s, Taschen %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Weg zu Stufe 40: Du hast %s (Gold %s, Taschen %s).",
+  ["Stat weights: %s"] = "Wertgewichte: %s",
   ["This lot holds more units than your Max units per buy."] =
     "Dieser Posten hat mehr Stück als dein „Max. Stück pro Kauf“.",
   ["Could not find the queue's next item to post — try again"] =
@@ -267,6 +270,9 @@ GC.Locales.deDE = {
   ["Max wallet per buy %"] = "Max. Anteil des Guthabens pro Kauf %",
   ["Min profit per buy (gold)"] = "Mindestgewinn pro Kauf (Gold)",
   ["Min profit per buy (copper)"] = "Mindestgewinn pro Kauf (Kupfer)",
+  ["Unknown stat %s. Use one of: %s"] = "Unbekannter Wert %s. Nutze einen von: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Upgrades für deine Ausrüstung im Auktionshaus: %d. Tippe /gc upgrades, um sie zu sehen.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Solange dieser Wert beim Standard von 5 % bleibt, darf ein Fund mit Händlerpreis bis zur Hälfte deines Geldes verwenden.",
   ["Min return per buy %"] = "Min. Rendite pro Kauf %",
   ["Missing cost"] = "Kosten fehlen",

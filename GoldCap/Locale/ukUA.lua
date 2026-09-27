@@ -151,12 +151,15 @@ GC.Locales.ukUA = {
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Для вашого класу ще немає ваг характеристик. Задайте їх так: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
   ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Шлях до 40 рівня з GoldCap: %s з %s на скакуна (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Шлях до 40 рівня: у вас %s (золото %s, сумки %s).",
+  ["Stat weights: %s"] = "Ваги характеристик: %s",
   ["This lot holds more units than your Max units per buy."] =
     "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
   ["Could not find the queue's next item to post — try again"] =
@@ -274,6 +277,9 @@ GC.Locales.ukUA = {
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
   ["Min profit per buy (gold)"] = "Мінімальний прибуток з купівлі (золото)",
   ["Min profit per buy (copper)"] = "Мінімальний прибуток з купівлі (мідь)",
+  ["Unknown stat %s. Use one of: %s"] = "Невідома характеристика %s. Використайте одну з: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Покращень спорядження на аукціоні: %d. Введіть /gc upgrades, щоб їх побачити.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Поки це значення лишається стандартними 5%, лот за ціною торговця може використати до половини вашого золота.",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",

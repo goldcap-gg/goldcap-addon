@@ -323,3 +323,136 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
   end
   return out
 end
+
+-- Stat weights: the player's own for this class, else a copy of the class's default, else none.
+function GC.ForeverUpgrades.WeightsFor(prefs, classFile)
+  local own = type(prefs) == "table" and type(prefs.weights) == "table" and prefs.weights[classFile] or nil
+  if type(own) == "table" then return own end
+  local copy = {}
+  for k, v in pairs(GC.ForeverUpgrades.DEFAULT_WEIGHTS[classFile] or {}) do copy[k] = v end
+  return copy
+end
+
+-- "STR 2 DPS 0": each token set to its number, 0 removes it. nil and the offending text on a token
+-- it does not know or a number it cannot read -- then nothing is changed.
+function GC.ForeverUpgrades.ApplyWeights(weights, rest)
+  local words = {}
+  for w in (rest or ""):gmatch("%S+") do words[#words + 1] = w end
+  local new = {}
+  for k, v in pairs(weights or {}) do new[k] = v end
+  for i = 1, #words, 2 do
+    local token, value = words[i]:upper(), tonumber(words[i + 1] or "")
+    if not GC.ForeverUpgrades.TOKENS[token] then return nil, words[i] end
+    if value == nil then return nil, words[i] .. (words[i + 1] and (" " .. words[i + 1]) or "") end
+    new[token] = value ~= 0 and value or nil
+  end
+  return new
+end
+
+function GC.ForeverUpgrades.WeightsText(weights)
+  local parts = {}
+  for _, token in ipairs(GC.ForeverUpgrades.TOKEN_ORDER) do
+    local w = (weights or {})[token]
+    if type(w) == "number" and w ~= 0 then
+      parts[#parts + 1] = ("%s %g"):format(_G[GC.ForeverUpgrades.TOKENS[token][1]] or token, w)
+    end
+  end
+  return table.concat(parts, ", ")
+end
+
+local function enabled()
+  return GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or false
+end
+
+local function statsCall()
+  local item = _G.C_Item
+  if type(item) == "table" and type(item.GetItemStats) == "function" then return item.GetItemStats end
+  if type(_G.GetItemStats) == "function" then return _G.GetItemStats end
+  return nil
+end
+
+local function classFile()
+  local ok, _, file = pcall(_G.UnitClass, "player")
+  return ok and type(file) == "string" and file or nil
+end
+
+-- The client, for Build. Every read guarded: a missing API reads as "not answered", never an error.
+local function realDriver(getStats)
+  local item = _G.C_Item or {}
+  return {
+    level = function()
+      local ok, l = pcall(_G.UnitLevel, "player")
+      return ok and tonumber(l) or 1
+    end,
+    classFile = classFile,
+    equipped = function(slot)
+      local ok, link = pcall(_G.GetInventoryItemLink, "player", slot)
+      return ok and type(link) == "string" and link or nil
+    end,
+    instant = function(itemID)
+      local ok, _, _, _, equipLoc, _, classID, subclassID = pcall(item.GetItemInfoInstant, itemID)
+      if ok then return equipLoc, classID, subclassID end
+      return nil
+    end,
+    info = function(itemString)
+      local ok, name, link, _, _, minLevel = pcall(item.GetItemInfo, itemString)
+      if ok and name then return tonumber(minLevel) or 0, link end
+      return nil
+    end,
+    stats = function(s)
+      local ok, t = pcall(getStats, s)
+      return ok and type(t) == "table" and t or nil
+    end,
+    usable = function(s) return GC.ForeverUpgrades.TooltipUsable(s) end,
+    requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
+  }
+end
+
+function GC.ForeverUpgrades.Current()
+  if not enabled() then return nil end
+  local gear, fold = GC.ForeverScan.Gear()
+  if not gear then return { rows = {}, loading = 0, noScan = true } end
+  local getStats = statsCall()
+  if not getStats then return { rows = {}, loading = 0, noStats = true } end
+  local weights = GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), classFile())
+  local r = GC.ForeverUpgrades.Build(gear, realDriver(getStats), weights)
+  r.at, r.weights = fold.at, weights
+  return r
+end
+
+-- After every saved scan (Core/ForeverScan.lua's _SayDone): one line, only when there is something.
+function GC.ForeverUpgrades.PrintCount()
+  local r = GC.ForeverUpgrades.Current()
+  if r and #r.rows > 0 then
+    GC.Print(GC.L["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."]:format(#r.rows))
+  end
+end
+
+-- /gc weights [<TOKEN> <number> ... | reset]
+function GC.ForeverUpgrades.SlashWeights(rest)
+  local prefs = GC.ForeverScan and GC.ForeverScan.Prefs and GC.ForeverScan.Prefs()
+  local class = classFile()
+  if not prefs or not class then return end
+  rest = type(rest) == "string" and rest or ""
+  local weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
+  if rest:lower() == "reset" then
+    if type(prefs.weights) == "table" then prefs.weights[class] = nil end
+    weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
+  elseif rest ~= "" then
+    local new, bad = GC.ForeverUpgrades.ApplyWeights(weights, rest)
+    if not new then
+      GC.Print(GC.L["Unknown stat %s. Use one of: %s"]:format(bad,
+        table.concat(GC.ForeverUpgrades.TOKEN_ORDER, ", ")))
+      return
+    end
+    prefs.weights = type(prefs.weights) == "table" and prefs.weights or {}
+    prefs.weights[class] = new
+    weights = new
+  end
+  if next(weights) == nil then
+    GC.Print(GC.L["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"])
+  else
+    GC.Print(GC.L["Stat weights: %s"]:format(GC.ForeverUpgrades.WeightsText(weights)))
+  end
+  if GC.ForeverUpgradesUI and GC.ForeverUpgradesUI.RefreshIfShown then GC.ForeverUpgradesUI.RefreshIfShown() end
+end

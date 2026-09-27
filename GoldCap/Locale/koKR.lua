@@ -147,11 +147,14 @@ GC.Locales.koKR = {
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "직업의 능력치 가중치가 아직 없습니다. 이렇게 설정하세요: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "속도를 추정하려면 조금 더 플레이하세요.",
   ["ROAD TO 40"] = "40레벨까지",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "GoldCap과 함께 40레벨까지: 내 탈것 %s / %s (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40레벨까지: %s / %s (골드 %s, 가방 %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40레벨까지: 보유 %s (골드 %s, 가방 %s).",
+  ["Stat weights: %s"] = "능력치 가중치: %s",
   ["This lot holds more units than your Max units per buy."] =
     "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
   ["Could not find the queue's next item to post — try again"] =
@@ -257,6 +260,9 @@ GC.Locales.koKR = {
   ["Max wallet per buy %"] = "1회 구매 최대 지갑 비중 %",
   ["Min profit per buy (gold)"] = "1회 구매 최소 수익 (골드)",
   ["Min profit per buy (copper)"] = "1회 구매 최소 수익 (동)",
+  ["Unknown stat %s. Use one of: %s"] = "알 수 없는 능력치 %s. 다음 중 하나를 쓰세요: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "경매장의 장비 업그레이드: %d개. /gc upgrades를 입력해 확인하세요.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "이 값이 기본값 5%로 유지되는 동안, 상인 가격 기반 매물은 지갑의 최대 절반까지 사용할 수 있습니다.",
   ["Min return per buy %"] = "1회 구매 최소 수익률 %",
   ["Missing cost"] = "매입가 없음",

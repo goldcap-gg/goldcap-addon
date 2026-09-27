@@ -148,12 +148,15 @@ GC.Locales.ruRU = {
     "Предметов в сумках, которые на аукционе стоят больше, чем у торговца: %d (на %s больше).",
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Для вашего класса пока нет весов характеристик. Задайте их так: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "Поиграйте ещё немного, чтобы оценить ваш темп.",
   ["ROAD TO 40"] = "ПУТЬ К 40 УРОВНЮ",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Путь к 40 уровню с GoldCap: %s из %s на ездовое животное (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Путь к 40 уровню: %s из %s (золото %s, сумки %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Путь к 40 уровню: у вас %s (золото %s, сумки %s).",
+  ["Stat weights: %s"] = "Веса характеристик: %s",
   ["This lot holds more units than your Max units per buy."] =
     "В этом лоте больше штук, чем ваш «Макс. штук за одну покупку».",
   ["Could not find the queue's next item to post — try again"] =
@@ -266,6 +269,9 @@ GC.Locales.ruRU = {
   ["Max wallet per buy %"] = "Макс. доля кошелька на покупку %",
   ["Min profit per buy (gold)"] = "Минимальная прибыль с покупки (золото)",
   ["Min profit per buy (copper)"] = "Минимальная прибыль с покупки (медь)",
+  ["Unknown stat %s. Use one of: %s"] = "Неизвестная характеристика %s. Используйте одну из: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Улучшений экипировки на аукционе: %d. Введите /gc upgrades, чтобы их увидеть.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Пока это значение остаётся на стандартных 5%, лот по цене торговца может использовать до половины вашего золота.",
   ["Min return per buy %"] = "Мин. доходность покупки %",
   ["Missing cost"] = "Нет себестоимости",

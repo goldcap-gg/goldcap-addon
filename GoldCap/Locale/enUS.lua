@@ -143,6 +143,8 @@ GC.Locales.enUS = {
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Needs gold"] = "Needs gold",
   ["No answer yet -- listening for a minute"] = "No answer yet -- listening for a minute",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
   ["Not enough gold on this character to buy what GoldCap finds"] = "Not enough gold on this character to buy what GoldCap finds",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
@@ -168,10 +170,14 @@ GC.Locales.enUS = {
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
+  ["Stat weights: %s"] = "Stat weights: %s",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
   ["UNDERCUT %d"] = "UNDERCUT %d",
+  ["Unknown stat %s. Use one of: %s"] = "Unknown stat %s. Use one of: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",

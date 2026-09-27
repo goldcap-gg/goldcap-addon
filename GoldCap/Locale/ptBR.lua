@@ -151,12 +151,15 @@ GC.Locales.ptBR = {
     "Itens nas suas bolsas que valem mais na casa de leilões do que no vendedor: %d (%s a mais).",
   ["Mount cost cleared."] = "Custo da montaria apagado.",
   ["Mount cost set to %s."] = "Custo da montaria definido em %s.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Ainda não há pesos de atributos para sua classe. Defina assim: /gc weights STR 1 STA 0.5",
   ["Play a little longer for an estimate of your pace."] = "Jogue mais um pouco para estimar o seu ritmo.",
   ["ROAD TO 40"] = "RUMO AO NÍVEL 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Rumo ao nível 40 com o GoldCap: %s de %s para minha montaria (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Rumo ao nível 40: %s de %s (ouro %s, bolsas %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Rumo ao nível 40: você tem %s (ouro %s, bolsas %s).",
+  ["Stat weights: %s"] = "Pesos de atributos: %s",
   ["This lot holds more units than your Max units per buy."] =
     "Este lote tem mais unidades que o seu \"Máx. de unidades por compra\".",
   ["Could not find the queue's next item to post — try again"] =
@@ -268,6 +271,9 @@ GC.Locales.ptBR = {
   ["Max wallet per buy %"] = "Máx. do seu ouro por compra %",
   ["Min profit per buy (gold)"] = "Lucro mínimo por compra (ouro)",
   ["Min profit per buy (copper)"] = "Lucro mínimo por compra (cobre)",
+  ["Unknown stat %s. Use one of: %s"] = "Atributo desconhecido %s. Use um destes: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Melhorias para seu equipamento na casa de leilões: %d. Digite /gc upgrades para vê-las.",
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Enquanto isso ficar no padrão de 5%, uma oportunidade a preço de vendedor pode usar até metade da sua carteira.",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Custo faltando",
