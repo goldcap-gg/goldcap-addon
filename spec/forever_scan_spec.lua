@@ -324,6 +324,10 @@ describe("ForeverScan", function()
       assert.is_nil(GC.ForeverScan.ValueFor(2589))
       assert.is_nil(GC.ForeverScan.OnAuctionHouseShow())
       assert.is_nil(db.foreverScan)
+      -- Retail never reads a fold, a saved one included, and never asks who the character is.
+      db.foreverScan = { fold = { region = 3, realm = "Silvermoon", faction = "Horde", items = {} } }
+      assert.is_nil(GC.ForeverScan.Fold())
+      assert.is_nil(GC.ForeverScan._passport)
     end)
 
     it("answers from the fold of this region and realm, and only reads", function()
@@ -359,6 +363,43 @@ describe("ForeverScan", function()
       db.foreverScan.fold.realm = "Forever-PvP"
       assert.is_nil(GC.ForeverScan.Fold())
       GC.ForeverScan.Init(db, passport(120100, 3, "Silvermoon"))
+      assert.is_nil(GC.ForeverScan.Fold())
+    end)
+
+    -- Final review I1 (plan 3c): GoldCapDB is account-wide, so an alt on the same realm but of
+    -- the other faction must not read the first character's fold as its own market -- the same
+    -- "one auction house" the writer's sameHouse keeps.
+    it("hands out the fold only to a character of the faction that scanned it", function()
+      local function as(faction)
+        return driver({ passport = function()
+          return { interface = 16001, region = 90, realm = "Forever", faction = faction }
+        end })
+      end
+      GC.ForeverScan.Init(db, as("Horde"))
+      db.foreverScan = { fold = { region = 90, realm = "Forever", faction = "Horde", at = 5000,
+        items = { [2589] = "67,1,1,;0x1" } } }
+      assert.equal(5000, GC.ForeverScan.Fold().at)
+      GC.ForeverScan.Init(db, as("Alliance"))
+      assert.is_nil(GC.ForeverScan.Fold())
+      assert.is_nil(GC.ForeverScan.ValueFor(2589))
+      -- The ruleset, once the client names one: the same rule.
+      db.foreverScan.fold.faction, db.foreverScan.fold.ruleset = "Alliance", "hardcore"
+      GC.ForeverScan._ruleset = "normal"
+      assert.is_nil(GC.ForeverScan.Fold())
+      GC.ForeverScan._ruleset = nil
+      assert.equal(5000, GC.ForeverScan.Fold().at)
+    end)
+
+    -- The faction is read when the addon loads; a client that has not settled it yet answers
+    -- nil there. The first read of the fold after it has settled holds it to the right one.
+    it("learns the character's faction late when the client had not named it at load", function()
+      local faction
+      GC.ForeverScan.Init(db, driver({ passport = function()
+        return { interface = 16001, region = 90, realm = "Forever", faction = faction }
+      end }))
+      db.foreverScan = { fold = { region = 90, realm = "Forever", faction = "Horde", at = 5000,
+        items = { [2589] = "67,1,1,;0x1" } } }
+      faction = "Alliance"
       assert.is_nil(GC.ForeverScan.Fold())
     end)
 

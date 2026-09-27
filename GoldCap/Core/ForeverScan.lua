@@ -347,6 +347,11 @@ function GC.ForeverScan.Init(db, driver)
   GC.ForeverScan._on = on
   GC.ForeverScan._region = p and p.region or nil
   GC.ForeverScan._realm = p and p.realm or nil
+  GC.ForeverScan._faction = p and p.faction or nil
+  GC.ForeverScan._ruleset = p and p.ruleset or nil
+  -- Kept for Fold: a client that has not settled the realm or faction at ADDON_LOADED answers
+  -- nil there, and the fold is only as safe as the house it is compared against.
+  GC.ForeverScan._passport = on and driver.passport or nil
   GC.ForeverScan._scanner = on and GC.ForeverScan.New(driver) or nil
   if on and type(db) == "table" and type(db.foreverScan) ~= "table" then db.foreverScan = {} end
   return on
@@ -363,8 +368,26 @@ function GC.ForeverScan.Store()
   return db.foreverScan
 end
 
+-- The character's realm and faction, read again while the load-time read left one unnamed.
+local function settleHouse()
+  local F = GC.ForeverScan
+  if (F._realm ~= nil and F._faction ~= nil) or not F._passport then return end
+  local ok, p = pcall(F._passport)
+  if not ok or type(p) ~= "table" then return end
+  if F._realm == nil then F._realm = p.realm end
+  if F._faction == nil then F._faction = p.faction end
+end
+
+-- Both named and different: another auction house. Unnamed on either side is not evidence.
+local function differs(saved, current)
+  return saved ~= nil and current ~= nil and saved ~= current
+end
+
 -- The saved fold, when it is this game's, this region's and -- when both are named -- this
--- realm's (a different ruleset's auction house is another market). Read-only; nil anywhere else.
+-- realm's, this faction's and this ruleset's: the one auction house Core/ForeverScan.lua's
+-- sameHouse tops up. GoldCapDB is account-wide, so without the faction an alt of the other
+-- faction on the same realm read the first character's scan as its own market (final review
+-- I1, plan 3c). Read-only; nil anywhere else, and always nil on retail.
 function GC.ForeverScan.Fold()
   if not GC.ForeverScan._on then return nil end
   local db = GC.ForeverScan._db
@@ -372,8 +395,9 @@ function GC.ForeverScan.Fold()
   local fold = type(s) == "table" and s.fold or nil
   if type(fold) ~= "table" or type(fold.items) ~= "table" then return nil end
   if fold.region ~= GC.ForeverScan._region then return nil end
-  if type(fold.realm) == "string" and type(GC.ForeverScan._realm) == "string"
-      and fold.realm ~= GC.ForeverScan._realm then
+  settleHouse()
+  if differs(fold.realm, GC.ForeverScan._realm) or differs(fold.faction, GC.ForeverScan._faction)
+      or differs(fold.ruleset, GC.ForeverScan._ruleset) then
     return nil
   end
   return fold
