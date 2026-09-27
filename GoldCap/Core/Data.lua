@@ -565,6 +565,22 @@ local function withFacts(value, fact)
   return value
 end
 
+-- WoW: Forever's value for an item: every player's scans (the Companion's GCF1) or this player's
+-- own last scan, whichever looked at the auction house more recently (plan 3d decision E10). Both
+-- are one look at the same shelf; the newer is closer to what is on it. A crowd value is still a
+-- scan (source "scan") — never a market to measure a deal against — with kind "crowd" and its
+-- scanner count, which is all the tooltip needs to say whose it is. nil outside Forever.
+function GC.Data.ForeverValueFor(itemID)
+  local own = GC.ForeverScan and GC.ForeverScan.ValueFor and GC.ForeverScan.ValueFor(itemID) or nil
+  local p = foreverPayload
+  local c = p and p.items[itemID]
+  if not c then return own end
+  local at = p.ts - c.age * 60
+  if own and (own.ts or 0) > at then return own end
+  return { mv = c.ah, min = c.min, currentQty = c.qty, ts = at, source = "scan", kind = "crowd",
+    scanners = c.w, marketValue = c.mv, p50 = c.p50, gear = c.gear }
+end
+
 function GC.Data.GetItemValue(itemID)
   -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
   -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on
@@ -634,11 +650,10 @@ function GC.Data.GetItemValue(itemID)
     }
   end
 
-  -- 6. WoW: Forever: the player's own last scan (Core/ForeverScan.lua), when nothing above
-  -- prices the item -- last on purpose, so bundled or companion Forever data outranks it with no
-  -- change here. nil everywhere else: ValueFor answers only in Forever, and only reads.
-  if GC.ForeverScan and GC.ForeverScan.ValueFor then return GC.ForeverScan.ValueFor(itemID) end
-  return nil
+  -- 6. WoW: Forever: every player's scans or this player's own, the fresher of the two
+  -- (GC.Data.ForeverValueFor). Last on purpose, as before: any other source outranks it, and it
+  -- answers nil everywhere but Forever.
+  return GC.Data.ForeverValueFor(itemID)
 end
 
 function GC.Data.GetStatus()

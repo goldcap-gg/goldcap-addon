@@ -834,4 +834,7 @@ GC.Locales.zhCN = {
   ["%dm"] = "%d分钟",
   ["%dh"] = "%d小时",
   ["%dd"] = "%d天",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 位扫描者，%s前",
+  ["%d scanners, %s ago"] = "%d 位扫描者，%s前",
 }

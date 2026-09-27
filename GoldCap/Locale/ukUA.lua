@@ -927,4 +927,7 @@ GC.Locales.ukUA = {
   ["%dm"] = "%d хв",
   ["%dh"] = "%d год",
   ["%dd"] = "%d дн.",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 сканер, %s тому",
+  ["%d scanners, %s ago"] = "сканерів: %d, %s тому",
 }

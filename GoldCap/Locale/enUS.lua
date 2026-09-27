@@ -974,4 +974,7 @@ GC.Locales.enUS = {
   ["%dm"] = "%dm",
   ["%dh"] = "%dh",
   ["%dd"] = "%dd",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 scanner, %s ago",
+  ["%d scanners, %s ago"] = "%d scanners, %s ago",
 }

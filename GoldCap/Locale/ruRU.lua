@@ -908,4 +908,7 @@ GC.Locales.ruRU = {
   ["%dm"] = "%d мин",
   ["%dh"] = "%d ч",
   ["%dd"] = "%d дн.",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 сканер, %s назад",
+  ["%d scanners, %s ago"] = "сканеров: %d, %s назад",
 }

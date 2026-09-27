@@ -914,4 +914,7 @@ GC.Locales.frFR = {
   ["%dm"] = "%d min",
   ["%dh"] = "%d h",
   ["%dd"] = "%d j",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 scanner, il y a %s",
+  ["%d scanners, %s ago"] = "%d scanners, il y a %s",
 }

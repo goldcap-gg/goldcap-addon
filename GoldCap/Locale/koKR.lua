@@ -859,4 +859,7 @@ GC.Locales.koKR = {
   ["%dm"] = "%d분",
   ["%dh"] = "%d시간",
   ["%dd"] = "%d일",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "스캐너 1명, %s 전",
+  ["%d scanners, %s ago"] = "스캐너 %d명, %s 전",
 }

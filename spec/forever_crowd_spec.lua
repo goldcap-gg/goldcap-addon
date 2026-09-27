@@ -139,3 +139,80 @@ describe("adopting the crowd payload", function()
     assert.is_false(GC.Data.CompanionShares())
   end)
 end)
+
+describe("the fresher look prices the tooltip", function()
+  local GC, db
+  local NOW = 1790003600
+  local TS = 1790000000 -- the crowd's newest scan; item 2589 scanned then (age 0)
+
+  local function load(foldAt)
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Game.lua", GC)
+    GC.Game.Passport = function() return { interface = 16001, build = "x", regionId = 90 } end
+    helper.loadModule("Core/ImportString.lua", GC)
+    helper.loadModule("Core/Data.lua", GC)
+    helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/ForeverScan.lua", GC)
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+    db = { settings = {}, foreverScan = { fold = { region = 90, realm = "R", at = foldAt,
+      items = { [2589] = "67,4060,31,;0x936 3x3000" } } } }
+    GC.db = db
+    GC.ForeverScan.Init(db, { passport = function() return { interface = 16001, region = 90, realm = "R", faction = "Horde" } end })
+    GC.Data.Init(db)
+    GC.Data.AdoptForeverPayload(("GCF1;s;90;R;Horde;%d;I:2589=68=75=74=79=7000=3=0,2592=255=269===2029=1=20"):format(TS),
+      { region = 90, realm = "R", faction = "Horde" })
+  end
+
+  before_each(function() _G.time = function() return NOW end end)
+  after_each(function() _G.time = os.time end)
+
+  it("the crowd answers when it looked more recently than the player", function()
+    load(TS - 600)
+    local v = GC.Data.GetItemValue(2589)
+    assert.equal("crowd", v.kind)
+    assert.equal("scan", v.source)
+    assert.equal(75, v.mv)
+    assert.equal(3, v.scanners)
+    assert.equal(TS, v.ts)
+    assert.equal(79, v.p50)
+  end)
+
+  it("the player's own newer scan wins for their own tooltip", function()
+    load(TS + 60)
+    local v = GC.Data.GetItemValue(2589)
+    assert.equal("own_scan", v.kind)
+  end)
+
+  it("an item only the crowd has is still priced, dated by its own age", function()
+    load(TS + 60)
+    local v = GC.Data.GetItemValue(2592)
+    assert.equal("crowd", v.kind)
+    assert.equal(TS - 20 * 60, v.ts)
+    assert.is_nil(v.marketValue)
+  end)
+
+  it("a crowd price is not a market either: no deal is measured against it", function()
+    load(TS - 600)
+    assert.is_nil(GC.DealMath.Measure(10, 1, GC.Data.GetItemValue(2589)))
+  end)
+
+  it("the tooltip says how many players scanned it and when", function()
+    load(TS - 600)
+    local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(2589), NOW, {})
+    assert.equal("AH value", lines[1].label)
+    assert.equal(75, lines[1].copper)
+    local source
+    for _, l in ipairs(lines) do if l.left == "Source" then source = l.right end end
+    assert.equal("3 scanners, 1h ago", source)
+    local one = GC.Tooltip.BuildLines({ mv = 5, ts = NOW - 300, source = "scan", kind = "crowd", scanners = 1 }, NOW, {})
+    assert.equal("1 scanner, 5m ago", one[#one].right)
+  end)
+
+  it("the player's own scan still says so, exactly as before", function()
+    load(TS + 60)
+    local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(2589), NOW, {})
+    assert.equal("your scan, 59m ago", lines[#lines].right)
+  end)
+end)

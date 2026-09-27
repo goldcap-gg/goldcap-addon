@@ -170,11 +170,17 @@ function GC.Tooltip.BuildLines(v, now, opts)
       or GC.L["Bundled data"]
     lines[#lines + 1] = { kind = "text", left = label, right = GC.Util.FormatAge(age) }
   elseif scan then
-    -- The player's own scan always says so, and how old it is: it is one look at one auction
-    -- house, not a market measurement.
-    lines[#lines + 1] = { kind = "text", left = GC.L["Source"],
-      right = (GC.L["your scan, %s ago"]):format(GC.Util.FormatElapsedWords(age)
-        or GC.Util.FormatElapsedWords(0)) }
+    -- A scan always says whose it is and how old: the player's own is one look at one auction
+    -- house; a crowd price says how many players' looks agreed (Core/Data.lua ForeverValueFor).
+    local ago = GC.Util.FormatElapsedWords(age) or GC.Util.FormatElapsedWords(0)
+    local right
+    if v.kind == "crowd" then
+      right = v.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
+        or (GC.L["%d scanners, %s ago"]):format(v.scanners or 0, ago)
+    else
+      right = (GC.L["your scan, %s ago"]):format(ago)
+    end
+    lines[#lines + 1] = { kind = "text", left = GC.L["Source"], right = right }
   elseif age >= STALE_YELLOW_SECONDS then
     lines[#lines + 1] = { kind = "text", left = GC.L["GoldCap data age"], right = GC.Util.FormatAge(age) }
   end

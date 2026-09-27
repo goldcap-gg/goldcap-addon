@@ -912,4 +912,7 @@ GC.Locales.ptBR = {
   ["%dm"] = "%d min",
   ["%dh"] = "%d h",
   ["%dd"] = "%d d",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 scanner, há %s",
+  ["%d scanners, %s ago"] = "%d scanners, há %s",
 }
