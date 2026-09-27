@@ -205,6 +205,11 @@ describe("locale layer", function()
       "Press Buy again to buy this quantity",
       "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
       "%ds", "%dm", "%dh", "%dd",
+      -- Final review m5: four of 3c's keys the list had missed.
+      "This lot holds more units than your Max units per buy.",
+      "sure profit: a vendor pays %s each",
+      "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
+      "Checked against the live auction house a moment ago.",
     }
     for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
         "ukUA", "zhCN", "zhTW" }) do
