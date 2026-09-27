@@ -47,6 +47,8 @@ local function realEnv()
     book = function() return GC.Sniper and GC.Sniper._bookPass and GC.Sniper._bookPass:Book() or nil end,
     lastPass = function() return GC.Sniper and GC.Sniper._lastPass or nil end,
     print = function(msg) if GC.Print then GC.Print(msg) else print(msg) end end,
+    -- Plan 3e's client reads, looked up by name so a spec can hand in a client without them.
+    global = function(name) return _G[name] end,
   }
 end
 
@@ -86,6 +88,44 @@ function GC.ForeverCheck.Report(env)
     "GetNumReplicateItems: " .. (has(ah, "GetNumReplicateItems") and "present" or "missing"),
     ("deposit for 1 Linen Cloth (duration 1): %s; copper prices: %s"):format(deposit, copper),
   }
+  -- Plan 3e's client reads. warcraft.wiki.gg lists every one for 1.60.1; this says whether this
+  -- client really has them, and reads one live sample -- the chest's stats -- so a beta run shows
+  -- the stat keys GetItemStats answers with (Core/ForeverUpgrades.lua's TOKENS read those keys).
+  local function global(name) return env.global and env.global(name) or nil end
+  local function present(yes) return yes and "present" or "missing" end
+  local item, getStats, statsName = global("C_Item"), nil, "missing"
+  if has(item, "GetItemStats") then
+    getStats, statsName = item.GetItemStats, "C_Item.GetItemStats"
+  elseif type(global("GetItemStats")) == "function" then
+    getStats, statsName = global("GetItemStats"), "GetItemStats"
+  end
+  lines[#lines + 1] = ("3e reads: GetReplicateItemLink %s, item stats %s, C_TooltipInfo.GetHyperlink %s, C_PlayerInfo.CanUseItem %s")
+    :format(present(has(ah, "GetReplicateItemLink")), statsName,
+      present(has(global("C_TooltipInfo"), "GetHyperlink")), present(has(global("C_PlayerInfo"), "CanUseItem")))
+  local map, mapID = global("C_Map"), nil
+  if has(map, "GetBestMapForUnit") then
+    local ok, id = pcall(map.GetBestMapForUnit, "player")
+    mapID = ok and id or nil
+  end
+  lines[#lines + 1] = ("3e reads: GetLootSourceInfo %s, IsFishingLoot %s, C_Map.GetBestMapForUnit %s, map %s")
+    :format(present(type(global("GetLootSourceInfo")) == "function"),
+      present(type(global("IsFishingLoot")) == "function"), present(has(map, "GetBestMapForUnit")), tostring(mapID))
+  local invLink, chest = global("GetInventoryItemLink"), nil
+  if type(invLink) == "function" then
+    local ok, link = pcall(invLink, "player", 5)
+    chest = ok and type(link) == "string" and link or nil
+  end
+  if chest and getStats then
+    local ok, stats = pcall(getStats, chest)
+    local parts = {}
+    if ok and type(stats) == "table" then
+      for k, v in pairs(stats) do parts[#parts + 1] = ("%s=%s"):format(tostring(k), tostring(v)) end
+      table.sort(parts)
+    end
+    lines[#lines + 1] = ("3e sample: chest %s stats %s"):format(chest, #parts > 0 and table.concat(parts, " ") or "none")
+  else
+    lines[#lines + 1] = "3e sample: " .. (chest and "no stats call" or "no chest item")
+  end
   if GC.ForeverScan and GC.ForeverScan.Summary then
     for _, line in ipairs(GC.ForeverScan.Summary(env.now and env.now() or time())) do lines[#lines + 1] = line end
   end
@@ -114,6 +154,12 @@ function GC.ForeverCheck.Walk(ah, n, commodities)
     local parts = {}
     for k = 2, 19 do parts[#parts + 1] = (k - 1) .. "=" .. tostring(first[k]) end
     s.sample = table.concat(parts, " ")
+  end
+  -- Plan 3e reads each gear row's link (Core/ForeverGear.lua); "if loaded", so a nil here on a
+  -- fresh dump is a fact worth seeing, not an error.
+  if has(ah, "GetReplicateItemLink") then
+    local okL, link = pcall(ah.GetReplicateItemLink, 0)
+    if okL and type(link) == "string" then s.link = link end
   end
   local seen = {}
   for i = 0, n - 1 do
@@ -194,6 +240,7 @@ function GC.ForeverCheck.Run(env)
       :format(elapsed(), trigger, s.rows, s.buyout, s.bidOnly, s.pending, s.unreadable, s.items,
         s.commodityRows, s.commodityItems, s.linenRows, s.linenUnits, cheapest))
     say("forever check: first row: " .. s.sample)
+    say("forever check: first row link: " .. tostring(s.link))
   end
 
   local listener = env.CreateFrame and env.CreateFrame("Frame") or nil

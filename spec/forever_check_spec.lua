@@ -179,4 +179,47 @@ describe("/gc forever self-check", function()
     local text = table.concat(GC.ForeverCheck.Report(env()), "\n")
     assert.truthy(text:find("own scan: scanner idle", 1, true))
   end)
+
+  it("names the plan 3e client reads, and reads the chest's stats as a live sample", function()
+    local e = env({ global = function(name)
+      if name == "C_Item" then
+        return { GetItemStats = function(link)
+          if link == "item:6125" then return { ITEM_MOD_STAMINA_SHORT = 2, RESISTANCE0_NAME = 20 } end
+        end }
+      end
+      if name == "C_TooltipInfo" then return { GetHyperlink = function() return { lines = {} } end } end
+      if name == "GetLootSourceInfo" then return function() end end
+      if name == "C_Map" then return { GetBestMapForUnit = function() return 1429 end } end
+      if name == "GetInventoryItemLink" then
+        return function(_, slot) return slot == 5 and "item:6125" or nil end
+      end
+      return nil
+    end })
+    e.C_AuctionHouse.GetReplicateItemLink = function() return "item:1" end
+    local text = table.concat(GC.ForeverCheck.Report(e), "\n")
+    assert.truthy(text:find("3e reads: GetReplicateItemLink present, item stats C_Item.GetItemStats, "
+      .. "C_TooltipInfo.GetHyperlink present, C_PlayerInfo.CanUseItem missing", 1, true))
+    assert.truthy(text:find("3e reads: GetLootSourceInfo present, IsFishingLoot missing, "
+      .. "C_Map.GetBestMapForUnit present, map 1429", 1, true))
+    assert.truthy(text:find("3e sample: chest item:6125 stats ITEM_MOD_STAMINA_SHORT=2 RESISTANCE0_NAME=20", 1, true))
+  end)
+
+  it("says missing for every 3e read a client lacks, and never errors", function()
+    local text
+    assert.has_no.errors(function()
+      text = table.concat(GC.ForeverCheck.Report(env({ global = function() return nil end })), "\n")
+    end)
+    assert.truthy(text:find("3e reads: GetReplicateItemLink missing, item stats missing", 1, true))
+    assert.truthy(text:find("3e sample: no chest item", 1, true))
+    -- An env with no `global` at all (older callers) reads as a client with none of them.
+    text = table.concat(GC.ForeverCheck.Report(env()), "\n")
+    assert.truthy(text:find("C_Map.GetBestMapForUnit missing, map nil", 1, true))
+  end)
+
+  it("walks the first row's link too, when the client has the call", function()
+    rows = { { 2589, 20, 1340, true } }
+    local ah = ahApi({ GetReplicateItemLink = function(i) return i == 0 and "|Hitem:2589|h" or nil end })
+    assert.equal("|Hitem:2589|h", GC.ForeverCheck.Walk(ah, 1, {}).link)
+    assert.is_nil(GC.ForeverCheck.Walk(ahApi(), 1, {}).link)
+  end)
 end)
