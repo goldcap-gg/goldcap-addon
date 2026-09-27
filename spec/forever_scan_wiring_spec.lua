@@ -69,6 +69,57 @@ describe("WoW: Forever scan wiring", function()
     assert.equal("The scan found nothing to save", printed[3])
   end)
 
+  -- Final review re-review (2026-09-27): PrintCount and RefreshIfShown each ran their own
+  -- Core/ForeverUpgrades.lua Build synchronously on the scan-completion frame, and twice over
+  -- when the upgrades window happened to be open. _QueueUpgradesUpdate replaces both call sites.
+  describe("_QueueUpgradesUpdate", function()
+    it("does nothing without Core/ForeverUpgrades.lua loaded", function()
+      load(16001)
+      GC.ForeverScan._QueueUpgradesUpdate()
+      assert.equal(0, #timers)
+    end)
+
+    it("defers a single Build off this frame, skipping the tooltip pass while the window is closed", function()
+      load(16001)
+      local buildCalls, skipSeen = 0, nil
+      GC.ForeverUpgrades = {
+        Current = function(skipUsable) buildCalls = buildCalls + 1; skipSeen = skipUsable; return { rows = {} } end,
+        PrintCount = function() end,
+      }
+      local rendered = 0
+      GC.ForeverUpgradesUI = { IsShown = function() return false end, Render = function() rendered = rendered + 1 end }
+      GC.ForeverScan._QueueUpgradesUpdate()
+      assert.equal(1, #timers)
+      assert.equal(0, timers[1].s)
+      assert.equal(0, buildCalls)              -- nothing runs before the timer fires
+      timers[1].fn()
+      assert.equal(1, buildCalls)
+      assert.is_true(skipSeen)                 -- the tooltip pass is skipped: window is closed
+      assert.equal(0, rendered)                -- and there is nothing to render
+    end)
+
+    it("builds once and hands that same result to both the chat count and the open window's render", function()
+      load(16001)
+      local buildCalls, skipSeen, sharedR = 0, nil, nil
+      GC.ForeverUpgrades = {
+        Current = function(skipUsable)
+          buildCalls, skipSeen = buildCalls + 1, skipUsable
+          sharedR = { rows = {} }
+          return sharedR
+        end,
+      }
+      local printedR, renderedR
+      GC.ForeverUpgrades.PrintCount = function(r) printedR = r end
+      GC.ForeverUpgradesUI = { IsShown = function() return true end, Render = function(r) renderedR = r end }
+      GC.ForeverScan._QueueUpgradesUpdate()
+      timers[1].fn()
+      assert.equal(1, buildCalls)               -- one Build, not one per consumer
+      assert.is_false(skipSeen)                  -- the window is open: the tooltip pass still runs
+      assert.equal(sharedR, printedR)
+      assert.equal(sharedR, renderedR)
+    end)
+  end)
+
   describe("source wiring", function()
     local init, sniper, sell
     before_each(function()

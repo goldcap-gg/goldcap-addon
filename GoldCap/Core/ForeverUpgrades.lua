@@ -217,7 +217,13 @@ local function merged(a, b)
   return out
 end
 
-function GC.ForeverUpgrades.Build(gear, driver, weights)
+-- skipUsable (final review 2026-09-27): the count-only path (the upgrades window is closed, so
+-- nothing will render its rows) skips driver.usable's tooltip read entirely -- up to ~140
+-- C_TooltipInfo.GetHyperlink calls, the priciest primitive here -- and picks straight off
+-- known, the same class armour/weapon table and CanDualWield check every candidate already passed
+-- to reach byGroup. The window's own render always passes false (the default): a picked row must
+-- still clear the tooltip's red-line check, exactly as before.
+function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   local out = { rows = {}, loading = 0 }
   if type(weights) ~= "table" or next(weights) == nil then out.noWeights = true; return out end
   if type(gear) ~= "table" or type(gear.items) ~= "table" then out.noScan = true; return out end
@@ -282,6 +288,15 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
     return wornAt(SLOT_OF[group]) or nil
   end
 
+  -- true only on a class-table/dual-wield "yes" (skipUsable) or a tooltip check that agrees (or
+  -- cannot tell, deferring to that same known flag) -- unchanged from before this file grew the
+  -- skipUsable path.
+  local function usableCandidate(c)
+    if skipUsable then return c.known == true end
+    local u = driver.usable(c.itemString)
+    return u == true or (u == nil and c.known)
+  end
+
   local byGroup = {}
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
@@ -324,12 +339,13 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
         if a.gain ~= b.gain then return a.gain > b.gain end
         return a.itemString < b.itemString
       end)
+      -- skipUsable: no tooltip call to cap, so every candidate is looked at (still cheapest-gain
+      -- first, from the sort above) rather than only the first TOOLTIP_CHECKS.
       local pick, checks = nil, 0
       for _, c in ipairs(list) do
-        if not c.later and checks < C.TOOLTIP_CHECKS then
-          checks = checks + 1
-          local u = driver.usable(c.itemString)
-          if u == true or (u == nil and c.known) then pick = c; break end
+        if not c.later and (skipUsable or checks < C.TOOLTIP_CHECKS) then
+          if not skipUsable then checks = checks + 1 end
+          if usableCandidate(c) then pick = c; break end
         end
       end
       if not pick then
@@ -338,10 +354,9 @@ function GC.ForeverUpgrades.Build(gear, driver, weights)
         -- engineering item, say) could be offered "at level N" on class rules alone.
         local laterChecks = 0
         for _, c in ipairs(list) do
-          if c.later and laterChecks < C.TOOLTIP_CHECKS then
-            laterChecks = laterChecks + 1
-            local u = driver.usable(c.itemString)
-            if u == true or (u == nil and c.known) then pick = c; break end
+          if c.later and (skipUsable or laterChecks < C.TOOLTIP_CHECKS) then
+            if not skipUsable then laterChecks = laterChecks + 1 end
+            if usableCandidate(c) then pick = c; break end
           end
         end
       end
@@ -458,21 +473,27 @@ local function realDriver(getStats)
   }
 end
 
-function GC.ForeverUpgrades.Current()
+-- skipUsable, threaded straight through to Build: nil/false (every existing caller -- the window's
+-- own Show/RefreshIfShown, /gc weights, a direct call) keeps the tooltip check exactly as before.
+function GC.ForeverUpgrades.Current(skipUsable)
   if not enabled() then return nil end
   local gear, fold = GC.ForeverScan.Gear()
   if not gear then return { rows = {}, loading = 0, noScan = true } end
   local getStats = statsCall()
   if not getStats then return { rows = {}, loading = 0, noStats = true } end
   local weights = GC.ForeverUpgrades.WeightsFor(GC.ForeverScan.Prefs(), classFile())
-  local r = GC.ForeverUpgrades.Build(gear, realDriver(getStats), weights)
+  local r = GC.ForeverUpgrades.Build(gear, realDriver(getStats), weights, skipUsable)
   r.at, r.weights = fold.at, weights
   return r
 end
 
--- After every saved scan (Core/ForeverScan.lua's _SayDone): one line, only when there is something.
-function GC.ForeverUpgrades.PrintCount()
-  local r = GC.ForeverUpgrades.Current()
+-- After every saved scan (Core/ForeverScan.lua's _QueueUpgradesUpdate): one line, only when there
+-- is something. r: the scan's own already-built result, when the caller has one -- the deferred
+-- post-scan update builds once and hands the same result to this and to the window's own render,
+-- rather than each building its own. A direct call (a test, /gc upgrades' own paths) with no r
+-- still gets a correct count from its own Current().
+function GC.ForeverUpgrades.PrintCount(r)
+  r = r or GC.ForeverUpgrades.Current()
   if r and #r.rows > 0 then
     GC.Print(GC.L["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."]:format(#r.rows))
   end

@@ -303,11 +303,38 @@ function GC.ForeverScan._SayDone(summary)
   -- Guarded: this file's own _SayDone spec never loads Core/ForeverValue.lua, so GC.ForeverValue
   -- is nil there -- degrade to nothing printed rather than an error.
   if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags() end
-  -- Plan 3e: how many upgrades the scan holds for this character's gear, when there are any.
-  if GC.ForeverUpgrades and GC.ForeverUpgrades.PrintCount then GC.ForeverUpgrades.PrintCount() end
+  -- Plan 3e: how many upgrades the scan holds for this character's gear, when there are any --
+  -- queued rather than called here (see _QueueUpgradesUpdate below): Core/ForeverUpgrades.lua's
+  -- Build is a synchronous, potentially ~140-tooltip-read walk, and this line runs on the very
+  -- frame that just froze the fold and refreshed Sniper.
+  GC.ForeverScan._QueueUpgradesUpdate()
   if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() then
     GC.Print(GC.L["Shared with goldcap.gg on your next /reload"])
   end
+end
+
+-- Final review (re-review 2026-09-27): PrintCount and RefreshIfShown used to each run their own
+-- Core/ForeverUpgrades.lua Build synchronously, right here, on top of the fold freeze, the Sniper
+-- refresh and PrintBags already on this frame -- and paid for the tooltip pass (up to ~140
+-- C_TooltipInfo.GetHyperlink calls) twice over whenever the upgrades window happened to be open.
+-- One Build now, off this frame with C_Timer.After(0, ...) -- the idiom Core/Init.lua's OnTick and
+-- UI/AuctionHouseTab.lua's tab-add already use -- feeds both the chat count and, only while the
+-- window is actually open, its own render. Closed, there is nothing to render, so Build's own
+-- tooltip pass is skipped too (its skipUsable argument): usability then comes only from the class
+-- armour/weapon tables and CanDualWield (Core/ForeverUpgrades.lua's ClassAllows/canDualWield), the
+-- same fallback a level-ahead pick already trusts.
+function GC.ForeverScan._QueueUpgradesUpdate()
+  local U = GC.ForeverUpgrades
+  if not (U and U.PrintCount and U.Current) then return end
+  local timer = _G.C_Timer
+  if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
+  timer.After(0, function()
+    local UI = GC.ForeverUpgradesUI
+    local shown = UI ~= nil and UI.IsShown ~= nil and UI.IsShown() == true
+    local r = U.Current(not shown)
+    U.PrintCount(r)
+    if shown and UI.Render then UI.Render(r, time()) end
+  end)
 end
 
 local function notify(kind, a, b)
@@ -326,7 +353,6 @@ local function notify(kind, a, b)
   elseif kind == "done" then
     GC.ForeverScan._SayDone(a)
     if GC.Sniper and GC.Sniper.OnForeverFold then GC.Sniper.OnForeverFold() end
-    if GC.ForeverUpgradesUI and GC.ForeverUpgradesUI.RefreshIfShown then GC.ForeverUpgradesUI.RefreshIfShown() end
   end
 end
 

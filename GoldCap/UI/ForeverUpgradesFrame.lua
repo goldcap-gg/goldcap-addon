@@ -155,6 +155,13 @@ function GC.ForeverUpgradesUI.Hide()
   if frame then frame:Hide() end
 end
 
+-- Whether there is anything to render right now (Core/ForeverScan.lua's post-scan update): the
+-- window's own frame, created only by the first Show/Toggle, so a fresh login with the window
+-- never opened answers false rather than erroring on a nil frame.
+function GC.ForeverUpgradesUI.IsShown()
+  return frame ~= nil and frame:IsShown() == true
+end
+
 function GC.ForeverUpgradesUI.Toggle()
   if frame and frame:IsShown() then frame:Hide() else GC.ForeverUpgradesUI.Show() end
 end

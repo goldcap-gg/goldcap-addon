@@ -61,13 +61,13 @@ describe("plan 3e wiring", function()
     assert.equal(1, select(2, init:gsub("slashHandlers%.mount =", "")))
   end)
 
-  it("gives /gc weights only in Forever, and counts upgrades after the bag line of a finished scan", function()
+  it("gives /gc weights only in Forever, and queues the upgrades update after the bag line of a finished scan", function()
     assert.truthy(foreverSlashBlock(init):find(
       "GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end", 1, true))
     assert.equal(1, select(2, init:gsub("slashHandlers%.weights =", "")))
     local scan = read("GoldCap/Core/ForeverScan.lua")
     local bags = assert(scan:find("GC.ForeverValue.PrintBags()", 1, true))
-    assert.truthy(scan:find("GC.ForeverUpgrades.PrintCount()", bags, true))
+    assert.truthy(scan:find("GC.ForeverScan._QueueUpgradesUpdate()", bags, true))
   end)
 
   it("opens the upgrades window only in Forever, and repaints it on item data and a finished scan", function()
@@ -76,8 +76,12 @@ describe("plan 3e wiring", function()
     assert.equal(1, select(2, init:gsub("slashHandlers%.upgrades =", "")))
     local info = assert(init:find('event == "GET_ITEM_INFO_RECEIVED"', 1, true))
     assert.truthy(init:find("GC.ForeverUpgradesUI.OnItemInfo(itemID)", info, true))
+    -- The queued update (deferred with C_Timer.After, see the test below) is what repaints an open
+    -- window after a finished scan now, sharing the one Build its chat count also uses -- not a
+    -- second, independent RefreshIfShown() call.
     local scan = read("GoldCap/Core/ForeverScan.lua")
-    assert.truthy(scan:find("GC.ForeverUpgradesUI.RefreshIfShown()", 1, true))
+    local queue = assert(scan:find("function GC.ForeverScan._QueueUpgradesUpdate()", 1, true))
+    assert.truthy(scan:find("UI.Render(r, time())", queue, true))
   end)
 
   it("registers the loot and spell events only inside the Forever gate", function()
