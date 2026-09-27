@@ -624,7 +624,11 @@ describe("Clean click ordering, driven end to end", function()
     local function fakeDialog(row, deal)
       local d = { row = row, deal = deal, written = {}, enabled = false, height = 0, baseHeight = 400 }
       d.primaryBtn = {
-        Disable = function() d.enabled = false end,
+        -- Logged: WoW: Forever refuses a restricted call (StartCommoditiesPurchase, PlaceBid) from a
+        -- click whose own button was disabled before it (beta 2026-09-28: the Deals Buy was
+        -- blocked, the same plan run from another button bought) -- so a Buy click that disables
+        -- its button ahead of its protected call must fail assertCleanCall.
+        Disable = function() record("dialog.primaryBtn:Disable"); d.enabled = false end,
         Enable = function() d.enabled = true end,
         IsEnabled = function() return d.enabled end,
         SetLabel = function(_, text) d.label = text end,

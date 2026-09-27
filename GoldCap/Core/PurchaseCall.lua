@@ -4,17 +4,16 @@ local _, GC = ...
 -- (StartCommoditiesPurchase, ConfirmCommoditiesPurchase, PlaceBid), for both the Deals buy
 -- window (UI/SniperFrame.lua) and the BUY tab (UI/BuyFrame.lua).
 --
--- WoW: Forever blocks one of those calls when the click's execution has read anything a tainted
--- execution wrote -- and by the time a player clicks Buy, everything GoldCap's board, its buy
--- window and its clocks wrote may be tainted (the owner's /gc taint, 3c beta: every field). The
--- client starts each click clean; Auctionator's Buy works because its click reads nothing
--- tainted before its call. Ours cannot avoid reading the board, so the reading is fenced off:
--- the click's own code runs inside securecallfunction, which hands back its answer and puts the
--- click's execution back the way it was -- the same way Blizzard's CallbackRegistry reads a
--- table an addon may have tainted (`securecallfunction(unpack, value)`). The protected call is
--- then made here, straight from the click, from what the plan returned.
+-- What WoW: Forever refuses (beta, 2026-09-28): StartCommoditiesPurchase and PlaceBid from a click
+-- whose own button was disabled before the call. A plan must therefore leave the clicked button
+-- alone; its `after` closure, run straight after the call in the same click, is where the button
+-- goes busy. Taint is not the gate: every addon click there starts tainted, and a tainted click
+-- that reads the addon's own data may make these calls -- a throwaway test addon's twelve buttons
+-- and GoldCap's own test buttons all did, the Deals plan included when another button ran it.
+-- The securecallfunction fence below predates that finding; it is kept because it costs nothing
+-- and the calls it wraps are proven in game.
 --
--- On retail every addon click runs tainted anyway, and the hardware event is what lets the call
+-- On retail every addon click runs tainted too, and the hardware event is what lets the call
 -- through; that is unchanged: the call is still made synchronously inside the same OnClick or
 -- OnKeyDown, after the same checks, before the same bookkeeping.
 GC.PurchaseCall = {}

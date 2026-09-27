@@ -8489,23 +8489,18 @@ local function planDialogPrimaryClick()
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local token = row.purchaseToken
   row.purchaseStage = "buying"
-  dialog.primaryBtn:Disable()
-  -- The Quantity row's own repaint used to run right here, before either protected call below,
-  -- to grey out the box/quick-fill the instant a purchase call is about to fire (Fix 2). WoW:
-  -- Forever's taint engine blocks a protected AH call once the same hardware click has read
-  -- certain GoldCap runtime state, and that repaint reads dialog.bookLevels and calls
-  -- GC.Sniper._RowCap -- exactly that kind of read. Moved to just after each protected call
-  -- instead (and kept on the claim-refused branch below, which never reaches a protected call
-  -- this click): dialog.primaryBtn is already disabled above by a plain Blizzard widget call,
-  -- so the button reads busy either way -- the repaint only catches up the box/quick-fill state
-  -- a beat later in the same tick.
+  -- The button stays enabled until the call has been made: WoW: Forever refuses
+  -- StartCommoditiesPurchase and PlaceBid from a click whose own button was disabled before them
+  -- (beta 2026-09-28: this plan bought when another button ran it, and was blocked from this
+  -- one). The purchaseStage write above is the double-click guard; the button goes busy in the
+  -- returned closure, straight after the call, in the same click. The Quantity row's repaint
+  -- rides there too (Fix 2), for the same reason and the one below.
   if deal.isCommodity then
     if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
       -- The BUY tab owns the shared commodity purchase slot right now -- refuse exactly as the
       -- "another commodity purchase already in flight" guard above does, and put the row back
       -- the way it was before this click started mutating it for a purchase that never fired.
       row.purchaseStage = "ready"
-      dialog.primaryBtn:Enable()
       if refreshQtyRow then refreshQtyRow() end
       setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
       driver.onStatus(GC.L["finish the pending buy first"])
@@ -8552,6 +8547,8 @@ local function planDialogPrimaryClick()
     call, first, second, sent = "bid", candidate.auctionID, candidate.buyout, GC.L["placing bid..."]
   end
   return call, first, second, function()
+    -- Not when the client already answered inside the call and gave the row back.
+    if row.purchaseStage == "buying" and row.purchaseToken == token then dialog.primaryBtn:Disable() end
     if refreshQtyRow then refreshQtyRow() end
     setDialogStatus(sent)
     if frame then frame.status:SetText(sent) end
