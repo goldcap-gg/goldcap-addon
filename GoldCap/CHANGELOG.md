@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.16.0 (unreleased)
+## 0.16.0 (2026-09-28)
 
 - GoldCap now runs in WoW: Forever. Selling works from the live auction house there; goldcap.gg
   prices for Forever arrive later. Type `/gc forever` to see what GoldCap can use in your client.
