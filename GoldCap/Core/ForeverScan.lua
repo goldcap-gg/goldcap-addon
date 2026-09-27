@@ -42,6 +42,11 @@ function GC.ForeverScan.New(driver)
   local token = 0
   local ahOpen = false
   local acc, total, readIndex
+  -- The dump this scanner last read: its row count and when. The client can fire
+  -- REPLICATE_ITEM_LIST_UPDATE again for a dump already read (another addon's request inside the
+  -- account throttle, or item data arriving), and an idle scanner used to read all ~72k rows over
+  -- again for it (owner, beta 2026-09-27). One read per dump: see OnReplicateUpdate.
+  local lastRead
 
   local function reset()
     state, acc, total, readIndex = "idle", nil, nil, nil
@@ -166,6 +171,7 @@ function GC.ForeverScan.New(driver)
     if now < total then
       acc.partial = true
       total = now
+      lastRead.rows = now
     end
     if readIndex < total then
       local last = math.min(readIndex + C.READ_BATCH, total) - 1
@@ -207,6 +213,7 @@ function GC.ForeverScan.New(driver)
     end
     acc.dumpRows = n
     acc.replicated = true
+    lastRead = { rows = n, at = driver.now() }
     state, total, readIndex = "reading", n, 0
     token = token + 1
     readBatch(token)
@@ -266,7 +273,11 @@ function GC.ForeverScan.New(driver)
     if state ~= "idle" or not ahOpen then return end
     -- Somebody else's full scan (another addon, /gc forever): the account's throttle is spent
     -- either way, so the dump is folded rather than asked for again.
-    if (driver.numRows() or 0) <= 0 then return end
+    local n = driver.numRows() or 0
+    if n <= 0 then return end
+    -- The same dump again: the same row count inside the throttle window, which no new dump can
+    -- beat. A different count, or a later event, is a dump this scanner has not read.
+    if lastRead and n == lastRead.rows and driver.now() - lastRead.at < C.COOLDOWN_SECONDS then return end
     local s = driver.store()
     if s then s.requestedAt = driver.now() end
     acc = GC.ForeverFold.New()

@@ -297,6 +297,37 @@ describe("ForeverScan", function()
     assert.truthy(store.fold)
   end)
 
+  it("reads a dump once: a repeat event for the same dump reads nothing, a new one is read", function()
+    local reads = 0
+    local s = GC.ForeverScan.New(driver({
+      rowInfo = function(i)
+        reads = reads + 1
+        local r = rows[i + 1]
+        if not r then return nil end
+        return r[1], r[2], r[3], r[4]
+      end,
+    }))
+    s:OnAuctionHouseShow()
+    rows = dump(3000)
+    s:OnReplicateUpdate()
+    s:OnReplicateUpdate()                        -- while reading: nothing new starts
+    runAll()
+    assert.equal(3000, reads)
+    assert.equal("idle", s:State())
+    now = now + 60
+    s:OnReplicateUpdate()                        -- the same dump, fired again: ignored
+    runAll()
+    assert.equal(3000, reads)
+    rows = dump(3100)                            -- a dump of another size: somebody else's new one
+    s:OnReplicateUpdate()
+    runAll()
+    assert.equal(6100, reads)
+    now = now + GC.ForeverScan.C.COOLDOWN_SECONDS
+    s:OnReplicateUpdate()                        -- past the throttle window: a new dump, read
+    runAll()
+    assert.equal(9200, reads)
+  end)
+
   it("ignores a dump while the auction house is closed", function()
     local s = GC.ForeverScan.New(driver())
     rows = { { 2589, 20, 1340, true } }
