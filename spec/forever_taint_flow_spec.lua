@@ -1,4 +1,4 @@
-require("spec.spec_helper")
+local helper = require("spec.spec_helper")
 
 -- WoW: Forever beta, 3c (the owner's Shadowgem "Below vendor" Buy, build 1.60.1.70009): three
 -- Buy clicks, each blocked, each logged as
@@ -82,6 +82,21 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
     end
 
     function m.taintOf(proxy, key) return marks[proxy][key] end
+
+    -- Every field `proxy` holds now, tainted: the owner's /gc taint on the 3c beta (11:27) read
+    -- TAINTED for every GoldCap field it asked about.
+    function m.seedAll(proxy, taint)
+      for key in pairs(backing[proxy]) do marks[proxy][key] = taint end
+    end
+
+    -- securecallfunction, as the client runs it: whatever the callee reads, the caller's own
+    -- execution is put back the way it was once the callee returns.
+    function m.securecall(fn, ...)
+      local exec, via = m.exec, m.via
+      local results = { fn(...) }
+      m.exec, m.via = exec, via
+      return unpack(results)
+    end
 
     -- The unknown first cause: a field some earlier tainted execution wrote.
     function m.seed(proxy, key, taint)
@@ -232,6 +247,8 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       if name and name ~= "" then _G[name] = f end
       return f
     end
+    _G.securecallfunction = model.securecall
+    _G.issecure = function() return model.exec == nil end
     _G.GetBuildInfo = retail and function() return "12.0.7", "64000", "Sep 1 2026", 120007 end
       or function() return "1.60.1", "70009", "Sep 1 2026", 16001 end
     _G.UISpecialFrames = {}
@@ -322,6 +339,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       "ITEM_QUALITY_COLORS", "Item", "GoldCapDB", "GetBuildInfo", "C_AuctionHouse" }) do
       _G[name] = nil
     end
+    _G.securecallfunction, _G.issecure = helper.securecallfunction, nil
     _G.time = os.time
   end)
 
@@ -682,8 +700,8 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
   describe("the BUY tab's purchase guard", function()
     local function owedElsewhere()
       local container = upvalue(GC.Buy.Show, "container")
-      local onBuyClick = upvalue(container.scripts.OnKeyDown, "onBuyClick")
-      return upvalue(onBuyClick, "owedElsewhere")
+      local planBuyKey = upvalue(container.scripts.OnKeyDown, "planBuyKey")
+      return upvalue(upvalue(planBuyKey, "planBuyClick"), "owedElsewhere")
     end
 
     it("reads nothing a tainted ticker wrote", function()
@@ -725,7 +743,82 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       assert.is_true(said["taint: autoBtn.roundedMargin (built) secure"])
       assert.is_true(said["taint: board rows[1].deal secure"] or said["taint: board rows[1].deal -- not there"])
       assert.is_true(said["taint: dialog.row -- not there"] or said["taint: dialog.row secure"])
+      assert.is_true(said["taint: GC.PurchaseCall's Click (GoldCap, at load) secure"])
+      assert.is_true(said["taint: Auctionator.Constants (Auctionator, at load) -- not there"])
+      assert.is_true(said["taint: no purchase click yet this session"])
       assert.equal(before, model.taintOf(GC.Sniper, "_lastOwed"))
+    end)
+  end)
+
+  -- The owner's /gc taint right before a blocked Buy (3c beta, 11:27): "this command itself runs
+  -- TAINTED", and every GoldCap field it asked about TAINTED by GoldCap -- the board row, its
+  -- deal, the buy window, GC.Sniper, GC.Buy. Whatever wrote them, a Buy click cannot help reading
+  -- them: they are what it buys. The click's protected call must still run clean.
+  describe("every field GoldCap wrote tainted", function()
+    local function taintEverything(row, d)
+      for _, proxy in ipairs({ row, row.deal, d, GC.Sniper, GC.Buy, frame, frame.verifyBtn, frame.autoBtn }) do
+        model.seedAll(proxy, "everything GoldCap wrote")
+      end
+    end
+
+    it("Start (StartCommoditiesPurchase)", function()
+      local row, d, click = armedCommodity()
+      taintEverything(row, d)
+      model.entry(click)
+      assertCalledClean("StartCommoditiesPurchase")
+      assert.equal("buying", row.purchaseStage)
+      -- What /gc taint will say about this click.
+      assert.same({ call = "start", enteredSecure = true, calledSecure = true }, GC.PurchaseCall.last)
+    end)
+
+    it("Confirm (ConfirmCommoditiesPurchase)", function()
+      local row, d, click = armedCommodity()
+      model.entry(click) -- Start
+      model.entry(GC.Sniper.OnCommodityPriceUpdated, 11, 610)
+      assert.equal("confirm", row.purchaseStage)
+      taintEverything(row, d)
+      model.entry(click)
+      assertCalledClean("ConfirmCommoditiesPurchase")
+      assert.equal("confirming", row.purchaseStage)
+    end)
+
+    it("PlaceBid", function()
+      local row, d, click = armedLot()
+      taintEverything(row, d)
+      model.entry(click)
+      assertCalledClean("PlaceBid")
+    end)
+
+    it("the BUY tab's Start and Confirm", function()
+      loadForever()
+      local calls = {}
+      _G.C_AuctionHouse.StartCommoditiesPurchase = function(itemID, qty)
+        calls[#calls + 1] = { "start", itemID, qty, model.exec }
+      end
+      _G.C_AuctionHouse.ConfirmCommoditiesPurchase = function(itemID, qty)
+        calls[#calls + 1] = { "confirm", itemID, qty, model.exec }
+      end
+      local container = upvalue(GC.Buy.Show, "container")
+      local planBuyClick = upvalue(upvalue(container.scripts.OnKeyDown, "planBuyKey"), "planBuyClick")
+      local line = model.track({ itemID = 7, want = 3, buy = 3 })
+      local attempt = model.track({ itemID = 7, qty = 3, stage = "quoted" })
+      setUpvalue(planBuyClick, "buyable", function() return true end)
+      setUpvalue(planBuyClick, "quoteFresh", function() return true end)
+      setUpvalue(planBuyClick, "owedElsewhere", function() return false end)
+      setUpvalue(planBuyClick, "current", {})
+      GC.Buy._attempt = attempt
+      model.seedAll(line, "everything GoldCap wrote")
+      model.seedAll(attempt, "everything GoldCap wrote")
+      model.seedAll(GC.Buy, "everything GoldCap wrote")
+      model.entry(function() GC.PurchaseCall.Click(planBuyClick, line) end)
+      assert.same({ "start", 7, 3 }, { calls[1][1], calls[1][2], calls[1][3] })
+      assert.is_nil(calls[1][4], "the BUY tab's Start ran tainted")
+      assert.equal("started", attempt.stage)
+      attempt.stage = "confirm"
+      model.seedAll(attempt, "everything GoldCap wrote")
+      model.entry(function() GC.PurchaseCall.Click(planBuyClick, line) end)
+      assert.same({ "confirm", 7, 3 }, { calls[2][1], calls[2][2], calls[2][3] })
+      assert.is_nil(calls[2][4], "the BUY tab's Confirm ran tainted")
     end)
   end)
 

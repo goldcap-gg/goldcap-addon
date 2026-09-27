@@ -13,39 +13,60 @@ describe("BUY purchase wiring", function()
     return text
   end
 
-  local CLICK = "local function onBuyClick"
-  local CLICK_END = "-- ---------------------------------------------------------------------------\n-- Rows"
+  local CLICK = "local function planBuyClick"
+  local CLICK_END = "local function planBuyButton"
 
-  -- Exactly onBuyClick and nothing else: the handler is deliberately the last thing in its own
-  -- section, so this slice cannot quietly widen to cover an event handler that grew a purchase
-  -- call later.
+  -- The click's plan and nothing else: planBuyButton, the next function down, begins the two
+  -- handlers that hand it to the client, so this slice cannot quietly widen to cover an event
+  -- handler that grew a purchase call later.
   local function clickHandler(text)
     local from = assert(text:find(CLICK, 1, true), CLICK)
     local to = assert(text:find(CLICK_END, from + #CLICK, true), CLICK_END)
     return text:sub(from, to - 1), from, to
   end
 
-  -- The guard above is only as strong as that slice is narrow. A function declared after
-  -- onBuyClick but before the Rows banner would be swallowed by it, and could then carry a
-  -- protected call while every test here still passed.
+  local function code(text) return (text:gsub("%-%-[^\n]*", "")) end
+
+  -- The guard below is only as strong as that slice is narrow. A function declared after
+  -- planBuyClick but before planBuyButton would be swallowed by it.
   it("slices the click handler alone", function()
     local click = clickHandler(source())
     assert.is_nil(click:find("\nlocal function ", 1, true))
     assert.is_nil(click:find("\nfunction ", 1, true))
   end)
 
+  -- WoW: Forever. The protected calls themselves are made by GC.PurchaseCall.Click
+  -- (Core/PurchaseCall.lua), straight from the click, from what the plan answers; this file
+  -- names neither of them anywhere, so nothing here can make one outside a click.
   it("keeps both protected purchase calls inside the hardware-click handler", function()
-    local text = source()
-    local click, from, to = clickHandler(text)
+    local text = code(source())
+    assert.is_nil(text:find("StartCommoditiesPurchase", 1, true))
+    assert.is_nil(text:find("ConfirmCommoditiesPurchase", 1, true))
 
-    assert.is_truthy(click:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
-    assert.is_truthy(click:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
+    local click = clickHandler(text)
+    assert.is_truthy(click:find('return "start", attempt.itemID, attempt.qty, function()', 1, true))
+    assert.is_truthy(click:find('return "confirm", attempt.itemID, attempt.qty, function()', 1, true))
 
-    local before, after = text:sub(1, from - 1), text:sub(to)
-    assert.is_nil(before:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
-    assert.is_nil(before:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
-    assert.is_nil(after:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
-    assert.is_nil(after:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
+    -- The plan reaches the client only through the button's click and the Enter key, each of
+    -- which hands the whole click to GC.PurchaseCall.Click as its only statement.
+    local handlers = {}
+    for name in text:gmatch("GC%.PurchaseCall%.Click%((%w+)") do handlers[#handlers + 1] = name end
+    assert.same({ "planBuyButton", "planBuyKey" }, handlers)
+    assert.is_truthy(text:find("local function onBuyButtonClick(button)\n  GC.PurchaseCall.Click(planBuyButton, button)\nend", 1, true))
+    assert.is_truthy(text:find("local function onBuyKey(self, key)\n  GC.PurchaseCall.Click(planBuyKey, self, key)\nend", 1, true))
+    local function sites(name)
+      local found = {}
+      for line in text:gmatch("[^\n]*%f[%w_]" .. name .. "%f[^%w_][^\n]*") do
+        found[#found + 1] = line:match("^%s*(.-)%s*$")
+      end
+      return found
+    end
+    assert.same({ "local function onBuyButtonClick(button)", 'row.action:SetScript("OnClick", onBuyButtonClick)' },
+      sites("onBuyButtonClick"))
+    assert.same({ "local function onBuyKey(self, key)", 'container:SetScript("OnKeyDown", onBuyKey)' },
+      sites("onBuyKey"))
+    assert.same({ "local function planBuyClick(line)", "return planBuyClick(lineFor(button:GetParent().lineItemID))",
+      "return planBuyClick(line)" }, sites("planBuyClick"))
   end)
 
   -- The confirm is a click, not a convenience. The client only demands a hardware event for
@@ -60,6 +81,8 @@ describe("BUY purchase wiring", function()
       timers = timers + 1
       assert.is_nil(body:find("ConfirmCommoditiesPurchase", 1, true))
       assert.is_nil(body:find("StartCommoditiesPurchase", 1, true))
+      assert.is_nil(body:find("PurchaseCall", 1, true))
+      assert.is_nil(body:find("planBuy", 1, true))
     end
     -- A gmatch that matched nothing would pass this in silence; the stall watchdog is armed
     -- through one of these.
@@ -75,7 +98,8 @@ describe("BUY purchase wiring", function()
     for body in text:gmatch("CreateContextMenu%b()") do
       menus = menus + 1
       assert.is_nil(body:find("CommoditiesPurchase", 1, true))
-      assert.is_nil(body:find("onBuyClick", 1, true))
+      assert.is_nil(body:find("planBuy", 1, true))
+      assert.is_nil(body:find("PurchaseCall", 1, true))
     end
     -- A gmatch that matched nothing would pass this in silence: the run picker's menu and the
     -- row's own are both opened through one of these.
@@ -85,7 +109,7 @@ describe("BUY purchase wiring", function()
   it("claims the shared purchase slot before it starts anything", function()
     local click = clickHandler(source())
     local claim = assert(click:find('GC.PurchaseSlot.Claim("buy"', 1, true))
-    local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
+    local start = assert(click:find('return "start"', 1, true))
     assert.is_true(claim < start)
   end)
 

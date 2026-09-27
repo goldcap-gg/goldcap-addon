@@ -70,6 +70,7 @@ describe("BUY purchase", function()
     function r:EnableKeyboard() self.keyboard = true end
     function r:SetPropagateKeyboardInput(value) self.propagate = value end
     function r:IsMouseOver() return self.mouseOver end
+    function r:GetParent() return parent end
     function r:RegisterForClicks() end
     function r:Enable() self.enabled = true end
     function r:Disable() self.enabled = false end

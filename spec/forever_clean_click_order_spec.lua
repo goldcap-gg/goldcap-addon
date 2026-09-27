@@ -103,46 +103,34 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end)
   end)
 
-  describe("SniperFrame.lua buy dialog (onDialogPrimaryClick)", function()
+  -- The Deals buy window and the BUY tab no longer depend on this ordering: their plans run
+  -- inside securecallfunction (GC.PurchaseCall.Click, Core/PurchaseCall.lua), so nothing they
+  -- read reaches the protected call's execution -- spec/forever_taint_flow_spec.lua's "every
+  -- field GoldCap wrote tainted" proves it on the model. The bookkeeping still runs after the
+  -- call: each plan hands it back as the closure GC.PurchaseCall.Click runs once the call is made.
+  describe("SniperFrame.lua buy dialog (planDialogPrimaryClick)", function()
     local text = source("GoldCap/UI/SniperFrame.lua")
-    local clickStart = assert(text:find("local function onDialogPrimaryClick()", 1, true))
+    local clickStart = assert(text:find("local function planDialogPrimaryClick()", 1, true))
     local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
     local click = text:sub(clickStart, clickEndStop)
 
-    it("never calls refreshQtyRow on the path that reaches StartCommoditiesPurchase", function()
-      -- Anchored at "row.purchaseDeal = purchaseDeal" (commodity branch), not the earlier
-      -- "buying" arm: the claim-refused bail just above it also calls refreshQtyRow(), on a
-      -- path that returns without ever reaching the protected call -- see the BuyFrame.lua
-      -- test below for why a bail branch's own paint is not a taint risk regardless.
+    it("repaints the quantity row and says what it sent only after Start or PlaceBid", function()
       local armAt = assert(click:find("row.purchaseDeal = purchaseDeal", 1, true))
-      local callAt = assert(click:find(
-        "C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", armAt, true))
-      local between = click:sub(armAt, callAt - 1)
-      assert.is_nil(between:find("refreshQtyRow()", 1, true),
-        "refreshQtyRow must not run on the path from the claim succeeding to StartCommoditiesPurchase")
-      local afterAt = assert(click:find("refreshQtyRow()", callAt, true),
-        "the box/quick-fill must still be repainted after Start fires")
-      assert.is_true(afterAt > callAt)
-    end)
-
-    it("never calls refreshQtyRow between building the bid copy and PlaceBid", function()
-      local armAt = assert(click:find("pendingAuction[purchaseDeal.auctionID] = row", 1, true))
-      local callAt = assert(click:find("C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)", armAt, true))
-      local between = click:sub(armAt, callAt - 1)
-      assert.is_nil(between:find("refreshQtyRow()", 1, true),
-        "refreshQtyRow must not run between building the bid copy and PlaceBid")
-      local afterAt = assert(click:find("refreshQtyRow()", callAt, true),
-        "the box/quick-fill must still be repainted after PlaceBid fires")
-      assert.is_true(afterAt > callAt)
+      local answerAt = assert(click:find("return call, first, second, function()", armAt, true))
+      assert.is_nil(click:sub(armAt, answerAt - 1):find("refreshQtyRow()", 1, true),
+        "refreshQtyRow must not run between the claim succeeding and the answer")
+      local after = click:sub(answerAt)
+      assert.is_truthy(after:find("if refreshQtyRow then refreshQtyRow() end", 1, true))
+      assert.is_truthy(after:find("setDialogStatus(sent)", 1, true))
+      assert.is_truthy(after:find("scheduleBuyTimeout(row, purchaseDeal, token)", 1, true))
     end)
 
     it("keeps ConfirmCommoditiesPurchase's own bookkeeping (setDialogStatus, refreshQtyRow) after the call", function()
-      -- The Confirm branch was already clean before this fix; pinned here so a future edit
-      -- cannot quietly reintroduce a pre-call paint the way the Start/PlaceBid branch had one.
-      local confirmCallAt = assert(click:find(
-        "C_AuctionHouse.ConfirmCommoditiesPurchase(quoteSnapshot.itemID, quoteSnapshot.quantity)", 1, true))
-      local statusAt = assert(click:find("setDialogStatus(GC.L[\"confirming purchase...\"])", confirmCallAt, true))
-      assert.is_true(statusAt > confirmCallAt)
+      local answerAt = assert(click:find(
+        'return "confirm", quoteSnapshot.itemID, quoteSnapshot.quantity, function()', 1, true))
+      local confirmedAt = assert(click:find("pending.confirmed = true", answerAt, true))
+      local statusAt = assert(click:find("setDialogStatus(GC.L[\"confirming purchase...\"])", answerAt, true))
+      assert.is_true(confirmedAt > answerAt and statusAt > answerAt)
     end)
   end)
 
@@ -183,18 +171,18 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       assertClean(text:sub(clickStart, clickEnd - 1), "onRepostClick")
     end)
 
-    it("onDialogPrimaryClick (Sniper Start/Confirm/PlaceBid)", function()
+    it("planDialogPrimaryClick (Sniper Start/Confirm/PlaceBid)", function()
       local text = source("GoldCap/UI/SniperFrame.lua")
-      local clickStart = assert(text:find("local function onDialogPrimaryClick()", 1, true))
+      local clickStart = assert(text:find("local function planDialogPrimaryClick()", 1, true))
       local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
-      assertClean(text:sub(clickStart, clickEndStop), "onDialogPrimaryClick")
+      assertClean(text:sub(clickStart, clickEndStop), "planDialogPrimaryClick")
     end)
 
-    it("onBuyClick (BUY tab)", function()
+    it("planBuyClick (BUY tab)", function()
       local text = source("GoldCap/UI/BuyFrame.lua")
-      local clickStart = assert(text:find("local function onBuyClick(line)", 1, true))
+      local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
       local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
-      assertClean(text:sub(clickStart, clickEndStop), "onBuyClick")
+      assertClean(text:sub(clickStart, clickEndStop), "planBuyClick")
     end)
 
     it("onPostClick resolves its location from the paint-time cache, never builds one itself", function()
@@ -209,28 +197,21 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end)
   end)
 
-  describe("BuyFrame.lua onBuyClick", function()
+  describe("BuyFrame.lua planBuyClick", function()
     local text = source("GoldCap/UI/BuyFrame.lua")
-    local clickStart = assert(text:find("local function onBuyClick(line)", 1, true))
+    local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
     local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
     local click = text:sub(clickStart, clickEndStop)
 
-    it("was already clean: no paint/status helper runs between arming and either protected call", function()
-      local confirmArm = assert(click:find('attempt.stage = "confirming"', 1, true))
-      local confirmCall = assert(click:find(
-        "C_AuctionHouse.ConfirmCommoditiesPurchase(attempt.itemID, attempt.qty)", confirmArm, true))
-      assert.is_nil(click:sub(confirmArm, confirmCall - 1):find("logAttempt(", 1, true))
-
-      local startArm = assert(click:find('attempt.stage = "started"', 1, true))
-      local startCall = assert(click:find(
-        "C_AuctionHouse.StartCommoditiesPurchase(attempt.itemID, attempt.qty)", startArm, true))
-      assert.is_nil(click:sub(startArm, startCall - 1):find("logAttempt(", 1, true))
-
-      -- afterClick/armStall -- the bookkeeping -- run only after each call.
-      local afterConfirm = assert(click:find("afterClick(line)", confirmCall, true))
-      assert.is_true(afterConfirm > confirmCall)
-      local afterStart = assert(click:find("afterClick(line)", startCall, true))
-      assert.is_true(afterStart > startCall)
+    it("runs armStall and afterClick only once the call has been made", function()
+      for _, answer in ipairs({ 'return "confirm", attempt.itemID, attempt.qty, function()',
+                                'return "start", attempt.itemID, attempt.qty, function()' }) do
+        local answerAt = assert(click:find(answer, 1, true), answer)
+        local arm = click:sub(1, answerAt - 1):match('.*()attempt%.stage = "')
+        assert.is_nil(click:sub(arm, answerAt - 1):find("logAttempt(", 1, true))
+        local afterAt = assert(click:find("afterClick(line)", answerAt, true))
+        assert.is_true(afterAt > answerAt)
+      end
     end)
   end)
 end)

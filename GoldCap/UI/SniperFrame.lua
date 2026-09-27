@@ -8306,11 +8306,14 @@ function GC.Sniper.NotifyDialogClosed()
   feedAuto("resume:dialog")
 end
 
--- The dialog's own primary button OnClick -- the ONLY place PlaceBid, StartCommoditiesPurchase
--- and ConfirmCommoditiesPurchase are ever called. A hardware click on this button is exactly
--- as synchronous/direct as the old row-button click was; only WHICH widget owns the click
--- moved.
-local function onDialogPrimaryClick()
+-- What a click on the dialog's primary button does -- everything but the protected call itself.
+-- It runs inside GC.PurchaseCall.Click (Core/PurchaseCall.lua), fenced off with
+-- securecallfunction, and answers the one purchase call to make ("start" | "confirm" | "bid"
+-- and its two arguments) plus what to run once the call is made; nothing, for a click that
+-- makes none. Every check below still runs before the call and every piece of bookkeeping
+-- after it, in the same click -- WoW: Forever only needs the call not to share an execution
+-- with what these reads may have picked up.
+local function planDialogPrimaryClick()
   local row = dialog.row
   if not row then return end
   local stage = row.purchaseStage
@@ -8334,45 +8337,45 @@ local function onDialogPrimaryClick()
     end
     -- Hardware click only: the event prepares a quote; it never confirms one. The token and
     -- immutable final decision must still be current at this exact click.
-    C_AuctionHouse.ConfirmCommoditiesPurchase(quoteSnapshot.itemID, quoteSnapshot.quantity)
-    -- Preserve the immutable server quote/deal with the attempt itself. Dialog hide and AH
-    -- close are UI/session transitions, not proof that a confirmed server purchase vanished.
-    pending.confirmed = true
-    pending.deal = row.purchaseDeal
-    pending.quote = quoteSnapshot
-    -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
-    -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
-    -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
-    -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
-    if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
-    row.purchaseStage = "confirming"
-    dialog.primaryBtn:Disable()
-    dialog.cancelBtn:Disable()
-    setDialogStatus(GC.L["confirming purchase..."])
-    if frame then frame.status:SetText(GC.L["confirming purchase..."]) end
-    if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
-    -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
-    -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
-    -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
-    --
-    -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
-    -- called, so gold may well have moved; marking it failed or freeing the row for a retry
-    -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
-    -- still settles through the tombstone -- and the only thing that changes is that the player
-    -- is told what happened and can close the window.
-    local confirmedToken = pending.token
-    if C_Timer and C_Timer.After then
-    C_Timer.After(20, function()
-      if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
-      if not (dialog and dialog.row == row) then return end
-      dialog.cancelBtn:Enable()
-      setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
-    end)
-    -- Far beyond any real server round trip, so a genuine terminal event always lands first --
-    -- see GC.Sniper._ReleaseStrandedConfirmed and LIM.STRANDED_RELEASE_SECONDS.
-    C_Timer.After(LIM.STRANDED_RELEASE_SECONDS, function() GC.Sniper._ReleaseStrandedConfirmed(pending) end)
+    return "confirm", quoteSnapshot.itemID, quoteSnapshot.quantity, function()
+      -- Preserve the immutable server quote/deal with the attempt itself. Dialog hide and AH
+      -- close are UI/session transitions, not proof that a confirmed server purchase vanished.
+      pending.confirmed = true
+      pending.deal = row.purchaseDeal
+      pending.quote = quoteSnapshot
+      -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
+      -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
+      -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
+      -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
+      if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+      row.purchaseStage = "confirming"
+      dialog.primaryBtn:Disable()
+      dialog.cancelBtn:Disable()
+      setDialogStatus(GC.L["confirming purchase..."])
+      if frame then frame.status:SetText(GC.L["confirming purchase..."]) end
+      if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
+      -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
+      -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
+      -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
+      --
+      -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
+      -- called, so gold may well have moved; marking it failed or freeing the row for a retry
+      -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
+      -- still settles through the tombstone -- and the only thing that changes is that the player
+      -- is told what happened and can close the window.
+      local confirmedToken = pending.token
+      if C_Timer and C_Timer.After then
+      C_Timer.After(20, function()
+        if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
+        if not (dialog and dialog.row == row) then return end
+        dialog.cancelBtn:Enable()
+        setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
+      end)
+      -- Far beyond any real server round trip, so a genuine terminal event always lands first --
+      -- see GC.Sniper._ReleaseStrandedConfirmed and LIM.STRANDED_RELEASE_SECONDS.
+      C_Timer.After(LIM.STRANDED_RELEASE_SECONDS, function() GC.Sniper._ReleaseStrandedConfirmed(pending) end)
+      end
     end
-    return
   end
 
   if stage == "expired" then
@@ -8481,6 +8484,7 @@ local function onDialogPrimaryClick()
   end
 
   local purchaseDeal = deal
+  local call, first, second, sent -- the one purchase call this click makes, and what it then says
   row.quoteSnapshot = nil
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local token = row.purchaseToken
@@ -8509,10 +8513,7 @@ local function onDialogPrimaryClick()
     end
     row.purchaseDeal = purchaseDeal
     commodityPurchase = { row = row, itemID = deal.itemID, token = token }
-    C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)
-    if refreshQtyRow then refreshQtyRow() end
-    setDialogStatus(GC.L["buying commodity..."])
-    if frame then frame.status:SetText(GC.L["buying commodity..."]) end
+    call, first, second, sent = "start", deal.itemID, decision.quantity, GC.L["buying commodity..."]
   else
     -- A realm lot. The candidate IS the identity of what is being bought -- one auction, one
     -- price -- so the purchase takes that identity here: resolvePurchase clears pendingAuction
@@ -8548,12 +8549,21 @@ local function onDialogPrimaryClick()
     -- price, and candidate.buyout is exactly that total -- the number the player just read on
     -- the dialog. It is passed through untouched rather than recomputed from unitPrice * qty,
     -- which floors and could bid a copper under the buyout.
-    C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)
-    if refreshQtyRow then refreshQtyRow() end
-    setDialogStatus(GC.L["placing bid..."])
-    if frame then frame.status:SetText(GC.L["placing bid..."]) end
+    call, first, second, sent = "bid", candidate.auctionID, candidate.buyout, GC.L["placing bid..."]
   end
-  scheduleBuyTimeout(row, purchaseDeal, token)
+  return call, first, second, function()
+    if refreshQtyRow then refreshQtyRow() end
+    setDialogStatus(sent)
+    if frame then frame.status:SetText(sent) end
+    scheduleBuyTimeout(row, purchaseDeal, token)
+  end
+end
+
+-- The dialog's own primary button OnClick -- the ONLY way PlaceBid, StartCommoditiesPurchase
+-- and ConfirmCommoditiesPurchase are ever reached from this file: GC.PurchaseCall.Click makes
+-- the call synchronously inside this click, from what planDialogPrimaryClick answered.
+local function onDialogPrimaryClick()
+  GC.PurchaseCall.Click(planDialogPrimaryClick)
 end
 
 -- ---------------------------------------------------------------------------
@@ -11889,6 +11899,24 @@ function GC.Sniper.DebugTaint()
   local decision = row and row.decisionSnapshot
   report("decision.status", decision, "status")
   report("decision.quantity", decision, "quantity")
+  -- Controls: a field GoldCap wrote while loading, and one Auctionator wrote while loading. If
+  -- both read secure while the fields above read TAINTED, addon data is not tainted as such in
+  -- this client -- something tainted wrote the ones above.
+  report("GC.PurchaseCall's Click (GoldCap, at load)", GC.PurchaseCall, "Click")
+  report("Auctionator.Constants (Auctionator, at load)", _G.Auctionator, "Constants")
+  -- The last purchase click, as GC.PurchaseCall.Click saw it: whether the click began clean,
+  -- and whether it was still clean at its protected call.
+  local last = GC.PurchaseCall and GC.PurchaseCall.last
+  if last then
+    local function word(flag)
+      if flag == nil then return "unknown" end
+      return flag and "secure" or "TAINTED"
+    end
+    GC.Print(("taint: last purchase click (%s) began %s, called %s"):format(tostring(last.call),
+      word(last.enteredSecure), word(last.calledSecure)))
+  else
+    GC.Print("taint: no purchase click yet this session")
+  end
 end
 
 function GC.Sniper.DebugPurchase()
