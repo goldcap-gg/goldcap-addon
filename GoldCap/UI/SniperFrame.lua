@@ -4301,11 +4301,13 @@ local function drawVerdict(deal, decision, market)
   elseif hero.kind == "forever" then
     -- WoW: Forever: what the buy makes, captioned by what it is measured against -- the
     -- vendor's exact price, or the scan's median and an unknown resale speed.
+    -- A refused one keeps its figure, dim and uncaptioned: the reason line says why.
     local up = hero.copper >= 0
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
-    figureColor = up and Theme.color.green or Theme.color.red
-    caption = (GC.L[CV.HERO_CAPTION[hero.forever == "market" and "market" or "vendor"]])
-      :format(displayDecisionAmount(hero.ref))
+    figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
+    caption = hero.refused and ""
+      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and "market" or "vendor"]])
+        :format(displayDecisionAmount(hero.ref))
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold

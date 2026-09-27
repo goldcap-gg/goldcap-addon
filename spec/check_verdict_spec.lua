@@ -481,7 +481,9 @@ describe("CheckVerdict", function()
       refused.stressProfit = 5
       local v = GC.CheckVerdict.Build(refused, scanMarket, { forever = "vendor" })
       assert.equal("refuse", v.tone)
-      assert.same({ kind = "forever", forever = "vendor", copper = 5, ref = 13 }, v.hero)
+      -- Marked refused (final review m6): the panel shows the figure without the "sure profit"
+      -- caption, which read as an endorsement under a red REFUSED.
+      assert.same({ kind = "forever", forever = "vendor", copper = 5, ref = 13, refused = true }, v.hero)
       assert.equal(20, factById(v, "yourMinimum").copper)
     end)
 

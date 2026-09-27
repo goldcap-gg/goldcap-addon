@@ -327,7 +327,10 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- A Forever answer, passed or refused on its minimum: what the buy makes, captioned by what
     -- it is measured against (a vendor's exact price, or the scan's median) -- never the "selling
     -- all back into the book" caption a gold hero carries.
-    hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit }
+    -- `refused`: the panel shows a refusal's figure without that caption (final review m6) --
+    -- "sure profit" under a red REFUSED read as an endorsement.
+    hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
+      refused = tone == "refuse" or nil }
   elseif tone == "gold" then
     -- The gold the character must hold leads; what the buy costs and the per-buy share that
     -- turns one into the other ride along, for the caption that says both.

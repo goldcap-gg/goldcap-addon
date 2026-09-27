@@ -850,6 +850,27 @@ describe("Clean click ordering, driven end to end", function()
       assertNoRetailWords(d)
     end)
 
+    -- Final review m6: a Forever Check refused on the minimum still shows what the buy makes,
+    -- but dim and without the "sure profit" caption -- green "+15c, sure profit" under a red
+    -- REFUSED read as an endorsement.
+    it("the check panel shows a refused Forever figure dim, without the sure-profit caption", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 8, 11) -- 5 units at 8c under a vendor's 11c: 15c, under the 20c minimum
+      local live = capLive(GC, 42, FOREVER_BOOK)
+      assert.same({ "profit_below_minimum" }, live.decision.reasons)
+      local deal = foreverDeal(42, true)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = panelDialog(row, deal)
+      function d.verdictAmount:SetTextColor(r, g, b) self.color = { r, g, b } end
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, live)
+      assert.equal("+" .. GC.Util.FormatMoney(15), d.verdictAmount.text)
+      assert.same(GC.Theme.color.fgDim, d.verdictAmount.color)
+      assert.equal("", d.verdictAmountNote.text)
+      assert.is_nil(d.verdictLabel.text:find("Below vendor", 1, true))
+    end)
+
     it("the check panel says an Under market commodity is a resale at the scan's median, speed unknown", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 12, 20, "market")
