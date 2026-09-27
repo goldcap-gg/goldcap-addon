@@ -2164,12 +2164,13 @@ end
 -- The click-time half of the cache above: a plain C API on plain numbers, never a Blizzard mixin
 -- method. Confirms the exact bag/slot the cache pinned still holds this item, with enough of it,
 -- before the location cacheBagLocation already built is trusted. A stack that moved is refused
--- here rather than re-resolved -- the next paint recaches it (see the click handlers below).
+-- here rather than re-resolved -- the next paint, or the next bag change while the tab is shown
+-- (GC.Sell.OnBagsChanged below), recaches it.
 --
 -- Checking only itemID/bound/count let a DIFFERENT variant of the same item -- another item
 -- level, bonus IDs, or a Classic-style random suffix ("...of the Bear") -- pass, and post at
--- THIS version's price (final review I2; applies on retail too, since nothing repaints the Sell
--- tab on a bare bag change). requiredHyperlink, when given, is compared against a fresh
+-- THIS version's price (final review I2; applies on retail too: a swap that lands between the
+-- last recache and the click would otherwise go unnoticed). requiredHyperlink, when given, is compared against a fresh
 -- C_Container.GetContainerItemLink read -- itself a plain C API, not the mixin method a click
 -- must not call -- so a swapped stack is refused rather than silently posted as its old self. A
 -- commodity call site never has one to pass (only a non-commodity match ever caches a hyperlink),
@@ -2215,6 +2216,25 @@ local function resolvePostLocation(position)
   if not cached or cached.itemID ~= position.itemID then return nil end
   if not verifyBagStack(cached.bag, cached.slot, cached.itemID, nil, cached.hyperlink) then return nil end
   return cached.location
+end
+
+-- BAG_UPDATE_DELAYED (Core/Init.lua), while this tab is on screen: re-pins every position's
+-- cached bag location to where its stack sits now. Without it a stack moved, split, used or sold
+-- after the last Sell paint stayed pinned at its old slot, and Post answered "No exact bag stack"
+-- until something happened to repaint -- nothing on a bare bag change did (retail drift audit
+-- F2; 0.15.3 found the stack live inside the click). This runs in the event's own execution,
+-- never inside a click and never from the auction-house ticker, so the click keeps reading only
+-- the plain cached values it reads today. Cache only: no render, no recompose -- the rows and
+-- their counts repaint as they always have. A hidden tab skips it: Show() refreshes and renders,
+-- which recaches before any Post can be pressed. A GC.Sell field, not a top-level local
+-- (SellFrame.lua's headroom).
+function GC.Sell.OnBagsChanged()
+  if not containerShown() then return end
+  for _, position in ipairs(positions) do
+    if position.positionKey and (position.bagQty or 0) > 0 then
+      GC.Sell._CacheBagLocation(position, liveBagState(position))
+    end
+  end
 end
 
 -- Post and Repost both need a quote fresher than they have. This used to call

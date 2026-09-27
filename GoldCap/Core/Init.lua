@@ -875,6 +875,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
     if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
   elseif event == "BAG_UPDATE_DELAYED" then
+    -- The Sell tab's Post reads a bag location cached at paint time; re-pin it to where the stack
+    -- sits now, while that tab is on screen (UI/SellFrame.lua, GC.Sell.OnBagsChanged). First in
+    -- this event's execution, ahead of the BUY tab and craft capture, so nothing they read runs
+    -- before the cache a Post click reads is written.
+    if GC.Sell and GC.Sell.OnBagsChanged then GC.Sell.OnBagsChanged() end
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
