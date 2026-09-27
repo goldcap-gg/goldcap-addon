@@ -1363,10 +1363,14 @@ local function setRowDeal(row, deal)
   else
     verdictColor = Theme.color.fgDim
   end
-  -- WoW: Forever: a lead no Check has answered yet says which kind it is -- green for a vendor
-  -- deal, amber for a market one, the riskier of the two. A verdict, once there, speaks instead.
+  -- WoW: Forever: the chip says which kind the row is -- green for a vendor deal, amber for a
+  -- market one, the riskier of the two -- before a Check and after one that said SAFE. Only a
+  -- refusal speaks instead. The background verify walk answers every row on the board within
+  -- seconds, so "SAFE +31c" used to replace the kind on all of them, and a 2% "Below vendor" row
+  -- read as a retail verdict (owner, beta 2026-09-27). The Buy button already says a row is
+  -- buyable, and the PROFIT cell carries the figure.
   local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
-  if not verdict and deal.forever then
+  if deal.forever and (not verdict or verdict.buyable) then
     chip = GC.Sniper._ForeverLabel(deal.forever)
     verdictColor = deal.forever == "market" and Theme.color.gold or Theme.color.green
   end

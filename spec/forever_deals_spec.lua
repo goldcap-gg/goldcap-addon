@@ -27,6 +27,31 @@ describe("ForeverDeals", function()
     vendor, commodity = {}, {}
   end)
 
+  -- The owner's board (beta, 2026-09-27 11:13) showed five SAFE rows with no kind on them, one at a
+  -- 2% discount, and read them as retail verdicts. Both kinds make exactly those figures.
+  describe("the owner's board of 2026-09-27", function()
+    it("a 2% discount is a vendor row: 32 at 49c, a vendor pays 50c, +1c each", function()
+      vendor[1081], commodity[1081] = 50, true            -- Crisp Spider Meat
+      local rows = D.Build(fold({ [1081] = "49,727,50,;0x32 1x695|0,1,2" }), ctx())
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("vendor", r.forever)
+      assert.equal(32, r.qty); assert.equal(1568, r.capTotal); assert.equal(32, r.profit)
+      assert.equal(2, math.floor(r.discount * 100 + 0.5))
+    end)
+
+    it("a 44% discount is a market row: 165 at 10c, half ask 18c+, +7c each after the cut", function()
+      vendor[765], commodity[765] = 1, true               -- Silverleaf; a vendor pays under the AH
+      local rows = D.Build(fold({ [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }),
+        ctx({ depositFor = function() return 0 end }))
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(165, r.qty); assert.equal(1650, r.capTotal); assert.equal(1155, r.profit)
+      assert.equal(44, math.floor(r.discount * 100 + 0.5))
+    end)
+  end)
+
   describe("Build, kind vendor", function()
     -- Linen-shaped: 8c x5, 9c x10, 12c x40, 13c x100, 15c x200; a vendor pays 13c.
     local LINEN = "8,355,5,;0x5 1x10 3x40 1x100 2x200"

@@ -198,6 +198,34 @@ describe("WoW: Forever", function()
     assert.is_truthy(row._nameParts[2]:find("half ask 100c+", 1, true))
   end)
 
+  it("keeps the kind on the chip once a live Check says SAFE; a refusal still speaks", function()
+    local api = loadSniper()
+    local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
+    local verdicts = upvalue(upvalue(setRowDeal, "verdictFor"), "verdicts")
+    local row = fakeRow()
+    verdicts[2589] = { unitPrice = 8, at = 100, buyable = true, status = "SAFE", stressProfit = 31 }
+    setRowDeal(row, foreverRow(2589, "commodities"))
+    assert.equal("Below vendor", row.tierChip.label)
+    verdicts[2592] = { unitPrice = 8, at = 100, buyable = true, status = "SAFE", stressProfit = 100 }
+    setRowDeal(row, foreverRow(2592, "commodities", "market"))
+    assert.equal("Under market", row.tierChip.label)
+    verdicts[2589] = { unitPrice = 8, at = 100, buyable = false, status = "AVOID", reason = "requote_broke_safety" }
+    setRowDeal(row, foreverRow(2589, "commodities"))
+    assert.equal("AVOID", row.tierChip.label)
+  end)
+
+  it("still says SAFE on a retail row", function()
+    local api = loadSniper()
+    local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
+    local verdicts = upvalue(upvalue(setRowDeal, "verdictFor"), "verdicts")
+    local row = fakeRow()
+    local retail = foreverRow(2589, "commodities")
+    retail.forever, retail.ceiling, retail.refUnit = nil, nil, nil
+    verdicts[2589] = { unitPrice = 8, at = 100, buyable = true, status = "SAFE", stressProfit = 20000 }
+    setRowDeal(row, retail)
+    assert.equal("SAFE +2g", row.tierChip.label)
+  end)
+
   it("writes the whole sentence for each kind", function()
     local api = loadSniper()
     assert.equal("Buy at or under 12c: a vendor pays 13c each. This buy makes 105c.",
