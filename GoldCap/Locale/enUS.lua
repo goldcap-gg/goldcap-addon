@@ -132,6 +132,8 @@ GC.Locales.enUS = {
     "From your scan %s ago. Counts only %s. Change with /gc weights.",
   ["GOLDCAP"] = "GOLDCAP",
   ["Gear upgrades on the auction house"] = "Gear upgrades on the auction house",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop.",
   ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: checked live -- a deal, but you need %s on this character",
   ["HOLDING %d"] = "HOLDING %d",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
@@ -141,6 +143,8 @@ GC.Locales.enUS = {
   ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
+  ["Loot counting is off."] = "Loot counting is off.",
+  ["Loot counting is on."] = "Loot counting is on.",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["Mount cost cleared."] = "Mount cost cleared.",

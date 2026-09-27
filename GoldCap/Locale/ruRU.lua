@@ -147,10 +147,14 @@ GC.Locales.ruRU = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "По вашему скану %s назад. Учитывает только %s. Изменить: /gc weights.",
   ["Gear upgrades on the auction house"] = "Улучшения экипировки на аукционе",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap теперь считает, что выпадает из добычи, без имён, для шансов выпадения на goldcap.gg. Companion начнёт это передавать, когда эта часть выйдет. Введите /gc loot off, чтобы отключить.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Предметов в сумках, которые на аукционе стоят больше, чем у торговца: %d (на %s больше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ещё загружается предметов: %d. Откройте это снова через минуту.",
+  ["Loot counting is off."] = "Подсчёт добычи выключен.",
+  ["Loot counting is on."] = "Подсчёт добычи включён.",
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

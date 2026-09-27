@@ -146,9 +146,13 @@ GC.Locales.koKR = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
   ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap이 이제 전리품에서 무엇이 나오는지 이름 없이 집계해 goldcap.gg의 드롭 확률에 씁니다. 해당 기능이 출시되면 Companion이 공유합니다. 끄려면 /gc loot off를 입력하세요.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
+  ["Loot counting is off."] = "전리품 집계가 꺼져 있습니다.",
+  ["Loot counting is on."] = "전리품 집계가 켜져 있습니다.",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

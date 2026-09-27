@@ -101,3 +101,115 @@ describe("ForeverLoot record", function()
     assert.same({ opens = 0, coin = 0, skipped = 0, count = 0, items = {} }, L.DecodeRow(nil))
   end)
 end)
+
+describe("ForeverLoot in the client", function()
+  local GC, db, saved, clock, slots, printed
+  local KEYS = { "GetNumLootItems", "GetLootSlotType", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
+    "IsFishingLoot", "C_Map", "UnitLevel", "GetTime" }
+  local G1 = "Creature-0-1-0-2-448-0000AA"
+
+  local function init(interface)
+    GC.ForeverScan.Init(db, { passport = function() return { interface = interface, region = 90, realm = "Forever" } end })
+  end
+
+  before_each(function()
+    saved = {}
+    for _, k in ipairs(KEYS) do saved[k] = _G[k] end
+    clock = 10
+    slots = {
+      { type = 2, sources = { G1, 35 } },
+      { type = 1, link = "|Hitem:2589::|h[Linen Cloth]|h", quest = false, sources = { G1, 2 } },
+    }
+    _G.GetNumLootItems = function() return #slots end
+    _G.GetLootSlotType = function(i) return slots[i].type end
+    _G.GetLootSlotLink = function(i) return slots[i].link end
+    _G.GetLootSlotInfo = function(i) return "icon", "name", 1, nil, 1, false, slots[i].quest end
+    _G.GetLootSourceInfo = function(i) return unpack(slots[i].sources) end
+    _G.IsFishingLoot = function() return false end
+    _G.C_Map = { GetBestMapForUnit = function() return 1429 end }
+    _G.UnitLevel = function() return 12 end
+    _G.GetTime = function() return clock end
+    GC = helper.loadModule("Core/Util.lua")
+    for _, f in ipairs({ "Core/Game.lua", "Core/ForeverFold.lua", "Core/ForeverScan.lua", "Core/ForeverLoot.lua" }) do
+      helper.loadModule(f, GC)
+    end
+    GC.Game.Passport = function() return { interface = 16001, build = "1.60.1.70009", regionId = 90 } end
+    printed = {}
+    GC.Print = function(m) printed[#printed + 1] = m end
+    db = {}
+  end)
+
+  after_each(function() for _, k in ipairs(KEYS) do _G[k] = saved[k] end end)
+
+  it("records a looted corpse once, with its zone and the player's level", function()
+    init(16001)
+    GC.ForeverLoot.OnLootReady()
+    GC.ForeverLoot.OnLootReady()                  -- LOOT_OPENED after LOOT_READY: the same corpse
+    local s = db.foreverLoot
+    assert.equal(1, s.v)
+    assert.equal(90, s.region)
+    assert.equal("1.60.1.70009", s.build)
+    assert.truthy(s.id:match("^%x+$") and #s.id == 16)
+    assert.same({ ["c:448:1429"] = "1,35,12,12,0;2589:1:2" }, s.rows)
+  end)
+
+  it("files loot that follows the player's own spell by that spell, and not a spell from before", function()
+    init(16001)
+    GC.ForeverLoot.OnSpellSucceeded(8613)
+    clock = 10.3
+    GC.ForeverLoot.OnLootReady()
+    GC.ForeverLoot.OnLootReady()                  -- the same window's second event: same spell, same row
+    assert.equal("1,35,12,12,0;2589:1:2", db.foreverLoot.rows["s:448:1429:8613"])
+    slots[1].sources = { "Creature-0-1-0-2-448-0000BB", 20 }
+    slots[2].sources = { "Creature-0-1-0-2-448-0000BB", 1 }
+    GC.ForeverLoot.OnSpellSucceeded(133)
+    clock = 11
+    GC.ForeverLoot.OnLootReady()                  -- 0.7 s after that spell: not the loot's
+    assert.equal("1,20,12,12,0;2589:1:1", db.foreverLoot.rows["c:448:1429"])
+  end)
+
+  it("skips fishing, and stops and starts with /gc loot", function()
+    init(16001)
+    _G.IsFishingLoot = function() return true end
+    GC.ForeverLoot.OnLootReady()
+    assert.same({}, db.foreverLoot.rows)
+    _G.IsFishingLoot = function() return false end
+    GC.ForeverLoot.Slash("off")
+    assert.is_true(db.forever.lootOff)
+    GC.ForeverLoot.OnLootReady()
+    assert.same({}, db.foreverLoot.rows)
+    GC.ForeverLoot.Slash("on")
+    assert.is_nil(db.forever.lootOff)
+    GC.ForeverLoot.Slash("")
+    assert.same({ "Loot counting is off.", "Loot counting is on.", "Loot counting is on." }, printed)
+  end)
+
+  it("says once what it counts and how to stop it, only in Forever", function()
+    init(120100)
+    assert.is_false(GC.ForeverLoot.MaybeIntro())
+    init(16001)
+    assert.is_true(GC.ForeverLoot.MaybeIntro())
+    assert.is_false(GC.ForeverLoot.MaybeIntro())
+    assert.equal(1, #printed)
+    assert.truthy(printed[1]:find("/gc loot off", 1, true))
+  end)
+
+  it("does nothing on retail: no key, no row, no line", function()
+    init(120100)
+    GC.ForeverLoot.OnSpellSucceeded(8613)
+    GC.ForeverLoot.OnLootReady()
+    GC.ForeverLoot.Slash("off")
+    assert.is_nil(db.foreverLoot)
+    assert.is_nil(db.forever)
+    assert.same({}, printed)
+    assert.same({}, GC.ForeverLoot.Summary())
+  end)
+
+  it("summarises itself in English for /gc forever", function()
+    init(16001)
+    GC.ForeverLoot.OnLootReady()
+    local text = table.concat(GC.ForeverLoot.Summary(), "\n")
+    assert.truthy(text:find("loot recorder: generation 1, 1 sources", 1, true))
+    assert.truthy(text:find("loot recorder sample: c:448:1429 = 1,35,12,12,0;2589:1:2", 1, true))
+  end)
+end)

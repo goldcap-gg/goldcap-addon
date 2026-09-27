@@ -311,6 +311,11 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   -- Plan 3e, Road to 40 (Core/ForeverRoad.lua): its pace clock reads level progress.
   pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
   pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
+  -- Plan 3e, the loot recorder (Core/ForeverLoot.lua): both loot events (one window counts once),
+  -- and the player's own spells, which say a window was opened by skinning or gathering.
+  pcall(function() frame:RegisterEvent("LOOT_READY") end)
+  pcall(function() frame:RegisterEvent("LOOT_OPENED") end)
+  pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end)
 end
 
 local function migrateSniperProfitFloor(db)
@@ -882,6 +887,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
     -- Registered in Forever only (the gate above).
     if GC.ForeverRoad then GC.ForeverRoad.OnTick() end
+  elseif event == "LOOT_READY" or event == "LOOT_OPENED" then
+    -- Registered in Forever only.
+    if GC.ForeverLoot then GC.ForeverLoot.OnLootReady() end
+  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+    local _, _, spellID = ...
+    if GC.ForeverLoot then GC.ForeverLoot.OnSpellSucceeded(spellID) end
   elseif event == "BAG_UPDATE_DELAYED" then
     -- The Sell tab's Post reads a bag location cached at paint time; re-pin it to where the stack
     -- sits now, while that tab is on screen (UI/SellFrame.lua, GC.Sell.OnBagsChanged). First in
@@ -901,6 +912,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
     if GC.ForeverScan then GC.ForeverScan.MaybeIntro() end
     if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
+    if GC.ForeverLoot then GC.ForeverLoot.MaybeIntro() end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
@@ -953,6 +965,8 @@ if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end
   -- Plan 3e: the AH Upgrade Finder's window.
   GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end
+  -- Plan 3e: the loot recorder, on or off.
+  GC.slashHandlers.loot = function(rest) GC.ForeverLoot.Slash(rest) end
 end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same

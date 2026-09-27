@@ -222,4 +222,11 @@ describe("/gc forever self-check", function()
     assert.equal("|Hitem:2589|h", GC.ForeverCheck.Walk(ah, 1, {}).link)
     assert.is_nil(GC.ForeverCheck.Walk(ahApi(), 1, {}).link)
   end)
+
+  it("reports the loot recorder's own summary", function()
+    GC.ForeverLoot = { Summary = function() return { "loot recorder: generation 2, 7 sources since 1, id ab" } end }
+    local text = table.concat(GC.ForeverCheck.Report(env()), "\n")
+    assert.truthy(text:find("loot recorder: generation 2, 7 sources since 1, id ab", 1, true))
+    GC.ForeverLoot = nil
+  end)
 end)

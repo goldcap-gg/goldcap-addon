@@ -149,3 +149,140 @@ function GC.ForeverLoot.Record(store, window, ctx, seen)
   end
   return #order
 end
+
+-- The client. Every read guarded: a missing API reads as nothing to record, never an error.
+
+local lastSpell
+local seenMarks = { list = {}, set = {} }
+
+local function prefs()
+  return GC.ForeverScan and GC.ForeverScan.Prefs and GC.ForeverScan.Prefs() or nil
+end
+
+local function clock()
+  local f = _G.GetTime
+  if type(f) == "function" then
+    local ok, t = pcall(f)
+    if ok and type(t) == "number" then return t end
+  end
+  return time()
+end
+
+local function newId()
+  return ("%08x%08x"):format(math.random(0, 0x7fffffff), math.random(0, 0x7fffffff))
+end
+
+-- GoldCapDB.foreverLoot, created on first use -- only in Forever, and not while the player has
+-- turned the recorder off.
+function GC.ForeverLoot.Store(now)
+  local p = prefs()
+  if not p or p.lootOff then return nil end
+  local root = GC.ForeverScan.Root()
+  local s = root.foreverLoot
+  if type(s) ~= "table" or s.v ~= C.VERSION or type(s.rows) ~= "table" then
+    s = { v = C.VERSION, id = newId(), gen = 1, since = now, n = 0, rows = {} }
+    root.foreverLoot = s
+  end
+  return s
+end
+
+local function mapID()
+  local map = _G.C_Map
+  if type(map) ~= "table" or type(map.GetBestMapForUnit) ~= "function" then return 0 end
+  local ok, id = pcall(map.GetBestMapForUnit, "player")
+  return ok and tonumber(id) or 0
+end
+
+local function playerLevel()
+  local ok, level = pcall(_G.UnitLevel, "player")
+  return ok and tonumber(level) or 0
+end
+
+local SLOT_KIND = { [1] = "item", [2] = "money" } -- Enum.LootSlotType: Item 1, Money 2, Currency 3
+
+local function readWindow()
+  local w = { slots = {} }
+  local okF, fishing = pcall(_G.IsFishingLoot)
+  w.fishing = okF and fishing == true
+  local okN, n = pcall(_G.GetNumLootItems)
+  n = okN and tonumber(n) or 0
+  for slot = 1, n do
+    local okT, slotType = pcall(_G.GetLootSlotType, slot)
+    local kind = okT and SLOT_KIND[slotType] or nil
+    if kind then
+      local entry = { kind = kind, sources = {} }
+      if kind == "item" then
+        local okL, link = pcall(_G.GetLootSlotLink, slot)
+        entry.itemID = okL and type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+        local okI, _, _, _, _, _, _, isQuest = pcall(_G.GetLootSlotInfo, slot)
+        entry.quest = okI and isQuest == true
+      end
+      -- guid, quantity, guid, quantity, ... -- for a coin slot the quantity is its copper (to be
+      -- confirmed in the beta: /gc forever prints a recorded row).
+      local src = { pcall(_G.GetLootSourceInfo, slot) }
+      if src[1] then
+        for i = 2, #src, 2 do entry.sources[#entry.sources + 1] = { src[i], src[i + 1] } end
+      end
+      w.slots[#w.slots + 1] = entry
+    end
+  end
+  return w
+end
+
+-- UNIT_SPELLCAST_SUCCEEDED (player): skinning, pick pocket, herb gathering, opening a chest --
+-- the loot window that follows within SPELL_WINDOW is that spell's. Kept, not consumed: the same
+-- window's LOOT_READY and LOOT_OPENED must both see it.
+function GC.ForeverLoot.OnSpellSucceeded(spellID)
+  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return end
+  if type(spellID) ~= "number" then return end
+  lastSpell = { id = spellID, at = clock() }
+end
+
+-- LOOT_READY and LOOT_OPENED (both registered: whichever this client sends; one window counts once).
+function GC.ForeverLoot.OnLootReady()
+  local now = time()
+  local store = GC.ForeverLoot.Store(now)
+  if not store then return end
+  local spell = lastSpell and clock() - lastSpell.at <= C.SPELL_WINDOW and lastSpell.id or nil
+  local p = GC.Game and GC.Game.Passport and GC.Game.Passport() or {}
+  local ctx = { map = mapID(), level = playerLevel(), spell = spell, now = now, region = p.regionId, build = p.build }
+  GC.ForeverLoot.Ensure(store, ctx)
+  GC.ForeverLoot.Record(store, readWindow(), ctx, seenMarks)
+end
+
+-- Once per account, in Forever: what it counts and how to stop it (D14).
+function GC.ForeverLoot.MaybeIntro()
+  local p = prefs()
+  if not p or p.lootIntro then return false end
+  p.lootIntro = true
+  GC.Print(GC.L["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."])
+  return true
+end
+
+-- /gc loot [on | off]
+function GC.ForeverLoot.Slash(rest)
+  local p = prefs()
+  if not p then return end
+  local word = (type(rest) == "string" and rest or ""):lower()
+  if word == "off" then
+    p.lootOff = true
+  elseif word == "on" then
+    p.lootOff = nil
+  end
+  GC.Print(p.lootOff and GC.L["Loot counting is off."] or GC.L["Loot counting is on."])
+end
+
+-- For /gc forever (Core/ForeverCheck.lua): plain English, a diagnostic.
+function GC.ForeverLoot.Summary()
+  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return {} end
+  local p = prefs()
+  if p and p.lootOff then return { "loot recorder: off (/gc loot on)" } end
+  local root = GC.ForeverScan.Root()
+  local s = root and root.foreverLoot
+  if type(s) ~= "table" or type(s.rows) ~= "table" then return { "loot recorder: nothing recorded yet" } end
+  local lines = { ("loot recorder: generation %d, %d sources since %s, id %s"):format(s.gen or 0, s.n or 0,
+    tostring(s.since), tostring(s.id)) }
+  local key = next(s.rows)
+  if key then lines[2] = ("loot recorder sample: %s = %s"):format(key, s.rows[key]) end
+  return lines
+end

@@ -80,5 +80,19 @@ describe("plan 3e wiring", function()
     assert.truthy(scan:find("GC.ForeverUpgradesUI.RefreshIfShown()", 1, true))
   end)
 
-  -- Later task (12) appends its `it(...)` block here, inside this describe.
+  it("registers the loot and spell events only inside the Forever gate", function()
+    assertGatedEvent(init, 'frame:RegisterEvent("LOOT_READY")')
+    assertGatedEvent(init, 'frame:RegisterEvent("LOOT_OPENED")')
+    assertGatedEvent(init, 'frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")')
+  end)
+
+  it("routes loot, the player's spells and the first world entry to the recorder, and /gc loot only in Forever", function()
+    assert.truthy(init:find('event == "LOOT_READY" or event == "LOOT_OPENED"', 1, true))
+    assert.truthy(init:find("GC.ForeverLoot.OnLootReady()", 1, true))
+    assert.truthy(init:find("GC.ForeverLoot.OnSpellSucceeded(spellID)", 1, true))
+    assert.truthy(init:find("GC.ForeverLoot.MaybeIntro()", 1, true))
+    assert.truthy(foreverSlashBlock(init):find(
+      "GC.slashHandlers.loot = function(rest) GC.ForeverLoot.Slash(rest) end", 1, true))
+    assert.equal(1, select(2, init:gsub("slashHandlers%.loot =", "")))
+  end)
 end)

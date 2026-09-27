@@ -150,10 +150,14 @@ GC.Locales.ukUA = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "За вашим скануванням %s тому. Враховує лише %s. Змінити: /gc weights.",
   ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap тепер рахує, що випадає зі здобичі, без імен, для шансів випадіння на goldcap.gg. Companion почне це передавати, коли ця частина вийде. Введіть /gc loot off, щоб вимкнути.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
+  ["Loot counting is off."] = "Підрахунок здобичі вимкнено.",
+  ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

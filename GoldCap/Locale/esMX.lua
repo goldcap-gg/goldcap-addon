@@ -152,10 +152,14 @@ GC.Locales.esMX = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "De tu escaneo de hace %s. Solo cuenta %s. Cámbialo con /gc weights.",
   ["Gear upgrades on the auction house"] = "Mejoras de equipo en la casa de subastas",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap ahora cuenta lo que sueltan las criaturas que despojas, sin nombres, para las probabilidades de botín en goldcap.gg. El Companion lo compartirá cuando esa parte salga. Escribe /gc loot off para detenerlo.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Objetos de tus bolsas que valen más en la casa de subastas que en un vendedor: %d (%s más).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objetos que aún se cargan: %d. Vuelve a abrir esto en un momento.",
+  ["Loot counting is off."] = "El recuento de botín está desactivado.",
+  ["Loot counting is on."] = "El recuento de botín está activado.",
   ["Mount cost cleared."] = "Costo de la montura borrado.",
   ["Mount cost set to %s."] = "Costo de la montura fijado en %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

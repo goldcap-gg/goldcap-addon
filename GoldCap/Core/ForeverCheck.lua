@@ -129,6 +129,9 @@ function GC.ForeverCheck.Report(env)
   if GC.ForeverScan and GC.ForeverScan.Summary then
     for _, line in ipairs(GC.ForeverScan.Summary(env.now and env.now() or time())) do lines[#lines + 1] = line end
   end
+  if GC.ForeverLoot and GC.ForeverLoot.Summary then
+    for _, line in ipairs(GC.ForeverLoot.Summary()) do lines[#lines + 1] = line end
+  end
   local crowd = GC.Data and GC.Data.ForeverPayload and GC.Data.ForeverPayload() or nil
   local sharing = GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() and "on" or "off"
   lines[#lines + 1] = crowd

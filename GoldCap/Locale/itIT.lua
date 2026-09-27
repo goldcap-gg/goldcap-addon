@@ -149,10 +149,14 @@ GC.Locales.itIT = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "Dalla tua scansione di %s fa. Conta solo %s. Cambia con /gc weights.",
   ["Gear upgrades on the auction house"] = "Miglioramenti di equipaggiamento alla casa d'aste",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap ora conta cosa rilasciano le creature che saccheggi, senza nomi, per le probabilità di bottino su goldcap.gg. Il Companion lo condividerà quando quella parte uscirà. Scrivi /gc loot off per fermarlo.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Oggetti nelle borse che valgono di più alla casa d'aste che da un mercante: %d (%s in più).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Oggetti ancora in caricamento: %d. Riapri tra un momento.",
+  ["Loot counting is off."] = "Il conteggio del bottino è disattivato.",
+  ["Loot counting is on."] = "Il conteggio del bottino è attivo.",
   ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
   ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

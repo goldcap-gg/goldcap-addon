@@ -145,9 +145,13 @@ GC.Locales.zhTW = {
   ["Could not read that amount. Type it like 12g 50s."] = "無法辨識這個金額。請這樣輸入：12g 50s。",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "來自你 %s 前的掃描。只計算 %s。用 /gc weights 修改。",
   ["Gear upgrades on the auction house"] = "拍賣場上的裝備升級",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap 現在會統計你拾取的掉落（不含任何名字），用於 goldcap.gg 的掉落率。該部分發布後由 Companion 分享。輸入 /gc loot off 可停止。",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍賣場比賣給商人更值錢的物品：%d 件（多 %s）。",
   ["Items still loading: %d. Open this again in a moment."] = "仍在載入的物品：%d 件。請稍後再打開。",
+  ["Loot counting is off."] = "掉落統計已關閉。",
+  ["Loot counting is on."] = "掉落統計已開啟。",
   ["Mount cost cleared."] = "坐騎費用已清除。",
   ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =

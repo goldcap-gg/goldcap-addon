@@ -148,10 +148,14 @@ GC.Locales.deDE = {
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "Aus deinem Scan vor %s. Zählt nur %s. Ändern mit /gc weights.",
   ["Gear upgrades on the auction house"] = "Ausrüstungs-Upgrades im Auktionshaus",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap zählt jetzt, was bei deiner Beute fällt, ohne Namen, für Dropraten auf goldcap.gg. Der Companion teilt es, sobald dieser Teil erscheint. Tippe /gc loot off, um es zu beenden.",
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "Gegenstände in deinen Taschen, die im Auktionshaus mehr bringen als beim Händler: %d (%s mehr).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Gegenstände, die noch laden: %d. Öffne dies gleich noch einmal.",
+  ["Loot counting is off."] = "Beutezählung ist aus.",
+  ["Loot counting is on."] = "Beutezählung ist an.",
   ["Mount cost cleared."] = "Reitkosten gelöscht.",
   ["Mount cost set to %s."] = "Reitkosten auf %s gesetzt.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
