@@ -71,6 +71,8 @@ GC.Locales.itIT = {
     "Oltre questo aumento in 24 ore il valore di mercato è considerato un'impennata e viene ridotto.",
   ["Above your price -- quoted %s, your price %s"] = "Sopra il tuo prezzo -- quotato %s, il tuo prezzo %s",
   ["Asks for a second click to confirm."] = "Chiede un secondo clic per confermare.",
+  ["At your pace you reach it at level %d."] = "Al tuo ritmo ci arrivi al livello %d.",
+  ["At your pace you will be %s short at level 40."] = "Al tuo ritmo ti mancheranno %s al livello 40.",
   ["At your price"] = "Al tuo prezzo",
   ["Auction House did not answer — press Refresh"] =
     "La casa d'aste non ha risposto — premi Refresh",
@@ -83,6 +85,8 @@ GC.Locales.itIT = {
   ["BRAKES"] = "FRENI",
   ["BUY — unverified"] = "COMPRA — non verificato",
   ["Background check"] = "Controllo in background",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "Blizzard non ha ancora pubblicato il costo della cavalcatura. Scrivi /gc mount e il costo che prevedi.",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Il pareggio è il prezzo più basso che copre ancora il tuo costo dopo la commissione. Sotto quello ci rimetti.",
   ["Bundled %s data"] = "Dati %s inclusi",
@@ -141,6 +145,16 @@ GC.Locales.itIT = {
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Costa più di quanto consenta il tuo limite per acquisto.",
+  ["Could not read that amount. Type it like 12g 50s."] = "Importo non leggibile. Scrivilo così: 12g 50s.",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "Oggetti nelle borse che valgono di più alla casa d'aste che da un mercante: %d (%s in più).",
+  ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
+  ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
+  ["Play a little longer for an estimate of your pace."] = "Gioca ancora un po' per una stima del tuo ritmo.",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
+    "Verso il livello 40 con GoldCap: %s su %s per la mia cavalcatura (%d%%).",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "Verso il livello 40: %s su %s (oro %s, borse %s).",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "Verso il livello 40: hai %s (oro %s, borse %s).",
   ["This lot holds more units than your Max units per buy."] =
     "Questo lotto ha più unità del tuo «Max. unità per acquisto».",
   ["Could not find the queue's next item to post — try again"] =
@@ -530,11 +544,14 @@ GC.Locales.itIT = {
   ["Worst case back"] = "Rientro nel caso peggiore",
   ["YOUR LOTS"] = "I TUOI LOTTI",
   ["YOUR PRICE"] = "IL TUO PREZZO",
+  ["You can pay for it now."] = "Puoi già pagarla.",
   ["You paid"] = "Hai pagato",
   ["You pay"] = "Paghi",
   ["You would get"] = "Riceveresti",
   ["You would pay"] = "Pagheresti",
   ["Your call"] = "Decidi tu",
+  ["Your gold has not grown lately, so there is no pace to estimate."] =
+    "Il tuo oro non è cresciuto di recente, quindi non c'è un ritmo da stimare.",
   ["Your minimum"] = "Il tuo minimo",
   ["Your price"] = "Il tuo prezzo",
   ["a unit, at or under your price of %s"] = "a unità, al tuo prezzo di %s o meno",

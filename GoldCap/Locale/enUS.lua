@@ -92,6 +92,8 @@ GC.Locales.enUS = {
   ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
   ["Alerts"] = "Alerts",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
+  ["At your pace you reach it at level %d."] = "At your pace you reach it at level %d.",
+  ["At your pace you will be %s short at level 40."] = "At your pace you will be %s short at level 40.",
   ["At your price"] = "At your price",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
   ["Auction House is not open"] = "Auction House is not open",
@@ -105,6 +107,8 @@ GC.Locales.enUS = {
   ["BUY %d"] = "BUY %d",
   ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
   ["Bundled %s data"] = "Bundled %s data",
@@ -122,15 +126,20 @@ GC.Locales.enUS = {
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
   ["Cancel lot"] = "Cancel lot",
+  ["Could not read that amount. Type it like 12g 50s."] = "Could not read that amount. Type it like 12g 50s.",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
   ["GOLDCAP"] = "GOLDCAP",
   ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: checked live -- a deal, but you need %s on this character",
   ["HOLDING %d"] = "HOLDING %d",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
   ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
+  ["Mount cost cleared."] = "Mount cost cleared.",
+  ["Mount cost set to %s."] = "Mount cost set to %s.",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Needs gold"] = "Needs gold",
   ["No answer yet -- listening for a minute"] = "No answer yet -- listening for a minute",
@@ -149,6 +158,11 @@ GC.Locales.enUS = {
     "Paused while the mailbox is open. Close it and Auto carries on.",
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
+  ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
+    "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "Road to 40: %s of %s (gold %s, bags %s).",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "Road to 40: you have %s (gold %s, bags %s).",
   ["Runs"] = "Runs",
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
@@ -163,6 +177,9 @@ GC.Locales.enUS = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
   ["YOUR LOTS"] = "YOUR LOTS",
+  ["You can pay for it now."] = "You can pay for it now.",
+  ["Your gold has not grown lately, so there is no pace to estimate."] =
+    "Your gold has not grown lately, so there is no pace to estimate.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "above the cheapest, inside the cheap quarter · %s units ahead of you",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =

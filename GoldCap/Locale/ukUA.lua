@@ -74,6 +74,8 @@ GC.Locales.ukUA = {
     "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
   ["Above your price -- quoted %s, your price %s"] = "Вище за вашу ціну -- котирування %s, ваша ціна %s",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
+  ["At your pace you reach it at level %d."] = "У вашому темпі ви назбираєте до %d рівня.",
+  ["At your pace you will be %s short at level 40."] = "У вашому темпі на 40 рівні бракуватиме %s.",
   ["At your price"] = "За вашою ціною",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",
@@ -85,6 +87,8 @@ GC.Locales.ukUA = {
   ["BRAKES"] = "ГАЛЬМА",
   ["BUY — unverified"] = "КУПИТИ — без перевірки",
   ["Background check"] = "Фонова перевірка",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "Blizzard ще не оприлюднила ціну верхової їзди. Введіть /gc mount і очікувану ціну.",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Точка беззбитковості — найнижча ціна, яка після комісії ще повертає вашу собівартість. Нижче — збиток.",
   ["Bundled %s data"] = "Вбудовані дані %s",
@@ -142,6 +146,16 @@ GC.Locales.ukUA = {
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Коштує більше, ніж дозволяє ваш ліміт на одну купівлю.",
+  ["Could not read that amount. Type it like 12g 50s."] = "Не вдалося прочитати суму. Введіть так: 12g 50s.",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
+  ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
+  ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
+  ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
+    "Шлях до 40 рівня з GoldCap: %s з %s на скакуна (%d%%).",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "Шлях до 40 рівня: у вас %s (золото %s, сумки %s).",
   ["This lot holds more units than your Max units per buy."] =
     "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
   ["Could not find the queue's next item to post — try again"] =
@@ -544,11 +558,14 @@ GC.Locales.ukUA = {
   ["YOU GET"] = "ОТРИМАЄШ",
   ["YOUR LOTS"] = "ВАШІ ЛОТИ",
   ["YOUR PRICE"] = "ВАША ЦІНА",
+  ["You can pay for it now."] = "Ви вже можете заплатити.",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
   ["Your call"] = "Вирішувати вам",
+  ["Your gold has not grown lately, so there is no pace to estimate."] =
+    "Ваше золото останнім часом не зростає, тож темп оцінити не можна.",
   ["Your minimum"] = "Твій мінімум",
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",

@@ -73,6 +73,8 @@ GC.Locales.koKR = {
     "24시간 동안 이 상승폭을 넘으면 시세를 급등으로 간주해 낮춰서 반영합니다.",
   ["Above your price -- quoted %s, your price %s"] = "설정 가격 초과 -- 견적 %s, 내 가격 %s",
   ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
+  ["At your pace you reach it at level %d."] = "지금 속도라면 %d레벨에 모읍니다.",
+  ["At your pace you will be %s short at level 40."] = "지금 속도라면 40레벨에 %s 부족합니다.",
   ["At your price"] = "내 가격 도달",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
@@ -84,6 +86,8 @@ GC.Locales.koKR = {
   ["BRAKES"] = "브레이크",
   ["BUY — unverified"] = "구매 — 미검증",
   ["Background check"] = "백그라운드 확인",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "블리자드가 아직 탈것 비용을 발표하지 않았습니다. /gc mount 뒤에 예상 비용을 입력하세요.",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "손익분기점은 수수료를 내고도 매입가를 회수하는 최저 가격입니다. 그 아래로 팔면 손해입니다.",
   ["Bundled %s data"] = "내장된 %s 데이터",
@@ -138,6 +142,15 @@ GC.Locales.koKR = {
   ["Cost per unit"] = "개당 매입가",
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
   ["Costs more than your per-buy wallet limit allows."] = "1회 구매 한도보다 비쌉니다.",
+  ["Could not read that amount. Type it like 12g 50s."] = "금액을 읽을 수 없습니다. 12g 50s처럼 입력하세요.",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
+  ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
+  ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
+  ["Play a little longer for an estimate of your pace."] = "속도를 추정하려면 조금 더 플레이하세요.",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "GoldCap과 함께 40레벨까지: 내 탈것 %s / %s (%d%%).",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "40레벨까지: %s / %s (골드 %s, 가방 %s).",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "40레벨까지: 보유 %s (골드 %s, 가방 %s).",
   ["This lot holds more units than your Max units per buy."] =
     "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
   ["Could not find the queue's next item to post — try again"] =
@@ -498,11 +511,13 @@ GC.Locales.koKR = {
   ["Worst case back"] = "최악의 경우 회수",
   ["YOUR LOTS"] = "내 물량",
   ["YOUR PRICE"] = "내 가격",
+  ["You can pay for it now."] = "지금 바로 낼 수 있습니다.",
   ["You paid"] = "구매가",
   ["You pay"] = "지불 금액",
   ["You would get"] = "받게 될 금액",
   ["You would pay"] = "지불할 금액",
   ["Your call"] = "당신의 판단",
+  ["Your gold has not grown lately, so there is no pace to estimate."] = "최근 골드가 늘지 않아 속도를 추정할 수 없습니다.",
   ["Your minimum"] = "내 최소 기준",
   ["Your price"] = "내 가격",
   ["a unit, at or under your price of %s"] = "개당 가격, 내 가격 %s 이하",

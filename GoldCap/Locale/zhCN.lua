@@ -74,6 +74,8 @@ GC.Locales.zhCN = {
     "24 小时涨幅超过这个数值时，市场价会被视为暴涨并被压低。",
   ["Above your price -- quoted %s, your price %s"] = "高于你的价格 -- 报价 %s，你的价格 %s",
   ["Asks for a second click to confirm."] = "需要再点一次确认。",
+  ["At your pace you reach it at level %d."] = "按你的速度，你会在 %d 级攒够。",
+  ["At your pace you will be %s short at level 40."] = "按你的速度，到 40 级时还差 %s。",
   ["At your price"] = "达到你的价格",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",
@@ -85,6 +87,8 @@ GC.Locales.zhCN = {
   ["BRAKES"] = "刹车",
   ["BUY — unverified"] = "买入 — 未验证",
   ["Background check"] = "后台检查",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "暴雪尚未公布骑术费用。输入 /gc mount 加上你预计的费用。",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "保本价是扣掉拍卖行抽成后仍能收回成本的最低价。低于它就是亏钱。",
   ["Bundled %s data"] = "内置 %s 数据",
@@ -137,6 +141,15 @@ GC.Locales.zhCN = {
   ["Cost per unit"] = "每件成本",
   ["Cost unknown for %d of %d"] = "成本未知：%d 笔 / 共 %d 笔",
   ["Costs more than your per-buy wallet limit allows."] = "花费超过你设定的单次购买上限。",
+  ["Could not read that amount. Type it like 12g 50s."] = "无法识别这个金额。请这样输入：12g 50s。",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "背包中在拍卖行比卖给商人更值钱的物品：%d 件（多 %s）。",
+  ["Mount cost cleared."] = "坐骑费用已清除。",
+  ["Mount cost set to %s."] = "坐骑费用已设为 %s。",
+  ["Play a little longer for an estimate of your pace."] = "再玩一会儿，才能估算你的速度。",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 走向 40 级：我的坐骑 %s / %s（%d%%）。",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "40级之路：%s / %s（金币 %s，背包 %s）。",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "40级之路：你有 %s（金币 %s，背包 %s）。",
   ["This lot holds more units than your Max units per buy."] =
     "此拍卖的数量超过了你的“单次购买最大数量”。",
   ["Could not find the queue's next item to post — try again"] =
@@ -485,11 +498,13 @@ GC.Locales.zhCN = {
   ["Worst case back"] = "最坏情况回款",
   ["YOUR LOTS"] = "你的上架",
   ["YOUR PRICE"] = "你的价格",
+  ["You can pay for it now."] = "你现在就付得起。",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
   ["You would get"] = "你会拿回",
   ["You would pay"] = "你会支付",
   ["Your call"] = "由你决定",
+  ["Your gold has not grown lately, so there is no pace to estimate."] = "你的金币最近没有增长，所以无法估算速度。",
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的价格",
   ["a unit, at or under your price of %s"] = "单价，不高于你的价格 %s",
