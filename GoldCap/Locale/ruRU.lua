@@ -904,4 +904,8 @@ GC.Locales.ruRU = {
     "Пока ваши сканирования остаются на этом компьютере; их передача через GoldCap Companion скоро появится.",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Ниже этой цены выставлены только стопки. Пока GoldCap покупает этот предмет только по одному.",
+  ["%ds"] = "%d с",
+  ["%dm"] = "%d мин",
+  ["%dh"] = "%d ч",
+  ["%dd"] = "%d дн.",
 }

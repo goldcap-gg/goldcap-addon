@@ -204,6 +204,7 @@ describe("locale layer", function()
       "last live price %s ago",
       "Press Buy again to buy this quantity",
       "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
+      "%ds", "%dm", "%dh", "%dd",
     }
     for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
         "ukUA", "zhCN", "zhTW" }) do

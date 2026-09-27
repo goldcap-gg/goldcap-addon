@@ -910,4 +910,8 @@ GC.Locales.frFR = {
     "Pour l'instant, vos scans restent sur cet ordinateur ; les partager via le GoldCap Companion arrive bientôt.",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Seules des piles sont en vente sous ce prix. Pour l'instant, GoldCap achète cet objet à l'unité.",
+  ["%ds"] = "%d s",
+  ["%dm"] = "%d min",
+  ["%dh"] = "%d h",
+  ["%dd"] = "%d j",
 }

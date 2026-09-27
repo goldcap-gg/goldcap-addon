@@ -912,4 +912,8 @@ GC.Locales.esES = {
     "Por ahora tus escaneos se quedan en este ordenador; compartirlos a través del GoldCap Companion llegará pronto.",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Por debajo de este precio solo hay pilas. Por ahora GoldCap compra este objeto de uno en uno.",
+  ["%ds"] = "%d s",
+  ["%dm"] = "%d min",
+  ["%dh"] = "%d h",
+  ["%dd"] = "%d d",
 }

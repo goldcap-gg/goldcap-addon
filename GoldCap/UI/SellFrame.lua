@@ -4918,7 +4918,8 @@ function INSP.paintHead(row, p, d)
     if d.marketState == "stale" and type(d.quoteAge) == "number" then
       -- The age of the last LIVE quote for this item, not of the prices behind the tab: right
       -- after a full scan a red "stale" read as an error (WoW: Forever, 2026-09-26).
-      quote = (GC.L["last live price %s ago"]):format(GC.Util.FormatElapsed(d.quoteAge) or "0s")
+      quote = (GC.L["last live price %s ago"]):format(GC.Util.FormatElapsedWords(d.quoteAge)
+        or GC.Util.FormatElapsedWords(0))
     else
       quote = d.marketState == "fresh" and GC.L["fresh"] or GC.L["unavailable"]
       if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end

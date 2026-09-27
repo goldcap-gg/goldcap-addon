@@ -462,6 +462,14 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
   end)
 
+  -- Final review m10: the scan's age reads in the tooltip's language, units included.
+  it("says how old the scan is in the player's language", function()
+    local korean = { ["your scan, %s ago"] = "내 검색, %s 전", ["%dm"] = "%d분" }
+    GC.L = setmetatable({}, { __index = function(_, key) return korean[key] or key end })
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
+    assert.truthy(find(lines, function(l) return l.right == "내 검색, 12분 전" end))
+  end)
+
   it("shows one listed count: the live one when the auction house is open", function()
     local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 100, depositUnit = 50 },
       live = { floor = 15, qty = 2313, age = 60 } })

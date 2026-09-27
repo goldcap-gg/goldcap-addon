@@ -1338,6 +1338,26 @@ describe("Sell widget geometry and manual cost", function()
       assert.same({ .5, .5, .5, 1 }, drawer.drawerQuote.color)
     end)
 
+    -- Final review m10: the age inside that line is the panel's language too, not "3m".
+    it("says how old the last live price is in the panel's language, units included", function()
+      local GC = load(620, { calls = {} })
+      local german = { ["last live price %s ago"] = "letzter Live-Preis vor %s", ["%dm"] = "%d Min." }
+      GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
+      GC.SellViewModel.Expansion = function(position)
+        return { note = "FIFO allocations", batches = {}, ownedLots = {},
+          displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+          marketState = position.marketState, marketFresh = position.marketFresh,
+          marketStale = position.marketStale }
+      end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
+        marketState = "stale", marketFresh = false, marketStale = true, status = "UNLISTED" } }), "drawer")
+      assert.equal("letzter Live-Preis vor 3 Min.", drawer.drawerQuote.text)
+    end)
+
     it("says the empty foot in the panel's language", function()
       local GC = load(620, { calls = {} })
       local german = { ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",

@@ -830,4 +830,8 @@ GC.Locales.zhCN = {
     "目前你的扫描结果只保存在这台电脑上；通过 GoldCap Companion 分享的功能即将推出。",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "低于此价格的只有成组出售的拍卖。目前 GoldCap 只会逐个购买此物品。",
+  ["%ds"] = "%d秒",
+  ["%dm"] = "%d分钟",
+  ["%dh"] = "%d小时",
+  ["%dd"] = "%d天",
 }

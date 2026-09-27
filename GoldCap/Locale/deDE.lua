@@ -909,4 +909,8 @@ GC.Locales.deDE = {
     "Deine Scans bleiben vorerst auf diesem Computer; das Teilen über den GoldCap Companion kommt bald.",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Unter diesem Preis sind nur Stapel gelistet. Vorerst kauft GoldCap diesen Gegenstand nur einzeln.",
+  ["%ds"] = "%d Sek.",
+  ["%dm"] = "%d Min.",
+  ["%dh"] = "%d Std.",
+  ["%dd"] = "%d T.",
 }

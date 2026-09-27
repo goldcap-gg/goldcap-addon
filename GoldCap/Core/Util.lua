@@ -131,13 +131,33 @@ end
 --
 -- Floors at every step: a freshness figure that rounds UP claims the data is older than it
 -- is, which is harmless, while rounding down would claim it is fresher, which is not.
-function GC.Util.FormatElapsed(seconds)
+local function elapsed(seconds)
   if type(seconds) ~= "number" or seconds ~= seconds
       or seconds == math.huge or seconds == -math.huge or seconds < 0 then return nil end
-  if seconds < 60 then return math.floor(seconds) .. "s" end
-  if seconds < 3600 then return math.floor(seconds / 60) .. "m" end
-  if seconds < 48 * 3600 then return math.floor(seconds / 3600) .. "h" end
-  return math.floor(seconds / 86400) .. "d"
+  if seconds < 60 then return math.floor(seconds), "s" end
+  if seconds < 3600 then return math.floor(seconds / 60), "m" end
+  if seconds < 48 * 3600 then return math.floor(seconds / 3600), "h" end
+  return math.floor(seconds / 86400), "d"
+end
+
+function GC.Util.FormatElapsed(seconds)
+  local n, unit = elapsed(seconds)
+  return n and n .. unit or nil
+end
+
+-- The unit letters of FormatElapsed, as the player's language writes them.
+-- @localised-keys: literals in this table ARE GC.L keys, looked up in FormatElapsedWords.
+local ELAPSED_UNIT = {
+  s = "%ds", m = "%dm", h = "%dh", d = "%dd",
+}
+
+-- FormatElapsed's figure for a translated sentence ("last live price %s ago"): "3m" there is
+-- English in eleven languages (final review m10, plan 3c). English reads exactly the same.
+function GC.Util.FormatElapsedWords(seconds)
+  local n, unit = elapsed(seconds)
+  if not n then return nil end
+  local key = ELAPSED_UNIT[unit]
+  return ((GC.L and GC.L[key]) or key):format(n)
 end
 
 -- A count, in the width a panel cell actually has. Small numbers stay exact because they

@@ -173,7 +173,8 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- The player's own scan always says so, and how old it is: it is one look at one auction
     -- house, not a market measurement.
     lines[#lines + 1] = { kind = "text", left = GC.L["Source"],
-      right = (GC.L["your scan, %s ago"]):format(GC.Util.FormatElapsed(age) or "0s") }
+      right = (GC.L["your scan, %s ago"]):format(GC.Util.FormatElapsedWords(age)
+        or GC.Util.FormatElapsedWords(0)) }
   elseif age >= STALE_YELLOW_SECONDS then
     lines[#lines + 1] = { kind = "text", left = GC.L["GoldCap data age"], right = GC.Util.FormatAge(age) }
   end

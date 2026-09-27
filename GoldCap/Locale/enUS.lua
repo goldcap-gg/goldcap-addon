@@ -969,4 +969,9 @@ GC.Locales.enUS = {
   -- EvaluateCeilingLot (final review I4): a Forever row buys single lots until a stack's price is confirmed.
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
+  -- GC.Util.FormatElapsedWords (final review m10): how long ago, inside a translated sentence.
+  ["%ds"] = "%ds",
+  ["%dm"] = "%dm",
+  ["%dh"] = "%dh",
+  ["%dd"] = "%dd",
 }

@@ -923,4 +923,8 @@ GC.Locales.ukUA = {
     "Поки що ваші скани залишаються на цьому комп'ютері; їх передача через GoldCap Companion скоро з'явиться.",
   ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
     "Нижче цієї ціни виставлено лише стоси. Поки що GoldCap купує цей предмет лише по одному.",
+  ["%ds"] = "%d с",
+  ["%dm"] = "%d хв",
+  ["%dh"] = "%d год",
+  ["%dd"] = "%d дн.",
 }
