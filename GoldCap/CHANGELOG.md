@@ -38,6 +38,9 @@
   many players scanned it and how long ago. Your own scan still counts first
   when it is newer. After a scan, the chat says it will be shared on your next
   /reload when the Companion is set up to share it.
+- In WoW: Forever, the Sold tab opens with Road to 40: your gold plus what your bags would fetch, against the level-40 riding cost you set with `/gc mount` (Blizzard has not published it yet), and the level you reach it at your pace. `/gc mount share` puts a line about it in your chat box to send.
+- In WoW: Forever, `/gc upgrades` lists, for each equipment slot, the cheapest piece in your last auction house scan that beats what you wear and that your character can use. Pieces are compared by their own stats and stat weights you can see and change with `/gc weights`. After a scan, GoldCap says how many upgrades it found.
+- In WoW: Forever, GoldCap counts what drops from what you loot, per creature and zone, with no names, for drop rates on goldcap.gg once the Companion shares it. `/gc loot off` stops it.
 
 ## 0.15.3 (2026-09-27)
 

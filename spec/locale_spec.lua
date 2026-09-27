@@ -223,4 +223,47 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- Plan 3e (Road to 40, AH Upgrade Finder, loot recorder): every key it added, in every file.
+  it("carries the plan 3e keys in all twelve languages", function()
+    local keys = {
+      "ROAD TO 40",
+      "Road to 40: %s of %s (gold %s, bags %s).",
+      "Road to 40: you have %s (gold %s, bags %s).",
+      "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
+      "At your pace you reach it at level %d.",
+      "At your pace you will be %s short at level 40.",
+      "You can pay for it now.",
+      "Play a little longer for an estimate of your pace.",
+      "Your gold has not grown lately, so there is no pace to estimate.",
+      "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
+      "Mount cost set to %s.",
+      "Mount cost cleared.",
+      "Could not read that amount. Type it like 12g 50s.",
+      "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
+      "Gear upgrades on the auction house",
+      "From your scan %s ago. Counts only %s. Change with /gc weights.",
+      "No scan with gear in it yet. Open the auction house and let GoldCap scan it.",
+      "Nothing on the auction house beats what you wear at your level.",
+      "at level %d",
+      "Items still loading: %d. Open this again in a moment.",
+      "This client does not report item stats, so GoldCap cannot compare gear.",
+      "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
+      "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
+      "Stat weights: %s",
+      "Unknown stat %s. Use one of: %s",
+      "GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop.",
+      "Loot counting is on.",
+      "Loot counting is off.",
+    }
+    for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
+        "ukUA", "zhCN", "zhTW" }) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
 end)
