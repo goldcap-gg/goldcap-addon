@@ -22,7 +22,15 @@ local C = {
   COOLDOWN_SECONDS = 15 * 60 + 30, -- the account-wide throttle, plus slack for clock drift
   POLL_SECONDS = 0.5,
   WAIT_SECONDS = 8,                -- rows came by +2 s and were gone by +10 s
-  READ_BATCH = 2000,               -- rows per frame; 59k rows read in well under the dump's life
+  READ_BATCH = 2000,               -- rows per frame at most; 59k rows read in well under the dump's life
+  -- Owner, 2026-09-27: the game froze reading a ~72k-row dump while Auctionator read it too. Plan
+  -- 3e added a link read and parse to every gear row, which put a 2000-row frame at three times
+  -- its old Lua cost. A frame now stops at READ_BUDGET_MS of its own work (driver.clock, the
+  -- client's debugprofilestop), links included, and always reads at least READ_MIN_ROWS so a slow
+  -- frame still moves the read forward.
+  READ_BUDGET_MS = 8,
+  READ_MIN_ROWS = 100,
+  READ_CLOCK_EVERY = 50,           -- rows between clock reads
   SUSPECT_CAP = 1024,              -- a dump of exactly this many rows reads as a page, not the AH
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
 }
@@ -161,7 +169,10 @@ function GC.ForeverScan.New(driver)
     end
     if readIndex < total then
       local last = math.min(readIndex + C.READ_BATCH, total) - 1
-      for i = readIndex, last do
+      local clock = driver.clock
+      local started = clock and clock() or nil
+      local i = readIndex
+      while i <= last do
         local itemID, count, buyout, hasAll = driver.rowInfo(i)
         GC.ForeverFold.AddRow(acc, itemID, count, buyout, hasAll)
         -- Plan 3e: a gear row's link, for the Upgrade Finder (Core/ForeverGear.lua). Beside the
@@ -169,8 +180,14 @@ function GC.ForeverScan.New(driver)
         if acc.gear and isGearRow(itemID) then
           GC.ForeverGear.AddRow(acc.gear, itemID, count, buyout, driver.rowLink(i))
         end
+        i = i + 1
+        local done = i - readIndex
+        if started and done >= C.READ_MIN_ROWS and done % C.READ_CLOCK_EVERY == 0
+            and clock() - started >= C.READ_BUDGET_MS then
+          break
+        end
       end
-      readIndex = last + 1
+      readIndex = i
       driver.notify("progress", readIndex, total)
     end
     if readIndex < total then
@@ -371,6 +388,8 @@ local function realDriver()
   local ah = _G.C_AuctionHouse or {}
   return {
     now = function() return time() end,
+    -- Milliseconds, for the read's per-frame budget (C.READ_BUDGET_MS).
+    clock = type(_G.debugprofilestop) == "function" and _G.debugprofilestop or nil,
     after = function(s, fn) C_Timer.After(s, fn) end,
     replicate = function() return (pcall(ah.ReplicateItems)) end,
     numRows = function()

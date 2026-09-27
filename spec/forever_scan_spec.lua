@@ -102,6 +102,42 @@ describe("ForeverScan", function()
     assert.equal("wide", d.browse)               -- partial: the browse pass covers everything
   end)
 
+  it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
+    local ms = 0
+    local s = GC.ForeverScan.New(driver({
+      clock = function() return ms end,
+      rowInfo = function(i)
+        ms = ms + 0.004                          -- an ordinary row
+        local r = rows[i + 1]
+        if not r then return nil end
+        return r[1], r[2], r[3], r[4]
+      end,
+      isGearLot = function(itemID) return itemID % 2 == 0 end,
+      rowLink = function(i)
+        ms = ms + 0.02                           -- a gear row's link read and parse costs more
+        return ("item:%d::::::0:0"):format(rows[i + 1][1])
+      end,
+    }))
+    s:OnAuctionHouseShow()
+    rows = dump(5000)
+    s:OnReplicateUpdate()                        -- the first frame, inside the event
+    local first = noted("progress")[2]
+    assert.is_true(first < GC.ForeverScan.C.READ_BATCH)
+    assert.is_true(first >= GC.ForeverScan.C.READ_MIN_ROWS)
+    assert.is_true(ms <= GC.ForeverScan.C.READ_BUDGET_MS + 0.024 * GC.ForeverScan.C.READ_CLOCK_EVERY)
+    runAll()
+    assert.equal(5000, store.fold.rows)
+    assert.is_nil(store.fold.partial)
+  end)
+
+  it("keeps READ_BATCH rows a frame for a driver with no clock", function()
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    assert.equal(GC.ForeverScan.C.READ_BATCH, noted("progress")[2])
+  end)
+
   it("treats a dump of exactly SUSPECT_CAP rows as a page and browses wide", function()
     local s = GC.ForeverScan.New(driver())
     s:OnAuctionHouseShow()
