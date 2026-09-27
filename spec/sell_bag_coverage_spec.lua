@@ -336,6 +336,30 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.equal(50000, p.displayMarketUnit)
   end)
 
+  -- Player report, EU-Draenor (2026-09-26): Arcanoweave Reagent Rucksack, Blizzard's own browse
+  -- showing "1,800g  150", and THE BOOK reading "12g  150" -- 1800/150. An item search row is
+  -- identical auctions grouped, and buyoutAmount is what ONE of them costs: Blizzard's
+  -- AuctionHouseItemSellFrame puts it straight into its per-unit price box. Dividing it by the
+  -- row's quantity priced the bag at 12g, and MATCH matched that.
+  it("reads an item row's buyoutAmount as the price of one, however many the row groups", function()
+    kinds[240158] = false
+    stack(1, 240158, 3, BONUSED)
+    slotKeys["0:1"] = key(240158, 190)
+    results["240158:190:0:0"] = {
+      { buyoutAmount = 18000000, quantity = 150 },
+      { buyoutAmount = 18940000, quantity = 3 },
+    }
+    compose()
+    GC.Sell.Refresh(true)
+    GC.Sell.OnItemSearchResults(240158, key(240158, 190))
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local levels = quotes["item:240158:190:0:0"].levels
+    assert.equal(18000000, levels[1].unitPrice)
+    assert.equal(150, levels[1].quantity)
+    assert.equal(18940000, levels[2].unitPrice)
+    assert.equal(18000000, positionOf("item:240158:190:0:0").displayMarketUnit)
+  end)
+
   it("hands the searched ItemKey on with the item search results", function()
     local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
     local init = f:read("*a")

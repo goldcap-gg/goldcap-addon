@@ -681,6 +681,13 @@ GC.Flips.OVERCUT_ABSORB_HOURS = 6
 -- cheapest level -- the case the synthetic rung was removed for.
 GC.Flips.OVERCUT_WAIT_COST_PER_HOUR = 0.005
 
+--- A price weighed against the hours its queue takes to sell through: `queued` units in front
+-- of the post, selling at `sold` a day. Shared by the climb and by F5's queue-at-exit, so the
+-- two cannot disagree about what a wall costs.
+function GC.Flips.QueuedWorth(price, queued, sold)
+  return price * (1 - (queued / (sold / 24)) * GC.Flips.OVERCUT_WAIT_COST_PER_HOUR)
+end
+
 -- How far above the cheapest ask the cheap-quarter FALLBACK may reach on its own -- the band
 -- the study measured, and not a copper more. Unused for any item whose import carries a reach
 -- line; it exists so a build running against an older string still cannot repeat the 209g
@@ -715,10 +722,7 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
   -- A price weighed against the hours its queue takes to sell through (see
   -- OVERCUT_WAIT_COST_PER_HOUR). The cheapest ask, at no queue at all, is the score to beat.
-  local perHour = opts.sold / 24
-  local function worth(price, queued)
-    return price * (1 - (queued / perHour) * GC.Flips.OVERCUT_WAIT_COST_PER_HOUR)
-  end
+  local function worth(price, queued) return GC.Flips.QueuedWorth(price, queued, opts.sold) end
   local bestWorth = worth(marketUnit, 0)
 
   -- One ascending pass. `below` is the units queued STRICTLY below the level being looked at:
@@ -802,9 +806,13 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   -- flip was bought FROM -- locks in the 5% cut as a loss and contradicts the engine's own
   -- approval. When the units queued at or below a rung of the ladder fit inside
   -- `absorbHours` of the item's measured daily sales, that rung is reachable within the
-  -- window -- post AT the highest reachable rung, capped by the target. The queue includes
-  -- the rung's own stock (a new post joins that price's tail). Only positions with a target
-  -- get this: untracked bag stock keeps the plain match behaviour unchanged.
+  -- window, and so may be posted at, capped by the target. That budget counts the rung's own
+  -- stock -- the stricter reading, kept from before newest-first was measured. WHICH of those
+  -- rungs is posted at is weighed exactly as the climb weighs its own (GC.Flips.QueuedWorth,
+  -- hours counted from the units STRICTLY below the rung), against the candidate this would
+  -- raise: "the highest that fits" stood behind any wall two hours could swallow, for one
+  -- silver more than the head of that wall. Only positions with a target get this: untracked
+  -- bag stock keeps the plain match behaviour unchanged.
   if opts.targetUnit and opts.levels and opts.sold and opts.sold > 0 then
     local hours = opts.absorbHours == nil and 2 or opts.absorbHours
     -- Spike deflation, same rule and threshold as the buy side (see SniperDecision's
@@ -825,14 +833,25 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     if hours > 0 and ceiling and ceiling > candidate then
       local budget = opts.sold * hours / 24
       local best
+      local bestWorth = GC.Flips.QueuedWorth(candidate, GC.Flips.DepthBelow(opts.levels, candidate) or 0, opts.sold)
+      -- `below` is `queued` as it stood when the price last changed: the units strictly below
+      -- the rung, with entries sharing a price treated as the one rung they are.
       local queued, overBudget, sawAboveCeiling = 0, false, false
+      local below, lastPrice = 0, nil
       for _, lvl in ipairs(opts.levels) do
         local qty = lvl.quantity or 0
         if qty > 0 then
           if lvl.unitPrice > ceiling then sawAboveCeiling = true; break end
+          if lvl.unitPrice ~= lastPrice then below, lastPrice = queued, lvl.unitPrice end
           queued = queued + qty
           if queued > budget then overBudget = true; break end
-          if lvl.unitPrice > candidate then best = lvl.unitPrice end
+          -- A later rung has to beat the best so far outright, so a tie goes to the shorter
+          -- queue -- same rule as the climb.
+          local normalized = GC.Flips.SilverDown(lvl.unitPrice)
+          if normalized and normalized > candidate
+              and GC.Flips.QueuedWorth(normalized, below, opts.sold) > bestWorth then
+            best, bestWorth = normalized, GC.Flips.QueuedWorth(normalized, below, opts.sold)
+          end
         end
       end
       -- The ceiling itself is a candidate ONLY when a stocked ask ABOVE it was seen: levels
@@ -841,8 +860,12 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
       -- ceiling -- jumping past the end of a truncated book is how a post lands above a
       -- queue nobody measured. With a visible ask above, everything below was visible and
       -- counted, and the jump is proven.
-      if not overBudget and sawAboveCeiling then best = ceiling end
-      best = best and GC.Flips.SilverDown(best)
+      -- Proven is not the same as worth it: the ceiling is weighed like any other rung, with
+      -- everything counted under it in front.
+      if not overBudget and sawAboveCeiling
+          and GC.Flips.QueuedWorth(ceiling, queued, opts.sold) > bestWorth then
+        best = ceiling
+      end
       if best and best > candidate then
         mode, candidate = "queue", best
       end

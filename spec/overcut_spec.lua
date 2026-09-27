@@ -305,6 +305,63 @@ describe("RecommendPost, the climb (v2)", function()
     end)
   end)
 
+  -- F5 had the climb's old weakness: of the rungs inside its two-hour budget it took the
+  -- HIGHEST, so a flip's post stepped over any wall the budget could swallow -- an hour and a
+  -- half of queue for one silver more than the head of that wall. It weighs its rungs the way
+  -- the climb does now: price x (1 - hours queued x OVERCUT_WAIT_COST_PER_HOUR), the hours
+  -- counted from the units STRICTLY below the rung, against the price it would raise.
+  describe("the queue a flip's exit is worth", function()
+    -- The Bloom again, 386,749 a day: two hours of it is 32,229 units. The 20k wall at 1g91s
+    -- fits, the 1g92s rung behind it fits, the 1g93s one does not.
+    local function bloomWith(overTheWall)
+      return {
+        level(18800, 338), level(18900, 1000), level(19000, 8600), level(19100, 20000),
+        level(overTheWall, 500), level(overTheWall + 100, 5000), level(20400, 5000),
+      }
+    end
+
+    it("joins the head of a wall instead of stepping over it for a silver", function()
+      local r = GC.Flips.RecommendPost(nil, 18800, nil,
+        { levels = bloomWith(19200), sold = 386749, targetUnit = 20300 })
+      assert.equal("queue", r.mode)
+      assert.equal(19100, r.unit)
+    end)
+
+    it("still steps over the same wall when the step is worth the wait", function()
+      local r = GC.Flips.RecommendPost(nil, 18800, nil,
+        { levels = bloomWith(20000), sold = 386749, targetUnit = 20300 })
+      assert.equal("queue", r.mode)
+      assert.equal(20000, r.unit)
+    end)
+
+    it("does not raise a climb that already stands at the head of the wall", function()
+      -- Reach stops at the 1g92s rung, so the climb has weighed it already and taken 1g91s.
+      local r = GC.Flips.RecommendPost(nil, 18800, nil,
+        { levels = bloomWith(19200), sold = 386749, reachUnit = 19250, targetUnit = 20300 })
+      assert.equal("overcut", r.mode)
+      assert.equal(19100, r.unit)
+      assert.equal(338 + 1000 + 8600, r.ahead)
+    end)
+
+    it("keeps the match when the only rung in budget sits a silver over a deep cheapest level", function()
+      local deep = { level(18800, 20000), level(18900, 500), level(19000, 20000), level(20400, 5000) }
+      local r = GC.Flips.RecommendPost(nil, 18800, nil,
+        { levels = deep, sold = 386749, targetUnit = 20300 })
+      assert.equal("match", r.mode)
+      assert.equal(18800, r.unit)
+    end)
+
+    it("weighs the jump to the exit itself against the rungs under it", function()
+      -- The whole book under the exit fits the budget and a stocked level shows above it, so
+      -- the exit is proven -- but it stands a silver over a 25k wall.
+      local walled = { level(18800, 338), level(19100, 25000), level(20400, 5000) }
+      local r = GC.Flips.RecommendPost(nil, 18800, nil,
+        { levels = walled, sold = 386749, targetUnit = 19200 })
+      assert.equal("queue", r.mode)
+      assert.equal(19100, r.unit)
+    end)
+  end)
+
   it("forwards both ceilings through RepostAdvice", function()
     local seen
     local real = GC.Flips.RecommendPost

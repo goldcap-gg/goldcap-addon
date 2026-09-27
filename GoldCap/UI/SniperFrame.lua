@@ -1900,35 +1900,33 @@ function GC.Sniper._PaintGoldLine(list)
   -- is guarded: the specs that build this window stub only what their own paths call.
   local wallet = type(GetMoney) == "function" and GetMoney() or nil
   if not wallet then line:Hide() return end
-  local short = wallet <= 0
-  if not short then
-    local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
-    local items = GC.Sniper._Board() == "items"
-    local candidates, buyable = 0, false
-    for i = 1, #list do
-      local deal = list[i]
-      if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
-        candidates = candidates + 1
-        -- A WoW: Forever row is held to the Forever limits its own buy keeps to
-        -- (GC.ForeverDeals.BuyLimits: half the wallet for "Below vendor" at the default share).
-        local rowLimits = limits
-        if deal.forever and GC.ForeverDeals and GC.ForeverDeals.BuyLimits then
-          rowLimits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, wallet, deal.forever)
-        end
-        local fits
-        if items then
-          local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
-          fits = total <= wallet and (not (deal.cap or deal.forever)
-            or (rowLimits ~= nil and total <= rowLimits.budget))
-        else
-          fits = rowLimits ~= nil and deal.unitPrice <= rowLimits.budget
-        end
-        if fits then buyable = true; break end
+  -- An empty wallet goes through the same walk: nothing fits in it, so the line is up exactly
+  -- when there is something on the board -- never over an empty one (review 2026-09-27).
+  local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
+  local items = GC.Sniper._Board() == "items"
+  local candidates, buyable = 0, false
+  for i = 1, #list do
+    local deal = list[i]
+    if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
+      candidates = candidates + 1
+      -- A WoW: Forever row is held to the Forever limits its own buy keeps to
+      -- (GC.ForeverDeals.BuyLimits: half the wallet for "Below vendor" at the default share).
+      local rowLimits = limits
+      if deal.forever and GC.ForeverDeals and GC.ForeverDeals.BuyLimits then
+        rowLimits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, wallet, deal.forever)
       end
+      local fits
+      if items then
+        local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+        fits = total <= wallet and (not (deal.cap or deal.forever)
+          or (rowLimits ~= nil and total <= rowLimits.budget))
+      else
+        fits = rowLimits ~= nil and deal.unitPrice <= rowLimits.budget
+      end
+      if fits then buyable = true; break end
     end
-    short = candidates > 0 and not buyable
   end
-  if short then
+  if candidates > 0 and not buyable then
     line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
     line:Show()
   else
@@ -2334,14 +2332,17 @@ driver = {
     local info = C_AuctionHouse.GetItemSearchResultInfo(key, 1)
     if not info or not info.buyoutAmount or info.buyoutAmount == 0 then return nil end
     if not info.quantity or info.quantity <= 0 then return nil end
-    -- info.buyoutAmount is the TOTAL price for the whole lot, not a per-unit price (unlike
-    -- GetCommoditySearchResultInfo's unitPrice below) -- divide down so GC.DealMath.Evaluate
-    -- compares against value.mv (a per-unit market value) correctly, matching how
-    -- FullScan.Evaluate derives unitPrice from a row's per-group buyoutStack total.
+    -- An item search row groups identical auctions, and info.buyoutAmount is what ONE of them
+    -- costs -- Blizzard's AuctionHouseItemSellFrame takes it as its per-unit price. It is not a
+    -- stack total like a replicate row's buyoutStack (FullScan.Evaluate divides that one):
+    -- divided by the row's quantity, 150 bags at 1,800g read as a 12g deal. And the row's
+    -- quantity is how many such auctions there are, not what a purchase buys: PlaceBid takes one
+    -- auctionID and pays its buyoutAmount for one item. As the deal's qty it made a pin's Total
+    -- 150 x 1,800g.
     return {
       auctionID = info.auctionID,
-      unitPrice = math.floor(info.buyoutAmount / info.quantity),
-      qty = info.quantity,
+      unitPrice = info.buyoutAmount,
+      qty = 1,
     }
   end,
 
@@ -2424,9 +2425,10 @@ driver = {
 
   -- Every lot currently listed for a realm item, from results the drill's own SendSearchQuery
   -- has already landed -- this never issues a query of its own, exactly like commodityBook.
-  -- buyoutAmount is the whole lot's price (see itemResult above), and it is left that way:
-  -- GC.SniperDecision.EvaluateRealm compares lots to each other and to a reference, and
-  -- dividing here would only invent a per-unit price for a lot that cannot be split.
+  -- A lot is one purchase: PlaceBid on its auctionID pays buyoutAmount for one item. A search
+  -- row groups identical auctions and its quantity counts them, so it is NOT the lot's size --
+  -- read as one, GC.Caps.DecideRealm and GC.SniperDecision.EvaluateRealm divided the buyout by
+  -- it, and a cap of 100g fired on 150 bags at 1,800g each (review, 2026-09-27).
   --
   -- The player's own listings are skipped. Buying one is impossible, and letting one become
   -- the "cheapest comparable lot" would have the addon offer the player their own auction.
@@ -2450,7 +2452,7 @@ driver = {
           -- The variant's own item level, which is the whole reason a realm item needs its
           -- own decision path: two lots of "the same" item can be twenty levels apart.
           itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
-          quantity = info.quantity or 1,
+          quantity = 1,
         }
       end
     end
@@ -6408,19 +6410,26 @@ end
 --     back only if that Check approves it (applyRequeryResult -> armReady), and the purchase
 --     stays in onDialogPrimaryClick.
 -- A field, not a local: this chunk sits near its 200-local ceiling.
-function GC.Sniper.OnPlayerMoney()
-  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
-  -- over. The next render reads the gold when the window is shown, and so does the walk.
-  if not (frame and frame:IsShown()) then return end
-  local wallet = GetMoney()
+-- The open pane's Buy, held because only the wallet limit refused it (its decision's needsGold),
+-- asked again the way its own Check asks -- a live Check, never a purchase. `covered` says
+-- whether the needsGold it names still stands in the way.
+local function askHeldPaneAgain(covered)
   local row = dialog and dialog.row
   local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil
-  if held and held.needsGold and held.needsGold <= wallet then
+  if held and held.needsGold and covered(held.needsGold) then
     dialog.primaryBtn:Disable()
     setPrimaryLabel("Buy")
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, row.deal)
   end
+end
+
+function GC.Sniper.OnPlayerMoney()
+  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
+  -- over. The next render reads the gold when the window is shown, and so does the walk.
+  if not (frame and frame:IsShown()) then return end
+  local wallet = GetMoney()
+  askHeldPaneAgain(function(needsGold) return needsGold <= wallet end)
   for _, v in pairs(verdicts) do
     if v.needsGold and v.needsGold <= wallet then
       verifyWalkAt = 0
@@ -6428,6 +6437,21 @@ function GC.Sniper.OnPlayerMoney()
     end
   end
   refreshRows()
+end
+
+-- A saved setting changed (UI/SettingsFrame.lua). The gold a held row names was worked out at
+-- the wallet share, units and floors the player had then, and gold arriving -- PLAYER_MONEY,
+-- above -- was the only thing that asked such a row again: raise the share to get past a
+-- "needs 40k" and nothing moved until the verdict aged out (review 2026-09-27). Those verdicts
+-- are thrown away, which puts their rows back among the ones nothing has checked, and the walk
+-- runs on the next tick; the open pane's held Buy is asked again at once.
+function GC.Sniper.OnSettingsChanged()
+  for itemID, v in pairs(verdicts) do
+    if v.needsGold then verdicts[itemID] = nil end
+  end
+  verifyWalkAt = 0
+  askHeldPaneAgain(function() return true end)
+  if frame and frame:IsShown() then refreshRows() end
 end
 
 -- Router functions the Init.lua event frame dispatches into.

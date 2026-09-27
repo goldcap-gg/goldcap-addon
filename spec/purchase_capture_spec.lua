@@ -177,6 +177,21 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(0, #GC.Acquisitions.GetPending())
   end)
 
+  -- An item search row groups identical auctions: `quantity` is how many there are, and
+  -- buyoutAmount what ONE costs. PlaceBid buys that one auction -- one item, for buyoutAmount.
+  -- Recorded as the row's quantity, one bag bought at 1,800g off a row of 150 went into the
+  -- ledger as 150 bags at 12g each (review, 2026-09-27).
+  it("records one item bought off a grouped row as one item at its buyout", function()
+    results[1] = { auctionID = 9001, quantity = 150, buyoutAmount = 18000000 }
+    GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10,
+      itemSuffix = 0, battlePetSpeciesID = 0 })
+    fire("PlaceBid", 9001, 18000000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    local batch = GC.Acquisitions.GetAll()[1]
+    assert.equal(18000000, batch.originalTotal)
+    assert.equal(1, batch.originalQty)
+  end)
+
   it("indexes an item result and records only the matching completed auction", function()
     results[1] = { auctionID = 9001, quantity = 2, buyoutAmount = 100000 }
     GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10,
@@ -187,7 +202,7 @@ describe("Passive normal-AH purchase capture", function()
     GC.PurchaseCapture.OnPurchaseCompleted(9001)
     local batch = GC.Acquisitions.GetAll()[1]
     assert.equal(100000, batch.originalTotal)
-    assert.equal(2, batch.originalQty)
+    assert.equal(1, batch.originalQty)
     assert.equal("item:77:10:0:0", batch.positionKey)
   end)
 

@@ -397,7 +397,9 @@ local function searchQuantities(attempt, cap, levels, budget, turnoverUnits, wal
   return nil
 end
 
-function GC.SniperDecision.Evaluate(input)
+-- `probing` is set only on the asks the needsGold search below makes of itself: each is a plain
+-- decision at one wallet, and must not start a search of its own.
+local function evaluate(input, probing)
   local out = resultTemplate()
   -- This is the sole release gate. Keep the economic calculation intact for shadow
   -- validation, then shape only a mathematically SAFE public result into non-buyable WATCH.
@@ -769,15 +771,24 @@ function GC.SniperDecision.Evaluate(input)
   -- 2026-09-24: a character with no gold watched the board for an hour, every Check came back
   -- capital_limit, every row went to Hidden, and the market read as having no deals at all.
   -- So when capital_limit is the one reason that refused, the same question is asked again with
-  -- the wallet out of the way, and if THAT answer is a buy, its plan rides along on the refusal:
-  -- its figures fill the ones this attempt never got to (entryTotal is what the buy costs), and
-  -- `needsGold` is the least gold the character must HOLD for this same wallet limit to let that
-  -- buy through -- worked out through limitsFor, the rule the gate above applied, never a second
-  -- copy of it. `walletShare` is that limit's share, for the panel to name.
+  -- the wallet out of the way, and if THAT answer is a buy, `needsGold` is the least gold the
+  -- character must HOLD for this same wallet limit to let ANY buy through, and that buy's plan
+  -- rides along on the refusal: its figures fill the ones this attempt never got to (entryTotal
+  -- is what the buy costs). `walletShare` is that limit's share, for the panel to name.
+  --
+  -- The least gold for any buy, not for the one unlimited gold would make: that one is the most
+  -- profitable and so usually the largest, and asking for it (review 2026-09-27) named 400,000g
+  -- where 2,000g already bought a unit -- and a row whose needsGold the wallet does not cover is
+  -- left out of the background check with its Buy held, so it stayed stuck at the bigger figure.
+  -- The wallet reaches this decision through the budget alone (limitsFor), and a bigger budget
+  -- never refuses a quantity a smaller one allowed, so whether a wallet buys anything only turns
+  -- from no to yes as it grows: bisected between this wallet (no) and the unlimited plan's own
+  -- least wallet (yes), in copper, through the same Evaluate and limitsFor -- never a second
+  -- copy of either rule.
   -- Nothing about the refusal changes -- status, reasons and buyable are this wallet's, and no
   -- purchase path reads `needsGold`. Any other reason, or a plan that would still be refused
   -- with the gold, names nothing and stays an ordinary refusal.
-  if knownReasons.capital_limit and input.walletCopper < MAX_EXACT then
+  if not probing and knownReasons.capital_limit and input.walletCopper < MAX_EXACT then
     local blocking = 0
     for i = 1, #out.reasons do
       if not (out.informational and out.informational[out.reasons[i]]) then blocking = blocking + 1 end
@@ -786,21 +797,32 @@ function GC.SniperDecision.Evaluate(input)
       local funded = {}
       for k, v in pairs(input) do funded[k] = v end
       funded.walletCopper = MAX_EXACT
-      local plan = GC.SniperDecision.Evaluate(funded)
+      local plan = evaluate(funded, true)
       if plan.buyable then
-        for _, field in ipairs(PLAN_FIELDS) do out[field] = plan[field] end
         -- The quotient is the answer to within float rounding; limitsFor settles the copper.
         local wallet = math.ceil(plan.entryTotal / config.maxCapitalShare)
         while wallet > 0 and limitsFor(config, wallet - 1).budget >= plan.entryTotal do
           wallet = wallet - 1
         end
         while limitsFor(config, wallet).budget < plan.entryTotal do wallet = wallet + 1 end
+        local short = input.walletCopper
+        while wallet - short > 1 do
+          local mid = short + math.floor((wallet - short) / 2)
+          funded.walletCopper = mid
+          local at = evaluate(funded, true)
+          if at.buyable then wallet, plan = mid, at else short = mid end
+        end
+        for _, field in ipairs(PLAN_FIELDS) do out[field] = plan[field] end
         out.needsGold = wallet
         out.walletShare = config.maxCapitalShare
       end
     end
   end
   return finalizePublicResult()
+end
+
+function GC.SniperDecision.Evaluate(input)
+  return evaluate(input, false)
 end
 
 -- Sniper phase 2 (docs/superpowers/specs/2026-09-10-sniper-phase2-realm-items-design.md):
