@@ -23,6 +23,9 @@ local payloadFailure
 local dropIdlePayload -- defined beside inactiveReason, called from SetImported
 -- FactItemIds' memo. It holds the payload it was built from, so it goes wherever the payload is let go.
 local factIds
+-- WoW: Forever: the Companion's GCF1 payload, every player's scans for this character's market
+-- (Core/ImportString.lua ParseForever). Memory only, like the region payload; nil anywhere else.
+local foreverPayload
 
 local function countItems(t)
   local n = 0
@@ -489,12 +492,49 @@ local function adoptImportString(appData)
   end
 end
 
+-- Adopts a GCF1 payload for the market this character stands in: region id, realm and — when the
+-- payload names one — faction must all match (plan 3d decision E11). A payload for another
+-- auction house is someone else's prices. Dated more than PAYLOAD_FUTURE_SLACK_SECONDS ahead of
+-- this machine's clock, it is refused like the region payload is.
+function GC.Data.AdoptForeverPayload(str, here)
+  foreverPayload = nil
+  local parsed, reason = GC.ImportString.ParseForever(str)
+  if not parsed then return nil, reason end
+  if parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "future" end
+  here = here or {}
+  if parsed.regionId ~= here.region then return nil, "region" end
+  if type(here.realm) == "string" and parsed.realm ~= here.realm then return nil, "realm" end
+  if parsed.faction and type(here.faction) == "string" and parsed.faction ~= here.faction then
+    return nil, "faction"
+  end
+  foreverPayload = parsed
+  return parsed
+end
+
+function GC.Data.ForeverPayload()
+  return foreverPayload
+end
+
+-- A Companion paired with goldcap.gg writes this install's GoldCap_AppData and uploads its saved
+-- scan after the next /reload (plan 3d decision E12). Only then may the addon say "shared".
+function GC.Data.CompanionShares()
+  local a = _G.GoldCap_AppData
+  return type(a) == "table" and a.foreverUpload == true
+end
+
 function GC.Data.AdoptAppData()
-  -- WoW: Forever: every string the Companion writes today is retail's (GCS1 import, GCM1 region
-  -- payload), and feeding one into a Forever install prices the tooltip, Deals and Sell with
-  -- another game's market. Refused here, at the one place both are adopted, like the manual
-  -- import (UI/ImportDialog.lua). A Forever payload of its own is a later plan's.
+  -- WoW: Forever: only the Companion's Forever payload is read here. Every retail string
+  -- (importString, regionString) stays refused, as it always was — it would price the tooltip,
+  -- Deals and Sell with another game's market. Parsed once and dropped from the global, like
+  -- regionString; foreverUpload stays (GC.Data.CompanionShares reads it).
   if GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport and GC.Game.Passport()) then
+    local forever = _G.GoldCap_AppData
+    if type(forever) == "table" and type(forever.foreverString) == "string" and GC.ForeverScan then
+      GC.Data.AdoptForeverPayload(forever.foreverString, {
+        region = GC.ForeverScan._region, realm = GC.ForeverScan._realm, faction = GC.ForeverScan._faction,
+      })
+      forever.foreverString = nil
+    end
     return
   end
   local appData = _G.GoldCap_AppData
