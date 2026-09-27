@@ -902,4 +902,6 @@ GC.Locales.ruRU = {
     "Откройте аукцион, и GoldCap отсканирует его за вас; СКАН на вкладке Сделки сканирует снова.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "Пока ваши сканирования остаются на этом компьютере; их передача через GoldCap Companion скоро появится.",
+  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
+    "Ниже этой цены выставлены только стопки. Пока GoldCap покупает этот предмет только по одному.",
 }

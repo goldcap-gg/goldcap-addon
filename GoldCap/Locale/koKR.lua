@@ -853,4 +853,6 @@ GC.Locales.koKR = {
     "경매장을 열면 GoldCap이 자동으로 검색합니다. 딜 탭의 검색 버튼을 누르면 다시 검색합니다.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "지금은 검색 결과가 이 컴퓨터에만 저장됩니다. GoldCap Companion을 통한 공유 기능은 곧 추가됩니다.",
+  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
+    "이 가격 이하에는 묶음만 등록되어 있습니다. 지금은 GoldCap이 이 아이템을 한 개씩만 구매합니다.",
 }

@@ -906,4 +906,6 @@ GC.Locales.ptBR = {
     "Abra a casa de leilões e o GoldCap escaneia para você; VARRER na aba Ofertas escaneia de novo.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "Por enquanto seus escaneamentos ficam neste computador; compartilhá-los pelo GoldCap Companion está a caminho.",
+  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
+    "Abaixo deste preço só há pilhas. Por enquanto o GoldCap compra este item um de cada vez.",
 }

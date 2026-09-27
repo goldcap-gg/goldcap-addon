@@ -966,4 +966,7 @@ GC.Locales.enUS = {
   -- onQueueClick (final review C1): the click that switches into queue mode and renders it makes
   -- no protected call itself -- a second press is what posts the head.
   ["Queue ready — press POST again to post it"] = "Queue ready — press POST again to post it",
+  -- EvaluateCeilingLot (final review I4): a Forever row buys single lots until a stack's price is confirmed.
+  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
+    "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
 }

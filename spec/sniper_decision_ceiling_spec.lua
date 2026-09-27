@@ -165,13 +165,28 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
         exitUnit = 100, lots = LOTS, minimumProfit = 1 }).reasons)
     end)
 
-    it("prices a multi-unit lot by its per-unit price against the ceiling, and profit on the whole lot", function()
+    -- Final review I4 (F10, plan 3c): whether Forever's item search buyoutAmount is a stack's
+    -- total or one unit's is unconfirmed (its owned auctions report per unit). Read the wrong
+    -- way, a stack passes the ceiling, the wallet and the budget at a fraction of its price.
+    -- Until the owner's dump settles it, only single lots are bought; a stack is skipped.
+    it("skips a stacked lot, however cheap, and buys the single one", function()
       local d = S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor", exitUnit = 100,
-        lots = { { auctionID = 5, buyout = 480, quantity = 5, itemLevel = 10 } }, minimumProfit = 20 })
-      assert.equal("WATCH", d.status); assert.is_false(d.buyable)
-      assert.same({ auctionID = 5, buyout = 480, quantity = 5, itemLevel = 10 }, d.candidate)
-      assert.equal(5, d.quantity); assert.equal(480, d.entryTotal); assert.equal(96, d.entryUnitDisplay)
-      assert.equal(20, d.stressProfit); assert.equal(20, d.estProfit)    -- 100 * 5 - 480
+        lots = { { auctionID = 5, buyout = 19, quantity = 11, itemLevel = 10 },
+          { auctionID = 6, buyout = 70, quantity = 1, itemLevel = 10 } }, minimumProfit = 20 })
+      assert.same({ auctionID = 6, buyout = 70, quantity = 1, itemLevel = 10 }, d.candidate)
+      assert.equal(1, d.quantity); assert.equal(70, d.entryTotal); assert.equal(30, d.stressProfit)
+    end)
+
+    it("refuses when only stacks are under the ceiling, and says so", function()
+      local d = S.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor", exitUnit = 100,
+        lots = { { auctionID = 5, buyout = 180, quantity = 3, itemLevel = 10 },
+          { auctionID = 6, buyout = 150, quantity = 1, itemLevel = 10 } }, minimumProfit = 20 })
+      assert.equal("AVOID", d.status); assert.is_false(d.buyable)
+      assert.same({ "stacked_lot" }, d.reasons)
+      assert.is_nil(d.candidate)
+      -- Nothing under the ceiling at all is still the price that rose.
+      assert.same({ "price_rose" }, S.EvaluateCeilingLot({ ceilingUnit = 50, kind = "vendor", exitUnit = 51,
+        lots = { { auctionID = 5, buyout = 180, quantity = 3 } }, minimumProfit = 1 }).reasons)
     end)
 
     it("fails closed on a negative or non-integer minimum profit", function()
@@ -185,5 +200,8 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
   it("explains the new reason in words", function()
     assert.is_true(S.REASONS.profit_below_minimum)
     assert.equal("What this buy would make is under your minimum profit.", S.ReasonText("profit_below_minimum"))
+    assert.is_true(S.REASONS.stacked_lot)
+    assert.equal("Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
+      S.ReasonText("stacked_lot"))
   end)
 end)

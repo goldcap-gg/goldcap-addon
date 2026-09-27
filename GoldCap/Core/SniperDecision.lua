@@ -234,6 +234,7 @@ local REASON_TEXT = {
   book_missing = "No live listings came back for this item.",
   no_comparable_lot = "Nothing listed matches the item level the reference price was measured on.",
   price_rose = "The cheapest listing is no longer far enough under the reference price.",
+  stacked_lot = "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
   book_exhausted = "Not enough units on the Auction House to fill that quantity.",
   competing_ask_missing = "Nothing left to sell against after this buy, so there is no exit price.",
   deposit_missing = "The Auction House would not quote a deposit, so the cost is unknown.",
@@ -264,7 +265,7 @@ local REASON_ORDER = {
   listings_too_low = 20, velocity_missing = 21, velocity_too_low = 22,
   sell_through_too_low = 23, liquidity_confidence_low = 24, market_falling = 25,
   book_missing = 30, book_exhausted = 31, competing_ask_missing = 32, deposit_missing = 33,
-  no_comparable_lot = 34, price_rose = 35,
+  no_comparable_lot = 34, price_rose = 35, stacked_lot = 36,
   capital_limit = 40, demand_limit = 41, wall_absorbed = 42,
   stress_exit_missing = 50, stress_profit_below_buffer = 51, profit_below_minimum = 52,
   invalid_input = 60, requote_broke_safety = 70,
@@ -1002,12 +1003,22 @@ function GC.SniperDecision.EvaluateCeilingLot(input)
       or type(input.lots) ~= "table" or not isInteger(input.minimumProfit) then
     return refusal("invalid_input")
   end
-  local priced = {}
+  -- Single lots only (final review I4, F10 of plan 3c). Forever's owned auctions report
+  -- buyoutAmount per unit; if its item search does the same, a stack of 11 at "19" would pass the
+  -- ceiling, the wallet and the budget at a fraction of its price before PlaceBid. A stack is
+  -- skipped until the owner's dump confirms buyoutAmount is the lot's total.
+  local single, stacked = {}, {}
   for _, lot in ipairs(input.lots) do
-    if positiveEntry(lot, "auctionID", "buyout") then priced[#priced + 1] = lot end
+    if positiveEntry(lot, "auctionID", "buyout") then
+      local list = (lot.quantity or 1) == 1 and single or stacked
+      list[#list + 1] = lot
+    end
   end
-  local picked = GC.Caps.DecideRealm({ c = input.ceilingUnit, l = 0 }, priced)
-  if not picked then return refusal("price_rose") end
+  local cap = { c = input.ceilingUnit, l = 0 }
+  local picked = GC.Caps.DecideRealm(cap, single)
+  if not picked then
+    return refusal(GC.Caps.DecideRealm(cap, stacked) and "stacked_lot" or "price_rose")
+  end
   local profit = input.exitUnit * picked.quantity - picked.entryTotal
   if profit < input.minimumProfit then return refusal("profit_below_minimum") end
   return {

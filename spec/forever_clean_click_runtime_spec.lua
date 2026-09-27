@@ -919,7 +919,7 @@ describe("Clean click ordering, driven end to end", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 99, 100)
       local decision = GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = 99, kind = "vendor",
-        exitUnit = 100, lots = { { auctionID = 9, buyout = 180, quantity = 3, itemLevel = 18 } },
+        exitUnit = 100, lots = { { auctionID = 9, buyout = 60, quantity = 1, itemLevel = 18 } },
         minimumProfit = 20 })
       local deal = foreverDeal(42, false)
       local row = { deal = deal, purchaseStage = "requerying" }
@@ -928,12 +928,81 @@ describe("Clean click ordering, driven end to end", function()
       getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
       clickHandler(GC)() -- PlaceBid
       local facts = getUpvalue(GC.Sniper.OnPurchaseCompleted, "purchaseFacts")(deal,
-        { itemID = 42, quantity = 3, total = 180, decision = decision })
-      -- A stack of 3 at 60c each, which a vendor takes at 100c each: 120c.
-      assert.same({ itemID = 42, quantity = 3, total = 180, unitDisplay = 60, cap = true,
-        expectedProfit = 120 }, facts)
+        { itemID = 42, quantity = 1, total = 60, decision = decision })
+      -- One at 60c, which a vendor takes at 100c: 40c.
+      assert.same({ itemID = 42, quantity = 1, total = 60, unitDisplay = 60, cap = true,
+        expectedProfit = 40 }, facts)
       GC.Sniper.OnPurchaseCompleted(9)
-      assertForeverRecord(GC, 3, 180, 120)
+      assertForeverRecord(GC, 1, 60, 40)
+    end)
+
+    -- Final review I4 (F10, plan 3c), at the PlaceBid path itself: from the live lots the
+    -- search answered, through the real Check (evaluateLiveItemDeal) and arm, to the click.
+    -- Until the owner's dump says what Forever's buyoutAmount means for a stack, a Forever row
+    -- buys only a single lot; a stack is skipped, never bid on.
+    local function checkLots(GC, lots)
+      local bids = {}
+      _G.C_AuctionHouse.PlaceBid = function(auctionID, amount)
+        record("PlaceBid")
+        bids[#bids + 1] = { auctionID, amount }
+      end
+      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver").itemLots = function() return lots end
+      local live = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")(42)
+      return live, bids
+    end
+
+    local function armAndClick(GC, deal, live)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, live)
+      -- Armed or not, as the click found it: the client fires no OnClick on a disabled Button.
+      local armed = d.enabled
+      log = {}
+      if armed then clickHandler(GC)() end
+      return armed, d
+    end
+
+    it("PlaceBid on a Forever row bids on the single lot, never on a cheaper stack", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      local live, bids = checkLots(GC, { { auctionID = 5, buyout = 19, quantity = 11, itemLevel = 18 },
+        { auctionID = 6, buyout = 70, quantity = 1, itemLevel = 18 } })
+      assert.is_true(armAndClick(GC, foreverDeal(42, false), live))
+      assertCleanCall("PlaceBid")
+      assert.same({ { 6, 70 } }, bids)
+    end)
+
+    it("PlaceBid never fires for a Forever row whose only lot under the vendor price is a stack", function()
+      local GC = loadSniper()
+      foreverCeiling(GC, 42, 99, 100)
+      local live, bids = checkLots(GC, { { auctionID = 5, buyout = 19, quantity = 11, itemLevel = 18 } })
+      assert.same({ "stacked_lot" }, live.decision.reasons)
+      -- The window offers a Check, not a Buy, and says why; clicking it bids on nothing.
+      local _, d = armAndClick(GC, foreverDeal(42, false), live)
+      local told = false
+      for _, line in ipairs(d.written) do
+        if line:find("Only stacks are listed under this price.", 1, true) then told = true end
+      end
+      assert.is_true(told)
+      assert.are_not.equal("Buy", d.label)
+      log = {}
+      clickHandler(GC)()
+      assertNoProtectedCall()
+      assert.same({}, bids)
+    end)
+
+    it("retail: a lot at the player's own price is bid on whole, stack or not", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local live, bids = checkLots(GC, { { auctionID = 9, buyout = 2400000, itemLevel = 615, quantity = 3 } })
+      assert.is_true(live.decision.cap)
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 3,
+        auctionID = 9, stale = true }
+      assert.is_true(armAndClick(GC, deal, live))
+      assertCleanCall("PlaceBid")
+      assert.same({ { 9, 2400000 } }, bids)
     end)
 
     -- The Forever buy limits (plan 3c, Decision 5: GC.ForeverDeals.BuyLimits), where they bite.
@@ -971,15 +1040,34 @@ describe("Clean click ordering, driven end to end", function()
       assert.is_true(d.enabled)
     end)
 
+    -- The arm's own gate, for when a stacked lot is let through again (final review I4 keeps
+    -- EvaluateCeilingLot to single lots until then): a decision naming a stack is handed in
+    -- directly, as a ceiling decision would name one.
     it("holds a Forever lot to Max units per buy", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 99, 100)
       GC.db.settings.sniper.maxQuantity = 5
-      local d = applyLot(GC, { auctionID = 9, buyout = 360, quantity = 6, itemLevel = 18 })
+      local function stackDecision(quantity, buyout)
+        local lot = { auctionID = 9, buyout = buyout, quantity = quantity, itemLevel = 18 }
+        return { version = GC.SniperDecision.VERSION, status = "WATCH", buyable = false, reasons = {},
+          candidate = lot, quantity = quantity, entryTotal = buyout, entryUnitDisplay = math.floor(buyout / quantity),
+          unit = math.floor(buyout / quantity), ceiling = 99, forever = "vendor", exitUnit = 100,
+          stressProfit = 100 * quantity - buyout, estProfit = 100 * quantity - buyout, reference = 100 }
+      end
+      local function apply(decision)
+        local deal = foreverDeal(42, false)
+        local row = { deal = deal, purchaseStage = "requerying" }
+        local d = fakeDialog(row, deal)
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+        local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+        getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+        return d
+      end
+      local d = apply(stackDecision(6, 360))
       assert.is_false(d.enabled)
       assert.is_true(said(d, "This lot holds more units than your Max units per buy."))
 
-      d = applyLot(GC, { auctionID = 9, buyout = 300, quantity = 5, itemLevel = 18 })
+      d = apply(stackDecision(5, 300))
       assert.is_true(d.enabled)
     end)
 

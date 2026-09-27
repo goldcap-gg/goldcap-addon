@@ -908,4 +908,6 @@ GC.Locales.itIT = {
     "Apri la casa d'aste e GoldCap la scansiona per te; SCANSIONA nella scheda Offerte scansiona di nuovo.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "Per ora le tue scansioni restano su questo computer; condividerle tramite il GoldCap Companion arriverà presto.",
+  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
+    "Sotto questo prezzo ci sono solo pile. Per ora GoldCap compra questo oggetto uno alla volta.",
 }
