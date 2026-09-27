@@ -308,6 +308,9 @@ pcall(function() frame:RegisterEvent("TRADE_SKILL_ITEM_CRAFTED_RESULT") end)
 -- there -- retail registers exactly what it did before.
 if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   pcall(function() frame:RegisterEvent("REPLICATE_ITEM_LIST_UPDATE") end)
+  -- Plan 3e, Road to 40 (Core/ForeverRoad.lua): its pace clock reads level progress.
+  pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
+  pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
 end
 
 local function migrateSniperProfitFloor(db)
@@ -874,6 +877,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
     if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
+    -- WoW: Forever's Road to 40 (a no-op anywhere else).
+    if GC.ForeverRoad then GC.ForeverRoad.OnMoney() end
+  elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
+    -- Registered in Forever only (the gate above).
+    if GC.ForeverRoad then GC.ForeverRoad.OnTick() end
   elseif event == "BAG_UPDATE_DELAYED" then
     -- The Sell tab's Post reads a bag location cached at paint time; re-pin it to where the stack
     -- sits now, while that tab is on screen (UI/SellFrame.lua, GC.Sell.OnBagsChanged). First in
@@ -892,6 +900,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
     -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
     if GC.ForeverScan then GC.ForeverScan.MaybeIntro() end
+    if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
@@ -906,6 +915,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.OnCraftResult(result, time()) end
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
+    if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
   end
 end)
 
@@ -934,6 +944,8 @@ GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
 if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
   GC.slashHandlers.scan = function() GC.ForeverScan.Request("button") end
   GC.slashHandlers.bags = function() GC.ForeverValue.PrintBags() end
+  -- Plan 3e: Road to 40 -- set, clear or share the riding cost, or print the road.
+  GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end
 end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same

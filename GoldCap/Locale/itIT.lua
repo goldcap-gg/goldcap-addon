@@ -151,6 +151,7 @@ GC.Locales.itIT = {
   ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
   ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
   ["Play a little longer for an estimate of your pace."] = "Gioca ancora un po' per una stima del tuo ritmo.",
+  ["ROAD TO 40"] = "VERSO IL LIVELLO 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Verso il livello 40 con GoldCap: %s su %s per la mia cavalcatura (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Verso il livello 40: %s su %s (oro %s, borse %s).",

@@ -149,6 +149,7 @@ GC.Locales.ruRU = {
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
   ["Play a little longer for an estimate of your pace."] = "Поиграйте ещё немного, чтобы оценить ваш темп.",
+  ["ROAD TO 40"] = "ПУТЬ К 40 УРОВНЮ",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Путь к 40 уровню с GoldCap: %s из %s на ездовое животное (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Путь к 40 уровню: %s из %s (золото %s, сумки %s).",

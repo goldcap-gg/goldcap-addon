@@ -152,6 +152,7 @@ GC.Locales.ukUA = {
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
   ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
+  ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Шлях до 40 рівня з GoldCap: %s з %s на скакуна (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",

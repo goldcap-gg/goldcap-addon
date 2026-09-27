@@ -79,6 +79,13 @@ local function buildEntries()
   local entries = {}
   local summary = GC.AppLedger and GC.AppLedger.GetSummary and GC.AppLedger.GetSummary()
   local now = time()
+  -- WoW: Forever: Road to 40 heads the tab (Core/ForeverRoad.lua) -- gold is what this tab is
+  -- about. SoldLines answers nil everywhere else, retail included, so nothing changes there.
+  local road = GC.ForeverRoad and GC.ForeverRoad.SoldLines and GC.ForeverRoad.SoldLines()
+  if road then
+    entries[#entries + 1] = { kind = "section", text = GC.L["ROAD TO 40"] }
+    for _, line in ipairs(road) do entries[#entries + 1] = { kind = "hint", text = line, gold = true } end
+  end
   -- The boundary is the newest `at` the snapshot's own sale rows prove the
   -- server holds (see the file header comment) -- not generatedAt. No
   -- summary, or a summary with no sales yet, proves nothing: every local
@@ -353,9 +360,12 @@ end
 
 -- heightFor: every row is one Theme.ROW_H line, except a hint -- those carry
 -- a full sentence and word-wrap, so they get two lines' worth of room
--- (Deals' emptyText is the same idea: word-wrapped, muted, centered).
-local function heightFor(kind)
-  if kind == "hint" then return geometry.rowHeight * 2 end
+-- (Deals' emptyText is the same idea: word-wrapped, muted, centered). Road to 40's totals+forecast
+-- line (Core/ForeverRoad.lua's SoldLines) runs longer than any other hint here -- it concatenates
+-- two full sentences into one -- so it gets a third line rather than risk it wrapping past its
+-- row's fixed height at the window's narrowest width.
+local function heightFor(entry)
+  if entry.kind == "hint" then return geometry.rowHeight * (entry.gold and 3 or 2) end
   return geometry.rowHeight
 end
 
@@ -417,7 +427,8 @@ local function paintRow(row, entry, index)
     row.wide:SetJustifyH("CENTER")
     row.wide:SetWordWrap(true)
     row.wide:SetText(entry.text)
-    setColor(row.wide, Theme.color.fgDim)
+    -- Road to 40's lines are the tab's headline in Forever; every other hint stays muted.
+    setColor(row.wide, entry.gold and Theme.color.gold or Theme.color.fgDim)
     row.wide:SetSpacing(4)
   elseif entry.kind == "section" then
     -- Mono micro-label + a hairline rule running to the row's right edge --
@@ -801,7 +812,7 @@ local function renderRows()
   local y = 0
   for i, entry in ipairs(listEntries) do
     local row = rows[i]
-    local h = heightFor(entry.kind)
+    local h = heightFor(entry)
     row:SetHeight(h)
     -- TOPLEFT + TOPRIGHT, not TOPLEFT plus a size fixed at creation (I2):
     -- the row's own width then always tracks content's, which

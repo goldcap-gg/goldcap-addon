@@ -148,6 +148,7 @@ GC.Locales.koKR = {
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
   ["Play a little longer for an estimate of your pace."] = "속도를 추정하려면 조금 더 플레이하세요.",
+  ["ROAD TO 40"] = "40레벨까지",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "GoldCap과 함께 40레벨까지: 내 탈것 %s / %s (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40레벨까지: %s / %s (골드 %s, 가방 %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40레벨까지: 보유 %s (골드 %s, 가방 %s).",

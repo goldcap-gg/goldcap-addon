@@ -151,6 +151,7 @@ GC.Locales.deDE = {
   ["Mount cost set to %s."] = "Reitkosten auf %s gesetzt.",
   ["Play a little longer for an estimate of your pace."] =
     "Spiel noch etwas weiter, dann gibt es eine Schätzung deines Tempos.",
+  ["ROAD TO 40"] = "WEG ZU STUFE 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Weg zu Stufe 40 mit GoldCap: %s von %s für mein Reittier (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Weg zu Stufe 40: %s von %s (Gold %s, Taschen %s).",

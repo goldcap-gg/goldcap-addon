@@ -152,6 +152,7 @@ GC.Locales.ptBR = {
   ["Mount cost cleared."] = "Custo da montaria apagado.",
   ["Mount cost set to %s."] = "Custo da montaria definido em %s.",
   ["Play a little longer for an estimate of your pace."] = "Jogue mais um pouco para estimar o seu ritmo.",
+  ["ROAD TO 40"] = "RUMO AO NÍVEL 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Rumo ao nível 40 com o GoldCap: %s de %s para minha montaria (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Rumo ao nível 40: %s de %s (ouro %s, bolsas %s).",

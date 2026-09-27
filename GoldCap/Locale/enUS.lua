@@ -159,6 +159,7 @@ GC.Locales.enUS = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
   ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
+  ["ROAD TO 40"] = "ROAD TO 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Road to 40: %s of %s (gold %s, bags %s).",

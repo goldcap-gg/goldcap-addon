@@ -642,4 +642,29 @@ describe("SoldFrame", function()
     assert.truthy(restored.cells.when:IsShown())
     assert.truthy(restored.cells.unit:IsShown())
   end)
+
+  it("heads the tab with Road to 40, in gold, when Forever answers it", function()
+    GC.ForeverRoad = { SoldLines = function()
+      return { "Road to 40: 1g of 90g (gold 1g, bags 0c).", "Items in your bags that fetch more: 2 (5c more)." }
+    end }
+    GC.Sold.RefreshIfShown()
+    assert.truthy(rowWithText("ROAD TO 40"))
+    local line = rowWithText("Road to 40: 1g of 90g")
+    assert.truthy(line)
+    assert.is_true(colorEquals(line.wide.colorValue, GC.Theme.color.gold))
+    assert.truthy(rowWithText("Items in your bags that fetch more"))
+    GC.ForeverRoad = nil
+  end)
+
+  it("shows no Road to 40 without it -- retail -- and keeps the other hints dim", function()
+    GC.ForeverRoad = nil
+    GC.Sold.RefreshIfShown()
+    assert.is_nil(shownTexts():find("ROAD TO 40", 1, true))
+    local hint = rowWithText("Pair or update the GoldCap Companion")
+    assert.is_true(colorEquals(hint.wide.colorValue, GC.Theme.color.fgDim))
+    GC.ForeverRoad = { SoldLines = function() return nil end }
+    GC.Sold.RefreshIfShown()
+    assert.is_nil(shownTexts():find("ROAD TO 40", 1, true))
+    GC.ForeverRoad = nil
+  end)
 end)

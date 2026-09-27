@@ -147,6 +147,7 @@ GC.Locales.zhCN = {
   ["Mount cost cleared."] = "坐骑费用已清除。",
   ["Mount cost set to %s."] = "坐骑费用已设为 %s。",
   ["Play a little longer for an estimate of your pace."] = "再玩一会儿，才能估算你的速度。",
+  ["ROAD TO 40"] = "40级之路",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 走向 40 级：我的坐骑 %s / %s（%d%%）。",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40级之路：%s / %s（金币 %s，背包 %s）。",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40级之路：你有 %s（金币 %s，背包 %s）。",

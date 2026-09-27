@@ -152,6 +152,7 @@ GC.Locales.esES = {
   ["Mount cost cleared."] = "Coste de la montura borrado.",
   ["Mount cost set to %s."] = "Coste de la montura fijado en %s.",
   ["Play a little longer for an estimate of your pace."] = "Juega un poco más para estimar tu ritmo.",
+  ["ROAD TO 40"] = "CAMINO AL NIVEL 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Camino al nivel 40 con GoldCap: %s de %s para mi montura (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Camino al nivel 40: %s de %s (oro %s, bolsas %s).",
