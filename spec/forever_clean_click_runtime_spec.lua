@@ -494,7 +494,7 @@ describe("Clean click ordering, driven end to end", function()
       error("missing upvalue " .. wanted)
     end
 
-    local books, money, cancels, confirms, saved
+    local books, money, cancels, confirms, saved, realItemLots
 
     local function loadSniper()
       books, money, cancels, confirms = {}, 10000000000, 0, 0
@@ -565,8 +565,11 @@ describe("Clean click ordering, driven end to end", function()
       GC.Ledger.Init(saved)
       GC.Acquisitions.Init(saved)
       helper.loadModule("UI/SniperFrame.lua", GC)
+      -- The real driver's lot reader, kept for the specs that walk a search's own rows.
+      realItemLots = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver").itemLots
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
         isReady = function() return true end,
+        lastSearchKey = {},
         getKeyInfo = function() return { isCommodity = true } end,
         sendSearch = function() end,
         commodityBook = function(itemID) return books[itemID] end,
@@ -957,17 +960,19 @@ describe("Clean click ordering, driven end to end", function()
       assertForeverRecord(GC, 1, 60, 40)
     end)
 
-    -- Final review I4 (F10, plan 3c), at the PlaceBid path itself: from the live lots the
-    -- search answered, through the real Check (evaluateLiveItemDeal) and arm, to the click.
-    -- Until the owner's dump says what Forever's buyoutAmount means for a stack, a Forever row
-    -- buys only a single lot; a stack is skipped, never bid on.
-    local function checkLots(GC, lots)
+    -- At the PlaceBid path itself: from the rows the item search answered, through the real
+    -- driver.itemLots and the real Check (evaluateLiveItemDeal) and arm, to the click. An item
+    -- search row groups identical one-item auctions and PlaceBid pays its buyoutAmount for one
+    -- of them (addon 0.15.2) -- in WoW: Forever exactly as on retail.
+    local function checkRows(GC, rows)
       local bids = {}
       _G.C_AuctionHouse.PlaceBid = function(auctionID, amount)
         record("PlaceBid")
         bids[#bids + 1] = { auctionID, amount }
       end
-      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver").itemLots = function() return lots end
+      _G.C_AuctionHouse.GetNumItemSearchResults = function() return #rows end
+      _G.C_AuctionHouse.GetItemSearchResultInfo = function(_, i) return rows[i] end
+      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver").itemLots = realItemLots
       local live = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")(42)
       return live, bids
     end
@@ -985,28 +990,24 @@ describe("Clean click ordering, driven end to end", function()
       return armed, d
     end
 
-    it("PlaceBid on a Forever row bids on the single lot, never on a cheaper stack", function()
+    it("PlaceBid on a Forever row buys one item of a row listed many times, at its buyoutAmount", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 99, 100)
-      local live, bids = checkLots(GC, { { auctionID = 5, buyout = 19, quantity = 11, itemLevel = 18 },
-        { auctionID = 6, buyout = 70, quantity = 1, itemLevel = 18 } })
+      local live, bids = checkRows(GC, { { auctionID = 5, buyoutAmount = 19, quantity = 11 },
+        { auctionID = 6, buyoutAmount = 70, quantity = 1 } })
+      assert.equal(1, live.decision.quantity); assert.equal(19, live.decision.entryTotal)
       assert.is_true(armAndClick(GC, foreverDeal(42, false), live))
       assertCleanCall("PlaceBid")
-      assert.same({ { 6, 70 } }, bids)
+      assert.same({ { 5, 19 } }, bids)
     end)
 
-    it("PlaceBid never fires for a Forever row whose only lot under the vendor price is a stack", function()
+    it("PlaceBid never fires for a Forever row whose one item costs more than the vendor price", function()
       local GC = loadSniper()
       foreverCeiling(GC, 42, 99, 100)
-      local live, bids = checkLots(GC, { { auctionID = 5, buyout = 19, quantity = 11, itemLevel = 18 } })
-      assert.same({ "stacked_lot" }, live.decision.reasons)
-      -- The window offers a Check, not a Buy, and says why; clicking it bids on nothing.
+      -- 240c for one item, listed three times: under the ceiling only if divided by the count.
+      local live, bids = checkRows(GC, { { auctionID = 5, buyoutAmount = 240, quantity = 3 } })
+      assert.same({ "price_rose" }, live.decision.reasons)
       local _, d = armAndClick(GC, foreverDeal(42, false), live)
-      local told = false
-      for _, line in ipairs(d.written) do
-        if line:find("Only stacks are listed under this price.", 1, true) then told = true end
-      end
-      assert.is_true(told)
       assert.are_not.equal("Buy", d.label)
       log = {}
       clickHandler(GC)()
@@ -1014,16 +1015,27 @@ describe("Clean click ordering, driven end to end", function()
       assert.same({}, bids)
     end)
 
-    it("retail: a lot at the player's own price is bid on whole, stack or not", function()
+    -- Retail, as released in 0.15.2: a YOUR PRICE cap of 100g never fires on 240g items, however
+    -- many identical ones are listed, and one under it is bought one at a time.
+    it("retail: a cap never fires on one item priced over it, listed several times", function()
       local GC = loadSniper()
       adoptCap(GC, 42, 1000000)
-      local live, bids = checkLots(GC, { { auctionID = 9, buyout = 2400000, itemLevel = 615, quantity = 3 } })
+      local live, bids = checkRows(GC, { { auctionID = 9, buyoutAmount = 2400000, quantity = 3, itemKey = { itemLevel = 615 } } })
+      assert.is_falsy(live and live.decision and live.decision.cap)
+      assert.same({}, bids)
+    end)
+
+    it("retail: a lot at the player's own price is bid on as one item at its buyoutAmount", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local live, bids = checkRows(GC, { { auctionID = 9, buyoutAmount = 900000, quantity = 3, itemKey = { itemLevel = 615 } } })
       assert.is_true(live.decision.cap)
-      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 3,
+      assert.equal(1, live.decision.quantity); assert.equal(900000, live.decision.entryTotal)
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 900000, qty = 1,
         auctionID = 9, stale = true }
       assert.is_true(armAndClick(GC, deal, live))
       assertCleanCall("PlaceBid")
-      assert.same({ { 9, 2400000 } }, bids)
+      assert.same({ { 9, 900000 } }, bids)
     end)
 
     -- The Forever buy limits (plan 3c, Decision 5: GC.ForeverDeals.BuyLimits), where they bite.

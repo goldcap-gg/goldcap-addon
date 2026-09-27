@@ -831,8 +831,6 @@ GC.Locales.zhTW = {
     "開啟拍賣場，GoldCap 會為你掃描；在交易分頁點擊掃描可以再次掃描。",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "目前你的掃描結果只保存在這台電腦上；透過 GoldCap Companion 分享的功能即將推出。",
-  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
-    "低於此價格的只有成組出售的拍賣。目前 GoldCap 只會逐個購買此物品。",
   ["%ds"] = "%d秒",
   ["%dm"] = "%d分鐘",
   ["%dh"] = "%d小時",

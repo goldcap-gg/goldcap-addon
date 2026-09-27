@@ -912,8 +912,6 @@ GC.Locales.esES = {
     "Abre la casa de subastas y GoldCap la escanea por ti; ESCANEAR en la pestaña Ofertas escanea otra vez.",
   ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
     "Por ahora tus escaneos se quedan en este ordenador; compartirlos a través del GoldCap Companion llegará pronto.",
-  ["Only stacks are listed under this price. For now GoldCap buys this item one at a time."] =
-    "Por debajo de este precio solo hay pilas. Por ahora GoldCap compra este objeto de uno en uno.",
   ["%ds"] = "%d s",
   ["%dm"] = "%d min",
   ["%dh"] = "%d h",

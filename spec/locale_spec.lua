@@ -203,7 +203,6 @@ describe("locale layer", function()
       "no live price", "NO LIVE PRICE YET", "Checking prices — waiting for the Auction House…",
       "last live price %s ago",
       "Press Buy again to buy this quantity",
-      "Only stacks are listed under this price. For now GoldCap buys this item one at a time.",
       "%ds", "%dm", "%dh", "%dd",
       -- Final review m5: four of 3c's keys the list had missed.
       "This lot holds more units than your Max units per buy.",
