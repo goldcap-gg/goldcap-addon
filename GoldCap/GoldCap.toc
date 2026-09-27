@@ -68,6 +68,7 @@ Core/ForeverScan.lua
 Core/ForeverValue.lua
 Core/ForeverDeals.lua
 Core/ForeverRoad.lua
+Core/ForeverUpgrades.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/BuyRun.lua
