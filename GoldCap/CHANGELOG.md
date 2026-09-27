@@ -6,9 +6,8 @@
   prices for Forever arrive later. Type `/gc forever` to see what GoldCap can use in your client.
 - In WoW: Forever, GoldCap scans the auction house when you open it (the game allows a full scan
   once every 15 minutes) and when you press SCAN on the Deals tab. Tooltips there show the item's
-  auction house value from your latest scan and how old it is, what a vendor pays, and whether to
-  sell it on the auction house, to a vendor, or not at all because it is not worth the auction
-  house deposit.
+  auction house value from your latest scan and how old it is, and whether to sell it on the
+  auction house, to a vendor, or not at all because it is not worth the auction house deposit.
 - In WoW: Forever the Sell tab prices from your scan, and its POST queue skips anything a vendor
   pays more for. Type `/gc bags` to see what your bags are worth at a vendor and on the auction
   house.
@@ -16,21 +15,20 @@
   you can buy on the auction house and sell to a vendor for more. Each row says the most to pay
   and what a vendor gives. Check looks at the auction house live, and Buy buys only what is
   still under that price, within your per-buy wallet limit and your "Max units per buy". While
-  "Max wallet per buy %" is at its default, these buys may use up to half your gold.
+  "Max wallet per buy %" is at its default, these buys may use up to half your gold. An item
+  that is not a commodity is bought one at a time for now, never as a stack.
 - The Deals board in WoW: Forever also lists commodities offered far under what half of their
   supply asks, after the auction house cut and deposit. These are riskier than vendor deals, and
   the row says so: your scan cannot tell how fast an item sells.
 - In the buy window, pressing Buy while you are still typing a quantity now shows the total for
   that quantity first; press Buy again to buy it.
-- In WoW: Forever, item tooltips no longer repeat the game's own sell price, show one listed
-  count rather than two while the auction house is open, and call the scan's figure "AH value".
 - In the Sell tab, a lot waiting for a live price now says "no live price", and the cancel button
   says "NO LIVE PRICE YET" instead of "NOTHING TO CANCEL" while it waits. In WoW: Forever, AT
   MARKET counts what your scan says your stock is worth when the auction house has not answered
   a live price yet.
 - The Sell panel says how long ago it last saw a live price for the item, instead of a red
   "stale".
-- In WoW: Forever, a scan on one realm no longer mixes into the prices saved from another.
+- GoldCap is listed under "Auctions" in the AddOns list.
 
 ## 0.15.1 (2026-09-24)
 
