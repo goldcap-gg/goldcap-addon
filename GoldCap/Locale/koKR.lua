@@ -862,4 +862,5 @@ GC.Locales.koKR = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "스캐너 1명, %s 전",
   ["%d scanners, %s ago"] = "스캐너 %d명, %s 전",
+  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "플레이어 검색 중앙값 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
 }

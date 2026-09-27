@@ -216,3 +216,50 @@ describe("the fresher look prices the tooltip", function()
     assert.equal("your scan, 59m ago", lines[#lines].right)
   end)
 end)
+
+describe("the Deals board's market reference", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Game.lua", GC)
+    GC.Game.Passport = function() return { interface = 16001, build = "x", regionId = 90 } end
+    helper.loadModule("Core/ImportString.lua", GC)
+    helper.loadModule("Core/Data.lua", GC)
+    GC.Data.Init({ settings = {} })
+    _G.time = function() return 1790003600 end
+    GC.Data.AdoptForeverPayload("GCF1;s;90;R;Horde;1790000000;I:2589=68=75=74=120=7000=3=0,2592=255=269===2029=1=0",
+      { region = 90, realm = "R", faction = "Horde" })
+  end)
+  after_each(function() _G.time = os.time end)
+
+  it("is every player's half-way price when the crowd looked more recently", function()
+    assert.same({ p50 = 120, source = "crowd", scanners = 3 }, GC.Data.ForeverReference(2589, 1789999000, 79))
+  end)
+
+  it("is the player's own when their scan is newer, or when the crowd has no half-way price", function()
+    assert.same({ p50 = 79, source = "own" }, GC.Data.ForeverReference(2589, 1790000500, 79))
+    assert.same({ p50 = 40, source = "own" }, GC.Data.ForeverReference(2592, 1, 40))
+    assert.same({ p50 = 40, source = "own" }, GC.Data.ForeverReference(9999, 1, 40))
+  end)
+
+  it("a market row built on it carries whose reference it is", function()
+    helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/FullScan.lua", GC)
+    helper.loadModule("Core/ForeverDeals.lua", GC)
+    -- 40 units at 30c, then more up to a half-way price of 79 in the player's own (older) fold.
+    local fold = { at = 1789999000, items = { [2589] = "30,400,20,;0x40 20x40 25x40 3x40 1x40|40,49,12" } }
+    local rows = GC.ForeverDeals.Build(fold, {
+      vendorFor = function() return nil end, isCommodity = function() return true end,
+      depositFor = function() return 1 end, minimumProfit = 20, watchPins = nil,
+      referenceFor = function(itemID, e) return GC.Data.ForeverReference(itemID, fold.at, e.p50) end,
+    })
+    assert.equal(1, #rows)
+    assert.equal("market", rows[1].forever)
+    assert.equal(120, rows[1].refUnit)
+    assert.equal("crowd", rows[1].refSource)
+    assert.equal(3, rows[1].refScanners)
+  end)
+end)

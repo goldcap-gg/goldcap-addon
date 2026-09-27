@@ -917,4 +917,5 @@ GC.Locales.itIT = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 scanner, %s fa",
   ["%d scanners, %s ago"] = "%d scanner, %s fa",
+  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "rivendita alla mediana delle scansioni dei giocatori, %s l'una, meno 5%% e cauzione; velocità ignota",
 }

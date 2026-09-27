@@ -94,6 +94,7 @@ GC.CheckVerdict.HERO_CAPTION = {
   -- median is not, and how fast it would sell is not known at all.
   vendor = "sure profit: a vendor pays %s each",
   market = "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
+  market_crowd = "resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
   needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
@@ -330,7 +331,7 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- `refused`: the panel shows a refusal's figure without that caption (final review m6) --
     -- "sure profit" under a red REFUSED read as an endorsement.
     hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
-      refused = tone == "refuse" or nil }
+      refused = tone == "refuse" or nil, refSource = context.refSource }
   elseif tone == "gold" then
     -- The gold the character must hold leads; what the buy costs and the per-buy share that
     -- turns one into the other ride along, for the caption that says both.

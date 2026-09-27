@@ -4264,7 +4264,7 @@ end
 local function drawVerdict(deal, decision, market)
   local CV = GC.CheckVerdict
   -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption.
-  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever })
+  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource })
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
@@ -4308,7 +4308,7 @@ local function drawVerdict(deal, decision, market)
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
     caption = hero.refused and ""
-      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and "market" or "vendor"]])
+      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and (hero.refSource == "crowd" and "market_crowd" or "market") or "vendor"]])
         :format(displayDecisionAmount(hero.ref))
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)

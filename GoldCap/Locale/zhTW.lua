@@ -838,4 +838,5 @@ GC.Locales.zhTW = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 位掃描者，%s前",
   ["%d scanners, %s ago"] = "%d 位掃描者，%s前",
+  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家掃描的中位價每件 %s 轉售，扣除 5%% 手續費和押金；速度未知",
 }

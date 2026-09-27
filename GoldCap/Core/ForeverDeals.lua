@@ -92,13 +92,15 @@ local function belowVendor(itemID, e, vendor)
 end
 
 local function underMarket(itemID, e, ctx, isCommodity)
-  if not (e.p50 and e.levels and e.qty) then return nil end
+  local ref = ctx.referenceFor and ctx.referenceFor(itemID, e) or { p50 = e.p50, source = "own" }
+  local p50 = ref.p50
+  if not (p50 and e.levels and e.qty) then return nil end
   if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
   if isCommodity ~= true then return nil end
   local deposit = ctx.depositFor(itemID)
   if type(deposit) ~= "number" or deposit < 0 then return nil end
-  local net = math.floor(e.p50 * KEEP)
-  local ceiling = math.min(math.floor(e.p50 * C.MARKET_SHARE), net - deposit - 1)
+  local net = math.floor(p50 * KEEP)
+  local ceiling = math.min(math.floor(p50 * C.MARKET_SHARE), net - deposit - 1)
   if ceiling < 1 then return nil end
   local units, cost, profit = 0, 0, 0
   for _, level in ipairs(e.ladder) do
@@ -108,8 +110,10 @@ local function underMarket(itemID, e, ctx, isCommodity)
     profit = profit + (net - level[1] - deposit) * level[2]
   end
   if units == 0 then return nil end
-  local row = lead(itemID, e, "market", ceiling, e.p50, units, cost, profit)
+  local row = lead(itemID, e, "market", ceiling, p50, units, cost, profit)
   row.depositUnit = deposit
+  -- Whose half-way price this is: the check panel's caption says so (CheckVerdict market_crowd).
+  row.refSource, row.refScanners = ref.source, ref.scanners
   return row
 end
 
@@ -183,6 +187,10 @@ local function rebuild(fold, now)
     depositFor = GC.ForeverValue.CommodityDepositUnit,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
+    referenceFor = function(itemID, e)
+      if GC.Data and GC.Data.ForeverReference then return GC.Data.ForeverReference(itemID, fold.at, e.p50) end
+      return { p50 = e.p50, source = "own" }
+    end,
   })
   local kept, byItem = {}, {}
   for _, row in ipairs(rows) do
