@@ -13,19 +13,22 @@ local _, GC = ...
 -- Only the fold's five cheapest levels are seen, so qty can be short of what the live book
 -- holds; the Check reads the book itself.
 --
--- Kind "market" ("Under market"), commodities only: levels at or under 70% of p50 -- the price
--- half of the listed units ask at most (Core/ForeverFold.lua's depth part, fold version 2) --
--- whose resale at p50, after the 5% cut and the deposit, still makes at least a copper each.
--- Riskier than a vendor deal: nothing in Forever measures how fast an item sells. A thin book
--- (under 20 units, or under three prices) is no market at all, and an item auction is left out:
--- its deposit needs a bag location a scan has not got, and it has no quote step to catch a bad
--- resale estimate before PlaceBid.
+-- Kind "market" ("Under market"), commodities only: levels at or under 70% of the AH value -- the
+-- price the cheapest tenth of the listed units reach (GC.ForeverFold.Value, the figure the tooltip
+-- calls "AH value"), never above the half-way price -- whose resale at that value, after the 5%
+-- cut and the deposit, still makes at least a copper each. Not the half-way price itself: in a
+-- thin Forever book half the units are asks nobody pays (Linen at 66-82c with half the units at
+-- 3s+ made a 2g29s "deal" of ordinary stock, beta 2026-09-27), so a row appears only when lots sit
+-- clearly under where the cheap end of the book already is. Riskier than a vendor deal: nothing in
+-- Forever measures how fast an item sells. A thin book (under 20 units, or under three prices) is
+-- no market at all, and an item auction is left out: its deposit needs a bag location a scan has
+-- not got, and it has no quote step to catch a bad resale estimate before PlaceBid.
 GC.ForeverDeals = GC.ForeverDeals or {}
 
 local C = {
   MIN_PROFIT_COPPER = 20,            -- a Forever row's whole buy, unless the player changed theirs
   RETAIL_DEFAULT_MIN_PROFIT = 50000, -- Core/Init.lua's default for settings.sniper.minimumProfitCopper
-  MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the half-way price
+  MARKET_SHARE = 0.70,               -- a market deal asks at most this share of the AH value
   MARKET_MIN_UNITS = 20,             -- thin-market guard: units listed
   MARKET_MIN_LEVELS = 3,             -- thin-market guard: distinct prices listed
   ROW_CAP = 100,                     -- per board, as UI/SniperFrame.lua's WIN.ROW_CAP
@@ -91,16 +94,27 @@ local function belowVendor(itemID, e, vendor)
   return lead(itemID, e, "vendor", ceiling, vendor, units, cost, profit)
 end
 
+-- The price a market row is measured against: the AH value, or the half-way price when that is
+-- lower (it never is in one consistent book; a crowd payload's two figures are separate numbers).
+local function referenceUnit(ref)
+  local unit = ref.value
+  if type(unit) ~= "number" or unit <= 0 then return nil end
+  if type(ref.p50) == "number" and ref.p50 > 0 and ref.p50 < unit then unit = ref.p50 end
+  return unit
+end
+
 local function underMarket(itemID, e, ctx, isCommodity)
-  local ref = ctx.referenceFor and ctx.referenceFor(itemID, e) or { p50 = e.p50, source = "own" }
-  local p50 = ref.p50
-  if not (p50 and e.levels and e.qty) then return nil end
+  if not (e.levels and e.qty) then return nil end
   if e.qty < C.MARKET_MIN_UNITS or e.levels < C.MARKET_MIN_LEVELS then return nil end
   if isCommodity ~= true then return nil end
+  local ref = ctx.referenceFor and ctx.referenceFor(itemID, e)
+    or { value = e.value, p50 = e.p50, source = "own" }
+  local refUnit = referenceUnit(ref)
+  if not refUnit then return nil end
   local deposit = ctx.depositFor(itemID)
   if type(deposit) ~= "number" or deposit < 0 then return nil end
-  local net = math.floor(p50 * KEEP)
-  local ceiling = math.min(math.floor(p50 * C.MARKET_SHARE), net - deposit - 1)
+  local net = math.floor(refUnit * KEEP)
+  local ceiling = math.min(math.floor(refUnit * C.MARKET_SHARE), net - deposit - 1)
   if ceiling < 1 then return nil end
   local units, cost, profit = 0, 0, 0
   for _, level in ipairs(e.ladder) do
@@ -110,9 +124,9 @@ local function underMarket(itemID, e, ctx, isCommodity)
     profit = profit + (net - level[1] - deposit) * level[2]
   end
   if units == 0 then return nil end
-  local row = lead(itemID, e, "market", ceiling, p50, units, cost, profit)
+  local row = lead(itemID, e, "market", ceiling, refUnit, units, cost, profit)
   row.depositUnit = deposit
-  -- Whose half-way price this is: the check panel's caption says so (CheckVerdict market_crowd).
+  -- Whose AH value this is: the check panel's caption says so (CheckVerdict market_crowd).
   row.refSource, row.refScanners = ref.source, ref.scanners
   return row
 end
@@ -196,8 +210,10 @@ local function rebuild(fold, now)
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
     referenceFor = function(itemID, e)
-      if GC.Data and GC.Data.ForeverReference then return GC.Data.ForeverReference(itemID, fold.at, e.p50) end
-      return { p50 = e.p50, source = "own" }
+      if GC.Data and GC.Data.ForeverReference then
+        return GC.Data.ForeverReference(itemID, fold.at, e.value, e.p50)
+      end
+      return { value = e.value, p50 = e.p50, source = "own" }
     end,
   })
   local kept, byItem = {}, {}

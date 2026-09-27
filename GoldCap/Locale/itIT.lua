@@ -582,8 +582,8 @@ GC.Locales.itIT = {
   ["at level %d"] = "al livello %d",
   ["sure profit: a vendor pays %s each"] =
     "profitto sicuro: un venditore paga %s a unità",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "rivendita alla mediana del scan, %s l'una, meno 5%% e cauzione; velocità ignota",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "rivendita al valore d'asta dello scan, %s l'una, meno 5%% e cauzione; velocità ignota",
   ["Checked against the live auction house a moment ago."] =
     "Verificato sulla casa d'aste dal vivo un momento fa.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -928,12 +928,12 @@ GC.Locales.itIT = {
     "Sotto il mercato",
   [" · buy at %s or less, vendor pays %s"] =
     " · compra a %s o meno, il venditore paga %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · compra a %s o meno, metà richiesta %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · compra a %s o meno, valore d'asta %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Compra a %s o meno: un venditore paga %s a unità. Questo acquisto rende %s.",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "Compra a %s o meno: metà delle unità elencate chiede %s o più. La velocità di rivendita è sconosciuta, quindi è più rischioso di un affare col venditore. Questo acquisto rende circa %s dopo la commissione del 5%% e la cauzione.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Compra a %s o meno: il valore d'asta, cioè quanto chiede il decimo più economico delle unità elencate, è %s. La velocità di rivendita è sconosciuta, quindi è più rischioso di un affare col venditore. Questo acquisto rende circa %s dopo la commissione del 5%% e la cauzione.",
   ["under the vendor price -- click Buy to purchase"] =
     "sotto il prezzo del venditore -- clicca Buy per acquistare",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -957,7 +957,7 @@ GC.Locales.itIT = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 scanner, %s fa",
   ["%d scanners, %s ago"] = "%d scanner, %s fa",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "rivendita alla mediana delle scansioni dei giocatori, %s l'una, meno 5%% e cauzione; velocità ignota",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "rivendita al valore d'asta delle scansioni dei giocatori, %s l'una, meno 5%% e cauzione; velocità ignota",
   ["Shared with goldcap.gg on your next /reload"] = "Condiviso con goldcap.gg al prossimo /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Le tue scansioni restano su questo computer. Il GoldCap Companion le condivide con goldcap.gg e riporta i prezzi di tutti.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "Il GoldCap Companion condivide le tue scansioni con goldcap.gg dopo ogni /reload e riporta i prezzi di tutti.",

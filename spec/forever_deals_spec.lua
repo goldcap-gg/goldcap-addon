@@ -40,7 +40,7 @@ describe("ForeverDeals", function()
       assert.equal(2, math.floor(r.discount * 100 + 0.5))
     end)
 
-    it("a 44% discount is a market row: 165 at 10c, half ask 18c+, +7c each after the cut", function()
+    it("a 44% discount is a market row: 165 at 10c, measured at 18c (half-way under its AH value), +7c each", function()
       vendor[765], commodity[765] = 1, true               -- Silverleaf; a vendor pays under the AH
       local rows = D.Build(fold({ [765] = "10,4062,200,;0x165 5x100 8x3797|0,8,15" }),
         ctx({ depositFor = function() return 0 end }))
@@ -128,8 +128,9 @@ describe("ForeverDeals", function()
   end)
 
   describe("Build, kind market", function()
-    -- 30c x5, 40c x5, 90c x20, 100c x30, 110c x40: 100 units, p25 90c, p50 100c, five levels.
-    local WOOL = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5"
+    -- 30c x3, 40c x3, 100c x24, 110c x30, 120c x40: 100 units, p25 100c, p50 110c, five levels.
+    -- AH value 100c: the cheapest tenth (10 units) reaches the 1s band; the six cheap units do not.
+    local WOOL = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5"
 
     -- ctx() with a 2c deposit per unit, the answer GC.ForeverValue.CommodityDepositUnit gives a commodity.
     local function marketCtx(over)
@@ -138,29 +139,52 @@ describe("ForeverDeals", function()
       return ctx(o)
     end
 
-    it("lists the levels at or under 70% of the half-way price, net of the cut and the deposit", function()
+    it("lists the levels at or under 70% of the AH value, net of the cut and the deposit", function()
       commodity[2592] = true
       local rows, missing = D.Build(fold({ [2592] = WOOL }), marketCtx())
       assert.same({ 2592 }, missing)          -- no vendor price: asked for, and market still judged
       local r = rows[1]
       assert.equal("market", r.forever)
-      assert.equal(70, r.ceiling)             -- min(70, 95 - 2 - 1)
-      assert.equal(100, r.refUnit)
-      assert.equal(10, r.qty)
-      assert.equal(350, r.capTotal)
-      assert.equal(580, r.profit)             -- (95-30-2)*5 + (95-40-2)*5
+      assert.equal(70, r.ceiling)             -- min(floor(100 * 0.70), 95 - 2 - 1)
+      assert.equal(100, r.refUnit)            -- the AH value, not the half-way 1s10c
+      assert.equal(6, r.qty)
+      assert.equal(210, r.capTotal)
+      assert.equal(348, r.profit)             -- (95-30-2)*3 + (95-40-2)*3
       assert.equal(2, r.depositUnit)
       assert.is_true(math.abs(r.discount - 0.7) < 1e-9)
     end)
 
+    -- The owner's beta board (WoW: Forever, 2026-09-27 11:23): Linen Cloth "Under market", 73% off,
+    -- +2g29s, from 4,843 units at 66-82c while half the units listed asked 3s or more -- asks
+    -- nobody pays. Measured against its AH value (82c) the cheapest lots are ordinary stock.
+    it("makes no row of ordinary stock under an inflated half-way price (Linen: 66c, AH value 82c, p50 3s)", function()
+      commodity[2589], vendor[2589] = true, 13
+      -- 66c x300, 70c x100, 82c x200, 90c x300, 100c x500 of 4,843; p25 1s50c, p50 3s, 40 prices.
+      local linen = "66,4843,900,;0x300 4x100 12x200 8x300 10x500|84,234,40"
+      local e = GC.ForeverFold.Decode(linen)
+      assert.equal(82, e.value); assert.equal(300, e.p50)
+      assert.equal(0, #D.Build(fold({ [2589] = linen }), marketCtx({ depositFor = function() return 1 end })))
+    end)
+
+    it("still finds a few lots 30% under a thick AH-value band", function()
+      commodity[4] = true
+      -- 70c x30 under 600 units at 1s and 370 at 1s01c: AH value 1s, half-way 1s.
+      local rows = D.Build(fold({ [4] = "70,1000,40,;0x30 30x600 1x370|30,30,3" }), marketCtx())
+      assert.equal(1, #rows)
+      local r = rows[1]
+      assert.equal("market", r.forever)
+      assert.equal(100, r.refUnit); assert.equal(70, r.ceiling)
+      assert.equal(30, r.qty); assert.equal(690, r.profit)   -- (95-70-2)*30
+    end)
+
     it("prefers a vendor deal when both hold", function()
-      commodity[2592], vendor[2592] = true, 35
+      commodity[2592], vendor[2592] = true, 41
       local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
       assert.equal("vendor", rows[1].forever)
     end)
 
     it("falls through to a market row when the vendor row fails the minimum profit", function()
-      -- vendor 31: only the 30c level qualifies (5 units * 1c profit = 5c), under the 20c minimum.
+      -- vendor 31: only the 30c level qualifies (3 units * 1c profit = 3c), under the 20c minimum.
       commodity[2592], vendor[2592] = true, 31
       local rows = D.Build(fold({ [2592] = WOOL }), marketCtx())
       assert.equal(1, #rows)
@@ -177,8 +201,8 @@ describe("ForeverDeals", function()
     it("needs 20 units, 3 price levels, a known commodity and a deposit", function()
       commodity[1], commodity[2], commodity[3], commodity[4] = true, true, nil, true
       local f = fold({
-        [1] = "30,19,5,;0x5 10x5 50x5 10x2 10x2|60,70,5",   -- 19 units
-        [2] = "30,100,2,;0x50 70x50|0,0,2",                   -- 2 levels
+        [1] = "30,19,5,;0x1 60x4 10x5 10x5 10x4|60,70,5",   -- 19 units
+        [2] = "30,100,2,;0x5 70x95|70,70,2",                  -- 2 levels
         [3] = WOOL,                                           -- commodity unknown
       })
       assert.equal(0, #D.Build(f, marketCtx()))
@@ -187,48 +211,57 @@ describe("ForeverDeals", function()
 
     it("makes no market row from a version-1 fold", function()
       commodity[2592] = true
-      assert.equal(0, #D.Build(fold({ [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40" }), marketCtx()))
+      assert.equal(0, #D.Build(fold({ [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40" }), marketCtx()))
     end)
 
     it("never sets a ceiling that loses money after the deposit", function()
       commodity[5] = true
-      -- p50 100c, deposit 30c: 95 - 30 - 1 = 64 caps the ceiling under 70.
+      -- AH value 100c, deposit 30c: 95 - 30 - 1 = 64 caps the ceiling under 70.
       local rows = D.Build(fold({ [5] = WOOL }), marketCtx({ depositFor = function() return 30 end }))
       assert.equal(64, rows[1].ceiling)
     end)
 
-    -- p50 not a multiple of 20, so 0.70 x p50 and 0.95 x p50 are not already whole numbers:
-    -- a math.floor dropped from either formula would leave the ceiling non-integer or a copper
-    -- too high, and these three fail on it.
+    it("measures against the half-way price when a reference's is the lower of the two", function()
+      commodity[2592] = true
+      local rows = D.Build(fold({ [2592] = WOOL }), marketCtx({
+        referenceFor = function() return { value = 100, p50 = 80, source = "crowd", scanners = 2 } end,
+      }))
+      assert.equal(80, rows[1].refUnit); assert.equal(56, rows[1].ceiling)
+    end)
 
-    it("floors the 0.70 x p50 share (p50 37, the deposit branch not binding)", function()
+    -- AH value not a multiple of 20, so 0.70 x value and 0.95 x value are not already whole
+    -- numbers: a math.floor dropped from either formula would leave the ceiling non-integer or a
+    -- copper too high, and these three fail on it. Each book: 4 + 4 cheap units under 92 at the
+    -- AH value, which the cheapest tenth (10 units) reaches.
+
+    it("floors the 0.70 x value share (AH value 37, the deposit branch not binding)", function()
       -- floor(37 * 0.70) = 25 (37 * 0.7 = 25.9); net - deposit - 1 = 35 - 0 - 1 = 34 does not bind.
       commodity[6] = true
-      local f = fold({ [6] = "10,25,3,;0x10 15x10 65x5|5,27,3" })   -- min 10, p50 37, 3 levels, 25 units
+      local f = fold({ [6] = "10,100,3,;0x4 15x4 12x92|27,27,3" })  -- 10c x4, 25c x4, 37c x92
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(25, rows[1].ceiling)
-      assert.equal(20, rows[1].qty)          -- the 10c and 25c levels (10 + 10 units)
-      assert.equal(350, rows[1].profit)      -- (35-10)*10 + (35-25)*10
+      assert.equal(8, rows[1].qty)           -- the 10c and 25c levels
+      assert.equal(140, rows[1].profit)      -- (35-10)*4 + (35-25)*4
     end)
 
-    it("floors the 0.95 x p50 - deposit - 1 share (p50 101, that branch binding)", function()
+    it("floors the 0.95 x value - deposit - 1 share (AH value 101, that branch binding)", function()
       -- net = floor(101 * 0.95) = 95 (101 * 0.95 = 95.95); net - 32 - 1 = 62, under floor(101*0.7) = 70.
       commodity[7] = true
-      local f = fold({ [7] = "20,30,3,;0x10 40x15 50x5|40,81,3" })  -- min 20, p50 101, 3 levels, 30 units
+      local f = fold({ [7] = "20,100,3,;0x4 40x4 41x92|81,81,3" })  -- 20c x4, 60c x4, 101c x92
       local rows = D.Build(f, marketCtx({ depositFor = function() return 32 end }))
       assert.equal(62, rows[1].ceiling)
-      assert.equal(25, rows[1].qty)          -- the 20c and 60c levels (10 + 15 units)
-      assert.equal(475, rows[1].profit)      -- (95-20-32)*10 + (95-60-32)*15
+      assert.equal(8, rows[1].qty)           -- the 20c and 60c levels
+      assert.equal(184, rows[1].profit)      -- (95-20-32)*4 + (95-60-32)*4
     end)
 
-    it("floors the 0.70 x p50 share again at a larger scale (p50 143)", function()
+    it("floors the 0.70 x value share again at a larger scale (AH value 143)", function()
       -- floor(143 * 0.70) = 100 (143 * 0.7 = 100.1); net - deposit - 1 = 135 - 0 - 1 = 134 does not bind.
       commodity[8] = true
-      local f = fold({ [8] = "50,25,3,;0x10 50x10 60x5|50,93,3" })  -- min 50, p50 143, 3 levels, 25 units
+      local f = fold({ [8] = "50,100,3,;0x4 50x4 43x92|93,93,3" })  -- 50c x4, 100c x4, 143c x92
       local rows = D.Build(f, marketCtx({ depositFor = function() return 0 end }))
       assert.equal(100, rows[1].ceiling)
-      assert.equal(20, rows[1].qty)          -- the 50c and 100c levels (10 + 10 units)
-      assert.equal(1200, rows[1].profit)     -- (135-50)*10 + (135-100)*10
+      assert.equal(8, rows[1].qty)           -- the 50c and 100c levels
+      assert.equal(480, rows[1].profit)      -- (135-50)*4 + (135-100)*4
     end)
   end)
 
@@ -350,7 +383,7 @@ describe("ForeverDeals", function()
         GetItemCommodityStatus = function(id) return id == 2592 and 2 or 1 end,
         CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end,
       }
-      saved = { at = 5000, items = { [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5" } }
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       assert.is_nil(GC.db.commodityByItem[2592])
       D.Rows(clock)
       assert.same({ 2592, 1 }, asked)
@@ -365,7 +398,7 @@ describe("ForeverDeals", function()
     end)
 
     it("hands out a market ceiling with its deposit", function()
-      saved = { at = 5000, items = { [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5" } }
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x3 10x3 60x24 10x30 10x40|70,80,5" } }
       GC.db.commodityByItem[2592] = true
       GC.ForeverValue.CommodityDepositUnit = function() return 2 end
       D.Rows(clock)

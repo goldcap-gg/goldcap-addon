@@ -4306,7 +4306,7 @@ local function drawVerdict(deal, decision, market)
     caption = GC.L[CV.HERO_CAPTION.reference]
   elseif hero.kind == "forever" then
     -- WoW: Forever: what the buy makes, captioned by what it is measured against -- the
-    -- vendor's exact price, or the scan's median and an unknown resale speed.
+    -- vendor's exact price, or the scan's AH value and an unknown resale speed.
     -- A refused one keeps its figure, dim and uncaptioned: the reason line says why.
     local up = hero.copper >= 0
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
@@ -5399,7 +5399,7 @@ end
 
 -- WoW: Forever rows (Core/ForeverDeals.lua): the kind, the dim instruction after the name, and
 -- the whole sentence. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
--- (far under the scan's half-way price: a resale nobody has measured the speed of).
+-- (far under the scan's AH value: a resale nobody has measured the speed of).
 function GC.Sniper._ForeverLabel(kind)
   return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
 end
@@ -5407,14 +5407,14 @@ end
 function GC.Sniper._ForeverSuffix(deal)
   if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return "" end
   local text = deal.forever == "market"
-    and GC.L[" · buy at %s or less, half ask %s+"] or GC.L[" · buy at %s or less, vendor pays %s"]
+    and GC.L[" · buy at %s or less, AH value %s"] or GC.L[" · buy at %s or less, vendor pays %s"]
   return ("|cff8c8a85%s|r"):format(text:format(GC.Util.FormatMoney(deal.ceiling),
     GC.Util.FormatMoney(deal.refUnit)))
 end
 
 function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
   local text = kind == "market"
-    and GC.L["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
+    and GC.L["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
     or GC.L["Buy at or under %s: a vendor pays %s each. This buy makes %s."]
   return text:format(GC.Util.FormatMoney(ceiling), GC.Util.FormatMoney(ref), GC.Util.FormatMoney(profit or 0))
 end

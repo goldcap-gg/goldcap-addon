@@ -581,8 +581,8 @@ GC.Locales.ruRU = {
   ["at level %d"] = "с %d уровня",
   ["sure profit: a vendor pays %s each"] =
     "верная прибыль: торговец платит %s за штуку",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "перепродажа по медиане скана, %s/шт., за вычетом 5%% комиссии и залога; скорость неизвестна",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "перепродажа по оценке скана, %s/шт., за вычетом 5%% комиссии и залога; скорость неизвестна",
   ["Checked against the live auction house a moment ago."] =
     "Только что сверено с аукционом в реальном времени.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -922,12 +922,12 @@ GC.Locales.ruRU = {
     "Ниже рынка",
   [" · buy at %s or less, vendor pays %s"] =
     " · купить за %s или меньше, торговец платит %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · купить за %s или меньше, половина цены %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · купить за %s или меньше, оценка на аукционе %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купить за %s или меньше: торговец платит %s за штуку. Эта покупка приносит %s.",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "Купить за %s или меньше: половина выставленных единиц просит %s или больше. Скорость перепродажи неизвестна, поэтому это рискованнее сделки с торговцем. Эта покупка приносит примерно %s после комиссии 5%% и залога.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Купить за %s или меньше: оценка на аукционе — цена, которую просит самая дешёвая десятая часть выставленных единиц, — %s. Скорость перепродажи неизвестна, поэтому это рискованнее сделки с торговцем. Эта покупка приносит примерно %s после комиссии 5%% и залога.",
   ["under the vendor price -- click Buy to purchase"] =
     "ниже цены торговца -- нажмите Buy, чтобы купить",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -951,7 +951,7 @@ GC.Locales.ruRU = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 сканер, %s назад",
   ["%d scanners, %s ago"] = "сканеров: %d, %s назад",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродажа по медиане сканов игроков, %s/шт., за вычетом 5%% комиссии и залога; скорость неизвестна",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродажа по оценке на аукционе из сканов игроков, %s/шт., за вычетом 5%% комиссии и залога; скорость неизвестна",
   ["Shared with goldcap.gg on your next /reload"] = "Уйдёт на goldcap.gg при следующем /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваши сканирования остаются на этом компьютере. GoldCap Companion передаёт их на goldcap.gg и приносит цены всех игроков.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передаёт ваши сканирования на goldcap.gg после каждого /reload и приносит цены всех игроков.",

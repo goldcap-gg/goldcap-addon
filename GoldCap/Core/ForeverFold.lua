@@ -20,8 +20,9 @@ GC.ForeverFold.VALUE_SHARE = 0.10
 
 -- Fold version 2 (plan 3c): every string may carry a depth part after the ladder -- the unit
 -- prices at a quarter and at half of the listed units, and how many distinct prices the item
--- was listed at. The Deals board's "Under market" kind measures against the half-way price,
--- which the five-level ladder cannot reach. A version-1 string simply has no depth part.
+-- was listed at. The Deals board's "Under market" kind needs the price count for its thin-market
+-- guard and never measures above the half-way price (it measures against the AH value below).
+-- A version-1 string simply has no depth part.
 GC.ForeverFold.VERSION = 2
 GC.ForeverFold.DEPTH_SHARES = { 0.25, 0.50 }
 

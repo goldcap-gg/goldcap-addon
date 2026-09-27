@@ -581,16 +581,17 @@ function GC.Data.ForeverValueFor(itemID)
     scanners = c.w, marketValue = c.mv, p50 = c.p50, gear = c.gear }
 end
 
--- The Deals board's "Under market" reference (Core/ForeverDeals.lua): every player's half-way
--- price when the crowd looked more recently than this player's own fold, else the player's own
--- (plan 3d decision E10 — the same "fresher look wins" rule the tooltip follows).
-function GC.Data.ForeverReference(itemID, ownAt, ownP50)
+-- The Deals board's "Under market" reference (Core/ForeverDeals.lua): every player's AH value (the
+-- cheapest tenth of the units listed, GCF1's `ah`) and half-way price when the crowd looked more
+-- recently than this player's own fold, else the player's own (plan 3d decision E10 — the same
+-- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
+function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
   local p = foreverPayload
   local c = p and p.items[itemID]
-  if c and c.p50 and p.ts - c.age * 60 >= (ownAt or 0) then
-    return { p50 = c.p50, source = "crowd", scanners = c.w }
+  if c and c.ah and p.ts - c.age * 60 >= (ownAt or 0) then
+    return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w }
   end
-  return { p50 = ownP50, source = "own" }
+  return { value = ownValue, p50 = ownP50, source = "own" }
 end
 
 function GC.Data.GetItemValue(itemID)

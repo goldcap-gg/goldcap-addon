@@ -596,8 +596,8 @@ GC.Locales.ukUA = {
   ["at level %d"] = "з %d рівня",
   ["sure profit: a vendor pays %s each"] =
     "гарантований прибуток: торговець платить %s за штуку",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "перепродаж за медіаною сканування, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "перепродаж за оцінкою сканування, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
   ["Checked against the live auction house a moment ago."] =
     "Щойно звірено з аукціоном у реальному часі.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -941,12 +941,12 @@ GC.Locales.ukUA = {
     "Нижче за ринок",
   [" · buy at %s or less, vendor pays %s"] =
     " · купити за %s або менше, торговець платить %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · купити за %s або менше, половина ціни %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · купити за %s або менше, оцінка на аукціоні %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "Купити за %s або менше: половина виставлених одиниць просить %s або більше. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Купити за %s або менше: оцінка на аукціоні — ціна, яку просить найдешевша десята частина виставлених одиниць, — %s. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
   ["under the vendor price -- click Buy to purchase"] =
     "нижче за ціну торговця -- натисніть Buy, щоб купити",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -970,7 +970,7 @@ GC.Locales.ukUA = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 сканер, %s тому",
   ["%d scanners, %s ago"] = "сканерів: %d, %s тому",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродаж за медіаною сканувань гравців, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродаж за оцінкою на аукціоні зі сканувань гравців, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
   ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",

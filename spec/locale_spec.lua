@@ -190,9 +190,9 @@ describe("locale layer", function()
       "Queue ready — press POST again to post it",
       "What this buy would make is under your minimum profit.",
       "Below vendor", "Under market",
-      " · buy at %s or less, vendor pays %s", " · buy at %s or less, half ask %s+",
+      " · buy at %s or less, vendor pays %s", " · buy at %s or less, AH value %s",
       "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
-      "Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
+      "Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
       "No deals in your last scan.",
       "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
       "No scan of this auction house yet.",
@@ -207,7 +207,7 @@ describe("locale layer", function()
       -- Final review m5: four of 3c's keys the list had missed.
       "This lot holds more units than your Max units per buy.",
       "sure profit: a vendor pays %s each",
-      "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
+      "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
       "Checked against the live auction house a moment ago.",
       -- Task S: the settings panel's own Forever min-profit row and its vendor-wallet note.
       "Min profit per buy (copper)",

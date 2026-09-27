@@ -90,11 +90,11 @@ GC.CheckVerdict.HERO_CAPTION = {
   unpriceable = "any figure here would be invented out of the very number being refused",
   reference = "against the region's own price for this item, after the 5% cut — if it sells",
   cap = "a unit, at or under your price of %s",
-  -- WoW: Forever. What a vendor pays is exact, so the profit is sure; a resale at the scan's
-  -- median is not, and how fast it would sell is not known at all.
+  -- WoW: Forever. What a vendor pays is exact, so the profit is sure; a resale at the scan's AH
+  -- value is not, and how fast it would sell is not known at all.
   vendor = "sure profit: a vendor pays %s each",
-  market = "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
-  market_crowd = "resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
+  market = "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
+  market_crowd = "resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
   needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
@@ -326,7 +326,7 @@ function GC.CheckVerdict.Build(decision, market, context)
       or { kind = "unpriceable" }
   elseif forever and number(decision.stressProfit) and positive(decision.exitUnit) then
     -- A Forever answer, passed or refused on its minimum: what the buy makes, captioned by what
-    -- it is measured against (a vendor's exact price, or the scan's median) -- never the "selling
+    -- it is measured against (a vendor's exact price, or the scan's AH value) -- never the "selling
     -- all back into the book" caption a gold hero carries.
     -- `refused`: the panel shows a refusal's figure without that caption (final review m6) --
     -- "sure profit" under a red REFUSED read as an endorsement.

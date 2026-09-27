@@ -233,14 +233,16 @@ describe("the Deals board's market reference", function()
   end)
   after_each(function() _G.time = os.time end)
 
-  it("is every player's half-way price when the crowd looked more recently", function()
-    assert.same({ p50 = 120, source = "crowd", scanners = 3 }, GC.Data.ForeverReference(2589, 1789999000, 79))
+  it("is every player's AH value and half-way price when the crowd looked more recently", function()
+    assert.same({ value = 75, p50 = 120, source = "crowd", scanners = 3 },
+      GC.Data.ForeverReference(2589, 1789999000, 70, 79))
+    -- A crowd with no half-way price still has its AH value.
+    assert.same({ value = 269, source = "crowd", scanners = 1 }, GC.Data.ForeverReference(2592, 1, 35, 40))
   end)
 
-  it("is the player's own when their scan is newer, or when the crowd has no half-way price", function()
-    assert.same({ p50 = 79, source = "own" }, GC.Data.ForeverReference(2589, 1790000500, 79))
-    assert.same({ p50 = 40, source = "own" }, GC.Data.ForeverReference(2592, 1, 40))
-    assert.same({ p50 = 40, source = "own" }, GC.Data.ForeverReference(9999, 1, 40))
+  it("is the player's own when their scan is newer, or the crowd has not seen the item", function()
+    assert.same({ value = 70, p50 = 79, source = "own" }, GC.Data.ForeverReference(2589, 1790000500, 70, 79))
+    assert.same({ value = 35, p50 = 40, source = "own" }, GC.Data.ForeverReference(9999, 1, 35, 40))
   end)
 
   it("a market row built on it carries whose reference it is", function()
@@ -249,16 +251,17 @@ describe("the Deals board's market reference", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/ForeverDeals.lua", GC)
-    -- 40 units at 30c, then more up to a half-way price of 79 in the player's own (older) fold.
+    -- 40 units at 30c, then more up to a half-way price of 79 in the player's own (older) fold;
+    -- the crowd's newer look (AH value 75c, half-way 1s20c) is the reference.
     local fold = { at = 1789999000, items = { [2589] = "30,400,20,;0x40 20x40 25x40 3x40 1x40|40,49,12" } }
     local rows = GC.ForeverDeals.Build(fold, {
       vendorFor = function() return nil end, isCommodity = function() return true end,
       depositFor = function() return 1 end, minimumProfit = 20, watchPins = nil,
-      referenceFor = function(itemID, e) return GC.Data.ForeverReference(itemID, fold.at, e.p50) end,
+      referenceFor = function(itemID, e) return GC.Data.ForeverReference(itemID, fold.at, e.value, e.p50) end,
     })
     assert.equal(1, #rows)
     assert.equal("market", rows[1].forever)
-    assert.equal(120, rows[1].refUnit)
+    assert.equal(75, rows[1].refUnit)       -- the crowd's AH value, not its half-way 1s20c
     assert.equal("crowd", rows[1].refSource)
     assert.equal(3, rows[1].refScanners)
   end)

@@ -585,8 +585,8 @@ GC.Locales.deDE = {
   ["at level %d"] = "ab Stufe %d",
   ["sure profit: a vendor pays %s each"] =
     "sicherer Gewinn: ein Händler zahlt %s pro Stück",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "Wiederverkauf zum Scan-Median, %s pro Stück, abzgl. 5%% Provision und Gebühr; Tempo unbekannt",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "Wiederverkauf zum Scan-AH-Wert, %s/Stück, abzgl. 5%% Provision und Gebühr; Tempo unbekannt",
   ["Checked against the live auction house a moment ago."] =
     "Eben mit dem Live-Auktionshaus abgeglichen.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -928,12 +928,12 @@ GC.Locales.deDE = {
     "Unter Marktpreis",
   [" · buy at %s or less, vendor pays %s"] =
     " · kaufen für %s oder weniger, Händler zahlt %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · kaufen für %s oder weniger, halbes Angebot %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · kaufen für %s oder weniger, AH-Wert %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Kaufe für %s oder weniger: Ein Händler zahlt %s pro Stück. Dieser Kauf bringt %s.",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "Kaufe für %s oder weniger: Die Hälfte der gelisteten Stückzahl verlangt %s oder mehr. Wie schnell es weiterverkauft wird, ist ungewiss, das macht diesen Kauf riskanter als ein Händlergeschäft. Nach 5%% Provision und der Gebühr bringt dieser Kauf etwa %s.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Kaufe für %s oder weniger: Der AH-Wert, den das günstigste Zehntel der gelisteten Stückzahl verlangt, liegt bei %s. Wie schnell es weiterverkauft wird, ist ungewiss, das macht diesen Kauf riskanter als ein Händlergeschäft. Nach 5%% Provision und der Gebühr bringt dieser Kauf etwa %s.",
   ["under the vendor price -- click Buy to purchase"] =
     "unter dem Händlerpreis -- Buy klicken zum Kaufen",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -957,7 +957,7 @@ GC.Locales.deDE = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 Scanner, vor %s",
   ["%d scanners, %s ago"] = "%d Scanner, vor %s",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "Wiederverkauf zum Median der Spieler-Scans, %s pro Stück, abzgl. 5%% Provision und Gebühr; Tempo unbekannt",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "Wiederverkauf zum AH-Wert der Spieler-Scans, %s pro Stück, abzgl. 5%% Provision und Gebühr; Tempo unbekannt",
   ["Shared with goldcap.gg on your next /reload"] = "Wird beim nächsten /reload mit goldcap.gg geteilt",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Deine Scans bleiben auf diesem Computer. Der GoldCap Companion teilt sie mit goldcap.gg und bringt die Preise aller zurück.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "Der GoldCap Companion teilt deine Scans nach jedem /reload mit goldcap.gg und bringt die Preise aller zurück.",

@@ -301,7 +301,7 @@ describe("row button labels fit the button", function()
       local GC = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", GC)
       for _, key in ipairs({ "sure profit: a vendor pays %s each",
-        "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown" }) do
+        "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown" }) do
         local caption = assert(GC.Locales[code][key], code .. " is missing " .. key):format("99s 99c")
         assert.is_true(wrappedLines(caption, holds(296, 10, 1.0)) <= 2, ("%s: %q"):format(code, caption))
       end

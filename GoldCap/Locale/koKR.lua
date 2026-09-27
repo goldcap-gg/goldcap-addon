@@ -546,8 +546,8 @@ GC.Locales.koKR = {
   ["at level %d"] = "%d레벨부터",
   ["sure profit: a vendor pays %s each"] =
     "확실한 이익: 상인이 개당 %s 지급",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "스캔 중앙값 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "스캔 경매장 시세 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
   ["Checked against the live auction house a moment ago."] =
     "방금 실시간 경매장과 대조했습니다.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -869,12 +869,12 @@ GC.Locales.koKR = {
     "시세 이하",
   [" · buy at %s or less, vendor pays %s"] =
     " · %s 이하에 구매, 상인가 %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · %s 이하에 구매, 절반가 %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · %s 이하에 구매, 경매장 시세 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "%s 이하로 구매: 등록된 물량의 절반이 %s 이상을 요구합니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 5%% 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "%s 이하로 구매: 경매장 시세(등록된 물량 중 가장 싼 10분의 1이 요구하는 가격)는 %s입니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 5%% 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다.",
   ["under the vendor price -- click Buy to purchase"] =
     "상인가 미만 -- Buy를 눌러 구매하세요",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -898,7 +898,7 @@ GC.Locales.koKR = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "스캐너 1명, %s 전",
   ["%d scanners, %s ago"] = "스캐너 %d명, %s 전",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "플레이어 검색 중앙값 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "플레이어 검색 경매장 시세 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
   ["Shared with goldcap.gg on your next /reload"] = "다음 /reload 때 goldcap.gg와 공유됩니다",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "검색 결과는 이 컴퓨터에만 저장됩니다. GoldCap Companion이 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion이 /reload할 때마다 검색 결과를 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",

@@ -531,8 +531,8 @@ GC.Locales.zhCN = {
   ["at level %d"] = "%d 级可用",
   ["sure profit: a vendor pays %s each"] =
     "稳赚：商人每件收购 %s",
-  ["resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown"] =
-    "按你扫描的中位价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "按你扫描的拍卖行估价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
   ["Checked against the live auction house a moment ago."] =
     "刚刚已对照实时拍卖行核对。",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
@@ -842,12 +842,12 @@ GC.Locales.zhCN = {
     "低于市场价",
   [" · buy at %s or less, vendor pays %s"] =
     " · %s 或更低购买，商人收购价 %s",
-  [" · buy at %s or less, half ask %s+"] =
-    " · %s 或更低购买，半价 %s+",
+  [" · buy at %s or less, AH value %s"] =
+    " · %s 或更低购买，拍卖行估价 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "以 %s 或更低购买：商人每件收购价 %s。此次购买可赚 %s。",
-  ["Buy at or under %s: half the units listed ask %s or more. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "以 %s 或更低购买：上架数量的一半要价 %s 或更高。转售速度未知，因此比商人交易更冒险。扣除 5%% 手续费和押金后，此次购买可赚约 %s。",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "以 %s 或更低购买：拍卖行估价（上架数量中最便宜的十分之一的要价）为 %s。转售速度未知，因此比商人交易更冒险。扣除 5%% 手续费和押金后，此次购买可赚约 %s。",
   ["under the vendor price -- click Buy to purchase"] =
     "低于商人收购价 -- 点击 Buy 购买",
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
@@ -871,7 +871,7 @@ GC.Locales.zhCN = {
   -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
   ["1 scanner, %s ago"] = "1 位扫描者，%s前",
   ["%d scanners, %s ago"] = "%d 位扫描者，%s前",
-  ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家扫描的中位价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家扫描的拍卖行估价每件 %s 转售，扣除 5%% 手续费和押金；速度未知",
   ["Shared with goldcap.gg on your next /reload"] = "将在你下次 /reload 时分享到 goldcap.gg",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的扫描结果保存在这台电脑上。GoldCap Companion 会把它们分享到 goldcap.gg，并带回所有人的价格。",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 会在每次 /reload 后把你的扫描分享到 goldcap.gg，并带回所有人的价格。",

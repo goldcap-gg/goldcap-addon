@@ -195,7 +195,7 @@ describe("WoW: Forever", function()
     market.refUnit = 100
     setRowDeal(row, market)
     assert.equal("Under market", row.tierChip.label)
-    assert.is_truthy(row._nameParts[2]:find("half ask 100c+", 1, true))
+    assert.is_truthy(row._nameParts[2]:find("AH value 100c", 1, true))
   end)
 
   it("keeps the kind on the chip once a live Check says SAFE; a refusal still speaks", function()
