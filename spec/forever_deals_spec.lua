@@ -106,7 +106,7 @@ describe("ForeverDeals", function()
     -- 30c x5, 40c x5, 90c x20, 100c x30, 110c x40: 100 units, p25 90c, p50 100c, five levels.
     local WOOL = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5"
 
-    -- ctx() with a 2c deposit per unit, the answer GC.ForeverValue.DepositUnit gives a known commodity.
+    -- ctx() with a 2c deposit per unit, the answer GC.ForeverValue.CommodityDepositUnit gives a commodity.
     local function marketCtx(over)
       local o = { depositFor = function() return 2 end }
       for k, v in pairs(over or {}) do o[k] = v end
@@ -227,7 +227,7 @@ describe("ForeverDeals", function()
       saved = { at = 5000, items = { [2589] = "8,355,5,;0x5 1x10 3x40 1x100 2x200" } }
       GC.ForeverScan = { Enabled = function() return true end, Fold = function() return saved end }
       GC.db = { settings = { sniper = { minimumProfitCopper = 50000, watchPins = {} } }, commodityByItem = { [2589] = true } }
-      GC.ForeverValue = { VendorUnit = function(id) return vendor[id] end, DepositUnit = function() return nil end }
+      GC.ForeverValue = { VendorUnit = function(id) return vendor[id] end, CommodityDepositUnit = function() return nil end }
       _G.C_Item = { RequestLoadItemDataByID = function(id) requests[#requests + 1] = id end }
     end)
 
@@ -286,10 +286,37 @@ describe("ForeverDeals", function()
       assert.equal(1, #D.Rows(clock + 2))
     end)
 
+    -- Final review I2 (plan 3c): the deposit of a commodity is the client's to quote from the
+    -- item alone (C_AuctionHouse.CalculateCommodityDeposit), so an Under market row needs no
+    -- stack of it ever seen in the bags by the Sell tab -- only the client's word that it is
+    -- a commodity.
+    it("builds a market row for a commodity the client names, never held in the bags", function()
+      helper.loadModule("Core/Flips.lua", GC)
+      helper.loadModule("Core/ForeverValue.lua", GC)
+      _G.Enum = { ItemCommodityStatus = { Unknown = 0, Item = 1, Commodity = 2 } }
+      local asked
+      _G.C_AuctionHouse = {
+        GetItemCommodityStatus = function(id) return id == 2592 and 2 or 1 end,
+        CalculateCommodityDeposit = function(id, _, qty) asked = { id, qty }; return 2 end,
+      }
+      saved = { at = 5000, items = { [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5" } }
+      assert.is_nil(GC.db.commodityByItem[2592])
+      D.Rows(clock)
+      assert.same({ 2592, 1 }, asked)
+      assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
+        D.CeilingFor(2592))
+      -- No deposit quoted, no row: still fail-closed.
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function() return nil end
+      saved = { at = 6000, items = saved.items }
+      D.Rows(clock + 1)
+      assert.is_nil(D.CeilingFor(2592))
+      _G.Enum, _G.C_AuctionHouse = nil, nil
+    end)
+
     it("hands out a market ceiling with its deposit", function()
       saved = { at = 5000, items = { [2592] = "30,100,5,;0x5 10x5 50x20 10x30 10x40|60,70,5" } }
       GC.db.commodityByItem[2592] = true
-      GC.ForeverValue.DepositUnit = function() return 2 end
+      GC.ForeverValue.CommodityDepositUnit = function() return 2 end
       D.Rows(clock)
       assert.same({ ceilingUnit = 70, kind = "market", exitUnit = 100, depositUnit = 2, minimumProfit = 20 },
         D.CeilingFor(2592))

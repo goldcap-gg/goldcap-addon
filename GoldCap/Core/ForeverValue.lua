@@ -19,15 +19,22 @@ function GC.ForeverValue.VendorUnit(itemID)
   return nil
 end
 
--- One unit's deposit, for an item the client has said is a commodity (GC.db.commodityByItem,
--- learned at the auction house). An item needs an ItemLocation the tooltip does not reliably
--- carry, so it gets nil and its verdict says the deposit is not counted.
-function GC.ForeverValue.DepositUnit(itemID)
-  local known = GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID]
-  if known ~= true then return nil end
+-- One unit's deposit for a commodity, as the client quotes it from the item alone
+-- (C_AuctionHouse.CalculateCommodityDeposit): the caller has already been told the item IS a
+-- commodity. nil when the client does not answer.
+function GC.ForeverValue.CommodityDepositUnit(itemID)
   local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, 1)
   if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
   return nil
+end
+
+-- The tooltip's deposit: only for an item the Sell tab has seen is a commodity
+-- (GC.db.commodityByItem, learned at the auction house). An item needs an ItemLocation the
+-- tooltip does not reliably carry, so it gets nil and its verdict says the deposit is not counted.
+function GC.ForeverValue.DepositUnit(itemID)
+  local known = GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID]
+  if known ~= true then return nil end
+  return GC.ForeverValue.CommodityDepositUnit(itemID)
 end
 
 function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)

@@ -59,8 +59,12 @@ describe("ForeverValue", function()
     assert.same({ 2589, 3, 1 }, asked)
     assert.is_nil(GC.ForeverValue.DepositUnit(9))
     assert.is_nil(GC.ForeverValue.DepositUnit(10))
+    -- The Deals board's own read (the caller already knows it is a commodity): no bag history needed.
+    assert.equal(12, GC.ForeverValue.CommodityDepositUnit(10))
+    assert.same({ 10, 3, 1 }, asked)
     _G.C_AuctionHouse = { CalculateCommodityDeposit = function() error("AH closed") end }
     assert.is_nil(GC.ForeverValue.DepositUnit(2589))
+    assert.is_nil(GC.ForeverValue.CommodityDepositUnit(2589))
     GC.db.settings.sniper.postDuration = "48"
     assert.equal(2, GC.Flips.PostDurationIndex())
   end)

@@ -509,7 +509,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
       GC.ForeverScan.Enabled = function() return true end
       GC.ForeverScan.Fold = function() return fold end
       GC.ForeverValue.VendorUnit = function() return vendor end
-      GC.ForeverValue.DepositUnit = function() return nil end
+      GC.ForeverValue.CommodityDepositUnit = function() return nil end
       GC.db.commodityByItem = GC.db.commodityByItem or {}
       GC.db.commodityByItem[LINEN] = true
       _G.C_Item = { RequestLoadItemDataByID = function() end }

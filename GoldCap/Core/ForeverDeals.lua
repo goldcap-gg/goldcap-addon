@@ -166,7 +166,9 @@ local function rebuild(fold, now)
   local rows, missing = GC.ForeverDeals.Build(fold, {
     vendorFor = GC.ForeverValue.VendorUnit,
     isCommodity = realIsCommodity,
-    depositFor = GC.ForeverValue.DepositUnit,
+    -- Asked only once isCommodity said yes (underMarket), so any commodity the scan holds has
+    -- its deposit -- not only those the Sell tab once saw in the bags (final review I2).
+    depositFor = GC.ForeverValue.CommodityDepositUnit,
     minimumProfit = GC.ForeverDeals.MinimumProfit(settings),
     watchPins = settings.watchPins,
   })
