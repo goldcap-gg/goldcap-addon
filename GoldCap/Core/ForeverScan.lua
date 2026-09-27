@@ -86,11 +86,19 @@ function GC.ForeverScan.New(driver)
             mergedCount = mergedCount + 1
           end
         end
-        -- Honest source/age (final review I3): still fundamentally the dump's own fold -- its
-        -- `rows` (a raw-row count only a real dump produces) is unchanged -- just topped up with
-        -- a few more items' floors, which is exactly what `partial` is for elsewhere in this file.
+        -- Honest source/age (final review I3, re-review I2b): still fundamentally the dump's own
+        -- fold -- its `rows` (a raw-row count only a real dump produces) is unchanged -- just
+        -- topped up with a few more items' floors, which is exactly what `partial` is for
+        -- elsewhere in this file. `at` follows the same rule: it stays the DUMP's own stamp, not
+        -- driver.now(). The dump is still most of what this fold prices, so restamping it to "now"
+        -- on every top-up would tell the companion (and the site's "N minutes ago") that a lot
+        -- read hours ago was read this instant. Only a browse item added THIS merge is actually
+        -- that fresh, and this fold format has no per-item timestamp to say so -- so `at` reports
+        -- the oldest, honest bound rather than the newest, false one. (The account-wide request
+        -- throttle is a separate stamp -- `s.requestedAt`, set in Request/OnReplicateUpdate -- and
+        -- keeps ticking off driver.now() exactly as before; nothing here touches it.)
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
-          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(),
+          realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = existing.at,
           source = existing.source, rows = existing.rows, itemCount = mergedCount, partial = true,
           items = merged }
         -- Plan 3e: the gear lots came from the very dump the merged fold keeps; they follow its stamp.

@@ -287,6 +287,19 @@ describe("ForeverDeals", function()
       assert.equal(0, #D.Rows(clock + 1))
     end)
 
+    -- Final review I2b: Core/ForeverScan.lua's browse top-up can add items to a fold while
+    -- keeping its `at` pinned to the dump's own honest stamp -- `at` alone can no longer tell
+    -- every changed fold apart, so a same-`at` fold with a different `itemCount` must still
+    -- count as due.
+    it("rebuilds on a same-`at` fold whose itemCount moved, even though `at` did not", function()
+      vendor[2589] = 13
+      saved.itemCount = 1
+      assert.equal(1, #D.Rows(clock))
+      assert.is_false(D.Due(clock + 1))
+      saved = { at = saved.at, itemCount = 2, items = saved.items }
+      assert.is_true(D.Due(clock + 1))
+    end)
+
     it("names the ceiling a live Check is held to, and drops a row until the next fold", function()
       vendor[2589] = 13
       D.Rows(clock)

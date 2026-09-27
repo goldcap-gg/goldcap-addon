@@ -194,6 +194,7 @@ describe("ForeverScan", function()
     assert.equal("replicate", original.source)
     assert.equal(1, original.rows)
     local originalMin = GC.ForeverFold.Decode(original.items[2589]).min
+    local originalAt = original.at
     now = now + 60
     d.browseAnswer = "started"
     assert.equal("cooldown", s:Request("button"))
@@ -207,6 +208,10 @@ describe("ForeverScan", function()
     assert.equal(1, fold.rows)              -- unchanged: no new replicate rows were read
     assert.is_true(fold.partial)
     assert.equal(2, fold.itemCount)
+    -- Final review I2b: the dump's own stamp, not the browse pass's later `now` -- the merged
+    -- fold is still mostly the dump's own hour-old prices, and this is the age they get shown at.
+    assert.equal(originalAt, fold.at)
+    assert.not_equal(now, fold.at)
     assert.equal(originalMin, GC.ForeverFold.Decode(fold.items[2589]).min) -- kept, not overwritten
     local added = GC.ForeverFold.Decode(fold.items[3000])
     assert.equal(250, added.min)
@@ -353,19 +358,24 @@ describe("ForeverScan", function()
     assert.truthy(store.fold.items[15210])
   end)
 
-  it("keeps the gear lots through a cooldown SCAN's browse-only top-up, restamped to the merged fold", function()
+  -- Final review I2b: the merged fold's `at` stays the DUMP's own honest stamp, not the later
+  -- browse pass's -- most of what it prices is still up to hours old, and restamping it to "now"
+  -- on every top-up is exactly the lie the companion upload and the site's "N minutes ago" caught.
+  it("keeps the gear lots through a cooldown SCAN's browse-only top-up, at the dump's own honest stamp", function()
     local s = GC.ForeverScan.New(driver({ isGear = function(id) return id == 15210 end,
       rowLink = function() return "item:15210" end }))
     rows = { { 15210, 1, 900, true } }
     s:OnAuctionHouseShow()
     runAll()
     local items = store.gear.items
+    local dumpAt = store.fold.at
     now = now + 60
     d.browseAnswer = "started"
     assert.equal("cooldown", s:Request("button"))
     s:OnBrowsePassDone({ [3000] = { floor = 250, qty = 4 } })
     runAll()
-    assert.equal(now, store.fold.at)
+    assert.equal(dumpAt, store.fold.at)          -- kept, not bumped to the merge's `now`
+    assert.not_equal(now, store.fold.at)
     assert.equal(store.fold.at, store.gear.at)
     assert.equal(items, store.gear.items)
   end)

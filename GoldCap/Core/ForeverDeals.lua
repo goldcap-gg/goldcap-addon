@@ -174,8 +174,16 @@ local function realIsCommodity(itemID)
   return nil
 end
 
-local cache = { at = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {} }
+local cache = { at = nil, itemCount = nil, builtAt = 0, waitUntil = 0, rows = {}, byItem = {} }
 local requested, dropped = {}, {}
+
+-- `at` alone used to tell every new fold apart, because every commit stamped driver.now(). Core/
+-- ForeverScan.lua's merge path (final review I2b) now keeps a browse-topped-up fold's `at` pinned
+-- to its dump's own honest stamp, so a top-up can add items while `at` does not move at all --
+-- `itemCount` (bumped only when items were actually added) catches that case.
+local function foldChanged(fold)
+  return cache.at ~= fold.at or cache.itemCount ~= fold.itemCount
+end
 
 local function rebuild(fold, now)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper or {}
@@ -214,7 +222,8 @@ local function rebuild(fold, now)
     end
     waitUntil = math.max(waitUntil, (requested[itemID] or now) + C.REQUEST_WAIT_SECONDS)
   end
-  cache.at, cache.builtAt, cache.waitUntil, cache.rows, cache.byItem = fold.at, now, waitUntil, kept, byItem
+  cache.at, cache.itemCount, cache.builtAt, cache.waitUntil, cache.rows, cache.byItem =
+    fold.at, fold.itemCount, now, waitUntil, kept, byItem
 end
 
 local function currentFold()
@@ -225,7 +234,7 @@ end
 function GC.ForeverDeals.Due(now)
   local fold = currentFold()
   if not fold then return cache.at ~= nil end
-  if cache.at ~= fold.at then return true end
+  if foldChanged(fold) then return true end
   now = now or time()
   return now < cache.waitUntil and now - cache.builtAt >= C.REBUILD_SECONDS
 end
@@ -240,10 +249,10 @@ function GC.ForeverDeals.Rows(now)
   now = now or time()
   local fold = currentFold()
   if not fold then
-    cache.at, cache.rows, cache.byItem, cache.waitUntil = nil, {}, {}, 0
+    cache.at, cache.itemCount, cache.rows, cache.byItem, cache.waitUntil = nil, nil, {}, {}, 0
     return cache.rows
   end
-  if cache.at ~= fold.at then rebuild(fold, now) end
+  if foldChanged(fold) then rebuild(fold, now) end
   return cache.rows
 end
 
