@@ -921,8 +921,6 @@ GC.Locales.ukUA = {
     "У WoW: Forever ціни GoldCap беруться з твоїх власних сканувань аукціону.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Відкрийте аукціон, і GoldCap відсканує його за вас; СКАН на вкладці Угоди сканує знову.",
-  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
-    "Поки що ваші скани залишаються на цьому комп'ютері; їх передача через GoldCap Companion скоро з'явиться.",
   ["%ds"] = "%d с",
   ["%dm"] = "%d хв",
   ["%dh"] = "%d год",
@@ -931,4 +929,7 @@ GC.Locales.ukUA = {
   ["1 scanner, %s ago"] = "1 сканер, %s тому",
   ["%d scanners, %s ago"] = "сканерів: %d, %s тому",
   ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродаж за медіаною сканувань гравців, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",
 }

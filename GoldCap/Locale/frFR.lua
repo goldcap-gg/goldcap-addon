@@ -908,8 +908,6 @@ GC.Locales.frFR = {
     "Dans WoW: Forever, les prix de GoldCap viennent de vos propres scans de l'hôtel des ventes.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Ouvrez l'hôtel des ventes et GoldCap le scanne pour vous ; SCAN dans l'onglet Affaires scanne à nouveau.",
-  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
-    "Pour l'instant, vos scans restent sur cet ordinateur ; les partager via le GoldCap Companion arrive bientôt.",
   ["%ds"] = "%d s",
   ["%dm"] = "%d min",
   ["%dh"] = "%d h",
@@ -918,4 +916,7 @@ GC.Locales.frFR = {
   ["1 scanner, %s ago"] = "1 scanner, il y a %s",
   ["%d scanners, %s ago"] = "%d scanners, il y a %s",
   ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "revente à la médiane des scans des joueurs, %s l'unité, moins 5%% et caution ; vitesse inconnue",
+  ["Shared with goldcap.gg on your next /reload"] = "Partagé avec goldcap.gg au prochain /reload",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Vos scans restent sur cet ordinateur. Le GoldCap Companion les partage avec goldcap.gg et vous rapporte les prix de tous.",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "Le GoldCap Companion partage vos scans avec goldcap.gg après chaque /reload et vous rapporte les prix de tous.",
 }

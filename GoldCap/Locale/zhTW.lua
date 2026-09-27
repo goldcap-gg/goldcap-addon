@@ -829,8 +829,6 @@ GC.Locales.zhTW = {
     "在 WoW: Forever 中，GoldCap 的價格來自你自己對拍賣場的掃描。",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "開啟拍賣場，GoldCap 會為你掃描；在交易分頁點擊掃描可以再次掃描。",
-  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
-    "目前你的掃描結果只保存在這台電腦上；透過 GoldCap Companion 分享的功能即將推出。",
   ["%ds"] = "%d秒",
   ["%dm"] = "%d分鐘",
   ["%dh"] = "%d小時",
@@ -839,4 +837,7 @@ GC.Locales.zhTW = {
   ["1 scanner, %s ago"] = "1 位掃描者，%s前",
   ["%d scanners, %s ago"] = "%d 位掃描者，%s前",
   ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家掃描的中位價每件 %s 轉售，扣除 5%% 手續費和押金；速度未知",
+  ["Shared with goldcap.gg on your next /reload"] = "將在你下次 /reload 時分享到 goldcap.gg",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的掃描結果保存在這台電腦上。GoldCap Companion 會把它們分享到 goldcap.gg，並帶回所有人的價格。",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 會在每次 /reload 後把你的掃描分享到 goldcap.gg，並帶回所有人的價格。",
 }

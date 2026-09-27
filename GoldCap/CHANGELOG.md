@@ -33,6 +33,11 @@
 - In WoW: Forever, the Settings screen now shows only what applies there: no Brakes card, no
   "Min return per buy %", and no live-price-cap toggle. "Min profit per buy" is its own setting
   there, in copper, so changing it never touches retail's own "Min profit per buy".
+- In WoW: Forever, with the GoldCap Companion, tooltips and the Deals board's
+  "Under market" rows use prices from every player's scans, and each says how
+  many players scanned it and how long ago. Your own scan still counts first
+  when it is newer. After a scan, the chat says it will be shared on your next
+  /reload when the Companion is set up to share it.
 
 ## 0.15.3 (2026-09-27)
 

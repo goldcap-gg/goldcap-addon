@@ -964,8 +964,6 @@ GC.Locales.enUS = {
     "In WoW: Forever, GoldCap's prices come from your own auction house scans.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again.",
-  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
-    "Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way.",
   -- onQueueClick (final review C1): the click that switches into queue mode and renders it makes
   -- no protected call itself -- a second press is what posts the head.
   ["Queue ready — press POST again to post it"] = "Queue ready — press POST again to post it",
@@ -978,4 +976,7 @@ GC.Locales.enUS = {
   ["1 scanner, %s ago"] = "1 scanner, %s ago",
   ["%d scanners, %s ago"] = "%d scanners, %s ago",
   ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
+  ["Shared with goldcap.gg on your next /reload"] = "Shared with goldcap.gg on your next /reload",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back.",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back.",
 }

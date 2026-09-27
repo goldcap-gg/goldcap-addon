@@ -853,8 +853,6 @@ GC.Locales.koKR = {
     "WoW: Forever에서는 GoldCap의 시세가 당신이 직접 검색한 경매장 결과에서 나옵니다.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "경매장을 열면 GoldCap이 자동으로 검색합니다. 딜 탭의 검색 버튼을 누르면 다시 검색합니다.",
-  ["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."] =
-    "지금은 검색 결과가 이 컴퓨터에만 저장됩니다. GoldCap Companion을 통한 공유 기능은 곧 추가됩니다.",
   ["%ds"] = "%d초",
   ["%dm"] = "%d분",
   ["%dh"] = "%d시간",
@@ -863,4 +861,7 @@ GC.Locales.koKR = {
   ["1 scanner, %s ago"] = "스캐너 1명, %s 전",
   ["%d scanners, %s ago"] = "스캐너 %d명, %s 전",
   ["resale at the median of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "플레이어 검색 중앙값 개당 %s에 재판매 시, 5%% 수수료와 등록비 제외; 판매 속도 알 수 없음",
+  ["Shared with goldcap.gg on your next /reload"] = "다음 /reload 때 goldcap.gg와 공유됩니다",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "검색 결과는 이 컴퓨터에만 저장됩니다. GoldCap Companion이 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion이 /reload할 때마다 검색 결과를 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
 }

@@ -257,11 +257,10 @@ local function count(n)
   return tostring(n)
 end
 
--- What a finished scan tells the player. There is no Forever Companion or upload in this build
--- (final review I1) -- GC.Data.AdoptAppData refuses a retail Companion's GoldCap_AppData table
--- in Forever, and nothing here writes one of its own -- so a scan always stays on this computer,
--- and says so unconditionally, until plan 3c ships the upload. SavedVariables are written on
--- /reload or logout only; "saved" reads that way.
+-- What a finished scan tells the player. SavedVariables are written on /reload or logout only, so
+-- "saved" reads that way. "Shared" is said only while a Companion paired with goldcap.gg writes
+-- this install (GC.Data.CompanionShares): it uploads the saved scan after the next /reload
+-- (plan 3d decision E12). Without one the scan stays on this computer and nothing claims otherwise.
 function GC.ForeverScan._SayDone(summary)
   if not summary then
     GC.Print(GC.L["The scan found nothing to save"])
@@ -276,6 +275,9 @@ function GC.ForeverScan._SayDone(summary)
   -- Guarded: this file's own _SayDone spec never loads Core/ForeverValue.lua, so GC.ForeverValue
   -- is nil there -- degrade to nothing printed rather than an error.
   if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags() end
+  if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() then
+    GC.Print(GC.L["Shared with goldcap.gg on your next /reload"])
+  end
 end
 
 local function notify(kind, a, b)
@@ -444,7 +446,11 @@ function GC.ForeverScan.MaybeIntro()
   s.introShown = true
   GC.Print(GC.L["In WoW: Forever, GoldCap's prices come from your own auction house scans."])
   GC.Print(GC.L["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."])
-  GC.Print(GC.L["Your scans stay on this computer for now; sharing them through the GoldCap Companion is on the way."])
+  if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() then
+    GC.Print(GC.L["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."])
+  else
+    GC.Print(GC.L["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."])
+  end
   return true
 end
 

@@ -263,3 +263,46 @@ describe("the Deals board's market reference", function()
     assert.equal(3, rows[1].refScanners)
   end)
 end)
+
+describe("what a Forever scan tells the player about sharing", function()
+  local GC, printed
+
+  local function load(appData)
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Game.lua", GC)
+    GC.Game.Passport = function() return { interface = 16001, build = "x", regionId = 90 } end
+    helper.loadModule("Core/ImportString.lua", GC)
+    helper.loadModule("Core/Data.lua", GC)
+    helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/ForeverScan.lua", GC)
+    printed = {}
+    GC.Print = function(msg) printed[#printed + 1] = msg end
+    local db = { settings = {} }
+    GC.ForeverScan.Init(db, { passport = function() return { interface = 16001, region = 90, realm = "R" } end })
+    _G.GoldCap_AppData = appData
+  end
+  after_each(function() _G.GoldCap_AppData = nil end)
+
+  local function said(text)
+    for _, p in ipairs(printed) do if p == text then return true end end
+    return false
+  end
+
+  it("with a paired Companion writing this install: shared on the next /reload", function()
+    load({ foreverUpload = true, writtenAt = 1 })
+    GC.ForeverScan._SayDone({ replicated = true, rows = 72080 })
+    assert.is_true(said("Shared with goldcap.gg on your next /reload"))
+    GC.ForeverScan.MaybeIntro()
+    assert.is_true(said("The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."))
+  end)
+
+  it("without one — no Companion, an older one, or an unpaired one — the scan stays here, and says so", function()
+    for _, appData in ipairs({ false, { writtenAt = 1 } }) do
+      load(appData or nil)
+      GC.ForeverScan._SayDone({ replicated = true, rows = 72080 })
+      assert.is_false(said("Shared with goldcap.gg on your next /reload"))
+      GC.ForeverScan.MaybeIntro()
+      assert.is_true(said("Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."))
+    end
+  end)
+end)
