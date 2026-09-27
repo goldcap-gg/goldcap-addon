@@ -49,6 +49,7 @@ describe("ForeverScan", function()
   before_each(function()
     GC = helper.loadModule("Core/Game.lua")
     helper.loadModule("Core/ForeverFold.lua", GC)
+    helper.loadModule("Core/ForeverGear.lua", GC)
     helper.loadModule("Core/ForeverScan.lua", GC)
     d, timers, notes, store, rows, now = {}, {}, {}, {}, {}, 100000
   end)
@@ -307,6 +308,71 @@ describe("ForeverScan", function()
     assert.is_nil(store.fold.items[1])
   end)
 
+  it("saves the gear lots of a full dump beside the fold, stamped with the fold's own time", function()
+    local links = {}
+    local s = GC.ForeverScan.New(driver({
+      isGear = function(id) return id == 15210 or id == 6125 end,
+      rowLink = function(i) return links[i + 1] end,
+    }))
+    rows = { { 2589, 20, 1340, true }, { 15210, 1, 900, true }, { 15210, 1, 500, true }, { 6125, 1, 300, false } }
+    links = { "item:2589", "item:15210:0:0:0:0:0:-12:1583", "item:15210:0:0:0:0:0:-9:1583", nil }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.equal(store.fold.at, store.gear.at)
+    assert.equal(1, store.gear.v)
+    -- 6125's link had not loaded (nil): no version, no lot. 2589 is not gear.
+    assert.same({ [15210] = "500:-9:1583 900:-12:1583" }, store.gear.items)
+    -- The fold itself is folded exactly as before: its strings never carry a link.
+    assert.equal(2, GC.ForeverFold.Decode(store.fold.items[15210]).lots)
+    for _, encoded in pairs(store.fold.items) do assert.is_nil(encoded:find("item:", 1, true)) end
+  end)
+
+  it("saves no gear lots from a driver that reads no links, and the fold as before", function()
+    local s = GC.ForeverScan.New(driver({ isGear = function() return true end }))
+    rows = { { 15210, 1, 900, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.is_nil(store.gear)
+    assert.truthy(store.fold.items[15210])
+  end)
+
+  it("keeps the gear lots through a cooldown SCAN's browse-only top-up, restamped to the merged fold", function()
+    local s = GC.ForeverScan.New(driver({ isGear = function(id) return id == 15210 end,
+      rowLink = function() return "item:15210" end }))
+    rows = { { 15210, 1, 900, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    local items = store.gear.items
+    now = now + 60
+    d.browseAnswer = "started"
+    assert.equal("cooldown", s:Request("button"))
+    s:OnBrowsePassDone({ [3000] = { floor = 250, qty = 4 } })
+    runAll()
+    assert.equal(now, store.fold.at)
+    assert.equal(store.fold.at, store.gear.at)
+    assert.equal(items, store.gear.items)
+  end)
+
+  it("drops the gear lots when a browse-only scan replaces another auction house's fold", function()
+    local realm = "Forever"
+    local s = GC.ForeverScan.New(driver({
+      isGear = function() return true end,
+      rowLink = function() return "item:15210" end,
+      passport = function()
+        return { interface = 16001, build = "1.60.1.70009", region = 90, realm = realm, faction = "Horde" }
+      end,
+    }))
+    rows = { { 15210, 1, 900, true } }
+    s:OnAuctionHouseShow()
+    runAll()
+    assert.truthy(store.gear)
+    realm, now, d.browseAnswer = "Forever-PvP", now + 60, "started"
+    s:Request("button")
+    s:OnBrowsePassDone({ [3000] = { floor = 250, qty = 4 } })
+    runAll()
+    assert.is_nil(store.gear)
+  end)
+
   describe("module", function()
     local db
     local function passport(interface, region, realm)
@@ -444,6 +510,25 @@ describe("ForeverScan", function()
       p.mountCost = 5
       assert.equal(5, GC.ForeverScan.Prefs().mountCost)
       assert.equal(db, GC.ForeverScan.Root())
+    end)
+
+    it("hands out the gear lots only together with the very fold Fold() answers", function()
+      GC.ForeverScan.Init(db, passport(16001, 90, "Forever"))
+      db.foreverScan = { fold = { region = 90, realm = "Forever", at = 5000, items = {} },
+        gear = { v = 1, at = 5000, items = { [6125] = "501:0:0" } } }
+      local gear, fold = GC.ForeverScan.Gear()
+      assert.equal(db.foreverScan.gear, gear)
+      assert.equal(db.foreverScan.fold, fold)
+      db.foreverScan.gear.at = 4999                       -- an older scan's lots
+      assert.is_nil(GC.ForeverScan.Gear())
+      db.foreverScan.gear.at = 5000
+      db.foreverScan.fold.realm = "Forever-PvP"           -- another auction house
+      assert.is_nil(GC.ForeverScan.Gear())
+      db.foreverScan.fold.realm = "Forever"
+      local text = table.concat(GC.ForeverScan.Summary(6000), "\n")
+      assert.truthy(text:find("own scan: gear lots for 1 items", 1, true))
+      GC.ForeverScan.Init(db, passport(120100, 3, "Silvermoon"))
+      assert.is_nil(GC.ForeverScan.Gear())
     end)
   end)
 end)

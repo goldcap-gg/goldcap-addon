@@ -93,11 +93,15 @@ function GC.ForeverScan.New(driver)
           realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(),
           source = existing.source, rows = existing.rows, itemCount = mergedCount, partial = true,
           items = merged }
+        -- Plan 3e: the gear lots came from the very dump the merged fold keeps; they follow its stamp.
+        if type(s.gear) == "table" then s.gear.at = s.fold.at end
       else
         s.fold = { v = GC.ForeverFold.VERSION, interface = p.interface, build = p.build, region = p.region,
           realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
           rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
           items = items }
+        -- Plan 3e: the gear lots of this dump, or none (a browse-only scan has no links).
+        s.gear = a.gear and GC.ForeverGear.Freeze(a.gear, s.fold.at) or nil
       end
     end
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
@@ -125,6 +129,18 @@ function GC.ForeverScan.New(driver)
     if not toBrowse(acc.partial and "wide" or "classes") then commit() end
   end
 
+  -- driver.isGear once per item id per scan: tens of thousands of rows share a few thousand ids.
+  local function isGearRow(itemID)
+    if type(itemID) ~= "number" then return false end
+    local known = acc.gearIds[itemID]
+    if known == nil then
+      local ok, g = pcall(driver.isGear, itemID)
+      known = ok and g == true
+      acc.gearIds[itemID] = known
+    end
+    return known
+  end
+
   local readBatch
   readBatch = function(t)
     if token ~= t or state ~= "reading" then return end
@@ -136,7 +152,13 @@ function GC.ForeverScan.New(driver)
     if readIndex < total then
       local last = math.min(readIndex + C.READ_BATCH, total) - 1
       for i = readIndex, last do
-        GC.ForeverFold.AddRow(acc, driver.rowInfo(i))
+        local itemID, count, buyout, hasAll = driver.rowInfo(i)
+        GC.ForeverFold.AddRow(acc, itemID, count, buyout, hasAll)
+        -- Plan 3e: a gear row's link, for the Upgrade Finder (Core/ForeverGear.lua). Beside the
+        -- fold, never in it.
+        if acc.gear and isGearRow(itemID) then
+          GC.ForeverGear.AddRow(acc.gear, itemID, count, buyout, driver.rowLink(i))
+        end
       end
       readIndex = last + 1
       driver.notify("progress", readIndex, total)
@@ -152,6 +174,10 @@ function GC.ForeverScan.New(driver)
     local n = driver.numRows()
     if type(n) ~= "number" or n <= 0 then return false end
     acc = acc or GC.ForeverFold.New()
+    -- Only with a driver that reads links (the real one does); the fold is folded as before.
+    if GC.ForeverGear and driver.rowLink and not acc.gear then
+      acc.gear, acc.gearIds = GC.ForeverGear.New(), {}
+    end
     acc.dumpRows = n
     acc.replicated = true
     state, total, readIndex = "reading", n, 0
@@ -318,6 +344,12 @@ local function realDriver()
       if not ok then return nil end
       return itemID, count_, buyout, hasAll
     end,
+    -- Plan 3e: the row's link, "if loaded" (warcraft.wiki.gg) -- nil otherwise, never an error.
+    rowLink = function(i)
+      if type(ah.GetReplicateItemLink) ~= "function" then return nil end
+      local ok, link = pcall(ah.GetReplicateItemLink, i)
+      return ok and type(link) == "string" and link or nil
+    end,
     isGear = function(itemID)
       local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
       return classID == 2 or classID == 4
@@ -433,6 +465,18 @@ function GC.ForeverScan.ValueFor(itemID)
     source = "scan", kind = "own_scan", gear = e.gear or nil, browse = e.browse or nil }
 end
 
+-- The gear lots of the saved fold (Core/ForeverGear.lua) and that fold, only while the lots are the
+-- very scan Fold() answers with -- same `at` -- so they ride on its region/realm/faction check.
+-- nil otherwise, and always on retail.
+function GC.ForeverScan.Gear()
+  local fold = GC.ForeverScan.Fold()
+  if not fold then return nil end
+  local s = GC.ForeverScan._db.foreverScan
+  local gear = type(s) == "table" and s.gear or nil
+  if type(gear) ~= "table" or type(gear.items) ~= "table" or gear.at ~= fold.at then return nil end
+  return gear, fold
+end
+
 -- For /gc forever (Core/ForeverCheck.lua): plain English, a diagnostic.
 function GC.ForeverScan.Summary(now)
   if not GC.ForeverScan._on then return {} end
@@ -449,6 +493,13 @@ function GC.ForeverScan.Summary(now)
         now - (f.at or now), tostring(f.region), tostring(f.realm), tostring(f.faction))
   else
     lines[#lines + 1] = "own scan: no fold saved yet"
+  end
+  local g = type(s) == "table" and s.gear or nil
+  if type(g) == "table" and type(g.items) == "table" then
+    local n = 0
+    for _ in pairs(g.items) do n = n + 1 end
+    lines[#lines + 1] = ("own scan: gear lots for %d items%s"):format(n,
+      (type(f) == "table" and g.at == f.at) and "" or " (from an older scan, not used)")
   end
   local scanner = GC.ForeverScan._scanner
   lines[#lines + 1] = "own scan: scanner " .. (scanner and scanner:State() or "off")
