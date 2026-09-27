@@ -341,6 +341,12 @@ describe("Settings controls", function()
 
     before_each(function()
       helper.loadModule("Core/Game.lua", GC)
+      -- Task S: the Forever branch of the settings panel reads GC.Util.CoinText (the min-profit
+      -- field's tooltip default) and GC.ForeverDeals.MinimumProfit/.C (the field's own effective
+      -- value and its built-in default) -- neither loaded by the outer before_each above, which
+      -- only needs SniperDecision for the retail-shaped fields.
+      helper.loadModule("Core/Util.lua", GC)
+      helper.loadModule("Core/ForeverDeals.lua", GC)
       _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
     end)
 
@@ -369,6 +375,97 @@ describe("Settings controls", function()
         seg["24H"].scripts.OnClick(seg["24H"])
         assert.equal(3, GC.db.settings.sniper.postDuration)
       end)
+
+    -- Task S: only what a Forever code path actually reads shows -- BRAKES (dumpTrendPct/
+    -- spikeTrendPct/wallAbsorbHours, retail Evaluate-only), Min return per buy % (minimumRoi,
+    -- same reader) and capStopAndOpen (no Forever cap row ever exists, Core/Caps.lua) are gone
+    -- outright, not merely hidden behind something else -- and nothing they left behind leaves a
+    -- gap: DISPLAY still follows AUTOMATION & ALERTS with no card-shaped hole where BRAKES was.
+    it("hides BRAKES, Min return per buy % and the live-price-cap toggle, with no gap left behind",
+      function()
+        GC.SettingsUI.Toggle()
+        local titles = cardTitles(_G.GoldCapSniperFrame)
+        assert.is_true(titles["WHAT COUNTS AS A DEAL"])
+        assert.is_nil(titles["BRAKES"])
+        assert.is_true(titles["POSTING"])
+        assert.is_true(titles["AUTOMATION & ALERTS"])
+        assert.is_true(titles["DISPLAY"])
+
+        local labels = {}
+        walk(_G.GoldCapSniperFrame, function(node)
+          if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+        end)
+        assert.is_nil(labels["Min return per buy %"])
+        assert.is_nil(labels["Dump-trend cap %"])
+        assert.is_nil(labels["Spike-trend threshold %"])
+        assert.is_nil(labels["Wall absorb window (hours)"])
+        assert.is_nil(labels["Stop and open the buy window on your price"])
+
+        -- Reachable in Forever (see SettingsFrame.lua's own comments on each): still built.
+        assert.is_true(labels["Min profit per buy (copper)"])
+        assert.is_true(labels["Max wallet per buy %"])
+        assert.is_true(labels["Max units per buy"])
+        assert.is_true(labels["Duration"])
+        assert.is_true(labels["Buy cap (% of usual price)"])
+        assert.is_true(labels["Sound on SAFE deal"])
+        assert.is_true(labels["Auto-scan on next AH visit"])
+        assert.is_true(labels["Post above the cheapest"])
+      end)
+
+    it("shows the vendor-wallet carve-out as a grey note under Max wallet per buy %", function()
+      GC.SettingsUI.Toggle()
+      local labels = {}
+      walk(_G.GoldCapSniperFrame, function(node)
+        if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+      end)
+      assert.is_true(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+    end)
+
+    describe("the Forever min-profit field", function()
+      it("shows what GC.ForeverDeals.MinimumProfit would actually apply, not retail's own field",
+        function()
+          -- minimumProfitCopper still at RETAIL's own shipped default (50000, plan 3c's
+          -- RETAIL_DEFAULT_MIN_PROFIT) and foreverMinimumProfitCopper never touched: the built-in
+          -- 20c applies.
+          GC.db.settings.sniper.minimumProfitCopper = 50000
+          GC.db.settings.sniper.foreverMinimumProfitCopper = nil
+          GC.SettingsUI.Toggle()
+          local box = fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (copper)")
+          assert.equal("20", box.editBox:GetText())
+        end)
+
+      it("keeps honouring an already-changed retail value until the Forever field is itself saved",
+        function()
+          -- Migration: the player changed retail's field before this key ever existed.
+          GC.db.settings.sniper.minimumProfitCopper = 30000
+          GC.db.settings.sniper.foreverMinimumProfitCopper = nil
+          GC.SettingsUI.Toggle()
+          local box = fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (copper)")
+          assert.equal("30000", box.editBox:GetText())
+
+          -- One save of the Forever field, even nominally, and it always wins from here on --
+          -- retail's own field is never written by this box.
+          box.editBox:SetText("500")
+          box.editBox.scripts.OnEditFocusLost(box.editBox)
+          assert.equal(500, GC.db.settings.sniper.foreverMinimumProfitCopper)
+          assert.equal(30000, GC.db.settings.sniper.minimumProfitCopper)
+        end)
+
+      it("a card DEFAULTS click un-sets the override rather than hard-resetting to the built-in 20c",
+        function()
+          GC.db.settings.sniper.minimumProfitCopper = 30000 -- an old, already-migrated value
+          GC.db.settings.sniper.foreverMinimumProfitCopper = 777
+          GC.SettingsUI.Toggle()
+
+          local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+          local resetBtn = buttonIn(whatCounts, "DEFAULTS")
+          resetBtn.scripts.OnClick(resetBtn)
+
+          assert.is_nil(GC.db.settings.sniper.foreverMinimumProfitCopper)
+          local box = fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (copper)")
+          assert.equal("30000", box.editBox:GetText()) -- the migration rule runs again, not 20c
+        end)
+    end)
   end)
 
   it("toggle knob follows the checked state and a click flips the setting", function()
@@ -435,6 +532,39 @@ describe("Settings controls", function()
     assert.is_not_nil(fieldOf(brakes, "Dump-trend cap %"))
     assert.is_not_nil(fieldOf(brakes, "Spike-trend threshold %"))
     assert.is_not_nil(fieldOf(brakes, "Wall absorb window (hours)"))
+  end)
+
+  -- Task S: retail's own panel is pinned byte-identical in behaviour -- every row this file
+  -- built before Task S still builds, none of the Forever-only surfaces leak in, and nothing
+  -- silently rides along with a future Forever-only change to this same file.
+  it("[Task S] retail keeps every existing card and row unchanged", function()
+    GC.SettingsUI.Toggle()
+    local titles = cardTitles(_G.GoldCapSniperFrame)
+    assert.is_true(titles["WHAT COUNTS AS A DEAL"])
+    assert.is_true(titles["BRAKES"])
+    assert.is_true(titles["POSTING"])
+    assert.is_true(titles["AUTOMATION & ALERTS"])
+    assert.is_true(titles["DISPLAY"])
+
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Min profit per buy (gold)"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Min return per buy %"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Max wallet per buy %"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Max units per buy"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Dump-trend cap %"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Spike-trend threshold %"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Wall absorb window (hours)"))
+    assert.is_not_nil(fieldOf(_G.GoldCapSniperFrame, "Buy cap (% of usual price)"))
+    assert.is_not_nil(toggleOf(_G.GoldCapSniperFrame, "Sound on SAFE deal"))
+    assert.is_not_nil(toggleOf(_G.GoldCapSniperFrame, "Auto-scan on next AH visit"))
+    assert.is_not_nil(toggleOf(_G.GoldCapSniperFrame, "Post above the cheapest"))
+    assert.is_not_nil(toggleOf(_G.GoldCapSniperFrame, "Stop and open the buy window on your price"))
+
+    local labels = {}
+    walk(_G.GoldCapSniperFrame, function(node)
+      if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+    end)
+    assert.is_nil(labels["Min profit per buy (copper)"])
+    assert.is_nil(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
   end)
 
   it("minimumRoi field round-trips UI percent 10..200 to a stored fraction 0.10..2.00, clamped at both ends", function()

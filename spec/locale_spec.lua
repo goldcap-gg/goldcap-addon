@@ -210,6 +210,9 @@ describe("locale layer", function()
       "sure profit: a vendor pays %s each",
       "resale at your scan's median, %s each, after the 5%% cut and deposit; speed unknown",
       "Checked against the live auction house a moment ago.",
+      -- Task S: the settings panel's own Forever min-profit row and its vendor-wallet note.
+      "Min profit per buy (copper)",
+      "While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead.",
     }
     for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
         "ukUA", "zhCN", "zhTW" }) do

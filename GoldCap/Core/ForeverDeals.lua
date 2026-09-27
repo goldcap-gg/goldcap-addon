@@ -40,11 +40,23 @@ local C = {
 }
 GC.ForeverDeals.C = C
 
--- Decision 4 of plan 3c: 20c, unless the player changed "Min profit per buy" from its shipped
--- default -- then theirs, as it stands. Retail's own floor (at least 1g, SniperDecision's
--- normalizeConfig) is a gold economy's and never applies here.
+-- Task S (Settings for Forever): its own key now, settings.sniper.foreverMinimumProfitCopper --
+-- UI/SettingsFrame.lua edits it in copper, so an edit there can never move retail's own
+-- minimumProfitCopper (5g), and the field never shows a number this function ignores. Once it
+-- holds a number (even 0, even a re-save of the figure the migration below would have chosen
+-- anyway) it always wins, forever after.
+--
+-- Migration (decision 4 of plan 3c, kept as the fallback): a player who changed the RETAIL
+-- field's default before this key ever existed keeps that old rule -- their retail value, as it
+-- stands -- until they touch the Forever field once. Retail's own floor (at least 1g,
+-- SniperDecision's normalizeConfig) is a gold economy's and never applies here.
 function GC.ForeverDeals.MinimumProfit(settings)
-  local m = type(settings) == "table" and settings.minimumProfitCopper or nil
+  if type(settings) ~= "table" then return C.MIN_PROFIT_COPPER end
+  local own = settings.foreverMinimumProfitCopper
+  if type(own) == "number" and own == own and own >= 0 then
+    return math.floor(own)
+  end
+  local m = settings.minimumProfitCopper
   if type(m) == "number" and m == m and m >= 0 and m ~= C.RETAIL_DEFAULT_MIN_PROFIT then
     return math.floor(m)
   end

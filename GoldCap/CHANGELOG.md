@@ -29,6 +29,9 @@
 - The Sell panel says how long ago it last saw a live price for the item, instead of a red
   "stale".
 - GoldCap is listed under "Auctions" in the AddOns list.
+- In WoW: Forever, the Settings screen now shows only what applies there: no Brakes card, no
+  "Min return per buy %", and no live-price-cap toggle. "Min profit per buy" is its own setting
+  there, in copper, so changing it never touches retail's own "Min profit per buy".
 
 ## 0.15.1 (2026-09-24)
 

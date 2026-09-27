@@ -217,6 +217,19 @@ describe("ForeverDeals", function()
       assert.equal(30000, D.MinimumProfit({ minimumProfitCopper = 30000 }))
       assert.equal(12, D.MinimumProfit({ minimumProfitCopper = 12.7 }))
     end)
+
+    -- Task S: foreverMinimumProfitCopper is the settings panel's own Forever key now
+    -- (UI/SettingsFrame.lua). Once it holds a number, it always wins -- retail's own
+    -- minimumProfitCopper, changed or not, is never consulted again.
+    it("prefers foreverMinimumProfitCopper once it holds a number, over the old retail carry-forward", function()
+      assert.equal(500, D.MinimumProfit({ foreverMinimumProfitCopper = 500, minimumProfitCopper = 30000 }))
+      assert.equal(500, D.MinimumProfit({ foreverMinimumProfitCopper = 500, minimumProfitCopper = 50000 }))
+      assert.equal(0, D.MinimumProfit({ foreverMinimumProfitCopper = 0, minimumProfitCopper = 30000 }))
+      assert.equal(12, D.MinimumProfit({ foreverMinimumProfitCopper = 12.7 }))
+      -- Absent (nil) or garbage falls through to the old rule, unchanged.
+      assert.equal(30000, D.MinimumProfit({ foreverMinimumProfitCopper = -5, minimumProfitCopper = 30000 }))
+      assert.equal(20, D.MinimumProfit({ foreverMinimumProfitCopper = nil, minimumProfitCopper = 50000 }))
+    end)
   end)
 
   describe("Rows, CeilingFor, Drop, Due", function()
