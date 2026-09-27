@@ -370,6 +370,23 @@ function GC.ForeverScan.Store()
   return db.foreverScan
 end
 
+-- GoldCapDB.forever: plan 3e's Forever-only preferences and per-character state -- the riding
+-- cost, stat weights, the loot opt-out, Road to 40's pace. Created on first use and only in
+-- Forever, like Store: a retail save never gains the key.
+function GC.ForeverScan.Prefs()
+  local db = GC.ForeverScan._db
+  if not GC.ForeverScan._on or type(db) ~= "table" then return nil end
+  if type(db.forever) ~= "table" then db.forever = {} end
+  return db.forever
+end
+
+-- The whole save, for a Forever module that keeps a top-level key of its own
+-- (Core/ForeverLoot.lua's GoldCapDB.foreverLoot). nil on retail.
+function GC.ForeverScan.Root()
+  if not GC.ForeverScan._on or type(GC.ForeverScan._db) ~= "table" then return nil end
+  return GC.ForeverScan._db
+end
+
 -- The character's realm and faction, read again while the load-time read left one unnamed.
 local function settleHouse()
   local F = GC.ForeverScan

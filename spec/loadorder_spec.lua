@@ -313,8 +313,11 @@ describe("TOC load order", function()
       local realToggle = GC.Sniper.Toggle
       GC.Sniper.Toggle = function(...) toggleCalls = toggleCalls + 1 return realToggle(...) end
       GC.slashHandlers.sniper()
+      -- Plan 3e: OnSlash hands a handler the rest of the line. A word with text after it, in any
+      -- case, still reaches the same handler; retail's commands take no argument and ignore it.
+      GC.OnSlash("  SNIPER  now please ")
       GC.Sniper.Toggle = realToggle
-      assert.equal(1, toggleCalls)
+      assert.equal(2, toggleCalls)
     end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --

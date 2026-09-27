@@ -914,10 +914,12 @@ function GC.Print(msg)
 end
 
 function GC.OnSlash(msg)
-  msg = (msg or ""):match("^%s*(%S*)") or ""
-  local handler = GC.slashHandlers[msg:lower()]
+  -- Plan 3e: the rest of the line goes to the handler (`/gc mount 12g 50s`). Every older handler
+  -- takes no argument and ignores it.
+  local cmd, rest = GC.Util.SlashArgs(msg)
+  local handler = GC.slashHandlers[cmd:lower()]
   if handler then
-    handler()
+    handler(rest)
   else
     GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
   end

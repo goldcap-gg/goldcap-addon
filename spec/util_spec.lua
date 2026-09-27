@@ -189,3 +189,16 @@ describe("Util", function()
     end)
   end)
 end)
+
+describe("GC.Util.SlashArgs", function()
+  local GC
+  before_each(function() GC = helper.loadModule("Core/Util.lua") end)
+
+  it("splits the command word from the rest of the line, both trimmed", function()
+    assert.same({ "Mount", "12g 50s" }, { GC.Util.SlashArgs("  Mount   12g 50s  ") })
+    assert.same({ "sniper", "" }, { GC.Util.SlashArgs("sniper") })
+    assert.same({ "weights", "STR 1 STA 0.5" }, { GC.Util.SlashArgs("weights STR 1 STA 0.5") })
+    assert.same({ "", "" }, { GC.Util.SlashArgs("") })
+    assert.same({ "", "" }, { GC.Util.SlashArgs(nil) })
+  end)
+end)

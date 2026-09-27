@@ -13,6 +13,15 @@ function GC.Util.ApplyDefaults(dst, src)
   end
 end
 
+-- A slash command's first word and the rest of the line, both trimmed. The word is returned as
+-- typed; GC.OnSlash lowercases it to find the handler, and the rest goes to the handler untouched
+-- (`/gc mount 12g 50s`, `/gc weights STR 1 STA 0.5`).
+function GC.Util.SlashArgs(msg)
+  if type(msg) ~= "string" then return "", "" end
+  local cmd, rest = msg:match("^%s*(%S*)%s*(.-)%s*$")
+  return cmd or "", rest or ""
+end
+
 function GC.Util.FormatAge(seconds)
   if seconds < 3600 then return "<1h" end
   if seconds < 48 * 3600 then return math.floor(seconds / 3600) .. "h" end
