@@ -859,7 +859,9 @@ describe("Sell positions", function()
       args.scanProjects = true
       local p = build(args)[1]
       assert.equal(math.floor(10 * 70 * 95 / 100), p.projectedNet)
-      assert.is_true(p.projectedFromScan)
+      -- The figure is the whole fact: no field names where it came from (final review m9 -- one
+      -- nothing read).
+      assert.is_nil(p.projectedFromScan)
 
       args.scanProjects = nil
       -- Retail (or Forever before the flag is set): unchanged -- mv alone still never projects.

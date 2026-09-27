@@ -363,7 +363,6 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   if not projectFrom and scanProjects and marketStats and marketStats.source == "scan"
       and positive(marketStats.mv) then
     projectFrom = marketStats.mv
-    position.projectedFromScan = true
   end
   -- The imported market value. Fetched all along for its sold/day and trend, and
   -- its price ignored -- which is how a single cheap lot became both the price
