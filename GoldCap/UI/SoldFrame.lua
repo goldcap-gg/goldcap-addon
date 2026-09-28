@@ -79,12 +79,21 @@ local function buildEntries()
   local entries = {}
   local summary = GC.AppLedger and GC.AppLedger.GetSummary and GC.AppLedger.GetSummary()
   local now = time()
+  -- goldcap.gg keeps no Forever sales at all -- the Companion there reads only the Forever
+  -- scan -- so neither the pairing hint below nor the "not synced yet" section label are ever
+  -- true on Forever; both read differently there.
+  local isForever = GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport())
   -- WoW: Forever: Road to 40 heads the tab (Core/ForeverRoad.lua) -- gold is what this tab is
   -- about. SoldLines answers nil everywhere else, retail included, so nothing changes there.
+  -- Owner, Forever beta 2026-09-28: SoldLines' own lines are compact -- one row each, flush
+  -- with the ITEM column like a sale row's own name -- never the "hint" kind's centered,
+  -- word-wrapped box; that read as clutter above a tab about sales. Only the first line is
+  -- gold, matching what SoldLines itself already orders first (totals, then forecast, then the
+  -- AH-gain line, when there is one).
   local road = GC.ForeverRoad and GC.ForeverRoad.SoldLines and GC.ForeverRoad.SoldLines()
   if road then
     entries[#entries + 1] = { kind = "section", text = GC.L["ROAD TO 40"] }
-    for _, line in ipairs(road) do entries[#entries + 1] = { kind = "hint", text = line, gold = true } end
+    for i, line in ipairs(road) do entries[#entries + 1] = { kind = "road", text = line, gold = i == 1 } end
   end
   -- The boundary is the newest `at` the snapshot's own sale rows prove the
   -- server holds (see the file header comment) -- not generatedAt. No
@@ -104,7 +113,7 @@ local function buildEntries()
       entries[#entries + 1] = { kind = "hint",
         text = GC.L["Profit tracking is a goldcap.gg Pro feature"] }
     end
-  else
+  elseif not isForever then
     entries[#entries + 1] = { kind = "hint",
       text = GC.L["Pair or update the GoldCap Companion to see profit from goldcap.gg"] }
   end
@@ -126,8 +135,11 @@ local function buildEntries()
   end
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
+    -- goldcap.gg never syncs a Forever sale at all (see isForever above), so the retail label's
+    -- promise that it will, on the next /reload, would be untrue there.
     entries[#entries + 1] = { kind = "section",
-      text = GC.L["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] }
+      text = isForever and GC.L["YOUR SALES"]
+        or GC.L["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -358,14 +370,13 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   setColor(row.cells.total, Theme.color.fg)
 end
 
--- heightFor: every row is one Theme.ROW_H line, except a hint -- those carry
--- a full sentence and word-wrap, so they get two lines' worth of room
--- (Deals' emptyText is the same idea: word-wrapped, muted, centered). Road to 40's totals+forecast
--- line (Core/ForeverRoad.lua's SoldLines) runs longer than any other hint here -- it concatenates
--- two full sentences into one -- so it gets a third line rather than risk it wrapping past its
--- row's fixed height at the window's narrowest width.
+-- heightFor: every row is one Theme.ROW_H line, except a hint -- those carry a full sentence
+-- and word-wrap, so they get two lines' worth of room (Deals' emptyText is the same idea:
+-- word-wrapped, muted, centered). Road to 40's own rows (kind "road") are deliberately NOT a
+-- hint -- SoldLines composes single short lines now, one row each, so they fall through to the
+-- plain case below like a sale row does.
 local function heightFor(entry)
-  if entry.kind == "hint" then return geometry.rowHeight * (entry.gold and 3 or 2) end
+  if entry.kind == "hint" then return geometry.rowHeight * 2 end
   return geometry.rowHeight
 end
 
@@ -417,7 +428,15 @@ local function paintRow(row, entry, index)
   local zc = Theme.color.zebra
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
-  if entry.kind == "hint" then
+  if entry.kind == "road" then
+    -- Road to 40's own compact rows (Core/ForeverRoad.lua's SoldLines): one short line, flush
+    -- with the ITEM column like a sale row's own name -- never centered or word-wrapped. Only
+    -- the first line (the totals) is gold; the forecast and AH-gain lines read muted, same
+    -- weight as every other supporting line on this tab.
+    row.item:SetJustifyH("LEFT")
+    row.item:SetText(entry.text)
+    setColor(row.item, entry.gold and Theme.color.gold or Theme.color.fgDim)
+  elseif entry.kind == "hint" then
     -- Centered, muted, in the list area -- Deals' empty-state language --
     -- rather than a top-left label. A hint can appear alongside real rows
     -- (the Pro notice sits above server rows that still render), so it
@@ -427,8 +446,7 @@ local function paintRow(row, entry, index)
     row.wide:SetJustifyH("CENTER")
     row.wide:SetWordWrap(true)
     row.wide:SetText(entry.text)
-    -- Road to 40's lines are the tab's headline in Forever; every other hint stays muted.
-    setColor(row.wide, entry.gold and Theme.color.gold or Theme.color.fgDim)
+    setColor(row.wide, Theme.color.fgDim)
     row.wide:SetSpacing(4)
   elseif entry.kind == "section" then
     -- Mono micro-label + a hairline rule running to the row's right edge --

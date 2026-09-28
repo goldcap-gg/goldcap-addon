@@ -186,13 +186,25 @@ describe("ForeverRoad", function()
     assert.is_nil(db.forever.road["Player-1-0000ABCD"].last)
   end)
 
-  it("gives the Sold tab the totals and forecast as one line, the AH line as another", function()
+  -- The Sold tab UX fix (owner, Forever beta 2026-09-28): three short single-line strings, never
+  -- Lines()'s own word-wrapped chat sentences -- SoldLines composes its own text now instead of
+  -- concatenating lines[1]/lines[2] into one long line.
+  it("gives the Sold tab three compact lines: totals, forecast, then what the AH adds", function()
     init(16001)
     db.forever = { mountCost = 125000 }
     GC.ForeverValue.RealBagTotals = function() return { best = 5000, gain = 700, gainItems = 3 } end
     assert.same({
-      "Road to 40: 15000c of 125000c (gold 10000c, bags 5000c). Play a little longer for an estimate of your pace.",
-      "Items in your bags that fetch more on the auction house than at a vendor: 3 (700c more).",
+      "15000c of 125000c — gold 10000c, bags 5000c",
+      "Play a little longer for an estimate of your pace.",
+      "3 bag items sell for more on the AH (+700c)",
+    }, R.SoldLines())
+  end)
+
+  it("nudges toward setting the riding cost, compactly, when none is set yet", function()
+    init(16001)
+    assert.same({
+      "You have 15000c — gold 10000c, bags 5000c",
+      "Set the riding cost: /gc mount 90g",
     }, R.SoldLines())
   end)
 
@@ -205,7 +217,8 @@ describe("ForeverRoad", function()
     _G.UnitXP = function() return 200 end
     _G.UnitXPMax = function() return 1000 end
     assert.same({
-      "Road to 40: 15000c of 1000000c (gold 10000c, bags 5000c). Level 40 reached: 985000c to go.",
+      "15000c of 1000000c — gold 10000c, bags 5000c",
+      "Level 40 reached: 985000c to go.",
     }, R.SoldLines())
   end)
 

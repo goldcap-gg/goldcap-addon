@@ -643,17 +643,55 @@ describe("SoldFrame", function()
     assert.truthy(restored.cells.unit:IsShown())
   end)
 
-  it("heads the tab with Road to 40, in gold, when Forever answers it", function()
+  -- Owner, Forever beta 2026-09-28: the old three-row gold hint boxes read as clutter above a
+  -- tab about sales. Road to 40's rows are compact now -- one row each, flush with the ITEM
+  -- column like a sale row's own name, never the centered word-wrapped hint box.
+  it("heads the tab with Road to 40, in compact single-row lines, when Forever answers it", function()
+    GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
     GC.ForeverRoad = { SoldLines = function()
-      return { "Road to 40: 1g of 90g (gold 1g, bags 0c).", "Items in your bags that fetch more: 2 (5c more)." }
+      return { "1g of 90g — gold 1g, bags 0c", "At your pace you reach it at level 12.",
+        "2 bag items sell for more on the AH (+5c)" }
     end }
     GC.Sold.RefreshIfShown()
     assert.truthy(rowWithText("ROAD TO 40"))
-    local line = rowWithText("Road to 40: 1g of 90g")
-    assert.truthy(line)
-    assert.is_true(colorEquals(line.wide.colorValue, GC.Theme.color.gold))
-    assert.truthy(rowWithText("Items in your bags that fetch more"))
-    GC.ForeverRoad = nil
+    local line1 = rowWithText("1g of 90g")
+    assert.truthy(line1)
+    assert.equal(28, line1.height)                 -- one row, not a tall hint box
+    assert.equal("1g of 90g — gold 1g, bags 0c", line1.item:GetText())
+    assert.is_false(line1.wide:IsShown())           -- the ITEM cell carries it, not the centered one
+    assert.equal("LEFT", line1.item.justify)
+    assert.is_true(colorEquals(line1.item.colorValue, GC.Theme.color.gold))
+    local line2 = rowWithText("At your pace you reach it at level 12")
+    assert.truthy(line2)
+    assert.equal(28, line2.height)
+    assert.is_true(colorEquals(line2.item.colorValue, GC.Theme.color.fgDim))
+    local line3 = rowWithText("2 bag items sell for more")
+    assert.truthy(line3)
+    assert.equal(28, line3.height)
+    assert.is_true(colorEquals(line3.item.colorValue, GC.Theme.color.fgDim))
+    GC.ForeverRoad, GC.Game = nil, nil
+  end)
+
+  it("does not offer to pair the Companion on Forever -- goldcap.gg never holds Forever sales",
+    function()
+      GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
+      GC.ForeverRoad = { SoldLines = function() return { "You have 0c — gold 0c, bags 0c",
+        "Set the riding cost: /gc mount 90g" } end }
+      GC.Sold.RefreshIfShown()
+      assert.is_nil(shownTexts():find("Pair or update the GoldCap Companion", 1, true))
+      GC.ForeverRoad, GC.Game = nil, nil
+    end)
+
+  it("labels local sales YOUR SALES on Forever instead of the goldcap.gg sync notice", function()
+    GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "Some Item", qty = 1, total = 10, cut = 0,
+        pending = false, at = 1500, key = "k1" } }
+    end
+    GC.Sold.RefreshIfShown()
+    assert.truthy(shownTexts():find("YOUR SALES", 1, true))
+    assert.is_nil(shownTexts():find("NOT ON GOLDCAP.GG", 1, true))
+    GC.Game = nil
   end)
 
   it("shows no Road to 40 without it -- retail -- and keeps the other hints dim", function()
