@@ -209,8 +209,16 @@ local function bindNumberField(box, key, opts)
     local c = cfg()
     local stored = c and c[key]
     if stored == nil then
-      local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
-      stored = d and d[key] or 0
+      -- Task S: opts.defaultValue lets a field's "nothing saved yet" figure come from CODE
+      -- instead of GC.DEFAULTS -- the Forever min-profit field's own key is deliberately absent
+      -- from GC.DEFAULTS (see SettingsFrame.lua's foreverMinProfitRow), so its fallback is
+      -- whatever GC.ForeverDeals.MinimumProfit would actually apply right now, not a flat 0.
+      if opts.defaultValue then
+        stored = opts.defaultValue()
+      else
+        local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+        stored = d and d[key] or 0
+      end
     end
     local ui = toUI(stored)
     eb:SetText(string.format("%.0f", ui))
@@ -275,12 +283,12 @@ local function bindCheckbox(box, key)
 end
 
 -- GC.db.settings.sniper.postDuration stores one of the three durations
--- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = 12h, 2 = 24h, 3 = 48h, see Core/Init.lua's
--- own comment on that field. DURATION_INDEX maps the segment's own label hours (12/24/48) to
--- that stored index; a numeric field (like the ones bindNumberField above builds) would happily
--- let a player type a 4th value the API would reject, and a three-state segment group can't
--- express a duration that does not exist.
-local DURATION_INDEX = { [12] = 1, [24] = 2, [48] = 3 }
+-- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = shortest, 2 = middle, 3 = longest, see
+-- Core/Init.lua's own comment on that field. The WIRE value is a plain index, never an hour
+-- count -- Blizzard's own API never sees hours, only 1/2/3 -- so it means 12h/24h/48h on retail
+-- and 2h/8h/24h in WoW: Forever (Auctionator 339's Source_Forever/Constants.lua; Blizzard's own
+-- Forever window shows "8 Hours", "2 Hours") without changing at all. Only the LABEL a player
+-- reads depends on which client this is; see durationHours below.
 
 -- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
 -- postDuration() reader -- these controls must never show, let alone write, a value that
@@ -294,24 +302,42 @@ local function storedDurationIndex()
   return (default == 1 or default == 2 or default == 3) and default or 2
 end
 
--- Binds the three 12H/24H/48H segment buttons: `buttons`/`hoursList` are parallel arrays
--- (buttons[i] labeled hoursList[i] .. "H"). display() paints the current duration's button
--- "active" and every other "ghost"; each button writes DURATION_INDEX[its own hours] on click,
--- then repaints -- same db key, same 1/2/3 value type the old cycling button wrote.
-local function bindDurationSegments(buttons, hoursList)
+-- The three hour labels the wire's 1/2/3 map to on THIS client, shortest first. Read fresh
+-- (like every other GC.Game.IsForever gate in this addon) rather than cached once, so a build
+-- that could not tell would never wedge into the wrong table for the session.
+local function durationHours()
+  if GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport and GC.Game.Passport()) then
+    return { 2, 8, 24 }
+  end
+  return { 12, 24, 48 }
+end
+
+-- Task S: which rows this screen builds at all. Same "read fresh" contract as durationHours
+-- above -- every other GC.Game.IsForever gate in this addon reads the passport again rather than
+-- caching it once, so a build that could not tell would never wedge into the wrong shape for the
+-- session.
+local function isForeverClient()
+  return (GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport and GC.Game.Passport())) and true or false
+end
+
+-- Binds the three segment buttons, ordered shortest to longest: `buttons[i]` is the wire value
+-- `i`, directly -- no separate hours-keyed lookup needed, since the segments are always built in
+-- wire order (see the caller). display() paints the current duration's button "active" and every
+-- other "ghost"; each button writes its own position on click, then repaints -- same db key,
+-- same 1/2/3 value type the old cycling button wrote.
+local function bindDurationSegments(buttons)
   local function display()
     local current = storedDurationIndex()
     for i, button in ipairs(buttons) do
-      button:SetVariant(DURATION_INDEX[hoursList[i]] == current and "active" or "ghost")
+      button:SetVariant(i == current and "active" or "ghost")
     end
   end
 
   for i, button in ipairs(buttons) do
-    local hours = hoursList[i]
     button:SetScript("OnClick", function()
       local c = cfg()
       if not c then return end
-      c.postDuration = DURATION_INDEX[hours]
+      c.postDuration = i
       display()
     end)
   end
@@ -574,9 +600,18 @@ local function build(sniperFrame)
   whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
   whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
-  local brakes = card(panel, GC.L["BRAKES"], 3, true)
-  brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
-  brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  -- Task S: BRAKES (dumpTrendPct/spikeTrendPct/wallAbsorbHours) never built at all in Forever --
+  -- every one of them feeds either SniperDecision.Evaluate's retail exit-price math or
+  -- Flips.RecommendPost's queue-at-exit deflation, and both require a `sold`/`trend` figure
+  -- (GC.Data.GetItemValue's `s`/`t` fields) that GC.ForeverScan.ValueFor never carries -- no
+  -- Forever code path can ever act on them. Nothing anchors off BRAKES' own position, so
+  -- skipping it leaves no gap to reflow (whatCounts is simply the whole left column).
+  local brakes
+  if not isForeverClient() then
+    brakes = card(panel, GC.L["BRAKES"], 3, true)
+    brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
+    brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  end
 
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
@@ -584,7 +619,10 @@ local function build(sniperFrame)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 4)
+  -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
+  -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
+  -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
+  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -613,6 +651,50 @@ local function build(sniperFrame)
     attachExplanation({ label, box }, labelText, sentence, defaultLine(key, opts))
   end
 
+  -- Task S: Forever's own "Min profit per buy" -- its own key
+  -- (settings.sniper.foreverMinimumProfitCopper), copper units, never fieldRow. Three things
+  -- differ from every other numeric row here: the unit (copper, not gold/percent/hours), the
+  -- storage key (never retail's own minimumProfitCopper -- an edit here must not move retail's
+  -- 5g), and an UNSET value's on-screen figure, which is whatever
+  -- GC.ForeverDeals.MinimumProfit would actually apply right now (a migrated old value, or the
+  -- built-in 20c) rather than a flat GC.DEFAULTS lookup -- see bindNumberField's
+  -- opts.defaultValue. Deliberately absent from GC.DEFAULTS (Core/Init.lua): ApplyDefaults must
+  -- never stamp this key into an existing save, or the migration GC.ForeverDeals.MinimumProfit
+  -- performs could never see its own "never touched" state. This also makes the card's own
+  -- DEFAULTS button (below) do the right thing for free: it writes GC.DEFAULTS.settings.sniper
+  -- [key] straight into the config, which is nil for a key that isn't there -- i.e. "forget my
+  -- override," letting the migration rule run again, not "reset to 20c" outright.
+  local function foreverMinProfitRow(cardFrame, i)
+    local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
+    box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
+
+    local labelText = GC.L["Min profit per buy (copper)"]
+    local label = Theme.Label(cardFrame, 12)
+    label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
+    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+    label:SetText(labelText)
+
+    local KEY = "foreverMinimumProfitCopper"
+    local refreshField = bindNumberField(box, KEY, {
+      min = 0, max = 999999,
+      defaultValue = function() return GC.ForeverDeals.MinimumProfit(cfg()) end,
+    })
+    refreshers[#refreshers + 1] = refreshField
+    if cardFrame.resets then
+      cardFrame.resets[#cardFrame.resets + 1] = KEY
+      cardFrame.displays[#cardFrame.displays + 1] = refreshField
+    end
+
+    -- Line 3 is the shipped BUILT-IN default (20c), like every other field's tooltip -- not the
+    -- migrated figure the box itself may be showing right now (see the comment above this
+    -- function for why those two can differ).
+    local defaultText = GC.L["Default: %s"]:format(GC.Util.CoinText(GC.ForeverDeals.C.MIN_PROFIT_COPPER))
+    attachExplanation({ label, box }, labelText,
+      GC.L["Skip a buy unless it clears at least this much after the AH cut."], defaultText)
+  end
+
   -- WALLET_PCT/GOLD keep their long-standing bounds; ROI is new (minimumRoi wasn't exposed in
   -- the UI before). `unit` picks defaultLine's suffix above -- "g" for gold, "%" for percent.
   local ROI = { min = 10, max = 200,
@@ -623,72 +705,105 @@ local function build(sniperFrame)
     toUI = function(v) return v / 10000 end,
     toStorage = function(v) return v * 10000 end, unit = "g" }
 
-  fieldRow(whatCounts, 1, GC.L["Min profit per buy (gold)"], "minimumProfitCopper", GOLD,
-    GC.L["Skip a buy unless it clears at least this much after the AH cut."])
-  -- min 10 (10%) matches Core/SniperDecision.lua's normalizeConfig floor of 0.10 exactly --
-  -- the box must not accept anything that floor would just silently re-clamp back up.
-  fieldRow(whatCounts, 2, GC.L["Min return per buy %"], "minimumRoi", ROI,
-    GC.L["Skip a buy unless the profit is at least this share of what you pay."])
-  fieldRow(whatCounts, 3, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT,
+  -- Task S: WHAT COUNTS AS A DEAL keeps four slots in both clients so the card is one height
+  -- everywhere (no reflow inside it) -- Forever just fills them differently: its own min-profit
+  -- row, Max wallet, a grey note about the vendor-row wallet carve-out (Core/ForeverDeals.lua's
+  -- BuyLimits), then Max units. Min return per buy % (minimumRoi) is retail-Evaluate-only --
+  -- GC.SniperDecision.EvaluateCeiling/EvaluateCeilingLot (the whole of a Forever Check) never
+  -- reference it -- so it is skipped, not merely hidden behind something else.
+  if isForeverClient() then
+    foreverMinProfitRow(whatCounts, 1)
+  else
+    fieldRow(whatCounts, 1, GC.L["Min profit per buy (gold)"], "minimumProfitCopper", GOLD,
+      GC.L["Skip a buy unless it clears at least this much after the AH cut."])
+    -- min 10 (10%) matches Core/SniperDecision.lua's normalizeConfig floor of 0.10 exactly --
+    -- the box must not accept anything that floor would just silently re-clamp back up.
+    fieldRow(whatCounts, 2, GC.L["Min return per buy %"], "minimumRoi", ROI,
+      GC.L["Skip a buy unless the profit is at least this share of what you pay."])
+  end
+  fieldRow(whatCounts, isForeverClient() and 2 or 3, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT,
     GC.L["Never spend more than this share of your gold on one purchase."])
+  if isForeverClient() then
+    -- Core/ForeverDeals.lua's BuyLimits: a "Below vendor" lead is capped by the vendor's own
+    -- price, so retail's 5% share left nothing to buy at low level -- while this field stays at
+    -- that shipped 5%, a vendor row gets half the wallet instead. A player who has already
+    -- changed it gets exactly what they typed, unclamped by this carve-out.
+    local note = Theme.Num(whatCounts, 9)
+    note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
+    note:SetPoint("TOPRIGHT", -Theme.pad.m, whatCounts.rowY(3))
+    note:SetJustifyH("LEFT")
+    note:SetWordWrap(true)
+    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetText(GC.L["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+  end
   -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the
   -- ROI floor above. A ceiling and not a target: what a buy actually takes is still set by how
-  -- fast the item sells, the wallet share above and the profit floors.
+  -- fast the item sells, the wallet share above and the profit floors. Untouched by Forever
+  -- (Core/ForeverDeals.lua's BuyLimits forwards maxQuantity as-is for both lead kinds).
   fieldRow(whatCounts, 4, GC.L["Max units per buy"], "maxQuantity",
     { min = 1, max = GC.SniperDecision and GC.SniperDecision.MAX_QUANTITY_CEILING or 200 },
     GC.L["The most units one purchase may take. How fast the item sells can still make it fewer."])
 
-  fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },
-    GC.L["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."])
-  -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
-  -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
-  -- the box can never store a value the engine would then silently re-clamp.
-  -- Names what actually moves. Nothing deflates the market value: what the threshold deflates
-  -- is the price the resale is projected to EXIT at -- SniperDecision's release ceiling on the
-  -- buy side, and the stored target a Sell queue posts against on the other -- both of which
-  -- come from a 24-hour tape that a spike drags up with it.
-  fieldRow(brakes, 2, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500, unit = "%" },
-    GC.L["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."])
-  -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
-  fieldRow(brakes, 3, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6, unit = "h" },
-    GC.L["How many hours of normal sales a wall under your exit may hold before the deal is refused."])
+  -- Task S: the whole BRAKES card is retail-only (see its own `local brakes` comment above) --
+  -- dumpTrendPct, spikeTrendPct and wallAbsorbHours are never built at all in Forever.
+  if brakes then
+    fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },
+      GC.L["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."])
+    -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
+    -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
+    -- the box can never store a value the engine would then silently re-clamp.
+    -- Names what actually moves. Nothing deflates the market value: what the threshold deflates
+    -- is the price the resale is projected to EXIT at -- SniperDecision's release ceiling on the
+    -- buy side, and the stored target a Sell queue posts against on the other -- both of which
+    -- come from a 24-hour tape that a spike drags up with it.
+    fieldRow(brakes, 2, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500, unit = "%" },
+      GC.L["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."])
+    -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
+    fieldRow(brakes, 3, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6, unit = "h" },
+      GC.L["How many hours of normal sales a wall under your exit may hold before the deal is refused."])
+  end
 
   -- Segmented duration, not a fieldRow: three 40x20 kit buttons chained from the card's right
-  -- edge, rightmost (48H) placed first so each earlier one anchors off the one already placed.
+  -- edge, rightmost (longest) placed first so each earlier one anchors off the one already
+  -- placed. Labels come from durationHours() -- 12H/24H/48H on retail, 2H/8H/24H in WoW: Forever
+  -- -- shortest to longest, matching the wire order bindDurationSegments assumes.
   do
-    local h48 = Theme.Button(posting, "ghost", "badge")
-    h48:SetSize(40, ROW_H)
-    h48:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
-    h48:SetLabel("48H")
+    local hours = durationHours()
 
-    local h24 = Theme.Button(posting, "ghost", "badge")
-    h24:SetSize(40, ROW_H)
-    h24:SetPoint("RIGHT", h48, "LEFT", -2, 0)
-    h24:SetLabel("24H")
+    local hLong = Theme.Button(posting, "ghost", "badge")
+    hLong:SetSize(40, ROW_H)
+    hLong:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
+    hLong:SetLabel(hours[3] .. "H")
 
-    local h12 = Theme.Button(posting, "ghost", "badge")
-    h12:SetSize(40, ROW_H)
-    h12:SetPoint("RIGHT", h24, "LEFT", -2, 0)
-    h12:SetLabel("12H")
+    local hMid = Theme.Button(posting, "ghost", "badge")
+    hMid:SetSize(40, ROW_H)
+    hMid:SetPoint("RIGHT", hLong, "LEFT", -2, 0)
+    hMid:SetLabel(hours[2] .. "H")
+
+    local hShort = Theme.Button(posting, "ghost", "badge")
+    hShort:SetSize(40, ROW_H)
+    hShort:SetPoint("RIGHT", hMid, "LEFT", -2, 0)
+    hShort:SetLabel(hours[1] .. "H")
 
     local label = Theme.Label(posting, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
-    label:SetPoint("RIGHT", h12, "LEFT", -Theme.pad.s, 0)
+    label:SetPoint("RIGHT", hShort, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
     -- relabeled to the shorter "Duration" (no spec pins on the string).
     label:SetText(GC.L["Duration"])
 
-    refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
+    refreshers[#refreshers + 1] = bindDurationSegments({ hShort, hMid, hLong })
 
     -- Not a fieldRow, so it gets its own explanation wiring: the "control" side is all three
     -- segment buttons rather than one edit box. Default hours read off GC.DEFAULTS.postDuration
-    -- through the same 1/2/3 -> hours mapping DURATION_INDEX inverts for storedDurationIndex.
-    local DEFAULT_HOURS = { [1] = 12, [2] = 24, [3] = 48 }
+    -- through the same wire index, into the same hours table the segments themselves used.
     local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
-    local defaultHours = (d and DEFAULT_HOURS[d.postDuration]) or 24
-    attachExplanation({ label, h12, h24, h48 }, GC.L["Duration"],
+    local defaultIndex = d and (d.postDuration == 1 or d.postDuration == 2 or d.postDuration == 3)
+      and d.postDuration or 2
+    local defaultHours = hours[defaultIndex]
+    attachExplanation({ label, hShort, hMid, hLong }, GC.L["Duration"],
       GC.L["Default listing length for the Sell tab."],
       GC.L["Default: %s"]:format(defaultHours .. " h"))
   end
@@ -696,6 +811,12 @@ local function build(sniperFrame)
   -- Buy runs (Core/AppRuns.lua / Core/BuyRun.lua): how far over a line's usual price the BUY
   -- tab will still buy. Same settings.sniper table every other numeric field here reads, per
   -- Core/Init.lua's own comment on buyCapPct.
+  --
+  -- Task S: kept in Forever, unlike capStopAndOpen below -- the BUY tab's rail button carries no
+  -- IsForever gate at all (UI/SniperFrame.lua's rail wiring), and UI/BuyFrame.lua's own
+  -- usualUnit() reads GC.Data.GetItemValue, whose LAST fallback (Core/Data.lua) is the player's
+  -- own Forever scan (GC.ForeverScan.ValueFor's `mv`) -- a real "usual price" for anything that
+  -- scan has priced, once the player has scanned. Reachable and, once scanned, useful.
   fieldRow(posting, 2, GC.L["Buy cap (% of usual price)"], "buyCapPct", { min = 100, max = 300, unit = "%" },
     GC.L["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."])
 
@@ -726,14 +847,33 @@ local function build(sniperFrame)
 
   -- Sell tab overcut (Core/Flips.lua, RecommendPost): the highest occupied rung the item's
   -- floor still reaches within a day. Off = post at the cheapest ask.
-  toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
-    GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
+  --
+  -- V2: retail-only, same pattern as capStopAndOpen below. Core/SellPositions.lua's
+  -- decoratePosition threads this into OvercutCandidate as quarterUnit/reachUnit, built from
+  -- marketStats.p25/reach -- and GC.ForeverScan.ValueFor never forwards a p25 or a reach figure
+  -- (Forever's fold is one snapshot, not a 24h trend), so that candidate is always nil for a
+  -- pure-Forever item and the toggle has no effect there at all. The CHANGELOG promises Forever's
+  -- Settings shows only what applies -- one row fewer in AUTOMATION & ALERTS above reflows
+  -- DISPLAY up with no gap, same as the other three hidden rows.
+  if not isForeverClient() then
+    toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
+      GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
+  end
 
   -- Live price caps (Core/Caps.lua): the same stop-and-open reaction the row's own click
   -- already does, run automatically the first time a cap fires. Off by default -- see
   -- Core/Init.lua's DEFAULTS comment on capStopAndOpen.
-  toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
-    GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
+  --
+  -- Task S: retail-only, never built in Forever. A cap row exists only through Core/Caps.lua --
+  -- "the alert-group ceilings the site ships through the companion" (its own header comment) --
+  -- and the site never tracks WoW: Forever's economy at all, so GoldCap_AppRuns carries no
+  -- Forever caps and drainCapPings (UI/SniperFrame.lua) can never see a Forever row with
+  -- `decision.cap` set. GC.ForeverDeals never touches GC.Caps. No Forever code path can ever
+  -- act on this key -- one row fewer in AUTOMATION & ALERTS above reflows DISPLAY up with no gap.
+  if not isForeverClient() then
+    toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
+      GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
+  end
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
   -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px

@@ -2,6 +2,21 @@ local _, GC = ...
 
 GC.Util = {}
 
+-- WoW's string.format converts a %d/%i/%x/%c argument to a 32-bit integer and raises "integer
+-- overflow attempting to store N" for anything outside +-2^31 (2,147,483,647 copper is about
+-- 214,748g, and retail prices pass that routinely) -- a 1.5M-gold Forever troll listing crashed
+-- a live scan on exactly this (Core/ForeverFold.lua's Encode). busted's own Lua has no such
+-- ceiling, which is how it shipped behind a green suite; spec/support/wow_format.lua's shim is
+-- what makes a spec able to catch it. %.0f has no ceiling either: it prints the same digits as
+-- %d for any integer up to 2^53, the largest a Lua double still represents exactly -- more than
+-- enough for any amount of copper this addon ever handles. Every %d/%i/%x whose argument can be
+-- a copper amount, a price, a total, a deposit, or any other sum that can pass 214,748g goes
+-- through this, not a bare string.format; counts, levels, percentages and indexes stay on %d,
+-- since none of those can reach that range.
+function GC.Util.IntText(n)
+  return ("%.0f"):format(n)
+end
+
 function GC.Util.ApplyDefaults(dst, src)
   for k, v in pairs(src) do
     if type(v) == "table" then
@@ -13,22 +28,66 @@ function GC.Util.ApplyDefaults(dst, src)
   end
 end
 
+-- A slash command's first word and the rest of the line, both trimmed. The word is returned as
+-- typed; GC.OnSlash lowercases it to find the handler, and the rest goes to the handler untouched
+-- (`/gc mount 12g 50s`, `/gc weights STR 1 STA 0.5`).
+function GC.Util.SlashArgs(msg)
+  if type(msg) ~= "string" then return "", "" end
+  local cmd, rest = msg:match("^%s*(%S*)%s*(.-)%s*$")
+  return cmd or "", rest or ""
+end
+
 function GC.Util.FormatAge(seconds)
   if seconds < 3600 then return "<1h" end
   if seconds < 48 * 3600 then return math.floor(seconds / 3600) .. "h" end
   return math.floor(seconds / 86400) .. "d"
 end
 
+-- Money with coin icons, in every client. Retail's global GetCoinTextureString renders this
+-- today, so it is tried first -- byte-identical output there is the whole point. When it is
+-- gone (WoW: Forever, probed 2026-09-24, where calling it throws), C_CurrencyInfo carries the
+-- same texture-icon string; when neither exists this formats the same "12[g] 34[s] 56[c]"
+-- shape itself. Every caller in the addon goes through here -- spec/coin_text_spec.lua fails
+-- on a bare call.
+local ICON = {
+  g = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t",
+  s = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
+  c = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+}
+
+local function coinTextFallback(copper)
+  -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints
+  -- "0<copper icon>", never "-0<copper icon>".
+  local magnitude = math.floor(math.abs(copper) + 0.5)
+  local sign = (copper < 0 and magnitude > 0) and "-" or ""
+  local gold = math.floor(magnitude / 10000)
+  local silver = math.floor((magnitude % 10000) / 100)
+  local rest = magnitude % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = GC.Util.IntText(gold) .. ICON.g end
+  if silver > 0 then parts[#parts + 1] = ("%d%s"):format(silver, ICON.s) end
+  if rest > 0 or #parts == 0 then parts[#parts + 1] = ("%d%s"):format(rest, ICON.c) end
+  return sign .. table.concat(parts, " ")
+end
+
+function GC.Util.CoinText(copper)
+  if type(_G.GetCoinTextureString) == "function" then return _G.GetCoinTextureString(copper) end
+  local ci = _G.C_CurrencyInfo
+  if ci and type(ci.GetCoinTextureString) == "function" then return ci.GetCoinTextureString(copper) end
+  return coinTextFallback(copper)
+end
+
 -- Compact gold display: whole gold past 100g, gold+silver below it, a coin-icon string
 -- under a gold. Moved here (Sniper fast loop, phase 1) from UI/SniperFrame.lua's own
 -- formatColumnAmount so Core/BoardRows.lua can format a verdict label without a WoW frame --
--- GetCoinTextureString is still a WoW global, so a caller without the client (this addon's
--- own spec suite) stubs it, exactly as every UI/SniperFrame.lua spec already does.
+-- the sub-gold case goes through GC.Util.CoinText above, so a caller without the client
+-- (this addon's own spec suite) still gets a string back, exactly as every
+-- UI/SniperFrame.lua spec already does.
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 function GC.Util.FormatMoney(copper)
   if copper < 0 then return "-" .. GC.Util.FormatMoney(-copper) end
   if copper >= GOLD_COMPACT_THRESHOLD then
-    return ("%dg"):format(math.floor(copper / 10000))
+    return GC.Util.IntText(math.floor(copper / 10000)) .. "g"
   end
   if copper >= 10000 then
     local gold = math.floor(copper / 10000)
@@ -36,20 +95,24 @@ function GC.Util.FormatMoney(copper)
     if silver == 0 then return ("%dg"):format(gold) end
     return ("%dg%02ds"):format(gold, silver)
   end
-  return GetCoinTextureString(copper)
+  return GC.Util.CoinText(copper)
 end
 
--- Whole-gold-or-whole-silver: a context with room for ONE unit, never two, and no coin icon
--- (a plain string, for a FontString cell rather than a coin-texture readout). Sniper's SAFE
--- board label is the reason this exists -- FormatMoney's "61g35s" is two units wide, and the
+-- Whole gold, whole silver or whole copper: a context with room for ONE unit, never two, and no
+-- coin icon (a plain string, for a FontString cell rather than a coin-texture readout). Sniper's
+-- SAFE board label is the reason this exists -- FormatMoney's "61g35s" is two units wide, and the
 -- 72px verdict cell it renders into clips it. Floors rather than rounds, same rule as
 -- FormatAge/FormatElapsed above: a figure that rounds up promises gold the trade didn't clear.
+-- The copper tier is WoW: Forever's (below).
 function GC.Util.FormatGoldFloor(copper)
   if copper < 0 then return "-" .. GC.Util.FormatGoldFloor(-copper) end
   if copper >= 10000 then
-    return ("%dg"):format(math.floor(copper / 10000))
+    return GC.Util.IntText(math.floor(copper / 10000)) .. "g"
   end
-  return ("%ds"):format(math.floor(copper / 100))
+  -- WoW: Forever's economy is copper: "SAFE +0s" on a 25c buy said nothing. Retail never gets
+  -- here with a SAFE -- its profit floor is 1g (SniperDecision's normalizeConfig).
+  if copper >= 100 then return ("%ds"):format(math.floor(copper / 100)) end
+  return ("%dc"):format(math.floor(copper))
 end
 
 -- The gold a character must hold, rounded UP to whole gold: a figure that rounds down promises a
@@ -60,8 +123,8 @@ end
 -- the same rounded-up gold in thousands, rounded up again, the way players write gold.
 function GC.Util.FormatGoldCeil(copper, short)
   local gold = math.max(1, math.ceil(copper / 10000))
-  if short and gold >= 10000 then return ("%dk"):format(math.ceil(gold / 1000)) end
-  return ("%dg"):format(gold)
+  if short and gold >= 10000 then return GC.Util.IntText(math.ceil(gold / 1000)) .. "k" end
+  return GC.Util.IntText(gold) .. "g"
 end
 
 local function finitePositive(value)
@@ -92,13 +155,33 @@ end
 --
 -- Floors at every step: a freshness figure that rounds UP claims the data is older than it
 -- is, which is harmless, while rounding down would claim it is fresher, which is not.
-function GC.Util.FormatElapsed(seconds)
+local function elapsed(seconds)
   if type(seconds) ~= "number" or seconds ~= seconds
       or seconds == math.huge or seconds == -math.huge or seconds < 0 then return nil end
-  if seconds < 60 then return math.floor(seconds) .. "s" end
-  if seconds < 3600 then return math.floor(seconds / 60) .. "m" end
-  if seconds < 48 * 3600 then return math.floor(seconds / 3600) .. "h" end
-  return math.floor(seconds / 86400) .. "d"
+  if seconds < 60 then return math.floor(seconds), "s" end
+  if seconds < 3600 then return math.floor(seconds / 60), "m" end
+  if seconds < 48 * 3600 then return math.floor(seconds / 3600), "h" end
+  return math.floor(seconds / 86400), "d"
+end
+
+function GC.Util.FormatElapsed(seconds)
+  local n, unit = elapsed(seconds)
+  return n and n .. unit or nil
+end
+
+-- The unit letters of FormatElapsed, as the player's language writes them.
+-- @localised-keys: literals in this table ARE GC.L keys, looked up in FormatElapsedWords.
+local ELAPSED_UNIT = {
+  s = "%ds", m = "%dm", h = "%dh", d = "%dd",
+}
+
+-- FormatElapsed's figure for a translated sentence ("last live price %s ago"): "3m" there is
+-- English in eleven languages (final review m10, plan 3c). English reads exactly the same.
+function GC.Util.FormatElapsedWords(seconds)
+  local n, unit = elapsed(seconds)
+  if not n then return nil end
+  local key = ELAPSED_UNIT[unit]
+  return ((GC.L and GC.L[key]) or key):format(n)
 end
 
 -- A count, in the width a panel cell actually has. Small numbers stay exact because they

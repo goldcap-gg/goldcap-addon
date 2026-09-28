@@ -1,5 +1,50 @@
 # GoldCap
 
+## 0.16.0 (2026-09-28)
+
+- GoldCap now runs in WoW: Forever, and buys and sells at its live auction house. Type
+  `/gc forever` to see what GoldCap can use in your client.
+- In WoW: Forever, GoldCap scans the auction house when you open it (the game allows a full scan
+  once every 15 minutes) and when you press SCAN on the Deals tab. Tooltips there show the item's
+  auction house value from your latest scan and how old it is, and whether to sell it on the
+  auction house, to a vendor, or not at all because it is not worth the auction house deposit.
+- In WoW: Forever the Sell tab prices from your scan, and its POST queue skips anything a vendor
+  pays more for. Type `/gc bags` to see what your bags are worth at a vendor and on the auction
+  house.
+- In WoW: Forever, the Sell tab's POST button and its key binding first bring up the posting queue
+  when it is not already showing, and post on the next press.
+- In WoW: Forever, the Deals board lists what your last scan found under the vendor price: items
+  you can buy on the auction house and sell to a vendor for more. Each row says the most to pay
+  and what a vendor gives. Check looks at the auction house live, and Buy buys only what is
+  still under that price, within your per-buy wallet limit and your "Max units per buy". While
+  "Max wallet per buy %" is at its default, these buys may use up to half your gold.
+- The Deals board in WoW: Forever also lists commodities offered far under their auction house
+  value (what the cheapest tenth of the units listed ask), after the auction house cut and
+  deposit. These are riskier than vendor deals, and the row says so: your scan cannot tell how
+  fast an item sells.
+- In the buy window, pressing Buy while you are still typing a quantity now shows the total for
+  that quantity first; press Buy again to buy it.
+- The Sell tab's POST button and its key binding no longer post a different item than the one they
+  name while a Cancel or Remove is waiting for your confirmation.
+- In the Sell tab, a lot waiting for a live price now says "no live price", and the cancel button
+  says "NO LIVE PRICE YET" instead of "NOTHING TO CANCEL" while it waits. In WoW: Forever, AT
+  MARKET counts what your scan says your stock is worth when the auction house has not answered
+  a live price yet.
+- The Sell panel says how long ago it last saw a live price for the item, instead of a red
+  "stale".
+- GoldCap is listed under "Auctions" in the AddOns list.
+- In WoW: Forever, the Settings screen now shows only what applies there: no Brakes card, no
+  "Min return per buy %", and no live-price-cap toggle. "Min profit per buy" is its own setting
+  there, in copper, so changing it never touches retail's own "Min profit per buy".
+- In WoW: Forever, with the GoldCap Companion, tooltips and the Deals board's
+  "Under market" rows use prices from every player's scans, and each says how
+  many players scanned it and how long ago. Your own scan still counts first
+  when it is newer. After a scan, the chat says it will be shared on your next
+  /reload when the Companion is set up to share it.
+- In WoW: Forever, the Sold tab opens with Road to 40: your gold plus what your bags would fetch, against the level-40 riding cost you set with `/gc mount` (Blizzard has not published it yet), and the level you reach it at your pace. `/gc mount share` puts a line about it in your chat box to send.
+- In WoW: Forever, `/gc upgrades` lists, for each equipment slot, the cheapest piece in your last auction house scan that beats what you wear and that your character can use. Pieces are compared by their own stats and stat weights you can see and change with `/gc weights`. After a scan, GoldCap says how many upgrades it found.
+- In WoW: Forever, GoldCap counts what drops from what you loot, per creature and zone, with no names, for drop rates on goldcap.gg once the Companion shares it. `/gc loot off` stops it.
+
 ## 0.15.3 (2026-09-27)
 
 - A deal your "Max wallet per buy %" holds back now says the least gold that buys any of it,

@@ -1,0 +1,99 @@
+## Interface: 16001
+## Title: GoldCap
+## Notes: Auction tooltips and market data powered by goldcap.gg
+## Author: goldcap.gg
+## Version: @project-version@
+## SavedVariables: GoldCapDB
+## X-Website: https://goldcap.gg
+## X-Curse-Project-ID: 1668448
+## X-Wago-ID: v6330D6b
+## IconTexture: Interface\AddOns\GoldCap\Media\GoldCap
+## AddonCompartmentFunc: GoldCap_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: GoldCap_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: GoldCap_OnAddonCompartmentLeave
+## OptionalDeps: GoldCap_AppData
+## Category-enUS: Auctions
+## Category-deDE: Auktionen
+## Category-esES: Subastas
+## Category-esMX: Subastas
+## Category-frFR: Ventes
+## Category-itIT: Aste
+## Category-koKR: 경매
+## Category-ptBR: Leilões
+## Category-ruRU: Лоты
+## Category-zhCN: 拍卖
+## Category-zhTW: 拍賣
+
+# WoW: Forever. Same files as GoldCap.toc except Data/MarketData.lua (retail prices);
+# spec/camelot_toc_spec.lua keeps the two in step.
+
+Core/Util.lua
+Core/Game.lua
+Core/ForeverCheck.lua
+Locale/Core.lua
+Locale/deDE.lua
+Locale/enUS.lua
+Locale/esES.lua
+Locale/esMX.lua
+Locale/frFR.lua
+Locale/itIT.lua
+Locale/koKR.lua
+Locale/ptBR.lua
+Locale/ruRU.lua
+Locale/ukUA.lua
+Locale/zhCN.lua
+Locale/zhTW.lua
+Core/ImportString.lua
+Core/Data.lua
+Core/ItemNames.lua
+Core/AppLedger.lua
+Core/Acquisitions.lua
+Core/PurchaseCapture.lua
+Core/Ledger.lua
+Core/QuoteCache.lua
+Core/Flips.lua
+Core/BagStock.lua
+Core/CraftCapture.lua
+Core/SellPositions.lua
+Core/PostQueue.lua
+Core/CancelQueue.lua
+Core/Book.lua
+Core/SniperDecision.lua
+Core/CheckVerdict.lua
+Core/DealMath.lua
+Core/Trigger.lua
+Core/Scanner.lua
+Core/FullScan.lua
+Core/BookPass.lua
+Core/ForeverFold.lua
+Core/ForeverGear.lua
+Core/ForeverScan.lua
+Core/ForeverValue.lua
+Core/ForeverDeals.lua
+Core/ForeverRoad.lua
+Core/ForeverUpgrades.lua
+Core/ForeverLoot.lua
+Core/DrillQueue.lua
+Core/KeyPoll.lua
+Core/BuyRun.lua
+Core/PurchaseSlot.lua
+Core/PurchaseCall.lua
+Core/AppRuns.lua
+Core/Caps.lua
+Core/BoardRows.lua
+Core/WatchSet.lua
+Core/AutoScan.lua
+UI/Theme.lua
+UI/Tooltip.lua
+UI/ImportDialog.lua
+UI/CompanionDialog.lua
+UI/VendorListDialog.lua
+UI/SniperFrame.lua
+UI/AuctionHouseTab.lua
+UI/SellViewModel.lua
+UI/SellFrame.lua
+UI/SoldFrame.lua
+UI/ForeverUpgradesFrame.lua
+UI/BuyFrame.lua
+UI/SettingsFrame.lua
+Core/Init.lua

@@ -14,7 +14,9 @@ globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLe
 
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
-  "GetCoinTextureString",
+  -- Final review M3: GetCoinTextureString is absent in WoW: Forever and must never be called
+  -- bare outside GC.Util.CoinText (GoldCap/Core/Util.lua) -- removed here so luacheck flags any
+  -- reintroduced call as an undefined global, the same contract coin_text_spec.lua's grep pins.
   "GetCVar", "GetRealmName", "GetLocale", "time",
   "C_Item", "C_AddOns", "GetAddOnMetadata", "Item",
   "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
@@ -51,4 +53,10 @@ read_globals = {
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
   -- The tooltip's counts: grouped in thousands with the player's locale's separator.
   "BreakUpLargeNumbers",
+  -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is
+  -- keyed by, alongside region and realm.
+  "UnitFactionGroup",
+  -- A purchase click's plan runs fenced off from the call it answers (Core/PurchaseCall.lua),
+  -- and /gc taint reports whether that click stayed secure.
+  "securecallfunction", "issecure",
 }

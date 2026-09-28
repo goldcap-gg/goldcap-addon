@@ -17,13 +17,13 @@ describe("Sniper purchase wiring", function()
     return text:sub(from, to - 1)
   end
 
-  -- onDialogPrimaryClick and nothing else: from its header to its own closing `end`, the first
-  -- line-start `end` after it (every line of its body is indented). The next section marker in the
-  -- file sits two hundred lines further on, past the quantity helpers the dialog's Quantity row
-  -- uses -- a slice that ran to it let a protected call in applyChosenQty or refreshQtyRow pass as
-  -- the click handler's own (caps fixes 5, review round 1). Returns the slice, where it starts and
-  -- the first position after it.
-  local CLICK = "local function onDialogPrimaryClick()"
+  -- The click's plan (planDialogPrimaryClick) and nothing else: from its header to its own
+  -- closing `end`, the first line-start `end` after it (every line of its body is indented). The
+  -- next section marker in the file sits two hundred lines further on, past the quantity helpers
+  -- the dialog's Quantity row uses -- a slice that ran to it let a protected call in
+  -- applyChosenQty or refreshQtyRow pass as the click handler's own (caps fixes 5, review round
+  -- 1). Returns the slice, where it starts and the first position after it.
+  local CLICK = "local function planDialogPrimaryClick()"
   local function clickHandler(text)
     local from = assert(text:find(CLICK, 1, true), CLICK)
     local _, stop = assert(text:find("\nend\n", from, true))
@@ -34,31 +34,31 @@ describe("Sniper purchase wiring", function()
     local click = clickHandler(source())
     assert.is_nil(click:find("\nlocal function ", 1, true))
     assert.is_nil(click:find("\nfunction ", 1, true))
-    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid", 1, true)) -- and all of it
+    assert.is_truthy(click:find('"bid", candidate.auctionID, candidate.buyout', 1, true)) -- and all of it
   end)
 
+  -- WoW: Forever. The plan answers the one call a click makes; GC.PurchaseCall.Click
+  -- (Core/PurchaseCall.lua) makes it, synchronously inside the dialog's own OnClick, once the
+  -- plan has returned. This file names none of the three calls anywhere.
   it("keeps purchase calls in the hardware-click handler and starts exact decision quantity", function()
     local text = source()
     local click = clickHandler(text)
 
-    assert.is_truthy(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
-    assert.is_truthy(click:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
-    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid", 1, true))
+    assert.is_truthy(click:find('call, first, second, sent = "start", deal.itemID, decision.quantity,', 1, true))
+    assert.is_truthy(click:find('return "confirm", quoteSnapshot.itemID, quoteSnapshot.quantity, function()', 1, true))
+    assert.is_truthy(click:find('call, first, second, sent = "bid", candidate.auctionID, candidate.buyout,', 1, true))
     local nonCommodityGate = assert(click:find("if not deal.isCommodity", 1, true))
-    local placeBid = assert(click:find("C_AuctionHouse.PlaceBid", 1, true))
+    local placeBid = assert(click:find('"bid", candidate.auctionID', 1, true))
     assert.is_true(nonCommodityGate < placeBid)
     assert.is_truthy(click:find("quoteSnapshot", 1, true))
     assert.is_truthy(click:find("quoteSnapshot.decision.status ~= \"SAFE\"", 1, true))
     assert.is_truthy(click:find("commodityDraining", 1, true))
 
-    local _, from, to = clickHandler(text)
-    local before, after = text:sub(1, from - 1), text:sub(to)
-    assert.is_nil(before:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
-    assert.is_nil(before:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
-    assert.is_nil(before:find("C_AuctionHouse.PlaceBid", 1, true))
-    assert.is_nil(after:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
-    assert.is_nil(after:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
-    assert.is_nil(after:find("C_AuctionHouse.PlaceBid", 1, true))
+    local code = text:gsub("%-%-[^\n]*", "")
+    for _, name in ipairs({ "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase", "PlaceBid" }) do
+      assert.is_nil(code:find(name, 1, true), name .. " named in UI/SniperFrame.lua")
+    end
+    assert.is_truthy(text:find("local function onDialogPrimaryClick()\n  GC.PurchaseCall.Click(planDialogPrimaryClick)\nend\n", 1, true))
   end)
 
   -- Caps fixes 5e. The test above reads one file for three exact call strings, so a protected
@@ -132,22 +132,17 @@ describe("Sniper purchase wiring", function()
 
     -- path -> function(text, pos, name) -> whether this mention is an allowed site.
     local function allowedSites()
-      local sniper = read("GoldCap/UI/SniperFrame.lua")
-      local _, dialogFrom, dialogTo = clickHandler(sniper)
-      local buy = read("GoldCap/UI/BuyFrame.lua")
-      local buyFrom, buyTo = span(buy, "local function onBuyClick",
-        "-- ---------------------------------------------------------------------------\n-- Rows")
+      local call = read("GoldCap/Core/PurchaseCall.lua")
+      local callFrom, callTo = span(call, "function GC.PurchaseCall.Click(plan, ...)", "\nend\n")
       local function calledAt(text, pos, name, from, to)
         local prefix = "C_AuctionHouse."
         return pos > from and pos < to
           and text:sub(pos - #prefix, pos + #name) == prefix .. name .. "("
       end
       return {
-        ["GoldCap/UI/SniperFrame.lua"] = function(text, pos, name)
-          return calledAt(text, pos, name, dialogFrom, dialogTo)
-        end,
-        ["GoldCap/UI/BuyFrame.lua"] = function(text, pos, name)
-          return name ~= "PlaceBid" and calledAt(text, pos, name, buyFrom, buyTo)
+        -- The one place a purchase click makes its call (both windows' clicks come through it).
+        ["GoldCap/Core/PurchaseCall.lua"] = function(text, pos, name)
+          return calledAt(text, pos, name, callFrom, callTo)
         end,
         ["GoldCap/Core/PurchaseCapture.lua"] = function(text, pos, name)
           local hook = 'hooksecurefunc(C_AuctionHouse, "'
@@ -202,14 +197,12 @@ describe("Sniper purchase wiring", function()
       assert.same({}, violations)
       -- A scan that found nothing would pass the line above in silence.
       assert.same({
+        "GoldCap/Core/PurchaseCall.lua ConfirmCommoditiesPurchase",
+        "GoldCap/Core/PurchaseCall.lua PlaceBid",
+        "GoldCap/Core/PurchaseCall.lua StartCommoditiesPurchase",
         "GoldCap/Core/PurchaseCapture.lua ConfirmCommoditiesPurchase",
         "GoldCap/Core/PurchaseCapture.lua PlaceBid",
         "GoldCap/Core/PurchaseCapture.lua StartCommoditiesPurchase",
-        "GoldCap/UI/BuyFrame.lua ConfirmCommoditiesPurchase",
-        "GoldCap/UI/BuyFrame.lua StartCommoditiesPurchase",
-        "GoldCap/UI/SniperFrame.lua ConfirmCommoditiesPurchase",
-        "GoldCap/UI/SniperFrame.lua PlaceBid",
-        "GoldCap/UI/SniperFrame.lua StartCommoditiesPurchase",
       }, sites)
     end)
 
@@ -252,39 +245,72 @@ describe("Sniper purchase wiring", function()
       return found
     end
 
+    -- Every line of `text` that reaches GC.PurchaseCall.Click, trimmed.
+    local function clickCalls(text)
+      local found = {}
+      for line in text:gmatch("[^\n]*PurchaseCall%.Click%s*%([^\n]*") do
+        found[#found + 1] = { line = line:match("^%s*(.-)%s*$") }
+      end
+      return found
+    end
+
     -- What breaks the rule in `path`'s `text` (comments already blanked): a mention of a click
     -- handler that is not one of its allowed sites, or a programmatic click anywhere.
     local function handlerViolations(path, text)
       local bad = {}
+      -- GC.PurchaseCall.Click is the purchase call's own entry, not a button's Click method.
+      local scan = text:gsub("PurchaseCall%.Click%(", "PurchaseCall_Click(")
       for _, pattern in ipairs(PROGRAMMATIC) do
-        if text:find(pattern) then bad[#bad + 1] = path .. " " .. pattern end
+        if scan:find(pattern) then bad[#bad + 1] = path .. " " .. pattern end
       end
-      if path == "GoldCap/UI/SniperFrame.lua" or path == "test/sniper" then
-        for _, m in ipairs(namedAt(text, "onDialogPrimaryClick")) do
-          if m.line ~= "local function onDialogPrimaryClick()"
-              and m.line ~= 'primaryBtn:SetScript("OnClick", onDialogPrimaryClick)' then
-            bad[#bad + 1] = path .. " " .. m.line
+      -- Each name, and the only lines allowed to name it: where it is defined, where the engine's
+      -- hardware wiring hands it the click or the key, and -- for a plan -- the one handler that
+      -- passes it to GC.PurchaseCall.Click (Core/PurchaseCall.lua), which is named nowhere else.
+      local SITES = {
+        sniper = {
+          onDialogPrimaryClick = { "local function onDialogPrimaryClick()",
+            'primaryBtn:SetScript("OnClick", onDialogPrimaryClick)' },
+          planDialogPrimaryClick = { "local function planDialogPrimaryClick()",
+            "GC.PurchaseCall.Click(planDialogPrimaryClick)" },
+        },
+        buy = {
+          onBuyButtonClick = { "local function onBuyButtonClick(button)",
+            'row.action:SetScript("OnClick", onBuyButtonClick)' },
+          onBuyKey = { "local function onBuyKey(self, key)", 'container:SetScript("OnKeyDown", onBuyKey)' },
+          planBuyButton = { "local function planBuyButton(button)",
+            "GC.PurchaseCall.Click(planBuyButton, button)" },
+          planBuyKey = { "local function planBuyKey(self, key)", "GC.PurchaseCall.Click(planBuyKey, self, key)" },
+          planBuyClick = { "local function planBuyClick(line)",
+            "return planBuyClick(lineFor(button:GetParent().lineItemID))", "return planBuyClick(line)" },
+        },
+      }
+      local own = (path == "GoldCap/UI/SniperFrame.lua" or path == "test/sniper") and "sniper"
+        or (path == "GoldCap/UI/BuyFrame.lua" or path == "test/buy") and "buy" or nil
+      for file, names in pairs(SITES) do
+        for name, allowed in pairs(names) do
+          for _, m in ipairs(namedAt(text, name)) do
+            local ok = false
+            if file == own then
+              for _, line in ipairs(allowed) do ok = ok or m.line == line end
+            end
+            if not ok then bad[#bad + 1] = path .. " " .. m.line end
           end
         end
-      elseif path == "GoldCap/UI/BuyFrame.lua" or path == "test/buy" then
-        local function inside(pos, opener)
-          local from = text:find(opener, 1, true)
-          local to = from and text:find("\n  end)\n", from, true)
-          return from ~= nil and to ~= nil and pos > from and pos < to
-        end
-        for _, m in ipairs(namedAt(text, "onBuyClick")) do
-          local ok = m.line == "local function onBuyClick(line)"
-            or (m.line == "onBuyClick(lineFor(row.lineItemID))"
-              and inside(m.pos, 'row.action:SetScript("OnClick", function()'))
-            or (m.line == "onBuyClick(line)"
-              and inside(m.pos, 'container:SetScript("OnKeyDown", function(self, key)'))
+      end
+      if path ~= "GoldCap/Core/PurchaseCall.lua" then
+        for _, m in ipairs(clickCalls(text)) do
+          local ok = false
+          for _, names in pairs(SITES) do
+            for _, allowed in pairs(names) do
+              for _, line in ipairs(allowed) do
+                ok = ok or (m.line == line and line:find("GC.PurchaseCall.Click(", 1, true) == 1)
+              end
+            end
+          end
           if not ok then bad[#bad + 1] = path .. " " .. m.line end
         end
-      else
-        for _, name in ipairs({ "onDialogPrimaryClick" }) do
-          if #namedAt(text, name) > 0 then bad[#bad + 1] = path .. " " .. name end
-        end
       end
+      table.sort(bad)
       return bad
     end
 
@@ -297,8 +323,13 @@ describe("Sniper purchase wiring", function()
       end
       assert.same({}, violations)
       -- A scan that found nothing would pass the line above in silence.
-      assert.equal(2, #namedAt(blankComments(read("GoldCap/UI/SniperFrame.lua")), "onDialogPrimaryClick"))
-      assert.equal(3, #namedAt(blankComments(read("GoldCap/UI/BuyFrame.lua")), "onBuyClick"))
+      local sniper = blankComments(read("GoldCap/UI/SniperFrame.lua"))
+      local buy = blankComments(read("GoldCap/UI/BuyFrame.lua"))
+      assert.equal(2, #namedAt(sniper, "onDialogPrimaryClick"))
+      assert.equal(2, #namedAt(sniper, "planDialogPrimaryClick"))
+      assert.equal(1, #clickCalls(sniper))
+      assert.equal(3, #namedAt(buy, "planBuyClick"))
+      assert.equal(2, #clickCalls(buy))
     end)
 
     it("sees a direct call, a stray reference and a programmatic click, and not a comment", function()
@@ -311,20 +342,22 @@ describe("Sniper purchase wiring", function()
         "  dialog.primaryBtn:Click()",
         "  dialog.primaryBtn['Click'](dialog.primaryBtn)",
       }, "\n"))
-      assert.same({ "test/sniper [:%.]Click%s*%(", "test/sniper %[%s*[\"']Click[\"']%s*%]",
-        "test/sniper C_Timer.After(1, onDialogPrimaryClick)" }, handlerViolations("test/sniper", sniper))
+      assert.same({ "test/sniper %[%s*[\"']Click[\"']%s*%]", "test/sniper C_Timer.After(1, onDialogPrimaryClick)",
+        "test/sniper [:%.]Click%s*%(" }, handlerViolations("test/sniper", sniper))
       assert.same({ "test/other %[%s*[\"']Click[\"']%s*%]" },
         handlerViolations("test/other", blankComments('local b = f; b["Click"](b)\n-- b["Click"](b)')))
       local buy = blankComments(table.concat({
-        "local function onBuyClick(line)",
+        "local function planBuyClick(line)",
         "end",
-        '  row.action:SetScript("OnClick", function()',
-        "    onBuyClick(lineFor(row.lineItemID))",
-        "  end)",
-        "  onBuyClick(lineFor(row.lineItemID))",
+        '  row.action:SetScript("OnClick", onBuyButtonClick)',
+        "  planBuyClick(lineFor(row.lineItemID))",
+        "  C_Timer.After(1, function() GC.PurchaseCall.Click(planBuyKey, f, \"ENTER\") end)",
         'local handler = row.action:GetScript("OnClick")',
       }, "\n"))
-      assert.same({ "test/buy GetScript%s*%(%s*[\"']OnClick", "test/buy onBuyClick(lineFor(row.lineItemID))" },
+      assert.same({
+        "test/buy C_Timer.After(1, function() GC.PurchaseCall.Click(planBuyKey, f, \"ENTER\") end)",
+        "test/buy C_Timer.After(1, function() GC.PurchaseCall.Click(planBuyKey, f, \"ENTER\") end)",
+        "test/buy GetScript%s*%(%s*[\"']OnClick", "test/buy planBuyClick(lineFor(row.lineItemID))" },
         handlerViolations("test/buy", buy))
     end)
   end)
@@ -334,7 +367,7 @@ describe("Sniper purchase wiring", function()
     local click = clickHandler(text)
 
     local claim = assert(click:find("GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
-    local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
+    local start = assert(click:find('"start", deal.itemID, decision.quantity', 1, true))
     assert.is_true(claim < start)
     assert.is_truthy(click:find("not GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
   end)
@@ -676,6 +709,7 @@ describe("Sniper purchase wiring", function()
         minimumProfitCopper = 1000, minimumRoi = 0.10,
       } } },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
@@ -987,6 +1021,7 @@ describe("Sniper purchase wiring", function()
         minimumProfitCopper = 1000000, minimumRoi = 0.10,
       } } },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
@@ -1392,6 +1427,8 @@ describe("Sniper purchase wiring", function()
     local openDialog = getUpvalue(onBuyClick, "openDialog")
     local createDialog = getUpvalue(openDialog, "createDialog")
     local confirm = getUpvalue(createDialog, "onDialogPrimaryClick")
+    -- The click hands its plan to GC.PurchaseCall.Click; the plan holds the state.
+    local plan = getUpvalue(confirm, "planDialogPrimaryClick")
     local abortOnHide = getUpvalue(createDialog, "abortRowPurchase")
     local fakeDialog = {
       row = row,
@@ -1403,8 +1440,8 @@ describe("Sniper purchase wiring", function()
       Hide = function() end,
       baseHeight = 1,
     }
-    setUpvalue(confirm, "dialog", fakeDialog)
-    setUpvalue(confirm, "commodityPurchase", { row = row, itemID = 42, token = 9 })
+    setUpvalue(plan, "dialog", fakeDialog)
+    setUpvalue(plan, "commodityPurchase", { row = row, itemID = 42, token = 9 })
 
     confirm() -- exact protected click path
     assert.equal(1, confirmCalls)
@@ -1829,19 +1866,21 @@ describe("Sniper purchase wiring", function()
     local openDialog = getUpvalue(onBuyClick, "openDialog")
     local createDialog = getUpvalue(openDialog, "createDialog")
     local primary = getUpvalue(createDialog, "onDialogPrimaryClick")
+    -- The click hands its plan to GC.PurchaseCall.Click; the plan holds the state.
+    local plan = getUpvalue(primary, "planDialogPrimaryClick")
     local deal = { itemID = 42, isCommodity = true }
     local row = {
       deal = deal, purchaseStage = "ready", purchaseToken = 5,
       decisionSnapshot = { status = "SAFE", buyable = true, quantity = 3 },
     }
-    setUpvalue(primary, "dialog", {
+    setUpvalue(plan, "dialog", {
       row = row,
       primaryBtn = { Disable = function() end },
       status = { SetText = function() end, SetTextColor = function() end },
     })
-    setUpvalue(primary, "commodityDraining", { itemID = 42, token = 4 })
+    setUpvalue(plan, "commodityDraining", { itemID = 42, token = 4 })
     local requeried
-    setUpvalue(primary, "startRequery", function(r) requeried = r end)
+    setUpvalue(plan, "startRequery", function(r) requeried = r end)
 
     primary()
 
@@ -1854,7 +1893,7 @@ describe("Sniper purchase wiring", function()
     -- ...and stops refusing once it has outlived the answer it was waiting for. Nothing else
     -- ever consumes an unconfirmed tombstone: CancelCommoditiesPurchase fires none of the
     -- three terminal events, and neither does an auction house error.
-    setUpvalue(primary, "commodityDraining", { itemID = 42, token = 4, drainingAt = 0 })
+    setUpvalue(plan, "commodityDraining", { itemID = 42, token = 4, drainingAt = 0 })
     _G.GetTime = function() return 30 end
     primary()
     assert.equal(1, starts)
@@ -2608,6 +2647,8 @@ describe("Sniper purchase wiring", function()
     local openDialog = getUpvalue(onBuyClick, "openDialog")
     local createDialog = getUpvalue(openDialog, "createDialog")
     local primary = getUpvalue(createDialog, "onDialogPrimaryClick")
+    -- The click hands its plan to GC.PurchaseCall.Click; the plan holds the state.
+    local plan = getUpvalue(primary, "planDialogPrimaryClick")
 
     local deal = { itemID = 42, isCommodity = false, qty = 1, unitPrice = 1 }
     local decision = {
@@ -2616,7 +2657,7 @@ describe("Sniper purchase wiring", function()
       candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
     }
     local row = { deal = deal, purchaseStage = "ready", purchaseToken = 1, decisionSnapshot = decision }
-    setUpvalue(primary, "dialog", {
+    setUpvalue(plan, "dialog", {
       row = row, deal = deal,
       primaryBtn = { Disable = function() end, Enable = function() end, IsEnabled = function() return true end },
       status = { SetText = function() end, SetTextColor = function() end },
@@ -2645,7 +2686,7 @@ describe("Sniper purchase wiring", function()
     -- Check path instead of a purchase. armCheck is stubbed rather than run because the real
     -- one repaints the whole panel, which is another spec's subject entirely.
     local refused = 0
-    setUpvalue(primary, "armCheck", function() refused = refused + 1 end)
+    setUpvalue(plan, "armCheck", function() refused = refused + 1 end)
     row.purchaseStage = "ready"
     row.decisionSnapshot = { status = "WATCH", buyable = false, reasons = { "no_comparable_lot" } }
     primary()
@@ -2660,11 +2701,12 @@ describe("Sniper purchase wiring", function()
     assert.equal(2, refused)
     assert.equal(1, #bids)
 
-    -- And the bid is placed from the candidate itself, inside the click handler, nowhere else.
+    -- And the bid is placed from the candidate itself, planned inside the click handler, and
+    -- made by GC.PurchaseCall.Click -- this file names PlaceBid nowhere in its code.
     local click = clickHandler(source())
-    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)", 1, true))
-    local _, placeBidCount = source():gsub("C_AuctionHouse%.PlaceBid", "")
-    assert.equal(1, placeBidCount)
+    assert.is_truthy(click:find('"bid", candidate.auctionID, candidate.buyout', 1, true))
+    local _, placeBidCount = source():gsub("%-%-[^\n]*", ""):gsub("PlaceBid", "")
+    assert.equal(0, placeBidCount)
 
     _G.C_AuctionHouse, _G.C_Timer, _G.GetMoney, _G.time, _G.GetTime = nil, nil, nil, nil, nil
   end)
@@ -2733,6 +2775,8 @@ describe("Sniper purchase wiring", function()
     local openDialog = getUpvalue(onBuyClick, "openDialog")
     local createDialog = getUpvalue(openDialog, "createDialog")
     local primary = getUpvalue(createDialog, "onDialogPrimaryClick")
+    -- The click hands its plan to GC.PurchaseCall.Click; the plan holds the state.
+    local plan = getUpvalue(primary, "planDialogPrimaryClick")
 
     local deal = { itemID = 42, isCommodity = false, qty = 1, unitPrice = 1, mv = 1000000, discount = 0.25 }
     local decision = {
@@ -2742,7 +2786,7 @@ describe("Sniper purchase wiring", function()
       candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
     }
     local row = { deal = deal, purchaseStage = "ready", purchaseToken = 1, decisionSnapshot = decision }
-    setUpvalue(primary, "dialog", {
+    setUpvalue(plan, "dialog", {
       row = row, deal = deal,
       Hide = function() end,
       primaryBtn = { Disable = function() end, Enable = function() end, IsEnabled = function() return true end },

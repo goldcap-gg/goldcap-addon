@@ -272,7 +272,7 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
-local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits)
+local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (UI/SellFrame.lua); anything else under its itemID, as ever.
@@ -356,6 +356,14 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.trendPct = marketStats and marketStats.trend or nil
   position.marketValue = marketStats and marketStats.mv or nil
   position.soldPerDay = marketStats and marketStats.sold or nil
+  -- WoW: Forever (args.scanProjects): the player's own full scan is the market there, and the
+  -- live walk often waits on the throttle. So with no fresh quote, the PROJECTION -- and only it
+  -- -- prices from the scan's value. Posting and cancelling still wait for a live price.
+  local projectFrom = fresh
+  if not projectFrom and scanProjects and marketStats and marketStats.source == "scan"
+      and positive(marketStats.mv) then
+    projectFrom = marketStats.mv
+  end
   -- The imported market value. Fetched all along for its sold/day and trend, and
   -- its price ignored -- which is how a single cheap lot became both the price
   -- GoldCap recommended and the price Post listed at. It is not the price; it is
@@ -513,7 +521,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   --    nothing underwrites that price, and projecting it would flatter a mistake.
   --  * BAG stock projects at what Post would actually list it at (postRecommendation.unit,
   --    floor/queue raises included) rather than the raw cheapest ask, for the same reason.
-  --    Still only with a fresh live quote, exactly as before -- mv alone never projects.
+  --    Priced through `projectFrom` (above): a fresh live quote, or -- in WoW: Forever, with
+  --    none yet -- the player's own scan value. On retail that fallback does not exist, so
+  --    the imported mv alone still never projects there.
   --
   -- Both branches must cover the SAME quantity knownCost was allocated over (heldQty, above),
   -- or PROFIT/UNIT subtracts a cost basis wider than the revenue it was compared against --
@@ -546,7 +556,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     end
     if gross and positive(position.bagQty) then
       local rec = position.postRecommendation
-      local bagUnit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
+      local bagUnit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or projectFrom
       if bagUnit then
         -- Same hold rule as the bag-only branch below: bag units priced above the live ask
         -- mean this PROFIT rests on the recommendation holding, and the row must say so.
@@ -558,10 +568,10 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
       end
     end
     projected = gross and mulDivFloor(gross, 95, 100) or nil
-  elseif fresh then
+  elseif projectFrom then
     local rec = position.postRecommendation
-    local unit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
-    if unit > fresh then holdUnit = unit end
+    local unit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or projectFrom
+    if fresh and unit > fresh then holdUnit = unit end
     projected = netFor(heldQty, unit)
   else
     projected = nil
@@ -854,7 +864,7 @@ function GC.SellPositions.Build(args)
   local result = {}
   for _, position in pairs(positions) do
     decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-      args.quoteMaxAge, args.chosenUnits)
+      args.quoteMaxAge, args.chosenUnits, args.scanProjects)
     result[#result + 1] = position
   end
   for _, unresolvedPosition in ipairs(unresolvedRows) do result[#result + 1] = unresolvedPosition end

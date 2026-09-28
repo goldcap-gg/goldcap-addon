@@ -5,6 +5,13 @@ _G.time = _G.time or os.time
 -- WoW runs Lua 5.1, where `unpack` is a global. Newer runners moved it to table.unpack, so
 -- provide it here rather than making the client's runtime carry a shim for the test bed.
 _G.unpack = _G.unpack or rawget(table, "unpack")
+-- The client's securecallfunction runs `fn` without letting it taint the caller; there is no
+-- taint here, so it is a plain call. Errors propagate rather than going to an error handler, so
+-- a spec sees them. spec/forever_taint_flow_spec.lua swaps in its own model and puts this back.
+function helper.securecallfunction(fn, ...)
+  return fn(...)
+end
+_G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
 function helper.loadModule(relPath, GC)
   GC = GC or {}
@@ -14,6 +21,12 @@ function helper.loadModule(relPath, GC)
   if relPath ~= "Locale/Core.lua" and GC.L == nil then
     local localeChunk = assert(loadfile("GoldCap/Locale/Core.lua"))
     localeChunk("GoldCap", GC)
+  end
+  -- Core/PurchaseCall.lua loads before every UI file in both TOCs; the purchase clicks in
+  -- UI/SniperFrame.lua and UI/BuyFrame.lua go through it. Same reasoning as the locale above.
+  if relPath:match("^UI/") and GC.PurchaseCall == nil then
+    local callChunk = assert(loadfile("GoldCap/Core/PurchaseCall.lua"))
+    callChunk("GoldCap", GC)
   end
   local chunk, err = loadfile("GoldCap/" .. relPath)
   assert(chunk, err)

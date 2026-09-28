@@ -1,0 +1,134 @@
+local _, GC = ...
+
+-- WoW: Forever's "where should this go" arithmetic: what a vendor pays, what the auction house
+-- deposit is, and the verdict the tooltip prints. Pure except for the two client reads, both
+-- guarded.
+GC.ForeverValue = GC.ForeverValue or {}
+
+-- What the player keeps of an auction house sale: the 5% cut, the same factor Core/DealMath.lua
+-- and Core/Trigger.lua apply.
+local KEEP = 0.95
+
+function GC.ForeverValue.VendorUnit(itemID)
+  local item = _G.C_Item
+  if type(itemID) ~= "number" or type(item) ~= "table" or type(item.GetItemInfo) ~= "function" then
+    return nil
+  end
+  local ok, sellPrice = pcall(function() return select(11, item.GetItemInfo(itemID)) end)
+  if ok and type(sellPrice) == "number" and sellPrice > 0 then return sellPrice end
+  return nil
+end
+
+-- One unit's deposit for a commodity, as the client quotes it from the item alone
+-- (C_AuctionHouse.CalculateCommodityDeposit): the caller has already been told the item IS a
+-- commodity. nil when the client does not answer.
+function GC.ForeverValue.CommodityDepositUnit(itemID)
+  local ok, deposit = pcall(GC.Flips.CommodityDeposit, itemID, 1)
+  if ok and type(deposit) == "number" and deposit >= 0 then return deposit end
+  return nil
+end
+
+-- The tooltip's deposit: only for an item the Sell tab has seen is a commodity
+-- (GC.db.commodityByItem, learned at the auction house). An item needs an ItemLocation the
+-- tooltip does not reliably carry, so it gets nil and its verdict says the deposit is not counted.
+function GC.ForeverValue.DepositUnit(itemID)
+  local known = GC.db and GC.db.commodityByItem and GC.db.commodityByItem[itemID]
+  if known ~= true then return nil end
+  return GC.ForeverValue.CommodityDepositUnit(itemID)
+end
+
+function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)
+  if type(ahUnit) ~= "number" or ahUnit <= 0 then return nil end
+  local vendor = (type(vendorUnit) == "number" and vendorUnit > 0) and vendorUnit or 0
+  local gain = math.floor(ahUnit * KEEP) - vendor
+  if gain <= 0 then
+    -- Gear's figure is its cheapest version's; the one in the bags may be worth more.
+    if vendor == 0 or gear then return nil end
+    return "vendor"
+  end
+  if type(depositUnit) ~= "number" then return "ah_nodeposit" end
+  -- The deposit is lost when the lot does not sell; a gain that does not cover it is a bet
+  -- the vendor never asks the player to make.
+  if gain <= depositUnit then return "deposit" end
+  return "ah"
+end
+
+-- The bags GoldCap counts: UI/SellFrame.lua's SELL_BAGS (bag 5 is the reagent bag; a bag the
+-- client does not have reports no slots).
+GC.ForeverValue.BAGS = { 0, 1, 2, 3, 4, 5 }
+
+-- vendor/ah/priced/unpriced: /gc bags and the scan's chat line. best: each stack at the better of
+-- a vendor and the AH after its cut -- Road to 40's "bags" (Core/ForeverRoad.lua); a soulbound
+-- stack counts at a vendor only. gain/gainItems: what the AH adds over a vendor, where both pay.
+function GC.ForeverValue.BagTotals(driver, valueFor, vendorFor)
+  local t = { vendor = 0, ah = 0, priced = 0, unpriced = 0, best = 0, gain = 0, gainItems = 0 }
+  local gainSeen = {}
+  for _, bag in ipairs(GC.ForeverValue.BAGS) do
+    for slot = 1, driver.numSlots(bag) or 0 do
+      local info = driver.itemInfo(bag, slot)
+      local id, n = info and info.itemID, info and info.stackCount
+      if type(id) == "number" and type(n) == "number" and n > 0 then
+        local vendor = not info.hasNoValue and vendorFor(id) or nil
+        local vendorTotal = (type(vendor) == "number" and vendor > 0) and vendor * n or 0
+        t.vendor = t.vendor + vendorTotal
+        local ahTotal = 0
+        if not info.isBound then
+          local value = valueFor(id)
+          local mv = type(value) == "table" and value.mv or nil
+          if type(mv) == "number" and mv > 0 then
+            ahTotal = math.floor(mv * KEEP) * n
+            t.ah = t.ah + ahTotal
+            t.priced = t.priced + 1
+          else
+            t.unpriced = t.unpriced + 1
+          end
+        end
+        t.best = t.best + math.max(vendorTotal, ahTotal)
+        if vendorTotal > 0 and ahTotal > vendorTotal then
+          t.gain = t.gain + (ahTotal - vendorTotal)
+          if not gainSeen[id] then
+            gainSeen[id] = true
+            t.gainItems = t.gainItems + 1
+          end
+        end
+      end
+    end
+  end
+  return t
+end
+
+local function realBags()
+  local c = _G.C_Container
+  return {
+    numSlots = function(bag)
+      local ok, n = pcall(c.GetContainerNumSlots, bag)
+      return ok and tonumber(n) or 0
+    end,
+    itemInfo = function(bag, slot)
+      local ok, info = pcall(c.GetContainerItemInfo, bag, slot)
+      return ok and type(info) == "table" and info or nil
+    end,
+  }
+end
+
+-- The client's own bags, priced the way the tooltip prices them.
+function GC.ForeverValue.RealBagTotals()
+  return GC.ForeverValue.BagTotals(realBags(), GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+end
+
+-- "your bags: X at a vendor, Y on the AH" (spec §3 Bag value), in chat: after every saved scan
+-- and on /gc bags. The way to post the AH half is the Sell tab's POST queue, which in Forever
+-- holds back anything a vendor pays more for (GC.Sell._QueueOpts).
+function GC.ForeverValue.PrintBags(driver)
+  local t = driver and GC.ForeverValue.BagTotals(driver, GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+    or GC.ForeverValue.RealBagTotals()
+  if t.priced > 0 then
+    GC.Print(GC.L["Your bags: %s at a vendor, %s on the AH after its cut"]:format(
+      GC.Util.CoinText(t.vendor), GC.Util.CoinText(t.ah)))
+    GC.Print(GC.L["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."])
+  else
+    GC.Print(GC.L["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."]
+      :format(GC.Util.CoinText(t.vendor)))
+  end
+  return t
+end

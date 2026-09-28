@@ -64,6 +64,21 @@ describe("Sniper stale-import chat warning (companion nudge)", function()
       .. "(/goldcap companion) or paste a string from goldcap.gg (/goldcap import).", printed)
   end)
 
+  -- goldcap.gg has no WoW: Forever prices yet, so this line -- which always points at an
+  -- import, the Companion or a paste -- has nothing true to say in Forever. Say nothing on
+  -- this line rather than send a Forever player chasing an import that can never succeed;
+  -- the empty state and the header banner (spec/sniper_pin_feedback_spec.lua,
+  -- spec/sniper_stale_text_spec.lua) already say why, in Forever's own terms.
+  it("says nothing in WoW: Forever when nothing has ever been imported", function()
+    _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+    local GC = loadSniper()
+    helper.loadModule("Core/Game.lua", GC)
+    origin = "none"
+    warn(GC)
+    assert.is_nil(printed)
+    _G.GetBuildInfo = nil
+  end)
+
   it("adds the companion alternative when a manual import has gone stale", function()
     local GC = loadSniper()
     origin = "manual"

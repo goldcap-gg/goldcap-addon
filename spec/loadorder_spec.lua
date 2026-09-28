@@ -1,7 +1,10 @@
 require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
 
 describe("TOC load order", function()
-  it("loads every TOC file in order and wires slash handlers", function()
+  -- Shared by both TOCs below: retail (GoldCap.toc, every money global present) and WoW:
+  -- Forever (GoldCap_Camelot.toc, none of them -- final review M2). Same stub rig, same
+  -- assertions, so the Forever case is checked exactly as thoroughly as retail already was.
+  local function runLoadOrderCheck(tocPath, stubCoinGlobals)
     local function stubFrame()
       local f
       f = {
@@ -201,15 +204,27 @@ describe("TOC load order", function()
     -- zero flips -- unlike the old bags-vs-mail checklist, which never touched formatAmount
     -- until there was at least one row. GetCoinTextureString(0) is real WoW-client behavior
     -- this headless test never needed a stub for before.
-    _G.GetCoinTextureString = _G.GetCoinTextureString or function(amount) return tostring(amount) .. "c" end
+    --
+    -- WoW: Forever has neither this global nor C_CurrencyInfo (probed 2026-09-24): the caller
+    -- passes stubCoinGlobals = false for GoldCap_Camelot.toc so this run proves GC.Util.CoinText's
+    -- own pure fallback (Task 1) is what actually renders these same coin strings there.
+    if stubCoinGlobals then
+      _G.GetCoinTextureString = _G.GetCoinTextureString or function(amount) return tostring(amount) .. "c" end
+    else
+      _G.GetCoinTextureString = nil
+      _G.C_CurrencyInfo = nil
+    end
 
     local GC = {}
-    local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
+    local toc = assert(io.open(tocPath, "r"))
     local files = {}
     for rawLine in toc:lines() do
       -- Lua 5.5 makes for-loop control variables const, so trim into a new local
       local line = rawLine:gsub("%s+$", "")
-      if line ~= "" and not line:match("^##") then
+      -- Any line starting with # is a comment to the client, not only the ## directives --
+      -- GoldCap_Camelot.toc's own plain-# line (see Core/Game.lua's TOC, added in Task 2) was
+      -- read as a bogus file path here until this matched "^#" instead of "^##".
+      if line ~= "" and not line:match("^#") then
         files[#files + 1] = line
       end
     end
@@ -298,8 +313,11 @@ describe("TOC load order", function()
       local realToggle = GC.Sniper.Toggle
       GC.Sniper.Toggle = function(...) toggleCalls = toggleCalls + 1 return realToggle(...) end
       GC.slashHandlers.sniper()
+      -- Plan 3e: OnSlash hands a handler the rest of the line. A word with text after it, in any
+      -- case, still reaches the same handler; retail's commands take no argument and ignore it.
+      GC.OnSlash("  SNIPER  now please ")
       GC.Sniper.Toggle = realToggle
-      assert.equal(1, toggleCalls)
+      assert.equal(2, toggleCalls)
     end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --
@@ -343,5 +361,20 @@ describe("TOC load order", function()
     _G.SOUNDKIT = nil
     _G.C_Timer = nil
     _G.GetCoinTextureString = nil
+    _G.C_CurrencyInfo = nil
+  end
+
+  it("loads every TOC file in order and wires slash handlers", function()
+    runLoadOrderCheck("GoldCap/GoldCap.toc", true)
+  end)
+
+  -- Final review M2: nothing committed proved the Forever TOC loads at all without retail's
+  -- money global -- only Task 1's isolated coin_text_spec.lua did. GetCoinTextureString,
+  -- C_CurrencyInfo and GoldCap_MarketData are all absent in WoW: Forever (probed 2026-09-24;
+  -- the Camelot TOC omits Data/MarketData.lua by design -- see camelot_toc_spec.lua), and this
+  -- runs the exact same load-and-wire assertions against that TOC with all three nil.
+  it("loads the Forever TOC and wires slash handlers with no money global and no price snapshot", function()
+    assert.is_nil(_G.GoldCap_MarketData)
+    runLoadOrderCheck("GoldCap/GoldCap_Camelot.toc", false)
   end)
 end)

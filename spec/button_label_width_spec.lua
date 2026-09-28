@@ -294,5 +294,17 @@ describe("row button labels fit the button", function()
       local caption = assert(GC.Locales[code][key], code .. " is missing the caption"):format("9999g", 20, "199980g")
       assert.is_true(wrappedLines(caption, holds(296, 10, 1.0)) <= 2, ("%s: %q"):format(code, caption))
     end)
+
+    -- The same hero caption slot, on a WoW: Forever row (Core/CheckVerdict.lua's HERO_CAPTION
+    -- vendor/market), with the widest price a Forever copper economy prints per unit below 1g.
+    it(("keeps the %s WoW: Forever captions on their two lines"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      for _, key in ipairs({ "sure profit: a vendor pays %s each",
+        "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown" }) do
+        local caption = assert(GC.Locales[code][key], code .. " is missing " .. key):format("99s 99c")
+        assert.is_true(wrappedLines(caption, holds(296, 10, 1.0)) <= 2, ("%s: %q"):format(code, caption))
+      end
+    end)
   end
 end)

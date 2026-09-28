@@ -47,6 +47,8 @@ GC.Locales.ukUA = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s: потрібне число, наприклад /gc weights %s 1.5",
+  ["%s of %s — gold %s, bags %s"] = "%s з %s — золото %s, сумки %s",
   ["%s under you"] = "%s дешевше за вас",
   ["%s units in %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
@@ -62,6 +64,8 @@ GC.Locales.ukUA = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
+  ["AH value"] = "Оцінка на аукціоні",
+  ["AH, cheapest version"] = "Аукціон, найдешевша версія",
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
@@ -72,6 +76,8 @@ GC.Locales.ukUA = {
     "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
   ["Above your price -- quoted %s, your price %s"] = "Вище за вашу ціну -- котирування %s, ваша ціна %s",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
+  ["At your pace you reach it at level %d."] = "У вашому темпі ви назбираєте до %d рівня.",
+  ["At your pace you will be %s short at level 40."] = "У вашому темпі на 40 рівні бракуватиме %s.",
   ["At your price"] = "За вашою ціною",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",
@@ -83,6 +89,8 @@ GC.Locales.ukUA = {
   ["BRAKES"] = "ГАЛЬМА",
   ["BUY — unverified"] = "КУПИТИ — без перевірки",
   ["Background check"] = "Фонова перевірка",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "Blizzard ще не оприлюднила ціну верхової їзди. Введіть /gc mount і очікувану ціну.",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Точка беззбитковості — найнижча ціна, яка після комісії ще повертає вашу собівартість. Нижче — збиток.",
   ["Bundled %s data"] = "Вбудовані дані %s",
@@ -118,6 +126,7 @@ GC.Locales.ukUA = {
   ["Checked against the live order book a moment ago."] = "Щойно звірено з живим стаканом заявок.",
   ["Checked: %d of the top %d on screen"] = "Перевірено: %d з %d верхніх на екрані",
   ["Checking prices…"] = "Перевіряємо ціни…",
+  ["Checking prices — waiting for the Auction House…"] = "Перевіряємо ціни — чекаємо на аукціон…",
   ["Checking this item's price…"] = "Перевіряємо ціну цього предмета…",
   ["Checking..."] = "Перевіряю...",
   ["Clear to buy"] = "Можна купувати",
@@ -139,6 +148,39 @@ GC.Locales.ukUA = {
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
   ["Costs more than your per-buy wallet limit allows."] =
     "Коштує більше, ніж дозволяє ваш ліміт на одну купівлю.",
+  ["Could not read that amount. Type it like 12g 50s."] = "Не вдалося прочитати суму. Введіть так: 12g 50s.",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
+    "За вашим скануванням %s тому. Враховує лише %s. Змінити: /gc weights.",
+  ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap тепер рахує, що випадає зі здобичі, без імен, для шансів випадіння на goldcap.gg. Companion почне це передавати, коли ця частина вийде. Введіть /gc loot off, щоб вимкнути.",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
+  ["Items still loading: %d. Open this again in a moment."] =
+    "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "Підрахунок здобичі вимкнено. Введіть /gc loot clear, щоб видалити записане.",
+  ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
+  ["Loot record cleared."] = "Запис здобичі видалено.",
+  ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
+  ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "Ще немає сканування зі спорядженням. Відкрийте аукціон, і GoldCap його просканує.",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "Для вашого класу ще немає ваг характеристик. Задайте їх так: /gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] =
+    "На аукціоні немає нічого кращого за ваше спорядження для вашого рівня.",
+  ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
+  ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
+    "Шлях до 40 рівня з GoldCap: %s з %s на скакуна (%d%%).",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "Шлях до 40 рівня: у вас %s (золото %s, сумки %s).",
+  ["Stat weights: %s"] = "Ваги характеристик: %s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] =
+    "Цей клієнт не повідомляє характеристики предметів, тому GoldCap не може порівняти спорядження.",
+  ["This lot holds more units than your Max units per buy."] =
+    "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
   ["Could not find the queue's next item to post — try again"] =
     "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -230,6 +272,7 @@ GC.Locales.ukUA = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
   ["Last post may still go up -- wait a minute"] = "Ще може виставитися -- зачекайте хвилину",
+  ["Level 40 reached: %s to go."] = "Рівень 40 досягнуто: бракує %s.",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
   ["Listed"] = "Виставлено",
@@ -253,10 +296,17 @@ GC.Locales.ukUA = {
   ["Max units per buy"] = "Макс. штук за одну купівлю",
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
   ["Min profit per buy (gold)"] = "Мінімальний прибуток з купівлі (золото)",
+  ["Min profit per buy (copper)"] = "Мінімальний прибуток з купівлі (мідь)",
+  ["Unknown stat %s. Use one of: %s"] = "Невідома характеристика %s. Використайте одну з: %s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "Покращень спорядження на аукціоні: %d. Введіть /gc upgrades, щоб їх побачити.",
+  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "Поки це значення лишається стандартними 5%, лот за ціною торговця може використати до половини вашого золота.",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
+  ["NO LIVE PRICE YET"] = "ПОКИ НЕМАЄ ЖИВОЇ ЦІНИ",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
+  ["YOUR SALES"] = "ВАШІ ПРОДАЖІ",
   ["NO COST"] = "БЕЗ ЧЕКА",
   ["NOT ON HAND %d"] = "НЕМАЄ НА РУКАХ %d",
   ["NOTHING TO CANCEL"] = "НЕМА ЩО СКАСОВУВАТИ",
@@ -291,6 +341,7 @@ GC.Locales.ukUA = {
     "Немає в сумках і не виставлено — пошта чи банк?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою — запас у пошті, банку або на іншому персонажі",
+  ["Not worth the deposit on the AH"] = "Не окупає заставу на аукціоні",
   ["Nothing in your bags to list"] = "У сумках немає чого виставити",
   ["Nothing is being held back."] = "Нічого не притримано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
@@ -358,11 +409,13 @@ GC.Locales.ukUA = {
   ["Profit tracking is a goldcap.gg Pro feature"] =
     "Облік прибутку — функція goldcap.gg Pro",
   ["Purchases are turned off in this build."] = "У цій збірці покупки вимкнено.",
+  ["Press Buy again to buy this quantity"] = "Натисніть Купити ще раз, щоб купити цю кількість",
   ["QTY"] = "К-ТЬ",
   ["Quantity exceeds missing units"] = "Кількість перевищує відсутні одиниці",
   ["Quantity is capped by how fast this item actually sells."] =
     "Кількість обмежена тим, як швидко предмет реально продається.",
   ["READY"] = "ГОТОВЕ",
+  ["Queue ready — press POST again to post it"] = "Черга готова — натисніть Виставити ще раз, щоб виставити його",
   ["REALIZED PROFIT"] = "РЕАЛІЗОВАНИЙ ПРИБУТОК",
   ["REFRESH"] = "ОНОВИТИ",
   ["RESET WINDOW"] = "СКИНУТИ ВІКНО",
@@ -399,8 +452,13 @@ GC.Locales.ukUA = {
   ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
+  ["%d bag items sell for more on the AH (+%s)"] = "%d предметів дорожчі на аукціоні (+%s)",
   ["Search"] = "Пошук",
+  ["Set the riding cost: /gc mount 90g"] = "Вкажіть ціну верхової їзди: /gc mount 90g",
   ["Sales evidence"] = "Дані продажів",
+  ["Sell it on the AH"] = "Продайте на аукціоні",
+  ["Sell it on the AH (deposit not counted)"] = "Продайте на аукціоні (застава не врахована)",
+  ["Sell it to a vendor"] = "Продайте торговцю",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -419,6 +477,7 @@ GC.Locales.ukUA = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",
   ["Sound on SAFE deal"] = "Звук на угоді SAFE",
+  ["Source"] = "Джерело",
   ["Source age"] = "Вік джерела",
   ["Spike-trend threshold %"] = "Поріг стрибка ціни %",
   ["Start scanning as soon as the auction house opens."] =
@@ -469,6 +528,8 @@ GC.Locales.ukUA = {
     "Ціна зрушила, і угода більше не безпечна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "Прибуток не дотягує до вашого мінімуму після 5% комісії та застави.",
+  ["What this buy would make is under your minimum profit."] =
+    "Прибуток від цієї покупки менший за ваш мінімум.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
@@ -527,14 +588,25 @@ GC.Locales.ukUA = {
   ["YOU GET"] = "ОТРИМАЄШ",
   ["YOUR LOTS"] = "ВАШІ ЛОТИ",
   ["YOUR PRICE"] = "ВАША ЦІНА",
+  ["You can pay for it now."] = "Ви вже можете заплатити.",
+  ["You have %s — gold %s, bags %s"] = "У вас %s — золото %s, сумки %s",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
   ["Your call"] = "Вирішувати вам",
+  ["Your gold has not grown lately, so there is no pace to estimate."] =
+    "Ваше золото останнім часом не зростає, тож темп оцінити не можна.",
   ["Your minimum"] = "Твій мінімум",
   ["Your price"] = "Ваша ціна",
   ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
+  ["at level %d"] = "з %d рівня",
+  ["sure profit: a vendor pays %s each"] =
+    "гарантований прибуток: торговець платить %s за штуку",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "перепродаж за оцінкою сканування, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["Checked against the live auction house a moment ago."] =
+    "Щойно звірено з аукціоном у реальному часі.",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "вище найдешевшого, у дешевій чверті · попереду %s шт.",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
@@ -596,6 +668,8 @@ GC.Locales.ukUA = {
   ["full scan stopped -- press %s to run it again"] =
     "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "Ціни goldcap.gg для WoW: Forever ще не доступні.",
   ["strong"] = "надійні",
   ["hold"] = "тримати",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -620,6 +694,7 @@ GC.Locales.ukUA = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "останні 24 год — %d продажів, %s валовий, %s комісія аукціону, %d купівель, %s витрачено",
+  ["last live price %s ago"] = "остання жива ціна, %s тому",
   ["leave these alone"] = "ці не чіпати",
   ["level %d"] = "рівень %d",
   ["listing gone -- already bought out or price changed"] =
@@ -639,10 +714,10 @@ GC.Locales.ukUA = {
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no live price"] = "немає живої ціни",
   ["no live quote yet — pricing…"] = "живого котирування ще немає — оцінюємо ціну…",
   ["no market figure for caged pets"] = "немає ринкових даних для вихованців у клітці",
   ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
-  ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -728,7 +803,6 @@ GC.Locales.ukUA = {
   ["sniped (listing changed on rescan)"] = "перехоплено (лот змінився при перескануванні)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не розпізнано",
-  ["stale"] = "застаріле",
   ["starting full scan..."] = "починаємо повне сканування...",
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =
@@ -767,6 +841,7 @@ GC.Locales.ukUA = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
+  ["your scan, %s ago"] = "твоє сканування, %s тому",
   ["yours"] = "ваша",
   ["yours ×%s"] = "ваші ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",
@@ -840,4 +915,70 @@ GC.Locales.ukUA = {
     "Companion записав їх порожніми -- дайте йому синхронізуватися і зробіть /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion записав їх без цін -- дайте йому синхронізуватися і зробіть /reload",
+  ["Scanning the auction house…"] = "Скануємо аукціон…",
+  ["%s lots scanned -- shared on your next /reload"] =
+    "%s лотів відскановано -- буде передано під час наступного /reload",
+  ["%s lots scanned and saved"] = "%s лотів відскановано і збережено",
+  ["%s items scanned -- shared on your next /reload"] =
+    "%s предметів відскановано -- буде передано під час наступного /reload",
+  ["%s items scanned and saved"] = "%s предметів відскановано і збережено",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "Повне сканування ще відновлюється (лишилось %d хв) -- поки що скануємо через огляд",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "Аукціон не відповів на повне сканування -- скануємо через огляд натомість",
+  ["reading the auction house: %s of %s lots"] = "читаємо аукціон: %s з %s лотів",
+  ["The scan found nothing to save"] = "Сканування не знайшло, що зберегти",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "Сканує весь аукціон у пошуках цін: повний список не частіше разу на 15 хвилин, а між ними -- через огляд. GoldCap також сканує, коли ви відкриваєте аукціон.",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "Ваші сумки: %s у торговця, %s на аукціоні після комісії",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "Кнопка ВИСТАВИТИ на вкладці Продаж перелічує все, що коштує дорожче, ніж платить торговець, по одному кліку за раз.",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "Ваші сумки: %s у торговця. Відскануйте аукціон, щоб дізнатися, скільки б за них дали там.",
+  ["a vendor pays more -- sell it there"] =
+    "торговець платить більше -- продайте йому",
+  ["vendor pays more"] =
+    "торговець платить більше",
+  ["Below vendor"] =
+    "Нижче за торговця",
+  ["Under market"] =
+    "Нижче за ринок",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · купити за %s або менше, торговець платить %s",
+  [" · buy at %s or less, AH value %s"] =
+    " · купити за %s або менше, оцінка на аукціоні %s",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "Купити за %s або менше: торговець платить %s за штуку. Ця покупка приносить %s.",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "Купити за %s або менше: оцінка на аукціоні — ціна, яку просить найдешевша десята частина виставлених одиниць, — %s. Швидкість перепродажу невідома, тож це ризикованіше за угоду з торговцем. Ця покупка приносить приблизно %s після комісії 5%% і застави.",
+  ["under the vendor price -- click Buy to purchase"] =
+    "нижче за ціну торговця -- натисніть Buy, щоб купити",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "набагато нижче за ринок, швидкість перепродажу невідома -- натисніть Buy, щоб купити",
+  ["No deals in your last scan."] =
+    "Немає угод в останньому скані.",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap шукає предмети, виставлені дешевше, ніж вони коштують. СКАН сканує знову.",
+  ["No scan of this auction house yet."] =
+    "Цей аукціон ще не сканувався.",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "GoldCap сканує, коли ви відкриваєте аукціон; СКАН на цій дошці сканує знову.",
+  ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
+    "У WoW: Forever ціни GoldCap беруться з твоїх власних сканувань аукціону.",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "Відкрийте аукціон, і GoldCap відсканує його за вас; СКАН на вкладці Угоди сканує знову.",
+  ["%ds"] = "%d с",
+  ["%dm"] = "%d хв",
+  ["%dh"] = "%d год",
+  ["%dd"] = "%d дн.",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 сканер, %s тому",
+  ["%d scanners, %s ago"] = "сканерів: %d, %s тому",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "перепродаж за оцінкою на аукціоні зі сканувань гравців, %s/шт., мінус 5%% комісії та застава; швидкість невідома",
+  ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",
 }

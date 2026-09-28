@@ -31,6 +31,27 @@ describe("GC.PurchaseSlot: one commodity purchase in flight, two owners", functi
     assert.equal("sniper", GC.PurchaseSlot.Owner())
   end)
 
+  -- GC.Sniper._BuySpentSinceArm reads these: a take is every claim made without a live claim of
+  -- one's own already standing -- from nobody, from the other window, or over one's own stale
+  -- claim (review F3: that last one was a re-stamp before, and a BUY purchase started on it went
+  -- uncounted). Only a re-stamp of a live claim is not a take.
+  it("counts a take whenever the claimant held no live claim", function()
+    assert.equal(0, GC.PurchaseSlot.Takes("buy"))
+    GC.PurchaseSlot.Claim("buy", 100)
+    assert.equal(1, GC.PurchaseSlot.Takes("buy"))
+    GC.PurchaseSlot.Claim("buy", 120)                -- live: a re-stamp
+    assert.equal(1, GC.PurchaseSlot.Takes("buy"))
+    GC.PurchaseSlot.Claim("buy", 151)                -- 31 s after the re-stamp: stale, a new take
+    assert.equal(2, GC.PurchaseSlot.Takes("buy"))
+    GC.PurchaseSlot.Release("buy")
+    GC.PurchaseSlot.Claim("buy", 152)
+    assert.equal(3, GC.PurchaseSlot.Takes("buy"))
+    GC.PurchaseSlot.Release("buy")
+    GC.PurchaseSlot.Claim("sniper", 153)
+    assert.equal(1, GC.PurchaseSlot.Takes("sniper"))
+    assert.equal(3, GC.PurchaseSlot.Takes("buy"))
+  end)
+
   it("IsBusy is false once the slot is released", function()
     assert.is_true(GC.PurchaseSlot.Claim("sniper", 100))
     assert.is_true(GC.PurchaseSlot.IsBusy(105))

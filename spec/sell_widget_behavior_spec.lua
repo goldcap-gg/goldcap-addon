@@ -682,6 +682,26 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("×5", row.priceNote.text, 1, true)
     end)
 
+    -- The owner's own bug report: WoW: Forever's book carries copper remainders, and the
+    -- gold-decimal box showed "0.009" for 90c -- correct arithmetic, unreadable. Only where
+    -- GC.Flips.PriceStep() == 1 (C_AuctionHouse.SupportsCopperValues); retail's box, tested
+    -- above with no such function, is untouched by this branch.
+    it("shows a copper price in coin text on WoW: Forever, not a gold fraction", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 90 } })
+      assert.equal("90c", row.priceBox.text)
+      _G.C_AuctionHouse = nil
+    end)
+
+    it("shows gold, silver and copper together on WoW: Forever, no unit at zero", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 } }) -- 1g 22s 90c
+      assert.equal("1g22s90c", row.priceBox.text)
+      _G.C_AuctionHouse = nil
+    end)
+
     -- A real commit starts in the box: the focus is what tells the row which position the
     -- typing belongs to, and a commit with no focus behind it is refused (pooled rows).
     local function typePrice(row, text)
@@ -702,6 +722,38 @@ describe("Sell widget geometry and manual cost", function()
       local after = priceRow(GC)
       assert.equal("45", after.priceBox.text)
       assert.matches("yours", after.priceNote.text, 1, true)
+    end)
+
+    -- The inverse of the two display tests above: what the seller types on Forever is read as
+    -- coin text -- an explicit g/s/c suffix keeps its full copper precision, the one thing this
+    -- box can do that Set-Cost above cannot (B2: a bare number is gold everywhere on this tab,
+    -- tested next).
+    it("accepts a copper price typed into the box on WoW: Forever", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      -- knownCost = 0: takes the below-cost warning out of the way, so this test is purely
+      -- about whether the typed coin text parses and round-trips, not about PriceRisk.
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(row, "90c")
+      local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      assert.equal("90c", after.priceBox.text)
+      assert.matches("yours", after.priceNote.text, 1, true)
+      _G.C_AuctionHouse = nil
+    end)
+
+    -- B2: a bare number used to mean copper here and gold one control up (Set-Cost) and on
+    -- retail's own version of this same box -- the one place on the tab where a typed number
+    -- meant a different unit than everywhere else. It now means gold everywhere, the same
+    -- parser retail's box already used (dialogGoldPositive); only an explicit suffix reaches
+    -- sub-gold precision on Forever.
+    it("accepts a bare number typed into the box on WoW: Forever as gold, like everywhere else on this tab", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(row, "150")
+      local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      assert.equal("150g", after.priceBox.text)
+      _G.C_AuctionHouse = nil
     end)
 
     -- Emptying the box is an answer, not a failure to give one.
@@ -813,6 +865,44 @@ describe("Sell widget geometry and manual cost", function()
       local row2 = priceRow(bare, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0 })
       assert.is_false(row2.priceChips[5].enabled)
       assert.is_true(row2.priceChips[2].enabled)
+    end)
+
+    -- Fix round 1: this arithmetic used a hardcoded 1-silver step, not GC.Flips.PriceStep() --
+    -- on WoW: Forever's copper grid, undercutting a 150c ask offered 50c instead of 149c. Route
+    -- it through the same step SilverUp/SilverDown already use (Core/Flips.lua), so every price
+    -- this drawer can hand back agrees.
+    it("undercuts by the auction house's own price step, not a hardcoded silver", function()
+      local function underSource(competing)
+        local GC = load(700, { calls = {} })
+        GC.SellViewModel.Expansion = function()
+          return { batches = {}, ownedLots = {}, note = "FIFO allocations",
+            book = { rows = {}, levels = 1, totalUnits = 10, widest = 10,
+              cheapestCompeting = competing, yourUnit = nil, yourRow = nil } }
+        end
+        local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0,
+          bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
+          postRecommendation = { unit = 430000 } }
+        local render = upvalue(GC.Sell.Attach, "renderRows")
+        set(render, "expanded", { ["commodity:42"] = true })
+        local rows = topRows(GC, { p })
+        for _, row in ipairs(rows) do
+          if row.kind == "drawer" then return row.priceChips[3].priceSource end
+        end
+        error("no drawer rendered")
+      end
+
+      -- WoW: Forever -- SupportsCopperValues true, a 1-copper step: 150c cheapest ask -> 149c.
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      assert.equal(149, underSource(150))
+
+      -- Retail -- no such function, the same 100-copper step as before: byte-identical.
+      _G.C_AuctionHouse = nil
+      assert.equal(50, underSource(150))
+
+      -- A competing ask at or below one step still yields no UNDERCUT price, on either grid.
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      assert.is_nil(underSource(1))
     end)
 
     -- The first chip is the way back: it carries no price, it clears the seller's own, and it
@@ -1231,6 +1321,46 @@ describe("Sell widget geometry and manual cost", function()
         marketState = "fresh", marketFresh = true, marketStale = false, status = "UNLISTED" } }), "drawer")
       assert.equal("Markt 150", drawer.drawerFacts.text)
       assert.equal("aktuell · vor 3s", drawer.drawerQuote.text)
+    end)
+
+    -- Right after a full scan the last live quote is old, and a red "stale" read as an error
+    -- (WoW: Forever, 2026-09-26): the label now says its age, dim, like the fresh case.
+    it("says how old the last live price is, dim, instead of a red 'stale'", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.Expansion = function(position)
+        return { note = "FIFO allocations", batches = {}, ownedLots = {},
+          displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+          marketState = position.marketState, marketFresh = position.marketFresh,
+          marketStale = position.marketStale }
+      end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
+        marketState = "stale", marketFresh = false, marketStale = true, status = "UNLISTED" } }), "drawer")
+      assert.equal("last live price 3m ago", drawer.drawerQuote.text)
+      assert.same({ .5, .5, .5, 1 }, drawer.drawerQuote.color)
+    end)
+
+    -- Final review m10: the age inside that line is the panel's language too, not "3m".
+    it("says how old the last live price is in the panel's language, units included", function()
+      local GC = load(620, { calls = {} })
+      local german = { ["last live price %s ago"] = "letzter Live-Preis vor %s", ["%dm"] = "%d Min." }
+      GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
+      GC.SellViewModel.Expansion = function(position)
+        return { note = "FIFO allocations", batches = {}, ownedLots = {},
+          displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+          marketState = position.marketState, marketFresh = position.marketFresh,
+          marketStale = position.marketStale }
+      end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
+        marketState = "stale", marketFresh = false, marketStale = true, status = "UNLISTED" } }), "drawer")
+      assert.equal("letzter Live-Preis vor 3 Min.", drawer.drawerQuote.text)
     end)
 
     it("says the empty foot in the panel's language", function()
@@ -1726,7 +1856,14 @@ describe("Sell widget geometry and manual cost", function()
     local rows = topRows(GC, { p })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     local post = upvalue(render, "onPostClick")
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    -- onPostClick reads bag state through clickSafeBagState now (never liveBagState directly --
+    -- see SellFrame.lua's own comment on why), which for a commodity position still hands
+    -- straight to the real liveBagState -- one upvalue hop further than before.
+    set(upvalue(post, "clickSafeBagState"), "liveBagState",
+      function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    -- The location itself is never rebuilt in the click (resolvePostLocation only trusts what
+    -- cacheBagLocation already cached at a paint this test never ran), so it is stubbed directly.
+    set(post, "resolvePostLocation", function() return {} end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
@@ -2206,9 +2343,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then staleDetail = row end
     end
-    -- A stale quote is the one thing at the foot of the book worth a second look: red.
-    assert.equal("stale · age 51s", staleDetail.drawerQuote.text)
-    assert.same({ 1, 0, 0, 1 }, staleDetail.drawerQuote.color)
+    -- The last live quote's age, dim, not a red "stale" (WoW: Forever, 2026-09-26).
+    assert.equal("last live price 51s ago", staleDetail.drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, staleDetail.drawerQuote.color)
 
     -- Item 42 is unlisted and item 43 is a live lot, so they sit on opposite decks: everything
     -- above is the post deck's half of this test, everything below is the listed deck's. One
@@ -2624,12 +2761,12 @@ describe("Sell widget geometry and manual cost", function()
         { positionKey = "commodity:43", reason = "below_breakeven" } })
       local rows = topRows(GC, { stock(), stock({ positionKey = "commodity:43", itemID = 43 }),
         stock({ positionKey = "commodity:44", itemID = 44 }) })
-      local WATCH = "|cff59b8e6no price|r"
+      local WATCH = "|cff59b8e6no live price|r"
       assert.matches(WATCH, rows[1].itemStock.text, 1, true)
       -- A loss is the red margin under YOU GET, not a second set of words beside the stock.
       assert.is_nil(rows[2].itemStock.text:find("below", 1, true))
-      assert.is_nil(rows[2].itemStock.text:find("no price", 1, true))
-      assert.is_nil(rows[3].itemStock.text:find("no price", 1, true))
+      assert.is_nil(rows[2].itemStock.text:find("no live price", 1, true))
+      assert.is_nil(rows[3].itemStock.text:find("no live price", 1, true))
     end)
 
     it("tags uncosted stock with how many units have no receipt", function()

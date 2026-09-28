@@ -200,11 +200,28 @@ describe("Auction House tab", function()
     assert.is_table(dock)
     assert.is_false(dock:IsShown()) -- hidden until the tab is chosen
     tab.scripts.OnClick(tab)
-    assert.equal(tab.displayMode, ah.displayMode)
+    -- LibAHTab.lua:89-90 stomps AuctionHouseFrame.displayMode back to nil in the same breath it
+    -- sets it; our own tab must leave the field exactly as empty-handed, never holding a
+    -- GoldCap-owned table for as long as our tab is the active panel (the taint the owner hit
+    -- posting in Forever, "An action was blocked because of taint from GoldCap").
+    assert.is_nil(ah.displayMode)
     assert.is_true(dock:IsShown())
     assert.equal(1, #docked) -- the window was docked into the panel, once
     assert.equal(dock, docked[1].host)
     assert.equal("GoldCap", ah.title)
+  end)
+
+  -- The real proof is in-game (a taint log clean of "GoldCap" around Post); this is the
+  -- code-level invariant the fix establishes: whatever else happens while our tab is shown,
+  -- Blizzard's own frame carries nothing of GoldCap's in this field.
+  it("leaves Blizzard's own displayMode field holding nothing of GoldCap's while the tab is shown", function()
+    GC.AuctionHouseTab.Install()
+    local tab = tabButton()
+    tab.scripts.OnClick(tab)
+    assert.is_nil(ah.displayMode)
+    -- Still true after whatever else a visit does with our tab active.
+    tab.scripts.OnClick(tab)
+    assert.is_nil(ah.displayMode)
   end)
 
   it("hides the dock and the window when a Blizzard tab takes the display back", function()

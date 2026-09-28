@@ -99,6 +99,22 @@ describe("Util", function()
       assert.equal("1m", GC.Util.FormatElapsed(119))
     end)
 
+    -- Final review m10 (plan 3c): set inside a translated sentence ("last live price %s ago"),
+    -- "3m" is English. FormatElapsedWords is the same figure through GC.L; English unchanged.
+    it("says the same figure in the player's language when asked to", function()
+      for _, seconds in ipairs({ 0, 45, 60, 3384, 3600, 5 * 3600 + 120, 3 * 86400 + 3600 }) do
+        assert.equal(GC.Util.FormatElapsed(seconds), GC.Util.FormatElapsedWords(seconds))
+      end
+      local russian = { ["%ds"] = "%d с", ["%dm"] = "%d мин", ["%dh"] = "%d ч", ["%dd"] = "%d дн." }
+      GC.L = setmetatable({}, { __index = function(_, key) return russian[key] or key end })
+      assert.equal("45 с", GC.Util.FormatElapsedWords(45))
+      assert.equal("3 мин", GC.Util.FormatElapsedWords(188))
+      assert.equal("5 ч", GC.Util.FormatElapsedWords(5 * 3600))
+      assert.equal("3 дн.", GC.Util.FormatElapsedWords(3 * 86400))
+      assert.is_nil(GC.Util.FormatElapsedWords(-1))
+      GC.L = nil
+    end)
+
     it("refuses a corrupt or negative number rather than printing one", function()
       assert.is_nil(GC.Util.FormatElapsed(-1))
       assert.is_nil(GC.Util.FormatElapsed(0 / 0))
@@ -171,5 +187,18 @@ describe("Util", function()
       _G.AuctionHouseUtil = { GetErrorText = function() error("boom") end }
       assert.is_nil(GC.Util.AuctionHouseErrorText(0))
     end)
+  end)
+end)
+
+describe("GC.Util.SlashArgs", function()
+  local GC
+  before_each(function() GC = helper.loadModule("Core/Util.lua") end)
+
+  it("splits the command word from the rest of the line, both trimmed", function()
+    assert.same({ "Mount", "12g 50s" }, { GC.Util.SlashArgs("  Mount   12g 50s  ") })
+    assert.same({ "sniper", "" }, { GC.Util.SlashArgs("sniper") })
+    assert.same({ "weights", "STR 1 STA 0.5" }, { GC.Util.SlashArgs("weights STR 1 STA 0.5") })
+    assert.same({ "", "" }, { GC.Util.SlashArgs("") })
+    assert.same({ "", "" }, { GC.Util.SlashArgs(nil) })
   end)
 end)

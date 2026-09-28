@@ -406,20 +406,27 @@ end
 -- icons: the icon escapes are wide, and a truncated FontString cuts them MID-ESCAPE, which
 -- painted lot labels as "bought 17 Aug at 1|..." in game. Sub-gold amounts keep the icons,
 -- where they fit. Mirrors the Deals board's formatColumnAmount rule.
-local function formatAmount(amount)
+--
+-- A GC.Sell field, not a top-level local: paint-only (every call site below is inside render or
+-- drawer/summary paint code, never a click's pre-call body), and SellFrame.lua has no local
+-- headroom left to spend on it (final review "Headroom").
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
+-- it is bounded 0-99 by the mod above.
+function GC.Sell._FormatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
-  if amount < 0 then return "-" .. formatAmount(-amount) end
+  if amount < 0 then return "-" .. GC.Sell._FormatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 local function formatCell(value)
-  return type(value) == "number" and formatAmount(value) or tostring(value or "")
+  return type(value) == "number" and GC.Sell._FormatAmount(value) or tostring(value or "")
 end
 
 -- Same inline color escape UI/SoldFrame.lua's DIM_HEX uses, for the same reason: the hold-price
@@ -444,11 +451,14 @@ local MONEY_HEX = "|cffc9a957"
 -- GC.CancelQueue's own reason tokens; `alarm` paints red, `wait` the watch blue, the rest dim.
 -- @localised-keys
 local ROW_TAG_TEXT = {
-  no_fresh_price = "no price",
+  no_fresh_price = "no live price",
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
+  below_vendor = "vendor pays more",
 }
-local function inlineColor(color, text)
+-- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
+-- (final review "Headroom").
+function GC.Sell._InlineColor(color, text)
   return ("|cff%02x%02x%02x%s|r"):format(
     math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
 end
@@ -481,7 +491,7 @@ rowTag = function(position, reason, notOnHand)
   if not tag then return "" end
   local color = tone == "alarm" and Theme.color.red or tone == "wait" and Theme.color.watch
     or Theme.color.fgDim
-  return "  " .. inlineColor(color, tag)
+  return "  " .. GC.Sell._InlineColor(color, tag)
 end
 end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 allows 200)
 
@@ -498,6 +508,9 @@ local QUEUE_SKIP_TEXT = {
   no_fresh_price = "needs a fresh price -- press Refresh",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
+  -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
+  -- it after the AH's cut.
+  below_vendor = "a vendor pays more -- sell it there",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall -- hold",
@@ -512,7 +525,9 @@ local QUEUE_SKIP_TEXT = {
 -- empty, a chip that emptied it, or the OTHER deck holding everything. Read live from the deck
 -- and chip state rather than passed in, so it can never disagree with what the switch is
 -- painting.
-local function emptyDeckText()
+-- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
+-- (final review "Headroom").
+function GC.Sell._EmptyDeckText()
   if chips.search then return GC.L["Nothing on this deck matches that search"] end
   if filterMode == "listed" or filterMode == "cancelqueue" then
     return GC.L["No live auctions on this character"]
@@ -626,7 +641,13 @@ paintCancelButton = function()
     end
   elseif not head then
     button:SetVariant("ghost")
-    button:SetLabel(GC.L["NOTHING TO CANCEL"])
+    -- Empty only because every lot is waiting on a live price: that is not "nothing to cancel",
+    -- and beside My Lots' own list it read as a contradiction (WoW: Forever, 2026-09-26).
+    local waiting = #cancelSkipped > 0
+    for _, skip in ipairs(cancelSkipped) do
+      if skip.reason ~= "no_fresh_price" then waiting = false; break end
+    end
+    button:SetLabel(waiting and GC.L["NO LIVE PRICE YET"] or GC.L["NOTHING TO CANCEL"])
     button:Disable()
   else
     button:SetVariant("danger")
@@ -639,7 +660,7 @@ paintCancelButton = function()
     -- than the posting deck's two: this deck's lower line is the status.
     local parts = {}
     if head then
-      parts[1] = inlineColor(Theme.color.fg, ("%s ×%d @ %s"):format(
+      parts[1] = GC.Sell._InlineColor(Theme.color.fg, ("%s ×%d @ %s"):format(
         head.itemName or GC.L["Item"], head.quantity or 0, formatCell(head.listedUnit)))
     end
     if #cancelSkipped > 0 then parts[#parts + 1] = (GC.L["%d held back"]):format(#cancelSkipped) end
@@ -664,7 +685,9 @@ end
 -- how much stock is sitting there. `cheapestCompeting` subtracts the player's own units from a
 -- shared price level rather than dropping the level (see CheapestCompetingUnit), so this is
 -- the price to beat, not the cheapest row on screen.
-local function bookHint(book)
+-- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
+-- (final review "Headroom").
+function GC.Sell._BookHint(book)
   if type(book) ~= "table" then return "" end
   local parts = {}
   if book.cheapestCompeting then
@@ -674,7 +697,8 @@ local function bookHint(book)
   return table.concat(parts, " · ")
 end
 
-local function recommendationText(recommendation)
+-- A GC.Sell field too, same reason.
+function GC.Sell._RecommendationText(recommendation)
   if type(recommendation) == "string" then return recommendation end
   if type(recommendation) ~= "table" then return "" end
   local action = recommendation.action
@@ -772,6 +796,15 @@ function GC.Sell._QuoteItemKey(id)
   itemID = tonumber(itemID)
   if not itemID then return nil, nil end
   return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
+end
+
+-- WoW: Forever: the POST queue holds back what a vendor pays at least as much for (see
+-- Core/PostQueue.lua's below_vendor). nil anywhere else, so retail's queue is built exactly as
+-- before. Read-only lookups: it runs inside composePositions, which the Cancel click also calls.
+function GC.Sell._QueueOpts()
+  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return nil end
+  if not (GC.ForeverValue and GC.ForeverValue.VendorUnit) then return nil end
+  return { vendorUnit = GC.ForeverValue.VendorUnit }
 end
 
 local function quoteDriver()
@@ -935,7 +968,15 @@ local function seedPersistedQuotes()
   end
 end
 
-local function composePositions()
+-- `skipPaint`: WoW: Forever's taint engine blocks a protected AH call once the same hardware
+-- click has read certain GoldCap runtime state -- and `container.paintDeckSwitch()` below,
+-- which reads `position.listedQty`/`bagQty` off `positions`, is one of the reads it flags
+-- (see onRepostClick's own comment on this). onRepostClick's pre-cancel validation needs this
+-- function's DATA (fresh `ownedLots`/`positions`) but must not trigger that paint before its own
+-- protected call further down; it passes true here and repaints the deck switch itself, once,
+-- right after that call. Every other caller leaves this at its default (false) and keeps the
+-- paint exactly where it always was.
+local function composePositions(skipPaint)
   if not quotesSeeded then seedPersistedQuotes() end
   local scope = context()
   if scanBagStock then scanBagStock() end
@@ -1009,6 +1050,10 @@ local function composePositions()
     -- this file has twice shipped a bug where the price shown and the price sent were two
     -- different numbers.
     chosenUnits = priceOverrides,
+    -- WoW: Forever only (Core/SellPositions.lua's decoratePosition): the player's own scan is
+    -- the market there, so the projection prices bag stock from it while the live walk is still
+    -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
+    scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose
@@ -1026,7 +1071,7 @@ local function composePositions()
   -- older fixtures in this spec suite load UI/SellFrame.lua without it, and a missing queue
   -- module must degrade to "nothing queued," never a crash.
   if GC.PostQueue and GC.PostQueue.Build then
-    queueEntries, queueSkipped = GC.PostQueue.Build(positions)
+    queueEntries, queueSkipped = GC.PostQueue.Build(positions, GC.Sell._QueueOpts())
   else
     queueEntries, queueSkipped = {}, {}
   end
@@ -1045,7 +1090,7 @@ local function composePositions()
   -- empty table, and after that only when the player clicked one of its own two buttons. So it
   -- sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is what made a fixed
   -- bag-stock bug look like it was still broken, twice, to two different readers.
-  if container and container.paintDeckSwitch then container.paintDeckSwitch() end
+  if not skipPaint and container and container.paintDeckSwitch then container.paintDeckSwitch() end
 end
 
 -- Which items the pricing walk asks the server about.
@@ -1479,7 +1524,10 @@ advanceQuote = function()
     markProgress()
     if not refresh.waitingNoted then
       refresh.waitingNoted = true
-      setStatus(GC.L["Waiting for the Auction House…"])
+      -- Its own words, not the posting line's: this is the walk pricing rows in the
+      -- background, and "Waiting for the Auction House…" beside a queue with nothing posting
+      -- read as though a post the player never made was stuck (2026-09-26).
+      setStatus(GC.L["Checking prices — waiting for the Auction House…"])
     end
     retryLater()
     return
@@ -2052,7 +2100,7 @@ pruneCommodityKinds = function()
 end
 
 local function liveBagState(position, requiredQty)
-  local total, matchedBag, matchedSlot, matchedStack = 0, nil, nil, nil
+  local total, matchedBag, matchedSlot, matchedStack, matchedLink = 0, nil, nil, nil, nil
   local commodity = type(position.positionKey) == "string" and position.positionKey:match("^commodity:")
   for _, bag in ipairs(SELL_BAGS) do
     local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
@@ -2073,7 +2121,10 @@ local function liveBagState(position, requiredQty)
           if exact(qty) and qty > 0 and GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey then
             if qty > total then total = qty end
             if (requiredQty and qty >= requiredQty and not matchedBag) or (not requiredQty and qty >= (matchedStack or 0)) then
-              matchedBag, matchedSlot, matchedStack = bag, slot, qty
+              -- The exact hyperlink this slot holds right now, carried onward so cacheBagLocation
+              -- can pin it at paint time -- a plain C_Container read, kept only for a
+              -- non-commodity match (final review I2; see verifyBagStack).
+              matchedBag, matchedSlot, matchedStack, matchedLink = bag, slot, qty, link
             end
           end
         end
@@ -2081,7 +2132,112 @@ local function liveBagState(position, requiredQty)
     end
   end
   return { itemID = position.itemID, exactQty = total, positionKey = matchedBag and position.positionKey or nil,
-    bag = matchedBag, slot = matchedSlot, stackQty = matchedStack }
+    bag = matchedBag, slot = matchedSlot, stackQty = matchedStack, hyperlink = matchedBag and matchedLink or nil }
+end
+
+-- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
+-- through the two call sites below), never inside a click. WoW: Forever's taint engine blocks a
+-- protected auction house call once the same hardware click has run Blizzard's own Lua-side
+-- ItemLocation mixin code ahead of it -- whether or not the result is kept -- so onPostClick below
+-- never calls ItemLocation:CreateFromBagAndSlot, or GC.Sell._SlotKey (which does, for a
+-- non-commodity stack), itself. Mirrors Auctionator: it builds itemInfo.location when a bag item
+-- is picked, well before its own Post click (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem),
+-- and the click only reads that stored field.
+local bagLocationCache = {}
+
+-- A GC.Sell field, not a top-level local: paint-only (every real call site is inside
+-- pushPosition/renderRows, never a click's pre-call body -- SellFrame.lua has no local headroom
+-- left to spend on it (final review "Headroom"). Safe unlike the click-path helpers just below
+-- (clickSafeBagState, verifyBagStack, resolvePostLocation): this one is never reached from
+-- inside a click at all, so it carries none of their function-field-call taint risk.
+function GC.Sell._CacheBagLocation(position, bagState)
+  if not (bagState and bagState.bag and bagState.slot and bagState.itemID
+      and ItemLocation and ItemLocation.CreateFromBagAndSlot) then
+    bagLocationCache[position.positionKey] = nil
+    return
+  end
+  local ok, location = pcall(ItemLocation.CreateFromBagAndSlot, ItemLocation, bagState.bag, bagState.slot)
+  bagLocationCache[position.positionKey] = (ok and location) and { itemID = bagState.itemID,
+    bag = bagState.bag, slot = bagState.slot, location = location, positionKey = bagState.positionKey,
+    -- Only a non-commodity match ever carries one (liveBagState above); nil here means "commodity
+    -- position, or nothing was matched" and verifyBagStack skips the check for it accordingly.
+    hyperlink = bagState.hyperlink } or nil
+end
+
+-- The click-time half of the cache above: a plain C API on plain numbers, never a Blizzard mixin
+-- method. Confirms the exact bag/slot the cache pinned still holds this item, with enough of it,
+-- before the location cacheBagLocation already built is trusted. A stack that moved is refused
+-- here rather than re-resolved -- the next paint, or the next bag change while the tab is shown
+-- (GC.Sell.OnBagsChanged below), recaches it.
+--
+-- Checking only itemID/bound/count let a DIFFERENT variant of the same item -- another item
+-- level, bonus IDs, or a Classic-style random suffix ("...of the Bear") -- pass, and post at
+-- THIS version's price (final review I2; applies on retail too: a swap that lands between the
+-- last recache and the click would otherwise go unnoticed). requiredHyperlink, when given, is compared against a fresh
+-- C_Container.GetContainerItemLink read -- itself a plain C API, not the mixin method a click
+-- must not call -- so a swapped stack is refused rather than silently posted as its old self. A
+-- commodity call site never has one to pass (only a non-commodity match ever caches a hyperlink),
+-- so it keeps exactly the item-ID check it always had.
+local function verifyBagStack(bag, slot, itemID, requiredQty, requiredHyperlink)
+  if not (bag and slot and itemID and C_Container and C_Container.GetContainerItemInfo) then return nil end
+  local info = C_Container.GetContainerItemInfo(bag, slot)
+  if not info or info.itemID ~= itemID or info.isBound == true then return nil end
+  if requiredHyperlink ~= nil then
+    local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
+    if link ~= requiredHyperlink then return nil end
+  end
+  local qty = info.stackCount or 1
+  if not exact(qty) or qty <= 0 then return nil end
+  if requiredQty and (not exact(requiredQty) or qty < requiredQty) then return nil end
+  return qty
+end
+
+-- liveBagState's own loop calls GC.Sell._SlotKey for a non-commodity stack, to ask the client what
+-- ItemKey a slot files under -- and that builds an ItemLocation, exactly the Blizzard mixin call a
+-- click must not make (see cacheBagLocation above). For a commodity position liveBagState never
+-- does this: its loop only sums plain C_Container reads for a matching itemID, so it stays safe to
+-- call fresh inside a click. Only the non-commodity branch below needs the cache instead of a live
+-- rescan.
+local function clickSafeBagState(position, requiredQty)
+  local commodity = type(position.positionKey) == "string" and position.positionKey:match("^commodity:")
+  if commodity then return liveBagState(position, requiredQty) end
+  local cached = bagLocationCache[position.positionKey]
+  if not cached or cached.itemID ~= position.itemID then return { itemID = position.itemID, exactQty = nil } end
+  local qty = verifyBagStack(cached.bag, cached.slot, position.itemID, requiredQty, cached.hyperlink)
+  if not qty then return { itemID = position.itemID, exactQty = nil } end
+  return { itemID = position.itemID, exactQty = qty, positionKey = cached.positionKey,
+    bag = cached.bag, slot = cached.slot, stackQty = qty }
+end
+
+-- The location cacheBagLocation already built for this position, reused only once a plain C API
+-- proves its own cached bag/slot still holds the item -- never rebuilt here. The cache's own slot
+-- is what is asked about, not bagState's: a commodity posts by itemID, and liveBagState's live
+-- aggregate scan (clickSafeBagState above) can find a different "first" stack than the one the
+-- cache anchored at the last paint without that meaning the cached stack is gone.
+local function resolvePostLocation(position)
+  local cached = bagLocationCache[position.positionKey]
+  if not cached or cached.itemID ~= position.itemID then return nil end
+  if not verifyBagStack(cached.bag, cached.slot, cached.itemID, nil, cached.hyperlink) then return nil end
+  return cached.location
+end
+
+-- BAG_UPDATE_DELAYED (Core/Init.lua), while this tab is on screen: re-pins every position's
+-- cached bag location to where its stack sits now. Without it a stack moved, split, used or sold
+-- after the last Sell paint stayed pinned at its old slot, and Post answered "No exact bag stack"
+-- until something happened to repaint -- nothing on a bare bag change did (retail drift audit
+-- F2; 0.15.3 found the stack live inside the click). This runs in the event's own execution,
+-- never inside a click and never from the auction-house ticker, so the click keeps reading only
+-- the plain cached values it reads today. Cache only: no render, no recompose -- the rows and
+-- their counts repaint as they always have. A hidden tab skips it: Show() refreshes and renders,
+-- which recaches before any Post can be pressed. A GC.Sell field, not a top-level local
+-- (SellFrame.lua's headroom).
+function GC.Sell.OnBagsChanged()
+  if not containerShown() then return end
+  for _, position in ipairs(positions) do
+    if position.positionKey and (position.bagQty or 0) > 0 then
+      GC.Sell._CacheBagLocation(position, liveBagState(position))
+    end
+  end
 end
 
 -- Post and Repost both need a quote fresher than they have. This used to call
@@ -2300,7 +2456,7 @@ local function onPostClick(row)
   if row.postStage == "confirm" then
     local pin = postingPin
     local scope, scopeKey = activeScope(position)
-    local bagState = pin and liveBagState(position, pin.isCommodity and nil or pin.quantity) or nil
+    local bagState = pin and clickSafeBagState(position, pin.isCommodity and nil or pin.quantity) or nil
     local sameQuote = pin and quote == pin.quote and quote.at == pin.quoteAt and quote.unit == pin.quoteUnit
     local checkedTotal = pin and safeMultiply(pin.unitPrice, pin.quantity) or nil
     local confirmAvailable = pin and C_AuctionHouse
@@ -2322,13 +2478,20 @@ local function onPostClick(row)
       else setStatus(GC.L["Post confirmation expired"]) end
       return
     end
-    -- The same busy look the first click gave it: disabled, saying so, the spinner turning.
-    row.postStage = "confirming"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
-    if row.action.SetBusy then row.action:SetBusy(true) end
-    GC.Sell._NotePost(GC.L["Posting…"])
+    -- Plain field write only, before the call: row.postStage = "confirming" is what the
+    -- re-entrancy guard at the top of this function reads. The busy look -- Disable() (runs
+    -- GoldCap's own OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy()
+    -- (lazily creates a Blizzard SpinnerTemplate frame -- mixin OnLoad the first time, and
+    -- SpinnerMixin's OnShow every time after) -- moves after the call, beside _NotePost (final
+    -- review C3): all three can run Blizzard or GoldCap Lua ahead of the protected call below,
+    -- which is exactly what WoW: Forever's taint engine blocks on.
+    row.postStage = "confirming"
     -- The confirming click gets its own full window. Sharing the first click's clock meant the
     -- time a player spent reading the confirmation came out of the time the server had to
-    -- answer it -- see schedulePostTimeout.
+    -- answer it -- see schedulePostTimeout. Armed BEFORE the call for the same reason the first
+    -- click arms it before posting: a call that raises aborts this handler, and the timeout is
+    -- what recovers the row if that happens. C_Timer.After only registers a callback -- it does
+    -- not read anything GoldCap-owned synchronously, so arming here is not a taint risk.
     schedulePostTimeout(row)
     if pin.isCommodity then
       C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
@@ -2338,11 +2501,29 @@ local function onPostClick(row)
     -- Sent once the call returns, as on the first click: an error the client raises inside the
     -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
     -- own), not an older late post's answer -- which left this one "confirming", then held it a
-    -- minute for a post refused on the spot (review NM-B).
-    if postingPin == pin then pin.sent, pin.clean = true, GC.Sell._Certain() end
+    -- minute for a post refused on the spot (review NM-B). The same guard now also protects the
+    -- "Posting…" note below: an error raised inside the call already ran OnAuctionHouseError's
+    -- own disarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
+    -- catches -- overwriting that message with "Posting…" would hide the refusal from the player.
+    if postingPin == pin then
+      -- The busy look, now that the protected call is behind it: disabled, saying so, the
+      -- spinner turning. Moved here with the note below (final review C3): both run Blizzard or
+      -- GoldCap Lua that WoW: Forever's taint engine blocks ahead of a protected call.
+      row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+      if row.action.SetBusy then row.action:SetBusy(true) end
+      -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
+      -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
+      -- setStatus -> paintRefreshButton -> refresh.deckProgress() (this file, above) is one of
+      -- the reads it flags. Said the instant the call returns rather than the instant it was
+      -- about to be made -- the player sees the same "Posting…" note either way, just a beat
+      -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
+      -- same guard the first click's own note now reads).
+      GC.Sell._NotePost(pin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
+      pin.sent, pin.clean = true, GC.Sell._Certain()
+    end
     return
   end
-  local bagState = liveBagState(position)
+  local bagState = clickSafeBagState(position)
   -- Passed explicitly as well as through the decoration above: BuildPostPlan's own floor and
   -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
   -- the choice. The override branch there skips both.
@@ -2375,18 +2556,23 @@ local function onPostClick(row)
     setStatus(GC.L["No exact bag stack"])
     return
   end
-  if not ItemLocation or not ItemLocation.CreateFromBagAndSlot or not bagState.bag or not bagState.slot then
+  if not bagState.bag or not bagState.slot then
     setStatus(GC.L["No exact bag stack"])
     return
   end
   if not info.isCommodity then
-    bagState = liveBagState(position, plan.quantity)
+    bagState = clickSafeBagState(position, plan.quantity)
     if not bagState.bag or not bagState.slot or not bagState.stackQty or bagState.stackQty < plan.quantity then
       setStatus(GC.L["No exact bag stack"])
       return
     end
   end
-  local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
+  -- Never build the bag/slot location fresh here: resolvePostLocation only reuses the one
+  -- cacheBagLocation already built at the last paint, re-proven by a plain C API just above (and,
+  -- for a commodity, again inside resolvePostLocation itself) -- see the comment above
+  -- liveBagState for why building it in this click is exactly what WoW: Forever's taint engine
+  -- blocks ahead of the protected call below.
+  local location = resolvePostLocation(position)
   if not location then setStatus(GC.L["No exact bag stack"]); return end
   postingRow = row
   -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
@@ -2400,16 +2586,21 @@ local function onPostClick(row)
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
     duration = duration, override = chosenKey and priceOverrides[chosenKey] or nil }
-  -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
-  -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
-  -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
-  row.postStage = "posting"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
-  if row.action.SetBusy then row.action:SetBusy(true) end
-  GC.Sell._NotePost(GC.L["Posting…"])
+  -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
+  -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
+  -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates
+  -- a Blizzard SpinnerTemplate frame -- mixin OnLoad the first time, and SpinnerMixin's OnShow
+  -- every time after) -- moves after the call, beside _NotePost (final review C3): all three can
+  -- run Blizzard or GoldCap Lua ahead of the protected call below, which is exactly what WoW:
+  -- Forever's taint engine blocks on. The owner could not tell a pressed Post from a dead one
+  -- when it only dimmed; it still says so, just a beat later, once the call is behind it.
+  row.postStage = "posting"
   -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts this handler,
   -- and armed after it the row and the dock stayed on "Posting…" until the auction house
   -- closed, with every other Post answering "Finish the pending post first" (review I2). An
   -- answer that lands inside the call lets this go through disarmPost's token, like any other.
+  -- C_Timer.After only registers a callback -- it does not read anything GoldCap-owned
+  -- synchronously, so arming here is not a taint risk the way the busy look below is.
   schedulePostTimeout(row)
   local needsConfirmation
   if info.isCommodity then
@@ -2418,9 +2609,27 @@ local function onPostClick(row)
     needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
   -- The client can answer inside the call itself (an error it raises on the spot). That answer
-  -- has already given the row back; turning it into a Confirm, or arming a watchdog for it,
-  -- would undo it.
+  -- has already given the row back (OnAuctionHouseError's own disarmPost) and noted its own
+  -- message -- so nothing below must run over it; this guard, already needed to stop the call
+  -- from being turned into a Confirm or a watchdog it never asked for, is what protects the busy
+  -- look and the note too now that both run after the call instead of before.
   if postingRow ~= row then return end
+  -- The busy look, now that the protected call is behind it: disabled, saying "Posting…", the
+  -- client's spinner turning beside the words.
+  row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+  if row.action.SetBusy then row.action:SetBusy(true) end
+  -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once the
+  -- same hardware click has read certain GoldCap runtime state, and _NotePost -> setStatus ->
+  -- paintRefreshButton -> refresh.deckProgress() (this file, above) is one of the reads it
+  -- flags. Said the instant the call returns rather than the instant it was about to be made --
+  -- the dock says "Posting…" either way, just a beat later in the same tick, and only when
+  -- nothing inside the call already answered it (the guard just above). The client can also
+  -- QUEUE the post inside the call itself (GC.Sell.OnThrottleQueued, fired synchronously from
+  -- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED): that already noted "Waiting for the Auction
+  -- House…" and set postingPin.queued, so re-noting "Posting…" unconditionally here would talk
+  -- over it the instant it was said -- read the same flag _EndPostNote already reads to pick
+  -- the right words instead of assuming nothing answered.
+  GC.Sell._NotePost(postingPin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
   if needsConfirmation then
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
     if row.action.SetBusy then row.action:SetBusy(false) end
@@ -2478,32 +2687,50 @@ local function onRepostClick(row, auctionID)
       setStatus(GC.L["Repost confirmation expired"])
       return
     end
-    ownedLots = GC.SellPositions.NormalizeOwnedLots(
+    -- A fresh, plain read of the server's own owned-auctions list -- auctionID, quantity, unit
+    -- price -- and nothing else. Bag stock plays no part in whether a lot can be cancelled
+    -- (final review C2), so this click no longer calls composePositions()/scanBagStock() at all:
+    -- that used to run classifyBagItem -> C_AuctionHouse.IsSellItemValid on a bag location built
+    -- fresh, right here, from the Blizzard mixin method cacheBagLocation's own comment (above
+    -- liveBagState) names -- for every unbound non-commodity bag stack, ahead of the protected
+    -- CancelAuction below. classifyOwnedAuctions' own GetItemKeyInfo call is a plain C API, not
+    -- a mixin method.
+    local freshLots = GC.SellPositions.NormalizeOwnedLots(
       classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
-    composePositions()
-    local livePosition = currentPosition(pin.positionKey)
+    ownedLots = freshLots
     local current
-    for _, candidate in ipairs(livePosition and livePosition.scopeKey == pin.scopeKey
-        and livePosition.itemID == pin.itemID and livePosition.ownedLots or {}) do
-      if candidate.auctionID == pin.auctionID and candidate.quantity == pin.quantity and candidate.unitPrice == pin.listedUnit then current = candidate break end
+    for _, candidate in ipairs(freshLots) do
+      if candidate.auctionID == pin.auctionID and candidate.positionKey == pin.positionKey
+          and candidate.itemID == pin.itemID and candidate.quantity == pin.quantity
+          and candidate.unitPrice == pin.listedUnit then
+        current = candidate
+        break
+      end
     end
-    local plan = current and GC.SellPositions.BuildRepostPlan(livePosition, pin.auctionID, { unit = quote.unit, fresh = true })
     if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.position ~= position or pin.positionKey ~= position.positionKey
         or pin.scopeKey ~= position.scopeKey or pin.itemID ~= position.itemID
-        or not plan or plan.positionKey ~= pin.positionKey or plan.scopeKey ~= pin.scopeKey
-        or plan.itemID ~= pin.itemID or plan.auctionID ~= pin.auctionID
-        or plan.quantity ~= pin.quantity or plan.unitPrice ~= pin.quoteUnit
+        or not current
         or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit
         or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
       disarmRepost()
       setStatus(GC.L["Repost confirmation expired"])
       return
     end
-    row.repostStage = "cancelling"; row.action:Disable()
-    C_AuctionHouse.CancelAuction(plan.auctionID)
+    -- Plain field write only, before the call: row.repostStage = "cancelling" is what the
+    -- re-entrancy guard at the top of this function reads. row.action:Disable() -- GoldCap Lua,
+    -- runs its own OnDisable script -- moves after the call, with the recompose below (final
+    -- review C3's "related" note on this same shape).
+    row.repostStage = "cancelling"
+    C_AuctionHouse.CancelAuction(pin.auctionID)
+    row.action:Disable()
+    -- Full recompose and its paints, now that the protected call is behind us: rebuilds
+    -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
+    -- no protected call follows in this click), and repaints the deck switch, queue and cancel
+    -- buttons this click used to paint through composePositions(true) before the call.
+    composePositions()
     if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
-      GC.Data.MarkOwnedLotCancelled(GC.db, plan.auctionID, scope, time())
+      GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
     end
     setStatus(GC.L["Cancelling lot…"])
     if C_Timer and C_Timer.After then
@@ -2951,10 +3178,62 @@ local function copperToGoldText(copper)
   local whole = math.floor(copper / COPPER_PER_GOLD)
   local remainder = copper - whole * COPPER_PER_GOLD
   if remainder == 0 then return tostring(whole) end
-  local text = ("%d.%04d"):format(whole, remainder)
+  -- `whole` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+  -- overflow attempting to store N" past +-2^31 copper (about 214,748g). `remainder` stays on
+  -- %d: it is bounded 0-9999 by COPPER_PER_GOLD above.
+  local text = GC.Util.IntText(whole) .. (".%04d"):format(remainder)
   text = (text:gsub("0+$", ""))
   text = (text:gsub("%.$", ""))
   return text
+end
+
+-- YOUR PRICE only (row.priceBox below) -- everything above (the Set-Cost dialog's Unit/Total
+-- fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
+-- purchase cost is always gold-denominated regardless of what the auction house can post.
+--
+-- Exact copper -> plain coin text ("90c", "1g22s90c", never "1g" with a silent 90c dropped),
+-- for the one client where a price can actually carry a copper remainder
+-- (GC.Flips.PriceStep() == 1 -- see that function's own comment). The owner's own bug report:
+-- the gold-decimal box above showed "0.009" for 90c -- correct arithmetic, unreadable, and
+-- easy to mistype back wrong. No coin ICONS (GC.Util.CoinText): this is an EditBox the seller
+-- retypes, not a read-only label, and `|T...|t` escapes are not something a person can edit.
+-- Falls back to the gold-decimal text unconditionally on any other client -- retail's box is
+-- byte-identical to before this existed.
+local function copperToPriceText(copper)
+  if not exact(copper) then return "" end
+  if GC.Flips.PriceStep() ~= 1 then return copperToGoldText(copper) end
+  if copper == 0 then return "0c" end
+  local gold = math.floor(copper / COPPER_PER_GOLD)
+  local silver = math.floor((copper % COPPER_PER_GOLD) / 100)
+  local rest = copper % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = gold .. "g" end
+  if silver > 0 then parts[#parts + 1] = silver .. "s" end
+  if rest > 0 then parts[#parts + 1] = rest .. "c" end
+  return table.concat(parts)
+end
+
+-- The inverse of copperToPriceText, and YOUR PRICE's own parse -- everywhere else (the Set-Cost
+-- dialog) keeps reading dialogGoldPositive/dialogGoldCopper directly, gold-decimal always.
+-- Accepts "1g22s90c" or any subset of those three suffixes, in order, each optional; a bare
+-- number with none of them is read as GOLD, through the exact same parser as retail's own box
+-- and the Set-Cost dialog above it (B2: a bare number used to mean copper here and gold
+-- everywhere else on this same tab -- a typed "5" was 5g in the cost box and 5c one control
+-- down). An explicit g/s/c suffix is still the one way to reach sub-gold precision on Forever.
+-- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing is
+-- exactly what it always was.
+local function priceBoxCopper(box)
+  if GC.Flips.PriceStep() ~= 1 then return dialogGoldPositive(box) end
+  local text = (box:GetText() or ""):gsub("%s+", ""):lower()
+  if text == "" then return nil end
+  if not text:find("[gsc]") then
+    return dialogGoldPositive(box)
+  end
+  local gold = tonumber(text:match("^(%d+)g")) or 0
+  local silver = tonumber(text:match("g?(%d+)s")) or 0
+  local rest = tonumber(text:match("s?(%d+)c")) or 0
+  local copper = gold * COPPER_PER_GOLD + silver * 100 + rest
+  return exact(copper) and copper > 0 and copper or nil
 end
 
 -- The live "what this will actually record" readout under the Total field. Typing "12.5" is
@@ -2963,7 +3242,7 @@ end
 local function updateTotalPreview(dialog, copper)
   local preview = dialog.totalPreview
   if not preview then return end
-  preview:SetText(exact(copper) and copper > 0 and GetCoinTextureString(copper) or "")
+  preview:SetText(exact(copper) and copper > 0 and GC.Util.CoinText(copper) or "")
 end
 
 local function pendingRepairFor(position, scope)
@@ -3399,11 +3678,28 @@ do
   -- shut position renders none -- finds that row and hands it the click, so the two-click arm,
   -- the delay before a confirm counts, the timeout and every pin check apply unchanged. While
   -- an arm is in flight the render defers, deliberately, and the row found is the armed one.
+  --
+  -- A CONFIRMING press -- the target row already "armed" from an earlier click -- hands this
+  -- same click straight to onRepostClick's cancel branch, which calls CancelAuction. renderRows()
+  -- -> pushPosition -> cacheBagLocation runs Blizzard's ItemLocation:CreateFromBagAndSlot for
+  -- every position with bag stock, so it must not run in that click (final review C2, same shape
+  -- as C1). The row is already on screen from the click that armed it, so this skips the render
+  -- entirely rather than only reordering it.
   function ROW.armLot(entry)
     if not entry then return end
-    for other in pairs(expanded) do expanded[other] = nil end
-    expanded[entry.positionKey] = true
-    renderRows()
+    local alreadyArmed
+    for _, row in ipairs(rows) do
+      if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
+          and row.lot.auctionID == entry.auctionID and row.repostStage == "armed" then
+        alreadyArmed = true
+        break
+      end
+    end
+    if not alreadyArmed then
+      for other in pairs(expanded) do expanded[other] = nil end
+      expanded[entry.positionKey] = true
+      renderRows()
+    end
     for _, row in ipairs(rows) do
       -- `row:IsShown()`, never `row.shown` -- see onQueueClick's own comment on the
       -- widget-double field that shipped a dead button.
@@ -4118,7 +4414,7 @@ local function createRow(parent)
     if text:match("^%s*$") then
       priceOverrides[key] = nil
     else
-      local copper = dialogGoldPositive(box)
+      local copper = priceBoxCopper(box)
       if not copper then
         setStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
         return
@@ -4155,7 +4451,7 @@ local function createRow(parent)
     if text:match("^%s*$") then
       priceOverrides[key] = nil
     else
-      local copper = dialogGoldPositive(box)
+      local copper = priceBoxCopper(box)
       -- Half-typed text ("39." between two keystrokes) parses to nothing. Keep the last price
       -- that did read as one and leave the box alone rather than snapping it back.
       if not copper then return end
@@ -4345,7 +4641,7 @@ local function updateSummary(filtered)
     -- individually cleared both gates, so it can still be a partial total -- the card's own
     -- hit frame (below) shows the detail on hover, but a player who never hovers must not read
     -- a partial sum as the whole picture. profitMarker carries that onto the number itself.
-    container.summary.profit:SetText(formatAmount(text.profit) .. (text.profitMarker or ""))
+    container.summary.profit:SetText(GC.Sell._FormatAmount(text.profit) .. (text.profitMarker or ""))
     container.summaryProfitDetail = text.profitDetail
   else
     -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
@@ -4502,7 +4798,7 @@ function INSP.paintHead(row, p, d)
         box:ClearFocus()
         row.priceCommitting = false
       end
-      box:SetText(unit and copperToGoldText(unit) or "")
+      box:SetText(unit and copperToPriceText(unit) or "")
     end
     box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
     -- The ring says whose price this is before a word is read: red under cost or under the
@@ -4540,21 +4836,23 @@ function INSP.paintHead(row, p, d)
     local netNote = gross and (GC.L["%s after the AH cut"]):format(formatCell(math.floor(gross * 0.95))) or ""
     if unit and paid then
       local pct = math.floor(((unit - paid) / paid) * 100 + 0.5)
-      netNote = inlineColor(pct >= 0 and Theme.color.green or Theme.color.red, (pct >= 0 and "+" or "") .. pct .. "%")
+      netNote = GC.Sell._InlineColor(pct >= 0 and Theme.color.green or Theme.color.red, (pct >= 0 and "+" or "") .. pct .. "%")
         .. "  " .. netNote
     end
     row.priceNetNote:SetText(netNote); setColor(row.priceNetNote, Theme.color.fgDim)
     row.priceNetHead:Show(); row.priceNet:Show(); row.priceNetNote:Show()
-    -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a
-    -- silver or less is zero or negative. Zero is truthy in Lua, so the chip enabled
-    -- itself, stored a price of 0 as the seller's choice, and effectivePostUnit then
-    -- refused it -- which emptied the box the player had just filled. Nothing here may
-    -- offer a price that is not a price.
+    -- UNDERCUT is a rung BELOW the cheapest competing ask, one step of the auction house's own
+    -- grid (GC.Flips.PriceStep() -- 1 copper where the client takes copper, a silver
+    -- otherwise), and a step under an ask of a step or less is zero or negative. Zero is
+    -- truthy in Lua, so the chip enabled itself, stored a price of 0 as the seller's choice,
+    -- and effectivePostUnit then refused it -- which emptied the box the player had just
+    -- filled. Nothing here may offer a price that is not a price.
+    local step = GC.Flips.PriceStep()
     local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
       and book.cheapestCompeting or nil
     local sources = {
       match = competing,
-      under = competing and competing > 100 and (competing - 100) or nil,
+      under = competing and competing > step and (competing - step) or nil,
       market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
       cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
     }
@@ -4593,7 +4891,7 @@ function INSP.paintHead(row, p, d)
   -- than eight rows below it.
   if book then
     row.headRules[1]:Show()
-    row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
+    row.drawerHint:SetText(GC.Sell._BookHint(book)); row.drawerHint:Show()
     setColor(row.drawerHint, Theme.color.fgDim)
     INSP.paintLadder(row, book)
     -- How deep the book is rides here, after where the price stands in it: the hint beside the
@@ -4646,9 +4944,15 @@ function INSP.paintHead(row, p, d)
     -- The market price is said in words only when there is no book to read it off: with one,
     -- it is the first level and the hint beside the heading.
     if not book then facts[#facts + 1] = (GC.L["market %s"]):format(formatCell(d.displayMarketUnit)) end
-    quote = d.marketState == "fresh" and GC.L["fresh"] or d.marketState == "stale" and GC.L["stale"]
-      or GC.L["unavailable"]
-    if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end
+    if d.marketState == "stale" and type(d.quoteAge) == "number" then
+      -- The age of the last LIVE quote for this item, not of the prices behind the tab: right
+      -- after a full scan a red "stale" read as an error (WoW: Forever, 2026-09-26).
+      quote = (GC.L["last live price %s ago"]):format(GC.Util.FormatElapsedWords(d.quoteAge)
+        or GC.Util.FormatElapsedWords(0))
+    else
+      quote = d.marketState == "fresh" and GC.L["fresh"] or GC.L["unavailable"]
+      if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end
+    end
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
@@ -4678,9 +4982,10 @@ function INSP.paintHead(row, p, d)
     or (quote and "" or (notPriced and GC.L["not priced — nothing on hand to sell"] or GC.L["no live quote yet — pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
-  -- A stale quote is the one thing down here worth a second look, so it alone is not dim.
+  -- The words already say whether this is the last live price or a fresh one, so the color
+  -- no longer has to carry that too (WoW: Forever, 2026-09-26).
   row.drawerQuote:SetText(quote or "")
-  setColor(row.drawerQuote, d and d.marketStale and Theme.color.red or Theme.color.fgDim)
+  setColor(row.drawerQuote, Theme.color.fgDim)
   row.drawerQuote:Show()
 
   -- What GoldCap would do and at what price -- the text the expansion's own detail row
@@ -4699,12 +5004,12 @@ function INSP.paintHead(row, p, d)
   if postable then
     advice = d and d.factsText or ""
   else
-    advice = recommendationText(d and d.recommendation)
+    advice = GC.Sell._RecommendationText(d and d.recommendation)
     -- The verdict in the verdict's colour: green to hold, red to cancel and relist. It is the
     -- one word this panel is opened for, and it used to sit in the same grey as its reasons.
     local action = d and type(d.recommendation) == "table" and d.recommendation.action
     local tone = (action == "hold" and Theme.color.green) or (action == "repost" and Theme.color.red) or nil
-    if tone then advice = (advice:gsub("^(%a+)", function(word) return inlineColor(tone, word) end, 1)) end
+    if tone then advice = (advice:gsub("^(%a+)", function(word) return GC.Sell._InlineColor(tone, word) end, 1)) end
     if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
   end
   row.subItem:SetText(advice)
@@ -4827,6 +5132,13 @@ renderRows = function()
   local openPosition
   local function pushPosition(position)
     entries[#entries + 1] = { kind = "position", position = position }
+    -- Cached here for every position this render pushes, not only an expanded one: the row's own
+    -- Post button (below, "bagQty > 0 and not onListed") is live whether or not the drawer is
+    -- open, and onPostClick never builds an ItemLocation itself -- see cacheBagLocation's own
+    -- comment above liveBagState.
+    if (position.bagQty or 0) > 0 then
+      GC.Sell._CacheBagLocation(position, liveBagState(position))
+    end
     if expanded[position.positionKey] and not openPosition then
       openPosition = position
       local first = #entries + 1
@@ -4848,6 +5160,7 @@ renderRows = function()
       -- does not: that one click lists only part of the stock, that no stack can be pinned
       -- down, or that some of it has no cost and can be given one here.
       local bagState = inBags > 0 and liveBagState(position) or nil
+      GC.Sell._CacheBagLocation(position, bagState)
       local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
       local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
       -- On MY LOTS the lots ARE the subject, so they open the panel -- each with its own
@@ -4915,7 +5228,7 @@ renderRows = function()
     -- Say which of the three reasons it is, because they need different next moves: a deck
     -- that is genuinely empty, versus a chip that emptied it, versus the other deck holding
     -- everything. "No items match this filter" answered none of them.
-    container.emptyText:SetText(emptyDeckText())
+    container.emptyText:SetText(GC.Sell._EmptyDeckText())
     container.emptyText:Show()
   else
     container.emptyText:Hide()
@@ -5107,8 +5420,10 @@ renderRows = function()
         if type(profit) == "number" and exact(p.profitAtHold) then
           -- Whole gold only: "@ 18g15s" was precisely the tail the column cut
           -- off in game. The exact figure is the Post price, one column over.
+          -- GC.Util.IntText, not %d: WoW's own string.format raises "integer overflow
+          -- attempting to store N" past +-2^31 copper (about 214,748g).
           local hold = p.profitAtHold >= 10000
-            and ("%dg"):format(math.floor(p.profitAtHold / 10000))
+            and GC.Util.IntText(math.floor(p.profitAtHold / 10000)) .. "g"
             or formatCell(p.profitAtHold)
           row.cells.profit:SetText(("%s %s@%s|r"):format(
             formatCell(profit), DIM_HEX, hold))
@@ -5135,7 +5450,7 @@ renderRows = function()
             formatCell(p.underpricedUnit)))
           setColor(row.cells.status, Theme.color.red)
         elseif p.recommendation then
-          row.cells.status:SetText(recommendationText(p.recommendation))
+          row.cells.status:SetText(GC.Sell._RecommendationText(p.recommendation))
           setColor(row.cells.status, Theme.color.fg)
         elseif bagQty > 0 then
           -- The advice column is not the place to report bookkeeping when the
@@ -5407,7 +5722,7 @@ renderRows = function()
           setColor(row.cells.market, Theme.color.fgDim)
         end
         row.cells.profit:SetText("")
-        row.cells.status:SetText(recommendationText(p.recommendation))
+        row.cells.status:SetText(GC.Sell._RecommendationText(p.recommendation))
         setColor(row.cells.status, Theme.color.fg)
         showRowAction(row, "Cancel lot", function()
           onRepostClick(row, entry.lot.auctionID)
@@ -5427,6 +5742,7 @@ renderRows = function()
         -- aggregates across the bags and can.
         local inBags = p.bagQty or 0
         local bagState = liveBagState(p)
+        GC.Sell._CacheBagLocation(p, bagState)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
         setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         if postable > 0 and postable < inBags then
@@ -5453,7 +5769,7 @@ renderRows = function()
             row.cells.market:SetText(GC.L["» needs price"])
             setColor(row.cells.market, Theme.color.fgDim)
           end
-          row.cells.status:SetText(recommendationText(p.recommendation))
+          row.cells.status:SetText(GC.Sell._RecommendationText(p.recommendation))
           setColor(row.cells.status, Theme.color.fg)
         else
           row.cells.status:SetText("")
@@ -5643,31 +5959,66 @@ end
 -- timeout. There is no second posting implementation here, and nothing here calls a protected
 -- API directly; see spec/sell_post_wiring_spec.lua for the static guard on both.
 --
--- Failure mode, spelled out rather than reassured about: if row 1 does not come back as a
--- rendered "position" row after this -- the container hidden, a render some other in-flight
--- arm is still deferring, or (the one this file's own code cannot create today, but a future
--- edit might) the queue's head position vanishing from `positions` between compose and render
--- -- this does nothing further. No protected call is attempted on a guess. The player sees a
--- status line saying so and can press the control again once a render has actually happened.
+-- Retail posts on the first press, exactly as addon-v0.15.3 did: switch into queue mode, render,
+-- post row 1, all in the same click. If row 1 does not come back as a rendered "position" row
+-- after that render -- the container hidden, a render some other in-flight arm is still
+-- deferring -- no protected call is attempted on a guess; the status line says so and the player
+-- can press again.
+--
+-- WoW: Forever only: renderRows() -> pushPosition -> cacheBagLocation runs Blizzard's
+-- ItemLocation:CreateFromBagAndSlot for every position with bag stock, plus GC.Sell._SlotKey for
+-- every non-commodity one, and paints besides -- all of it Blizzard or GoldCap Lua a click that
+-- ends in PostCommodity/PostItem must not run ahead of that call there (final review C1). So in
+-- Forever a click that would have to render first -- switching into queue mode, or the queue's
+-- own head having moved since the last render -- renders ONLY, and asks for one more press once
+-- row 1 is actually the rendered head; it never falls through into onPostClick in the same click
+-- that just rendered. Only a click that finds row 1 already the queue's rendered, shown head
+-- posts -- and then through onPostClick EXACTLY, with no render of its own. The split is gated on
+-- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: this file's top-level
+-- local headroom is not spent on it) because retail has always rendered inside this click and a
+-- retail player never had to press twice (retail drift audit F1).
 local function onQueueClick()
   if #queueEntries == 0 then
     setStatus(GC.L["Nothing queued to post"])
     return
   end
-  filterMode = "queue"
-  renderRows()
-  local row = rows[1]
+  local head = queueEntries[1]
   -- `row:IsShown()`, never `row.shown`. A real Frame has no `shown` FIELD -- only the method --
   -- but every widget double in this suite implements Show/Hide by writing `self.shown`, so
   -- reading the field is true in every test and nil in the client, and this button would have
   -- shipped refusing to post anything at all while seven tests proved it worked. That is the
   -- third time today a field only the fakes define reached production; see
   -- spec/ui_widget_field_spec.lua, which now fails the build for it.
-  if row and row.IsShown and row:IsShown() and row.kind == "position" then
-    onPostClick(row)
-  else
-    setStatus(GC.L["Could not find the queue's next item to post — try again"])
+  --
+  -- Shared by both branches below: row 1 only counts as the queue's own head when it is actually
+  -- showing that exact position. A Cancel lot or a Remove armed anywhere holds renderRows() to a
+  -- no-op (its own guard, above it in this file) rather than rebinding rows out from under a pin
+  -- the player is mid-confirming, so without this identity check row 1 can still be whatever
+  -- OTHER deck was on screen before the click -- and the retail branch used to post that instead
+  -- of the position the button, or its keybinding, actually named as next.
+  local function isQueueHead(row)
+    return row and row.IsShown and row:IsShown() and row.kind == "position"
+      and row.position and row.position.positionKey == head.positionKey
   end
+  if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
+    filterMode = "queue"
+    renderRows()
+    local row = rows[1]
+    if isQueueHead(row) then
+      onPostClick(row)
+    else
+      setStatus(GC.L["Could not find the queue's next item to post — try again"])
+    end
+    return
+  end
+  local row = rows[1]
+  if filterMode == "queue" and isQueueHead(row) then
+    onPostClick(row)
+    return
+  end
+  filterMode = "queue"
+  renderRows()
+  setStatus(GC.L["Queue ready — press POST again to post it"])
 end
 
 -- The cancel control's click. Same discipline as onQueueClick, plus the destructive-action
@@ -5941,6 +6292,10 @@ function GC.Sell.Reset()
   refresh.waitingNoted = false
   for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
   for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
+  -- Cached ItemLocations are a live session's own bag snapshot; the next visit's first paint
+  -- rebuilds whatever it finds (cacheBagLocation), so nothing here is lost, only stopped from
+  -- outliving the visit it was pinned to.
+  for key in pairs(bagLocationCache) do bagLocationCache[key] = nil end
   -- Nothing is answered once the auction house has closed: every post that went out and was never
   -- answered -- the late ones and the one on the wire -- drops the price typed for it
   -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.

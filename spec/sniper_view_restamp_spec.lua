@@ -330,20 +330,21 @@ describe("Deals board re-stamps itself on the way back", function()
     end
   end)
 
-  -- AUTO, SCAN and HIDDEN each skip a restamp identical to the one they last made -- right
-  -- for the 0.25s ticker, wrong for a label that came back from a hide undrawn.
-  it("forgets the toolbar's cached labels so the three buttons are stamped again", function()
+  -- AUTO, SCAN and HIDDEN used to skip a restamp identical to the one they last made, and had to
+  -- be told to forget it here. They stamp every time now (WoW: Forever, 3c: the remembered value
+  -- carried taint), and a label that came back from a hide undrawn is written again.
+  it("stamps the toolbar's three buttons again", function()
     local ctx = buildFrame()
-    ctx.frame.autoBtn.lastText = "stale"
-    ctx.frame.verifyBtn.lastText = "stale"
-    ctx.frame.fullScanBtn.lastBusy = "stale"
+    ctx.frame.autoBtn.label = "stale"
+    ctx.frame.verifyBtn.label = "stale"
+    ctx.frame.fullScanBtn.label = "stale"
     setUpvalue(ctx.setView, "view", "sell")
 
     ctx.setView("deals")
 
-    assert.equal("AUTO", ctx.frame.autoBtn.lastText)
-    assert.equal("HIDDEN 0", ctx.frame.verifyBtn.lastText)
-    assert.is_false(ctx.frame.fullScanBtn.lastBusy)
+    assert.equal("AUTO", ctx.frame.autoBtn.label)
+    assert.equal("HIDDEN 0", ctx.frame.verifyBtn.label)
+    assert.equal("SCAN", ctx.frame.fullScanBtn.label)
   end)
 
   -- Rides this harness because it is the only one with a real toolbar on it. That toggle's
@@ -357,13 +358,13 @@ describe("Deals board re-stamps itself on the way back", function()
     setUpvalue(ctx.setView, "view", "sell")
 
     ctx.setView("deals")
-    assert.equal("hidden-0", ctx.frame.verifyBtn.lastText)
+    assert.equal("hidden-0", ctx.frame.verifyBtn.label)
 
     -- GC.db is only built on ADDON_LOADED, which no spec fires; showRefused reads it straight.
     ctx.GC.db = { settings = { sniper = { showRefused = true } } }
     setUpvalue(ctx.setView, "view", "sell")
     ctx.setView("deals")
-    assert.equal("refused-0", ctx.frame.verifyBtn.lastText)
+    assert.equal("refused-0", ctx.frame.verifyBtn.label)
 
     ctx.GC.ActivateLocale(nil)
   end)

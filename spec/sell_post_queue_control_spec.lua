@@ -92,6 +92,7 @@ describe("Sell tab, the posting queue control", function()
         GetEntries = function() return {} end },
       Data = { GetItemValue = function() return { sold = 7447 } end },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/Flips.lua", GC)
     helper.loadModule("Core/QuoteCache.lua", GC)
@@ -115,6 +116,7 @@ describe("Sell tab, the posting queue control", function()
   after_each(function()
     _G.time, _G.CreateFrame, _G.GetCoinTextureString = os.time, nil, nil
     _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
+    _G.GetBuildInfo = nil
   end)
 
   local function compose()
@@ -206,5 +208,161 @@ describe("Sell tab, the posting queue control", function()
     local rows = upvalue(render, "rows")
     assert.equal("position", rows[1].kind)
     assert.equal("commodity:23427", rows[1].position.positionKey)
+  end)
+
+  it("holds Eternium Ore back in WoW: Forever when a vendor pays more for it", function()
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    compose()
+    local entries = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+    local skipped = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped")
+    for _, entry in ipairs(entries) do
+      assert.is_not.equal("commodity:23427", entry.positionKey)
+    end
+    local sawEternium = false
+    for _, skip in ipairs(skipped) do
+      if skip.positionKey == "commodity:23427" then sawEternium = true end
+    end
+    assert.is_true(sawEternium)
+    local button = container.queueButton
+    assert.matches("NOTHING", button.label)
+    local hit = container.queueHeldBackHit
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    hit.scripts.OnEnter(hit)
+    local joined = table.concat(tooltipLines, " ")
+    assert.matches("a vendor pays more -- sell it there", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
+
+  -- The tests above run with no GC.Game at all, which is retail: one press posts, exactly as
+  -- addon-v0.15.3 did (retail drift audit F1). These pin the retail passport explicitly, and the
+  -- WoW: Forever split -- where the press that has to render first renders only, and the next
+  -- press posts (final review C1).
+  describe("per game", function()
+    local function passport(interface)
+      helper.loadModule("Core/Game.lua", GC)
+      _G.GetBuildInfo = function() return "x", "1", "Sep 27 2026", interface end
+    end
+
+    local function postCounter()
+      local posts = 0
+      _G.C_AuctionHouse.PostCommodity = function() posts = posts + 1; return false end
+      return function() return posts end
+    end
+
+    it("on retail the dock's POST posts the head on the first press, from any deck", function()
+      passport(120100)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+    end)
+
+    it("on retail the POST keybinding posts on the first press too", function()
+      passport(120100)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      root.GoldCapPostNext()
+      assert.equal(1, posts())
+    end)
+
+    -- P1: a Cancel lot or a Remove armed on another row holds renderRows() to a no-op (its own
+    -- guard, above), so `rows` can still be whatever deck was on screen before the click. The
+    -- retail branch used to trust row 1's `kind == "position"` alone, so it posted that stale
+    -- row instead of refusing -- even though it was not the position the button (or the
+    -- keybinding) actually named as next.
+    describe("with a Remove armed elsewhere while row 1 is stale", function()
+      -- Widget (99001) is quoted and fully evidenced first, so it alone is postable and sorts to
+      -- row 1 (SellViewModel.Order ranks a priced position ahead of an unpriced one). A Remove is
+      -- armed on ITS OWN manual cost entry -- any armed row would hold the render, this one just
+      -- happens to be real -- and only THEN is Eternium Ore quoted too: its far larger value
+      -- (246 units against Widget's 5) makes it the queue's new head, but nothing re-renders to
+      -- move row 1 off Widget.
+      local function armRemoveWithStaleRow1()
+        GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+        GC.Acquisitions.RecordManual({ itemID = 99001, positionKey = "commodity:99001",
+          quantity = 5, total = 2500, acquiredAt = 1000, character = "Owner-Dentarg", region = "eu" })
+        compose()
+        upvalue(render, "expanded")["commodity:99001"] = true
+        render()
+        local rows = upvalue(render, "rows")
+        assert.equal("commodity:99001", rows[1].position.positionKey) -- sanity: Widget is row 1
+        local removeRow
+        for _, r in ipairs(rows) do
+          if r.kind == "batch" and r.batch and r.batch.source == "manual" then removeRow = r end
+        end
+        assert.truthy(removeRow)
+        removeRow.action.scripts.OnClick(removeRow.action) -- the row's own Remove button, for real
+        assert.equal("armed", removeRow.removeStage)
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose()
+        local qe = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+        assert.equal("commodity:23427", qe[1].positionKey) -- sanity: the head moved to Eternium Ore
+      end
+
+      it("on retail the dock's POST refuses rather than post row 1's stale item", function()
+        passport(120100)
+        armRemoveWithStaleRow1()
+        local posts = postCounter()
+        local button = container.queueButton
+        button.scripts.OnClick(button)
+        assert.equal(0, posts())
+      end)
+
+      it("on retail the POST keybinding refuses rather than post row 1's stale item", function()
+        passport(120100)
+        armRemoveWithStaleRow1()
+        local posts = postCounter()
+        root.GoldCapPostNext()
+        assert.equal(0, posts())
+      end)
+    end)
+
+    it("in WoW: Forever the first press only switches into queue mode, and the second posts", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button)
+      assert.equal(0, posts())
+      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+      assert.equal("Queue ready — press POST again to post it", root.status.text)
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+    end)
+
+    it("in WoW: Forever the POST keybinding takes the same two presses", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      root.GoldCapPostNext()
+      assert.equal(0, posts())
+      root.GoldCapPostNext()
+      assert.equal(1, posts())
+    end)
+
+    it("in WoW: Forever one press posts once the queue is already the rendered view", function()
+      passport(16001)
+      local posts = postCounter()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      local button = container.queueButton
+      button.scripts.OnClick(button) -- into queue mode, rendered
+      assert.equal(0, posts())
+      render()
+      button.scripts.OnClick(button)
+      assert.equal(1, posts())
+    end)
   end)
 end)

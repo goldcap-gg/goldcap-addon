@@ -401,4 +401,32 @@ describe("PostQueue", function()
     -- ...and the commodity outranks the item, which the bag-sum ordering had backwards.
     assert.equal("commodity:2", entries[1].positionKey)
   end)
+
+  it("holds back, in WoW: Forever, what a vendor pays at least as much for", function()
+    local quotes = {}
+    setQuote(quotes, 1, 51, 10)
+    local positions = build({
+      bagStock = { stock("commodity:1", 1, "Ore One", 4) },
+      quotes = quotes,
+    })
+    local U = positions[1].postRecommendation.unit
+
+    local entries, skipped = GC.PostQueue.Build(positions, { vendorUnit = function() return U end })
+    assert.same({}, entries)
+    assert.equal("below_vendor", skipped[1].reason)
+    entries = GC.PostQueue.Build(positions, { vendorUnit = function() return math.floor(U * 0.95) - 1 end })
+    assert.equal(1, #entries)
+    entries = GC.PostQueue.Build(positions, { vendorUnit = function() return nil end })
+    assert.equal(1, #entries)
+  end)
+
+  it("is unchanged without options", function()
+    local quotes = {}
+    setQuote(quotes, 1, 51, 10)
+    local positions = build({
+      bagStock = { stock("commodity:1", 1, "Ore One", 4) },
+      quotes = quotes,
+    })
+    assert.same({ GC.PostQueue.Build(positions) }, { GC.PostQueue.Build(positions, nil) })
+  end)
 end)

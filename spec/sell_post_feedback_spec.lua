@@ -154,6 +154,7 @@ describe("Sell tab, a Post says what it is doing", function()
     _G.time, _G.CreateFrame, _G.GetCoinTextureString, _G.C_Timer = os.time, nil, nil, nil
     _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
     _G.AuctionHouseUtil, _G.AUCTION_POSTING_ERROR_TEXT, _G.Enum = nil, nil, nil
+    _G.GetBuildInfo = nil
   end)
 
   local function quotes()
@@ -382,6 +383,113 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1100)
       root.GoldCapPostNext()
       assert.equal(1, posts)
+    end)
+  end)
+
+  -- Post reads the bag location a paint cached (the taint rule: a click reads only cached plain
+  -- values), so a stack moved, split or used after the last Sell paint stayed pinned at its old
+  -- slot and Post said "No exact bag stack" until something repainted -- and nothing did on a bare
+  -- bag change (retail drift audit F2). BAG_UPDATE_DELAYED now re-pins the cache while the tab is
+  -- on screen, in the event's own execution, on both games.
+  describe("after the bags change under it", function()
+    -- The ore moved from slot 1 to slots 2 and 3; Mycobloom took slot 1.
+    local MOVED = {
+      [0] = {
+        { itemID = 210796, stackCount = 80, itemName = "Mycobloom" },
+        { itemID = 23427, stackCount = 200, itemName = "Eternium Ore" },
+        { itemID = 23427, stackCount = 46, itemName = "Eternium Ore" },
+      },
+    }
+    -- The 200 were used up; the 46 are all that is left, in the last slot.
+    local USED = {
+      [0] = {
+        { itemID = 210796, stackCount = 80, itemName = "Mycobloom" },
+        { itemID = 210796, stackCount = 20, itemName = "Mycobloom" },
+        { itemID = 23427, stackCount = 46, itemName = "Eternium Ore" },
+      },
+    }
+
+    local function cachedSlot()
+      local entry = upvalue(GC.Sell._CacheBagLocation, "bagLocationCache")["commodity:23427"]
+      return entry and entry.slot
+    end
+
+    it("is routed from the event frame's BAG_UPDATE_DELAYED, ahead of the BUY tab", function()
+      local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+      local init = f:read("*a")
+      f:close()
+      local from = assert(init:find('event == "BAG_UPDATE_DELAYED"', 1, true))
+      local to = assert(init:find("elseif event ==", from + 1, true))
+      local body = init:sub(from, to)
+      local sell = assert(body:find("GC.Sell.OnBagsChanged()", 1, true))
+      -- First in the event's execution: nothing the BUY tab reads runs before the cache is written.
+      assert.is_true(sell < assert(body:find("GC.Buy.OnBagsChanged()", 1, true)))
+    end)
+
+    it("without the bag event the moved stack is refused, never posted from a guess", function()
+      ready()
+      assert.equal(1, cachedSlot())
+      bags = MOVED
+      pressRowPost()
+      assert.equal(0, posts)
+      assert.equal("No exact bag stack", root.status.text)
+    end)
+
+    for _, game in ipairs({ { name = "retail", interface = 120100 }, { name = "WoW: Forever", interface = 16001 } }) do
+      describe("on " .. game.name, function()
+        before_each(function()
+          helper.loadModule("Core/Game.lua", GC)
+          _G.GetBuildInfo = function() return "x", "1", "Sep 27 2026", game.interface end
+        end)
+        after_each(function() _G.GetBuildInfo = nil end)
+
+        it("posts a moved stack from where it sits now once the bag event lands", function()
+          ready()
+          bags = MOVED
+          GC.Sell.OnBagsChanged()
+          assert.equal(2, cachedSlot())
+          pressRowPost()
+          assert.equal(1, posts)
+          assert.equal(2, postedSlots[1])
+        end)
+
+        it("posts what is left of a stack that was used, from its own slot", function()
+          ready()
+          bags = USED
+          GC.Sell.OnBagsChanged()
+          pressRowPost()
+          assert.equal(1, posts)
+          assert.equal(3, postedSlots[1])
+        end)
+
+        it("forgets a stack that left the bags entirely, so Post refuses rather than guesses", function()
+          ready()
+          bags = { [0] = { { itemID = 210796, stackCount = 80, itemName = "Mycobloom" } } }
+          GC.Sell.OnBagsChanged()
+          assert.is_nil(cachedSlot())
+          pressRowPost()
+          assert.equal(0, posts)
+        end)
+      end)
+    end
+
+    it("does nothing while the tab is hidden: Show() refreshes and renders before any Post", function()
+      ready()
+      container:Hide()
+      bags = MOVED
+      GC.Sell.OnBagsChanged()
+      assert.equal(1, cachedSlot())
+    end)
+
+    it("writes the cache only: no render, and an armed post keeps its own pin", function()
+      postReturn = true -- the auction house asks for a Confirm
+      ready()
+      local row = pressRowPost()
+      assert.equal("confirm", row.postStage)
+      local generation = upvalue(render, "renderGeneration")
+      GC.Sell.OnBagsChanged()
+      assert.equal(generation, upvalue(render, "renderGeneration"))
+      assert.equal("confirm", row.postStage)
     end)
   end)
 
@@ -1282,7 +1390,11 @@ describe("Sell tab, a Post says what it is doing", function()
     local row
     assert.has_error(function() row = pressRowPost() end)
     row = oreRow()
-    assert.is_true(row.action.busy)
+    -- The busy look now runs only AFTER the protected call (final review C3), so a call that
+    -- raises never reaches it (SetBusy is never called) -- only the plain field write before the
+    -- call (row.postStage) is what the watchdog and the re-entrancy guard have to go on.
+    assert.equal("posting", row.postStage)
+    assert.is_nil(row.action.busy)
     assert.equal(1, fire(8))
     assert.is_nil(row.postStage)
     assert.equal("Post", row.action.label)

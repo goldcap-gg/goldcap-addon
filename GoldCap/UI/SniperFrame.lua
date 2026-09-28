@@ -744,6 +744,16 @@ local function sortedDeals()
     return not activeItemID[itemID] and itemID ~= hoveredItemID
       and not (frozen and frozen[itemID])
   end
+  -- WoW: Forever: the board is the player's own scan's leads (Core/ForeverDeals.lua), split by
+  -- board the same way. The stores below hold nothing there -- GC.DealMath.Measure refuses a
+  -- scan value -- so this is not a second source beside them but the only one.
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() and GC.ForeverDeals then
+    local board = GC.Sniper._Board()
+    for _, deal in ipairs(GC.ForeverDeals.Rows()) do
+      if deal.board == board and renders(deal.itemID) then list[#list + 1] = deal end
+    end
+    return list
+  end
   -- The Items board is the key poll's own store, in BOTH modes. The poll answers about realm
   -- items whether or not a full scan has ever run, so gating this board on `mode` would leave
   -- the player looking at an empty board with rows in hand.
@@ -1275,6 +1285,8 @@ local function setRowDeal(row, deal)
     tostring(deal.capTotal),
     -- What a buy only the wallet limit refused needs moves the verdict cell on its own.
     tostring(verdict and verdict.needsGold),
+    -- WoW: Forever: the kind and ceiling drive the chip and the name suffix.
+    tostring(deal.forever), tostring(deal.ceiling),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1351,8 +1363,18 @@ local function setRowDeal(row, deal)
   else
     verdictColor = Theme.color.fgDim
   end
-  row.tierChip:SetLabel(
-    GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID]), verdictColor)
+  -- WoW: Forever: the chip says which kind the row is -- green for a vendor deal, amber for a
+  -- market one, the riskier of the two -- before a Check and after one that said SAFE. Only a
+  -- refusal speaks instead. The background verify walk answers every row on the board within
+  -- seconds, so "SAFE +31c" used to replace the kind on all of them, and a 2% "Below vendor" row
+  -- read as a retail verdict (owner, beta 2026-09-27). The Buy button already says a row is
+  -- buyable, and the PROFIT cell carries the figure.
+  local chip = GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID])
+  if deal.forever and (not verdict or verdict.buyable) then
+    chip = GC.Sniper._ForeverLabel(deal.forever)
+    verdictColor = deal.forever == "market" and Theme.color.gold or Theme.color.green
+  end
+  row.tierChip:SetLabel(chip, verdictColor)
 
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
@@ -1457,7 +1479,8 @@ local function setRowDeal(row, deal)
   -- beside it ran the cell out of room -- "x400 Test caps · yo..." (in game 2026-09-23). Only
   -- when the cell has room for it, too: a name the client had to cut drops the group, which the
   -- row's tooltip names either way (GC.Sniper._CapNote).
-  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
+  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup)
+    or GC.Sniper._ForeverSuffix(deal)
   local function stampName(named)
     row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix }
     GC.Sniper._FitRowName(row)
@@ -1574,17 +1597,14 @@ local function refreshRows()
   end
 
   content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
-  -- renderList() just recomputed refusedCount for exactly this list -- publish it in the same
-  -- breath, so the number beside the list can never describe a different render than the one
-  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.) The empty-state
-  -- panel is driven from the same spot for the same reason: it describes THIS render.
+  -- The empty-state panel describes THIS render, so it is driven from here.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   GC.Sniper._PaintGoldLine(list)
-  if refreshVerifyButton then refreshVerifyButton() end
-  -- Same breath, same reason: the Items chip carries a count of a store this render did not
-  -- read (the player is on Commodities most of the time), so it is re-derived here rather
-  -- than at each of the half-dozen places a realm row can appear or leave.
-  GC.Sniper._PaintBoardChips()
+  -- The toolbar's HIDDEN count and board chips are NOT painted here any more (WoW: Forever, 3c
+  -- taint fix, round 1): a render runs inside the row click, the Check's answer and the board
+  -- rebuild -- every execution a Buy click's state comes from -- and a paint reads the buttons
+  -- it paints. The auction house ticker paints both, last in its tick, a quarter of a second on;
+  -- renderList has already published refusedCount for it.
 
   -- Live price caps, addon task 6: the row-painting loop above has just stamped `row.deal` for
   -- this render, so a cap row queued earlier this call chain (GC.Sniper._QueueCapPing, from
@@ -1592,6 +1612,13 @@ local function refreshRows()
   -- the same way CollectNewHot's own HOT deals are. Rings only (caps fixes 3e): an open waits
   -- for the ticker, because a render runs inside a closing dialog's own OnHide too.
   if #pendingCapPings > 0 then drainCapPings(false) end
+end
+
+-- WoW: Forever: a fold landed (Core/ForeverScan.lua), or the vendor prices a row was waiting on
+-- have loaded (GC.ForeverDeals.Refresh, on the board clock in OnAuctionHouseShow): the board
+-- reads GC.ForeverDeals.Rows, so it repaints.
+function GC.Sniper.OnForeverFold()
+  if frame then refreshRows() end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -1659,17 +1686,11 @@ function GC.Sniper._PaintBoardChips(target)
     items = count > 0 and (GC.L["ITEMS %d"]):format(count) or GC.L["ITEMS"],
   }
   local board = GC.Sniper._Board()
+  -- Stamped every time, for the reason refreshAutoButton gives.
   for id, chip in pairs(chips) do
     local text = labels[id]
-    if text and chip.lastText ~= text then
-      chip:SetLabel(text)
-      chip.lastText = text
-    end
-    local on = (board == id)
-    if chip.lastOn ~= on then
-      chip.lastOn = on
-      chip:SetVariant(on and "active" or "ghost")
-    end
+    if text then chip:SetLabel(text) end
+    chip:SetVariant(board == id and "active" or "ghost")
   end
 end
 
@@ -1696,6 +1717,14 @@ function GC.Sniper._SetBoard(id)
   -- resumes it. A manual pass still in flight is aborted by the pause itself.
   if feedAuto then feedAuto(board == "items" and "pause:items" or "resume:items") end
   if board == "items" and GC.Sniper._TrySendKeysBatch then GC.Sniper._TrySendKeysBatch() end
+end
+
+-- Read fresh, the same shape as every other GC.Game.IsForever gate in this addon (see
+-- UI/ImportDialog.lua's own import guard): goldcap.gg has no WoW: Forever prices yet, so the
+-- three places below that would otherwise point a player at /goldcap companion or /goldcap
+-- import -- an import that can never succeed there -- say why instead.
+local function isForever()
+  return GC.Game and GC.Game.IsForever(GC.Game.Passport())
 end
 
 -- B: import staleness, in seconds since GC.db.imported.ts (nil = never imported this realm).
@@ -1761,7 +1790,11 @@ local function refreshStaleText()
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    if isForever() then
+      text = GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
+    else
+      text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    end
     color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
@@ -1858,7 +1891,8 @@ end
 -- applies to its smallest buy, one unit at the row's price). A realm lot on the Items board is
 -- held to the wallet itself -- the realm arm's `total > GetMoney()` and PlaceBid, nothing else --
 -- and a YOUR PRICE lot to the share as well, as the realm arm holds `capLot`. The lot's total is
--- the row's own Total column.
+-- the row's own Total column. A WoW: Forever row, on either board, is held to the Forever limits
+-- (GC.ForeverDeals.BuyLimits), as its Check and the realm arm's `ceilingLot` are.
 --
 -- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
 -- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
@@ -1879,12 +1913,19 @@ function GC.Sniper._PaintGoldLine(list)
     local deal = list[i]
     if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
       candidates = candidates + 1
+      -- A WoW: Forever row is held to the Forever limits its own buy keeps to
+      -- (GC.ForeverDeals.BuyLimits: half the wallet for "Below vendor" at the default share).
+      local rowLimits = limits
+      if deal.forever and GC.ForeverDeals and GC.ForeverDeals.BuyLimits then
+        rowLimits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, wallet, deal.forever)
+      end
       local fits
       if items then
         local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
-        fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+        fits = total <= wallet and (not (deal.cap or deal.forever)
+          or (rowLimits ~= nil and total <= rowLimits.budget))
       else
-        fits = limits ~= nil and deal.unitPrice <= limits.budget
+        fits = rowLimits ~= nil and deal.unitPrice <= rowLimits.budget
       end
       if fits then buyable = true; break end
     end
@@ -1924,6 +1965,19 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   end
   local screened = GC.Sniper._screenedCount or 0
   local text
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() then
+    -- WoW: Forever: the rows are the player's own scan's (Core/ForeverDeals.lua), on both boards.
+    if GC.ForeverScan.Fold and GC.ForeverScan.Fold() then
+      text = GC.L["No deals in your last scan."] .. "\n"
+        .. GC.L["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."]
+    else
+      text = GC.L["No scan of this auction house yet."] .. "\n"
+        .. GC.L["GoldCap scans when you open the auction house; SCAN on this board scans again."]
+    end
+    label:SetText(text)
+    label:Show()
+    return
+  end
   if board == "items" and GC.Data.OriginState() ~= "none" then
     -- Count(), not the store: an empty poll set means the import carries no region reference
     -- for anything this board could watch, which is a different problem from a full poll set
@@ -1993,7 +2047,9 @@ local function maybeWarnStale()
       msg = msg .. GC.L[" Companion keeps this fresh: /goldcap companion."]
     end
     GC.Print(msg)
-  else
+  elseif not isForever() then
+    -- goldcap.gg has no Forever prices yet, so this line has nothing true to say there -- the
+    -- header banner and the Deals empty state already say why, in Forever's own terms.
     GC.Print(GC.L["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."])
   end
 end
@@ -2019,6 +2075,45 @@ local function depositFor(itemID, quantity)
   return C_AuctionHouse.CalculateCommodityDeposit(itemID, duration, quantity)
 end
 
+-- WoW: Forever (Core/ForeverDeals.lua): a row from the player's own scan is judged against its
+-- ceiling -- the most one unit may cost and still pay -- and never against a market the scan
+-- does not have. Every live decision on such an item comes through here: the Check, the hover
+-- pre-warm, the verify walk, a typed quantity and the server's quote before Confirm (all of them
+-- reach evaluateLive). nil for any item without a Forever ceiling, which is every item on
+-- retail. The per-buy limits are the Forever ones (GC.ForeverDeals.BuyLimits, plan 3c
+-- Decision 5), for the kind the row was built as. Fields, not locals: this chunk sits near
+-- Lua's 200-local ceiling.
+function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
+  local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+  if not ceiling then return nil end
+  if type(levels) ~= "table" then
+    return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
+  end
+  return GC.SniperDecision.EvaluateCeiling({
+    ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind, exitUnit = ceiling.exitUnit,
+    levels = levels, limits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, GetMoney(), ceiling.kind),
+    fixedQuantity = fixedQuantity, quotedTotal = quotedTotal,
+    depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
+    minimumProfit = ceiling.minimumProfit,
+  })
+end
+
+function GC.Sniper._DecideCeilingLot(itemID, lots)
+  local ceiling = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+  if not ceiling then return nil end
+  return GC.SniperDecision.EvaluateCeilingLot({ ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind,
+    exitUnit = ceiling.exitUnit, lots = type(lots) == "table" and lots or {},
+    minimumProfit = ceiling.minimumProfit })
+end
+
+-- What the buy window says once a Forever row's Check armed Buy.
+function GC.Sniper._ForeverArmText(decision)
+  if decision and decision.forever == "market" then
+    return GC.L["far under the market, resale speed unknown -- click Buy to purchase"]
+  end
+  return GC.L["under the vendor price -- click Buy to purchase"]
+end
+
 -- How many units of one commodity price level belong to the player. A commodity result is a
 -- whole price point aggregated across every seller, and the player's own stock sits inside it:
 -- C_AuctionHouse.GetCommoditySearchResultInfo reports `numOwnerItems` (and `containsOwnerItem`)
@@ -2033,6 +2128,8 @@ local function ownedUnits(info)
 end
 
 local function evaluateLive(itemID, levels, fixedQuantity, quotedTotal)
+  local ceiling = GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
+  if ceiling then return ceiling end
   return GC.SniperDecision.Evaluate({
     now = time(),
     market = marketForDecision(itemID),
@@ -3107,6 +3204,11 @@ GC.Sniper._bookPass = GC.BookPass.New({
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
     applyFullScanResults(streamRows, info.items, info.kind)
+    -- WoW: Forever's scan folds what this pass saw into the player's own prices
+    -- (Core/ForeverScan.lua); a no-op anywhere else.
+    if GC.ForeverScan and GC.ForeverScan.OnBrowsePassDone then
+      GC.ForeverScan.OnBrowsePassDone(GC.Sniper._bookPass:Book())
+    end
   end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
@@ -3519,7 +3621,7 @@ end
 -- pendingFullScanStart was set) -- SendBrowseQuery silently no-ops while
 -- C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely the case for a
 -- beat right after opening the Auction House.
-local function startFullScan()
+local function startFullScan(kindOverride)
   if scanning then stopScanning() end
   fullScanToken = fullScanToken + 1
   lastBrowseEventAt = 0
@@ -3544,7 +3646,7 @@ local function startFullScan()
   GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
   GC.Sniper._keysThisCycle = 0
   GC.Sniper._keyPoll:BeginCycle()
-  local kind = GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes"
+  local kind = kindOverride or (GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes")
   GC.Sniper._bookPass:Start(kind)
   trace("pass: armed (" .. kind .. "), apiReady=" .. tostring(driver.isReady()))
   -- Start only ARMS the pass now (Core/BookPass.lua): the arbiter is the single sender for
@@ -3700,27 +3802,26 @@ refreshAutoButton = function(targetFrame)
   if not f or not f.autoBtn then return end
   local state = autoScan:State()
   local on = state ~= "OFF"
-  if f.autoBtn.lastOn ~= on then
-    f.autoBtn.lastOn = on
-    -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
-    -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
-    -- button. `active` carries the on-state in gold text, which cannot become unreadable.
-    f.autoBtn:SetVariant(on and "active" or "ghost")
-  end
+  -- Stamped every time, never compared with what was stamped last (WoW: Forever, 3c beta): a
+  -- remembered value is only ever rewritten by the execution that has just read it, so once some
+  -- other execution left it tainted every paint picked the taint up again -- the ticker's did,
+  -- four times a second, and carried it into the Buy click (see the ticker in
+  -- GC.Sniper.OnAuctionHouseShow). Setting the look and text a button already has costs nothing.
+  -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
+  -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
+  -- button. `active` carries the on-state in gold text, which cannot become unreadable.
+  f.autoBtn:SetVariant(on and "active" or "ghost")
   local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
-  if f.autoBtn.lastText ~= text then
-    f.autoBtn:SetLabel(text)
-    f.autoBtn.lastText = text
-    -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
-    -- rather than cutting it, and the status line anchored to its right edge moves with it.
-    -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
-    -- answers with the width the button has already cut it to (review I1).
-    local label = f.autoBtn.text
-    local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
-      or label.GetStringWidth and label:GetStringWidth())
-    if type(width) == "number" and f.autoBtn.SetWidth then
-      f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
-    end
+  f.autoBtn:SetLabel(text)
+  -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
+  -- rather than cutting it, and the status line anchored to its right edge moves with it.
+  -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
+  -- answers with the width the button has already cut it to (review I1).
+  local label = f.autoBtn.text
+  local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
+    or label.GetStringWidth and label:GetStringWidth())
+  if type(width) == "number" and f.autoBtn.SetWidth then
+    f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
   end
 end
 
@@ -3734,9 +3835,8 @@ end
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = GC.Sniper._bookPass:IsPaging()
-  if f.fullScanBtn.lastBusy == busy then return end
-  f.fullScanBtn.lastBusy = busy
+  local busy = GC.Sniper._bookPass:IsPaging() or (GC.ForeverScan ~= nil and GC.ForeverScan.IsBusy())
+  -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
@@ -3771,6 +3871,16 @@ local function onFullScanClick()
     return
   end
 
+  -- WoW: Forever: SCAN is the market scan -- a full list when the server's throttle allows,
+  -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself).
+  if isForever() and GC.ForeverScan and GC.ForeverScan.Request then
+    if GC.ForeverScan.Request("button") == "busy" then
+      frame.status:SetText(GC.L["full scan already in progress"])
+    end
+    refreshScanButton()
+    return
+  end
+
   if GC.Sniper._bookPass:IsPaging() then
     frame.status:SetText(GC.L["full scan already in progress"])
     return
@@ -3779,6 +3889,22 @@ local function onFullScanClick()
   frame.status:SetText(GC.L["starting full scan..."])
   startFullScan()
   refreshScanButton()
+end
+
+-- The Forever scan's browse pass (Core/ForeverScan.lua): the ordinary SCAN pass, of the kind it
+-- asks for. nil when the window has never been built; "running" when a pass is already paging,
+-- whose end the scan then takes.
+function GC.Sniper.StartBrowsePass(kind)
+  if not frame or not GC.Sniper.scanner then return nil end
+  if GC.Sniper._bookPass:IsPaging() then return "running" end
+  startFullScan(kind)
+  refreshScanButton()
+  return "started"
+end
+
+-- The Forever scan's progress on the toolbar's status line.
+function GC.Sniper.SetScanStatus(text)
+  if frame then setStatus(text) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -4141,11 +4267,13 @@ end
 -- never fail because a cosmetic slot is missing.
 local function drawVerdict(deal, decision, market)
   local CV = GC.CheckVerdict
-  local verdict = CV.Build(decision, market, { tier = deal.tier })
+  -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption.
+  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource })
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" or tone == "unverified" or tone == "cap" or tone == "gold" then
+  elseif tone == "adjust" or tone == "unverified" or tone == "cap" or tone == "gold"
+      or tone == "market" then
     accent = Theme.color.gold
   end
 
@@ -4176,6 +4304,16 @@ local function drawVerdict(deal, decision, market)
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = up and Theme.color.green or Theme.color.red
     caption = GC.L[CV.HERO_CAPTION.reference]
+  elseif hero.kind == "forever" then
+    -- WoW: Forever: what the buy makes, captioned by what it is measured against -- the
+    -- vendor's exact price, or the scan's AH value and an unknown resale speed.
+    -- A refused one keeps its figure, dim and uncaptioned: the reason line says why.
+    local up = hero.copper >= 0
+    figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
+    figureColor = hero.refused and Theme.color.fgDim or up and Theme.color.green or Theme.color.red
+    caption = hero.refused and ""
+      or (GC.L[CV.HERO_CAPTION[hero.forever == "market" and (hero.refSource == "crowd" and "market_crowd" or "market") or "vendor"]])
+        :format(displayDecisionAmount(hero.ref))
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
@@ -4331,8 +4469,15 @@ local function stampDialogFromDecision(deal, decision)
   -- (createDialog), and a sentence stamped after the layout was measured at the old one's size.
   -- A cap decision carries no reasons -- nothing refused it -- and the fallback token read "Needs
   -- a live price check" over a Buy the live check had just armed (in game 2026-09-23).
+  --
+  -- A Forever decision that passed (GC.Sniper._DecideCeiling/_DecideCeilingLot) carries its
+  -- `ceiling` and no reasons either; the line says which kind of deal it is and what it makes.
+  -- A Forever refusal carries its reason, and reads it like any other.
+  local foreverPass = decision.ceiling ~= nil and #(decision.reasons or {}) == 0
   dialog.reasonText:SetText(decision.cap
     and GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+    or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling, decision.exitUnit,
+      decision.stressProfit)
     or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
@@ -4348,6 +4493,8 @@ local function stampDialogFromDecision(deal, decision)
     -- WATCH plus a candidate (the shape onDialogPrimaryClick buys a lot on) and a commodity as
     -- SAFE, and neither word says why the Buy is offered. The board's chip says YOUR PRICE.
     dialog.decisionStatusText:SetText(GC.L["YOUR PRICE"])
+  elseif foreverPass then
+    dialog.decisionStatusText:SetText(GC.Sniper._ForeverLabel(decision.forever))
   elseif decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
     dialog.decisionStatusText:SetText(GC.L["WATCH (computed SAFE)"])
   else
@@ -4408,7 +4555,11 @@ local function purchaseFacts(deal, quote)
   -- each store takes what it honestly can: the ledger row goes up with no evidence group at all
   -- (GC.Ledger.RecordSniperBuy), the acquisition batch has no resale target, and the old flip
   -- queue, which cannot hold a buy without one, records nothing. It claims no profit either.
-  if decision.cap then
+  --
+  -- A WoW: Forever buy (a decision carrying its `ceiling`) has no engine evidence either, so it
+  -- is recorded in the same evidence-free shape (`cap = true` is the stores' "no decision
+  -- evidence" flag), with the profit its own decision worked out.
+  if decision.cap or decision.ceiling then
     local candidate = type(decision.candidate) == "table" and decision.candidate or nil
     local quantity
     if candidate then
@@ -4425,7 +4576,7 @@ local function purchaseFacts(deal, quote)
       total = quote.total,
       unitDisplay = math.floor(quote.total / quantity),
       cap = true,
-      expectedProfit = 0,
+      expectedProfit = decision.ceiling and math.max(0, decision.stressProfit or 0) or 0,
     }
   end
   -- Sniper phase 2: a realm lot has no SAFE decision to anchor a cost basis to -- it is bought
@@ -4551,6 +4702,8 @@ local function consumePurchasedDeal(deal)
   for i = #scanDeals, 1, -1 do
     if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
   end
+  -- WoW: Forever: the bought lead leaves the board until the next scan (GC.ForeverDeals.Drop).
+  if GC.ForeverDeals and GC.ForeverDeals.Drop then GC.ForeverDeals.Drop(deal.itemID) end
 end
 
 local function recordPurchaseFacts(deal, purchase)
@@ -5008,6 +5161,24 @@ function GC.Sniper._TickOwedHold()
   if was == "buy" and owed == nil then GC.Sniper._HandOffSettled() end
 end
 
+-- The Buy click's half of the same edge, without the ticker's memory (onDialogPrimaryClick reads
+-- nothing the ticker writes before its protected call). An arm notes the BUY tab's side of it:
+-- how many times BUY had taken the shared slot (GC.PurchaseSlot.Takes) and whether BUY was owed
+-- an answer. A click then asks whether BUY has taken the slot since, or was owed at the arm and
+-- is not now (the caller has just asked GC.Sniper._HoldWhileOwed) -- either way, a BUY purchase
+-- may have spent what this window's decision counted on, and the window is handed Refresh.
+function GC.Sniper._NoteArmForBuy(row)
+  local slot = GC.PurchaseSlot
+  row.armedBuy = (slot and slot.Takes)
+    and { takes = slot.Takes("buy"), owed = GC.Sniper._PurchaseOwed() == "buy" } or nil
+end
+
+function GC.Sniper._BuySpentSinceArm(row)
+  local armed, slot = row.armedBuy, GC.PurchaseSlot
+  if not (armed and slot and slot.Takes) then return false end
+  return armed.owed or slot.Takes("buy") ~= armed.takes
+end
+
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
@@ -5040,6 +5211,7 @@ local function armReady(row, deal, decision, levels, hold)
   row.purchaseDeal = nil
   row.decisionSnapshot = decision
   row.quoteSnapshot = nil
+  GC.Sniper._NoteArmForBuy(row)
   -- The book this decision was made on, kept ON THE ROW and stamped with the item it belongs
   -- to. The client holds ONE commodity search buffer, and a dialog armed off a hover pre-warm
   -- cache (openDialog's own shortcut, up to LIM.PREWARM_TTL_SECONDS old) opens with that
@@ -5225,6 +5397,28 @@ function GC.Sniper._CapNote(deal)
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
 end
 
+-- WoW: Forever rows (Core/ForeverDeals.lua): the kind, the dim instruction after the name, and
+-- the whole sentence. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
+-- (far under the scan's AH value: a resale nobody has measured the speed of).
+function GC.Sniper._ForeverLabel(kind)
+  return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
+end
+
+function GC.Sniper._ForeverSuffix(deal)
+  if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return "" end
+  local text = deal.forever == "market"
+    and GC.L[" · buy at %s or less, AH value %s"] or GC.L[" · buy at %s or less, vendor pays %s"]
+  return ("|cff8c8a85%s|r"):format(text:format(GC.Util.FormatMoney(deal.ceiling),
+    GC.Util.FormatMoney(deal.refUnit)))
+end
+
+function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
+  local text = kind == "market"
+    and GC.L["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."]
+    or GC.L["Buy at or under %s: a vendor pays %s each. This buy makes %s."]
+  return text:format(GC.Util.FormatMoney(ceiling), GC.Util.FormatMoney(ref), GC.Util.FormatMoney(profit or 0))
+end
+
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
 -- quantity, the cap row's group suffix, the watching suffix), leaving the group out when the cell
 -- has no room for it. Asked again by the row's own OnSizeChanged (createRow): decided once at
@@ -5395,6 +5589,7 @@ local function applyRequeryResult(row, itemID, live)
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
         frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
+          or decision.ceiling and GC.Sniper._ForeverArmText(decision)
           or GC.L["live safety confirmed -- click Buy to purchase"])
       end
       armReady(row, deal, decision, live.levels, hold)
@@ -5416,12 +5611,17 @@ local function applyRequeryResult(row, itemID, live)
       -- step to catch it. So the window says so (GC.Sniper._CapMiss) and holds Buy the way a
       -- loud requote holds Confirm.
       local capLot = decision.cap == true
+      -- WoW: Forever: a lot under the row's ceiling (GC.Sniper._DecideCeilingLot). Its profit is
+      -- the vendor's exact price, not a guess at resale, so it arms as a plain Buy, inside the
+      -- Forever per-buy wallet limit (GC.ForeverDeals.BuyLimits).
+      local ceilingLot = decision.ceiling ~= nil
       local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
-      local label = capLot and "Buy" or GC.L["BUY — unverified"]
+      local label = (capLot or ceilingLot) and "Buy" or GC.L["BUY — unverified"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
       row.quoteSnapshot = nil
+      GC.Sniper._NoteArmForBuy(row)
       activeItemID[deal.itemID] = true
       if dialog and dialog.row == row then
         hideRequoteBanner()
@@ -5438,14 +5638,21 @@ local function applyRequeryResult(row, itemID, live)
         -- price, their own per-buy wallet limit -- the one a commodity at it already keeps to
         -- (GC.Caps.DecideCommodity).
         local total = decision.candidate.buyout
-        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()) or nil
+        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney())
+          or ceilingLot and GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, GetMoney(), deal.forever or decision.forever)
+          or nil
         if total > GetMoney() then
           dialog.primaryBtn:Disable()
           setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
-        elseif capLot and not (limits and total <= limits.budget) then
+        elseif (capLot or ceilingLot) and not (limits and total <= limits.budget) then
           dialog.primaryBtn:Disable()
           setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
+        elseif ceilingLot and (decision.candidate.quantity or 1) > limits.maxQuantity then
+          -- Plan 3c, Decision 5: Max units per buy holds for a Forever buy of either kind, and a
+          -- lot is bought whole.
+          dialog.primaryBtn:Disable()
+          setDialogStatus(GC.L["This lot holds more units than your Max units per buy."], 1, 0.3, 0.3)
         else
           if capMiss then
             armLoudConfirm(row, label)
@@ -5453,10 +5660,14 @@ local function applyRequeryResult(row, itemID, live)
           elseif hold then
             armLoudConfirm(row, label, true)
             setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+              or ceilingLot and GC.Sniper._ForeverArmText(decision)
               or GC.L["price checked, sale speed unknown -- this one is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
+          elseif ceilingLot then
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
@@ -5512,6 +5723,9 @@ local function applyRequeryResult(row, itemID, live)
     end
     if deals[itemID] then deals[itemID] = nil end
     if GC.Sniper._realmDeals then GC.Sniper._realmDeals[itemID] = nil end -- same reason as consumePurchasedDeal
+    -- WoW: Forever: the lead comes off the board until the next scan says otherwise
+    -- (GC.ForeverDeals.Drop); a board rebuilt from the same fold would put it straight back.
+    if GC.ForeverDeals and GC.ForeverDeals.Drop then GC.ForeverDeals.Drop(itemID) end
     for i = #scanDeals, 1, -1 do
       if scanDeals[i].itemID == itemID then table.remove(scanDeals, i) end
     end
@@ -7301,6 +7515,12 @@ local function evaluateLiveItemDeal(itemID)
     local held = GC.Sniper._realmDeals[itemID]
     if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
   end
+  -- WoW: Forever: a row from the player's own scan buys one auction at or under its ceiling,
+  -- named by its auctionID -- the live per-auction walk's own answer (GC.Sniper._DecideCeilingLot).
+  -- The lots are walked only for an item with a ceiling: on retail, never.
+  local ceilingLot = GC.ForeverDeals and GC.ForeverDeals.CeilingFor and GC.ForeverDeals.CeilingFor(itemID)
+    and GC.Sniper._DecideCeilingLot(itemID, driver.itemLots(itemID))
+  if ceilingLot then return { isCommodity = false, decision = ceilingLot } end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and
@@ -7407,7 +7627,7 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
     decision = decision,
   }) or nil
   resolvePurchase(row, true,
-    deal and (GC.L["sniped for "] .. GetCoinTextureString(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
+    deal and (GC.L["sniped for "] .. GC.Util.CoinText(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
     facts)
 end
 
@@ -7663,9 +7883,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       if refreshQtyRow then refreshQtyRow() end -- "confirm" is not "ready" -- box/quick-fill stay greyed out
     end
     if affordable then
-      setDialogStatus((GC.L["quote %s -- click Confirm to buy"]):format(GetCoinTextureString(totalPrice)))
+      setDialogStatus((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       if frame then
-        frame.status:SetText((GC.L["quote %s -- click Confirm to buy"]):format(GetCoinTextureString(totalPrice)))
+        frame.status:SetText((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       end
     else
       setDialogStatus(GC.L["not enough gold for this quote -- Cancel"], 1, 0.3, 0.3)
@@ -8086,11 +8306,14 @@ function GC.Sniper.NotifyDialogClosed()
   feedAuto("resume:dialog")
 end
 
--- The dialog's own primary button OnClick -- the ONLY place PlaceBid, StartCommoditiesPurchase
--- and ConfirmCommoditiesPurchase are ever called. A hardware click on this button is exactly
--- as synchronous/direct as the old row-button click was; only WHICH widget owns the click
--- moved.
-local function onDialogPrimaryClick()
+-- What a click on the dialog's primary button does -- everything but the protected call itself.
+-- It runs inside GC.PurchaseCall.Click (Core/PurchaseCall.lua), fenced off with
+-- securecallfunction, and answers the one purchase call to make ("start" | "confirm" | "bid"
+-- and its two arguments) plus what to run once the call is made; nothing, for a click that
+-- makes none. Every check below still runs before the call and every piece of bookkeeping
+-- after it, in the same click -- WoW: Forever only needs the call not to share an execution
+-- with what these reads may have picked up.
+local function planDialogPrimaryClick()
   local row = dialog.row
   if not row then return end
   local stage = row.purchaseStage
@@ -8114,45 +8337,45 @@ local function onDialogPrimaryClick()
     end
     -- Hardware click only: the event prepares a quote; it never confirms one. The token and
     -- immutable final decision must still be current at this exact click.
-    C_AuctionHouse.ConfirmCommoditiesPurchase(quoteSnapshot.itemID, quoteSnapshot.quantity)
-    -- Preserve the immutable server quote/deal with the attempt itself. Dialog hide and AH
-    -- close are UI/session transitions, not proof that a confirmed server purchase vanished.
-    pending.confirmed = true
-    pending.deal = row.purchaseDeal
-    pending.quote = quoteSnapshot
-    -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
-    -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
-    -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
-    -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
-    if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
-    row.purchaseStage = "confirming"
-    dialog.primaryBtn:Disable()
-    dialog.cancelBtn:Disable()
-    setDialogStatus(GC.L["confirming purchase..."])
-    if frame then frame.status:SetText(GC.L["confirming purchase..."]) end
-    if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
-    -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
-    -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
-    -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
-    --
-    -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
-    -- called, so gold may well have moved; marking it failed or freeing the row for a retry
-    -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
-    -- still settles through the tombstone -- and the only thing that changes is that the player
-    -- is told what happened and can close the window.
-    local confirmedToken = pending.token
-    if C_Timer and C_Timer.After then
-    C_Timer.After(20, function()
-      if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
-      if not (dialog and dialog.row == row) then return end
-      dialog.cancelBtn:Enable()
-      setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
-    end)
-    -- Far beyond any real server round trip, so a genuine terminal event always lands first --
-    -- see GC.Sniper._ReleaseStrandedConfirmed and LIM.STRANDED_RELEASE_SECONDS.
-    C_Timer.After(LIM.STRANDED_RELEASE_SECONDS, function() GC.Sniper._ReleaseStrandedConfirmed(pending) end)
+    return "confirm", quoteSnapshot.itemID, quoteSnapshot.quantity, function()
+      -- Preserve the immutable server quote/deal with the attempt itself. Dialog hide and AH
+      -- close are UI/session transitions, not proof that a confirmed server purchase vanished.
+      pending.confirmed = true
+      pending.deal = row.purchaseDeal
+      pending.quote = quoteSnapshot
+      -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
+      -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
+      -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
+      -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
+      if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+      row.purchaseStage = "confirming"
+      dialog.primaryBtn:Disable()
+      dialog.cancelBtn:Disable()
+      setDialogStatus(GC.L["confirming purchase..."])
+      if frame then frame.status:SetText(GC.L["confirming purchase..."]) end
+      if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
+      -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
+      -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
+      -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
+      --
+      -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
+      -- called, so gold may well have moved; marking it failed or freeing the row for a retry
+      -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
+      -- still settles through the tombstone -- and the only thing that changes is that the player
+      -- is told what happened and can close the window.
+      local confirmedToken = pending.token
+      if C_Timer and C_Timer.After then
+      C_Timer.After(20, function()
+        if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
+        if not (dialog and dialog.row == row) then return end
+        dialog.cancelBtn:Enable()
+        setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
+      end)
+      -- Far beyond any real server round trip, so a genuine terminal event always lands first --
+      -- see GC.Sniper._ReleaseStrandedConfirmed and LIM.STRANDED_RELEASE_SECONDS.
+      C_Timer.After(LIM.STRANDED_RELEASE_SECONDS, function() GC.Sniper._ReleaseStrandedConfirmed(pending) end)
+      end
     end
-    return
   end
 
   if stage == "expired" then
@@ -8178,17 +8401,18 @@ local function onDialogPrimaryClick()
     return -- every other stage's primary button is disabled; guard anyway against a stray click
   end
 
-  -- Fix 2 (review): a qty typed into the Quantity box only commits on OnEditFocusLost -- and a
-  -- WoW EditBox KEEPS focus when the player clicks a Button, so a Buy click straight from the
-  -- box would otherwise fire the purchase against the last-committed qty while the box shows
-  -- the new number. ClearFocus() runs OnEditFocusLost synchronously (qtyBox.onCommit ->
-  -- applyChosenQty), so by the time row.deal is read below it already carries the typed qty.
-  -- That commit can also flip the button off ("not enough gold" -- updateBuyAffordance runs
-  -- inside applyChosenQty), so re-check and bail rather than buy past the affordance gate the
-  -- player hasn't even seen yet.
+  -- A quantity typed into the box commits on OnEditFocusLost, and a WoW EditBox keeps focus when
+  -- the player clicks a Button. Committing it runs GoldCap's own re-evaluation and repaint
+  -- (applyChosenQty -> evaluateLive, stampDialogFromDecision -> FormatMoney), and WoW: Forever's
+  -- taint engine blocks a protected call that follows such reads in the same click (3b ledger).
+  -- So this click only commits: the player sees the total for the quantity they typed, and the
+  -- next click buys it -- a total nobody has seen is not bought on the same click.
   if dialog.qtyBox and dialog.qtyBox.editBox:HasFocus() then
     dialog.qtyBox.editBox:ClearFocus()
-    if row.purchaseStage ~= "ready" or not dialog.primaryBtn:IsEnabled() then return end
+    if row.purchaseStage == "ready" and dialog.primaryBtn:IsEnabled() then
+      setDialogStatus(GC.L["Press Buy again to buy this quantity"], 0.25, 0.85, 0.25)
+    end
+    return
   end
 
   -- Second overall click. Two shapes of purchase reach this point, and each has its own gate.
@@ -8221,12 +8445,18 @@ local function onDialogPrimaryClick()
   -- cannot retire it, only its answer or the stranded release can -- and the moment one does, this
   -- window is handed Refresh (GC.Sniper._HandOffSettled, follow-up P1; GC.Sniper._TickOwedHold for
   -- the BUY tab's).
+  if GC.Sniper._HoldWhileOwed(row) then return end
   -- The ticker's hand-off, asked now rather than up to a quarter of a second from now (fix round 4,
   -- n2): a click that lands just after the BUY tab let go of a purchase must not buy on a decision
   -- that purchase has overtaken. The hand-off turns this window into Refresh; the click is spent.
-  GC.Sniper._TickOwedHold()
-  if row.purchaseStage ~= "ready" then return end
-  if GC.Sniper._HoldWhileOwed(row) then return end
+  -- Asked of the purchase slot and of what this row's own arm noted (GC.Sniper._BuySpentSinceArm),
+  -- never of GC.Sniper._TickOwedHold's memory: that is written by the 0.25 s auction house ticker,
+  -- and WoW: Forever blocked this click for reading state the ticker writes (3c beta taint log --
+  -- the ticker's execution was tainted, and the taint rode in on GC.Buy._owedUntil).
+  if GC.Sniper._BuySpentSinceArm(row) then
+    GC.Sniper._HandOffSettled()
+    return
+  end
   if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
@@ -8254,19 +8484,23 @@ local function onDialogPrimaryClick()
   end
 
   local purchaseDeal = deal
+  local call, first, second, sent -- the one purchase call this click makes, and what it then says
   row.quoteSnapshot = nil
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local token = row.purchaseToken
   row.purchaseStage = "buying"
-  dialog.primaryBtn:Disable()
-  if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call about to fire -- box/quick-fill must not be editable while it's in flight
+  -- The button stays enabled until the call has been made: WoW: Forever refuses
+  -- StartCommoditiesPurchase and PlaceBid from a click whose own button was disabled before them
+  -- (beta 2026-09-28: this plan bought when another button ran it, and was blocked from this
+  -- one). The purchaseStage write above is the double-click guard; the button goes busy in the
+  -- returned closure, straight after the call, in the same click. The Quantity row's repaint
+  -- rides there too (Fix 2), for the same reason and the one below.
   if deal.isCommodity then
     if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
       -- The BUY tab owns the shared commodity purchase slot right now -- refuse exactly as the
       -- "another commodity purchase already in flight" guard above does, and put the row back
       -- the way it was before this click started mutating it for a purchase that never fired.
       row.purchaseStage = "ready"
-      dialog.primaryBtn:Enable()
       if refreshQtyRow then refreshQtyRow() end
       setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
       driver.onStatus(GC.L["finish the pending buy first"])
@@ -8274,9 +8508,7 @@ local function onDialogPrimaryClick()
     end
     row.purchaseDeal = purchaseDeal
     commodityPurchase = { row = row, itemID = deal.itemID, token = token }
-    C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)
-    setDialogStatus(GC.L["buying commodity..."])
-    if frame then frame.status:SetText(GC.L["buying commodity..."]) end
+    call, first, second, sent = "start", deal.itemID, decision.quantity, GC.L["buying commodity..."]
   else
     -- A realm lot. The candidate IS the identity of what is being bought -- one auction, one
     -- price -- so the purchase takes that identity here: resolvePurchase clears pendingAuction
@@ -8312,11 +8544,23 @@ local function onDialogPrimaryClick()
     -- price, and candidate.buyout is exactly that total -- the number the player just read on
     -- the dialog. It is passed through untouched rather than recomputed from unitPrice * qty,
     -- which floors and could bid a copper under the buyout.
-    C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)
-    setDialogStatus(GC.L["placing bid..."])
-    if frame then frame.status:SetText(GC.L["placing bid..."]) end
+    call, first, second, sent = "bid", candidate.auctionID, candidate.buyout, GC.L["placing bid..."]
   end
-  scheduleBuyTimeout(row, purchaseDeal, token)
+  return call, first, second, function()
+    -- Not when the client already answered inside the call and gave the row back.
+    if row.purchaseStage == "buying" and row.purchaseToken == token then dialog.primaryBtn:Disable() end
+    if refreshQtyRow then refreshQtyRow() end
+    setDialogStatus(sent)
+    if frame then frame.status:SetText(sent) end
+    scheduleBuyTimeout(row, purchaseDeal, token)
+  end
+end
+
+-- The dialog's own primary button OnClick -- the ONLY way PlaceBid, StartCommoditiesPurchase
+-- and ConfirmCommoditiesPurchase are ever reached from this file: GC.PurchaseCall.Click makes
+-- the call synchronously inside this click, from what planDialogPrimaryClick answered.
+local function onDialogPrimaryClick()
+  GC.PurchaseCall.Click(planDialogPrimaryClick)
 end
 
 -- ---------------------------------------------------------------------------
@@ -8363,6 +8607,10 @@ local function qtyMaxAvailable(deal)
     local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
     return most and most.quantity or 1
   end
+  -- A Forever row: what its ceiling allows on this book now, inside the player's own limits --
+  -- never the whole book, whose dearer units the ceiling refuses.
+  local ceilingPlan = dialog and dialog.bookLevels and GC.Sniper._DecideCeiling(deal.itemID, dialog.bookLevels)
+  if ceilingPlan then return ceilingPlan.buyable and ceilingPlan.quantity or 1 end
   local maxQty
   if dialog and dialog.bookLevels then
     maxQty = sumLevelQty(dialog.bookLevels)
@@ -8397,9 +8645,11 @@ refreshQtyRow = function()
     -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book --
     -- but never below the quantity the box is showing, which is exactly what Buy starts: after
     -- the wallet drops the rule's ceiling can sit under the armed number until the player picks
-    -- a new one.
-    if GC.Sniper._RowCap(dialog.row, deal) then
-      known = math.max(qtyMaxAvailable(deal), dialog.row.decisionSnapshot.quantity or 1)
+    -- a new one. A Forever row armed by its ceiling reads the same way: the box clamps to what
+    -- the ceiling allows (qtyMaxAvailable), and "of" the whole book would offer units it refuses.
+    local armed = dialog.row and dialog.row.decisionSnapshot
+    if GC.Sniper._RowCap(dialog.row, deal) or (armed and armed.ceiling) then
+      known = math.max(qtyMaxAvailable(deal), armed.quantity or 1)
     end
     if known then
       dialog.qtyOfLabel:SetText((GC.L["of %d"]):format(known))
@@ -10047,6 +10297,11 @@ createRow = function(parent, index)
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
+    if self.deal.forever then
+      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
+        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+        self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
+    end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
     -- verified market of its own, and the row's WATCH cell has no room to say so. The
     -- tooltip does -- with the reference itself and the item level it was measured on, so
@@ -10271,17 +10526,9 @@ local function setView(v)
   -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
   -- away instead of trusting that Show and waiting up to 0.25s for the ticker to hide it again.
   if isDeals then refreshSessionText() end
-  -- AUTO, SCAN and HIDDEN each remember the label they last stamped and skip an identical
-  -- restamp -- worth it off the 0.25s ticker, wrong here: a label that comes back from the
-  -- hide above undrawn (the same thing that blanks the headings) would never be written
-  -- again, leaving three blank buttons on the toolbar. Forget what was stamped, re-derive.
+  -- A label that comes back from the hide above undrawn (the same thing that blanks the
+  -- headings) is written again: AUTO, SCAN, HIDDEN and the board chips stamp every time.
   if isDeals then
-    if frame.autoBtn then frame.autoBtn.lastText, frame.autoBtn.lastOn = nil, nil end
-    if frame.fullScanBtn then frame.fullScanBtn.lastBusy = nil end
-    if frame.verifyBtn then frame.verifyBtn.lastText, frame.verifyBtn.lastOn = nil, nil end
-    -- The board chips remember their last label for the same reason and come back from a hide
-    -- undrawn for the same reason: forget, then re-derive.
-    for _, chip in pairs(frame.boardChips or {}) do chip.lastText, chip.lastOn = nil, nil end
     refreshAutoButton()
     refreshScanButton()
     if refreshVerifyButton then refreshVerifyButton() end
@@ -10669,7 +10916,8 @@ local function createFrame()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     if not cfg then return end
     cfg.showRefused = not showRefused()
-    refreshRows() -- re-renders and, through it, re-labels this button
+    refreshRows()
+    refreshVerifyButton() -- a render no longer paints the toolbar (see refreshRows)
   end)
   -- A live tooltip rather than setPlainTooltip's fixed text. "It seems to work sometimes" is
   -- not a report anyone can act on, and the walk is invisible by nature -- so it says what it
@@ -10716,7 +10964,8 @@ local function createFrame()
   fullScanBtn:SetLabel(GC.L["SCAN"])
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
-    GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."])
+    isForever() and GC.L["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."]
+      or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."])
   f.fullScanBtn = fullScanBtn
 
   -- Divider + session block sit further left of Scan, between it and the status line -- the
@@ -10748,15 +10997,10 @@ local function createFrame()
     -- Through GC.L: these two were the last labels on the toolbar still stamped in English on
     -- every client, because the first paint used the wrapped "HIDDEN 0" and every repaint after
     -- it came through here.
-    local text = (show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount)
-    if btn.lastText ~= text then
-      btn:SetLabel(text)
-      btn.lastText = text
-    end
-    if btn.lastOn ~= show then
-      btn.lastOn = show
-      btn:SetVariant(show and "active" or "ghost")
-    end
+    -- Stamped every time, for the reason refreshAutoButton gives -- this button's remembered
+    -- on/off is the very field the 3c beta's taint log named.
+    btn:SetLabel((show and GC.L["REFUSED %d"] or GC.L["HIDDEN %d"]):format(refusedCount))
+    btn:SetVariant(show and "active" or "ghost")
   end
   refreshVerifyButton(f)
 
@@ -11306,12 +11550,15 @@ function GC.Sniper.OnAuctionHouseShow()
   if GC.AuctionHouseTab and GC.AuctionHouseTab.Install then
     pcall(GC.AuctionHouseTab.Install)
   end
+  -- The toolbar repaints come LAST in a tick, after everything the tick writes for the board and
+  -- the purchase path (WoW: Forever, 3c beta). A repaint reads the buttons it paints, and the
+  -- beta's taint log showed this ticker's execution picking taint up at exactly such a read
+  -- (refreshVerifyButton) and carrying it, through what the rest of the tick wrote, into a Buy
+  -- click that was then blocked. Nothing written after a repaint can carry what a repaint read.
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
-    refreshAutoButton()
-    refreshScanButton()
-    -- Background verification rides the same clock, for the same reason the two buttons above
-    -- do: one place drives it, so it cannot be forgotten by a path that changes state.
+    -- Background verification rides the same clock, for the same reason the toolbar buttons do
+    -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()
     -- And so does the one send that has nothing to ride on. A pass start parks until a grant
     -- (Core/BookPass.lua), but AUCTION_HOUSE_THROTTLED_SYSTEM_READY fires when the system
@@ -11336,22 +11583,46 @@ function GC.Sniper.OnAuctionHouseShow()
       GC.Sniper._keysPokeAt = now
       GC.Sniper._TickKeys()
     end
+    -- The repaints, last (see above). Auto and Scan read the machine the tick just drove; the
+    -- session readout rides the same clock so a path that changes GC.Sniper.session cannot
+    -- leave it stale; HIDDEN and the board chips are painted here rather than by every render
+    -- (see refreshRows).
+    refreshAutoButton()
+    refreshScanButton()
     refreshVerifyButton()
-    -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
-    -- GC.Sniper.session either.
+    GC.Sniper._PaintBoardChips()
     refreshSessionText()
-    -- And a "your price" ring or open still waiting for its row (caps fixes 3e): a row can come
-    -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
-    -- notice, and every stop-and-open comes from here.
+  end)
+  -- Everything a Buy click's own state is written by runs on clocks of its own, never in the tick
+  -- above (WoW: Forever, 3c taint fix, round 1). Each C_Timer callback is its own execution and
+  -- starts clean in the client; the tick above reads the widest set of fields in the addon --
+  -- the Auto machine first, which Blizzard's own AuctionHouseFrame:SetDisplayMode hook feeds, the
+  -- verify walk, the scan pass, the toolbar -- and the beta's log caught exactly that execution
+  -- tainted. What it wrote, the Buy click read, and the Buy was blocked. The purchase clock reads
+  -- only the purchase path's own state; the board clock only the scan's fold.
+  GC.Sniper._purchaseTicker = GC.Sniper._purchaseTicker or C_Timer.NewTicker(0.25, function()
+    -- A "your price" ring or open still waiting for its row (caps fixes 3e): a row can come on
+    -- screen, a dialog close or the player stop using Blizzard's panes with no render to notice,
+    -- and every stop-and-open comes from here -- an open writes the buy window's row.
     GC.Sniper._TickCapPings()
-    -- And the edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
+    -- The edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
     -- landed, failed or given up (fix rounds 2-3): BUY's terminal paths hand nothing to this
     -- window, so every armed window is handed Refresh from here.
     GC.Sniper._TickOwedHold()
-    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2).
+    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2). BUY's
+    -- repaints its lines, which its Buy/Confirm click reads.
     GC.Sniper._TickConfirmCountdown()
     if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
   end)
+  -- WoW: Forever: the vendor prices a Deals row waits on load after the fold did, and each one
+  -- that lands is a new row (GC.ForeverDeals.Refresh). The rebuild makes the deal tables the Buy
+  -- click reads, and the render writes them onto the rows the player clicks. A fold landing
+  -- repaints from the scan itself (Core/ForeverScan.lua). Nothing on retail: no fold.
+  if isForever() and GC.ForeverDeals and GC.ForeverDeals.Refresh then
+    GC.Sniper._boardTicker = GC.Sniper._boardTicker or C_Timer.NewTicker(0.25, function()
+      if GC.ForeverDeals.Refresh(time()) then GC.Sniper.OnForeverFold() end
+    end)
+  end
   feedAuto("ahOpened")
   GC.Sniper._ClearStaleMailPause()
   if GC.db.settings.sniper.auto then
@@ -11425,6 +11696,12 @@ function GC.Sniper.OnAuctionHouseClosed()
     autoScanTicker:Cancel()
     autoScanTicker = nil
   end
+  for _, key in ipairs({ "_purchaseTicker", "_boardTicker" }) do
+    if GC.Sniper[key] then
+      GC.Sniper[key]:Cancel()
+      GC.Sniper[key] = nil
+    end
+  end
   feedAuto("ahClosed")
   -- Defensive: Blizzard's search EditBox isn't guaranteed to fire OnEditFocusLost as part of
   -- the AH frame's own close teardown, and AutoScan.lua's ahClosed handler only ever ADDS the
@@ -11438,7 +11715,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   local session = GC.Sniper.session
   if session.buys > 0 then
     GC.Print((GC.L["session: %d snipes, spent %s, ~%s est. profit"]):format(
-      session.buys, GetCoinTextureString(session.spent), GetCoinTextureString(session.estProfit)))
+      session.buys, GC.Util.CoinText(session.spent), GC.Util.CoinText(session.estProfit)))
     session.buys, session.spent, session.estProfit = 0, 0, 0
   end
   -- The wipe above (or a no-op when buys was already 0) can leave f.sessionText showing a
@@ -11557,6 +11834,88 @@ end
 -- here: the shared slot and its age, the attempt in flight and its stage, the tombstone and
 -- whether it is confirmed (a confirmed one is never retired on a timer), the record-only
 -- stranded confirms, and the requeries still waiting for a result.
+-- /gc taint: which of the fields a purchase click reads, or the auction house ticker writes, the
+-- client counts as tainted right now (WoW: Forever, 3c beta: a Buy blocked because the ticker's
+-- taint reached it). Read-only on purpose -- a typed command may itself run tainted, and a probe
+-- that wrote anything could taint what it measures; issecurevariable answers about the field,
+-- not about whoever asks. Plain English, like /gc purchase: it is pasted into a bug report.
+function GC.Sniper.DebugTaint()
+  local check = _G.issecurevariable
+  if type(check) ~= "function" then
+    GC.Print("taint: this client has no issecurevariable")
+    return
+  end
+  if type(_G.issecure) == "function" then
+    GC.Print(("taint: this command itself runs %s"):format(_G.issecure() and "secure" or "TAINTED"))
+  end
+  local function report(name, owner, key)
+    if type(owner) ~= "table" then
+      GC.Print(("taint: %s -- not there"):format(name))
+      return
+    end
+    local ok, secure, by = pcall(check, owner, key)
+    if not ok then
+      GC.Print(("taint: %s -- %s"):format(name, tostring(secure)))
+    elseif secure then
+      GC.Print(("taint: %s secure"):format(name))
+    else
+      GC.Print(("taint: %s TAINTED by %s"):format(name, tostring(by)))
+    end
+  end
+  -- What the clocks write: the auction house ticker's own, the purchase clock's, and the toolbar
+  -- labels the ticker stamps last.
+  report("GC.Sniper._keysPokeAt (ticker)", GC.Sniper, "_keysPokeAt")
+  report("verifyBtn.label (ticker, last)", frame and frame.verifyBtn, "label")
+  report("autoBtn.label (ticker, last)", frame and frame.autoBtn, "label")
+  report("GC.Sniper._lastOwed (purchase clock)", GC.Sniper, "_lastOwed")
+  report("GC.Buy._lastWaiting (purchase clock)", GC.Buy, "_lastWaiting")
+  -- What a paint reads off the toolbar buttons: written once, when the window was built -- so
+  -- TAINTED here means the window itself was built by a tainted execution.
+  for _, name in ipairs({ "verifyBtn", "autoBtn" }) do
+    local button = frame and frame[name]
+    for _, key in ipairs({ "text", "bg", "roundedMargin" }) do
+      report(("%s.%s (built)"):format(name, key), button, key)
+    end
+  end
+  -- The board: what a row click reads.
+  local boardRow = rows[1]
+  report("board rows[1].deal", boardRow, "deal")
+  report("board rows[1].deal.itemID", boardRow and boardRow.deal, "itemID")
+  -- What a Buy click reads before its protected call.
+  report("GC.Buy._owedUntil", GC.Buy, "_owedUntil")
+  report("GC.Buy._attempt", GC.Buy, "_attempt")
+  local row = dialog and dialog.row
+  report("dialog.row", dialog, "row")
+  report("row.purchaseStage", row, "purchaseStage")
+  report("row.deal", row, "deal")
+  report("row.decisionSnapshot", row, "decisionSnapshot")
+  report("row.armedBuy", row, "armedBuy")
+  local deal = row and row.deal
+  report("deal.itemID", deal, "itemID")
+  report("deal.isCommodity", deal, "isCommodity")
+  local decision = row and row.decisionSnapshot
+  report("decision.status", decision, "status")
+  report("decision.quantity", decision, "quantity")
+  -- Controls: a field GoldCap wrote while loading, and one Auctionator wrote while loading. If
+  -- both read secure while the fields above read TAINTED, addon data is not tainted as such in
+  -- this client -- something tainted wrote the ones above.
+  report("GC.PurchaseCall's Click (GoldCap, at load)", GC.PurchaseCall, "Click")
+  report("Auctionator.Constants (Auctionator, at load)", _G.Auctionator, "Constants")
+  -- The last purchase click, as GC.PurchaseCall.Click saw it: whether the click began clean,
+  -- and whether it was still clean at its protected call.
+  local last = GC.PurchaseCall and GC.PurchaseCall.last
+  if last then
+    local function word(flag)
+      if flag == nil then return "unknown" end
+      return flag and "secure" or "TAINTED"
+    end
+    GC.Print(("taint: last purchase click (%s) began %s, called %s"):format(tostring(last.call),
+      word(last.enteredSecure), word(last.calledSecure)))
+  else
+    GC.Print("taint: no purchase click yet this session")
+  end
+end
+
 function GC.Sniper.DebugPurchase()
   local function s(v) return tostring(v) end
   local now = GetTime()

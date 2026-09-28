@@ -12,8 +12,21 @@
 ## AddonCompartmentFuncOnEnter: GoldCap_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: GoldCap_OnAddonCompartmentLeave
 ## OptionalDeps: GoldCap_AppData
+## Category-enUS: Auctions
+## Category-deDE: Auktionen
+## Category-esES: Subastas
+## Category-esMX: Subastas
+## Category-frFR: Ventes
+## Category-itIT: Aste
+## Category-koKR: 경매
+## Category-ptBR: Leilões
+## Category-ruRU: Лоты
+## Category-zhCN: 拍卖
+## Category-zhTW: 拍賣
 
 Core/Util.lua
+Core/Game.lua
+Core/ForeverCheck.lua
 Locale/Core.lua
 Locale/deDE.lua
 Locale/enUS.lua
@@ -49,10 +62,19 @@ Core/Trigger.lua
 Core/Scanner.lua
 Core/FullScan.lua
 Core/BookPass.lua
+Core/ForeverFold.lua
+Core/ForeverGear.lua
+Core/ForeverScan.lua
+Core/ForeverValue.lua
+Core/ForeverDeals.lua
+Core/ForeverRoad.lua
+Core/ForeverUpgrades.lua
+Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/BuyRun.lua
 Core/PurchaseSlot.lua
+Core/PurchaseCall.lua
 Core/AppRuns.lua
 Core/Caps.lua
 Core/BoardRows.lua
@@ -69,6 +91,7 @@ UI/AuctionHouseTab.lua
 UI/SellViewModel.lua
 UI/SellFrame.lua
 UI/SoldFrame.lua
+UI/ForeverUpgradesFrame.lua
 UI/BuyFrame.lua
 UI/SettingsFrame.lua
 Core/Init.lua

@@ -105,6 +105,7 @@ describe("Sell tab, the cancel queue control", function()
         GetEntries = function() return {} end },
       Data = { GetItemValue = function() return { sold = 7447 } end },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/Flips.lua", GC)
     helper.loadModule("Core/QuoteCache.lua", GC)
@@ -164,7 +165,8 @@ describe("Sell tab, the cancel queue control", function()
     compose() -- no quote at all: the lot cannot be judged, nothing enters the queue
     local button = container.cancelButton
     assert.is_false(button.enabled)
-    assert.matches("NOTHING", button.label)
+    -- Held back for want of a live price -- not "nothing to cancel" (3c task 9).
+    assert.equal("NO LIVE PRICE YET", button.label)
     assert.equal("ghost", button.variant)
     -- I2: SetVariant must land before Disable, or Theme.Button's OnDisable dims the text and
     -- the immediately-following SetVariant would have undone it. paintCancelButton's own
@@ -202,6 +204,23 @@ describe("Sell tab, the cancel queue control", function()
     assert.matches("Sanguithorn Tea", joined, 1, true)
     assert.is_nil(joined:find("no_fresh_price", 1, true))
     _G.GameTooltip = nil
+  end)
+
+  -- The owner saw this exact contradiction beside My Lots (2026-09-26): the queue was empty
+  -- only because the one live lot was waiting on a fresh quote, and the button called that
+  -- "NOTHING TO CANCEL" -- as if there were no lot at all.
+  it("says the queue is waiting on live prices, not that there is nothing to cancel", function()
+    GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+    now = 1000 + 46 -- past SELL_QUOTE_ACTION_AGE (45s): the quote is no longer fresh
+    compose()
+    assert.equal("NO LIVE PRICE YET", container.cancelButton.label)
+  end)
+
+  it("still says nothing to cancel when every lot is simply fine", function()
+    -- Fresh, and the lot sits exactly at market: nothing held back, nothing worth cancelling.
+    GC.QuoteCache.Set(quotes(), 23427, 27300, 1000)
+    compose()
+    assert.equal("NOTHING TO CANCEL", container.cancelButton.label)
   end)
 
   it("arms the head lot through onRepostClick on the first click -- destroying nothing", function()

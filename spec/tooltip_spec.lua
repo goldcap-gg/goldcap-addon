@@ -324,7 +324,7 @@ describe("Tooltip.BuildLines", function()
       local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
       assert.is_truthy(text:find("GC.Sniper.LiveFloor(itemID, now)", 1, true))
       assert.is_truthy(text:find('ln.kind == "live"', 1, true))
-      assert.is_truthy(text:find('GetCoinTextureString(ln.copper) .. " · " .. ln.detail', 1, true))
+      assert.is_truthy(text:find('GC.Util.CoinText(ln.copper) .. " · " .. ln.detail', 1, true))
     end)
   end)
 
@@ -433,4 +433,75 @@ describe("Tooltip.BuildLines", function()
     end)
   end)
 
+end)
+
+describe("Tooltip.BuildLines in WoW: Forever", function()
+  local GC
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/ForeverValue.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  local SCAN = { mv = 1000, currentQty = 4060, listings = 31, ts = 1000, source = "scan", kind = "own_scan" }
+
+  local function find(lines, pred)
+    for _, ln in ipairs(lines) do if pred(ln) then return ln end end
+  end
+
+  it("names the scan's value honestly, leaves the vendor price to the game, and gives the verdict", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
+    assert.equal("AH value", lines[1].label)
+    assert.equal(1000, lines[1].copper)
+    assert.truthy(find(lines, function(l) return l.left == "Listed" and l.right == "4,060" end))
+    assert.is_nil(find(lines, function(l) return l.label == "Vendor" end))
+    assert.is_nil(find(lines, function(l) return l.copper == 100 end))
+    assert.truthy(find(lines, function(l) return l.kind == "verdict" and l.text == "Sell it on the AH" end))
+    assert.truthy(find(lines, function(l) return l.left == "Source" and l.right == "your scan, 12m ago" end))
+  end)
+
+  -- Final review m10: the scan's age reads in the tooltip's language, units included.
+  it("says how old the scan is in the player's language", function()
+    local korean = { ["your scan, %s ago"] = "내 검색, %s 전", ["%dm"] = "%d분" }
+    GC.L = setmetatable({}, { __index = function(_, key) return korean[key] or key end })
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000 + 720, { forever = { vendorUnit = 100, depositUnit = 50 } })
+    assert.truthy(find(lines, function(l) return l.right == "내 검색, 12분 전" end))
+  end)
+
+  it("shows one listed count: the live one when the auction house is open", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 100, depositUnit = 50 },
+      live = { floor = 15, qty = 2313, age = 60 } })
+    assert.is_nil(find(lines, function(l) return l.left == "Listed" end))
+    assert.truthy(find(lines, function(l) return l.kind == "live" and l.copper == 15 end))
+  end)
+
+  it("still prints a retail item's depth beside a live line", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 123400, sold = 52, currentQty = 900, ts = 1000 }, 1000,
+      { live = { floor = 120000, qty = 880, age = 60 } })
+    assert.truthy(find(lines, function(l) return l.left == "Listed" end))
+  end)
+
+  it("labels gear by its cheapest version", function()
+    local gear = { mv = 5000, ts = 1000, source = "scan", kind = "own_scan", gear = true }
+    assert.equal("AH, cheapest version", GC.Tooltip.BuildLines(gear, 1000, { forever = {} })[1].label)
+  end)
+
+  it("tells the deposit apart", function()
+    local lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900, depositUnit = 60 } })
+    assert.truthy(find(lines, function(l) return l.text == "Not worth the deposit on the AH" end))
+    lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 900 } })
+    assert.truthy(find(lines, function(l) return l.text == "Sell it on the AH (deposit not counted)" end))
+    lines = GC.Tooltip.BuildLines(SCAN, 1000, { forever = { vendorUnit = 2000, depositUnit = 1 } })
+    assert.truthy(find(lines, function(l) return l.text == "Sell it to a vendor" end))
+  end)
+
+  it("changes nothing without the Forever options", function()
+    local plain = GC.Tooltip.BuildLines({ mv = 123400, sold = 52.34, ts = 1000 }, 2000)
+    local withNil = GC.Tooltip.BuildLines({ mv = 123400, sold = 52.34, ts = 1000 }, 2000, { forever = nil })
+    assert.same(plain, withNil)
+    assert.equal("GoldCap value", plain[1].label)
+    assert.equal(2, #plain)
+  end)
 end)

@@ -104,6 +104,72 @@ describe("The silver grid (Part 0)", function()
     end)
   end)
 
+  -- WoW: Forever's own auction house allows copper in a commodity price (the book carries 67c,
+  -- 68c...) -- Auctionator 339's Source_ModernAH/Selling/ItemPrice.lua returns the price
+  -- unrounded there (studied, not copied). Gated on the CLIENT's capability, not the game name:
+  -- C_AuctionHouse.SupportsCopperValues, read fresh on every call the same way every other
+  -- capability probe in this addon works (Core/ForeverCheck.lua's `has`).
+  describe("WoW: Forever -- the 1-copper grid, gated on C_AuctionHouse.SupportsCopperValues", function()
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    -- The reported bug: a book whose cheapest ask is 67c (below any price the RETAIL grid can
+    -- express) used to round UP to 1 silver -- posting 3.6k units behind the wall it was meant
+    -- to undercut. docs "sell-price-diagnosis.md", Linen Cloth: cheapest ask 67c, 129 units;
+    -- next rung 68c, 103 units; a wall of 936 at 80c.
+    it("matches the raw cheapest ask instead of rounding it up to a silver", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local r = GC.Flips.RecommendPost(nil, 67, nil)
+      assert.equal("match", r.mode)
+      assert.equal(67, r.unit)
+      assert.is_true(r.unit <= 67)
+    end)
+
+    it("still rounds a whole-silver ask the same as before -- the grid is finer, not different",
+      function()
+        _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+        local r = GC.Flips.RecommendPost(nil, 100000, nil)
+        assert.equal("match", r.mode)
+        assert.equal(100000, r.unit)
+      end)
+
+    it("floors SilverDown/SilverUp at 1 copper, not 100, when the client supports copper prices",
+      function()
+        _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+        assert.equal(1, GC.Flips.SilverDown(1))
+        assert.equal(1, GC.Flips.SilverDown(0))
+        assert.equal(68, GC.Flips.SilverUp(68))
+        assert.equal(67, GC.Flips.SilverDown(67))
+      end)
+
+    it("fails closed on garbage input the same as the retail grid does", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      assert.is_nil(GC.Flips.SilverDown(-1))
+      assert.is_nil(GC.Flips.SilverDown(nil))
+    end)
+
+    -- Retail must not change. Byte-identical: no C_AuctionHouse global at all (busted's normal
+    -- environment, and any client without the API), and a client that HAS the function but
+    -- answers false.
+    it("is byte-identical to today when the client has no such function", function()
+      _G.C_AuctionHouse = nil
+      local r = GC.Flips.RecommendPost(nil, 67, nil)
+      assert.equal("match", r.mode)
+      assert.equal(100, r.unit)
+      assert.equal(100, GC.Flips.SilverDown(67))
+    end)
+
+    it("is byte-identical to today when SupportsCopperValues answers false", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return false end }
+      local r = GC.Flips.RecommendPost(nil, 67, nil)
+      assert.equal(100, r.unit)
+    end)
+
+    it("is byte-identical to today when SupportsCopperValues errors", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() error("boom") end }
+      assert.equal(100, GC.Flips.SilverDown(67))
+    end)
+  end)
+
   describe("floor override", function()
     it("runs LAST, rounds UP, and never leaves the price under a non-whole-silver floor", function()
       local r = GC.Flips.RecommendPost(nil, 100, nil, { floor = 14999 })

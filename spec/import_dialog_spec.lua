@@ -222,4 +222,41 @@ describe("ImportDialog", function()
         reasonLine({ reason = "older_than_import", ts = math.huge }))
     end)
   end)
+
+  -- Final review I2: no Forever import string exists yet, so anything a Forever player pastes
+  -- is retail -- and would feed the tooltip, Deals and Sell with another client's prices.
+  describe("in WoW: Forever", function()
+    before_each(function()
+      helper.loadModule("Core/Game.lua", GC)
+      GC.Data.SetImported = function() error("SetImported must not be called") end
+    end)
+
+    after_each(function()
+      _G.GetBuildInfo = nil
+    end)
+
+    it("refuses a pasted price string; nothing is parsed or written", function()
+      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+      GC.ImportString.Parse = function() error("Parse must not be called") end
+      local dialog = paste("GCS1;something else")
+      assert.is_true(dialog.shown)
+      assert.is_truthy(dialog.status:GetText():find(
+        "goldcap.gg prices for WoW: Forever are not out yet.", 1, true))
+    end)
+
+    it("still imports buy runs -- a different grammar, not a price string", function()
+      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+      paste("GCR1;myrun;;5=210")
+      assert.is_not_nil(GC.AppRuns.Get("myrun"))
+    end)
+  end)
+
+  it("still tries to parse a pasted price string on retail (unblocked)", function()
+    _G.GetBuildInfo = function() return "12.1.0", "69933", "Sep 23 2026", 120100 end
+    helper.loadModule("Core/Game.lua", GC)
+    local dialog = paste("GCS1;something else")
+    _G.GetBuildInfo = nil
+    assert.equal("GCS1;something else", pricesParsed)
+    assert.is_truthy(dialog.status:GetText():find("Import failed:", 1, true))
+  end)
 end)

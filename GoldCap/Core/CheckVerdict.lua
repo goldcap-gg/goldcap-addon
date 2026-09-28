@@ -68,6 +68,11 @@ GC.CheckVerdict.TONE_WORD = {
   -- be a lie over an enabled buy button, and "Clear to buy" would be a bigger one.
   unverified = "Your call",
   cap = "At your price",
+  -- WoW: Forever rows (plan 3c), routed by the row's own kind (context.forever): the same words
+  -- the board's chip uses. Neither "Clear to buy" nor "Your call" -- no market engine measured
+  -- this, and a vendor's price is not a judgement call.
+  vendor = "Below vendor",
+  market = "Under market",
   -- A buy the wallet limit alone refused (SniperDecision.Evaluate's `needsGold`): every other
   -- gate passed. Neither a refusal nor a buy -- a deal this character cannot pay for yet.
   gold = "Needs gold",
@@ -85,6 +90,11 @@ GC.CheckVerdict.HERO_CAPTION = {
   unpriceable = "any figure here would be invented out of the very number being refused",
   reference = "against the region's own price for this item, after the 5% cut — if it sells",
   cap = "a unit, at or under your price of %s",
+  -- WoW: Forever. What a vendor pays is exact, so the profit is sure; a resale at the scan's AH
+  -- value is not, and how fast it would sell is not known at all.
+  vendor = "sure profit: a vendor pays %s each",
+  market = "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
+  market_crowd = "resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown",
   needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
@@ -97,6 +107,8 @@ GC.CheckVerdict.TONE_SENTENCE = {
   unverified = "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
   cap = "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
   gold = "Everything else checks out. With more gold on this character, this is a buy.",
+  vendor = "Checked against the live auction house a moment ago.",
+  market = "Checked against the live auction house a moment ago.",
 }
 
 -- Said beside the board's own tier chip, and only when the two disagree.
@@ -268,6 +280,12 @@ function GC.CheckVerdict.Build(decision, market, context)
   local informational = type(decision.informational) == "table" and decision.informational or {}
   local reason = headlineReason(decision)
 
+  -- WoW: Forever: the row's kind ("vendor" | "market"), as the board built it. A Forever answer
+  -- that is not a refusal is told in its own terms -- tone "vendor" or "market" -- because every
+  -- other tone's caption is about a market engine's resale estimate or a region reference, and
+  -- a Forever row has neither.
+  local forever = (context.forever == "vendor" or context.forever == "market") and context.forever or nil
+
   local tone = "refuse"
   if decision.cap == true then
     -- Live price caps: the player's own rule -- this item at or under this price -- met by a
@@ -288,6 +306,7 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- comparison to show and a button that will act on it.
     tone = "unverified"
   end
+  if forever and (tone == "clear" or tone == "adjust" or tone == "unverified") then tone = forever end
 
   local hero
   if tone == "cap" then
@@ -305,6 +324,14 @@ function GC.CheckVerdict.Build(decision, market, context)
   elseif tone == "clear" then
     hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
       or { kind = "unpriceable" }
+  elseif forever and number(decision.stressProfit) and positive(decision.exitUnit) then
+    -- A Forever answer, passed or refused on its minimum: what the buy makes, captioned by what
+    -- it is measured against (a vendor's exact price, or the scan's AH value) -- never the "selling
+    -- all back into the book" caption a gold hero carries.
+    -- `refused`: the panel shows a refusal's figure without that caption (final review m6) --
+    -- "sure profit" under a red REFUSED read as an endorsement.
+    hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
+      refused = tone == "refuse" or nil, refSource = context.refSource }
   elseif tone == "gold" then
     -- The gold the character must hold leads; what the buy costs and the per-buy share that
     -- turns one into the other ride along, for the caption that says both.
@@ -352,15 +379,21 @@ function GC.CheckVerdict.Build(decision, market, context)
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
       flat("yourPrice", "copper", decision.capUnit),
       flat("snapshotValue", "copper", market.marketValue, "muted"))
+  elseif tone == "vendor" or tone == "market" then
+    -- What the buy costs and what comes back: the vendor's price for it, or its resale after
+    -- the cut and deposit. Nothing about a market the scan does not have.
+    take(facts, pay, get)
   elseif tone == "unverified" then
     -- Two facts, because two are all a realm item honestly has: what this lot costs, and the
     -- reference it is being compared with. No sellers, no sell-through, no velocity -- an
     -- import carries none of them for a realm item, and a dash in a row is not a fact.
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
       flat("snapshotValue", "copper", decision.reference, "muted"))
-  elseif tone == "refuse" and reason == "stress_profit_below_buffer" then
+  elseif tone == "refuse" and (reason == "stress_profit_below_buffer" or reason == "profit_below_minimum") then
     -- The refusal is a comparison -- what came back against what the player asked for -- so
-    -- the floor it fell short of is the third fact, ahead of anything about the market.
+    -- the floor it fell short of is the third fact, ahead of anything about the market. A WoW:
+    -- Forever refusal (profit_below_minimum, GC.SniperDecision.EvaluateCeiling) is the same
+    -- comparison, against the Forever minimum.
     take(facts, pay, get, flat("yourMinimum", "copper", decision.requiredProfit),
       sellThroughFact(market), sellersFact(market))
   else

@@ -159,6 +159,12 @@ GC.DEFAULTS = {
       maxDailyDemandShare = 0.02,
       maxQuantity = 200,
       minimumProfitCopper = 50000,
+      -- foreverMinimumProfitCopper: undeclared here on purpose (Task S, UI/SettingsFrame.lua's
+      -- own Forever "Min profit per buy" row, Core/ForeverDeals.lua's MinimumProfit). ApplyDefaults
+      -- must never stamp this into an existing save -- ABSENT is what lets MinimumProfit's
+      -- migration rule (honour a changed retail value until this key is ever touched) actually
+      -- see the "never touched" state, and it is also what makes the field's own DEFAULTS button
+      -- un-set the override instead of hard-resetting it to 20c.
       profitFloorVersion = 1,
       -- Same reason as profitFloorVersion above: stamped here so ApplyDefaults versions a
       -- FRESH database immediately, before migrateSniperWindowWidth ever runs on it -- without
@@ -298,6 +304,22 @@ frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player") end)
 pcall(function() frame:RegisterEvent("TRADE_SKILL_ITEM_CRAFTED_RESULT") end)
 
+-- WoW: Forever's full scan (Core/ForeverScan.lua): the server's answer to ReplicateItems. Only
+-- there -- retail registers exactly what it did before.
+if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
+  pcall(function() frame:RegisterEvent("REPLICATE_ITEM_LIST_UPDATE") end)
+  -- Plan 3e, Road to 40 (Core/ForeverRoad.lua): its pace clock reads level progress.
+  pcall(function() frame:RegisterEvent("PLAYER_XP_UPDATE") end)
+  pcall(function() frame:RegisterEvent("PLAYER_LEVEL_UP") end)
+  -- Plan 3e, the loot recorder (Core/ForeverLoot.lua): both loot events (one window counts once),
+  -- LOOT_CLOSED to end that session (final review I3), and the player's own spells, which say a
+  -- window was opened by skinning or gathering.
+  pcall(function() frame:RegisterEvent("LOOT_READY") end)
+  pcall(function() frame:RegisterEvent("LOOT_OPENED") end)
+  pcall(function() frame:RegisterEvent("LOOT_CLOSED") end)
+  pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end)
+end
+
 local function migrateSniperProfitFloor(db)
   local settings = type(db) == "table" and db.settings or nil
   local sniper = type(settings) == "table" and settings.sniper or nil
@@ -401,6 +423,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     if damagedAcquisitions ~= nil then GoldCapDB.acquisitions = damagedAcquisitions end
     GC.db = GoldCapDB
+    -- Rewritten on every load, never merged: the file belongs to whichever client wrote it
+    -- last, and that is the one the companion must be told about.
+    if GC.Game then GoldCapDB.client = GC.Game.Passport() end
+    -- WoW: Forever's own scan: decides once whether this client is Forever, and holds the save
+    -- GC.Data.GetItemValue reads the scan from. Off (and writing nothing) everywhere else.
+    if GC.ForeverScan then GC.ForeverScan.Init(GC.db) end
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
@@ -651,12 +679,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end
       GC.Sniper.OnAuctionHouseShow()
+      -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
+      if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Util.Trace("ah: closed")
       GC.Sniper.OnAuctionHouseClosed()
+      if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
       -- The BUY tab too: no terminal commodity event can arrive once the session is gone, so an
       -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
       -- down for that item until /reload.
@@ -781,6 +812,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnBrowseResultsAdded then
       GC.Sniper.OnBrowseResultsAdded()
     end
+  elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
+    if GC.ForeverScan then GC.ForeverScan.OnReplicateUpdate() end
   elseif event == "AUCTION_HOUSE_SHOW_ERROR" then
     local errorCode = ...
     -- The Sell tab first: a post it has on the wire is what a refused post answers with, and its
@@ -795,6 +828,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
     end
+    if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
@@ -850,7 +884,35 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
     if GC.Sniper and GC.Sniper.OnPlayerMoney then GC.Sniper.OnPlayerMoney() end
+    -- WoW: Forever's Road to 40 (a no-op anywhere else).
+    if GC.ForeverRoad then GC.ForeverRoad.OnMoney() end
+  elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
+    -- Registered in Forever only (the gate above). PLAYER_LEVEL_UP fires a moment before the
+    -- client settles the new level and XP (final review M3) -- read them next frame instead of a
+    -- stale value landing in a pace sample.
+    if GC.ForeverRoad then
+      if _G.C_Timer and _G.C_Timer.After then
+        C_Timer.After(0, GC.ForeverRoad.OnTick)
+      else
+        GC.ForeverRoad.OnTick()
+      end
+    end
+  elseif event == "LOOT_READY" or event == "LOOT_OPENED" then
+    -- Registered in Forever only.
+    if GC.ForeverLoot then GC.ForeverLoot.OnLootReady() end
+  elseif event == "LOOT_CLOSED" then
+    -- Registered in Forever only. Ends the loot session (final review I3): the next LOOT_READY
+    -- decides its own spell fresh instead of inheriting this one's.
+    if GC.ForeverLoot then GC.ForeverLoot.OnLootClosed() end
+  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+    local _, _, spellID = ...
+    if GC.ForeverLoot then GC.ForeverLoot.OnSpellSucceeded(spellID) end
   elseif event == "BAG_UPDATE_DELAYED" then
+    -- The Sell tab's Post reads a bag location cached at paint time; re-pin it to where the stack
+    -- sits now, while that tab is on screen (UI/SellFrame.lua, GC.Sell.OnBagsChanged). First in
+    -- this event's execution, ahead of the BUY tab and craft capture, so nothing they read runs
+    -- before the cache a Post click reads is written.
+    if GC.Sell and GC.Sell.OnBagsChanged then GC.Sell.OnBagsChanged() end
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
@@ -861,9 +923,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
+    -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
+    if GC.ForeverScan then GC.ForeverScan.MaybeIntro() end
+    if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
+    if GC.ForeverLoot then GC.ForeverLoot.MaybeIntro() end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
+    -- The upgrades window repaints once the items it counted as loading arrive (Forever only: the
+    -- window never exists elsewhere). itemID lets it ignore an answer it was not waiting for (M1).
+    if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo(itemID) end
   elseif event == "UNIT_SPELLCAST_SENT" then
     local _, _, _, spellID = ...
     if GC.CraftCapture then
@@ -875,6 +944,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.OnCraftResult(result, time()) end
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
+    if GC.ForeverRoad then GC.ForeverRoad.OnLogout() end
   end
 end)
 
@@ -883,16 +953,35 @@ function GC.Print(msg)
 end
 
 function GC.OnSlash(msg)
-  msg = (msg or ""):match("^%s*(%S*)") or ""
-  local handler = GC.slashHandlers[msg:lower()]
+  -- Plan 3e: the rest of the line goes to the handler (`/gc mount 12g 50s`). Every older handler
+  -- takes no argument and ignores it.
+  local cmd, rest = GC.Util.SlashArgs(msg)
+  local handler = GC.slashHandlers[cmd:lower()]
   if handler then
-    handler()
+    handler(rest)
   else
     GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
   end
 end
 
 GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
+-- Diagnostic: what this client offers GoldCap, plus a full-scan row-count probe at an open
+-- auction house; see Core/ForeverCheck.lua. English on purpose, so not in the help line.
+GC.slashHandlers.forever = function() GC.ForeverCheck.Run() end
+-- WoW: Forever only: scan now (the same as SCAN on the Deals tab), and the bag totals the scan
+-- itself already prints (Core/ForeverValue.lua's PrintBags). Neither is in the help line.
+if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
+  GC.slashHandlers.scan = function() GC.ForeverScan.Request("button") end
+  GC.slashHandlers.bags = function() GC.ForeverValue.PrintBags() end
+  -- Plan 3e: Road to 40 -- set, clear or share the riding cost, or print the road.
+  GC.slashHandlers.mount = function(rest) GC.ForeverRoad.Slash(rest) end
+  -- Plan 3e: the upgrade finder's stat weights.
+  GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end
+  -- Plan 3e: the AH Upgrade Finder's window.
+  GC.slashHandlers.upgrades = function() GC.ForeverUpgradesUI.Toggle() end
+  -- Plan 3e: the loot recorder, on or off.
+  GC.slashHandlers.loot = function(rest) GC.ForeverLoot.Slash(rest) end
+end
 
 -- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same
 -- thing, but it lives INSIDE the window -- no use at all when the window itself has ended up
@@ -907,6 +996,9 @@ GC.slashHandlers.sell = function() if GC.Sell and GC.Sell.DebugPrint then GC.Sel
 GC.slashHandlers.board = function() if GC.Sniper and GC.Sniper.DebugBoard then GC.Sniper.DebugBoard() end end
 -- Diagnostics for the commodity purchase path (why a Buy is refused); see GC.Sniper.DebugPurchase.
 GC.slashHandlers.purchase = function() if GC.Sniper and GC.Sniper.DebugPurchase then GC.Sniper.DebugPurchase() end end
+-- Which fields a purchase click reads, or the auction house ticker writes, count as tainted; see
+-- GC.Sniper.DebugTaint. Off the help line like the other diagnostics.
+GC.slashHandlers.taint = function() if GC.Sniper and GC.Sniper.DebugTaint then GC.Sniper.DebugTaint() end end
 -- Diagnostics for the BUY tab's run/attempt state; see GC.Buy.DebugPrint.
 GC.slashHandlers.buy = function() if GC.Buy and GC.Buy.DebugPrint then GC.Buy.DebugPrint() end end
 
@@ -930,8 +1022,8 @@ GC.slashHandlers.craft = function()
       for _, output in ipairs(outcome.outputs or {}) do units = units + output.quantity end
       GC.Print(("recipe %s: %d unit%s, %s total, %s each"):format(
         tostring(outcome.recipeID), units, units == 1 and "" or "s",
-        GetCoinTextureString and GetCoinTextureString(outcome.total) or tostring(outcome.total),
-        GetCoinTextureString and GetCoinTextureString(outcome.unitCost) or tostring(outcome.unitCost)))
+        GC.Util.CoinText(outcome.total),
+        GC.Util.CoinText(outcome.unitCost)))
       -- Whether the Sell tab can attach that cost to a position yet. A craft is recorded
       -- keyless away from the auction house and is keyed on the next Sell refresh there, so
       -- "no key yet" before an auction house visit is expected, and after one is a defect.
@@ -968,8 +1060,8 @@ GC.slashHandlers.ledger = function()
     end
   end
   GC.Print((GC.L["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"])
-    :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
-      buys, GetCoinTextureString(spent)))
+    :format(sales, GC.Util.CoinText(gross), GC.Util.CoinText(cut),
+      buys, GC.Util.CoinText(spent)))
 end
 
 -- "What did that actually sell for?" had no answer anywhere in the addon. The
@@ -1004,8 +1096,8 @@ GC.slashHandlers.sales = function()
       if ok then when = formatted end
     end
     GC.Print((GC.L[" %s  %s  x%d at %s each  (%s total, %s cut)%s"]):format(
-      when, sale.itemName, qty, GetCoinTextureString(math.floor(total / qty)),
-      GetCoinTextureString(total), GetCoinTextureString(sale.cut or 0),
+      when, sale.itemName, qty, GC.Util.CoinText(math.floor(total / qty)),
+      GC.Util.CoinText(total), GC.Util.CoinText(sale.cut or 0),
       sale.pending and "  [not yet paid out]" or ""))
   end
 end

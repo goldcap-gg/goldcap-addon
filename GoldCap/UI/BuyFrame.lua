@@ -144,20 +144,23 @@ end
 
 -- Mirrors SellFrame/SoldFrame's formatAmount: plain "65g24s" text, coin icons only below one
 -- gold (icon escapes truncate mid-escape in clipped FontStrings).
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
+-- it is bounded 0-99 by the mod above.
 local function formatAmount(amount)
   if amount == nil then return EM_DASH end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 -- Money as plain text, for a list the player copies out of the game. formatAmount's sub-gold
--- branch returns GetCoinTextureString, which is icon ESCAPES: they draw beautifully in a
+-- branch returns GC.Util.CoinText, which is icon ESCAPES: they draw beautifully in a
 -- FontString and come out of an EditBox as |TInterface\MoneyFrame\UI-CopperIcon:0|t.
 local function plainAmount(amount)
   if type(amount) ~= "number" then return "" end
@@ -761,7 +764,7 @@ end
 -- it decides to swallow the keystroke rather than hand it back to the game. A line waiting for
 -- its confirming click counts even though its own BUY quantity may already be spoken for. A line
 -- under a stranded confirm never does: its button is disabled (actionLabel), and Enter has to
--- agree with the button -- swallowed, the keystroke did nothing, and it reached onBuyClick for a
+-- agree with the button -- swallowed, the keystroke did nothing, and it reached planBuyClick for a
 -- line the player may not touch.
 local function actionable(line)
   if not line then return false end
@@ -788,7 +791,7 @@ end
 -- The last quote this line got, for the line's whole remaining quantity, while it is inside
 -- BD.QUOTE_SECONDS -- or nil. A quote outlives the hover that asked for it: the COST cell keeps its
 -- sum, and the button keeps its "BUY n". It is what the line SHOWS, not what a click spends: a
--- click buys only on the line's own attempt holding a fresh quote (onBuyClick), and otherwise asks
+-- click buys only on the line's own attempt holding a fresh quote (planBuyClick), and otherwise asks
 -- the auction house again -- which waits while a keys batch is out (quote, GC.Buy._owedByClick).
 local function recentQuote(line)
   local recent = quotes[line.itemID]
@@ -855,7 +858,7 @@ local function actionLabel(line)
     return GC.L["..."], false
   end
   if not attempt or attempt.itemID ~= line.itemID then
-    -- Some other line is mid-purchase. A click here cannot start a second one (onBuyClick and
+    -- Some other line is mid-purchase. A click here cannot start a second one (planBuyClick and
     -- quote both refuse while the client holds a purchase of ours), so the button says so
     -- rather than reading "BUY n", enabled, and doing nothing at all when it is pressed.
     if inFlight(attempt) then return resting, false end
@@ -977,7 +980,11 @@ function GC.Buy.ConfirmOwed()
   if attempt ~= nil and attempt.stage == "confirming" then return true end
   local untilAt = GC.Buy._owedUntil
   if untilAt and (GetTime and GetTime() or time()) < untilAt then return true end
-  GC.Buy._owedUntil = nil
+  -- A question only: it used to clear the lapsed stamp here, and the 0.25 s auction house ticker
+  -- asks it four times a second (GC.Sniper._TickOwedHold), so that write rode every tick into the
+  -- one field both purchase clicks read before their protected call. In WoW: Forever the ticker's
+  -- execution was tainted, and the Buy it reached was blocked (3c beta taint log). A lapsed stamp
+  -- answers false all the same.
   return false
 end
 
@@ -1222,7 +1229,10 @@ local function recordAcquisition(itemID, name, qty, total, at, runCode)
     runCode = runCode,
     character = context and context.char or nil,
     region = context and context.region or nil,
-    evidenceKey = ("goldcap-buy:%d:%d:%d"):format(itemID, at, acquisitionSeq),
+    -- `at` is an epoch second, not money -- but it is still a value %d silently mishandles once
+    -- WoW's own client crosses the same +-2^31 ceiling (2038), so it goes through
+    -- GC.Util.IntText for the same reason every copper figure in this sweep does.
+    evidenceKey = ("goldcap-buy:%d:%s:%d"):format(itemID, GC.Util.IntText(at), acquisitionSeq),
   })
 end
 
@@ -1451,7 +1461,7 @@ function GC.Buy.OnCommodityResults(itemID)
 end
 
 -- COMMODITY_PRICE_UPDATED: the server's answer to StartCommoditiesPurchase, and the first price
--- anybody has actually seen. It does not confirm anything -- see onBuyClick.
+-- anybody has actually seen. It does not confirm anything -- see planBuyClick.
 --
 -- Taken in EVERY post-start stage, not only `started`. A price update arriving in `confirming` is
 -- the server RE-QUOTING: the price moved between the quote and the Confirm click, so the purchase
@@ -1722,11 +1732,14 @@ local function afterClick(line)
 end
 
 -- ---------------------------------------------------------------------------
--- The one hardware click. Nothing else in this file may reach a protected purchase API --
+-- The one hardware click. Nothing in this file calls a protected purchase API: this plans the
+-- click and answers the one call to make, and GC.PurchaseCall.Click (Core/PurchaseCall.lua)
+-- makes it, synchronously, from inside the same click or Enter key -- fenced off from what
+-- this reads, which WoW: Forever would otherwise hold against the call.
 -- spec/buy_purchase_wiring_spec.lua reads this file's source text and proves it.
 -- ---------------------------------------------------------------------------
 
-local function onBuyClick(line)
+local function planBuyClick(line)
   if not (line and current) then return end
   local attempt = GC.Buy._attempt
 
@@ -1737,10 +1750,10 @@ local function onBuyClick(line)
   if attempt and attempt.stage == "confirm" and attempt.itemID == line.itemID
       and (attempt.qty or 0) > 0 then
     attempt.stage = "confirming"
-    C_AuctionHouse.ConfirmCommoditiesPurchase(attempt.itemID, attempt.qty)
-    armStall(attempt, BD.CONFIRM_SECONDS)
-    afterClick(line)
-    return
+    return "confirm", attempt.itemID, attempt.qty, function()
+      armStall(attempt, BD.CONFIRM_SECONDS)
+      afterClick(line)
+    end
   end
 
   -- The client is holding a purchase of ours: a second click can only make trouble.
@@ -1776,9 +1789,49 @@ local function onBuyClick(line)
   -- Stage first, call second: Core/PurchaseCapture.lua's StartCommoditiesPurchase hook runs
   -- inside this very call and asks GC.Buy.OwnsCommodityPurchase whether the purchase is ours.
   attempt.stage = "started"
-  C_AuctionHouse.StartCommoditiesPurchase(attempt.itemID, attempt.qty)
-  armStall(attempt, BD.WATCHDOG_SECONDS)
-  afterClick(line)
+  return "start", attempt.itemID, attempt.qty, function()
+    armStall(attempt, BD.WATCHDOG_SECONDS)
+    afterClick(line)
+  end
+end
+
+-- A line's BUY button. Everything, the line included, is looked up inside the plan: the click
+-- itself reads nothing before GC.PurchaseCall.Click has fenced it off. The button's parent is
+-- its row (createRow), stamped with the line it shows by paintRow.
+local function planBuyButton(button)
+  return planBuyClick(lineFor(button:GetParent().lineItemID))
+end
+
+local function onBuyButtonClick(button)
+  GC.PurchaseCall.Click(planBuyButton, button)
+end
+
+-- Enter on the BUY tab: the same plan as the button, for the focused line. Everything it reads
+-- is read inside the plan, for the reason the button's own is (GC.PurchaseCall.Click).
+local function planBuyKey(self, key)
+  -- SetPropagateKeyboardInput is combat-protected, and this container has the keyboard for as
+  -- long as the BUY tab is up -- including the standalone window, which outlives the auction
+  -- house and can be open in a fight. Calling it there raises a protected-function error on
+  -- every keystroke. There is no purchase to make in combat anyway (the auction house is not
+  -- reachable), so the handler stands down entirely and the key goes where it always would.
+  if InCombatLockdown and InCombatLockdown() then return end
+  local line
+  if (key == "ENTER" or key == "NUMPADENTER") and self.IsMouseOver and self:IsMouseOver() then
+    line = lineFor(GC.Buy._focus)
+  end
+  -- Swallowed ONLY once there is something for it to do. Deciding on the key and the cursor
+  -- alone ate Enter -- and with it opening chat -- whenever the cursor happened to be over this
+  -- panel with no line focused, which is most of the time a player is reading the board.
+  if not actionable(line) then
+    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
+    return
+  end
+  if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
+  return planBuyClick(line)
+end
+
+local function onBuyKey(self, key)
+  GC.PurchaseCall.Click(planBuyKey, self, key)
 end
 
 -- ---------------------------------------------------------------------------
@@ -2228,9 +2281,7 @@ createRow = function(parent)
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
   -- Wired ONCE on the pooled row and reading whatever paintRow last stamped on it, the same way
   -- the row's own tooltip is wired: a per-render SetScript would leak a closure per repaint.
-  row.action:SetScript("OnClick", function()
-    onBuyClick(lineFor(row.lineItemID))
-  end)
+  row.action:SetScript("OnClick", onBuyButtonClick)
   row.action:Hide()
 
   layoutRow(row)
@@ -2552,7 +2603,7 @@ function GC.Buy.Attach(f, geo)
   end)
 
   -- Enter buys the focused line. A key press is a hardware event, so it may reach the protected
-  -- purchase call exactly as the click does -- it goes through the same onBuyClick either way.
+  -- purchase call exactly as the click does -- it goes through the same planBuyClick either way.
   --
   -- Propagation is decided PER KEYSTROKE, never set once (UI/SettingsFrame.lua's OnKeyDown says
   -- why): EnableKeyboard(true) delivers EVERY key here, and a frame that swallowed them all
@@ -2560,27 +2611,7 @@ function GC.Buy.Attach(f, geo)
   -- and only while the cursor is actually over this window, is taken; everything else is put
   -- straight back. Each widget call is guarded so the headless specs can run without them.
   if container.EnableKeyboard then container:EnableKeyboard(true) end
-  container:SetScript("OnKeyDown", function(self, key)
-    -- SetPropagateKeyboardInput is combat-protected, and this container has the keyboard for as
-    -- long as the BUY tab is up -- including the standalone window, which outlives the auction
-    -- house and can be open in a fight. Calling it there raises a protected-function error on
-    -- every keystroke. There is no purchase to make in combat anyway (the auction house is not
-    -- reachable), so the handler stands down entirely and the key goes where it always would.
-    if InCombatLockdown and InCombatLockdown() then return end
-    local line
-    if (key == "ENTER" or key == "NUMPADENTER") and self.IsMouseOver and self:IsMouseOver() then
-      line = lineFor(GC.Buy._focus)
-    end
-    -- Swallowed ONLY once there is something for it to do. Deciding on the key and the cursor
-    -- alone ate Enter -- and with it opening chat -- whenever the cursor happened to be over this
-    -- panel with no line focused, which is most of the time a player is reading the board.
-    if not actionable(line) then
-      if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
-      return
-    end
-    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
-    onBuyClick(line)
-  end)
+  container:SetScript("OnKeyDown", onBuyKey)
   -- The one keystroke that leaves propagation off is an Enter that bought a line. Re-armed on
   -- its release, so combat beginning right after that press cannot leave this container eating
   -- movement, action bars and chat for the rest of the fight (OnKeyDown stands down in combat).

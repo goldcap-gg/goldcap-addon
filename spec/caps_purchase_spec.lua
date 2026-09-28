@@ -1565,7 +1565,7 @@ describe("Live price caps -- buying at the player's own price", function()
           local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
           local src = f:read("*a")
           f:close()
-          local start = src:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(", 1, true)
+          local start = src:find("GC.Sniper._purchaseTicker = GC.Sniper._purchaseTicker or C_Timer.NewTicker(", 1, true)
           assert.is_number(start)
           local body = src:sub(start, src:find("\n  end)\n", start, true))
           assert.is_truthy(body:find("GC.Sniper._TickOwedHold()", 1, true))
@@ -1641,6 +1641,57 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.is_true(d.enabled)
           GC.PurchaseSlot.Claim("buy")
           GC.Sniper._TickOwedHold() -- the ticker sees BUY's purchase in flight
+          GC.PurchaseSlot.Release("buy") -- it lands; the ticker has not run since
+          local bids = 0
+          _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+
+          click()
+
+          assert.equal(0, bids)
+          assert.equal("expired", realmRow.purchaseStage)
+        end)
+
+        -- The click asks the slot, not the ticker's memory (WoW: Forever 3c: the ticker's writes
+        -- carried taint into the click). A BUY purchase that came and went BEFORE this window armed
+        -- is already in the decision the arm made, so it must not cost the click.
+        it("still bids when the BUY tab's purchase settled before the window armed", function()
+          local GC, _, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          GC.Buy = { ConfirmOwed = function() return false end, RefreshIfShown = function() end }
+          GC.PurchaseSlot.Claim("buy")
+          GC.PurchaseSlot.Release("buy") -- landed before the Check below
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = reopened(GC, realmRow, lot)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+          assert.is_true(d.enabled)
+          local bids = 0
+          _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+
+          click()
+
+          assert.equal(1, bids)
+        end)
+
+        -- Review F3: a BUY claim left stale before the arm, then re-claimed for a new purchase that
+        -- lands before the ticker looks. That re-claim is a take, so the click hands Refresh.
+        it("never bids after BUY re-claimed its own stale claim for a purchase since the arm", function()
+          local GC, _, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          GC.Buy = { ConfirmOwed = function() return false end, RefreshIfShown = function() end }
+          GC.PurchaseSlot.Claim("buy", GetTime() - 100) -- stale well before the arm: not busy
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = reopened(GC, realmRow, lot)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+          assert.is_true(d.enabled)
+          GC.PurchaseSlot.Claim("buy") -- same owner, stale claim: a new purchase
           GC.PurchaseSlot.Release("buy") -- it lands; the ticker has not run since
           local bids = 0
           _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
@@ -2230,7 +2281,7 @@ describe("Live price caps -- buying at the player's own price", function()
             local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
             local src = f:read("*a")
             f:close()
-            local start = src:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(", 1, true)
+            local start = src:find("GC.Sniper._purchaseTicker = GC.Sniper._purchaseTicker or C_Timer.NewTicker(", 1, true)
             local body = src:sub(start, src:find("\n  end)\n", start, true))
             assert.is_truthy(body:find("GC.Sniper._TickConfirmCountdown()", 1, true))
             assert.is_truthy(body:find("GC.Buy.TickCountdown()", 1, true))

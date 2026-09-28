@@ -201,6 +201,13 @@ describe("Sniper pin feedback and empty state", function()
       assert.matches("goldcap import", emptyText.text)
     end)
 
+    -- The isForever()-but-no-GC.ForeverScan case this used to cover cannot happen in game any
+    -- more (3c task 4): GC.ForeverScan.Enabled() -- the one flag every Forever path gates on,
+    -- Core/ForeverScan.lua's own reading of GC.Game.IsForever -- is checked first in
+    -- _UpdateEmptyState and answers before OriginState() is even asked. The Forever board's own
+    -- empty states ("No deals in your last scan.", "No scan of this auction house yet.") are
+    -- covered in spec/forever_deals_board_spec.lua.
+
     it("names the hidden and refused counts when the filters emptied the board", function()
       local GC, _, emptyText = loadSniper()
       GC.db.imported = { ts = 990 }

@@ -552,18 +552,38 @@ end
 -- always; match mode was the only one that ever worked, because it posts at the ask itself.
 -- ---------------------------------------------------------------------------
 
--- One silver, in copper -- the smallest unit PostCommodity/PostItem will ever accept.
+-- One silver, in copper -- the smallest unit PostCommodity/PostItem will ever accept on a
+-- client without copper-level prices. Retail's own grid, unconditionally -- see PriceStep for
+-- the one place that ever departs from it.
 GC.Flips.SILVER = 100
 
---- Rounds `copper` DOWN to the nearest whole silver -- the direction that keeps an undercut as
--- cheap as the grid allows without ever landing above the ask it is undercutting. The result is
--- then clamped UP to GC.Flips.SILVER when that would put it below one silver: a price under one
--- silver cannot be posted at all, so 100 copper is the floor of the whole grid, not a rounding
--- preference that could ever produce less.
+--- The auction house's own price granularity, read fresh on every call (the same shape as every
+-- other capability probe in this addon -- Core/ForeverCheck.lua's `has`): 1 copper where the
+-- CLIENT reports it can post copper-level commodity prices, GC.Flips.SILVER (retail's grid)
+-- everywhere else. Gated on the capability, not on which game this is, per
+-- C_AuctionHouse.SupportsCopperValues -- WoW: Forever's book carries copper remainders (67c,
+-- 68c...) that retail's whole-silver-only book structurally cannot (warcraft.wiki.gg, verbatim,
+-- on PostCommodity's unitPrice: "silently fails for non-zero copper counts" -- true on retail,
+-- not on a client this returns true for). Fails closed to the retail grid on anything else: no
+-- global, no function, a call that errors, or an answer that isn't `true`.
+function GC.Flips.PriceStep()
+  local ah = _G.C_AuctionHouse
+  if type(ah) == "table" and type(ah.SupportsCopperValues) == "function" then
+    local ok, supports = pcall(ah.SupportsCopperValues)
+    if ok and supports == true then return 1 end
+  end
+  return GC.Flips.SILVER
+end
+
+--- Rounds `copper` DOWN to the nearest step of GC.Flips.PriceStep() -- the direction that keeps
+-- an undercut as cheap as the grid allows without ever landing above the ask it is undercutting.
+-- The result is then clamped UP to the step when that would put it below the grid's own bottom
+-- rung: a price under one step cannot be posted at all, so the step is the floor of the whole
+-- grid, not a rounding preference that could ever produce less.
 --
 -- Fails closed -- returns nil -- on nil, a non-number, NaN, +-infinity, or a negative value.
 -- None of those describe a price; they describe a bug somewhere upstream. Clamping a negative or
--- garbage input up to a plausible-looking 100 would hide that bug behind a real auction, so this
+-- garbage input up to a plausible-looking step would hide that bug behind a real auction, so this
 -- declines instead. Every caller in this file already treats a nil candidate the same way it
 -- treats "nothing to recommend," so nil propagates safely rather than crashing or posting at a
 -- guessed number.
@@ -572,7 +592,8 @@ function GC.Flips.SilverDown(copper)
       or copper == -math.huge or copper < 0 then
     return nil
   end
-  return math.max(GC.Flips.SILVER, math.floor(copper / GC.Flips.SILVER) * GC.Flips.SILVER)
+  local step = GC.Flips.PriceStep()
+  return math.max(step, math.floor(copper / step) * step)
 end
 
 --- As GC.Flips.SilverDown, but rounds UP -- the direction the floor override below needs: it
@@ -583,7 +604,28 @@ function GC.Flips.SilverUp(copper)
       or copper == -math.huge or copper < 0 then
     return nil
   end
-  return math.max(GC.Flips.SILVER, math.ceil(copper / GC.Flips.SILVER) * GC.Flips.SILVER)
+  local step = GC.Flips.PriceStep()
+  return math.max(step, math.ceil(copper / step) * step)
+end
+
+--- The listing duration index the player posts at: settings.sniper.postDuration, 1/2/3 (12/24/48 h
+-- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. UI/SellFrame.lua's postDuration and
+-- UI/SniperFrame.lua's depositFor keep their own copies ON PURPOSE: both run inside the Post and
+-- purchase clicks, and the beta's taint log flagged exactly a GoldCap table-field call made there
+-- ahead of the protected call. New code outside those clicks reads this one.
+function GC.Flips.PostDurationIndex()
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper
+  local value = settings and settings.postDuration
+  if value == 1 or value == 2 or value == 3 then return value end
+  return 2
+end
+
+--- What listing `quantity` units of a commodity costs up front at the player's post duration --
+-- the call UI/SniperFrame.lua's depositFor makes. nil when the client has no such API.
+function GC.Flips.CommodityDeposit(itemID, quantity)
+  local ah = _G.C_AuctionHouse
+  if type(ah) ~= "table" or type(ah.CalculateCommodityDeposit) ~= "function" then return nil end
+  return ah.CalculateCommodityDeposit(itemID, GC.Flips.PostDurationIndex(), quantity)
 end
 
 -- Overcut v2 (docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). The

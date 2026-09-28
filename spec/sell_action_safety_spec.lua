@@ -29,8 +29,43 @@ describe("Sell protected action state", function()
     return upvalue(render, "onPostClick"), upvalue(render, "onRepostClick")
   end
 
+  -- onPostClick no longer calls liveBagState directly for a non-commodity position (it goes
+  -- through clickSafeBagState's cache instead -- see SellFrame.lua's own comment on why), so
+  -- liveBagState is now clickSafeBagState's upvalue, not onPostClick's own. Every test here posts
+  -- a "commodity:42" position, which clickSafeBagState still hands straight to the real
+  -- liveBagState, so reaching it one hop further still reaches exactly what these tests stub.
   local function liveBagState(post)
-    return upvalue(post, "liveBagState")
+    return upvalue(upvalue(post, "clickSafeBagState"), "liveBagState")
+  end
+
+  -- Primes the cache resolvePostLocation reads (onPostClick never builds an ItemLocation itself
+  -- any more -- see SellFrame.lua's own comment on cacheBagLocation) and a matching C_Container
+  -- read, mirroring what a real paint would already have done before any of these specs click
+  -- Post directly with no render pass first.
+  local function primeLocation(post, positionKey, itemID, bag, slot, stackCount, location)
+    location = location or { bag = bag, slot = slot }
+    local cache = upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")
+    cache[positionKey] = { itemID = itemID, bag = bag, slot = slot, location = location }
+    local previousInfo = _G.C_Container and _G.C_Container.GetContainerItemInfo
+    _G.C_Container = _G.C_Container or {}
+    _G.C_Container.GetContainerItemInfo = function(b, s)
+      if b == bag and s == slot then return { itemID = itemID, stackCount = stackCount or 1, isBound = false } end
+      if previousInfo then return previousInfo(b, s) end
+      return nil
+    end
+    return location
+  end
+
+  local function setLiveBagState(post, value)
+    set(upvalue(post, "clickSafeBagState"), "liveBagState", value)
+    -- Same mirror as primeLocation above, run automatically: every stub here returns a fixed bag
+    -- state, so priming from that one sample is exactly what a real paint would have cached for
+    -- it before the click these specs fire directly.
+    local ok, sample = pcall(value)
+    if ok and type(sample) == "table" and sample.bag and sample.slot and sample.itemID and sample.positionKey then
+      primeLocation(post, sample.positionKey, sample.itemID, sample.bag, sample.slot,
+        sample.stackQty or sample.exactQty)
+    end
   end
 
   local function button()
@@ -95,7 +130,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     set(post, "startQuoteRefreshFor", function() end)
     post({ position = position(), action = button() })
@@ -124,7 +159,10 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    -- Overrides setLiveBagState's own auto-primed cache entry with this test's own `location`
+    -- table, so the reference-equality checks below (assert.equal, not assert.same) hold.
+    primeLocation(post, "commodity:42", 42, 0, 1, 1, location)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row); post(row); post(row)
@@ -153,6 +191,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(location, calls[1][1])
     assert.same({ 2, 5, 200 }, { calls[1][2], calls[1][3], calls[1][4] })
@@ -179,6 +218,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(3, calls[1][2])
   end)
@@ -203,13 +243,18 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(2, calls[1][2])
   end)
 
-  it("fails closed when a commodity bag slot cannot produce an ItemLocation", function()
+  -- Was: "fails closed when a commodity bag slot cannot produce an ItemLocation" -- the click
+  -- no longer builds one at all (see cacheBagLocation's own comment above liveBagState), so the
+  -- equivalent fail-closed case now is a position resolvePostLocation has no cache entry for: it
+  -- resolves live (a real paint would have painted it), but nothing painted it in this test, so
+  -- onPostClick must still refuse rather than build the location itself.
+  it("fails closed when the bag location cache has nothing for this position", function()
     local calls = 0
-    _G.ItemLocation = { CreateFromBagAndSlot = function() return nil end }
     _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
@@ -217,12 +262,68 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    -- Stubbed directly, not through setLiveBagState, which would prime the cache from the same
+    -- sample -- this test needs the cache to stay empty.
+    set(upvalue(post, "clickSafeBagState"), "liveBagState", function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
         itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     post({ position = position(), action = button(), renderEntryID = "entry:post:no-location" })
+    assert.equal(0, calls)
+  end)
+
+  -- Forever addon task 3a, itemlocation-fix-report.md: the cache pins a bag slot at paint time,
+  -- and the click only re-checks it with a plain C API (never rebuilding the location) -- so a
+  -- stack that moved between that paint and this click is refused, not silently re-resolved.
+  it("[Forever] refuses to post a commodity when the cached slot no longer holds this item (stack moved)", function()
+    local calls = 0
+    _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }
+    -- The cache's own anchor slot (1) no longer holds item 42 -- the player moved bags since the
+    -- last paint -- while slot 2 still carries enough for the aggregate liveBagState finds live,
+    -- so only the location step, not the aggregate quantity, is what refuses this.
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end,
+      GetContainerItemInfo = function(_, slot)
+        if slot == 2 then return { itemID = 42, stackCount = 5 } end
+        return { itemID = 999, stackCount = 3 }
+      end,
+    }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 5, unitPrice = 200 } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    -- Pinned at the paint's own bag/slot directly (not primeLocation, which would also rewrite
+    -- GetContainerItemInfo for that slot and defeat the point of this test).
+    upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")["commodity:42"] =
+      { itemID = 42, bag = 0, slot = 1, location = { bag = 0, slot = 1 } }
+    post({ position = position(), action = button(), renderEntryID = "entry:post:moved-stack" })
+    assert.equal(0, calls)
+  end)
+
+  it("[Forever] refuses to post a normal item when its cached slot no longer holds enough of it", function()
+    local calls = 0
+    _G.C_AuctionHouse = { PostItem = function() calls = calls + 1 end }
+    -- The cached slot (0,2) now holds only 1, not the 3 the plan needs -- sold or moved since
+    -- the last paint.
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end,
+      GetContainerItemInfo = function(_, slot) return slot == 2 and { itemID = 42, stackCount = 1 } or nil end,
+    }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "item:42:100:7:0",
+        scopeKey = "eu\1A-R\1item:42:100:7:0", itemID = 42, quantity = 3, unitPrice = 200 } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
+    local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
+    upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")["item:42:100:7:0"] =
+      { itemID = 42, bag = 0, slot = 2, location = { bag = 0, slot = 2 } }
+    post({ position = p, action = button(), renderEntryID = "entry:post:variant-moved" })
     assert.equal(0, calls)
   end)
 
@@ -242,7 +343,7 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     local bagState = { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
       itemID = 42, positionKey = "commodity:42" }
-    set(post, "liveBagState", function() return bagState end)
+    setLiveBagState(post, function() return bagState end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:moved" }
 
@@ -273,6 +374,10 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
     local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
+    -- The cache pins the later stack directly: onPostClick's non-commodity path only re-checks
+    -- the bag/slot the cache already resolved (clickSafeBagState), it never re-runs the
+    -- GC.Sell._SlotKey matching that picked it -- that only happens at paint time now.
+    primeLocation(post, "item:42:100:7:0", 42, 0, 2, 5)
     post({ position = p, action = button(), renderEntryID = "entry:post:variant" })
     assert.equal(2, calls[1][1].slot)
     assert.equal(2, calls[1][2])
@@ -291,7 +396,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
@@ -317,7 +422,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     GC.Sell.Refresh = function() end
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
@@ -335,7 +440,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position()
     post({ position = p, action = button() })
@@ -362,7 +467,7 @@ describe("Sell protected action state", function()
     }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -395,7 +500,7 @@ describe("Sell protected action state", function()
     }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -422,7 +527,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     set(post, "startQuoteRefreshFor", function() refreshes = refreshes + 1 end)
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
@@ -442,7 +547,7 @@ describe("Sell protected action state", function()
     }, Acquisitions = { RecordPost = function() records = records + 1 end } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row)
@@ -466,7 +571,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return position() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal(0, cancelCalls)
@@ -508,7 +612,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return { positionKey = "commodity:42", scopeKey = "other", ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 1 } } } end)
     local p = position(); p.scopeKey = "mine"
     local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7); row.repostReady = true; repost(row, 7)
@@ -551,7 +654,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return position() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     row.repostReady = true
@@ -576,7 +678,11 @@ describe("Sell protected action state", function()
     local cancelCalls, cancelID = 0, nil
     _G.C_AuctionHouse = {
       CancelAuction = function(auctionID) cancelCalls = cancelCalls + 1; cancelID = auctionID end,
-      GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+      -- A real-shaped owned auction (itemID, isCommodity, quantity, unitPrice), not the bare
+      -- {auctionID=7} the pre-C2 fix's composePositions(true)/currentPosition stub let stand in
+      -- for: the confirming click now validates the armed lot against exactly what real
+      -- NormalizeOwnedLots turns this into.
+      GetOwnedAuctions = function() return { { auctionID = 7, itemID = 42, isCommodity = true, quantity = 1, unitPrice = 200 } } end,
     }
     local quote = { unit = 200, at = 100 }
     local function overcutPosition()
@@ -585,14 +691,14 @@ describe("Sell protected action state", function()
         ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 200 } },
         recommendation = { action = "repost", rec = { mode = "overcut", unit = 11500, ahead = 12 } } }
     end
-    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end } }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end },
+      Acquisitions = { PositionKey = function(itemID) return ("commodity:%d"):format(itemID) end } }
     -- The REAL BuildRepostPlan/NormalizeOwnedLots, not a stub: a double that just passes
     -- fresh.unit through would prove nothing about the guard this test exists to protect.
     GC = helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    set(repost, "currentPosition", function() return overcutPosition() end)
     local row = { position = overcutPosition(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal("armed", row.repostStage)
@@ -684,11 +790,6 @@ describe("Sell protected action state", function()
       helper.loadModule("UI/SellFrame.lua", GC)
       local _, repost = handlers(GC)
       set(repost, "composePositions", function() end)
-      set(repost, "currentPosition", function()
-        local p = position()
-        p.ownedLots[1].unitPrice = case.unit
-        return p
-      end)
       local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
       repost(row, 7)
       row.repostReady = true
@@ -794,7 +895,7 @@ describe("Sell protected action state", function()
     GC.QuoteCache.Fresh = function() return quote end
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -844,7 +945,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -975,7 +1076,7 @@ describe("Sell protected action state", function()
       itemLevels = function() return nil end,
     }
     set(post, "driver", refreshDriver)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
         itemID = 42, positionKey = "commodity:42" }
     end)
@@ -1194,7 +1295,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -1233,7 +1334,7 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    set(post, "liveBagState", function()
+    setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -1274,8 +1375,6 @@ describe("Sell protected action state", function()
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
-    local live = position(); live.scopeKey = "eu\1A-R\1commodity:42"
-    set(repost, "currentPosition", function() return live end)
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)

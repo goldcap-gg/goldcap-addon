@@ -253,3 +253,40 @@ function GC.ImportString.ParseRegion(str)
   if result.counts.items == 0 then return nil, "no_items" end
   return result
 end
+
+-- WoW: Forever: every player's scans for one market, as the Companion writes it into the Forever
+-- install's GoldCap_AppData.foreverString. The site's grammar (plan 2a, Task 9):
+--   GCF1;<slug>;<regionId>;<realm>;<faction or ->;<ts>;I:<id>=<min>=<ah>=<mv>=<p50>=<qty>=<scanners>=<age>[=g],...
+-- The realm has % ; , = : | percent-escaped. mv and p50 may be empty. age is minutes before ts.
+-- Every token is matched whole and anchored: a malformed one drops itself, never the payload.
+GC.ImportString.FOREVER_MAX_LEN = 2000000
+
+local function unescapeField(s)
+  return (s:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end))
+end
+
+function GC.ImportString.ParseForever(str)
+  if type(str) ~= "string" then return nil, "empty" end
+  if #str > GC.ImportString.FOREVER_MAX_LEN then return nil, "too_long" end
+  local slug, regionId, realm, faction, ts, rest = str:match("^GCF1;([%l%d%-]+);(%d+);([^;]*);([^;]*);(%d+);(.*)$")
+  if not slug then return nil, "bad_header" end
+  local result = { slug = slug, regionId = tonumber(regionId), realm = unescapeField(realm),
+    faction = faction ~= "-" and faction ~= "" and faction or nil, ts = tonumber(ts), items = {}, count = 0 }
+  for section in rest:gmatch("[^;]+") do
+    local kind, body = section:match("^(%u):(.*)$")
+    if kind == "I" then
+      for token in body:gmatch("[^,]+") do
+        local id, min, ah, mv, p50, qty, w, age, g =
+          token:match("^(%d+)=(%d+)=(%d+)=(%d*)=(%d*)=(%d+)=(%d+)=(%d+)=?(g?)$")
+        if id then
+          result.items[tonumber(id)] = { min = tonumber(min), ah = tonumber(ah), mv = tonumber(mv),
+            p50 = tonumber(p50), qty = tonumber(qty), w = tonumber(w), age = tonumber(age),
+            gear = g == "g" or nil }
+          result.count = result.count + 1
+        end
+      end
+    end
+  end
+  if result.count == 0 then return nil, "no_items" end
+  return result
+end

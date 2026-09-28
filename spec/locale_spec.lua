@@ -182,4 +182,90 @@ describe("locale layer", function()
     assert.equal("enUS", GC.ResolveLocale("auto", "enGB"))
     assert.equal("enUS", GC.ResolveLocale("auto", "xxXX"))
   end)
+
+  -- Owner rule: i18n in all twelve. The contract spec lets a key fall back to English; these may
+  -- not. The 3b follow-up key and every key plan 3c added.
+  it("carries the Forever keys in all twelve languages", function()
+    local keys = {
+      "Queue ready — press POST again to post it",
+      "What this buy would make is under your minimum profit.",
+      "Below vendor", "Under market",
+      " · buy at %s or less, vendor pays %s", " · buy at %s or less, AH value %s",
+      "Buy at or under %s: a vendor pays %s each. This buy makes %s.",
+      "Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit.",
+      "No deals in your last scan.",
+      "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
+      "No scan of this auction house yet.",
+      "GoldCap scans when you open the auction house; SCAN on this board scans again.",
+      "under the vendor price -- click Buy to purchase",
+      "far under the market, resale speed unknown -- click Buy to purchase",
+      "AH value",
+      "no live price", "NO LIVE PRICE YET", "Checking prices — waiting for the Auction House…",
+      "last live price %s ago",
+      "Press Buy again to buy this quantity",
+      "%ds", "%dm", "%dh", "%dd",
+      -- Final review m5: four of 3c's keys the list had missed.
+      "This lot holds more units than your Max units per buy.",
+      "sure profit: a vendor pays %s each",
+      "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
+      "Checked against the live auction house a moment ago.",
+      -- Task S: the settings panel's own Forever min-profit row and its vendor-wallet note.
+      "Min profit per buy (copper)",
+      "While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead.",
+    }
+    for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
+        "ukUA", "zhCN", "zhTW" }) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
+
+  -- Plan 3e (Road to 40, AH Upgrade Finder, loot recorder): every key it added, in every file.
+  it("carries the plan 3e keys in all twelve languages", function()
+    local keys = {
+      "ROAD TO 40",
+      "Road to 40: %s of %s (gold %s, bags %s).",
+      "Road to 40: you have %s (gold %s, bags %s).",
+      "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
+      "At your pace you reach it at level %d.",
+      "At your pace you will be %s short at level 40.",
+      "You can pay for it now.",
+      "Play a little longer for an estimate of your pace.",
+      "Your gold has not grown lately, so there is no pace to estimate.",
+      "Items in your bags that fetch more on the auction house than at a vendor: %d (%s more).",
+      "Mount cost set to %s.",
+      "Mount cost cleared.",
+      "Could not read that amount. Type it like 12g 50s.",
+      "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
+      "Gear upgrades on the auction house",
+      "From your scan %s ago. Counts only %s. Change with /gc weights.",
+      "No scan with gear in it yet. Open the auction house and let GoldCap scan it.",
+      "Nothing on the auction house beats what you wear at your level.",
+      "at level %d",
+      "Items still loading: %d. Open this again in a moment.",
+      "This client does not report item stats, so GoldCap cannot compare gear.",
+      "No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5",
+      "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
+      "Stat weights: %s",
+      "Unknown stat %s. Use one of: %s",
+      "GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop.",
+      "Loot counting is on.",
+      -- Final review fix dispatch, M7: the off message also points at the new /gc loot clear.
+      "Loot counting is off. Type /gc loot clear to remove what was recorded.",
+      "Loot record cleared.",
+    }
+    for _, code in ipairs({ "enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU",
+        "ukUA", "zhCN", "zhTW" }) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
 end)

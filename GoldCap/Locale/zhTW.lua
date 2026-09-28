@@ -48,6 +48,8 @@ GC.Locales.zhTW = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合計 %s -> %s",
   ["%s after the AH cut"] = "扣除拍賣場手續費後 %s",
   ["%s ahead"] = "前面有 %s",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s 需要一個數字，例如 /gc weights %s 1.5",
+  ["%s of %s — gold %s, bags %s"] = "%s / %s — 金幣 %s，背包 %s",
   ["%s under you"] = "%s 低於你的價格",
   ["%s units in %d prices"] = "%s 件 · %d 個價位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
@@ -63,6 +65,8 @@ GC.Locales.zhTW = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
+  ["AH value"] = "拍賣場估價",
+  ["AH, cheapest version"] = "拍賣場，最便宜版本",
   ["ASKING"] = "開價",
   ["AT MARKET"] = "依市價",
   ["AUTO"] = "自動",
@@ -73,6 +77,8 @@ GC.Locales.zhTW = {
     "24 小時漲幅超過這個數值時，市場價會被視為暴漲並被壓低。",
   ["Above your price -- quoted %s, your price %s"] = "高於你的價格 -- 報價 %s，你的價格 %s",
   ["Asks for a second click to confirm."] = "需要再點一次確認。",
+  ["At your pace you reach it at level %d."] = "照你的速度，你會在 %d 級存夠。",
+  ["At your pace you will be %s short at level 40."] = "照你的速度，到 40 級時還差 %s。",
   ["At your price"] = "達到你的價格",
   ["Auction House did not answer — press Refresh"] = "拍賣場沒有回應 — 請按 Refresh",
   ["Auction House is not open"] = "拍賣場未開啟",
@@ -84,6 +90,8 @@ GC.Locales.zhTW = {
   ["BRAKES"] = "煞車",
   ["BUY — unverified"] = "買入 — 未驗證",
   ["Background check"] = "背景檢查",
+  ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
+    "暴雪尚未公布騎術費用。輸入 /gc mount 加上你預計的費用。",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "保本價是扣掉拍賣場抽成後仍能收回成本的最低價。低於它就是虧錢。",
   ["Bundled %s data"] = "內建 %s 資料",
@@ -118,6 +126,7 @@ GC.Locales.zhTW = {
   ["Checked against the live order book a moment ago."] = "剛剛與即時掛單簿核對過。",
   ["Checked: %d of the top %d on screen"] = "已檢查：%d 筆（畫面前 %d 筆中）",
   ["Checking prices…"] = "正在檢查價格…",
+  ["Checking prices — waiting for the Auction House…"] = "正在檢查價格 — 等待拍賣場…",
   ["Checking this item's price…"] = "正在檢查這個道具的價格…",
   ["Checking..."] = "正在核對...",
   ["Clear to buy"] = "可以買入",
@@ -135,6 +144,34 @@ GC.Locales.zhTW = {
   ["Cost per unit"] = "每件成本",
   ["Cost unknown for %d of %d"] = "成本未知：%d 筆 / 共 %d 筆",
   ["Costs more than your per-buy wallet limit allows."] = "花費超過你設定的單次購買上限。",
+  ["Could not read that amount. Type it like 12g 50s."] = "無法辨識這個金額。請這樣輸入：12g 50s。",
+  ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "來自你 %s 前的掃描。只計算 %s。用 /gc weights 修改。",
+  ["Gear upgrades on the auction house"] = "拍賣場上的裝備升級",
+  ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
+    "GoldCap 現在會統計你拾取的掉落（不含任何名字），用於 goldcap.gg 的掉落率。該部分發布後由 Companion 分享。輸入 /gc loot off 可停止。",
+  ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
+    "背包中在拍賣場比賣給商人更值錢的物品：%d 件（多 %s）。",
+  ["Items still loading: %d. Open this again in a moment."] = "仍在載入的物品：%d 件。請稍後再打開。",
+  ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
+    "掉落統計已關閉。輸入 /gc loot clear 可刪除已記錄的內容。",
+  ["Loot counting is on."] = "掉落統計已開啟。",
+  ["Loot record cleared."] = "掉落記錄已清除。",
+  ["Mount cost cleared."] = "坐騎費用已清除。",
+  ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
+  ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
+    "還沒有包含裝備的掃描。打開拍賣場，讓 GoldCap 掃描。",
+  ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
+    "你的職業還沒有屬性權重。這樣設定：/gc weights STR 1 STA 0.5",
+  ["Nothing on the auction house beats what you wear at your level."] = "在你的等級，拍賣場上沒有比你身上更好的裝備。",
+  ["Play a little longer for an estimate of your pace."] = "再玩一會兒，才能估算你的速度。",
+  ["ROAD TO 40"] = "40級之路",
+  ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 邁向 40 級：我的坐騎 %s / %s（%d%%）。",
+  ["Road to 40: %s of %s (gold %s, bags %s)."] = "40級之路：%s / %s（金幣 %s，背包 %s）。",
+  ["Road to 40: you have %s (gold %s, bags %s)."] = "40級之路：你有 %s（金幣 %s，背包 %s）。",
+  ["Stat weights: %s"] = "屬性權重：%s",
+  ["This client does not report item stats, so GoldCap cannot compare gear."] = "此用戶端不提供物品屬性，GoldCap 無法比較裝備。",
+  ["This lot holds more units than your Max units per buy."] =
+    "此拍賣的數量超過了你的「單次購買最大數量」。",
   ["Could not find the queue's next item to post — try again"] =
     "找不到佇列中下一個要上架的道具 — 請再試一次",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -216,6 +253,7 @@ GC.Locales.zhTW = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "語言已變更。輸入 /reload 讓它套用到所有地方。",
   ["Last post may still go up -- wait a minute"] = "上次上架可能仍會成功 -- 請等一分鐘",
+  ["Level 40 reached: %s to go."] = "已達到 40 級：還差 %s。",
   ["Last result: %ds ago"] = "上次結果：%d 秒前",
   ["Last result: none yet this visit"] = "上次結果：這次還沒有",
   ["Listed"] = "在售數量",
@@ -236,10 +274,17 @@ GC.Locales.zhTW = {
   ["Max units per buy"] = "單次購買最大數量",
   ["Max wallet per buy %"] = "單次購買最大資金佔比 %",
   ["Min profit per buy (gold)"] = "單次購買最低利潤（金）",
+  ["Min profit per buy (copper)"] = "單次購買最低利潤（銅）",
+  ["Unknown stat %s. Use one of: %s"] = "未知屬性 %s。請使用以下之一：%s",
+  ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
+    "拍賣場上的裝備升級：%d 件。輸入 /gc upgrades 查看。",
+  ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "只要該值保持預設的 5%，按商人價格計算的線索最多可使用你錢包的一半。",
   ["Min return per buy %"] = "單次購買最低回報率 %",
   ["Missing cost"] = "缺少成本",
+  ["NO LIVE PRICE YET"] = "尚無即時價格",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "尚未同步到 GOLDCAP.GG — /RELOAD 或登出時同步",
+  ["YOUR SALES"] = "你的銷售",
   ["NOT ON HAND %d"] = "不在手邊 %d",
   ["NOTHING TO CANCEL"] = "沒有可取消的",
   ["NOTHING TO POST"] = "沒有可上架的",
@@ -265,6 +310,7 @@ GC.Locales.zhTW = {
   ["Not in your bags or listed — mail or bank?"] = "不在背包也未上架 — 在信箱或銀行嗎？",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "不在手邊 — 存貨在信箱、銀行或其他角色身上",
+  ["Not worth the deposit on the AH"] = "不值得支付拍賣場手續費",
   ["Nothing is being held back."] = "沒有任何項目被保留。",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "買完之後沒有可對手的掛單，也就沒有出貨價。",
@@ -326,9 +372,11 @@ GC.Locales.zhTW = {
   ["Profit per unit"] = "每件利潤",
   ["Profit tracking is a goldcap.gg Pro feature"] = "利潤追蹤是 goldcap.gg Pro 功能",
   ["Purchases are turned off in this build."] = "該版本中已關閉購買功能。",
+  ["Press Buy again to buy this quantity"] = "再次點擊購買以購買此數量",
   ["QTY"] = "數量",
   ["Quantity exceeds missing units"] = "數量超過缺少的件數",
   ["Quantity is capped by how fast this item actually sells."] = "數量受限於該物品實際的出貨速度。",
+  ["Queue ready — press POST again to post it"] = "佇列已就緒 — 再次點擊上架即可上架",
   ["REALIZED PROFIT"] = "已實現利潤",
   ["REFRESH"] = "重新整理",
   ["RESET WINDOW"] = "重設視窗",
@@ -360,8 +408,13 @@ GC.Locales.zhTW = {
   ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 筆購買",
   ["SHOW DETAILS ▸"] = "顯示細節 ▸",
   ["Sales are costed from your oldest units first"] = "販售成本自最舊的存貨先扣",
+  ["%d bag items sell for more on the AH (+%s)"] = "%d 件背包物品在拍賣場更值錢（+%s）",
   ["Search"] = "搜尋",
+  ["Set the riding cost: /gc mount 90g"] = "設定坐騎費用：/gc mount 90g",
   ["Sales evidence"] = "銷售可信度",
+  ["Sell it on the AH"] = "在拍賣場出售",
+  ["Sell it on the AH (deposit not counted)"] = "在拍賣場出售（未計手續費）",
+  ["Sell it to a vendor"] = "賣給商人",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "當掛單簿顯示賣得一樣快時，出售標籤會掛在最低價上方一級。",
   ["Sell-through"] = "售罄率",
@@ -377,6 +430,7 @@ GC.Locales.zhTW = {
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序決定先檢查什麼，而不是決定買什麼。",
   ["Sound on SAFE deal"] = "SAFE 交易時播放提示音",
+  ["Source"] = "來源",
   ["Source age"] = "資料年齡",
   ["Spike-trend threshold %"] = "暴漲門檻 %",
   ["Start scanning as soon as the auction house opens."] = "一進入拍賣場就立即開始掃描。",
@@ -417,6 +471,8 @@ GC.Locales.zhTW = {
   ["The price moved and the trade is no longer safe."] = "價格變動了，這筆交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手續費和上架費後，利潤達不到你設定的下限。",
+  ["What this buy would make is under your minimum profit."] =
+    "這筆購買帶來的利潤低於你設定的最低利潤。",
   ["There is no undo. Clicking asks for a second click to confirm."] = "無法復原。點擊後需再點一次確認。",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "這是伺服器物品，而 GoldCap 只校驗商品類價格。",
@@ -469,14 +525,24 @@ GC.Locales.zhTW = {
   ["Worst case back"] = "最壞情況回款",
   ["YOUR LOTS"] = "你的上架",
   ["YOUR PRICE"] = "你的價格",
+  ["You can pay for it now."] = "你現在就付得起。",
+  ["You have %s — gold %s, bags %s"] = "你有 %s — 金幣 %s，背包 %s",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
   ["You would get"] = "你會拿回",
   ["You would pay"] = "你會支付",
   ["Your call"] = "由你決定",
+  ["Your gold has not grown lately, so there is no pace to estimate."] = "你的金幣最近沒有增加，所以無法估算速度。",
   ["Your minimum"] = "你的最低要求",
   ["Your price"] = "你的價格",
   ["a unit, at or under your price of %s"] = "單價，不高於你的價格 %s",
+  ["at level %d"] = "%d 級可用",
+  ["sure profit: a vendor pays %s each"] =
+    "穩賺：商人每件收購 %s",
+  ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
+    "按你掃描的拍賣場估價每件 %s 轉售，扣除 5%% 手續費和押金；速度未知",
+  ["Checked against the live auction house a moment ago."] =
+    "剛剛已對照即時拍賣場核對。",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "高於最低價，處於低價四分位內 · 前面有 %s 件",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
@@ -530,6 +596,8 @@ GC.Locales.zhTW = {
   ["full scan stalled -- retrying shortly"] = "完整掃描停住了 -- 稍後重試",
   ["full scan stopped -- press %s to run it again"] = "完整掃描已停止 -- 按 %s 重新執行",
   ["gone / price changed"] = "已消失 / 價格已變",
+  ["goldcap.gg prices for WoW: Forever are not out yet."] =
+    "WoW: Forever 的 goldcap.gg 價格還未上線。",
   ["strong"] = "高",
   ["hold"] = "持有",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -554,6 +622,7 @@ GC.Locales.zhTW = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小時 — %d 筆販售、總額 %s、手續費 %s、%d 筆購買、支出 %s",
+  ["last live price %s ago"] = "最近即時價格，%s前",
   ["leave these alone"] = "這些不用動",
   ["level %d"] = "等級 %d",
   ["listing gone -- already bought out or price changed"] = "上架已消失 -- 已被買走或價格已變",
@@ -571,10 +640,10 @@ GC.Locales.zhTW = {
   ["no cost"] = "無成本",
   ["no cost for %d"] = "%d 件無成本",
   ["no live price yet"] = "還沒有即時價格",
+  ["no live price"] = "無即時價格",
   ["no live quote yet — pricing…"] = "尚無即時報價 — 正在定價…",
   ["no market figure for caged pets"] = "籠中寵物沒有市場資料",
   ["no market figure for this item level"] = "此物品等級沒有市場資料",
-  ["no price"] = "無價格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "還沒有價格 -- /goldcap companion 或 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] = "沒有收到購買確認 -- 按 Cancel 後重試",
@@ -648,7 +717,6 @@ GC.Locales.zhTW = {
   ["sniped (listing changed on rescan)"] = "已被搶先（重新掃描時上架已變）",
   ["sniped for "] = "搶到，花費 ",
   ["stack not identified"] = "未識別的堆疊",
-  ["stale"] = "已過時",
   ["starting full scan..."] = "開始完整掃描...",
   ["stopped watching %s"] = "已停止關注 %s",
   ["the Companion wrote prices this addon could not read --"] =
@@ -681,6 +749,7 @@ GC.Locales.zhTW = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
   ["your price is above every level shown"] = "你的價格高於所有顯示的價位",
+  ["your scan, %s ago"] = "你的掃描，%s前",
   ["yours"] = "你的",
   ["yours ×%s"] = "你的 ×%s",
   ["~%dd to reach you"] = "約 %d 天輪到你",
@@ -750,4 +819,68 @@ GC.Locales.zhTW = {
     "Companion 寫入的是空資料 -- 請等它再次同步後執行 /reload",
   ["the Companion wrote it with no prices -- let it sync, then /reload"] =
     "Companion 寫入的資料不含任何價格 -- 請等它再次同步後執行 /reload",
+  ["Scanning the auction house…"] = "正在掃描拍賣場…",
+  ["%s lots scanned -- shared on your next /reload"] = "已掃描 %s 個拍賣項 -- 將於下次 /reload 時共享",
+  ["%s lots scanned and saved"] = "已掃描並儲存 %s 個拍賣項",
+  ["%s items scanned -- shared on your next /reload"] = "已掃描 %s 件物品 -- 將於下次 /reload 時共享",
+  ["%s items scanned and saved"] = "已掃描並儲存 %s 件物品",
+  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
+    "完整掃描仍在冷卻中(還剩 %d 分鐘) -- 期間改用瀏覽方式掃描",
+  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
+    "拍賣場未回應完整掃描 -- 改用瀏覽方式掃描",
+  ["reading the auction house: %s of %s lots"] = "正在讀取拍賣場:%s / %s 個拍賣項",
+  ["The scan found nothing to save"] = "掃描沒有找到可儲存的內容",
+  ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
+    "掃描整個拍賣場以取得價格:完整清單最多每 15 分鐘一次,期間透過瀏覽進行掃描。開啟拍賣場時 GoldCap 也會自動掃描。",
+  -- Core/ForeverValue.lua's PrintBags/BagTotals and Core/PostQueue.lua's below_vendor: the
+  -- POST queue holding back what a vendor pays at least as much for.
+  ["Your bags: %s at a vendor, %s on the AH after its cut"] =
+    "你的背包:%s 賣給商人,%s 在拍賣場(已扣除手續費)",
+  ["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."] =
+    "出售標籤的上架按鈕會列出所有價值高於商人收購價的物品,每次點擊上架一件。",
+  ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
+    "你的背包:%s 賣給商人。掃描拍賣場以查看在那裡能賣多少。",
+  ["a vendor pays more -- sell it there"] =
+    "商人出價更高 -- 賣給他",
+  ["vendor pays more"] =
+    "商人出價更高",
+  ["Below vendor"] =
+    "低於商人收購價",
+  ["Under market"] =
+    "低於市場價",
+  [" · buy at %s or less, vendor pays %s"] =
+    " · %s 或更低購買，商人收購價 %s",
+  [" · buy at %s or less, AH value %s"] =
+    " · %s 或更低購買，拍賣場估價 %s",
+  ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
+    "以 %s 或更低購買：商人每件收購價 %s。這次購買可賺 %s。",
+  ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
+    "以 %s 或更低購買：拍賣場估價（上架數量中最便宜的十分之一的要價）為 %s。轉售速度未知，因此比商人交易更冒險。扣除 5%% 手續費和押金後，這次購買可賺約 %s。",
+  ["under the vendor price -- click Buy to purchase"] =
+    "低於商人收購價 -- 按 Buy 購買",
+  ["far under the market, resale speed unknown -- click Buy to purchase"] =
+    "遠低於市場價，轉售速度未知 -- 按 Buy 購買",
+  ["No deals in your last scan."] =
+    "上次掃描沒有交易。",
+  ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
+    "GoldCap 會尋找定價低於價值的物品。點擊掃描可再次掃描。",
+  ["No scan of this auction house yet."] =
+    "這個拍賣場還沒有掃描過。",
+  ["GoldCap scans when you open the auction house; SCAN on this board scans again."] =
+    "開啟拍賣場時 GoldCap 會掃描；點擊此看板上的掃描可再次掃描。",
+  ["In WoW: Forever, GoldCap's prices come from your own auction house scans."] =
+    "在 WoW: Forever 中，GoldCap 的價格來自你自己對拍賣場的掃描。",
+  ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
+    "開啟拍賣場，GoldCap 會為你掃描；在交易分頁點擊掃描可以再次掃描。",
+  ["%ds"] = "%d秒",
+  ["%dm"] = "%d分鐘",
+  ["%dh"] = "%d小時",
+  ["%dd"] = "%d天",
+  -- WoW: Forever crowd prices (UI/Tooltip.lua, plan 3d).
+  ["1 scanner, %s ago"] = "1 位掃描者，%s前",
+  ["%d scanners, %s ago"] = "%d 位掃描者，%s前",
+  ["resale at the AH value of players' scans, %s each, after the 5%% cut and deposit; speed unknown"] = "按玩家掃描的拍賣場估價每件 %s 轉售，扣除 5%% 手續費和押金；速度未知",
+  ["Shared with goldcap.gg on your next /reload"] = "將在你下次 /reload 時分享到 goldcap.gg",
+  ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的掃描結果保存在這台電腦上。GoldCap Companion 會把它們分享到 goldcap.gg，並帶回所有人的價格。",
+  ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 會在每次 /reload 後把你的掃描分享到 goldcap.gg，並帶回所有人的價格。",
 }

@@ -48,16 +48,19 @@ end
 
 -- Mirrors SellFrame's formatAmount: plain "65g24s" text, coin icons only
 -- below one gold (icon escapes truncate mid-escape in clipped FontStrings).
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g) -- a sale total can pass
+-- that. `silver` stays on %d: it is bounded 0-99 by the mod above.
 local function formatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
-  return GetCoinTextureString(amount)
+  return GC.Util.CoinText(amount)
 end
 
 -- `_G.date`, not a bare global: `date` is a WoW-injected global that is
@@ -79,6 +82,22 @@ local function buildEntries()
   local entries = {}
   local summary = GC.AppLedger and GC.AppLedger.GetSummary and GC.AppLedger.GetSummary()
   local now = time()
+  -- goldcap.gg keeps no Forever sales at all -- the Companion there reads only the Forever
+  -- scan -- so neither the pairing hint below nor the "not synced yet" section label are ever
+  -- true on Forever; both read differently there.
+  local isForever = GC.Game and GC.Game.IsForever and GC.Game.IsForever(GC.Game.Passport())
+  -- WoW: Forever: Road to 40 heads the tab (Core/ForeverRoad.lua) -- gold is what this tab is
+  -- about. SoldLines answers nil everywhere else, retail included, so nothing changes there.
+  -- Owner, Forever beta 2026-09-28: SoldLines' own lines are compact -- one row each, flush
+  -- with the ITEM column like a sale row's own name -- never the "hint" kind's centered,
+  -- word-wrapped box; that read as clutter above a tab about sales. Only the first line is
+  -- gold, matching what SoldLines itself already orders first (totals, then forecast, then the
+  -- AH-gain line, when there is one).
+  local road = GC.ForeverRoad and GC.ForeverRoad.SoldLines and GC.ForeverRoad.SoldLines()
+  if road then
+    entries[#entries + 1] = { kind = "section", text = GC.L["ROAD TO 40"] }
+    for i, line in ipairs(road) do entries[#entries + 1] = { kind = "road", text = line, gold = i == 1 } end
+  end
   -- The boundary is the newest `at` the snapshot's own sale rows prove the
   -- server holds (see the file header comment) -- not generatedAt. No
   -- summary, or a summary with no sales yet, proves nothing: every local
@@ -97,7 +116,7 @@ local function buildEntries()
       entries[#entries + 1] = { kind = "hint",
         text = GC.L["Profit tracking is a goldcap.gg Pro feature"] }
     end
-  else
+  elseif not isForever then
     entries[#entries + 1] = { kind = "hint",
       text = GC.L["Pair or update the GoldCap Companion to see profit from goldcap.gg"] }
   end
@@ -119,8 +138,11 @@ local function buildEntries()
   end
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
+    -- goldcap.gg never syncs a Forever sale at all (see isForever above), so the retail label's
+    -- promise that it will, on the next /reload, would be untrue there.
     entries[#entries + 1] = { kind = "section",
-      text = GC.L["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] }
+      text = isForever and GC.L["YOUR SALES"]
+        or GC.L["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -351,11 +373,13 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   setColor(row.cells.total, Theme.color.fg)
 end
 
--- heightFor: every row is one Theme.ROW_H line, except a hint -- those carry
--- a full sentence and word-wrap, so they get two lines' worth of room
--- (Deals' emptyText is the same idea: word-wrapped, muted, centered).
-local function heightFor(kind)
-  if kind == "hint" then return geometry.rowHeight * 2 end
+-- heightFor: every row is one Theme.ROW_H line, except a hint -- those carry a full sentence
+-- and word-wrap, so they get two lines' worth of room (Deals' emptyText is the same idea:
+-- word-wrapped, muted, centered). Road to 40's own rows (kind "road") are deliberately NOT a
+-- hint -- SoldLines composes single short lines now, one row each, so they fall through to the
+-- plain case below like a sale row does.
+local function heightFor(entry)
+  if entry.kind == "hint" then return geometry.rowHeight * 2 end
   return geometry.rowHeight
 end
 
@@ -407,7 +431,15 @@ local function paintRow(row, entry, index)
   local zc = Theme.color.zebra
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
-  if entry.kind == "hint" then
+  if entry.kind == "road" then
+    -- Road to 40's own compact rows (Core/ForeverRoad.lua's SoldLines): one short line, flush
+    -- with the ITEM column like a sale row's own name -- never centered or word-wrapped. Only
+    -- the first line (the totals) is gold; the forecast and AH-gain lines read muted, same
+    -- weight as every other supporting line on this tab.
+    row.item:SetJustifyH("LEFT")
+    row.item:SetText(entry.text)
+    setColor(row.item, entry.gold and Theme.color.gold or Theme.color.fgDim)
+  elseif entry.kind == "hint" then
     -- Centered, muted, in the list area -- Deals' empty-state language --
     -- rather than a top-left label. A hint can appear alongside real rows
     -- (the Pro notice sits above server rows that still render), so it
@@ -801,7 +833,7 @@ local function renderRows()
   local y = 0
   for i, entry in ipairs(listEntries) do
     local row = rows[i]
-    local h = heightFor(entry.kind)
+    local h = heightFor(entry)
     row:SetHeight(h)
     -- TOPLEFT + TOPRIGHT, not TOPLEFT plus a size fixed at creation (I2):
     -- the row's own width then always tracks content's, which
