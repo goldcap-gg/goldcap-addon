@@ -378,12 +378,15 @@ describe("Settings controls", function()
         assert.equal(3, GC.db.settings.sniper.postDuration)
       end)
 
-    -- Task S: only what a Forever code path actually reads shows -- BRAKES (dumpTrendPct/
-    -- spikeTrendPct/wallAbsorbHours, retail Evaluate-only), Min return per buy % (minimumRoi,
-    -- same reader) and capStopAndOpen (no Forever cap row ever exists, Core/Caps.lua) are gone
-    -- outright, not merely hidden behind something else -- and nothing they left behind leaves a
-    -- gap: DISPLAY still follows AUTOMATION & ALERTS with no card-shaped hole where BRAKES was.
-    it("hides BRAKES, Min return per buy % and the live-price-cap toggle, with no gap left behind",
+    -- Task S (V2: widened to Post above the cheapest): only what a Forever code path actually
+    -- reads shows -- BRAKES (dumpTrendPct/spikeTrendPct/wallAbsorbHours, retail Evaluate-only),
+    -- Min return per buy % (minimumRoi, same reader), capStopAndOpen (no Forever cap row ever
+    -- exists, Core/Caps.lua) and Post above the cheapest (overcut: the candidate it needs comes
+    -- from marketStats.p25/reach, and GC.ForeverScan.ValueFor never forwards a p25 or a reach
+    -- figure, so the toggle has no effect there) are gone outright, not merely hidden behind
+    -- something else -- and nothing they left behind leaves a gap: DISPLAY still follows
+    -- AUTOMATION & ALERTS with no card-shaped hole where BRAKES was.
+    it("hides BRAKES, Min return per buy %, the live-price-cap toggle and Post above the cheapest, with no gap left behind",
       function()
         GC.SettingsUI.Toggle()
         local titles = cardTitles(_G.GoldCapSniperFrame)
@@ -402,6 +405,7 @@ describe("Settings controls", function()
         assert.is_nil(labels["Spike-trend threshold %"])
         assert.is_nil(labels["Wall absorb window (hours)"])
         assert.is_nil(labels["Stop and open the buy window on your price"])
+        assert.is_nil(labels["Post above the cheapest"])
 
         -- Reachable in Forever (see SettingsFrame.lua's own comments on each): still built.
         assert.is_true(labels["Min profit per buy (copper)"])
@@ -411,7 +415,6 @@ describe("Settings controls", function()
         assert.is_true(labels["Buy cap (% of usual price)"])
         assert.is_true(labels["Sound on SAFE deal"])
         assert.is_true(labels["Auto-scan on next AH visit"])
-        assert.is_true(labels["Post above the cheapest"])
       end)
 
     it("shows the vendor-wallet carve-out as a grey note under Max wallet per buy %", function()

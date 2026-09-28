@@ -619,9 +619,10 @@ local function build(sniperFrame)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  -- Task S: one row fewer in Forever (capStopAndOpen, built below only on retail) -- DISPLAY is
-  -- anchored off AUTOMATION's own BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 3 or 4)
+  -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
+  -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
+  -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
+  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -847,14 +848,17 @@ local function build(sniperFrame)
   -- Sell tab overcut (Core/Flips.lua, RecommendPost): the highest occupied rung the item's
   -- floor still reaches within a day. Off = post at the cheapest ask.
   --
-  -- Task S: kept in Forever. Core/SellPositions.lua's decoratePosition reads this key
-  -- unconditionally on every client and threads it into OvercutCandidate as quarterUnit/
-  -- reachUnit. Concern for a later pass, not this task: GC.ForeverScan.ValueFor never forwards
-  -- the p25/levels its own fold already decodes (Core/ForeverFold.lua's `e.p25`), so that
-  -- candidate is nil for a pure-Forever item today and the toggle has no visible effect until
-  -- that gap closes -- it is still a real Forever-reachable read, just not yet a felt one.
-  toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
-    GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
+  -- V2: retail-only, same pattern as capStopAndOpen below. Core/SellPositions.lua's
+  -- decoratePosition threads this into OvercutCandidate as quarterUnit/reachUnit, built from
+  -- marketStats.p25/reach -- and GC.ForeverScan.ValueFor never forwards a p25 or a reach figure
+  -- (Forever's fold is one snapshot, not a 24h trend), so that candidate is always nil for a
+  -- pure-Forever item and the toggle has no effect there at all. The CHANGELOG promises Forever's
+  -- Settings shows only what applies -- one row fewer in AUTOMATION & ALERTS above reflows
+  -- DISPLAY up with no gap, same as the other three hidden rows.
+  if not isForeverClient() then
+    toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
+      GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
+  end
 
   -- Live price caps (Core/Caps.lua): the same stop-and-open reaction the row's own click
   -- already does, run automatically the first time a cap fires. Off by default -- see
