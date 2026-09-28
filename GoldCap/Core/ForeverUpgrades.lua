@@ -393,6 +393,12 @@ end
 
 -- "STR 2 DPS 0": each token set to its number, 0 removes it. nil and the offending text on a token
 -- it does not know or a number it cannot read -- then nothing is changed.
+-- Third return value: "novalue" only when a recognized token is the LAST word typed, nothing
+-- after it at all -- SlashWeights uses that to tell a real stat missing its number apart from a
+-- genuinely unrecognized word. A recognized token followed by a word that still is not a number
+-- ("STR lots") is not this case: `bad` there carries both words, same as an unknown token does,
+-- because a trailing word that parses as neither a stat nor a number is closer to nonsense than
+-- to "forgot the number".
 function GC.ForeverUpgrades.ApplyWeights(weights, rest)
   local words = {}
   for w in (rest or ""):gmatch("%S+") do words[#words + 1] = w end
@@ -401,7 +407,10 @@ function GC.ForeverUpgrades.ApplyWeights(weights, rest)
   for i = 1, #words, 2 do
     local token, value = words[i]:upper(), tonumber(words[i + 1] or "")
     if not GC.ForeverUpgrades.TOKENS[token] then return nil, words[i] end
-    if value == nil then return nil, words[i] .. (words[i + 1] and (" " .. words[i + 1]) or "") end
+    if value == nil then
+      if words[i + 1] == nil then return nil, words[i], "novalue" end
+      return nil, words[i] .. " " .. words[i + 1]
+    end
     new[token] = value ~= 0 and value or nil
   end
   return new
@@ -510,8 +519,12 @@ function GC.ForeverUpgrades.SlashWeights(rest)
     if type(prefs.weights) == "table" then prefs.weights[class] = nil end
     weights = GC.ForeverUpgrades.WeightsFor(prefs, class)
   elseif rest ~= "" then
-    local new, bad = GC.ForeverUpgrades.ApplyWeights(weights, rest)
+    local new, bad, reason = GC.ForeverUpgrades.ApplyWeights(weights, rest)
     if not new then
+      if reason == "novalue" then
+        GC.Print(GC.L["%s needs a number, for example /gc weights %s 1.5"]:format(bad, bad))
+        return
+      end
       GC.Print(GC.L["Unknown stat %s. Use one of: %s"]:format(bad,
         table.concat(GC.ForeverUpgrades.TOKEN_ORDER, ", ")))
       return

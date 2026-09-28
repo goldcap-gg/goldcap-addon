@@ -45,6 +45,7 @@ GC.Locales.ptBR = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidade    total %s -> %s",
   ["%s after the AH cut"] = "%s após a taxa da CdL",
   ["%s ahead"] = "%s à frente",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s precisa de um número, por exemplo /gc weights %s 1.5",
   ["%s under you"] = "%s abaixo de você",
   ["%s units in %d prices"] = "%s un. em %d preços",
   ["%s — %d unit%s without a cost"] = "%s — %d unidade%s sem custo",

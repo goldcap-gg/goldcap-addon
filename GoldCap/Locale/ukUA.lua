@@ -47,6 +47,7 @@ GC.Locales.ukUA = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s: потрібне число, наприклад /gc weights %s 1.5",
   ["%s under you"] = "%s дешевше за вас",
   ["%s units in %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",

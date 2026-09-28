@@ -48,6 +48,7 @@ GC.Locales.zhTW = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合計 %s -> %s",
   ["%s after the AH cut"] = "扣除拍賣場手續費後 %s",
   ["%s ahead"] = "前面有 %s",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s 需要一個數字，例如 /gc weights %s 1.5",
   ["%s under you"] = "%s 低於你的價格",
   ["%s units in %d prices"] = "%s 件 · %d 個價位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",

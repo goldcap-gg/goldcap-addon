@@ -47,6 +47,7 @@ GC.Locales.zhCN = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合计 %s -> %s",
   ["%s after the AH cut"] = "扣除拍卖行手续费后 %s",
   ["%s ahead"] = "前面有 %s",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s 需要一个数字，例如 /gc weights %s 1.5",
   ["%s under you"] = "%s 低于你的价格",
   ["%s units in %d prices"] = "%s 件 · %d 个价位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",

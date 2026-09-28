@@ -44,6 +44,7 @@ GC.Locales.frFR = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s l'unité    total %s -> %s",
   ["%s after the AH cut"] = "%s après la commission de l'HV",
   ["%s ahead"] = "%s devant",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s a besoin d'un nombre, par exemple /gc weights %s 1.5",
   ["%s under you"] = "%s sous ton prix",
   ["%s units in %d prices"] = "%s unités sur %d prix",
   ["%s — %d unit%s without a cost"] = "%s — %d unité%s sans prix d'achat",

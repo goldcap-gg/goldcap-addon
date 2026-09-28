@@ -307,6 +307,19 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(printed[1], printed[5])
   end)
 
+  -- V3: a valid token with nothing after it at all ("/gc weights STR") is a different mistake
+  -- than a genuinely unrecognized word -- calling STR "unknown" while listing it as a valid
+  -- option one comma later is self-contradictory. "STR lots" (a trailing word that is not a
+  -- number either) keeps the old message; only the lone-token case changes.
+  it("tells a valid stat typed with no number apart from a genuinely unknown one", function()
+    init(16001)
+    GC.ForeverUpgrades.SlashWeights("STR")
+    assert.equal("STR needs a number, for example /gc weights STR 1.5", printed[#printed])
+    GC.ForeverUpgrades.SlashWeights("STR lots")
+    assert.equal("Unknown stat STR lots. Use one of: STR, AGI, STA, INT, SPI, ARMOR, DPS, AP, SP",
+      printed[#printed])
+  end)
+
   it("asks for weights for a class it has none for", function()
     init(16001)
     _G.UnitClass = function() return "Tinker", "TINKER", 13 end

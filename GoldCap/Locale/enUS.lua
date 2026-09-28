@@ -54,6 +54,7 @@ GC.Locales.enUS = {
   ["%s ahead"] = "%s ahead",
   ["%s listed · %d min ago"] = "%s listed · %d min ago",
   ["%s listed · just now"] = "%s listed · just now",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s needs a number, for example /gc weights %s 1.5",
   ["%s under you"] = "%s under you",
   ["%s units in %d prices"] = "%s units in %d prices",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",

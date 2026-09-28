@@ -47,6 +47,7 @@ GC.Locales.esMX = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidad    total %s -> %s",
   ["%s after the AH cut"] = "%s tras la comisión de la CdS",
   ["%s ahead"] = "%s por delante",
+  ["%s needs a number, for example /gc weights %s 1.5"] = "%s necesita un número, por ejemplo /gc weights %s 1.5",
   ["%s under you"] = "%s por debajo de ti",
   ["%s units in %d prices"] = "%s uds. en %d precios",
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin costo",
