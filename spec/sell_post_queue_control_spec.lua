@@ -275,6 +275,58 @@ describe("Sell tab, the posting queue control", function()
       assert.equal(1, posts())
     end)
 
+    -- P1: a Cancel lot or a Remove armed on another row holds renderRows() to a no-op (its own
+    -- guard, above), so `rows` can still be whatever deck was on screen before the click. The
+    -- retail branch used to trust row 1's `kind == "position"` alone, so it posted that stale
+    -- row instead of refusing -- even though it was not the position the button (or the
+    -- keybinding) actually named as next.
+    describe("with a Remove armed elsewhere while row 1 is stale", function()
+      -- Widget (99001) is quoted and fully evidenced first, so it alone is postable and sorts to
+      -- row 1 (SellViewModel.Order ranks a priced position ahead of an unpriced one). A Remove is
+      -- armed on ITS OWN manual cost entry -- any armed row would hold the render, this one just
+      -- happens to be real -- and only THEN is Eternium Ore quoted too: its far larger value
+      -- (246 units against Widget's 5) makes it the queue's new head, but nothing re-renders to
+      -- move row 1 off Widget.
+      local function armRemoveWithStaleRow1()
+        GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+        GC.Acquisitions.RecordManual({ itemID = 99001, positionKey = "commodity:99001",
+          quantity = 5, total = 2500, acquiredAt = 1000, character = "Owner-Dentarg", region = "eu" })
+        compose()
+        upvalue(render, "expanded")["commodity:99001"] = true
+        render()
+        local rows = upvalue(render, "rows")
+        assert.equal("commodity:99001", rows[1].position.positionKey) -- sanity: Widget is row 1
+        local removeRow
+        for _, r in ipairs(rows) do
+          if r.kind == "batch" and r.batch and r.batch.source == "manual" then removeRow = r end
+        end
+        assert.truthy(removeRow)
+        removeRow.action.scripts.OnClick(removeRow.action) -- the row's own Remove button, for real
+        assert.equal("armed", removeRow.removeStage)
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose()
+        local qe = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+        assert.equal("commodity:23427", qe[1].positionKey) -- sanity: the head moved to Eternium Ore
+      end
+
+      it("on retail the dock's POST refuses rather than post row 1's stale item", function()
+        passport(120100)
+        armRemoveWithStaleRow1()
+        local posts = postCounter()
+        local button = container.queueButton
+        button.scripts.OnClick(button)
+        assert.equal(0, posts())
+      end)
+
+      it("on retail the POST keybinding refuses rather than post row 1's stale item", function()
+        passport(120100)
+        armRemoveWithStaleRow1()
+        local posts = postCounter()
+        root.GoldCapPostNext()
+        assert.equal(0, posts())
+      end)
+    end)
+
     it("in WoW: Forever the first press only switches into queue mode, and the second posts", function()
       passport(16001)
       local posts = postCounter()

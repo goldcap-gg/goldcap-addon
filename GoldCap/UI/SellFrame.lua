@@ -5973,28 +5973,37 @@ local function onQueueClick()
     setStatus(GC.L["Nothing queued to post"])
     return
   end
-  if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
-    filterMode = "queue"
-    renderRows()
-    local row = rows[1]
-    -- `row:IsShown()`, never `row.shown` -- see the Forever branch's own comment below.
-    if row and row.IsShown and row:IsShown() and row.kind == "position" then
-      onPostClick(row)
-    else
-      setStatus(GC.L["Could not find the queue's next item to post — try again"])
-    end
-    return
-  end
   local head = queueEntries[1]
-  local row = rows[1]
   -- `row:IsShown()`, never `row.shown`. A real Frame has no `shown` FIELD -- only the method --
   -- but every widget double in this suite implements Show/Hide by writing `self.shown`, so
   -- reading the field is true in every test and nil in the client, and this button would have
   -- shipped refusing to post anything at all while seven tests proved it worked. That is the
   -- third time today a field only the fakes define reached production; see
   -- spec/ui_widget_field_spec.lua, which now fails the build for it.
-  if filterMode == "queue" and row and row.IsShown and row:IsShown() and row.kind == "position"
-      and row.position and row.position.positionKey == head.positionKey then
+  --
+  -- Shared by both branches below: row 1 only counts as the queue's own head when it is actually
+  -- showing that exact position. A Cancel lot or a Remove armed anywhere holds renderRows() to a
+  -- no-op (its own guard, above it in this file) rather than rebinding rows out from under a pin
+  -- the player is mid-confirming, so without this identity check row 1 can still be whatever
+  -- OTHER deck was on screen before the click -- and the retail branch used to post that instead
+  -- of the position the button, or its keybinding, actually named as next.
+  local function isQueueHead(row)
+    return row and row.IsShown and row:IsShown() and row.kind == "position"
+      and row.position and row.position.positionKey == head.positionKey
+  end
+  if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
+    filterMode = "queue"
+    renderRows()
+    local row = rows[1]
+    if isQueueHead(row) then
+      onPostClick(row)
+    else
+      setStatus(GC.L["Could not find the queue's next item to post — try again"])
+    end
+    return
+  end
+  local row = rows[1]
+  if filterMode == "queue" and isQueueHead(row) then
     onPostClick(row)
     return
   end
