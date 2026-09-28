@@ -2,8 +2,8 @@
 
 ## 0.16.0 (2026-09-28)
 
-- GoldCap now runs in WoW: Forever. Selling works from the live auction house there; goldcap.gg
-  prices for Forever arrive later. Type `/gc forever` to see what GoldCap can use in your client.
+- GoldCap now runs in WoW: Forever, and buys and sells at its live auction house. Type
+  `/gc forever` to see what GoldCap can use in your client.
 - In WoW: Forever, GoldCap scans the auction house when you open it (the game allows a full scan
   once every 15 minutes) and when you press SCAN on the Deals tab. Tooltips there show the item's
   auction house value from your latest scan and how old it is, and whether to sell it on the
@@ -24,6 +24,8 @@
   fast an item sells.
 - In the buy window, pressing Buy while you are still typing a quantity now shows the total for
   that quantity first; press Buy again to buy it.
+- The Sell tab's POST button and its key binding no longer post a different item than the one they
+  name while a Cancel or Remove is waiting for your confirmation.
 - In the Sell tab, a lot waiting for a live price now says "no live price", and the cancel button
   says "NO LIVE PRICE YET" instead of "NOTHING TO CANCEL" while it waits. In WoW: Forever, AT
   MARKET counts what your scan says your stock is worth when the auction house has not answered
