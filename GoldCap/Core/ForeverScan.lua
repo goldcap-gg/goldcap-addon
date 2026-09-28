@@ -31,7 +31,10 @@ local C = {
   READ_BUDGET_MS = 8,
   READ_MIN_ROWS = 100,
   READ_CLOCK_EVERY = 50,           -- rows between clock reads
-  SUSPECT_CAP = 1024,              -- a dump of exactly this many rows reads as a page, not the AH
+  -- The dump arrives in pages of this many rows. A read that ends on a page boundary stopped
+  -- early: the beta showed 1024, then 2048 of ~66k rows. A whole auction house lands on an exact
+  -- multiple about once in a thousand scans.
+  SUSPECT_CAP = 1024,
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
   -- A partial replicate read merges into the saved fold (below) only while the saved fold is no
   -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
@@ -85,9 +88,22 @@ function GC.ForeverScan.New(driver)
       and fold.ruleset == p.ruleset
   end
 
+  -- A dump read that stopped early (a page boundary, emptied under the read, the auction house
+  -- closed mid-read) saw only some lots of every item it reached: each such item's minimum is too
+  -- high and its counts too low -- Linen Cloth at 2g from one of 201 lots, when the floor was 64c.
+  -- Those entries go; the browse pass prices every item whole instead, and an item it does not
+  -- reach keeps what the saved fold says.
+  local function dropCutDump(a)
+    if not a.cut then return end
+    for itemID, e in pairs(a.items) do
+      if not e.browse then a.items[itemID] = nil end
+    end
+  end
+
   local function commit()
     local a = acc
     reset()
+    if a then dropCutDump(a) end
     if not a or next(a.items) == nil then
       driver.notify("done", nil)
       return
@@ -164,7 +180,7 @@ function GC.ForeverScan.New(driver)
   end
 
   local function afterRead()
-    if acc.dumpRows == C.SUSPECT_CAP then acc.partial = true end
+    if acc.dumpRows % C.SUSPECT_CAP == 0 then acc.partial, acc.cut = true, true end
     if not toBrowse(acc.partial and "wide" or "classes") then commit() end
   end
 
@@ -187,7 +203,7 @@ function GC.ForeverScan.New(driver)
     if token ~= t or state ~= "reading" then return end
     local now = driver.numRows() or 0
     if now < total then
-      acc.partial = true
+      acc.partial, acc.cut = true, true
       total = now
       lastRead.rows = now
     end
@@ -304,6 +320,7 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnBrowsePassDone(book)
     if state ~= "browsing" then return end
+    dropCutDump(acc)
     for itemID, row in pairs(type(book) == "table" and book or {}) do
       -- A variant row (gear by item level, a caged pet by species) is one version, not the
       -- item's floor -- the same rule UI/SniperFrame.lua's _LiveRow applies to the tooltip.
@@ -325,6 +342,7 @@ function GC.ForeverScan.New(driver)
     if state == "idle" then return end
     if state == "waiting" then reset(); return end
     acc.partial = true
+    if state == "reading" then acc.cut = true end
     commit()
   end
 
