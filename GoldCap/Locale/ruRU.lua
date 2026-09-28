@@ -263,6 +263,7 @@ GC.Locales.ruRU = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Язык изменён. Введите /reload, чтобы применить его везде.",
   ["Last post may still go up -- wait a minute"] = "Ещё может выставиться -- подождите минуту",
+  ["Level 40 reached: %s to go."] = "Уровень 40 достигнут: не хватает %s.",
   ["Last result: %ds ago"] = "Последний результат: %dс назад",
   ["Last result: none yet this visit"] = "Последний результат: пока не было в этот визит",
   ["Listed"] = "Выставлено",

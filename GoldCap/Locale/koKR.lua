@@ -254,6 +254,7 @@ GC.Locales.koKR = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "언어를 바꿨습니다. 모든 곳에 적용하려면 /reload를 입력하세요.",
   ["Last post may still go up -- wait a minute"] = "아직 등록될 수 있습니다 -- 1분 기다리세요",
+  ["Level 40 reached: %s to go."] = "40레벨 도달: %s 부족합니다.",
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed"] = "등록 수량",

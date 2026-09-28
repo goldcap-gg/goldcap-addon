@@ -250,6 +250,7 @@ GC.Locales.zhCN = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "语言已更改。输入 /reload 使其在所有界面生效。",
   ["Last post may still go up -- wait a minute"] = "上次上架可能仍会成功 -- 请等一分钟",
+  ["Level 40 reached: %s to go."] = "已达到 40 级：还差 %s。",
   ["Last result: %ds ago"] = "上次结果：%d 秒前",
   ["Last result: none yet this visit"] = "上次结果：本次还没有",
   ["Listed"] = "在售数量",

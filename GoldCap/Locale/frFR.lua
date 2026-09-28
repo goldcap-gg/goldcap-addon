@@ -265,6 +265,7 @@ GC.Locales.frFR = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Langue changée. Tapez /reload pour l'appliquer partout.",
   ["Last post may still go up -- wait a minute"] = "Le dépôt peut aboutir -- attends une minute",
+  ["Level 40 reached: %s to go."] = "Niveau 40 atteint : il vous manque encore %s.",
   ["Last result: %ds ago"] = "Dernier résultat : il y a %ds",
   ["Last result: none yet this visit"] = "Dernier résultat : aucun pour cette visite",
   ["Listed"] = "En vente",

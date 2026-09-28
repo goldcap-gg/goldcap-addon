@@ -113,7 +113,10 @@ function GC.ForeverRoad.Forecast(s)
   if (s.level or 0) >= C.TARGET_LEVEL then return { kind = "past" } end
   if type(s.moneyRate) ~= "number" or type(s.levelRate) ~= "number" then return { kind = "norate" } end
   if s.moneyRate <= 0 then return { kind = "flat" } end
-  if s.levelRate <= 0 then return { kind = "past" } end
+  -- A stalled or negative level rate (no XP progress lately) is not a dead end: `at` below then
+  -- comes out at or under `progress`, so the "level" branch's own math.max already answers with
+  -- the character's CURRENT level, exactly the honest thing to say. Only the character actually
+  -- being at the level cap (checked above, before the rate is even read) stays "past".
   local need = s.cost - have
   local at = s.progress + s.levelRate * (need / s.moneyRate)
   if at <= C.TARGET_LEVEL then return { kind = "level", level = math.max(s.level, math.floor(at)) } end
@@ -141,6 +144,8 @@ function GC.ForeverRoad.Lines(s)
       lines[2] = GC.L["Play a little longer for an estimate of your pace."]
     elseif f.kind == "flat" then
       lines[2] = GC.L["Your gold has not grown lately, so there is no pace to estimate."]
+    elseif f.kind == "past" then
+      lines[2] = GC.L["Level 40 reached: %s to go."]:format(coin(s.cost - have))
     end
   end
   if (s.gainItems or 0) > 0 and (s.gain or 0) > 0 then

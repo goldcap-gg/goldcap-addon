@@ -264,6 +264,7 @@ GC.Locales.itIT = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Lingua cambiata. Digita /reload per applicarla ovunque.",
   ["Last post may still go up -- wait a minute"] = "Può ancora uscire -- aspetta un minuto",
+  ["Level 40 reached: %s to go."] = "Livello 40 raggiunto: ti mancano ancora %s.",
   ["Last result: %ds ago"] = "Ultimo risultato: %ds fa",
   ["Last result: none yet this visit"] = "Ultimo risultato: nessuno in questa visita",
   ["Listed"] = "In vendita",

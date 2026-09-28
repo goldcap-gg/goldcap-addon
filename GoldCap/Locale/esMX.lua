@@ -268,6 +268,7 @@ GC.Locales.esMX = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
   ["Last post may still go up -- wait a minute"] = "Aún puede publicarse -- espera un minuto",
+  ["Level 40 reached: %s to go."] = "Nivel 40 alcanzado: aún te faltan %s.",
   ["Last result: %ds ago"] = "Último resultado: hace %ds",
   ["Last result: none yet this visit"] = "Último resultado: ninguno en esta visita",
   ["Listed"] = "Publicados",

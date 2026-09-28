@@ -251,6 +251,7 @@ GC.Locales.zhTW = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "語言已變更。輸入 /reload 讓它套用到所有地方。",
   ["Last post may still go up -- wait a minute"] = "上次上架可能仍會成功 -- 請等一分鐘",
+  ["Level 40 reached: %s to go."] = "已達到 40 級：還差 %s。",
   ["Last result: %ds ago"] = "上次結果：%d 秒前",
   ["Last result: none yet this visit"] = "上次結果：這次還沒有",
   ["Listed"] = "在售數量",

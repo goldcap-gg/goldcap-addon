@@ -265,6 +265,7 @@ GC.Locales.ptBR = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Idioma alterado. Digite /reload para aplicá-lo em tudo.",
   ["Last post may still go up -- wait a minute"] = "Ainda pode ser anunciado -- espere um minuto",
+  ["Level 40 reached: %s to go."] = "Nível 40 alcançado: ainda faltam %s.",
   ["Last result: %ds ago"] = "Último resultado: há %ds",
   ["Last result: none yet this visit"] = "Último resultado: nenhum nesta visita",
   ["Listed"] = "Anunciados",

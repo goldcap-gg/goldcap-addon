@@ -270,6 +270,7 @@ GC.Locales.ukUA = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
   ["Last post may still go up -- wait a minute"] = "Ще може виставитися -- зачекайте хвилину",
+  ["Level 40 reached: %s to go."] = "Рівень 40 досягнуто: бракує %s.",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
   ["Listed"] = "Виставлено",

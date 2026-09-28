@@ -264,6 +264,7 @@ GC.Locales.deDE = {
   ["Language changed. Type /reload to apply it everywhere."] =
     "Sprache geändert. Gib /reload ein, damit sie überall greift.",
   ["Last post may still go up -- wait a minute"] = "Einstellen läuft evtl. noch -- warte 1 Minute",
+  ["Level 40 reached: %s to go."] = "Stufe 40 erreicht: noch %s.",
   ["Last result: %ds ago"] = "Letztes Ergebnis: vor %ds",
   ["Last result: none yet this visit"] = "Letztes Ergebnis: bei diesem Besuch noch keins",
   ["Listed"] = "Eingestellt",

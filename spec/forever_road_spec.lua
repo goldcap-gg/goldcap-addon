@@ -89,8 +89,12 @@ describe("ForeverRoad", function()
     assert.same({ kind = "ready" }, f({ cost = 15000 }))
     assert.same({ kind = "norate" }, f({ moneyRate = false }))
     assert.same({ kind = "flat" }, f({ moneyRate = 0 }))
-    assert.same({ kind = "past" }, f({ level = 40, progress = 40.2 }))
-    assert.same({ kind = "past" }, f({ levelRate = 0 }))
+    assert.same({ kind = "past" }, f({ level = 40, progress = 40.2 })) -- the level cap itself: still "past"
+    -- A stalled level (no XP progress, gold still growing) is not a dead end: the existing math
+    -- already lands on the current level once a non-positive rate stops mapping to "past" -- and
+    -- a negative rate (should the client ever report one) clamps to the same answer.
+    assert.same({ kind = "level", level = 20 }, f({ levelRate = 0 }))
+    assert.same({ kind = "level", level = 20 }, f({ levelRate = -1 }))
   end)
 
   it("says it in lines: the totals, then the forecast, then what the AH adds", function()
@@ -107,12 +111,39 @@ describe("ForeverRoad", function()
     assert.equal("Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.", lines[2])
   end)
 
+  -- V1: a level that has stopped moving must not go silent just because it cannot forecast a
+  -- FUTURE level -- the honest answer is "at your current level", the same sentence a moving
+  -- rate already gives.
+  it("says the current level when the level has stalled but gold keeps growing", function()
+    local s = { money = 10000, bags = 5000, cost = 1000000, level = 20, progress = 20.5,
+      moneyRate = 100000, levelRate = 0 }
+    assert.equal("At your pace you reach it at level 20.", R.Lines(s)[2])
+    s.levelRate = -1
+    assert.equal("At your pace you reach it at level 20.", R.Lines(s)[2])
+  end)
+
+  -- V1: level 40 reached but the mount still not paid for is the one state a Forever character
+  -- eventually settles into permanently, and it used to leave the second line unset entirely.
+  it("says how much is still missing once level 40 is reached without the gold", function()
+    local s = { money = 10000, bags = 5000, cost = 1000000, level = 40, progress = 40.2 }
+    assert.equal("Level 40 reached: 985000c to go.", R.Lines(s)[2])
+  end)
+
   it("shares a plain line, and nothing without a cost", function()
     local s = { money = 10000, bags = 5000, cost = 1000000, level = 20, progress = 20.5, moneyRate = 100000, levelRate = 1 }
     assert.equal("Road to 40 with GoldCap: 1g 50s of 100g for my mount (1%). At your pace you reach it at level 30.",
       R.ShareText(s))
     s.cost = nil
     assert.is_nil(R.ShareText(s))
+  end)
+
+  -- V1: ShareText's own "level" branch was already right -- it just never ran for a stalled
+  -- level, because Forecast used to call that "past" instead.
+  it("shares the current level once the level has stalled, same as a moving one", function()
+    local s = { money = 10000, bags = 5000, cost = 1000000, level = 20, progress = 20.5,
+      moneyRate = 100000, levelRate = 0 }
+    assert.equal("Road to 40 with GoldCap: 1g 50s of 100g for my mount (1%). At your pace you reach it at level 20.",
+      R.ShareText(s))
   end)
 
   it("sets, refuses, shares and clears the cost with /gc mount, and prints the lines", function()
@@ -162,6 +193,19 @@ describe("ForeverRoad", function()
     assert.same({
       "Road to 40: 15000c of 125000c (gold 10000c, bags 5000c). Play a little longer for an estimate of your pace.",
       "Items in your bags that fetch more on the auction house than at a vendor: 3 (700c more).",
+    }, R.SoldLines())
+  end)
+
+  -- V1: the Sold tab reads Lines() through this same function, so the level-40-without-the-gold
+  -- line has to show up here too, not only from a direct R.Lines() call.
+  it("gives the Sold tab the level-40-reached line too", function()
+    init(16001)
+    db.forever = { mountCost = 1000000 }
+    _G.UnitLevel = function() return 40 end
+    _G.UnitXP = function() return 200 end
+    _G.UnitXPMax = function() return 1000 end
+    assert.same({
+      "Road to 40: 15000c of 1000000c (gold 10000c, bags 5000c). Level 40 reached: 985000c to go.",
     }, R.SoldLines())
   end)
 

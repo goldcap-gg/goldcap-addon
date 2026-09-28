@@ -141,6 +141,7 @@ GC.Locales.enUS = {
   ["Items still loading: %d. Open this again in a moment."] =
     "Items still loading: %d. Open this again in a moment.",
   ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
+  ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
