@@ -33,6 +33,11 @@ local C = {
   READ_CLOCK_EVERY = 50,           -- rows between clock reads
   SUSPECT_CAP = 1024,              -- a dump of exactly this many rows reads as a page, not the AH
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
+  -- A partial replicate read merges into the saved fold (below) only while the saved fold is no
+  -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
+  -- long as every later read happens to come back partial too. Past this, a partial read replaces
+  -- the stale fold wholesale, same as a non-partial one already does.
+  MERGE_MAX_AGE_SECONDS = 2 * 3600,
 }
 GC.ForeverScan.C = C
 
@@ -62,6 +67,11 @@ function GC.ForeverScan.New(driver)
   -- a real dump -- both reads are then incomplete, and this read's entry, the newer one, wins. An
   -- item the stored fold lacks entirely is added -- the same "only what the dump didn't cover"
   -- rule AddBrowse already applies inside one scan, now applied across two.
+  --
+  -- Age-gated for the partial-replicate case only (C.MERGE_MAX_AGE_SECONDS): a browse-only top-up
+  -- always merges, as it always has, but a saved fold already older than the window is replaced
+  -- rather than topped up again -- otherwise a player whose dumps keep coming back capped would
+  -- keep every shared item at whatever price the very first dump saw, forever.
   local function isFullFold(fold)
     return type(fold) == "table" and type(fold.items) == "table"
       and (fold.source == "replicate" or fold.source == "replicate+browse")
@@ -88,7 +98,9 @@ function GC.ForeverScan.New(driver)
     local s = driver.store()
     if s then
       local existing = s.fold
-      if (source == "browse" or a.partial) and isFullFold(existing) and sameHouse(existing, p) then
+      local mergeableAge = type(existing) == "table" and type(existing.at) == "number"
+        and (driver.now() - existing.at) <= C.MERGE_MAX_AGE_SECONDS
+      if (source == "browse" or (a.partial and mergeableAge)) and isFullFold(existing) and sameHouse(existing, p) then
         -- Both reads incomplete: this attempt's entry is the newer one, so it wins over the
         -- saved fold's for any item they both priced.
         local overwrite = existing.partial == true and a.replicated == true

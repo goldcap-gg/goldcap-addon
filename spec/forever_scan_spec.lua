@@ -136,6 +136,23 @@ describe("ForeverScan", function()
     assert.equal("70,40,4,;5x10 5x30", store.fold.items[9999]) -- kept: this read never saw it
   end)
 
+  -- A partial-replicate merge must not keep an old fold's prices alive forever: if the saved
+  -- fold is already older than the merge window, a partial read replaces it wholesale (same as a
+  -- non-partial one always has) rather than topping it up again.
+  it("replaces a same-house full fold instead of merging when it is older than the merge window", function()
+    local oldAt = now - (GC.ForeverScan.C.MERGE_MAX_AGE_SECONDS + 1)
+    store.fold = { source = "replicate", region = 90, realm = "Forever", faction = "Horde",
+      ruleset = nil, at = oldAt, rows = 9000, items = { [9999] = "70,40,4,;5x10 5x30" } }
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    rows = {}
+    assert.has_no.errors(runAll)
+    assert.is_nil(store.fold.items[9999]) -- the stale fold is replaced, not topped up
+    assert.equal(now, store.fold.at)      -- stamped fresh, not the old fold's `at`
+  end)
+
   it("stops a frame's read at its time budget, gear links included, and still finishes the dump", function()
     local ms = 0
     local s = GC.ForeverScan.New(driver({
