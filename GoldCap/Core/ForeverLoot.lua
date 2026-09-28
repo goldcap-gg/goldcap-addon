@@ -185,7 +185,10 @@ local function clock()
 end
 
 local function newId()
-  return ("%08x%08x"):format(math.random(0, 0x7fffffff), math.random(0, 0x7fffffff))
+  -- Four 16-bit draws, not two 31-bit ones: Lua 5.1's math.random(m, n) computes n - m + 1
+  -- in a C int, so math.random(0, 0x7fffffff) overflows there and yields negatives.
+  return ("%04x%04x%04x%04x"):format(math.random(0, 0xffff), math.random(0, 0xffff),
+    math.random(0, 0xffff), math.random(0, 0xffff))
 end
 
 -- GoldCapDB.foreverLoot, created on first use -- only in Forever, and not while the player has
