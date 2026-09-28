@@ -725,9 +725,9 @@ describe("Sell widget geometry and manual cost", function()
     end)
 
     -- The inverse of the two display tests above: what the seller types on Forever is read as
-    -- coin text, a bare number included -- Forever's book is copper-precise, so an unsuffixed
-    -- number means copper here, not the gold a bare number means on retail (tested elsewhere
-    -- in this file already, e.g. "takes a price the seller types and says it is theirs now").
+    -- coin text -- an explicit g/s/c suffix keeps its full copper precision, the one thing this
+    -- box can do that Set-Cost above cannot (B2: a bare number is gold everywhere on this tab,
+    -- tested next).
     it("accepts a copper price typed into the box on WoW: Forever", function()
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       local GC = load(700, { calls = {} })
@@ -741,13 +741,18 @@ describe("Sell widget geometry and manual cost", function()
       _G.C_AuctionHouse = nil
     end)
 
-    it("accepts a bare number typed into the box on WoW: Forever as copper, not gold", function()
+    -- B2: a bare number used to mean copper here and gold one control up (Set-Cost) and on
+    -- retail's own version of this same box -- the one place on the tab where a typed number
+    -- meant a different unit than everywhere else. It now means gold everywhere, the same
+    -- parser retail's box already used (dialogGoldPositive); only an explicit suffix reaches
+    -- sub-gold precision on Forever.
+    it("accepts a bare number typed into the box on WoW: Forever as gold, like everywhere else on this tab", function()
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       local GC = load(700, { calls = {} })
       local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
       typePrice(row, "150")
       local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
-      assert.equal("1s50c", after.priceBox.text)
+      assert.equal("150g", after.priceBox.text)
       _G.C_AuctionHouse = nil
     end)
 

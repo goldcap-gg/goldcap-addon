@@ -3210,17 +3210,18 @@ end
 -- The inverse of copperToPriceText, and YOUR PRICE's own parse -- everywhere else (the Set-Cost
 -- dialog) keeps reading dialogGoldPositive/dialogGoldCopper directly, gold-decimal always.
 -- Accepts "1g22s90c" or any subset of those three suffixes, in order, each optional; a bare
--- number with none of them is read as COPPER, not gold -- Forever's own book is copper-precise,
--- so that is the natural unit here, the opposite of what a bare number means on retail's box.
--- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing (a
--- bare number as gold) is exactly what it always was.
+-- number with none of them is read as GOLD, through the exact same parser as retail's own box
+-- and the Set-Cost dialog above it (B2: a bare number used to mean copper here and gold
+-- everywhere else on this same tab -- a typed "5" was 5g in the cost box and 5c one control
+-- down). An explicit g/s/c suffix is still the one way to reach sub-gold precision on Forever.
+-- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing is
+-- exactly what it always was.
 local function priceBoxCopper(box)
   if GC.Flips.PriceStep() ~= 1 then return dialogGoldPositive(box) end
   local text = (box:GetText() or ""):gsub("%s+", ""):lower()
   if text == "" then return nil end
   if not text:find("[gsc]") then
-    local copper = tonumber(text)
-    return exact(copper) and copper > 0 and copper or nil
+    return dialogGoldPositive(box)
   end
   local gold = tonumber(text:match("^(%d+)g")) or 0
   local silver = tonumber(text:match("g?(%d+)s")) or 0
