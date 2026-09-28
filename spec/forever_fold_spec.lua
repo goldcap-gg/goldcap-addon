@@ -3,7 +3,8 @@ local helper = require("spec.spec_helper")
 describe("ForeverFold", function()
   local GC, F
   before_each(function()
-    GC = helper.loadModule("Core/ForeverFold.lua")
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ForeverFold.lua", GC)
     F = GC.ForeverFold
   end)
 
@@ -90,6 +91,23 @@ describe("ForeverFold", function()
     local b = F.Decode(F.Encode(acc.items[3000], true))
     assert.equal(500, b.value); assert.is_nil(b.lots); assert.is_true(b.gear); assert.is_true(b.browse)
   end)
+
+  -- Owner, Forever beta 2026-09-28: a 1.5M-gold troll listing (min=15000001200) crashed
+  -- OnBrowsePassDone with "integer overflow attempting to store 15000001200" -- WoW's own
+  -- string.format converts a %d/%i/%x/%c argument to a 32-bit integer and errors outside
+  -- +-2^31, where busted's own Lua has no ceiling at all, so this crash shipped behind a fully
+  -- green suite. .busted's own helper installs spec/support/wow_format.lua's shim, which
+  -- reproduces WoW's own ceiling, for this whole run -- no install/uninstall needed here.
+  it("encodes and round-trips a price past 2^31 without WoW's own string.format overflowing",
+    function()
+      local acc = F.New()
+      F.AddRow(acc, 2589, 1, 15000001200, true)
+      local s = F.Encode(acc.items[2589], true)
+      local e = F.Decode(s)
+      assert.equal(15000001200, e.min)
+      assert.equal(15000001200, e.value)
+      assert.is_true(e.gear)
+    end)
 
   it("keeps every level while folding and saves p25, p50 and the level count", function()
     local acc = F.New()

@@ -47,7 +47,8 @@ describe("ForeverScan", function()
   end
 
   before_each(function()
-    GC = helper.loadModule("Core/Game.lua")
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Game.lua", GC)
     helper.loadModule("Core/ForeverFold.lua", GC)
     helper.loadModule("Core/ForeverGear.lua", GC)
     helper.loadModule("Core/ForeverScan.lua", GC)

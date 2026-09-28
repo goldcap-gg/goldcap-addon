@@ -48,14 +48,17 @@ end
 
 -- Mirrors SellFrame's formatAmount: plain "65g24s" text, coin icons only
 -- below one gold (icon escapes truncate mid-escape in clipped FontStrings).
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g) -- a sale total can pass
+-- that. `silver` stays on %d: it is bounded 0-99 by the mod above.
 local function formatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
   return GC.Util.CoinText(amount)
 end

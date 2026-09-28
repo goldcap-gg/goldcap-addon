@@ -410,14 +410,17 @@ end
 -- A GC.Sell field, not a top-level local: paint-only (every call site below is inside render or
 -- drawer/summary paint code, never a click's pre-call body), and SellFrame.lua has no local
 -- headroom left to spend on it (final review "Headroom").
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
+-- it is bounded 0-99 by the mod above.
 function GC.Sell._FormatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. GC.Sell._FormatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
   return GC.Util.CoinText(amount)
 end
@@ -3175,7 +3178,10 @@ local function copperToGoldText(copper)
   local whole = math.floor(copper / COPPER_PER_GOLD)
   local remainder = copper - whole * COPPER_PER_GOLD
   if remainder == 0 then return tostring(whole) end
-  local text = ("%d.%04d"):format(whole, remainder)
+  -- `whole` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+  -- overflow attempting to store N" past +-2^31 copper (about 214,748g). `remainder` stays on
+  -- %d: it is bounded 0-9999 by COPPER_PER_GOLD above.
+  local text = GC.Util.IntText(whole) .. (".%04d"):format(remainder)
   text = (text:gsub("0+$", ""))
   text = (text:gsub("%.$", ""))
   return text
@@ -5414,8 +5420,10 @@ renderRows = function()
         if type(profit) == "number" and exact(p.profitAtHold) then
           -- Whole gold only: "@ 18g15s" was precisely the tail the column cut
           -- off in game. The exact figure is the Post price, one column over.
+          -- GC.Util.IntText, not %d: WoW's own string.format raises "integer overflow
+          -- attempting to store N" past +-2^31 copper (about 214,748g).
           local hold = p.profitAtHold >= 10000
-            and ("%dg"):format(math.floor(p.profitAtHold / 10000))
+            and GC.Util.IntText(math.floor(p.profitAtHold / 10000)) .. "g"
             or formatCell(p.profitAtHold)
           row.cells.profit:SetText(("%s %s@%s|r"):format(
             formatCell(profit), DIM_HEX, hold))

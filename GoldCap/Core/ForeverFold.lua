@@ -119,18 +119,23 @@ function GC.ForeverFold.Depths(e)
   return found[1], found[2], #units
 end
 
+-- e.min, and every ladder/depth price built from it, go through GC.Util.IntText, not a bare
+-- %d: a listing's price is copper, and WoW's own string.format raises "integer overflow
+-- attempting to store N" past +-2^31 (about 214,748g) -- a 1.5M-gold troll listing did exactly
+-- that here (owner, Forever beta 2026-09-28). e.qty, e.lots and `levels` stay on %d: they are
+-- counts, never prices, and cannot reach that range.
 function GC.ForeverFold.Encode(e, gear)
   local flags = (gear and "g" or "") .. (e.browse and "b" or "")
   local parts, prev = {}, e.min
   for i, level in ipairs(e.ladder or {}) do
-    parts[i] = ("%dx%d"):format(level[1] - prev, level[2])
+    parts[i] = ("%sx%d"):format(GC.Util.IntText(level[1] - prev), level[2])
     prev = level[1]
   end
-  local s = ("%d,%d,%s,%s;%s"):format(e.min, e.qty or 0, e.lots and ("%d"):format(e.lots) or "", flags,
-    table.concat(parts, " "))
+  local s = ("%s,%d,%s,%s;%s"):format(GC.Util.IntText(e.min), e.qty or 0,
+    e.lots and ("%d"):format(e.lots) or "", flags, table.concat(parts, " "))
   local p25, p50, levels = GC.ForeverFold.Depths(e)
   if p25 and p50 and levels then
-    s = s .. ("|%d,%d,%d"):format(p25 - e.min, p50 - e.min, levels)
+    s = s .. ("|%s,%s,%d"):format(GC.Util.IntText(p25 - e.min), GC.Util.IntText(p50 - e.min), levels)
   end
   return s
 end

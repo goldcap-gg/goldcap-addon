@@ -95,7 +95,9 @@ local function encode(lots)
   end)
   local parts = {}
   for i = 1, math.min(#list, GC.ForeverGear.VARIANTS) do
-    parts[i] = ("%d:%s:%s"):format(list[i].unit, list[i].suffix, list[i].unique)
+    -- `unit` is copper -- WoW's own string.format raises "integer overflow attempting to store
+    -- N" past +-2^31 (about 214,748g), same as Core/ForeverFold.lua's Encode.
+    parts[i] = ("%s:%s:%s"):format(GC.Util.IntText(list[i].unit), list[i].suffix, list[i].unique)
   end
   return table.concat(parts, " ")
 end

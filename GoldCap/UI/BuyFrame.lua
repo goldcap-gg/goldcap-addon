@@ -144,14 +144,17 @@ end
 
 -- Mirrors SellFrame/SoldFrame's formatAmount: plain "65g24s" text, coin icons only below one
 -- gold (icon escapes truncate mid-escape in clipped FontStrings).
+-- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+-- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
+-- it is bounded 0-99 by the mod above.
 local function formatAmount(amount)
   if amount == nil then return EM_DASH end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
+    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
+    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
   end
   return GC.Util.CoinText(amount)
 end
@@ -1226,7 +1229,10 @@ local function recordAcquisition(itemID, name, qty, total, at, runCode)
     runCode = runCode,
     character = context and context.char or nil,
     region = context and context.region or nil,
-    evidenceKey = ("goldcap-buy:%d:%d:%d"):format(itemID, at, acquisitionSeq),
+    -- `at` is an epoch second, not money -- but it is still a value %d silently mishandles once
+    -- WoW's own client crosses the same +-2^31 ceiling (2038), so it goes through
+    -- GC.Util.IntText for the same reason every copper figure in this sweep does.
+    evidenceKey = ("goldcap-buy:%d:%s:%d"):format(itemID, GC.Util.IntText(at), acquisitionSeq),
   })
 end
 

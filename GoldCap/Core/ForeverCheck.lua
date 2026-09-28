@@ -69,8 +69,13 @@ function GC.ForeverCheck.Report(env)
   if has(ah, "CalculateCommodityDeposit") then
     local ok, d = pcall(ah.CalculateCommodityDeposit, LINEN_CLOTH, 1, 1)
     -- Money always renders through GC.Util.CoinText (docs/addon/AGENTS.md "Money text"); the
-    -- raw copper stays in parentheses because this line is a diagnostic, not a UI label.
-    if ok and type(d) == "number" then deposit = ("%s (%dc)"):format(GC.Util.CoinText(d), d) end
+    -- raw copper stays in parentheses because this line is a diagnostic, not a UI label. The
+    -- raw figure goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+    -- overflow attempting to store N" past +-2^31 copper (Core/ForeverFold.lua's Encode hit
+    -- exactly this on a live scan).
+    if ok and type(d) == "number" then
+      deposit = ("%s (%sc)"):format(GC.Util.CoinText(d), GC.Util.IntText(d))
+    end
   end
   local copper = "unknown"
   if has(ah, "SupportsCopperValues") then
@@ -237,8 +242,11 @@ function GC.ForeverCheck.Run(env)
     w.read = true
     local s = GC.ForeverCheck.Walk(ah, n, call(env, "commodities"))
     -- Money always renders through GC.Util.CoinText; the raw copper stays in parentheses
-    -- because this line is a diagnostic, not a UI label.
-    local cheapest = s.linenMin and ("%s (%dc)"):format(GC.Util.CoinText(s.linenMin), s.linenMin) or "none"
+    -- because this line is a diagnostic, not a UI label. GC.Util.IntText, not %d: this is a
+    -- price straight off the live dump, which is exactly what overflowed WoW's own
+    -- string.format on a live scan (Core/ForeverFold.lua's Encode).
+    local cheapest = s.linenMin
+      and ("%s (%sc)"):format(GC.Util.CoinText(s.linenMin), GC.Util.IntText(s.linenMin)) or "none"
     say(("forever check: dump read at +%.1fs (%s): %d rows, %d with a buyout, %d bid-only, %d missing item data, %d unreadable, %d distinct items, %d rows of %d known commodities, Linen Cloth: %d rows / %d units / cheapest %s")
       :format(elapsed(), trigger, s.rows, s.buyout, s.bidOnly, s.pending, s.unreadable, s.items,
         s.commodityRows, s.commodityItems, s.linenRows, s.linenUnits, cheapest))

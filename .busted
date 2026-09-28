@@ -2,5 +2,8 @@ return {
   default = {
     pattern = "_spec",
     ROOT = { "spec" },
+    -- Makes string.format behave like WoW's own for the whole run: see
+    -- spec/support/busted_helper.lua and spec/support/wow_format.lua.
+    helper = "spec/support/busted_helper.lua",
   },
 }

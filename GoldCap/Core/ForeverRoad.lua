@@ -53,10 +53,15 @@ function GC.ForeverRoad.ParseMoney(text)
 end
 
 -- Money for a line the player sends in chat: letters, no coin icons (chat strips texture escapes).
+-- `g` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer overflow
+-- attempting to store N" past +-2^31 copper (about 214,748g), same as Core/ForeverFold.lua's
+-- Encode. `s`/`c` stay on %d -- both are bounded 0-99 by the mod above and can never reach it.
 function GC.ForeverRoad.Plain(copper)
   copper = math.max(0, math.floor(tonumber(copper) or 0))
   local g, s, c = math.floor(copper / 10000), math.floor(copper % 10000 / 100), copper % 100
-  if g > 0 then return s > 0 and ("%dg %ds"):format(g, s) or ("%dg"):format(g) end
+  if g > 0 then
+    return s > 0 and (GC.Util.IntText(g) .. "g " .. ("%ds"):format(s)) or (GC.Util.IntText(g) .. "g")
+  end
   if s > 0 then return c > 0 and ("%ds %dc"):format(s, c) or ("%ds"):format(s) end
   return ("%dc"):format(c)
 end

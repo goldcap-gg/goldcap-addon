@@ -2,7 +2,11 @@ local helper = require("spec.spec_helper")
 
 describe("ForeverGear", function()
   local G
-  before_each(function() G = helper.loadModule("Core/ForeverGear.lua").ForeverGear end)
+  before_each(function()
+    local GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ForeverGear.lua", GC)
+    G = GC.ForeverGear
+  end)
 
   it("reads the suffix and its scale from a link, and 0/0 for a plain piece", function()
     assert.same({ "0", "0" }, { G.Variant("|cff1eff00|Hitem:6125::::::::20:::::|h[Brawler's Harness]|h|r") })
@@ -26,6 +30,19 @@ describe("ForeverGear", function()
       [6125] = "501:0:0",
     } }, G.Freeze(acc, 777))
   end)
+
+  -- Same class of bug as Core/ForeverFold.lua's Encode (owner, Forever beta 2026-09-28): a
+  -- gear lot's price is copper too, and WoW's own string.format raises "integer overflow
+  -- attempting to store N" past +-2^31, where busted's own Lua has no such ceiling. .busted's
+  -- own helper installs the shim that reproduces it for this whole run.
+  it("encodes and round-trips a gear lot's price past 2^31 without WoW's own string.format overflowing",
+    function()
+      local acc = G.New()
+      G.AddRow(acc, 15210, 1, 15000001200, "item:15210:0:0:0:0:0:-9:1583")
+      local frozen = G.Freeze(acc, 1)
+      local lots = G.Decode(frozen.items[15210])
+      assert.equal(15000001200, lots[1].unit)
+    end)
 
   it("counts a row without a link, folds nothing that is not a price, and freezes nothing from nothing", function()
     local acc = G.New()

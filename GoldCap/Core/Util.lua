@@ -2,6 +2,21 @@ local _, GC = ...
 
 GC.Util = {}
 
+-- WoW's string.format converts a %d/%i/%x/%c argument to a 32-bit integer and raises "integer
+-- overflow attempting to store N" for anything outside +-2^31 (2,147,483,647 copper is about
+-- 214,748g, and retail prices pass that routinely) -- a 1.5M-gold Forever troll listing crashed
+-- a live scan on exactly this (Core/ForeverFold.lua's Encode). busted's own Lua has no such
+-- ceiling, which is how it shipped behind a green suite; spec/support/wow_format.lua's shim is
+-- what makes a spec able to catch it. %.0f has no ceiling either: it prints the same digits as
+-- %d for any integer up to 2^53, the largest a Lua double still represents exactly -- more than
+-- enough for any amount of copper this addon ever handles. Every %d/%i/%x whose argument can be
+-- a copper amount, a price, a total, a deposit, or any other sum that can pass 214,748g goes
+-- through this, not a bare string.format; counts, levels, percentages and indexes stay on %d,
+-- since none of those can reach that range.
+function GC.Util.IntText(n)
+  return ("%.0f"):format(n)
+end
+
 function GC.Util.ApplyDefaults(dst, src)
   for k, v in pairs(src) do
     if type(v) == "table" then
@@ -49,7 +64,7 @@ local function coinTextFallback(copper)
   local silver = math.floor((magnitude % 10000) / 100)
   local rest = magnitude % 100
   local parts = {}
-  if gold > 0 then parts[#parts + 1] = ("%d%s"):format(gold, ICON.g) end
+  if gold > 0 then parts[#parts + 1] = GC.Util.IntText(gold) .. ICON.g end
   if silver > 0 then parts[#parts + 1] = ("%d%s"):format(silver, ICON.s) end
   if rest > 0 or #parts == 0 then parts[#parts + 1] = ("%d%s"):format(rest, ICON.c) end
   return sign .. table.concat(parts, " ")
@@ -72,7 +87,7 @@ local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 function GC.Util.FormatMoney(copper)
   if copper < 0 then return "-" .. GC.Util.FormatMoney(-copper) end
   if copper >= GOLD_COMPACT_THRESHOLD then
-    return ("%dg"):format(math.floor(copper / 10000))
+    return GC.Util.IntText(math.floor(copper / 10000)) .. "g"
   end
   if copper >= 10000 then
     local gold = math.floor(copper / 10000)
@@ -92,7 +107,7 @@ end
 function GC.Util.FormatGoldFloor(copper)
   if copper < 0 then return "-" .. GC.Util.FormatGoldFloor(-copper) end
   if copper >= 10000 then
-    return ("%dg"):format(math.floor(copper / 10000))
+    return GC.Util.IntText(math.floor(copper / 10000)) .. "g"
   end
   -- WoW: Forever's economy is copper: "SAFE +0s" on a 25c buy said nothing. Retail never gets
   -- here with a SAFE -- its profit floor is 1g (SniperDecision's normalizeConfig).
@@ -108,8 +123,8 @@ end
 -- the same rounded-up gold in thousands, rounded up again, the way players write gold.
 function GC.Util.FormatGoldCeil(copper, short)
   local gold = math.max(1, math.ceil(copper / 10000))
-  if short and gold >= 10000 then return ("%dk"):format(math.ceil(gold / 1000)) end
-  return ("%dg"):format(gold)
+  if short and gold >= 10000 then return GC.Util.IntText(math.ceil(gold / 1000)) .. "k" end
+  return GC.Util.IntText(gold) .. "g"
 end
 
 local function finitePositive(value)
