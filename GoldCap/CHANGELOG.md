@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.17.1 (unreleased)
+## 0.17.1 (2026-09-30)
 
 - The Sell tab no longer stutters every few seconds while it refreshes prices.
 - In WoW: Forever, the BUY tab no longer treats your own single scan as the usual price. USUAL and
