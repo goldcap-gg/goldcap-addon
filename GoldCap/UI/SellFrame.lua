@@ -2099,40 +2099,83 @@ pruneCommodityKinds = function()
   end
 end
 
-local function liveBagState(position, requiredQty)
-  local total, matchedBag, matchedSlot, matchedStack, matchedLink = 0, nil, nil, nil, nil
+local liveBagState
+do -- a block, so the matcher below costs the file no top-level local slot
+-- The one per-slot matching rule, shared by the live full scan and the paint snapshot so the two
+-- cannot drift. `acc` carries the running result; false means the commodity total overflowed.
+local function matchSlot(acc, position, requiredQty, commodity, bag, slot, stackCount)
+  local qty = stackCount or 1
+  if exact(qty) and qty > 0 and commodity then
+    acc.total = safeAdd(acc.total, qty)
+    if not acc.total then return false end
+    if not acc.bag then acc.bag, acc.slot, acc.stack = bag, slot, qty end
+  else
+    local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
+    -- Keyed exactly as the scan keyed it (GC.Sell._SlotKey), so Post pins the very stack
+    -- the row stands for: for a variant, the slot whose own ItemKey is that variant's.
+    if exact(qty) and qty > 0 and GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey then
+      if qty > acc.total then acc.total = qty end
+      if (requiredQty and qty >= requiredQty and not acc.bag) or (not requiredQty and qty >= (acc.stack or 0)) then
+        -- The exact hyperlink this slot holds right now, carried onward so cacheBagLocation
+        -- can pin it at paint time -- a plain C_Container read, kept only for a
+        -- non-commodity match (final review I2; see verifyBagStack).
+        acc.bag, acc.slot, acc.stack, acc.link = bag, slot, qty, link
+      end
+    end
+  end
+  return true
+end
+
+-- `snapshot` (GC.Sell._BagSnapshot) is passed only by the paint paths, which read many
+-- positions in one pass; without it every call scans the live bags, as every click path does.
+liveBagState = function(position, requiredQty, snapshot)
+  local acc = { total = 0 }
   local commodity = type(position.positionKey) == "string" and position.positionKey:match("^commodity:")
-  for _, bag in ipairs(SELL_BAGS) do
-    local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
-    for slot = 1, slots do
-      local info = C_Container.GetContainerItemInfo(bag, slot)
-      -- Never a soulbound copy: the auction house refuses it, and a bound twin sharing the
-      -- ItemKey kept the tradeable copy from ever being posted (review M8).
-      if info and info.itemID == position.itemID and info.isBound ~= true then
-        local qty = info.stackCount or 1
-        if exact(qty) and qty > 0 and commodity then
-          total = safeAdd(total, qty)
-          if not total then return { itemID = position.itemID, exactQty = nil } end
-          if not matchedBag then matchedBag, matchedSlot, matchedStack = bag, slot, qty end
-        else
-          local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
-          -- Keyed exactly as the scan keyed it (GC.Sell._SlotKey), so Post pins the very stack
-          -- the row stands for: for a variant, the slot whose own ItemKey is that variant's.
-          if exact(qty) and qty > 0 and GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey then
-            if qty > total then total = qty end
-            if (requiredQty and qty >= requiredQty and not matchedBag) or (not requiredQty and qty >= (matchedStack or 0)) then
-              -- The exact hyperlink this slot holds right now, carried onward so cacheBagLocation
-              -- can pin it at paint time -- a plain C_Container read, kept only for a
-              -- non-commodity match (final review I2; see verifyBagStack).
-              matchedBag, matchedSlot, matchedStack, matchedLink = bag, slot, qty, link
-            end
+  if snapshot then
+    for _, entry in ipairs(snapshot[position.itemID] or {}) do
+      if not matchSlot(acc, position, requiredQty, commodity, entry.bag, entry.slot, entry.stackCount) then
+        return { itemID = position.itemID, exactQty = nil }
+      end
+    end
+  else
+    for _, bag in ipairs(SELL_BAGS) do
+      local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
+      for slot = 1, slots do
+        local info = C_Container.GetContainerItemInfo(bag, slot)
+        -- Never a soulbound copy: the auction house refuses it, and a bound twin sharing the
+        -- ItemKey kept the tradeable copy from ever being posted (review M8).
+        if info and info.itemID == position.itemID and info.isBound ~= true then
+          if not matchSlot(acc, position, requiredQty, commodity, bag, slot, info.stackCount) then
+            return { itemID = position.itemID, exactQty = nil }
           end
         end
       end
     end
   end
-  return { itemID = position.itemID, exactQty = total, positionKey = matchedBag and position.positionKey or nil,
-    bag = matchedBag, slot = matchedSlot, stackQty = matchedStack, hyperlink = matchedBag and matchedLink or nil }
+  return { itemID = position.itemID, exactQty = acc.total, positionKey = acc.bag and position.positionKey or nil,
+    bag = acc.bag, slot = acc.slot, stackQty = acc.stack, hyperlink = acc.bag and acc.link or nil }
+end
+
+-- One read of every bag slot, itemID -> its unbound slots in bag/slot order. A paint pass
+-- (renderRows, OnBagsChanged) builds it once and hands it down as a local, so it cannot outlive
+-- the pass or be seen by a click; the 5-second refresh used to rescan all slots per position.
+function GC.Sell._BagSnapshot()
+  local index = {}
+  for _, bag in ipairs(SELL_BAGS) do
+    local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
+    for slot = 1, slots do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if info and info.itemID and info.isBound ~= true then
+        local list = index[info.itemID]
+        if not list then list = {}; index[info.itemID] = list end
+        list[#list + 1] = { bag = bag, slot = slot, stackCount = info.stackCount }
+      end
+    end
+  end
+  return index
+end
+
+GC.Sell._LiveBagState = liveBagState -- read by specs, like GC.Sell._SlotKey
 end
 
 -- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
@@ -2233,9 +2276,10 @@ end
 -- (SellFrame.lua's headroom).
 function GC.Sell.OnBagsChanged()
   if not containerShown() then return end
+  local snapshot = GC.Sell._BagSnapshot()
   for _, position in ipairs(positions) do
     if position.positionKey and (position.bagQty or 0) > 0 then
-      GC.Sell._CacheBagLocation(position, liveBagState(position))
+      GC.Sell._CacheBagLocation(position, liveBagState(position, nil, snapshot))
     end
   end
 end
@@ -5060,6 +5104,8 @@ renderRows = function()
   end
   deferredRender = false
   renderGeneration = renderGeneration + 1
+  -- One read of the bags for this whole pass (see GC.Sell._BagSnapshot); a local, so it dies with it.
+  local bagSnapshot = GC.Sell._BagSnapshot()
   -- The two decks carry DIFFERENT column sets, so the heading row has to be re-laid out when
   -- the deck changes -- rows are laid out on every render (below) but the header is built once.
   -- Done here rather than in the deck buttons' own handler because filterMode also moves
@@ -5137,7 +5183,7 @@ renderRows = function()
     -- open, and onPostClick never builds an ItemLocation itself -- see cacheBagLocation's own
     -- comment above liveBagState.
     if (position.bagQty or 0) > 0 then
-      GC.Sell._CacheBagLocation(position, liveBagState(position))
+      GC.Sell._CacheBagLocation(position, liveBagState(position, nil, bagSnapshot))
     end
     if expanded[position.positionKey] and not openPosition then
       openPosition = position
@@ -5159,7 +5205,7 @@ renderRows = function()
       -- The bag line earns its row when it says something the panel's heading ("x37 in bags")
       -- does not: that one click lists only part of the stock, that no stack can be pinned
       -- down, or that some of it has no cost and can be given one here.
-      local bagState = inBags > 0 and liveBagState(position) or nil
+      local bagState = inBags > 0 and liveBagState(position, nil, bagSnapshot) or nil
       GC.Sell._CacheBagLocation(position, bagState)
       local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
       local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
@@ -5741,7 +5787,7 @@ renderRows = function()
         -- ItemLocation), so a split stack cannot all go at once; a commodity
         -- aggregates across the bags and can.
         local inBags = p.bagQty or 0
-        local bagState = liveBagState(p)
+        local bagState = liveBagState(p, nil, bagSnapshot)
         GC.Sell._CacheBagLocation(p, bagState)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
         setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour

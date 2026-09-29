@@ -1,5 +1,9 @@
 # GoldCap
 
+## 0.17.1 (unreleased)
+
+- The Sell tab no longer stutters every few seconds while it refreshes prices.
+
 ## 0.17.0 (2026-09-29)
 
 - In WoW: Forever, once the GoldCap Companion has sent your scan, GoldCap tells you in chat how
