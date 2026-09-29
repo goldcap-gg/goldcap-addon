@@ -924,7 +924,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- here. Fires again on every loading screen, which Pending() makes harmless.
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
     -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
-    if GC.ForeverScan then GC.ForeverScan.MaybeIntro() end
+    if GC.ForeverScan then
+      GC.ForeverScan.MaybeIntro()
+      -- What the last scan changed, once per upload (Companion 1.16.0+); after the intro.
+      GC.ForeverScan.SayImpact()
+    end
     if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
     if GC.ForeverLoot then GC.ForeverLoot.MaybeIntro() end
   elseif event == "GET_ITEM_INFO_RECEIVED" then

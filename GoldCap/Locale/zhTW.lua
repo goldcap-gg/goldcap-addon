@@ -883,4 +883,10 @@ GC.Locales.zhTW = {
   ["Shared with goldcap.gg on your next /reload"] = "將在你下次 /reload 時分享到 goldcap.gg",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的掃描結果保存在這台電腦上。GoldCap Companion 會把它們分享到 goldcap.gg，並帶回所有人的價格。",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 會在每次 /reload 後把你的掃描分享到 goldcap.gg，並帶回所有人的價格。",
+  ["You opened %s -- its first %s prices are yours."] =
+    "你開啟了 %s -- 這裡最先的 %s 個價格來自你。",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "你的掃描更新了 %s 個價格(%s) -- 其中 %s 個在過去 24 小時內沒有其他人掃描過。",
+  ["Your scan updated %s prices on %s."] =
+    "你的掃描更新了 %s 個價格(%s)。",
 }

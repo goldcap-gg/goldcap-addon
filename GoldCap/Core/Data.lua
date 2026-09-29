@@ -535,6 +535,12 @@ function GC.Data.AdoptAppData()
       })
       forever.foreverString = nil
     end
+    -- What the last scan changed on the market (Companion 1.16.0+; no key from an older one):
+    -- kept in memory for the once-per-scan chat line, and dropped from the global like the string.
+    if type(forever) == "table" and GC.ForeverScan then
+      if GC.ForeverScan.AdoptImpact then GC.ForeverScan.AdoptImpact(forever.foreverImpact) end
+      forever.foreverImpact = nil
+    end
     return
   end
   local appData = _G.GoldCap_AppData

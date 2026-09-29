@@ -966,4 +966,10 @@ GC.Locales.ptBR = {
   ["Shared with goldcap.gg on your next /reload"] = "Compartilhado com o goldcap.gg no seu próximo /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Seus escaneamentos ficam neste computador. O GoldCap Companion os compartilha com o goldcap.gg e traz de volta os preços de todos.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "O GoldCap Companion compartilha seus escaneamentos com o goldcap.gg após cada /reload e traz de volta os preços de todos.",
+  ["You opened %s -- its first %s prices are yours."] =
+    "Você abriu %s -- os primeiros %s preços são seus.",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "Seu escaneamento atualizou %s preços em %s -- %s deles ninguém mais tinha nas últimas 24 horas.",
+  ["Your scan updated %s prices on %s."] =
+    "Seu escaneamento atualizou %s preços em %s.",
 }
