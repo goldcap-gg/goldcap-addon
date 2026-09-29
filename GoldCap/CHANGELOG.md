@@ -2,6 +2,7 @@
 
 ## 0.17.1 (unreleased)
 
+- The Sell tab no longer stutters every few seconds while it refreshes prices.
 - In WoW: Forever, the BUY tab no longer treats your own single scan as the usual price. USUAL and
   the price limit now come from the community price, and a line with none shows a dash and has no
   limit.
