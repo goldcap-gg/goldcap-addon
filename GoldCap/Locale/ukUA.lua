@@ -981,4 +981,10 @@ GC.Locales.ukUA = {
   ["Shared with goldcap.gg on your next /reload"] = "Буде передано на goldcap.gg під час наступного /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваші скани залишаються на цьому комп'ютері. GoldCap Companion передає їх на goldcap.gg і повертає ціни всіх гравців.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передає ваші скани на goldcap.gg після кожного /reload і повертає ціни всіх гравців.",
+  ["You opened %s -- its first %s prices are yours."] =
+    "Ви відкрили %s -- перші ціни тут ваші: %s.",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "Ваш скан оновив цін: %s на %s -- з них ні в кого більше не було за останні 24 години: %s.",
+  ["Your scan updated %s prices on %s."] =
+    "Ваш скан оновив цін: %s на %s.",
 }

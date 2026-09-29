@@ -968,4 +968,10 @@ GC.Locales.deDE = {
   ["Shared with goldcap.gg on your next /reload"] = "Wird beim nächsten /reload mit goldcap.gg geteilt",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Deine Scans bleiben auf diesem Computer. Der GoldCap Companion teilt sie mit goldcap.gg und bringt die Preise aller zurück.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "Der GoldCap Companion teilt deine Scans nach jedem /reload mit goldcap.gg und bringt die Preise aller zurück.",
+  ["You opened %s -- its first %s prices are yours."] =
+    "Du hast %s eröffnet -- die ersten %s Preise dort stammen von dir.",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "Dein Scan hat %s Preise auf %s aktualisiert -- %s davon hatte in den letzten 24 Stunden sonst niemand.",
+  ["Your scan updated %s prices on %s."] =
+    "Dein Scan hat %s Preise auf %s aktualisiert.",
 }

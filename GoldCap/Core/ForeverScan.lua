@@ -41,8 +41,25 @@ local C = {
   -- long as every later read happens to come back partial too. Past this, a partial read replaces
   -- the stale fold wholesale, same as a non-partial one already does.
   MERGE_MAX_AGE_SECONDS = 2 * 3600,
+  -- How many of this account's own fold stamps are remembered (rememberAt below).
+  KEEP_FOLD_ATS = 8,
 }
 GC.ForeverScan.C = C
+
+-- GoldCapDB.foreverScan.foldAts: the `at` of the last few folds THIS account saved, oldest first.
+-- One Companion install can hold two WoW accounts and each has its own GoldCapDB, but the
+-- Companion's answer for a scan arrives keyed by the fold's `at` alone: a stamp in this list is how
+-- the addon knows a result is for a scan its own account made (SayImpact).
+local function rememberAt(s, at)
+  if type(at) ~= "number" or at <= 0 then return end
+  if type(s.foldAts) ~= "table" then s.foldAts = {} end
+  local list = s.foldAts
+  for i = 1, #list do
+    if list[i] == at then return end
+  end
+  list[#list + 1] = at
+  while #list > C.KEEP_FOLD_ATS do table.remove(list, 1) end
+end
 
 function GC.ForeverScan.New(driver)
   local obj = {}
@@ -155,6 +172,9 @@ function GC.ForeverScan.New(driver)
           realm = p.realm, faction = p.faction, ruleset = p.ruleset, at = driver.now(), source = source,
           rows = a.replicated and a.rows or nil, itemCount = count, partial = a.partial or nil,
           items = items }
+        -- A new stamp: the one the Companion will answer for. The merge above keeps the old `at`,
+        -- which is already remembered.
+        rememberAt(s, s.fold.at)
         -- Plan 3e: the gear lots of this dump, or none (a browse-only scan has no links).
         s.gear = a.gear and GC.ForeverGear.Freeze(a.gear, s.fold.at) or nil
       end
@@ -502,6 +522,10 @@ function GC.ForeverScan.Init(db, driver)
   GC.ForeverScan._passport = on and driver.passport or nil
   GC.ForeverScan._scanner = on and GC.ForeverScan.New(driver) or nil
   if on and type(db) == "table" and type(db.foreverScan) ~= "table" then db.foreverScan = {} end
+  -- The fold this save already holds is this account's own scan, whatever build saved it.
+  if on and type(db) == "table" and type(db.foreverScan.fold) == "table" then
+    rememberAt(db.foreverScan, db.foreverScan.fold.at)
+  end
   return on
 end
 
@@ -632,6 +656,82 @@ function GC.ForeverScan.MaybeIntro()
     GC.Print(GC.L["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."])
   else
     GC.Print(GC.L["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."])
+  end
+  return true
+end
+
+-- What the last scan changed on the market, as the site counted it (the Companion writes it into
+-- GoldCap_AppData.foreverImpact, one entry per WoW account it uploaded for; see
+-- docs/addon/AGENTS.md). Companion 1.16.0 and later; an older one writes no key and nothing below
+-- ever runs. Entry: { at, updated, onlyYours, first?, realm, faction? }, `at` the fold's own stamp.
+local function isCount(n)
+  return type(n) == "number" and n >= 0 and n % 1 == 0 and n <= 2 ^ 53
+end
+
+local function validImpact(e)
+  if type(e) ~= "table" then return false end
+  if not (isCount(e.at) and e.at > 0) then return false end
+  if not (isCount(e.updated) and isCount(e.onlyYours) and e.onlyYours <= e.updated) then return false end
+  if e.first ~= nil and type(e.first) ~= "boolean" then return false end
+  if type(e.realm) ~= "string" or e.realm == "" then return false end
+  -- Characters, not bytes: a Korean realm name is three bytes a letter.
+  if select(2, e.realm:gsub("[^\128-\191]", "")) > 64 then return false end
+  if e.faction ~= nil and type(e.faction) ~= "string" then return false end
+  return true
+end
+
+-- Memory only, like the Forever payload: rebuilt from the file on every load. A value that is not
+-- a table changes nothing (an old Companion writes no key); one bad entry costs only itself.
+function GC.ForeverScan.AdoptImpact(list)
+  if type(list) ~= "table" then return end
+  local kept = {}
+  for _, e in ipairs(list) do
+    if validImpact(e) then
+      kept[#kept + 1] = { at = e.at, updated = e.updated, onlyYours = e.onlyYours, first = e.first == true,
+        realm = e.realm, faction = e.faction ~= "" and e.faction or nil }
+    end
+  end
+  GC.ForeverScan._impacts = kept
+end
+
+-- The market as the Companion names it, `realm · faction`, with the client's own word for the
+-- faction (FACTION_ALLIANCE / FACTION_HORDE exist in retail and in Forever) and a `|` in a name
+-- doubled so chat does not read it as an escape.
+local function marketLabel(e)
+  local function chat(text) return (text:gsub("|", "||")) end
+  local faction = e.faction
+  if faction == nil then return chat(e.realm) end
+  if faction == "Alliance" and type(_G.FACTION_ALLIANCE) == "string" then faction = _G.FACTION_ALLIANCE end
+  if faction == "Horde" and type(_G.FACTION_HORDE) == "string" then faction = _G.FACTION_HORDE end
+  return chat(e.realm) .. " · " .. chat(faction)
+end
+
+-- Once per upload, at the loading screen after the Companion wrote the answer: the newest entry
+-- that is this account's own scan (its `at` is in foldAts) and newer than the last one said. The
+-- stamp is kept even for a scan that changed nothing, so an older answer never speaks after a
+-- newer one. Returns whether it printed.
+function GC.ForeverScan.SayImpact()
+  local s = GC.ForeverScan.Store()
+  local impacts = GC.ForeverScan._impacts
+  if not s or type(impacts) ~= "table" or type(s.foldAts) ~= "table" then return false end
+  local mine = {}
+  for _, at in ipairs(s.foldAts) do mine[at] = true end
+  local said = type(s.impactSaidAt) == "number" and s.impactSaidAt or 0
+  local best
+  for _, e in ipairs(impacts) do
+    if mine[e.at] and e.at > said and (not best or e.at > best.at) then best = e end
+  end
+  if not best then return false end
+  s.impactSaidAt = best.at
+  if best.updated == 0 then return false end
+  local market = marketLabel(best)
+  if best.first then
+    GC.Print(GC.L["You opened %s -- its first %s prices are yours."]:format(market, count(best.updated)))
+  elseif best.onlyYours > 0 then
+    GC.Print(GC.L["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."]
+      :format(count(best.updated), market, count(best.onlyYours)))
+  else
+    GC.Print(GC.L["Your scan updated %s prices on %s."]:format(count(best.updated), market))
   end
   return true
 end

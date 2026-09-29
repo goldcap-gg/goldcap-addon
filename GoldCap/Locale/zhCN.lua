@@ -882,4 +882,10 @@ GC.Locales.zhCN = {
   ["Shared with goldcap.gg on your next /reload"] = "将在你下次 /reload 时分享到 goldcap.gg",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "你的扫描结果保存在这台电脑上。GoldCap Companion 会把它们分享到 goldcap.gg，并带回所有人的价格。",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion 会在每次 /reload 后把你的扫描分享到 goldcap.gg，并带回所有人的价格。",
+  ["You opened %s -- its first %s prices are yours."] =
+    "你开启了 %s -- 这里最先的 %s 个价格来自你。",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "你的扫描更新了 %s 个价格(%s) -- 其中 %s 个在过去 24 小时内没有其他人扫描过。",
+  ["Your scan updated %s prices on %s."] =
+    "你的扫描更新了 %s 个价格(%s)。",
 }

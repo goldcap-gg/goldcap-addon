@@ -962,4 +962,10 @@ GC.Locales.ruRU = {
   ["Shared with goldcap.gg on your next /reload"] = "Уйдёт на goldcap.gg при следующем /reload",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "Ваши сканирования остаются на этом компьютере. GoldCap Companion передаёт их на goldcap.gg и приносит цены всех игроков.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion передаёт ваши сканирования на goldcap.gg после каждого /reload и приносит цены всех игроков.",
+  ["You opened %s -- its first %s prices are yours."] =
+    "Вы открыли %s -- первые цены здесь ваши: %s.",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "Ваше сканирование обновило цен: %s на %s -- из них ни у кого больше не было за последние 24 часа: %s.",
+  ["Your scan updated %s prices on %s."] =
+    "Ваше сканирование обновило цен: %s на %s.",
 }

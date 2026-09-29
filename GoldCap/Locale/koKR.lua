@@ -909,4 +909,10 @@ GC.Locales.koKR = {
   ["Shared with goldcap.gg on your next /reload"] = "다음 /reload 때 goldcap.gg와 공유됩니다",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "검색 결과는 이 컴퓨터에만 저장됩니다. GoldCap Companion이 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion이 /reload할 때마다 검색 결과를 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
+  ["You opened %s -- its first %s prices are yours."] =
+    "%s 경매장을 처음 열었습니다 -- 처음 %s개의 시세는 당신 몫입니다.",
+  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
+    "이번 검색으로 시세 %s개를 %s에서 갱신했습니다 -- 그중 %s개는 최근 24시간 동안 다른 누구도 갖고 있지 않았습니다.",
+  ["Your scan updated %s prices on %s."] =
+    "이번 검색으로 시세 %s개를 %s에서 갱신했습니다.",
 }
