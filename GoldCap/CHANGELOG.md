@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.17.1 (unreleased)
+
+- In WoW: Forever, the BUY tab no longer treats your own single scan as the usual price. USUAL and
+  the price limit now come from the community price, and a line with none shows a dash and has no
+  limit.
+
 ## 0.17.0 (2026-09-29)
 
 - In WoW: Forever, once the GoldCap Companion has sent your scan, GoldCap tells you in chat how

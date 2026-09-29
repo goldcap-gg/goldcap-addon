@@ -14,11 +14,24 @@ local EPS = 1e-9
 -- no yardstick). Evaluate uses it for a deal; the Sniper's watched and YOUR PRICE rows use it
 -- for items that are not one (in game 2026-09-23 a pinned row showed its unit price and nothing
 -- else).
+-- A price that is one scan's look at the auction house (WoW: Forever, Core/ForeverScan.lua) rather
+-- than a market. Every value GetItemValue answers from a scan carries source "scan": the player's
+-- own last scan, and the Companion's community price (kind "crowd"), which is a scan too.
+function GC.DealMath.IsScan(value)
+  return type(value) == "table" and value.source == "scan"
+end
+
+-- The player's OWN single scan: "what you just saw once". Not a market, and not a community
+-- price either -- the one scan-sourced value a surface that accepts community prices still refuses.
+function GC.DealMath.IsOwnScan(value)
+  return GC.DealMath.IsScan(value) and value.kind ~= "crowd"
+end
+
 function GC.DealMath.Measure(unitPrice, qty, value, cost)
   if not value or not value.mv or value.mv <= 0 then return nil end
   -- One player's own scan (WoW: Forever, Core/ForeverScan.lua) is not a market: no Deals row,
   -- no pinned row's profit is measured against it.
-  if value.source == "scan" then return nil end
+  if GC.DealMath.IsScan(value) then return nil end
   if value.kind == "realm_item" and not value.ref then return nil end
   return { discount = 1 - (unitPrice / value.mv),
     profit = math.floor(value.mv * 0.95) * qty - (cost or unitPrice * qty) }
