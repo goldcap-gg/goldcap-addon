@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.17.0 (unreleased)
+## 0.17.0 (2026-09-29)
 
 - In WoW: Forever, once the GoldCap Companion has sent your scan, GoldCap tells you in chat how
   many prices it updated on your auction house and how many of them nobody else had in the last
