@@ -198,6 +198,7 @@ describe("BUY floor refresh", function()
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
 
     local runs = { runData(opts) }

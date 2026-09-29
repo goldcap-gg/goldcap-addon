@@ -271,6 +271,7 @@ describe("BUY purchase", function()
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/PurchaseCapture.lua", GC)
     GC.Acquisitions.Init({})
+    helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
 
     local runs = { runData(), otherRun() }

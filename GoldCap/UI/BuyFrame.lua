@@ -452,9 +452,19 @@ local function haveOf(itemID)
   return bags + bank
 end
 
+-- The reference a line is priced and capped against. The player's own single scan is not one
+-- (GC.DealMath.IsOwnScan, the rule Measure applies everywhere else): when it is all
+-- GetItemValue has, the community price is asked for directly -- GetItemValue hands back the
+-- FRESHER of the two, so the player's scan can hide a community price -- and without one the
+-- line has no usual price and no cap. Community prices, and every retail source, pass as before.
 local function usualUnit(itemID)
   local value = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID)
-  return type(value) == "table" and value.mv or nil
+  if type(value) ~= "table" then return nil end
+  if GC.DealMath.IsOwnScan(value) then
+    local community = GC.Data.ForeverReference and GC.Data.ForeverReference(itemID, 0)
+    return community and community.source == "crowd" and community.value or nil
+  end
+  return value.mv
 end
 
 local DRIVER = {

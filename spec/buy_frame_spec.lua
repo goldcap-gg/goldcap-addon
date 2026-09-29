@@ -142,6 +142,7 @@ describe("BuyFrame", function()
     GC.Data = { GetItemValue = function(itemID)
       return ({ [101] = { mv = 1000 }, [102] = { mv = 2000 }, [103] = { mv = 3000 } })[itemID]
     end }
+    helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
 
@@ -717,6 +718,52 @@ describe("BuyFrame", function()
     -- A line with no market value at all states neither, rather than inventing a zero.
     local delta = rowWithText("Delta Vial")
     assert.equal("—", delta.cells.usual:GetText())
+  end)
+
+  -- WoW: Forever prices an item from the player's own last scan when nothing else knows it. One
+  -- look at one auction house is not "usual" (GC.DealMath.IsOwnScan, the rule Measure applies
+  -- everywhere else): BUY must neither print it as USUAL nor cap a purchase by it. The community
+  -- price (the Companion's, source "scan" kind "crowd") is a market and is used.
+  describe("reference price by source", function()
+    local function lineOf(itemID)
+      for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if line.itemID == itemID then return line end
+      end
+    end
+    local function withValue(value, community)
+      GC.Data.GetItemValue = function(itemID) if itemID == 101 then return value end end
+      GC.Data.ForeverReference = function() return community or { source = "own" } end
+      GC.Buy.RefreshIfShown()
+    end
+
+    it("does not show or cap by the player's own scan", function()
+      withValue({ mv = 500, source = "scan", ts = 1 })
+      assert.is_nil(lineOf(101).usual)
+      assert.is_nil(lineOf(101).cap)
+      assert.equal("—", rowWithText("Alpha Herb").cells.usual:GetText())
+    end)
+
+    it("uses the community price when the player's own scan is the fresher look", function()
+      withValue({ mv = 500, source = "scan", ts = 9 }, { value = 800, source = "crowd", scanners = 3 })
+      assert.equal(800, lineOf(101).usual)
+      assert.equal(1040, lineOf(101).cap) -- 130% of 800
+      assert.equal("800c", rowWithText("Alpha Herb").cells.usual:GetText())
+    end)
+
+    it("uses a community value as it is", function()
+      withValue({ mv = 700, source = "scan", kind = "crowd", scanners = 2, ts = 1 })
+      assert.equal(700, lineOf(101).usual)
+      assert.equal(910, lineOf(101).cap)
+    end)
+
+    it("leaves every other source (retail) exactly as it was", function()
+      for _, source in ipairs({ "import", "region", "bundled" }) do
+        withValue({ mv = 1000, source = source })
+        assert.equal(1000, lineOf(101).usual)
+        assert.equal(1300, lineOf(101).cap)
+        assert.equal("1000c", rowWithText("Alpha Herb").cells.usual:GetText())
+      end
+    end)
   end)
 
   -- The setting is GC.db.settings.sniper.buyCapPct (UI/SettingsFrame.lua's fieldRow writes

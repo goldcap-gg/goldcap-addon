@@ -41,7 +41,7 @@ describe("Sell quote and action wiring", function()
     -- Keyed exactly as the bag scan keyed it: the link where it can say, else the slot's own
     -- ItemKey (GC.Sell._SlotKey), so Post pins the very stack the row stands for.
     assert.is_truthy(text:find("GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey", 1, true))
-    assert.is_truthy(text:find("exactQty = total", 1, true))
+    assert.is_truthy(text:find("exactQty = acc.total", 1, true))
     assert.is_truthy(text:find("reason == \"ambiguous_variant\"", 1, true))
   end)
 

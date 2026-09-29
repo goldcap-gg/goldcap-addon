@@ -813,10 +813,9 @@ local function build(sniperFrame)
   -- Core/Init.lua's own comment on buyCapPct.
   --
   -- Task S: kept in Forever, unlike capStopAndOpen below -- the BUY tab's rail button carries no
-  -- IsForever gate at all (UI/SniperFrame.lua's rail wiring), and UI/BuyFrame.lua's own
-  -- usualUnit() reads GC.Data.GetItemValue, whose LAST fallback (Core/Data.lua) is the player's
-  -- own Forever scan (GC.ForeverScan.ValueFor's `mv`) -- a real "usual price" for anything that
-  -- scan has priced, once the player has scanned. Reachable and, once scanned, useful.
+  -- IsForever gate at all (UI/SniperFrame.lua's rail wiring). Its usualUnit() takes the community
+  -- price there and refuses the player's own single scan, so a line the Companion's data does not
+  -- cover has no usual price and no cap.
   fieldRow(posting, 2, GC.L["Buy cap (% of usual price)"], "buyCapPct", { min = 100, max = 300, unit = "%" },
     GC.L["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."])
 
