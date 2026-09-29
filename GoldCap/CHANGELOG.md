@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.17.0 (unreleased)
+
+- In WoW: Forever, once the GoldCap Companion has sent your scan, GoldCap tells you in chat how
+  many prices it updated on your auction house and how many of them nobody else had in the last
+  24 hours — once per scan, after your next /reload. The first scan on an auction house nobody
+  had scanned says you opened it. Needs GoldCap Companion 1.16.0.
+
 ## 0.16.1 (2026-09-29)
 
 - In WoW: Forever, a scan the game cut short no longer prices items from the part it read: those
