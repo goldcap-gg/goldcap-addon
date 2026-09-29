@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.16.1 (2026-09-29)
+
+- In WoW: Forever, a scan the game cut short no longer prices items from the part it read: those
+  prices came out too high (Linen Cloth at 2 gold when the cheapest was 64 copper). GoldCap now
+  takes those items' prices from its pass over the whole auction house, and keeps your earlier
+  scan's price for anything that pass did not reach.
+
 ## 0.16.0 (2026-09-28)
 
 - GoldCap now runs in WoW: Forever, and buys and sells at its live auction house. Type
