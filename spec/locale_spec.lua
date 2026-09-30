@@ -268,4 +268,82 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- BUY 2.0 (week 1): every string the BUY tab and its cap box can show, in all twelve. Read off
+  -- the two files' own source -- their GC.L["..."] literals and their @localised-keys tables -- so
+  -- a string added to the tab later is held to the same rule without anybody listing it here. The
+  -- tab was English in every language before BUY 2.0; the owner plays in Russian.
+  it("carries every BUY tab key in all twelve languages", function()
+    local asked = {}
+    for _, path in ipairs({ "GoldCap/UI/BuyFrame.lua", "GoldCap/UI/BuyCapEditor.lua" }) do
+      local f = assert(io.open(path))
+      local text = f:read("*a")
+      f:close()
+      for body in text:gmatch("@localised%-keys.-\n(.-)\n}") do
+        for literal in body:gmatch('"(.-)"') do asked[literal] = true end
+      end
+      for raw in text:gmatch('GC%.L%["(.-)"%]') do asked[(raw:gsub('\\"', '"'))] = true end
+    end
+    local count = 0
+    for _ in pairs(asked) do count = count + 1 end
+    assert.is_true(count > 100)
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for key in pairs(asked) do
+        assert.is_truthy(loc.Locales[code][key], code .. " lacks: " .. key)
+      end
+    end
+  end)
+
+  -- ...and the week 1 keys by name, so a key renamed in the source cannot quietly drop out of the
+  -- rule above along with its translations.
+  it("carries the BUY 2.0 week 1 keys in all twelve languages", function()
+    local keys = {
+      "▲%d%% over your cap",
+      "Blizzard's price: %s · %d s left", "Blizzard's price: %s", "%s · %s under market",
+      "%s · at market price", "%d of %d at or under your cap", "Everything here is bought",
+      "The rest is skipped for now", "still on the list: %d at a vendor · %d to craft",
+      "skipped for this session, it stays on the list", "a vendor sells it for %s each",
+      "a vendor sells it for %s each · the auction house asks %s", "a vendor sells it",
+      "craft it for %s each", "craft it for %s each · %s here", "craft it yourself",
+      "already in your bags and bank", "the cheapest is %s, your cap is %s",
+      "nothing at or under your cap of %s", "RAISE CAP TO %s", "Skip",
+      "PRICE EACH", "over your cap · %s", "at a vendor · %s each", "at a vendor", "craft it · %s each",
+      "bought", "skipped for now", "buy by hand",
+      "TO BUY HERE", "%d of %d done",
+      "buy %d of %d", "buy %d of %d, have %d in bags and bank", "%d at %s", "you take %d",
+      "over your cap", "seen %s ago", "cheapest seen %s", "Market", "%s each", "Your cap",
+      "Alert target", "right-click to skip or change the cap",
+      "Skip for now", "Don't skip", "Raise cap to %s", "Change the cap…", "Use the default cap",
+      "Cap for %s", "Set cap",
+      "All", "To buy", "Over cap", "At a vendor", "To craft", "Bought", "Skipped",
+      "Nothing on this list matches.",
+      "YOUR LISTS", "Lists come from goldcap.gg through the companion.", "%d of %d", "%d hits",
+      "BUY %d", "buying...", "confirming...",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
+
+  -- The owner plays in Russian: the words the dock and the rows say most, pinned as they read.
+  it("says the BUY dock's words naturally in Russian and Ukrainian", function()
+    local expected = {
+      ruRU = { ["BUY %d"] = "КУПИТЬ %d", ["RAISE CAP TO %s"] = "ПОДНЯТЬ ДО %s", ["Skip"] = "Пропустить",
+               ["Your cap"] = "Ваш потолок", ["TO BUY HERE"] = "К ПОКУПКЕ ЗДЕСЬ" },
+      ukUA = { ["BUY %d"] = "КУПИТИ %d", ["RAISE CAP TO %s"] = "ПІДНЯТИ ДО %s", ["Skip"] = "Пропустити",
+               ["Your cap"] = "Ваша стеля", ["TO BUY HERE"] = "ДО КУПІВЛІ ТУТ" },
+    }
+    for code, strings in pairs(expected) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for key, text in pairs(strings) do assert.equal(text, loc.Locales[code][key], code .. " " .. key) end
+    end
+  end)
 end)
