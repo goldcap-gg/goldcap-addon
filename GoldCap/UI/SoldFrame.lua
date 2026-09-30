@@ -25,9 +25,8 @@ local _, GC = ...
 -- Nothing is cut short. Every figure column is as wide as the widest text it holds this render,
 -- heading included -- measured with GetUnboundedStringWidth, so the active language and the
 -- font scale are both in the number -- and ITEM takes what is left. Sentences (tile lines, the
--- banner, section notes, hints, the empty state) wrap inside a box that grows. The one string
--- the engine may still shorten is an item NAME on a window too narrow for it; the row's
--- tooltip then carries the full name.
+-- banner, section notes, hints, the empty state) wrap inside a box that grows, and so does an
+-- item name longer than ITEM's room: its row grows to hold the extra lines.
 GC.Sold = {}
 local Sold = GC.Sold
 
@@ -687,17 +686,19 @@ local function layoutRow(row, width, fit)
     row.qty:Hide()
     nameRoom = nameRoom + SD.QTY_GAP + qtyW
   end
-  local nameW = math.max(1, math.min(widthOf(row.name), nameRoom))
-  -- The one string the engine may still shorten: an item name on a window too narrow for it.
-  -- The full name is on the row's tooltip.
-  row.name:SetWordWrap(false)
-  if row.name.SetMaxLines then row.name:SetMaxLines(1) end
-  row.name:SetWidth(nameW)
+  local h = SD.ROW_H
+  if widthOf(row.name) <= nameRoom then
+    hug(row.name)
+  else
+    -- A name longer than ITEM's room wraps onto more lines and the row grows to hold them:
+    -- nothing is cut.
+    h = math.max(SD.ROW_H, wrapTo(row.name, math.max(1, nameRoom)) + 10)
+  end
   row.name:ClearAllPoints()
   row.name:SetPoint("LEFT", row.iconEdge, "RIGHT", SD.ICON_GAP, 0)
   row.qty:ClearAllPoints()
   row.qty:SetPoint("LEFT", row.name, "RIGHT", SD.QTY_GAP, 0)
-  return SD.ROW_H
+  return h
 end
 
 local function saleTooltip(row)

@@ -680,13 +680,23 @@ describe("SoldFrame", function()
       GC.Theme.SetScale(1)
     end)
 
-    it("gives a long item name the room ITEM has, and its tooltip the whole name", function()
+    it("wraps a long item name inside ITEM and grows its row, instead of cutting it", function()
       local long = "Reinforced Everbloom-Stitched Leggings of the Unyielding Tidal Serpent"
-      GC.Ledger.GetEntries = function() return { sale({ itemName = long, key = "l", qty = 1 }) } end
+      GC.Ledger.GetEntries = function()
+        return { sale({ itemName = long, key = "l", qty = 1 }),
+          sale({ itemName = "Linen Cloth", key = "s", qty = 1, at = NOW - 60 }) }
+      end
       show()
       local row = saleRow(long)
-      assert.is_true(row.name.width < row.name:GetUnboundedStringWidth()) -- the one string the engine shortens
+      assert.is_true(row.name.wrap)
+      assert.is_true(row.name.width < row.name:GetUnboundedStringWidth())
+      assert.is_true(row.height >= row.name:GetStringHeight() + 10, "the row is shorter than the wrapped name")
+      assert.is_true(row.height > 34)
       assertFits(600)
+      -- A short name on the next row stays one line at the usual height.
+      local short = saleRow("Linen Cloth")
+      assert.is_false(short.name.wrap)
+      assert.equal(34, short.height)
       row.scripts.OnEnter(row)
       assert.equal(long, tooltip.title)
     end)
