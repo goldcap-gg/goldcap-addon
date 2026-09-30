@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.17.2 (unreleased)
+## 0.17.2 (2026-09-30)
 
 - In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
   auction house over in two parts.
