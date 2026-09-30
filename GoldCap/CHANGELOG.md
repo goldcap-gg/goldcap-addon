@@ -1,7 +1,9 @@
 # GoldCap
 
-## 0.17.3 (unreleased)
+## 0.17.2 (2026-09-30)
 
+- In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
+  auction house over in two parts.
 - In WoW: Forever, the SCAN button now says it is scanning for the whole scan, including the one
   that starts when you open the auction house, and pressing it meanwhile no longer starts a second
   scan. The AUTO button shows the same.
@@ -10,11 +12,6 @@
   wider column and shorter wording, so it reads in full.
 - In WoW: Forever, the tips after a scan are said once per session, and the bag and upgrade lines
   only when they have changed.
-
-## 0.17.2 (2026-09-30)
-
-- In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
-  auction house over in two parts.
 
 ## 0.17.1 (2026-09-30)
 
