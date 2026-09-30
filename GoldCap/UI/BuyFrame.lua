@@ -5,16 +5,20 @@ local _, GC = ...
 -- this file owns only the picking of the run, the four things the client alone can answer
 -- (bag counts, market value, the price cap setting, the free-line limit), and the drawing.
 --
--- Buying is hover, click, click: the cursor landing on a line quotes it against the live
--- commodity book, the first click starts the purchase for exactly that quantity, and a second
--- click confirms the price the server came back with. Both protected C_AuctionHouse calls are
--- reached ONLY from the player's own hardware click (the addon's engineering notes' "Protected actions"),
--- which spec/buy_purchase_wiring_spec.lua pins against this file's source text.
+-- Buying (BUY 2.0) is pick, press, press: a left click on a row picks its line for the dock at
+-- the foot of the tab and quotes it against the live commodity book (the ticker quotes the line
+-- the dock lands on by itself), the dock's one button starts the purchase for exactly that
+-- quantity, and a second press confirms the price the server came back with. Both protected
+-- C_AuctionHouse calls are reached ONLY from the player's own hardware click on that button or
+-- the Enter key (the addon's engineering notes' "Protected actions"), which
+-- spec/buy_purchase_wiring_spec.lua pins against this file's source text. A hover explains a line
+-- and, after a short rest, reads its book for the tooltip -- never for a purchase.
 --
 -- Presentation is the Sold tab's (UI/SoldFrame.lua): one COLUMNS table driving both the
--- header row and every pooled row, responsive column drop in a declared priority order,
--- zebra/hover through the engine's own HIGHLIGHT layer. Duplicated rather than shared -- as
--- Sold duplicates it from Deals -- because these locals do not cross files.
+-- header row and every pooled row, zebra/hover through the engine's own HIGHLIGHT layer. Its
+-- three columns are as wide as what they hold in the player's language (fitColumns), and a name
+-- that does not fit wraps. Duplicated rather than shared -- as Sold duplicates it from Deals --
+-- because these locals do not cross files.
 GC.Buy = {}
 
 local Theme
@@ -3476,6 +3480,12 @@ function GC.Buy.Attach(f, geo)
   container:SetScript("OnKeyUp", function(self)
     if InCombatLockdown and InCombatLockdown() then return end
     if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
+  end)
+
+  -- The cap box (UI/BuyCapEditor.lua) floats over the list on UIParent; it goes with the tab,
+  -- whether the tab is switched away or the window holding it closes.
+  container:HookScript("OnHide", function()
+    if GC.BuyCapEditor and GC.BuyCapEditor.Close then GC.BuyCapEditor.Close() end
   end)
 
   -- The one seam specs use instead of debug.getupvalue.

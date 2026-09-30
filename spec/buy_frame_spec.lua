@@ -1342,6 +1342,14 @@ describe("BuyFrame", function()
     assert.equal(5000, GC.db.runLineCaps["run-1"][101])
   end)
 
+  it("closes the price box when the tab goes out of sight", function()
+    local closed = 0
+    GC.BuyCapEditor = { Close = function() closed = closed + 1 end }
+    local c = containerOf()
+    c.scripts.OnHide(c)
+    assert.equal(1, closed)
+  end)
+
   it("opens the price box on the line's cap and stores what the player sets", function()
     local opened
     GC.BuyCapEditor = { Open = function(anchor, opts) opened = { anchor = anchor, opts = opts } end }
