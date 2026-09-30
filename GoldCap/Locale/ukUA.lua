@@ -711,7 +711,7 @@ GC.Locales.ukUA = {
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
-  ["no cost"] = "немає собівартості",
+  ["no cost"] = "без закупу",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
   ["no live price"] = "немає живої ціни",

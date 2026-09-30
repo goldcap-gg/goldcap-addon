@@ -57,7 +57,6 @@ T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
 -- deliberately: on CJK the digits stop being monospaced, so number columns line up by their
 -- RIGHT anchor rather than by character width. Boxes would be worse.
 --
--- The brand logo keeps the bundled face: it is always the Latin "G".
 -- T.Label already does the equivalent by inheriting GameFontHighlightSmall; this is the same
 -- idea for the places that ask for the mono face by name.
 local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
@@ -441,10 +440,12 @@ function T.RailButton(parent, iconFile, labelText)
   b.text:SetText(labelText)
   widgetFonts[b.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 8 }
 
-  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+  -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
+  -- the button's whole square, so hovering a rail button drew a square around the rounded
+  -- plate the active one wears (owner, Forever beta 2026-10-01).
+  b.highlightTexture = slicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
-  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
 
   -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
   -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
@@ -508,17 +509,19 @@ function T.Rail(parent)
   edge:SetPoint("BOTTOMRIGHT")
   edge:SetWidth(1)
 
-  -- `small` (plaque.png/PLAQUE_SLICE): the 32px logo is the same size class as the
-  -- badge -- card.png's 24px margins would overlap and notch its corners too.
-  local logo = T.Card(frame, T.color.gold, { T.color.goldHi[1], T.color.goldHi[2], T.color.goldHi[3], 0.5 }, true)
-  logo:SetSize(32, 32)
+  -- The GoldCap mark itself -- the coin in the crosshair the site, the store pages and the
+  -- AddOns list show -- rather than a gold plate with a "G" on it (owner, 2026-10-01). Same
+  -- file as the .toc's IconTexture, full colour on transparent, so it is drawn as it is and
+  -- never tinted. 40px, where the plate was 32: the crosshair's arms take the outer ring, and
+  -- at 32 the coin inside was smaller than a rail icon. The gap under it shrinks by the same
+  -- 8px (LOGO_GAP) so the buttons below stay where they were.
+  local logo = CreateFrame("Frame", nil, frame)
+  logo:SetSize(40, 40)
   logo:SetPoint("TOP", 0, -16)
-  logo.text = logo:CreateFontString(nil, "OVERLAY")
-  logo.text:SetFont(T.FONT_MONO_BOLD, 16 * T.Scale(), "")
-  logo.text:SetPoint("CENTER")
-  logo.text:SetText("G")
-  logo.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[logo.text] = { role = "mono", path = T.FONT_MONO_BOLD, size = 16 }
+  logo.mark = logo:CreateTexture(nil, "ARTWORK")
+  logo.mark:SetTexture(T.MEDIA .. "GoldCap")
+  logo.mark:SetAllPoints()
+  local LOGO_GAP = 14
 
   local buttons = {}
   local order = {
@@ -530,7 +533,7 @@ function T.Rail(parent)
   local prev = logo
   for i, item in ipairs(order) do
     local b = T.RailButton(frame, T.MEDIA .. item.icon, item.label)
-    b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -22 or -T.pad.s)
+    b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -LOGO_GAP or -T.pad.s)
     buttons[item.key] = b
     prev = b
   end

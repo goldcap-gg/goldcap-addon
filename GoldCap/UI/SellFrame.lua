@@ -3563,6 +3563,30 @@ local BOOK_BAR_H = 6
 -- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
 -- room. LIFT is how far each of the two lines sits from the row's centre.
 local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
+-- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
+ROW.MARKS_W = 5 + ROW.MARKS * 3 + (ROW.MARKS - 1) * 2
+
+-- The stand line hugs its marks, so unlike the other second lines it cannot be pinned to both
+-- edges of its column: it keeps its own width, capped at what the column leaves beside the
+-- marks, and truncates past that ("первый в очереди" or "%s por debajo de ti" in a narrow
+-- window). SetWidth(0) first: rows are pooled, and a cap from the last paint would clip a
+-- shorter line this time. Hung on ROW rather than a new local -- renderRows is close to
+-- Lua 5.1's upvalue cap (see rowTag).
+function ROW.FitStand(row)
+  local stand = row.priceStand
+  stand:SetWidth(0)
+  -- columnWidth only names a column squeezed below its natural width; otherwise it is COLUMNS'.
+  local width = columnWidth.price
+  if not width then
+    for _, column in ipairs(COLUMNS) do
+      if column.key == "price" then width = column.w end
+    end
+  end
+  local room = (width or 0) - ROW.MARKS_W
+  if room > 0 and stand.GetUnboundedStringWidth and stand:GetUnboundedStringWidth() > room then
+    stand:SetWidth(room)
+  end
+end
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -4097,6 +4121,14 @@ local function layoutCells(row)
       if second then
         second:ClearAllPoints()
         second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
+        -- Held inside its own column, so a translation longer than the column truncates there
+        -- instead of growing leftwards over the neighbour's line: "нет себестоимости" under YOU
+        -- GET was written straight across "24 впереди" under the price (owner, ruRU, Forever
+        -- beta 2026-10-01). The stand line is the one exception -- its marks hang off its left
+        -- edge, so it keeps its own width and ROW.FitStand caps that instead.
+        if second ~= row.priceStand then
+          second:SetPoint("LEFT", cell, "LEFT", 0, -2 * ROW.LIFT)
+        end
       end
       right, rightLift = cell, lift
       cell:Show()
@@ -5594,6 +5626,7 @@ renderRows = function()
           setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
             and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
         end
+        ROW.FitStand(row)
         -- Post is the point of this screen, so it lives on the row itself. It
         -- used to be reachable only by expanding the position and finding a
         -- sub-row, and only for stock GoldCap had a receipt for -- which is why

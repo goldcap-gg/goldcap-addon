@@ -112,7 +112,7 @@ describe("locale contract", function()
   it("lets no text-emitting file skip the string layer", function()
     local EXEMPT = {
       -- A widget factory: every SetText takes its text from the caller, already translated
-      -- there. Its only literals are the brand -- "GoldCap" and the "G" of the logo glyph.
+      -- there. Its only literal is the brand, "GoldCap".
       ["GoldCap/UI/Theme.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,

@@ -696,7 +696,7 @@ GC.Locales.ruRU = {
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
-  ["no cost"] = "нет себестоимости",
+  ["no cost"] = "нет закупа",
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
   ["no live price"] = "нет живой цены",
