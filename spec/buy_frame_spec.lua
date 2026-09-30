@@ -218,6 +218,28 @@ describe("BuyFrame", function()
   end
   local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
 
+  -- The client's GameTooltip, as far as a line's tooltip uses it. `lines` are its AddLine calls
+  -- (text and colour), `all` every line in order, the double ones as "left | right".
+  local function tooltipOn(row)
+    local lines, all = {}, {}
+    _G.GameTooltip = {
+      SetOwner = function() end, IsOwned = function() return true end,
+      SetText = function(_, text) all[#all + 1] = text end,
+      AddLine = function(_, text, r, g, b)
+        lines[#lines + 1] = { text = text, color = { r, g, b } }
+        all[#all + 1] = text
+      end,
+      AddDoubleLine = function(_, left, right) all[#all + 1] = left .. " | " .. right end,
+      Show = function() end, Hide = function() end,
+    }
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    return lines, all
+  end
+  local function lineWith(lines, text)
+    for _, l in ipairs(lines) do if (l.text or ""):find(text, 1, true) then return l end end
+  end
+
   local function shownTexts()
     local out = {}
     for _, row in ipairs(shownRows()) do
@@ -296,30 +318,24 @@ describe("BuyFrame", function()
   end)
 
   it("splits HAVE into bags and bank on the row tooltip when the bank holds any", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     stubItemCount({ [102] = { all = 305, carried = 5 } })
     GC.Buy.Show()
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({ "in bags 5 · in bank 300" }, tooltipLines)
+    local lines = tooltipOn(rowWithText("Bravo Ore"))
+    assert.truthy(lineWith(lines, "in bags 5 · in bank 300"))
   end)
 
   it("says nothing about the bank on the tooltip when there is none in it", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     GC.Buy.Show()
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({}, tooltipLines)
+    local lines = tooltipOn(rowWithText("Bravo Ore"))
+    assert.is_nil(lineWith(lines, "in bank"))
+  end)
+
+  it("says how many are left to buy of how many, and how many the player has", function()
+    stubItemCount({ [101] = { all = 4, carried = 0 } })
+    GC.Buy.Show()
+    local lines, all = tooltipOn(rowWithText("Alpha Herb"))
+    assert.equal("Alpha Herb", all[1])
+    assert.truthy(lineWith(lines, "buy 6 of 10 · have 4 in bags and bank"))
   end)
 
   -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a
@@ -985,13 +1001,6 @@ describe("BuyFrame", function()
   -- Spec rule 3: the hour the site measured is UTC; the player reads realm time. The offset is
   -- the difference between the client's own two clocks -- realm time and the same instant in UTC.
   it("says in the row's tooltip when the item is usually cheapest, in realm time", function()
-    local tooltipLines
-    _G.GameTooltip = {
-      SetOwner = function() end,
-      SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     -- Realm clock says 14:00 while UTC says 12:00: a realm two hours ahead of UTC.
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
     _G.GetServerTime = function() return 1757937600 end
@@ -1002,29 +1011,18 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-c"
     GC.Buy.Show()
 
-    tooltipLines = {}
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({ "usually cheapest around 05:00 · -18%" }, tooltipLines)   -- 3 UTC + 2
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.truthy(lineWith(lines, "usually cheapest around 05:00 · -18%"))   -- 3 UTC + 2
 
     -- A line the site could not measure says nothing at all.
-    tooltipLines = {}
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({}, tooltipLines)
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- Realm behind UTC and an hour that wraps past midnight: the two `% 24`s are what keep
   -- 23:00 UTC on a realm at UTC-2 from reading as "-1:00" or "25:00".
   it("wraps the cheap hour through midnight for a realm behind UTC", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     -- Realm clock 21:00 while UTC says 23:00: offset (21 - 23) % 24 = 22, i.e. two hours behind.
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 21 } end }
     _G.GetServerTime = function() return 1757937600 end
@@ -1034,41 +1032,25 @@ describe("BuyFrame", function()
       lines = { { i = 101, q = 10, ch = 1, cp = -9 }, { i = 102, q = 5 } } }) })
     GC.db.settings.sniper.buyRun = "run-w"
     GC.Buy.Show()
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({ "usually cheapest around 23:00 · -9%" }, tooltipLines)   -- (1 + 22) % 24
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.truthy(lineWith(lines, "usually cheapest around 23:00 · -9%"))   -- (1 + 22) % 24
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- An hour in the wrong timezone is worse than no hour, so a client that cannot answer gets
   -- nothing rather than the UTC hour dressed up as a local one.
   it("says nothing about the cheap hour when the client cannot give the offset", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     GC.AppRuns._set({ run({ code = "run-c", updatedAt = 900,
       lines = { { i = 101, q = 10, ch = 3, cp = -18 } } }) })
     GC.db.settings.sniper.buyRun = "run-c"
     GC.Buy.Show()
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({}, tooltipLines)
-    _G.GameTooltip = nil
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Alpha Herb")), "usually cheapest"))
   end)
 
   -- Finding 3: a vendor sells at one fixed price, so "usually cheapest around HH:00" is noise --
   -- there is no auction house history for this line to be a footnote on.
   it("says nothing about the cheap hour on a vendor line", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
     _G.GetServerTime = function() return 1757937600 end
     _G.date = function() return { hour = 12 } end
@@ -1078,11 +1060,9 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-vc"
     GC.Buy.Show()
 
-    local vendor = rowWithText("Bravo Ore")
-    vendor.scripts.OnEnter(vendor)
-    assert.same({}, tooltipLines)
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- Spec rule 1: a line the site sent a recipe for, split, becomes a craft line with its
@@ -1190,18 +1170,6 @@ describe("BuyFrame", function()
     assert.is_nil(GC.Buy._attempt)
   end)
 
-  local function tooltipOn(row)
-    local lines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text, r, g, b) lines[#lines + 1] = { text = text, color = { r, g, b } } end,
-      Show = function() end, Hide = function() end,
-    }
-    row.scripts.OnEnter(row)
-    _G.GameTooltip = nil
-    return lines
-  end
-
   local function texts(lines)
     local out = {}
     for _, entry in ipairs(lines) do out[#out + 1] = entry.text end
@@ -1213,10 +1181,11 @@ describe("BuyFrame", function()
   it("compares crafting with buying on the row tooltip, in green when it is cheaper", function()
     showCraftRun(false)
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.same({ "craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each",
-                  "vs 5800c at the auction house · right-click to split" }, texts(lines))
+    local craft = lineWith(lines, "craft it: ")
+    assert.equal("craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each", craft.text)
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to split"))
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
-      lines[1].color)
+      craft.color)
   end)
 
   it("greys the comparison when the auction house is cheaper", function()
@@ -1227,15 +1196,16 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-x"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.equal("vs 300c at the auction house · right-click to split", lines[2].text)
+    local vs = lineWith(lines, "vs 300c at the auction house · right-click to split")
+    assert.truthy(vs)
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
-      lines[2].color)
+      vs.color)
   end)
 
   it("offers the way back on a line that is already split", function()
     showCraftRun(true)
     local lines = tooltipOn(rowWithText("craft 4×"))
-    assert.equal("vs 5800c at the auction house · right-click to buy it whole", lines[2].text)
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to buy it whole"))
   end)
 
   -- A reagent the run already asked for does not get a second row; its NEED grows instead, and
@@ -1251,7 +1221,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-m"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Charlie Dust"))
-    assert.same({ "includes 20 for crafting Alpha Herb" }, texts(lines))
+    assert.truthy(lineWith(lines, "includes 20 for crafting Alpha Herb"))
   end)
 
   it("splits a line from its row menu and puts it back again", function()

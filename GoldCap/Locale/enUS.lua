@@ -22,6 +22,7 @@ GC.Locales.enUS = {
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
   ["%d ahead of you"] = "%d ahead of you",
+  ["%d at %s"] = "%d at %s",
   ["%d caps · %s"] = "%d caps · %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
@@ -51,6 +52,7 @@ GC.Locales.enUS = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
+  ["%s each"] = "%s each",
   ["%s listed · %d min ago"] = "%s listed · %d min ago",
   ["%s listed · just now"] = "%s listed · just now",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s needs a number, for example /gc weights %s 1.5",
@@ -92,6 +94,7 @@ GC.Locales.enUS = {
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
     "Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down.",
   ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
+  ["Alert target"] = "Alert target",
   ["Alerts"] = "Alerts",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
   ["At your pace you reach it at level %d."] = "At your pace you reach it at level %d.",
@@ -152,6 +155,7 @@ GC.Locales.enUS = {
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
   ["Loot record cleared."] = "Loot record cleared.",
+  ["Market"] = "Market",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["Mount cost cleared."] = "Mount cost cleared.",
@@ -215,6 +219,7 @@ GC.Locales.enUS = {
   ["YOUR LOTS"] = "YOUR LOTS",
   ["You can pay for it now."] = "You can pay for it now.",
   ["You have %s — gold %s, bags %s"] = "You have %s — gold %s, bags %s",
+  ["Your cap"] = "Your cap",
   ["Your gold has not grown lately, so there is no pace to estimate."] =
     "Your gold has not grown lately, so there is no pace to estimate.",
   ["a vendor sells it"] = "a vendor sells it",
@@ -230,7 +235,10 @@ GC.Locales.enUS = {
   ["at a vendor · %s each"] = "at a vendor · %s each",
   ["at level %d"] = "at level %d",
   ["bought"] = "bought",
+  ["buy %d of %d"] = "buy %d of %d",
+  ["buy %d of %d · have %d in bags and bank"] = "buy %d of %d · have %d in bags and bank",
   ["buy by hand"] = "buy by hand",
+  ["cheapest seen %s"] = "cheapest seen %s",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
   ["craft it for %s each"] = "craft it for %s each",
@@ -261,6 +269,7 @@ GC.Locales.enUS = {
   ["oldest units sell first"] = "oldest units sell first",
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
+  ["over your cap"] = "over your cap",
   ["over your cap · %s"] = "over your cap · %s",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
@@ -708,6 +717,8 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
+  ["right-click to skip or change the cap"] = "right-click to skip or change the cap",
+  ["seen %s ago"] = "seen %s ago",
   ["skipped for now"] = "skipped for now",
   ["skipped for this session, it stays on the list"] = "skipped for this session, it stays on the list",
   ["still on the list: %d at a vendor · %d to craft"] = "still on the list: %d at a vendor · %d to craft",
@@ -953,6 +964,7 @@ GC.Locales.enUS = {
   ["you have enough gold for this now -- Check again"] = "you have enough gold for this now -- Check again",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).",
+  ["you take %d"] = "you take %d",
   ["your game client has no font for this language — the text will show as empty boxes"] =
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =

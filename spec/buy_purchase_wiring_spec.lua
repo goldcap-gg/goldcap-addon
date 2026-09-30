@@ -179,6 +179,8 @@ describe("BUY purchase wiring", function()
   it("claims its own throttle window for the hover quote", function()
     local text = source()
     assert.is_truthy(text:find('ClaimThrottleSend("buy-quote")', 1, true))
+    -- The hover's look at another line's book is a third consumer, with a window of its own.
+    assert.is_truthy(text:find('ClaimThrottleSend("buy-look")', 1, true))
     assert.is_nil(text:find('ClaimThrottleSend("buy")', 1, true))
   end)
 

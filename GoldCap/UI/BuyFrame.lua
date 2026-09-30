@@ -94,6 +94,9 @@ local BD = {
   -- dock's sub-line). Much longer than QUOTE_SECONDS: this is a number to read, not one to spend,
   -- and what a click spends is still only a fresh quote of the line's own (planBuyClick).
   LADDER_SECONDS = 60,
+  -- How long the pointer has to rest on a row before its tooltip asks the auction house for the
+  -- line's book (lookLine): long enough that sweeping the cursor down the list asks nothing.
+  LOOK_DWELL_SECONDS = 0.35,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -847,6 +850,16 @@ local function quotePending(attempt)
     and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
 end
 
+-- A hover's read of another line's book (BUY 2.0's tooltip ladder). It shares the client's one
+-- commodity buffer with the dock's quote, so only one of the two is ever out, and it never touches
+-- GC.Buy._attempt: what it learns goes to `quotes` for drawing, never for spending. Ages out like
+-- a quote, for the same reason: the client drops a throttled search without a word.
+GC.Buy._look = nil
+local function lookPending()
+  local look = GC.Buy._look
+  return look ~= nil and (time() - (look.askedAt or 0)) < BD.QUOTE_SECONDS
+end
+
 -- The last quote this line got, for the line's whole remaining quantity, while it is inside
 -- BD.QUOTE_SECONDS -- or nil. A quote outlives the hover that asked for it: the COST cell keeps its
 -- sum, and the button keeps its "BUY n". It is what the line SHOWS, not what a click spends: a
@@ -1453,7 +1466,8 @@ local function quote(line, clicked)
   -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
   -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
-  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
+  -- ...nor over a hover's look still out (lookLine): one question per buffer.
+  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending() then
     GC.Buy._quoteOwed = line.itemID
     -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
     if clicked then
@@ -1502,10 +1516,50 @@ local function quote(line, clicked)
   GC.Buy.RefreshIfShown()
 end
 
+-- A hover's look at a line's book, for its tooltip's ladder. Only a line that is not the dock's
+-- (the dock's own line is quoted by `quote`), that could be bought, that the client sells as a
+-- commodity, and that has no read younger than BD.QUOTE_SECONDS; never while a purchase is in
+-- flight, while the dock's quote is being asked for or is fresh, while another look or a keys
+-- batch is out, or while the throttle is not ready. Asked under its own throttle claim.
+local function lookLine(line)
+  if not (line and current) or not buyable(line) then return end
+  if line.itemID == GC.Buy._focus then return end
+  local seen = quotes[line.itemID]
+  if seen and seen.ladder ~= nil and (time() - (seen.at or 0)) < BD.QUOTE_SECONDS then return end
+  local attempt = GC.Buy._attempt
+  if inFlight(attempt) or quotePending(attempt) or quoteFresh(attempt) or lookPending() then return end
+  if strandedFor(line) then return end
+  if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
+  if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
+  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return end
+  if not askableItem(line.itemID) or not throttleReady() then return end
+  if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-look") then return end
+  local key = C_AuctionHouse.MakeItemKey(line.itemID)
+  C_AuctionHouse.SendSearchQuery(key, {}, false)
+  if GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
+  GC.Buy._look = { itemID = line.itemID, askedAt = time() }
+end
+
 -- COMMODITY_SEARCH_RESULTS_UPDATED, routed here by Core/Init.lua. The buffer is addon-wide and
 -- every consumer sees every answer, so an event for anything but the item this tab is currently
--- quoting belongs to somebody else and is left alone.
+-- quoting -- or looking at for a tooltip -- belongs to somebody else and is left alone.
 function GC.Buy.OnCommodityResults(itemID)
+  -- A hover's look answered: drawn, never spent. The attempt, whatever it is, is not touched.
+  local look = GC.Buy._look
+  if look and look.itemID == itemID then
+    GC.Buy._look = nil
+    local line = lineFor(itemID)
+    if current and line then
+      local ladder = ladderFor(itemID)
+      local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
+      quotes[itemID] = { qty = qty, total = total, at = time(), capped = capped, ladder = ladder or false }
+      if ladder and ladder[1] then current:SetFloor(itemID, ladder[1].unit, time()) end
+    end
+    GC.Buy.RefreshIfShown()
+    if GC.Buy._refreshTooltip then GC.Buy._refreshTooltip(itemID) end
+    return
+  end
   local attempt = GC.Buy._attempt
   if not attempt or attempt.stage ~= "quoting" or attempt.itemID ~= itemID then return end
   local line = lineFor(itemID)
@@ -1772,7 +1826,7 @@ function GC.Buy.OnAuctionHouseClosed()
   -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
   -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
   GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
-  GC.Buy._quotedFocus = nil
+  GC.Buy._quotedFocus, GC.Buy._look = nil, nil
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -2303,6 +2357,116 @@ local function openRowMenu(owner, line)
   return true
 end
 
+-- A line explained: what is left to buy and what the player has, the ladder of prices the
+-- purchase would walk (what it takes at each, and the first level it does not), the market price
+-- and -- on WoW: Forever -- whose it is and how old, the cap, and the line's other footnotes.
+local function showLineTooltip(row)
+  if not GameTooltip then return end
+  local line = row.lineItemID and lineFor(row.lineItemID) or nil
+  if not line then return end
+  local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
+  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:SetText(lineName(line), 1, 1, 1)
+  local bags, bank = haveSplit(line.itemID)
+  if line.buy > 0 then
+    local have = bags + bank
+    GameTooltip:AddLine(have > 0
+      and (GC.L["buy %d of %d · have %d in bags and bank"]):format(line.buy, line.need, have)
+      or (GC.L["buy %d of %d"]):format(line.buy, line.need), dim[1], dim[2], dim[3], true)
+  end
+  -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
+  -- player where they are. Only when the bank actually holds some.
+  if bank > 0 then
+    GameTooltip:AddLine((GC.L["in bags %d · in bank %d"]):format(bags, bank), dim[1], dim[2], dim[3], true)
+  end
+  if not line.vendor and line.kind ~= "craft" and not line.done then
+    local read = readOf(line)
+    if read and read.ladder then
+      for _, r in ipairs(GC.BuyView.Ladder(read.ladder, line.buy, line.cap)) do
+        local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
+        local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
+        GameTooltip:AddDoubleLine((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit)), right,
+          fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
+      end
+      local age = time() - (read.at or time())
+      if age > BD.QUOTE_SECONDS then
+        GameTooltip:AddLine((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or ""), dim[1], dim[2], dim[3])
+      end
+    elseif read and read.ladder == false then
+      GameTooltip:AddLine(GC.L["nothing on offer"], dim[1], dim[2], dim[3])
+    elseif line.floor then
+      GameTooltip:AddLine((GC.L["cheapest seen %s"]):format(formatAmount(line.floor)), dim[1], dim[2], dim[3])
+    end
+  end
+  GameTooltip:AddLine(" ")
+  if line.usual then
+    GameTooltip:AddDoubleLine(GC.L["Market"], (GC.L["%s each"]):format(formatAmount(line.usual)),
+      dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
+    -- WoW: Forever: a price other players' scans agreed on says how many and how long ago.
+    local note = GC.BuyView.MarketNote(line.usualRef, time())
+    if note then
+      local ago = GC.Util.FormatElapsedWords(note.age) or GC.Util.FormatElapsedWords(0)
+      GameTooltip:AddDoubleLine(GC.L["Source"], note.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
+        or (GC.L["%d scanners, %s ago"]):format(note.scanners, ago), dim[1], dim[2], dim[3], dim[1], dim[2], dim[3])
+    end
+  end
+  local alert = alertRun()
+  if line.cap and not line.vendor and line.kind ~= "craft" then
+    GameTooltip:AddDoubleLine((line.capFrom == "target" and alert) and GC.L["Alert target"] or GC.L["Your cap"],
+      (GC.L["%s each"]):format(formatAmount(line.cap)), dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
+  end
+  -- The one thing the item's own data cannot know: when this realm usually sells it cheapest.
+  -- Not on a vendor line -- the auction house's cheap hour is noise next to a fixed price -- and
+  -- not on a done line, which nobody is about to act on.
+  local cheap = not line.vendor and not line.done and cheapHourText(line)
+  if cheap then GameTooltip:AddLine(cheap, dim[1], dim[2], dim[3], true) end
+  -- Where a merged line's NEED came from: a reagent the run already asked for grows the row it has
+  -- rather than getting a second one, and a NEED that grew with no explanation cannot be checked.
+  if line.forCraft then
+    for parentID, qty in pairs(line.forCraft) do
+      local parentLine = lineFor(parentID)
+      GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
+        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), dim[1], dim[2], dim[3], true)
+    end
+  end
+  -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
+  -- what the player will save. Green when crafting is the cheaper of the two, grey otherwise --
+  -- including when the auction house has no price to compare against at all.
+  local compare = not line.done and GC.BuyRun.CraftText(line) or nil
+  if compare then
+    local cc = compare.cheaper and Theme.color.green or dim
+    local parts = {}
+    for _, reagent in ipairs(compare.reagents) do
+      parts[#parts + 1] = (GC.L["%d× %s"]):format(
+        reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
+    end
+    GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
+      table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3], true)
+    -- The hint names what the right-click would DO, which is the opposite thing on a line that is
+    -- already split -- and nothing on a line the list's route crafts itself, which has no split.
+    if line.kind == "craft" and not line.make then
+      GameTooltip:AddLine((GC.L["vs %s at the auction house · right-click to buy it whole"])
+        :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3], true)
+    elseif not line.make then
+      GameTooltip:AddLine((GC.L["vs %s at the auction house · right-click to split"])
+        :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3], true)
+    end
+  end
+  -- What the row's right-click offers, on a line whose cap it can change (Task 11's menu).
+  if not line.done and not line.vendor and line.kind ~= "craft" and not alert then
+    GameTooltip:AddLine(GC.L["right-click to skip or change the cap"], dim[1], dim[2], dim[3], true)
+  end
+  GameTooltip:Show()
+end
+
+-- A look that answered while its row's tooltip is still up redraws it with the ladder.
+function GC.Buy._refreshTooltip(itemID)
+  local row = GC.Buy._tooltipRow
+  if row and row.lineItemID == itemID and GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(row) then
+    showLineTooltip(row)
+  end
+end
+
 createRow = function(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(geometry.rowHeight)
@@ -2350,71 +2514,26 @@ createRow = function(parent)
     if button == "LeftButton" then selectLine(line) end
   end)
 
-  -- The item's own tooltip on hover, the same affordance Deals, Sell and Sold give their rows.
-  -- Wired ONCE on the pooled row, reading whatever paintRow last stamped.
+  -- The line explained on hover (showLineTooltip), and -- after a short dwell -- another line's
+  -- book read for it (lookLine). Wired ONCE on the pooled row, reading whatever paintRow last
+  -- stamped. A hover no longer picks the line: a left click does (selectLine).
   row:SetScript("OnEnter", function(self)
-    -- A hover explains the line; it no longer picks it (a left click does, selectLine).
+    GC.Buy._tooltipRow = self
+    showLineTooltip(self)
     local line = self.lineItemID and lineFor(self.lineItemID) or nil
-    if not GameTooltip or not self.tooltipItemID then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
-    -- HAVE counts the banks as well as the bags, so a line reading 305 with five in the bags
-    -- owes the player an explanation of where the other three hundred are. Only when the bank
-    -- actually holds some: on every other line it would be a zero nobody asked about.
-    local bags, bank = haveSplit(self.tooltipItemID)
-    if bank > 0 and GameTooltip.AddLine then
-      local bc = Theme.color.fgDim
-      GameTooltip:AddLine((GC.L["in bags %d · in bank %d"]):format(bags, bank), bc[1], bc[2], bc[3])
+    if not line then return end
+    if line.itemID == GC.Buy._focus then
+      -- The dock's own line: keep its quote fresh, as the hover always did.
+      if buyable(line) and not inFlight(GC.Buy._attempt) then quote(line) end
+    elseif C_Timer and C_Timer.After then
+      local itemID = line.itemID
+      C_Timer.After(BD.LOOK_DWELL_SECONDS, function()
+        if GC.Buy._tooltipRow == self and self.lineItemID == itemID then lookLine(lineFor(itemID)) end
+      end)
     end
-    -- The one thing the item's own tooltip cannot know: when this realm usually sells it
-    -- cheapest. Added after the item so it reads as a footnote rather than as a claim the game
-    -- is making about the item. Not on a vendor line -- the auction house's cheap hour is noise
-    -- next to a fixed price -- and not on a done line, which nobody is about to act on.
-    local cheap = line and not line.vendor and not line.done and cheapHourText(line)
-    if cheap and GameTooltip.AddLine then
-      local c = Theme.color.fgDim
-      GameTooltip:AddLine(cheap, c[1], c[2], c[3])
-    end
-    -- Where a merged line's NEED came from. A reagent the run already asked for does not get a
-    -- second row -- it grows the row it has -- and a NEED that grew with no explanation is a
-    -- number the player cannot check.
-    if line and line.forCraft and GameTooltip.AddLine then
-      local mc = Theme.color.fgDim
-      for parentID, qty in pairs(line.forCraft) do
-        local parentLine = lineFor(parentID)
-        GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
-          qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), mc[1], mc[2], mc[3])
-      end
-    end
-    -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
-    -- what the player will save. Green when crafting is the cheaper of the two, grey otherwise --
-    -- including when the auction house has no price to compare against at all.
-    local compare = line and not line.done and GC.BuyRun and GC.BuyRun.CraftText
-      and GC.BuyRun.CraftText(line) or nil
-    if compare and GameTooltip.AddLine then
-      local cc = compare.cheaper and Theme.color.green or Theme.color.fgDim
-      local parts = {}
-      for _, reagent in ipairs(compare.reagents) do
-        parts[#parts + 1] = (GC.L["%d× %s"]):format(
-          reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
-      end
-      GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
-        table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3])
-      -- The hint names what the right-click would DO, which is the opposite thing on a line
-      -- that is already split.
-      if line.kind == "craft" then
-        GameTooltip:AddLine(
-          (GC.L["vs %s at the auction house · right-click to buy it whole"])
-            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
-      else
-        GameTooltip:AddLine(
-          (GC.L["vs %s at the auction house · right-click to split"])
-            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
-      end
-    end
-    GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function()
+    GC.Buy._tooltipRow = nil
     if GameTooltip then GameTooltip:Hide() end
   end)
 
@@ -2656,6 +2775,12 @@ local function createDock(parent)
   dock.buy = Theme.Button(dock, "primary", "plaque")
   dock.buy:SetSize(BD.DOCK_BUY_MIN_W, 28)
   dock.buy:SetScript("OnClick", onBuyButtonClick)
+  -- The hover keeps the dock line's quote fresh, as a row's hover always did: the press then buys
+  -- on its first try. HookScript, so the button's own scripts stay.
+  dock.buy:HookScript("OnEnter", function(self)
+    local line = lineFor(self:GetParent().lineItemID)
+    if line and buyable(line) and not inFlight(GC.Buy._attempt) then quote(line) end
+  end)
   dock.second = Theme.Button(dock, "ghost", "plaque")
   dock.second:SetSize(BD.DOCK_SECOND_MIN_W, 28)
   dock.second:SetScript("OnClick", onDockSecondaryClick)
@@ -3129,7 +3254,7 @@ end
 -- m9: UI/SniperFrame.lua's _TrySendKeysBatchFor asks it before any keys batch goes -- a hover quote
 -- left on the wire by a switch to Deals is one a cap batch sent on top would take the answer of.
 function GC.Buy.QuotePending()
-  return quotePending(GC.Buy._attempt)
+  return quotePending(GC.Buy._attempt) or lookPending()
 end
 
 -- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
@@ -3150,7 +3275,7 @@ function GC.Buy.TrySendRefresh(playerBusy)
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
   -- Not over a hover quote still waiting for its answer: a batch sent on top of it would take
   -- that answer (the same collision quote() waits out in the other direction).
-  if quotePending(GC.Buy._attempt) then return false end
+  if quotePending(GC.Buy._attempt) or lookPending() then return false end
   -- refreshTargets is handed to the arbiter rather than called here: it walks the whole run
   -- asking the client about every line's item key, and this function runs once a second off
   -- the auction house ticker. Inside NextBatch it runs only on the tick that has already
@@ -3170,7 +3295,8 @@ function GC.Buy.Tick()
   -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
   -- of the refresh, which would otherwise take the moment with a batch of its own.
   local owed = GC.Buy._quoteOwed
-  if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) then
+  if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding())
+      and not lookPending() then
     GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
     local line = lineFor(owed)
     if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end

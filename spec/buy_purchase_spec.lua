@@ -2249,4 +2249,127 @@ describe("BUY purchase", function()
       assert.equal(103, dock().lineItemID)
     end)
   end)
+
+  -- The client's GameTooltip, as far as a line's tooltip uses it: every line it was handed, in
+  -- order, the double ones as "left | right".
+  local tip
+  local function fakeTooltip()
+    tip = { lines = {}, owner = nil }
+    function tip:SetOwner(o) self.owner = o; self.lines = {} end
+    function tip:SetText(t) self.lines[#self.lines + 1] = { t } end
+    function tip:AddLine(t) self.lines[#self.lines + 1] = { t } end
+    function tip:AddDoubleLine(l, r) self.lines[#self.lines + 1] = { l, r } end
+    function tip:Show() end
+    function tip:Hide() self.owner = nil end
+    function tip:IsOwned(o) return self.owner == o end
+    _G.GameTooltip = tip
+  end
+  local function tipText()
+    local out = {}
+    for _, l in ipairs(tip.lines) do out[#out + 1] = table.concat(l, " | ") end
+    return table.concat(out, "\n")
+  end
+
+  describe("the hover", function()
+    before_each(fakeTooltip)
+
+    it("draws the ladder the line's purchase would walk, what it takes, the market and the cap", function()
+      setBook(101, { { unitPrice = 67, quantity = 53 }, { unitPrice = 68, quantity = 156 }, { unitPrice = 69, quantity = 24 } })
+      local row = rowWithText("Alpha Herb")
+      pick(row) -- the dock's own line: its quote is the read
+      GC.Buy.OnCommodityResults(101)
+      row.scripts.OnEnter(row)
+      local text = tipText()
+      assert.is_truthy(text:find("Alpha Herb", 1, true))
+      assert.is_truthy(text:find("buy 10 of 10", 1, true))
+      assert.is_truthy(text:find("53 at 67c | you take 10", 1, true))
+      assert.is_truthy(text:find("156 at 68c", 1, true))
+      assert.is_nil(text:find("24 at 69c", 1, true)) -- the first level it does not reach, and no further
+      assert.is_truthy(text:find("Market | 1000c each", 1, true))
+      assert.is_truthy(text:find("Your cap | 1300c each", 1, true))
+      assert.is_truthy(text:find("right-click to skip or change the cap", 1, true))
+    end)
+
+    it("reads another line's book after a short dwell, without touching the dock's purchase", function()
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      assert.equal(0, #searches)                       -- nothing before the dwell
+      assert.equal(0.35, timers[#timers].seconds)
+      timers[#timers].fn()                             -- the dwell elapses, pointer still there
+      assert.equal(103, searches[#searches])
+      assert.equal(103, GC.Buy._look.itemID)
+      local attemptBefore = GC.Buy._attempt
+      setBook(103, { { unitPrice = 2000, quantity = 9 } })
+      GC.Buy.OnCommodityResults(103)
+      assert.equal(attemptBefore, GC.Buy._attempt)
+      assert.is_nil(GC.Buy._look)
+      assert.is_truthy(tipText():find("9 at 2000c | you take 4", 1, true))
+    end)
+
+    it("reads nothing for a pointer that moved on before the dwell", function()
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      row.scripts.OnLeave(row)
+      timers[#timers].fn()
+      assert.equal(0, #searches)
+    end)
+
+    it("sends no look while the dock's quote is fresh or a purchase is in flight", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      local before = #searches
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      timers[#timers].fn()
+      assert.equal(before, #searches)
+      press()                                          -- started: in flight
+      now = now + 11                                   -- the quote is no longer fresh
+      row.scripts.OnEnter(row)
+      timers[#timers].fn()
+      assert.equal(before, #searches)
+    end)
+
+    it("holds the dock's quote while a look is out, then asks", function()
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      timers[#timers].fn()
+      pick(rowWithText("Alpha Herb"))
+      assert.equal(101, GC.Buy._quoteOwed)
+      assert.is_true(GC.Buy.QuotePending())
+      GC.Buy.OnCommodityResults(103)
+      GC.Buy.Tick()
+      assert.equal(101, searches[#searches])
+    end)
+
+    it("says whose market price it is on WoW: Forever", function()
+      GC.Data.ForeverReference = function(itemID)
+        if itemID == 101 then return { value = 70, source = "crowd", scanners = 3, at = now - 720 } end
+        return { source = "own" }
+      end
+      GC.Buy.RefreshIfShown()
+      local row = rowWithText("Alpha Herb")
+      row.scripts.OnEnter(row)
+      assert.is_truthy(tipText():find("Market | 70c each", 1, true))
+      assert.is_truthy(tipText():find("Source | 3 scanners, 12m ago", 1, true))
+    end)
+
+    -- Retail has no crowd price: nothing says whose the market price is.
+    it("says nothing about a source on retail", function()
+      local row = rowWithText("Alpha Herb")
+      row.scripts.OnEnter(row)
+      assert.is_nil(tipText():find("Source", 1, true))
+    end)
+
+    it("names an alert group's cap as its target", function()
+      GC.AppRuns._set({ { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app",
+                          k = "alert", lines = { { i = 101, q = 4, u = 5800, cc = 4000 } } } })
+      GC.db.settings.sniper.buyRun = "a0000001"
+      GC.Buy.Show()
+      local row = rowWithText("Alpha Herb")
+      row.scripts.OnEnter(row)
+      assert.is_truthy(tipText():find("Alert target | 4000c each", 1, true))
+      assert.is_nil(tipText():find("right-click", 1, true)) -- its cap is the group's, set on the site
+    end)
+  end)
 end)
