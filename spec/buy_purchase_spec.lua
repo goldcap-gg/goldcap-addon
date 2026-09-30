@@ -2196,6 +2196,30 @@ describe("BUY purchase", function()
       assert.same({ itemID = 101, quantity = 10 }, started[#started])
     end)
 
+    -- A cap moved while a quote is in hand (the cap box, the row menu, the run's percent) changes what
+    -- the next press may spend: the quote is judged again against the line as it is now.
+    it("never lets a press spend a quote the line's new cap refuses", function()
+      pick(rowWithText("Alpha Herb"))            -- 6 at 900, 10 at 1200: 10 for 10200 under 1300
+      GC.Buy.OnCommodityResults(101)
+      assert.equal("BUY 10", dock().buy.label)
+      GC.Buy._SetLineCap("run-1", 101, 1000)
+      GC.Buy.RefreshIfShown()
+      assert.equal("BUY 6", dock().buy.label)    -- only the 900s fit now
+      press()
+      assert.same({ itemID = 101, quantity = 6 }, started[#started])
+    end)
+
+    it("offers the raise once a lowered cap leaves nothing in the quote", function()
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      GC.Buy._SetLineCap("run-1", 101, 800)
+      GC.Buy.RefreshIfShown()
+      assert.equal("RAISE CAP TO 1000c", dock().buy.label)
+      local before = #started
+      press()                                    -- the raise, not a purchase
+      assert.equal(before, #started)
+    end)
+
     it("Enter never raises a cap", function()
       GC.db.runLineCaps = { ["run-1"] = { [101] = 800 } }
       GC.Buy.RefreshIfShown()

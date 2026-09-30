@@ -1269,6 +1269,25 @@ local function overUsualPct(line, ladder)
   return nil
 end
 
+-- The quote in hand, judged again against its line as the line is now. A cap the player moved
+-- (the cap box, the row menu, the dock's raise, the run's percent) or units that arrived since the
+-- read change what the next press may spend -- and a press must never spend what the line's cap
+-- now refuses. The book is the one the quote read; nothing is asked again. Run on every refresh,
+-- so every path that moves a cap is covered by the one place that re-reads it.
+local function rejudgeQuote()
+  local attempt = GC.Buy._attempt
+  if not (current and attempt and attempt.stage == "quoted" and not attempt.byHand
+      and quoteFresh(attempt)) then return end
+  local seen = quotes[attempt.itemID]
+  local line = lineFor(attempt.itemID)
+  if not (line and seen and seen.ladder) then return end
+  local qty, total, capped = current:PurchaseQuantity(line.itemID, seen.ladder)
+  attempt.qty, attempt.total, attempt.capped = qty, total, capped
+  seen.qty, seen.total, seen.capped = qty, total, capped
+  attempt.overPct, attempt.overTarget = nil, nil
+  if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, seen.ladder) end
+end
+
 -- The site measures the cheap hour in UTC; a player reads realm time. The client knows both:
 -- C_DateAndTime.GetCurrentCalendarTime() is realm time and date("!*t", GetServerTime()) is the
 -- same instant in UTC, so their difference is this realm's offset. Without both there is no
@@ -1974,11 +1993,7 @@ local function raiseCap(line)
   local attempt = GC.Buy._attempt
   local seen = quotes[line.itemID]
   if attempt and attempt.itemID == line.itemID and quoteFresh(attempt) and seen and seen.ladder then
-    local qty, total, capped = current:PurchaseQuantity(line.itemID, seen.ladder)
-    attempt.qty, attempt.total, attempt.capped = qty, total, capped
-    seen.qty, seen.total, seen.capped = qty, total, capped
-    attempt.overPct, attempt.overTarget = nil, nil
-    if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, seen.ladder) end
+    rejudgeQuote()
   else
     quote(line, true)
   end
@@ -3521,6 +3536,7 @@ end
 function GC.Buy.RefreshIfShown()
   if container and container:IsShown() and rows and band then
     if current then current:Refresh() end
+    rejudgeQuote()
     renderRows()
   end
 end
