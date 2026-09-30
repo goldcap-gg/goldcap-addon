@@ -64,4 +64,86 @@ describe("BuyView", function()
       it(case[1], function() assert.equal(case[5], V.RaiseTo(case[2], case[3], case[4])) end)
     end
   end)
+
+  describe("Status", function()
+    -- Whole tables, not overrides of a template: `{ cap = nil }` cannot remove a key in Lua.
+    local cases = {
+      { "done wins over everything", { buy = 0, cap = 100, done = true, vendor = true }, { skipped = true }, "done" },
+      { "skipped", { buy = 5, cap = 100, floor = 50 }, { skipped = true }, "skipped" },
+      { "a craft line", { buy = 5, cap = 100, kind = "craft" }, {}, "craft" },
+      { "a vendor line", { buy = 5, cap = 100, vendor = true, floor = 500 }, {}, "vendor" },
+      { "a stranded confirm", { buy = 5, cap = 100, floor = 50 }, { stranded = true }, "stranded" },
+      { "not a commodity", { buy = 5, cap = 100, floor = 50 }, { byHand = true }, "lots" },
+      { "the last read found nothing under the cap", { buy = 5, cap = 100, floor = 50 }, { quote = "over" }, "over" },
+      { "the last read fits even though NOW says over", { buy = 5, cap = 100, floor = 150 }, { quote = "fits" }, "ready" },
+      { "NOW over the cap with no read", { buy = 5, cap = 100, floor = 150 }, {}, "over" },
+      { "NOW at the cap", { buy = 5, cap = 100, floor = 100 }, {}, "ready" },
+      { "only a market price", { buy = 5, cap = 100, usual = 80 }, {}, "ready" },
+      { "no cap and a price", { buy = 5, floor = 999 }, {}, "ready" },
+      { "no price at all", { buy = 5 }, {}, "unpriced" },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.equal(case[4], V.Status(case[2], case[3])) end)
+    end
+  end)
+
+  describe("Matches", function()
+    local cases = {
+      { "all keeps every status", "vendor", "Linen", "all", nil, true },
+      { "nil filter is all", "done", "Linen", nil, nil, true },
+      { "to buy keeps ready", "ready", "Linen", "buy", nil, true },
+      { "to buy keeps unpriced, lots and stranded", "lots", "Boots", "buy", nil, true },
+      { "to buy drops over", "over", "Linen", "buy", nil, false },
+      { "over keeps over only", "over", "Linen", "over", nil, true },
+      { "done keeps done", "done", "Linen", "done", nil, true },
+      { "skipped keeps skipped", "skipped", "Linen", "skipped", nil, true },
+      { "search is a plain, case-blind substring", "ready", "Linen Cloth", "all", "cLOT", true },
+      { "search misses", "ready", "Linen Cloth", "all", "wool", false },
+      { "search with magic characters is literal", "ready", "Linen (Cloth)", "all", "(cl", true },
+      { "empty search matches", "ready", "Linen", "all", "", true },
+      { "filter and search both have to agree", "vendor", "Linen", "buy", "lin", false },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.equal(case[6], V.Matches(case[2], case[3], case[4], case[5])) end)
+    end
+  end)
+
+  it("counts progress over the run's own lines, not the reagents a split put under one", function()
+    local lines = { { done = true }, { done = false }, { parent = 1, done = true }, { done = true } }
+    local done, total = V.Progress(lines)
+    assert.equal(2, done)
+    assert.equal(3, total)
+  end)
+
+  describe("CostOf", function()
+    local cases = {
+      { "the quote for the whole remaining line", { buy = 10, floor = 5 }, { qty = 10, total = 70 }, 70, false },
+      { "a quote for part of the line is an estimate", { buy = 10, floor = 5 }, { qty = 6, total = 30 }, 50, true },
+      { "no quote: the floor", { buy = 10, floor = 5, usual = 9 }, nil, 50, true },
+      { "no floor: the market", { buy = 10, usual = 9 }, nil, 90, true },
+      { "nothing known", { buy = 10 }, nil, nil, nil },
+      { "nothing left to buy", { buy = 0, floor = 5 }, nil, nil, nil },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function()
+        local cost, estimated = V.CostOf(case[2], case[3])
+        assert.equal(case[4], cost)
+        assert.equal(case[5], estimated)
+      end)
+    end
+  end)
+
+  describe("MarketNote", function()
+    it("says how many scanners and how old for a crowd price", function()
+      assert.same({ scanners = 3, age = 720 }, V.MarketNote({ source = "crowd", scanners = 3, at = 1000 }, 1720))
+    end)
+    it("never reads a clock skew as negative age", function()
+      assert.same({ scanners = 1, age = 0 }, V.MarketNote({ source = "crowd", scanners = 1, at = 2000 }, 1000))
+    end)
+    it("says nothing for any other source", function()
+      assert.is_nil(V.MarketNote({ source = "own", at = 1000 }, 1720))
+      assert.is_nil(V.MarketNote(nil, 1720))
+      assert.is_nil(V.MarketNote({ source = "crowd" }, 1720))
+    end)
+  end)
 end)
