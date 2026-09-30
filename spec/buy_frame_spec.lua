@@ -1224,8 +1224,9 @@ describe("BuyFrame", function()
     assert.truthy(lineWith(lines, "includes 20 for crafting Alpha Herb"))
   end)
 
-  it("splits a line from its row menu and puts it back again", function()
-    showCraftRun(false)
+  -- The row's right-click menu, as the client's MenuUtil would build it: every entry in order,
+  -- the titles and the buttons, each button with what it does.
+  local function rowMenu(row)
     local entries
     _G.MenuUtil = { CreateContextMenu = function(_, generator)
       entries = {}
@@ -1235,24 +1236,36 @@ describe("BuyFrame", function()
         CreateDivider = function() end,
       })
     end }
+    row.scripts.OnMouseUp(row, "RightButton")
+    _G.MenuUtil = nil
+    return entries
+  end
+  local function menuTextsOf(entries)
+    local out = {}
+    for _, e in ipairs(entries or {}) do out[#out + 1] = e.text end
+    return out
+  end
+  local function entryNamed(entries, text)
+    for _, e in ipairs(entries or {}) do if e.text == text then return e end end
+  end
 
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnMouseUp(alpha, "RightButton")
-    assert.same({ "Split into reagents (craft 4×)" }, { entries[1].text })
-    entries[1].fn()
+  it("splits a line from its row menu and puts it back again", function()
+    showCraftRun(false)
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Change the cap…", "Split into reagents (craft 4×)" },
+      menuTextsOf(entries))
+    entryNamed(entries, "Split into reagents (craft 4×)").fn()
     assert.is_true(GC.db.runSplits["run-c"][101])
     assert.truthy(rowWithText("craft 4×"))
 
-    local parent = rowWithText("craft 4×")
-    parent.scripts.OnMouseUp(parent, "RightButton")
-    assert.same({ "Buy it whole instead" }, { entries[1].text })
-    entries[1].fn()
+    entries = rowMenu(rowWithText("craft 4×"))
+    assert.same({ "Alpha Herb", "Skip for now", "Buy it whole instead" }, menuTextsOf(entries))
+    entryNamed(entries, "Buy it whole instead").fn()
     assert.is_nil(GC.db.runSplits["run-c"][101])
     assert.is_nil(rowWithText("craft 4×"))
-    _G.MenuUtil = nil
   end)
 
-  it("offers a vendor line neither the comparison nor the split menu", function()
+  it("offers a vendor line neither the comparison, the split nor a cap", function()
     GC.AppRuns._set({ { code = "run-vs", name = "Vendor run", updatedAt = 900, origin = "app",
       lines = { { i = 104, q = 20, v = true, vu = 5, u = 5800,
         cr = { r = 900, n = 5, c = 2300, i = { { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } },
@@ -1265,23 +1278,80 @@ describe("BuyFrame", function()
       assert.is_nil(text:find("craft it:", 1, true))
       assert.is_nil(text:find("right-click", 1, true))
     end
-    local opened = 0
-    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
-    vendorRow.scripts.OnMouseUp(vendorRow, "RightButton")
-    assert.equal(0, opened)
-    _G.MenuUtil = nil
+    assert.same({ "Delta Vial", "Skip for now" }, menuTextsOf(rowMenu(vendorRow)))
   end)
 
-  it("opens no menu on a left click, on a line with no recipe, or on a reagent", function()
+  it("opens no menu on a left click", function()
     showCraftRun(true)
     local opened = 0
     _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
     local parent = rowWithText("craft 4×")
     parent.scripts.OnMouseUp(parent, "LeftButton")
-    local ore = rowWithText("Bravo Ore")
-    ore.scripts.OnMouseUp(ore, "RightButton")
     assert.equal(0, opened)
     _G.MenuUtil = nil
+  end)
+
+  -- BUY 2.0: every open line can be skipped for the session and have its cap set as a price.
+  it("offers skip and the cap on every open line", function()
+    assert.same({ "Charlie Dust", "Skip for now", "Change the cap…" },
+      menuTextsOf(rowMenu(rowWithText("Charlie Dust"))))
+    -- A reagent a split brought in is a line like any other.
+    showCraftRun(true)
+    assert.same({ "Bravo Ore", "Skip for now", "Change the cap…" },
+      menuTextsOf(rowMenu(rowWithText("Bravo Ore"))))
+  end)
+
+  it("skips a line from its menu, and takes it back", function()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    entryNamed(entries, "Skip for now").fn()
+    assert.is_true(GC.Buy._skipped["run-1"][101])
+    assert.equal("skipped for now", rowWithText("Alpha Herb").status:GetText())
+    assert.are_not.equal(101, GC.Buy._focus) -- the dock moved on
+    entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Don't skip", "Change the cap…" }, menuTextsOf(entries))
+    entryNamed(entries, "Don't skip").fn()
+    assert.is_nil(GC.Buy._skipped["run-1"][101])
+  end)
+
+  it("offers the way back to the default cap once the line has one of its own", function()
+    GC.Buy._SetLineCap("run-1", 101, 1400)
+    GC.Buy.RefreshIfShown()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Change the cap…", "Use the default cap" }, menuTextsOf(entries))
+    entryNamed(entries, "Use the default cap").fn()
+    assert.is_nil(GC.db.runLineCaps["run-1"][101])
+    assert.equal(1300, lineOfRow(rowWithText("Alpha Herb")).cap)
+  end)
+
+  it("offers to raise the cap of a line nothing under it can fill", function()
+    GC.Buy.CurrentRun():SetFloor(101, 5000, 2000) -- NOW over the 1300 cap
+    GC.Buy.RefreshIfShown()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Raise cap to 5000c", "Change the cap…" }, menuTextsOf(entries))
+    entryNamed(entries, "Raise cap to 5000c").fn()
+    assert.equal(5000, GC.db.runLineCaps["run-1"][101])
+  end)
+
+  it("opens the price box on the line's cap and stores what the player sets", function()
+    local opened
+    GC.BuyCapEditor = { Open = function(anchor, opts) opened = { anchor = anchor, opts = opts } end }
+    local row = rowWithText("Alpha Herb")
+    entryNamed(rowMenu(row), "Change the cap…").fn()
+    assert.equal(row, opened.anchor)
+    assert.equal("Cap for Alpha Herb", opened.opts.title)
+    assert.equal(1300, opened.opts.current)
+    opened.opts.onCommit(1250)
+    assert.equal(1250, GC.db.runLineCaps["run-1"][101])
+    assert.equal("yours", lineOfRow(rowWithText("Alpha Herb")).capFrom)
+  end)
+
+  -- An alert group's cap is its target, set on goldcap.gg.
+  it("offers only skip on an alert group's line", function()
+    GC.AppRuns._set({ { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000 } } } })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.same({ "Alpha Herb", "Skip for now" }, menuTextsOf(rowMenu(rowWithText("Alpha Herb"))))
   end)
 
   -- A line the bags and the bank already cover has nothing left to decide, and the tooltip on

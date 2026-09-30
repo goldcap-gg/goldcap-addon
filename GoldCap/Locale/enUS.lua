@@ -132,7 +132,10 @@ GC.Locales.enUS = {
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
   ["Cancel lot"] = "Cancel lot",
+  ["Cap for %s"] = "Cap for %s",
+  ["Change the cap…"] = "Change the cap…",
   ["Could not read that amount. Type it like 12g 50s."] = "Could not read that amount. Type it like 12g 50s.",
+  ["Don't skip"] = "Don't skip",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
   ["Everything here is bought"] = "Everything here is bought",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
@@ -188,6 +191,7 @@ GC.Locales.enUS = {
   ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
   ["RAISE CAP TO %s"] = "RAISE CAP TO %s",
   ["ROAD TO 40"] = "ROAD TO 40",
+  ["Raise cap to %s"] = "Raise cap to %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Road to 40: %s of %s (gold %s, bags %s).",
@@ -197,8 +201,10 @@ GC.Locales.enUS = {
   ["%d bag items sell for more on the AH (+%s)"] = "%d bag items sell for more on the AH (+%s)",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
+  ["Set cap"] = "Set cap",
   ["Set the riding cost: /gc mount 90g"] = "Set the riding cost: /gc mount 90g",
   ["Skip"] = "Skip",
+  ["Skip for now"] = "Skip for now",
   ["Stat weights: %s"] = "Stat weights: %s",
   ["TO BUY HERE"] = "TO BUY HERE",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
@@ -211,6 +217,7 @@ GC.Locales.enUS = {
   ["Unknown stat %s. Use one of: %s"] = "Unknown stat %s. Use one of: %s",
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
+  ["Use the default cap"] = "Use the default cap",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",

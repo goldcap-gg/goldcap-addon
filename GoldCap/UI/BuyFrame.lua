@@ -2317,41 +2317,86 @@ layoutRow = function(row)
   end
 end
 
--- Right-click on a row: the one decision a line carries that is not a purchase -- buy this item,
--- or buy what it is made of. Only a line the site sent a recipe for has anything to decide, and
--- nothing here spends gold: it writes a flag and re-renders (spec/buy_purchase_wiring_spec.lua
--- proves no protected call can be reached from a context menu at all).
+-- The player's own cap for a line, typed into UI/BuyCapEditor.lua's price box. Refused while a
+-- purchase is in flight -- asked again at commit, because the box can stay open across one
+-- starting: the attempt has committed to `current`'s lines and their caps.
+local function openCapEditor(anchor, line)
+  if not (GC.BuyCapEditor and current and line) or inFlight(GC.Buy._attempt) then return end
+  local code, itemID = current:Code(), line.itemID
+  GC.BuyCapEditor.Open(anchor, {
+    title = (GC.L["Cap for %s"]):format(lineName(line)),
+    current = line.cap,
+    onCommit = function(copper)
+      if inFlight(GC.Buy._attempt) then return end
+      setLineCap(code, itemID, copper)
+      GC.Buy.RefreshIfShown()
+    end,
+  })
+end
+
+-- Right-click on a row: every decision a line carries that is not a purchase -- skip it for this
+-- session, raise its cap to what the dock would offer, type a cap of its own or go back to the
+-- default, and for a line the site sent a recipe for, buy it or craft it. Nothing here spends
+-- gold: it writes a flag or a price and re-renders (spec/buy_purchase_wiring_spec.lua proves no
+-- protected call can be reached from a context menu at all).
 --
 -- Refused while a purchase is in flight, for the reason the run menu refuses a re-cap there:
--- the attempt has already committed to `current`'s lines, and a split rewrites them, so
--- settlePurchase would book the gold against a line that no longer exists.
+-- the attempt has already committed to `current`'s lines, and a split or a cap rewrites them, so
+-- settlePurchase would book the gold against a line that no longer exists. And on a line already
+-- bought, which has nothing left to decide.
 local function openRowMenu(owner, line)
-  if not (current and line and line.craft) then return false end
-  -- A line the route crafts itself has nothing to decide: its reagents are lines of the list.
-  if line.parent or line.make then return false end
-  -- A line already bought has nothing left to decide, and its own tooltip says as much by
-  -- leaving the craft-or-buy comparison off it.
-  if line.done then return false end
-  if inFlight(GC.Buy._attempt) then return false end
+  if not (current and line) or line.done or inFlight(GC.Buy._attempt) then return false end
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end
   local code, itemID = current:Code(), line.itemID
+  local skipped, alert = isSkipped(line), alertRun()
+  -- An alert group's cap is its target, set on goldcap.gg; a vendor or craft line has none here.
+  local canCap = not alert and not line.vendor and line.kind ~= "craft"
+  local raiseTo = canCap and raiseOffered(line) or nil
   local split = line.kind == "craft"
+  -- A line the list's route crafts itself (`make`) has no split: its reagents are lines already.
+  local canSplit = line.craft and not line.parent and not line.make
   -- How many batches an unsplit line would need is the same arithmetic Core/BuyRun.lua does once
   -- it IS split: what is left to get, rounded up to a whole craft.
-  local crafts = split and (line.crafts or 0)
-    or math.ceil(line.buy / math.max(1, line.craft.craftedQty))
+  local crafts = canSplit and (split and (line.crafts or 0)
+    or math.ceil(line.buy / math.max(1, line.craft.craftedQty))) or 0
   menu.CreateContextMenu(owner, function(_, root)
-    if split then
-      root:CreateButton(GC.L["Buy it whole instead"], function()
-        setSplit(code, itemID, false)
+    root:CreateTitle(lineName(line))
+    root:CreateButton(skipped and GC.L["Don't skip"] or GC.L["Skip for now"], function()
+      setSkipped(itemID, not skipped)
+      if not skipped and GC.Buy._focus == itemID then GC.Buy._focus = nextOpenAfter(itemID) end
+      GC.Buy.RefreshIfShown()
+    end)
+    if raiseTo then
+      root:CreateButton((GC.L["Raise cap to %s"]):format(formatAmount(raiseTo)), function()
+        if inFlight(GC.Buy._attempt) then return end
+        local now = lineFor(itemID)
+        if now then raiseCap(now) end
         GC.Buy.RefreshIfShown()
       end)
-    else
-      root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
-        setSplit(code, itemID, true)
-        GC.Buy.RefreshIfShown()
-      end)
+    end
+    if canCap then
+      root:CreateButton(GC.L["Change the cap…"], function() openCapEditor(owner, lineFor(itemID)) end)
+      if line.capFrom == "yours" then
+        root:CreateButton(GC.L["Use the default cap"], function()
+          if inFlight(GC.Buy._attempt) then return end
+          setLineCap(code, itemID, nil)
+          GC.Buy.RefreshIfShown()
+        end)
+      end
+    end
+    if canSplit then
+      if split then
+        root:CreateButton(GC.L["Buy it whole instead"], function()
+          setSplit(code, itemID, false)
+          GC.Buy.RefreshIfShown()
+        end)
+      else
+        root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
+          setSplit(code, itemID, true)
+          GC.Buy.RefreshIfShown()
+        end)
+      end
     end
   end)
   return true
