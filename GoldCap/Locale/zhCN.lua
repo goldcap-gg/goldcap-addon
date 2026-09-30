@@ -580,7 +580,6 @@ GC.Locales.zhCN = {
   ["crafted %s"] = "制造 %s",
   ["data from goldcap.gg · synced %s ago"] = "数据来自 goldcap.gg · %s 前同步",
   ["due -- will be asked next pass"] = "到期 -- 下一轮会查询",
-  ["expires in %d s"] = "%d 秒后过期",
   ["fair"] = "一般",
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",

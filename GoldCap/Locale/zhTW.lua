@@ -581,7 +581,6 @@ GC.Locales.zhTW = {
   ["crafted %s"] = "製造 %s",
   ["data from goldcap.gg · synced %s ago"] = "資料來自 goldcap.gg · %s 前同步",
   ["due -- will be asked next pass"] = "已到期 -- 下一輪會查詢",
-  ["expires in %d s"] = "%d 秒後過期",
   ["fair"] = "普通",
   ["far below market"] = "遠低於市價",
   ["finish the pending buy first"] = "請先完成進行中的購買",

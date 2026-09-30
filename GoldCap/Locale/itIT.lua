@@ -637,7 +637,6 @@ GC.Locales.itIT = {
   ["crafted %s"] = "creato %s",
   ["data from goldcap.gg · synced %s ago"] = "dati da goldcap.gg · sincronizzati %s fa",
   ["due -- will be asked next pass"] = "in scadenza -- verrà richiesto al prossimo passaggio",
-  ["expires in %d s"] = "scade tra %d s",
   ["fair"] = "discreti",
   ["far below market"] = "molto sotto mercato",
   ["finish the pending buy first"] = "completa prima l'acquisto in corso",

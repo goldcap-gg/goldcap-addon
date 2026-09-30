@@ -638,7 +638,6 @@ GC.Locales.frFR = {
   ["crafted %s"] = "fabriqué %s",
   ["data from goldcap.gg · synced %s ago"] = "données de goldcap.gg · synchronisées il y a %s",
   ["due -- will be asked next pass"] = "à faire -- sera demandé au prochain passage",
-  ["expires in %d s"] = "expire dans %d s",
   ["fair"] = "probables",
   ["far below market"] = "bien sous le marché",
   ["finish the pending buy first"] = "terminez d'abord l'achat en cours",

@@ -640,7 +640,6 @@ GC.Locales.deDE = {
   ["crafted %s"] = "hergestellt %s",
   ["data from goldcap.gg · synced %s ago"] = "Daten von goldcap.gg · vor %s synchronisiert",
   ["due -- will be asked next pass"] = "fällig -- wird im nächsten Durchlauf abgefragt",
-  ["expires in %d s"] = "läuft in %d s ab",
   ["fair"] = "brauchbar",
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",

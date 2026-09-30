@@ -41,16 +41,20 @@ function GC.BuyDock.View(d)
   end
   local status = d.status
   if status == "done" then
-    return { mode = "done", sub = { key = "bought", args = { line.bought or 0, line.spent or 0 } } }
+    -- Covered by what the character already owns, with nothing bought here: "bought 0 for 0c"
+    -- would be a false account of it.
+    if (line.bought or 0) <= 0 then return { mode = "done", sub = { key = "have" } } end
+    return { mode = "done", sub = { key = "bought", args = { line.bought, line.spent or 0 } } }
   end
   if status == "skipped" then return { mode = "skipped", sub = { key = "skipped" } } end
+  -- A line that is not bought here says why even with no price to name.
   if status == "vendor" then
-    if not line.vendorUnit then return { mode = "vendor" } end
+    if not line.vendorUnit then return { mode = "vendor", sub = { key = "vendor_only" } } end
     return { mode = "vendor", sub = d.cheapest and { key = "vendor_vs", args = { line.vendorUnit, d.cheapest } }
       or { key = "vendor", args = { line.vendorUnit } } }
   end
   if status == "craft" then
-    if not d.craft then return { mode = "craft" } end
+    if not d.craft then return { mode = "craft", sub = { key = "craft_only" } } end
     return { mode = "craft", sub = d.craft.ahUnit and { key = "craft_vs", args = { d.craft.unit, d.craft.ahUnit } }
       or { key = "craft", args = { d.craft.unit } } }
   end

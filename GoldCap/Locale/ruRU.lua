@@ -635,7 +635,6 @@ GC.Locales.ruRU = {
   ["crafted %s"] = "скрафчено %s",
   ["data from goldcap.gg · synced %s ago"] = "данные с goldcap.gg · синхронизировано %s назад",
   ["due -- will be asked next pass"] = "очередь -- спросим следующим проходом",
-  ["expires in %d s"] = "истекает через %d с",
   ["fair"] = "приемлемые",
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",

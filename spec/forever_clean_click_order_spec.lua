@@ -180,7 +180,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
     it("planBuyClick (BUY tab)", function()
       local text = source("GoldCap/UI/BuyFrame.lua")
-      local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
+      local clickStart = assert(text:find("local function planBuyClick(line, fromDock)", 1, true))
       local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
       assertClean(text:sub(clickStart, clickEndStop), "planBuyClick")
     end)
@@ -199,7 +199,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
   describe("BuyFrame.lua planBuyClick", function()
     local text = source("GoldCap/UI/BuyFrame.lua")
-    local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
+    local clickStart = assert(text:find("local function planBuyClick(line, fromDock)", 1, true))
     local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
     local click = text:sub(clickStart, clickEndStop)
 

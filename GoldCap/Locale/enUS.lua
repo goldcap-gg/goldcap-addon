@@ -37,6 +37,7 @@ GC.Locales.enUS = {
     "%d lines · %d to buy · %d to craft · %d at the vendor",
   ["%d lots, %s asked"] = "%d lots, %s asked",
   ["%d missing"] = "%d missing",
+  ["%d of %d at or under your cap"] = "%d of %d at or under your cap",
   ["%d partial"] = "%d partial",
   ["%d prices in one request · books still loading"] = "%d prices in one request · books still loading",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
@@ -58,6 +59,8 @@ GC.Locales.enUS = {
   ["%s of %s — gold %s, bags %s"] = "%s of %s — gold %s, bags %s",
   ["%s under you"] = "%s under you",
   ["%s units in %d prices"] = "%s units in %d prices",
+  ["%s · %s under market"] = "%s · %s under market",
+  ["%s · at market price"] = "%s · at market price",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   ["%s+ ahead"] = "%s+ ahead",
@@ -111,6 +114,8 @@ GC.Locales.enUS = {
   ["Background check"] = "Background check",
   ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
     "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
+  ["Blizzard's price: %s"] = "Blizzard's price: %s",
+  ["Blizzard's price: %s · %d s left"] = "Blizzard's price: %s · %d s left",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
   ["Bundled %s data"] = "Bundled %s data",
@@ -130,6 +135,7 @@ GC.Locales.enUS = {
   ["Cancel lot"] = "Cancel lot",
   ["Could not read that amount. Type it like 12g 50s."] = "Could not read that amount. Type it like 12g 50s.",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
+  ["Everything here is bought"] = "Everything here is bought",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "From your scan %s ago. Counts only %s. Change with /gc weights.",
   ["GOLDCAP"] = "GOLDCAP",
@@ -179,6 +185,7 @@ GC.Locales.enUS = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
   ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
+  ["RAISE CAP TO %s"] = "RAISE CAP TO %s",
   ["ROAD TO 40"] = "ROAD TO 40",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
@@ -190,10 +197,12 @@ GC.Locales.enUS = {
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
   ["Set the riding cost: /gc mount 90g"] = "Set the riding cost: /gc mount 90g",
+  ["Skip"] = "Skip",
   ["Stat weights: %s"] = "Stat weights: %s",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
+  ["The rest is skipped for now"] = "The rest is skipped for now",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "This client does not report item stats, so GoldCap cannot compare gear.",
   ["UNDERCUT %d"] = "UNDERCUT %d",
@@ -210,14 +219,21 @@ GC.Locales.enUS = {
   ["You have %s — gold %s, bags %s"] = "You have %s — gold %s, bags %s",
   ["Your gold has not grown lately, so there is no pace to estimate."] =
     "Your gold has not grown lately, so there is no pace to estimate.",
+  ["a vendor sells it"] = "a vendor sells it",
+  ["a vendor sells it for %s each"] = "a vendor sells it for %s each",
+  ["a vendor sells it for %s each · the auction house asks %s"] = "a vendor sells it for %s each · the auction house asks %s",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "above the cheapest, inside the cheap quarter · %s units ahead of you",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "above the cheapest, within the day's reach · %s units ahead of you",
   ["age %ss"] = "age %ss",
+  ["already in your bags and bank"] = "already in your bags and bank",
   ["at level %d"] = "at level %d",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
+  ["craft it for %s each"] = "craft it for %s each",
+  ["craft it for %s each · %s here"] = "craft it for %s each · %s here",
+  ["craft it yourself"] = "craft it yourself",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
@@ -238,6 +254,7 @@ GC.Locales.enUS = {
   ["no market figure for this item level"] = "no market figure for this item level",
   ["not enough gold on this character -- you need %s"] = "not enough gold on this character -- you need %s",
   ["not priced — nothing on hand to sell"] = "not priced — nothing on hand to sell",
+  ["nothing at or under your cap of %s"] = "nothing at or under your cap of %s",
   ["oldest units sell first"] = "oldest units sell first",
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
@@ -692,6 +709,8 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
+  ["skipped for this session, it stays on the list"] = "skipped for this session, it stays on the list",
+  ["still on the list: %d at a vendor · %d to craft"] = "still on the list: %d at a vendor · %d to craft",
   ["sure profit: a vendor pays %s each"] =
     "sure profit: a vendor pays %s each",
   ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
@@ -741,7 +760,6 @@ GC.Locales.enUS = {
   ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
   ["everything bought"] = "everything bought",
-  ["expires in %d s"] = "expires in %d s",
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["from %s"] = "from %s",
@@ -791,6 +809,7 @@ GC.Locales.enUS = {
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
   ["live verification required"] = "live verification required",
+  ["the cheapest is %s, your cap is %s"] = "the cheapest is %s, your cap is %s",
   ["weak"] = "weak",
   ["manual import"] = "manual import",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",

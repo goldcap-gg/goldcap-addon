@@ -596,7 +596,6 @@ GC.Locales.koKR = {
   ["crafted %s"] = "제작 %s",
   ["data from goldcap.gg · synced %s ago"] = "goldcap.gg 자료 · %s 전 동기화",
   ["due -- will be asked next pass"] = "차례 -- 다음 순회에 조회합니다",
-  ["expires in %d s"] = "%d초 후 만료",
   ["fair"] = "보통",
   ["far below market"] = "시세보다 훨씬 낮음",
   ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",

@@ -764,6 +764,7 @@ describe("Sniper window OnHide clears the hover pin", function()
       IsShown = function(self) return self.shown end,
       SetText = function() end,
       SetTexture = function() end,
+      SetTexCoord = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetWidth = function() end,

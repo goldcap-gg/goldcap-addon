@@ -1,9 +1,9 @@
 local helper = require("spec.spec_helper")
 
 -- The BUY tab's render, exercised the way spec/soldframe_spec.lua exercises Sold's: the real
--- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the module-local
--- row pool / header band reached through debug.getupvalue. Only the two things a headless run
--- genuinely cannot have -- the client's bag API and the market-value lookup -- are stubbed.
+-- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the row pool / header
+-- band reached through GC.Buy._view. Only the two things a headless run genuinely cannot have --
+-- the client's bag API and the market-value lookup -- are stubbed.
 describe("BuyFrame", function()
   local GC, rowsOf, containerOf, bandOf
 
@@ -145,6 +145,8 @@ describe("BuyFrame", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
+    helper.loadModule("Core/BuyView.lua", GC)
+    helper.loadModule("Core/BuyDock.lua", GC)
 
     local runs = { run() }
     GC.AppRuns = {
@@ -167,33 +169,10 @@ describe("BuyFrame", function()
 
     helper.loadModule("UI/BuyFrame.lua", GC)
 
-    rowsOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.RefreshIfShown, i)
-        if not name then error("rows upvalue not found") end
-        if name == "rows" then return value end
-        i = i + 1
-      end
-    end
-    containerOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.Show, i)
-        if not name then error("container upvalue not found") end
-        if name == "container" then return value end
-        i = i + 1
-      end
-    end
-    bandOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.RefreshIfShown, i)
-        if not name then error("band upvalue not found") end
-        if name == "band" then return value end
-        i = i + 1
-      end
-    end
+    -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
+    rowsOf = function() return GC.Buy._view.rows end
+    containerOf = function() return GC.Buy._view.container end
+    bandOf = function() return GC.Buy._view.band end
 
     local host = region("Frame")
     GC.Buy.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -100,
@@ -222,6 +201,11 @@ describe("BuyFrame", function()
     end
   end
 
+  -- BUY 2.0: no row carries a button. A left click on a row picks its line for the dock at the
+  -- foot of the tab, whose one button buys it.
+  local function dock() return GC.Buy._view.dock end
+  local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
+
   local function shownTexts()
     local out = {}
     for _, row in ipairs(shownRows()) do
@@ -241,7 +225,8 @@ describe("BuyFrame", function()
     assert.equal("5", bravo.cells.have:GetText())
     assert.equal("0", bravo.cells.buy:GetText())
     assert.equal("done", bravo.cells.action:GetText())
-    assert.is_false(bravo.action:IsShown())
+    pick(bravo)
+    assert.is_false(dock().buy:IsShown())
   end)
 
   -- HAVE is what the player owns, not what they happen to be carrying: three hundred units in
@@ -259,7 +244,8 @@ describe("BuyFrame", function()
     assert.equal("12", alpha.cells.have:GetText())
     assert.equal("0", alpha.cells.buy:GetText())
     assert.equal("done", alpha.cells.action:GetText())
-    assert.is_false(alpha.action:IsShown())
+    pick(alpha)
+    assert.is_false(dock().buy:IsShown())
   end)
 
   it("counts only the bags when the client has no item-count API", function()
@@ -326,10 +312,10 @@ describe("BuyFrame", function()
   -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a
   -- click does from there, and what the label becomes, is spec/buy_purchase_spec.lua's.
   it("offers a BUY button for the quantity still missing", function()
-    local alpha = rowWithText("Alpha Herb")
-    assert.truthy(alpha.action:IsShown())
-    assert.equal("BUY 10", alpha.action.label)
-    assert.is_true(alpha.action:IsEnabled())
+    pick(rowWithText("Alpha Herb"))
+    assert.truthy(dock().buy:IsShown())
+    assert.equal("BUY 10", dock().buy.label)
+    assert.is_true(dock().buy:IsEnabled())
   end)
 
   it("puts the vendor line after the open ones and the finished line last", function()
@@ -343,7 +329,6 @@ describe("BuyFrame", function()
     assert.equal("Charlie Dust", lineRows[2].reagent:GetText())
     assert.equal("Delta Vial", lineRows[3].reagent:GetText())
     assert.equal("vendor", lineRows[3].cells.action:GetText())
-    assert.is_false(lineRows[3].action:IsShown())
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
       lineRows[3].reagent.colorValue)
     assert.equal("Bravo Ore", lineRows[4].reagent:GetText())
@@ -373,8 +358,9 @@ describe("BuyFrame", function()
     for i = 1, 8 do
       local row = rowWithText("Line " .. i)
       assert.truthy(row, "no row for line " .. i)
-      assert.is_true(row.action:IsShown())
-      assert.equal("BUY 2", row.action.label)
+      pick(row)
+      assert.is_true(dock().buy:IsShown())
+      assert.equal("BUY 2", dock().buy.label)
     end
     -- ...and nothing was added under them to explain a limit that no longer exists.
     assert.equal(8, #shownRows())
@@ -673,7 +659,8 @@ describe("BuyFrame", function()
     local alpha = rowWithText("Alpha Herb")
     assert.equal("4", alpha.cells.have:GetText())
     assert.equal("6", alpha.cells.buy:GetText())
-    assert.equal("BUY 6", alpha.action.label)
+    pick(alpha)
+    assert.equal("BUY 6", dock().buy.label)
   end)
 
   -- GC.BagStock.Scan drops a soulbound stack because the auction house will not POST it --
@@ -1124,8 +1111,8 @@ describe("BuyFrame", function()
 
   it("leaves a line the player has not split as an ordinary line", function()
     showCraftRun(false)
-    local alpha = rowWithText("Alpha Herb")
-    assert.equal("BUY 20", alpha.action.label)
+    pick(rowWithText("Alpha Herb"))
+    assert.equal("BUY 20", dock().buy.label)
     assert.is_nil(rowWithText("Bravo Ore"))
   end)
 
@@ -1137,7 +1124,6 @@ describe("BuyFrame", function()
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
       parent.reagent.colorValue)
     assert.equal("craft", parent.cells.action:GetText())
-    assert.is_false(parent.action:IsShown())
     -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say.
     assert.equal("—", parent.cells.now:GetText())
     assert.equal("—", parent.cells.usual:GetText())
@@ -1149,7 +1135,8 @@ describe("BuyFrame", function()
     assert.equal("↳ Bravo Ore", ore.reagent:GetText())
     assert.equal("20", ore.cells.need:GetText())
     assert.equal("15", ore.cells.buy:GetText())
-    assert.equal("BUY 15", ore.action.label)
+    pick(ore)
+    assert.equal("BUY 15", dock().buy.label)
     assert.equal("↳ Charlie Dust", rowWithText("Charlie Dust").reagent:GetText())
   end)
 
@@ -1190,19 +1177,22 @@ describe("BuyFrame", function()
   it("never offers a craft line to a click or to the Enter key", function()
     showCraftRun(true)
     local parent = rowWithText("craft 4×")
-    assert.is_false(parent.action:IsShown())
-    -- The row's own hover quotes a buyable line; a craft line is not one, so nothing is asked
-    -- and no attempt is opened.
-    _G.GameTooltip = { SetOwner = function() end, SetItemByID = function() end,
-                       AddLine = function() end, Show = function() end, Hide = function() end }
-    parent.scripts.OnEnter(parent)
+    -- The dock never lands on a craft line by itself: its default is the first line to buy.
+    assert.are_not.equal(101, GC.Buy._focus)
+    -- Picked by hand, the dock explains the line and offers nothing to press; no quote is asked
+    -- and no attempt is opened. This is the assertion that goes red the moment a craft line is
+    -- allowed back into `buyable` -- the one clause standing between a craft row and the BUY
+    -- button, the Enter key, the focus advance and the quote.
+    pick(parent)
+    assert.equal(101, dock().lineItemID)
+    assert.is_false(dock().buy:IsShown())
     assert.is_nil(GC.Buy._attempt)
-    -- ...and Enter is still pointing at nothing. Focus is taken INSIDE the hover's `buyable`
-    -- guard and before any client gate, so this is the assertion that goes red the moment a
-    -- craft line is allowed back into `buyable` -- the one clause standing between a craft row
-    -- and the BUY button, the Enter key, the focus advance and the quote.
-    assert.is_nil(GC.Buy._focus)
-    _G.GameTooltip = nil
+    local container = containerOf()
+    container.IsMouseOver = function() return true end
+    container.SetPropagateKeyboardInput = function(self, v) self.propagate = v end
+    container.scripts.OnKeyDown(container, "ENTER")
+    assert.is_true(container.propagate)
+    assert.is_nil(GC.Buy._attempt)
   end)
 
   local function tooltipOn(row)
@@ -1495,7 +1485,11 @@ describe("BuyFrame", function()
     GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
     local made = rowWithText("Charlie Dust")
     assert.equal("craft", made.cells.action:GetText())
-    assert.is_false(made.action:IsShown())
+    -- Never the dock's next purchase, and no button when picked by hand.
+    assert.equal(101, GC.Buy._focus)
+    pick(made)
+    assert.is_false(dock().buy:IsShown())
+    assert.equal("craft it yourself", dock().sub:GetText())
     assert.equal("spent 0c · left ~1g", bandOf().spent:GetText()) -- 10 Alpha Herb at 1000c only
   end)
 end)

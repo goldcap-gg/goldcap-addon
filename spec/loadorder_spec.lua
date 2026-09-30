@@ -30,6 +30,7 @@ describe("TOC load order", function()
         IsShown = function() return false end,
         SetText = function() end,
         SetTexture = function() end,
+        SetTexCoord = function() end,
         SetTextColor = function() end,
         SetJustifyH = function() end,
         SetWidth = function() end,

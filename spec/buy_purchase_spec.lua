@@ -1,8 +1,9 @@
 local helper = require("spec.spec_helper")
 
--- The BUY tab's purchase: hover quotes the line against the live commodity book, one click
--- starts the purchase for exactly the quoted quantity, and a second click confirms the server's
--- own price -- but only while that price is still inside the line's cap.
+-- The BUY tab's purchase: picking a line (a left click on its row) quotes it against the live
+-- commodity book, the dock's one button starts the purchase for exactly the quoted quantity, and a
+-- second press confirms the server's own price -- but only while that price is still inside the
+-- line's cap.
 --
 -- Core/BuyRun.lua, Core/PurchaseSlot.lua, Core/Acquisitions.lua and Core/PurchaseCapture.lua
 -- are all loaded for real: what this spec is actually about is the four of them agreeing --
@@ -110,17 +111,10 @@ describe("BUY purchase", function()
     return c
   end
 
-  local function upvalueOf(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
+  -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
+  local function dock() return GC.Buy._view.dock end
   local function rowWithText(text)
-    for _, row in ipairs(upvalueOf(GC.Buy.RefreshIfShown, "rows")) do
+    for _, row in ipairs(GC.Buy._view.rows) do
       if row:IsShown() and (row.reagent:GetText() or ""):find(text, 1, true) then return row end
     end
   end
@@ -133,7 +127,7 @@ describe("BUY purchase", function()
     end
   end
 
-  local function containerOf() return upvalueOf(GC.Buy.Show, "container") end
+  local function containerOf() return GC.Buy._view.container end
 
   -- Core/Init.lua's own OnEvent, so the routing between GC.Buy and GC.Sniper is exercised rather
   -- than assumed. Every other test here calls a handler directly, which is exactly how a router
@@ -163,12 +157,22 @@ describe("BUY purchase", function()
   -- each level a whole price point aggregated across sellers.
   local function setBook(itemID, levels) book[itemID] = levels end
 
-  local function hover(row)
-    row.scripts.OnEnter(row)
-  end
-
+  -- BUY 2.0: a left click on a row picks the line the dock buys, and asks for its price -- what a
+  -- hover used to do. The hover now only explains the line.
+  local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
+  local hover = pick
+  -- The dock's one button, for the line on it. A test that "clicks" a row the dock is not on has
+  -- to say so: `click` refuses, loudly, rather than pressing the dock for some other line.
+  local function press() dock().buy.scripts.OnClick(dock().buy) end
   local function click(row)
-    row.action.scripts.OnClick(row.action)
+    if dock().lineItemID ~= row.lineItemID then pick(row) end
+    assert.equal(row.lineItemID, dock().lineItemID, "the dock is not on this row's line")
+    press()
+  end
+  -- What the dock's button says for a row's line: the dock has to be on that line already.
+  local function buttonFor(row)
+    assert.equal(row.lineItemID, dock().lineItemID, "the dock is not on this row's line")
+    return dock().buy
   end
 
   local function keyDown(key)
@@ -267,6 +271,8 @@ describe("BUY purchase", function()
 
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
+    helper.loadModule("Core/BuyView.lua", GC)
+    helper.loadModule("Core/BuyDock.lua", GC)
     helper.loadModule("Core/PurchaseSlot.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/PurchaseCapture.lua", GC)
@@ -328,8 +334,8 @@ describe("BUY purchase", function()
     -- Caps fixes 5i: and says it is waiting. The button kept reading "BUY 4", clickable, while the
     -- quote it needs was held back -- for as long as thirty seconds behind a lost batch.
     local row = rowWithText("Alpha Herb")
-    assert.equal("...", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("...", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
     GC.Buy.Tick()
     assert.same({}, searches)
     out = false
@@ -360,7 +366,7 @@ describe("BUY purchase", function()
     assert.equal(10, attempt.qty)                       -- 6 @ 900 + 4 @ 1200
     assert.equal(6 * 900 + 4 * 1200, attempt.total)
     assert.is_false(attempt.capped)
-    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
     assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
   end)
 
@@ -379,11 +385,13 @@ describe("BUY purchase", function()
     local attempt = GC.Buy._attempt
     assert.equal(0, attempt.qty)
     assert.is_true(attempt.capped)
-    local row = rowWithText("Alpha Herb")
-    assert.equal("▲100% over usual", row.action.label)
-    assert.is_false(row.action:IsEnabled())
-    -- The over-cap look, which a line where only PART fits wears too (see the partial-fill test).
-    assert.equal("warn", row.action.variant)
+    -- BUY 2.0: the dock says what the cheapest unit costs against the cap and offers to raise the
+    -- cap to it (or skip the line); how far over usual that is rides on the log line `/gc buy`
+    -- prints.
+    assert.equal("the cheapest is 2000c, your cap is 1300c", dock().sub:GetText())
+    assert.equal("RAISE CAP TO 2000c", buttonFor(rowWithText("Alpha Herb")).label)
+    assert.equal("Skip", dock().second.label)
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲100% over usual", 1, true))
   end)
 
   -- Spec rule 3: the cheap hour is the answer to "why did the cap refuse this", so it rides the
@@ -404,17 +412,16 @@ describe("BUY purchase", function()
   end)
 
   it("does not quote a vendor line, and offers it no button to click", function()
-    local vendor = rowWithText("Bravo Ore")
-    assert.is_false(vendor.action:IsShown())
-    hover(vendor)
+    pick(rowWithText("Bravo Ore"))
+    assert.is_false(buttonFor(rowWithText("Bravo Ore")):IsShown())
     assert.same({}, searches)
     assert.is_nil(GC.Buy._attempt)
   end)
 
   it("offers an enabled BUY button for the quantity still missing", function()
     local row = rowWithText("Alpha Herb")
-    assert.equal("BUY 10", row.action.label)
-    assert.is_true(row.action:IsEnabled())
+    assert.equal("BUY 10", buttonFor(row).label)
+    assert.is_true(buttonFor(row):IsEnabled())
   end)
 
   -- Step 2: the click that starts.
@@ -452,8 +459,8 @@ describe("BUY purchase", function()
     GC.PurchaseSlot.Claim("sniper", now)
     GC.Buy.RefreshIfShown()
     local row = rowWithText("Alpha Herb")
-    assert.equal("waiting...", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("waiting...", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
   end)
 
   -- Load-bearing round (M-1): and reads BUY again the moment the Sniper lets go, from the auction
@@ -464,12 +471,12 @@ describe("BUY purchase", function()
     GC.PurchaseSlot.Claim("sniper", now)
     GC.Buy.RefreshIfShown()
     GC.Buy.TickCountdown() -- the ticker sees the wait
-    assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+    assert.equal("waiting...", buttonFor(rowWithText("Alpha Herb")).label)
 
     GC.PurchaseSlot.Release("sniper")
     GC.Buy.TickCountdown()
 
-    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   -- Load-bearing round (M-3): its own confirm the close hit holds this tab too, and the line keeps
@@ -485,7 +492,7 @@ describe("BUY purchase", function()
     GC.Buy.OnAuctionHouseShow()
     GC.Buy.RefreshIfShown()
     assert.equal("unknown", GC.Buy._attempt.stage)
-    assert.equal(GC.L["no answer — check your mail"], rowWithText("Alpha Herb").action.label)
+    assert.equal(GC.L["no answer — check your mail"], buttonFor(rowWithText("Alpha Herb")).label)
 
     local before = #started
     hover(rowWithText("Charlie Dust"))
@@ -540,15 +547,15 @@ describe("BUY purchase", function()
       GC.Buy.RefreshIfShown()
       local row = rowWithText("Alpha Herb")
       -- ASCII, like its neighbours "buying...", "confirming..." and "..." (fix round 3, n3).
-      assert.equal("waiting...", row.action.label)
-      assert.is_false(row.action:IsEnabled())
+      assert.equal("waiting...", buttonFor(row).label)
+      assert.is_false(buttonFor(row):IsEnabled())
     end)
 
     it("starts once that purchase has its answer", function()
       owed = nil
       GC.Buy.RefreshIfShown()
       local row = rowWithText("Alpha Herb")
-      assert.equal("BUY 10", row.action.label)
+      assert.equal("BUY 10", buttonFor(row).label)
       click(row)
       assert.same({ { itemID = 101, quantity = 10 } }, started)
     end)
@@ -619,7 +626,7 @@ describe("BUY purchase", function()
       assert.equal("expired", GC.Buy._attempt.stage)
       assert.is_nil(GC.Buy._attempt.serverTotal)
       assert.equal(2, cancels) -- the Cancel sent again
-      assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+      assert.are_not.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
       assert.is_nil(GC.PurchaseSlot.Owner())
       assert.is_true(GC.PurchaseSlot.Claim("sniper", now))
     end)
@@ -636,7 +643,7 @@ describe("BUY purchase", function()
       GC.Buy.OnCommodityResults(101) -- a fresh quote
       click(rowWithText("Alpha Herb"))
       assert.equal(1, #started)
-      assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+      assert.equal("waiting...", buttonFor(rowWithText("Alpha Herb")).label)
     end)
   end)
 
@@ -649,7 +656,7 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityPriceUpdated(1020, 10200)
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.same({}, confirmed) -- nothing is confirmed by the event itself
-    assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+    assert.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
     assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
 
     click(rowWithText("Alpha Herb"))
@@ -670,32 +677,33 @@ describe("BUY purchase", function()
     end
     after_each(function() if _G.C_AuctionHouse then _G.C_AuctionHouse.GetQuoteDurationRemaining = nil end end)
 
-    -- Fix round 5 (m1): in the line's name cell, not on the button. The 72 px button holds
-    -- "CONFIRM" in every locale, and "CONFIRM (9)" clipped the digit in seven of them. Final micro
-    -- round: AHEAD of the name -- the cell is one line cut at its right edge, and trailing the
-    -- name the digit was the part a normal reagent name pushed out of it.
-    it("counts down its last ten seconds ahead of the line's name, leaving CONFIRM as it is", function()
+    -- Fix round 5 (m1), BUY 2.0: on the dock's second line, beside Blizzard's price, never on the
+    -- button -- "CONFIRM (9)" clipped the digit in seven languages.
+    it("counts down its last ten seconds beside Blizzard's price, leaving CONFIRM as it is", function()
       atConfirm()
+      assert.equal("Blizzard's price: 1g02s", dock().sub:GetText())
       now = now + 8 -- 12 s left: nothing yet
       GC.Buy.TickCountdown()
       GC.Buy.RefreshIfShown()
-      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
+      assert.equal("Blizzard's price: 1g02s", dock().sub:GetText())
 
       now = now + 3 -- 11 s after the quote: 9 left
       GC.Buy.TickCountdown()
+      assert.equal("Blizzard's price: 1g02s · 9 s left", dock().sub:GetText())
       local row = rowWithText("Alpha Herb")
-      assert.equal(1, row.reagent:GetText():find(GC.L["expires in %d s"]:format(9), 1, true))
-      assert.equal("CONFIRM", row.action.label)
-      assert.is_true(row.action:IsEnabled())
+      assert.equal("CONFIRM", buttonFor(row).label)
+      assert.is_true(buttonFor(row):IsEnabled())
+      assert.equal("Cancel", dock().second.label)
     end)
 
     -- Final micro round (nit 2): only the line whose quote it is, and only while it waits at
     -- CONFIRM -- after the click the wait is the server's, and no seconds are the player's to beat.
-    it("counts on the quoted line only", function()
+    it("counts in the dock only, never in a row", function()
       atConfirm()
       now = now + 11
       GC.Buy.TickCountdown()
-      assert.is_nil(rowWithText("Charlie Dust").reagent:GetText():find("expires in", 1, true))
+      assert.is_nil(rowWithText("Charlie Dust").reagent:GetText():find("9 s", 1, true))
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("9 s", 1, true))
     end)
 
     it("stops counting once CONFIRM has been clicked", function()
@@ -705,7 +713,7 @@ describe("BUY purchase", function()
       now = now + 11
       GC.Buy.TickCountdown()
       GC.Buy.RefreshIfShown()
-      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
+      assert.is_nil(dock().sub:GetText():find("s left", 1, true))
     end)
 
     it("repaints once a second while it counts, not on every tick", function()
@@ -1021,7 +1029,7 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityPriceUpdated(1200, 12000) -- still inside the 1300 cap
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.equal(12000, GC.Buy._attempt.serverTotal)
-    assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+    assert.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
     assert.equal("1g20s", rowWithText("Alpha Herb").cells.cost:GetText())
     assert.equal(1, #confirmed) -- the event confirmed nothing by itself
 
@@ -1086,8 +1094,8 @@ describe("BUY purchase", function()
     -- threw its own record away at the Start hook while this tab owned the purchase.
     assert.is_true(GC.Buy.OwnsCommodityPurchase(101, 10))
     local row = rowWithText("Alpha Herb")
-    assert.equal("no answer — check your mail", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("no answer — check your mail", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
   end)
 
   -- An earlier arming must not retire a stage that has since moved on.
@@ -1118,7 +1126,7 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityResults(101)
     GC.Buy.OnAuctionHouseClosed()
     assert.is_nil(GC.Buy._attempt)
-    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   -- I2/3: reaching "confirm" is not reaching "confirming". A purchase landed that this tab never
@@ -1194,7 +1202,11 @@ describe("BUY purchase", function()
     assert.equal(6, line.bought)
     assert.equal(4, line.buy)
     assert.is_false(line.done)
-    assert.equal("BUY 4", rowWithText("Alpha Herb").action.label)
+    -- The dock has moved on to the next line; picked again, this one offers the four it still needs.
+    assert.equal(103, dock().lineItemID)
+    pick(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.equal("BUY 4", buttonFor(rowWithText("Alpha Herb")).label)
     -- ...and the run still counts those four as gold it expects to spend.
     assert.is_true(GC.Buy.CurrentRun():Totals().left > 0)
   end)
@@ -1223,8 +1235,9 @@ describe("BUY purchase", function()
     click(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityPriceUpdated(1020, 10200)
 
-    click(rowWithText("Charlie Dust"))
+    pick(rowWithText("Charlie Dust"))
     assert.equal(101, GC.Buy._focus)
+    assert.equal(101, dock().lineItemID)
     assert.equal("confirm", GC.Buy._attempt.stage)
 
     local container = containerOf()
@@ -1237,17 +1250,18 @@ describe("BUY purchase", function()
   -- colours back, and Disable() on an already-disabled button fires nothing -- so a button that
   -- cannot be clicked came back looking exactly as clickable as its neighbours.
   it("keeps a disabled button looking disabled across a repaint", function()
-    setBook(101, { { unitPrice = 2000, quantity = 50 } })
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
+    GC.PurchaseSlot.Claim("sniper", now) -- "waiting...": a look the button cannot be clicked in
+    GC.Buy.RefreshIfShown()
     local row = rowWithText("Alpha Herb")
-    assert.is_false(row.action:IsEnabled())
-    assert.equal("dim", row.action.painted)
+    assert.is_false(buttonFor(row):IsEnabled())
+    assert.equal("dim", buttonFor(row).painted)
 
     GC.Buy.RefreshIfShown()
     row = rowWithText("Alpha Herb")
-    assert.is_false(row.action:IsEnabled())
-    assert.equal("dim", row.action.painted)
+    assert.is_false(buttonFor(row):IsEnabled())
+    assert.equal("dim", buttonFor(row).painted)
   end)
 
   -- 1: a real close fires BOTH session exits (Core/Init.lua routes both on purpose). The second
@@ -1264,7 +1278,7 @@ describe("BUY purchase", function()
     assert.equal("unknown", GC.Buy._attempt.stage)
     GC.Buy.OnAuctionHouseClosed()
     assert.equal("unknown", GC.Buy._attempt.stage)
-    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   it("keeps a timed-out line's warning when the close fires twice", function()
@@ -1413,14 +1427,14 @@ describe("BUY purchase", function()
   -- 6: a question the client swallowed has to offer the click that asks it again.
   it("offers a quote again once the query it sent has gone unanswered", function()
     hover(rowWithText("Alpha Herb"))
-    assert.equal("...", rowWithText("Alpha Herb").action.label)
-    assert.is_false(rowWithText("Alpha Herb").action:IsEnabled())
+    assert.equal("...", buttonFor(rowWithText("Alpha Herb")).label)
+    assert.is_false(buttonFor(rowWithText("Alpha Herb")):IsEnabled())
 
     now = now + 11
     GC.Buy.RefreshIfShown()
     local row = rowWithText("Alpha Herb")
-    assert.equal("BUY 10", row.action.label)
-    assert.is_true(row.action:IsEnabled())
+    assert.equal("BUY 10", buttonFor(row).label)
+    assert.is_true(buttonFor(row):IsEnabled())
     click(row)
     assert.same({ 101, 101 }, searches)
   end)
@@ -1527,7 +1541,7 @@ describe("BUY purchase", function()
     assert.same({ "priceUpdated" }, sniperCalls)
     assert.equal("quoted", GC.Buy._attempt.stage)
     assert.is_nil(GC.Buy._attempt.serverTotal)
-    assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+    assert.are_not.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   it("hands a commodity event the tab has no claim on straight to the sniper", function()
@@ -1549,7 +1563,7 @@ describe("BUY purchase", function()
 
     -- The purchase did not happen, so the line is a line again.
     local row = rowWithText("Alpha Herb")
-    assert.equal("purchase failed — try again", row.action.label)
+    assert.equal("purchase failed — try again", buttonFor(row).label)
     local before = #searches
     hover(rowWithText("Alpha Herb"))
     assert.equal(before + 1, #searches)
@@ -1629,7 +1643,9 @@ describe("BUY purchase", function()
     assert.is_truthy(GC.Buy._stranded[101])
     assert.is_truthy(GC.Buy._stranded[103])
     assert.equal("unknown", GC.Buy._attempt.stage)
-    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", buttonFor(rowWithText("Charlie Dust")).label)
+    pick(rowWithText("Alpha Herb"))
+    assert.equal("no answer — check your mail", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   it("keeps a stranded record a failure cannot be pinned to the attempt for", function()
@@ -1637,7 +1653,7 @@ describe("BUY purchase", function()
     GC.Buy._attempt = nil
     assert.is_false(GC.Buy.OnCommodityPurchaseFailed())
     assert.is_truthy(GC.Buy._stranded[101])
-    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", buttonFor(rowWithText("Alpha Herb")).label)
 
     -- The player has moved on to another line: the attempt is that line's, and says nothing
     -- about the one that went unanswered.
@@ -1725,8 +1741,8 @@ describe("BUY purchase", function()
     hover(rowWithText("Alpha Herb"))
     assert.equal(before, #searches)
     local row = rowWithText("Alpha Herb")
-    assert.equal("no answer — check your mail", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("no answer — check your mail", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
     click(row)
     assert.equal(before, #searches)
   end)
@@ -1758,18 +1774,18 @@ describe("BUY purchase", function()
     local row = rowWithText("Charlie Dust")
     assert.equal(before + 1, #searches)
     assert.equal("quoted", GC.Buy._attempt.stage)
-    assert.equal("not a commodity — buy by hand", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("not a commodity — buy by hand", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
     GC.Buy.OnCommodityResults(103)
     row = rowWithText("Charlie Dust")
-    assert.equal("not a commodity — buy by hand", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("not a commodity — buy by hand", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
 
     -- ...and a commodity line with an empty book still says the honest thing about the book.
     setBook(105, {})
     hover(rowWithText("Echo Salt"))
     GC.Buy.OnCommodityResults(105)
-    assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
+    assert.equal("nothing on offer", buttonFor(rowWithText("Echo Salt")).label)
   end)
 
   -- Review round 1: a line whose quote is still fresh keeps its clickable "BUY n" while a batch is
@@ -1784,8 +1800,8 @@ describe("BUY purchase", function()
     hover(rowWithText("Alpha Herb"))
 
     local row = rowWithText("Alpha Herb")
-    assert.equal("BUY 10", row.action.label)
-    assert.is_true(row.action:IsEnabled())
+    assert.equal("BUY 10", buttonFor(row).label)
+    assert.is_true(buttonFor(row):IsEnabled())
   end)
 
   -- Final review m10: a click on that line then asks again -- the quote it shows is not the
@@ -1804,8 +1820,8 @@ describe("BUY purchase", function()
     click(rowWithText("Alpha Herb"))
 
     local row = rowWithText("Alpha Herb")
-    assert.equal("...", row.action.label)
-    assert.is_false(row.action:IsEnabled())
+    assert.equal("...", buttonFor(row).label)
+    assert.is_false(buttonFor(row):IsEnabled())
     out = false
     GC.Buy.Tick()
     assert.equal(asked + 1, #searches)
@@ -1831,7 +1847,7 @@ describe("BUY purchase", function()
     GC.Buy.OnAuctionHouseClosed()
     assert.is_nil(GC.Buy._quoteOwed)
     GC.Buy.RefreshIfShown()
-    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   -- Caps fixes 5h (Task 10): an alert group's gear member reaches BUY with the item-level floor
@@ -1888,7 +1904,7 @@ describe("BUY purchase", function()
       hover(rowWithText("Foxtrot Blade"))
 
       assert.same({ itemID = 106, itemLevel = 626, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
-      assert.equal("not a commodity — buy by hand", rowWithText("Foxtrot Blade").action.label)
+      assert.equal("not a commodity — buy by hand", buttonFor(rowWithText("Foxtrot Blade")).label)
     end)
 
     it("says to check the level when the search cannot be narrowed to it", function()
@@ -1899,8 +1915,8 @@ describe("BUY purchase", function()
 
       assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
       local row = rowWithText("Foxtrot Blade")
-      assert.equal("check the item level — buy by hand", row.action.label)
-      assert.is_false(row.action:IsEnabled())
+      assert.equal("check the item level — buy by hand", buttonFor(row).label)
+      assert.is_false(buttonFor(row):IsEnabled())
     end)
 
     it("leaves a gear line with no floor as it was", function()
@@ -1912,7 +1928,7 @@ describe("BUY purchase", function()
       local row = rowWithText("Foxtrot Blade")
       assert.is_nil(row.reagent:GetText():find("item level", 1, true))
       assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
-      assert.equal("not a commodity — buy by hand", row.action.label)
+      assert.equal("not a commodity — buy by hand", buttonFor(row).label)
     end)
   end)
 
@@ -1929,34 +1945,35 @@ describe("BUY purchase", function()
     assert.equal(100, attempt.overPct) -- 2000 against a 1000 usual
 
     local row = rowWithText("Alpha Herb")
-    assert.equal("BUY 6", row.action.label)
+    assert.equal("BUY 6", buttonFor(row).label)
     assert.equal("5400c", row.cells.cost:GetText())
-    assert.is_true(row.action:IsEnabled()) -- the part that fits is still buyable
-    assert.equal("warn", row.action.variant)
+    assert.is_true(buttonFor(row):IsEnabled()) -- the part that fits is still buyable
+    assert.equal("warn", buttonFor(row).variant)
     assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲100% over usual", 1, true))
   end)
 
-  -- Review item 10: while the client holds a purchase of ours, neither onBuyClick nor quote will
-  -- act for any other line -- so every other button read "BUY n", enabled, and did nothing at all.
-  it("disables the other lines while a purchase is waiting to be confirmed", function()
+  -- Review item 10: while the client holds a purchase of ours, neither planBuyClick nor quote will
+  -- act for any other line. BUY 2.0: the dock stays on the line waiting to be confirmed -- a click
+  -- on another row moves nothing and asks nothing -- and CONFIRM is still that line's.
+  it("keeps the dock on a purchase waiting to be confirmed", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
     click(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityPriceUpdated(1020, 10200)
 
-    local other = rowWithText("Charlie Dust")
-    assert.equal("BUY 4", other.action.label)
-    assert.is_false(other.action:IsEnabled())
     local before = #searches
-    click(rowWithText("Charlie Dust"))
-    assert.equal(before, #searches) -- and the disabled look is telling the truth
+    pick(rowWithText("Charlie Dust"))
+    assert.equal(101, dock().lineItemID)
+    assert.equal(before, #searches)
+    assert.equal("CONFIRM", dock().buy.label)
     assert.same({}, confirmed)
 
-    -- Offered again the moment the purchase is over.
-    click(rowWithText("Alpha Herb"))
+    -- The next line is offered the moment the purchase is over.
+    press()
     deliver(101, 10)
     GC.Buy.OnCommodityPurchaseSucceeded()
-    assert.is_true(rowWithText("Charlie Dust").action:IsEnabled())
+    assert.equal(103, dock().lineItemID)
+    assert.is_true(buttonFor(rowWithText("Charlie Dust")):IsEnabled())
   end)
 
   -- Review item 7: SetPropagateKeyboardInput is combat-protected, and this container holds the
@@ -2015,7 +2032,12 @@ describe("BUY purchase", function()
     assert.equal(0, attempt.qty)
     assert.is_true(attempt.capped)
     assert.equal(12, attempt.overPct)          -- 4500 against the 4000 target, not the 5800 usual
-    assert.equal("▲12% over the alert target", rowWithText("Alpha Herb").action.label)
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲12% over the alert target", 1, true))
+    -- An alert group's target is the group's own, set on goldcap.gg: the dock offers no raise,
+    -- only Skip, and says what the cheapest unit costs against it.
+    assert.equal("the cheapest is 4500c, your cap is 4000c", dock().sub:GetText())
+    assert.is_false(dock().buy:IsShown())
+    assert.equal("Skip", dock().second.label)
   end)
 
   it("says the same on the log line when part of the line fit under the target", function()
@@ -2023,7 +2045,7 @@ describe("BUY purchase", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
     assert.equal(2, GC.Buy._attempt.qty)
-    assert.equal("BUY 2", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 2", buttonFor(rowWithText("Alpha Herb")).label)
     assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲12% over the alert target", 1, true))
   end)
 
@@ -2036,7 +2058,10 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityResults(101)
     assert.is_true(GC.Buy._attempt.capped)
     assert.is_nil(GC.Buy._attempt.overPct)
-    assert.equal("nothing on offer", rowWithText("Alpha Herb").action.label)
+    local text = GC.Buy._log[#GC.Buy._log].text
+    assert.is_truthy(text:find("nothing on offer", 1, true))
+    assert.is_nil(text:find("%", 1, true))
+    assert.equal("the cheapest is 4001c, your cap is 4000c", dock().sub:GetText())
   end)
 
   it("says nothing at all about a book that stayed under the target", function()
@@ -2045,7 +2070,7 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityResults(101)
     assert.is_false(GC.Buy._attempt.capped)
     assert.is_nil(GC.Buy._attempt.overPct)
-    assert.equal("BUY 4", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 4", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
   -- BUY 2.0: the player's own price for a line is the ceiling that refused the lot, and the
@@ -2058,6 +2083,170 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityResults(101)
     assert.equal(12, GC.Buy._attempt.overPct)   -- 900 against the 800 cap, not the 1000 usual
     assert.equal("yours", GC.Buy._attempt.overTarget)
-    assert.equal("▲12% over your cap", rowWithText("Alpha Herb").action.label)
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲12% over your cap", 1, true))
+  end)
+
+  -- The week 3 contract (part A): on an ordinary list, a site ceiling (`cc`) is the cap its owner
+  -- set on goldcap.gg -- theirs, not an alert's target.
+  it("calls a site cap on an ordinary list the player's own", function()
+    GC.AppRuns._set({ { code = "run-9", name = "List", updatedAt = 900, origin = "app",
+                        lines = { { i = 101, q = 4, u = 5800, cc = 4000 } } } })
+    GC.db.settings.sniper.buyRun = "run-9"
+    setBook(101, { { unitPrice = 4500, quantity = 50 } })
+    GC.Buy.Show()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local text = GC.Buy._log[#GC.Buy._log].text
+    assert.is_truthy(text:find("▲12% over your cap", 1, true))
+    assert.is_nil(text:find("alert target", 1, true))
+    assert.equal("RAISE CAP TO 5800c", dock().buy.label) -- the market is above the cheapest ask
+  end)
+
+  describe("the dock", function()
+    it("buys the picked line in two presses: BUY, then CONFIRM", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      local row = rowWithText("Alpha Herb")
+      pick(row)
+      GC.Buy.OnCommodityResults(101)
+      assert.equal("BUY 10", dock().buy.label)
+      press()
+      assert.same({ itemID = 101, quantity = 10 }, started[1])
+      GC.Buy.OnCommodityPriceUpdated(900, 9000)
+      assert.equal("CONFIRM", dock().buy.label)
+      assert.equal("Cancel", dock().second.label)
+      press()
+      assert.same({ itemID = 101, quantity = 10 }, confirmed[1])
+    end)
+
+    it("names the line and what it costs against the market", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      assert.equal("Alpha Herb ×10", dock().title:GetText())
+      assert.equal("9000c · 1000c under market", dock().sub:GetText())
+    end)
+
+    it("keeps its button enabled until the protected call has been made", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      local b = dock().buy
+      local enabledAtCall
+      _G.C_AuctionHouse.StartCommoditiesPurchase = function() enabledAtCall = b.enabled end
+      press()
+      assert.is_true(enabledAtCall)
+      assert.is_false(b.enabled) -- and only then: "buying..."
+    end)
+
+    it("Cancel at CONFIRM hands the quote back and frees the slot", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      press()
+      GC.Buy.OnCommodityPriceUpdated(900, 9000)
+      dock().second.scripts.OnClick(dock().second)
+      assert.equal(1, cancels)
+      assert.is_nil(GC.Buy._attempt)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.same({}, confirmed)
+    end)
+
+    -- Review Focus 1: the dock moved on between two presses.
+    it("a press that lands after the dock moved to the next line only asks for that line's price", function()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      press()
+      GC.Buy.OnCommodityPriceUpdated(900, 9000)
+      press()
+      deliver(101, 10)
+      GC.Buy.OnCommodityPurchaseSucceeded()
+      assert.equal(103, dock().lineItemID)
+      local before = #started
+      press()
+      assert.equal(before, #started)
+      assert.equal(103, searches[#searches])
+      assert.equal("...", dock().buy.label)
+    end)
+
+    it("RAISE CAP raises the line's cap to the dock's price and the next press buys", function()
+      GC.db.runLineCaps = { ["run-1"] = { [101] = 800 } }
+      GC.Buy.RefreshIfShown()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      assert.equal("RAISE CAP TO 1000c", dock().buy.label) -- market 1000 > cheapest 900
+      assert.equal("Skip", dock().second.label)
+      local before, searched = #started, #searches
+      press()
+      assert.equal(before, #started)       -- a raise is not a purchase
+      assert.equal(searched, #searches)    -- nor a second look at the book
+      assert.equal(1000, GC.db.runLineCaps["run-1"][101])
+      assert.equal("BUY 10", dock().buy.label)
+      press()
+      assert.same({ itemID = 101, quantity = 10 }, started[#started])
+    end)
+
+    it("Enter never raises a cap", function()
+      GC.db.runLineCaps = { ["run-1"] = { [101] = 800 } }
+      GC.Buy.RefreshIfShown()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      local container = containerOf()
+      container.mouseOver = true
+      keyDown("ENTER")
+      assert.equal(800, GC.db.runLineCaps["run-1"][101])
+      assert.same({}, started)
+    end)
+
+    it("Skip takes the line out of this session's run and moves the dock on", function()
+      GC.db.runLineCaps = { ["run-1"] = { [101] = 800 } }
+      GC.Buy.RefreshIfShown()
+      setBook(101, { { unitPrice = 900, quantity = 50 } })
+      pick(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      dock().second.scripts.OnClick(dock().second)
+      assert.is_true(GC.Buy._skipped["run-1"][101])
+      assert.equal(103, dock().lineItemID)
+    end)
+
+    -- Review Focus 3.
+    it("Enter on a skipped line buys nothing and gives the key back", function()
+      GC.Buy._skipped = { ["run-1"] = { [101] = true } }
+      GC.Buy._focus = 101
+      GC.Buy.RefreshIfShown()
+      local container = containerOf()
+      container.mouseOver = true
+      keyDown("ENTER")
+      assert.equal(0, #started)
+      assert.is_true(container.propagate)
+      GC.Buy._skipped = {}
+    end)
+
+    it("a hover picks nothing", function()
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      assert.are_not.equal(103, GC.Buy._focus)
+    end)
+
+    -- The dock's line gets its first quote from the ticker, so the first press can buy.
+    it("asks for the price of the line it lands on, once", function()
+      assert.equal(101, dock().lineItemID)
+      GC.Buy.Tick()
+      assert.same({ 101 }, searches)
+      GC.Buy.OnCommodityResults(101)
+      GC.Buy.Tick()
+      assert.same({ 101 }, searches)
+    end)
+
+    -- The week 3 contract, part A: a line the route crafts itself is never the next purchase.
+    it("never lands on a line the route crafts itself", function()
+      GC.AppRuns._set({ { code = "run-mk", name = "Route", updatedAt = 900, origin = "app",
+                          lines = { { i = 101, q = 10, mk = true }, { i = 103, q = 4 } } } })
+      GC.db.settings.sniper.buyRun = "run-mk"
+      GC.Buy.Show()
+      assert.equal(103, dock().lineItemID)
+    end)
   end)
 end)

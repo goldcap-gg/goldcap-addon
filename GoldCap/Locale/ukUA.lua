@@ -650,7 +650,6 @@ GC.Locales.ukUA = {
   ["crafted %s"] = "скрафчено %s",
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
-  ["expires in %d s"] = "спливає за %d с",
   ["fair"] = "прийнятні",
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",

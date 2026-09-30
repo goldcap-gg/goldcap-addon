@@ -638,7 +638,6 @@ GC.Locales.ptBR = {
   ["crafted %s"] = "fabricado %s",
   ["data from goldcap.gg · synced %s ago"] = "dados do goldcap.gg · sincronizados há %s",
   ["due -- will be asked next pass"] = "pendente -- será consultado na próxima passagem",
-  ["expires in %d s"] = "expira em %d s",
   ["fair"] = "razoáveis",
   ["far below market"] = "bem abaixo do mercado",
   ["finish the pending buy first"] = "termine primeiro a compra pendente",

@@ -32,13 +32,11 @@ describe("row button labels fit the button", function()
       keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?" } },
     { what = "the 64px Deals buy button", budget = 8,
       keys = { "Buy", "Check", "Avoid" } },
-    -- UI/BuyFrame.lua: row.action:SetSize(72, 18). Measured at the DEFAULT scale (1.0, 6.0px per
-    -- character), not at 1.3 like the two above: at 1.3 the 72px badge holds 9, and the German and
-    -- Russian/Ukrainian "CONFIRM" (10 and 11) clip there already -- that is recorded, not fixed
-    -- here. 11, not the 12 that fill it exactly: the Sell precedent's >=2px of clearance (66px of
-    -- 72). What this pins is the label a player sees at the default scale: the countdown lives in
-    -- the line's name cell, because "CONFIRM (9)" did not fit (fix round 5).
-    { what = "the 72px BUY action button", budget = 11,
+    -- UI/BuyFrame.lua's dock button (BUY 2.0) is as wide as its label in the player's language
+    -- (fitButton, measured by the client), so nothing here can clip it. What this pins is that the
+    -- label stays short enough to leave the dock's own two lines their room beside it: 25 at 1.3,
+    -- the plan's 200px. The countdown is on the dock's second line, never on the button.
+    { what = "the BUY dock button", budget = 25,
       keys = { "CONFIRM", "waiting..." } },
     -- UI/SniperFrame.lua: WIN.FOREVER_TIER_W (112) less the TierMark's 6px dot and 5px gap leaves 101px
     -- of mono-10 bold at 1.3 (7.8px a character) -- 12. Owner, beta 2026-09-30: "Ниже цены торговца"

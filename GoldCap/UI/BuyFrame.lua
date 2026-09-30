@@ -81,6 +81,17 @@ local BD = {
   -- How long the band says a run's plan was recomputed on the site. A day: long enough that a
   -- player who logs in once between sessions still reads it, short enough that it is news.
   NOTICE_SECONDS = 86400,
+  -- The next-purchase dock at the foot of the tab: the item on one line, what it costs on the
+  -- next, one button that buys. DOCK_H is its least height; it grows to whatever its two lines
+  -- need once they wrap (layoutDock). Its buttons are as wide as their labels in the player's
+  -- language (fitButton), never less than these.
+  DOCK_H = 52,
+  DOCK_BUY_MIN_W = 96,
+  DOCK_SECOND_MIN_W = 72,
+  -- How long a read of a line's book is still worth drawing (the tooltip's ladder, PRICE EACH, the
+  -- dock's sub-line). Much longer than QUOTE_SECONDS: this is a number to read, not one to spend,
+  -- and what a click spends is still only a fresh quote of the line's own (planBuyClick).
+  LADDER_SECONDS = 60,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -378,12 +389,34 @@ local function setLineCap(code, itemID, copper)
 end
 GC.Buy._SetLineCap = setLineCap -- spec seam
 
+-- Lines skipped for this session (the dock's Skip, the row menu): GC.Buy._skipped[code][itemID].
+-- Session only, on purpose -- the dock says "skipped for this session, it stays on the list".
+GC.Buy._skipped = {}
+local function isSkipped(line)
+  local code = current and current:Code()
+  local set = code and GC.Buy._skipped[code]
+  return (set and line and set[line.itemID]) and true or false
+end
+local function setSkipped(itemID, on)
+  local code = current and current:Code()
+  if not code then return end
+  GC.Buy._skipped[code] = GC.Buy._skipped[code] or {}
+  GC.Buy._skipped[code][itemID] = on and true or nil
+end
+
 -- The run on screen as the STORE holds it. `current` is the arithmetic object built from it, and
 -- the three things the site says ABOUT a run -- it is an alert group's hits, somebody else owns
 -- it, it came from a plan -- live on the stored run rather than on the object.
 local function shownRunData()
   if not (current and GC.AppRuns and GC.AppRuns.Get) then return nil end
   return GC.AppRuns.Get(current:Code())
+end
+
+-- An alert group's live hits: its lines' caps are the group's own target prices, set on
+-- goldcap.gg, so nothing here offers to move them.
+local function alertRun()
+  local shown = shownRunData()
+  return shown ~= nil and shown.k == "alert"
 end
 
 -- What the site last changed about this run, for as long as it is still news. Written by
@@ -562,7 +595,9 @@ function GC.Buy.SelectRun(code)
   -- A quote is a plan against one run's lines. A purchase already in the client's hands keeps
   -- its attempt -- its terminal event still has to land somewhere, and OnCommodityPurchaseSucceeded
   -- checks the run code before it credits anything to a line.
-  if not inFlight(GC.Buy._attempt) then GC.Buy._attempt, GC.Buy._focus = nil, nil end
+  if not inFlight(GC.Buy._attempt) then
+    GC.Buy._attempt, GC.Buy._focus, GC.Buy._quotedFocus = nil, nil, nil
+  end
   if not run then
     current, currentUpdatedAt = nil, nil
     if sniper then sniper.buyRun = nil end
@@ -772,11 +807,12 @@ local function lineName(line)
 end
 
 -- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
--- already cover, a line being crafted rather than bought -- has no BUY button and never gets
--- quoted.
+-- already cover, a line being crafted rather than bought, a line skipped for this session -- is
+-- never quoted, never bought and never the dock's next purchase (planBuyClick, quote,
+-- nextOpenAfter and the dock all ask this one question).
 local function buyable(line)
   return line ~= nil and not line.vendor and line.kind ~= "craft"
-    and not line.done and line.buy > 0
+    and not line.done and line.buy > 0 and not isSkipped(line)
 end
 
 local function lineFor(itemID)
@@ -852,8 +888,8 @@ local function recentQuote(line)
 end
 
 -- The whole seconds the quote at CONFIRM has left, while BD.COUNTDOWN_SECONDS or fewer remain, or
--- nil (fix round 4, m2). Shown beside the line's name (paintLine), not on the 72px button: in seven
--- languages "CONFIRM (9)" lost its digit to the button's edge (fix round 5).
+-- nil (fix round 4, m2). Said on the dock's second line ("Blizzard's price: X · 9 s left"), never on
+-- the button: "CONFIRM (9)" lost its digit to the button's edge in seven languages (fix round 5).
 local function quoteSecondsLeft(attempt)
   if not (attempt and attempt.stage == "confirm" and attempt.stallEnds) then return nil end
   local left = math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
@@ -881,11 +917,13 @@ local function owedElsewhere()
   return (slot.Owner and slot.Owner() == "sniper" and slot.IsBusy and slot.IsBusy()) and true or false
 end
 
--- "▲N% over ..." for an attempt the cap stopped, against whose ceiling it was (overUsualPct).
+-- "▲N% over ..." for an attempt the cap stopped, against whose ceiling it was (overUsualPct). A
+-- site ceiling (`cc`) is an alert group's target on an alert run, and on an ordinary list the cap
+-- its owner set on goldcap.gg -- theirs, like one typed here.
 local function overText(attempt)
-  if attempt.overTarget == "target" then
+  if attempt.overTarget == "target" and alertRun() then
     return (GC.L["▲%d%% over the alert target"]):format(attempt.overPct)
-  elseif attempt.overTarget == "yours" then
+  elseif attempt.overTarget == "target" or attempt.overTarget == "yours" then
     return (GC.L["▲%d%% over your cap"]):format(attempt.overPct)
   end
   return (GC.L["▲%d%% over usual"]):format(attempt.overPct)
@@ -947,8 +985,8 @@ local function actionLabel(line)
       -- this tab when it settles).
       if owedElsewhere() then return GC.L["waiting..."], false end
       -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
-      -- but it is not the whole line. The label stays short enough for the 72px badge and the
-      -- button wears the over-cap look; how far over the rest sits is on the log line
+      -- but it is not the whole line. The button wears the over-cap look and the dock's second
+      -- line says how many of the line fit; how far over the rest sits is on the log line
       -- OnCommodityResults writes, which is what `/gc buy` prints.
       return (GC.L["BUY %d"]):format(attempt.qty), true, attempt.capped and "warn" or nil
     end
@@ -958,8 +996,7 @@ local function actionLabel(line)
     return GC.L["nothing on offer"], false
   end
   if stage == "started" then return GC.L["buying..."], false end
-  -- The seconds the quote has left are counted beside the line's name (paintLine), not here: the
-  -- 72px button holds "CONFIRM" in every language at the default scale, and nothing longer.
+  -- The seconds the quote has left are counted on the dock's second line, not here.
   if stage == "confirm" then return GC.L["CONFIRM"], true end
   if stage == "confirming" then return GC.L["confirming..."], false end
   if stage == "requote" then
@@ -1239,6 +1276,20 @@ local function cancelStartedPurchase()
   end
 end
 
+-- The dock's Cancel at CONFIRM: the quote goes back to the client and the slot with it. Exactly
+-- what the confirm stage's own timeout does (retireStalled) minus the "expired" word: the quote
+-- had arrived, so nothing is still coming, and CancelCommoditiesPurchase fires no event.
+function GC.Buy._CancelConfirm()
+  local attempt = GC.Buy._attempt
+  if not (attempt and attempt.stage == "confirm") then return false end
+  cancelStartedPurchase()
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  logAttempt(lineFor(attempt.itemID), GC.L["Cancel"])
+  GC.Buy._attempt = nil
+  GC.Buy.RefreshIfShown()
+  return true
+end
+
 local armStall, retireStalled
 
 -- Re-armed for whatever the attempt has just become, not once at the start. EVERY post-start
@@ -1496,7 +1547,9 @@ function GC.Buy.OnCommodityResults(itemID)
   attempt.byHand = (ladder == nil and not askableItem(itemID)) or nil
   local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
   attempt.qty, attempt.total, attempt.capped = qty, total, capped
-  quotes[itemID] = { qty = qty, total = total, at = time() }
+  -- The ladder rides along for drawing (the tooltip, PRICE EACH, the dock's raise): `false` is a
+  -- book that came back empty, which is news too.
+  quotes[itemID] = { qty = qty, total = total, at = time(), capped = capped, ladder = ladder or false }
   -- Computed whenever the cap stopped the ladder, not only when it stopped it before a single
   -- unit: a partial fill needs the same number -- what the REST would have cost -- or the line
   -- silently buys six of ten and says nothing about why the other four stayed behind.
@@ -1504,9 +1557,10 @@ function GC.Buy.OnCommodityResults(itemID)
   if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, ladder) end
   attempt.quotedAt = time()
   attempt.stage = "quoted"
-  -- The button holds 72px, so the percentage and the cheap hour ride on the log line instead
-  -- (the button wears the over-cap variant -- actionLabel). `/gc buy` is where a player reads
-  -- them back. Both belong to a refusal: a line the cap was happy with explains nothing.
+  -- The percentage and the cheap hour ride on the log line (the dock says what the cheapest unit
+  -- costs against the cap, and the button wears the over-cap variant -- actionLabel). `/gc buy`
+  -- is where a player reads them back. Both belong to a refusal: a line the cap was happy with
+  -- explains nothing.
   local text = nil
   if capped then
     text = actionLabel(line)
@@ -1744,6 +1798,7 @@ function GC.Buy.OnAuctionHouseClosed()
   -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
   -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
   GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
+  GC.Buy._quotedFocus = nil
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -1789,6 +1844,67 @@ local function afterClick(line)
   GC.Buy.RefreshIfShown()
 end
 
+-- What the line's last read of the book said, for GC.BuyView.Status: the attempt's own quote when
+-- it is this line's, else a recent read (an earlier quote, a hover's look) still worth drawing.
+local function readOf(line)
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.stage == "quoted" and not attempt.byHand then
+    return { qty = attempt.qty or 0, total = attempt.total, capped = attempt.capped, at = attempt.quotedAt,
+             ladder = quotes[line.itemID] and quotes[line.itemID].ladder or nil }
+  end
+  local seen = quotes[line.itemID]
+  if seen and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then return seen end
+  return nil
+end
+
+-- The one word a row and the dock say about a line (GC.BuyView.Status), from what only this tab
+-- knows about it.
+local function lineStatus(line)
+  local read = readOf(line)
+  local verdict = nil
+  if read and read.ladder ~= nil then
+    verdict = (read.qty or 0) > 0 and "fits" or (read.capped and "over" or nil)
+  end
+  local attempt = GC.Buy._attempt
+  local byHand = (attempt and attempt.itemID == line.itemID and attempt.byHand)
+    or (not line.vendor and line.kind ~= "craft" and not askableItem(line.itemID))
+  return GC.BuyView.Status(line, { skipped = isSkipped(line), stranded = strandedFor(line) ~= nil,
+    byHand = byHand and true or false, quote = verdict })
+end
+
+-- The raise the dock offers this line, in copper, or nil: only while its last read found nothing
+-- at or under the cap, and never on an alert group's line (its cap is the group's target, set on
+-- goldcap.gg).
+local function raiseOffered(line)
+  if not line or alertRun() or lineStatus(line) ~= "over" then return nil end
+  local read = readOf(line)
+  local ladder = (read and read.ladder) or (line.floor and { { unit = line.floor, qty = 1 } }) or nil
+  return GC.BuyView.RaiseTo(ladder, line.cap, line.usual)
+end
+
+-- Raises the line's own cap to what the dock offered and re-reads the quote already in hand
+-- against it -- no second search: the book is the one read a moment ago, and the server's own
+-- quote is judged again at Start anyway (OnCommodityPriceUpdated). A stale quote asks again.
+local function raiseCap(line)
+  local to = raiseOffered(line)
+  if not (to and current) then return end
+  setLineCap(current:Code(), line.itemID, to)
+  current:Refresh()
+  line = lineFor(line.itemID)
+  if not line then return end
+  local attempt = GC.Buy._attempt
+  local seen = quotes[line.itemID]
+  if attempt and attempt.itemID == line.itemID and quoteFresh(attempt) and seen and seen.ladder then
+    local qty, total, capped = current:PurchaseQuantity(line.itemID, seen.ladder)
+    attempt.qty, attempt.total, attempt.capped = qty, total, capped
+    seen.qty, seen.total, seen.capped = qty, total, capped
+    attempt.overPct, attempt.overTarget = nil, nil
+    if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, seen.ladder) end
+  else
+    quote(line, true)
+  end
+end
+
 -- ---------------------------------------------------------------------------
 -- The one hardware click. Nothing in this file calls a protected purchase API: this plans the
 -- click and answers the one call to make, and GC.PurchaseCall.Click (Core/PurchaseCall.lua)
@@ -1797,7 +1913,7 @@ end
 -- spec/buy_purchase_wiring_spec.lua reads this file's source text and proves it.
 -- ---------------------------------------------------------------------------
 
-local function planBuyClick(line)
+local function planBuyClick(line, fromDock)
   if not (line and current) then return end
   local attempt = GC.Buy._attempt
 
@@ -1822,6 +1938,16 @@ local function planBuyClick(line)
   -- ladder is a plan against prices somebody else has already bought off. The next click buys.
   if not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt)
       and (attempt.qty or 0) > 0) then
+    -- The dock's RAISE CAP TO X: a line nothing under its cap can fill has its cap raised to the
+    -- price the dock names, and the quote in hand is re-read against it. No purchase call is made
+    -- on this click; the next one buys. Only from the dock's own button -- Enter never moves a
+    -- cap -- and only on this branch, which makes no protected call at all: what the raise reads
+    -- is never read on a click that starts or confirms.
+    if fromDock and raiseOffered(line) then
+      raiseCap(line)
+      afterClick(line)
+      return
+    end
     -- Focus does not move onto a line a click cannot act on while another line's purchase is in
     -- the client's hands: Enter has to keep pointing at the line waiting for its confirm.
     if not inFlight(attempt) then GC.Buy._focus = line.itemID end
@@ -1853,11 +1979,11 @@ local function planBuyClick(line)
   end
 end
 
--- A line's BUY button. Everything, the line included, is looked up inside the plan: the click
--- itself reads nothing before GC.PurchaseCall.Click has fenced it off. The button's parent is
--- its row (createRow), stamped with the line it shows by paintRow.
+-- The dock's one button. Everything, the line included, is looked up inside the plan: the click
+-- itself reads nothing before GC.PurchaseCall.Click has fenced it off. The button's parent is the
+-- dock (createDock), stamped with the line it shows by paintDock.
 local function planBuyButton(button)
-  return planBuyClick(lineFor(button:GetParent().lineItemID))
+  return planBuyClick(lineFor(button:GetParent().lineItemID), true)
 end
 
 local function onBuyButtonClick(button)
@@ -1896,6 +2022,31 @@ end
 -- Rows
 -- ---------------------------------------------------------------------------
 
+-- A left click on a row picks its line for the dock and asks for its price -- what a hover did
+-- before BUY 2.0. Focus does not move while a purchase is in the client's hands: CONFIRM belongs
+-- to that line. Any line may be picked, a vendor or craft line included: the dock explains it.
+local function selectLine(line)
+  if not line or inFlight(GC.Buy._attempt) then return end
+  GC.Buy._focus = line.itemID
+  if buyable(line) then quote(line) end
+  GC.Buy.RefreshIfShown()
+end
+
+-- The dock's second button: Cancel at CONFIRM, Skip on a line over its cap. Never a purchase.
+local function onDockSecondaryClick(button)
+  local line = lineFor(button:GetParent().lineItemID)
+  if not line then return end
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.stage == "confirm" then
+    GC.Buy._CancelConfirm()
+    return
+  end
+  if inFlight(attempt) then return end
+  setSkipped(line.itemID, true)
+  if GC.Buy._focus == line.itemID then GC.Buy._focus = nextOpenAfter(line.itemID) end
+  GC.Buy.RefreshIfShown()
+end
+
 -- The one list this tab renders, top to bottom. Vendor lines are already last (Core/BuyRun.lua's
 -- Refresh puts them there); this only decides what is a row at all.
 local function buildEntries()
@@ -1933,7 +2084,7 @@ local function clearRow(row)
   row.reagent:Show()
   row.wide:SetText("")
   row.wide:Hide()
-  row.action:Hide()
+  row.selected:Hide()
   row.reagentInset = 0
   row.icon:Hide()
   row.tooltipItemID = nil
@@ -2009,16 +2160,9 @@ local function paintLine(row, line)
   if line.realmName then
     decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
   end
-  -- The last seconds of this line's quote at CONFIRM (fix rounds 4-5): the name cell is the flex
-  -- column, the one with room; GC.Buy.TickCountdown repaints it once a second while they run. They
-  -- LEAD the name: the cell is one line cut at its right edge, and trailing a normal reagent name
-  -- at the default window width the digit was the part cut off (Russian and Ukrainian: always).
-  local quoted = GC.Buy._attempt
-  local left = quoted and quoted.itemID == line.itemID and quoteSecondsLeft(quoted)
-  if left then
-    decorated = ("%s · %s"):format((GC.L["expires in %d s"]):format(left), decorated)
-  end
   row.reagent:SetText(decorated)
+  -- The line the dock is on: a faint gold wash, drawn at render (it is state, not hover).
+  if GC.Buy._focus == line.itemID then row.selected:Show() else row.selected:Hide() end
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
   -- reads back, so it does not compete with the lines the player is actually here to buy.
   setColor(row.reagent, (line.vendor or line.kind == "craft") and Theme.color.fgDim or Theme.color.fg)
@@ -2097,6 +2241,8 @@ local function paintLine(row, line)
     end
   end
 
+  -- No button in any row (BUY 2.0): the dock at the foot of the tab buys the picked line. A line
+  -- that is not something to buy here says what it is instead.
   if line.vendor then
     row.cells.action:SetText(GC.L["vendor"])
     setColor(row.cells.action, Theme.color.fgDim)
@@ -2106,27 +2252,6 @@ local function paintLine(row, line)
   elseif line.kind == "craft" then
     row.cells.action:SetText(GC.L["craft"])
     setColor(row.cells.action, Theme.color.fgDim)
-  else
-    -- One control, two looks, never two overlaid buttons (the addon's engineering notes): the label says what
-    -- the next click does, and the focused line -- the one Enter would buy -- wears the active
-    -- variant so the key is never aimed at a row nobody can see it pointing at. A state with a
-    -- look of its own (over the cap, whether nothing fits under it or only part of the line
-    -- does) says so instead; SetVariant runs BEFORE Enable/Disable, since it repaints the text
-    -- in the variant's own colours and would undo the dimmed look (UI/SellFrame.lua's rule).
-    local label, clickable, variant = actionLabel(line)
-    row.action:SetVariant(variant or (GC.Buy._focus == line.itemID and "active" or "ghost"))
-    row.action:SetLabel(label)
-    if clickable then
-      row.action:Enable()
-    else
-      -- Enable first, then Disable. OnDisable fires on a state CHANGE, and SetVariant above has
-      -- just repainted the background and the text in the variant's own live colours -- so a row
-      -- that was already disabled would come back looking perfectly clickable. Theme.Button has
-      -- no template-driven disabled look to fall back on; UI/Theme.lua's OnDisable is all of it.
-      row.action:Enable()
-      row.action:Disable()
-    end
-    row.action:Show()
   end
 end
 
@@ -2228,26 +2353,31 @@ createRow = function(parent)
   row.highlight = highlight
   row:EnableMouse(true)
 
+  -- The line the dock is on: a faint gold wash, shown by paintLine (state, not hover).
+  local sel = row:CreateTexture(nil, "BORDER")
+  sel:SetTexture(Theme.MEDIA .. "plaque.png")
+  sel:SetTextureSliceMargins(12, 12, 12, 12)
+  sel:SetPoint("TOPLEFT", 2, -1)
+  sel:SetPoint("BOTTOMRIGHT", -2, 1)
+  local gc = Theme.color.gold
+  sel:SetVertexColor(gc[1], gc[2], gc[3], 0.08)
+  sel:Hide()
+  row.selected = sel
+
   -- A Frame with the mouse enabled gets OnMouseUp for every button, which is how a row that is
-  -- not a Button carries a context menu. Left clicks are the BUY button's alone and are handed
-  -- straight back.
+  -- not a Button carries a context menu -- and, in BUY 2.0, how a left click picks the line the
+  -- dock buys. Neither is a purchase: the dock's own button is.
   row:SetScript("OnMouseUp", function(self, button)
-    if button ~= "RightButton" then return end
-    openRowMenu(self, self.lineItemID and lineFor(self.lineItemID) or nil)
+    local line = self.lineItemID and lineFor(self.lineItemID) or nil
+    if button == "RightButton" then openRowMenu(self, line) return end
+    if button == "LeftButton" then selectLine(line) end
   end)
 
   -- The item's own tooltip on hover, the same affordance Deals, Sell and Sold give their rows.
   -- Wired ONCE on the pooled row, reading whatever paintRow last stamped.
   row:SetScript("OnEnter", function(self)
-    -- The quote comes FIRST: the tooltip is a nicety and its own early return would otherwise
-    -- take the hover-quotes-the-line affordance with it on any client without GameTooltip.
-    -- Focus does not move while a purchase is in flight -- Enter must keep pointing at the line
-    -- the player is part-way through buying.
+    -- A hover explains the line; it no longer picks it (a left click does, selectLine).
     local line = self.lineItemID and lineFor(self.lineItemID) or nil
-    if buyable(line) and not inFlight(GC.Buy._attempt) then
-      GC.Buy._focus = line.itemID
-      quote(line)
-    end
     if not GameTooltip or not self.tooltipItemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
@@ -2330,18 +2460,6 @@ createRow = function(parent)
   for _, col in ipairs(COLUMNS) do
     if not col.flex then row.cells[col.key] = buildRowCell(row, col) end
   end
-
-  -- One control with one look, shown only on a line that can actually be bought (paintLine).
-  -- 72 inside an 80px column: it holds "CONFIRM" and "waiting..." in every language at the default
-  -- scale (spec/button_label_width_spec.lua). Anything longer -- the quote's countdown included --
-  -- goes in the line's name cell instead.
-  row.action = Theme.Button(row, "ghost", "badge")
-  row.action:SetSize(72, 18)
-  row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
-  -- Wired ONCE on the pooled row and reading whatever paintRow last stamped on it, the same way
-  -- the row's own tooltip is wired: a per-render SetScript would leak a closure per repaint.
-  row.action:SetScript("OnClick", onBuyButtonClick)
-  row.action:Hide()
 
   layoutRow(row)
   return row
@@ -2527,6 +2645,231 @@ local function createBand(parent)
            bags = bags, rule = rule }
 end
 
+-- A button exactly as wide as its label in the player's language, and never under `minW`: the
+-- dock's labels change with the purchase's stage (BUY 120, CONFIRM, RAISE CAP TO 1s 87c) and run
+-- long in some languages, and a label cut short is a button nobody can read. Unbounded: the
+-- button pins its label to its own edges, so GetStringWidth would answer with the cut width.
+local function fitButton(btn, minW)
+  local fs = btn.text
+  local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+  if type(width) ~= "number" then return end
+  btn:SetWidth(math.max(minW, math.ceil(width) + 2 * Theme.pad.m))
+end
+
+-- The next-purchase dock at the foot of the tab: the item and how many on one line, what it costs
+-- (or why it cannot be bought) on the next, and the one button that buys -- the only hardware
+-- entry to a purchase besides Enter. A second button beside it cancels a quote or skips a line.
+local function createDock(parent)
+  local dock = CreateFrame("Frame", nil, parent)
+  dock:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
+  dock:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+  dock:SetHeight(BD.DOCK_H)
+  dock.h = BD.DOCK_H
+  dock:EnableMouse(true)
+  local bc = Theme.color.border
+  local rule = dock:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("TOPLEFT")
+  rule:SetPoint("TOPRIGHT")
+  rule:SetHeight(1)
+  dock.icon = dock:CreateTexture(nil, "ARTWORK")
+  dock.icon:SetSize(28, 28)
+  dock.icon:SetPoint("TOPLEFT", dock, "TOPLEFT", 4, -10)
+  dock.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  dock.icon:Hide()
+  dock.buy = Theme.Button(dock, "primary", "plaque")
+  dock.buy:SetSize(BD.DOCK_BUY_MIN_W, 28)
+  dock.buy:SetScript("OnClick", onBuyButtonClick)
+  dock.second = Theme.Button(dock, "ghost", "plaque")
+  dock.second:SetSize(BD.DOCK_SECOND_MIN_W, 28)
+  dock.second:SetScript("OnClick", onDockSecondaryClick)
+  -- Both lines wrap rather than cut: a long item name, or a sentence that runs long in the
+  -- player's language, takes a second line and the dock grows to hold it (layoutDock).
+  dock.title = Theme.Label(dock, 12)
+  dock.title:SetJustifyH("LEFT")
+  dock.title:SetWordWrap(true)
+  dock.sub = Theme.Num(dock, 10)
+  dock.sub:SetJustifyH("LEFT")
+  dock.sub:SetWordWrap(true)
+  return dock
+end
+
+-- The dock's geometry for what it now says: each shown button as wide as its label, the text
+-- between the icon and the leftmost button, and the dock as tall as its wrapped text needs.
+-- Returns the dock's height.
+local function layoutDock(dock)
+  local right = nil
+  for _, entry in ipairs({ { dock.buy, BD.DOCK_BUY_MIN_W }, { dock.second, BD.DOCK_SECOND_MIN_W } }) do
+    local btn = entry[1]
+    if btn:IsShown() then
+      fitButton(btn, entry[2])
+      btn:ClearAllPoints()
+      if right then
+        btn:SetPoint("RIGHT", right, "LEFT", -Theme.pad.s, 0)
+      else
+        btn:SetPoint("RIGHT", dock, "RIGHT", -4, 0)
+      end
+      right = btn
+    end
+  end
+  local left = dock.icon:IsShown() and 40 or 4
+  dock.title:ClearAllPoints()
+  dock.title:SetPoint("TOPLEFT", dock, "TOPLEFT", left, -10)
+  dock.sub:ClearAllPoints()
+  dock.sub:SetPoint("TOPLEFT", dock.title, "BOTTOMLEFT", 0, -4)
+  if right then
+    dock.title:SetPoint("RIGHT", right, "LEFT", -Theme.pad.s, 0)
+    dock.sub:SetPoint("RIGHT", right, "LEFT", -Theme.pad.s, 0)
+  else
+    dock.title:SetPoint("RIGHT", dock, "RIGHT", -4, 0)
+    dock.sub:SetPoint("RIGHT", dock, "RIGHT", -4, 0)
+  end
+  local h = BD.DOCK_H
+  if dock.title.GetStringHeight then
+    local th = dock.title:GetStringHeight() or 0
+    local sh = ((dock.sub:GetText() or "") ~= "" and dock.sub:GetStringHeight()) or 0
+    h = math.max(BD.DOCK_H, math.ceil(10 + th + 4 + sh + 10))
+  end
+  if h ~= dock.h then
+    dock.h = h
+    dock:SetHeight(h)
+  end
+  return h
+end
+
+-- Where the column headings and the list sit: under the band, above the dock. Re-anchored only
+-- when that changes -- this runs on every render.
+local function layoutBody()
+  local header, scroll = band.header, band.scroll
+  local dock = band.dock
+  local bottom = (dock and dock:IsShown()) and (dock.h or BD.DOCK_H) or 0
+  if band.bodyBottom == bottom then return end
+  band.bodyBottom = bottom
+  header:ClearAllPoints()
+  header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -BD.BAND_HEIGHT)
+  header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -BD.BAND_HEIGHT)
+  scroll:ClearAllPoints()
+  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(BD.BAND_HEIGHT + BD.HEADER_H + Theme.pad.xs))
+  scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, bottom)
+end
+
+-- @localised-keys: literals in this table ARE GC.L keys, looked up in dockSubText. The table closes
+-- with a `}` on its own line, where the contract spec's scanner stops.
+local DOCK_SUB = {
+  left = "still on the list: %d at a vendor · %d to craft",
+  blizzard = "Blizzard's price: %s",
+  blizzard_left = "Blizzard's price: %s · %d s left",
+  partial = "%d of %d at or under your cap",
+  under = "%s · %s under market",
+  at_market = "%s · at market price",
+  over = "the cheapest is %s, your cap is %s",
+  over_nocheap = "nothing at or under your cap of %s",
+  bought = "bought %d for %s",
+  have = "already in your bags and bank",
+  skipped = "skipped for this session, it stays on the list",
+  vendor = "a vendor sells it for %s each",
+  vendor_vs = "a vendor sells it for %s each · the auction house asks %s",
+  vendor_only = "a vendor sells it",
+  craft = "craft it for %s each",
+  craft_vs = "craft it for %s each · %s here",
+  craft_only = "craft it yourself",
+}
+
+-- Which arguments of each sub-line are money (formatted), in order; the rest are counts.
+local DOCK_MONEY = { blizzard = { true }, blizzard_left = { true, false },
+  under = { true, true }, at_market = { true }, over = { true, true }, over_nocheap = { true },
+  bought = { false, true }, vendor = { true }, vendor_vs = { true, true }, craft = { true },
+  craft_vs = { true, true }, total = { true }, estimate = { true } }
+
+local function dockSubText(sub)
+  if not sub then return "" end
+  local money = DOCK_MONEY[sub.key] or {}
+  local args = {}
+  for i, value in ipairs(sub.args or {}) do
+    args[i] = money[i] and formatAmount(value) or value
+  end
+  if sub.key == "total" then return args[1] end
+  if sub.key == "estimate" then return "~" .. args[1] end
+  return (GC.L[DOCK_SUB[sub.key]]):format(unpack(args))
+end
+
+-- Paints the dock for the line it is on (GC.Buy._focus), or for the end of the run. The purchase
+-- button's words are actionLabel's -- the same answer the Enter key and the attempt log read.
+local function paintDock()
+  local dock = band and band.dock
+  if not dock then return end
+  if not current then
+    dock:Hide()
+    return
+  end
+  dock:Show()
+  local line = lineFor(GC.Buy._focus)
+  local d
+  if line then
+    local attempt = GC.Buy._attempt
+    local mine = (attempt and attempt.itemID == line.itemID) and attempt or nil
+    local status = lineStatus(line)
+    local read = readOf(line)
+    d = { line = line, status = status,
+      attempt = mine and { stage = mine.stage, qty = mine.qty, total = mine.total,
+        serverTotal = mine.serverTotal, capped = mine.capped, secondsLeft = quoteSecondsLeft(mine) } or nil,
+      quote = recentQuote(line), raiseTo = status == "over" and raiseOffered(line) or nil,
+      cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor,
+      craft = GC.BuyRun.CraftText(line) }
+  else
+    local t = current:Totals()
+    local skipped = 0
+    for _, l in ipairs(current:Lines()) do
+      if not l.done and isSkipped(l) then skipped = skipped + 1 end
+    end
+    d = { vendorLeft = t.atVendor or 0, craftLeft = t.toCraft or 0, skippedLeft = skipped }
+  end
+  local v = GC.BuyDock.View(d)
+  dock.lineItemID = line and line.itemID or nil
+  if line then
+    dock.title:SetText(("%s ×%d"):format(lineName(line), line.buy > 0 and line.buy or line.need))
+    local icon = nil
+    if C_Item and C_Item.GetItemIconByID then
+      local ok, texture = pcall(C_Item.GetItemIconByID, line.itemID)
+      icon = ok and texture or nil
+    end
+    if icon then dock.icon:SetTexture(icon); dock.icon:Show() else dock.icon:Hide() end
+  else
+    dock.title:SetText(v.title == "rest_skipped" and GC.L["The rest is skipped for now"]
+      or GC.L["Everything here is bought"])
+    dock.icon:Hide()
+  end
+  dock.sub:SetText(dockSubText(v.sub))
+  setColor(dock.sub, (v.mode == "over" and Theme.tier.SUSPECT) or (v.mode == "confirm" and Theme.color.goldHi)
+    or (v.mode == "done" and Theme.color.green) or Theme.color.fgDim)
+  -- One control, several looks, never two overlaid buttons: SetVariant runs BEFORE Enable/Disable
+  -- (it repaints the text in the variant's own colours and would undo the dimmed look), and a
+  -- disabled look is Enable() then Disable() -- OnDisable fires on a state CHANGE only.
+  if v.primary == "purchase" then
+    local label, clickable, variant = actionLabel(line)
+    dock.buy:SetVariant(variant or "primary")
+    dock.buy:SetLabel(label)
+    dock.buy:Enable()
+    if not clickable then dock.buy:Disable() end
+    dock.buy:Show()
+  elseif v.primary == "raise" then
+    dock.buy:SetVariant("active")
+    dock.buy:SetLabel((GC.L["RAISE CAP TO %s"]):format(formatAmount(v.raiseTo)))
+    dock.buy:Enable()
+    dock.buy:Show()
+  else
+    dock.buy:Hide()
+  end
+  if v.secondary then
+    dock.second:SetLabel(v.secondary == "cancel" and GC.L["Cancel"] or GC.L["Skip"])
+    dock.second:Enable()
+    dock.second:Show()
+  else
+    dock.second:Hide()
+  end
+  layoutDock(dock)
+end
+
 local function updateContentWidth()
   if not container or not content then return end
   local width = container:GetWidth()
@@ -2539,6 +2882,13 @@ end
 
 local function renderRows()
   if not content then return end
+  -- The dock is on a line whenever there is one to buy: the one the player picked (a purchase
+  -- moves it on by itself, settlePurchase), or -- when nothing is picked, or the picked line has
+  -- gone from the run -- the first still worth buying. Never moved while a purchase is in the
+  -- client's hands: CONFIRM belongs to that line.
+  if current and not inFlight(GC.Buy._attempt) and not lineFor(GC.Buy._focus) then
+    GC.Buy._focus = nextOpenAfter(nil)
+  end
   local entries = buildEntries()
 
   if current then
@@ -2619,6 +2969,8 @@ local function renderRows()
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
   content:SetHeight(math.max(1, y))
+  paintDock()
+  layoutBody()
 end
 
 -- Builds the tab's container, hidden, filling the same region Deals' scroll occupies --
@@ -2637,17 +2989,13 @@ function GC.Buy.Attach(f, geo)
 
   band = createBand(container)
 
-  local header = createHeaderRow(container)
-  header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -BD.BAND_HEIGHT)
-  header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -BD.BAND_HEIGHT)
-  -- Not read by any production code -- attached so the behavior spec can reach the column
-  -- header's cells through the same `band` upvalue it already uses for the summary lines.
-  band.header = header
+  band.header = createHeaderRow(container)
+  band.dock = createDock(container)
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
-  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(BD.BAND_HEIGHT + BD.HEADER_H + Theme.pad.xs))
-  scroll:SetPoint("BOTTOMRIGHT")
+  band.scroll = scroll
+  layoutBody()
   content = CreateFrame("Frame", nil, scroll)
   content:SetSize(geo.rowWidth, geo.rowHeight)
   scroll:SetScrollChild(content)
@@ -2678,11 +3026,17 @@ function GC.Buy.Attach(f, geo)
     if InCombatLockdown and InCombatLockdown() then return end
     if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
   end)
+
+  -- The one seam specs use instead of debug.getupvalue.
+  GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock }
 end
 
 function GC.Buy.Show()
   if not container then return end
   container:Show()
+  -- The dock's line is asked for its price again on the next tick: whatever it knew is from
+  -- before the tab was put away.
+  GC.Buy._quotedFocus = nil
   restampHeadings() -- see its comment: a heading can come back from a hide undrawn
   -- The bags move while this tab is hidden; a Show that trusted the last scan would open on
   -- counts from whenever the player last looked.
@@ -2818,6 +3172,18 @@ function GC.Buy.Tick()
     if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
     -- The waiting look goes with the debt, whether or not the ask above went out.
     GC.Buy.RefreshIfShown()
+  end
+  -- The dock's line is asked for its price once each time the dock moves onto it (a pick, a
+  -- purchase moving it on, the first line of a run), so its first press can buy: two presses a
+  -- line, as Blizzard's own buy page. Marked done only once the ask is on the wire or owed.
+  local focus = GC.Buy._focus
+  if focus and focus ~= GC.Buy._quotedFocus and container and container:IsShown() then
+    local line = lineFor(focus)
+    if line and buyable(line) and not inFlight(GC.Buy._attempt) then quote(line) end
+    local attempt = GC.Buy._attempt
+    if (attempt and attempt.itemID == focus) or GC.Buy._quoteOwed == focus then
+      GC.Buy._quotedFocus = focus
+    end
   end
   GC.Buy.TrySendRefresh()
 end

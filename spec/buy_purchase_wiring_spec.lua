@@ -61,11 +61,13 @@ describe("BUY purchase wiring", function()
       end
       return found
     end
-    assert.same({ "local function onBuyButtonClick(button)", 'row.action:SetScript("OnClick", onBuyButtonClick)' },
+    -- BUY 2.0: the one purchase button is the dock's (createDock); no row carries one.
+    assert.same({ "local function onBuyButtonClick(button)", 'dock.buy:SetScript("OnClick", onBuyButtonClick)' },
       sites("onBuyButtonClick"))
     assert.same({ "local function onBuyKey(self, key)", 'container:SetScript("OnKeyDown", onBuyKey)' },
       sites("onBuyKey"))
-    assert.same({ "local function planBuyClick(line)", "return planBuyClick(lineFor(button:GetParent().lineItemID))",
+    assert.same({ "local function planBuyClick(line, fromDock)",
+      "return planBuyClick(lineFor(button:GetParent().lineItemID), true)",
       "return planBuyClick(line)" }, sites("planBuyClick"))
   end)
 
@@ -104,6 +106,32 @@ describe("BUY purchase wiring", function()
     -- A gmatch that matched nothing would pass this in silence: the run picker's menu and the
     -- row's own are both opened through one of these.
     assert.is_true(menus >= 2)
+  end)
+
+  -- The dock's second button cancels a quote or skips a line. Neither is a purchase, and it must
+  -- never become a second way to spend gold.
+  it("never reaches a purchase call from the dock's second button", function()
+    local text = code(source())
+    local from = assert(text:find("local function onDockSecondaryClick", 1, true))
+    local to = assert(text:find("\nend\n", from, true))
+    local body = text:sub(from, to)
+    assert.is_nil(body:find("PurchaseCall", 1, true))
+    assert.is_nil(body:find("planBuy", 1, true))
+    assert.is_nil(body:find("CommoditiesPurchase", 1, true))
+    assert.is_truthy(text:find('dock.second:SetScript("OnClick", onDockSecondaryClick)', 1, true))
+  end)
+
+  -- RAISE CAP is decided inside the click's plan, but only on the branch that makes no protected
+  -- call: nothing it reads is read on a click that starts or confirms a purchase.
+  it("raises a cap only on a click that makes no purchase call", function()
+    local click = clickHandler(code(source()))
+    local raise = assert(click:find("if fromDock and raiseOffered(line) then", 1, true))
+    local start = assert(click:find('return "start"', 1, true))
+    local confirm = assert(click:find('return "confirm"', 1, true))
+    assert.is_true(raise > confirm)
+    assert.is_true(raise < start)
+    local branch = click:sub(raise, (click:find("\n    end\n", raise, true)))
+    assert.is_nil(branch:find("return \"", 1, true))
   end)
 
   it("claims the shared purchase slot before it starts anything", function()
