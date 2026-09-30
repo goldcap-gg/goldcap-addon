@@ -73,6 +73,7 @@ Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/BuyRun.lua
+Core/BuyView.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua
 Core/AppRuns.lua
