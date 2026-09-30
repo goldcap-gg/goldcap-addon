@@ -206,8 +206,9 @@ end
 -- A sale mail carries the item's NAME only, and the client answers a name only for an item it
 -- has cached. What a name lookup finds is used for the icon and the colour and nothing else:
 -- two quality ranks of one reagent share a name, so a tooltip or a market price read off a
--- name could describe the other rank. Only an exact id (the sale's own, or the position its
--- profit was matched to) opens the item's tooltip.
+-- name could describe the other rank. Only an exact id (the sale's own, the position its
+-- profit was matched to, or the one item the character listed under that name) opens the
+-- item's tooltip.
 local byName = {}
 local function lookupName(name)
   local api = _G.C_Item
@@ -259,7 +260,7 @@ local function itemInfo(row)
       if quality == nil then quality = hit.quality end
     end
   end
-  return { id = id, icon = icon or _G.QUESTION_MARK_ICON or 134400, color = qualityColor(quality) }
+  return { id = id, icon = icon, color = qualityColor(quality) }
 end
 
 -- The market price the tooltip compares a sale with: the figure GoldCap's own item tooltip
@@ -288,11 +289,13 @@ local function buildModel()
     end
   end
   local sourcesOf = GC.Acquisitions and GC.Acquisitions.SourcesOf
+  local activities = GC.Acquisitions and GC.Acquisitions.GetActivities and GC.Acquisitions.GetActivities() or {}
   local entries = GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}
   local locals, servers = {}, {}
   for _, sale in ipairs(V.LocalSales(entries, V.Boundary(summary))) do
     local hit = sale.key and realized[sale.key] or nil
-    locals[#locals + 1] = V.LocalRow(sale, hit, hit and sourcesOf and sourcesOf(sale.key) or nil)
+    local listedID = V.ListedItemID(activities, sale.itemName, sale.char, sale.region)
+    locals[#locals + 1] = V.LocalRow(sale, hit, hit and sourcesOf and sourcesOf(sale.key) or nil, listedID)
   end
   for _, sale in ipairs(summary and summary.sales or {}) do servers[#servers + 1] = V.ServerRow(sale) end
   m.anySales = #locals + #servers > 0
@@ -592,7 +595,9 @@ local function clearRow(row)
   row.name:Hide(); row.qty:Hide(); row.icon:Hide(); row.iconEdge:Hide()
   row.title:Hide(); row.note:Hide(); row.rule:Hide(); row.wide:Hide()
   for _, key in ipairs(COLS) do row.cells[key]:Hide() end
-  row.highlight:SetAlpha(0)
+  -- Hide/Show, never SetAlpha: on a texture SetAlpha writes the very alpha the wash's colour
+  -- set, and SetAlpha(1) turns the faint wash into a solid bar over the row's text.
+  row.highlight:Hide()
   row.sale, row.info = nil, nil
 end
 
@@ -613,8 +618,14 @@ local function paintRow(row, entry, now)
   end
   local r = entry.row
   row.sale, row.info = r, itemInfo(r)
-  row.highlight:SetAlpha(1)
-  row.icon:SetTexture(row.info.icon)
+  row.highlight:Show()
+  if row.info.icon then
+    row.icon:SetTexture(row.info.icon)
+  else
+    -- An item the client cannot name yet: a quiet empty slot, not the red question mark that
+    -- reads as an error.
+    row.icon:SetColorTexture(1, 1, 1, 0.05)
+  end
   local c = row.info.color
   local edge = c and { c[1], c[2], c[3], 0.6 } or { 1, 1, 1, 0.16 }
   row.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
@@ -713,8 +724,11 @@ local function saleTooltip(row)
     GameTooltip:SetText(r.name or GC.L["Unknown item"], c[1], c[2], c[3])
   end
   local dim, body, white = Theme.color.fgDim, { 0.85, 0.85, 0.85 }, COLOR.white
-  local function line(text, c, wrap) GameTooltip:AddLine(text, c[1], c[2], c[3], wrap) end
-  local function pair(left, right, lc, rc) GameTooltip:AddDoubleLine(left, right, lc[1], lc[2], lc[3], rc[1], rc[2], rc[3]) end
+  local tip = GC.Util.TooltipText
+  local function line(text, c, wrap) GameTooltip:AddLine(tip(text), c[1], c[2], c[3], wrap) end
+  local function pair(left, right, lc, rc)
+    GameTooltip:AddDoubleLine(tip(left), tip(right), lc[1], lc[2], lc[3], rc[1], rc[2], rc[3])
+  end
   line(" ", dim)
   local each = plain(r.each or 0, true)
   if r.pending then
@@ -733,7 +747,7 @@ local function saleTooltip(row)
     for _, source in ipairs(r.sources or {}) do
       if SOURCE_TEXT[source] then names[#names + 1] = GC.L[SOURCE_TEXT[source]] end
     end
-    local paid = #names > 0 and GC.L["You paid · %s"]:format(table.concat(names, ", ")) or GC.L["You paid"]
+    local paid = #names > 0 and GC.L["You paid (%s)"]:format(table.concat(names, ", ")) or GC.L["You paid"]
     if r.paid then pair(paid, plain(r.paid, true), body, Theme.color.cost) end
     if r.paidEach then line(GC.L["%s each"]:format(plain(r.paidEach, true)), dim) end
     if r.costUnits then line(GC.L["cost known for %d of %d"]:format(r.costUnits, r.qty), dim) end

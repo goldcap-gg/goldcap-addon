@@ -39,7 +39,11 @@ describe("SoldFrame", function()
     function r:Show() self.visible = true end
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
-    function r:SetAlpha(a) self.alpha = a end
+    -- As in the client: on a texture, SetAlpha writes the same alpha SetVertexColor set.
+    function r:SetAlpha(a)
+      self.alpha = a
+      if self.vertexColor then self.vertexColor[4] = a end
+    end
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
@@ -50,11 +54,11 @@ describe("SoldFrame", function()
     function r:CreateTexture() return region("Texture", self) end
     function r:CreateFontString() return region("FontString", self) end
     -- Texture
-    function r:SetTexture(f) self.texture = f end
+    function r:SetTexture(f) self.texture, self.colorTexture = f, nil end
     function r:SetTexCoord() end
     function r:SetTextureSliceMargins() end
     function r:SetVertexColor(...) self.vertexColor = { ... } end
-    function r:SetColorTexture(...) self.colorTexture = { ... } end
+    function r:SetColorTexture(...) self.colorTexture, self.texture = { ... }, nil end
     function r:SetBlendMode() end
     -- FontString / EditBox
     function r:SetFont(path, size) self.font, self.size = path, size; return true end
@@ -503,15 +507,15 @@ describe("SoldFrame", function()
       assert.equal(2589, tooltip.itemID)
       assert.same({
         " ",
-        "sold today at " .. os.date("%H:%M", NOW - 600) .. " · 14 × 75c",
+        "sold today at " .. os.date("%H:%M", NOW - 600) .. ", 14 × 75c",
         "Sale price | 10s 50c",
         "Auction house cut | -53c",
         "You got | 9s 97c",
         " ",
-        "You paid · Sniper | 6s 72c",
+        "You paid (Sniper) | 6s 72c",
         "48c each",
         "Profit | +3s 25c",
-        "Market now 70c · you sold 7% above it",
+        "Market now 70c, you sold 7% above it",
       }, tooltip.lines)
     end)
 
@@ -549,14 +553,53 @@ describe("SoldFrame", function()
       assert.equal(8, #tooltip.lines + 1)                    -- and no market line
     end)
 
-    it("falls back to the question mark, and pooled rows keep nothing from the last item", function()
+    it("shows an empty slot, never the red question mark, for an item nothing can name", function()
       GC.Ledger.GetEntries = function() return { sale({ itemName = "Mystery", key = "m", pending = true }) } end
       show()
       local row = saleRow("Mystery")
-      assert.equal(134400, row.icon.texture)
+      assert.is_nil(row.icon.texture)
+      assert.same({ 1, 1, 1, 0.05 }, row.icon.colorTexture)
       row.scripts.OnEnter(row)
       assert.equal("The profit is worked out once the money arrives.", tooltip.lines[#tooltip.lines])
-      assert.equal("sold, the money is in your mail · 14 × 75c", tooltip.lines[2])
+      assert.equal("sold, the money is in your mail, 14 × 75c", tooltip.lines[2])
+    end)
+
+    it("finds a mail sale's item among the character's own listings, and only an unambiguous one", function()
+      _G.C_Item = { GetItemIconByID = function(id) return id * 10 end, GetItemQualityByID = function() return 1 end }
+      GC.Acquisitions.GetActivities = function()
+        return {
+          { itemName = "Linen Cloth", itemID = 2589, character = "Me-Realm", region = "us" },
+          { itemName = "Linen Cloth", itemID = 2589, character = "Alt-Realm", region = "us" },
+          { itemName = "Hochenblume", itemID = 191460, character = "Me-Realm", region = "us" },
+          { itemName = "Hochenblume", itemID = 191461, character = "Me-Realm", region = "us" },
+        }
+      end
+      GC.Ledger.GetEntries = function()
+        return {
+          sale({ itemName = "Linen Cloth", key = "a", char = "Me-Realm", region = "us" }),
+          sale({ itemName = "Hochenblume", key = "b", char = "Me-Realm", region = "us", at = NOW - 60 }),
+        }
+      end
+      show()
+      local linen = saleRow("Linen Cloth")
+      assert.equal(25890, linen.icon.texture)
+      linen.scripts.OnEnter(linen)
+      assert.equal(2589, tooltip.itemID)
+      -- Two ranks under one name: no id, so no item tooltip and no market line.
+      tooltip.itemID = nil
+      local herb = saleRow("Hochenblume")
+      assert.is_nil(herb.icon.texture)
+      herb.scripts.OnEnter(herb)
+      assert.is_nil(tooltip.itemID)
+    end)
+
+    it("keeps the hover wash faint on a sale row and hides it on a day heading", function()
+      GC.Ledger.GetEntries = function() return { sale({ itemName = "Linen Cloth", key = "a" }) } end
+      show()
+      local row = saleRow("Linen Cloth")
+      assert.is_true(row.highlight:IsShown())
+      assert.equal(GC.Theme.color.hover[4], row.highlight.vertexColor[4])
+      for _, head in ipairs(shownRows("head")) do assert.is_false(head.highlight:IsShown()) end
     end)
 
     it("colours an uncommon or better item's name and border in its quality", function()

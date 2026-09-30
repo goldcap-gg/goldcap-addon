@@ -26,6 +26,15 @@ describe("Util", function()
   -- Depth for the tooltip: how long the shelf lasts at the rate the market is clearing it.
   -- Both numbers ride the import string's verification token, so either can be absent and
   -- neither may be trusted to be sane.
+  describe("TooltipText", function()
+    it("joins with a comma where GoldCap's own frames use the middle dot", function()
+      assert.equal("9c, 547 listed, just now", GC.Util.TooltipText("9c · 547 listed · just now"))
+      assert.equal("sold today at 11:06, 14 × 75c", GC.Util.TooltipText("sold today at 11:06 · 14 × 75c"))
+      assert.equal("Linen Cloth", GC.Util.TooltipText("Linen Cloth"))
+      assert.is_nil(GC.Util.TooltipText(nil))
+    end)
+  end)
+
   describe("FormatSupplyDays", function()
     it("divides the shelf by the daily rate, floored like FormatAge", function()
       assert.equal("48d", GC.Util.FormatSupplyDays(4210, 86)) -- 48.95, not 49

@@ -55,6 +55,35 @@ describe("SoldView", function()
       assert.is_nil(nameOnly.itemID)
       assert.is_false(nameOnly.itemExact)
     end)
+
+    it("takes the item from the character's own listings only when nothing more exact says", function()
+      local listed = V.LocalRow({ itemName = "Linen Cloth", qty = 1, total = 70, cut = 3, at = 5 }, nil, nil, 2589)
+      assert.equal(2589, listed.itemID)
+      assert.is_true(listed.itemExact)
+      local matched = V.LocalRow({ itemName = "Linen Cloth", qty = 1, total = 70, cut = 3, at = 5 },
+        { profit = 10, positionKey = "commodity:2590" }, nil, 2589)
+      assert.equal(2590, matched.itemID)
+    end)
+  end)
+
+  describe("ListedItemID", function()
+    local activities = {
+      { itemName = "Linen Cloth", itemID = 2589, character = "Me-Realm", region = "us" },
+      { itemName = "Linen Cloth", itemID = 2589, character = "Me-Realm", region = "us" },
+      { itemName = "Silverleaf", itemID = 765, character = "Alt-Realm", region = "us" },
+      { itemName = "Hochenblume", itemID = 191460, character = "Me-Realm", region = "us" },
+      { itemName = "Hochenblume", itemID = 191461, character = "Me-Realm", region = "us" },
+    }
+    it("answers the one item this character listed in this region under the name", function()
+      assert.equal(2589, V.ListedItemID(activities, "Linen Cloth", "Me-Realm", "us"))
+    end)
+    it("answers nothing for another character, another region, two items under one name, or no name", function()
+      assert.is_nil(V.ListedItemID(activities, "Silverleaf", "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(activities, "Linen Cloth", "Me-Realm", "eu"))
+      assert.is_nil(V.ListedItemID(activities, "Hochenblume", "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(activities, nil, "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(nil, "Linen Cloth", "Me-Realm", "us"))
+    end)
   end)
 
   describe("ServerRow", function()

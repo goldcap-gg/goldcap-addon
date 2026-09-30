@@ -336,6 +336,15 @@ function GC.Util.ClientLine(text)
   return text
 end
 
+-- Text for a tooltip. GameTooltip draws with the client's own font, and the Russian client's
+-- has no middle dot: "9c · 547 listed" came out "9c [box] 547 listed". GoldCap's own frames
+-- draw with the bundled faces, which have it, so only what goes into a tooltip is joined with
+-- a comma instead.
+function GC.Util.TooltipText(text)
+  if type(text) ~= "string" then return text end
+  return (text:gsub("%s*\194\183%s*", ", "))
+end
+
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
 -- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and
 -- that lookup answers "" for a code it has no text for. The table lives in the auction house's

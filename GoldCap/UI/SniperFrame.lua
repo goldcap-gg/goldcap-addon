@@ -10342,7 +10342,7 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+      GameTooltip:AddLine(GC.Util.TooltipText(capNote), 0.25, 0.85, 0.25, true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
@@ -10365,8 +10365,8 @@ createRow = function(parent, index)
       GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+      GameTooltip:AddLine(GC.Util.TooltipText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
+        self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
@@ -10375,8 +10375,8 @@ createRow = function(parent, index)
     -- the player can see what the discount is a discount FROM.
     local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
     if realmValue then
-      GameTooltip:AddLine((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
-        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0),
+      GameTooltip:AddLine(GC.Util.TooltipText((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
+        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0)),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
       -- A pinned realm item the region has no price for. It is on the board because the player
@@ -10393,7 +10393,7 @@ createRow = function(parent, index)
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       local watchNote = GC.Sniper._WatchNote(self.deal)
       if watchNote then
-        GameTooltip:AddLine(watchNote, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GameTooltip:AddLine(GC.Util.TooltipText(watchNote), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       end
     end
     GameTooltip:AddLine(isPinned(self.deal.itemID)
@@ -10722,9 +10722,9 @@ local function createHeaderRow(f)
       hit:EnableMouse(true)
       hit:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
+        GameTooltip:SetText(GC.Util.TooltipText(tooltipLines[1]), 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+          GameTooltip:AddLine(GC.Util.TooltipText(tooltipLines[i]), 1, 1, 1, true)
         end
         GameTooltip:Show()
       end)

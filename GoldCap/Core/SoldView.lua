@@ -36,6 +36,24 @@ function V.PositionItemID(positionKey)
   return id and tonumber(id) or nil
 end
 
+--- The item a sale mail's name stands for, from the character's own listings. GoldCap records
+--- every item a character put on the auction house, by id and by the name the client gave it
+--- (GC.Acquisitions.GetActivities); a sale mail carries the name only. When exactly one item
+--- this character listed in this region bears the name, that is the item sold. Two items with
+--- one name -- two quality ranks of a reagent -- is no answer.
+function V.ListedItemID(activities, name, character, region)
+  if type(name) ~= "string" or name == "" then return nil end
+  local found
+  for _, activity in ipairs(activities or {}) do
+    if activity.itemName == name and activity.character == character and activity.region == region
+        and type(activity.itemID) == "number" then
+      if found and found ~= activity.itemID then return nil end
+      found = activity.itemID
+    end
+  end
+  return found
+end
+
 local function base(section, name, itemID, qty, gross, cut, pending, at)
   qty, gross = tonumber(qty) or 0, tonumber(gross) or 0
   local paidCut, estimated = V.Cut(gross, cut)
@@ -46,11 +64,12 @@ end
 
 --- A ledger sale. `realized` is its row in GC.Acquisitions.GetRealized(), joined on the
 --- sale's own evidence key by the caller and on nothing looser; `sources` where the stock it
---- drew on came from (GC.Acquisitions.SourcesOf).
+--- drew on came from (GC.Acquisitions.SourcesOf); `listedID` the item V.ListedItemID found for
+--- the sale's name among the character's own listings.
 --- realized.profit is GROSS -- proceeds minus known cost, the cut never subtracted there
 --- (Core/Acquisitions.lua's ReconcileSale) -- so the cut comes off here, once, and the local
 --- rows then agree with the server's basis.profit, which is net of it.
-function V.LocalRow(sale, realized, sources)
+function V.LocalRow(sale, realized, sources, listedID)
   local row = base("local", sale.itemName, sale.itemID, sale.qty, sale.total, sale.cut, sale.pending, sale.at)
   row.key = sale.key
   if type(realized) == "table" and type(realized.profit) == "number" then
@@ -68,6 +87,9 @@ function V.LocalRow(sale, realized, sources)
     end
     row.sources = type(sources) == "table" and sources or nil
   end
+  -- The sale's own id or its matched position first; the name among the character's own
+  -- listings only when neither says.
+  if row.itemID == nil and listedID then row.itemID, row.itemExact = listedID, true end
   return row
 end
 

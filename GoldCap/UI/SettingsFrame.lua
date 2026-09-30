@@ -522,9 +522,10 @@ local function build(sniperFrame)
   local function attachExplanation(widgets, labelText, sentence, defaultLineText)
     local function onEnter(self)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
-      GameTooltip:AddLine(labelText)
-      GameTooltip:AddLine(sentence, 1, 1, 1, true)
-      GameTooltip:AddLine(defaultLineText, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      local tip = GC.Util.TooltipText
+      GameTooltip:AddLine(tip(labelText))
+      GameTooltip:AddLine(tip(sentence), 1, 1, 1, true)
+      GameTooltip:AddLine(tip(defaultLineText), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       GameTooltip:Show()
     end
     local function onLeave() GameTooltip:Hide() end

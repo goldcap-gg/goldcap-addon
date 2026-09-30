@@ -4660,7 +4660,7 @@ local function createRow(parent)
       -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
       -- cannot hold GC.L lookups.
       GameTooltip:AddLine(GC.L[help[1]], 1, 0.82, 0)
-      for _, line in ipairs(help[2]) do GameTooltip:AddLine(GC.L[line], 0.85, 0.85, 0.85, true) end
+      for _, line in ipairs(help[2]) do GameTooltip:AddLine(GC.Util.TooltipText(GC.L[line]), 0.85, 0.85, 0.85, true) end
       GameTooltip:Show()
     end)
     row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -4693,7 +4693,7 @@ local function explain(frame, title, body)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine(title, 1, 0.82, 0)
-    for _, line in ipairs(body) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.TooltipText(line), 0.85, 0.85, 0.85, true) end
     GameTooltip:Show()
   end)
   frame[hook](frame, "OnLeave", function()
@@ -6821,7 +6821,7 @@ function GC.Sell.Attach(f, geometry)
         GameTooltip:AddLine(
           GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"],
           0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.TooltipText(container.summaryProfitDetail), 0.85, 0.85, 0.85, true)
         GameTooltip:AddLine(GC.L["Positions without a cost or a live price are excluded."],
           0.85, 0.85, 0.85, true)
         GameTooltip:Show()
