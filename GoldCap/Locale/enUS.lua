@@ -74,7 +74,6 @@ GC.Locales.enUS = {
     "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "A run of several purchases collapsed onto one line removes every one of them.",
-  ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
   ["AH value"] = "AH value",
   ["AH, cheapest version"] = "AH, cheapest version",
@@ -108,7 +107,6 @@ GC.Locales.enUS = {
   ["Avoid"] = "Avoid",
   ["BOOKS %d/%d"] = "BOOKS %d/%d",
   ["BRAKES"] = "BRAKES",
-  ["BUY"] = "BUY",
   ["BUY %d"] = "BUY %d",
   ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
@@ -171,6 +169,7 @@ GC.Locales.enUS = {
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
+  ["PRICE EACH"] = "PRICE EACH",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
     "Paused while a buy window is open. Buy or close it and Auto carries on.",
@@ -228,12 +227,17 @@ GC.Locales.enUS = {
     "above the cheapest, within the day's reach · %s units ahead of you",
   ["age %ss"] = "age %ss",
   ["already in your bags and bank"] = "already in your bags and bank",
+  ["at a vendor"] = "at a vendor",
+  ["at a vendor · %s each"] = "at a vendor · %s each",
   ["at level %d"] = "at level %d",
+  ["bought"] = "bought",
+  ["buy by hand"] = "buy by hand",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
   ["craft it for %s each"] = "craft it for %s each",
   ["craft it for %s each · %s here"] = "craft it for %s each · %s here",
   ["craft it yourself"] = "craft it yourself",
+  ["craft it · %s each"] = "craft it · %s each",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
@@ -258,6 +262,7 @@ GC.Locales.enUS = {
   ["oldest units sell first"] = "oldest units sell first",
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
+  ["over your cap · %s"] = "over your cap · %s",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
   ["Remove this run"] = "Remove this run",
@@ -376,7 +381,6 @@ GC.Locales.enUS = {
   ["Gone"] = "Gone",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
-  ["HAVE"] = "HAVE",
   ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
   ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
@@ -433,14 +437,12 @@ GC.Locales.enUS = {
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead.",
   ["Min return per buy %"] = "Min return per buy %",
   ["Missing cost"] = "Missing cost",
-  ["NEED"] = "NEED",
   ["NO COST"] = "NO COST",
   ["NO LIVE PRICE YET"] = "NO LIVE PRICE YET",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT",
   ["YOUR SALES"] = "YOUR SALES",
   ["NOTHING TO CANCEL"] = "NOTHING TO CANCEL",
   ["NOTHING TO POST"] = "NOTHING TO POST",
-  ["NOW"] = "NOW",
   ["Needs a live price check before it can be bought."] =
     "Needs a live price check before it can be bought.",
   ["Never spend more than this share of your gold on one purchase."] =
@@ -534,7 +536,6 @@ GC.Locales.enUS = {
   ["Quantity is capped by how fast this item actually sells."] =
     "Quantity is capped by how fast this item actually sells.",
   ["READY"] = "READY",
-  ["REAGENT"] = "REAGENT",
   ["REALIZED PROFIT"] = "REALIZED PROFIT",
   ["REFRESH"] = "REFRESH",
   ["REFUSED %d"] = "REFUSED %d",
@@ -657,7 +658,6 @@ GC.Locales.enUS = {
   ["UNDER YOU"] = "UNDER YOU",
   ["UNDERCUT"] = "UNDERCUT",
   ["UNIT"] = "UNIT",
-  ["USUAL"] = "USUAL",
   ["Unit price"] = "Unit price",
   ["Unknown"] = "Unknown",
   ["Unknown item"] = "Unknown item",
@@ -709,6 +709,7 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
+  ["skipped for now"] = "skipped for now",
   ["skipped for this session, it stays on the list"] = "skipped for this session, it stays on the list",
   ["still on the list: %d at a vendor · %d to craft"] = "still on the list: %d at a vendor · %d to craft",
   ["sure profit: a vendor pays %s each"] =

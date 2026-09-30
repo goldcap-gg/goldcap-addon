@@ -270,15 +270,21 @@ describe("BUY floor refresh", function()
     assert.same({ { 101 } }, sent)
   end)
 
+  local function floorOf(itemID)
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == itemID then return l.floor end end
+  end
+
   it("folds the answer into the lines' floors, and the board shows them", function()
     load()
     GC.Buy.Show()
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900, totalQuantity = 40 } }
     GC.Sniper.OnBrowseResults()
-    assert.equal("900c", rowWithText("Alpha Herb").cells.now:GetText())
+    assert.equal("900c", rowWithText("Alpha Herb").cells.price:GetText())
     -- 103 was asked about and no row came back for it: it keeps the floor it had (none), and
-    -- says so, rather than borrowing the answer that did arrive.
-    assert.equal("—", rowWithText("Charlie Dust").cells.now:GetText())
+    -- says so -- PRICE EACH stays its market value -- rather than borrowing the answer that did
+    -- arrive.
+    assert.is_nil(floorOf(103))
+    assert.equal("3000c", rowWithText("Charlie Dust").cells.price:GetText())
   end)
 
   it("keeps a floor an answer does not mention", function()
@@ -290,8 +296,8 @@ describe("BUY floor refresh", function()
     GC.Buy.Tick()
     browseRows = { { itemKey = { itemID = 103 }, minPrice = 2500, totalQuantity = 4 } }
     GC.Sniper.OnBrowseResults()
-    assert.equal("900c", rowWithText("Alpha Herb").cells.now:GetText())
-    assert.equal("2500c", rowWithText("Charlie Dust").cells.now:GetText())
+    assert.equal("900c", rowWithText("Alpha Herb").cells.price:GetText())
+    assert.equal("2500c", rowWithText("Charlie Dust").cells.price:GetText())
   end)
 
   it("waits twenty seconds before asking again", function()
@@ -325,7 +331,7 @@ describe("BUY floor refresh", function()
     browseRows = { { itemKey = { itemID = 501 }, minPrice = 7 } }
     gc.Sniper.OnBrowseResults()
     assert.equal(7, gc.Sniper._keyPoll:Book()[501].floor)
-    assert.equal("—", rowWithText("Alpha Herb").cells.now:GetText())
+    assert.is_nil(floorOf(101))
   end)
 
   -- Every cheaper gate is deliberately left OPEN here -- the container is shown, a run is

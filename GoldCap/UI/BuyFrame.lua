@@ -185,15 +185,15 @@ local function plainAmount(amount)
   return table.concat(parts)
 end
 
+-- BUY 2.0's three columns: the item and how many are left to buy (the flex column), what one
+-- unit costs, and what the rest of the line costs. A line that is not simply ready to buy says
+-- why in one word across the two price columns instead (row.status). `w` is each fixed column's
+-- least width; fitColumns widens it to whatever its heading and its cells need in the player's
+-- language, so nothing in them is ever cut short.
 local COLUMNS = {
-  { key = "reagent", flex = true, min = 140 },
-  { key = "need",   w = 36, num = true, size = 11 },
-  { key = "have",   w = 36, num = true, size = 11 },
-  { key = "buy",    w = 36, num = true, size = 11, bold = true },
-  { key = "now",    w = 66, num = true, size = 11, optional = true },
-  { key = "usual",  w = 66, num = true, size = 11, optional = true },
-  { key = "cost",   w = 72, num = true, size = 11 },
-  { key = "action", w = 80, center = true },
+  { key = "item",  flex = true },
+  { key = "price", w = 72, num = true, size = 11 },
+  { key = "cost",  w = 84, num = true, size = 11 },
 }
 
 -- Already uppercase in the key, and never passed through :upper() -- Lua's upper is byte-wise
@@ -205,21 +205,19 @@ local COLUMNS = {
 -- lookup happens where the table is read rather than where it is built. The table has to close
 -- with a `}` on its own line -- that is where the spec's scanner stops.
 local HEADER_TEXT = {
-  reagent = "REAGENT", need = "NEED", have = "HAVE", buy = "BUY",
-  now = "NOW", usual = "USUAL", cost = "COST", action = "ACTION",
+  item = "ITEM", price = "PRICE EACH", cost = "COST",
 }
 local function headerText(key) return GC.L[HEADER_TEXT[key] or ""] end
 
--- Drop priority, spelled out rather than derived from COLUMNS' order (Sold derives it, and can
--- only because its optional columns happen to sit in priority order). USUAL goes first: it is
--- the reference price, and a shopper who has lost a column would rather keep NOW, which is
--- what the next click actually pays.
-local OPTIONAL_KEYS, DROP_THRESHOLDS = { "usual", "now" }, { 130, 100 }
+-- The width a fixed column is drawn at this render (fitColumns), or its least.
+local function columnWidth(col)
+  return (band and band.colW and band.colW[col.key]) or col.w
+end
 
--- Anchors every visible fixed COLUMNS entry's RIGHT edge right-to-left off `host`'s own RIGHT
--- edge, skipping any key present in `hidden`; returns the flex ("reagent") column's anchor pair.
--- Identical in shape to SoldFrame's/SniperFrame's anchorColumns.
-local function anchorColumns(host, hidden, cellFor)
+-- Anchors every fixed COLUMNS entry's RIGHT edge right-to-left off `host`'s own RIGHT edge at its
+-- fitted width; returns the flex ("item") column's anchor pair. The same shape as SoldFrame's and
+-- SniperFrame's anchorColumns, less their column drop: three columns never drop.
+local function anchorColumns(host, cellFor)
   local prev, prevPoint = host, "RIGHT"
   local flexAnchor
   for i = #COLUMNS, 1, -1 do
@@ -228,65 +226,30 @@ local function anchorColumns(host, hidden, cellFor)
       flexAnchor = { frame = prev, point = prevPoint }
     else
       local cell = cellFor(col)
-      if hidden[col.key] then
-        cell:Hide()
+      cell:ClearAllPoints()
+      cell:SetWidth(columnWidth(col))
+      if prevPoint == "RIGHT" then
+        cell:SetPoint("RIGHT", prev, "RIGHT")
       else
-        cell:Show()
-        cell:ClearAllPoints()
-        cell:SetWidth(col.w)
-        if prevPoint == "RIGHT" then
-          cell:SetPoint("RIGHT", prev, "RIGHT")
-        else
-          cell:SetPoint("RIGHT", prev, "LEFT", -Theme.pad.s, 0)
-        end
-        prev, prevPoint = cell, "LEFT"
+        cell:SetPoint("RIGHT", prev, "LEFT", -Theme.pad.s, 0)
       end
+      prev, prevPoint = cell, "LEFT"
     end
   end
   return flexAnchor
 end
 
-local function fixedColumnBudget(hidden)
-  local sum, visible = 0, 0
+-- The two price columns together, the gap between them included: the width a row's status word
+-- has, and what the item column leaves room for.
+local function priceArea()
+  local sum, n = 0, 0
   for _, col in ipairs(COLUMNS) do
-    if not col.flex and not hidden[col.key] then
-      sum = sum + col.w
-      visible = visible + 1
-    end
+    if not col.flex then sum, n = sum + columnWidth(col), n + 1 end
   end
-  return sum + visible * Theme.pad.s
+  return sum + math.max(0, n - 1) * Theme.pad.s
 end
-
-local function computeHidden(containerWidth)
-  local hidden = {}
-  for i, key in ipairs(OPTIONAL_KEYS) do
-    local reagentWidth = containerWidth - fixedColumnBudget(hidden)
-    if reagentWidth < DROP_THRESHOLDS[i] then
-      hidden[key] = true
-    end
-  end
-  return hidden
-end
-
-local function sameHidden(a, b)
-  for _, key in ipairs(OPTIONAL_KEYS) do
-    if (not a[key]) ~= (not b[key]) then return false end
-  end
-  return true
-end
-
-local hiddenColumns = {}
 
 local createRow, layoutRow, headerLayout
-
-local function applyColumnVisibility(containerWidth)
-  if not headerLayout then return end
-  local newHidden = computeHidden(containerWidth)
-  if sameHidden(newHidden, hiddenColumns) then return end
-  hiddenColumns = newHidden
-  headerLayout()
-  for i = 1, #rows do layoutRow(rows[i]) end
-end
 
 -- ---------------------------------------------------------------------------
 -- The run, and what only the client knows about it
@@ -2062,9 +2025,17 @@ local function buildEntries()
   return entries
 end
 
-local function heightFor(kind)
-  if kind == "hint" then return geometry.rowHeight * 2 end
-  return geometry.rowHeight
+-- How tall a painted row is: its least, or what its wrapped text needs. A name too long for the
+-- item column in the player's language takes a second line rather than losing its end.
+local function heightFor(kind, row)
+  if kind == "hint" then
+    local h = geometry.rowHeight * 2
+    if row and row.wide.GetStringHeight then h = math.max(h, math.ceil(row.wide:GetStringHeight() + 12)) end
+    return h
+  end
+  local h = geometry.rowHeight
+  if row and row.reagent.GetStringHeight then h = math.max(h, math.ceil(row.reagent:GetStringHeight() + 10)) end
+  return h
 end
 
 local function buildRowCell(row, col)
@@ -2085,6 +2056,9 @@ local function clearRow(row)
   row.wide:SetText("")
   row.wide:Hide()
   row.selected:Hide()
+  row.status:SetText("")
+  row.status:Hide()
+  if row.SetAlpha then row:SetAlpha(1) end
   row.reagentInset = 0
   row.icon:Hide()
   row.tooltipItemID = nil
@@ -2092,55 +2066,30 @@ local function clearRow(row)
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
       row.cells[col.key]:SetText("")
-      if hiddenColumns[col.key] then
-        row.cells[col.key]:Hide()
-      else
-        row.cells[col.key]:Show()
-      end
+      row.cells[col.key]:Show()
     end
   end
 end
 
--- What one craft line's reagents still cost, at the best price known for each: the child lines
--- the split created in full, and -- for a reagent the run already asked for, which grew an
--- existing line rather than getting one of its own -- the share of that line this craft is
--- responsible for, counted first. nil when no reagent has a price at all, which is the same
--- em dash every other unpriceable cell shows.
-local function craftCostNow(parent)
-  if not (current and parent) then return nil end
-  local total, known = 0, false
-  for _, line in ipairs(current:Lines()) do
-    local qty = nil
-    if line.parent == parent.itemID then
-      qty = line.buy
-    elseif line.forCraft and line.forCraft[parent.itemID] then
-      qty = math.min(line.buy, line.forCraft[parent.itemID])
-    end
-    if qty and qty > 0 then
-      -- A vendor reagent is priced at the vendor's own price or at nothing: the auction house
-      -- is the wrong market for it, and with no vendor price known it counts zero -- exactly
-      -- what Core/BuyRun.lua's Totals does with the same line.
-      local unit
-      if line.vendor then
-        unit = line.vendorUnit
-      else
-        unit = line.floor or line.usual
-      end
-      if unit then
-        total = total + qty * unit
-        known = true
-      end
-    end
-  end
-  if not known then return nil end
-  return total
-end
+-- @localised-keys: literals in this table ARE GC.L keys, looked up in paintLine: the one word a
+-- row says for a line that is not simply ready to buy. `over`, `vendor` and `craft` carry a price
+-- and are formatted there. The table closes with a `}` on its own line.
+local STATUS_WORD = {
+  done = "bought",
+  skipped = "skipped for now",
+  stranded = "no answer — check your mail",
+  lots = "buy by hand",
+  vendor = "at a vendor",
+  craft = "craft",
+}
 
 local function paintLine(row, line)
   row.tooltipItemID = line.itemID
   row.lineItemID = line.itemID
   local name = lineName(line)
-  local decorated = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
+  local named = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
+  -- How many: what is left to buy, or -- once the line is done -- what it asked for.
+  local decorated = ("%s ×%d"):format(named, line.buy > 0 and line.buy or line.need)
   -- A craft line names what it makes and how many batches of it; a reagent the split brought in
   -- is indented under the line it belongs to, so the block reads as one instruction.
   if line.kind == "craft" and line.crafts and line.craft then
@@ -2161,11 +2110,11 @@ local function paintLine(row, line)
     decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
   end
   row.reagent:SetText(decorated)
-  -- The line the dock is on: a faint gold wash, drawn at render (it is state, not hover).
-  if GC.Buy._focus == line.itemID then row.selected:Show() else row.selected:Hide() end
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
   -- reads back, so it does not compete with the lines the player is actually here to buy.
   setColor(row.reagent, (line.vendor or line.kind == "craft") and Theme.color.fgDim or Theme.color.fg)
+  -- The line the dock is on: a faint gold wash, drawn at render (it is state, not hover).
+  if GC.Buy._focus == line.itemID then row.selected:Show() else row.selected:Hide() end
 
   local icon = nil
   if C_Item and C_Item.GetItemIconByID then
@@ -2175,84 +2124,51 @@ local function paintLine(row, line)
   row.reagentInset = icon and 26 or 0
   if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
 
-  row.cells.need:SetText(tostring(line.need))
-  setColor(row.cells.need, Theme.color.fgDim)
-  row.cells.have:SetText(tostring(line.have))
-  setColor(row.cells.have, line.have > 0 and Theme.color.fg or Theme.color.fgDim)
-  row.cells.buy:SetText(tostring(line.buy))
-  setColor(row.cells.buy, line.buy > 0 and Theme.color.gold or Theme.color.fgDim)
-
-  if line.vendor then
-    -- A vendor sells at a fixed price, so NOW and USUAL are the same number and COST is
-    -- arithmetic rather than a quote. All three stay grey: this line is not something to buy
-    -- here, and the auction house has no opinion about it worth printing. With no vendor price
-    -- known it is three em dashes, the way an unknown price is said everywhere else.
-    local unit = line.vendorUnit
-    row.cells.now:SetText(formatAmount(unit))
-    row.cells.usual:SetText(formatAmount(unit))
-    row.cells.cost:SetText(unit and line.buy > 0 and formatAmount(line.buy * unit) or EM_DASH)
-    for _, key in ipairs({ "now", "usual", "cost" }) do
-      setColor(row.cells[key], Theme.color.fgDim)
-    end
-  elseif line.kind == "craft" then
-    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say about
-    -- this row -- the same argument the vendor branch above makes. COST is what the reagents
-    -- still cost, which is the number this row exists to give; marked as an estimate, like
-    -- every other cost built out of prices rather than out of a quote.
-    local craftCost = craftCostNow(line)
-    row.cells.now:SetText(EM_DASH)
-    row.cells.usual:SetText(EM_DASH)
-    row.cells.cost:SetText(craftCost and ("~" .. formatAmount(craftCost)) or EM_DASH)
-    for _, key in ipairs({ "now", "usual", "cost" }) do
-      setColor(row.cells[key], Theme.color.fgDim)
-    end
-  else
-    -- NOW is the best unit price actually seen for this item; nothing has looked yet on a fresh
-    -- run, and an em dash says so rather than borrowing the USUAL beside it.
-    row.cells.now:SetText(formatAmount(line.floor))
-    setColor(row.cells.now, line.floor and Theme.color.fg or Theme.color.fgDim)
-    row.cells.usual:SetText(formatAmount(line.usual))
-    setColor(row.cells.usual, Theme.color.fgDim)
-
-    -- What the rest of this line should cost at the best price known for it. With neither a seen
-    -- floor nor a market value there is no honest number, so the cell stays an em dash.
-    local unit = line.floor or line.usual
+  local status = lineStatus(line)
+  if status == "ready" or status == "unpriced" then
+    -- PRICE EACH: the cheapest unit the last read of the book found, else the cheapest seen (NOW),
+    -- else the market price -- dimmed, because nobody has looked at the book for it yet.
+    local read = readOf(line)
+    local seen = read and read.ladder and read.ladder[1] and read.ladder[1].unit or nil
+    local each = seen or line.floor or line.usual
+    row.cells.price:SetText(formatAmount(each))
+    setColor(row.cells.price, (seen or line.floor) and Theme.color.fg or Theme.color.fgDim)
+    -- COST: the quote on this line (what the next press spends, or at CONFIRM the server's own
+    -- figure) or an estimate, marked as one.
     local attempt = GC.Buy._attempt
-    -- Once this line has a quote (or a purchase under way) the cell shows THAT total -- what the
-    -- next click spends, and after the server's price update, what the confirm click spends.
-    -- The button stays "BUY n" / "CONFIRM": a 72px badge has no room for a sum, and the sum has a
-    -- column of its own right beside it. (Nor for the quote's last seconds, which go beside the
-    -- line's name -- see paintLine.)
     local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
-    -- A quote outlives the hover that asked for it: the cell keeps the real sum for as long as
-    -- the quote is one the next click would spend, and only then falls back to the estimate.
-    local recent = recentQuote(line)
-    if not quotedTotal and recent then quotedTotal = recent.total end
-    if quotedTotal and quotedTotal > 0 then
-      row.cells.cost:SetText(formatAmount(quotedTotal))
-      setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
-        and Theme.color.goldHi or Theme.color.fg)
-    else
-      -- An estimate, and marked as one: remaining units at the cheapest price seen, which the
-      -- lots above that price will exceed once the line is actually quoted.
-      row.cells.cost:SetText(unit and ("~" .. formatAmount(line.buy * unit)) or EM_DASH)
-      setColor(row.cells.cost, Theme.color.fgDim)
-    end
+    local cost, estimated = GC.BuyView.CostOf(line,
+      (quotedTotal and quotedTotal > 0) and { qty = line.buy, total = quotedTotal } or recentQuote(line))
+    row.cells.cost:SetText(cost and ((estimated and "~" or "") .. formatAmount(cost)) or EM_DASH)
+    setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
+      and Theme.color.goldHi or (estimated and Theme.color.fgDim or Theme.color.fg))
+    return
   end
-
-  -- No button in any row (BUY 2.0): the dock at the foot of the tab buys the picked line. A line
-  -- that is not something to buy here says what it is instead.
-  if line.vendor then
-    row.cells.action:SetText(GC.L["vendor"])
-    setColor(row.cells.action, Theme.color.fgDim)
-  elseif line.done then
-    row.cells.action:SetText(GC.L["done"])
-    setColor(row.cells.action, Theme.color.fgDim)
-  elseif line.kind == "craft" then
-    row.cells.action:SetText(GC.L["craft"])
-    setColor(row.cells.action, Theme.color.fgDim)
+  row.cells.price:Hide()
+  row.cells.cost:Hide()
+  local text, color = GC.L[STATUS_WORD[status] or "craft"], Theme.color.fgDim
+  if status == "over" then
+    local read = readOf(line)
+    local cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor
+    text, color = (GC.L["over your cap · %s"]):format(formatAmount(cheapest)), Theme.tier.SUSPECT
+  elseif status == "vendor" then
+    if line.vendorUnit then text = (GC.L["at a vendor · %s each"]):format(formatAmount(line.vendorUnit)) end
+    color = Theme.color.fgMuted
+  elseif status == "craft" then
+    local compare = GC.BuyRun.CraftText(line)
+    if compare then text = (GC.L["craft it · %s each"]):format(formatAmount(compare.unit)) end
+    color = (compare and compare.cheaper) and Theme.color.green or Theme.color.fgMuted
+  elseif status == "done" then
+    color = Theme.color.green
+  elseif status == "stranded" then
+    color = Theme.color.red
+  elseif status == "skipped" then
+    if row.SetAlpha then row:SetAlpha(0.5) end
   end
+  row.status:SetText(text)
+  setColor(row.status, color)
+  row.status:Show()
 end
 
 local function paintRow(row, entry, index)
@@ -2269,21 +2185,71 @@ local function paintRow(row, entry, index)
     row.wide:SetText(entry.text)
     setColor(row.wide, Theme.color.fgDim)
     row.wide:SetSpacing(4)
+    for _, col in ipairs(COLUMNS) do
+      if not col.flex then row.cells[col.key]:Hide() end
+    end
   elseif entry.kind == "line" then
     paintLine(row, entry.line)
   end
-
-  -- Re-anchor the reagent cell now that this render's own row.reagentInset is known; rows are
-  -- pooled and an index's kind can change between renders (SoldFrame's paintRow carries the
-  -- same call for the same reason).
-  layoutRow(row)
 end
 
+-- The width each fixed column needs for what this render shows: its heading and every cell in
+-- it, as the client measures them in the player's language and at the current scale, never less
+-- than the column's own least. The status word spans both price columns, so the widest one
+-- widens COST when it has to. Unbounded widths: a cell pinned to its column would answer with the
+-- width it had already been cut to. Re-lays the heading out when a width moved.
+local function measured(fs)
+  if not (fs and fs.GetUnboundedStringWidth) then return nil end
+  local width = fs:GetUnboundedStringWidth()
+  return type(width) == "number" and math.ceil(width) or nil
+end
+
+local function fitColumns(count)
+  local want = {}
+  for _, col in ipairs(COLUMNS) do
+    if not col.flex then
+      want[col.key] = col.w
+      local hit = band.header and band.header.cells[col.key]
+      local w = hit and measured(hit.label)
+      if w and w > want[col.key] then want[col.key] = w end
+    end
+  end
+  local statusW = 0
+  for i = 1, count do
+    local row = rows[i]
+    for key in pairs(want) do
+      local cell = row.cells[key]
+      local w = cell:IsShown() and measured(cell) or nil
+      if w and w > want[key] then want[key] = w end
+    end
+    local w = row.status:IsShown() and measured(row.status) or nil
+    if w and w > statusW then statusW = w end
+  end
+  local area = want.price + Theme.pad.s + want.cost
+  if statusW > area then want.cost = want.cost + (statusW - area) end
+  local old = band.colW
+  band.colW = want
+  if headerLayout and not (old and old.price == want.price and old.cost == want.cost) then headerLayout() end
+end
+
+-- A row's cells at their fitted widths, the status word across the two price columns, and the
+-- item column in what is left -- as a width, so its text wraps there rather than running under
+-- the prices, and heightFor can ask how tall it came out.
 layoutRow = function(row)
-  local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
+  local flexAnchor = anchorColumns(row, function(col) return row.cells[col.key] end)
+  local area = priceArea()
+  row.status:ClearAllPoints()
+  row.status:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.status:SetWidth(area)
+  local inset = row.reagentInset or 0
   row.reagent:ClearAllPoints()
-  row.reagent:SetPoint("LEFT", row, "LEFT", row.reagentInset or 0, 0)
-  row.reagent:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
+  row.reagent:SetPoint("LEFT", row, "LEFT", inset, 0)
+  local width = geometry and geometry.rowWidth or 0
+  if width > 0 then
+    row.reagent:SetWidth(math.max(40, width - inset - area - Theme.pad.s))
+  else
+    row.reagent:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
+  end
 end
 
 -- Right-click on a row: the one decision a line carries that is not a purchase -- buy this item,
@@ -2453,13 +2419,23 @@ createRow = function(parent)
   row.wide:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
   row.wide:Hide()
 
+  -- The item and how many: wraps to a second line rather than losing its end (layoutRow gives it
+  -- a width, heightFor a height).
   row.reagent = Theme.Label(row, 11)
-  row.reagent:SetWordWrap(false)
+  row.reagent:SetJustifyH("LEFT")
+  row.reagent:SetWordWrap(true)
 
   row.cells = {}
   for _, col in ipairs(COLUMNS) do
     if not col.flex then row.cells[col.key] = buildRowCell(row, col) end
   end
+
+  -- One word in place of PRICE EACH and COST for a line that is not simply ready to buy, as wide
+  -- as the two columns -- which fitColumns widens until the longest such word fits.
+  row.status = Theme.Num(row, 11)
+  row.status:SetJustifyH("RIGHT")
+  row.status:SetWordWrap(false)
+  row.status:Hide()
 
   layoutRow(row)
   return row
@@ -2494,13 +2470,13 @@ local function createHeaderRow(parent)
   setColor(reagentLabel, Theme.color.fgDim)
   reagentLabel:SetAllPoints()
   reagentLabel:SetJustifyH("LEFT")
-  reagentLabel:SetText(headerText("reagent"))
+  reagentLabel:SetText(headerText("item"))
   reagentHit.label = reagentLabel
-  -- Not read by any production code; exposed so the behavior spec can reach the REAGENT cell.
+  -- Not read by any production code; exposed so the behavior spec can reach the ITEM cell.
   header.reagentCell = reagentHit
 
   headerLayout = function()
-    local flexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)
+    local flexAnchor = anchorColumns(header, function(col) return header.cells[col.key] end)
     reagentHit:ClearAllPoints()
     reagentHit:SetPoint("TOPLEFT", header, "TOPLEFT")
     reagentHit:SetPoint("BOTTOMRIGHT", flexAnchor.frame, "BOTTOMLEFT", -Theme.pad.s, 0)
@@ -2535,7 +2511,7 @@ local function restampHeadings()
     if label.Hide and label.Show then label:Hide(); label:Show() end
   end
   for key, hit in pairs(header.cells) do stamp(hit.label, headerText(key)) end
-  if header.reagentCell then stamp(header.reagentCell.label, headerText("reagent")) end
+  if header.reagentCell then stamp(header.reagentCell.label, headerText("item")) end
 end
 
 -- The run's vendor stops as one block of text: what to buy, what each costs and what the trip
@@ -2876,7 +2852,6 @@ local function updateContentWidth()
   if width and width > 0 then
     geometry.rowWidth = width
     content:SetWidth(width)
-    applyColumnVisibility(width)
   end
 end
 
@@ -2953,17 +2928,21 @@ local function renderRows()
   end
 
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
+  -- Painted first, measured second, laid out last: a column is as wide as the widest thing this
+  -- render puts in it, and a row as tall as its wrapped name.
+  for i, entry in ipairs(entries) do paintRow(rows[i], entry, i) end
+  fitColumns(#entries)
   local y = 0
   for i, entry in ipairs(entries) do
     local row = rows[i]
-    local h = heightFor(entry.kind)
+    layoutRow(row)
+    local h = heightFor(entry.kind, row)
     row:SetHeight(h)
     -- TOPLEFT + TOPRIGHT so a row's width tracks content's, which updateContentWidth keeps
     -- current with the real window/dock width.
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
     row:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -y)
-    paintRow(row, entry, i)
     row:Show()
     y = y + h
   end
@@ -2982,10 +2961,6 @@ function GC.Buy.Attach(f, geo)
   container:SetPoint("TOPLEFT", f, "TOPLEFT", geo.panelLeft, geo.top)
   container:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -geo.panelRightInset, geo.bottom)
   container:Hide()
-
-  -- Establish the drop state from the starting width, so the first header/row layout already
-  -- reflects it instead of waiting for a resize.
-  hiddenColumns = computeHidden(geo.rowWidth or 0)
 
   band = createBand(container)
 
@@ -3006,7 +2981,9 @@ function GC.Buy.Attach(f, geo)
     if not width or width <= 0 then return end
     geometry.rowWidth = width
     content:SetWidth(width)
-    applyColumnVisibility(width)
+    -- Lay the rows out again for the new width -- their names wrap to it -- without asking the
+    -- client about the run again: a drag fires this many times a second.
+    if container:IsShown() and band then renderRows() end
   end)
 
   -- Enter buys the focused line. A key press is a hardware event, so it may reach the protected
