@@ -928,9 +928,9 @@ GC.Locales.ptBR = {
   ["vendor pays more"] =
     "vendedor paga mais",
   ["Below vendor"] =
-    "Abaixo do vendedor",
+    "Abaixo NPC",
   ["Under market"] =
-    "Abaixo do mercado",
+    "Sob mercado",
   [" · buy at %s or less, vendor pays %s"] =
     " · compre a %s ou menos, vendedor paga %s",
   [" · buy at %s or less, AH value %s"] =
@@ -945,6 +945,8 @@ GC.Locales.ptBR = {
     "bem abaixo do mercado, velocidade de revenda desconhecida -- clique em Buy para comprar",
   ["No deals in your last scan."] =
     "Nenhuma oferta no seu último escaneamento.",
+  ["Deals appear as soon as the scan finds them."] =
+    "As ofertas aparecem assim que a varredura as encontrar.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "O GoldCap procura itens anunciados mais baratos do que valem. VARRER escaneia de novo.",
   ["No scan of this auction house yet."] =

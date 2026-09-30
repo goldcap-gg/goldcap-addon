@@ -47,6 +47,127 @@ describe("WoW: Forever scan wiring", function()
     assert.is_number(db.foreverScan.requestedAt)
   end)
 
+  describe("post-scan chat block", function()
+    local folds
+    local function done(rows, partial)
+      GC.ForeverScan._Notify("done", { rows = rows, items = 10, replicated = true, partial = partial })
+    end
+    local function countLine(text)
+      local n = 0
+      for _, m in ipairs(printed) do if m == text then n = n + 1 end end
+      return n
+    end
+    before_each(function()
+      load(16001)
+      folds = 0
+      GC.Sniper = { OnForeverFold = function() folds = folds + 1 end }
+    end)
+
+    it("prints a full read at once", function()
+      done(54139, false)
+      assert.equal("54139 lots scanned and saved", printed[1])
+      assert.equal(0, #timers)
+      assert.equal(1, folds)
+    end)
+
+    it("holds a partial read for the grace period, then prints it once", function()
+      done(2048, true)
+      assert.equal(0, #printed)
+      assert.equal(1, folds) -- the refresh is never delayed
+      assert.equal(1, #timers)
+      timers[1].fn()
+      assert.equal("2048 lots scanned and saved", printed[1])
+      assert.equal(1, countLine("2048 lots scanned and saved"))
+    end)
+
+    it("a full read inside the grace period replaces the held block: printed once, with its numbers", function()
+      done(2048, true)
+      done(54139, false)
+      assert.equal("54139 lots scanned and saved", printed[1])
+      timers[1].fn() -- the stale timer fires and says nothing
+      assert.equal(1, #printed)
+      assert.equal(2, folds)
+    end)
+
+    it("a second partial read supersedes the first", function()
+      done(2048, true)
+      done(3072, true)
+      timers[1].fn()
+      assert.equal(0, #printed)
+      timers[2].fn()
+      assert.equal(1, #printed)
+      assert.equal("3072 lots scanned and saved", printed[1])
+    end)
+
+    it("stays busy while a partial read's summary is held, and not after", function()
+      GC.ForeverScan.Init({})
+      assert.is_false(GC.ForeverScan.IsBusy())
+      done(2048, true)
+      assert.is_true(GC.ForeverScan.IsBusy())
+      timers[1].fn()
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
+    it("a full read ends the hold at once", function()
+      GC.ForeverScan.Init({})
+      done(2048, true)
+      done(54139, false)
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
+    it("repaints the toolbar on the scanner's edges", function()
+      local repaints = 0
+      GC.Sniper.RepaintScanState = function() repaints = repaints + 1 end
+      GC.ForeverScan.Init({})
+      GC.ForeverScan.OnAuctionHouseShow()
+      assert.is_true(repaints >= 1)
+      local before = repaints
+      done(54139, false)
+      assert.is_true(repaints > before)
+    end)
+
+    it("a new scan cancels a held block", function()
+      done(2048, true)
+      GC.ForeverScan._Notify("started")
+      timers[1].fn()
+      assert.equal(1, #printed)
+      assert.equal("Scanning the auction house…", printed[1])
+    end)
+  end)
+
+  describe("hints are said once a session", function()
+    local function said(text)
+      local n = 0
+      for _, m in ipairs(printed) do if m:find(text, 1, true) then n = n + 1 end end
+      return n
+    end
+    local function scanDone()
+      GC.ForeverScan._SayDone({ rows = 1000, items = 10, replicated = true })
+    end
+    before_each(function()
+      load(16001)
+      GC.ForeverScan.Init({})
+      GC.Data = { CompanionShares = function() return true end, GetItemValue = function() return nil end }
+      GC.ForeverValue = { PrintBags = function(_, s)
+        if s then
+          if s.bags ~= "bags" then GC.Print("bags") end
+          s.bags = "bags"
+          if not s.postHint then GC.Print("POST hint"); s.postHint = true end
+        else
+          GC.Print("bags"); GC.Print("POST hint")
+        end
+      end }
+    end)
+
+    it("keeps the result line every time and the static lines once", function()
+      scanDone(); scanDone(); scanDone()
+      assert.equal(3, said("lots scanned and saved"))
+      assert.equal(1, said("bags"))
+      assert.equal(1, said("POST hint"))
+      assert.equal(1, said("Shared with goldcap.gg"))
+    end)
+  end)
+
   it("on retail: no scan, no key in the save", function()
     load(120100)
     local db = {}

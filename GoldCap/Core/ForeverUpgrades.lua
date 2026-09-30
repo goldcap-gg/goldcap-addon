@@ -501,9 +501,15 @@ end
 -- post-scan update builds once and hands the same result to this and to the window's own render,
 -- rather than each building its own. A direct call (a test, /gc upgrades' own paths) with no r
 -- still gets a correct count from its own Current().
-function GC.ForeverUpgrades.PrintCount(r)
+--
+-- `said` (the scan's session record) keeps the line from repeating while the count is unchanged.
+function GC.ForeverUpgrades.PrintCount(r, said)
   r = r or GC.ForeverUpgrades.Current()
   if r and #r.rows > 0 then
+    if said then
+      if said.upgrades == #r.rows then return end
+      said.upgrades = #r.rows
+    end
     GC.Print(GC.L["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."]:format(#r.rows))
   end
 end

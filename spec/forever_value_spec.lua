@@ -117,6 +117,22 @@ describe("ForeverValue bags", function()
     assert.truthy(printed[3]:find("Scan the auction house to see what they would fetch there.", 1, true))
   end)
 
+  it("with a session record: the bags line is not repeated unchanged, the POST hint prints once", function()
+    local printed = {}
+    GC.Print = function(m) printed[#printed + 1] = m end
+    GC.Data = { GetItemValue = function(id) return AH[id] and { mv = AH[id] } or nil end }
+    GC.ForeverValue.VendorUnit = function(id) return VENDOR[id] end
+    local said = {}
+    GC.ForeverValue.PrintBags(driver, said)
+    GC.ForeverValue.PrintBags(driver, said)
+    assert.equal(2, #printed) -- the line and the hint, once each
+    GC.Data.GetItemValue = function(id) return AH[id] and { mv = AH[id] * 2 } or nil end
+    GC.ForeverValue.PrintBags(driver, said) -- the totals moved: the line says so, the hint does not repeat
+    assert.equal(3, #printed)
+    GC.ForeverValue.PrintBags(driver) -- /gc bags: in full, every time
+    assert.equal(5, #printed)
+  end)
+
   it("adds each stack at the better of a vendor and the AH, and what the AH adds over a vendor", function()
     local t = GC.ForeverValue.BagTotals(driver,
       function(id) return AH[id] and { mv = AH[id] } or nil end,

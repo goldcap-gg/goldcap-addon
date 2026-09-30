@@ -844,7 +844,7 @@ GC.Locales.zhCN = {
   ["vendor pays more"] =
     "商人出价更高",
   ["Below vendor"] =
-    "低于商人收购价",
+    "低于商人价",
   ["Under market"] =
     "低于市场价",
   [" · buy at %s or less, vendor pays %s"] =
@@ -861,6 +861,8 @@ GC.Locales.zhCN = {
     "远低于市场价，转售速度未知 -- 点击 Buy 购买",
   ["No deals in your last scan."] =
     "上次扫描没有交易。",
+  ["Deals appear as soon as the scan finds them."] =
+    "扫描一找到交易就会显示。",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap 会寻找定价低于价值的物品。点击扫描可再次扫描。",
   ["No scan of this auction house yet."] =

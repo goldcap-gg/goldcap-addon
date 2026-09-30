@@ -184,6 +184,30 @@ describe("WoW: Forever", function()
     assert.is_nil(api.emptyText:find("goldcap.gg prices", 1, true))
   end)
 
+  -- Owner, beta 2026-09-30: "No deals in your last scan" blinked through a running scan -- the
+  -- guard was the browse pass paging, false while the dump is awaited and read.
+  it("says a scan is running, steadily, for as long as one runs -- then the verdict", function()
+    local api = loadSniper()
+    local busy = true
+    forever(api, {}, { at = 1 })
+    api.GC.ForeverScan.IsBusy = function() return busy end
+    api.GC.Game = { IsForever = function() return true end, Passport = function() return {} end }
+    for _, board in ipairs({ "commodities", "items" }) do
+      api.GC.Sniper._SetBoard(board)
+      for _ = 1, 3 do -- every tick of the scan says the same thing
+        api.GC.Sniper._UpdateEmptyState(0)
+        assert.is_truthy(api.emptyText:find("Scanning the auction house…", 1, true))
+        assert.is_truthy(api.emptyText:find("Deals appear as soon as the scan finds them.", 1, true))
+        assert.is_nil(api.emptyText:find("No deals in your last scan.", 1, true))
+      end
+    end
+    busy = false
+    api.GC.Sniper._UpdateEmptyState(0)
+    assert.is_truthy(api.emptyText:find("No deals in your last scan.", 1, true))
+    api.GC.Sniper._UpdateEmptyState(2) -- rows win over any message
+    assert.is_nil(api.emptyText)
+  end)
+
   it("names the kind on the chip and says what to do after the name", function()
     local api = loadSniper()
     local setRowDeal = upvalue(api.refreshRows, "setRowDeal")

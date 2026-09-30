@@ -1,5 +1,19 @@
 # GoldCap
 
+## 0.17.2 (2026-09-30)
+
+- In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
+  auction house over in two parts.
+- In WoW: Forever, the SCAN button now says it is scanning for the whole scan, including the one
+  that starts when you open the auction house, and pressing it meanwhile no longer starts a second
+  scan. The AUTO button shows the same, and an empty Deals list says "Scanning the auction house…"
+  for as long as the scan runs instead of flickering "No deals in your last scan".
+- The SCAN button is wide enough for its label in every language.
+- In WoW: Forever, the verdict in the Deals list ("Below vendor", "Under market") has its own,
+  wider column and shorter wording, so it reads in full.
+- In WoW: Forever, the tips after a scan are said once per session, and the bag and upgrade lines
+  only when they have changed.
+
 ## 0.17.1 (2026-09-30)
 
 - The Sell tab no longer stutters every few seconds while it refreshes prices.

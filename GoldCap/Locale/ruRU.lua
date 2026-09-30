@@ -924,7 +924,7 @@ GC.Locales.ruRU = {
   ["vendor pays more"] =
     "торговец платит больше",
   ["Below vendor"] =
-    "Ниже цены торговца",
+    "Ниже НПС",
   ["Under market"] =
     "Ниже рынка",
   [" · buy at %s or less, vendor pays %s"] =
@@ -941,6 +941,8 @@ GC.Locales.ruRU = {
     "намного ниже рынка, скорость перепродажи неизвестна -- нажмите Buy, чтобы купить",
   ["No deals in your last scan."] =
     "Нет сделок в последнем скане.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Сделки появятся, как только скан найдёт их.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap ищет предметы, выставленные дешевле, чем они стоят. СКАН сканирует снова.",
   ["No scan of this auction house yet."] =

@@ -1003,6 +1003,7 @@ GC.Locales.enUS = {
   ["far under the market, resale speed unknown -- click Buy to purchase"] =
     "far under the market, resale speed unknown -- click Buy to purchase",
   ["No deals in your last scan."] = "No deals in your last scan.",
+  ["Deals appear as soon as the scan finds them."] = "Deals appear as soon as the scan finds them.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
   ["No scan of this auction house yet."] = "No scan of this auction house yet.",

@@ -40,6 +40,11 @@ describe("row button labels fit the button", function()
     -- the line's name cell, because "CONFIRM (9)" did not fit (fix round 5).
     { what = "the 72px BUY action button", budget = 11,
       keys = { "CONFIRM", "waiting..." } },
+    -- UI/SniperFrame.lua: WIN.FOREVER_TIER_W (112) less the TierMark's 6px dot and 5px gap leaves 101px
+    -- of mono-10 bold at 1.3 (7.8px a character) -- 12. Owner, beta 2026-09-30: "Ниже цены торговца"
+    -- read "Ниже це..." in the 80px column.
+    { what = "the WoW: Forever verdict cell", budget = 12,
+      keys = { "Below vendor", "Under market" } },
     { what = "the 86px Sell action button beside its spinner", budget = 9,
       keys = { "Posting…" } },
     { what = "the 136px dock POST button beside its spinner", budget = 15,

@@ -119,16 +119,27 @@ end
 -- "your bags: X at a vendor, Y on the AH" (spec §3 Bag value), in chat: after every saved scan
 -- and on /gc bags. The way to post the AH half is the Sell tab's POST queue, which in Forever
 -- holds back anything a vendor pays more for (GC.Sell._QueueOpts).
-function GC.ForeverValue.PrintBags(driver)
+--
+-- `said`, when given (the scan's summary passes it), is the session's record of what chat already
+-- has: the bags line is skipped while it reads the same as last time, and the POST hint prints
+-- once. Without it (`/gc bags`) everything prints.
+function GC.ForeverValue.PrintBags(driver, said)
   local t = driver and GC.ForeverValue.BagTotals(driver, GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
     or GC.ForeverValue.RealBagTotals()
+  local line, hint
   if t.priced > 0 then
-    GC.Print(GC.L["Your bags: %s at a vendor, %s on the AH after its cut"]:format(
-      GC.Util.CoinText(t.vendor), GC.Util.CoinText(t.ah)))
-    GC.Print(GC.L["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."])
+    line = GC.L["Your bags: %s at a vendor, %s on the AH after its cut"]:format(
+      GC.Util.CoinText(t.vendor), GC.Util.CoinText(t.ah))
+    hint = GC.L["The Sell tab's POST button lists everything worth more than a vendor pays, one click each."]
   else
-    GC.Print(GC.L["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."]
-      :format(GC.Util.CoinText(t.vendor)))
+    line = GC.L["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."]
+      :format(GC.Util.CoinText(t.vendor))
+  end
+  if not said or said.bags ~= line then GC.Print(line) end
+  if said then said.bags = line end
+  if hint and not (said and said.postHint) then
+    GC.Print(hint)
+    if said then said.postHint = true end
   end
   return t
 end

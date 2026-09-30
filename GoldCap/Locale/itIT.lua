@@ -930,9 +930,9 @@ GC.Locales.itIT = {
   ["vendor pays more"] =
     "il venditore paga di più",
   ["Below vendor"] =
-    "Sotto il venditore",
+    "Sotto PNG",
   ["Under market"] =
-    "Sotto il mercato",
+    "Sotto merc.",
   [" · buy at %s or less, vendor pays %s"] =
     " · compra a %s o meno, il venditore paga %s",
   [" · buy at %s or less, AH value %s"] =
@@ -947,6 +947,8 @@ GC.Locales.itIT = {
     "molto sotto il mercato, velocità di rivendita sconosciuta -- clicca Buy per acquistare",
   ["No deals in your last scan."] =
     "Nessun affare nella tua ultima scansione.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Le occasioni compaiono appena la scansione le trova.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap cerca oggetti in vendita a meno di quanto valgono. SCANSIONA scansiona di nuovo.",
   ["No scan of this auction house yet."] =

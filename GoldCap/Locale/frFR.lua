@@ -435,7 +435,7 @@ GC.Locales.frFR = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "ENREGISTRÉ AUSSITÔT · ÉCHAP OU DONE POUR FERMER",
   ["SCAN"] = "SCAN",
-  ["SCANNING…"] = "SCAN EN COURS…",
+  ["SCANNING…"] = "SCAN…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d ACHATS",
   ["SHOW DETAILS ▸"] = "AFFICHER LES DÉTAILS ▸",
   ["Sales are costed from your oldest units first"] =
@@ -931,9 +931,9 @@ GC.Locales.frFR = {
   ["vendor pays more"] =
     "le marchand paie plus",
   ["Below vendor"] =
-    "Sous le marchand",
+    "Sous PNJ",
   ["Under market"] =
-    "Sous le marché",
+    "Sous marché",
   [" · buy at %s or less, vendor pays %s"] =
     " · achetez à %s ou moins, le marchand paie %s",
   [" · buy at %s or less, AH value %s"] =
@@ -948,6 +948,8 @@ GC.Locales.frFR = {
     "bien sous le marché, vitesse de revente inconnue -- clique sur Buy pour acheter",
   ["No deals in your last scan."] =
     "Aucune affaire dans votre dernier scan.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Les bonnes affaires s'affichent dès que le scan les trouve.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap recherche les objets vendus moins cher que leur valeur. SCAN scanne à nouveau.",
   ["No scan of this auction house yet."] =

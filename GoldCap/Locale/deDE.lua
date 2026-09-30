@@ -930,9 +930,9 @@ GC.Locales.deDE = {
   ["vendor pays more"] =
     "Händler zahlt mehr",
   ["Below vendor"] =
-    "Unter Händlerpreis",
+    "Unter NPC",
   ["Under market"] =
-    "Unter Marktpreis",
+    "Unter Markt",
   [" · buy at %s or less, vendor pays %s"] =
     " · kaufen für %s oder weniger, Händler zahlt %s",
   [" · buy at %s or less, AH value %s"] =
@@ -947,6 +947,8 @@ GC.Locales.deDE = {
     "weit unter Marktpreis, Weiterverkaufstempo unbekannt -- Buy klicken zum Kaufen",
   ["No deals in your last scan."] =
     "Keine Angebote in deinem letzten Scan.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Angebote erscheinen, sobald der Scan sie findet.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap sucht nach Gegenständen, die billiger gelistet sind, als sie wert sind. SCAN scannt erneut.",
   ["No scan of this auction house yet."] =
