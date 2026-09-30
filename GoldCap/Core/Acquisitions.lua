@@ -1628,6 +1628,25 @@ function GC.Acquisitions.GetRealized(context)
   return realized
 end
 
+--- Where the stock a sale drew on came from: the distinct `source` of every batch that sale's
+--- evidence key consumed (Consume stamps the key into `consumedEvidenceKeys`), in batch order.
+--- An exact join on the key, like the realized row it sits beside -- never a match by name. The
+--- Sold tab names these in a sale's tooltip ("You paid · Sniper"). Empty when no batch
+--- carries the key, which includes a batch since removed.
+function GC.Acquisitions.SourcesOf(evidenceKey)
+  local sources, seen = {}, {}
+  if not db or type(evidenceKey) ~= "string" or evidenceKey == "" then return sources end
+  for _, batch in ipairs(db.acquisitions) do
+    local keys = batch.consumedEvidenceKeys
+    if type(keys) == "table" and keys[evidenceKey] == true and type(batch.source) == "string"
+        and not seen[batch.source] then
+      seen[batch.source] = true
+      sources[#sources + 1] = batch.source
+    end
+  end
+  return sources
+end
+
 function GC.Acquisitions.Allocate(batches, quantity)
   return allocationFor(batches, quantity)
 end

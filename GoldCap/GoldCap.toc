@@ -47,6 +47,7 @@ Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua
+Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua
