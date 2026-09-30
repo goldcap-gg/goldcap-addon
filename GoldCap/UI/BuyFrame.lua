@@ -1298,7 +1298,11 @@ end
 --
 -- No natural dedupe key exists (two identical buys a second apart are two real buys), so the key
 -- carries a counter, exactly as GC.Ledger.RecordSniperBuy's does.
-local function recordLedgerBuy(itemID, name, qty, total, at, runCode)
+--
+-- `mv`: the line's usual price per unit at the moment of the purchase -- the number its cap was
+-- built on -- in whole copper, from which the site says how far under market a run was bought.
+-- Left off (nil, so the row has no such field) when the line had no usual price.
+local function recordLedgerBuy(itemID, name, qty, total, at, runCode, mv)
   if not (GC.Ledger and GC.Ledger.Append) then return end
   local context = GC.Ledger.Context and GC.Ledger.Context() or nil
   ledgerSeq = ledgerSeq + 1
@@ -1317,6 +1321,7 @@ local function recordLedgerBuy(itemID, name, qty, total, at, runCode)
     at = at,
     char = context and context.char or nil,
     region = context and context.region or nil,
+    mv = mv,
   })
 end
 
@@ -1353,9 +1358,13 @@ local function settlePurchase(itemID, qty, total, runCode)
   local line = lineFor(itemID)
   if current and qty > 0 and total > 0 then
     local at = time()
+    -- Read before RecordPurchase re-counts the line. A vendor line is never bought here (buyable),
+    -- and would carry no market price if it were: a merchant's price is not the auction house's.
+    local mv = (line and not line.vendor and type(line.usual) == "number" and line.usual > 0)
+      and math.floor(line.usual) or nil
     if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
     recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode)
-    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode)
+    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode, mv)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The purchase is booked against the run whether or not the units have arrived: the auction

@@ -829,6 +829,36 @@ describe("BUY purchase", function()
     assert.is_truthy(row.key:find("buyrun", 1, true))
   end)
 
+  -- The site says "cheaper than market by ..." from these (the week 3 contract, part B): the
+  -- line's usual price per unit at the moment of the purchase -- the number its cap was built on
+  -- -- rides on the row as `mv`, and a line with no usual price leaves the field off.
+  it("puts the line's usual price on the ledger row, and nothing for a line with none", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    click(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityPriceUpdated(400, 2000)
+    click(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local rows = GC.Ledger.GetEntries()
+    assert.equal(2, #rows)
+    assert.equal(101, rows[1].itemID)
+    assert.equal(1000, rows[1].mv)
+    assert.equal(105, rows[2].itemID)
+    assert.is_nil(rows[2].mv)
+    local keys = {}
+    for k in pairs(rows[2]) do keys[#keys + 1] = k end
+    table.sort(keys)
+    assert.is_nil(("," .. table.concat(keys, ",") .. ","):find(",mv,", 1, true))
+  end)
+
   -- The gold left the bags whichever way the success arrived.
   it("writes the same row for a success it had already given up on", function()
     hover(rowWithText("Alpha Herb"))
