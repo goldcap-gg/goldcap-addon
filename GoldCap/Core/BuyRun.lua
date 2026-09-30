@@ -110,6 +110,11 @@ function GC.BuyRun.New(run, driver)
         -- replace a copper purchase from a vendor with reagents bought at the auction house.
         craft = (src.v ~= true) and craftOf(src.cr) or nil,
         floor = state.floor, floorAt = state.floorAt,
+        -- The route the list was saved from crafts this item itself (Core/AppRuns.lua's `mk`): a
+        -- craft line from the start, never a purchase, and never split -- the route's reagents
+        -- are lines of the list already.
+        make = src.mk == true or nil,
+        kind = (src.mk == true) and "craft" or nil,
       }
       entries[#entries + 1] = entry
       -- Core/AppRuns.lua already merges duplicate item ids; the `or` is for a run handed
@@ -137,7 +142,7 @@ function GC.BuyRun.New(run, driver)
     while index <= #entries do
       local parent = entries[index]
       local at = index
-      if parent.craft and not parent.parent and splits[parent.itemID] then
+      if parent.craft and not parent.parent and not parent.make and splits[parent.itemID] then
         parent.kind = "craft"
         parent.crafts = math.ceil(
           math.max(0, parent.need - math.max(parent.have, parent.bought)) / parent.craft.craftedQty)
@@ -209,6 +214,11 @@ function GC.BuyRun.New(run, driver)
       local buy = entry.need - math.max(entry.have, entry.bought)
       entry.buy = buy > 0 and buy or 0
       entry.done = entry.buy == 0
+      -- A line the route crafts says how many crafts that is, when its recipe says how many one
+      -- makes -- the same rounding a split line's count takes (applySplits).
+      if entry.make and entry.craft then
+        entry.crafts = math.ceil(entry.buy / entry.craft.craftedQty)
+      end
     end
   end
 

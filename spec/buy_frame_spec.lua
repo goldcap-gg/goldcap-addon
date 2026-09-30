@@ -1487,4 +1487,15 @@ describe("BuyFrame", function()
     GC.Buy.RefreshIfShown()
     assert.is_nil(GC.db.runLineCaps)
   end)
+
+  -- BUY 2.0 (week 3 contract, part A): a line the list's route crafts itself is drawn as a craft
+  -- line, with no BUY button, and is no part of what the run has left to spend.
+  it("draws a line the route crafts itself as a craft line, with no button, and leaves it out of the rest", function()
+    GC.AppRuns._set({ run({ lines = { { i = 101, q = 10 }, { i = 103, q = 3, mk = true } } }) })
+    GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+    local made = rowWithText("Charlie Dust")
+    assert.equal("craft", made.cells.action:GetText())
+    assert.is_false(made.action:IsShown())
+    assert.equal("spent 0c · left ~1g", bandOf().spent:GetText()) -- 10 Alpha Herb at 1000c only
+  end)
 end)

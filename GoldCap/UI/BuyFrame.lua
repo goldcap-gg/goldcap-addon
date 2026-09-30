@@ -1992,9 +1992,9 @@ local function paintLine(row, line)
   local decorated = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
   -- A craft line names what it makes and how many batches of it; a reagent the split brought in
   -- is indented under the line it belongs to, so the block reads as one instruction.
-  if line.kind == "craft" then
+  if line.kind == "craft" and line.crafts and line.craft then
     decorated = (GC.L["%s → craft %d× (%d per craft)"]):format(
-      decorated, line.crafts or 0, (line.craft and line.craft.craftedQty) or 0)
+      decorated, line.crafts, line.craft.craftedQty)
   elseif line.parent then
     decorated = (GC.L["↳ %s"]):format(decorated)
   end
@@ -2171,7 +2171,8 @@ end
 -- settlePurchase would book the gold against a line that no longer exists.
 local function openRowMenu(owner, line)
   if not (current and line and line.craft) then return false end
-  if line.parent then return false end
+  -- A line the route crafts itself has nothing to decide: its reagents are lines of the list.
+  if line.parent or line.make then return false end
   -- A line already bought has nothing left to decide, and its own tooltip says as much by
   -- leaving the craft-or-buy comparison off it.
   if line.done then return false end

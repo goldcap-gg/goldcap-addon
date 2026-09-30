@@ -622,3 +622,59 @@ describe("BuyRun: a crowd reference", function()
     assert.equal(90, obj:Lines()[1].usual)
   end)
 end)
+
+-- BUY 2.0 (week 3 contract, part A): a line the list's route crafts itself (`mk`) is a line to
+-- craft, never to buy -- the craft kind every other surface already draws, with nothing to buy
+-- and nothing counted into what the run has left to spend.
+describe("BuyRun: a line the route crafts itself", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local RECIPE = { r = 900, n = 2, c = 272, i = { { i = 51, q = 2, u = 68 } } }
+  local function build(lines, splits)
+    local obj = GC.BuyRun.New({ code = "r", lines = lines }, {
+      haveOf = function() return 0 end, usualUnit = function() return 160 end,
+      capPct = function() return 130 end, splits = function() return splits end })
+    obj:Refresh()
+    return obj
+  end
+  local function lineOf(obj, itemID)
+    for _, l in ipairs(obj:Lines()) do if l.itemID == itemID then return l end end
+  end
+
+  it("is a craft line with nothing to buy", function()
+    local obj = build({ { i = 50, q = 30, mk = true, u = 160 }, { i = 2589, q = 60, u = 68 } })
+    local made = lineOf(obj, 50)
+    assert.equal("craft", made.kind)
+    assert.is_true(made.make)
+    assert.same({ 0, 0, false }, { obj:PurchaseQuantity(50, { { unit = 1, qty = 999 } }) })
+  end)
+
+  it("is left out of what the run has left to spend, and counted as a craft", function()
+    local obj = build({ { i = 50, q = 30, mk = true, u = 160 }, { i = 2589, q = 60, u = 68 } })
+    local totals = obj:Totals()
+    assert.equal(60 * 68, totals.left)
+    assert.equal(1, totals.toCraft)
+    assert.equal(1, totals.toBuy)
+  end)
+
+  -- The route's reagents are already lines of the list: a split would ask for them twice.
+  it("is never split into reagents, whatever recipe it carries", function()
+    local obj = build({ { i = 50, q = 30, mk = true, cr = RECIPE }, { i = 2589, q = 60 } }, { [50] = true })
+    assert.equal(2, #obj:Lines())
+    assert.is_nil(lineOf(obj, 51))
+    assert.equal(15, lineOf(obj, 50).crafts) -- 30 at 2 a craft
+  end)
+
+  it("leaves a line without the flag exactly as it was", function()
+    local obj = build({ { i = 50, q = 30, u = 160 } })
+    local line = lineOf(obj, 50)
+    assert.is_nil(line.kind)
+    assert.is_nil(line.make)
+    assert.equal(30, line.buy)
+    assert.equal(30 * 160, obj:Totals().left)
+  end)
+end)

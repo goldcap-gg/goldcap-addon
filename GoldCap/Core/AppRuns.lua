@@ -78,6 +78,9 @@ local function copyLine(raw)
     -- `minIlvl` only when the member has one, so absent is no floor. Only a positive whole number
     -- is a level; anything else drops the floor, never the line.
     minIlvl = itemLevel(raw.minIlvl),
+    -- BUY 2.0: `mk` says the route this list was saved from crafts the item itself, at least as
+    -- many as the list needs -- a line to craft, never to buy. Only `true` is the flag.
+    mk = raw.mk == true or nil,
   }
 end
 

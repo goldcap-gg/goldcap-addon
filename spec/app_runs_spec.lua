@@ -130,6 +130,20 @@ describe("AppRuns", function()
       for n = 2, 7 do assert.is_nil(lines[n].minIlvl, lines[n].i) end
     end)
 
+    -- BUY 2.0 (week 3 contract, part A): `mk = true` says the route the list was saved from
+    -- crafts this item itself. Only `true` is the flag; anything else is no flag.
+    it("keeps the flag that the route crafts a line itself", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines = { { i = 5, q = 1, mk = true }, { i = 6, q = 1 }, { i = 7, q = 1, mk = "yes" } }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local lines = GC.AppRuns.Get("abcd2345").lines
+      assert.is_true(lines[1].mk)
+      assert.is_nil(lines[2].mk)
+      assert.is_nil(lines[3].mk)
+    end)
+
     -- Two lines of one item merge into one; the floor they carry is the higher of the two, so a
     -- merge can never quietly lower the level the player asked for.
     it("keeps the higher floor when two lines of one item merge", function()
