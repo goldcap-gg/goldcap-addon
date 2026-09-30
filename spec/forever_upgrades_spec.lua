@@ -275,6 +275,18 @@ describe("ForeverUpgrades in the client", function()
     assert.equal(5000, r.at)
   end)
 
+  it("with a session record: the same count is not said twice, a changed one is", function()
+    init(16001)
+    local said = {}
+    GC.ForeverUpgrades.PrintCount(nil, said)
+    GC.ForeverUpgrades.PrintCount(nil, said)
+    assert.equal(1, #printed)
+    GC.ForeverUpgrades.PrintCount({ rows = { {}, {} } }, said)
+    assert.equal(2, #printed)
+    GC.ForeverUpgrades.PrintCount()
+    assert.equal(3, #printed) -- a direct call always says it
+  end)
+
   it("says nothing when nothing beats the worn piece, and reports a client with no stats call", function()
     init(16001)
     _G.GetInventoryItemLink = function(_, slot) return slot == 1 and "item:101" or nil end
