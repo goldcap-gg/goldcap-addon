@@ -173,14 +173,25 @@ function GC.BuyRun.New(run, driver)
 
   -- Everything that depends on NEED, once NEED has stopped moving: the reference price, the
   -- ceiling, and what is left to buy.
-  local function finish(entries, capPct, lineCaps)
+  local function finish(entries, capPct, lineCaps, pricedAt)
     for _, entry in ipairs(entries) do
       -- The run's own price first: the site knew what this item cost when the list was saved,
       -- and the import's market value is a snapshot of a different moment (or, for an item the
       -- import has never carried, of nothing at all). A zero or a non-number is not a price --
       -- trusted, it caps the line at nothing and the line can never be bought.
+      --
+      -- Except a crowd price (WoW: Forever, other players' scans) seen AFTER the list was priced:
+      -- that is the fresher look at the same shelf, and wins -- the rule every other Forever
+      -- surface follows (decision E10). The driver hands one only for a crowd price, so a retail
+      -- line is exactly what it always was. `usualRef` keeps whose price it is and how old.
       local lineUsual = entry.lineUsual
-      entry.usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(entry.itemID)
+      local ref = driver.usualRef and driver.usualRef(entry.itemID) or nil
+      local own = (lineUsual and lineUsual > 0) and lineUsual or nil
+      if type(ref) == "table" and (ref.value or 0) > 0 and (not own or (ref.at or 0) > (pricedAt or 0)) then
+        entry.usual, entry.usualRef = ref.value, ref
+      else
+        entry.usual, entry.usualRef = own or driver.usualUnit(entry.itemID), nil
+      end
       if entry.vendorUnit and entry.vendorUnit <= 0 then entry.vendorUnit = nil end
       -- An absolute ceiling for one unit, when there is one: the player's own price for the line,
       -- or an alert group's own target price -- numbers the player chose, which a percentage of
@@ -253,7 +264,7 @@ function GC.BuyRun.New(run, driver)
     local lineCaps = (driver.lineCaps and driver.lineCaps(run.code)) or nil
     local entries, byItem = baseEntries()
     applySplits(entries, byItem, splits)
-    finish(entries, capPct, lineCaps)
+    finish(entries, capPct, lineCaps, run.pricedAt or run.updatedAt)
     lines = bucketed(entries)
   end
 

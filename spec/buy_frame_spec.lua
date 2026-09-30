@@ -756,6 +756,29 @@ describe("BuyFrame", function()
       assert.equal(910, lineOf(101).cap)
     end)
 
+    it("keeps a retail list's own price whatever the market value says", function()
+      GC.AppRuns._set({ run({ lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Data.ForeverReference = function() return { source = "own" } end
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      local line = GC.Buy.CurrentRun():Lines()[1]
+      assert.equal(777, line.usual)
+      assert.is_nil(line.usualRef)
+    end)
+
+    -- WoW: Forever: the crowd's look wins over the list's price only when it is the fresher one.
+    it("takes a crowd price seen after the list was priced, and keeps whose it is", function()
+      local crowd = { value = 800, source = "crowd", scanners = 3, at = 1500 }
+      GC.AppRuns._set({ run({ pricedAt = 1000, lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Data.ForeverReference = function(itemID) if itemID == 101 then return crowd end return { source = "own" } end
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      assert.equal(800, lineOf(101).usual)
+      assert.same(crowd, lineOf(101).usualRef)
+      GC.AppRuns._set({ run({ pricedAt = 1600, lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      assert.equal(777, lineOf(101).usual)
+      assert.is_nil(lineOf(101).usualRef)
+    end)
+
     it("leaves every other source (retail) exactly as it was", function()
       for _, source in ipairs({ "import", "region", "bundled" }) do
         withValue({ mv = 1000, source = source })

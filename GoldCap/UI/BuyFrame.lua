@@ -494,10 +494,20 @@ local function usualUnit(itemID)
   return value.mv
 end
 
+-- The crowd reference for an item -- WoW: Forever's prices from other players' scans
+-- (Core/Data.lua) -- or nil. The only reference that says whose price it is and how old, which is
+-- what the tooltip's Source line needs; every other source answers nil, so retail is untouched.
+local function usualRef(itemID)
+  local ref = GC.Data and GC.Data.ForeverReference and GC.Data.ForeverReference(itemID, 0)
+  if type(ref) ~= "table" or ref.source ~= "crowd" or not ref.value then return nil end
+  return ref
+end
+
 local DRIVER = {
   now = function() return time() end,
   haveOf = haveOf,
   usualUnit = usualUnit,
+  usualRef = usualRef,
   -- A run's own cap when it has been given one in the run menu, the global setting otherwise,
   -- clamped at the read either way (see runCapPct/globalCapPct above).
   capPct = runCapPct,

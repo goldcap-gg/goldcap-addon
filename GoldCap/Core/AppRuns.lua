@@ -216,6 +216,9 @@ function GC.AppRuns.Adopt()
   for _, rawRun in ipairs(raw.runs) do
     local run = copyRun(rawRun, "app")
     if run then
+      -- When the site's prices on these lines were fetched: a WoW: Forever crowd price seen after
+      -- this moment is the fresher look and wins over a line's own `u` (Core/BuyRun.lua).
+      run.pricedAt = raw.generatedAt
       -- Compared against what this code held BEFORE the replacement: `db.runs` is still the
       -- previous generation here, and a paste is never compared -- the site did not write it,
       -- so it has nothing to say about it having changed.

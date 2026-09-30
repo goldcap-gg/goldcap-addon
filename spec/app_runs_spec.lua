@@ -28,6 +28,15 @@ describe("AppRuns", function()
   end)
 
   describe("Adopt", function()
+    -- BUY 2.0 (WoW: Forever): a line's own price is the site's as of the moment the companion
+    -- fetched the runs; a crowd price seen after that moment is the fresher look and wins.
+    it("stamps each adopted run with the moment its prices were fetched", function()
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 777,
+        runs = { { code = "a", updatedAt = 5, lines = { { i = 1, q = 1, u = 50 } } } } }
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(777, GC.db.runs.a.pricedAt)
+    end)
+
     it("adopts a valid global and exposes it, ignoring what it says about a plan", function()
       _G.GoldCap_AppRuns = fixture()
       assert.is_true(GC.AppRuns.Adopt())

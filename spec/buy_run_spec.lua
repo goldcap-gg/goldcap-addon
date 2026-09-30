@@ -574,3 +574,51 @@ describe("BuyRun: the player's own cap", function()
     assert.equal("default", obj:Lines()[1].capFrom)
   end)
 end)
+
+-- WoW: Forever: a crowd price (other players' scans) seen AFTER the list was priced is the fresher
+-- look at the same shelf, and replaces the list's own price. Retail has no crowd price at all.
+describe("BuyRun: a crowd reference", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(ref, pricedAt, u)
+    local run = { code = "r", pricedAt = pricedAt, updatedAt = 1, lines = { { i = 1, q = 3, u = u } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end,
+      usualUnit = function() return 55 end, capPct = function() return 100 end,
+      usualRef = function() return ref end })
+    obj:Refresh()
+    return obj:Lines()[1]
+  end
+  local CROWD = { value = 70, source = "crowd", scanners = 3, at = 5000 }
+  it("replaces the list's price when it was seen after the list was priced", function()
+    local got = build(CROWD, 4000, 90)
+    assert.equal(70, got.usual)
+    assert.same(CROWD, got.usualRef)
+  end)
+  it("leaves the list's price when the list is newer", function()
+    local got = build(CROWD, 6000, 90)
+    assert.equal(90, got.usual)
+    assert.is_nil(got.usualRef)
+  end)
+  it("prices a line the list could not price", function()
+    local got = build(CROWD, 6000, nil)
+    assert.equal(70, got.usual)
+    assert.same(CROWD, got.usualRef)
+  end)
+  it("changes nothing without one (retail)", function()
+    local got = build(nil, 4000, 90)
+    assert.equal(90, got.usual)
+    assert.is_nil(got.usualRef)
+    assert.equal(55, build(nil, 4000, nil).usual)
+  end)
+  it("falls back to the run's own time for a run nobody stamped (a paste)", function()
+    local run = { code = "p", updatedAt = 6000, lines = { { i = 1, q = 3, u = 90 } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end, usualUnit = function() end,
+      capPct = function() return 100 end, usualRef = function() return CROWD end })
+    obj:Refresh()
+    assert.equal(90, obj:Lines()[1].usual)
+  end)
+end)
