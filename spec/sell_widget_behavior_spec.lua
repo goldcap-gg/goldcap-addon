@@ -2,6 +2,9 @@ local helper = require("spec.spec_helper")
 
 describe("Sell widget geometry and manual cost", function()
   local made
+  -- How wide a FontString's text is, the client's GetUnboundedStringWidth. Zero unless a test
+  -- sets it, which leaves every content-sized column at its design width.
+  local textWidth
 
   local function region(kind, parent)
     local value = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -32,6 +35,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetWordWrap(enabled) self.wordWrap = enabled end
     function value:SetMaxLines(lines) self.maxLines = lines end
     function value:SetTextColor(...) self.color = { ... } end
+    function value:GetUnboundedStringWidth() return textWidth and textWidth(self) or 0 end
     function value:SetAutoFocus() end
     -- The price box commits on Enter and on focus loss, and both clear focus afterwards.
     function value:ClearFocus() self.focused = false end
@@ -2742,6 +2746,27 @@ describe("Sell widget geometry and manual cost", function()
       assert.same({ 0, 1, 0, 1 }, rows[1].grossNote.color)
       rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
       assert.equal("no cost", rows[1].grossNote.text)
+    end)
+
+    -- Owner, ruRU, Forever beta 2026-10-01: "нет себестоимости" under YOU GET ran across the
+    -- price column's queue line, and the fix may not be an ellipsis either -- text is read in
+    -- full. So a column is at least as wide as its longest heading and second line.
+    it("widens a figure column to fit its longest translation instead of cutting it", function()
+      textWidth = function(fs) return #(fs.text or "") * 7 end
+      local GC = load(620, { calls = {} })
+      GC.Locales.longtest = { ["no cost"] = string.rep("n", 30), ["YOU GET"] = string.rep("y", 20) }
+      GC.ActivateLocale("longtest")
+      local rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      local row = rows[1]
+      textWidth = nil
+      GC.ActivateLocale(nil)
+      assert.equal(string.rep("n", 30), row.grossNote.text)
+      assert.is_true(row.cells.gross.width >= 30 * 7, "the column must hold its second line whole")
+      -- Held by both edges of its own column: it can neither spill left nor be cut short.
+      local anchors = {}
+      for _, p in ipairs(row.grossNote.points) do anchors[p.point] = p.relative end
+      assert.equal(row.cells.gross, anchors.LEFT)
+      assert.equal(row.cells.gross, anchors.RIGHT)
     end)
 
     it("puts the second lines away on a pooled row that stops being a position", function()

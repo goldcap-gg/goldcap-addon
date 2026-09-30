@@ -3478,6 +3478,11 @@ do
   end
 end
 
+-- Content-sized figure columns. FIT.need (defined below ROW, which it reads) answers how wide a
+-- column must be to print its longest heading and second line in full in the active language
+-- and font scale; shownColumns never makes a column narrower than that.
+local FIT = {}
+
 local function shownColumns()
   local width = INSP.listWidth()
   local deck = (filterMode == "listed" or filterMode == "cancelqueue") and "listed" or "post"
@@ -3489,6 +3494,15 @@ local function shownColumns()
   -- last render would otherwise keep painting it here forever.
   for _, column in ipairs(COLUMNS) do
     if not inDeck[column.key] then dropped[column.key] = true end
+  end
+
+  -- A translation longer than the column's design width widens the column rather than being cut:
+  -- the flexible ITEM column gives up the difference.
+  for _, column in ipairs(COLUMNS) do
+    if not column.flex and not dropped[column.key] then
+      local need = FIT.need(column.key, deck)
+      if need > column.w then columnWidth[column.key] = need end
+    end
   end
 
   local function remaining()
@@ -3507,7 +3521,9 @@ local function shownColumns()
     if remaining() < ITEM_MIN then columnWidth.status = STATUS_MIN end
     if remaining() < ITEM_MIN then
       for _, column in ipairs(COLUMNS) do
-        if column.min then columnWidth[column.key] = column.min end
+        if column.min then
+          columnWidth[column.key] = math.max(column.min, FIT.need(column.key, deck))
+        end
       end
     end
     for _, key in ipairs(DECK_SHED[deck]) do
@@ -3566,27 +3582,21 @@ local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP
 -- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
 ROW.MARKS_W = 5 + ROW.MARKS * 3 + (ROW.MARKS - 1) * 2
 
--- The stand line hugs its marks, so unlike the other second lines it cannot be pinned to both
--- edges of its column: it keeps its own width, capped at what the column leaves beside the
--- marks, and truncates past that ("первый в очереди" or "%s por debajo de ti" in a narrow
--- window). SetWidth(0) first: rows are pooled, and a cap from the last paint would clip a
--- shorter line this time. Hung on ROW rather than a new local -- renderRows is close to
--- Lua 5.1's upvalue cap (see rowTag).
-function ROW.FitStand(row)
-  local stand = row.priceStand
-  stand:SetWidth(0)
-  -- columnWidth only names a column squeezed below its natural width; otherwise it is COLUMNS'.
-  local width = columnWidth.price
-  if not width then
-    for _, column in ipairs(COLUMNS) do
-      if column.key == "price" then width = column.w end
-    end
+-- One hidden probe per font size, the same face and size as the text it stands in for: the
+-- header cells (9), the stand line (10) and the margin line (11).
+function FIT.width(size, text)
+  if not container or not Theme or type(text) ~= "string" or text == "" then return 0 end
+  FIT.probes = FIT.probes or {}
+  local probe = FIT.probes[size]
+  if not probe then
+    probe = Theme.Num(container, size)
+    probe:Hide()
+    FIT.probes[size] = probe
   end
-  local room = (width or 0) - ROW.MARKS_W
-  if room > 0 and stand.GetUnboundedStringWidth and stand:GetUnboundedStringWidth() > room then
-    stand:SetWidth(room)
-  end
+  probe:SetText(text)
+  return probe.GetUnboundedStringWidth and probe:GetUnboundedStringWidth() or 0
 end
+
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -4048,6 +4058,35 @@ local HEADINGS_LISTED = {
   profit = "PROFIT / UNIT", status = "WHAT TO DO",
 }
 
+-- The widest thing a column prints besides its figure: its heading on either deck and, for the
+-- two figures that carry one, the second line. The count in the stand line is FormatCount's
+-- widest shape ("99.9k" -- five characters). Cached per language and font scale, the only two
+-- things that change the answer.
+function FIT.need(key, deck)
+  local scale = Theme and Theme.Scale and Theme.Scale() or 1
+  local stamp = tostring(GC.L["YOU GET"]) .. "|" .. tostring(scale) .. "|" .. tostring(deck)
+  if FIT.stamp ~= stamp then
+    FIT.stamp, FIT.cache = stamp, {}
+    local words = deck == "listed" and HEADINGS_LISTED or HEADINGS_POST
+    for columnKey, word in pairs(words) do
+      FIT.cache[columnKey] = FIT.width(9, GC.L[word])
+    end
+    local count = "99.9k"
+    local stand = math.max(FIT.width(10, GC.L["first in line"]),
+      FIT.width(10, (GC.L["%s ahead"]):format(count)),
+      FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
+      FIT.width(10, (GC.L["%s under you"]):format(count)))
+    if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
+    local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, "+9999%"))
+    if margin > 0 then FIT.cache.gross = math.max(FIT.cache.gross or 0, margin) end
+    -- A few pixels of air: an exactly-fitting string sits flush against its neighbour.
+    for columnKey, width in pairs(FIT.cache) do
+      FIT.cache[columnKey] = width > 0 and math.ceil(width + 6) or 0
+    end
+  end
+  return FIT.cache[key] or 0
+end
+
 local function paintHeaderText(header, deck)
   local words = deck == "listed" and HEADINGS_LISTED or HEADINGS_POST
   for key, cell in pairs(header.cells) do
@@ -4121,11 +4160,12 @@ local function layoutCells(row)
       if second then
         second:ClearAllPoints()
         second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
-        -- Held inside its own column, so a translation longer than the column truncates there
-        -- instead of growing leftwards over the neighbour's line: "нет себестоимости" under YOU
-        -- GET was written straight across "24 впереди" under the price (owner, ruRU, Forever
-        -- beta 2026-10-01). The stand line is the one exception -- its marks hang off its left
-        -- edge, so it keeps its own width and ROW.FitStand caps that instead.
+        -- Held inside its own column: "нет себестоимости" under YOU GET grew leftwards straight
+        -- across "24 впереди" under the price (owner, ruRU, Forever beta 2026-10-01). The column
+        -- itself is sized to fit its longest second line (FIT.need), so nothing here is ever cut
+        -- short -- the owner's rule is that text is read in full, never ended with "…". The stand
+        -- line keeps its own width because its marks hang off its left edge; FIT.need leaves room
+        -- for them.
         if second ~= row.priceStand then
           second:SetPoint("LEFT", cell, "LEFT", 0, -2 * ROW.LIFT)
         end
@@ -5626,7 +5666,6 @@ renderRows = function()
           setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
             and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
         end
-        ROW.FitStand(row)
         -- Post is the point of this screen, so it lives on the row itself. It
         -- used to be reachable only by expanding the position and finding a
         -- sub-row, and only for stock GoldCap had a receipt for -- which is why

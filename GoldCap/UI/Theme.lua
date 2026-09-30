@@ -448,9 +448,12 @@ function T.RailButton(parent, iconFile, labelText)
   b.highlightTexture:SetBlendMode("ADD")
 
   -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
-  -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
-  b:SetScript("OnDisable", function() b.highlightTexture:SetAlpha(0) end)
-  b:SetScript("OnEnable", function() b.highlightTexture:SetAlpha(1) end)
+  -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script.
+  -- Hide/Show, never SetAlpha: on a texture, SetAlpha writes the same alpha SetVertexColor set,
+  -- so SetAlpha(1) on the way back turned the 18% wash into solid gold -- a tab the player had
+  -- visited and left lit up bright yellow under the cursor (owner, Forever beta 2026-10-01).
+  b:SetScript("OnDisable", function() b.highlightTexture:Hide() end)
+  b:SetScript("OnEnable", function() b.highlightTexture:Show() end)
 
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
@@ -931,8 +934,9 @@ function T.Button(parent, variant, rounded)
     if b.ringAsked then b.ring:SetAlpha(0.45) end
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
     -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
-    -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
-    b.highlightTexture:SetAlpha(0)
+    -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script --
+    -- hidden, not SetAlpha(0): see T.RailButton for how SetAlpha(1) turned the wash solid.
+    b.highlightTexture:Hide()
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
@@ -945,7 +949,7 @@ function T.Button(parent, variant, rounded)
       b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     end
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-    b.highlightTexture:SetAlpha(1)
+    b.highlightTexture:Show()
   end)
 
   return b
