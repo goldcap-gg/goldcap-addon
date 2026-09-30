@@ -3203,6 +3203,7 @@ local function paintBand()
         if cost then sum, estimated = sum + cost, estimated or est end
       end
     end
+    band.totalCaption:Show()
     band.total:SetText(ready > 0 and ((estimated and "~" or "") .. formatAmount(sum)) or EM_DASH)
     local width = ((container and container:GetWidth()) or 0) - (GC.Buy._leftInset or 0)
     if totalCount > 0 and doneCount > 0 and width > 0 then
@@ -3216,6 +3217,7 @@ local function paintBand()
     -- than no picker at all.
     band.picker:Hide()
     band.done:SetText("")
+    band.totalCaption:Hide()
     band.total:SetText("")
     band.fill:Hide()
   end

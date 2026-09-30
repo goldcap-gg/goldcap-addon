@@ -692,6 +692,7 @@ describe("BuyFrame", function()
     assert.truthy(shownTexts():find("No runs yet.", 1, true))
     assert.is_false(bandOf().picker:IsShown())
     assert.equal("", bandOf().done:GetText())
+    assert.is_false(bandOf().totalCaption:IsShown())
     assert.is_false(dock():IsShown())
   end)
 
