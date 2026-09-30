@@ -38,7 +38,9 @@ local BUY_BAGS = { 0, 1, 2, 3, 4, 5 }
 local EM_DASH = "—"
 
 local BD = {
-  BAND_HEIGHT = 44, -- header band: the run picker + two text lines above the table
+  -- The band above the table: the list picker, how much of it is done, what is left to buy here
+  -- and a thin progress bar. Its least height; it grows when a long name or line wraps (layoutBand).
+  BAND_HEIGHT = 48,
   HEADER_H = 16,    -- column header row height, matches Deals' CH.HEADER
   -- How long a NOW price is allowed to stand before this tab asks again. Twenty seconds is
   -- the shopping rhythm, not a network budget: the batch costs one throttled message, and a
@@ -534,6 +536,7 @@ local function runList()
   return (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List()) or {}
 end
 local openRunMenu -- defined after cycleRun; the band's picker is the only caller
+local vendorListText -- defined with the rows; the run menu's "Copy vendor list" reads it
 
 -- The run's own name if the site gave it one, otherwise its code -- never an invented label.
 local function runLabel(run)
@@ -729,6 +732,14 @@ openRunMenu = function(owner)
         end
       end
       root:CreateButton(GC.L["Archive this run"], archiveCurrentRun)
+    end
+    -- The run's vendor stops as text to take out of the game: the one part of a run the game
+    -- cannot help with. Harmless for a run the site owns too.
+    if vendorListText() then
+      root:CreateButton(GC.L["Copy vendor list"], function()
+        local text = vendorListText()
+        if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
+      end)
     end
     if shown and shown.origin == "paste" then
       root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
@@ -2517,8 +2528,8 @@ end
 -- The run's vendor stops as one block of text: what to buy, what each costs and what the trip
 -- comes to. Only lines with something still to buy -- this is a shopping list, not an inventory
 -- -- and a line the site could not price is named without a price rather than with a blank one.
--- nil when there is nothing to copy, which is also when the button is hidden.
-local function vendorListText()
+-- nil when there is nothing to copy, which is also when the run menu offers no copy.
+vendorListText = function()
   if not current then return nil end
   local out, total = {}, 0
   for _, line in ipairs(current:Lines()) do
@@ -2538,12 +2549,20 @@ local function vendorListText()
   return table.concat(out, "\n")
 end
 
--- The header band: the run picker and the run's line counts on one line, the money, the vendor
--- button and the bags legend under them. SellFrame/SoldFrame's header-band convention.
+-- The band above the table (BUY 2.0): the list picker, under it how much of the list is done
+-- (and whose it is, and what the site last changed), on the right TO BUY HERE and the total of every
+-- line ready to buy, and a thin progress bar along the bottom. SellFrame/SoldFrame's header-band
+-- convention.
 local function createBand(parent)
-  local picker = Theme.Button(parent, "ghost", "badge")
-  picker:SetSize(150, 20)
+  local picker = Theme.Button(parent, "ghost", "plaque")
+  picker:SetSize(150, 24)
   picker:SetPoint("TOPLEFT", 0, -2)
+  -- A list's name is the player's own words, of any length: the picker's label wraps rather than
+  -- being cut (layoutBand grows the button to it).
+  if picker.text then
+    picker.text:SetWordWrap(true)
+    picker.text:SetMaxLines(3)
+  end
   -- A menu of every run the addon holds, with remove and paste beside it. MenuUtil is the
   -- engine's own framework (UI/SettingsFrame.lua's language picker opens one the same way);
   -- a client without it falls back to cycling, which is what the button used to do and what
@@ -2562,63 +2581,44 @@ local function createBand(parent)
   end)
   picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
-  local counts = Theme.Num(parent, 9)
-  counts:SetJustifyH("RIGHT")
-  counts:SetWordWrap(false)
-  counts:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -6)
-  counts:SetPoint("LEFT", picker, "RIGHT", Theme.pad.s, 0)
-  setColor(counts, Theme.color.fgDim)
+  local totalCaption = Theme.Num(parent, 9)
+  totalCaption:SetJustifyH("RIGHT")
+  totalCaption:SetWordWrap(false)
+  totalCaption:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -4)
+  totalCaption:SetText(GC.L["TO BUY HERE"])
+  setColor(totalCaption, Theme.color.fgDim)
+  local total = Theme.Num(parent, 14, true)
+  total:SetJustifyH("RIGHT")
+  total:SetWordWrap(false)
+  total:SetPoint("TOPRIGHT", totalCaption, "BOTTOMRIGHT", 0, -3)
 
-  -- What the HAVE column counts -- the bags plus every bank the character can reach -- and where
-  -- a purchase actually turns up: the auction house delivers commodities as mail, so a bought
-  -- line's HAVE does not move until the mailbox is emptied. Said once here rather than on every
-  -- row that is waiting for it.
-  -- Anchored first and by its RIGHT edge alone, so its width is its own text -- `spent` below
-  -- binds to its LEFT, and binding them to each other in both directions would be circular.
-  local bags = Theme.Num(parent, 9)
-  bags:SetJustifyH("RIGHT")
-  bags:SetWordWrap(false)
-  bags:SetPoint("TOPRIGHT", 0, -26)
-  bags:SetText(GC.L["in bags and bank · purchases arrive by mail"])
-  setColor(bags, Theme.color.fgDim)
+  -- How much of the list is done, whose it is and what the site last changed: wraps rather than
+  -- running under the total.
+  local done = Theme.Num(parent, 9)
+  done:SetJustifyH("LEFT")
+  done:SetWordWrap(true)
+  setColor(done, Theme.color.fgDim)
 
-  -- Shown only for a run that still has a vendor stop (renderRows). A vendor trip is the one
-  -- part of a run the game cannot help with, so the list leaves the game as text.
-  -- On the SECOND line, hung off the legend: `counts` above has two opposing anchors and no
-  -- width of its own, so a button parked in front of it is what its text overflows onto the
-  -- moment the tab is docked narrow.
-  local vendorBtn = Theme.Button(parent, "ghost", "badge")
-  vendorBtn:SetSize(120, 20)
-  vendorBtn:SetPoint("RIGHT", bags, "LEFT", -Theme.pad.s, 0)
-  vendorBtn:SetLabel(GC.L["Copy vendor list"])
-  vendorBtn:SetScript("OnClick", function()
-    local text = vendorListText()
-    if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
-  end)
-  vendorBtn:Hide()
-
-  local spent = Theme.Num(parent, 10)
-  spent:SetJustifyH("LEFT")
-  spent:SetWordWrap(false)
-  spent:SetPoint("TOPLEFT", 0, -26)
-  spent:SetPoint("RIGHT", bags, "LEFT", -Theme.pad.s, 0)
-  setColor(spent, Theme.color.fgMuted)
-
-  -- Band rule: a separate frame pinned to the band's own height so the 1px line sits at the
-  -- band's bottom edge regardless of where the text above it ends.
+  -- A frame pinned to the band's own height, so the progress bar sits at the band's bottom edge
+  -- regardless of where the text above it ends.
   local bandFrame = CreateFrame("Frame", nil, parent)
   bandFrame:SetPoint("TOPLEFT", 0, 0)
   bandFrame:SetPoint("TOPRIGHT", 0, 0)
   bandFrame:SetHeight(BD.BAND_HEIGHT)
-  local bc = Theme.color.border
-  local rule = bandFrame:CreateTexture(nil, "ARTWORK")
-  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
-  rule:SetPoint("BOTTOMLEFT")
-  rule:SetPoint("BOTTOMRIGHT")
-  rule:SetHeight(1)
+  local bc, gc = Theme.color.border, Theme.color.gold
+  local track = bandFrame:CreateTexture(nil, "ARTWORK")
+  track:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  track:SetPoint("BOTTOMLEFT")
+  track:SetPoint("BOTTOMRIGHT")
+  track:SetHeight(2)
+  local fill = bandFrame:CreateTexture(nil, "OVERLAY")
+  fill:SetColorTexture(gc[1], gc[2], gc[3], 0.9)
+  fill:SetPoint("BOTTOMLEFT")
+  fill:SetHeight(2)
+  fill:Hide()
 
-  return { picker = picker, vendor = vendorBtn, counts = counts, spent = spent,
-           bags = bags, rule = rule }
+  return { picker = picker, done = done, totalCaption = totalCaption, total = total,
+           track = track, fill = fill, frame = bandFrame, h = BD.BAND_HEIGHT }
 end
 
 -- A button exactly as wide as its label in the player's language, and never under `minW`: the
@@ -2713,19 +2713,105 @@ local function layoutDock(dock)
   return h
 end
 
+-- The band's geometry for what it now says: the picker as wide as the list's name -- wrapping
+-- when the name is longer than the room beside the total -- the done line under it wrapping
+-- before the total, and the band as tall as all of that.
+local function layoutBand()
+  local picker = band.picker
+  local width = container and container:GetWidth() or 0
+  local rightW = math.max(measured(band.totalCaption) or 0, measured(band.total) or 0, 60)
+  local labelW = picker.text and measured(picker.text)
+  local pickerH = 24
+  if labelW then
+    local want = math.max(120, labelW + 2 * Theme.pad.m)
+    if width > 0 then want = math.min(want, width - rightW - Theme.pad.m) end
+    picker:SetWidth(want)
+    if picker.text.GetStringHeight then
+      pickerH = math.max(24, math.ceil(picker.text:GetStringHeight() + 8))
+    end
+    picker:SetHeight(pickerH)
+  end
+  band.done:ClearAllPoints()
+  band.done:SetPoint("TOPLEFT", picker, "BOTTOMLEFT", 4, -4)
+  band.done:SetPoint("RIGHT", band.total, "LEFT", -Theme.pad.m, 0)
+  local doneH = band.done.GetStringHeight and band.done:GetStringHeight() or 0
+  local h = math.max(BD.BAND_HEIGHT, math.ceil(2 + pickerH + 4 + doneH + 8))
+  if h ~= band.h then
+    band.h = h
+    band.frame:SetHeight(h)
+  end
+end
+
+-- The band for the run on screen: its name on the picker, how much of it is done, TO BUY HERE
+-- and the total of every line ready to buy (an estimate, marked, while any part is one), the
+-- progress bar, and the BUY rail badge's count.
+local function paintBand()
+  local ready = 0
+  if current then
+    local shown = shownRunData()
+    local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
+    band.picker:SetLabel(runLabel(current) .. " ▼")
+    band.picker:Show()
+    local lines = current:Lines()
+    local doneCount, totalCount = GC.BuyView.Progress(lines)
+    -- An alert run is not a shopping list somebody wrote: it is what the group found, and every
+    -- line of it is one hit -- the run's own lines, that is: a reagent the player split a hit
+    -- into is part of that hit, not another one the group found.
+    local doneText = (shown and shown.k == "alert")
+      and (GC.L["alert group · %d hits"]):format(current:Totals().topLines)
+      or (GC.L["%d of %d done"]):format(doneCount, totalCount)
+    if sharedBy then doneText = ("%s · %s"):format(doneText, (GC.L["from %s"]):format(sharedBy)) end
+    -- What the site last changed about the plan, for the day it is news.
+    local notice = noticeText(current:Code())
+    if notice then doneText = ("%s · %s"):format(doneText, notice) end
+    band.done:SetText(doneText)
+    local sum, estimated = 0, false
+    for _, line in ipairs(lines) do
+      if lineStatus(line) == "ready" then
+        ready = ready + 1
+        local cost, est = GC.BuyView.CostOf(line, recentQuote(line))
+        if cost then sum, estimated = sum + cost, estimated or est end
+      end
+    end
+    band.total:SetText(ready > 0 and ((estimated and "~" or "") .. formatAmount(sum)) or EM_DASH)
+    local width = (container and container:GetWidth()) or 0
+    if totalCount > 0 and doneCount > 0 and width > 0 then
+      band.fill:SetWidth(math.max(1, width * doneCount / totalCount))
+      band.fill:Show()
+    else
+      band.fill:Hide()
+    end
+  else
+    -- Nothing to name and nothing to count: a picker offering a run that does not exist is worse
+    -- than no picker at all.
+    band.picker:Hide()
+    band.done:SetText("")
+    band.total:SetText("")
+    band.fill:Hide()
+  end
+  GC.Buy._readyCount = ready
+  if GC.Sniper and GC.Sniper.UpdateBuyTabLabel then GC.Sniper.UpdateBuyTabLabel() end
+  layoutBand()
+end
+
+-- How many lines of the run on screen are ready to buy at or under their cap: the BUY rail
+-- button's badge (UI/SniperFrame.lua's GC.Sniper.UpdateBuyTabLabel).
+function GC.Buy.ReadyCount() return GC.Buy._readyCount or 0 end
+
 -- Where the column headings and the list sit: under the band, above the dock. Re-anchored only
 -- when that changes -- this runs on every render.
 local function layoutBody()
   local header, scroll = band.header, band.scroll
   local dock = band.dock
   local bottom = (dock and dock:IsShown()) and (dock.h or BD.DOCK_H) or 0
-  if band.bodyBottom == bottom then return end
-  band.bodyBottom = bottom
+  local top = band.h or BD.BAND_HEIGHT
+  if band.bodyBottom == bottom and band.bodyTop == top then return end
+  band.bodyBottom, band.bodyTop = bottom, top
   header:ClearAllPoints()
-  header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -BD.BAND_HEIGHT)
-  header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -BD.BAND_HEIGHT)
+  header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -top)
+  header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -top)
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(BD.BAND_HEIGHT + BD.HEADER_H + Theme.pad.xs))
+  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(top + BD.HEADER_H + Theme.pad.xs))
   scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, bottom)
 end
 
@@ -2866,66 +2952,7 @@ local function renderRows()
   end
   local entries = buildEntries()
 
-  if current then
-    local totals = current:Totals()
-    local shown = shownRunData()
-    local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
-    local label = runLabel(current)
-    if sharedBy then
-      label = ("%s · %s"):format(label, (GC.L["from %s"]):format(sharedBy))
-    end
-    band.picker:SetLabel(label .. " ▼")
-    band.picker:Show()
-    local counts
-    if shown and shown.k == "alert" then
-      -- An alert run is not a shopping list somebody wrote: it is what the group found, and
-      -- every line of it is one hit -- the run's own lines, that is: a reagent the player split
-      -- a hit into is part of that hit, not another one the group found.
-      counts = (GC.L["alert group · %d hits"]):format(totals.topLines)
-    elseif totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0
-        and totals.atVendor == 0 then
-      -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of
-      -- saying it.
-      counts = GC.L["everything bought"]
-    elseif totals.toCraft > 0 then
-      counts = (GC.L["%d lines · %d to buy · %d to craft · %d at the vendor"]):format(
-        totals.lines, totals.toBuy, totals.toCraft, totals.atVendor)
-    else
-      counts = (GC.L["%d lines · %d to buy · %d at the vendor"]):format(
-        totals.lines, totals.toBuy, totals.atVendor)
-    end
-    if sharedBy then
-      counts = ("%s · %s"):format(counts, (GC.L["from %s"]):format(sharedBy))
-    end
-    band.counts:SetText(counts)
-    -- The legend's slot carries the recompute notice while there is one. The legend is
-    -- permanently true and can be read any day; the notice is true for one, and this is the
-    -- only line on the band that is not about the run's own numbers. Text only -- the money
-    -- line and the vendor button hang off this string's anchors, which do not move.
-    band.bags:SetText(noticeText(current:Code())
-      or GC.L["in bags and bank · purchases arrive by mail"])
-    if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
-    -- The money line stops where the button starts while the button is up, and runs to the
-    -- legend when it is not: a RIGHT anchor shared with the button would put the text UNDER
-    -- it, and a hidden frame still occupies its anchor width.
-    band.spent:ClearAllPoints()
-    band.spent:SetPoint("TOPLEFT", 0, -26)
-    if totals.atVendor > 0 then
-      band.spent:SetPoint("RIGHT", band.vendor, "LEFT", -Theme.pad.s, 0)
-    else
-      band.spent:SetPoint("RIGHT", band.bags, "LEFT", -Theme.pad.s, 0)
-    end
-    band.spent:SetText((GC.L["spent %s · left ~%s"]):format(
-      formatAmount(totals.spent), formatAmount(totals.left)))
-  else
-    -- Nothing to name and nothing to count: a picker offering a run that does not exist is
-    -- worse than no picker at all.
-    band.picker:Hide()
-    band.vendor:Hide()
-    band.counts:SetText("")
-    band.bags:SetText(GC.L["in bags and bank · purchases arrive by mail"])
-    band.spent:SetText("")
-  end
+  paintBand()
 
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   -- Painted first, measured second, laid out last: a column is as wide as the widest thing this

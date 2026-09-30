@@ -379,27 +379,28 @@ describe("BuyFrame", function()
     assert.equal(8, #shownRows())
   end)
 
-  it("counts lines, buys and vendor stops in the header band", function()
-    local band = bandOf()
-    assert.equal("4 lines · 2 to buy · 1 at the vendor", band.counts:GetText())
-    assert.truthy(band.spent:GetText():find("spent ", 1, true))
-    assert.truthy(band.spent:GetText():find("left ~", 1, true))
-    assert.equal("in bags and bank · purchases arrive by mail", band.bags:GetText())
+  it("says in the band how many of the run's lines are done", function()
+    -- Bravo Ore is covered by the five in the bag; the other three are still open.
+    assert.equal("1 of 4 done", bandOf().done:GetText())
   end)
 
-  -- Spec rule 5: a run with nothing left to buy and nothing left to fetch says so, rather than
-  -- counting three zeroes at the player.
+  -- Spec rule 5: a run with nothing left says so -- the band counts every line done, and the
+  -- dock says everything here is bought.
   it("says everything is bought when the run has nothing left", function()
     GC.AppRuns._set({ run({ code = "run-d", updatedAt = 900,
       lines = { { i = 102, q = 5 }, { i = 104, q = 0, v = true } } }) })
     GC.db.settings.sniper.buyRun = "run-d"
     GC.Buy.Show()
-    assert.equal("everything bought", bandOf().counts:GetText())
-    assert.is_truthy(bandOf().spent:GetText():find("spent ", 1, true))
+    assert.equal("2 of 2 done", bandOf().done:GetText())
+    assert.equal("Everything here is bought", dock().title:GetText())
+    assert.equal("—", bandOf().total:GetText())
   end)
 
-  it("still counts the lines while anything is left", function()
-    assert.equal("4 lines · 2 to buy · 1 at the vendor", bandOf().counts:GetText())
+  it("draws the progress bar over the done share of the run", function()
+    containerOf().width = 600
+    GC.Buy.RefreshIfShown()
+    assert.is_true(bandOf().fill:IsShown())
+    assert.equal(150, bandOf().fill.width) -- one of four done
   end)
 
   it("names the run on the picker and cycles to the next one, remembering the choice", function()
@@ -439,10 +440,11 @@ describe("BuyFrame", function()
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
     assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
-      "divider", "Cap: 130%", "Archive this run", "Remove this run", "Paste a run..." }, texts)
+      "divider", "Cap: 130%", "Archive this run", "Copy vendor list", "Remove this run",
+      "Paste a run..." }, texts)
 
     -- Remove drops the pasted run and lands on the one left.
-    entries[7].fn()
+    entries[8].fn()
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
@@ -463,7 +465,8 @@ describe("BuyFrame", function()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
     assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
-      "Archive this run", "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+      "Archive this run", "Copy vendor list", "From goldcap.gg — remove it there", "Paste a run..." },
+      entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -662,7 +665,8 @@ describe("BuyFrame", function()
     assert.is_nil(GC.Buy.CurrentRun())
     assert.truthy(shownTexts():find("No runs yet.", 1, true))
     assert.is_false(bandOf().picker:IsShown())
-    assert.equal("", bandOf().counts:GetText())
+    assert.equal("", bandOf().done:GetText())
+    assert.is_false(dock():IsShown())
   end)
 
   it("recounts what is in the bags when the bags change", function()
@@ -893,8 +897,25 @@ describe("BuyFrame", function()
     assert.is_false(vendor.cells.cost:IsShown())
   end)
 
-  -- Spec rule 2: the run header offers the vendor stops as a block of plain text, because the
+  -- Spec rule 2: the run menu offers the vendor stops as a block of plain text, because the
   -- player has to read them off the screen while standing at a vendor.
+  local function copyVendorList()
+    local copied, offered
+    GC.UI = { ShowVendorList = function(text) copied = text end }
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function() end, CreateDivider = function() end,
+        CreateButton = function(_, text, fn)
+          if text == "Copy vendor list" then offered = true; fn() end
+          return {}
+        end,
+      })
+    end }
+    bandOf().picker.scripts.OnClick(bandOf().picker)
+    _G.MenuUtil = nil
+    return copied, offered
+  end
+
   it("copies the run's vendor stops out as a list with a total", function()
     GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900, lines = {
       { i = 101, q = 10 }, { i = 104, q = 5, v = true, vu = 25 },
@@ -902,13 +923,8 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-v"
     GC.Buy.Show()
 
-    local copied
-    GC.UI = { ShowVendorList = function(text) copied = text end }
-    local band = bandOf()
-    assert.is_true(band.vendor:IsShown())
-    assert.equal("Copy vendor list", band.vendor.label)
-    band.vendor.scripts.OnClick(band.vendor)
-
+    local copied, offered = copyVendorList()
+    assert.is_true(offered)
     -- Plain money, never GetCoinTextureString: the icon escapes copy out of the box as
     -- |TInterface\...|t, which is not something a player can read at a vendor.
     assert.equal("5× Delta Vial · 25c each · 1s25c\n"
@@ -921,58 +937,16 @@ describe("BuyFrame", function()
       { i = 101, q = 10 }, { i = 104, q = 5, v = true } } }) })
     GC.db.settings.sniper.buyRun = "run-v"
     GC.Buy.Show()
-    local copied
-    GC.UI = { ShowVendorList = function(text) copied = text end }
-    bandOf().vendor.scripts.OnClick(bandOf().vendor)
-    assert.equal("5× Delta Vial\nTotal: 0c", copied)
+    assert.equal("5× Delta Vial\nTotal: 0c", (copyVendorList()))
   end)
 
-  it("hides the button for a run with no vendor stop", function()
+  it("offers no vendor list for a run with no vendor stop", function()
     GC.AppRuns._set({ run({ code = "run-n", updatedAt = 900, lines = { { i = 101, q = 10 } } }) })
     GC.db.settings.sniper.buyRun = "run-n"
     GC.Buy.Show()
-    assert.is_false(bandOf().vendor:IsShown())
+    local _, offered = copyVendorList()
+    assert.is_nil(offered)
   end)
-
-  -- The money line yields to the vendor button while the button is up, and takes the whole
-  -- width back when it is not -- a shared RIGHT anchor would draw the text under the button.
-  it("stops the money line at the vendor button while the button is shown", function()
-    local function rightOf(fs)
-      for _, p in ipairs(fs.points) do if p.point == "RIGHT" then return p end end
-    end
-    GC.AppRuns._set({ run() })   -- has a vendor line still to buy
-    GC.Buy.SelectRun("run-1")
-    GC.Buy.Show()
-    local band = bandOf()
-    assert.is_true(band.vendor:IsShown())
-    assert.equal(band.vendor, rightOf(band.spent).relative)
-    GC.AppRuns._set({ run({ code = "run-2", lines = { { i = 101, q = 10 } } }) })   -- no vendor stop
-    GC.Buy.SelectRun("run-2")
-    GC.Buy.Show()
-    band = bandOf()
-    assert.is_false(band.vendor:IsShown())
-    assert.equal(band.bags, rightOf(band.spent).relative)
-  end)
-
-  -- The button hangs off the legend on the band's SECOND line, not between the picker and the
-  -- counts on the first: the counts string has two opposing anchors and no width of its own, so
-  -- anything parked in front of it is what the text overflows onto at a narrow docked width.
-  it("hangs the vendor button off the legend, leaving line one to the picker and the counts",
-    function()
-      local band = bandOf()
-      local anchor
-      for _, p in ipairs(band.vendor.points) do if p.point == "RIGHT" then anchor = p end end
-      assert.truthy(anchor)
-      assert.equal(band.bags, anchor.relative)
-      assert.equal("LEFT", anchor.relativePoint)
-      assert.equal(-GC.Theme.pad.s, anchor.x)
-
-      local countsLeft
-      for _, p in ipairs(band.counts.points) do if p.point == "LEFT" then countsLeft = p end end
-      assert.truthy(countsLeft)
-      assert.equal(band.picker, countsLeft.relative)
-      assert.equal("RIGHT", countsLeft.relativePoint)
-    end)
 
   it("labels the column header row ITEM/PRICE EACH/COST", function()
     local header = bandOf().header
@@ -1178,20 +1152,21 @@ describe("BuyFrame", function()
     assert.is_false(rowWithText("Charlie Dust").cells.cost:IsShown())
   end)
 
-  it("counts what is left to craft in the header band", function()
+  -- The run's own lines: the reagents a split put under a craft line are part of it.
+  it("counts a split run by its own lines", function()
     showCraftRun(true)
-    assert.equal("3 lines · 2 to buy · 1 to craft · 0 at the vendor", bandOf().counts:GetText())
+    assert.equal("0 of 1 done", bandOf().done:GetText())
   end)
 
   -- A run whose only open line is a craft is not a run with nothing left to do.
-  it("does not call a run with a craft still to make 'everything bought'", function()
+  it("does not call a run with a craft still to make done", function()
     GC.AppRuns._set({ { code = "run-cd", name = "Craft run", updatedAt = 900, origin = "app",
       lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
         { i = 102, q = 1, n = "Bravo Ore", u = 300 } } } } } } })
     GC.db.runSplits = { ["run-cd"] = { [101] = true } }
     GC.db.settings.sniper.buyRun = "run-cd"
     GC.Buy.Show()
-    assert.is_nil(bandOf().counts:GetText():find("everything bought", 1, true))
+    assert.equal("0 of 1 done", bandOf().done:GetText())
   end)
 
   it("never offers a craft line to a click or to the Enter key", function()
@@ -1408,7 +1383,7 @@ describe("BuyFrame", function()
       GC.AppRuns._set({ alertRun() })
       GC.db.settings.sniper.buyRun = "a0000001"
       GC.Buy.Show()
-      assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+      assert.equal("alert group · 2 hits", bandOf().done:GetText())
       for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
         if line.itemID == 101 then assert.equal(4000, line.cap) end
       end
@@ -1425,7 +1400,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "a0000001"
     GC.Buy.Show()
     assert.truthy(rowWithText("Charlie Dust"))
-    assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+    assert.equal("alert group · 2 hits", bandOf().done:GetText())
   end)
 
   it("puts alert runs under their own divider and leaves them to the site", function()
@@ -1446,29 +1421,27 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ run({ code = "shr30000", name = "Guild flasks", by = "Acromion" }) })
     GC.db.settings.sniper.buyRun = "shr30000"
     GC.Buy.Show()
-    assert.equal("Guild flasks · from Acromion ▼", bandOf().picker.label)
-    assert.equal("4 lines · 2 to buy · 1 at the vendor · from Acromion",
-      bandOf().counts:GetText())
+    assert.equal("Guild flasks ▼", bandOf().picker.label)
+    assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
     assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
-                  "divider", "From goldcap.gg — manage it there",
+                  "divider", "From goldcap.gg — manage it there", "Copy vendor list",
                   "Paste a run..." }, menuTexts)
   end)
 
   -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
-  -- for a day -- in the legend's slot, which is the only permanently-true line on the band and
-  -- so the cheapest thing to lend for a notice that expires.
+  -- for a day, after how much of the run is done.
   it("says in the band that the plan was updated, and for how long", function()
     GC.AppRuns._set({ run() })
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("plan updated on goldcap.gg · +2 −1 lines", bandOf().bags:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 −1 lines", bandOf().done:GetText())
 
-    -- A day old exactly: the legend comes back.
+    -- A day old exactly: the notice goes.
     GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
     GC.Buy.RefreshIfShown()
-    assert.equal("in bags and bank · purchases arrive by mail", bandOf().bags:GetText())
+    assert.equal("1 of 4 done", bandOf().done:GetText())
   end)
 
   it("says the plan was updated with no counts when only a quantity moved", function()
@@ -1476,7 +1449,7 @@ describe("BuyFrame", function()
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 0, removed = 0 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("plan updated on goldcap.gg", bandOf().bags:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg", bandOf().done:GetText())
   end)
 
   -- BUY 2.0: a line's cap is a price, stored beside the run (a companion sync replaces the run
@@ -1510,7 +1483,7 @@ describe("BuyFrame", function()
     pick(made)
     assert.is_false(dock().buy:IsShown())
     assert.equal("craft it yourself", dock().sub:GetText())
-    assert.equal("spent 0c · left ~1g", bandOf().spent:GetText()) -- 10 Alpha Herb at 1000c only
+    assert.equal("~1g", bandOf().total:GetText()) -- 10 Alpha Herb at 1000c only
   end)
 
   -- BUY 2.0's rows: ITEM (with how many are left to buy), PRICE EACH and COST, or one word in
@@ -1550,5 +1523,24 @@ describe("BuyFrame", function()
     GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
     assert.equal("at a vendor · 25c each", rowWithText("Delta Vial").status:GetText())
     assert.equal("at a vendor", rowWithText("Bravo Ore").status:GetText())
+  end)
+
+  -- BUY 2.0's band: the list, how much of it is done, and what is left to buy here.
+  it("totals what is ready to buy here, marked as an estimate while anything is one", function()
+    GC.Buy.RefreshIfShown()
+    -- 101 Alpha Herb: 10 at mv 1000; 102 Bravo Ore: covered by the bag; 103 Charlie Dust: 3 at mv
+    -- 3000; 104 Delta Vial: a vendor line. Ready: 101 and 103, nothing quoted yet.
+    assert.equal("TO BUY HERE", bandOf().totalCaption:GetText())
+    assert.equal("~1g90s", bandOf().total:GetText())
+    assert.equal("1 of 4 done", bandOf().done:GetText())
+  end)
+
+  it("puts the count of lines ready to buy on the BUY rail badge", function()
+    local badge
+    GC.Sniper = GC.Sniper or {}
+    GC.Sniper.UpdateBuyTabLabel = function() badge = GC.Buy.ReadyCount() end
+    GC.Buy.RefreshIfShown()
+    assert.equal(2, badge)
+    GC.Sniper.UpdateBuyTabLabel = nil
   end)
 end)

@@ -2620,6 +2620,15 @@ local function updateSellTabLabel()
 end
 GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 
+-- BUY 2.0: the BUY rail button's count of lines ready to buy at or under their cap
+-- (GC.Buy.ReadyCount, recounted each time the tab draws). A field, not a local: this chunk is
+-- 18 locals from Lua's ceiling.
+function GC.Sniper.UpdateBuyTabLabel()
+  if not frame or not frame.buyTab then return end
+  local n = GC.Buy and GC.Buy.ReadyCount and GC.Buy.ReadyCount() or 0
+  frame.buyTab:SetBadge(n > 0 and n or nil)
+end
+
 -- UI/SettingsFrame.lua's RESET WINDOW button needs the real built-in default to restore --
 -- exposed here (a table field, not a new top-level local: this file sits at its 200-local
 -- ceiling) rather than SettingsFrame.lua mirroring WIN.FRAME_WIDTH/HEIGHT in its own copy,
