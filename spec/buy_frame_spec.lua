@@ -1697,4 +1697,63 @@ describe("BuyFrame", function()
     GC.Buy._SetFilter("done")
     assert.is_true(bandOf().tools.frame:IsShown())
   end)
+
+  -- BUY 2.0: a wide window lists the player's lists on the left.
+  local function goWide(width)
+    local c = containerOf()
+    c.width = width or 1040
+    c.scripts.OnSizeChanged(c, c.width)
+    GC.Buy.Show()
+  end
+
+  it("shows your lists beside the list when the window is wide, with each one's progress", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local lists = GC.Buy._view.lists
+    assert.is_true(lists.frame:IsShown())
+    assert.equal("YOUR LISTS", lists.caption:GetText())
+    assert.equal("Flask run", lists.entries[1].button.label)
+    assert.equal("1 of 4", lists.entries[1].meta:GetText())
+    assert.equal("Alchemy restock", lists.entries[2].button.label)
+    assert.equal("0 of 1", lists.entries[2].meta:GetText()) -- no Charlie Dust in the bag
+    assert.equal("Lists come from goldcap.gg through the companion.", lists.footer:GetText())
+    -- The rest of the tab starts after the column.
+    assert.equal(196 + 12, GC.Buy._leftInset)
+    assert.equal(1040 - 208, GC.Buy._view.band.fill.width * 4) -- one of four done, across what is left
+  end)
+
+  it("picks a list from the column", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local b = GC.Buy._view.lists.entries[2].button
+    b.scripts.OnClick(b)
+    assert.equal("run-2", GC.Buy.CurrentRun():Code())
+  end)
+
+  it("counts an alert group's hits in the column", function()
+    GC.AppRuns._set({ run(), { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000 }, { i = 103, q = 2, cc = 1500 } } } })
+    goWide()
+    assert.equal("2 hits", GC.Buy._view.lists.entries[2].meta:GetText())
+  end)
+
+  -- Listing twenty runs must not write twenty rows of progress into SavedVariables.
+  it("reads the other lists' progress without writing any", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local stored = GC.db.buyProgress and GC.db.buyProgress["?"] or {}
+    assert.is_nil(stored["run-2"])
+  end)
+
+  it("keeps the column hidden in a docked or narrow window", function()
+    assert.is_false(GC.Buy._view.lists.frame:IsShown())
+    assert.equal(0, GC.Buy._leftInset)
+    goWide(1040)
+    goWide(700)
+    assert.is_false(GC.Buy._view.lists.frame:IsShown())
+    assert.equal(0, GC.Buy._leftInset)
+  end)
 end)

@@ -101,6 +101,10 @@ local BD = {
   -- than TOOLS_MIN_LINES, or while either is in use -- a short list is read at a glance.
   TOOLS_H = 26,
   TOOLS_MIN_LINES = 8,
+  -- A window at least this wide (undocked and dragged wide) lists the player's lists in a column
+  -- of its own on the left, LISTS_W across.
+  WIDE_MIN = 880,
+  LISTS_W = 196,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -547,6 +551,19 @@ local DRIVER = {
   end,
 }
 
+-- The same questions for a run that is NOT on screen, asked by the wide window's list column:
+-- its progress is read and never created -- DRIVER.progress makes an empty table for every run it
+-- is asked about, and listing twenty runs must not write twenty rows into SavedVariables.
+local LIST_DRIVER = setmetatable({
+  progress = function(code)
+    local db = GC.db
+    local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+    local mine = type(db) == "table" and type(db.buyProgress) == "table"
+      and db.buyProgress[context and context.char or "?"] or nil
+    return type(mine) == "table" and type(mine[code]) == "table" and mine[code] or nil
+  end,
+}, { __index = DRIVER })
+
 local function runList()
   return (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List()) or {}
 end
@@ -563,6 +580,13 @@ function GC.Buy.CurrentRun() return current end
 -- What the list is narrowed to: one of GC.BuyView.FILTERS, and a name to look for. Both belong
 -- to the list on screen and are forgotten when another is picked (GC.Buy.SelectRun).
 GC.Buy._filter, GC.Buy._query = "all", ""
+
+-- The wide window's list column: how far the rest of the tab starts from the left (0 while the
+-- column is hidden), and each list's progress, worked out once per Show, purchase or bag change
+-- rather than on every render -- a run that is not on screen needs a BuyRun of its own.
+GC.Buy._leftInset = 0
+GC.Buy._listMeta = {}
+
 function GC.Buy._SetFilter(key)
   GC.Buy._filter = key or "all"
   GC.Buy.RefreshIfShown()
@@ -1434,6 +1458,7 @@ local function settlePurchase(itemID, qty, total, runCode)
   -- something takes the focus, so Enter carries on down the run without reaching for the mouse.
   scanBags()
   GC.Buy._focus = nextOpenAfter(itemID)
+  GC.Buy._listMeta = {}
   GC.Buy.RefreshIfShown()
 end
 
@@ -2974,12 +2999,137 @@ local function layoutDock(dock)
   return h
 end
 
+-- A list's progress for the column: `done` of `total` of its own lines, or an alert group's hits.
+local function listMeta(run)
+  local meta = GC.Buy._listMeta[run.code]
+  if meta then return meta end
+  local obj = (current and current:Code() == run.code) and current or GC.BuyRun.New(run, LIST_DRIVER)
+  if obj ~= current then obj:Refresh() end
+  local done, total = GC.BuyView.Progress(obj:Lines())
+  meta = { done = done, total = total, hits = run.k == "alert" and obj:Totals().topLines or nil }
+  GC.Buy._listMeta[run.code] = meta
+  return meta
+end
+
+-- The wide window's column: YOUR LISTS, one entry per list (its name, wrapping; N of M or N hits;
+-- a thin progress bar), and where the lists come from under them.
+local function createLists(parent)
+  local frame = CreateFrame("Frame", nil, parent)
+  frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+  frame:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
+  frame:SetWidth(BD.LISTS_W)
+  frame:Hide()
+  local caption = Theme.Num(frame, 9)
+  caption:SetJustifyH("LEFT")
+  caption:SetWordWrap(true)
+  caption:SetWidth(BD.LISTS_W)
+  caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -6)
+  caption:SetText(GC.L["YOUR LISTS"])
+  setColor(caption, Theme.color.fgDim)
+  local footer = Theme.Num(frame, 9)
+  footer:SetJustifyH("LEFT")
+  footer:SetWordWrap(true)
+  footer:SetWidth(BD.LISTS_W)
+  footer:SetText(GC.L["Lists come from goldcap.gg through the companion."])
+  setColor(footer, Theme.color.fgDim)
+  return { frame = frame, caption = caption, footer = footer, entries = {} }
+end
+
+-- One pooled entry of the column: a button carrying the list's name -- its label re-anchored to
+-- wrap beside the count rather than run under it -- the count on the right, a bar along the foot.
+local function listEntry(lists, i)
+  local entry = lists.entries[i]
+  if entry then return entry end
+  local button = Theme.Button(lists.frame, "ghost", "plaque")
+  button:SetSize(BD.LISTS_W, 34)
+  button:SetScript("OnClick", function(self)
+    if not self.code then return end
+    GC.Buy.SelectRun(self.code)
+    GC.Buy.RefreshIfShown()
+  end)
+  local meta = Theme.Num(button, 9)
+  meta:SetJustifyH("RIGHT")
+  meta:SetWordWrap(false)
+  meta:SetPoint("TOPRIGHT", button, "TOPRIGHT", -8, -8)
+  button.text:ClearAllPoints()
+  button.text:SetPoint("TOPLEFT", button, "TOPLEFT", 8, -7)
+  button.text:SetPoint("RIGHT", meta, "LEFT", -6, 0)
+  button.text:SetJustifyH("LEFT")
+  button.text:SetWordWrap(true)
+  button.text:SetMaxLines(3)
+  local fill = button:CreateTexture(nil, "OVERLAY")
+  fill:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 6, 3)
+  fill:SetHeight(1)
+  fill:Hide()
+  entry = { button = button, meta = meta, fill = fill }
+  lists.entries[i] = entry
+  return entry
+end
+
+local function paintLists()
+  local lists = band.lists
+  if not (lists and lists.frame:IsShown()) then return end
+  local y = -6
+  if lists.caption.GetStringHeight then y = y - math.ceil(lists.caption:GetStringHeight()) end
+  y = y - 8
+  local list = runList()
+  for i, run in ipairs(list) do
+    local entry = listEntry(lists, i)
+    local meta = listMeta(run)
+    local button = entry.button
+    button.code = run.code
+    button:SetVariant((current and current:Code() == run.code) and "active" or "ghost")
+    button:SetLabel(run.name or run.code or "?")
+    entry.meta:SetText(meta.hits and (GC.L["%d hits"]):format(meta.hits)
+      or (GC.L["%d of %d"]):format(meta.done, meta.total))
+    local share = meta.hits and 1 or (meta.total > 0 and meta.done / meta.total or 0)
+    if share > 0 then
+      local c = meta.hits and Theme.color.green or Theme.color.gold
+      entry.fill:SetColorTexture(c[1], c[2], c[3], 0.9)
+      entry.fill:SetWidth(math.max(1, (BD.LISTS_W - 12) * share))
+      entry.fill:Show()
+    else
+      entry.fill:Hide()
+    end
+    local h = 34
+    if button.text.GetStringHeight then h = math.max(34, math.ceil(button.text:GetStringHeight() + 16)) end
+    button:SetHeight(h)
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", lists.frame, "TOPLEFT", 0, y)
+    button:Show()
+    y = y - h - 4
+  end
+  for i = #list + 1, #lists.entries do lists.entries[i].button:Hide() end
+  lists.footer:ClearAllPoints()
+  lists.footer:SetPoint("TOPLEFT", lists.frame, "TOPLEFT", 0, y - 6)
+end
+
+-- The window's width decides the column: shown at BD.WIDE_MIN and wider, and the rest of the tab
+-- -- band, tools, headings, rows, dock -- starts after it. Rows are as wide as what is left.
+local function applyWidth(width)
+  if not (width and width > 0) then return end
+  local wide = width >= BD.WIDE_MIN
+  GC.Buy._leftInset = wide and (BD.LISTS_W + Theme.pad.m) or 0
+  geometry.rowWidth = width - GC.Buy._leftInset
+  content:SetWidth(geometry.rowWidth)
+  if band and band.lists then
+    if wide then band.lists.frame:Show() else band.lists.frame:Hide() end
+    band.bodyTop = nil -- the body re-anchors after the column on the next layoutBody
+  end
+end
+
 -- The band's geometry for what it now says: the picker as wide as the list's name -- wrapping
 -- when the name is longer than the room beside the total -- the done line under it wrapping
 -- before the total, and the band as tall as all of that.
 local function layoutBand()
   local picker = band.picker
-  local width = container and container:GetWidth() or 0
+  local inset = GC.Buy._leftInset or 0
+  local width = math.max(0, (container and container:GetWidth() or 0) - inset)
+  picker:ClearAllPoints()
+  picker:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -2)
+  band.frame:ClearAllPoints()
+  band.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, 0)
+  band.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
   local rightW = math.max(measured(band.totalCaption) or 0, measured(band.total) or 0, 60)
   local labelW = picker.text and measured(picker.text)
   local pickerH = 24
@@ -3035,7 +3185,7 @@ local function paintBand()
       end
     end
     band.total:SetText(ready > 0 and ((estimated and "~" or "") .. formatAmount(sum)) or EM_DASH)
-    local width = (container and container:GetWidth()) or 0
+    local width = ((container and container:GetWidth()) or 0) - (GC.Buy._leftInset or 0)
     if totalCount > 0 and doneCount > 0 and width > 0 then
       band.fill:SetWidth(math.max(1, width * doneCount / totalCount))
       band.fill:Show()
@@ -3081,17 +3231,23 @@ local function layoutBody()
   if tools and tools:IsShown() then top = top + BD.TOOLS_H end
   if band.bodyBottom == bottom and band.bodyTop == top then return end
   band.bodyBottom, band.bodyTop = bottom, top
+  local inset = GC.Buy._leftInset or 0
   if tools then
     tools:ClearAllPoints()
-    tools:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(band.h or BD.BAND_HEIGHT))
+    tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(band.h or BD.BAND_HEIGHT))
     tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(band.h or BD.BAND_HEIGHT))
   end
   header:ClearAllPoints()
-  header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -top)
+  header:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -top)
   header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -top)
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(top + BD.HEADER_H + Theme.pad.xs))
+  scroll:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(top + BD.HEADER_H + Theme.pad.xs))
   scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, bottom)
+  if dock then
+    dock:ClearAllPoints()
+    dock:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", inset, 0)
+    dock:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+  end
 end
 
 -- @localised-keys: literals in this table ARE GC.L keys, looked up in dockSubText. The table closes
@@ -3213,11 +3369,7 @@ end
 
 local function updateContentWidth()
   if not container or not content then return end
-  local width = container:GetWidth()
-  if width and width > 0 then
-    geometry.rowWidth = width
-    content:SetWidth(width)
-  end
+  applyWidth(container:GetWidth())
 end
 
 local function renderRows()
@@ -3271,6 +3423,7 @@ local function renderRows()
   content:SetHeight(math.max(1, y))
   paintDock()
   layoutBody()
+  paintLists()
 end
 
 -- Builds the tab's container, hidden, filling the same region Deals' scroll occupies --
@@ -3287,6 +3440,7 @@ function GC.Buy.Attach(f, geo)
 
   band.header = createHeaderRow(container)
   band.dock = createDock(container)
+  band.lists = createLists(container)
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
@@ -3300,8 +3454,7 @@ function GC.Buy.Attach(f, geo)
   -- while that happened, since a hidden frame does not reliably fire OnSizeChanged.
   container:HookScript("OnSizeChanged", function(_, width)
     if not width or width <= 0 then return end
-    geometry.rowWidth = width
-    content:SetWidth(width)
+    applyWidth(width)
     -- Lay the rows out again for the new width -- their names wrap to it -- without asking the
     -- client about the run again: a drag fires this many times a second.
     if container:IsShown() and band then renderRows() end
@@ -3326,15 +3479,16 @@ function GC.Buy.Attach(f, geo)
   end)
 
   -- The one seam specs use instead of debug.getupvalue.
-  GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock }
+  GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock, lists = band.lists }
 end
 
 function GC.Buy.Show()
   if not container then return end
   container:Show()
   -- The dock's line is asked for its price again on the next tick: whatever it knew is from
-  -- before the tab was put away.
+  -- before the tab was put away -- and the list column's progress is worked out afresh.
   GC.Buy._quotedFocus = nil
+  GC.Buy._listMeta = {}
   restampHeadings() -- see its comment: a heading can come back from a hide undrawn
   -- The bags move while this tab is hidden; a Show that trusted the last scan would open on
   -- counts from whenever the player last looked.
@@ -3515,6 +3669,7 @@ end
 function GC.Buy.OnBagsChanged()
   if not (container and container:IsShown()) then return end
   scanBags()
+  GC.Buy._listMeta = {}
   GC.Buy.RefreshIfShown()
 end
 

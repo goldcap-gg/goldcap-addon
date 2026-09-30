@@ -30,11 +30,13 @@ GC.Locales.enUS = {
   ["%d held back"] = "%d held back",
   ["%d held back from posting"] = "%d held back from posting",
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
+  ["%d hits"] = "%d hits",
   ["%d in %d lots"] = "%d in %d lots",
   ["%d in 1 lot"] = "%d in 1 lot",
   ["%d items for %s (%s, %s)"] = "%d items for %s (%s, %s)",
   ["%d lots, %s asked"] = "%d lots, %s asked",
   ["%d missing"] = "%d missing",
+  ["%d of %d"] = "%d of %d",
   ["%d of %d at or under your cap"] = "%d of %d at or under your cap",
   ["%d of %d done"] = "%d of %d done",
   ["%d partial"] = "%d partial",
@@ -157,6 +159,7 @@ GC.Locales.enUS = {
   ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
+  ["Lists come from goldcap.gg through the companion."] = "Lists come from goldcap.gg through the companion.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
@@ -231,6 +234,7 @@ GC.Locales.enUS = {
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
+  ["YOUR LISTS"] = "YOUR LISTS",
   ["YOUR LOTS"] = "YOUR LOTS",
   ["You can pay for it now."] = "You can pay for it now.",
   ["You have %s — gold %s, bags %s"] = "You have %s — gold %s, bags %s",
