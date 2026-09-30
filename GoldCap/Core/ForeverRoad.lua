@@ -24,32 +24,16 @@ local C = {
 }
 GC.ForeverRoad.C = C
 
-local UNIT = { g = 10000, s = 100, c = 1 }
-
 local function prefs()
   return GC.ForeverScan and GC.ForeverScan.Prefs and GC.ForeverScan.Prefs() or nil
 end
 
 -- "12g 50s", "12g50s", "3s 20c", "90" (a bare number is gold, "0.5" half of one). nil for anything
--- else, and for zero: a cost of nothing is not a cost.
+-- else, and for zero: a cost of nothing is not a cost. The parser itself is GC.Util.ParseMoney,
+-- shared with every other price box: this file is WoW: Forever's own and shared code must not
+-- reach into it.
 function GC.ForeverRoad.ParseMoney(text)
-  if type(text) ~= "string" then return nil end
-  text = text:lower():gsub("%s+", "")
-  if text == "" then return nil end
-  local bare = text:match("^(%d+%.?%d*)$")
-  if bare then
-    local copper = math.floor(tonumber(bare) * 10000 + 0.5)
-    return copper > 0 and copper or nil
-  end
-  local total, rest, seen = 0, text, {}
-  while rest ~= "" do
-    local num, unit, tail = rest:match("^(%d+)([gsc])(.*)$")
-    if not num or seen[unit] then return nil end
-    seen[unit] = true
-    total = total + tonumber(num) * UNIT[unit]
-    rest = tail
-  end
-  return total > 0 and total or nil
+  return GC.Util.ParseMoney(text)
 end
 
 -- Money for a line the player sends in chat: letters, no coin icons (chat strips texture escapes).

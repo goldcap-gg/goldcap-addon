@@ -188,6 +188,26 @@ describe("Util", function()
       assert.is_nil(GC.Util.AuctionHouseErrorText(0))
     end)
   end)
+
+  -- One parser for every price box in the addon (BUY's cap box, Road to 40's mount cost). A bare
+  -- number is gold, as it is everywhere else in GoldCap; zero is not a price.
+  describe("ParseMoney", function()
+    local cases = {
+      { "12g 50s", 125000 }, { " 12G50S ", 125000 }, { "90", 900000 }, { "0.5", 5000 },
+      { "3s 20c", 320 }, { "1s 40c", 140 }, { "67c", 67 }, { "1g", 10000 },
+    }
+    for _, case in ipairs(cases) do
+      it(("reads %q as %d copper"):format(case[1], case[2]), function()
+        assert.equal(case[2], GC.Util.ParseMoney(case[1]))
+      end)
+    end
+    for _, bad in ipairs({ "", "abc", "12g 5g", "0", "-5g", "12x", "5 x" }) do
+      it(("refuses %q"):format(bad), function() assert.is_nil(GC.Util.ParseMoney(bad)) end)
+    end
+    -- Whitespace goes first, so a space inside an amount is harmless.
+    it("reads a spaced unit", function() assert.equal(500, GC.Util.ParseMoney("5 s")) end)
+    it("refuses a non-string", function() assert.is_nil(GC.Util.ParseMoney(nil)) end)
+  end)
 end)
 
 describe("GC.Util.SlashArgs", function()
