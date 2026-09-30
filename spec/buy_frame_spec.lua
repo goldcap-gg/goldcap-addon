@@ -52,7 +52,12 @@ describe("BuyFrame", function()
     function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
     function r:SetVertexColor(...) self.vertexColor = { ... } end
     function r:SetSpacing(s) self.spacing = s end
-    function r:SetAlpha(a) self.alpha = a end
+    -- The client's rule: on a texture, SetAlpha writes the alpha SetVertexColor's fourth
+    -- argument set -- so a wash "switched" with it repaints at full strength.
+    function r:SetAlpha(a)
+      self.alpha = a
+      if self.kind == "Texture" and self.vertexColor then self.vertexColor[4] = a end
+    end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     -- The client's own measurements, off unless a test gives them an answer (textWidth,
@@ -340,7 +345,7 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     local lines, all = tooltipOn(rowWithText("Alpha Herb"))
     assert.equal("Alpha Herb", all[1])
-    assert.truthy(lineWith(lines, "buy 6 of 10 · have 4 in bags and bank"))
+    assert.truthy(lineWith(lines, "buy 6 of 10, have 4 in bags and bank"))
   end)
 
   -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a

@@ -56,6 +56,10 @@ describe("BUY purchase", function()
     function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
     function r:SetVertexColor(...) self.vertexColor = { ... } end
     function r:SetSpacing(s) self.spacing = s end
+    function r:SetAlpha(a)
+      self.alpha = a
+      if self.kind == "Texture" and self.vertexColor then self.vertexColor[4] = a end
+    end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     function r:Show() self.visible = true end

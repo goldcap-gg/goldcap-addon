@@ -2152,7 +2152,7 @@ local function clearRow(row)
   row.selected:Hide()
   row.status:SetText("")
   row.status:Hide()
-  if row.SetAlpha then row:SetAlpha(1) end
+  row:SetAlpha(1)
   row.reagentInset = 0
   row.icon:Hide()
   row.tooltipItemID = nil
@@ -2258,7 +2258,9 @@ local function paintLine(row, line)
   elseif status == "stranded" then
     color = Theme.color.red
   elseif status == "skipped" then
-    if row.SetAlpha then row:SetAlpha(0.5) end
+    -- The ROW frame's alpha, never a texture's: on a texture SetAlpha is the same value
+    -- SetVertexColor's fourth argument sets, and would repaint a wash.
+    row:SetAlpha(0.5)
   end
   row.status:SetText(text)
   setColor(row.status, color)
@@ -2434,6 +2436,8 @@ end
 -- A line explained: what is left to buy and what the player has, the ladder of prices the
 -- purchase would walk (what it takes at each, and the first level it does not), the market price
 -- and -- on WoW: Forever -- whose it is and how old, the cap, and the line's other footnotes.
+-- GameTooltip draws with the client's own font, which has no "·" in every language (the Russian
+-- client drew an empty box): nothing written for this tooltip carries one.
 local function showLineTooltip(row)
   if not GameTooltip then return end
   local line = row.lineItemID and lineFor(row.lineItemID) or nil
@@ -2445,7 +2449,7 @@ local function showLineTooltip(row)
   if line.buy > 0 then
     local have = bags + bank
     GameTooltip:AddLine(have > 0
-      and (GC.L["buy %d of %d · have %d in bags and bank"]):format(line.buy, line.need, have)
+      and (GC.L["buy %d of %d, have %d in bags and bank"]):format(line.buy, line.need, have)
       or (GC.L["buy %d of %d"]):format(line.buy, line.need), dim[1], dim[2], dim[3], true)
   end
   -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
