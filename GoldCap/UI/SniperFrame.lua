@@ -1960,10 +1960,28 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   -- The paging guard is the commodity scan's: it exists so a board that is mid-refill does not
   -- flash an explanation of its own emptiness. A pass says nothing about the Items board, so it
   -- must not silence it either.
-  if shownCount > 0 or view ~= "deals"
-      or (board == "commodities" and GC.Sniper._bookPass:IsPaging()) then
+  if shownCount > 0 or view ~= "deals" then
     label:Hide()
     return
+  end
+  -- A scan is running and the board is empty. WoW: Forever: say so, steadily -- the verdict on
+  -- the last scan is not in until this one ends. It used to be gated on the browse pass paging
+  -- alone, which is false while the dump is awaited and read and flips between pages, so "No
+  -- deals in your last scan" blinked on and off all through one scan (owner, beta 2026-09-30).
+  -- The rows themselves are not cleared by a scan there: the board reads the saved fold, which
+  -- only changes when the scan commits. Retail keeps its own rule: a mid-refill commodity board
+  -- says nothing.
+  if GC.Sniper.ScanActive() then
+    if isForever() then
+      label:SetText(GC.L["Scanning the auction house…"] .. "\n"
+        .. GC.L["Deals appear as soon as the scan finds them."])
+      label:Show()
+      return
+    end
+    if board == "commodities" then
+      label:Hide()
+      return
+    end
   end
   local screened = GC.Sniper._screenedCount or 0
   local text

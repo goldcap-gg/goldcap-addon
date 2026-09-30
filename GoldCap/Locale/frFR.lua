@@ -948,6 +948,8 @@ GC.Locales.frFR = {
     "bien sous le marché, vitesse de revente inconnue -- clique sur Buy pour acheter",
   ["No deals in your last scan."] =
     "Aucune affaire dans votre dernier scan.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Les bonnes affaires s'affichent dès que le scan les trouve.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap recherche les objets vendus moins cher que leur valeur. SCAN scanne à nouveau.",
   ["No scan of this auction house yet."] =

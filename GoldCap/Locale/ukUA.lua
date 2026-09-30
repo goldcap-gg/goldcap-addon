@@ -960,6 +960,8 @@ GC.Locales.ukUA = {
     "набагато нижче за ринок, швидкість перепродажу невідома -- натисніть Buy, щоб купити",
   ["No deals in your last scan."] =
     "Немає угод в останньому скані.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Угоди з’являться, щойно скан їх знайде.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap шукає предмети, виставлені дешевше, ніж вони коштують. СКАН сканує знову.",
   ["No scan of this auction house yet."] =

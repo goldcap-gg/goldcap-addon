@@ -888,6 +888,8 @@ GC.Locales.koKR = {
     "시세보다 훨씬 낮음, 재판매 속도는 알 수 없음 -- Buy를 눌러 구매하세요",
   ["No deals in your last scan."] =
     "최근 스캔에 거래가 없습니다.",
+  ["Deals appear as soon as the scan finds them."] =
+    "스캔에서 찾는 즉시 거래가 표시됩니다.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap은 가치보다 싸게 등록된 아이템을 찾습니다. 검색을 누르면 다시 검색합니다.",
   ["No scan of this auction house yet."] =

@@ -947,6 +947,8 @@ GC.Locales.deDE = {
     "weit unter Marktpreis, Weiterverkaufstempo unbekannt -- Buy klicken zum Kaufen",
   ["No deals in your last scan."] =
     "Keine Angebote in deinem letzten Scan.",
+  ["Deals appear as soon as the scan finds them."] =
+    "Angebote erscheinen, sobald der Scan sie findet.",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap sucht nach Gegenständen, die billiger gelistet sind, als sie wert sind. SCAN scannt erneut.",
   ["No scan of this auction house yet."] =

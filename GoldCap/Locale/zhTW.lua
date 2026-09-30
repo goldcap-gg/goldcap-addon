@@ -862,6 +862,8 @@ GC.Locales.zhTW = {
     "遠低於市場價，轉售速度未知 -- 按 Buy 購買",
   ["No deals in your last scan."] =
     "上次掃描沒有交易。",
+  ["Deals appear as soon as the scan finds them."] =
+    "掃描一找到交易就會顯示。",
   ["GoldCap looks for items listed cheaper than they are worth. SCAN looks again."] =
     "GoldCap 會尋找定價低於價值的物品。點擊掃描可再次掃描。",
   ["No scan of this auction house yet."] =
