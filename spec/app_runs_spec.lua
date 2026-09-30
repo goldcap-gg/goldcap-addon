@@ -680,6 +680,22 @@ describe("AppRuns runs the site owns", function()
     assert.is_nil(GC.db.runNotices["gone-run"])
   end)
 
+  it("prunes the player's per-line caps with the run they belong to", function()
+    GC.db.runLineCaps = { ["gone-run"] = { [1] = 140 }, ["own10000"] = { [5] = 90 } }
+    local fresher = fixture()
+    fresher.generatedAt = fresher.generatedAt + 60
+    _G.GoldCap_AppRuns = fresher
+    assert.is_true(GC.AppRuns.Adopt())
+    assert.is_nil(GC.db.runLineCaps["gone-run"])
+    assert.same({ [5] = 90 }, GC.db.runLineCaps["own10000"])
+  end)
+
+  it("removes a pasted run's per-line caps with it", function()
+    GC.db.runLineCaps = { ["paste-1"] = { [9] = 140 } }
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+    assert.is_nil(GC.db.runLineCaps["paste-1"])
+  end)
+
   it("takes the splits and the notice with a run that is removed outright", function()
     GC.db.runSplits["paste-1"] = { [9] = true }
     GC.db.runNotices["paste-1"] = { at = 1, added = 0, removed = 1 }

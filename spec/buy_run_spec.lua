@@ -518,3 +518,59 @@ describe("BuyRun's craft-or-buy comparison", function()
     assert.is_nil(GC.BuyRun.CraftText(nil))
   end)
 end)
+
+-- BUY 2.0: the cap is a price the player can see and set per line. Precedence, highest first:
+-- the player's own price for the line, the site's absolute one (an alert target), the run's
+-- percent of the reference price.
+describe("BuyRun: the player's own cap", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(lineCaps, cc)
+    local run = { code = "r", lines = { { i = 1, q = 10, u = 100, cc = cc } } }
+    local obj = GC.BuyRun.New(run, {
+      haveOf = function() return 0 end, usualUnit = function() return nil end,
+      capPct = function() return 130 end, lineCaps = function(code) assert.equal("r", code) return lineCaps end,
+    })
+    obj:Refresh()
+    return obj:Lines()[1]
+  end
+  it("wins over the site's target and the percent", function()
+    local got = build({ [1] = 140 }, 90)
+    assert.equal(140, got.cap)
+    assert.equal("yours", got.capFrom)
+  end)
+  it("leaves the site's target in charge when the player set none", function()
+    local got = build({}, 90)
+    assert.equal(90, got.cap)
+    assert.equal("target", got.capFrom)
+  end)
+  it("falls back to the percent of the reference price", function()
+    local got = build(nil, nil)
+    assert.equal(130, got.cap)
+    assert.equal("default", got.capFrom)
+  end)
+  it("ignores a zero or negative own cap", function()
+    assert.equal("default", build({ [1] = 0 }, nil).capFrom)
+    assert.equal("default", build({ [1] = -5 }, nil).capFrom)
+  end)
+  it("buys under the player's own cap", function()
+    local run = { code = "r", lines = { { i = 1, q = 10, u = 100 } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end, usualUnit = function() end,
+      capPct = function() return 100 end, lineCaps = function() return { [1] = 150 } end })
+    obj:Refresh()
+    local qty, total, capped = obj:PurchaseQuantity(1, { { unit = 120, qty = 4 }, { unit = 160, qty = 9 } })
+    assert.same({ 4, 480, true }, { qty, total, capped })
+  end)
+  -- Retail and every run from before BUY 2.0: a driver with no lineCaps at all.
+  it("is a no-op for a driver that keeps no per-line caps", function()
+    local obj = GC.BuyRun.New({ code = "r", lines = { { i = 1, q = 10, u = 100 } } },
+      { haveOf = function() return 0 end, usualUnit = function() end, capPct = function() return 130 end })
+    obj:Refresh()
+    assert.equal(130, obj:Lines()[1].cap)
+    assert.equal("default", obj:Lines()[1].capFrom)
+  end)
+end)

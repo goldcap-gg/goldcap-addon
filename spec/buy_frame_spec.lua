@@ -1445,4 +1445,23 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.equal("plan updated on goldcap.gg", bandOf().bags:GetText())
   end)
+
+  -- BUY 2.0: a line's cap is a price, stored beside the run (a companion sync replaces the run
+  -- wholesale) and cleared without leaving anything behind.
+  it("stores a line's own cap beside the run, and a cleared one leaves nothing behind", function()
+    GC.Buy._SetLineCap("run-1", 101, 140)
+    assert.same({ [101] = 140 }, GC.db.runLineCaps["run-1"])
+    GC.Buy.RefreshIfShown()
+    local line
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == 101 then line = l end end
+    assert.equal(140, line.cap)
+    assert.equal("yours", line.capFrom)
+    GC.Buy._SetLineCap("run-1", 101, nil)
+    assert.is_nil(GC.db.runLineCaps["run-1"][101])
+  end)
+
+  it("creates no per-line cap store just by being drawn", function()
+    GC.Buy.RefreshIfShown()
+    assert.is_nil(GC.db.runLineCaps)
+  end)
 end)

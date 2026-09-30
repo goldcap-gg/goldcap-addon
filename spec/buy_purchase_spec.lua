@@ -2017,4 +2017,17 @@ describe("BUY purchase", function()
     assert.is_nil(GC.Buy._attempt.overPct)
     assert.equal("BUY 4", rowWithText("Alpha Herb").action.label)
   end)
+
+  -- BUY 2.0: the player's own price for a line is the ceiling that refused the lot, and the
+  -- button says it is theirs rather than borrowing the alert target's words or usual's.
+  it("measures a refused lot against the player's own cap and says it is theirs", function()
+    GC.db.runLineCaps = { ["run-1"] = { [101] = 800 } }
+    GC.Buy.RefreshIfShown()
+    setBook(101, { { unitPrice = 900, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.equal(12, GC.Buy._attempt.overPct)   -- 900 against the 800 cap, not the 1000 usual
+    assert.equal("yours", GC.Buy._attempt.overTarget)
+    assert.equal("▲12% over your cap", rowWithText("Alpha Herb").action.label)
+  end)
 end)

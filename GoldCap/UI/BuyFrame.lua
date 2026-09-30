@@ -351,6 +351,33 @@ local function setSplit(code, itemID, split)
   set[itemID] = split and true or nil
 end
 
+-- The player's own price for one line of a run: GC.db.runLineCaps[code][itemID] = copper per unit.
+-- Beside the run, not on it, for the reason the splits are (a companion sync replaces the run
+-- wholesale), and created only when a write needs it, for the reason splitsFor gives.
+local function lineCapsFor(code, create)
+  local db = GC.db
+  if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
+  if type(db.runLineCaps) ~= "table" then
+    if not create then return nil end
+    db.runLineCaps = {}
+  end
+  local set = db.runLineCaps[code]
+  if type(set) ~= "table" then
+    if not create then return nil end
+    set = {}
+    db.runLineCaps[code] = set
+  end
+  return set
+end
+
+-- Stores the player's price for a line, or clears it (nil): a cleared cap leaves nothing behind.
+local function setLineCap(code, itemID, copper)
+  local set = lineCapsFor(code, copper ~= nil)
+  if not set then return end
+  set[itemID] = (type(copper) == "number" and copper > 0) and math.floor(copper) or nil
+end
+GC.Buy._SetLineCap = setLineCap -- spec seam
+
 -- The run on screen as the STORE holds it. `current` is the arithmetic object built from it, and
 -- the three things the site says ABOUT a run -- it is an alert group's hits, somebody else owns
 -- it, it came from a plan -- live on the stored run rather than on the object.
@@ -477,6 +504,8 @@ local DRIVER = {
   -- Which of this run's lines are being crafted rather than bought. Asked on every Refresh,
   -- unlike progress: the row menu writes it and re-renders, and the answer has to be current.
   splits = function(code) return splitsFor(code) end,
+  -- The player's own price per line (BUY 2.0's cap box, the dock's RAISE CAP), same reasoning.
+  lineCaps = function(code) return lineCapsFor(code) end,
   -- The run's score, per character and per run code, in SavedVariables: GC.db.buyProgress
   -- ["Name-Realm"][code][itemID] = { bought, spent, boughtAt }. The spec's rule is "the addon
   -- keeps HAVE/spent per character"; without this a /reload read as a run nobody had bought
@@ -842,6 +871,16 @@ local function owedElsewhere()
   return (slot.Owner and slot.Owner() == "sniper" and slot.IsBusy and slot.IsBusy()) and true or false
 end
 
+-- "▲N% over ..." for an attempt the cap stopped, against whose ceiling it was (overUsualPct).
+local function overText(attempt)
+  if attempt.overTarget == "target" then
+    return (GC.L["▲%d%% over the alert target"]):format(attempt.overPct)
+  elseif attempt.overTarget == "yours" then
+    return (GC.L["▲%d%% over your cap"]):format(attempt.overPct)
+  end
+  return (GC.L["▲%d%% over usual"]):format(attempt.overPct)
+end
+
 -- What the line's own button says right now, whether it is clickable, and -- for the one state
 -- that needs a look of its own -- which Theme variant to wear. One function so the render, the
 -- Enter key and the attempt log can never disagree about what state a line is in.
@@ -905,12 +944,7 @@ local function actionLabel(line)
     end
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
-    if attempt.overPct then
-      if attempt.overTarget then
-        return (GC.L["▲%d%% over the alert target"]):format(attempt.overPct), false, "warn"
-      end
-      return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "warn"
-    end
+    if attempt.overPct then return overText(attempt), false, "warn" end
     return GC.L["nothing on offer"], false
   end
   if stage == "started" then return GC.L["buying..."], false end
@@ -1127,25 +1161,25 @@ local function ladderFor(itemID)
   return ladder
 end
 
--- How far over its ceiling the cheapest level the cap refused sits, and whether that ceiling is
--- the line's own target rather than the usual price. Computed whenever the cap stopped the
--- ladder -- before the first unit or part-way through a partial fill.
+-- How far over its ceiling the cheapest level the cap refused sits, and whose ceiling it is
+-- (Core/BuyRun.lua's `capFrom`: "yours", "target" or "default"). Computed whenever the cap
+-- stopped the ladder -- before the first unit or part-way through a partial fill.
 --
--- A line that brought an absolute ceiling (an alert group's target price) is measured against
--- THAT number: the site's usual price is not what refused the lot, and an alert set below usual
--- -- which is what an alert is for -- reported a NEGATIVE amount over usual. A percentage that
--- is not over anything is not a reason, so it is left unsaid and the caller says what it says
--- when there is nothing to buy.
+-- A line with an absolute ceiling (the player's own price, or an alert group's target) is
+-- measured against THAT number: the site's usual price is not what refused the lot, and an alert
+-- set below usual -- which is what an alert is for -- reported a NEGATIVE amount over usual. A
+-- percentage that is not over anything is not a reason, so it is left unsaid and the caller says
+-- what it says when there is nothing to buy.
 local function overUsualPct(line, ladder)
   if not (line and line.cap) then return nil end
-  local target = (line.capCopper or 0) > 0
+  local target = line.capFrom == "target" or line.capFrom == "yours"
   local against = target and line.cap or line.usual
   if not (against and against > 0) then return nil end
   for _, level in ipairs(ladder or {}) do
     if level.unit > line.cap then
       local pct = math.floor(level.unit * 100 / against) - 100
       if pct <= 0 then return nil end
-      return pct, target
+      return pct, line.capFrom
     end
   end
   return nil
@@ -1457,12 +1491,7 @@ function GC.Buy.OnCommodityResults(itemID)
   local text = nil
   if capped then
     text = actionLabel(line)
-    if qty > 0 and attempt.overPct then
-      local over = attempt.overTarget
-        and (GC.L["▲%d%% over the alert target"]):format(attempt.overPct)
-        or (GC.L["▲%d%% over usual"]):format(attempt.overPct)
-      text = ("%s %s"):format(text, over)
-    end
+    if qty > 0 and attempt.overPct then text = ("%s %s"):format(text, overText(attempt)) end
     local cheap = cheapHourText(line)
     if cheap then text = ("%s · %s"):format(text, cheap) end
   end

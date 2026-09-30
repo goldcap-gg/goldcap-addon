@@ -964,6 +964,7 @@ GC.Locales.enUS = {
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
+  ["▲%d%% over your cap"] = "▲%d%% over your cap",
   -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
   -- on the Deals tab.
   ["Scanning the auction house…"] = "Scanning the auction house…",

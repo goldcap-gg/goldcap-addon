@@ -235,7 +235,7 @@ function GC.AppRuns.Adopt()
   -- nobody chose for it. Named fields, not `{ db.runCaps, db.runsArchived, ... }`: whichever of
   -- these is nil (usually runCaps -- most runs never get one) would leave a hole in that array
   -- constructor, and ipairs stops dead at the first nil, silently skipping every store after it.
-  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices", "runLineCaps" }) do
     local store = db[field]
     if type(store) == "table" then
       for code in pairs(store) do
@@ -425,7 +425,7 @@ function GC.AppRuns.Remove(code)
   db.runs[code] = nil
   -- Everything stored beside the run goes with it, for the same reason Adopt prunes: nothing
   -- else would. Named fields, not an array of the values -- see Adopt's pruning loop for why.
-  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices", "runLineCaps" }) do
     local store = db[field]
     if type(store) == "table" then store[code] = nil end
   end
