@@ -35,6 +35,10 @@ local C = {
   -- early: the beta showed 1024, then 2048 of ~66k rows. A whole auction house lands on an exact
   -- multiple about once in a thousand scans.
   SUSPECT_CAP = 1024,
+  -- Owner, 2026-09-30: the client hands the dump over in stages (2048 rows, then 54139, each with
+  -- its own REPLICATE_ITEM_LIST_UPDATE), and both reads are saved. A partial replicate read holds
+  -- its chat block this long for a fuller read to replace it, so one SCAN prints the block once.
+  SAY_GRACE_SECONDS = 20,
   BROWSE_WAIT_SECONDS = 180,       -- a wide pass on a busy auction house, behind the arbiter
   -- A partial replicate read merges into the saved fold (below) only while the saved fold is no
   -- older than this: otherwise every item they share would keep the OLD fold's price forever, as
@@ -429,7 +433,12 @@ function GC.ForeverScan._QueueUpgradesUpdate()
   end)
 end
 
+-- Bumped by every "started" and "done": a deferred post-scan block runs only if nothing newer
+-- arrived during its grace period.
+local sayToken = 0
+
 local function notify(kind, a, b)
+  if kind == "started" or kind == "done" then sayToken = sayToken + 1 end
   if kind == "started" then
     GC.Print(GC.L["Scanning the auction house…"])
   elseif kind == "closed" then
@@ -443,10 +452,20 @@ local function notify(kind, a, b)
       GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)))
     end
   elseif kind == "done" then
-    GC.ForeverScan._SayDone(a)
+    local timer = _G.C_Timer
+    if a and a.replicated and a.partial and type(timer) == "table" and type(timer.After) == "function" then
+      local mine = sayToken
+      timer.After(C.SAY_GRACE_SECONDS, function()
+        if sayToken == mine then GC.ForeverScan._SayDone(a) end
+      end)
+    else
+      GC.ForeverScan._SayDone(a)
+    end
     if GC.Sniper and GC.Sniper.OnForeverFold then GC.Sniper.OnForeverFold() end
   end
 end
+
+GC.ForeverScan._Notify = notify
 
 -- The client, for New. Every call is guarded: a missing API reads as "nothing there", never an
 -- error inside an event handler.

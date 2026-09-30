@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.17.2 (unreleased)
+
+- In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
+  auction house over in two parts.
+
 ## 0.17.1 (2026-09-30)
 
 - The Sell tab no longer stutters every few seconds while it refreshes prices.

@@ -47,6 +47,67 @@ describe("WoW: Forever scan wiring", function()
     assert.is_number(db.foreverScan.requestedAt)
   end)
 
+  describe("post-scan chat block", function()
+    local folds
+    local function done(rows, partial)
+      GC.ForeverScan._Notify("done", { rows = rows, items = 10, replicated = true, partial = partial })
+    end
+    local function countLine(text)
+      local n = 0
+      for _, m in ipairs(printed) do if m == text then n = n + 1 end end
+      return n
+    end
+    before_each(function()
+      load(16001)
+      folds = 0
+      GC.Sniper = { OnForeverFold = function() folds = folds + 1 end }
+    end)
+
+    it("prints a full read at once", function()
+      done(54139, false)
+      assert.equal("54139 lots scanned and saved", printed[1])
+      assert.equal(0, #timers)
+      assert.equal(1, folds)
+    end)
+
+    it("holds a partial read for the grace period, then prints it once", function()
+      done(2048, true)
+      assert.equal(0, #printed)
+      assert.equal(1, folds) -- the refresh is never delayed
+      assert.equal(1, #timers)
+      timers[1].fn()
+      assert.equal("2048 lots scanned and saved", printed[1])
+      assert.equal(1, countLine("2048 lots scanned and saved"))
+    end)
+
+    it("a full read inside the grace period replaces the held block: printed once, with its numbers", function()
+      done(2048, true)
+      done(54139, false)
+      assert.equal("54139 lots scanned and saved", printed[1])
+      timers[1].fn() -- the stale timer fires and says nothing
+      assert.equal(1, #printed)
+      assert.equal(2, folds)
+    end)
+
+    it("a second partial read supersedes the first", function()
+      done(2048, true)
+      done(3072, true)
+      timers[1].fn()
+      assert.equal(0, #printed)
+      timers[2].fn()
+      assert.equal(1, #printed)
+      assert.equal("3072 lots scanned and saved", printed[1])
+    end)
+
+    it("a new scan cancels a held block", function()
+      done(2048, true)
+      GC.ForeverScan._Notify("started")
+      timers[1].fn()
+      assert.equal(1, #printed)
+      assert.equal("Scanning the auction house…", printed[1])
+    end)
+  end)
+
   it("on retail: no scan, no key in the save", function()
     load(120100)
     local db = {}
