@@ -97,6 +97,10 @@ local BD = {
   -- How long the pointer has to rest on a row before its tooltip asks the auction house for the
   -- line's book (lookLine): long enough that sweeping the cursor down the list asks nothing.
   LOOK_DWELL_SECONDS = 0.35,
+  -- The search box and the filter, in a row of their own under the band: shown for a run longer
+  -- than TOOLS_MIN_LINES, or while either is in use -- a short list is read at a glance.
+  TOOLS_H = 26,
+  TOOLS_MIN_LINES = 8,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -213,6 +217,14 @@ local HEADER_TEXT = {
   item = "ITEM", price = "PRICE EACH", cost = "COST",
 }
 local function headerText(key) return GC.L[HEADER_TEXT[key] or ""] end
+
+-- The filter's choices, in GC.BuyView.FILTERS' order.
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where the filter is drawn.
+-- The table closes with a `}` on its own line.
+local FILTER_LABEL = {
+  all = "All", buy = "To buy", over = "Over cap", vendor = "At a vendor", craft = "To craft",
+  done = "Bought", skipped = "Skipped",
+}
 
 -- The width a fixed column is drawn at this render (fitColumns), or its least.
 local function columnWidth(col)
@@ -548,6 +560,14 @@ end
 
 function GC.Buy.CurrentRun() return current end
 
+-- What the list is narrowed to: one of GC.BuyView.FILTERS, and a name to look for. Both belong
+-- to the list on screen and are forgotten when another is picked (GC.Buy.SelectRun).
+GC.Buy._filter, GC.Buy._query = "all", ""
+function GC.Buy._SetFilter(key)
+  GC.Buy._filter = key or "all"
+  GC.Buy.RefreshIfShown()
+end
+
 -- Adopts `code` as the shown run and remembers it. A code with no run behind it (the companion
 -- dropped it on its next sync, or the saved preference outlived the run) clears the board
 -- rather than resurrecting a stale copy.
@@ -561,6 +581,8 @@ function GC.Buy.SelectRun(code)
   -- tab, so it is given up with them. Reset before the early return too: clearing the board is
   -- just as much a replacement, and the next run picked must not inherit a stale window.
   lastRefreshAt = 0
+  GC.Buy._filter, GC.Buy._query = "all", ""
+  if band and band.tools then band.tools.search:SetText("") end
   -- A quote is a plan against one run's lines. A purchase already in the client's hands keeps
   -- its attempt -- its terminal event still has to land somewhere, and OnCommodityPurchaseSucceeded
   -- checks the run code before it credits anything to a line.
@@ -2084,8 +2106,15 @@ local function buildEntries()
       GC.L["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] }
     return entries
   end
-  for _, line in ipairs(current:Lines()) do
-    entries[#entries + 1] = { kind = "line", line = line }
+  local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
+  local lines = current:Lines()
+  for _, line in ipairs(lines) do
+    if GC.BuyView.Matches(lineStatus(line), lineName(line), filter, query) then
+      entries[#entries + 1] = { kind = "line", line = line }
+    end
+  end
+  if #entries == 0 and #lines > 0 then
+    entries[1] = { kind = "hint", text = GC.L["Nothing on this list matches."] }
   end
   return entries
 end
@@ -2763,6 +2792,63 @@ local function createBand(parent)
   done:SetWordWrap(true)
   setColor(done, Theme.color.fgDim)
 
+  -- The search box and the filter (BD.TOOLS_MIN_LINES), in a row of their own under the band. The
+  -- well and the box are UI/SellFrame.lua's search, the filter a menu of GC.BuyView.FILTERS.
+  local tools = CreateFrame("Frame", nil, parent)
+  tools:SetHeight(BD.TOOLS_H)
+  tools:Hide()
+  local well = CreateFrame("Frame", nil, tools)
+  well:SetSize(200, 22)
+  well:SetPoint("LEFT", tools, "LEFT", 0, 0)
+  local wc = Theme.color.bg or Theme.color.panel
+  Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
+  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
+  local search = CreateFrame("EditBox", nil, well)
+  search:SetAutoFocus(false)
+  search:SetPoint("TOPLEFT", 10, -2)
+  search:SetPoint("BOTTOMRIGHT", -8, 2)
+  -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
+  if search.SetFont then
+    search:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    search:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+  end
+  local hint = Theme.Num(well, 10)
+  hint:SetJustifyH("LEFT")
+  hint:SetPoint("LEFT", well, "LEFT", 10, 0)
+  hint:SetText(GC.L["Search"])
+  setColor(hint, Theme.color.fgDim)
+  local function applyHint()
+    if (search:GetText() or "") ~= "" or (search.HasFocus and search:HasFocus()) then hint:Hide() else hint:Show() end
+  end
+  search:SetScript("OnTextChanged", function(box, byUser)
+    GC.Buy._query = (box:GetText() or ""):match("^%s*(.-)%s*$")
+    applyHint()
+    if byUser then GC.Buy.RefreshIfShown() end
+  end)
+  search:SetScript("OnEditFocusGained", applyHint)
+  search:SetScript("OnEditFocusLost", applyHint)
+  search:SetScript("OnEnterPressed", function(box) box:ClearFocus() end)
+  search:SetScript("OnEscapePressed", function(box)
+    box:SetText("")
+    box:ClearFocus()
+    GC.Buy._query = ""
+    applyHint()
+    GC.Buy.RefreshIfShown()
+  end)
+  local filter = Theme.Button(tools, "ghost", "badge")
+  filter:SetSize(96, 20)
+  filter:SetPoint("LEFT", well, "RIGHT", Theme.pad.s, 0)
+  filter:SetScript("OnClick", function(self)
+    local menu = _G.MenuUtil
+    if not (menu and menu.CreateContextMenu) then return end
+    menu.CreateContextMenu(self, function(_, root)
+      for _, key in ipairs(GC.BuyView.FILTERS) do
+        root:CreateRadio(GC.L[FILTER_LABEL[key]], function(v) return GC.Buy._filter == v end,
+          function(v) GC.Buy._SetFilter(v) end, key)
+      end
+    end)
+  end)
+
   -- A frame pinned to the band's own height, so the progress bar sits at the band's bottom edge
   -- regardless of where the text above it ends.
   local bandFrame = CreateFrame("Frame", nil, parent)
@@ -2782,7 +2868,8 @@ local function createBand(parent)
   fill:Hide()
 
   return { picker = picker, done = done, totalCaption = totalCaption, total = total,
-           track = track, fill = fill, frame = bandFrame, h = BD.BAND_HEIGHT }
+           track = track, fill = fill, frame = bandFrame, h = BD.BAND_HEIGHT,
+           tools = { frame = tools, search = search, hint = hint, filter = filter } }
 end
 
 -- A button exactly as wide as its label in the player's language, and never under `minW`: the
@@ -2961,6 +3048,17 @@ local function paintBand()
   end
   GC.Buy._readyCount = ready
   if GC.Sniper and GC.Sniper.UpdateBuyTabLabel then GC.Sniper.UpdateBuyTabLabel() end
+  -- The search and the filter, for a long list or while either is in use.
+  local tools = band.tools
+  local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
+  local long = current ~= nil and #current:Lines() > BD.TOOLS_MIN_LINES
+  if long or filter ~= "all" or query ~= "" then
+    tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▾")
+    fitButton(tools.filter, 96)
+    tools.frame:Show()
+  else
+    tools.frame:Hide()
+  end
   layoutBand()
 end
 
@@ -2975,8 +3073,15 @@ local function layoutBody()
   local dock = band.dock
   local bottom = (dock and dock:IsShown()) and (dock.h or BD.DOCK_H) or 0
   local top = band.h or BD.BAND_HEIGHT
+  local tools = band.tools and band.tools.frame
+  if tools and tools:IsShown() then top = top + BD.TOOLS_H end
   if band.bodyBottom == bottom and band.bodyTop == top then return end
   band.bodyBottom, band.bodyTop = bottom, top
+  if tools then
+    tools:ClearAllPoints()
+    tools:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(band.h or BD.BAND_HEIGHT))
+    tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(band.h or BD.BAND_HEIGHT))
+  end
   header:ClearAllPoints()
   header:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -top)
   header:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -top)
@@ -3121,6 +3226,21 @@ local function renderRows()
     GC.Buy._focus = nextOpenAfter(nil)
   end
   local entries = buildEntries()
+  -- A filter or search that hides the dock's line moves the dock to the first visible line it can
+  -- buy (or, with none, the first visible line, which the dock explains) -- never while a purchase
+  -- is in the client's hands, whose CONFIRM belongs to its own line.
+  local narrowed = (GC.Buy._filter or "all") ~= "all" or (GC.Buy._query or "") ~= ""
+  if current and narrowed and not inFlight(GC.Buy._attempt) then
+    local visible, firstBuyable, firstShown = {}, nil, nil
+    for _, e in ipairs(entries) do
+      if e.line then
+        visible[e.line.itemID] = true
+        firstShown = firstShown or e.line.itemID
+        if not firstBuyable and buyable(e.line) then firstBuyable = e.line.itemID end
+      end
+    end
+    if firstShown and not visible[GC.Buy._focus or -1] then GC.Buy._focus = firstBuyable or firstShown end
+  end
 
   paintBand()
 

@@ -96,7 +96,9 @@ GC.Locales.enUS = {
   ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
   ["Alert target"] = "Alert target",
   ["Alerts"] = "Alerts",
+  ["All"] = "All",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
+  ["At a vendor"] = "At a vendor",
   ["At your pace you reach it at level %d."] = "At your pace you reach it at level %d.",
   ["At your pace you will be %s short at level 40."] = "At your pace you will be %s short at level 40.",
   ["At your price"] = "At your price",
@@ -115,6 +117,7 @@ GC.Locales.enUS = {
     "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
   ["Blizzard's price: %s"] = "Blizzard's price: %s",
   ["Blizzard's price: %s · %d s left"] = "Blizzard's price: %s · %d s left",
+  ["Bought"] = "Bought",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
   ["Bundled %s data"] = "Bundled %s data",
@@ -174,6 +177,8 @@ GC.Locales.enUS = {
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
+  ["Nothing on this list matches."] = "Nothing on this list matches.",
+  ["Over cap"] = "Over cap",
   ["PRICE EACH"] = "PRICE EACH",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
@@ -205,6 +210,7 @@ GC.Locales.enUS = {
   ["Set the riding cost: /gc mount 90g"] = "Set the riding cost: /gc mount 90g",
   ["Skip"] = "Skip",
   ["Skip for now"] = "Skip for now",
+  ["Skipped"] = "Skipped",
   ["Stat weights: %s"] = "Stat weights: %s",
   ["TO BUY HERE"] = "TO BUY HERE",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
@@ -213,6 +219,8 @@ GC.Locales.enUS = {
   ["The rest is skipped for now"] = "The rest is skipped for now",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "This client does not report item stats, so GoldCap cannot compare gear.",
+  ["To buy"] = "To buy",
+  ["To craft"] = "To craft",
   ["UNDERCUT %d"] = "UNDERCUT %d",
   ["Unknown stat %s. Use one of: %s"] = "Unknown stat %s. Use one of: %s",
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =

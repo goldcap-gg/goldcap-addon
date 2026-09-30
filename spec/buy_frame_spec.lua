@@ -64,6 +64,10 @@ describe("BuyFrame", function()
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
     function r:SetScript(name, fn) self.scripts[name] = fn end
+    function r:SetAutoFocus(on) self.autoFocus = on end
+    function r:HasFocus() return self.focused == true end
+    function r:SetFocus() self.focused = true end
+    function r:ClearFocus() self.focused = false end
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
     function r:RegisterForClicks() end
@@ -142,6 +146,7 @@ describe("BuyFrame", function()
       Label = function(parent, _) return region("FontString", parent) end,
       Num = function(parent, _, _) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
+      SlicedTexture = function(parent) return region("Texture", parent) end,
       WithQuality = function(name) return name end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
@@ -1582,5 +1587,109 @@ describe("BuyFrame", function()
     GC.Buy.RefreshIfShown()
     assert.equal(2, badge)
     GC.Sniper.UpdateBuyTabLabel = nil
+  end)
+
+  -- BUY 2.0's filters and search. Ten lines: 101-110, two of each; 102 Bravo Ore is covered by the
+  -- bag, 104 Delta Vial is at the vendor, the rest have no name the client knows ("#105"...).
+  local function longRun()
+    local lines = {}
+    for i = 1, 10 do lines[i] = { i = 100 + i, q = 2 } end
+    lines[4].v = true
+    return { code = "run-long", name = "Long run", updatedAt = 100, origin = "app", lines = lines }
+  end
+  local function showLong()
+    GC.AppRuns._set({ longRun() }); GC.Buy.SelectRun("run-long"); GC.Buy.RefreshIfShown()
+  end
+
+  it("hides the search and filter for a short list", function()
+    assert.is_false(bandOf().tools.frame:IsShown())
+  end)
+
+  it("narrows a long list by name, case-blind", function()
+    showLong()
+    local tools = bandOf().tools
+    assert.is_true(tools.frame:IsShown())
+    assert.equal("All ▾", tools.filter.label)
+    tools.search:SetText("alpha"); tools.search.scripts.OnTextChanged(tools.search, true)
+    local names = {}
+    for _, row in ipairs(shownRows()) do names[#names + 1] = row.reagent:GetText() end
+    assert.equal(1, #names)
+    assert.is_truthy(names[1]:find("Alpha Herb", 1, true))
+    -- Escape clears the search and gives the whole list back.
+    tools.search.scripts.OnEscapePressed(tools.search)
+    assert.equal(10, #shownRows())
+  end)
+
+  it("keeps only the lines the filter asks for", function()
+    showLong()
+    GC.Buy._SetFilter("vendor")
+    assert.equal(1, #shownRows())
+    for _, row in ipairs(shownRows()) do assert.is_truthy((row.status:GetText() or ""):find("at a vendor", 1, true)) end
+    assert.equal("At a vendor ▾", bandOf().tools.filter.label)
+    GC.Buy._SetFilter("done")
+    assert.equal("Bravo Ore ×2", shownRows()[1].reagent:GetText())
+  end)
+
+  it("offers every filter from its menu, the one in use marked", function()
+    showLong()
+    local radios = {}
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, { CreateRadio = function(_, text, isSelected, setSelected, data)
+        radios[#radios + 1] = { text = text, selected = isSelected(data), pick = function() setSelected(data) end }
+      end })
+    end }
+    local filter = bandOf().tools.filter
+    filter.scripts.OnClick(filter)
+    _G.MenuUtil = nil
+    local labels = {}
+    for _, r in ipairs(radios) do labels[#labels + 1] = r.text end
+    assert.same({ "All", "To buy", "Over cap", "At a vendor", "To craft", "Bought", "Skipped" }, labels)
+    assert.is_true(radios[1].selected)
+    radios[2].pick()
+    assert.equal("buy", GC.Buy._filter)
+  end)
+
+  it("says so when nothing matches", function()
+    showLong()
+    GC.Buy._query = "zzz"; GC.Buy.RefreshIfShown()
+    assert.is_truthy(shownTexts():find("Nothing on this list matches.", 1, true))
+    -- ...and keeps the search in sight, so it can be cleared.
+    assert.is_true(bandOf().tools.frame:IsShown())
+  end)
+
+  -- Review Focus 2.
+  it("moves the dock to the first visible line it can buy when a filter hides its line", function()
+    showLong()
+    GC.Buy._focus = 101
+    GC.Buy._query = "charlie"; GC.Buy.RefreshIfShown()
+    assert.equal(103, GC.Buy._focus)
+    assert.equal(103, dock().lineItemID)
+  end)
+
+  it("puts the dock on a line the filter shows even when none of them can be bought", function()
+    showLong()
+    GC.Buy._SetFilter("vendor")
+    assert.equal(104, dock().lineItemID)
+  end)
+
+  it("never moves the dock off a purchase in flight", function()
+    showLong()
+    GC.Buy._focus = 101
+    GC.Buy._attempt = { itemID = 101, stage = "confirm", qty = 1, total = 1 }
+    GC.Buy._query = "charlie"; GC.Buy.RefreshIfShown()
+    assert.equal(101, GC.Buy._focus)
+    GC.Buy._attempt = nil
+  end)
+
+  it("forgets the search and filter when another list is picked", function()
+    GC.Buy._query, GC.Buy._filter = "x", "done"
+    GC.Buy.SelectRun("run-1")
+    assert.equal("", GC.Buy._query)
+    assert.equal("all", GC.Buy._filter)
+  end)
+
+  it("shows the search while a filter is in use, even on a short list", function()
+    GC.Buy._SetFilter("done")
+    assert.is_true(bandOf().tools.frame:IsShown())
   end)
 end)

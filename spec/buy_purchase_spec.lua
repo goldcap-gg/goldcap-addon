@@ -63,6 +63,10 @@ describe("BUY purchase", function()
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
     function r:SetScript(name, fn) self.scripts[name] = fn end
+    function r:SetAutoFocus(on) self.autoFocus = on end
+    function r:HasFocus() return self.focused == true end
+    function r:SetFocus() self.focused = true end
+    function r:ClearFocus() self.focused = false end
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:GetScript(name) return self.scripts[name] end
     function r:EnableMouse() end
@@ -240,6 +244,7 @@ describe("BUY purchase", function()
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
+      SlicedTexture = function(parent) return region("Texture", parent) end,
       Chip = function(parent) return chip(parent) end,
       WithQuality = function(name) return name end,
     }
