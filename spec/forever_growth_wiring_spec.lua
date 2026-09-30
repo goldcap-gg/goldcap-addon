@@ -66,7 +66,7 @@ describe("plan 3e wiring", function()
       "GC.slashHandlers.weights = function(rest) GC.ForeverUpgrades.SlashWeights(rest) end", 1, true))
     assert.equal(1, select(2, init:gsub("slashHandlers%.weights =", "")))
     local scan = read("GoldCap/Core/ForeverScan.lua")
-    local bags = assert(scan:find("GC.ForeverValue.PrintBags()", 1, true))
+    local bags = assert(scan:find("GC.ForeverValue.PrintBags(nil, said)", 1, true))
     assert.truthy(scan:find("GC.ForeverScan._QueueUpgradesUpdate()", bags, true))
   end)
 

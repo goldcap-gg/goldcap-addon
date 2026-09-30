@@ -99,12 +99,72 @@ describe("WoW: Forever scan wiring", function()
       assert.equal("3072 lots scanned and saved", printed[1])
     end)
 
+    it("stays busy while a partial read's summary is held, and not after", function()
+      GC.ForeverScan.Init({})
+      assert.is_false(GC.ForeverScan.IsBusy())
+      done(2048, true)
+      assert.is_true(GC.ForeverScan.IsBusy())
+      timers[1].fn()
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
+    it("a full read ends the hold at once", function()
+      GC.ForeverScan.Init({})
+      done(2048, true)
+      done(54139, false)
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
+    it("repaints the toolbar on the scanner's edges", function()
+      local repaints = 0
+      GC.Sniper.RepaintScanState = function() repaints = repaints + 1 end
+      GC.ForeverScan.Init({})
+      GC.ForeverScan.OnAuctionHouseShow()
+      assert.is_true(repaints >= 1)
+      local before = repaints
+      done(54139, false)
+      assert.is_true(repaints > before)
+    end)
+
     it("a new scan cancels a held block", function()
       done(2048, true)
       GC.ForeverScan._Notify("started")
       timers[1].fn()
       assert.equal(1, #printed)
       assert.equal("Scanning the auction house…", printed[1])
+    end)
+  end)
+
+  describe("hints are said once a session", function()
+    local function said(text)
+      local n = 0
+      for _, m in ipairs(printed) do if m:find(text, 1, true) then n = n + 1 end end
+      return n
+    end
+    local function scanDone()
+      GC.ForeverScan._SayDone({ rows = 1000, items = 10, replicated = true })
+    end
+    before_each(function()
+      load(16001)
+      GC.ForeverScan.Init({})
+      GC.Data = { CompanionShares = function() return true end, GetItemValue = function() return nil end }
+      GC.ForeverValue = { PrintBags = function(_, s)
+        if s then
+          if s.bags ~= "bags" then GC.Print("bags") end
+          s.bags = "bags"
+          if not s.postHint then GC.Print("POST hint"); s.postHint = true end
+        else
+          GC.Print("bags"); GC.Print("POST hint")
+        end
+      end }
+    end)
+
+    it("keeps the result line every time and the static lines once", function()
+      scanDone(); scanDone(); scanDone()
+      assert.equal(3, said("lots scanned and saved"))
+      assert.equal(1, said("bags"))
+      assert.equal(1, said("POST hint"))
+      assert.equal(1, said("Shared with goldcap.gg"))
     end)
   end)
 

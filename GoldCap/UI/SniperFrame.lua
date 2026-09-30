@@ -103,6 +103,8 @@ WIN.CONTENT_RIGHT_GUTTER = 32
 -- floor, so it always keeps the overlay.
 WIN.PANEL_SHIFT_MIN = 990
 
+WIN.TIER_W = 80          -- the verdict column on retail
+WIN.FOREVER_TIER_W = 112 -- and on WoW: Forever, whose verdicts are words (see createFrame)
 WIN.ICON_SIZE = 20 -- row item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
@@ -3750,6 +3752,10 @@ local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
 
 local function autoButtonText(state, reasons)
   if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
+  -- WoW: Forever: the suffix follows the scanner, not only Auto's own machine -- a scan Auto did
+  -- not start (the one on opening the auction house, SCAN) is a scan all the same, and the SCAN
+  -- button beside it already says so. A pause reason still speaks over it.
+  if state ~= "PAUSED" and isForever() and GC.Sniper.ScanActive() then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
@@ -3832,16 +3838,57 @@ end
 -- the Repost that refreshed a quote and returned without saying so.
 --
 -- The button now carries its own state, the way Auto already does.
+-- The one answer to "is a scan running": the book pass paging (the browse scan, Auto's or SCAN's,
+-- on both games) and, on WoW: Forever, the full-scan machine in Core/ForeverScan.lua (waiting for
+-- the dump, reading it, browsing after it, and the short hold on a partial read's chat block), a
+-- pass armed but not yet sent, and Auto's own SCANNING. The SCAN button, the AUTO chip and a
+-- click on SCAN all read this and nothing else.
+function GC.Sniper.ScanActive()
+  if GC.Sniper._bookPass:IsPaging() then return true end
+  if not isForever() then return false end
+  if GC.ForeverScan and GC.ForeverScan.IsBusy and GC.ForeverScan.IsBusy() then return true end
+  if GC.Sniper._bookPass:PendingStart() then return true end
+  return autoScan ~= nil and autoScan:State() == "SCANNING"
+end
+
+-- SCAN's width: the longer of its two labels in this language, plus the button's own padding.
+-- "СКАНИРУЮ…" did not fit the 64px the English "SCAN" did and was cut to "СКАНИРУ...". Measured
+-- once per language and scale; the status line anchors to this button's left edge and follows.
+local function sizeScanButton(btn)
+  local fs = btn.text
+  if not (fs and fs.GetUnboundedStringWidth and fs.SetText and btn.SetWidth) then return end
+  local idle, busy = GC.L["SCAN"], GC.L["SCANNING…"]
+  local key = idle .. "\0" .. busy .. "\0" .. tostring(Theme.Scale())
+  if btn._sizedFor == key then return end
+  fs:SetText(idle)
+  local a = fs:GetUnboundedStringWidth()
+  fs:SetText(busy)
+  local b = fs:GetUnboundedStringWidth()
+  if type(a) ~= "number" or type(b) ~= "number" then return end
+  btn._sizedFor = key
+  btn:SetWidth(math.max(64, math.ceil(math.max(a, b)) + 2 * Theme.pad.m))
+end
+
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = GC.Sniper._bookPass:IsPaging() or (GC.ForeverScan ~= nil and GC.ForeverScan.IsBusy())
+  local busy = GC.Sniper.ScanActive()
+  sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
   -- onFullScanClick). Same reasoning as the Auto button's on-state.
   f.fullScanBtn:SetVariant(busy and "active" or "ghost")
+end
+
+-- Repaints the two controls that show a scan, at once. The ticker does it four times a second, but
+-- a tick that raises before its repaint lines leaves them stale for as long as it keeps raising;
+-- the scanner calls this on its own edges (Core/ForeverScan.lua), so the state shows the moment it
+-- changes.
+function GC.Sniper.RepaintScanState()
+  if refreshAutoButton then refreshAutoButton() end
+  if refreshScanButton then refreshScanButton() end
 end
 
 -- Re-derives the toolbar's session readout from GC.Sniper.session (buys/spent/estProfit).
@@ -3872,9 +3919,11 @@ local function onFullScanClick()
   end
 
   -- WoW: Forever: SCAN is the market scan -- a full list when the server's throttle allows,
-  -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself).
+  -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself). A click while any
+  -- scan runs -- the one on opening the auction house, Auto's pass -- starts nothing: the label
+  -- already says "Scanning...", and a second scan on top printed a second summary block.
   if isForever() and GC.ForeverScan and GC.ForeverScan.Request then
-    if GC.ForeverScan.Request("button") == "busy" then
+    if GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy" then
       frame.status:SetText(GC.L["full scan already in progress"])
     end
     refreshScanButton()
@@ -10718,6 +10767,11 @@ end
 
 local function createFrame()
   local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent)
+  -- WoW: Forever: the verdict column carries "Ниже НПС"/"Below vendor", not retail's four-letter
+  -- tier, so it is wider (set before any header or row is anchored from COLUMNS).
+  for _, col in ipairs(COLUMNS) do
+    if col.key == "tier" then col.w = isForever() and WIN.FOREVER_TIER_W or WIN.TIER_W end
+  end
 
   -- Rounded card window (Sniper v4). Theme.Panel stays untouched for the
   -- overlays that still use it; only the main window goes rounded.
@@ -11304,6 +11358,7 @@ local function createFrame()
     end
   end)
 
+  refreshScanButton(f)
   refreshAutoButton(f) -- (fix round 1, M1) paint the initial label/visual before the very first Show
   return f
 end

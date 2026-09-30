@@ -385,6 +385,9 @@ end
 -- "saved" reads that way. "Shared" is said only while a Companion paired with goldcap.gg writes
 -- this install (GC.Data.CompanionShares): it uploads the saved scan after the next /reload
 -- (plan 3d decision E12). Without one the scan stays on this computer and nothing claims otherwise.
+-- What the chat has already said this session (see _SayDone). Not saved: a /reload starts over.
+GC.ForeverScan._said = {}
+
 function GC.ForeverScan._SayDone(summary)
   if not summary then
     GC.Print(GC.L["The scan found nothing to save"])
@@ -398,13 +401,18 @@ function GC.ForeverScan._SayDone(summary)
   -- "your bags: X at a vendor, Y on the AH" after every saved scan (Core/ForeverValue.lua).
   -- Guarded: this file's own _SayDone spec never loads Core/ForeverValue.lua, so GC.ForeverValue
   -- is nil there -- degrade to nothing printed rather than an error.
-  if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags() end
+  -- `said` is what this session has already printed: the how-to hints and an unchanged bags or
+  -- upgrades line are not printed again by the next scan (owner, beta 2026-09-30). /gc bags and
+  -- /gc upgrades pass nothing and always print in full.
+  local said = GC.ForeverScan._said
+  if GC.ForeverValue and GC.ForeverValue.PrintBags then GC.ForeverValue.PrintBags(nil, said) end
   -- Plan 3e: how many upgrades the scan holds for this character's gear, when there are any --
   -- queued rather than called here (see _QueueUpgradesUpdate below): Core/ForeverUpgrades.lua's
   -- Build is a synchronous, potentially ~140-tooltip-read walk, and this line runs on the very
   -- frame that just froze the fold and refreshed Sniper.
   GC.ForeverScan._QueueUpgradesUpdate()
-  if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() then
+  if GC.Data and GC.Data.CompanionShares and GC.Data.CompanionShares() and not said.shared then
+    said.shared = true
     GC.Print(GC.L["Shared with goldcap.gg on your next /reload"])
   end
 end
@@ -428,7 +436,7 @@ function GC.ForeverScan._QueueUpgradesUpdate()
     local UI = GC.ForeverUpgradesUI
     local shown = UI ~= nil and UI.IsShown ~= nil and UI.IsShown() == true
     local r = U.Current(not shown)
-    U.PrintCount(r)
+    U.PrintCount(r, GC.ForeverScan._said)
     if shown and UI.Render then UI.Render(r, time()) end
   end)
 end
@@ -436,9 +444,12 @@ end
 -- Bumped by every "started" and "done": a deferred post-scan block runs only if nothing newer
 -- arrived during its grace period.
 local sayToken = 0
+-- True while a partial read's chat block is held for a fuller one (C.SAY_GRACE_SECONDS): the scan
+-- is still considered running then, so the SCAN button says so and a click does not start another.
+local sayHeld = false
 
 local function notify(kind, a, b)
-  if kind == "started" or kind == "done" then sayToken = sayToken + 1 end
+  if kind == "started" or kind == "done" then sayToken = sayToken + 1; sayHeld = false end
   if kind == "started" then
     GC.Print(GC.L["Scanning the auction house…"])
   elseif kind == "closed" then
@@ -455,13 +466,23 @@ local function notify(kind, a, b)
     local timer = _G.C_Timer
     if a and a.replicated and a.partial and type(timer) == "table" and type(timer.After) == "function" then
       local mine = sayToken
+      sayHeld = true
       timer.After(C.SAY_GRACE_SECONDS, function()
-        if sayToken == mine then GC.ForeverScan._SayDone(a) end
+        if sayToken == mine then
+          sayHeld = false
+          GC.ForeverScan._SayDone(a)
+          if GC.Sniper and GC.Sniper.RepaintScanState then GC.Sniper.RepaintScanState() end
+        end
       end)
     else
       GC.ForeverScan._SayDone(a)
     end
     if GC.Sniper and GC.Sniper.OnForeverFold then GC.Sniper.OnForeverFold() end
+  end
+  -- The toolbar's SCAN button and AUTO chip follow the scanner's own state; repainted on every
+  -- edge of it rather than left to a clock that other work in the same tick can starve.
+  if (kind == "done" or kind == "noanswer") and GC.Sniper and GC.Sniper.RepaintScanState then
+    GC.Sniper.RepaintScanState()
   end
 end
 
@@ -756,9 +777,17 @@ function GC.ForeverScan.SayImpact()
 end
 
 local function scanner() return GC.ForeverScan._scanner end
-function GC.ForeverScan.Request(reason) local s = scanner(); return s and s:Request(reason) or nil end
-function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate() end end
-function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:OnBrowsePassDone(book) end end
-function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); return s and s:OnAuctionHouseShow() or nil end
-function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed() end end
-function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and s:IsBusy() end
+-- Every entry point repaints the toolbar after the scanner has moved: the scanner's state is the
+-- one truth the SCAN button and the AUTO chip read (GC.Sniper.ScanActive), and these are its edges
+-- that no notify() is sent from (a request accepted, an open, a close, a dump, a pass done).
+local function repaint()
+  if GC.Sniper and GC.Sniper.RepaintScanState then GC.Sniper.RepaintScanState() end
+end
+function GC.ForeverScan.Request(reason)
+  local s = scanner(); local r = s and s:Request(reason) or nil; repaint(); return r
+end
+function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate(); repaint() end end
+function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:OnBrowsePassDone(book); repaint() end end
+function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
+function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
+function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end
