@@ -11359,6 +11359,7 @@ local function createFrame()
     feedAuto("resume:search")
     updateHeaderSortIndicators() -- heading labels can come back blank after a hide, see its comment
     if view == "deals" then f.restampRows() end -- and so can the row cells under them
+    if view == "sold" and GC.Sold and GC.Sold.Show then GC.Sold.Show() end -- the same, for Sold
   end)
   f:SetScript("OnHide", function()
     feedAuto("tabHidden")

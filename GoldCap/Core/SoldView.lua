@@ -38,20 +38,30 @@ end
 
 --- The item a sale mail's name stands for, from the character's own listings. GoldCap records
 --- every item a character put on the auction house, by id and by the name the client gave it
---- (GC.Acquisitions.GetActivities); a sale mail carries the name only. When exactly one item
---- this character listed in this region bears the name, that is the item sold. Two items with
---- one name -- two quality ranks of a reagent -- is no answer.
-function V.ListedItemID(activities, name, character, region)
-  if type(name) ~= "string" or name == "" then return nil end
-  local found
+--- (GC.Acquisitions.GetActivities); a sale mail carries the name only. ListedIndex keys those
+--- by character, region and name once per render; ListedItemID answers the one item this
+--- character listed in this region under the name. Two items with one name -- two quality
+--- ranks of a reagent -- is no answer.
+function V.ListedIndex(activities)
+  local index = {}
   for _, activity in ipairs(activities or {}) do
-    if activity.itemName == name and activity.character == character and activity.region == region
-        and type(activity.itemID) == "number" then
-      if found and found ~= activity.itemID then return nil end
-      found = activity.itemID
+    local name, id = activity.itemName, activity.itemID
+    if type(name) == "string" and name ~= "" and type(id) == "number"
+        and type(activity.character) == "string" and type(activity.region) == "string" then
+      local key = activity.character .. "\1" .. activity.region .. "\1" .. name
+      local seen = index[key]
+      if seen == nil then index[key] = id elseif seen ~= id then index[key] = false end
     end
   end
-  return found
+  return index
+end
+
+function V.ListedItemID(index, name, character, region)
+  if type(index) ~= "table" or type(name) ~= "string" or name == ""
+      or type(character) ~= "string" or type(region) ~= "string" then
+    return nil
+  end
+  return index[character .. "\1" .. region .. "\1" .. name] or nil
 end
 
 local function base(section, name, itemID, qty, gross, cut, pending, at)

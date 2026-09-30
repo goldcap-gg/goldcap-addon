@@ -24,6 +24,9 @@ describe("SoldFrame", function()
     local r = { __frame = true, kind = kind, children = {}, visible = true, points = {}, scripts = {},
       size = 12, alpha = 1 }
     if parent then parent.children[#parent.children + 1] = r end
+    r.parent = parent
+    function r:IsVisible() return self.visible and (not self.parent or self.parent:IsVisible()) end
+    function r:SetDrawLayer(layer, sub) self.layer, self.subLevel = layer, sub end
     function r:SetPoint(point, relative, relativePoint, x, y)
       if type(relative) == "number" then relative, relativePoint, x, y = nil, nil, relative, relativePoint end
       self.points[#self.points + 1] = { point = point, relative = relative, relativePoint = relativePoint,
@@ -108,7 +111,10 @@ describe("SoldFrame", function()
     _G.time = function() return NOW end
     _G.date = os.date
     tooltip = { lines = {} }
-    function tooltip:SetOwner(owner, anchor) self.owner, self.anchor = owner, anchor end
+    -- As in the client, SetOwner starts a fresh tooltip.
+    function tooltip:SetOwner(owner, anchor) self.owner, self.anchor, self.lines, self.title = owner, anchor, {}, nil end
+    function tooltip:GetOwner() return self.owner end
+    function tooltip:IsShown() return self.shown end
     function tooltip:SetItemByID(id) self.itemID = id end
     function tooltip:SetText(text) self.title = text end
     function tooltip:AddLine(text) self.lines[#self.lines + 1] = text end
@@ -491,7 +497,7 @@ describe("SoldFrame", function()
   end)
 
   describe("the item behind a row", function()
-    it("opens the item's own tooltip by exact id, then the sale's breakdown and its cost", function()
+    it("shows the sale's own card: the name, the breakdown, the cost and the market", function()
       _G.C_Item = { GetItemIconByID = function() return 135 end, GetItemQualityByID = function() return 1 end }
       GC.Data = { GetItemValue = function(id) return id == 2589 and { mv = 70, source = "import" } or nil end }
       GC.Ledger.GetEntries = function() return { sale({ key = "k1" }) } end
@@ -504,7 +510,8 @@ describe("SoldFrame", function()
       assert.equal(135, row.icon.texture)
       row.scripts.OnEnter(row)
       assert.equal(row, tooltip.owner)
-      assert.equal(2589, tooltip.itemID)
+      assert.is_nil(tooltip.itemID)                          -- never the item's whole tooltip
+      assert.equal("Linen Cloth", tooltip.title)
       assert.same({
         " ",
         "sold today at " .. os.date("%H:%M", NOW - 600) .. ", 14 × 75c",
@@ -583,23 +590,44 @@ describe("SoldFrame", function()
       show()
       local linen = saleRow("Linen Cloth")
       assert.equal(25890, linen.icon.texture)
-      linen.scripts.OnEnter(linen)
-      assert.equal(2589, tooltip.itemID)
-      -- Two ranks under one name: no id, so no item tooltip and no market line.
-      tooltip.itemID = nil
+      assert.equal(2589, linen.info.id)
+      -- Two ranks under one name: no id, so no icon from it and no market line.
       local herb = saleRow("Hochenblume")
       assert.is_nil(herb.icon.texture)
-      herb.scripts.OnEnter(herb)
-      assert.is_nil(tooltip.itemID)
+      assert.is_nil(herb.info.id)
     end)
 
-    it("keeps the hover wash faint on a sale row and hides it on a day heading", function()
+    it("draws the hover wash under the text, faint, only while a sale row is under the cursor", function()
       GC.Ledger.GetEntries = function() return { sale({ itemName = "Linen Cloth", key = "a" }) } end
       show()
       local row = saleRow("Linen Cloth")
+      assert.equal("BACKGROUND", row.highlight.layer)
+      assert.is_false(row.highlight:IsShown())
+      row.scripts.OnEnter(row)
       assert.is_true(row.highlight:IsShown())
       assert.equal(GC.Theme.color.hover[4], row.highlight.vertexColor[4])
-      for _, head in ipairs(shownRows("head")) do assert.is_false(head.highlight:IsShown()) end
+      row.scripts.OnLeave(row)
+      assert.is_false(row.highlight:IsShown())
+      for _, head in ipairs(shownRows("head")) do
+        head.scripts.OnEnter(head)
+        assert.is_false(head.highlight:IsShown())
+      end
+    end)
+
+    it("follows a re-render under a still cursor: the new sale's card, or no tooltip on a heading", function()
+      local entries = { sale({ itemName = "Linen Cloth", key = "a" }) }
+      GC.Ledger.GetEntries = function() return entries end
+      show()
+      local row = saleRow("Linen Cloth")
+      row.scripts.OnEnter(row)
+      entries = { sale({ itemName = "Wool Cloth", key = "b" }) }
+      GC.Sold.RefreshIfShown()
+      if row.sale then
+        assert.equal(row.sale.name, tooltip.title)
+      else
+        assert.is_false(tooltip.shown)
+      end
+      assert.equal("Wool Cloth", saleRow("Wool Cloth").sale.name)
     end)
 
     it("colours an uncommon or better item's name and border in its quality", function()

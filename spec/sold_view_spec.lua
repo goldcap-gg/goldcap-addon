@@ -67,22 +67,23 @@ describe("SoldView", function()
   end)
 
   describe("ListedItemID", function()
-    local activities = {
+    local index = V.ListedIndex({
       { itemName = "Linen Cloth", itemID = 2589, character = "Me-Realm", region = "us" },
       { itemName = "Linen Cloth", itemID = 2589, character = "Me-Realm", region = "us" },
       { itemName = "Silverleaf", itemID = 765, character = "Alt-Realm", region = "us" },
       { itemName = "Hochenblume", itemID = 191460, character = "Me-Realm", region = "us" },
       { itemName = "Hochenblume", itemID = 191461, character = "Me-Realm", region = "us" },
-    }
+    })
     it("answers the one item this character listed in this region under the name", function()
-      assert.equal(2589, V.ListedItemID(activities, "Linen Cloth", "Me-Realm", "us"))
+      assert.equal(2589, V.ListedItemID(index, "Linen Cloth", "Me-Realm", "us"))
     end)
     it("answers nothing for another character, another region, two items under one name, or no name", function()
-      assert.is_nil(V.ListedItemID(activities, "Silverleaf", "Me-Realm", "us"))
-      assert.is_nil(V.ListedItemID(activities, "Linen Cloth", "Me-Realm", "eu"))
-      assert.is_nil(V.ListedItemID(activities, "Hochenblume", "Me-Realm", "us"))
-      assert.is_nil(V.ListedItemID(activities, nil, "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(index, "Silverleaf", "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(index, "Linen Cloth", "Me-Realm", "eu"))
+      assert.is_nil(V.ListedItemID(index, "Hochenblume", "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(index, nil, "Me-Realm", "us"))
       assert.is_nil(V.ListedItemID(nil, "Linen Cloth", "Me-Realm", "us"))
+      assert.is_nil(V.ListedItemID(V.ListedIndex(nil), "Linen Cloth", "Me-Realm", "us"))
     end)
   end)
 

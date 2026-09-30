@@ -264,11 +264,13 @@ function T.SetScale(s)
   if GC.db and GC.db.settings and GC.db.settings.sniper then
     GC.db.settings.sniper.fontScale = scale
   end
-  for _, fn in ipairs(hooks) do
-    fn(scale)
-  end
+  -- Fonts first: a hook lays its tab out again and measures its strings, which must already be
+  -- at the new size -- measured at the old one, every fitted column came out too narrow.
   for fs, info in pairs(widgetFonts) do
     applyFont(fs, info)
+  end
+  for _, fn in ipairs(hooks) do
+    fn(scale)
   end
 end
 

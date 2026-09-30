@@ -44,9 +44,9 @@ local SD = {
   TILE_PAD_X = 14, TILE_PAD_Y = 11, TILE_LINE = 7, TILE_MIN_H = 74,
   BAR_H = 5,          -- bar.png's caps are 2px: under half of this
   BANNER_MIN_H = 34, BANNER_PAD_X = 12, BANNER_PAD_Y = 6,
-  BTN_H = 24, BTN_PAD = 12,
+  BTN_H = 26, BTN_PAD = 12, -- plaque's 12px caps must stay under half the height
   CHIP_H = 22, CHIP_PAD = 10, CHIP_GAP = 2, GROUP_PAD = 3,
-  SEARCH_W = 210, SEARCH_MIN = 120, SEARCH_PAD = 10, CTRL_H = 28,
+  SEARCH_W = 210, SEARCH_MIN = 120, SEARCH_PAD = 10, CTRL_H = 28, GLYPH = 12, GLYPH_GAP = 7,
   HEAD_H = 16,
   ROW_H = 34, DAY_H = 26, ICON = 24, ICON_GAP = 10, QTY_GAP = 6,
   PAD_X = 10, COL_GAP = 10, ITEM_MIN = 110, NOTE_MIN = 80,
@@ -289,12 +289,13 @@ local function buildModel()
     end
   end
   local sourcesOf = GC.Acquisitions and GC.Acquisitions.SourcesOf
-  local activities = GC.Acquisitions and GC.Acquisitions.GetActivities and GC.Acquisitions.GetActivities() or {}
+  local listed = V.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
+    and GC.Acquisitions.GetActivities() or {})
   local entries = GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}
   local locals, servers = {}, {}
   for _, sale in ipairs(V.LocalSales(entries, V.Boundary(summary))) do
     local hit = sale.key and realized[sale.key] or nil
-    local listedID = V.ListedItemID(activities, sale.itemName, sale.char, sale.region)
+    local listedID = V.ListedItemID(listed, sale.itemName, sale.char, sale.region)
     locals[#locals + 1] = V.LocalRow(sale, hit, hit and sourcesOf and sourcesOf(sale.key) or nil, listedID)
   end
   for _, sale in ipairs(summary and summary.sales or {}) do servers[#servers + 1] = V.ServerRow(sale) end
@@ -435,7 +436,7 @@ local function paintBest(tile, m)
     return
   end
   local info = itemInfo(best)
-  tile.icon:SetTexture(info.icon)
+  if info.icon then tile.icon:SetTexture(info.icon) else tile.icon:SetColorTexture(1, 1, 1, 0.05) end
   local edge = info.color and { info.color[1], info.color[2], info.color[3], 0.6 } or { 1, 1, 1, 0.16 }
   tile.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4])
   tile.icon:Show(); tile.iconEdge:Show()
@@ -523,7 +524,7 @@ local function layoutBanner(m, width, y)
   b.button:SetSize(bw, SD.BTN_H)
   put(b.text, GC.L["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."]
     :format(s.gainItems, HEX.green .. plain(s.gain) .. "|r"))
-  local th = wrapTo(b.text, width - 2 * SD.BANNER_PAD_X - bw - SD.GAP)
+  local th = wrapTo(b.text, width - 2 * SD.BANNER_PAD_X - (SD.GLYPH + 2 + SD.GLYPH_GAP) - bw - SD.GAP)
   local h = math.max(SD.BANNER_MIN_H, th + 2 * SD.BANNER_PAD_Y, SD.BTN_H + 2 * SD.BANNER_PAD_Y)
   b.frame:ClearAllPoints()
   b.frame:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -y)
@@ -559,7 +560,7 @@ local function layoutControls(width, y)
   c.group:SetSize(groupW, SD.CTRL_H)
 
   put(c.hint, GC.L["Find an item"])
-  local least = math.max(SD.SEARCH_MIN, hug(c.hint) + 2 * SD.SEARCH_PAD)
+  local least = math.max(SD.SEARCH_MIN, hug(c.hint) + 2 * SD.SEARCH_PAD + SD.GLYPH + SD.GLYPH_GAP)
   local room = width - groupW - SD.GAP
   local searchW, searchY = math.min(math.max(SD.SEARCH_W, least), room), y
   if room < least then searchW, searchY = math.min(width, math.max(least, SD.SEARCH_W)), y + SD.CTRL_H + SD.GAP / 2 end
@@ -596,7 +597,7 @@ local function clearRow(row)
   row.title:Hide(); row.note:Hide(); row.rule:Hide(); row.wide:Hide()
   for _, key in ipairs(COLS) do row.cells[key]:Hide() end
   -- Hide/Show, never SetAlpha: on a texture SetAlpha writes the very alpha the wash's colour
-  -- set, and SetAlpha(1) turns the faint wash into a solid bar over the row's text.
+  -- set, and SetAlpha(1) turns the faint wash into a solid bar.
   row.highlight:Hide()
   row.sale, row.info = nil, nil
 end
@@ -618,7 +619,6 @@ local function paintRow(row, entry, now)
   end
   local r = entry.row
   row.sale, row.info = r, itemInfo(r)
-  row.highlight:Show()
   if row.info.icon then
     row.icon:SetTexture(row.info.icon)
   else
@@ -717,12 +717,10 @@ local function saleTooltip(row)
   if not (GameTooltip and r and info) then return end
   local anchor = Theme.TooltipAnchor and Theme.TooltipAnchor(row) or "ANCHOR_RIGHT"
   GameTooltip:SetOwner(row, anchor)
-  if info.id and GameTooltip.SetItemByID then
-    GameTooltip:SetItemByID(info.id)
-  else
-    local c = info.color or COLOR.white
-    GameTooltip:SetText(r.name or GC.L["Unknown item"], c[1], c[2], c[3])
-  end
+  -- The sale's own card: the name in its quality colour, then where the money went. The item's
+  -- full tooltip (stats, vendor price, GoldCap's own price block) buried the sale under it.
+  local nameColor = info.color or COLOR.white
+  GameTooltip:SetText(r.name or GC.L["Unknown item"], nameColor[1], nameColor[2], nameColor[3])
   local dim, body, white = Theme.color.fgDim, { 0.85, 0.85, 0.85 }, COLOR.white
   local tip = GC.Util.TooltipText
   local function line(text, c, wrap) GameTooltip:AddLine(tip(text), c[1], c[2], c[3], wrap) end
@@ -774,15 +772,27 @@ end
 local function createRow(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(SD.ROW_H)
-  -- Hover is the engine's HIGHLIGHT layer on a mouse-enabled frame, never an OnEnter repaint.
+  -- The hover wash sits UNDER the text (BACKGROUND, sublevel 1), as on the Sell and Deals rows:
+  -- in the HIGHLIGHT layer it drew over the name and the figures and tinted them. paintRow's
+  -- clearRow hides it on every repaint, so a row hidden under a still cursor cannot keep it.
   local hc = Theme.color.hover
-  row.highlight = Theme.SlicedTexture(row, "HIGHLIGHT", Theme.MEDIA .. "plaque.png", hc, 12)
+  row.highlight = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png", hc, 12)
+  row.highlight:SetDrawLayer("BACKGROUND", 1)
   row.highlight:SetPoint("TOPLEFT", 2, -1)
   row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.highlight:Hide()
+  row.isSoldRow = true
   row:EnableMouse(true)
   -- Wired once on the pooled row; it reads whatever paintRow last stamped.
-  row:SetScript("OnEnter", function(self) if self.sale then saleTooltip(self) end end)
-  row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  row:SetScript("OnEnter", function(self)
+    if not self.sale then return end
+    self.highlight:Show()
+    saleTooltip(self)
+  end)
+  row:SetScript("OnLeave", function(self)
+    self.highlight:Hide()
+    if GameTooltip then GameTooltip:Hide() end
+  end)
 
   row.iconEdge = row:CreateTexture(nil, "BORDER")
   row.iconEdge:SetSize(SD.ICON + 2, SD.ICON + 2)
@@ -877,17 +887,32 @@ local function layoutEmpty(m, width, y)
     button = state.period ~= "30d" and GC.L["SHOW 30 DAYS"] or nil
   end
   local inner = width - 2 * SD.EMPTY_PAD
-  put(e.message, message)
+  -- The first visit is a welcome, set left under the mail glyph; a period or a search with
+  -- nothing in it is a centred note.
+  local welcome = not m.anySales
+  local anchor, x, justify = "TOP", 0, "CENTER"
   local top = SD.EMPTY_PAD
+  e.icon:ClearAllPoints()
+  if welcome then
+    anchor, x, justify = "TOPLEFT", SD.EMPTY_PAD, "LEFT"
+    e.icon:SetPoint("TOPLEFT", e.frame, "TOPLEFT", SD.EMPTY_PAD, -top)
+    e.icon:Show()
+    top = top + 26 + 10
+  else
+    e.icon:Hide()
+  end
+  e.message:SetJustifyH(justify)
+  e.sub:SetJustifyH(justify)
+  put(e.message, message)
   local mh = wrapTo(e.message, inner)
   e.message:ClearAllPoints()
-  e.message:SetPoint("TOP", e.frame, "TOP", 0, -top)
+  e.message:SetPoint(anchor, e.frame, anchor, x, -top)
   top = top + mh
   if sub then
     put(e.sub, sub)
     local sh = wrapTo(e.sub, inner)
     e.sub:ClearAllPoints()
-    e.sub:SetPoint("TOP", e.frame, "TOP", 0, -(top + 8))
+    e.sub:SetPoint(anchor, e.frame, anchor, x, -(top + 8))
     top = top + 8 + sh
   else
     e.sub:Hide()
@@ -932,7 +957,7 @@ local function renderList(m, width, top)
   view.fit = fit
   layoutHeader(width, top, fit)
   view.scroll:ClearAllPoints()
-  view.scroll:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(top + SD.HEAD_H + 4))
+  view.scroll:SetPoint("TOPLEFT", view.container, "TOPLEFT", 0, -(top + SD.HEAD_H + SD.GAP))
   view.scroll:SetPoint("BOTTOMRIGHT", view.container, "BOTTOMRIGHT", 0, 0)
   local y = 0
   for i = 1, #entries do
@@ -966,6 +991,18 @@ local function render()
   y = layoutBanner(m, width, y)
   y = layoutControls(width, y)
   renderList(m, width, y)
+  -- A re-render under a still cursor (a keystroke in search, money arriving) can hand the
+  -- hovered row another sale or a heading; its tooltip follows, or goes.
+  local owner = GameTooltip and GameTooltip:IsShown() and GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
+  if type(owner) == "table" and owner.isSoldRow then
+    if owner.sale and owner:IsVisible() then
+      owner.highlight:Show()
+      saleTooltip(owner)
+    else
+      owner.highlight:Hide()
+      GameTooltip:Hide()
+    end
+  end
 end
 
 -- Building ---------------------------------------------------------------------------------
@@ -998,6 +1035,7 @@ local function createTile(parent)
     if not (GameTooltip and s and GC.ForeverRoad and GC.ForeverRoad.Lines) then return end
     GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
     for i, text in ipairs(GC.ForeverRoad.Lines(s)) do
+      text = GC.Util.TooltipText(text)
       if i == 1 then GameTooltip:AddLine(text, 1, 0.82, 0, true) else GameTooltip:AddLine(text, 0.85, 0.85, 0.85, true) end
     end
     GameTooltip:Show()
@@ -1012,7 +1050,12 @@ local function createBanner(parent)
   b.text = Theme.Num(b.frame, 10)
   b.text:SetJustifyH("LEFT")
   setColor(b.text, Theme.color.fgMuted)
-  b.text:SetPoint("LEFT", b.frame, "LEFT", SD.BANNER_PAD_X, 0)
+  b.icon = b.frame:CreateTexture(nil, "ARTWORK")
+  b.icon:SetTexture(Theme.MEDIA .. "icon_trend.png")
+  b.icon:SetVertexColor(green[1], green[2], green[3], 1)
+  b.icon:SetSize(SD.GLYPH + 2, SD.GLYPH + 2)
+  b.icon:SetPoint("LEFT", b.frame, "LEFT", SD.BANNER_PAD_X, 0)
+  b.text:SetPoint("LEFT", b.icon, "RIGHT", SD.GLYPH_GAP, 0)
   b.button = Theme.Button(b.frame, "ghost", "plaque")
   b.button:SetPoint("RIGHT", b.frame, "RIGHT", -SD.BANNER_PAD_X / 2, 0)
   local gc = Theme.color.gold
@@ -1038,9 +1081,15 @@ local function createControls(parent)
     c.chips[period] = chip
   end
   c.well = Theme.Card(parent, COLOR.tile, { 1, 1, 1, 0.08 }, true)
+  c.glass = c.well:CreateTexture(nil, "ARTWORK")
+  c.glass:SetTexture(Theme.MEDIA .. "icon_search.png")
+  local dim = Theme.color.fgDim
+  c.glass:SetVertexColor(dim[1], dim[2], dim[3], 1)
+  c.glass:SetSize(SD.GLYPH, SD.GLYPH)
+  c.glass:SetPoint("LEFT", c.well, "LEFT", SD.SEARCH_PAD, 0)
   local search = CreateFrame("EditBox", nil, c.well)
   search:SetAutoFocus(false)
-  search:SetPoint("TOPLEFT", SD.SEARCH_PAD, -2)
+  search:SetPoint("TOPLEFT", SD.SEARCH_PAD + SD.GLYPH + SD.GLYPH_GAP, -2)
   search:SetPoint("BOTTOMRIGHT", -SD.SEARCH_PAD, 2)
   -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
   if search.SetFont then
@@ -1051,7 +1100,7 @@ local function createControls(parent)
   c.search = search
   c.hint = Theme.Num(c.well, 10)
   c.hint:SetJustifyH("LEFT")
-  c.hint:SetPoint("LEFT", c.well, "LEFT", SD.SEARCH_PAD, 0)
+  c.hint:SetPoint("LEFT", c.glass, "RIGHT", SD.GLYPH_GAP, 0)
   setColor(c.hint, Theme.color.fgDim)
   local function hint()
     local text = search:GetText() or ""
@@ -1085,17 +1134,17 @@ local function createHeader(parent)
     setColor(label, COLOR.faint)
     h.cells[key] = label
   end
-  local bc = Theme.color.border
-  h.rule = h.frame:CreateTexture(nil, "ARTWORK")
-  h.rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
-  h.rule:SetPoint("BOTTOMLEFT")
-  h.rule:SetPoint("BOTTOMRIGHT")
-  h.rule:SetHeight(1)
   return h
 end
 
 local function createEmpty(parent)
   local e = { frame = Theme.Card(parent, COLOR.empty, { 1, 1, 1, 0.07 }, true) }
+  e.icon = e.frame:CreateTexture(nil, "ARTWORK")
+  e.icon:SetTexture(Theme.MEDIA .. "icon_mail.png")
+  local gold = Theme.color.goldHi
+  e.icon:SetVertexColor(gold[1], gold[2], gold[3], 1)
+  e.icon:SetSize(26, 26)
+  e.icon:Hide()
   e.message = Theme.Label(e.frame, 13)
   e.message:SetJustifyH("CENTER")
   e.sub = Theme.Num(e.frame, 10)
@@ -1143,10 +1192,10 @@ function Sold.Attach(f, geo)
   -- Show() lays it out anyway.
   container:HookScript("OnSizeChanged", function(_, width)
     if width and width > 0 then view.width = width end
-    if container:IsShown() and view.tiles then render() end
+    if container:IsVisible() and view.tiles then render() end
   end)
   if Theme.OnRescale then
-    Theme.OnRescale(function() if container:IsShown() and view.tiles then render() end end)
+    Theme.OnRescale(function() if container:IsVisible() and view.tiles then render() end end)
   end
 end
 
@@ -1184,5 +1233,8 @@ end
 -- Called from GC.Ledger.ScanInbox (a mailbox scan is when sales appear) and from Road to 40's
 -- money and cost changes.
 function Sold.RefreshIfShown()
-  if view.container and view.container:IsShown() and view.tiles then render() end
+  -- IsVisible: with the window closed and Sold still the chosen tab, the container is "shown"
+  -- but nothing under it is drawn, and strings written then come back blank (see put()). The
+  -- window's OnShow calls Show, which draws everything again.
+  if view.container and view.container:IsVisible() and view.tiles then render() end
 end
