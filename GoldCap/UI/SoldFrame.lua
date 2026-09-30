@@ -1110,6 +1110,9 @@ function Sold.Attach(f, geo)
   container:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -geo.panelRightInset, geo.bottom)
   container:Hide()
   view.container, view.width = container, geo.rowWidth
+  -- The window's shared status line sits at this container's top, beside the (hidden) AUTO
+  -- button, and says things about Deals and Sell. Over this tab it would draw across the tiles.
+  view.status = f.status
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
@@ -1145,6 +1148,7 @@ end
 function Sold.Show()
   if not view.container then return end
   view.container:Show()
+  if view.status then view.status:Hide() end
   build()
   view.restamp = true -- see put(): every string is drawn again after the hide
   render()
@@ -1153,6 +1157,13 @@ end
 
 function Sold.Hide()
   if view.container then view.container:Hide() end
+  -- Handed back to the other tabs, written again so it is drawn (see put()).
+  if view.status then
+    local text = view.status:GetText()
+    view.status:SetText("")
+    view.status:SetText(text or "")
+    view.status:Show()
+  end
 end
 
 -- Called from GC.Ledger.ScanInbox (a mailbox scan is when sales appear) and from Road to 40's

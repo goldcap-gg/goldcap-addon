@@ -692,6 +692,21 @@ describe("SoldFrame", function()
     end)
   end)
 
+  it("hides the window's shared status line while it is up, and hands it back drawn", function()
+    local status = region("FontString", host)
+    status:SetText("scanning auction house...")
+    host.status = status
+    GC.Sold.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -36, bottom = 12, rowWidth = 600, rowHeight = 32 })
+    show()
+    assert.is_false(status:IsShown())
+    local writes = {}
+    local orig = status.SetText
+    status.SetText = function(self, text) writes[#writes + 1] = text; return orig(self, text) end
+    GC.Sold.Hide()
+    assert.is_true(status:IsShown())
+    assert.same({ "", "scanning auction house..." }, writes)
+  end)
+
   describe("the headings", function()
     it("read ITEM / WHEN / EACH / YOU GOT / PROFIT", function()
       show()
