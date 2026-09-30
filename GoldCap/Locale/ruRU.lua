@@ -924,7 +924,7 @@ GC.Locales.ruRU = {
   ["vendor pays more"] =
     "торговец платит больше",
   ["Below vendor"] =
-    "Ниже цены торговца",
+    "Ниже НПС",
   ["Under market"] =
     "Ниже рынка",
   [" · buy at %s or less, vendor pays %s"] =

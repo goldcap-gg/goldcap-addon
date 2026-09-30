@@ -845,7 +845,7 @@ GC.Locales.zhTW = {
   ["vendor pays more"] =
     "商人出價更高",
   ["Below vendor"] =
-    "低於商人收購價",
+    "低於商人價",
   ["Under market"] =
     "低於市場價",
   [" · buy at %s or less, vendor pays %s"] =

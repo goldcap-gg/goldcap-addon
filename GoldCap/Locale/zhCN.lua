@@ -844,7 +844,7 @@ GC.Locales.zhCN = {
   ["vendor pays more"] =
     "商人出价更高",
   ["Below vendor"] =
-    "低于商人收购价",
+    "低于商人价",
   ["Under market"] =
     "低于市场价",
   [" · buy at %s or less, vendor pays %s"] =

@@ -943,9 +943,9 @@ GC.Locales.ukUA = {
   ["vendor pays more"] =
     "торговець платить більше",
   ["Below vendor"] =
-    "Нижче за торговця",
+    "Нижче НПС",
   ["Under market"] =
-    "Нижче за ринок",
+    "Під ринком",
   [" · buy at %s or less, vendor pays %s"] =
     " · купити за %s або менше, торговець платить %s",
   [" · buy at %s or less, AH value %s"] =

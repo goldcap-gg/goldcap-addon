@@ -934,9 +934,9 @@ GC.Locales.esMX = {
   ["vendor pays more"] =
     "el vendedor paga más",
   ["Below vendor"] =
-    "Bajo el vendedor",
+    "Bajo NPC",
   ["Under market"] =
-    "Bajo el mercado",
+    "Bajo mercado",
   [" · buy at %s or less, vendor pays %s"] =
     " · compra a %s o menos, el vendedor paga %s",
   [" · buy at %s or less, AH value %s"] =

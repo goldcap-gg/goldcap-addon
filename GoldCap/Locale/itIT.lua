@@ -930,9 +930,9 @@ GC.Locales.itIT = {
   ["vendor pays more"] =
     "il venditore paga di più",
   ["Below vendor"] =
-    "Sotto il venditore",
+    "Sotto PNG",
   ["Under market"] =
-    "Sotto il mercato",
+    "Sotto merc.",
   [" · buy at %s or less, vendor pays %s"] =
     " · compra a %s o meno, il venditore paga %s",
   [" · buy at %s or less, AH value %s"] =

@@ -930,9 +930,9 @@ GC.Locales.deDE = {
   ["vendor pays more"] =
     "Händler zahlt mehr",
   ["Below vendor"] =
-    "Unter Händlerpreis",
+    "Unter NPC",
   ["Under market"] =
-    "Unter Marktpreis",
+    "Unter Markt",
   [" · buy at %s or less, vendor pays %s"] =
     " · kaufen für %s oder weniger, Händler zahlt %s",
   [" · buy at %s or less, AH value %s"] =

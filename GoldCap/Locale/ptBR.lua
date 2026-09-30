@@ -928,9 +928,9 @@ GC.Locales.ptBR = {
   ["vendor pays more"] =
     "vendedor paga mais",
   ["Below vendor"] =
-    "Abaixo do vendedor",
+    "Abaixo NPC",
   ["Under market"] =
-    "Abaixo do mercado",
+    "Sob mercado",
   [" · buy at %s or less, vendor pays %s"] =
     " · compre a %s ou menos, vendedor paga %s",
   [" · buy at %s or less, AH value %s"] =
