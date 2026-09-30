@@ -199,15 +199,15 @@ local HEADER_TEXT = {
 }
 local function headerText(key) return GC.L[HEADER_TEXT[key] or ""] end
 
--- Drop priority, spelled out rather than derived from COLUMNS' order (Sold derives it, and can
--- only because its optional columns happen to sit in priority order). USUAL goes first: it is
+-- Drop priority, spelled out rather than derived from COLUMNS' order (Sold spells its own out
+-- too, in UI/SoldFrame.lua's FitColumns call). USUAL goes first: it is
 -- the reference price, and a shopper who has lost a column would rather keep NOW, which is
 -- what the next click actually pays.
 local OPTIONAL_KEYS, DROP_THRESHOLDS = { "usual", "now" }, { 130, 100 }
 
 -- Anchors every visible fixed COLUMNS entry's RIGHT edge right-to-left off `host`'s own RIGHT
 -- edge, skipping any key present in `hidden`; returns the flex ("reagent") column's anchor pair.
--- Identical in shape to SoldFrame's/SniperFrame's anchorColumns.
+-- Identical in shape to SniperFrame's anchorColumns.
 local function anchorColumns(host, hidden, cellFor)
   local prev, prevPoint = host, "RIGHT"
   local flexAnchor

@@ -1634,8 +1634,8 @@ end
 -- hidden and shown again -- the header row behind the Sell/Sold/BUY tabs, or the whole window
 -- -- can come back with its text simply not drawn, tooltips still working over empty cells.
 -- Setting the text it already holds is a no-op to the client and does not make it draw, so
--- each label is cleared, set, hidden and shown -- the cure UI/SoldFrame.lua's and
--- UI/BuyFrame.lua's restampHeadings measured in game. A sortable heading is in header.cells
+-- each label is cleared, set, hidden and shown -- the cure UI/BuyFrame.lua's restampHeadings
+-- measured in game, and UI/SoldFrame.lua's put() applies to every string it writes. A sortable heading is in header.cells
 -- and sortHeaders both, so the text is settled first and every label is stamped once, arrow
 -- included.
 local function updateHeaderSortIndicators()
@@ -10761,8 +10761,7 @@ local function createHeaderRow(f)
   itemHit.label:SetText(GC.L["ITEM"])
 
   -- Not read by any production code; exposed so the heading spec can reach the ITEM cell,
-  -- which is not in header.cells (the flex column has no themed cell of its own). Same
-  -- affordance UI/SoldFrame.lua's own header.itemCell exists for.
+  -- which is not in header.cells (the flex column has no themed cell of its own).
   header.itemCell = itemHit
 
   -- Re-anchors the visible-only column chain (see anchorColumns) and the item header cell's

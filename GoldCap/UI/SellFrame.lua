@@ -429,7 +429,7 @@ local function formatCell(value)
   return type(value) == "number" and GC.Sell._FormatAmount(value) or tostring(value or "")
 end
 
--- Same inline color escape UI/SoldFrame.lua's DIM_HEX uses, for the same reason: the hold-price
+-- Same inline color escape UI/SoldFrame.lua's partial-cost count uses, for the same reason: the hold-price
 -- suffix on the PROFIT/UNIT cell shares one FontString with the number in front of it, so there
 -- is no separate region to SetTextColor -- the only way to dim part of the text is to color it
 -- inline and close with |r.
@@ -6158,7 +6158,7 @@ function GC.Sell.Show()
   -- busy labels with the text they already hold -- a no-op the client does not redraw on a
   -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
   -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
-  -- the cure SoldFrame's restampHeadings uses.
+  -- the cure UI/BuyFrame.lua's restampHeadings uses.
   if container and (postingRow or GC.Sell._postNote) then
     local function restamp(fs)
       if not (fs and fs.IsShown and fs:IsShown()) then return end
