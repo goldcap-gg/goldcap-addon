@@ -10622,6 +10622,14 @@ local function setView(v)
   end
 end
 
+-- Another tab's own control taking the player to a view, the same way that view's rail button
+-- does: the Sold tab's OPEN SELL, beside the bag items that fetch more on the auction house.
+-- A table field rather than an export of setView, so the file's local count does not move.
+function GC.Sniper.ShowView(v)
+  if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+  setView(v)
+end
+
 -- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, the
 -- gear, a rail click, or the window closing -- to re-apply the active tab's Disable() that
 -- setTabActive normally owns.
