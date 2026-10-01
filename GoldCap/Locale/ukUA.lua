@@ -992,4 +992,9 @@ GC.Locales.ukUA = {
   -- The quest reward mark (UI/QuestRewardMark.lua).
   ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
     "GoldCap: нагорода в золотій рамці найдорожча на аукціоні (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 предмет у ваших сумках на аукціоні коштує більше (+%s). Залиште його для аукціону.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "Предметів у ваших сумках, що на аукціоні коштують більше: %d (+%s). Залиште їх для аукціону.",
 }

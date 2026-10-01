@@ -681,6 +681,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnAuctionHouseShow()
       -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
       if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
+    elseif interactionType == Enum.PlayerInteractionType.Merchant then
+      -- The note beside the vendor window: what in the bags fetches more on the auction house.
+      if GC.MerchantNote then GC.MerchantNote.OnMerchantShow() end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
@@ -693,6 +696,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- down for that item until /reload.
       if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
+    elseif interactionType == Enum.PlayerInteractionType.Merchant then
+      if GC.MerchantNote then GC.MerchantNote.OnMerchantClosed() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
     GC.Util.NoteThrottleEvent(event)
@@ -919,6 +924,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- A craft changes the bags, so this is the cheapest settle signal there is; the ticker
     -- above covers the case where nothing else touches a bag afterwards.
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
+    -- A sale or a buyback at a vendor changes what the vendor note counts.
+    if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.

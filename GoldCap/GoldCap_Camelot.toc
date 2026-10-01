@@ -87,6 +87,7 @@ Core/AutoScan.lua
 UI/Theme.lua
 UI/Tooltip.lua
 UI/QuestRewardMark.lua
+UI/MerchantNote.lua
 UI/ImportDialog.lua
 UI/CompanionDialog.lua
 UI/VendorListDialog.lua

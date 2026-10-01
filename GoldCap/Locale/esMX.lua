@@ -983,4 +983,9 @@ GC.Locales.esMX = {
   -- The quest reward mark (UI/QuestRewardMark.lua).
   ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
     "GoldCap: la recompensa del marco dorado es la que más vale en la casa de subastas (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 objeto de tus bolsas vale más en la casa de subastas (+%s). Guárdalo para la subasta.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "%d objetos de tus bolsas valen más en la casa de subastas (+%s). Guárdalos para la subasta.",
 }
