@@ -35,14 +35,17 @@ local function craftOf(raw)
            reagents = reagents }
 end
 
--- The ceiling one unit of this line may cost: its own, in copper, when the site sent one;
--- otherwise the run's cap percent applied to the reference price, which is what every line
--- without one has always used. A zero or a negative is not a ceiling -- trusted, it caps the
--- line at nothing and nothing can ever be bought.
-local function capFor(src, usual, capPct)
+-- The ceiling one unit of this line may cost, and whose it is: the player's own price for the
+-- line first (typed or raised in the BUY tab), then the site's absolute one (an alert target),
+-- then the run's percent of the reference price, which is what every line without either has
+-- always used. A zero or a negative is not a ceiling -- trusted, it caps the line at nothing and
+-- nothing can ever be bought.
+local function capFor(src, usual, capPct, own)
+  if type(own) == "number" and own > 0 then return math.floor(own), "yours" end
   local absolute = num(src.cc)
-  if absolute and absolute > 0 then return math.floor(absolute) end
-  return usual and math.floor(usual * capPct / 100) or nil
+  if absolute and absolute > 0 then return math.floor(absolute), "target" end
+  if usual then return math.floor(usual * capPct / 100), "default" end
+  return nil, nil
 end
 
 function GC.BuyRun.New(run, driver)
@@ -107,6 +110,11 @@ function GC.BuyRun.New(run, driver)
         -- replace a copper purchase from a vendor with reagents bought at the auction house.
         craft = (src.v ~= true) and craftOf(src.cr) or nil,
         floor = state.floor, floorAt = state.floorAt,
+        -- The route the list was saved from crafts this item itself (Core/AppRuns.lua's `mk`): a
+        -- craft line from the start, never a purchase, and never split -- the route's reagents
+        -- are lines of the list already.
+        make = src.mk == true or nil,
+        kind = (src.mk == true) and "craft" or nil,
       }
       entries[#entries + 1] = entry
       -- Core/AppRuns.lua already merges duplicate item ids; the `or` is for a run handed
@@ -134,7 +142,7 @@ function GC.BuyRun.New(run, driver)
     while index <= #entries do
       local parent = entries[index]
       local at = index
-      if parent.craft and not parent.parent and splits[parent.itemID] then
+      if parent.craft and not parent.parent and not parent.make and splits[parent.itemID] then
         parent.kind = "craft"
         parent.crafts = math.ceil(
           math.max(0, parent.need - math.max(parent.have, parent.bought)) / parent.craft.craftedQty)
@@ -170,20 +178,33 @@ function GC.BuyRun.New(run, driver)
 
   -- Everything that depends on NEED, once NEED has stopped moving: the reference price, the
   -- ceiling, and what is left to buy.
-  local function finish(entries, capPct)
+  local function finish(entries, capPct, lineCaps, pricedAt)
     for _, entry in ipairs(entries) do
       -- The run's own price first: the site knew what this item cost when the list was saved,
       -- and the import's market value is a snapshot of a different moment (or, for an item the
       -- import has never carried, of nothing at all). A zero or a non-number is not a price --
       -- trusted, it caps the line at nothing and the line can never be bought.
+      --
+      -- Except a crowd price (WoW: Forever, other players' scans) seen AFTER the list was priced:
+      -- that is the fresher look at the same shelf, and wins -- the rule every other Forever
+      -- surface follows (decision E10). The driver hands one only for a crowd price, so a retail
+      -- line is exactly what it always was. `usualRef` keeps whose price it is and how old.
       local lineUsual = entry.lineUsual
-      entry.usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(entry.itemID)
+      local ref = driver.usualRef and driver.usualRef(entry.itemID) or nil
+      local own = (lineUsual and lineUsual > 0) and lineUsual or nil
+      if type(ref) == "table" and (ref.value or 0) > 0 and (not own or (ref.at or 0) > (pricedAt or 0)) then
+        entry.usual, entry.usualRef = ref.value, ref
+      else
+        entry.usual, entry.usualRef = own or driver.usualUnit(entry.itemID), nil
+      end
       if entry.vendorUnit and entry.vendorUnit <= 0 then entry.vendorUnit = nil end
-      -- An absolute ceiling for one unit, when the line brought one: an alert group's own
-      -- target price is the number the player chose, and a percentage of the site's reference
-      -- price has nothing to say about it -- it would either buy above the alert or refuse the
-      -- very lots the alert found. Everything else is capped as it always was.
-      entry.cap = capFor({ cc = entry.capCopper }, entry.usual, capPct)
+      -- An absolute ceiling for one unit, when there is one: the player's own price for the line,
+      -- or an alert group's own target price -- numbers the player chose, which a percentage of
+      -- the site's reference price has nothing to say about: it would either buy above them or
+      -- refuse the very lots they let through. Everything else is capped as it always was.
+      -- `capFrom` says whose ceiling it is ("yours" / "target" / "default"), for the words.
+      entry.cap, entry.capFrom = capFor({ cc = entry.capCopper }, entry.usual, capPct,
+        lineCaps and lineCaps[entry.itemID])
       -- The LARGER of the two, never their sum. `have` and `bought` are two views of the same
       -- units the moment a purchase is delivered -- the buyer's bags hold what they just bought --
       -- so subtracting both counted every purchase twice: a line needing 10 that filled 6 read
@@ -193,6 +214,11 @@ function GC.BuyRun.New(run, driver)
       local buy = entry.need - math.max(entry.have, entry.bought)
       entry.buy = buy > 0 and buy or 0
       entry.done = entry.buy == 0
+      -- A line the route crafts says how many crafts that is, when its recipe says how many one
+      -- makes -- the same rounding a split line's count takes (applySplits).
+      if entry.make and entry.craft then
+        entry.crafts = math.ceil(entry.buy / entry.craft.craftedQty)
+      end
     end
   end
 
@@ -243,9 +269,12 @@ function GC.BuyRun.New(run, driver)
     -- Asked on every Refresh rather than once at construction, unlike progress: the player
     -- splits and un-splits a line from the row menu, and the answer has to be the current one.
     local splits = (driver.splits and driver.splits(run.code)) or {}
+    -- The player's own per-line prices (BUY 2.0), asked on every Refresh for the reason the
+    -- splits are: the row menu and the dock write them and re-render.
+    local lineCaps = (driver.lineCaps and driver.lineCaps(run.code)) or nil
     local entries, byItem = baseEntries()
     applySplits(entries, byItem, splits)
-    finish(entries, capPct)
+    finish(entries, capPct, lineCaps, run.pricedAt or run.updatedAt)
     lines = bucketed(entries)
   end
 

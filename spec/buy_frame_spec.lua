@@ -1,11 +1,12 @@
 local helper = require("spec.spec_helper")
 
 -- The BUY tab's render, exercised the way spec/soldframe_spec.lua exercises Sold's: the real
--- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the module-local
--- row pool / header band reached through debug.getupvalue. Only the two things a headless run
--- genuinely cannot have -- the client's bag API and the market-value lookup -- are stubbed.
+-- Core/BuyRun.lua and Core/BagStock.lua underneath, fake widgets above, and the row pool / header
+-- band reached through GC.Buy._view. Only the two things a headless run genuinely cannot have --
+-- the client's bag API and the market-value lookup -- are stubbed.
 describe("BuyFrame", function()
   local GC, rowsOf, containerOf, bandOf
+  local textWidth, stringHeight
 
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
                   [104] = "Delta Vial" }
@@ -51,13 +52,27 @@ describe("BuyFrame", function()
     function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
     function r:SetVertexColor(...) self.vertexColor = { ... } end
     function r:SetSpacing(s) self.spacing = s end
+    -- The client's rule: on a texture, SetAlpha writes the alpha SetVertexColor's fourth
+    -- argument set -- so a wash "switched" with it repaints at full strength.
+    function r:SetAlpha(a)
+      self.alpha = a
+      if self.kind == "Texture" and self.vertexColor then self.vertexColor[4] = a end
+    end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
+    -- The client's own measurements, off unless a test gives them an answer (textWidth,
+    -- stringHeight below): production code falls back to its least widths without them.
+    function r:GetUnboundedStringWidth() return textWidth and textWidth(self.textValue or "") or nil end
+    function r:GetStringHeight() return stringHeight and stringHeight(self) or 12 end
     function r:Show() self.visible = true end
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
     function r:SetScript(name, fn) self.scripts[name] = fn end
+    function r:SetAutoFocus(on) self.autoFocus = on end
+    function r:HasFocus() return self.focused == true end
+    function r:SetFocus() self.focused = true end
+    function r:ClearFocus() self.focused = false end
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
     function r:RegisterForClicks() end
@@ -136,6 +151,7 @@ describe("BuyFrame", function()
       Label = function(parent, _) return region("FontString", parent) end,
       Num = function(parent, _, _) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
+      SlicedTexture = function(parent) return region("Texture", parent) end,
       WithQuality = function(name) return name end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
@@ -145,6 +161,8 @@ describe("BuyFrame", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
+    helper.loadModule("Core/BuyView.lua", GC)
+    helper.loadModule("Core/BuyDock.lua", GC)
 
     local runs = { run() }
     GC.AppRuns = {
@@ -167,33 +185,10 @@ describe("BuyFrame", function()
 
     helper.loadModule("UI/BuyFrame.lua", GC)
 
-    rowsOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.RefreshIfShown, i)
-        if not name then error("rows upvalue not found") end
-        if name == "rows" then return value end
-        i = i + 1
-      end
-    end
-    containerOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.Show, i)
-        if not name then error("container upvalue not found") end
-        if name == "container" then return value end
-        i = i + 1
-      end
-    end
-    bandOf = function()
-      local i = 1
-      while true do
-        local name, value = debug.getupvalue(GC.Buy.RefreshIfShown, i)
-        if not name then error("band upvalue not found") end
-        if name == "band" then return value end
-        i = i + 1
-      end
-    end
+    -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
+    rowsOf = function() return GC.Buy._view.rows end
+    containerOf = function() return GC.Buy._view.container end
+    bandOf = function() return GC.Buy._view.band end
 
     local host = region("Frame")
     GC.Buy.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -100,
@@ -202,6 +197,7 @@ describe("BuyFrame", function()
   end)
 
   after_each(function()
+    textWidth, stringHeight = nil, nil
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
     _G.GetItemCount, _G.GoldCap_AppRuns = nil, nil
@@ -222,6 +218,38 @@ describe("BuyFrame", function()
     end
   end
 
+  -- BUY 2.0: no row carries a button. A left click on a row picks its line for the dock at the
+  -- foot of the tab, whose one button buys it.
+  local function dock() return GC.Buy._view.dock end
+  -- BUY 2.0's rows show what is left to buy beside the name; need, have and buy themselves are the
+  -- run's arithmetic, read off the line a row shows.
+  local function lineOfRow(row)
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == row.lineItemID then return l end end
+  end
+  local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
+
+  -- The client's GameTooltip, as far as a line's tooltip uses it. `lines` are its AddLine calls
+  -- (text and colour), `all` every line in order, the double ones as "left | right".
+  local function tooltipOn(row)
+    local lines, all = {}, {}
+    _G.GameTooltip = {
+      SetOwner = function() end, IsOwned = function() return true end,
+      SetText = function(_, text) all[#all + 1] = text end,
+      AddLine = function(_, text, r, g, b)
+        lines[#lines + 1] = { text = text, color = { r, g, b } }
+        all[#all + 1] = text
+      end,
+      AddDoubleLine = function(_, left, right) all[#all + 1] = left .. " | " .. right end,
+      Show = function() end, Hide = function() end,
+    }
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    return lines, all
+  end
+  local function lineWith(lines, text)
+    for _, l in ipairs(lines) do if (l.text or ""):find(text, 1, true) then return l end end
+  end
+
   local function shownTexts()
     local out = {}
     for _, row in ipairs(shownRows()) do
@@ -230,18 +258,20 @@ describe("BuyFrame", function()
     return table.concat(out, "\n")
   end
 
-  it("shows each line's need, have and buy counts", function()
+  it("names each line with what is left to buy, and keeps its need, have and buy", function()
     local alpha, bravo = rowWithText("Alpha Herb"), rowWithText("Bravo Ore")
     assert.truthy(alpha and bravo)
-    assert.equal("10", alpha.cells.need:GetText())
-    assert.equal("0", alpha.cells.have:GetText())
-    assert.equal("10", alpha.cells.buy:GetText())
+    assert.equal("10", tostring(lineOfRow(alpha).need))
+    assert.equal("0", tostring(lineOfRow(alpha).have))
+    assert.equal("10", tostring(lineOfRow(alpha).buy))
     -- Five in the bags covers the whole need: nothing left to buy, and the row says "done"
     -- rather than offering a BUY 0 button.
-    assert.equal("5", bravo.cells.have:GetText())
-    assert.equal("0", bravo.cells.buy:GetText())
-    assert.equal("done", bravo.cells.action:GetText())
-    assert.is_false(bravo.action:IsShown())
+    assert.equal("5", tostring(lineOfRow(bravo).have))
+    assert.equal("0", tostring(lineOfRow(bravo).buy))
+    assert.equal("Alpha Herb ×10", alpha.reagent:GetText())
+    assert.equal("bought", bravo.status:GetText())
+    pick(bravo)
+    assert.is_false(dock().buy:IsShown())
   end)
 
   -- HAVE is what the player owns, not what they happen to be carrying: three hundred units in
@@ -249,24 +279,25 @@ describe("BuyFrame", function()
   it("counts bank stock into HAVE alongside the bags", function()
     stubItemCount({ [102] = { all = 305, carried = 5 } })
     GC.Buy.Show()
-    assert.equal("305", rowWithText("Bravo Ore").cells.have:GetText())
+    assert.equal("305", tostring(lineOfRow(rowWithText("Bravo Ore")).have))
   end)
 
   it("needs no shopping trip for a line the bank alone covers", function()
     stubItemCount({ [101] = { all = 12, carried = 0 } })
     GC.Buy.Show()
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("12", alpha.cells.have:GetText())
-    assert.equal("0", alpha.cells.buy:GetText())
-    assert.equal("done", alpha.cells.action:GetText())
-    assert.is_false(alpha.action:IsShown())
+    assert.equal("12", tostring(lineOfRow(alpha).have))
+    assert.equal("0", tostring(lineOfRow(alpha).buy))
+    assert.equal("bought", alpha.status:GetText())
+    pick(alpha)
+    assert.is_false(dock().buy:IsShown())
   end)
 
   it("counts only the bags when the client has no item-count API", function()
     _G.C_Item.GetItemCount, _G.GetItemCount = nil, nil
     GC.Buy.Show()
-    assert.equal("0", rowWithText("Alpha Herb").cells.have:GetText())
-    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+    assert.equal("0", tostring(lineOfRow(rowWithText("Alpha Herb")).have))
+    assert.equal("5", tostring(lineOfRow(rowWithText("Bravo Ore")).have))
   end)
 
   -- Older clients expose the count as a plain global instead of on C_Item; it is the same call
@@ -278,14 +309,14 @@ describe("BuyFrame", function()
       return 5
     end
     GC.Buy.Show()
-    assert.equal("105", rowWithText("Bravo Ore").cells.have:GetText())
+    assert.equal("105", tostring(lineOfRow(rowWithText("Bravo Ore")).have))
   end)
 
   -- An API that throws must cost the player the bank number, never the bag number.
   it("keeps the bag count when the item-count API errors", function()
     _G.C_Item.GetItemCount = function() error("no item") end
     GC.Buy.Show()
-    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+    assert.equal("5", tostring(lineOfRow(rowWithText("Bravo Ore")).have))
   end)
 
   -- The bank is a subtraction, and a subtraction can come out below zero the moment the two
@@ -293,43 +324,37 @@ describe("BuyFrame", function()
   it("never lets the bank number pull HAVE below the bags", function()
     stubItemCount({ [102] = { all = 2, carried = 5 } })
     GC.Buy.Show()
-    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+    assert.equal("5", tostring(lineOfRow(rowWithText("Bravo Ore")).have))
   end)
 
   it("splits HAVE into bags and bank on the row tooltip when the bank holds any", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     stubItemCount({ [102] = { all = 305, carried = 5 } })
     GC.Buy.Show()
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({ "in bags 5 · in bank 300" }, tooltipLines)
+    local lines = tooltipOn(rowWithText("Bravo Ore"))
+    assert.truthy(lineWith(lines, "in bags 5 · in bank 300"))
   end)
 
   it("says nothing about the bank on the tooltip when there is none in it", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     GC.Buy.Show()
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({}, tooltipLines)
+    local lines = tooltipOn(rowWithText("Bravo Ore"))
+    assert.is_nil(lineWith(lines, "in bank"))
+  end)
+
+  it("says how many are left to buy of how many, and how many the player has", function()
+    stubItemCount({ [101] = { all = 4, carried = 0 } })
+    GC.Buy.Show()
+    local lines, all = tooltipOn(rowWithText("Alpha Herb"))
+    assert.equal("Alpha Herb", all[1])
+    assert.truthy(lineWith(lines, "buy 6 of 10, have 4 in bags and bank"))
   end)
 
   -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a
   -- click does from there, and what the label becomes, is spec/buy_purchase_spec.lua's.
   it("offers a BUY button for the quantity still missing", function()
-    local alpha = rowWithText("Alpha Herb")
-    assert.truthy(alpha.action:IsShown())
-    assert.equal("BUY 10", alpha.action.label)
-    assert.is_true(alpha.action:IsEnabled())
+    pick(rowWithText("Alpha Herb"))
+    assert.truthy(dock().buy:IsShown())
+    assert.equal("BUY 10", dock().buy.label)
+    assert.is_true(dock().buy:IsEnabled())
   end)
 
   it("puts the vendor line after the open ones and the finished line last", function()
@@ -339,15 +364,14 @@ describe("BuyFrame", function()
     end
     assert.equal(4, #lineRows)
     -- 101 open, 103 open, 104 vendor, 102 done -- the bags already cover 102.
-    assert.equal("Alpha Herb", lineRows[1].reagent:GetText())
-    assert.equal("Charlie Dust", lineRows[2].reagent:GetText())
-    assert.equal("Delta Vial", lineRows[3].reagent:GetText())
-    assert.equal("vendor", lineRows[3].cells.action:GetText())
-    assert.is_false(lineRows[3].action:IsShown())
+    assert.equal("Alpha Herb ×10", lineRows[1].reagent:GetText())
+    assert.equal("Charlie Dust ×3", lineRows[2].reagent:GetText())
+    assert.equal("Delta Vial ×20", lineRows[3].reagent:GetText())
+    assert.equal("at a vendor", lineRows[3].status:GetText())
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
       lineRows[3].reagent.colorValue)
-    assert.equal("Bravo Ore", lineRows[4].reagent:GetText())
-    assert.equal("done", lineRows[4].cells.action:GetText())
+    assert.equal("Bravo Ore ×5", lineRows[4].reagent:GetText())
+    assert.equal("bought", lineRows[4].status:GetText())
   end)
 
   -- The tab limits nothing: every line of a run is the player's to buy. The companion still
@@ -373,34 +397,36 @@ describe("BuyFrame", function()
     for i = 1, 8 do
       local row = rowWithText("Line " .. i)
       assert.truthy(row, "no row for line " .. i)
-      assert.is_true(row.action:IsShown())
-      assert.equal("BUY 2", row.action.label)
+      pick(row)
+      assert.is_true(dock().buy:IsShown())
+      assert.equal("BUY 2", dock().buy.label)
     end
     -- ...and nothing was added under them to explain a limit that no longer exists.
     assert.equal(8, #shownRows())
   end)
 
-  it("counts lines, buys and vendor stops in the header band", function()
-    local band = bandOf()
-    assert.equal("4 lines · 2 to buy · 1 at the vendor", band.counts:GetText())
-    assert.truthy(band.spent:GetText():find("spent ", 1, true))
-    assert.truthy(band.spent:GetText():find("left ~", 1, true))
-    assert.equal("in bags and bank · purchases arrive by mail", band.bags:GetText())
+  it("says in the band how many of the run's lines are done", function()
+    -- Bravo Ore is covered by the five in the bag; the other three are still open.
+    assert.equal("1 of 4 done", bandOf().done:GetText())
   end)
 
-  -- Spec rule 5: a run with nothing left to buy and nothing left to fetch says so, rather than
-  -- counting three zeroes at the player.
+  -- Spec rule 5: a run with nothing left says so -- the band counts every line done, and the
+  -- dock says everything here is bought.
   it("says everything is bought when the run has nothing left", function()
     GC.AppRuns._set({ run({ code = "run-d", updatedAt = 900,
       lines = { { i = 102, q = 5 }, { i = 104, q = 0, v = true } } }) })
     GC.db.settings.sniper.buyRun = "run-d"
     GC.Buy.Show()
-    assert.equal("everything bought", bandOf().counts:GetText())
-    assert.is_truthy(bandOf().spent:GetText():find("spent ", 1, true))
+    assert.equal("2 of 2 done", bandOf().done:GetText())
+    assert.equal("Everything here is bought", dock().title:GetText())
+    assert.equal("—", bandOf().total:GetText())
   end)
 
-  it("still counts the lines while anything is left", function()
-    assert.equal("4 lines · 2 to buy · 1 at the vendor", bandOf().counts:GetText())
+  it("draws the progress bar over the done share of the run", function()
+    containerOf().width = 600
+    GC.Buy.RefreshIfShown()
+    assert.is_true(bandOf().fill:IsShown())
+    assert.equal(150, bandOf().fill.width) -- one of four done
   end)
 
   it("names the run on the picker and cycles to the next one, remembering the choice", function()
@@ -440,10 +466,11 @@ describe("BuyFrame", function()
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
     assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
-      "divider", "Cap: 130%", "Archive this run", "Remove this run", "Paste a run..." }, texts)
+      "divider", "Cap: 130%", "Archive this run", "Copy vendor list", "Remove this run",
+      "Paste a run..." }, texts)
 
     -- Remove drops the pasted run and lands on the one left.
-    entries[7].fn()
+    entries[8].fn()
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
@@ -464,7 +491,8 @@ describe("BuyFrame", function()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
     assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
-      "Archive this run", "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+      "Archive this run", "Copy vendor list", "From goldcap.gg — remove it there", "Paste a run..." },
+      entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -663,17 +691,20 @@ describe("BuyFrame", function()
     assert.is_nil(GC.Buy.CurrentRun())
     assert.truthy(shownTexts():find("No runs yet.", 1, true))
     assert.is_false(bandOf().picker:IsShown())
-    assert.equal("", bandOf().counts:GetText())
+    assert.equal("", bandOf().done:GetText())
+    assert.is_false(bandOf().totalCaption:IsShown())
+    assert.is_false(dock():IsShown())
   end)
 
   it("recounts what is in the bags when the bags change", function()
-    assert.equal("10", rowWithText("Alpha Herb").cells.buy:GetText())
+    assert.equal("10", tostring(lineOfRow(rowWithText("Alpha Herb")).buy))
     stubBags({ [1] = { itemID = 102, qty = 5 }, [2] = { itemID = 101, qty = 4 } })
     GC.Buy.OnBagsChanged()
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("4", alpha.cells.have:GetText())
-    assert.equal("6", alpha.cells.buy:GetText())
-    assert.equal("BUY 6", alpha.action.label)
+    assert.equal("4", tostring(lineOfRow(alpha).have))
+    assert.equal("6", tostring(lineOfRow(alpha).buy))
+    pick(alpha)
+    assert.equal("BUY 6", dock().buy.label)
   end)
 
   -- GC.BagStock.Scan drops a soulbound stack because the auction house will not POST it --
@@ -683,8 +714,8 @@ describe("BuyFrame", function()
     stubBags({ [1] = { itemID = 102, qty = 5 }, [2] = { itemID = 101, qty = 7, bound = true } })
     GC.Buy.OnBagsChanged()
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("7", alpha.cells.have:GetText())
-    assert.equal("3", alpha.cells.buy:GetText())
+    assert.equal("7", tostring(lineOfRow(alpha).have))
+    assert.equal("3", tostring(lineOfRow(alpha).buy))
   end)
 
   -- BAG_UPDATE_DELAYED fires all session long; a six-bag walk behind the Deals tab buys
@@ -698,7 +729,7 @@ describe("BuyFrame", function()
 
     GC.Buy.Show()
     assert.equal(1, bagWalks)
-    assert.equal("4", rowWithText("Alpha Herb").cells.have:GetText())
+    assert.equal("4", tostring(lineOfRow(rowWithText("Alpha Herb")).have))
   end)
 
   -- A run keeps its code across a companion sync while its lines change, so the code alone
@@ -707,17 +738,34 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ run({ updatedAt = 900, lines = { { i = 101, q = 2 } } }) })
     GC.Buy.Show()
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("2", alpha.cells.need:GetText())
+    assert.equal("2", tostring(lineOfRow(alpha).need))
     assert.is_nil(rowWithText("Charlie Dust"))
   end)
 
-  it("shows USUAL from market value and an em dash for a NOW nobody has seen yet", function()
+  -- Nothing has looked at the book for a fresh run: PRICE EACH is the market value, dimmed, and
+  -- COST an estimate marked as one.
+  it("prices a line nothing has been seen for at its market value, dimmed, with an estimated cost", function()
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("—", alpha.cells.now:GetText())
-    assert.equal("1000c", alpha.cells.usual:GetText())
-    -- A line with no market value at all states neither, rather than inventing a zero.
-    local delta = rowWithText("Delta Vial")
-    assert.equal("—", delta.cells.usual:GetText())
+    assert.equal("1000c", alpha.cells.price:GetText())
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+      alpha.cells.price.colorValue)
+    assert.equal("~1g", alpha.cells.cost:GetText())
+    -- ...and the cheapest unit seen, in full colour, once there is one.
+    GC.Buy.CurrentRun():SetFloor(101, 900, 2000)
+    GC.Buy.RefreshIfShown()
+    alpha = rowWithText("Alpha Herb")
+    assert.equal("900c", alpha.cells.price:GetText())
+    assert.same({ 1, 1, 1, 1 }, alpha.cells.price.colorValue)
+    assert.equal("~9000c", alpha.cells.cost:GetText())
+  end)
+
+  -- A line with no price at all states none, rather than inventing a zero.
+  it("leaves a line nobody can price on em dashes", function()
+    GC.AppRuns._set({ run({ lines = { { i = 105, q = 2 } } }) })
+    GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+    local row = rowWithText("#105")
+    assert.equal("—", row.cells.price:GetText())
+    assert.equal("—", row.cells.cost:GetText())
   end)
 
   -- WoW: Forever prices an item from the player's own last scan when nothing else knows it. One
@@ -740,14 +788,14 @@ describe("BuyFrame", function()
       withValue({ mv = 500, source = "scan", ts = 1 })
       assert.is_nil(lineOf(101).usual)
       assert.is_nil(lineOf(101).cap)
-      assert.equal("—", rowWithText("Alpha Herb").cells.usual:GetText())
+      assert.equal("—", rowWithText("Alpha Herb").cells.price:GetText())
     end)
 
     it("uses the community price when the player's own scan is the fresher look", function()
       withValue({ mv = 500, source = "scan", ts = 9 }, { value = 800, source = "crowd", scanners = 3 })
       assert.equal(800, lineOf(101).usual)
       assert.equal(1040, lineOf(101).cap) -- 130% of 800
-      assert.equal("800c", rowWithText("Alpha Herb").cells.usual:GetText())
+      assert.equal("800c", rowWithText("Alpha Herb").cells.price:GetText())
     end)
 
     it("uses a community value as it is", function()
@@ -756,12 +804,35 @@ describe("BuyFrame", function()
       assert.equal(910, lineOf(101).cap)
     end)
 
+    it("keeps a retail list's own price whatever the market value says", function()
+      GC.AppRuns._set({ run({ lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Data.ForeverReference = function() return { source = "own" } end
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      local line = GC.Buy.CurrentRun():Lines()[1]
+      assert.equal(777, line.usual)
+      assert.is_nil(line.usualRef)
+    end)
+
+    -- WoW: Forever: the crowd's look wins over the list's price only when it is the fresher one.
+    it("takes a crowd price seen after the list was priced, and keeps whose it is", function()
+      local crowd = { value = 800, source = "crowd", scanners = 3, at = 1500 }
+      GC.AppRuns._set({ run({ pricedAt = 1000, lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Data.ForeverReference = function(itemID) if itemID == 101 then return crowd end return { source = "own" } end
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      assert.equal(800, lineOf(101).usual)
+      assert.same(crowd, lineOf(101).usualRef)
+      GC.AppRuns._set({ run({ pricedAt = 1600, lines = { { i = 101, q = 10, u = 777 } } }) })
+      GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+      assert.equal(777, lineOf(101).usual)
+      assert.is_nil(lineOf(101).usualRef)
+    end)
+
     it("leaves every other source (retail) exactly as it was", function()
       for _, source in ipairs({ "import", "region", "bundled" }) do
         withValue({ mv = 1000, source = source })
         assert.equal(1000, lineOf(101).usual)
         assert.equal(1300, lineOf(101).cap)
-        assert.equal("1000c", rowWithText("Alpha Herb").cells.usual:GetText())
+        assert.equal("1000c", rowWithText("Alpha Herb").cells.price:GetText())
       end
     end)
   end)
@@ -815,12 +886,10 @@ describe("BuyFrame", function()
 
     local vendor = rowWithText("Bravo Ore")
     assert.truthy(vendor)
-    assert.equal("vendor", vendor.cells.action:GetText())
-    assert.equal("25c", vendor.cells.now:GetText())
-    assert.equal("25c", vendor.cells.usual:GetText())
-    assert.equal("100c", vendor.cells.cost:GetText())   -- 5 already in bags, 4 left to buy at 25c
-    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
-      vendor.cells.cost.colorValue)
+    assert.equal("Bravo Ore ×4", vendor.reagent:GetText())  -- 5 already in bags, 4 left to buy
+    assert.equal("at a vendor · 25c each", vendor.status:GetText())
+    assert.is_false(vendor.cells.price:IsShown())
+    assert.is_false(vendor.cells.cost:IsShown())
   end)
 
   -- Without a vendor price there is no honest number: the market value beside it is not one.
@@ -831,33 +900,49 @@ describe("BuyFrame", function()
     GC.Buy.Show()
 
     local vendor = rowWithText("Bravo Ore")
-    assert.equal("—", vendor.cells.now:GetText())
-    assert.equal("—", vendor.cells.usual:GetText())   -- 102 has a market value; it is not the point
-    assert.equal("—", vendor.cells.cost:GetText())
+    -- 102 has a market value; it is not the point.
+    assert.equal("at a vendor", vendor.status:GetText())
+    assert.is_nil(vendor.status:GetText():find("c", 1, true))
 
     -- ...while the line the player is actually here to buy still prices.
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("1000c", alpha.cells.usual:GetText())
+    assert.equal("1000c", alpha.cells.price:GetText())
     assert.equal("~1g", alpha.cells.cost:GetText())
   end)
 
   -- Finding 4: a vendor stop the bags already cover is `buy == 0` at a known price -- `buy * unit`
   -- is honestly zero, but "0c" reads as a real quote rather than as the nothing-left-to-do an
   -- em dash says everywhere else on this tab.
-  it("shows the em dash, not 0c, for a done vendor line's cost", function()
+  it("says a vendor stop the bags already cover is done, not 0c", function()
     GC.AppRuns._set({ run({ code = "run-vd", updatedAt = 900,
       lines = { { i = 101, q = 10 }, { i = 102, q = 5, v = true, vu = 25 } } }) })
     GC.db.settings.sniper.buyRun = "run-vd"
     GC.Buy.Show()
 
     local vendor = rowWithText("Bravo Ore")
-    assert.equal("25c", vendor.cells.now:GetText())
-    assert.equal("25c", vendor.cells.usual:GetText())
-    assert.equal("—", vendor.cells.cost:GetText())
+    assert.equal("bought", vendor.status:GetText())
+    assert.is_false(vendor.cells.cost:IsShown())
   end)
 
-  -- Spec rule 2: the run header offers the vendor stops as a block of plain text, because the
+  -- Spec rule 2: the run menu offers the vendor stops as a block of plain text, because the
   -- player has to read them off the screen while standing at a vendor.
+  local function copyVendorList()
+    local copied, offered
+    GC.UI = { ShowVendorList = function(text) copied = text end }
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function() end, CreateDivider = function() end,
+        CreateButton = function(_, text, fn)
+          if text == "Copy vendor list" then offered = true; fn() end
+          return {}
+        end,
+      })
+    end }
+    bandOf().picker.scripts.OnClick(bandOf().picker)
+    _G.MenuUtil = nil
+    return copied, offered
+  end
+
   it("copies the run's vendor stops out as a list with a total", function()
     GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900, lines = {
       { i = 101, q = 10 }, { i = 104, q = 5, v = true, vu = 25 },
@@ -865,13 +950,8 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-v"
     GC.Buy.Show()
 
-    local copied
-    GC.UI = { ShowVendorList = function(text) copied = text end }
-    local band = bandOf()
-    assert.is_true(band.vendor:IsShown())
-    assert.equal("Copy vendor list", band.vendor.label)
-    band.vendor.scripts.OnClick(band.vendor)
-
+    local copied, offered = copyVendorList()
+    assert.is_true(offered)
     -- Plain money, never GetCoinTextureString: the icon escapes copy out of the box as
     -- |TInterface\...|t, which is not something a player can read at a vendor.
     assert.equal("5× Delta Vial · 25c each · 1s25c\n"
@@ -884,109 +964,54 @@ describe("BuyFrame", function()
       { i = 101, q = 10 }, { i = 104, q = 5, v = true } } }) })
     GC.db.settings.sniper.buyRun = "run-v"
     GC.Buy.Show()
-    local copied
-    GC.UI = { ShowVendorList = function(text) copied = text end }
-    bandOf().vendor.scripts.OnClick(bandOf().vendor)
-    assert.equal("5× Delta Vial\nTotal: 0c", copied)
+    assert.equal("5× Delta Vial\nTotal: 0c", (copyVendorList()))
   end)
 
-  it("hides the button for a run with no vendor stop", function()
+  it("offers no vendor list for a run with no vendor stop", function()
     GC.AppRuns._set({ run({ code = "run-n", updatedAt = 900, lines = { { i = 101, q = 10 } } }) })
     GC.db.settings.sniper.buyRun = "run-n"
     GC.Buy.Show()
-    assert.is_false(bandOf().vendor:IsShown())
+    local _, offered = copyVendorList()
+    assert.is_nil(offered)
   end)
 
-  -- The money line yields to the vendor button while the button is up, and takes the whole
-  -- width back when it is not -- a shared RIGHT anchor would draw the text under the button.
-  it("stops the money line at the vendor button while the button is shown", function()
-    local function rightOf(fs)
-      for _, p in ipairs(fs.points) do if p.point == "RIGHT" then return p end end
-    end
-    GC.AppRuns._set({ run() })   -- has a vendor line still to buy
-    GC.Buy.SelectRun("run-1")
-    GC.Buy.Show()
-    local band = bandOf()
-    assert.is_true(band.vendor:IsShown())
-    assert.equal(band.vendor, rightOf(band.spent).relative)
-    GC.AppRuns._set({ run({ code = "run-2", lines = { { i = 101, q = 10 } } }) })   -- no vendor stop
-    GC.Buy.SelectRun("run-2")
-    GC.Buy.Show()
-    band = bandOf()
-    assert.is_false(band.vendor:IsShown())
-    assert.equal(band.bags, rightOf(band.spent).relative)
-  end)
-
-  -- The button hangs off the legend on the band's SECOND line, not between the picker and the
-  -- counts on the first: the counts string has two opposing anchors and no width of its own, so
-  -- anything parked in front of it is what the text overflows onto at a narrow docked width.
-  it("hangs the vendor button off the legend, leaving line one to the picker and the counts",
-    function()
-      local band = bandOf()
-      local anchor
-      for _, p in ipairs(band.vendor.points) do if p.point == "RIGHT" then anchor = p end end
-      assert.truthy(anchor)
-      assert.equal(band.bags, anchor.relative)
-      assert.equal("LEFT", anchor.relativePoint)
-      assert.equal(-GC.Theme.pad.s, anchor.x)
-
-      local countsLeft
-      for _, p in ipairs(band.counts.points) do if p.point == "LEFT" then countsLeft = p end end
-      assert.truthy(countsLeft)
-      assert.equal(band.picker, countsLeft.relative)
-      assert.equal("RIGHT", countsLeft.relativePoint)
-    end)
-
-  it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()
+  it("labels the column header row ITEM/PRICE EACH/COST", function()
     local header = bandOf().header
     assert.truthy(header and header.cells)
-    assert.equal("REAGENT", header.reagentCell.label:GetText())
-    assert.equal("NEED", header.cells.need.label:GetText())
-    assert.equal("HAVE", header.cells.have.label:GetText())
-    assert.equal("BUY", header.cells.buy.label:GetText())
-    assert.equal("NOW", header.cells.now.label:GetText())
-    assert.equal("USUAL", header.cells.usual.label:GetText())
+    assert.equal("ITEM", header.reagentCell.label:GetText())
+    assert.equal("PRICE EACH", header.cells.price.label:GetText())
     assert.equal("COST", header.cells.cost.label:GetText())
-    assert.equal("ACTION", header.cells.action.label:GetText())
+    local keys = {}
+    for key in pairs(header.cells) do keys[#keys + 1] = key end
+    table.sort(keys)
+    assert.same({ "cost", "price" }, keys)
   end)
 
-  it("drops USUAL first as the window narrows, then NOW, and restores both", function()
-    local container = containerOf()
-    container.width = 900
-    GC.Buy.Show()
-    local wide = rowWithText("Alpha Herb")
-    assert.truthy(wide.cells.usual:IsShown())
-    assert.truthy(wide.cells.now:IsShown())
+  -- The owner's rule: nothing a player reads is cut short, in any language. A column is as wide as
+  -- its heading and every cell it shows, as the client measures them; the one word a row says in
+  -- place of the prices widens them until it fits.
+  it("widens the price columns to their heading and to the longest word a row says", function()
+    textWidth = function(text) return #text * 10 end
+    GC.Buy.CurrentRun():SetFloor(101, 5000, 2000) -- Alpha Herb: "over your cap · 5000c"
+    GC.Buy.RefreshIfShown()
+    local header = bandOf().header
+    assert.is_true(header.cells.price.width >= #"PRICE EACH" * 10)
+    local row = rowWithText("Alpha Herb")
+    assert.is_true(row.status.width >= #row.status:GetText() * 10)
+    -- ...and the item column gets what is left, not what the prices already took.
+    assert.equal(600 - row.status.width - 8, row.reagent.width)
+  end)
 
-    container.width = 480
-    GC.Buy.Show()
-    local mid = rowWithText("Alpha Herb")
-    assert.is_false(mid.cells.usual:IsShown())
-    assert.truthy(mid.cells.now:IsShown())
-
-    container.width = 300
-    GC.Buy.Show()
-    local narrow = rowWithText("Alpha Herb")
-    assert.is_false(narrow.cells.usual:IsShown())
-    assert.is_false(narrow.cells.now:IsShown())
-
-    container.width = 900
-    GC.Buy.Show()
-    local restored = rowWithText("Alpha Herb")
-    assert.truthy(restored.cells.usual:IsShown())
-    assert.truthy(restored.cells.now:IsShown())
+  it("gives a name too long for its column a second line and a taller row", function()
+    stringHeight = function(fs) return (fs.textValue or ""):find("Alpha", 1, true) and 26 or 12 end
+    GC.Buy.RefreshIfShown()
+    assert.equal(36, rowWithText("Alpha Herb").height)
+    assert.equal(28, rowWithText("Charlie Dust").height)
   end)
 
   -- Spec rule 3: the hour the site measured is UTC; the player reads realm time. The offset is
   -- the difference between the client's own two clocks -- realm time and the same instant in UTC.
   it("says in the row's tooltip when the item is usually cheapest, in realm time", function()
-    local tooltipLines
-    _G.GameTooltip = {
-      SetOwner = function() end,
-      SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     -- Realm clock says 14:00 while UTC says 12:00: a realm two hours ahead of UTC.
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
     _G.GetServerTime = function() return 1757937600 end
@@ -997,29 +1022,18 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-c"
     GC.Buy.Show()
 
-    tooltipLines = {}
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({ "usually cheapest around 05:00 · -18%" }, tooltipLines)   -- 3 UTC + 2
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.truthy(lineWith(lines, "usually cheapest around 05:00 · -18%"))   -- 3 UTC + 2
 
     -- A line the site could not measure says nothing at all.
-    tooltipLines = {}
-    local bravo = rowWithText("Bravo Ore")
-    bravo.scripts.OnEnter(bravo)
-    assert.same({}, tooltipLines)
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- Realm behind UTC and an hour that wraps past midnight: the two `% 24`s are what keep
   -- 23:00 UTC on a realm at UTC-2 from reading as "-1:00" or "25:00".
   it("wraps the cheap hour through midnight for a realm behind UTC", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     -- Realm clock 21:00 while UTC says 23:00: offset (21 - 23) % 24 = 22, i.e. two hours behind.
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 21 } end }
     _G.GetServerTime = function() return 1757937600 end
@@ -1029,41 +1043,25 @@ describe("BuyFrame", function()
       lines = { { i = 101, q = 10, ch = 1, cp = -9 }, { i = 102, q = 5 } } }) })
     GC.db.settings.sniper.buyRun = "run-w"
     GC.Buy.Show()
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({ "usually cheapest around 23:00 · -9%" }, tooltipLines)   -- (1 + 22) % 24
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.truthy(lineWith(lines, "usually cheapest around 23:00 · -9%"))   -- (1 + 22) % 24
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- An hour in the wrong timezone is worse than no hour, so a client that cannot answer gets
   -- nothing rather than the UTC hour dressed up as a local one.
   it("says nothing about the cheap hour when the client cannot give the offset", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     GC.AppRuns._set({ run({ code = "run-c", updatedAt = 900,
       lines = { { i = 101, q = 10, ch = 3, cp = -18 } } }) })
     GC.db.settings.sniper.buyRun = "run-c"
     GC.Buy.Show()
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnEnter(alpha)
-    assert.same({}, tooltipLines)
-    _G.GameTooltip = nil
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Alpha Herb")), "usually cheapest"))
   end)
 
   -- Finding 3: a vendor sells at one fixed price, so "usually cheapest around HH:00" is noise --
   -- there is no auction house history for this line to be a footnote on.
   it("says nothing about the cheap hour on a vendor line", function()
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-      Show = function() end, Hide = function() end,
-    }
     _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
     _G.GetServerTime = function() return 1757937600 end
     _G.date = function() return { hour = 12 } end
@@ -1073,11 +1071,9 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-vc"
     GC.Buy.Show()
 
-    local vendor = rowWithText("Bravo Ore")
-    vendor.scripts.OnEnter(vendor)
-    assert.same({}, tooltipLines)
+    assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
 
-    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
 
   -- Spec rule 1: a line the site sent a recipe for, split, becomes a craft line with its
@@ -1101,8 +1097,8 @@ describe("BuyFrame", function()
 
   it("leaves a line the player has not split as an ordinary line", function()
     showCraftRun(false)
-    local alpha = rowWithText("Alpha Herb")
-    assert.equal("BUY 20", alpha.action.label)
+    pick(rowWithText("Alpha Herb"))
+    assert.equal("BUY 20", dock().buy.label)
     assert.is_nil(rowWithText("Bravo Ore"))
   end)
 
@@ -1110,30 +1106,29 @@ describe("BuyFrame", function()
     showCraftRun(true)
     local parent = rowWithText("craft 4×")
     assert.truthy(parent)
-    assert.equal("Alpha Herb → craft 4× (5 per craft)", parent.reagent:GetText())
+    assert.equal("Alpha Herb ×20 → craft 4× (5 per craft)", parent.reagent:GetText())
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
       parent.reagent.colorValue)
-    assert.equal("craft", parent.cells.action:GetText())
-    assert.is_false(parent.action:IsShown())
-    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say.
-    assert.equal("—", parent.cells.now:GetText())
-    assert.equal("—", parent.cells.usual:GetText())
-    -- COST is what the reagents still cost: 15 Bravo Ore at 300 (five are in the bags) and
-    -- 20 Charlie Dust at 160.
-    assert.equal("~" .. tostring(15 * 300 + 20 * 160) .. "c", parent.cells.cost:GetText())
+    -- Nothing here is bought at the auction house: one word says what one crafted unit costs in
+    -- reagents at the recipe's prices -- two prices, never a promise of savings -- green because
+    -- that is under the 5800 the auction house asks.
+    assert.equal("craft it · 460c each", parent.status:GetText())
+    assert.same({ 0, 1, 0, 1 }, parent.status.colorValue)
+    assert.is_false(parent.cells.price:IsShown())
 
     local ore = rowWithText("Bravo Ore")
-    assert.equal("↳ Bravo Ore", ore.reagent:GetText())
-    assert.equal("20", ore.cells.need:GetText())
-    assert.equal("15", ore.cells.buy:GetText())
-    assert.equal("BUY 15", ore.action.label)
-    assert.equal("↳ Charlie Dust", rowWithText("Charlie Dust").reagent:GetText())
+    assert.equal("↳ Bravo Ore ×15", ore.reagent:GetText())
+    assert.equal("20", tostring(lineOfRow(ore).need))
+    assert.equal("15", tostring(lineOfRow(ore).buy))
+    pick(ore)
+    assert.equal("BUY 15", dock().buy.label)
+    assert.equal("↳ Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
   end)
 
   -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
-  -- floor or a market value is a number from the wrong market. The craft row's COST has to
-  -- agree: pricing that reagent at the auction house invented gold the trip will never cost.
-  it("leaves a vendor reagent with no vendor price out of the craft row's cost", function()
+  -- floor or a market value is a number from the wrong market. The row agrees: a vendor reagent
+  -- nobody priced says where it is bought, and names no auction house price.
+  it("prices a vendor reagent with no vendor price nowhere", function()
     GC.AppRuns._set({ { code = "run-vc", name = "Craft run", updatedAt = 900, origin = "app",
       lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
         { i = 102, q = 5, n = "Bravo Ore", u = 300 },
@@ -1142,57 +1137,49 @@ describe("BuyFrame", function()
     GC.db.runSplits = { ["run-vc"] = { [101] = true } }
     GC.db.settings.sniper.buyRun = "run-vc"
     GC.Buy.Show()
-    -- Fifteen Bravo Ore at 300 (five are in the bags) and nothing at all for the fixings, whose
-    -- price nobody knows -- not the 3000 the auction house happens to ask for them.
-    assert.equal("~" .. tostring(15 * 300) .. "c", rowWithText("craft 4×").cells.cost:GetText())
-    assert.equal("—", rowWithText("Charlie Dust").cells.cost:GetText())
+    -- Nothing for the fixings, whose price nobody knows -- not the 3000 the auction house happens
+    -- to ask for them.
+    assert.equal("at a vendor", rowWithText("Charlie Dust").status:GetText())
+    assert.is_false(rowWithText("Charlie Dust").cells.cost:IsShown())
   end)
 
-  it("counts what is left to craft in the header band", function()
+  -- The run's own lines: the reagents a split put under a craft line are part of it.
+  it("counts a split run by its own lines", function()
     showCraftRun(true)
-    assert.equal("3 lines · 2 to buy · 1 to craft · 0 at the vendor", bandOf().counts:GetText())
+    assert.equal("0 of 1 done", bandOf().done:GetText())
   end)
 
   -- A run whose only open line is a craft is not a run with nothing left to do.
-  it("does not call a run with a craft still to make 'everything bought'", function()
+  it("does not call a run with a craft still to make done", function()
     GC.AppRuns._set({ { code = "run-cd", name = "Craft run", updatedAt = 900, origin = "app",
       lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
         { i = 102, q = 1, n = "Bravo Ore", u = 300 } } } } } } })
     GC.db.runSplits = { ["run-cd"] = { [101] = true } }
     GC.db.settings.sniper.buyRun = "run-cd"
     GC.Buy.Show()
-    assert.is_nil(bandOf().counts:GetText():find("everything bought", 1, true))
+    assert.equal("0 of 1 done", bandOf().done:GetText())
   end)
 
   it("never offers a craft line to a click or to the Enter key", function()
     showCraftRun(true)
     local parent = rowWithText("craft 4×")
-    assert.is_false(parent.action:IsShown())
-    -- The row's own hover quotes a buyable line; a craft line is not one, so nothing is asked
-    -- and no attempt is opened.
-    _G.GameTooltip = { SetOwner = function() end, SetItemByID = function() end,
-                       AddLine = function() end, Show = function() end, Hide = function() end }
-    parent.scripts.OnEnter(parent)
+    -- The dock never lands on a craft line by itself: its default is the first line to buy.
+    assert.are_not.equal(101, GC.Buy._focus)
+    -- Picked by hand, the dock explains the line and offers nothing to press; no quote is asked
+    -- and no attempt is opened. This is the assertion that goes red the moment a craft line is
+    -- allowed back into `buyable` -- the one clause standing between a craft row and the BUY
+    -- button, the Enter key, the focus advance and the quote.
+    pick(parent)
+    assert.equal(101, dock().lineItemID)
+    assert.is_false(dock().buy:IsShown())
     assert.is_nil(GC.Buy._attempt)
-    -- ...and Enter is still pointing at nothing. Focus is taken INSIDE the hover's `buyable`
-    -- guard and before any client gate, so this is the assertion that goes red the moment a
-    -- craft line is allowed back into `buyable` -- the one clause standing between a craft row
-    -- and the BUY button, the Enter key, the focus advance and the quote.
-    assert.is_nil(GC.Buy._focus)
-    _G.GameTooltip = nil
+    local container = containerOf()
+    container.IsMouseOver = function() return true end
+    container.SetPropagateKeyboardInput = function(self, v) self.propagate = v end
+    container.scripts.OnKeyDown(container, "ENTER")
+    assert.is_true(container.propagate)
+    assert.is_nil(GC.Buy._attempt)
   end)
-
-  local function tooltipOn(row)
-    local lines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, SetItemByID = function() end,
-      AddLine = function(_, text, r, g, b) lines[#lines + 1] = { text = text, color = { r, g, b } } end,
-      Show = function() end, Hide = function() end,
-    }
-    row.scripts.OnEnter(row)
-    _G.GameTooltip = nil
-    return lines
-  end
 
   local function texts(lines)
     local out = {}
@@ -1205,10 +1192,11 @@ describe("BuyFrame", function()
   it("compares crafting with buying on the row tooltip, in green when it is cheaper", function()
     showCraftRun(false)
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.same({ "craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each",
-                  "vs 5800c at the auction house · right-click to split" }, texts(lines))
+    local craft = lineWith(lines, "craft it: ")
+    assert.equal("craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each", craft.text)
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to split"))
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
-      lines[1].color)
+      craft.color)
   end)
 
   it("greys the comparison when the auction house is cheaper", function()
@@ -1219,15 +1207,16 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-x"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.equal("vs 300c at the auction house · right-click to split", lines[2].text)
+    local vs = lineWith(lines, "vs 300c at the auction house · right-click to split")
+    assert.truthy(vs)
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
-      lines[2].color)
+      vs.color)
   end)
 
   it("offers the way back on a line that is already split", function()
     showCraftRun(true)
     local lines = tooltipOn(rowWithText("craft 4×"))
-    assert.equal("vs 5800c at the auction house · right-click to buy it whole", lines[2].text)
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to buy it whole"))
   end)
 
   -- A reagent the run already asked for does not get a second row; its NEED grows instead, and
@@ -1243,11 +1232,12 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-m"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Charlie Dust"))
-    assert.same({ "includes 20 for crafting Alpha Herb" }, texts(lines))
+    assert.truthy(lineWith(lines, "includes 20 for crafting Alpha Herb"))
   end)
 
-  it("splits a line from its row menu and puts it back again", function()
-    showCraftRun(false)
+  -- The row's right-click menu, as the client's MenuUtil would build it: every entry in order,
+  -- the titles and the buttons, each button with what it does.
+  local function rowMenu(row)
     local entries
     _G.MenuUtil = { CreateContextMenu = function(_, generator)
       entries = {}
@@ -1257,24 +1247,36 @@ describe("BuyFrame", function()
         CreateDivider = function() end,
       })
     end }
+    row.scripts.OnMouseUp(row, "RightButton")
+    _G.MenuUtil = nil
+    return entries
+  end
+  local function menuTextsOf(entries)
+    local out = {}
+    for _, e in ipairs(entries or {}) do out[#out + 1] = e.text end
+    return out
+  end
+  local function entryNamed(entries, text)
+    for _, e in ipairs(entries or {}) do if e.text == text then return e end end
+  end
 
-    local alpha = rowWithText("Alpha Herb")
-    alpha.scripts.OnMouseUp(alpha, "RightButton")
-    assert.same({ "Split into reagents (craft 4×)" }, { entries[1].text })
-    entries[1].fn()
+  it("splits a line from its row menu and puts it back again", function()
+    showCraftRun(false)
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Change the cap…", "Split into reagents (craft 4×)" },
+      menuTextsOf(entries))
+    entryNamed(entries, "Split into reagents (craft 4×)").fn()
     assert.is_true(GC.db.runSplits["run-c"][101])
     assert.truthy(rowWithText("craft 4×"))
 
-    local parent = rowWithText("craft 4×")
-    parent.scripts.OnMouseUp(parent, "RightButton")
-    assert.same({ "Buy it whole instead" }, { entries[1].text })
-    entries[1].fn()
+    entries = rowMenu(rowWithText("craft 4×"))
+    assert.same({ "Alpha Herb", "Skip for now", "Buy it whole instead" }, menuTextsOf(entries))
+    entryNamed(entries, "Buy it whole instead").fn()
     assert.is_nil(GC.db.runSplits["run-c"][101])
     assert.is_nil(rowWithText("craft 4×"))
-    _G.MenuUtil = nil
   end)
 
-  it("offers a vendor line neither the comparison nor the split menu", function()
+  it("offers a vendor line neither the comparison, the split nor a cap", function()
     GC.AppRuns._set({ { code = "run-vs", name = "Vendor run", updatedAt = 900, origin = "app",
       lines = { { i = 104, q = 20, v = true, vu = 5, u = 5800,
         cr = { r = 900, n = 5, c = 2300, i = { { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } },
@@ -1287,23 +1289,88 @@ describe("BuyFrame", function()
       assert.is_nil(text:find("craft it:", 1, true))
       assert.is_nil(text:find("right-click", 1, true))
     end
-    local opened = 0
-    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
-    vendorRow.scripts.OnMouseUp(vendorRow, "RightButton")
-    assert.equal(0, opened)
-    _G.MenuUtil = nil
+    assert.same({ "Delta Vial", "Skip for now" }, menuTextsOf(rowMenu(vendorRow)))
   end)
 
-  it("opens no menu on a left click, on a line with no recipe, or on a reagent", function()
+  it("opens no menu on a left click", function()
     showCraftRun(true)
     local opened = 0
     _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
     local parent = rowWithText("craft 4×")
     parent.scripts.OnMouseUp(parent, "LeftButton")
-    local ore = rowWithText("Bravo Ore")
-    ore.scripts.OnMouseUp(ore, "RightButton")
     assert.equal(0, opened)
     _G.MenuUtil = nil
+  end)
+
+  -- BUY 2.0: every open line can be skipped for the session and have its cap set as a price.
+  it("offers skip and the cap on every open line", function()
+    assert.same({ "Charlie Dust", "Skip for now", "Change the cap…" },
+      menuTextsOf(rowMenu(rowWithText("Charlie Dust"))))
+    -- A reagent a split brought in is a line like any other.
+    showCraftRun(true)
+    assert.same({ "Bravo Ore", "Skip for now", "Change the cap…" },
+      menuTextsOf(rowMenu(rowWithText("Bravo Ore"))))
+  end)
+
+  it("skips a line from its menu, and takes it back", function()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    entryNamed(entries, "Skip for now").fn()
+    assert.is_true(GC.Buy._skipped["run-1"][101])
+    assert.equal("skipped for now", rowWithText("Alpha Herb").status:GetText())
+    assert.are_not.equal(101, GC.Buy._focus) -- the dock moved on
+    entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Don't skip", "Change the cap…" }, menuTextsOf(entries))
+    entryNamed(entries, "Don't skip").fn()
+    assert.is_nil(GC.Buy._skipped["run-1"][101])
+  end)
+
+  it("offers the way back to the default cap once the line has one of its own", function()
+    GC.Buy._SetLineCap("run-1", 101, 1400)
+    GC.Buy.RefreshIfShown()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Change the cap…", "Use the default cap" }, menuTextsOf(entries))
+    entryNamed(entries, "Use the default cap").fn()
+    assert.is_nil(GC.db.runLineCaps["run-1"][101])
+    assert.equal(1300, lineOfRow(rowWithText("Alpha Herb")).cap)
+  end)
+
+  it("offers to raise the cap of a line nothing under it can fill", function()
+    GC.Buy.CurrentRun():SetFloor(101, 5000, 2000) -- NOW over the 1300 cap
+    GC.Buy.RefreshIfShown()
+    local entries = rowMenu(rowWithText("Alpha Herb"))
+    assert.same({ "Alpha Herb", "Skip for now", "Raise cap to 5000c", "Change the cap…" }, menuTextsOf(entries))
+    entryNamed(entries, "Raise cap to 5000c").fn()
+    assert.equal(5000, GC.db.runLineCaps["run-1"][101])
+  end)
+
+  it("closes the price box when the tab goes out of sight", function()
+    local closed = 0
+    GC.BuyCapEditor = { Close = function() closed = closed + 1 end }
+    local c = containerOf()
+    c.scripts.OnHide(c)
+    assert.equal(1, closed)
+  end)
+
+  it("opens the price box on the line's cap and stores what the player sets", function()
+    local opened
+    GC.BuyCapEditor = { Open = function(anchor, opts) opened = { anchor = anchor, opts = opts } end }
+    local row = rowWithText("Alpha Herb")
+    entryNamed(rowMenu(row), "Change the cap…").fn()
+    assert.equal(row, opened.anchor)
+    assert.equal("Cap for Alpha Herb", opened.opts.title)
+    assert.equal(1300, opened.opts.current)
+    opened.opts.onCommit(1250)
+    assert.equal(1250, GC.db.runLineCaps["run-1"][101])
+    assert.equal("yours", lineOfRow(rowWithText("Alpha Herb")).capFrom)
+  end)
+
+  -- An alert group's cap is its target, set on goldcap.gg.
+  it("offers only skip on an alert group's line", function()
+    GC.AppRuns._set({ { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000 } } } })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.same({ "Alpha Herb", "Skip for now" }, menuTextsOf(rowMenu(rowWithText("Alpha Herb"))))
   end)
 
   -- A line the bags and the bank already cover has nothing left to decide, and the tooltip on
@@ -1315,7 +1382,7 @@ describe("BuyFrame", function()
     local opened = 0
     _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
     local alpha = rowWithText("Alpha Herb")
-    assert.equal("0", alpha.cells.buy:GetText())
+    assert.equal("0", tostring(lineOfRow(alpha).buy))
     alpha.scripts.OnMouseUp(alpha, "RightButton")
     assert.equal(0, opened)
     _G.MenuUtil = nil
@@ -1366,8 +1433,8 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ alertRun() })
     GC.db.settings.sniper.buyRun = "a0000001"
     GC.Buy.Show()
-    assert.equal("Alpha Herb on Kazzak", rowWithText("Alpha Herb").reagent:GetText())
-    assert.equal("Bravo Ore", rowWithText("Bravo Ore").reagent:GetText())
+    assert.equal("Alpha Herb ×4 on Kazzak", rowWithText("Alpha Herb").reagent:GetText())
+    assert.equal("Bravo Ore ×2", rowWithText("Bravo Ore").reagent:GetText())
   end)
 
   it("bands an alert run as a group with hits, and caps its lines at the alert's target",
@@ -1375,7 +1442,7 @@ describe("BuyFrame", function()
       GC.AppRuns._set({ alertRun() })
       GC.db.settings.sniper.buyRun = "a0000001"
       GC.Buy.Show()
-      assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+      assert.equal("alert group · 2 hits", bandOf().done:GetText())
       for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
         if line.itemID == 101 then assert.equal(4000, line.cap) end
       end
@@ -1392,7 +1459,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "a0000001"
     GC.Buy.Show()
     assert.truthy(rowWithText("Charlie Dust"))
-    assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+    assert.equal("alert group · 2 hits", bandOf().done:GetText())
   end)
 
   it("puts alert runs under their own divider and leaves them to the site", function()
@@ -1413,29 +1480,27 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ run({ code = "shr30000", name = "Guild flasks", by = "Acromion" }) })
     GC.db.settings.sniper.buyRun = "shr30000"
     GC.Buy.Show()
-    assert.equal("Guild flasks · from Acromion ▼", bandOf().picker.label)
-    assert.equal("4 lines · 2 to buy · 1 at the vendor · from Acromion",
-      bandOf().counts:GetText())
+    assert.equal("Guild flasks ▼", bandOf().picker.label)
+    assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
     assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
-                  "divider", "From goldcap.gg — manage it there",
+                  "divider", "From goldcap.gg — manage it there", "Copy vendor list",
                   "Paste a run..." }, menuTexts)
   end)
 
   -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
-  -- for a day -- in the legend's slot, which is the only permanently-true line on the band and
-  -- so the cheapest thing to lend for a notice that expires.
+  -- for a day, after how much of the run is done.
   it("says in the band that the plan was updated, and for how long", function()
     GC.AppRuns._set({ run() })
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("plan updated on goldcap.gg · +2 −1 lines", bandOf().bags:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 −1 lines", bandOf().done:GetText())
 
-    -- A day old exactly: the legend comes back.
+    -- A day old exactly: the notice goes.
     GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
     GC.Buy.RefreshIfShown()
-    assert.equal("in bags and bank · purchases arrive by mail", bandOf().bags:GetText())
+    assert.equal("1 of 4 done", bandOf().done:GetText())
   end)
 
   it("says the plan was updated with no counts when only a quantity moved", function()
@@ -1443,6 +1508,261 @@ describe("BuyFrame", function()
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 0, removed = 0 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("plan updated on goldcap.gg", bandOf().bags:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg", bandOf().done:GetText())
+  end)
+
+  -- BUY 2.0: a line's cap is a price, stored beside the run (a companion sync replaces the run
+  -- wholesale) and cleared without leaving anything behind.
+  it("stores a line's own cap beside the run, and a cleared one leaves nothing behind", function()
+    GC.Buy._SetLineCap("run-1", 101, 140)
+    assert.same({ [101] = 140 }, GC.db.runLineCaps["run-1"])
+    GC.Buy.RefreshIfShown()
+    local line
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == 101 then line = l end end
+    assert.equal(140, line.cap)
+    assert.equal("yours", line.capFrom)
+    GC.Buy._SetLineCap("run-1", 101, nil)
+    assert.is_nil(GC.db.runLineCaps["run-1"][101])
+  end)
+
+  it("creates no per-line cap store just by being drawn", function()
+    GC.Buy.RefreshIfShown()
+    assert.is_nil(GC.db.runLineCaps)
+  end)
+
+  -- BUY 2.0 (week 3 contract, part A): a line the list's route crafts itself is drawn as a craft
+  -- line, with no BUY button, and is no part of what the run has left to spend.
+  it("draws a line the route crafts itself as a craft line, with no button, and leaves it out of the rest", function()
+    GC.AppRuns._set({ run({ lines = { { i = 101, q = 10 }, { i = 103, q = 3, mk = true } } }) })
+    GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+    local made = rowWithText("Charlie Dust")
+    assert.equal("craft", made.status:GetText())
+    -- Never the dock's next purchase, and no button when picked by hand.
+    assert.equal(101, GC.Buy._focus)
+    pick(made)
+    assert.is_false(dock().buy:IsShown())
+    assert.equal("craft it yourself", dock().sub:GetText())
+    assert.equal("~1g", bandOf().total:GetText()) -- 10 Alpha Herb at 1000c only
+  end)
+
+  -- BUY 2.0's rows: ITEM (with how many are left to buy), PRICE EACH and COST, or one word in
+  -- place of the two prices for a line that is not simply ready to buy.
+  it("draws a ready line in three columns and a special one as a single word", function()
+    GC.Buy.RefreshIfShown()
+    local open = rowWithText("Alpha Herb")
+    assert.equal("Alpha Herb ×10", open.reagent:GetText())
+    assert.is_true(open.cells.price:IsShown())
+    assert.is_true(open.cells.cost:IsShown())
+    assert.is_false(open.status:IsShown())
+    local done = rowWithText("Bravo Ore") -- five in the bag cover its five
+    assert.equal("Bravo Ore ×5", done.reagent:GetText())
+    assert.is_false(done.cells.price:IsShown())
+    assert.equal("bought", done.status:GetText())
+  end)
+
+  it("says over your cap with the cheapest price when NOW is above the cap", function()
+    GC.Buy.CurrentRun():SetFloor(101, 5000, 2000)
+    GC.Buy.RefreshIfShown()
+    assert.equal("over your cap · 5000c", rowWithText("Alpha Herb").status:GetText())
+  end)
+
+  it("says skipped for now and dims a skipped line", function()
+    GC.Buy._skipped = { ["run-1"] = { [101] = true } }
+    GC.Buy.RefreshIfShown()
+    local row = rowWithText("Alpha Herb")
+    assert.equal("skipped for now", row.status:GetText())
+    assert.equal(0.5, row.alpha)
+    GC.Buy._skipped = {}
+    GC.Buy.RefreshIfShown()
+    assert.equal(1, rowWithText("Alpha Herb").alpha)
+  end)
+
+  it("says where a vendor line is bought and what it costs there", function()
+    GC.AppRuns._set({ run({ lines = { { i = 104, q = 4, v = true, vu = 25 }, { i = 102, q = 9, v = true } } }) })
+    GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
+    assert.equal("at a vendor · 25c each", rowWithText("Delta Vial").status:GetText())
+    assert.equal("at a vendor", rowWithText("Bravo Ore").status:GetText())
+  end)
+
+  -- BUY 2.0's band: the list, how much of it is done, and what is left to buy here.
+  it("totals what is ready to buy here, marked as an estimate while anything is one", function()
+    GC.Buy.RefreshIfShown()
+    -- 101 Alpha Herb: 10 at mv 1000; 102 Bravo Ore: covered by the bag; 103 Charlie Dust: 3 at mv
+    -- 3000; 104 Delta Vial: a vendor line. Ready: 101 and 103, nothing quoted yet.
+    assert.equal("TO BUY HERE", bandOf().totalCaption:GetText())
+    assert.equal("~1g90s", bandOf().total:GetText())
+    assert.equal("1 of 4 done", bandOf().done:GetText())
+  end)
+
+  it("puts the count of lines ready to buy on the BUY rail badge", function()
+    local badge
+    GC.Sniper = GC.Sniper or {}
+    GC.Sniper.UpdateBuyTabLabel = function() badge = GC.Buy.ReadyCount() end
+    GC.Buy.RefreshIfShown()
+    assert.equal(2, badge)
+    GC.Sniper.UpdateBuyTabLabel = nil
+  end)
+
+  -- BUY 2.0's filters and search. Ten lines: 101-110, two of each; 102 Bravo Ore is covered by the
+  -- bag, 104 Delta Vial is at the vendor, the rest have no name the client knows ("#105"...).
+  local function longRun()
+    local lines = {}
+    for i = 1, 10 do lines[i] = { i = 100 + i, q = 2 } end
+    lines[4].v = true
+    return { code = "run-long", name = "Long run", updatedAt = 100, origin = "app", lines = lines }
+  end
+  local function showLong()
+    GC.AppRuns._set({ longRun() }); GC.Buy.SelectRun("run-long"); GC.Buy.RefreshIfShown()
+  end
+
+  it("hides the search and filter for a short list", function()
+    assert.is_false(bandOf().tools.frame:IsShown())
+  end)
+
+  it("narrows a long list by name, case-blind", function()
+    showLong()
+    local tools = bandOf().tools
+    assert.is_true(tools.frame:IsShown())
+    assert.equal("All ▾", tools.filter.label)
+    tools.search:SetText("alpha"); tools.search.scripts.OnTextChanged(tools.search, true)
+    local names = {}
+    for _, row in ipairs(shownRows()) do names[#names + 1] = row.reagent:GetText() end
+    assert.equal(1, #names)
+    assert.is_truthy(names[1]:find("Alpha Herb", 1, true))
+    -- Escape clears the search and gives the whole list back.
+    tools.search.scripts.OnEscapePressed(tools.search)
+    assert.equal(10, #shownRows())
+  end)
+
+  it("keeps only the lines the filter asks for", function()
+    showLong()
+    GC.Buy._SetFilter("vendor")
+    assert.equal(1, #shownRows())
+    for _, row in ipairs(shownRows()) do assert.is_truthy((row.status:GetText() or ""):find("at a vendor", 1, true)) end
+    assert.equal("At a vendor ▾", bandOf().tools.filter.label)
+    GC.Buy._SetFilter("done")
+    assert.equal("Bravo Ore ×2", shownRows()[1].reagent:GetText())
+  end)
+
+  it("offers every filter from its menu, the one in use marked", function()
+    showLong()
+    local radios = {}
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, { CreateRadio = function(_, text, isSelected, setSelected, data)
+        radios[#radios + 1] = { text = text, selected = isSelected(data), pick = function() setSelected(data) end }
+      end })
+    end }
+    local filter = bandOf().tools.filter
+    filter.scripts.OnClick(filter)
+    _G.MenuUtil = nil
+    local labels = {}
+    for _, r in ipairs(radios) do labels[#labels + 1] = r.text end
+    assert.same({ "All", "To buy", "Over cap", "At a vendor", "To craft", "Bought", "Skipped" }, labels)
+    assert.is_true(radios[1].selected)
+    radios[2].pick()
+    assert.equal("buy", GC.Buy._filter)
+  end)
+
+  it("says so when nothing matches", function()
+    showLong()
+    GC.Buy._query = "zzz"; GC.Buy.RefreshIfShown()
+    assert.is_truthy(shownTexts():find("Nothing on this list matches.", 1, true))
+    -- ...and keeps the search in sight, so it can be cleared.
+    assert.is_true(bandOf().tools.frame:IsShown())
+  end)
+
+  -- Review Focus 2.
+  it("moves the dock to the first visible line it can buy when a filter hides its line", function()
+    showLong()
+    GC.Buy._focus = 101
+    GC.Buy._query = "charlie"; GC.Buy.RefreshIfShown()
+    assert.equal(103, GC.Buy._focus)
+    assert.equal(103, dock().lineItemID)
+  end)
+
+  it("puts the dock on a line the filter shows even when none of them can be bought", function()
+    showLong()
+    GC.Buy._SetFilter("vendor")
+    assert.equal(104, dock().lineItemID)
+  end)
+
+  it("never moves the dock off a purchase in flight", function()
+    showLong()
+    GC.Buy._focus = 101
+    GC.Buy._attempt = { itemID = 101, stage = "confirm", qty = 1, total = 1 }
+    GC.Buy._query = "charlie"; GC.Buy.RefreshIfShown()
+    assert.equal(101, GC.Buy._focus)
+    GC.Buy._attempt = nil
+  end)
+
+  it("forgets the search and filter when another list is picked", function()
+    GC.Buy._query, GC.Buy._filter = "x", "done"
+    GC.Buy.SelectRun("run-1")
+    assert.equal("", GC.Buy._query)
+    assert.equal("all", GC.Buy._filter)
+  end)
+
+  it("shows the search while a filter is in use, even on a short list", function()
+    GC.Buy._SetFilter("done")
+    assert.is_true(bandOf().tools.frame:IsShown())
+  end)
+
+  -- BUY 2.0: a wide window lists the player's lists on the left.
+  local function goWide(width)
+    local c = containerOf()
+    c.width = width or 1040
+    c.scripts.OnSizeChanged(c, c.width)
+    GC.Buy.Show()
+  end
+
+  it("shows your lists beside the list when the window is wide, with each one's progress", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local lists = GC.Buy._view.lists
+    assert.is_true(lists.frame:IsShown())
+    assert.equal("YOUR LISTS", lists.caption:GetText())
+    assert.equal("Flask run", lists.entries[1].button.label)
+    assert.equal("1 of 4", lists.entries[1].meta:GetText())
+    assert.equal("Alchemy restock", lists.entries[2].button.label)
+    assert.equal("0 of 1", lists.entries[2].meta:GetText()) -- no Charlie Dust in the bag
+    assert.equal("Lists come from goldcap.gg through the companion.", lists.footer:GetText())
+    -- The rest of the tab starts after the column.
+    assert.equal(196 + 12, GC.Buy._leftInset)
+    assert.equal(1040 - 208, GC.Buy._view.band.fill.width * 4) -- one of four done, across what is left
+  end)
+
+  it("picks a list from the column", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local b = GC.Buy._view.lists.entries[2].button
+    b.scripts.OnClick(b)
+    assert.equal("run-2", GC.Buy.CurrentRun():Code())
+  end)
+
+  it("counts an alert group's hits in the column", function()
+    GC.AppRuns._set({ run(), { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000 }, { i = 103, q = 2, cc = 1500 } } } })
+    goWide()
+    assert.equal("2 hits", GC.Buy._view.lists.entries[2].meta:GetText())
+  end)
+
+  -- Listing twenty runs must not write twenty rows of progress into SavedVariables.
+  it("reads the other lists' progress without writing any", function()
+    local second = { code = "run-2", name = "Alchemy restock", updatedAt = 90, origin = "app", lines = { { i = 103, q = 2 } } }
+    GC.AppRuns._set({ run(), second })
+    goWide()
+    local stored = GC.db.buyProgress and GC.db.buyProgress["?"] or {}
+    assert.is_nil(stored["run-2"])
+  end)
+
+  it("keeps the column hidden in a docked or narrow window", function()
+    assert.is_false(GC.Buy._view.lists.frame:IsShown())
+    assert.equal(0, GC.Buy._leftInset)
+    goWide(1040)
+    goWide(700)
+    assert.is_false(GC.Buy._view.lists.frame:IsShown())
+    assert.equal(0, GC.Buy._leftInset)
   end)
 end)

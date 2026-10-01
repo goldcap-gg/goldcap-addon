@@ -266,6 +266,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       IsShown = function() return false end,
       SetText = function() end,
       SetTexture = function() end,
+      SetTexCoord = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetWidth = function() end,

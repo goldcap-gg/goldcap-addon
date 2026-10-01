@@ -28,6 +28,15 @@ describe("AppRuns", function()
   end)
 
   describe("Adopt", function()
+    -- BUY 2.0 (WoW: Forever): a line's own price is the site's as of the moment the companion
+    -- fetched the runs; a crowd price seen after that moment is the fresher look and wins.
+    it("stamps each adopted run with the moment its prices were fetched", function()
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 777,
+        runs = { { code = "a", updatedAt = 5, lines = { { i = 1, q = 1, u = 50 } } } } }
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(777, GC.db.runs.a.pricedAt)
+    end)
+
     it("adopts a valid global and exposes it, ignoring what it says about a plan", function()
       _G.GoldCap_AppRuns = fixture()
       assert.is_true(GC.AppRuns.Adopt())
@@ -119,6 +128,20 @@ describe("AppRuns", function()
       assert.equal(7, #lines)
       assert.equal(625, lines[1].minIlvl)
       for n = 2, 7 do assert.is_nil(lines[n].minIlvl, lines[n].i) end
+    end)
+
+    -- BUY 2.0 (week 3 contract, part A): `mk = true` says the route the list was saved from
+    -- crafts this item itself. Only `true` is the flag; anything else is no flag.
+    it("keeps the flag that the route crafts a line itself", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines = { { i = 5, q = 1, mk = true }, { i = 6, q = 1 }, { i = 7, q = 1, mk = "yes" } }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local lines = GC.AppRuns.Get("abcd2345").lines
+      assert.is_true(lines[1].mk)
+      assert.is_nil(lines[2].mk)
+      assert.is_nil(lines[3].mk)
     end)
 
     -- Two lines of one item merge into one; the floor they carry is the higher of the two, so a
@@ -678,6 +701,22 @@ describe("AppRuns runs the site owns", function()
     assert.is_nil(GC.db.runSplits["gone-run"])
     assert.is_not_nil(GC.db.runNotices["own10000"])
     assert.is_nil(GC.db.runNotices["gone-run"])
+  end)
+
+  it("prunes the player's per-line caps with the run they belong to", function()
+    GC.db.runLineCaps = { ["gone-run"] = { [1] = 140 }, ["own10000"] = { [5] = 90 } }
+    local fresher = fixture()
+    fresher.generatedAt = fresher.generatedAt + 60
+    _G.GoldCap_AppRuns = fresher
+    assert.is_true(GC.AppRuns.Adopt())
+    assert.is_nil(GC.db.runLineCaps["gone-run"])
+    assert.same({ [5] = 90 }, GC.db.runLineCaps["own10000"])
+  end)
+
+  it("removes a pasted run's per-line caps with it", function()
+    GC.db.runLineCaps = { ["paste-1"] = { [9] = 140 } }
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+    assert.is_nil(GC.db.runLineCaps["paste-1"])
   end)
 
   it("takes the splits and the notice with a run that is removed outright", function()

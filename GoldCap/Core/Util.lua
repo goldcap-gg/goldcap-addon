@@ -127,6 +127,31 @@ function GC.Util.FormatGoldCeil(copper, short)
   return GC.Util.IntText(gold) .. "g"
 end
 
+local MONEY_UNIT = { g = 10000, s = 100, c = 1 }
+
+-- "12g 50s", "12g50s", "3s 20c", "90" (a bare number is gold, "0.5" half of one). nil for anything
+-- else, and for zero: a price of nothing is not a price. Every price box in the addon reads
+-- through this one (BUY's cap box, Road to 40's mount cost).
+function GC.Util.ParseMoney(text)
+  if type(text) ~= "string" then return nil end
+  text = text:lower():gsub("%s+", "")
+  if text == "" then return nil end
+  local bare = text:match("^(%d+%.?%d*)$")
+  if bare then
+    local copper = math.floor(tonumber(bare) * 10000 + 0.5)
+    return copper > 0 and copper or nil
+  end
+  local total, rest, seen = 0, text, {}
+  while rest ~= "" do
+    local num, unit, tail = rest:match("^(%d+)([gsc])(.*)$")
+    if not num or seen[unit] then return nil end
+    seen[unit] = true
+    total = total + tonumber(num) * MONEY_UNIT[unit]
+    rest = tail
+  end
+  return total > 0 and total or nil
+end
+
 local function finitePositive(value)
   return type(value) == "number" and value == value
     and value ~= math.huge and value ~= -math.huge and value > 0

@@ -591,11 +591,15 @@ end
 -- cheapest tenth of the units listed, GCF1's `ah`) and half-way price when the crowd looked more
 -- recently than this player's own fold, else the player's own (plan 3d decision E10 — the same
 -- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
+-- A crowd answer says when the crowd saw it (`at`, epoch seconds): BUY's tooltip says how old it is.
 function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
   local p = foreverPayload
   local c = p and p.items[itemID]
-  if c and c.ah and p.ts - c.age * 60 >= (ownAt or 0) then
-    return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w }
+  if c and c.ah then
+    local at = p.ts - c.age * 60
+    if at >= (ownAt or 0) then
+      return { value = c.ah, p50 = c.p50, source = "crowd", scanners = c.w, at = at }
+    end
   end
   return { value = ownValue, p50 = ownP50, source = "own" }
 end

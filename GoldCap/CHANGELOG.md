@@ -1,5 +1,24 @@
 # GoldCap
 
+## 0.18.0 (unreleased)
+
+- The BUY tab is simpler. Each line shows the item and how many are left to buy, the price each
+  and what the rest costs; a line that cannot be bought right now says why in a word instead. One
+  button at the bottom buys the line you clicked: press BUY, check Blizzard's price, then press
+  CONFIRM, or Cancel.
+- Hover a line to see the prices it would buy at, how many at each, the market price and your cap.
+- A line over your cap says what the cheapest one costs and what your cap is, and offers to raise
+  the cap or skip the line. Right-click any line to skip it for now or type a cap of your own.
+- The top of the BUY tab shows how much of the list is done and what the rest costs to buy here.
+  The BUY button on the left counts the lines ready to buy.
+- Long lists have a search box and a filter.
+- A wide GoldCap window lists all your lists on the left.
+- Items a list's profession route crafts itself show as lines to craft, not to buy.
+- The BUY tab speaks every language GoldCap speaks; it was in English until now.
+- Copy vendor list is in the list menu.
+- In WoW: Forever, the market price in BUY says how many players' scans it comes from and how old
+  it is.
+
 ## 0.17.2 (2026-09-30)
 
 - In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
