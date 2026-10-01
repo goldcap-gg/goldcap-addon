@@ -1114,4 +1114,7 @@ GC.Locales.ukUA = {
   ["%s · over your cap"] = "%s · вище стелі",
   ["no cap for this item — right-click the line to set one"] =
     "у цього предмета немає стелі — задайте її правим кліком по рядку",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "КУПИТИ %d · %s",
+  ["BUY · %s"] = "КУПИТИ · %s",
 }

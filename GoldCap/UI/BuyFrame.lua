@@ -4101,3 +4101,41 @@ function GC.Buy.DebugPrint()
     end
   end
 end
+
+-- ---------------------------------------------------------------------------
+-- At a vendor (BUY 2.0 week 2, UI/BuyVendorPanel.lua)
+-- ---------------------------------------------------------------------------
+
+-- The vendor panel's question: the current list's vendor lines -- what each still needs, done ones
+-- included so a line bought at this merchant can say so -- with fresh bag counts, since the panel
+-- can open while this tab has never been shown this session. A line skipped for the session is
+-- left out, as everywhere else.
+function GC.Buy.VendorLines()
+  if not current then ensureRun() end
+  if not current then return nil end
+  scanBags()
+  current:Refresh()
+  local lines = {}
+  for _, line in ipairs(current:Lines()) do
+    if line.vendor and not isSkipped(line) then
+      lines[#lines + 1] = { itemID = line.itemID, buy = line.done and 0 or (line.buy or 0),
+        need = line.need, name = lineName(line) }
+    end
+  end
+  return { runName = runLabel(current), code = current:Code(), lines = lines }
+end
+
+-- A vendor purchase the bags proved (GC.BuyVendor.Settle): booked against the list, and as cost in
+-- the addon's own acquisitions -- never as a ledger row: goldcap.gg's ledger is auction house money.
+function GC.Buy.RecordVendorPurchase(itemID, qty, spent)
+  if not (current and (qty or 0) > 0) then return end
+  local at = time()
+  current:RecordPurchase(itemID, qty, spent or 0, at)
+  local line = lineFor(itemID)
+  if (spent or 0) > 0 then
+    recordAcquisition(itemID, line and lineName(line) or nil, qty, spent, at, current:Code())
+  end
+  scanBags()
+  GC.Buy._listMeta = {}
+  GC.Buy.RefreshIfShown()
+end

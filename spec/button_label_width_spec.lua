@@ -46,6 +46,10 @@ describe("row button labels fit the button", function()
     { what = "the BUY dock button's raise, before its price", budget = 17, strip = "%%s",
       keys = { "RAISE CAP TO %s" } },
     { what = "the BUY dock's second button", budget = 12, keys = { "Cancel", "Skip" } },
+    -- UI/BuyVendorPanel.lua: the vendor panel's button is as wide as its label, up to the 200px the
+    -- panel's column leaves it -- 25 at 1.3 -- and the price takes about eight of those.
+    { what = "the vendor panel's button, before its price", budget = 17, strip = "%%s",
+      keys = { "BUY · %s", "BUY %d · %s" } },
     -- UI/SniperFrame.lua: WIN.FOREVER_TIER_W (112) less the TierMark's 6px dot and 5px gap leaves 101px
     -- of mono-10 bold at 1.3 (7.8px a character) -- 12. Owner, beta 2026-09-30: "Ниже цены торговца"
     -- read "Ниже це..." in the 80px column.

@@ -1101,4 +1101,7 @@ GC.Locales.itIT = {
   ["%s · over your cap"] = "%s · oltre il tuo tetto",
   ["no cap for this item — right-click the line to set one"] =
     "nessun tetto per questo oggetto — clic destro sulla riga per impostarlo",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "COMPRA %d · %s",
+  ["BUY · %s"] = "COMPRA · %s",
 }

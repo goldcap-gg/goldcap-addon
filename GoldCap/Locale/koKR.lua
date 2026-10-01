@@ -1041,4 +1041,7 @@ GC.Locales.koKR = {
   ["%s · 1 lot"] = "%s · 경매 1개",
   ["%s · over your cap"] = "%s · 상한 초과",
   ["no cap for this item — right-click the line to set one"] = "이 아이템은 상한이 없습니다 — 줄을 우클릭해 설정하세요",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "%d개 구매 · %s",
+  ["BUY · %s"] = "구매 · %s",
 }

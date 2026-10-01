@@ -37,14 +37,20 @@ describe("BuyVendor", function()
     before_each(function() OFFERS = V.Offers({ THREAD, VIAL }) end)
     it("buys the line's remaining need in calls of at most the merchant's max", function()
       local p = V.Plan({ { itemID = 2320, buy = 45, name = "Coarse Thread" } }, OFFERS, 100000)[1]
-      assert.same({ itemID = 2320, index = 3, qty = 45, cost = 450, calls = { 20, 20, 5 }, short = false,
-        name = "Coarse Thread" }, p)
+      assert.same({ itemID = 2320, index = 3, qty = 45, cost = 450, calls = { 20, 20, 5 }, firstCost = 200,
+        short = false, name = "Coarse Thread" }, p)
     end)
-    it("rounds up to the merchant's stack", function()
+    -- The BUY 2.0 probe (2026-10-01): a purchase quantity counts units, priced pro rata -- one of a
+    -- 5-stack at 10c cost 2c. A line is bought to the unit, never rounded up to the stack.
+    it("buys exactly the units the line needs, priced pro rata", function()
       local p = V.Plan({ { itemID = 3371, buy = 12 } }, OFFERS, 100000)[1]
-      assert.equal(15, p.qty)
-      assert.equal(60, p.cost)
-      assert.same({ 15 }, p.calls)
+      assert.equal(12, p.qty)
+      assert.equal(48, p.cost)
+      assert.same({ 12 }, p.calls)
+    end)
+    it("never says a pro rata cost under what it costs", function()
+      assert.equal(2, V.CostOf({ price = 7, stack = 5 }, 1))
+      assert.equal(2, V.CostOf({ price = 10, stack = 5 }, 1))
     end)
     -- Review Focus 4.
     it("buys only what the wallet can pay, and says it is short", function()
@@ -53,8 +59,8 @@ describe("BuyVendor", function()
       assert.equal(200, p.cost)
       assert.is_true(p.short)
     end)
-    it("offers nothing it cannot pay a single stack of", function()
-      local p = V.Plan({ { itemID = 3371, buy = 5 } }, OFFERS, 19)[1]
+    it("offers nothing it cannot pay a single unit of", function()
+      local p = V.Plan({ { itemID = 3371, buy = 5 } }, OFFERS, 3)[1]
       assert.equal(0, p.qty)
       assert.is_true(p.short)
     end)

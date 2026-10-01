@@ -1014,4 +1014,7 @@ GC.Locales.zhCN = {
   ["%s · 1 lot"] = "%s · 1 件",
   ["%s · over your cap"] = "%s · 超出上限",
   ["no cap for this item — right-click the line to set one"] = "此物品没有上限 — 右键点击该行即可设置",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "购买 %d · %s",
+  ["BUY · %s"] = "购买 · %s",
 }

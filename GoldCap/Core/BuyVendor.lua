@@ -21,36 +21,46 @@ function GC.BuyVendor.Offers(rows)
       if not seen or unit < seen.unit then
         offers[r.itemID] = { index = r.index, price = price, stack = stack, unit = unit,
           available = (tonumber(r.numAvailable) or -1) > 0 and r.numAvailable or nil,
-          maxStack = math.max(stack, tonumber(r.maxStack) or stack) }
+          maxStack = math.max(1, tonumber(r.maxStack) or stack) }
       end
     end
   end
   return offers
 end
 
--- Per open line this merchant sells: how many to buy -- the line's remaining need rounded up to the
--- merchant's stack, held to its stock and to the gold in hand -- what that costs, and the calls it
--- takes. `short` says the line is not wholly bought by this press.
+-- What `qty` units of an offer cost. The BUY 2.0 probe (2026-10-01, both games): a purchase quantity
+-- counts units, priced pro rata -- one of a 5-stack at 10c cost 2c -- so a line is bought to the
+-- unit, never rounded up to the merchant's stack. Rounded up: a cost said is never under the cost
+-- paid.
+function GC.BuyVendor.CostOf(offer, qty)
+  return math.ceil((qty or 0) * offer.price / offer.stack - 1e-9)
+end
+
+-- Per open line this merchant sells: how many units to buy -- the line's remaining need, held to the
+-- merchant's stock and to the gold in hand -- what that costs, and the calls it takes: one call buys
+-- at most the item's GetMerchantItemMaxStack units (one more fails with "internal bag error", the
+-- probe), so 45 Coarse Thread at a maximum of 20 is 20, 20 and 5. `firstCost` is what the first
+-- call costs. `short` says the line is not wholly bought by these calls.
 function GC.BuyVendor.Plan(lines, offers, money)
   local out = {}
   for _, line in ipairs(lines or {}) do
     local offer = offers and offers[line.itemID]
-    if offer and (line.buy or 0) > 0 then
-      local stacks = math.ceil(line.buy / offer.stack)
-      if offer.available then stacks = math.min(stacks, offer.available) end
-      local want = stacks
-      if money then stacks = math.min(stacks, math.floor(money / offer.price)) end
-      local qty = stacks * offer.stack
+    local want = line.buy or 0
+    if offer and want > 0 then
+      local qty = want
+      if offer.available then qty = math.min(qty, offer.available * offer.stack) end
+      if money then qty = math.min(qty, math.floor(money * offer.stack / offer.price + 1e-9)) end
+      qty = math.max(0, qty)
       local calls, left = {}, qty
-      local per = math.max(offer.stack, math.floor(offer.maxStack / offer.stack) * offer.stack)
       while left > 0 do
-        local n = math.min(per, left)
+        local n = math.min(offer.maxStack, left)
         calls[#calls + 1] = n
         left = left - n
       end
       out[#out + 1] = { itemID = line.itemID, index = offer.index, qty = qty,
-        cost = stacks * offer.price, calls = calls, short = stacks < want or qty < line.buy,
-        name = line.name }
+        cost = GC.BuyVendor.CostOf(offer, qty), calls = calls,
+        firstCost = calls[1] and GC.BuyVendor.CostOf(offer, calls[1]) or 0,
+        short = qty < want, name = line.name }
     end
   end
   return out

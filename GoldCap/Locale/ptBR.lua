@@ -1099,4 +1099,7 @@ GC.Locales.ptBR = {
   ["%s · over your cap"] = "%s · acima do seu teto",
   ["no cap for this item — right-click the line to set one"] =
     "este item não tem teto — clique com o botão direito na linha para definir um",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "COMPRAR %d · %s",
+  ["BUY · %s"] = "COMPRAR · %s",
 }

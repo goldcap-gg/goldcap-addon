@@ -1103,4 +1103,7 @@ GC.Locales.esES = {
   ["%s · over your cap"] = "%s · por encima de tu tope",
   ["no cap for this item — right-click the line to set one"] =
     "este objeto no tiene tope — clic derecho en la línea para fijar uno",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "COMPRAR %d · %s",
+  ["BUY · %s"] = "COMPRAR · %s",
 }

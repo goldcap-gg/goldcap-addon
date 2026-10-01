@@ -357,6 +357,26 @@ describe("BuyFrame", function()
     assert.is_true(dock().buy:IsEnabled())
   end)
 
+  -- BUY 2.0 week 2: the vendor panel (UI/BuyVendorPanel.lua) asks the tab for its vendor lines, and
+  -- books what a press bought against the list -- never as a ledger row, which is auction house money.
+  it("answers the vendor panel with the list's vendor lines", function()
+    local answer = GC.Buy.VendorLines()
+    assert.equal(1, #answer.lines)
+    assert.same({ itemID = 104, buy = 20, need = 20, name = "Delta Vial" }, answer.lines[1])
+  end)
+
+  it("books a vendor purchase against the list and writes no ledger row", function()
+    local appended = 0
+    GC.Ledger = { Append = function() appended = appended + 1 end }
+    GC.Buy.RecordVendorPurchase(104, 20, 200)
+    local line
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == 104 then line = l end end
+    assert.equal(20, line.bought)
+    assert.equal(200, line.spent)
+    assert.is_true(line.done)
+    assert.equal(0, appended)
+  end)
+
   it("puts the vendor line after the open ones and the finished line last", function()
     local lineRows = {}
     for _, row in ipairs(shownRows()) do

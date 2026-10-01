@@ -1095,4 +1095,7 @@ GC.Locales.ruRU = {
   ["%s · over your cap"] = "%s · выше потолка",
   ["no cap for this item — right-click the line to set one"] =
     "у этого предмета нет потолка — задайте его правым кликом по строке",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "КУПИТЬ %d · %s",
+  ["BUY · %s"] = "КУПИТЬ · %s",
 }

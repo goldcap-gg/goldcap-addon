@@ -289,6 +289,12 @@ frame:RegisterEvent("PLAYER_MONEY")
 -- BAG_UPDATE_DELAYED, not BAG_UPDATE: the delayed form fires once after a burst of container
 -- changes, which is exactly the granularity a re-count of "what have I already got" wants.
 frame:RegisterEvent("BAG_UPDATE_DELAYED")
+-- BUY 2.0 week 2: at a vendor, the BUY list's vendor lines become buttons (UI/BuyVendorPanel.lua).
+-- Each in its own pcall, like AUCTION_CANCELED above: an event a client does not know must not take
+-- the rest of the registrations with it.
+for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED" }) do
+  pcall(frame.RegisterEvent, frame, merchantEvent)
+end
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -924,9 +930,17 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
+    -- What a vendor press bought arriving in the bags is that purchase's answer.
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnBagsChanged() end
     -- A craft changes the bags, so this is the cheapest settle signal there is; the ticker
     -- above covers the case where nothing else touches a bag afterwards.
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
+  elseif event == "MERCHANT_SHOW" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
+  elseif event == "MERCHANT_UPDATE" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
+  elseif event == "MERCHANT_CLOSED" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
