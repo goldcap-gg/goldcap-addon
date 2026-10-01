@@ -1093,8 +1093,6 @@ GC.Locales.ruRU = {
   ["Remove from the list"] = "Убрать из списка",
   ["or plan a whole profession on goldcap.gg"] = "или спланируйте всю профессию на goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Сделайте Shift+клик по предмету или введите его ID; для нескольких — x и количество: 2589 x20.",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "СКРЫТЬ ДЕТАЛИ ▲",
   ["SHOW DETAILS ▼"] = "ПОКАЗАТЬ ДЕТАЛИ ▼",
@@ -1160,4 +1158,15 @@ GC.Locales.ruRU = {
   ["the run string is not valid"] = "строка списка повреждена",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "следующая покупка: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Добавить",
+  ["Added %d items to a new list, %s."] = "Добавлено предметов: %d — в новый список «%s».",
+  ["Clear"] = "Очистить",
+  ["Could not read: %s."] = "Не удалось прочитать: %s.",
+  ["Items to add: %d — %s"] = "К добавлению: %d — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "Здесь ничего не подходит. Откройте аукцион, чтобы искать среди всего, что продаётся, или сделайте Shift+клик по предмету.",
+  ["Recent:"] = "Недавние:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Сделайте Shift+клик по предметам, введите название или ID предмета с x и количеством: 2589 x20.",
 }

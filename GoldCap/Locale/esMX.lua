@@ -1103,8 +1103,6 @@ GC.Locales.esMX = {
   ["Remove from the list"] = "Quitar de la lista",
   ["or plan a whole profession on goldcap.gg"] = "o planea una profesión completa en goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Haz Mayús+clic en un objeto o escribe su ID de objeto; para varios, x y la cantidad: 2589 x20.",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "OCULTAR DETALLES ▲",
   ["SHOW DETAILS ▼"] = "MOSTRAR DETALLES ▼",
@@ -1171,4 +1169,15 @@ GC.Locales.esMX = {
   ["the run string is not valid"] = "la cadena de la lista no es válida",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "siguiente compra: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Agregar",
+  ["Added %d items to a new list, %s."] = "Se agregaron %d objetos a una lista nueva: %s.",
+  ["Clear"] = "Borrar",
+  ["Could not read: %s."] = "No se pudo leer: %s.",
+  ["Items to add: %d — %s"] = "Por agregar: %d — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "Aquí no coincide nada. Abre la casa de subastas para buscar todo lo que está a la venta, o haz Mayús+clic en el objeto.",
+  ["Recent:"] = "Recientes:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Haz Mayús+clic en objetos, escribe un nombre o un ID de objeto con x y la cantidad: 2589 x20.",
 }

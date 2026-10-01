@@ -1112,8 +1112,6 @@ GC.Locales.ukUA = {
   ["Remove from the list"] = "Прибрати зі списку",
   ["or plan a whole profession on goldcap.gg"] = "або сплануйте всю професію на goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Зробіть Shift+клік по предмету або введіть його ID; для кількох — x і кількість: 2589 x20.",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "СХОВАТИ ДЕТАЛІ ▲",
   ["SHOW DETAILS ▼"] = "ПОКАЗАТИ ДЕТАЛІ ▼",
@@ -1178,4 +1176,15 @@ GC.Locales.ukUA = {
   ["the run string is not valid"] = "рядок списку пошкоджено",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "наступна покупка: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Додати",
+  ["Added %d items to a new list, %s."] = "Додано предметів: %d — до нового списку «%s».",
+  ["Clear"] = "Очистити",
+  ["Could not read: %s."] = "Не вдалося прочитати: %s.",
+  ["Items to add: %d — %s"] = "До додавання: %d — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "Тут нічого не підходить. Відкрийте аукціон, щоб шукати серед усього, що продається, або зробіть Shift+клік по предмету.",
+  ["Recent:"] = "Нещодавні:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Зробіть Shift+клік по предметах, введіть назву або ID предмета з x і кількістю: 2589 x20.",
 }

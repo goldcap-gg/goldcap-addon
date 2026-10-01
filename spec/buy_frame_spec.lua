@@ -195,8 +195,10 @@ describe("BuyFrame", function()
     }
 
     helper.loadModule("Core/ListStrings.lua", GC)
+    helper.loadModule("Core/BuyRecents.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
     helper.loadModule("UI/BuyLists.lua", GC)
+    helper.loadModule("UI/BuyAddBox.lua", GC)
 
     -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
     rowsOf = function() return GC.Buy._view.rows end
@@ -517,8 +519,8 @@ describe("BuyFrame", function()
     -- the entries are joined with commas.
     assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg", "• Potion run, 4 lines, in game",
       "divider", "Cap: 130%", "Rename…", "Add to favourites", "Export", "Import into this list…",
-      "Archive this run", "Delete this list…", "Copy vendor list", "divider", "New list", "Import a list…",
-      "Item to add" }, texts)
+      "Archive this run", "Delete this list…", "Copy vendor list", "divider", "New list", "Import a list…" },
+      texts)
 
     -- Delete asks first, in the kit's popup, and then drops the list and lands on the one left.
     local asked
@@ -551,7 +553,7 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
     assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%", "Add to favourites", "Export",
       "Archive this run", "From goldcap.gg — rename or remove it there", "Copy vendor list", "New list",
-      "Import a list…", "Item to add" }, entries)
+      "Import a list…" }, entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -753,12 +755,38 @@ describe("BuyFrame", function()
     assert.truthy(text:find("or plan a whole profession on goldcap.gg", 1, true))
     local add = GC.Buy._view.add
     assert.is_true(add.frame:IsShown())
-    assert.equal("Item to add", add.caption:GetText())
-    assert.equal("Shift-click an item or type its item id, with x and a count for more: 2589 x20.", add.note:GetText())
+    assert.equal("Item to add", add.hint:GetText())
+    assert.equal("Shift-click items, type a name, or an item id with x and a count: 2589 x20.", add.note:GetText())
+    -- No list, no band: the words come straight under the box.
+    assert.is_false(bandOf().frame:IsShown())
     assert.is_false(bandOf().picker:IsShown())
     assert.equal("", bandOf().done:GetText())
     assert.is_false(bandOf().totalCaption:IsShown())
     assert.is_false(dock():IsShown())
+  end)
+
+  -- Where a region is anchored, top-down: the y of its `point`, and what it is anchored to.
+  local function yOf(frame, point)
+    for _, p in ipairs(frame.points) do
+      if p.point == point then return p.y, p.relative end
+    end
+  end
+
+  -- The owner (BUY 2.0): one box, at the top -- not a row under the list.
+  it("puts the item box at the top of the tab, then the band, the headings and the rows", function()
+    local add, band = GC.Buy._view.add, bandOf()
+    local y, anchor = yOf(add.frame, "TOPLEFT")
+    assert.equal(containerOf(), anchor)
+    assert.equal(0, y)
+    assert.is_true(add.h > 0)
+    assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
+    assert.equal(-(add.h + 2), (yOf(band.picker, "TOPLEFT")))
+    assert.equal(-(add.h + 4), (yOf(band.totalCaption, "TOPRIGHT")))
+    assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
+    assert.equal(-(add.h + band.h + 16 + 4), (yOf(band.scroll, "TOPLEFT")))
+    assert.is_true(add.frame:IsShown())
+    -- No row holds a place for it any more: every row on screen is a line of the list.
+    for _, row in ipairs(shownRows()) do assert.truthy(row.lineItemID) end
   end)
 
   -- BUY 2.0: lists the player makes in the game. The BUY 2.0 probe (2026-10-01): a shift-click into
@@ -767,6 +795,8 @@ describe("BuyFrame", function()
   describe("lists made in the game", function()
     -- A link as the client writes it: coloured by quality as |cnIQ<quality>: in both games.
     local LINEN = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    local WOOL = "|cnIQ1:|Hitem:2592::::::::|h[Wool Cloth]|h|r"
+    local SILK = "|cnIQ1:|Hitem:4306::::::::|h[Silk Cloth]|h|r"
     local inserted
 
     before_each(function()
@@ -834,15 +864,27 @@ describe("BuyFrame", function()
       assert.is_nil(next(GC.db.runs))
     end)
 
-    it("says so when it cannot find the item, and makes no list", function()
+    -- A typed name is never claimed to be found: the client places almost none (the BUY 2.0 probe).
+    it("says what to do when nothing it knows goes by a typed name, and makes no list", function()
       enter("Linen Cloth")
-      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
+      assert.equal("Nothing here matches. Open the auction house to search everything on sale, or shift-click the item.",
+        GC.Buy._view.add.note:GetText())
       assert.is_nil(next(GC.db.runs))
       enter("999999")
+      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
       assert.is_nil(next(GC.db.runs))
     end)
 
-    it("fills the box from a shift-click while it has the focus, and not otherwise", function()
+    -- With the auction house open it is where everything is searched (next): the box does not point
+    -- the player at it.
+    it("does not send the player to the auction house while it is open", function()
+      GC.Sniper = { IsAHOpen = function() return true end }
+      enter("Linen Cloth")
+      GC.Sniper = nil
+      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
+    end)
+
+    it("takes a shift-click while it has the focus, and none before", function()
       local box = GC.Buy._view.add.box
       box:SetText("5 ")
       inserted(LINEN)
@@ -852,33 +894,176 @@ describe("BuyFrame", function()
       assert.equal("5 " .. LINEN, box:GetText())
     end)
 
-    it("ends the player's own list with the item box, and adds to the list on screen", function()
+    -- The owner: three shift-clicks kept only the last.
+    it("collects three shift-clicks, after the client moved the focus too, and Enter adds all three", function()
+      _G.C_Item.GetItemInfoInstant = function(id) return ({ [2589] = 2589, [2592] = 2592, [4306] = 4306 })[id] end
+      NAMES[4306] = "Silk Cloth"
+      local add = GC.Buy._view.add
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      inserted(LINEN)
+      add.box:ClearFocus() -- a click on a bag
+      inserted(WOOL)
+      inserted(SILK)
+      assert.equal(LINEN .. ", " .. WOOL .. ", " .. SILK, add.box:GetText())
+      assert.equal("Items to add: 3 — Linen Cloth, Wool Cloth, Silk Cloth", add.collected:GetText())
+      assert.equal("Add", add.button.label)
+      add.box.scripts.OnEnterPressed(add.box)
+      NAMES[4306] = nil
+      local ids = {}
+      for i, line in ipairs(GC.Buy.CurrentRun():Lines()) do ids[i] = line.itemID end
+      assert.same({ 2589, 2592, 4306 }, ids)
+      assert.equal("Added 3 items to a new list, List 1.", add.note:GetText())
+      assert.equal("", add.box:GetText())
+      -- Enter ended the collecting: the next shift-click is somebody else's.
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+    end)
+
+    it("adds what it can read and names what it cannot", function()
+      local add = GC.Buy._view.add
+      add.box:SetText("2589 x2, 2592 3; 999999")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal("Items to add: 1 — Linen Cloth ×2\nCould not read: 2592 3, 999999.", add.collected:GetText())
+      add.box.scripts.OnEnterPressed(add.box)
+      assert.equal("Added 2× Linen Cloth to a new list, List 1. Could not read: 2592 3, 999999.", add.note:GetText())
+      assert.equal(1, #GC.Buy.CurrentRun():Lines())
+    end)
+
+    it("never takes a link bound for an open chat box, or for another box with the keyboard", function()
+      local add = GC.Buy._view.add
+      add.box:SetText("")
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      _G.ChatFrameUtil.GetActiveWindow = function() return {} end
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      _G.ChatFrameUtil.GetActiveWindow = function() return nil end
+      _G.GetCurrentKeyBoardFocus = function() return {} end
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      _G.GetCurrentKeyBoardFocus = function() return add.box end
+      inserted(LINEN)
+      _G.GetCurrentKeyBoardFocus = nil
+      assert.equal(LINEN, add.box:GetText())
+    end)
+
+    it("stops collecting on Escape and when the tab goes away", function()
+      local add = GC.Buy._view.add
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("2589")
+      add.box.scripts.OnEscapePressed(add.box)
+      assert.equal("", add.box:GetText())
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.frame.scripts.OnHide(add.frame)
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+    end)
+
+    it("adds to the player's own list on screen", function()
       enter(LINEN)
       local code = GC.Buy.CurrentRun():Code()
-      assert.is_true(GC.Buy._view.add.frame:IsShown())
       enter("2592 x3")
       assert.equal(code, GC.Buy.CurrentRun():Code())
       assert.equal(2, #GC.Buy.CurrentRun():Lines())
       assert.equal("Added 3× Wool Cloth to List 1.", GC.Buy._view.add.note:GetText())
     end)
 
-    -- A goldcap.gg list is edited on goldcap.gg: the item box on one makes a list in the game.
-    it("opens the item box under a goldcap.gg list, whose first item makes a new list", function()
+    -- A goldcap.gg list is edited on goldcap.gg: the box over one makes a list in the game.
+    it("shows the box over a goldcap.gg list too, whose first item makes a new list", function()
       GC.db.runs["run-1"] = run()
       GC.Buy.SelectRun("run-1")
       GC.Buy.RefreshIfShown()
-      assert.is_false(GC.Buy._view.add.frame:IsShown())
-      pickerMenu()("Item to add").fn()
-      assert.equal("run-1", GC.Buy.CurrentRun():Code())
-      assert.is_true(bandOf().picker:IsShown())
       assert.is_true(GC.Buy._view.add.frame:IsShown())
-      assert.is_true(GC.Buy._view.add.box:HasFocus())
+      assert.is_true(bandOf().picker:IsShown())
       enter(LINEN)
       local code = GC.Buy.CurrentRun():Code()
       assert.is_true(code ~= "run-1")
       assert.equal("game", GC.db.runs[code].origin)
       assert.equal(4, #GC.db.runs["run-1"].lines)
       assert.equal("Added 1× Linen Cloth to a new list, List 1.", GC.Buy._view.add.note:GetText())
+    end)
+
+    -- Typed names: only what the client and GoldCap already know, compared in the client's language.
+    it("offers the items it knows by a typed Russian name, and adds the one clicked with its count", function()
+      GC.db.itemNames = { [2589] = { n = "Плотные льняные бинты" }, [2592] = { n = "Шерстяная ткань" } }
+      NAMES[2589] = "Плотные льняные бинты"
+      local add = GC.Buy._view.add
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("20 ЛЬНЯН")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal("Search", add.button.label)
+      assert.is_true(add.matches[1]:IsShown())
+      assert.equal(2589, add.matches[1].itemID)
+      assert.equal("Плотные льняные бинты", add.matches[1].text:GetText())
+      assert.is_nil(add.matches[2])
+      add.matches[1].scripts.OnClick(add.matches[1])
+      local line = GC.Buy.CurrentRun():Lines()[1]
+      assert.equal(2589, line.itemID)
+      assert.equal(20, line.need)
+      assert.equal("Added 20× Плотные льняные бинты to a new list, List 1.", add.note:GetText())
+      assert.is_false(add.matches[1]:IsShown())
+    end)
+
+    it("walks the matches with the arrow keys, and Enter adds the one picked", function()
+      GC.db.itemNames = { [2589] = { n = "Linen Cloth" }, [4306] = { n = "Linen Thread" } }
+      local add = GC.Buy._view.add
+      add.box:SetText("linen")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal(2589, add.matches[1].itemID)
+      assert.equal(4306, add.matches[2].itemID)
+      add.box.scripts.OnArrowPressed(add.box, "DOWN")
+      add.box.scripts.OnArrowPressed(add.box, "DOWN")
+      assert.is_true(add.matches[2].picked:IsShown())
+      assert.is_false(add.matches[1].picked:IsShown())
+      assert.equal("Add", add.button.label)
+      add.box.scripts.OnArrowPressed(add.box, "DOWN") -- round, to the first
+      assert.is_true(add.matches[1].picked:IsShown())
+      add.box.scripts.OnArrowPressed(add.box, "UP")
+      assert.is_true(add.matches[2].picked:IsShown())
+      add.box.scripts.OnEnterPressed(add.box)
+      assert.equal(4306, GC.Buy.CurrentRun():Lines()[1].itemID)
+    end)
+
+    it("moves the list down as the box grows, so nothing sits under it", function()
+      GC.db.itemNames = { [2589] = { n = "Linen Cloth" } }
+      GC.db.runs["run-1"] = run()
+      GC.Buy.SelectRun("run-1")
+      GC.Buy.RefreshIfShown()
+      local add, band = GC.Buy._view.add, bandOf()
+      local before = add.h
+      add.box:SetText("linen")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.is_true(add.h > before)
+      assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
+      assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
+    end)
+
+    it("keeps the last searches and items as chips: an item's adds it again, a search's runs again", function()
+      GC.db.itemNames = { [2592] = { n = "Wool Cloth" } }
+      local add = GC.Buy._view.add
+      enter("2589 x20")
+      enter("wool")
+      assert.same({ { s = "wool" }, { i = 2589, q = 20, n = "Linen Cloth" } }, GC.db.buyRecents)
+      assert.equal("“wool”", add.chips[1].label)
+      assert.equal("Linen Cloth ×20", add.chips[2].label)
+      assert.is_true(add.recentCaption:IsShown())
+      assert.is_true(add.clear:IsShown())
+      -- The item's chip adds it again, to the list the box adds to.
+      add.chips[2].scripts.OnClick(add.chips[2])
+      assert.equal(40, GC.Buy.CurrentRun():Lines()[1].need)
+      assert.equal("Linen Cloth ×20", add.chips[1].label)
+      -- The search's chip runs it again.
+      add.chips[2].scripts.OnClick(add.chips[2])
+      assert.equal("wool", add.box:GetText())
+      assert.equal(2592, add.matches[1].itemID)
+      assert.equal("“wool”", add.chips[1].label)
+      add.clear.scripts.OnClick(add.clear)
+      assert.same({}, GC.db.buyRecents)
+      assert.is_false(add.recentCaption:IsShown())
+      assert.is_false(add.chips[1]:IsShown())
     end)
 
     it("takes a line off the player's list from its menu, and keeps the list", function()
@@ -1754,7 +1939,7 @@ describe("BuyFrame", function()
     assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg",
                   "divider", "Alerts", "• Cheap ore, 2 lines, goldcap.gg",
                   "divider", "cap: alert target", "Export", "From goldcap.gg — manage it there",
-                  "divider", "New list", "Import a list…", "Item to add" }, menuTexts)
+                  "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
   -- Spec rule 3: a followed run rides in after the player's own, marked with its owner, and
@@ -1768,7 +1953,7 @@ describe("BuyFrame", function()
     local menuTexts = menuEntries()
     assert.same({ "Runs", "• Guild flasks, 4 lines, from Acromion",
                   "divider", "Add to favourites", "Export", "From goldcap.gg — manage it there",
-                  "Copy vendor list", "divider", "New list", "Import a list…", "Item to add" }, menuTexts)
+                  "Copy vendor list", "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
   -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so

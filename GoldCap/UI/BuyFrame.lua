@@ -109,8 +109,6 @@ local BD = {
   -- of its own on the left, LISTS_W across.
   WIDE_MIN = 880,
   LISTS_W = 196,
-  -- The item box's well (BUY 2.0's quick list): as wide as this, or the row when that is narrower.
-  ADD_W = 260,
   -- BUY 2.0 week 2: the most rows of a lot line's search this tab reads (the Buyout sort puts the
   -- cheapest first, so the first page holds every lot a press could buy).
   MAX_LOTS = 100,
@@ -636,7 +634,6 @@ function GC.Buy.SelectRun(code)
   -- just as much a replacement, and the next run picked must not inherit a stale window.
   lastRefreshAt = 0
   GC.Buy._filter, GC.Buy._query = "all", ""
-  GC.Buy._adding = nil
   -- Every change to a list's lines (an item added or taken off, an import) ends here, so the
   -- column's progress is worked out again rather than kept from before it.
   GC.Buy._listMeta = {}
@@ -802,14 +799,6 @@ openRunMenu = function(owner)
     root:CreateDivider()
     root:CreateButton(menuText(GC.L["New list"]), function() GC.BuyLists.New() end)
     root:CreateButton(menuText(GC.L["Import a list…"]), function() GC.BuyLists.Import() end)
-    -- The item box at the foot of the list on screen: always there on the player's own list, and
-    -- on a goldcap.gg list once asked for -- its first item then makes a list in the game.
-    root:CreateButton(menuText(GC.L["Item to add"]), function()
-      GC.Buy._adding = true
-      GC.Buy.RefreshIfShown()
-      local add = GC.Buy._view and GC.Buy._view.add
-      if add and add.box.SetFocus then add.box:SetFocus() end
-    end)
     -- What has been put away, under its own divider: a run leaves the picker but not the addon,
     -- and this is the only way back to it.
     local archivedRuns = (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List({ archived = true })) or {}
@@ -2395,10 +2384,10 @@ end
 -- Refresh puts them there); this only decides what is a row at all.
 local function buildEntries()
   local entries = {}
-  -- No list on screen: the first-time state -- the item box that starts a quick list in the game.
+  -- No list on screen: the first-time state, under the item box at the top (UI/BuyAddBox.lua) that
+  -- starts a list in the game.
   if not current then
     entries[#entries + 1] = { kind = "hint", text = GC.L["Make a list once, buy it here at or under your price."] }
-    entries[#entries + 1] = { kind = "add" }
     entries[#entries + 1] = { kind = "hint", text = GC.L["or plan a whole profession on goldcap.gg"] }
     return entries
   end
@@ -2412,19 +2401,12 @@ local function buildEntries()
   if #entries == 0 and #lines > 0 then
     entries[1] = { kind = "hint", text = GC.L["Nothing on this list matches."] }
   end
-  -- The player's own list ends with its item box, so the next item goes on where the last one
-  -- did; a goldcap.gg list shows it once the list menu's "Item to add" asked for it.
-  if localRun(current:Code()) or GC.Buy._adding then entries[#entries + 1] = { kind = "add" } end
   return entries
 end
 
 -- How tall a painted row is: its least, or what its wrapped text needs. A name too long for the
 -- item column in the player's language takes a second line rather than losing its end.
 local function heightFor(kind, row)
-  if kind == "add" then
-    local add = GC.Buy._view and GC.Buy._view.add
-    return add and add.h or geometry.rowHeight * 3
-  end
   if kind == "hint" then
     local h = geometry.rowHeight * 2
     if row and row.wide.GetStringHeight then h = math.max(h, math.ceil(row.wide:GetStringHeight() + 12)) end
@@ -2577,15 +2559,7 @@ local function paintRow(row, entry, index)
   local zc = Theme.color.zebra
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
-  if entry.kind == "add" then
-    -- The item box itself sits over this row (renderRows); the row only holds its place, and takes
-    -- no clicks, so the box under the pointer gets them.
-    row:EnableMouse(false)
-    row.reagent:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
-  elseif entry.kind == "hint" then
+  if entry.kind == "hint" then
     row.reagent:Hide()
     row.wide:Show()
     row.wide:SetJustifyH("CENTER")
@@ -3525,11 +3499,23 @@ local function layoutBand()
   local picker = band.picker
   local inset = GC.Buy._leftInset or 0
   local width = math.max(0, (container and container:GetWidth() or 0) - inset)
+  -- The item box first, at the very top of the right-hand pane (UI/BuyAddBox.lua), as tall as what
+  -- it says; the band under it.
+  local add, top = band.add, 0
+  if add then
+    add.frame:ClearAllPoints()
+    add.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, 0)
+    add.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    top = GC.BuyAddBox.Layout(add, width)
+  end
+  band.top = top
   picker:ClearAllPoints()
-  picker:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -2)
+  picker:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(top + 2))
+  band.totalCaption:ClearAllPoints()
+  band.totalCaption:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(top + 4))
   band.frame:ClearAllPoints()
-  band.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, 0)
-  band.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+  band.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -top)
+  band.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -top)
   local rightW = math.max(measured(band.totalCaption) or 0, measured(band.total) or 0, 60)
   local labelW = picker.text and measured(picker.text)
   local pickerH = 24
@@ -3547,6 +3533,8 @@ local function layoutBand()
   band.done:SetPoint("RIGHT", band.total, "LEFT", -Theme.pad.m, 0)
   local doneH = band.done.GetStringHeight and band.done:GetStringHeight() or 0
   local h = math.max(BD.BAND_HEIGHT, math.ceil(2 + pickerH + 4 + doneH + 8))
+  -- No list, no band: the first-time state's words come straight under the item box.
+  if current then band.frame:Show() else band.frame:Hide(); h = 0 end
   if h ~= band.h then
     band.h = h
     band.frame:SetHeight(h)
@@ -3628,16 +3616,18 @@ local function layoutBody()
   local header, scroll = band.header, band.scroll
   local dock = band.dock
   local bottom = (dock and dock:IsShown()) and (dock.h or BD.DOCK_H) or 0
-  local top = band.h or BD.BAND_HEIGHT
+  -- Top to bottom: the item box (band.top), the band, the search and filter, the headings, the rows.
+  local toolsTop = (band.top or 0) + (band.h or BD.BAND_HEIGHT)
+  local top = toolsTop
   local tools = band.tools and band.tools.frame
   if tools and tools:IsShown() then top = top + BD.TOOLS_H end
-  if band.bodyBottom == bottom and band.bodyTop == top then return end
-  band.bodyBottom, band.bodyTop = bottom, top
+  if band.bodyBottom == bottom and band.bodyTop == top and band.bodyToolsTop == toolsTop then return end
+  band.bodyBottom, band.bodyTop, band.bodyToolsTop = bottom, top, toolsTop
   local inset = GC.Buy._leftInset or 0
   if tools then
     tools:ClearAllPoints()
-    tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(band.h or BD.BAND_HEIGHT))
-    tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(band.h or BD.BAND_HEIGHT))
+    tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -toolsTop)
+    tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -toolsTop)
   end
   header:ClearAllPoints()
   header:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -top)
@@ -3650,6 +3640,14 @@ local function layoutBody()
     dock:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", inset, 0)
     dock:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
   end
+end
+
+-- The top of the tab laid out again for the item box's new height -- a match list opening, a line
+-- wrapping -- without painting the rows again: it changes on every keystroke in the box.
+function GC.Buy._LayoutTop()
+  if not (container and band and container:IsShown()) then return end
+  layoutBand()
+  layoutBody()
 end
 
 -- @localised-keys: literals in this table ARE GC.L keys, looked up in dockSubText. The table closes
@@ -3787,99 +3785,6 @@ local function paintDock()
   layoutDock(dock)
 end
 
--- ---------------------------------------------------------------------------
--- The item box (BUY 2.0): a list made in the game, one item at a time
--- ---------------------------------------------------------------------------
-
--- What the box adds: an item link (a shift-click into it) or an item id, with an optional count.
--- A typed name is not looked up: the BUY 2.0 probe found the client resolves almost none
--- (C_Item.GetItemInfoInstant answered 0 of 15 typed names in retail, 2 of 15 in the Russian WoW:
--- Forever client), and GoldCap keeps no name index of its own. An id is checked with the client,
--- which always knows its items by id.
-local function addFromBox(box)
-  local add = GC.Buy._view.add
-  local parsed = GC.BuyView.ParseAdd(box:GetText() or "")
-  if parsed == nil then return end
-  -- false: two bare numbers, which say nothing about which one is the item (GC.BuyView.ParseAdd).
-  local itemID = parsed and parsed.itemID
-  if itemID and C_Item and C_Item.GetItemInfoInstant then
-    local ok, known = pcall(C_Item.GetItemInfoInstant, itemID)
-    if not (ok and known) then itemID = nil end
-  end
-  if not itemID then
-    add.note:SetText(GC.L["Could not find that item. Shift-click it, or type its item id."])
-    GC.Buy.RefreshIfShown()
-    return
-  end
-  -- Onto the player's own list on screen; with a goldcap.gg list on screen, or none, onto a new list
-  -- made in the game -- the site's lists are edited on the site, and the next sync would drop it.
-  local target = current and localRun(current:Code()) or nil
-  local made = not target and GC.AppRuns.NewList() or nil
-  local code = target and target.code or (made and made.code)
-  if not (code and GC.AppRuns.AddLine(code, itemID, parsed.qty)) then return end
-  box:SetText("")
-  local label = GC.AppRuns.Label(GC.AppRuns.Get(code))
-  add.note:SetText((made and GC.L["Added %d× %s to a new list, %s."] or GC.L["Added %d× %s to %s."])
-    :format(parsed.qty, lineName({ itemID = itemID }), label))
-  GC.Buy.SelectRun(code)
-  GC.Buy.RefreshIfShown()
-end
-
--- The box: "Item to add" over a well the player types or shift-clicks into, and a line under it
--- that says how to use it, or what the last Enter did. Every line wraps rather than cut.
-local function createAdd(parent)
-  local frame = CreateFrame("Frame", nil, parent)
-  frame:Hide()
-  local caption = Theme.Num(frame, 9)
-  caption:SetJustifyH("LEFT")
-  caption:SetWordWrap(true)
-  caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -6)
-  caption:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-  caption:SetText(GC.L["Item to add"])
-  setColor(caption, Theme.color.fgDim)
-  local well = CreateFrame("Frame", nil, frame)
-  well:SetSize(BD.ADD_W, 22)
-  well:SetPoint("TOPLEFT", caption, "BOTTOMLEFT", 0, -4)
-  local wc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
-  local box = CreateFrame("EditBox", nil, well)
-  box:SetAutoFocus(false)
-  box:SetPoint("TOPLEFT", 10, -2)
-  box:SetPoint("BOTTOMRIGHT", -8, 2)
-  if box.SetFont then
-    box:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
-    box:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
-  end
-  box:SetScript("OnEnterPressed", addFromBox)
-  box:SetScript("OnEscapePressed", function(self)
-    self:SetText("")
-    self:ClearFocus()
-  end)
-  local note = Theme.Num(frame, 10)
-  note:SetJustifyH("LEFT")
-  note:SetWordWrap(true)
-  note:SetPoint("TOPLEFT", well, "BOTTOMLEFT", 0, -4)
-  note:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-  note:SetText(GC.L["Shift-click an item or type its item id, with x and a count for more: 2589 x20."])
-  setColor(note, Theme.color.fgDim)
-  return { frame = frame, caption = caption, well = well, box = box, note = note, h = 64 }
-end
-
--- The box as tall as its wrapped lines, for the row that holds its place (heightFor).
-local function layoutAdd(add)
-  local width = (geometry and geometry.rowWidth or 0) - 8
-  if width > 0 then
-    add.well:SetWidth(math.min(BD.ADD_W, width))
-    add.caption:SetWidth(width)
-    add.note:SetWidth(width)
-  end
-  local ch = add.caption.GetStringHeight and add.caption:GetStringHeight() or 12
-  local nh = add.note.GetStringHeight and add.note:GetStringHeight() or 12
-  add.h = math.ceil(6 + (ch or 12) + 4 + 22 + 4 + (nh or 12) + 8)
-  add.frame:SetHeight(add.h)
-end
-
 local function updateContentWidth()
   if not container or not content then return end
   applyWidth(container:GetWidth())
@@ -3911,10 +3816,10 @@ local function renderRows()
     if firstShown and not visible[GC.Buy._focus or -1] then GC.Buy._focus = firstBuyable or firstShown end
   end
 
+  if band.add then GC.BuyAddBox.Paint(band.add) end
   paintBand()
 
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
-  if GC.Buy._view and GC.Buy._view.add then layoutAdd(GC.Buy._view.add) end
   -- Painted first, measured second, laid out last: a column is as wide as the widest thing this
   -- render puts in it, and a row as tall as its wrapped name.
   for i, entry in ipairs(entries) do paintRow(rows[i], entry, i) end
@@ -3935,21 +3840,6 @@ local function renderRows()
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
   content:SetHeight(math.max(1, y))
-  local add = GC.Buy._view and GC.Buy._view.add
-  if add then
-    add.frame:Hide()
-    for i, entry in ipairs(entries) do
-      if entry.kind == "add" then
-        add.frame:ClearAllPoints()
-        add.frame:SetPoint("TOPLEFT", rows[i], "TOPLEFT", 0, 0)
-        add.frame:SetPoint("TOPRIGHT", rows[i], "TOPRIGHT", 0, 0)
-        if add.frame.SetFrameLevel and rows[i].GetFrameLevel then
-          add.frame:SetFrameLevel(rows[i]:GetFrameLevel() + 2)
-        end
-        add.frame:Show()
-      end
-    end
-  end
   paintDock()
   layoutBody()
   paintLists()
@@ -3970,6 +3860,8 @@ function GC.Buy.Attach(f, geo)
   band.header = createHeaderRow(container)
   band.dock = createDock(container)
   band.lists = createLists(container)
+  -- The item box over everything else on the right (UI/BuyAddBox.lua): layoutBand places it.
+  band.add = GC.BuyAddBox and GC.BuyAddBox.Create(container) or nil
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
@@ -4015,25 +3907,9 @@ function GC.Buy.Attach(f, geo)
 
   GC.Buy._WatchSearches()
 
-  GC.Buy._WatchLinks()
-
   -- The one seam specs use instead of debug.getupvalue.
   GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock, lists = band.lists,
-    add = createAdd(content) }
-end
-
--- A shift-click while the item box has the focus puts the item's link into it (the BUY 2.0 probe:
--- it does, in both games). A post-hook: it sees what Blizzard's InsertLink was handed and changes
--- nothing that function did -- which, with the auction house open, also fills Blizzard's own
--- search box, harmless.
-function GC.Buy._WatchLinks()
-  if GC.Buy._watchingLinks or not (hooksecurefunc and _G.ChatFrameUtil
-      and type(_G.ChatFrameUtil.InsertLink) == "function") then return end
-  GC.Buy._watchingLinks = true
-  hooksecurefunc(_G.ChatFrameUtil, "InsertLink", function(text)
-    local add = GC.Buy._view and GC.Buy._view.add
-    if add and type(text) == "string" and add.box.HasFocus and add.box:HasFocus() then add.box:Insert(text) end
-  end)
+    add = band.add }
 end
 
 function GC.Buy.Show()

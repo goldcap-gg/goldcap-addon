@@ -1012,8 +1012,6 @@ GC.Locales.zhCN = {
   ["Remove from the list"] = "从清单中移除",
   ["or plan a whole profession on goldcap.gg"] = "或在 goldcap.gg 上规划整个专业",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Shift+点击物品，或输入其物品 ID；多件时加 x 和数量：2589 x20。",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "隐藏详情 ▲",
   ["SHOW DETAILS ▼"] = "显示详情 ▼",
@@ -1074,4 +1072,15 @@ GC.Locales.zhCN = {
   ["the run string is not valid"] = "清单字符串无效",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "下次购买：%s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "添加",
+  ["Added %d items to a new list, %s."] = "已将 %d 件物品加入新清单“%s”。",
+  ["Clear"] = "清除",
+  ["Could not read: %s."] = "无法识别：%s。",
+  ["Items to add: %d — %s"] = "待添加：%d 件 — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "这里没有匹配的物品。打开拍卖行可搜索所有在售物品，或 Shift+点击该物品。",
+  ["Recent:"] = "最近：",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Shift+点击物品，输入名称，或输入物品 ID 加 x 和数量：2589 x20。",
 }

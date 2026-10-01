@@ -1099,8 +1099,6 @@ GC.Locales.deDE = {
   ["Remove from the list"] = "Von der Liste entfernen",
   ["or plan a whole profession on goldcap.gg"] = "oder plane einen ganzen Beruf auf goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Gegenstand mit Umschalt+Klick einfügen oder seine Item-ID eingeben, für mehrere mit x und Anzahl: 2589 x20.",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "DETAILS AUSBLENDEN ▲",
   ["SHOW DETAILS ▼"] = "DETAILS ZEIGEN ▼",
@@ -1167,4 +1165,15 @@ GC.Locales.deDE = {
   ["the run string is not valid"] = "die Listenzeichenfolge ist ungültig",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "nächster Kauf: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Hinzufügen",
+  ["Added %d items to a new list, %s."] = "%d Gegenstände zu einer neuen Liste hinzugefügt: %s.",
+  ["Clear"] = "Leeren",
+  ["Could not read: %s."] = "Nicht lesbar: %s.",
+  ["Items to add: %d — %s"] = "Hinzuzufügen: %d — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "Hier passt nichts. Öffne das Auktionshaus, um alles im Angebot zu durchsuchen, oder füge den Gegenstand mit Umschalt+Klick ein.",
+  ["Recent:"] = "Zuletzt:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Gegenstände mit Umschalt+Klick einfügen, einen Namen eingeben oder eine Item-ID mit x und Anzahl: 2589 x20.",
 }

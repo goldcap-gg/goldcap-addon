@@ -152,35 +152,64 @@ function GC.BuyLists.Import(into)
   if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog({ lists = true, into = into }) end
 end
 
---- Turns a name into an item the way an import needs it: one item exactly, or nothing. The client
---- resolves almost no typed names itself (the BUY 2.0 probe: C_Item.GetItemInfoInstant answered 0
---- of 15 in retail), so the names GoldCap already knows go first -- every stored list's lines, the
---- bags, the item names the site asked about, and the ledger's purchases and sales -- and a name two
---- items share is nobody's.
-function GC.BuyLists.NameLookup()
-  local index = GC.ListStrings.NameIndex()
+-- The bank's containers, by the client's own names for them (Enum.BagIndex: CharacterBankTab_1..6
+-- and AccountBankTab_1..5 in retail, ..9 each in WoW: Forever). A bank the client has not loaded
+-- this session answers no slots, and is simply not there.
+local function bankBags()
+  local out = {}
+  for name, index in pairs(type(Enum) == "table" and type(Enum.BagIndex) == "table" and Enum.BagIndex or {}) do
+    if type(name) == "string" and type(index) == "number"
+        and (name:match("^CharacterBankTab_%d+$") or name:match("^AccountBankTab_%d+$")) then
+      out[#out + 1] = index
+    end
+  end
+  table.sort(out)
+  return out
+end
+
+local function walkBags(bags, add)
+  if not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then return end
+  for _, bag in ipairs(bags) do
+    local ok, slots = pcall(C_Container.GetContainerNumSlots, bag)
+    for slot = 1, (ok and tonumber(slots)) or 0 do
+      local got, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
+      if got and type(info) == "table" and info.itemID then add(info.itemID, itemName(info.itemID)) end
+    end
+  end
+end
+
+--- Every name GoldCap already knows for an item, as add(itemID, name) -- an item may come more than
+--- once, under one name or several: every stored list's lines (their own name and the client's),
+--- the bags and the bank as far as the client has it, the item names the site asked about, the
+--- ledger's purchases and sales, and what GoldCap recorded buying. The client resolves almost no
+--- typed names itself (the BUY 2.0 probe: C_Item.GetItemInfoInstant answered 0 of 15 in retail).
+function GC.BuyLists.KnownNames(add)
   local db = type(GC.db) == "table" and GC.db or {}
   for _, run in pairs(type(db.runs) == "table" and db.runs or {}) do
     for _, line in ipairs(type(run.lines) == "table" and run.lines or {}) do
-      index:Add(line.i, line.n)
-      index:Add(line.i, itemName(line.i))
+      add(line.i, line.n)
+      add(line.i, itemName(line.i))
     end
   end
-  if C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo then
-    for _, bag in ipairs(BAGS) do
-      local ok, slots = pcall(C_Container.GetContainerNumSlots, bag)
-      for slot = 1, (ok and tonumber(slots)) or 0 do
-        local got, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
-        if got and type(info) == "table" and info.itemID then index:Add(info.itemID, itemName(info.itemID)) end
-      end
-    end
-  end
+  walkBags(BAGS, add)
+  walkBags(bankBags(), add)
   for itemID, row in pairs(type(db.itemNames) == "table" and db.itemNames or {}) do
-    if type(row) == "table" then index:Add(itemID, row.n) end
+    if type(row) == "table" then add(itemID, row.n) end
   end
   for _, row in ipairs(type(db.ledger) == "table" and db.ledger or {}) do
-    if type(row) == "table" then index:Add(row.itemID, row.itemName) end
+    if type(row) == "table" then add(row.itemID, row.itemName) end
   end
+  for _, batch in ipairs(type(db.acquisitions) == "table" and db.acquisitions or {}) do
+    if type(batch) == "table" then add(batch.itemID, batch.itemName) end
+  end
+end
+
+--- Turns a name into an item the way an import needs it: one item exactly, or nothing. The names
+--- GoldCap already knows go first (KnownNames), and a name two items share is nobody's; then the
+--- client's own C_Item.GetItemInfoInstant.
+function GC.BuyLists.NameLookup()
+  local index = GC.ListStrings.NameIndex()
+  GC.BuyLists.KnownNames(function(itemID, name) index:Add(itemID, name) end)
   return function(name)
     local found = index:Find(name)
     if found ~= nil then return found end

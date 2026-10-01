@@ -1038,8 +1038,6 @@ GC.Locales.koKR = {
   ["Remove from the list"] = "목록에서 제거",
   ["or plan a whole profession on goldcap.gg"] = "또는 goldcap.gg에서 전문 기술 전체를 계획하세요",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요. 여러 개는 x와 수량: 2589 x20.",
   -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
   ["HIDE DETAILS ▲"] = "세부 정보 숨기기 ▲",
   ["SHOW DETAILS ▼"] = "세부 정보 보기 ▼",
@@ -1101,4 +1099,15 @@ GC.Locales.koKR = {
   ["the run string is not valid"] = "목록 문자열이 올바르지 않습니다",
   -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
   ["next to buy: %s"] = "다음 구매: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "추가",
+  ["Added %d items to a new list, %s."] = "아이템 %d개를 새 목록 %s에 추가했습니다.",
+  ["Clear"] = "지우기",
+  ["Could not read: %s."] = "읽을 수 없음: %s.",
+  ["Items to add: %d — %s"] = "추가할 아이템: %d개 — %s",
+  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
+    "일치하는 아이템이 없습니다. 판매 중인 모든 것을 검색하려면 경매장을 여세요. 또는 아이템을 Shift+클릭하세요.",
+  ["Recent:"] = "최근:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "아이템을 Shift+클릭하거나, 이름을 입력하거나, 아이템 ID와 x, 수량을 입력하세요: 2589 x20.",
 }

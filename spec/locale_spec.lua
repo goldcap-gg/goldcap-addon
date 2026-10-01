@@ -276,7 +276,7 @@ describe("locale layer", function()
   it("carries every BUY tab key in all twelve languages", function()
     local asked = {}
     for _, path in ipairs({ "GoldCap/UI/BuyFrame.lua", "GoldCap/UI/BuyCapEditor.lua", "GoldCap/UI/BuyLists.lua",
-      "GoldCap/Core/AppRuns.lua" }) do
+      "GoldCap/UI/BuyAddBox.lua", "GoldCap/Core/AppRuns.lua" }) do
       local f = assert(io.open(path))
       local text = f:read("*a")
       f:close()
@@ -305,7 +305,6 @@ describe("locale layer", function()
       "%s · over your cap", "no cap for this item — right-click the line to set one",
       "BUY · %s", "BUY %d · %s",
       "Make a list once, buy it here at or under your price.", "Item to add",
-      "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
       "or plan a whole profession on goldcap.gg",
       "Could not find that item. Shift-click it, or type its item id.", "Remove from the list",
       -- Lists made in the game: "+ New", Import, Export, Rename, favourites, order and Delete.
