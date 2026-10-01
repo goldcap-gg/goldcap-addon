@@ -2434,6 +2434,7 @@ local function buildRowCell(row, col)
 end
 
 local function clearRow(row)
+  row:EnableMouse(true)
   row.reagent:SetText("")
   row.reagent:Show()
   row.wide:SetText("")
@@ -2563,7 +2564,9 @@ local function paintRow(row, entry, index)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
   if entry.kind == "add" then
-    -- The item box itself sits over this row (renderRows); the row only holds its place.
+    -- The item box itself sits over this row (renderRows); the row only holds its place, and takes
+    -- no clicks, so the box under the pointer gets them.
+    row:EnableMouse(false)
     row.reagent:Hide()
     for _, col in ipairs(COLUMNS) do
       if not col.flex then row.cells[col.key]:Hide() end
@@ -3751,6 +3754,7 @@ local function layoutAdd(add)
   local ch = add.caption.GetStringHeight and add.caption:GetStringHeight() or 12
   local nh = add.note.GetStringHeight and add.note:GetStringHeight() or 12
   add.h = math.ceil(6 + (ch or 12) + 4 + 22 + 4 + (nh or 12) + 8)
+  add.frame:SetHeight(add.h)
 end
 
 local function updateContentWidth()
@@ -3816,6 +3820,9 @@ local function renderRows()
         add.frame:ClearAllPoints()
         add.frame:SetPoint("TOPLEFT", rows[i], "TOPLEFT", 0, 0)
         add.frame:SetPoint("TOPRIGHT", rows[i], "TOPRIGHT", 0, 0)
+        if add.frame.SetFrameLevel and rows[i].GetFrameLevel then
+          add.frame:SetFrameLevel(rows[i]:GetFrameLevel() + 2)
+        end
         add.frame:Show()
       end
     end
