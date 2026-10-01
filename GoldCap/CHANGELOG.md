@@ -18,6 +18,13 @@
 - Copy vendor list is in the list menu.
 - In WoW: Forever, the market price in BUY says how many players' scans it comes from and how old
   it is.
+- Gear and other items that are not sold in stacks can now be bought in the BUY tab: one lot per
+  press, the cheapest first, and never above your cap. The bottom of the tab lists the lots by
+  price. Before, the button only opened the auction house's own page.
+- At a vendor, GoldCap lists the items of your BUY list that this vendor sells, each with a button
+  that buys what you still need, up to a full stack per press.
+- No lists yet? Shift-click an item into the box on the BUY tab, or type its item id, to start a
+  quick list right in the game. Right-click a line to take it off again.
 
 ## 0.17.2 (2026-09-30)
 
