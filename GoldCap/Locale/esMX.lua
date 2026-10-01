@@ -203,7 +203,6 @@ GC.Locales.esMX = {
   ["Market"] = "Mercado",
   ["Mount cost cleared."] = "Costo de la montura borrado.",
   ["Mount cost set to %s."] = "Costo de la montura fijado en %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Aún no hay listas. Guarda una lista con cantidades en goldcap.gg, o escribe /gc import y pega una cadena de lista.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Aún no hay un escaneo con equipo. Abre la casa de subastas y deja que GoldCap la escanee.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -1108,4 +1107,16 @@ GC.Locales.esMX = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "COMPRAR %d · %s",
   ["BUY · %s"] = "COMPRAR · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "Se agregaron %d× %s a tu lista rápida.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "No se encontró ese objeto. Haz Mayús+clic en él o escribe su ID de objeto.",
+  ["Item to add"] = "Objeto por agregar",
+  ["Make a list once, buy it here at or under your price."] =
+    "Haz una lista una vez y compra aquí a tu precio o por debajo.",
+  ["Quick list"] = "Lista rápida",
+  ["Remove from the list"] = "Quitar de la lista",
+  ["Shift-click an item, or type its item id."] =
+    "Haz Mayús+clic en un objeto o escribe su ID de objeto.",
+  ["or plan a whole profession on goldcap.gg"] = "o planea una profesión completa en goldcap.gg",
 }

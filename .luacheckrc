@@ -17,6 +17,8 @@ read_globals = {
   -- BUY 2.0 week 2: the merchant (UI/BuyVendorPanel.lua).
   "BuyMerchantItem", "GetMerchantNumItems", "GetMerchantItemID", "GetMerchantItemMaxStack",
   "C_MerchantFrame", "MerchantFrame",
+  -- BUY 2.0's item box: a shift-click reaches it through a post-hook on InsertLink.
+  "ChatFrameUtil",
   -- Final review M3: GetCoinTextureString is absent in WoW: Forever and must never be called
   -- bare outside GC.Util.CoinText (GoldCap/Core/Util.lua) -- removed here so luacheck flags any
   -- reintroduced call as an undefined global, the same contract coin_text_spec.lua's grep pins.

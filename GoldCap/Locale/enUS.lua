@@ -484,7 +484,6 @@ GC.Locales.enUS = {
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "No region reference for this item yet — import again once goldcap.gg publishes one.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string.",
   ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
   ["No sales data for this item."] = "No sales data for this item.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] = "No sales recorded yet -- open your mailbox with GoldCap loaded",
@@ -1093,4 +1092,15 @@ GC.Locales.enUS = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "BUY %d · %s",
   ["BUY · %s"] = "BUY · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "Added %d× %s to your quick list.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Could not find that item. Shift-click it, or type its item id.",
+  ["Item to add"] = "Item to add",
+  ["Make a list once, buy it here at or under your price."] =
+    "Make a list once, buy it here at or under your price.",
+  ["Quick list"] = "Quick list",
+  ["Remove from the list"] = "Remove from the list",
+  ["Shift-click an item, or type its item id."] = "Shift-click an item, or type its item id.",
+  ["or plan a whole profession on goldcap.gg"] = "or plan a whole profession on goldcap.gg",
 }

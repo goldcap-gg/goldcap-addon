@@ -201,7 +201,6 @@ GC.Locales.ukUA = {
   ["Market"] = "Ринок",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Списків поки немає. Збережіть список із кількостями на goldcap.gg або введіть /gc import і вставте рядок списку.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Ще немає сканування зі спорядженням. Відкрийте аукціон, і GoldCap його просканує.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -1117,4 +1116,15 @@ GC.Locales.ukUA = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "КУПИТИ %d · %s",
   ["BUY · %s"] = "КУПИТИ · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "До швидкого списку додано: %d× %s.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Предмет не знайдено. Зробіть Shift+клік по ньому або введіть його ID.",
+  ["Item to add"] = "Додати предмет",
+  ["Make a list once, buy it here at or under your price."] =
+    "Складіть список один раз і купуйте тут за своєю ціною або дешевше.",
+  ["Quick list"] = "Швидкий список",
+  ["Remove from the list"] = "Прибрати зі списку",
+  ["Shift-click an item, or type its item id."] = "Зробіть Shift+клік по предмету або введіть його ID.",
+  ["or plan a whole profession on goldcap.gg"] = "або сплануйте всю професію на goldcap.gg",
 }

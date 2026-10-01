@@ -196,7 +196,6 @@ GC.Locales.koKR = {
   ["Market"] = "시세",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "아직 목록이 없습니다. goldcap.gg에서 수량이 있는 목록을 저장하거나, /gc import를 입력하고 목록 문자열을 붙여넣으세요.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "아직 장비가 담긴 스캔이 없습니다. 경매장을 열어 GoldCap이 스캔하게 하세요.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -1044,4 +1043,14 @@ GC.Locales.koKR = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "%d개 구매 · %s",
   ["BUY · %s"] = "구매 · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "빠른 목록에 %d× %s 추가함.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "아이템을 찾을 수 없습니다. Shift+클릭하거나 아이템 ID를 입력하세요.",
+  ["Item to add"] = "추가할 아이템",
+  ["Make a list once, buy it here at or under your price."] = "목록을 한 번 만들고, 여기서 내 가격 이하로 구매하세요.",
+  ["Quick list"] = "빠른 목록",
+  ["Remove from the list"] = "목록에서 제거",
+  ["Shift-click an item, or type its item id."] = "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요.",
+  ["or plan a whole profession on goldcap.gg"] = "또는 goldcap.gg에서 전문 기술 전체를 계획하세요",
 }

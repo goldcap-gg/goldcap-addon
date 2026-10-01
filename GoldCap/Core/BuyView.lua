@@ -115,3 +115,37 @@ function GC.BuyView.MarketNote(ref, now)
   if type(ref) ~= "table" or ref.source ~= "crowd" or type(ref.at) ~= "number" then return nil end
   return { scanners = ref.scanners or 0, age = math.max(0, (now or 0) - ref.at) }
 end
+
+-- What the BUY tab's item box was given (BUY 2.0's quick list): an item link -- a shift-click into
+-- the box -- or a bare item id, both of which name the item exactly, or a name, with an optional
+-- count before or after it ("20 Linen Cloth", "Linen Cloth x20", "Linen Cloth ×20", "Linen Cloth
+-- 20"). nil for nothing at all. Whether a name can be looked up is the caller's question: the BUY
+-- 2.0 probe found the client resolves almost no typed names (0 of 15 in retail).
+function GC.BuyView.ParseAdd(text)
+  if type(text) ~= "string" then return nil end
+  text = text:match("^%s*(.-)%s*$")
+  if text == "" then return nil end
+  local linkID = text:match("|Hitem:(%d+)")
+  if linkID then
+    -- A link names the item; a number typed before or after it is the count ("5 [Linen Cloth]",
+    -- "[Linen Cloth] x5").
+    local left = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|H.-|h.-|h", ""):gsub("|r", "")
+    local count = tonumber(left:match("(%d+)"))
+    return { itemID = tonumber(linkID), qty = (count and count > 0) and count or 1 }
+  end
+  -- "×" is two bytes in UTF-8; a pattern class would treat them as two characters and leave half
+  -- of it in the name. Turned into a plain "x" first, it is matched as one.
+  local rest = text:gsub("×", "x"):match("^%s*(.-)%s*$")
+  local qty = 1
+  local lead, afterLead = rest:match("^(%d+)%s+(.+)$")
+  if lead then qty, rest = tonumber(lead), afterLead end
+  -- A count after the name needs a space before it ("Linen Cloth x20", "Linen Cloth 20"), so a
+  -- name that merely contains an x is not cut at its x.
+  local before, tail = rest:match("^(.-)%s+x%s*(%d+)$")
+  if not before then before, tail = rest:match("^(.-)%s+(%d+)$") end
+  if tail then qty, rest = tonumber(tail), before end
+  qty = (qty and qty > 0) and qty or 1
+  if rest:match("^%d+$") then return { itemID = tonumber(rest), qty = qty } end
+  if rest == "" then return nil end
+  return { name = rest, qty = qty }
+end

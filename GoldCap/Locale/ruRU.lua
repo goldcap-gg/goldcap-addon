@@ -198,7 +198,6 @@ GC.Locales.ruRU = {
   ["Market"] = "Рынок",
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Списков пока нет. Сохраните список с количествами на goldcap.gg или введите /gc import и вставьте строку списка.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Пока нет скана с экипировкой. Откройте аукцион, и GoldCap его просканирует.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -1098,4 +1097,15 @@ GC.Locales.ruRU = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "КУПИТЬ %d · %s",
   ["BUY · %s"] = "КУПИТЬ · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "В быстрый список добавлено: %d× %s.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Предмет не найден. Сделайте Shift+клик по нему или введите его ID.",
+  ["Item to add"] = "Добавить предмет",
+  ["Make a list once, buy it here at or under your price."] =
+    "Составьте список один раз и покупайте здесь по своей цене или дешевле.",
+  ["Quick list"] = "Быстрый список",
+  ["Remove from the list"] = "Убрать из списка",
+  ["Shift-click an item, or type its item id."] = "Сделайте Shift+клик по предмету или введите его ID.",
+  ["or plan a whole profession on goldcap.gg"] = "или спланируйте всю профессию на goldcap.gg",
 }

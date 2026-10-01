@@ -195,7 +195,6 @@ GC.Locales.zhTW = {
   ["Market"] = "市場價",
   ["Mount cost cleared."] = "坐騎費用已清除。",
   ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "還沒有清單。請在 goldcap.gg 儲存帶數量的清單，或輸入 /gc import 並貼上清單字串。",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "還沒有包含裝備的掃描。打開拍賣場，讓 GoldCap 掃描。",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -1018,4 +1017,14 @@ GC.Locales.zhTW = {
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "購買 %d · %s",
   ["BUY · %s"] = "購買 · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "已將 %d× %s 加入快速清單。",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "找不到該物品。請 Shift+點擊它，或輸入其物品 ID。",
+  ["Item to add"] = "要加入的物品",
+  ["Make a list once, buy it here at or under your price."] = "只需建一次清單，在這裡以你的價格或更低價買入。",
+  ["Quick list"] = "快速清單",
+  ["Remove from the list"] = "從清單中移除",
+  ["Shift-click an item, or type its item id."] = "Shift+點擊物品，或輸入其物品 ID。",
+  ["or plan a whole profession on goldcap.gg"] = "或在 goldcap.gg 上規劃整個專業",
 }

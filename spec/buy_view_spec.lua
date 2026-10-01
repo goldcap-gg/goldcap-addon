@@ -65,6 +65,26 @@ describe("BuyView", function()
     end
   end)
 
+  describe("ParseAdd", function()
+    local cases = {
+      { "a name", "Linen Cloth", { name = "Linen Cloth", qty = 1 } },
+      { "a count before the name", "20 Linen Cloth", { name = "Linen Cloth", qty = 20 } },
+      { "a count after the name", "Linen Cloth x20", { name = "Linen Cloth", qty = 20 } },
+      { "a count with the times sign", "Linen Cloth ×20", { name = "Linen Cloth", qty = 20 } },
+      { "a trailing bare count", "Linen Cloth 20", { name = "Linen Cloth", qty = 20 } },
+      { "an item id alone", "2589", { itemID = 2589, qty = 1 } },
+      { "a count before an item id", "20 2589", { itemID = 2589, qty = 20 } },
+      { "an item link", "|cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r", { itemID = 2589, qty = 1 } },
+      { "an item link and a count", "|cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r x5", { itemID = 2589, qty = 5 } },
+      { "a count before a link", "5 |cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r", { itemID = 2589, qty = 5 } },
+      { "nothing", "  ", nil },
+      { "a zero count is one", "0 Linen Cloth", { name = "Linen Cloth", qty = 1 } },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.same(case[3], V.ParseAdd(case[2])) end)
+    end
+  end)
+
   describe("Status", function()
     -- Whole tables, not overrides of a template: `{ cap = nil }` cannot remove a key in Lua.
     local cases = {
