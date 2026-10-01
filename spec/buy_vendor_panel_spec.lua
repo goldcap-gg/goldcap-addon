@@ -97,6 +97,17 @@ describe("BUY vendor panel", function()
     assert.is_true(row().button.enabled)
   end)
 
+  -- A quick-list line, or any auction line, that this merchant happens to sell: offered too, but not
+  -- above the line's cap.
+  it("offers any list line this merchant sells, never above the line's cap", function()
+    lines[1].cap = 12
+    panel().OnMerchantShow()
+    assert.equal("BUY 20 · 200c", row().button.label)
+    lines[1].cap = 9
+    panel().OnMerchantUpdate()
+    assert.is_false(panel()._frame:IsShown())
+  end)
+
   it("says BUY with the whole cost when one call buys the whole line", function()
     lines[1].buy = 12
     panel().OnMerchantShow()

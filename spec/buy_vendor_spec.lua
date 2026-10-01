@@ -70,6 +70,13 @@ describe("BuyVendor", function()
       assert.equal(3, p.qty)
       assert.same({ 1, 1, 1 }, p.calls)
     end)
+    -- The panel offers any open line of the list this merchant sells, not only the site's vendor
+    -- lines -- but never above a cap the line has.
+    it("leaves out a line whose merchant price is over the line's cap", function()
+      assert.same({}, V.Plan({ { itemID = 2320, buy = 5, cap = 9 } }, OFFERS, 100000))
+      assert.equal(5, V.Plan({ { itemID = 2320, buy = 5, cap = 10 } }, OFFERS, 100000)[1].qty)
+      assert.equal(5, V.Plan({ { itemID = 3371, buy = 5, cap = 4 } }, OFFERS, 100000)[1].qty)
+    end)
     it("leaves out lines this merchant does not sell and lines with nothing left", function()
       assert.same({}, V.Plan({ { itemID = 999, buy = 5 }, { itemID = 2320, buy = 0 } }, OFFERS, 100000))
     end)

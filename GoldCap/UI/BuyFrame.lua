@@ -4268,10 +4268,12 @@ end
 -- At a vendor (BUY 2.0 week 2, UI/BuyVendorPanel.lua)
 -- ---------------------------------------------------------------------------
 
--- The vendor panel's question: the current list's vendor lines -- what each still needs, done ones
--- included so a line bought at this merchant can say so -- with fresh bag counts, since the panel
--- can open while this tab has never been shown this session. A line skipped for the session is
--- left out, as everywhere else.
+-- The vendor panel's question: the current list's lines a merchant could sell -- every line that is
+-- bought rather than crafted, not only the site's vendor lines (a quick list has none) -- with
+-- what each still needs and its cap, done ones included so a line bought at this merchant can say
+-- so. Fresh bag counts: the panel can open while this tab has never been shown this session. A
+-- line skipped for the session is left out, as everywhere else. Which of them this merchant sells,
+-- at or under its cap, is Core/BuyVendor.lua's Plan.
 function GC.Buy.VendorLines()
   if not current then ensureRun() end
   if not current then return nil end
@@ -4279,9 +4281,9 @@ function GC.Buy.VendorLines()
   current:Refresh()
   local lines = {}
   for _, line in ipairs(current:Lines()) do
-    if line.vendor and not isSkipped(line) then
+    if line.kind ~= "craft" and not line.make and not isSkipped(line) then
       lines[#lines + 1] = { itemID = line.itemID, buy = line.done and 0 or (line.buy or 0),
-        need = line.need, name = lineName(line) }
+        need = line.need, cap = line.cap, name = lineName(line) }
     end
   end
   return { runName = runLabel(current), code = current:Code(), lines = lines }

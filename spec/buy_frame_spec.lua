@@ -360,10 +360,23 @@ describe("BuyFrame", function()
 
   -- BUY 2.0 week 2: the vendor panel (UI/BuyVendorPanel.lua) asks the tab for its vendor lines, and
   -- books what a press bought against the list -- never as a ledger row, which is auction house money.
-  it("answers the vendor panel with the list's vendor lines", function()
+  it("answers the vendor panel with every line a merchant could sell, with its cap", function()
     local answer = GC.Buy.VendorLines()
-    assert.equal(1, #answer.lines)
-    assert.same({ itemID = 104, buy = 20, need = 20, name = "Delta Vial" }, answer.lines[1])
+    local byID = {}
+    for _, line in ipairs(answer.lines) do byID[line.itemID] = line end
+    -- An auction line too: a quick list has no vendor lines, and a merchant may sell any of them.
+    assert.same({ itemID = 101, buy = 10, need = 10, cap = 1300, name = "Alpha Herb" }, byID[101])
+    assert.equal(20, byID[104].buy)
+    assert.equal(0, byID[102].buy) -- done: still listed, so a line bought here can say so
+  end)
+
+  it("never offers the vendor panel a line it crafts or one skipped for the session", function()
+    GC.AppRuns._set({ run({ lines = { { i = 101, q = 10, mk = true }, { i = 103, q = 2 }, { i = 104, q = 3 } } }) })
+    GC.Buy.SelectRun("run-1")
+    GC.Buy._skipped["run-1"] = { [104] = true }
+    local ids = {}
+    for _, line in ipairs(GC.Buy.VendorLines().lines) do ids[#ids + 1] = line.itemID end
+    assert.same({ 103 }, ids)
   end)
 
   it("books a vendor purchase against the list and writes no ledger row", function()

@@ -8,7 +8,9 @@ GC.BuyVendor = {}
 
 -- What this merchant sells for gold, per item: the cheapest offer when an item is listed twice. A
 -- sold-out item (numAvailable 0), one that costs anything but gold (hasExtendedCost: currency or
--- items) or one the client says cannot be bought is not an offer.
+-- items) or one the client says cannot be bought is not an offer. numAvailable's meaning is taken
+-- from Blizzard's MerchantFrame (0 = sold out, a positive count = limited stock); that an unlimited
+-- item reads -1 was not measured by the probe.
 function GC.BuyVendor.Offers(rows)
   local offers = {}
   for _, r in ipairs(rows or {}) do
@@ -36,7 +38,7 @@ function GC.BuyVendor.CostOf(offer, qty)
   return math.ceil((qty or 0) * offer.price / offer.stack - 1e-9)
 end
 
--- Per open line this merchant sells: how many units to buy -- the line's remaining need, held to the
+-- Per open line this merchant sells at or under its cap: how many units to buy -- the line's remaining need, held to the
 -- merchant's stock and to the gold in hand -- what that costs, and the calls it takes: one call buys
 -- at most the item's GetMerchantItemMaxStack units (one more fails with "internal bag error", the
 -- probe), so 45 Coarse Thread at a maximum of 20 is 20, 20 and 5. `firstCost` is what the first
@@ -46,7 +48,9 @@ function GC.BuyVendor.Plan(lines, offers, money)
   for _, line in ipairs(lines or {}) do
     local offer = offers and offers[line.itemID]
     local want = line.buy or 0
-    if offer and want > 0 then
+    -- Any line of the list this merchant sells is offered, never above a cap the line has: the
+    -- merchant's price per unit against the line's own ceiling per unit.
+    if offer and want > 0 and not (line.cap and offer.unit > line.cap) then
       local qty = want
       if offer.available then qty = math.min(qty, offer.available * offer.stack) end
       if money then qty = math.min(qty, math.floor(money * offer.stack / offer.price + 1e-9)) end
