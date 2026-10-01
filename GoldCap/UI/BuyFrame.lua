@@ -4029,13 +4029,20 @@ end
 
 -- Every search anybody sends -- ours, Blizzard's own pane, another addon -- counted by post-hooks,
 -- which observe a call and cannot change it. A gear line's armed read remembers the count its own
--- search left (sendArm), and a press bids only while nothing has searched since (quoteFresh).
+-- search left (sendArm), and a press bids only while nothing has searched since (quoteFresh). The
+-- calls that refresh or page a result, query owned auctions or bids, or ask for the full dump are
+-- counted too: whether they move the current search was not measured, and the worst a count too
+-- many costs is one read more before the bid. Each is hooked only where the client has it (all of
+-- them exist in both games, wowsrc.py 2026-10-01).
 function GC.Buy._WatchSearches()
   if GC.Buy._watching or not (hooksecurefunc and C_AuctionHouse) then return end
   GC.Buy._watching = true
   local function note() GC.Buy._searchSeq = (GC.Buy._searchSeq or 0) + 1 end
   for _, name in ipairs({ "SendSearchQuery", "SendSellSearchQuery", "SendBrowseQuery",
-      "SearchForItemKeys", "SearchForFavorites" }) do
+      "SearchForItemKeys", "SearchForFavorites", "RefreshItemSearchResults",
+      "RefreshCommoditySearchResults", "RequestMoreItemSearchResults",
+      "RequestMoreCommoditySearchResults", "RequestMoreBrowseResults", "QueryOwnedAuctions",
+      "QueryBids", "ReplicateItems" }) do
     if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, note) end
   end
 end

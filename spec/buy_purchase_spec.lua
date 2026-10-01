@@ -1849,7 +1849,12 @@ describe("BUY purchase", function()
       ah.GetItemSearchResultInfo = function(key, i) return (rowsFor[keyOf(key)] or {})[i] end
       ah.HasFullItemSearchResults = function(key) return rowsFor[keyOf(key)] ~= nil end
       ah.PlaceBid = function(auctionID, amount) placed[#placed + 1] = { auctionID = auctionID, amount = amount } end
-      ah.SendBrowseQuery = function() end
+      for _, name in ipairs({ "SendBrowseQuery", "SearchForFavorites", "RefreshItemSearchResults",
+          "RefreshCommoditySearchResults", "RequestMoreItemSearchResults",
+          "RequestMoreCommoditySearchResults", "RequestMoreBrowseResults", "QueryOwnedAuctions",
+          "QueryBids", "ReplicateItems" }) do
+        ah[name] = function() end
+      end
       _G.GetMoney = function() return money end
       _G.Enum = { AuctionHouseSortOrder = { Buyout = 4 } }
       -- The post-hooks the tab watches every search with, captured so a test can be "somebody else".
@@ -1941,6 +1946,19 @@ describe("BUY purchase", function()
       press()
       assert.equal(0, #placed)
       assert.equal(asked + 1, #sellSent)
+    end)
+
+    it("reads again when anything refreshes, pages or queries the auction house in between", function()
+      for _, name in ipairs({ "RefreshItemSearchResults", "RequestMoreItemSearchResults",
+          "RequestMoreBrowseResults", "QueryOwnedAuctions", "QueryBids", "ReplicateItems" }) do
+        readBoots()
+        hooks[name]()
+        local asked = #sellSent
+        press()
+        assert.equal(0, #placed, name)
+        assert.equal(asked + 1, #sellSent, name)
+        now = now + 11 -- the next pass starts from a read of its own
+      end
     end)
 
     -- Task 4: one lot per press.
