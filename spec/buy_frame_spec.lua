@@ -181,10 +181,18 @@ describe("BuyFrame", function()
         for i, r in ipairs(runs) do if r.code == code then table.remove(runs, i); return true end end
         return false
       end,
+      -- What the picker and the column ask of a list (Core/AppRuns.lua's own answers for a double
+      -- that keeps no favourites and no order of its own).
+      IsLocal = function(r) return r.origin == "game" or r.origin == "paste" end,
+      Label = function(r) return r.name or r.code end,
+      IsFavourite = function() return false end,
+      CanMove = function() return false end,
       _set = function(list) runs = list end,
     }
 
+    helper.loadModule("Core/ListStrings.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
+    helper.loadModule("UI/BuyLists.lua", GC)
 
     -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
     rowsOf = function() return GC.Buy._view.rows end
@@ -479,7 +487,7 @@ describe("BuyFrame", function()
     assert.equal("run-1", GC.db.settings.sniper.buyRun)
   end)
 
-  it("opens a menu of runs with remove for a pasted run and paste for everyone", function()
+  it("opens a menu of lists with the shown list's own actions, a new list and an import", function()
     GC.AppRuns._set({ run(), run({ code = "run-2", name = "Potion run", origin = "paste" }) })
     GC.Buy.SelectRun("run-2")
     local entries
@@ -501,18 +509,27 @@ describe("BuyFrame", function()
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
     -- A menu draws in the client's font, which on the Russian client has no "·" (it drew a box):
     -- the entries are joined with commas.
-    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg", "• Potion run, 4 lines, pasted",
-      "divider", "Cap: 130%", "Archive this run", "Copy vendor list", "Remove this run",
-      "Paste a run...", "Item to add" }, texts)
+    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg", "• Potion run, 4 lines, in game",
+      "divider", "Cap: 130%", "Rename…", "Add to favourites", "Export", "Import into this list…",
+      "Archive this run", "Delete this list…", "Copy vendor list", "divider", "New list", "Import a list…",
+      "Item to add" }, texts)
 
-    -- Remove drops the pasted run and lands on the one left.
-    entries[8].fn()
+    -- Delete asks first, in the kit's popup, and then drops the list and lands on the one left.
+    local asked
+    GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+    entries[11].fn()
+    assert.equal(bandOf().picker, asked.anchor)
+    assert.is_false(asked.opts.box)
+    assert.equal("Delete Potion run? This cannot be undone.", asked.opts.title)
+    assert.equal("Delete", asked.opts.setLabel)
+    assert.is_not_nil(GC.AppRuns.Get("run-2"))
+    asked.opts.onCommit(true)
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
   end)
 
-  it("says an app run is removed on the site, not here", function()
+  it("says a goldcap.gg list is renamed and removed on the site, not here", function()
     GC.AppRuns._set({ run() })
     GC.Buy.SelectRun("run-1")
     local entries = {}
@@ -526,9 +543,9 @@ describe("BuyFrame", function()
     local band = bandOf()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
-    assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%",
-      "Archive this run", "Copy vendor list", "From goldcap.gg — remove it there", "Paste a run...", "Item to add" },
-      entries)
+    assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%", "Add to favourites", "Export",
+      "Archive this run", "From goldcap.gg — rename or remove it there", "Copy vendor list", "New list",
+      "Import a list…", "Item to add" }, entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -683,7 +700,7 @@ describe("BuyFrame", function()
     openMenu()
     assert.is_nil(entryNamed("Cap: 130%"))
     assert.is_nil(entryNamed("Archive this run"))
-    assert.truthy(entryNamed("Paste a run..."))
+    assert.truthy(entryNamed("Import a list…"))
 
     -- Belt and braces: the handler captured before the purchase started still refuses to act
     -- while one is in flight, even reached directly.
@@ -738,10 +755,10 @@ describe("BuyFrame", function()
     assert.is_false(dock():IsShown())
   end)
 
-  -- BUY 2.0: the quick list a player makes in the game. The BUY 2.0 probe (2026-10-01): a shift-click
-  -- into the focused box delivers the item's link in both games, and the client resolves almost no
-  -- typed names (0 of 15 in retail) -- so the box takes a link or an item id.
-  describe("the quick list", function()
+  -- BUY 2.0: lists the player makes in the game. The BUY 2.0 probe (2026-10-01): a shift-click into
+  -- the focused box delivers the item's link in both games, and the client resolves almost no typed
+  -- names (0 of 15 in retail) -- so the box takes a link or an item id.
+  describe("lists made in the game", function()
     -- A link as the client writes it: coloured by quality as |cnIQ<quality>: in both games.
     local LINEN = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
     local inserted
@@ -763,7 +780,7 @@ describe("BuyFrame", function()
     end)
 
     after_each(function()
-      _G.ChatFrameUtil, _G.hooksecurefunc = nil, nil
+      _G.ChatFrameUtil, _G.hooksecurefunc, _G.MenuUtil = nil, nil, nil
       NAMES[2589], NAMES[2592] = nil, nil
     end)
 
@@ -773,12 +790,30 @@ describe("BuyFrame", function()
       box.scripts.OnEnterPressed(box)
     end
 
-    it("adds a shift-clicked item with a count, and opens the quick list", function()
+    local function pickerMenu()
+      local entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+          CreateDivider = function() end,
+        })
+      end }
+      bandOf().picker.scripts.OnClick(bandOf().picker)
+      _G.MenuUtil = nil
+      return function(text)
+        for _, e in ipairs(entries) do if e.text == text then return e end end
+      end
+    end
+
+    it("makes List 1 from the first item added, with its count", function()
       enter("20 " .. LINEN)
-      assert.equal("quick", GC.Buy.CurrentRun():Code())
+      local code = GC.Buy.CurrentRun():Code()
+      assert.equal("game", GC.db.runs[code].origin)
       assert.equal(20, GC.Buy.CurrentRun():Lines()[1].need)
-      assert.equal("Added 20× Linen Cloth to your quick list.", GC.Buy._view.add.note:GetText())
+      assert.equal("Added 20× Linen Cloth to a new list, List 1.", GC.Buy._view.add.note:GetText())
       assert.equal("", GC.Buy._view.add.box:GetText())
+      assert.equal("List 1 ▼", bandOf().picker.label)
     end)
 
     it("adds an item by its id, with an x count", function()
@@ -790,15 +825,15 @@ describe("BuyFrame", function()
     it("refuses two bare numbers instead of guessing which is the item", function()
       enter("2592 3")
       assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
-      assert.is_nil(GC.db.runs.quick)
+      assert.is_nil(next(GC.db.runs))
     end)
 
     it("says so when it cannot find the item, and makes no list", function()
       enter("Linen Cloth")
       assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
-      assert.is_nil(GC.db.runs.quick)
+      assert.is_nil(next(GC.db.runs))
       enter("999999")
-      assert.is_nil(GC.db.runs.quick)
+      assert.is_nil(next(GC.db.runs))
     end)
 
     it("fills the box from a shift-click while it has the focus, and not otherwise", function()
@@ -811,39 +846,38 @@ describe("BuyFrame", function()
       assert.equal("5 " .. LINEN, box:GetText())
     end)
 
-    it("names the quick list in the player's language and ends it with the item box", function()
+    it("ends the player's own list with the item box, and adds to the list on screen", function()
       enter(LINEN)
-      assert.equal("Quick list ▼", bandOf().picker.label)
+      local code = GC.Buy.CurrentRun():Code()
       assert.is_true(GC.Buy._view.add.frame:IsShown())
       enter("2592 x3")
+      assert.equal(code, GC.Buy.CurrentRun():Code())
       assert.equal(2, #GC.Buy.CurrentRun():Lines())
+      assert.equal("Added 3× Wool Cloth to List 1.", GC.Buy._view.add.note:GetText())
     end)
 
-    -- With no quick list yet, the list menu's "Item to add" keeps the list on screen and its picker;
-    -- the quick list is made by the first item added.
-    it("opens the item box under the list on screen, which stays until an item is added", function()
+    -- A goldcap.gg list is edited on goldcap.gg: the item box on one makes a list in the game.
+    it("opens the item box under a goldcap.gg list, whose first item makes a new list", function()
       GC.db.runs["run-1"] = run()
       GC.Buy.SelectRun("run-1")
       GC.Buy.RefreshIfShown()
-      local itemToAdd
-      _G.MenuUtil = { CreateContextMenu = function(_, generator)
-        generator(nil, { CreateTitle = function() end, CreateDivider = function() end,
-          CreateButton = function(_, text, fn) if text == "Item to add" then itemToAdd = fn end end })
-      end }
-      bandOf().picker.scripts.OnClick(bandOf().picker)
-      _G.MenuUtil = nil
-      itemToAdd()
+      assert.is_false(GC.Buy._view.add.frame:IsShown())
+      pickerMenu()("Item to add").fn()
       assert.equal("run-1", GC.Buy.CurrentRun():Code())
       assert.is_true(bandOf().picker:IsShown())
       assert.is_true(GC.Buy._view.add.frame:IsShown())
       assert.is_true(GC.Buy._view.add.box:HasFocus())
-      assert.is_nil(GC.db.runs.quick)
       enter(LINEN)
-      assert.equal("quick", GC.Buy.CurrentRun():Code())
+      local code = GC.Buy.CurrentRun():Code()
+      assert.is_true(code ~= "run-1")
+      assert.equal("game", GC.db.runs[code].origin)
+      assert.equal(4, #GC.db.runs["run-1"].lines)
+      assert.equal("Added 1× Linen Cloth to a new list, List 1.", GC.Buy._view.add.note:GetText())
     end)
 
-    it("takes a line off the quick list from its menu, and the list with its last line", function()
+    it("takes a line off the player's list from its menu, and keeps the list", function()
       enter(LINEN)
+      local code = GC.Buy.CurrentRun():Code()
       local titles
       _G.MenuUtil = { CreateContextMenu = function(_, build)
         titles = {}
@@ -858,9 +892,84 @@ describe("BuyFrame", function()
       row.scripts.OnMouseUp(row, "RightButton")
       assert.is_truthy(titles.remove)
       titles.remove()
-      assert.is_nil(GC.db.runs.quick)
-      assert.is_nil(GC.Buy.CurrentRun())
+      assert.equal(0, #GC.db.runs[code].lines)
+      assert.equal(code, GC.Buy.CurrentRun():Code())
+      assert.is_true(GC.Buy._view.add.frame:IsShown())
+    end)
+
+    -- "+ New": the next free number, picked, with the name box over it.
+    it("makes a new list from the picker's menu and asks for its name", function()
+      enter(LINEN)
+      local asked
+      GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+      pickerMenu()("New list").fn()
+      assert.equal("List 2 ▼", bandOf().picker.label)
+      assert.equal(bandOf().picker, asked.anchor)
+      assert.is_true(asked.opts.over)
+      assert.equal("List 2", asked.opts.text)
+      assert.equal("Name this list", asked.opts.title)
+      -- Enter keeps what was typed...
+      asked.opts.onCommit("Herbs")
+      assert.equal("Herbs ▼", bandOf().picker.label)
+      -- ...and the default typed back is the default again.
+      pickerMenu()("Rename…").fn()
+      asked.opts.onCommit("List 2")
+      assert.equal("List 2 ▼", bandOf().picker.label)
+      assert.is_nil(GC.AppRuns.Get(GC.Buy.CurrentRun():Code()).name)
+    end)
+
+    it("pins a favourite to the top of the picker with a star, and moves lists", function()
+      local one = GC.AppRuns.NewList()
+      one.createdAt = 10
+      local two = GC.AppRuns.NewList()
+      two.createdAt = 20
+      GC.Buy.SelectRun(one.code)
+      GC.Buy.RefreshIfShown()
+      local find = pickerMenu()
+      assert.is_nil(find("Move down"))
+      find("Move up").fn()
+      find = pickerMenu()
+      assert.truthy(find("• List 1, 0 lines, in game"))
+      assert.truthy(find("Move down"))
+      find("Add to favourites").fn()
+      find = pickerMenu()
+      assert.truthy(find("• |A:auctionhouse-icon-favorite:12:12|a List 1, 0 lines, in game"))
+      assert.truthy(find("Remove from favourites"))
+      assert.is_nil(find("Move down"))
+      assert.equal(one.code, GC.AppRuns.List()[1].code)
+    end)
+
+    it("exports the list on screen for Auctionator and for TSM, in the copy box", function()
+      enter("20 " .. LINEN)
+      enter("2592 x5")
+      local shown
+      GC.UI = { ShowCopyText = function(text, opts) shown = { text = text, opts = opts } end }
+      local exportMenu = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function() end, CreateDivider = function() end,
+          CreateButton = function(_, text)
+            if text == "Export" then
+              return { CreateButton = function(_, t, fn) exportMenu[t] = fn end }
+            end
+          end,
+        })
+      end }
+      bandOf().picker.scripts.OnClick(bandOf().picker)
       _G.MenuUtil = nil
+      exportMenu["Copy for Auctionator"]()
+      assert.equal('List 1^"Linen Cloth";;;;;;;;;;;#;;20^"Wool Cloth";;;;;;;;;;;#;;5', shown.text)
+      assert.equal("Copy for Auctionator", shown.opts.title)
+      exportMenu["Copy as a TSM item list"]()
+      assert.equal("i:2589,i:2592", shown.text)
+      -- An item the client has not loaded is asked for and left out, never written blank.
+      local asked = {}
+      NAMES[2592] = nil
+      _G.C_Item.RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end
+      exportMenu["Copy for Auctionator"]()
+      assert.equal('List 1^"Linen Cloth";;;;;;;;;;;#;;20', shown.text)
+      assert.same({ 2592 }, asked)
+      assert.is_truthy(shown.opts.hint:find("left out: 1.", 1, true))
     end)
   end)
 
@@ -1638,8 +1747,8 @@ describe("BuyFrame", function()
     local menuTexts = menuEntries()
     assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg",
                   "divider", "Alerts", "• Cheap ore, 2 lines, goldcap.gg",
-                  "divider", "cap: alert target", "From goldcap.gg — manage it there",
-                  "Paste a run...", "Item to add" }, menuTexts)
+                  "divider", "cap: alert target", "Export", "From goldcap.gg — manage it there",
+                  "divider", "New list", "Import a list…", "Item to add" }, menuTexts)
   end)
 
   -- Spec rule 3: a followed run rides in after the player's own, marked with its owner, and
@@ -1652,8 +1761,8 @@ describe("BuyFrame", function()
     assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
     assert.same({ "Runs", "• Guild flasks, 4 lines, from Acromion",
-                  "divider", "From goldcap.gg — manage it there", "Copy vendor list",
-                  "Paste a run...", "Item to add" }, menuTexts)
+                  "divider", "Add to favourites", "Export", "From goldcap.gg — manage it there",
+                  "Copy vendor list", "divider", "New list", "Import a list…", "Item to add" }, menuTexts)
   end)
 
   -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
@@ -1894,7 +2003,9 @@ describe("BuyFrame", function()
     assert.equal("1 of 4", lists.entries[1].meta:GetText())
     assert.equal("Alchemy restock", lists.entries[2].button.label)
     assert.equal("0 of 1", lists.entries[2].meta:GetText()) -- no Charlie Dust in the bag
-    assert.equal("Lists come from goldcap.gg through the companion.", lists.footer:GetText())
+    assert.equal("goldcap.gg", lists.entries[1].origin:GetText())
+    assert.equal("Lists come from goldcap.gg through the companion, or make one here with + New.",
+      lists.footer:GetText())
     -- The rest of the tab starts after the column.
     assert.equal(196 + 12, GC.Buy._leftInset)
     assert.equal(1040 - 208, GC.Buy._view.band.fill.width * 4) -- one of four done, across what is left
@@ -1932,5 +2043,104 @@ describe("BuyFrame", function()
     goWide(700)
     assert.is_false(GC.Buy._view.lists.frame:IsShown())
     assert.equal(0, GC.Buy._leftInset)
+  end)
+
+  -- The column's own controls for the player's lists: "+ New" and "Import" at its top, where each
+  -- list came from, its star, and a right-click menu that is the picker's for any list.
+  describe("the column with lists made in the game", function()
+    before_each(function()
+      helper.loadModule("Core/AppRuns.lua", GC)
+      GC.db.runs, GC.db.runsArchived = { ["run-1"] = run() }, {}
+      GC.db.settings.sniper.buyRun = "run-1"
+      goWide()
+    end)
+
+    after_each(function() _G.MenuUtil = nil end)
+
+    local function rightClick(i)
+      local entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+          CreateDivider = function() end,
+        })
+      end }
+      local b = GC.Buy._view.lists.entries[i].button
+      b.scripts.OnClick(b, "RightButton")
+      _G.MenuUtil = nil
+      local said = {}
+      for _, e in ipairs(entries) do said[#said + 1] = e.text end
+      return said, function(text)
+        for _, e in ipairs(entries) do if e.text == text then return e end end
+      end
+    end
+
+    it("offers + New and Import at the top of the column", function()
+      local lists = GC.Buy._view.lists
+      assert.equal("+ New", lists.new.label)
+      assert.equal("Import", lists.import.label)
+      local opened
+      GC.UI = { ShowImportDialog = function(opts) opened = opts end }
+      lists.import.scripts.OnClick(lists.import)
+      assert.same({ lists = true }, opened)
+      GC.BuyCapEditor = { Open = function() end }
+      lists.new.scripts.OnClick(lists.new)
+      local code = GC.Buy.CurrentRun():Code()
+      assert.equal("game", GC.db.runs[code].origin)
+      assert.equal("List 1", lists.entries[2].button.label)
+      assert.equal("in game", lists.entries[2].origin:GetText())
+      assert.equal("0 of 0", lists.entries[2].meta:GetText())
+      -- An item added counts in the column at once.
+      _G.C_Item.GetItemInfoInstant = function(id) return id end
+      local box = GC.Buy._view.add.box
+      box:SetText("101 x2")
+      box.scripts.OnEnterPressed(box)
+      assert.equal("0 of 1", lists.entries[2].meta:GetText())
+    end)
+
+    -- Too long for one row in the player's language, the two buttons go one under the other.
+    it("stacks + New and Import when the two do not fit side by side", function()
+      textWidth = function(text) return #text * 20 end
+      goWide()
+      local lists = GC.Buy._view.lists
+      assert.equal("TOPLEFT", lists.import.points[1].point)
+      assert.equal("BOTTOMLEFT", lists.import.points[1].relativePoint)
+    end)
+
+    it("opens a goldcap.gg list's menu on a right click, with no rename and no delete", function()
+      local said = rightClick(1)
+      assert.same({ "Flask run", "Add to favourites", "Export", "Archive this run",
+        "From goldcap.gg — rename or remove it there" }, said)
+      -- A right click picks nothing.
+      assert.equal("run-1", GC.Buy.CurrentRun():Code())
+    end)
+
+    it("renames, pins, moves and deletes a list made in the game from its right click", function()
+      local made = GC.AppRuns.NewList()
+      GC.Buy.RefreshIfShown()
+      local said, find = rightClick(2)
+      assert.same({ "List 1", "Rename…", "Add to favourites", "Move up", "Import into this list…",
+        "Archive this run", "Delete this list…" }, said)
+      -- The name box goes over the list's own entry in the column.
+      local asked
+      GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+      find("Rename…").fn()
+      assert.equal(GC.Buy._view.lists.entries[2].button, asked.anchor)
+      asked.opts.onCommit("Herbs")
+      assert.equal("Herbs", GC.Buy._view.lists.entries[2].button.label)
+      find = select(2, rightClick(2))
+      find("Add to favourites").fn()
+      local lists = GC.Buy._view.lists
+      assert.equal("|A:auctionhouse-icon-favorite:12:12|a Herbs", lists.entries[1].button.label)
+      assert.equal("Flask run", lists.entries[2].button.label)
+      assert.is_true(GC.db.runFavourites[made.code])
+      find = select(2, rightClick(1))
+      find("Delete this list…").fn()
+      asked.opts.onCommit(true)
+      assert.is_nil(GC.db.runs[made.code])
+      assert.equal("Flask run", lists.entries[1].button.label)
+      assert.is_false(lists.entries[2].button:IsShown())
+    end)
   end)
 end)

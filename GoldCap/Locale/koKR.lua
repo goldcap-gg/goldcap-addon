@@ -179,7 +179,6 @@ GC.Locales.koKR = {
   ["Don't skip"] = "건너뛰지 않기",
   ["Everything here is bought"] = "여기서는 모두 구매함",
   ["From goldcap.gg — manage it there"] = "goldcap.gg 목록 — 거기서 관리하세요",
-  ["From goldcap.gg — remove it there"] = "goldcap.gg 목록 — 거기서 삭제하세요",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
   ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
@@ -188,7 +187,6 @@ GC.Locales.koKR = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "상인보다 경매장에서 더 비싼 가방 속 아이템: %d개 (%s 더).",
   ["Items still loading: %d. Open this again in a moment."] = "아직 불러오는 아이템: %d개. 잠시 후 다시 여세요.",
-  ["Lists come from goldcap.gg through the companion."] = "목록은 goldcap.gg에서 Companion을 통해 옵니다.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "전리품 집계가 꺼져 있습니다. 기록된 내용을 지우려면 /gc loot clear를 입력하세요.",
   ["Loot counting is on."] = "전리품 집계가 켜져 있습니다.",
@@ -204,18 +202,15 @@ GC.Locales.koKR = {
   ["Nothing on this list matches."] = "이 목록에 맞는 항목이 없습니다.",
   ["Over cap"] = "상한 초과",
   ["PRICE EACH"] = "개당 가격",
-  ["Paste a run..."] = "목록 붙여넣기...",
   ["Play a little longer for an estimate of your pace."] = "속도를 추정하려면 조금 더 플레이하세요.",
   ["RAISE CAP TO %s"] = "상한 올리기: %s",
   ["ROAD TO 40"] = "40레벨까지",
   ["Raise cap to %s"] = "상한을 %s(으)로 올리기",
-  ["Remove this run"] = "이 목록 삭제",
   ["Restore %s"] = "%s 복원",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "GoldCap과 함께 40레벨까지: 내 탈것 %s / %s (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40레벨까지: %s / %s (골드 %s, 가방 %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40레벨까지: 보유 %s (골드 %s, 가방 %s).",
   ["Runs"] = "목록",
-  ["Runs: click to switch, remove or paste one"] = "목록: 클릭해서 바꾸기, 삭제, 붙여넣기",
   ["Set cap"] = "상한 설정",
   ["Skip"] = "건너뛰기",
   ["Skip for now"] = "잠시 건너뛰기",
@@ -643,7 +638,6 @@ GC.Locales.koKR = {
   ["on %s"] = "%s 서버",
   ["over your cap"] = "상한 초과",
   ["over your cap · %s"] = "상한 초과 · %s",
-  ["pasted"] = "붙여넣음",
   ["plan updated on goldcap.gg"] = "goldcap.gg에서 계획이 갱신됨",
   ["price moved to %s"] = "가격이 %s(으)로 바뀜",
   ["purchase failed — try again"] = "구매 실패 — 다시 시도하세요",
@@ -1037,12 +1031,10 @@ GC.Locales.koKR = {
   ["BUY %d · %s"] = "%d개 구매 · %s",
   ["BUY · %s"] = "구매 · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "빠른 목록에 %d× %s 추가함.",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "아이템을 찾을 수 없습니다. Shift+클릭하거나 아이템 ID를 입력하세요.",
   ["Item to add"] = "추가할 아이템",
   ["Make a list once, buy it here at or under your price."] = "목록을 한 번 만들고, 여기서 내 가격 이하로 구매하세요.",
-  ["Quick list"] = "빠른 목록",
   ["Remove from the list"] = "목록에서 제거",
   ["or plan a whole profession on goldcap.gg"] = "또는 goldcap.gg에서 전문 기술 전체를 계획하세요",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
@@ -1055,4 +1047,56 @@ GC.Locales.koKR = {
   ["~ goldcap.gg market value — no live quote yet"] = "~ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
   ["• %s"] = "• %s",
   ["→ needs price"] = "→ 가격 필요",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "게임이 아직 불러오지 않은 아이템 %d개는 빠졌습니다. 잠시 후 다시 내보내세요.",
+  ["%s and %d more"] = "%s 외 %d개",
+  ["+ New"] = "+ 새 목록",
+  ["Add to favourites"] = "즐겨찾기에 추가",
+  ["Added %d items to %s."] = "아이템 %d개를 %s에 추가했습니다.",
+  ["Added %d× %s to %s."] = "%d× %s을(를) %s에 추가함.",
+  ["Added %d× %s to a new list, %s."] = "%d× %s을(를) 새 목록 %s에 추가함.",
+  ["Copy as a TSM item list"] = "TSM 아이템 목록으로 복사",
+  ["Copy for Auctionator"] = "Auctionator용으로 복사",
+  ["Delete"] = "삭제",
+  ["Delete %s? This cannot be undone."] = "%s 목록을 삭제할까요? 되돌릴 수 없습니다.",
+  ["Delete this list…"] = "이 목록 삭제…",
+  ["Export"] = "내보내기",
+  ["From goldcap.gg — rename or remove it there"] = "goldcap.gg 목록 — 이름 변경과 삭제는 거기서 하세요",
+  ["GoldCap — Import a list"] = "GoldCap — 목록 가져오기",
+  ["Import a list…"] = "목록 가져오기…",
+  ["Import into this list…"] = "이 목록으로 가져오기…",
+  ["Imported %s with %d items."] = "%s 목록을 가져왔습니다. 아이템 %d개.",
+  ["List %d"] = "목록 %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "목록은 goldcap.gg에서 Companion을 통해 오고, 여기서 + 새 목록으로 직접 만들 수도 있습니다.",
+  ["Lists: click to switch, make, import or export one"] = "목록: 클릭해서 바꾸기, 만들기, 가져오기, 내보내기",
+  ["Move down"] = "아래로 이동",
+  ["Move up"] = "위로 이동",
+  ["Name this list"] = "목록 이름",
+  ["New list"] = "새 목록",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "goldcap.gg, TSM 또는 Auctionator의 목록을 붙여넣고 가져오기를 누르세요.",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "goldcap.gg, TSM 또는 Auctionator의 목록을 붙여넣고 가져오기를 누르세요. 아이템은 %s에 추가됩니다.",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Ctrl+C로 복사한 뒤 Auctionator의 구매 탭에서 가져오세요.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] = "Ctrl+C로 복사한 뒤 TSM 그룹으로 가져오세요.",
+  ["Remove from favourites"] = "즐겨찾기에서 제거",
+  ["Rename…"] = "이름 바꾸기…",
+  ["Save"] = "저장",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "게임이 어떤 아이템인지 알 수 없었습니다: %s. 대신 Shift+클릭으로 아이템 칸에 넣으세요.",
+  ["There are no items in this list."] = "이 목록에는 아이템이 없습니다.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "TSM의 압축된 그룹 내보내기라서 TSM만 풀 수 있습니다. goldcap.gg/list에 붙여넣고 거기서 'TSM 그룹으로 복사'를 누른 뒤 그 결과를 여기에 붙여넣으세요.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "GoldCap이 읽을 수 있는 목록이 아닙니다. goldcap.gg, TSM 또는 Auctionator의 목록을 붙여넣으세요.",
+  ["in game"] = "게임 내",
+  -- Buy runs: the import result and the vendor list, now that the BUY tab's lists use them.
+  ["The run's vendor reagents. Press Ctrl+C to copy the list."] =
+    "목록의 상인 재료입니다. Ctrl+C로 목록을 복사하세요.",
+  ["Vendor list"] = "상인 목록",
+  ["run imported: %s (%d lines)"] = "목록 가져옴: %s (%d줄)",
+  ["the run string is not valid"] = "목록 문자열이 올바르지 않습니다",
 }

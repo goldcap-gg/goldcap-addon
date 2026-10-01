@@ -183,7 +183,6 @@ GC.Locales.ukUA = {
   ["Don't skip"] = "Не пропускати",
   ["Everything here is bought"] = "Тут усе куплено",
   ["From goldcap.gg — manage it there"] = "З goldcap.gg — керуйте там",
-  ["From goldcap.gg — remove it there"] = "З goldcap.gg — видаляйте там",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "За вашим скануванням %s тому. Враховує лише %s. Змінити: /gc weights.",
   ["Gear upgrades on the auction house"] = "Покращення спорядження на аукціоні",
@@ -193,7 +192,6 @@ GC.Locales.ukUA = {
     "Предметів у сумках, що на аукціоні коштують більше, ніж у торговця: %d (на %s більше).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Ще завантажується предметів: %d. Відкрийте це знову за мить.",
-  ["Lists come from goldcap.gg through the companion."] = "Списки надходять із goldcap.gg через Companion.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Підрахунок здобичі вимкнено. Введіть /gc loot clear, щоб видалити записане.",
   ["Loot counting is on."] = "Підрахунок здобичі увімкнено.",
@@ -210,19 +208,16 @@ GC.Locales.ukUA = {
   ["Nothing on this list matches."] = "У цьому списку нічого не підходить.",
   ["Over cap"] = "Вище стелі",
   ["PRICE EACH"] = "ЦІНА ЗА ШТ.",
-  ["Paste a run..."] = "Вставити список...",
   ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
   ["RAISE CAP TO %s"] = "ПІДНЯТИ ДО %s",
   ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
   ["Raise cap to %s"] = "Підняти стелю до %s",
-  ["Remove this run"] = "Видалити список",
   ["Restore %s"] = "Повернути %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Шлях до 40 рівня з GoldCap: %s з %s на скакуна (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Шлях до 40 рівня: %s з %s (золото %s, сумки %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Шлях до 40 рівня: у вас %s (золото %s, сумки %s).",
   ["Runs"] = "Списки",
-  ["Runs: click to switch, remove or paste one"] = "Списки: натисніть, щоб змінити, видалити або вставити список",
   ["Set cap"] = "Задати стелю",
   ["Skip"] = "Пропустити",
   ["Skip for now"] = "Поки пропустити",
@@ -693,7 +688,6 @@ GC.Locales.ukUA = {
   ["on %s"] = "на %s",
   ["over your cap"] = "вище стелі",
   ["over your cap · %s"] = "вище стелі · %s",
-  ["pasted"] = "вставлено",
   ["plan updated on goldcap.gg"] = "план оновлено на goldcap.gg",
   ["price moved to %s"] = "ціна стала %s",
   ["purchase failed — try again"] = "купівля не вдалася — спробуйте ще раз",
@@ -1110,13 +1104,11 @@ GC.Locales.ukUA = {
   ["BUY %d · %s"] = "КУПИТИ %d · %s",
   ["BUY · %s"] = "КУПИТИ · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "До швидкого списку додано: %d× %s.",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "Предмет не знайдено. Зробіть Shift+клік по ньому або введіть його ID.",
   ["Item to add"] = "Додати предмет",
   ["Make a list once, buy it here at or under your price."] =
     "Складіть список один раз і купуйте тут за своєю ціною або дешевше.",
-  ["Quick list"] = "Швидкий список",
   ["Remove from the list"] = "Прибрати зі списку",
   ["or plan a whole profession on goldcap.gg"] = "або сплануйте всю професію на goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
@@ -1130,4 +1122,58 @@ GC.Locales.ukUA = {
     "~ ринкова вартість goldcap.gg — живого котирування ще немає",
   ["• %s"] = "• %s",
   ["→ needs price"] = "→ потрібна ціна",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "Гра ще не завантажила предметів: %d — їх не додано. Експортуйте знову трохи згодом.",
+  ["%s and %d more"] = "%s і ще %d",
+  ["+ New"] = "+ Новий",
+  ["Add to favourites"] = "Додати до обраного",
+  ["Added %d items to %s."] = "Додано предметів: %d — до списку «%s».",
+  ["Added %d× %s to %s."] = "Додано: %d× %s — до списку «%s».",
+  ["Added %d× %s to a new list, %s."] = "Додано: %d× %s — до нового списку «%s».",
+  ["Copy as a TSM item list"] = "Скопіювати як список предметів TSM",
+  ["Copy for Auctionator"] = "Скопіювати для Auctionator",
+  ["Delete"] = "Видалити",
+  ["Delete %s? This cannot be undone."] = "Видалити «%s»? Це не можна скасувати.",
+  ["Delete this list…"] = "Видалити список…",
+  ["Export"] = "Експорт",
+  ["From goldcap.gg — rename or remove it there"] = "З goldcap.gg — перейменовуйте й видаляйте там",
+  ["GoldCap — Import a list"] = "GoldCap — Імпорт списку",
+  ["Import a list…"] = "Імпортувати список…",
+  ["Import into this list…"] = "Імпортувати в цей список…",
+  ["Imported %s with %d items."] = "Список «%s» імпортовано, предметів: %d.",
+  ["List %d"] = "Список %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "Списки надходять із goldcap.gg через Companion — або створіть свій тут кнопкою «+ Новий».",
+  ["Lists: click to switch, make, import or export one"] =
+    "Списки: натисніть, щоб змінити, створити, імпортувати або експортувати список",
+  ["Move down"] = "Перемістити нижче",
+  ["Move up"] = "Перемістити вище",
+  ["Name this list"] = "Назва списку",
+  ["New list"] = "Новий список",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "Вставте список із goldcap.gg, TSM або Auctionator і натисніть «Імпорт».",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "Вставте список із goldcap.gg, TSM або Auctionator і натисніть «Імпорт». Предмети додадуться до «%s».",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Натисніть Ctrl+C, щоб скопіювати, потім імпортуйте на вкладці покупок в Auctionator.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] =
+    "Натисніть Ctrl+C, щоб скопіювати, потім імпортуйте в групу TSM.",
+  ["Remove from favourites"] = "Прибрати з обраного",
+  ["Rename…"] = "Перейменувати…",
+  ["Save"] = "Зберегти",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "Гра не змогла визначити, що це за предмети: %s. Додайте їх Shift+кліком у поле предмета.",
+  ["There are no items in this list."] = "У цьому списку немає предметів.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "Це стиснений експорт групи TSM — розпакувати його може лише TSM. Вставте його на goldcap.gg/list, натисніть там «Copy as TSM group» і вставте результат сюди.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "GoldCap не може прочитати такий список. Вставте список із goldcap.gg, TSM або Auctionator.",
+  ["in game"] = "у грі",
+  -- Buy runs: the import result and the vendor list, now that the BUY tab's lists use them.
+  ["The run's vendor reagents. Press Ctrl+C to copy the list."] =
+    "Реагенти зі списку, які продає торговець. Натисніть Ctrl+C, щоб скопіювати список.",
+  ["Vendor list"] = "Список для торговця",
+  ["run imported: %s (%d lines)"] = "список імпортовано: %s (рядків: %d)",
+  ["the run string is not valid"] = "рядок списку пошкоджено",
 }

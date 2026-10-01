@@ -33,6 +33,7 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/SellViewModel.lua",
     "GoldCap/UI/BuyCapEditor.lua",
     "GoldCap/UI/BuyFrame.lua",
+    "GoldCap/UI/BuyLists.lua",
     "GoldCap/UI/BuyVendorPanel.lua",
   }
 

@@ -159,7 +159,6 @@ GC.Locales.enUS = {
   ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
-  ["Lists come from goldcap.gg through the companion."] = "Lists come from goldcap.gg through the companion.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
@@ -289,12 +288,7 @@ GC.Locales.enUS = {
     "open the auction house once so GoldCap can tell how these sell",
   ["over your cap"] = "over your cap",
   ["over your cap · %s"] = "over your cap · %s",
-  ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
-  ["Remove this run"] = "Remove this run",
-  ["From goldcap.gg — remove it there"] = "From goldcap.gg — remove it there",
-  ["Paste a run..."] = "Paste a run...",
-  ["Runs: click to switch, remove or paste one"] = "Runs: click to switch, remove or paste one",
   ["Archived"] = "Archived",
   ["Restore %s"] = "Restore %s",
   ["COST"] = "COST",
@@ -1087,13 +1081,11 @@ GC.Locales.enUS = {
   ["BUY %d · %s"] = "BUY %d · %s",
   ["BUY · %s"] = "BUY · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "Added %d× %s to your quick list.",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "Could not find that item. Shift-click it, or type its item id.",
   ["Item to add"] = "Item to add",
   ["Make a list once, buy it here at or under your price."] =
     "Make a list once, buy it here at or under your price.",
-  ["Quick list"] = "Quick list",
   ["Remove from the list"] = "Remove from the list",
   ["or plan a whole profession on goldcap.gg"] = "or plan a whole profession on goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
@@ -1107,4 +1099,52 @@ GC.Locales.enUS = {
     "~ goldcap.gg market value — no live quote yet",
   ["• %s"] = "• %s",
   ["→ needs price"] = "→ needs price",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "Items the game has not loaded yet are left out: %d. Export again in a moment.",
+  ["%s and %d more"] = "%s and %d more",
+  ["+ New"] = "+ New",
+  ["Add to favourites"] = "Add to favourites",
+  ["Added %d items to %s."] = "Added %d items to %s.",
+  ["Added %d× %s to %s."] = "Added %d× %s to %s.",
+  ["Added %d× %s to a new list, %s."] = "Added %d× %s to a new list, %s.",
+  ["Copy as a TSM item list"] = "Copy as a TSM item list",
+  ["Copy for Auctionator"] = "Copy for Auctionator",
+  ["Delete"] = "Delete",
+  ["Delete %s? This cannot be undone."] = "Delete %s? This cannot be undone.",
+  ["Delete this list…"] = "Delete this list…",
+  ["Export"] = "Export",
+  ["From goldcap.gg — rename or remove it there"] = "From goldcap.gg — rename or remove it there",
+  ["GoldCap — Import a list"] = "GoldCap — Import a list",
+  ["Import a list…"] = "Import a list…",
+  ["Import into this list…"] = "Import into this list…",
+  ["Imported %s with %d items."] = "Imported %s with %d items.",
+  ["List %d"] = "List %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "Lists come from goldcap.gg through the companion, or make one here with + New.",
+  ["Lists: click to switch, make, import or export one"] =
+    "Lists: click to switch, make, import or export one",
+  ["Move down"] = "Move down",
+  ["Move up"] = "Move up",
+  ["Name this list"] = "Name this list",
+  ["New list"] = "New list",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s.",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Press Ctrl+C to copy, then import it in Auctionator's Shopping tab.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] =
+    "Press Ctrl+C to copy, then import it into a TSM group.",
+  ["Remove from favourites"] = "Remove from favourites",
+  ["Rename…"] = "Rename…",
+  ["Save"] = "Save",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "The game could not tell which items these are: %s. Shift-click them into the item box instead.",
+  ["There are no items in this list."] = "There are no items in this list.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator.",
+  ["in game"] = "in game",
 }

@@ -58,10 +58,17 @@ GC.DEFAULTS = {
   -- table, so a populated SavedVariables array is never truncated on login.
   ledger = {},
   gold = {},
-  -- Buy runs (companion "Runs" plan or a pasted GCR1 string) -- Core/AppRuns.lua. code ->
-  -- { code, name, updatedAt, lines, origin = "app"|"paste" }. Same empty-table ApplyDefaults
-  -- contract as `flips` above: a populated SavedVariables table is never touched or truncated.
+  -- Buy runs (companion "Runs" plan, a pasted GCR1 string, or a list made in the game) --
+  -- Core/AppRuns.lua. code -> { code, name, updatedAt, lines, origin = "app"|"paste"|"game" }; a
+  -- list made in the game also carries `num` (its "List N") and `createdAt`. Same empty-table
+  -- ApplyDefaults contract as `flips` above: a populated SavedVariables table is never touched or
+  -- truncated.
   runs = {},
+  -- The player's own say over every list (Core/AppRuns.lua): favourites by code, the order they
+  -- moved the lists into (codes), and the last number a list made in the game took for its code.
+  runFavourites = {},
+  runOrder = {},
+  listSeq = 0,
   -- Metadata for the companion-sourced half of `runs` above: when it was generated, so Adopt
   -- can tell a fresher file from a stale one already applied. generatedAt = 0 means "nothing
   -- adopted yet", which is always older than any real Unix timestamp the companion writes.
@@ -474,6 +481,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- /reload the player did mid-session (for any unrelated reason) is picked up the next
       -- time the Auction House opens, rather than waiting for the next full login.
       GC.AppRuns.Adopt()
+      -- A 0.17 quick list becomes the player's first list made in the game, in place.
+      GC.AppRuns.Migrate()
     end
     -- Live price caps: adopt alongside AppRuns above (same GoldCap_AppRuns file, see
     -- Core/Caps.lua). Guarded on the Sniper frame existing because it is built lazily

@@ -5,6 +5,16 @@ GC.slashHandlers = GC.slashHandlers or {}
 
 local dialog
 
+-- The status line under the box wraps, and the box gives up the height it takes: an import that
+-- left names out says which, in full, in every language.
+local function setStatus(f, text)
+  f.status:SetText(text or "")
+  local h = (text and text ~= "" and f.status.GetStringHeight) and f.status:GetStringHeight() or 0
+  f.scroll:ClearAllPoints()
+  f.scroll:SetPoint("TOPLEFT", f.hint, "BOTTOMLEFT", 0, -8)
+  f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 44 + math.ceil(tonumber(h) or 0))
+end
+
 local function createDialog()
   local f = CreateFrame("Frame", "GoldCapImportDialog", UIParent, "BasicFrameTemplateWithInset")
   f:SetSize(520, 300)
@@ -14,15 +24,16 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import realm prices"]))
 
   local hint = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   hint:SetPoint("TOPLEFT", 12, -28)
-  hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
+  hint:SetWidth(496)
+  hint:SetJustifyH("LEFT")
+  hint:SetWordWrap(true)
+  f.hint = hint
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", 12, -48)
-  scroll:SetPoint("BOTTOMRIGHT", -32, 44)
+  f.scroll = scroll
 
   local edit = CreateFrame("EditBox", nil, scroll)
   edit:SetMultiLine(true)
@@ -34,7 +45,10 @@ local function createDialog()
   f.edit = edit
 
   local status = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
-  status:SetPoint("BOTTOMLEFT", 12, 16)
+  status:SetPoint("BOTTOMLEFT", 12, 40)
+  status:SetWidth(496)
+  status:SetJustifyH("LEFT")
+  status:SetWordWrap(true)
   f.status = status
 
   local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -43,31 +57,40 @@ local function createDialog()
   btn:SetText(GC.Util.ClientText(GC.L["Import"]))
   btn:SetScript("OnClick", function()
     local text = f.edit:GetText() or ""
-    -- Buy runs (Core/AppRuns.lua): a GCR1 string is a different grammar entirely, so it is
-    -- routed to its own parser rather than GC.ImportString.Parse, which only knows GCS1.
-    -- Leading whitespace is allowed for, because the parser itself strips it (ImportString's
-    -- own gsub) -- an anchored match without it sent a pasted string with one space in front
-    -- to the GCS1 parser, which answered "not a GoldCap import string" about a run it had
-    -- never been asked to read.
-    if text:match("^%s*GCR1;") then
-      local run = GC.AppRuns.ImportString(text)
-      if not run then
-        f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
-          .. GC.L["the run string is not valid"] .. "|r")
+    -- A list -- a goldcap.gg run string (GCR1), a TSM string or an Auctionator list -- goes to
+    -- the BUY tab's lists (UI/BuyLists.lua); a GCS1 price string, and anything that is no list
+    -- when the box was opened for prices, to GC.ImportString.Parse. Leading whitespace is allowed
+    -- for: a GCR1 string pasted with a space in front once went to the price parser, which
+    -- answered "not a GoldCap import string" about a run it had never been asked to read.
+    if not text:find("GCS1;", 1, true) and GC.BuyLists and GC.BuyLists.ImportText then
+      local result, why = GC.BuyLists.ImportText(text, f.into)
+      if result and result.error then
+        setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. result.error .. "|r")
         return
       end
-      GC.Print(GC.L["run imported: %s (%d lines)"]:format(run.name or run.code, #run.lines))
-      -- ...and the tab shows it now. GC.Buy picks a run in Show(), so a run pasted while the BUY
-      -- tab was already on screen sat in the list unseen until the player left the tab and came
-      -- back -- which reads as an import that did nothing. Guarded because this file loads
-      -- before UI/BuyFrame.lua and specs load it on its own.
-      if GC.Buy and GC.Buy.SelectRun then
-        GC.Buy.SelectRun(run.code)
-        GC.Buy.RefreshIfShown()
+      if result then
+        for _, line in ipairs(result.printed or {}) do GC.Print(line) end
+        -- ...and the tab shows it now. GC.Buy picks a run in Show(), so a run pasted while the BUY
+        -- tab was already on screen sat in the list unseen until the player left the tab and came
+        -- back -- which reads as an import that did nothing. Guarded because this file loads
+        -- before UI/BuyFrame.lua and specs load it on its own.
+        if result.code and GC.Buy and GC.Buy.SelectRun then
+          GC.Buy.SelectRun(result.code)
+          GC.Buy.RefreshIfShown()
+        end
+        f.edit:SetText("")
+        -- What was left out stays on screen until the player has read it.
+        if result.missed then
+          setStatus(f, result.missed)
+        else
+          f:Hide()
+        end
+        return
       end
-      f.edit:SetText("")
-      f:Hide()
-      return
+      if f.lists then
+        setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. GC.BuyLists.NotAList(why) .. "|r")
+        return
+      end
     end
     -- Final review I2: no Forever import string exists yet (goldcap.gg has not shipped one),
     -- so anything pasted here on a Forever client is a retail string -- and would feed the
@@ -76,12 +99,12 @@ local function createDialog()
     -- only opens this dialog) and the dialog's own Import button are covered. Buy runs (above)
     -- are a different grammar and unaffected.
     if GC.Game and GC.Game.IsForever(GC.Game.Passport()) then
-      f.status:SetText("|cffff4040" .. GC.L["goldcap.gg prices for WoW: Forever are not out yet."] .. "|r")
+      setStatus(f, "|cffff4040" .. GC.L["goldcap.gg prices for WoW: Forever are not out yet."] .. "|r")
       return
     end
     local parsed, err = GC.ImportString.Parse(text)
     if not parsed then
-      f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
+      setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " "
         .. GC.Data.DescribeImportError(err) .. "|r")
       return
     end
@@ -101,9 +124,24 @@ local function createDialog()
   return f
 end
 
-function GC.UI.ShowImportDialog()
+-- Opened for prices (/goldcap import) or -- `opts.lists` -- for the BUY tab's lists: a new list, or
+-- every item of the paste into `opts.into`, one of the player's own lists.
+function GC.UI.ShowImportDialog(opts)
+  opts = opts or {}
   dialog = dialog or createDialog()
-  dialog.status:SetText("")
+  dialog.lists, dialog.into = opts.lists == true, opts.into
+  local into = opts.into and GC.AppRuns and GC.AppRuns.Get(opts.into) or nil
+  if opts.lists then
+    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import a list"]))
+    dialog.hint:SetText(into
+      and (GC.L["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."])
+        :format(GC.AppRuns.Label(into))
+      or GC.L["Paste a list from goldcap.gg, TSM or Auctionator and press Import."])
+  else
+    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import realm prices"]))
+    dialog.hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
+  end
+  setStatus(dialog, "")
   -- Above the docked window (HIGH, toplevel) and the auction house it docks into: opened from
   -- the BUY tab's run menu, a MEDIUM-strata dialog came up behind them and read as a dead entry.
   if dialog.SetFrameStrata then dialog:SetFrameStrata("DIALOG") end

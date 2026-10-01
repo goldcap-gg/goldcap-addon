@@ -178,7 +178,6 @@ GC.Locales.zhCN = {
   ["Don't skip"] = "不再跳过",
   ["Everything here is bought"] = "这里的都买齐了",
   ["From goldcap.gg — manage it there"] = "来自 goldcap.gg — 请在那里管理",
-  ["From goldcap.gg — remove it there"] = "来自 goldcap.gg — 请在那里移除",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "来自你 %s 前的扫描。只计算 %s。用 /gc weights 修改。",
   ["Gear upgrades on the auction house"] = "拍卖行上的装备升级",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
@@ -186,7 +185,6 @@ GC.Locales.zhCN = {
   ["Items in your bags that fetch more on the auction house than at a vendor: %d (%s more)."] =
     "背包中在拍卖行比卖给商人更值钱的物品：%d 件（多 %s）。",
   ["Items still loading: %d. Open this again in a moment."] = "仍在加载的物品：%d 件。请稍后再打开。",
-  ["Lists come from goldcap.gg through the companion."] = "清单由 Companion 从 goldcap.gg 同步而来。",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "掉落统计已关闭。输入 /gc loot clear 可删除已记录的内容。",
   ["Loot counting is on."] = "掉落统计已开启。",
@@ -202,18 +200,15 @@ GC.Locales.zhCN = {
   ["Nothing on this list matches."] = "此清单中没有匹配项。",
   ["Over cap"] = "超出上限",
   ["PRICE EACH"] = "单价",
-  ["Paste a run..."] = "粘贴清单...",
   ["Play a little longer for an estimate of your pace."] = "再玩一会儿，才能估算你的速度。",
   ["RAISE CAP TO %s"] = "上限提高到 %s",
   ["ROAD TO 40"] = "40级之路",
   ["Raise cap to %s"] = "将上限提高到 %s",
-  ["Remove this run"] = "移除此清单",
   ["Restore %s"] = "恢复 %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] = "用 GoldCap 走向 40 级：我的坐骑 %s / %s（%d%%）。",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "40级之路：%s / %s（金币 %s，背包 %s）。",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "40级之路：你有 %s（金币 %s，背包 %s）。",
   ["Runs"] = "清单",
-  ["Runs: click to switch, remove or paste one"] = "清单：点击以切换、移除或粘贴清单",
   ["Set cap"] = "设定上限",
   ["Skip"] = "跳过",
   ["Skip for now"] = "暂时跳过",
@@ -628,7 +623,6 @@ GC.Locales.zhCN = {
   ["on %s"] = "在 %s",
   ["over your cap"] = "超出上限",
   ["over your cap · %s"] = "超出上限 · %s",
-  ["pasted"] = "已粘贴",
   ["plan updated on goldcap.gg"] = "计划已在 goldcap.gg 更新",
   ["price moved to %s"] = "价格变为 %s",
   ["purchase failed — try again"] = "购买失败 — 请重试",
@@ -1011,12 +1005,10 @@ GC.Locales.zhCN = {
   ["BUY %d · %s"] = "购买 %d · %s",
   ["BUY · %s"] = "购买 · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "已将 %d× %s 加入快速清单。",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "找不到该物品。请 Shift+点击它，或输入其物品 ID。",
   ["Item to add"] = "要添加的物品",
   ["Make a list once, buy it here at or under your price."] = "只需建一次清单，在这里以你的价格或更低价买入。",
-  ["Quick list"] = "快速清单",
   ["Remove from the list"] = "从清单中移除",
   ["or plan a whole profession on goldcap.gg"] = "或在 goldcap.gg 上规划整个专业",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
@@ -1029,4 +1021,55 @@ GC.Locales.zhCN = {
   ["~ goldcap.gg market value — no live quote yet"] = "~ goldcap.gg 市场价 — 尚无实时报价",
   ["• %s"] = "• %s",
   ["→ needs price"] = "→ 需要价格",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "游戏还没有加载 %d 件物品，已略过。请稍后再导出一次。",
+  ["%s and %d more"] = "%s，以及另外 %d 个",
+  ["+ New"] = "+ 新建",
+  ["Add to favourites"] = "加入收藏",
+  ["Added %d items to %s."] = "已将 %d 件物品加入“%s”。",
+  ["Added %d× %s to %s."] = "已将 %d× %s 加入“%s”。",
+  ["Added %d× %s to a new list, %s."] = "已将 %d× %s 加入新清单“%s”。",
+  ["Copy as a TSM item list"] = "复制为 TSM 物品列表",
+  ["Copy for Auctionator"] = "复制给 Auctionator 用",
+  ["Delete"] = "删除",
+  ["Delete %s? This cannot be undone."] = "删除“%s”？此操作无法撤销。",
+  ["Delete this list…"] = "删除此清单…",
+  ["Export"] = "导出",
+  ["From goldcap.gg — rename or remove it there"] = "来自 goldcap.gg — 请在那里重命名或移除",
+  ["GoldCap — Import a list"] = "GoldCap — 导入清单",
+  ["Import a list…"] = "导入清单…",
+  ["Import into this list…"] = "导入到此清单…",
+  ["Imported %s with %d items."] = "已导入“%s”，共 %d 件物品。",
+  ["List %d"] = "清单 %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "清单由 Companion 从 goldcap.gg 同步而来，也可以在这里用“+ 新建”创建。",
+  ["Lists: click to switch, make, import or export one"] = "清单：点击以切换、新建、导入或导出清单",
+  ["Move down"] = "下移",
+  ["Move up"] = "上移",
+  ["Name this list"] = "清单名称",
+  ["New list"] = "新建清单",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "粘贴来自 goldcap.gg、TSM 或 Auctionator 的清单，然后点“导入”。",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "粘贴来自 goldcap.gg、TSM 或 Auctionator 的清单，然后点“导入”。其中的物品会加入“%s”。",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "按 Ctrl+C 复制，然后在 Auctionator 的“购物”标签页中导入。",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] = "按 Ctrl+C 复制，然后导入到 TSM 分组中。",
+  ["Remove from favourites"] = "取消收藏",
+  ["Rename…"] = "重命名…",
+  ["Save"] = "保存",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "游戏无法确定这些是哪件物品：%s。请改为按住 Shift 点击，把它们放进物品框。",
+  ["There are no items in this list."] = "这个清单里没有物品。",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "这是 TSM 的压缩分组导出，只有 TSM 能解开。请把它粘贴到 goldcap.gg/list，在那里点“复制为 TSM 分组”，再把结果粘贴到这里。",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "GoldCap 读不懂这个清单。请粘贴来自 goldcap.gg、TSM 或 Auctionator 的清单。",
+  ["in game"] = "游戏内",
+  -- Buy runs: the import result and the vendor list, now that the BUY tab's lists use them.
+  ["The run's vendor reagents. Press Ctrl+C to copy the list."] = "清单中向商人购买的材料。按 Ctrl+C 复制清单。",
+  ["Vendor list"] = "商人清单",
+  ["run imported: %s (%d lines)"] = "已导入清单：%s（%d 行）",
+  ["the run string is not valid"] = "清单字符串无效",
 }

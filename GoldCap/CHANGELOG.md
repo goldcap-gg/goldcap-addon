@@ -23,8 +23,14 @@
   price. Before, the button only opened the auction house's own page.
 - At a vendor, GoldCap lists the items of your BUY list that this vendor sells at or under your
   cap, each with a button that buys what you still need, up to a full stack per press.
-- No lists yet? Shift-click an item into the box on the BUY tab, or type its item id, to start a
-  quick list right in the game. Right-click a line to take it off again.
+- Make lists of your own right in the BUY tab: + New starts one, or shift-click an item into the
+  box on the tab, or type its item id. The lists you make stay in the game. Right-click a line to
+  take it off again.
+- Import a TSM item string or an Auctionator shopping list as a new list or into one of yours, and
+  export any list for Auctionator or TSM. A name the game cannot place is named back to you, and
+  the rest is imported.
+- Right-click a list to rename it, pin it to the top as a favourite, move it up or down, or delete
+  it. Lists from goldcap.gg are renamed and deleted on the site.
 - Menus, tooltips, chat messages and GoldCap's own labels no longer show empty boxes in place of a
   dot, an arrow or a triangle in some languages.
 
