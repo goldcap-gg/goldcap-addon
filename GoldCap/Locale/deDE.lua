@@ -1095,4 +1095,10 @@ GC.Locales.deDE = {
   ["BUY ONE · %s"] = "EINS KAUFEN · %s",
   ["not enough gold"] = "nicht genug Gold",
   ["set a cap first"] = "erst einen Deckel setzen",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d Lose",
+  ["%s · 1 lot"] = "%s · 1 Los",
+  ["%s · over your cap"] = "%s · über deinem Deckel",
+  ["no cap for this item — right-click the line to set one"] =
+    "kein Deckel für diesen Gegenstand — Rechtsklick auf die Zeile setzt einen",
 }

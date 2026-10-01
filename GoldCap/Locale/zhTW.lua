@@ -1010,4 +1010,9 @@ GC.Locales.zhTW = {
   ["BUY ONE · %s"] = "購買一件 · %s",
   ["not enough gold"] = "金幣不足",
   ["set a cap first"] = "請先設定上限",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d 件",
+  ["%s · 1 lot"] = "%s · 1 件",
+  ["%s · over your cap"] = "%s · 超出上限",
+  ["no cap for this item — right-click the line to set one"] = "此物品沒有上限 — 右鍵點擊該行即可設定",
 }

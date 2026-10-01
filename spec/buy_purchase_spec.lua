@@ -2119,6 +2119,21 @@ describe("BUY purchase", function()
       assert.equal(0, cancels)
     end)
 
+    -- Task 5: the dock lists the lots by price, the row says what the next press costs.
+    it("lists the lots by price on the dock, the dear ones marked over the cap", function()
+      readBoots()
+      assert.equal("900c · 4 lots   1000c · 2 lots   1900c · over your cap", dock().sub:GetText())
+      local row = rowWithText("Dark Leather Boots")
+      assert.equal("900c", row.cells.price:GetText())
+      assert.equal("900c", row.cells.cost:GetText())
+    end)
+
+    it("says how to set a cap on a gear line that has none", function()
+      gearRun({ i = 201, q = 1 })
+      readBoots()
+      assert.equal("no cap for this item — right-click the line to set one", dock().sub:GetText())
+    end)
+
     it("says the floor on a gear line that has one", function()
       gearRun({ i = 201, q = 1, cc = 2000, minIlvl = 25 })
       assert.is_truthy(rowWithText("Dark Leather Boots").reagent:GetText():find("item level 25+", 1, true))

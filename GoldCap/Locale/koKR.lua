@@ -1036,4 +1036,9 @@ GC.Locales.koKR = {
   ["BUY ONE · %s"] = "1개 구매 · %s",
   ["not enough gold"] = "골드가 부족합니다",
   ["set a cap first"] = "먼저 상한을 설정하세요",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d개 경매",
+  ["%s · 1 lot"] = "%s · 경매 1개",
+  ["%s · over your cap"] = "%s · 상한 초과",
+  ["no cap for this item — right-click the line to set one"] = "이 아이템은 상한이 없습니다 — 줄을 우클릭해 설정하세요",
 }

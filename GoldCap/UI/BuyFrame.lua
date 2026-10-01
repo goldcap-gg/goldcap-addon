@@ -3512,6 +3512,7 @@ local DOCK_SUB = {
   craft = "craft it for %s each",
   craft_vs = "craft it for %s each · %s here",
   craft_only = "craft it yourself",
+  nocap = "no cap for this item — right-click the line to set one",
 }
 
 -- Which arguments of each sub-line are money (formatted), in order; the rest are counts.
@@ -3528,6 +3529,17 @@ local function dockSubText(sub)
     args[i] = money[i] and formatAmount(value) or value
   end
   if sub.key == "total" or sub.key == "error" then return args[1] end
+  -- A gear line's lots by price: "9s · 4 lots   10s · 2 lots   19s · over your cap".
+  if sub.key == "lots" then
+    local parts = {}
+    for _, g in ipairs(sub.groups) do
+      local price = formatAmount(g.buyout)
+      parts[#parts + 1] = (g.over and (GC.L["%s · over your cap"]):format(price))
+        or (g.count == 1 and (GC.L["%s · 1 lot"]):format(price))
+        or (GC.L["%s · %d lots"]):format(price, g.count)
+    end
+    return table.concat(parts, "   ")
+  end
   if sub.key == "estimate" then return "~" .. args[1] end
   return (GC.L[DOCK_SUB[sub.key]]):format(unpack(args))
 end
@@ -3556,6 +3568,13 @@ local function paintDock()
       quote = recentQuote(line), raiseTo = status == "over" and raiseOffered(line) or nil,
       cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor,
       craft = GC.BuyRun.CraftText(line) }
+    -- A gear line: its lots by price, from its own read, or the last one still worth drawing.
+    local seen = quotes[line.itemID]
+    if mine and mine.lots and mine.lotList then
+      d.lots = { groups = GC.BuyLots.Groups(mine.lotList, line.cap, line.minIlvl), why = mine.lotWhy }
+    elseif seen and seen.lots and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then
+      d.lots = { groups = GC.BuyLots.Groups(seen.lots, line.cap, line.minIlvl) }
+    end
   else
     local t = current:Totals()
     local skipped = 0

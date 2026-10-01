@@ -1084,4 +1084,10 @@ GC.Locales.enUS = {
   ["BUY ONE · %s"] = "BUY ONE · %s",
   ["not enough gold"] = "not enough gold",
   ["set a cap first"] = "set a cap first",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lots",
+  ["%s · 1 lot"] = "%s · 1 lot",
+  ["%s · over your cap"] = "%s · over your cap",
+  ["no cap for this item — right-click the line to set one"] =
+    "no cap for this item — right-click the line to set one",
 }

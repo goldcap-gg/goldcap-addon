@@ -1108,4 +1108,10 @@ GC.Locales.ukUA = {
   ["BUY ONE · %s"] = "КУПИТИ ОДИН · %s",
   ["not enough gold"] = "недостатньо золота",
   ["set a cap first"] = "спершу задайте стелю",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · лотів: %d",
+  ["%s · 1 lot"] = "%s · 1 лот",
+  ["%s · over your cap"] = "%s · вище стелі",
+  ["no cap for this item — right-click the line to set one"] =
+    "у цього предмета немає стелі — задайте її правим кліком по рядку",
 }

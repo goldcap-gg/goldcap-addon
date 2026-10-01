@@ -1099,4 +1099,10 @@ GC.Locales.esMX = {
   ["BUY ONE · %s"] = "COMPRAR UNO · %s",
   ["not enough gold"] = "no hay oro suficiente",
   ["set a cap first"] = "primero fija un tope",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lotes",
+  ["%s · 1 lot"] = "%s · 1 lote",
+  ["%s · over your cap"] = "%s · por encima de tu tope",
+  ["no cap for this item — right-click the line to set one"] =
+    "este objeto no tiene tope — clic derecho en la línea para fijar uno",
 }

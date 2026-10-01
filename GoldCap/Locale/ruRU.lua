@@ -1089,4 +1089,10 @@ GC.Locales.ruRU = {
   ["BUY ONE · %s"] = "КУПИТЬ ОДИН · %s",
   ["not enough gold"] = "недостаточно золота",
   ["set a cap first"] = "сначала задайте потолок",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · лотов: %d",
+  ["%s · 1 lot"] = "%s · 1 лот",
+  ["%s · over your cap"] = "%s · выше потолка",
+  ["no cap for this item — right-click the line to set one"] =
+    "у этого предмета нет потолка — задайте его правым кликом по строке",
 }
