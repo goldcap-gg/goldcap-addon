@@ -665,7 +665,6 @@ GC.Locales.deDE = {
   ["bought %d for %s"] = "%d gekauft für %s",
   ["buy %d of %d"] = "%d von %d kaufen",
   ["buy %d of %d, have %d in bags and bank"] = "%d von %d kaufen, %d in Taschen und Bank",
-  ["buy by hand"] = "von Hand kaufen",
   ["buying..."] = "kaufe...",
   ["cap: alert target"] = "Deckel: Alarmziel",
   ["cheapest seen %s"] = "am günstigsten gesehen: %s",
@@ -681,7 +680,6 @@ GC.Locales.deDE = {
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
   ["includes %d for crafting %s"] = "davon %d zum Herstellen von %s",
   ["no answer — check your mail"] = "keine Antwort — sieh in der Post nach",
-  ["not a commodity — buy by hand"] = "keine Handelsware — von Hand kaufen",
   ["nothing at or under your cap of %s"] = "nichts zu deinem Deckel von %s oder darunter",
   ["nothing on offer"] = "nichts im Angebot",
   ["on %s"] = "auf %s",
@@ -732,7 +730,6 @@ GC.Locales.deDE = {
     "%d x Gegenstand %d nach Schließen des Auktionshauses gekauft",
   ["buying commodity..."] = "Ware wird gekauft...",
   ["cheapest not yours %s"] = "günstigster fremder %s",
-  ["check the item level — buy by hand"] = "Gegenstandsstufe prüfen — von Hand kaufen",
   ["checking live price..."] = "Live-Preis wird geprüft...",
   ["checking live safety..."] = "Live-Sicherheit wird geprüft...",
   ["clears in ~%dd"] = "weg in ~%d Tg.",
@@ -1094,4 +1091,8 @@ GC.Locales.deDE = {
   ["▲%d%% over the alert target"] = "▲%d%% über dem Alarmziel",
   ["▲%d%% over usual"] = "▲%d%% über üblich",
   ["▲%d%% over your cap"] = "▲%d%% über deinem Deckel",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "EINS KAUFEN · %s",
+  ["not enough gold"] = "nicht genug Gold",
+  ["set a cap first"] = "erst einen Deckel setzen",
 }

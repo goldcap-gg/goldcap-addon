@@ -53,7 +53,9 @@ function GC.BuyView.Status(line, s)
   if line.kind == "craft" then return "craft" end
   if line.vendor then return "vendor" end
   if s.stranded then return "stranded" end
-  if s.byHand then return "lots" end
+  -- A lot line (BUY 2.0 week 2) is bought here one lot at a time; its read can find nothing under
+  -- the cap, exactly as a commodity's can.
+  if s.byHand then return s.quote == "over" and "over" or "lots" end
   if s.quote == "over" then return "over" end
   if s.quote == "fits" then return "ready" end
   if line.cap and line.floor and line.floor > line.cap then return "over" end

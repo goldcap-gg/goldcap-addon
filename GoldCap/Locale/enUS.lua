@@ -256,7 +256,6 @@ GC.Locales.enUS = {
   ["bought"] = "bought",
   ["buy %d of %d"] = "buy %d of %d",
   ["buy %d of %d, have %d in bags and bank"] = "buy %d of %d, have %d in bags and bank",
-  ["buy by hand"] = "buy by hand",
   ["cheapest seen %s"] = "cheapest seen %s",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
@@ -775,7 +774,6 @@ GC.Locales.enUS = {
   ["buying..."] = "buying...",
   ["cap: alert target"] = "cap: alert target",
   ["cheapest not yours %s"] = "cheapest not yours %s",
-  ["check the item level — buy by hand"] = "check the item level — buy by hand",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
   ["commodity purchase failed"] = "commodity purchase failed",
@@ -854,7 +852,6 @@ GC.Locales.enUS = {
     "no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices",
   ["no stock in bags or listed -- nothing to price for"] = "no stock in bags or listed -- nothing to price for",
   ["none"] = "none",
-  ["not a commodity — buy by hand"] = "not a commodity — buy by hand",
   ["not enough gold -- total %s, you have %s"] = "not enough gold -- total %s, you have %s",
   ["not enough gold for this quote -- Cancel"] = "not enough gold for this quote -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
@@ -1083,4 +1080,8 @@ GC.Locales.enUS = {
     "Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours.",
   ["Your scan updated %s prices on %s."] =
     "Your scan updated %s prices on %s.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "BUY ONE · %s",
+  ["not enough gold"] = "not enough gold",
+  ["set a cap first"] = "set a cap first",
 }

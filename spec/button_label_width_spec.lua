@@ -37,7 +37,11 @@ describe("row button labels fit the button", function()
     -- label stays short enough to leave the dock's own two lines their room beside it: 25 at 1.3,
     -- the plan's 200px. The countdown is on the dock's second line, never on the button.
     { what = "the BUY dock button", budget = 25,
-      keys = { "CONFIRM", "waiting...", "buying...", "confirming...", "BUY %d" } },
+      keys = { "CONFIRM", "waiting...", "buying...", "confirming...", "BUY %d", "set a cap first",
+        "not enough gold" } },
+    -- A gear line's press (BUY 2.0 week 2): the words before the lot's price.
+    { what = "the BUY dock button's lot, before its price", budget = 17, strip = "%%s",
+      keys = { "BUY ONE · %s" } },
     -- Its raise: the words before the price, which is up to about eight characters of its own.
     { what = "the BUY dock button's raise, before its price", budget = 17, strip = "%%s",
       keys = { "RAISE CAP TO %s" } },

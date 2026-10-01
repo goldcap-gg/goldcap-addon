@@ -74,6 +74,11 @@ describe("BuyView", function()
       { "a vendor line", { buy = 5, cap = 100, vendor = true, floor = 500 }, {}, "vendor" },
       { "a stranded confirm", { buy = 5, cap = 100, floor = 50 }, { stranded = true }, "stranded" },
       { "not a commodity", { buy = 5, cap = 100, floor = 50 }, { byHand = true }, "lots" },
+      -- BUY 2.0 week 2: a lot line is bought here, one lot at a time, so its read can say over.
+      { "a lot line with a lot to buy", { buy = 1, cap = 100 }, { byHand = true, quote = "fits" }, "lots" },
+      { "a lot line whose read found nothing under the cap", { buy = 1, cap = 100 },
+        { byHand = true, quote = "over" }, "over" },
+      { "a lot line not read yet", { buy = 1, cap = 100 }, { byHand = true }, "lots" },
       { "the last read found nothing under the cap", { buy = 5, cap = 100, floor = 50 }, { quote = "over" }, "over" },
       { "the last read fits even though NOW says over", { buy = 5, cap = 100, floor = 150 }, { quote = "fits" }, "ready" },
       { "NOW over the cap with no read", { buy = 5, cap = 100, floor = 150 }, {}, "over" },

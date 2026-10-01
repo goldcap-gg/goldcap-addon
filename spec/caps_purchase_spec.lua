@@ -1299,6 +1299,44 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_false(d.enabled)
     end)
 
+    -- BUY 2.0 week 2: one purchase at a time addon-wide. The BUY tab's bid on a gear lot, or a
+    -- purchase it holds the shared slot for, holds a realm lot's bid here: an auction house error
+    -- names no request, and either window could read the other's as its own.
+    local function realmLotClick(GC, click)
+      local bids = 0
+      _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+      local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+      local realmRow = { deal = lot, purchaseStage = "ready", purchaseToken = 3, decisionSnapshot = decision }
+      local d = reopened(GC, realmRow, lot)
+      d.enabled = true
+      click()
+      return bids, realmRow
+    end
+
+    it("holds a realm lot's bid while the BUY tab has a bid out", function()
+      local GC, _, _, _, click = armed()
+      local out = true
+      GC.Buy = GC.Buy or {}
+      GC.Buy.BidOut = function() return out end
+      local bids, realmRow = realmLotClick(GC, click)
+      assert.equal(0, bids)
+      assert.equal("ready", realmRow.purchaseStage)
+      out = false
+      bids = realmLotClick(GC, click)
+      assert.equal(1, bids)
+    end)
+
+    it("holds a realm lot's bid while the BUY tab holds the purchase slot", function()
+      local GC, _, _, _, click = armed()
+      helper.loadModule("Core/PurchaseSlot.lua", GC)
+      assert.is_true(GC.PurchaseSlot.Claim("buy"))
+      local bids, realmRow = realmLotClick(GC, click)
+      assert.equal(0, bids)
+      assert.equal("ready", realmRow.purchaseStage)
+    end)
+
     -- Review M3: a confirmed attempt is owed its answer (or the stranded release, 35 s) and a Check
     -- cannot retire it -- but Buy sat lit and refused all that while. It goes dark and says why;
     -- the purchase settling hands the player Refresh (follow-up P1, below).

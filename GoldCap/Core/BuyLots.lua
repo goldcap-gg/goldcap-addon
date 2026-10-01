@@ -8,7 +8,8 @@ GC.BuyLots = {}
 
 GC.BuyLots.MAX_GROUPS = 3
 
--- The rows a search answered, as lots, cheapest first. The player's own lot is never one (it cannot
+-- The rows a search answered, as lots, cheapest first. Each lot keeps its own item key's fields
+-- (level, suffix, pet species): a gear line is bid on under its lot's exact key (UI/BuyFrame.lua). The player's own lot is never one (it cannot
 -- be bought, and offering it would sell the player their own auction), nor is a row with no buyout
 -- (a bid-only auction).
 function GC.BuyLots.FromRows(rows)
@@ -19,9 +20,30 @@ function GC.BuyLots.FromRows(rows)
       local key = type(r.itemKey) == "table" and r.itemKey or {}
       lots[#lots + 1] = { auctionID = r.auctionID, buyout = r.buyoutAmount,
         count = math.max(1, tonumber(r.quantity) or 1),
-        itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0, link = r.itemLink }
+        itemLevel = key.itemLevel or 0, itemSuffix = key.itemSuffix or 0,
+        species = key.battlePetSpeciesID or 0, link = r.itemLink }
     end
   end
+  table.sort(lots, function(a, b)
+    if a.buyout ~= b.buyout then return a.buyout < b.buyout end
+    return a.auctionID < b.auctionID
+  end)
+  return lots
+end
+
+-- The lots of every variant `all` holds, with one variant's lots -- those of `key`, read again by
+-- its own search -- swapped for `fresh`: after a purchase only the bought lot's variant is read
+-- again, and the others still stand as the whole-item read saw them.
+function GC.BuyLots.Replace(all, fresh, key)
+  local lots = {}
+  key = key or {}
+  for _, lot in ipairs(all or {}) do
+    if lot.itemLevel ~= (key.itemLevel or 0) or lot.itemSuffix ~= (key.itemSuffix or 0)
+        or (lot.species or 0) ~= (key.battlePetSpeciesID or 0) then
+      lots[#lots + 1] = lot
+    end
+  end
+  for _, lot in ipairs(fresh or {}) do lots[#lots + 1] = lot end
   table.sort(lots, function(a, b)
     if a.buyout ~= b.buyout then return a.buyout < b.buyout end
     return a.auctionID < b.auctionID

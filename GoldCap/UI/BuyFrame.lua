@@ -109,6 +109,9 @@ local BD = {
   -- of its own on the left, LISTS_W across.
   WIDE_MIN = 880,
   LISTS_W = 196,
+  -- BUY 2.0 week 2: the most rows of a lot line's search this tab reads (the Buyout sort puts the
+  -- cheapest first, so the first page holds every lot a press could buy).
+  MAX_LOTS = 100,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -149,6 +152,11 @@ GC.Buy._log = {}
 -- `have` is the line's HAVE at the moment it was stranded: the warning on that line lifts
 -- when that number moves, which is exactly what a delivery that really happened does to it.
 GC.Buy._stranded = {}
+-- The same for a gear line's bid (BUY 2.0 week 2): a PlaceBid the watchdog gave up on, keyed by
+-- the auctionID its late AUCTION_HOUSE_PURCHASE_COMPLETED will name, so it is booked exactly once.
+--
+--   auctionID -> { itemID, total, runCode, itemKey, have, at, session }
+GC.Buy._bidStranded = {}
 local sessionToken = 0
 
 -- Bumped per attempt so a watchdog armed for one purchase cannot retire the next, per recorded
@@ -161,7 +169,7 @@ local attemptSeq, acquisitionSeq, ledgerSeq = 0, 0, 0
 -- stand down (GC.Buy.OwnsCommodityPurchase below).
 local function inFlight(attempt)
   local stage = attempt and attempt.stage
-  return stage == "started" or stage == "confirm" or stage == "confirming"
+  return stage == "started" or stage == "confirm" or stage == "confirming" or stage == "bidding"
 end
 
 local function setColor(fontString, color)
@@ -860,6 +868,16 @@ end
 -- button under it, one click from buying the same units a second time.
 local function strandedFor(line)
   if not line then return nil end
+  -- A gear line's bid the watchdog gave up on (GC.Buy._bidStranded, keyed by auction): the lot may
+  -- be bought, so the line is not offered again until HAVE moves, the late answer lands or the
+  -- record ages out with its session.
+  for _, bid in pairs(GC.Buy._bidStranded) do
+    if bid.itemID == line.itemID and bid.session == sessionToken
+        and (time() - (bid.at or 0)) <= BD.STRANDED_SECONDS
+        and (bid.have == nil or line.have == bid.have) then
+      return bid
+    end
+  end
   local record = GC.Buy._stranded[line.itemID]
   if not record then return nil end
   if record.session ~= sessionToken or (time() - (record.at or 0)) > BD.STRANDED_SECONDS then
@@ -886,9 +904,14 @@ local function actionable(line)
   return buyable(line)
 end
 
+-- A gear line's read is fresh only while nothing has searched since its own exact-key search went
+-- out (GC.Buy._searchSeq, counted by the post-hooks GC.Buy._WatchSearches installs): PlaceBid buys
+-- only while the auction house's current search is a buy search for the lot's own key, and returns
+-- with no error and buys nothing otherwise (BUY 2.0 probe, 2026-10-01).
 local function quoteFresh(attempt)
   return attempt ~= nil and attempt.stage == "quoted" and attempt.quotedAt ~= nil
     and (time() - attempt.quotedAt) < BD.QUOTE_SECONDS
+    and (attempt.armSeq == nil or attempt.armSeq == (GC.Buy._searchSeq or 0))
 end
 
 -- A question already on the wire, and still worth waiting for. The client drops a throttled
@@ -944,6 +967,9 @@ end
 -- would read it as its own.
 local function owedElsewhere()
   if GC.Buy._drain then return true end
+  -- BUY 2.0 week 2: a realm bid of the Deals window waiting for its answer. An auction house error
+  -- names no request, so this tab does not bid or start over it (GC.Sniper.BidOut).
+  if GC.Sniper and GC.Sniper.BidOut and GC.Sniper.BidOut() then return true end
   -- Load-bearing round (M-3): this tab's own confirm the auction house closed on, still owed its
   -- answer (GC.Buy._owedUntil): nothing else starts here over it, as nothing starts in the Sniper.
   if GC.Buy._owedUntil and GC.Buy.ConfirmOwed() then return true end
@@ -1006,14 +1032,18 @@ local function actionLabel(line)
     return resting, true
   end
   if stage == "quoted" then
-    -- The client will not sell this item as a commodity, so there is no book to quote and no
-    -- quantity this tab could buy in one click. Saying "nothing on offer" about a lot list that
-    -- is full is the one thing worse than saying nothing: it is a false claim about the market.
-    if attempt.byHand then
-      -- The line's item-level floor could not be put into the search (quote), so the page it
-      -- opened lists whatever level the auction house picked: the level is the player's to check.
-      if attempt.levelUnchecked then return GC.L["check the item level — buy by hand"], false end
-      return GC.L["not a commodity — buy by hand"], false
+    -- A gear line: one lot per press, the one its own read chose (GC.BuyLots.Next). With none, the
+    -- reason, never a press that could only fail: no cap is no bid at all (a bid has no quote step
+    -- to catch a mistake), and a wallet that cannot pay is said before the auction house says it.
+    if attempt.lots then
+      if attempt.lot then
+        if owedElsewhere() then return GC.L["waiting..."], false end
+        return (GC.L["BUY ONE · %s"]):format(formatAmount(attempt.lot.buyout)), true
+      end
+      if attempt.lotWhy == "nocap" then return GC.L["set a cap first"], false end
+      if attempt.lotWhy == "wallet" then return GC.L["not enough gold"], false end
+      if attempt.lotWhy == "over" then return GC.L["over your cap"], false, "warn" end
+      return GC.L["nothing on offer"], false
     end
     if (attempt.qty or 0) > 0 then
       -- Fix round 2: a click here would start a purchase, and one the Sniper confirmed is still
@@ -1032,7 +1062,7 @@ local function actionLabel(line)
     if attempt.overPct then return overText(attempt), false, "warn" end
     return GC.L["nothing on offer"], false
   end
-  if stage == "started" then return GC.L["buying..."], false end
+  if stage == "started" or stage == "bidding" then return GC.L["buying..."], false end
   -- The seconds the quote has left are counted on the dock's second line, not here.
   if stage == "confirm" then return GC.L["CONFIRM"], true end
   if stage == "confirming" then return GC.L["confirming..."], false end
@@ -1274,12 +1304,22 @@ end
 -- read change what the next press may spend -- and a press must never spend what the line's cap
 -- now refuses. The book is the one the quote read; nothing is asked again. Run on every refresh,
 -- so every path that moves a cap is covered by the one place that re-reads it.
+-- A gear line's read judged against its line (defined with the lot read, below `failAttempt`).
+local judgeLots, armLot
+
 local function rejudgeQuote()
   local attempt = GC.Buy._attempt
-  if not (current and attempt and attempt.stage == "quoted" and not attempt.byHand
-      and quoteFresh(attempt)) then return end
+  if not (current and attempt and attempt.stage == "quoted" and quoteFresh(attempt)) then return end
   local seen = quotes[attempt.itemID]
   local line = lineFor(attempt.itemID)
+  -- A gear line: the lot the next press bids on is chosen again from the same rows, so a press can
+  -- never bid over a cap that moved down or past a wallet that emptied. A whole-item read that now
+  -- finds a lot under a raised cap searches that lot's own key, which is what a bid needs.
+  if line and attempt.lots then
+    local lot = judgeLots(attempt, line)
+    if lot and attempt.phase == "all" then armLot(attempt, lot) end
+    return
+  end
   if not (line and seen and seen.ladder) then return end
   local qty, total, capped = current:PurchaseQuantity(line.itemID, seen.ladder)
   attempt.qty, attempt.total, attempt.capped = qty, total, capped
@@ -1375,14 +1415,16 @@ end
 -- (Core/Acquisitions.lua). The site learns about the same purchase through the ledger row
 -- recordLedgerBuy writes below; `runCode` rides on both, so either can say which shopping run
 -- the gold went to.
-local function recordAcquisition(itemID, name, qty, total, at, runCode)
+local function recordAcquisition(itemID, name, qty, total, at, runCode, itemKey)
   if not (GC.Acquisitions and GC.Acquisitions.Record and GC.Acquisitions.PositionKey) then return end
   local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
   acquisitionSeq = acquisitionSeq + 1
   GC.Acquisitions.Record({
     source = "goldcap_buy",
     itemID = itemID,
-    positionKey = GC.Acquisitions.PositionKey(itemID, nil, true),
+    -- A gear lot is filed under its own item key (level, suffix), a commodity under the item.
+    positionKey = itemKey and GC.Acquisitions.PositionKey(itemID, itemKey, false)
+      or GC.Acquisitions.PositionKey(itemID, nil, true),
     itemName = name,
     quantity = qty,
     total = total,
@@ -1459,7 +1501,7 @@ end
 -- cost itself is recorded regardless -- the gold moved and the items are real. The acquisition
 -- and the ledger row are the same fact filed twice and are written in the one guard below, so
 -- they can never disagree about whether a purchase happened.
-local function settlePurchase(itemID, qty, total, runCode)
+local function settlePurchase(itemID, qty, total, runCode, itemKey)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   qty, total = qty or 0, total or 0
   local line = lineFor(itemID)
@@ -1470,7 +1512,7 @@ local function settlePurchase(itemID, qty, total, runCode)
     local mv = (line and not line.vendor and type(line.usual) == "number" and line.usual > 0)
       and math.floor(line.usual) or nil
     if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
-    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode)
+    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode, itemKey)
     recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode, mv)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
@@ -1481,6 +1523,8 @@ local function settlePurchase(itemID, qty, total, runCode)
   -- something takes the focus, so Enter carries on down the run without reaching for the mouse.
   scanBags()
   GC.Buy._focus = nextOpenAfter(itemID)
+  -- The dock's line -- the next one, or this same gear line with more to buy -- is read again.
+  GC.Buy._quotedFocus = nil
   GC.Buy._listMeta = {}
   GC.Buy.RefreshIfShown()
 end
@@ -1509,6 +1553,141 @@ local function failAttempt(attempt)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   attempt.stage = "failed"
   logAttempt(lineFor(attempt.itemID))
+  GC.Buy.RefreshIfShown()
+end
+
+-- ---------------------------------------------------------------------------
+-- A gear line's read (BUY 2.0 week 2). Anything the client will not sell as a commodity is bought
+-- one lot per press with PlaceBid, which the BUY 2.0 probe (2026-10-01, both games) measured:
+--   * it buys only while the auction house's current search is a BUY search for the lot's exact
+--     item key; with any other search in between it returns, says nothing and buys nothing;
+--   * a buy search on the bare key (item level 0, suffix 0) finds no lots for gear that has item
+--     level or suffix variants -- only the variant's own key does.
+-- So a read is two searches. First a SELL search on the bare key: Blizzard's own sell frame sends
+-- exactly that for equipment, "so you can compare to similar items" (ConvertItemSellItemKey in
+-- Blizzard_AuctionHouseUtil.lua, the same in both games), and its rows are every variant's lots,
+-- each with its own item key. Then a buy search on the chosen lot's own key; its answer is what a
+-- press bids on, and nothing may search in between (GC.Buy.HoldsSearch, GC.Buy._WatchSearches).
+-- ---------------------------------------------------------------------------
+
+local function lotSorts()
+  local order = Enum and Enum.AuctionHouseSortOrder and Enum.AuctionHouseSortOrder.Buyout
+  if not order then return {} end
+  return { { sortOrder = order, reverseSort = false } }
+end
+
+-- The rows the client holds for `key`, as the client gives them, and whether that is its whole
+-- answer. A key with no rows and no full answer has not been answered yet.
+local function readItemRows(key)
+  local found = {}
+  local ah = C_AuctionHouse
+  if not (ah and ah.GetNumItemSearchResults and ah.GetItemSearchResultInfo) then return found, false end
+  local n = ah.GetNumItemSearchResults(key) or 0
+  for i = 1, math.min(n, BD.MAX_LOTS) do
+    local ok, info = pcall(ah.GetItemSearchResultInfo, key, i)
+    if ok and type(info) == "table" then found[#found + 1] = info end
+  end
+  local full = ah.HasFullItemSearchResults and ah.HasFullItemSearchResults(key) or false
+  return found, full
+end
+
+-- The lot the next press would bid on (GC.BuyLots.Next: at or under the cap, at or above the item
+-- level, within the wallet), from the rows of the search the read is on. Only an armed read -- the
+-- answer to the lot's own key -- has a lot a press may bid on; the whole-item read only says which
+-- key to arm. Returns that lot either way.
+judgeLots = function(attempt, line)
+  local armed = attempt.phase == "arm"
+  local list = (armed and attempt.armLots or attempt.lotList) or {}
+  local lot, why = GC.BuyLots.Next(list, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+  attempt.lot = armed and lot or nil
+  attempt.lotWhy = why
+  attempt.qty = attempt.lot and 1 or 0
+  attempt.total = attempt.lot and attempt.lot.buyout or 0
+  attempt.capped = why == "over"
+  return lot
+end
+
+-- The armed search, when the throttle lets it go: a buy search on the lot's own key, the player's
+-- own lots in rows of their own. `armSeq` is the search count right after it went (the post-hooks
+-- count our own send too), so any search after it -- ours, Blizzard's pane, another addon --
+-- voids the read (quoteFresh).
+local function sendArm(attempt)
+  if not (attempt and attempt.armDue) then return false end
+  if not throttleReady() then return false end
+  if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-arm") then return false end
+  attempt.armDue, attempt.askedAt = nil, time()
+  C_AuctionHouse.SendSearchQuery(attempt.key, lotSorts(), true)
+  attempt.armSeq = GC.Buy._searchSeq or 0
+  if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(attempt.key) end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
+  return true
+end
+
+armLot = function(attempt, lot)
+  attempt.phase, attempt.stage, attempt.askedAt, attempt.armDue = "arm", "quoting", time(), true
+  attempt.key = C_AuctionHouse.MakeItemKey(attempt.itemID, lot.itemLevel or 0, lot.itemSuffix or 0,
+    lot.species or 0)
+  attempt.lot, attempt.qty, attempt.total, attempt.armLots, attempt.armSeq = nil, 0, 0, nil, nil
+  sendArm(attempt)
+end
+
+-- What a gear line's read draws (the tooltip's ladder, PRICE EACH, the row's word, the dock's
+-- price groups): every variant's lots it has seen, and what the rest of the line would cost at
+-- the lot the next press buys.
+local function noteLots(line, attempt, lot)
+  local levels = GC.BuyLots.AsLevels(attempt.lotList, line.minIlvl)
+  quotes[line.itemID] = { qty = lot and line.buy or 0, total = lot and lot.buyout * line.buy or 0,
+    at = time(), capped = attempt.lotWhy == "over", ladder = #levels > 0 and levels or false,
+    lots = attempt.lotList }
+end
+
+-- ITEM_SEARCH_RESULTS_UPDATED, routed by Core/Init.lua: the answer to a gear line's read, or the
+-- client refreshing the armed key's lots by itself after a purchase (one lot fewer, no new query).
+-- The rows are read under the key this tab sent, the only key the client answers for, so a key
+-- with no rows and no full answer yet is not this read's answer. Once a lot's own key is armed, an
+-- event about another variant of the item is somebody else's.
+function GC.Buy.OnItemResults(itemKey)
+  local attempt = GC.Buy._attempt
+  if not (attempt and attempt.lots and type(itemKey) == "table" and itemKey.itemID == attempt.itemID) then
+    return
+  end
+  local sent = attempt.key or {}
+  if attempt.phase == "arm" and itemKey.itemLevel ~= nil
+      and ((itemKey.itemLevel or 0) ~= (sent.itemLevel or 0) or (itemKey.itemSuffix or 0) ~= (sent.itemSuffix or 0)) then
+    return
+  end
+  -- A bid is out: the refresh that follows a purchase is read once its completion has booked it.
+  if attempt.stage == "bidding" then
+    attempt.refreshed = true
+    return
+  end
+  if not (attempt.stage == "quoting" or (attempt.stage == "quoted" and attempt.phase == "arm")) then return end
+  if attempt.armDue then return end
+  local line = lineFor(attempt.itemID)
+  if not (current and buyable(line)) then
+    GC.Buy._attempt = nil
+    return
+  end
+  local answer, full = readItemRows(sent)
+  if #answer == 0 and not full then return end
+  local lots = GC.BuyLots.FromRows(answer)
+  if attempt.phase == "arm" then
+    attempt.armLots = lots
+    attempt.lotList = GC.BuyLots.Replace(attempt.lotList, lots, sent)
+  else
+    attempt.lotList = lots
+  end
+  local lot = judgeLots(attempt, line)
+  attempt.stage, attempt.quotedAt = "quoted", time()
+  noteLots(line, attempt, lot)
+  if attempt.phase == "all" and lot then
+    armLot(attempt, lot)
+  elseif attempt.phase == "arm" and not lot and attempt.afterBuy then
+    -- After a purchase only the armed variant was re-read; with nothing left there the line is
+    -- read whole again (on the next tick), where another variant may still be under the cap.
+    GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  end
+  logAttempt(line)
   GC.Buy.RefreshIfShown()
 end
 
@@ -1554,14 +1733,16 @@ local function quote(line, clicked)
   -- would have the board's refresh and the player's own hover taking turns in one window.
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-quote") then return end
 
-  -- A gear line with an item-level floor (an alert group's own minimum, caps fixes 5h) searches the
-  -- cheapest variant at or above it that a poll has seen: the page this opens is where the player
-  -- buys by hand, and an item key names one item-level variant -- as narrow as the client lets a
-  -- search be. With none known it is the bare key, and the button says the level is unchecked.
-  local variant = line.minIlvl and GC.Sniper and GC.Sniper.VariantKeyAtLeast
-    and GC.Sniper.VariantKeyAtLeast(line.itemID, line.minIlvl) or nil
-  local key = variant or C_AuctionHouse.MakeItemKey(line.itemID)
-  C_AuctionHouse.SendSearchQuery(key, {}, false)
+  -- A gear line (the client will not sell it as a commodity) is read whole first: a sell search on
+  -- the bare key answers with every variant's lots, the player's own in rows of their own so
+  -- dropping them hides nobody else's (see "A gear line's read" above).
+  local lotLine = not askableItem(line.itemID)
+  local key = C_AuctionHouse.MakeItemKey(line.itemID)
+  if lotLine then
+    C_AuctionHouse.SendSellSearchQuery(key, lotSorts(), true)
+  else
+    C_AuctionHouse.SendSearchQuery(key, {}, false)
+  end
   -- Out until its answer lands, in the book the Sell tab reads: a "busy" it draws must not be
   -- taken for a post's refusal there (GC.Sniper.RequestOut; review sell-fix4 M3).
   if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
@@ -1571,17 +1752,8 @@ local function quote(line, clicked)
   GC.Buy._attempt = {
     itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
     runCode = current and current:Code() or nil,
+    lots = lotLine or nil, phase = lotLine and "all" or nil, key = lotLine and key or nil,
   }
-  -- A gear, pet or recipe line is answered by ITEM_SEARCH_RESULTS_UPDATED, which this tab does
-  -- not listen to (the commodity buffer is the only book it can buy from in one click), so the
-  -- answer is settled here, at the ask: the search above opens Blizzard's own page for the
-  -- player, and the button says so instead of waiting on a commodity event that never comes.
-  if not askableItem(line.itemID) then
-    local asked = GC.Buy._attempt
-    asked.stage, asked.byHand, asked.quotedAt = "quoted", true, time()
-    asked.qty, asked.total = 0, 0
-    asked.levelUnchecked = (line.minIlvl ~= nil and variant == nil) or nil
-  end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
 end
@@ -1638,11 +1810,15 @@ function GC.Buy.OnCommodityResults(itemID)
     return
   end
   local ladder = ladderFor(itemID)
-  -- No ladder AND the client says this is not a commodity: the search filled the ITEM buffer,
-  -- not the commodity one, so there is nothing here to buy in one click however full the lot
-  -- list on Blizzard's own pane is. Marked, so the button says which -- quoting qty 0 and
-  -- printing "nothing on offer" was this tab telling the player a falsehood about the market.
-  attempt.byHand = (ladder == nil and not askableItem(itemID)) or nil
+  -- No ladder AND the client now says this is not a commodity (its key was not cached when the
+  -- line was asked): the search filled the ITEM buffer, not the commodity one. "Nothing on offer"
+  -- would be a false claim about the market, so the line is read again on the next tick, as the
+  -- gear line it is.
+  if ladder == nil and not askableItem(itemID) then
+    GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+    GC.Buy.RefreshIfShown()
+    return
+  end
   local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
   attempt.qty, attempt.total, attempt.capped = qty, total, capped
   -- The ladder rides along for drawing (the tooltip, PRICE EACH, the dock's raise): `false` is a
@@ -1694,6 +1870,9 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
   local attempt = GC.Buy._attempt
   if not attempt or not inFlight(attempt) then return false end
+  -- A bid is out (a gear line): a commodity event is never its answer, and false hands it to the
+  -- Deals window exactly as when this tab holds nothing.
+  if attempt.stage == "bidding" then return false end
   local qty = attempt.qty or 0
   local total = type(totalPrice) == "number" and totalPrice
     or (type(unitPrice) == "number" and qty > 0 and unitPrice * qty) or nil
@@ -1743,6 +1922,8 @@ function GC.Buy.OnCommodityPurchaseSucceeded()
   if not mayOwnTerminal() then return false end
   local attempt = GC.Buy._attempt
   local stage = attempt and attempt.stage
+  -- A bid is out (a gear line): never a commodity event's answer.
+  if stage == "bidding" then return false end
 
   -- One: the purchase this tab confirmed, answered. The only one that books a cost.
   if stage == "confirming" then
@@ -1793,6 +1974,7 @@ function GC.Buy.OnCommodityPurchaseFailed()
   if not mayOwnTerminal() then return false end
   if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
+  if attempt and attempt.stage == "bidding" then return false end -- never a bid's answer
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
     return true
@@ -1804,6 +1986,7 @@ function GC.Buy.OnCommodityPriceUnavailable()
   if not mayOwnTerminal() then return false end
   if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
+  if attempt and attempt.stage == "bidding" then return false end -- never a bid's answer
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
     return true
@@ -1830,7 +2013,7 @@ function GC.Buy.OwnsCommodityPurchase(itemID, quantity)
     return true
   end
   local attempt = GC.Buy._attempt
-  if not attempt or attempt.itemID ~= itemID or not inFlight(attempt) then return false end
+  if not attempt or attempt.itemID ~= itemID or not inFlight(attempt) or attempt.lots then return false end
   if quantity == nil then return true end
   return attempt.qty == quantity
 end
@@ -1849,6 +2032,19 @@ retireStalled = function(token, stall)
   if not attempt or attempt.token ~= token or attempt.stall ~= stall then return end
   if not inFlight(attempt) then return end
   local line = lineFor(attempt.itemID)
+  if attempt.stage == "bidding" then
+    -- A bid reached the server and nothing came back: the lot may be bought. Never offered again
+    -- (strandedFor); a late AUCTION_HOUSE_PURCHASE_COMPLETED names its auctionID, so it can still
+    -- be booked exactly once.
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    GC.Buy._bidStranded[attempt.auctionID] = { itemID = attempt.itemID, total = attempt.total,
+      runCode = attempt.runCode, itemKey = attempt.itemKey, have = line and line.have or nil,
+      at = time(), session = sessionToken }
+    attempt.stage = "unknown"
+    logAttempt(line)
+    GC.Buy.RefreshIfShown()
+    return
+  end
   if attempt.stage ~= "confirming" then
     cancelStartedPurchase()
     -- Unanswered, its answer is still coming: the slot is held for it (GC.Buy._StartDrain). A
@@ -1888,6 +2084,7 @@ end
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
+  GC.Buy._bidStranded = {}
   -- A drain belongs to the session that sent the Start (I1).
   if GC.Buy._drain then
     GC.Buy._drain = nil
@@ -1909,7 +2106,12 @@ function GC.Buy.OnAuctionHouseClosed()
     return
   end
   local line = lineFor(attempt.itemID)
-  if stage ~= "confirming" then
+  if stage == "bidding" then
+    -- A bid may have bought (like a confirm): the slot goes, the warning stays. Nothing to cancel:
+    -- PlaceBid has no purchase of its own to hand back.
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    attempt.stage = "unknown"
+  elseif stage ~= "confirming" then
     cancelStartedPurchase()
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     attempt.stage = "expired"
@@ -1930,6 +2132,7 @@ end
 function GC.Buy.OnAuctionHouseShow()
   sessionToken = sessionToken + 1
   GC.Buy._stranded = {}
+  GC.Buy._bidStranded = {}
   local attempt = GC.Buy._attempt
   -- ...except a confirm the close hit while it is still owed its answer (load-bearing round, M-3):
   -- its units may still come by mail, and the line keeps saying so instead of offering BUY again.
@@ -1946,7 +2149,7 @@ end
 -- it is this line's, else a recent read (an earlier quote, a hover's look) still worth drawing.
 local function readOf(line)
   local attempt = GC.Buy._attempt
-  if attempt and attempt.itemID == line.itemID and attempt.stage == "quoted" and not attempt.byHand then
+  if attempt and attempt.itemID == line.itemID and attempt.stage == "quoted" then
     return { qty = attempt.qty or 0, total = attempt.total, capped = attempt.capped, at = attempt.quotedAt,
              ladder = quotes[line.itemID] and quotes[line.itemID].ladder or nil }
   end
@@ -1963,11 +2166,9 @@ local function lineStatus(line)
   if read and read.ladder ~= nil then
     verdict = (read.qty or 0) > 0 and "fits" or (read.capped and "over" or nil)
   end
-  local attempt = GC.Buy._attempt
-  local byHand = (attempt and attempt.itemID == line.itemID and attempt.byHand)
-    or (not line.vendor and line.kind ~= "craft" and not askableItem(line.itemID))
+  local byHand = not line.vendor and line.kind ~= "craft" and not askableItem(line.itemID)
   return GC.BuyView.Status(line, { skipped = isSkipped(line), stranded = strandedFor(line) ~= nil,
-    byHand = byHand and true or false, quote = verdict })
+    byHand = byHand, quote = verdict })
 end
 
 -- The raise the dock offers this line, in copper, or nil: only while its last read found nothing
@@ -2025,7 +2226,9 @@ local function planBuyClick(line, fromDock)
   end
 
   -- The client is holding a purchase of ours: a second click can only make trouble.
-  if attempt and (attempt.stage == "started" or attempt.stage == "confirming") then return end
+  if attempt and (attempt.stage == "started" or attempt.stage == "confirming" or attempt.stage == "bidding") then
+    return
+  end
   if not buyable(line) then return end
 
   -- Anything but a live quote for THIS line asks the auction house instead of spending: a stale
@@ -2063,6 +2266,24 @@ local function planBuyClick(line, fromDock)
   if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("buy") then
     if GC.Print then GC.Print(GC.L["another purchase is in flight"]) end
     return
+  end
+  -- A gear line: one lot per press, the one the line's own fresh read chose (GC.BuyLots.Next -- at
+  -- or under the cap, at or above the item level, within the wallet; judged again on every repaint,
+  -- rejudgeQuote). PlaceBid has no quote step, so the lot and its price on the button are the whole
+  -- agreement. quoteFresh above holds the read to BD.QUOTE_SECONDS and to the lot's own search
+  -- being the auction house's current one; the claim above keeps it the only purchase in flight.
+  -- Stage first, call second: Core/PurchaseCapture.lua's PlaceBid hook asks
+  -- GC.Buy.OwnsAuctionPurchase inside the call.
+  if attempt.lots then
+    local lot = attempt.lot
+    attempt.auctionID, attempt.total = lot.auctionID, lot.buyout
+    attempt.itemKey = { itemID = line.itemID, itemLevel = lot.itemLevel or 0,
+      itemSuffix = lot.itemSuffix or 0, battlePetSpeciesID = lot.species or 0 }
+    attempt.stage = "bidding"
+    return "bid", lot.auctionID, lot.buyout, function()
+      armStall(attempt, BD.WATCHDOG_SECONDS)
+      afterClick(line)
+    end
   end
   -- Stage first, call second: Core/PurchaseCapture.lua's StartCommoditiesPurchase hook runs
   -- inside this very call and asks GC.Buy.OwnsCommodityPurchase whether the purchase is ours.
@@ -2216,7 +2437,6 @@ local STATUS_WORD = {
   done = "bought",
   skipped = "skipped for now",
   stranded = "no answer — check your mail",
-  lots = "buy by hand",
   vendor = "at a vendor",
   craft = "craft",
 }
@@ -2263,7 +2483,7 @@ local function paintLine(row, line)
   if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
 
   local status = lineStatus(line)
-  if status == "ready" or status == "unpriced" then
+  if status == "ready" or status == "unpriced" or status == "lots" then
     -- PRICE EACH: the cheapest unit the last read of the book found, else the cheapest seen (NOW),
     -- else the market price -- dimmed, because nobody has looked at the book for it yet.
     local read = readOf(line)
@@ -2274,7 +2494,8 @@ local function paintLine(row, line)
     -- COST: the quote on this line (what the next press spends, or at CONFIRM the server's own
     -- figure) or an estimate, marked as one.
     local attempt = GC.Buy._attempt
-    local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
+    -- A gear line's attempt is one lot; what the rest of it costs is its read's (noteLots).
+    local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.lots
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     local cost, estimated = GC.BuyView.CostOf(line,
       (quotedTotal and quotedTotal > 0) and { qty = line.buy, total = quotedTotal } or recentQuote(line))
@@ -3306,7 +3527,7 @@ local function dockSubText(sub)
   for i, value in ipairs(sub.args or {}) do
     args[i] = money[i] and formatAmount(value) or value
   end
-  if sub.key == "total" then return args[1] end
+  if sub.key == "total" or sub.key == "error" then return args[1] end
   if sub.key == "estimate" then return "~" .. args[1] end
   return (GC.L[DOCK_SUB[sub.key]]):format(unpack(args))
 end
@@ -3330,7 +3551,8 @@ local function paintDock()
     local read = readOf(line)
     d = { line = line, status = status,
       attempt = mine and { stage = mine.stage, qty = mine.qty, total = mine.total,
-        serverTotal = mine.serverTotal, capped = mine.capped, secondsLeft = quoteSecondsLeft(mine) } or nil,
+        serverTotal = mine.serverTotal, capped = mine.capped, secondsLeft = quoteSecondsLeft(mine),
+        errorText = mine.errorText } or nil,
       quote = recentQuote(line), raiseTo = status == "over" and raiseOffered(line) or nil,
       cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor,
       craft = GC.BuyRun.CraftText(line) }
@@ -3505,6 +3727,8 @@ function GC.Buy.Attach(f, geo)
     if GC.BuyCapEditor and GC.BuyCapEditor.Close then GC.BuyCapEditor.Close() end
   end)
 
+  GC.Buy._WatchSearches()
+
   -- The one seam specs use instead of debug.getupvalue.
   GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock, lists = band.lists }
 end
@@ -3608,6 +3832,94 @@ function GC.Buy.QuotePending()
   return quotePending(GC.Buy._attempt) or lookPending()
 end
 
+-- BUY 2.0 week 2: whether a gear line's read holds the auction house's search, from the moment its
+-- first search goes until the lot is bought, given up or stale. PlaceBid buys only while the lot's
+-- own buy search is the current one, so nothing of ours searches meanwhile: GC.Sniper's quiet zone
+-- (IsPurchaseQuiet) asks this, and with it the drills, the verify walk, the watch loop, the keys
+-- batches, the book pass and the Sell tab's walk all wait. Bounded by BD.QUOTE_SECONDS, and a bid
+-- by its watchdog.
+function GC.Buy.HoldsSearch()
+  local attempt = GC.Buy._attempt
+  if not (attempt and attempt.lots) then return false end
+  if attempt.stage == "bidding" then return true end
+  if attempt.stage == "quoting" then return quotePending(attempt) end
+  return attempt.lot ~= nil and quoteFresh(attempt)
+end
+
+-- Every search anybody sends -- ours, Blizzard's own pane, another addon -- counted by post-hooks,
+-- which observe a call and cannot change it. A gear line's armed read remembers the count its own
+-- search left (sendArm), and a press bids only while nothing has searched since (quoteFresh).
+function GC.Buy._WatchSearches()
+  if GC.Buy._watching or not (hooksecurefunc and C_AuctionHouse) then return end
+  GC.Buy._watching = true
+  local function note() GC.Buy._searchSeq = (GC.Buy._searchSeq or 0) + 1 end
+  for _, name in ipairs({ "SendSearchQuery", "SendSellSearchQuery", "SendBrowseQuery",
+      "SearchForItemKeys", "SearchForFavorites" }) do
+    if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, note) end
+  end
+end
+
+-- AUCTION_HOUSE_PURCHASE_COMPLETED(auctionID): the one purchase event that names what it answers.
+-- The client then refreshes the armed key's lots by itself, one fewer, with no new query; the line
+-- is read again from that refresh (OnItemResults) while the dock stays on it, and nothing is sent.
+function GC.Buy.OnPurchaseCompleted(auctionID)
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.stage == "bidding" and attempt.auctionID == auctionID then
+    GC.Buy._attempt = nil
+    settlePurchase(attempt.itemID, 1, attempt.total, attempt.runCode, attempt.itemKey)
+    local line = lineFor(attempt.itemID)
+    -- One lot per press: the dock stays on a gear line until the line is bought.
+    if line and buyable(line) then
+      GC.Buy._focus = line.itemID
+      attemptSeq = attemptSeq + 1
+      GC.Buy._attempt = { itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
+        runCode = attempt.runCode, lots = true, phase = "arm", key = attempt.key, armSeq = attempt.armSeq,
+        lotList = attempt.lotList, afterBuy = true }
+      GC.Buy._quotedFocus = line.itemID
+      if attempt.refreshed then GC.Buy.OnItemResults(attempt.key) end
+    end
+    return true
+  end
+  local record = GC.Buy._bidStranded[auctionID]
+  if record and record.session == sessionToken then
+    GC.Buy._bidStranded[auctionID] = nil
+    if attempt and attempt.stage == "unknown" and attempt.auctionID == auctionID then GC.Buy._attempt = nil end
+    settlePurchase(record.itemID, 1, record.total, record.runCode, record.itemKey)
+    return true
+  end
+  return false
+end
+
+-- AUCTION_HOUSE_SHOW_ERROR while a bid of this tab is out: the bid's answer (the lot was sold, the
+-- price moved, the wallet was short). An error only a post can raise is the Sell tab's. The dock
+-- says it in the client's own words, and the next press reads the lots again.
+function GC.Buy.OnAuctionHouseError(code)
+  local attempt = GC.Buy._attempt
+  if not (attempt and attempt.stage == "bidding") then return false end
+  if GC.Sell and GC.Sell._ErrorKind and GC.Sell._ErrorKind(code) == "post" then return false end
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  attempt.stage = "failed"
+  attempt.errorText = GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(code) or nil
+  logAttempt(lineFor(attempt.itemID), attempt.errorText or GC.L["purchase failed — try again"])
+  GC.Buy.RefreshIfShown()
+  return true
+end
+
+-- Read-only, for Core/PurchaseCapture.lua's PlaceBid hook: this tab's own bid, or one it gave up on
+-- that may still answer, is filed here once (settlePurchase), never a second time by the capture.
+function GC.Buy.OwnsAuctionPurchase(auctionID)
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.stage == "bidding" and attempt.auctionID == auctionID then return true end
+  local record = GC.Buy._bidStranded[auctionID]
+  return (record ~= nil and record.session == sessionToken) or false
+end
+
+-- Whether a bid of this tab is waiting for its answer: the Deals window does not bid over it.
+function GC.Buy.BidOut()
+  local attempt = GC.Buy._attempt
+  return (attempt ~= nil and attempt.stage == "bidding") or false
+end
+
 -- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
 -- this tab's behalf. Every addon-wide rule (no second batch, not across a book pass's browse
 -- buffer, not while the player is on Blizzard's own panes, and the throttle claim) lives
@@ -3642,6 +3954,10 @@ end
 -- enough on its own: Auto is paused for as long as this tab is up, so on a quiet client
 -- nothing else sends anything and no readiness event ever fires.
 function GC.Buy.Tick()
+  -- A gear line's armed search the throttle held back (sendArm): first, ahead of anything that
+  -- would search over it.
+  local arming = GC.Buy._attempt
+  if arming and arming.armDue then sendArm(arming) end
   -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
   -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
   -- of the refresh, which would otherwise take the moment with a batch of its own.

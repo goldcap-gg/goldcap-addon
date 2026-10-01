@@ -310,7 +310,7 @@ describe("locale layer", function()
       "already in your bags and bank", "the cheapest is %s, your cap is %s",
       "nothing at or under your cap of %s", "RAISE CAP TO %s", "Skip",
       "PRICE EACH", "over your cap · %s", "at a vendor · %s each", "at a vendor", "craft it · %s each",
-      "bought", "skipped for now", "buy by hand",
+      "bought", "skipped for now",
       "TO BUY HERE", "%d of %d done",
       "buy %d of %d", "buy %d of %d, have %d in bags and bank", "%d at %s", "you take %d",
       "over your cap", "seen %s ago", "cheapest seen %s", "Market", "%s each", "Your cap",

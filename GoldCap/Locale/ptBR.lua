@@ -663,7 +663,6 @@ GC.Locales.ptBR = {
   ["bought %d for %s"] = "%d comprados por %s",
   ["buy %d of %d"] = "comprar %d de %d",
   ["buy %d of %d, have %d in bags and bank"] = "comprar %d de %d, você tem %d nas bolsas e no banco",
-  ["buy by hand"] = "compre à mão",
   ["buying..."] = "comprando...",
   ["cap: alert target"] = "teto: alvo do alerta",
   ["cheapest seen %s"] = "mais barato visto: %s",
@@ -679,7 +678,6 @@ GC.Locales.ptBR = {
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
   ["includes %d for crafting %s"] = "inclui %d para fabricar %s",
   ["no answer — check your mail"] = "sem resposta — confira o correio",
-  ["not a commodity — buy by hand"] = "não é mercadoria — compre à mão",
   ["nothing at or under your cap of %s"] = "nada no seu teto de %s ou abaixo",
   ["nothing on offer"] = "nada à venda",
   ["on %s"] = "em %s",
@@ -730,7 +728,6 @@ GC.Locales.ptBR = {
     "comprados %d x item %d depois que a casa de leilões fechou",
   ["buying commodity..."] = "comprando mercadoria...",
   ["cheapest not yours %s"] = "o mais barato que não é seu %s",
-  ["check the item level — buy by hand"] = "confira o nível do item — compre manualmente",
   ["checking live price..."] = "verificando o preço ao vivo...",
   ["checking live safety..."] = "verificando a segurança ao vivo...",
   ["clears in ~%dd"] = "esgota em ~%d d",
@@ -1092,4 +1089,8 @@ GC.Locales.ptBR = {
   ["▲%d%% over the alert target"] = "▲%d%% acima do alvo do alerta",
   ["▲%d%% over usual"] = "▲%d%% acima do normal",
   ["▲%d%% over your cap"] = "▲%d%% acima do seu teto",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "COMPRAR UM · %s",
+  ["not enough gold"] = "ouro insuficiente",
+  ["set a cap first"] = "defina um teto primeiro",
 }

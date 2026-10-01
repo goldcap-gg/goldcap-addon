@@ -752,6 +752,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- from that key (GC.Sell._QuoteItemKey).
       GC.Sell.OnItemSearchResults(itemKey.itemID, itemKey)
     end
+    -- BUY 2.0 week 2: a gear line's read, matched by the tab against the key it sent.
+    if GC.Buy and GC.Buy.OnItemResults then GC.Buy.OnItemResults(itemKey) end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     local itemID = ...
@@ -768,8 +770,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Buy.OnCommodityResults(itemID)
     end
   elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
+    local auctionID = ...
+    -- The BUY tab's own bid (a gear line) or the Deals window's: each answers only its own auctionID.
+    if GC.Buy and GC.Buy.OnPurchaseCompleted then GC.Buy.OnPurchaseCompleted(auctionID) end
     if GC.Sniper.OnPurchaseCompleted then
-      local auctionID = ...
       GC.Sniper.OnPurchaseCompleted(auctionID)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
@@ -821,8 +825,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnAuctionHouseError then
       GC.Sell.OnAuctionHouseError(errorCode)
     end
-    if GC.Sniper.OnAuctionHouseError then
-      GC.Sniper.OnAuctionHouseError(errorCode)
+    -- A BUY bid out (a gear line) takes the error as its answer; the two windows never have a bid
+    -- out at once (GC.Buy.BidOut, GC.Sniper.BidOut), so the Deals window's waits are not its.
+    if not (GC.Buy and GC.Buy.OnAuctionHouseError and GC.Buy.OnAuctionHouseError(errorCode)) then
+      if GC.Sniper.OnAuctionHouseError then
+        GC.Sniper.OnAuctionHouseError(errorCode)
+      end
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
     if GC.Sniper.OnAuctionHouseClosed then

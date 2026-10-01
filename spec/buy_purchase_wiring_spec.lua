@@ -134,6 +134,16 @@ describe("BUY purchase wiring", function()
     assert.is_nil(branch:find("return \"", 1, true))
   end)
 
+  -- BUY 2.0 week 2: a gear line's one lot per press is PlaceBid, answered from inside the same click
+  -- plan as the commodity calls, after the shared slot's claim; this file never names the call.
+  it("answers a gear line's bid only from inside the click, after the slot claim", function()
+    local click = clickHandler(code(source()))
+    local bid = assert(click:find('return "bid", lot.auctionID, lot.buyout, function()', 1, true))
+    local claim = assert(click:find('GC.PurchaseSlot.Claim("buy"', 1, true))
+    assert.is_true(claim < bid)
+    assert.is_nil(code(source()):find("PlaceBid", 1, true))
+  end)
+
   it("claims the shared purchase slot before it starts anything", function()
     local click = clickHandler(source())
     local claim = assert(click:find('GC.PurchaseSlot.Claim("buy"', 1, true))
@@ -152,7 +162,8 @@ describe("BUY purchase wiring", function()
     for _, method in ipairs({ "OnCommodityResults", "OnCommodityPriceUpdated",
                               "OnCommodityPriceUnavailable", "OnCommodityPurchaseSucceeded",
                               "OnCommodityPurchaseFailed", "OnAuctionHouseClosed",
-                              "OnAuctionHouseShow", "OnBagsChanged" }) do
+                              "OnAuctionHouseShow", "OnBagsChanged", "OnItemResults",
+                              "OnPurchaseCompleted", "OnAuctionHouseError" }) do
       assert.is_truthy(init:find("GC.Buy." .. method, 1, true), method)
     end
 

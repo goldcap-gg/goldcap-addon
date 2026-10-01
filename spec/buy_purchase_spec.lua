@@ -282,6 +282,7 @@ describe("BUY purchase", function()
     helper.loadModule("Core/BuyRun.lua", GC)
     helper.loadModule("Core/BuyView.lua", GC)
     helper.loadModule("Core/BuyDock.lua", GC)
+    helper.loadModule("Core/BuyLots.lua", GC)
     helper.loadModule("Core/PurchaseSlot.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
     helper.loadModule("Core/PurchaseCapture.lua", GC)
@@ -1768,33 +1769,360 @@ describe("BUY purchase", function()
     assert.is_true(#GC.Buy._log > 0)
   end)
 
-  -- Review item 3: a gear, pet or recipe line answers the ITEM buffer, not the commodity one, so
-  -- the ladder probe comes back empty and the quote was qty 0 -- which the button reported as
-  -- "nothing on offer" while Blizzard's own pane showed a full list of lots. Never bought
-  -- anything, but said something false about the market.
-  it("says a line the client will not sell as a commodity has to be bought by hand", function()
-    _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 103 } end
-    setBook(103, {})
-    local before = #searches
-    hover(rowWithText("Charlie Dust"))
-    -- Settled at the ask: the client answers a gear key with ITEM_SEARCH_RESULTS_UPDATED, which
-    -- never reaches this tab, so no commodity event is needed (or waited for) to say so. The
-    -- search itself still goes, because it is what opens Blizzard's own page for the player.
-    local row = rowWithText("Charlie Dust")
-    assert.equal(before + 1, #searches)
-    assert.equal("quoted", GC.Buy._attempt.stage)
-    assert.equal("not a commodity — buy by hand", buttonFor(row).label)
-    assert.is_false(buttonFor(row):IsEnabled())
-    GC.Buy.OnCommodityResults(103)
-    row = rowWithText("Charlie Dust")
-    assert.equal("not a commodity — buy by hand", buttonFor(row).label)
-    assert.is_false(buttonFor(row):IsEnabled())
-
-    -- ...and a commodity line with an empty book still says the honest thing about the book.
+  -- A commodity line with an empty book says the honest thing about the book.
+  it("says nothing is on offer for a commodity whose book came back empty", function()
     setBook(105, {})
     hover(rowWithText("Echo Salt"))
     GC.Buy.OnCommodityResults(105)
     assert.equal("nothing on offer", buttonFor(rowWithText("Echo Salt")).label)
+  end)
+
+  -- BUY 2.0 week 2: a gear line (anything the client will not sell as a commodity) is bought here,
+  -- one lot per press, the cheapest at or under the line's cap, never over it.
+  --
+  -- How the lots are found (the BUY 2.0 probe, 2026-10-01, docs/addon/AGENTS.md "Auction house"):
+  -- a BUY search on the bare key finds no lots for gear that has item-level or suffix variants,
+  -- and PlaceBid buys only while the auction house's current search is a buy search for the lot's
+  -- exact key. So the read is two searches: a SELL search on the bare key, which Blizzard's own
+  -- sell frame sends for equipment so that every variant's lots come back, each row with its own
+  -- item key (Blizzard_AuctionHouseUtil.lua's ConvertItemSellItemKey, the same in both games);
+  -- then a buy search on the chosen lot's own key, whose answer is what a press bids on. Nothing
+  -- may search in between: GC.Buy.HoldsSearch holds the addon's other senders, and a search
+  -- anybody sends (seen by a post-hook) voids the armed lot.
+  describe("a gear line", function()
+    local placed, sent, sellSent, rowsFor, money, hooks, LOTS
+
+    local function keyOf(k)
+      return ("%d:%d:%d"):format(k.itemID, k.itemLevel or 0, k.itemSuffix or 0)
+    end
+    local function lot(id, buyout, qty, level)
+      return { auctionID = id, buyoutAmount = buyout, quantity = qty, containsOwnerItem = false,
+               itemKey = { itemID = 201, itemLevel = level or 20, itemSuffix = 0, battlePetSpeciesID = 0 } }
+    end
+    local BARE = { itemID = 201, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+    local AT20 = { itemID = 201, itemLevel = 20, itemSuffix = 0, battlePetSpeciesID = 0 }
+
+    local function gearRun(line)
+      GC.AppRuns._set({ { code = "run-g", name = "Gear run", updatedAt = 100, origin = "app",
+        lines = { line or { i = 201, q = 1, cc = 1170 }, { i = 101, q = 10 } } } })
+      GC.Buy.SelectRun("run-g")
+      GC.Buy.RefreshIfShown()
+    end
+
+    -- Picked, the sell search answered, the lot's own key searched and answered: a lot in hand.
+    local function readBoots()
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      GC.Buy.OnItemResults(AT20)
+    end
+
+    before_each(function()
+      placed, sent, sellSent, rowsFor, money, hooks = {}, {}, {}, {}, 1000000, {}
+      LOTS = { lot(11, 900, 4), lot(12, 1000, 2), lot(13, 1900, 1, 25) }
+      NAMES[201] = "Dark Leather Boots"
+      local ah = _G.C_AuctionHouse
+      ah.MakeItemKey = function(itemID, itemLevel, itemSuffix, species)
+        return { itemID = itemID, itemLevel = itemLevel or 0, itemSuffix = itemSuffix or 0,
+                 battlePetSpeciesID = species or 0 }
+      end
+      ah.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 201 } end
+      -- The client as the probe found it: a sell search on the bare key answers with every
+      -- variant's lots; a buy search answers with the lots of exactly the key it was sent with.
+      ah.SendSellSearchQuery = function(key, sorts, separate)
+        sellSent[#sellSent + 1] = { key = key, sorts = sorts, separate = separate }
+        local all = {}
+        for _, r in ipairs(LOTS) do if r.itemKey.itemID == key.itemID then all[#all + 1] = r end end
+        rowsFor[keyOf(key)] = all
+        if hooks.SendSellSearchQuery then hooks.SendSellSearchQuery(key, sorts, separate) end
+      end
+      ah.SendSearchQuery = function(key, sorts, separate)
+        searches[#searches + 1] = key.itemID
+        sent[#sent + 1] = { key = key, sorts = sorts, separate = separate }
+        local exact = {}
+        for _, r in ipairs(LOTS) do
+          if keyOf(r.itemKey) == keyOf(key) then exact[#exact + 1] = r end
+        end
+        rowsFor[keyOf(key)] = exact
+        if hooks.SendSearchQuery then hooks.SendSearchQuery(key, sorts, separate) end
+      end
+      ah.GetNumItemSearchResults = function(key) return #(rowsFor[keyOf(key)] or {}) end
+      ah.GetItemSearchResultInfo = function(key, i) return (rowsFor[keyOf(key)] or {})[i] end
+      ah.HasFullItemSearchResults = function(key) return rowsFor[keyOf(key)] ~= nil end
+      ah.PlaceBid = function(auctionID, amount) placed[#placed + 1] = { auctionID = auctionID, amount = amount } end
+      ah.SendBrowseQuery = function() end
+      _G.GetMoney = function() return money end
+      _G.Enum = { AuctionHouseSortOrder = { Buyout = 4 } }
+      -- The post-hooks the tab watches every search with, captured so a test can be "somebody else".
+      _G.hooksecurefunc = function(target, name, fn)
+        if target == _G.C_AuctionHouse then hooks[name] = fn end
+      end
+      GC.Buy._WatchSearches()
+      GC.Util.AuctionHouseErrorText = function() return "That auction is gone." end
+      gearRun()
+    end)
+
+    after_each(function() _G.GetMoney = nil end)
+
+    it("reads every variant's lots with one sell search on the bare key, the player's own apart", function()
+      pick(rowWithText("Dark Leather Boots"))
+      assert.equal(1, #sellSent)
+      assert.same(BARE, sellSent[1].key)
+      assert.same({ { sortOrder = 4, reverseSort = false } }, sellSent[1].sorts)
+      assert.is_true(sellSent[1].separate)
+      assert.equal(0, #sent)
+      assert.equal("quoting", GC.Buy._attempt.stage)
+    end)
+
+    it("then searches the cheapest lot's own key, and offers that lot", function()
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      assert.same(AT20, sent[#sent].key)
+      assert.same({ { sortOrder = 4, reverseSort = false } }, sent[#sent].sorts)
+      assert.is_true(sent[#sent].separate)
+      assert.equal("quoting", GC.Buy._attempt.stage)
+      GC.Buy.OnItemResults(AT20)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+      assert.equal(11, GC.Buy._attempt.lot.auctionID)
+    end)
+
+    it("ignores an answer about another item, and one that has not landed yet", function()
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults({ itemID = 999 })
+      assert.equal(0, #sent)
+      rowsFor = {} -- the client holds nothing for the bare key yet
+      GC.Buy.OnItemResults(BARE)
+      assert.equal(0, #sent)
+      assert.equal("quoting", GC.Buy._attempt.stage)
+    end)
+
+    it("reads nothing under the cap as over the cap, and searches no variant", function()
+      LOTS = { lot(13, 1900, 1, 25) }
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      assert.equal(0, #sent)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+      assert.equal("over", GC.Buy._attempt.lotWhy)
+      local row = rowWithText("Dark Leather Boots")
+      assert.equal("over your cap · 1900c", row.status:GetText())
+      assert.equal("RAISE CAP TO 1900c", dock().buy.label)
+    end)
+
+    it("arms the lot once the cap is raised to it", function()
+      LOTS = { lot(13, 1900, 1, 25) }
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      press() -- RAISE CAP TO 1900c
+      assert.same({ itemID = 201, itemLevel = 25, itemSuffix = 0, battlePetSpeciesID = 0 }, sent[#sent].key)
+      assert.equal(0, #placed)
+    end)
+
+    it("takes no lot below the line's item level", function()
+      gearRun({ i = 201, q = 1, cc = 2000, minIlvl = 25 })
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      assert.same({ itemID = 201, itemLevel = 25, itemSuffix = 0, battlePetSpeciesID = 0 }, sent[#sent].key)
+    end)
+
+    it("holds the addon's other searches from the ask until the lot is bought or goes stale", function()
+      assert.is_false(GC.Buy.HoldsSearch())
+      pick(rowWithText("Dark Leather Boots"))
+      assert.is_true(GC.Buy.HoldsSearch())
+      GC.Buy.OnItemResults(BARE)
+      GC.Buy.OnItemResults(AT20)
+      assert.is_true(GC.Buy.HoldsSearch())
+      now = now + 11
+      assert.is_false(GC.Buy.HoldsSearch())
+    end)
+
+    it("reads again instead of bidding once anybody else has searched", function()
+      readBoots()
+      hooks.SendBrowseQuery({ searchString = "boots" }) -- the player's own search on Blizzard's pane
+      local asked = #sellSent
+      press()
+      assert.equal(0, #placed)
+      assert.equal(asked + 1, #sellSent)
+    end)
+
+    -- Task 4: one lot per press.
+    it("buys one lot per press: the cheapest under the cap, at its buyout", function()
+      readBoots()
+      assert.equal("BUY ONE · 900c", dock().buy.label)
+      press()
+      assert.same({ { auctionID = 11, amount = 900 } }, placed)
+      assert.equal("bidding", GC.Buy._attempt.stage)
+      assert.equal("buy", GC.PurchaseSlot.Owner())
+      assert.equal("buying...", dock().buy.label)
+    end)
+
+    it("keeps its button enabled until PlaceBid has been called", function()
+      readBoots()
+      local b = dock().buy
+      local enabledAtCall
+      _G.C_AuctionHouse.PlaceBid = function() enabledAtCall = b.enabled end
+      press()
+      assert.is_true(enabledAtCall)
+      assert.is_false(b.enabled)
+    end)
+
+    it("books the lot on its own completion event and frees the slot", function()
+      readBoots()
+      press()
+      assert.is_true(GC.Buy.OnPurchaseCompleted(11))
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      local line = runLine(201)
+      assert.equal(1, line.bought)
+      assert.equal(900, line.spent)
+      local rows = GC.Ledger.GetEntries()
+      assert.equal(1, #rows)
+      assert.same({ 201, 1, 900, "goldcap_buy" }, { rows[1].itemID, rows[1].qty, rows[1].total, rows[1].source })
+    end)
+
+    it("files the lot under its own item key", function()
+      readBoots()
+      press()
+      GC.Buy.OnPurchaseCompleted(11)
+      local batches = GC.Acquisitions.GetAll()
+      assert.equal(1, #batches)
+      assert.equal("item:201:20:0:0", batches[1].positionKey)
+      assert.equal(900, batches[1].originalTotal)
+    end)
+
+    it("re-reads the lots from the client's own refresh after a purchase, sending nothing", function()
+      gearRun({ i = 201, q = 2, cc = 1170 })
+      readBoots()
+      GC.Buy._focus = 201
+      press()
+      local searchesBefore, sellsBefore = #sent, #sellSent
+      LOTS = { lot(11, 900, 3), lot(12, 1000, 2), lot(13, 1900, 1, 25) }
+      rowsFor[keyOf(AT20)] = { LOTS[1], LOTS[2] }
+      GC.Buy.OnPurchaseCompleted(11)
+      GC.Buy._focus = 201
+      GC.Buy.OnItemResults(AT20)
+      assert.equal(searchesBefore, #sent)
+      assert.equal(sellsBefore, #sellSent)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+      assert.equal(11, GC.Buy._attempt.lot.auctionID)
+    end)
+
+    it("ignores the completion of an auction it did not bid on", function()
+      readBoots()
+      press()
+      assert.is_false(GC.Buy.OnPurchaseCompleted(99))
+      assert.equal("bidding", GC.Buy._attempt.stage)
+    end)
+
+    -- Review Focus 1.
+    it("says the auction house's error, frees the slot, and reads the lots again on the next press", function()
+      readBoots()
+      press()
+      assert.is_true(GC.Buy.OnAuctionHouseError(7))
+      assert.equal("failed", GC.Buy._attempt.stage)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.equal("That auction is gone.", dock().sub:GetText())
+      local bids, sells = #placed, #sellSent
+      press()
+      assert.equal(bids, #placed)
+      assert.equal(sells + 1, #sellSent)
+    end)
+
+    it("leaves an error only a post can raise to the Sell tab", function()
+      GC.Sell = { _ErrorKind = function() return "post" end }
+      readBoots()
+      press()
+      assert.is_false(GC.Buy.OnAuctionHouseError(3))
+      assert.equal("bidding", GC.Buy._attempt.stage)
+    end)
+
+    -- Review Focus 2.
+    it("warns instead of re-offering when a bid gets no answer, and books a late one once", function()
+      readBoots()
+      press()
+      timers[#timers].fn() -- the watchdog
+      assert.equal("unknown", GC.Buy._attempt.stage)
+      assert.equal("no answer — check your mail", dock().buy.label)
+      assert.is_false(dock().buy.enabled)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.is_true(GC.Buy.OnPurchaseCompleted(11))
+      assert.is_false(GC.Buy.OnPurchaseCompleted(11))
+      assert.equal(1, runLine(201).bought)
+    end)
+
+    it("never bids without a cap", function()
+      gearRun({ i = 201, q = 1 })
+      readBoots()
+      assert.equal("set a cap first", dock().buy.label)
+      assert.is_false(dock().buy.enabled)
+      press()
+      assert.equal(0, #placed)
+    end)
+
+    it("never bids what the wallet cannot pay", function()
+      money = 850
+      readBoots()
+      assert.equal("not enough gold", dock().buy.label)
+      assert.is_false(dock().buy.enabled)
+    end)
+
+    it("never bids on a stale read", function()
+      readBoots()
+      now = now + 11
+      press()
+      assert.equal(0, #placed)
+    end)
+
+    it("never bids over a cap that moved down after the read", function()
+      readBoots()
+      GC.Buy._SetLineCap("run-g", 201, 800)
+      GC.Buy.RefreshIfShown()
+      press()
+      assert.equal(0, #placed)
+    end)
+
+    it("hands commodity events on while a bid is out", function()
+      readBoots()
+      press()
+      assert.is_false(GC.Buy.OnCommodityPurchaseSucceeded())
+      assert.is_false(GC.Buy.OnCommodityPriceUpdated(1, 1))
+      assert.is_false(GC.Buy.OnCommodityPurchaseFailed())
+      assert.is_false(GC.Buy.OnCommodityPriceUnavailable())
+      assert.equal("bidding", GC.Buy._attempt.stage)
+    end)
+
+    it("waits while the Deals window has a bid out", function()
+      GC.Sniper.BidOut = function() return true end
+      readBoots()
+      assert.equal("waiting...", dock().buy.label)
+      press()
+      assert.equal(0, #placed)
+    end)
+
+    it("says it has a bid out, for the Deals window to wait on", function()
+      readBoots()
+      assert.is_false(GC.Buy.BidOut())
+      press()
+      assert.is_true(GC.Buy.BidOut())
+    end)
+
+    it("owns its own bid for the passive capture, so it is not filed twice", function()
+      readBoots()
+      press()
+      assert.is_true(GC.Buy.OwnsAuctionPurchase(11))
+      assert.is_false(GC.Buy.OwnsAuctionPurchase(12))
+    end)
+
+    it("gives the slot back and keeps the warning when the auction house closes on a bid", function()
+      readBoots()
+      press()
+      GC.Buy.OnAuctionHouseClosed()
+      assert.equal("unknown", GC.Buy._attempt.stage)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.equal(0, cancels)
+    end)
+
+    it("says the floor on a gear line that has one", function()
+      gearRun({ i = 201, q = 1, cc = 2000, minIlvl = 25 })
+      assert.is_truthy(rowWithText("Dark Leather Boots").reagent:GetText():find("item level 25+", 1, true))
+    end)
   end)
 
   -- Review round 1: a line whose quote is still fresh keeps its clickable "BUY n" while a batch is
@@ -1857,88 +2185,6 @@ describe("BUY purchase", function()
     assert.is_nil(GC.Buy._quoteOwed)
     GC.Buy.RefreshIfShown()
     assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
-  end)
-
-  -- Caps fixes 5h (Task 10): an alert group's gear member reaches BUY with the item-level floor
-  -- the player set on it -- the companion writes it as `minIlvl` on the run line. The line never
-  -- said it, so a player buying by hand could take a cheaper copy below the level the price was
-  -- set for. The line says the floor, and the search it opens on Blizzard's own page is as narrow
-  -- as the client allows: an item key names one item-level variant, so the cheapest variant at or
-  -- above the floor a poll has seen; with none known, the bare key -- and the hint says so.
-  describe("a gear line with an item-level floor", function()
-    local keys
-
-    local function adoptGearRun(line)
-      local real = helper.loadModule("Core/Util.lua")
-      helper.loadModule("Core/AppRuns.lua", real)
-      real.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
-                  runsMeta = { generatedAt = 0 } }
-      _G.GoldCap_AppRuns = { v = 3, generatedAt = 5, groups = {}, caps = {},
-        runs = { { code = "alert-1", name = "Gear hits", updatedAt = 100, k = "alert",
-                   lines = { line } } } }
-      assert.is_true(real.AppRuns.Adopt())
-      _G.GoldCap_AppRuns = nil
-      GC.AppRuns._set({ real.AppRuns.Get("alert-1") })
-      GC.Buy.SelectRun("alert-1")
-      GC.Buy.RefreshIfShown()
-    end
-
-    before_each(function()
-      keys = {}
-      _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 106 } end
-      _G.C_AuctionHouse.MakeItemKey = function(itemID, itemLevel, itemSuffix, species)
-        return { itemID = itemID, itemLevel = itemLevel or 0, itemSuffix = itemSuffix or 0,
-                 battlePetSpeciesID = species or 0 }
-      end
-      _G.C_AuctionHouse.SendSearchQuery = function(key)
-        searches[#searches + 1] = key.itemID
-        keys[#keys + 1] = key
-      end
-    end)
-
-    it("says the floor on the line, read from the companion's run line", function()
-      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
-      assert.equal(625, runLine(106).minIlvl)
-      local row = rowWithText("Foxtrot Blade")
-      assert.is_truthy(row.reagent:GetText():find("item level 625+", 1, true))
-    end)
-
-    it("opens the variant at the floor when a poll has seen one", function()
-      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
-      GC.Sniper.VariantKeyAtLeast = function(itemID, minIlvl)
-        assert.equal(625, minIlvl)
-        return _G.C_AuctionHouse.MakeItemKey(itemID, 626)
-      end
-
-      hover(rowWithText("Foxtrot Blade"))
-
-      assert.same({ itemID = 106, itemLevel = 626, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
-      assert.equal("not a commodity — buy by hand", buttonFor(rowWithText("Foxtrot Blade")).label)
-    end)
-
-    it("says to check the level when the search cannot be narrowed to it", function()
-      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
-      GC.Sniper.VariantKeyAtLeast = function() return nil end
-
-      hover(rowWithText("Foxtrot Blade"))
-
-      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
-      local row = rowWithText("Foxtrot Blade")
-      assert.equal("check the item level — buy by hand", buttonFor(row).label)
-      assert.is_false(buttonFor(row):IsEnabled())
-    end)
-
-    it("leaves a gear line with no floor as it was", function()
-      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000 })
-      GC.Sniper.VariantKeyAtLeast = function() error("no floor, nothing to narrow") end
-
-      hover(rowWithText("Foxtrot Blade"))
-
-      local row = rowWithText("Foxtrot Blade")
-      assert.is_nil(row.reagent:GetText():find("item level", 1, true))
-      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
-      assert.equal("not a commodity — buy by hand", buttonFor(row).label)
-    end)
   end)
 
   -- Review item 5: the cap stopping the ladder PART-WAY was silent -- a plain "BUY 6 · ..." and

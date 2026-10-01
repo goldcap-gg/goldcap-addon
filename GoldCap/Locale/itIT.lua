@@ -662,7 +662,6 @@ GC.Locales.itIT = {
   ["bought %d for %s"] = "%d comprati per %s",
   ["buy %d of %d"] = "compra %d di %d",
   ["buy %d of %d, have %d in bags and bank"] = "compra %d di %d, ne hai %d nelle borse e in banca",
-  ["buy by hand"] = "compralo a mano",
   ["buying..."] = "acquisto...",
   ["cap: alert target"] = "tetto: obiettivo dell'avviso",
   ["cheapest seen %s"] = "il più economico visto: %s",
@@ -678,7 +677,6 @@ GC.Locales.itIT = {
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
   ["includes %d for crafting %s"] = "di cui %d per creare %s",
   ["no answer — check your mail"] = "nessuna risposta — controlla la posta",
-  ["not a commodity — buy by hand"] = "non è una merce — compralo a mano",
   ["nothing at or under your cap of %s"] = "niente al tuo tetto di %s o meno",
   ["nothing on offer"] = "niente in vendita",
   ["on %s"] = "su %s",
@@ -729,7 +727,6 @@ GC.Locales.itIT = {
     "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
   ["cheapest not yours %s"] = "il più basso che non è tuo %s",
-  ["check the item level — buy by hand"] = "controlla il livello oggetto — compra a mano",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
   ["checking live safety..."] = "controllo della sicurezza dal vivo...",
   ["clears in ~%dd"] = "esaurito in ~%d g",
@@ -1094,4 +1091,8 @@ GC.Locales.itIT = {
   ["▲%d%% over the alert target"] = "▲%d%% sopra l'obiettivo dell'avviso",
   ["▲%d%% over usual"] = "▲%d%% sopra il solito",
   ["▲%d%% over your cap"] = "▲%d%% sopra il tuo tetto",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "COMPRA UNO · %s",
+  ["not enough gold"] = "oro insufficiente",
+  ["set a cap first"] = "prima imposta un tetto",
 }

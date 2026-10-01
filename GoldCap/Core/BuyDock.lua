@@ -13,7 +13,7 @@ local ANSWERED = { started = true, confirming = true, requote = true, expired = 
   failed = true, unknown = true }
 
 -- `d` = { line, status (GC.BuyView.Status), attempt = { stage, qty, total, serverTotal, capped,
--- secondsLeft } (this line's own only), quote = { qty, total } (a recent read), raiseTo, cheapest,
+-- secondsLeft, errorText } (this line's own only), quote = { qty, total } (a recent read), raiseTo, cheapest,
 -- craft = { unit, ahUnit }, vendorLeft, craftLeft, skippedLeft }. With no line: the run's end.
 function GC.BuyDock.View(d)
   d = d or {}
@@ -35,6 +35,10 @@ function GC.BuyDock.View(d)
         or { key = "blizzard", args = { total } } }
   end
   if ANSWERED[stage] then
+    -- A refused bid says why in the auction house's own words (UI/BuyFrame.lua's OnAuctionHouseError).
+    if attempt.errorText then
+      return { mode = "buy", primary = "purchase", sub = { key = "error", args = { attempt.errorText } } }
+    end
     local total = attempt.serverTotal or attempt.total
     return { mode = "buy", primary = "purchase",
       sub = total and total > 0 and { key = "total", args = { total } } or nil }

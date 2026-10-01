@@ -31,8 +31,9 @@ describe("BuyLots", function()
   end)
 
   it("keeps each lot's item level and suffix", function()
-    local lots = L.FromRows({ row(1, 900, 1, { itemKey = { itemID = 7, itemLevel = 25, itemSuffix = 1019 } }) })
-    assert.same({ 25, 1019 }, { lots[1].itemLevel, lots[1].itemSuffix })
+    local lots = L.FromRows({ row(1, 900, 1, { itemKey = { itemID = 7, itemLevel = 25, itemSuffix = 1019,
+      battlePetSpeciesID = 0 } }) })
+    assert.same({ 25, 1019, 0 }, { lots[1].itemLevel, lots[1].itemSuffix, lots[1].species })
   end)
 
   describe("Groups", function()
@@ -82,6 +83,13 @@ describe("BuyLots", function()
       assert.is_nil(lot)
       assert.equal("none", why)
     end)
+  end)
+
+  it("swaps one variant's lots for its fresh read and keeps the others", function()
+    local all = L.FromRows({ row(1, 900, 4), row(2, 1000, 2), row(3, 800, 1, { itemKey = { itemLevel = 25 } }) })
+    local fresh = L.FromRows({ row(2, 1000, 2) })
+    local lots = L.Replace(all, fresh, { itemID = 7, itemLevel = 20, itemSuffix = 0, battlePetSpeciesID = 0 })
+    assert.same({ 3, 2 }, { lots[1].auctionID, lots[2].auctionID })
   end)
 
   it("gives the tooltip and the raise a ladder: one level per lot row", function()
