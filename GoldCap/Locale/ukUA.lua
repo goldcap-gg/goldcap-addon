@@ -1125,6 +1125,8 @@ GC.Locales.ukUA = {
     "Складіть список один раз і купуйте тут за своєю ціною або дешевше.",
   ["Quick list"] = "Швидкий список",
   ["Remove from the list"] = "Прибрати зі списку",
-  ["Shift-click an item, or type its item id."] = "Зробіть Shift+клік по предмету або введіть його ID.",
   ["or plan a whole profession on goldcap.gg"] = "або сплануйте всю професію на goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Зробіть Shift+клік по предмету або введіть його ID; для кількох — x і кількість: 2589 x20.",
 }

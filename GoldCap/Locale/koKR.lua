@@ -1051,6 +1051,8 @@ GC.Locales.koKR = {
   ["Make a list once, buy it here at or under your price."] = "목록을 한 번 만들고, 여기서 내 가격 이하로 구매하세요.",
   ["Quick list"] = "빠른 목록",
   ["Remove from the list"] = "목록에서 제거",
-  ["Shift-click an item, or type its item id."] = "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요.",
   ["or plan a whole profession on goldcap.gg"] = "또는 goldcap.gg에서 전문 기술 전체를 계획하세요",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요. 여러 개는 x와 수량: 2589 x20.",
 }

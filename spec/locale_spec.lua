@@ -304,7 +304,8 @@ describe("locale layer", function()
       "%s · over your cap", "no cap for this item — right-click the line to set one",
       "BUY · %s", "BUY %d · %s",
       "Make a list once, buy it here at or under your price.", "Item to add",
-      "Shift-click an item, or type its item id.", "or plan a whole profession on goldcap.gg",
+      "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
+      "or plan a whole profession on goldcap.gg",
       "Quick list", "Added %d× %s to your quick list.",
       "Could not find that item. Shift-click it, or type its item id.", "Remove from the list",
     }

@@ -1116,7 +1116,8 @@ GC.Locales.esMX = {
     "Haz una lista una vez y compra aquí a tu precio o por debajo.",
   ["Quick list"] = "Lista rápida",
   ["Remove from the list"] = "Quitar de la lista",
-  ["Shift-click an item, or type its item id."] =
-    "Haz Mayús+clic en un objeto o escribe su ID de objeto.",
   ["or plan a whole profession on goldcap.gg"] = "o planea una profesión completa en goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Haz Mayús+clic en un objeto o escribe su ID de objeto; para varios, x y la cantidad: 2589 x20.",
 }

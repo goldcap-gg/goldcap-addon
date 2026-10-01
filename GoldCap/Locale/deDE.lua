@@ -1112,7 +1112,8 @@ GC.Locales.deDE = {
     "Einmal eine Liste anlegen, hier zu deinem Preis oder darunter kaufen.",
   ["Quick list"] = "Schnellliste",
   ["Remove from the list"] = "Von der Liste entfernen",
-  ["Shift-click an item, or type its item id."] =
-    "Gegenstand mit Umschalt+Klick einfügen oder seine Item-ID eingeben.",
   ["or plan a whole profession on goldcap.gg"] = "oder plane einen ganzen Beruf auf goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Gegenstand mit Umschalt+Klick einfügen oder seine Item-ID eingeben, für mehrere mit x und Anzahl: 2589 x20.",
 }

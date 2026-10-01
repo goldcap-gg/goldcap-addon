@@ -1106,6 +1106,8 @@ GC.Locales.ruRU = {
     "Составьте список один раз и покупайте здесь по своей цене или дешевле.",
   ["Quick list"] = "Быстрый список",
   ["Remove from the list"] = "Убрать из списка",
-  ["Shift-click an item, or type its item id."] = "Сделайте Shift+клик по предмету или введите его ID.",
   ["or plan a whole profession on goldcap.gg"] = "или спланируйте всю профессию на goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Сделайте Shift+клик по предмету или введите его ID; для нескольких — x и количество: 2589 x20.",
 }

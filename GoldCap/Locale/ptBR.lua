@@ -1110,6 +1110,8 @@ GC.Locales.ptBR = {
     "Monte uma lista uma vez e compre aqui pelo seu preço ou menos.",
   ["Quick list"] = "Lista rápida",
   ["Remove from the list"] = "Tirar da lista",
-  ["Shift-click an item, or type its item id."] = "Shift+clique em um item ou digite o ID dele.",
   ["or plan a whole profession on goldcap.gg"] = "ou planeje uma profissão inteira no goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Shift+clique em um item ou digite o ID dele; para vários, x e a quantidade: 2589 x20.",
 }

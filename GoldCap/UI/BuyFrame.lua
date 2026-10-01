@@ -3684,8 +3684,9 @@ end
 local function addFromBox(box)
   local add = GC.Buy._view.add
   local parsed = GC.BuyView.ParseAdd(box:GetText() or "")
-  if not parsed then return end
-  local itemID = parsed.itemID
+  if parsed == nil then return end
+  -- false: two bare numbers, which say nothing about which one is the item (GC.BuyView.ParseAdd).
+  local itemID = parsed and parsed.itemID
   if itemID and C_Item and C_Item.GetItemInfoInstant then
     local ok, known = pcall(C_Item.GetItemInfoInstant, itemID)
     if not (ok and known) then itemID = nil end
@@ -3738,7 +3739,7 @@ local function createAdd(parent)
   note:SetWordWrap(true)
   note:SetPoint("TOPLEFT", well, "BOTTOMLEFT", 0, -4)
   note:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-  note:SetText(GC.L["Shift-click an item, or type its item id."])
+  note:SetText(GC.L["Shift-click an item or type its item id, with x and a count for more: 2589 x20."])
   setColor(note, Theme.color.fgDim)
   return { frame = frame, caption = caption, well = well, box = box, note = note, h = 64 }
 end

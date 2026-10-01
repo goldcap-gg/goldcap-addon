@@ -716,7 +716,7 @@ describe("BuyFrame", function()
     local add = GC.Buy._view.add
     assert.is_true(add.frame:IsShown())
     assert.equal("Item to add", add.caption:GetText())
-    assert.equal("Shift-click an item, or type its item id.", add.note:GetText())
+    assert.equal("Shift-click an item or type its item id, with x and a count for more: 2589 x20.", add.note:GetText())
     assert.is_false(bandOf().picker:IsShown())
     assert.equal("", bandOf().done:GetText())
     assert.is_false(bandOf().totalCaption:IsShown())
@@ -727,7 +727,8 @@ describe("BuyFrame", function()
   -- into the focused box delivers the item's link in both games, and the client resolves almost no
   -- typed names (0 of 15 in retail) -- so the box takes a link or an item id.
   describe("the quick list", function()
-    local LINEN = "|cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    -- A link as the client writes it: coloured by quality as |cnIQ<quality>: in both games.
+    local LINEN = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
     local inserted
 
     before_each(function()
@@ -765,9 +766,16 @@ describe("BuyFrame", function()
       assert.equal("", GC.Buy._view.add.box:GetText())
     end)
 
-    it("adds an item by its id", function()
-      enter("2592")
+    it("adds an item by its id, with an x count", function()
+      enter("2592 x3")
       assert.equal(2592, GC.Buy.CurrentRun():Lines()[1].itemID)
+      assert.equal(3, GC.Buy.CurrentRun():Lines()[1].need)
+    end)
+
+    it("refuses two bare numbers instead of guessing which is the item", function()
+      enter("2592 3")
+      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
+      assert.is_nil(GC.db.runs.quick)
     end)
 
     it("says so when it cannot find the item, and makes no list", function()
@@ -792,7 +800,7 @@ describe("BuyFrame", function()
       enter(LINEN)
       assert.equal("Quick list ▼", bandOf().picker.label)
       assert.is_true(GC.Buy._view.add.frame:IsShown())
-      enter("3 2592")
+      enter("2592 x3")
       assert.equal(2, #GC.Buy.CurrentRun():Lines())
     end)
 

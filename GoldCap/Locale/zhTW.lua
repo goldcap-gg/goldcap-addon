@@ -1025,6 +1025,8 @@ GC.Locales.zhTW = {
   ["Make a list once, buy it here at or under your price."] = "只需建一次清單，在這裡以你的價格或更低價買入。",
   ["Quick list"] = "快速清單",
   ["Remove from the list"] = "從清單中移除",
-  ["Shift-click an item, or type its item id."] = "Shift+點擊物品，或輸入其物品 ID。",
   ["or plan a whole profession on goldcap.gg"] = "或在 goldcap.gg 上規劃整個專業",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Shift+點擊物品，或輸入其物品 ID；多件時加 x 和數量：2589 x20。",
 }
