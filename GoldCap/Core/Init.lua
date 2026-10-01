@@ -69,6 +69,9 @@ GC.DEFAULTS = {
   runFavourites = {},
   runOrder = {},
   listSeq = 0,
+  -- The BUY item box's last searches and added items, newest first, for the whole account
+  -- (Core/BuyRecents.lua). Same empty-table ApplyDefaults contract as `flips` above.
+  buyRecents = {},
   -- Metadata for the companion-sourced half of `runs` above: when it was generated, so Adopt
   -- can tell a fresher file from a stale one already applied. generatedAt = 0 means "nothing
   -- adopted yet", which is always older than any real Unix timestamp the companion writes.
