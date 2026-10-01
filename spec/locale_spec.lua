@@ -296,6 +296,27 @@ describe("locale layer", function()
     end
   end)
 
+  -- BUY 2.0 week 2: a gear line's lots, the vendor panel and the quick list, by name -- the panel's
+  -- strings live in UI/BuyVendorPanel.lua, which the rule above does not read.
+  it("carries the BUY 2.0 week 2 keys in all twelve languages", function()
+    local keys = {
+      "BUY ONE · %s", "set a cap first", "not enough gold", "%s · %d lots", "%s · 1 lot",
+      "%s · over your cap", "no cap for this item — right-click the line to set one",
+      "BUY · %s", "BUY %d · %s",
+      "Make a list once, buy it here at or under your price.", "Item to add",
+      "Shift-click an item, or type its item id.", "or plan a whole profession on goldcap.gg",
+      "Quick list", "Added %d× %s to your quick list.",
+      "Could not find that item. Shift-click it, or type its item id.", "Remove from the list",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for _, key in ipairs(keys) do
+        assert.is_truthy(loc.Locales[code][key], code .. " lacks: " .. key)
+      end
+    end
+  end)
+
   -- ...and the week 1 keys by name, so a key renamed in the source cannot quietly drop out of the
   -- rule above along with its translations.
   it("carries the BUY 2.0 week 1 keys in all twelve languages", function()
