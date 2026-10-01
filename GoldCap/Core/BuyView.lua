@@ -53,7 +53,9 @@ function GC.BuyView.Status(line, s)
   if line.kind == "craft" then return "craft" end
   if line.vendor then return "vendor" end
   if s.stranded then return "stranded" end
-  if s.byHand then return "lots" end
+  -- A lot line (BUY 2.0 week 2) is bought here one lot at a time; its read can find nothing under
+  -- the cap, exactly as a commodity's can.
+  if s.byHand then return s.quote == "over" and "over" or "lots" end
   if s.quote == "over" then return "over" end
   if s.quote == "fits" then return "ready" end
   if line.cap and line.floor and line.floor > line.cap then return "over" end
@@ -112,4 +114,51 @@ end
 function GC.BuyView.MarketNote(ref, now)
   if type(ref) ~= "table" or ref.source ~= "crowd" or type(ref.at) ~= "number" then return nil end
   return { scanners = ref.scanners or 0, age = math.max(0, (now or 0) - ref.at) }
+end
+
+-- What the BUY tab's item box was given (BUY 2.0's quick list): an item link -- a shift-click into
+-- the box -- or a bare item id, both of which name the item exactly, or a name. nil for nothing at
+-- all; false for input that cannot be read without guessing.
+--
+-- A count goes beside a link as a number ("5 [Linen Cloth]", "[Linen Cloth] x5"), beside an item id
+-- only with an x stuck to it ("2589 x20", "20x 2589", "x20 2589") -- two bare numbers, or an x
+-- standing apart between them, say nothing about which is the item and are refused -- and beside a
+-- name either way ("20 Linen Cloth", "Linen Cloth x20", "Linen Cloth 20"). Whether a name can be
+-- looked up is the caller's question: the BUY 2.0 probe found the client resolves almost no typed
+-- names (0 of 15 in retail).
+function GC.BuyView.ParseAdd(text)
+  if type(text) ~= "string" then return nil end
+  -- "×" is two bytes in UTF-8; a pattern class would treat them as two characters and leave half
+  -- of it behind. Turned into a plain "x" first, it is matched as one.
+  text = text:gsub("×", "x"):match("^%s*(.-)%s*$")
+  if text == "" then return nil end
+  local linkID = text:match("|Hitem:(%d+)")
+  if linkID then
+    -- The hyperlink goes whole (its name can hold digits), and so does every colour escape: both
+    -- games colour an item link by its quality as |cnIQ<quality>: (the owner's SavedVariables,
+    -- 2026-10-01), older text as |cffRRGGBB -- a quality digit left behind would read as a count.
+    local left = text:gsub("|H.-|h.-|h", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]*:", "")
+      :gsub("|r", "")
+    local count = tonumber(left:match("(%d+)"))
+    return { itemID = tonumber(linkID), qty = (count and count > 0) and count or 1 }
+  end
+  local function item(id, count)
+    count = tonumber(count)
+    return { itemID = tonumber(id), qty = (count and count > 0) and count or 1 }
+  end
+  if text:match("^%d+$") then return item(text) end
+  local id, count = text:match("^(%d+)%s+x(%d+)$")
+  if not id then id, count = text:match("^(%d+)%s+(%d+)x$") end
+  if not id then count, id = text:match("^(%d+)x%s+(%d+)$") end
+  if not id then count, id = text:match("^x(%d+)%s+(%d+)$") end
+  if id then return item(id, count) end
+  if text:match("^[%dx%s]+$") then return false end
+  local qty, rest = 1, text
+  local lead, afterLead = rest:match("^(%d+)%s+(.+)$")
+  if lead then qty, rest = tonumber(lead), afterLead end
+  -- A count after a name needs a space before it, so a name that merely contains an x is not cut.
+  local before, tail = rest:match("^(.-)%s+x%s*(%d+)$")
+  if not before then before, tail = rest:match("^(.-)%s+(%d+)$") end
+  if tail then qty, rest = tonumber(tail), before end
+  return { name = rest, qty = (qty and qty > 0) and qty or 1 }
 end

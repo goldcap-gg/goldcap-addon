@@ -610,6 +610,50 @@ describe("AppRuns", function()
       assert.equal(8, run.lines[2].i)
     end)
   end)
+
+  -- BUY 2.0: the quick list a player builds in the game, one item at a time.
+  describe("the quick list", function()
+    it("keeps a quick list the player makes in the game, merging a repeated item", function()
+      GC.AppRuns.AddQuick(2589, 20)
+      GC.AppRuns.AddQuick(2589, 5)
+      GC.AppRuns.AddQuick(2592, 10)
+      local run = GC.db.runs.quick
+      assert.equal("paste", run.origin)
+      assert.is_true(run.quick)
+      assert.same({ { 2589, 25 }, { 2592, 10 } },
+        { { run.lines[1].i, run.lines[1].q }, { run.lines[2].i, run.lines[2].q } })
+    end)
+
+    it("refuses what is not an item, and counts a missing quantity as one", function()
+      assert.is_nil(GC.AppRuns.AddQuick(nil, 2))
+      assert.is_nil(GC.AppRuns.AddQuick(0, 2))
+      GC.AppRuns.AddQuick(2589)
+      assert.equal(1, GC.db.runs.quick.lines[1].q)
+    end)
+
+    it("survives a companion sync", function()
+      GC.AppRuns.AddQuick(2589, 1)
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 99, runs = {} }
+      GC.AppRuns.Adopt()
+      assert.is_truthy(GC.db.runs.quick)
+    end)
+
+    it("comes back out of the archive when the player adds to it", function()
+      GC.AppRuns.AddQuick(2589, 1)
+      GC.db.runsArchived.quick = true
+      GC.AppRuns.AddQuick(2592, 1)
+      assert.is_nil(GC.db.runsArchived.quick)
+    end)
+
+    it("drops the quick list with its last line", function()
+      GC.AppRuns.AddQuick(2589, 1)
+      GC.AppRuns.AddQuick(2592, 1)
+      GC.AppRuns.RemoveQuickLine(2589)
+      assert.equal(1, #GC.db.runs.quick.lines)
+      GC.AppRuns.RemoveQuickLine(2592)
+      assert.is_nil(GC.db.runs.quick)
+    end)
+  end)
 end)
 
 describe("AppRuns runs the site owns", function()

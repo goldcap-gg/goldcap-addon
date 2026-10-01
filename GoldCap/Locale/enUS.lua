@@ -250,7 +250,6 @@ GC.Locales.enUS = {
   ["bought"] = "bought",
   ["buy %d of %d"] = "buy %d of %d",
   ["buy %d of %d, have %d in bags and bank"] = "buy %d of %d, have %d in bags and bank",
-  ["buy by hand"] = "buy by hand",
   ["cheapest seen %s"] = "cheapest seen %s",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
@@ -477,7 +476,6 @@ GC.Locales.enUS = {
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "No region reference for this item yet — import again once goldcap.gg publishes one.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string.",
   ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
   ["No sales data for this item."] = "No sales data for this item.",
   ["Not enough units on the Auction House to fill that quantity."] =
@@ -762,7 +760,6 @@ GC.Locales.enUS = {
   ["buying..."] = "buying...",
   ["cap: alert target"] = "cap: alert target",
   ["cheapest not yours %s"] = "cheapest not yours %s",
-  ["check the item level — buy by hand"] = "check the item level — buy by hand",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
   ["commodity purchase failed"] = "commodity purchase failed",
@@ -839,7 +836,6 @@ GC.Locales.enUS = {
     "no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices",
   ["no stock in bags or listed -- nothing to price for"] = "no stock in bags or listed -- nothing to price for",
   ["none"] = "none",
-  ["not a commodity — buy by hand"] = "not a commodity — buy by hand",
   ["not enough gold -- total %s, you have %s"] = "not enough gold -- total %s, you have %s",
   ["not enough gold for this quote -- Cancel"] = "not enough gold for this quote -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
@@ -1141,4 +1137,30 @@ GC.Locales.enUS = {
     "1 item in your bags fetches more on the auction house (+%s). Keep it for the AH.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "%d items in your bags fetch more on the auction house (+%s). Keep them for the AH.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "BUY ONE · %s",
+  ["not enough gold"] = "not enough gold",
+  ["set a cap first"] = "set a cap first",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lots",
+  ["%s · 1 lot"] = "%s · 1 lot",
+  ["%s · over your cap"] = "%s · over your cap",
+  ["no cap for this item — right-click the line to set one"] =
+    "no cap for this item — right-click the line to set one",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "BUY %d · %s",
+  ["BUY · %s"] = "BUY · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "Added %d× %s to your quick list.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Could not find that item. Shift-click it, or type its item id.",
+  ["Item to add"] = "Item to add",
+  ["Make a list once, buy it here at or under your price."] =
+    "Make a list once, buy it here at or under your price.",
+  ["Quick list"] = "Quick list",
+  ["Remove from the list"] = "Remove from the list",
+  ["or plan a whole profession on goldcap.gg"] = "or plan a whole profession on goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
 }

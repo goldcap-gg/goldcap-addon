@@ -185,7 +185,6 @@ GC.Locales.ruRU = {
   ["Market"] = "Рынок",
   ["Mount cost cleared."] = "Цена верховой езды сброшена.",
   ["Mount cost set to %s."] = "Цена верховой езды: %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Списков пока нет. Сохраните список с количествами на goldcap.gg или введите /gc import и вставьте строку списка.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Пока нет скана с экипировкой. Откройте аукцион, и GoldCap его просканирует.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -632,7 +631,6 @@ GC.Locales.ruRU = {
   ["bought"] = "куплено",
   ["buy %d of %d"] = "купить %d из %d",
   ["buy %d of %d, have %d in bags and bank"] = "купить %d из %d, в сумках и банке %d",
-  ["buy by hand"] = "купите вручную",
   ["cheapest seen %s"] = "самое дешёвое: %s",
   ["confirming..."] = "подтверждение...",
   ["craft it for %s each"] = "крафт: %s за шт.",
@@ -642,7 +640,6 @@ GC.Locales.ruRU = {
   ["craft it: %s = %s each"] = "крафт: %s = %s за шт.",
   ["includes %d for crafting %s"] = "из них %d на крафт: %s",
   ["no answer — check your mail"] = "нет ответа — проверьте почту",
-  ["not a commodity — buy by hand"] = "штучный предмет — купите вручную",
   ["nothing at or under your cap of %s"] = "ничего по вашему потолку %s или дешевле",
   ["nothing on offer"] = "в продаже нет",
   ["over your cap"] = "выше потолка",
@@ -688,7 +685,6 @@ GC.Locales.ruRU = {
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
   ["cheapest not yours %s"] = "дешевле всех не ваш %s",
-  ["check the item level — buy by hand"] = "проверьте уровень предмета — купите вручную",
   ["checking live price..."] = "проверяем живую цену...",
   ["checking live safety..."] = "проверяем безопасность вживую...",
   ["clears in ~%dd"] = "разойдётся за ~%d дн.",
@@ -1228,4 +1224,30 @@ GC.Locales.ruRU = {
     "1 предмет в ваших сумках на аукционе стоит больше (+%s). Оставьте его для аукциона.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "Предметов в ваших сумках, которые на аукционе стоят больше: %d (+%s). Оставьте их для аукциона.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "КУПИТЬ ОДИН · %s",
+  ["not enough gold"] = "недостаточно золота",
+  ["set a cap first"] = "сначала задайте потолок",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · лотов: %d",
+  ["%s · 1 lot"] = "%s · 1 лот",
+  ["%s · over your cap"] = "%s · выше потолка",
+  ["no cap for this item — right-click the line to set one"] =
+    "у этого предмета нет потолка — задайте его правым кликом по строке",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "КУПИТЬ %d · %s",
+  ["BUY · %s"] = "КУПИТЬ · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "В быстрый список добавлено: %d× %s.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Предмет не найден. Сделайте Shift+клик по нему или введите его ID.",
+  ["Item to add"] = "Добавить предмет",
+  ["Make a list once, buy it here at or under your price."] =
+    "Составьте список один раз и покупайте здесь по своей цене или дешевле.",
+  ["Quick list"] = "Быстрый список",
+  ["Remove from the list"] = "Убрать из списка",
+  ["or plan a whole profession on goldcap.gg"] = "или спланируйте всю профессию на goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Сделайте Shift+клик по предмету или введите его ID; для нескольких — x и количество: 2589 x20.",
 }

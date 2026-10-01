@@ -197,7 +197,6 @@ GC.Locales.frFR = {
   ["Market"] = "Marché",
   ["Mount cost cleared."] = "Coût de la monture effacé.",
   ["Mount cost set to %s."] = "Coût de la monture fixé à %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Pas encore de liste. Enregistre une liste avec des quantités sur goldcap.gg, ou tape /gc import et colle une chaîne de liste.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Aucun scan contenant de l'équipement pour l'instant. Ouvrez l'hôtel des ventes et laissez GoldCap le scanner.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -647,7 +646,6 @@ GC.Locales.frFR = {
   ["bought %d for %s"] = "%d achetés pour %s",
   ["buy %d of %d"] = "acheter %d sur %d",
   ["buy %d of %d, have %d in bags and bank"] = "acheter %d sur %d, tu en as %d dans tes sacs et ta banque",
-  ["buy by hand"] = "achète-le à la main",
   ["buying..."] = "achat...",
   ["cap: alert target"] = "plafond : cible de l'alerte",
   ["cheapest seen %s"] = "le moins cher vu : %s",
@@ -663,7 +661,6 @@ GC.Locales.frFR = {
   ["in bags %d · in bank %d"] = "dans les sacs %d · en banque %d",
   ["includes %d for crafting %s"] = "dont %d pour fabriquer %s",
   ["no answer — check your mail"] = "pas de réponse — regarde ton courrier",
-  ["not a commodity — buy by hand"] = "pas une marchandise — achète-le à la main",
   ["nothing at or under your cap of %s"] = "rien à ton plafond de %s ou moins",
   ["nothing on offer"] = "rien en vente",
   ["on %s"] = "sur %s",
@@ -714,7 +711,6 @@ GC.Locales.frFR = {
     "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
   ["buying commodity..."] = "achat de la marchandise...",
   ["cheapest not yours %s"] = "le moins cher qui n'est pas à toi %s",
-  ["check the item level — buy by hand"] = "vérifiez le niveau d'objet — achat manuel",
   ["checking live price..."] = "vérification du prix en direct...",
   ["checking live safety..."] = "vérification de la sécurité en direct...",
   ["clears in ~%dd"] = "écoulé en ~%d j",
@@ -1150,4 +1146,30 @@ GC.Locales.frFR = {
     "1 objet de tes sacs vaut plus à l'hôtel des ventes (+%s). Garde-le pour l'HV.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "%d objets de tes sacs valent plus à l'hôtel des ventes (+%s). Garde-les pour l'HV.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "ACHETER UN · %s",
+  ["not enough gold"] = "pas assez d'or",
+  ["set a cap first"] = "fixez d'abord un plafond",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lots",
+  ["%s · 1 lot"] = "%s · 1 lot",
+  ["%s · over your cap"] = "%s · au-dessus de votre plafond",
+  ["no cap for this item — right-click the line to set one"] =
+    "aucun plafond pour cet objet — clic droit sur la ligne pour en fixer un",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "ACHETER %d · %s",
+  ["BUY · %s"] = "ACHETER · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "%d× %s ajouté à votre liste rapide.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Objet introuvable. Faites Maj+clic dessus, ou tapez son ID d'objet.",
+  ["Item to add"] = "Objet à ajouter",
+  ["Make a list once, buy it here at or under your price."] =
+    "Faites une liste une fois, achetez ici à votre prix ou moins.",
+  ["Quick list"] = "Liste rapide",
+  ["Remove from the list"] = "Retirer de la liste",
+  ["or plan a whole profession on goldcap.gg"] = "ou planifiez tout un métier sur goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Maj+clic sur un objet ou tapez son ID d'objet ; pour plusieurs, x et la quantité : 2589 x20.",
 }

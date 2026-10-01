@@ -205,7 +205,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
     it("runs armStall and afterClick only once the call has been made", function()
       for _, answer in ipairs({ 'return "confirm", attempt.itemID, attempt.qty, function()',
-                                'return "start", attempt.itemID, attempt.qty, function()' }) do
+                                'return "start", attempt.itemID, attempt.qty, function()',
+                                'return "bid", lot.auctionID, lot.buyout, function()' }) do
         local answerAt = assert(click:find(answer, 1, true), answer)
         local arm = click:sub(1, answerAt - 1):match('.*()attempt%.stage = "')
         assert.is_nil(click:sub(arm, answerAt - 1):find("logAttempt(", 1, true))

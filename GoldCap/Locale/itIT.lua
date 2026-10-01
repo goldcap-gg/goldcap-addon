@@ -198,7 +198,6 @@ GC.Locales.itIT = {
   ["Market"] = "Mercato",
   ["Mount cost cleared."] = "Costo della cavalcatura cancellato.",
   ["Mount cost set to %s."] = "Costo della cavalcatura impostato a %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Ancora nessuna lista. Salva una lista con le quantità su goldcap.gg, oppure scrivi /gc import e incolla una stringa di lista.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Ancora nessuna scansione con equipaggiamento. Apri la casa d'aste e lascia che GoldCap la scansioni.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -647,7 +646,6 @@ GC.Locales.itIT = {
   ["bought %d for %s"] = "%d comprati per %s",
   ["buy %d of %d"] = "compra %d di %d",
   ["buy %d of %d, have %d in bags and bank"] = "compra %d di %d, ne hai %d nelle borse e in banca",
-  ["buy by hand"] = "compralo a mano",
   ["buying..."] = "acquisto...",
   ["cap: alert target"] = "tetto: obiettivo dell'avviso",
   ["cheapest seen %s"] = "il più economico visto: %s",
@@ -663,7 +661,6 @@ GC.Locales.itIT = {
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
   ["includes %d for crafting %s"] = "di cui %d per creare %s",
   ["no answer — check your mail"] = "nessuna risposta — controlla la posta",
-  ["not a commodity — buy by hand"] = "non è una merce — compralo a mano",
   ["nothing at or under your cap of %s"] = "niente al tuo tetto di %s o meno",
   ["nothing on offer"] = "niente in vendita",
   ["on %s"] = "su %s",
@@ -714,7 +711,6 @@ GC.Locales.itIT = {
     "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
   ["cheapest not yours %s"] = "il più basso che non è tuo %s",
-  ["check the item level — buy by hand"] = "controlla il livello oggetto — compra a mano",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
   ["checking live safety..."] = "controllo della sicurezza dal vivo...",
   ["clears in ~%dd"] = "esaurito in ~%d g",
@@ -1149,4 +1145,31 @@ GC.Locales.itIT = {
     "1 oggetto nelle tue borse vale di più alla casa d'aste (+%s). Tienilo per l'asta.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "%d oggetti nelle tue borse valgono di più alla casa d'aste (+%s). Tienili per l'asta.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "COMPRA UNO · %s",
+  ["not enough gold"] = "oro insufficiente",
+  ["set a cap first"] = "prima imposta un tetto",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lotti",
+  ["%s · 1 lot"] = "%s · 1 lotto",
+  ["%s · over your cap"] = "%s · oltre il tuo tetto",
+  ["no cap for this item — right-click the line to set one"] =
+    "nessun tetto per questo oggetto — clic destro sulla riga per impostarlo",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "COMPRA %d · %s",
+  ["BUY · %s"] = "COMPRA · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "Aggiunti %d× %s alla tua lista rapida.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Oggetto non trovato. Fai Maiusc+clic su di esso, o scrivi il suo ID oggetto.",
+  ["Item to add"] = "Oggetto da aggiungere",
+  ["Make a list once, buy it here at or under your price."] =
+    "Crea una lista una volta, compra qui al tuo prezzo o meno.",
+  ["Quick list"] = "Lista rapida",
+  ["Remove from the list"] = "Togli dalla lista",
+  ["or plan a whole profession on goldcap.gg"] =
+    "oppure pianifica un'intera professione su goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Maiusc+clic su un oggetto o scrivi il suo ID oggetto; per più pezzi, x e la quantità: 2589 x20.",
 }

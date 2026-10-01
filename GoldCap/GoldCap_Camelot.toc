@@ -80,6 +80,8 @@ Core/KeyPoll.lua
 Core/BuyRun.lua
 Core/BuyView.lua
 Core/BuyDock.lua
+Core/BuyLots.lua
+Core/BuyVendor.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua
 Core/AppRuns.lua
@@ -102,5 +104,6 @@ UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
+UI/BuyVendorPanel.lua
 UI/SettingsFrame.lua
 Core/Init.lua

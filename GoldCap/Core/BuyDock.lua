@@ -13,8 +13,9 @@ local ANSWERED = { started = true, confirming = true, requote = true, expired = 
   failed = true, unknown = true }
 
 -- `d` = { line, status (GC.BuyView.Status), attempt = { stage, qty, total, serverTotal, capped,
--- secondsLeft } (this line's own only), quote = { qty, total } (a recent read), raiseTo, cheapest,
--- craft = { unit, ahUnit }, vendorLeft, craftLeft, skippedLeft }. With no line: the run's end.
+-- secondsLeft, errorText } (this line's own only), quote = { qty, total } (a recent read), raiseTo, cheapest,
+-- craft = { unit, ahUnit }, lots = { groups (GC.BuyLots.Groups), why }, vendorLeft, craftLeft,
+-- skippedLeft }. With no line: the run's end.
 function GC.BuyDock.View(d)
   d = d or {}
   local line = d.line
@@ -35,6 +36,10 @@ function GC.BuyDock.View(d)
         or { key = "blizzard", args = { total } } }
   end
   if ANSWERED[stage] then
+    -- A refused bid says why in the auction house's own words (UI/BuyFrame.lua's OnAuctionHouseError).
+    if attempt.errorText then
+      return { mode = "buy", primary = "purchase", sub = { key = "error", args = { attempt.errorText } } }
+    end
     local total = attempt.serverTotal or attempt.total
     return { mode = "buy", primary = "purchase",
       sub = total and total > 0 and { key = "total", args = { total } } or nil }
@@ -57,6 +62,17 @@ function GC.BuyDock.View(d)
     if not d.craft then return { mode = "craft", sub = { key = "craft_only" } } end
     return { mode = "craft", sub = d.craft.ahUnit and { key = "craft_vs", args = { d.craft.unit, d.craft.ahUnit } }
       or { key = "craft", args = { d.craft.unit } } }
+  end
+  -- A gear line (BUY 2.0 week 2): its lots by price, cheapest first, the ones over the cap marked;
+  -- with no cap, how to set one, since nothing is ever bid without it.
+  if status == "lots" then
+    local lots = d.lots
+    if lots and lots.why == "nocap" then
+      return { mode = "lots", primary = "purchase", sub = { key = "nocap" } }
+    end
+    local groups = lots and lots.groups
+    return { mode = "lots", primary = "purchase",
+      sub = (groups and #groups > 0) and { key = "lots", groups = groups } or nil }
   end
   if status == "over" then
     return { mode = "over", primary = d.raiseTo and "raise" or nil, secondary = "skip",

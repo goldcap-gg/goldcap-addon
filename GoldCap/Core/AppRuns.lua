@@ -437,3 +437,46 @@ function GC.AppRuns.Remove(code)
   end
   return true
 end
+
+-- The quick list (BUY 2.0): a run the player builds in the game, one item at a time, for a player
+-- with no list from goldcap.gg yet. A paste run in every respect -- Adopt keeps it, archive and
+-- remove work -- flagged `quick` so the BUY tab can name it in the player's language.
+GC.AppRuns.QUICK = "quick"
+
+function GC.AppRuns.AddQuick(itemID, qty)
+  local db = GC.db
+  if type(db) ~= "table" or type(itemID) ~= "number" or itemID <= 0 then return nil end
+  qty = (type(qty) == "number" and qty > 0) and math.floor(qty) or 1
+  db.runs = db.runs or {}
+  local run = db.runs[GC.AppRuns.QUICK]
+  if type(run) ~= "table" then
+    run = { code = GC.AppRuns.QUICK, origin = "paste", quick = true, updatedAt = time(), lines = {} }
+    db.runs[GC.AppRuns.QUICK] = run
+  end
+  -- Asked for again, it is the player's list now: never left in the Archived section unseen.
+  if type(db.runsArchived) == "table" then db.runsArchived[GC.AppRuns.QUICK] = nil end
+  run.updatedAt = time()
+  for _, line in ipairs(run.lines) do
+    if line.i == itemID then
+      line.q = line.q + qty
+      return run
+    end
+  end
+  run.lines[#run.lines + 1] = { i = itemID, q = qty, v = false }
+  return run
+end
+
+-- Takes one item off the quick list, and the list itself with its last item.
+function GC.AppRuns.RemoveQuickLine(itemID)
+  local run = GC.AppRuns.Get(GC.AppRuns.QUICK)
+  if not run then return false end
+  for i, line in ipairs(run.lines) do
+    if line.i == itemID then
+      table.remove(run.lines, i)
+      break
+    end
+  end
+  if #run.lines == 0 then return GC.AppRuns.Remove(GC.AppRuns.QUICK) end
+  run.updatedAt = time()
+  return true
+end

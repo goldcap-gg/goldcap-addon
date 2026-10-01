@@ -296,6 +296,28 @@ describe("locale layer", function()
     end
   end)
 
+  -- BUY 2.0 week 2: a gear line's lots, the vendor panel and the quick list, by name -- the panel's
+  -- strings live in UI/BuyVendorPanel.lua, which the rule above does not read.
+  it("carries the BUY 2.0 week 2 keys in all twelve languages", function()
+    local keys = {
+      "BUY ONE · %s", "set a cap first", "not enough gold", "%s · %d lots", "%s · 1 lot",
+      "%s · over your cap", "no cap for this item — right-click the line to set one",
+      "BUY · %s", "BUY %d · %s",
+      "Make a list once, buy it here at or under your price.", "Item to add",
+      "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
+      "or plan a whole profession on goldcap.gg",
+      "Quick list", "Added %d× %s to your quick list.",
+      "Could not find that item. Shift-click it, or type its item id.", "Remove from the list",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for _, key in ipairs(keys) do
+        assert.is_truthy(loc.Locales[code][key], code .. " lacks: " .. key)
+      end
+    end
+  end)
+
   -- ...and the week 1 keys by name, so a key renamed in the source cannot quietly drop out of the
   -- rule above along with its translations.
   it("carries the BUY 2.0 week 1 keys in all twelve languages", function()
@@ -310,7 +332,7 @@ describe("locale layer", function()
       "already in your bags and bank", "the cheapest is %s, your cap is %s",
       "nothing at or under your cap of %s", "RAISE CAP TO %s", "Skip",
       "PRICE EACH", "over your cap · %s", "at a vendor · %s each", "at a vendor", "craft it · %s each",
-      "bought", "skipped for now", "buy by hand",
+      "bought", "skipped for now",
       "TO BUY HERE", "%d of %d done",
       "buy %d of %d", "buy %d of %d, have %d in bags and bank", "%d at %s", "you take %d",
       "over your cap", "seen %s ago", "cheapest seen %s", "Market", "%s each", "Your cap",

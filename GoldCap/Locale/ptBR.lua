@@ -198,7 +198,6 @@ GC.Locales.ptBR = {
   ["Market"] = "Mercado",
   ["Mount cost cleared."] = "Custo da montaria apagado.",
   ["Mount cost set to %s."] = "Custo da montaria definido em %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Ainda não há listas. Salve uma lista com quantidades no goldcap.gg, ou digite /gc import e cole uma string de lista.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Ainda não há escaneamento com equipamento. Abra a casa de leilões e deixe o GoldCap escaneá-la.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -647,7 +646,6 @@ GC.Locales.ptBR = {
   ["bought %d for %s"] = "%d comprados por %s",
   ["buy %d of %d"] = "comprar %d de %d",
   ["buy %d of %d, have %d in bags and bank"] = "comprar %d de %d, você tem %d nas bolsas e no banco",
-  ["buy by hand"] = "compre à mão",
   ["buying..."] = "comprando...",
   ["cap: alert target"] = "teto: alvo do alerta",
   ["cheapest seen %s"] = "mais barato visto: %s",
@@ -663,7 +661,6 @@ GC.Locales.ptBR = {
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
   ["includes %d for crafting %s"] = "inclui %d para fabricar %s",
   ["no answer — check your mail"] = "sem resposta — confira o correio",
-  ["not a commodity — buy by hand"] = "não é mercadoria — compre à mão",
   ["nothing at or under your cap of %s"] = "nada no seu teto de %s ou abaixo",
   ["nothing on offer"] = "nada à venda",
   ["on %s"] = "em %s",
@@ -714,7 +711,6 @@ GC.Locales.ptBR = {
     "comprados %d x item %d depois que a casa de leilões fechou",
   ["buying commodity..."] = "comprando mercadoria...",
   ["cheapest not yours %s"] = "o mais barato que não é seu %s",
-  ["check the item level — buy by hand"] = "confira o nível do item — compre manualmente",
   ["checking live price..."] = "verificando o preço ao vivo...",
   ["checking live safety..."] = "verificando a segurança ao vivo...",
   ["clears in ~%dd"] = "esgota em ~%d d",
@@ -1147,4 +1143,30 @@ GC.Locales.ptBR = {
     "1 item nas suas bolsas vale mais na casa de leilões (+%s). Guarde-o para o leilão.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "%d itens nas suas bolsas valem mais na casa de leilões (+%s). Guarde-os para o leilão.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "COMPRAR UM · %s",
+  ["not enough gold"] = "ouro insuficiente",
+  ["set a cap first"] = "defina um teto primeiro",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lotes",
+  ["%s · 1 lot"] = "%s · 1 lote",
+  ["%s · over your cap"] = "%s · acima do seu teto",
+  ["no cap for this item — right-click the line to set one"] =
+    "este item não tem teto — clique com o botão direito na linha para definir um",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "COMPRAR %d · %s",
+  ["BUY · %s"] = "COMPRAR · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "%d× %s adicionado à sua lista rápida.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Item não encontrado. Shift+clique nele ou digite o ID dele.",
+  ["Item to add"] = "Item a adicionar",
+  ["Make a list once, buy it here at or under your price."] =
+    "Monte uma lista uma vez e compre aqui pelo seu preço ou menos.",
+  ["Quick list"] = "Lista rápida",
+  ["Remove from the list"] = "Tirar da lista",
+  ["or plan a whole profession on goldcap.gg"] = "ou planeje uma profissão inteira no goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Shift+clique em um item ou digite o ID dele; para vários, x e a quantidade: 2589 x20.",
 }

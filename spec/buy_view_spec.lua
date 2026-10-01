@@ -65,6 +65,44 @@ describe("BuyView", function()
     end
   end)
 
+  describe("ParseAdd", function()
+    -- Links as the client really writes them: retail and WoW: Forever both colour an item link by
+    -- its quality as |cnIQ<quality>: (the owner's SavedVariables, 2026-10-01: retail |cnIQ2:|Hitem:167184,
+    -- Forever |cnIQ1:|Hitem:4668). The quality digit is not a count.
+    local GREEN = "|cnIQ2:|Hitem:167184::::::::80:::::|h[Darkmoon Bracers]|h|r"
+    local EPIC = "|cnIQ4:|Hitem:4668::::::::40:::::|h[Elixir of 4 Winds]|h|r"
+    local OLD = "|cffffffff|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    local cases = {
+      { "a name", "Linen Cloth", { name = "Linen Cloth", qty = 1 } },
+      { "a count before the name", "20 Linen Cloth", { name = "Linen Cloth", qty = 20 } },
+      { "a count after the name", "Linen Cloth x20", { name = "Linen Cloth", qty = 20 } },
+      { "a count with the times sign", "Linen Cloth ×20", { name = "Linen Cloth", qty = 20 } },
+      { "a trailing bare count after a name", "Linen Cloth 20", { name = "Linen Cloth", qty = 20 } },
+      { "a zero count is one", "0 Linen Cloth", { name = "Linen Cloth", qty = 1 } },
+      { "an item id alone", "2589", { itemID = 2589, qty = 1 } },
+      { "an item id and an x count after it", "2589 x20", { itemID = 2589, qty = 20 } },
+      { "an x count before an item id", "20x 2589", { itemID = 2589, qty = 20 } },
+      { "an x count first", "x20 2589", { itemID = 2589, qty = 20 } },
+      { "an item id and a times-sign count", "2589 ×20", { itemID = 2589, qty = 20 } },
+      { "an item id and a count with x after it", "2589 20x", { itemID = 2589, qty = 20 } },
+      -- Two bare numbers say nothing about which is the item: refused, never guessed.
+      { "two bare numbers", "2589 20", false },
+      { "two bare numbers the other way", "20 2589", false },
+      { "an x standing between two numbers", "20 x 2589", false },
+      { "a green link", GREEN, { itemID = 167184, qty = 1 } },
+      { "an epic link", EPIC, { itemID = 4668, qty = 1 } },
+      { "a link and an x count after it", GREEN .. " x5", { itemID = 167184, qty = 5 } },
+      { "a count before a link", "5 " .. GREEN, { itemID = 167184, qty = 5 } },
+      { "an x count before a link", "x3 " .. EPIC, { itemID = 4668, qty = 3 } },
+      { "a bare count after a link", EPIC .. " 3", { itemID = 4668, qty = 3 } },
+      { "an old-style coloured link", OLD .. " x5", { itemID = 2589, qty = 5 } },
+      { "nothing", "  ", nil },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.same(case[3], V.ParseAdd(case[2])) end)
+    end
+  end)
+
   describe("Status", function()
     -- Whole tables, not overrides of a template: `{ cap = nil }` cannot remove a key in Lua.
     local cases = {
@@ -74,6 +112,11 @@ describe("BuyView", function()
       { "a vendor line", { buy = 5, cap = 100, vendor = true, floor = 500 }, {}, "vendor" },
       { "a stranded confirm", { buy = 5, cap = 100, floor = 50 }, { stranded = true }, "stranded" },
       { "not a commodity", { buy = 5, cap = 100, floor = 50 }, { byHand = true }, "lots" },
+      -- BUY 2.0 week 2: a lot line is bought here, one lot at a time, so its read can say over.
+      { "a lot line with a lot to buy", { buy = 1, cap = 100 }, { byHand = true, quote = "fits" }, "lots" },
+      { "a lot line whose read found nothing under the cap", { buy = 1, cap = 100 },
+        { byHand = true, quote = "over" }, "over" },
+      { "a lot line not read yet", { buy = 1, cap = 100 }, { byHand = true }, "lots" },
       { "the last read found nothing under the cap", { buy = 5, cap = 100, floor = 50 }, { quote = "over" }, "over" },
       { "the last read fits even though NOW says over", { buy = 5, cap = 100, floor = 150 }, { quote = "fits" }, "ready" },
       { "NOW over the cap with no read", { buy = 5, cap = 100, floor = 150 }, {}, "over" },

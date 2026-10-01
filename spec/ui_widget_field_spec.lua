@@ -35,6 +35,7 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/BuyFrame.lua",
     "GoldCap/UI/QuestRewardMark.lua",
     "GoldCap/UI/MerchantNote.lua",
+    "GoldCap/UI/BuyVendorPanel.lua",
   }
 
   -- Every field the widget doubles in spec/sell_widget_behavior_spec.lua and friends invent for

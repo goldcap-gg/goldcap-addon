@@ -196,7 +196,6 @@ GC.Locales.deDE = {
   ["Market"] = "Markt",
   ["Mount cost cleared."] = "Reitkosten gelöscht.",
   ["Mount cost set to %s."] = "Reitkosten auf %s gesetzt.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Noch keine Listen. Speichere auf goldcap.gg eine Liste mit Mengen, oder gib /gc import ein und füge einen Listen-String ein.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Noch kein Scan mit Ausrüstung. Öffne das Auktionshaus und lass GoldCap es scannen.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -649,7 +648,6 @@ GC.Locales.deDE = {
   ["bought %d for %s"] = "%d gekauft für %s",
   ["buy %d of %d"] = "%d von %d kaufen",
   ["buy %d of %d, have %d in bags and bank"] = "%d von %d kaufen, %d in Taschen und Bank",
-  ["buy by hand"] = "von Hand kaufen",
   ["buying..."] = "kaufe...",
   ["cap: alert target"] = "Deckel: Alarmziel",
   ["cheapest seen %s"] = "am günstigsten gesehen: %s",
@@ -665,7 +663,6 @@ GC.Locales.deDE = {
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
   ["includes %d for crafting %s"] = "davon %d zum Herstellen von %s",
   ["no answer — check your mail"] = "keine Antwort — sieh in der Post nach",
-  ["not a commodity — buy by hand"] = "keine Handelsware — von Hand kaufen",
   ["nothing at or under your cap of %s"] = "nichts zu deinem Deckel von %s oder darunter",
   ["nothing on offer"] = "nichts im Angebot",
   ["on %s"] = "auf %s",
@@ -716,7 +713,6 @@ GC.Locales.deDE = {
     "%d x Gegenstand %d nach Schließen des Auktionshauses gekauft",
   ["buying commodity..."] = "Ware wird gekauft...",
   ["cheapest not yours %s"] = "günstigster fremder %s",
-  ["check the item level — buy by hand"] = "Gegenstandsstufe prüfen — von Hand kaufen",
   ["checking live price..."] = "Live-Preis wird geprüft...",
   ["checking live safety..."] = "Live-Sicherheit wird geprüft...",
   ["clears in ~%dd"] = "weg in ~%d Tg.",
@@ -1149,4 +1145,30 @@ GC.Locales.deDE = {
     "1 Gegenstand in deinen Taschen bringt im Auktionshaus mehr ein (+%s). Behalte ihn fürs Auktionshaus.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "%d Gegenstände in deinen Taschen bringen im Auktionshaus mehr ein (+%s). Behalte sie fürs Auktionshaus.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "EINS KAUFEN · %s",
+  ["not enough gold"] = "nicht genug Gold",
+  ["set a cap first"] = "erst einen Deckel setzen",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d Lose",
+  ["%s · 1 lot"] = "%s · 1 Los",
+  ["%s · over your cap"] = "%s · über deinem Deckel",
+  ["no cap for this item — right-click the line to set one"] =
+    "kein Deckel für diesen Gegenstand — Rechtsklick auf die Zeile setzt einen",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "KAUFEN %d · %s",
+  ["BUY · %s"] = "KAUFEN · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "%d× %s zur Schnellliste hinzugefügt.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Gegenstand nicht gefunden. Mit Umschalt+Klick einfügen oder die Item-ID eingeben.",
+  ["Item to add"] = "Gegenstand hinzufügen",
+  ["Make a list once, buy it here at or under your price."] =
+    "Einmal eine Liste anlegen, hier zu deinem Preis oder darunter kaufen.",
+  ["Quick list"] = "Schnellliste",
+  ["Remove from the list"] = "Von der Liste entfernen",
+  ["or plan a whole profession on goldcap.gg"] = "oder plane einen ganzen Beruf auf goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Gegenstand mit Umschalt+Klick einfügen oder seine Item-ID eingeben, für mehrere mit x und Anzahl: 2589 x20.",
 }

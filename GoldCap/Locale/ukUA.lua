@@ -188,7 +188,6 @@ GC.Locales.ukUA = {
   ["Market"] = "Ринок",
   ["Mount cost cleared."] = "Ціну верхової їзди скинуто.",
   ["Mount cost set to %s."] = "Ціна верхової їзди: %s.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "Списків поки немає. Збережіть список із кількостями на goldcap.gg або введіть /gc import і вставте рядок списку.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "Ще немає сканування зі спорядженням. Відкрийте аукціон, і GoldCap його просканує.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -647,7 +646,6 @@ GC.Locales.ukUA = {
   ["bought"] = "куплено",
   ["buy %d of %d"] = "купити %d з %d",
   ["buy %d of %d, have %d in bags and bank"] = "купити %d з %d, у сумках і банку %d",
-  ["buy by hand"] = "купіть вручну",
   ["cheapest seen %s"] = "найдешевше: %s",
   ["confirming..."] = "підтвердження...",
   ["craft it for %s each"] = "крафт: %s за шт.",
@@ -657,7 +655,6 @@ GC.Locales.ukUA = {
   ["craft it: %s = %s each"] = "крафт: %s = %s за шт.",
   ["includes %d for crafting %s"] = "з них %d на крафт: %s",
   ["no answer — check your mail"] = "немає відповіді — перевірте пошту",
-  ["not a commodity — buy by hand"] = "штучний предмет — купіть вручну",
   ["nothing at or under your cap of %s"] = "нічого за вашою стелею %s або дешевше",
   ["nothing on offer"] = "у продажу немає",
   ["over your cap"] = "вище стелі",
@@ -702,7 +699,6 @@ GC.Locales.ukUA = {
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
-  ["check the item level — buy by hand"] = "перевірте рівень предмета — купіть вручну",
   ["checking live price..."] = "перевіряємо живу ціну...",
   ["checking live safety..."] = "перевіряємо безпеку наживо...",
   ["clears in ~%dd"] = "розійдеться за ~%d дн.",
@@ -1229,4 +1225,30 @@ GC.Locales.ukUA = {
     "1 предмет у ваших сумках на аукціоні коштує більше (+%s). Залиште його для аукціону.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "Предметів у ваших сумках, що на аукціоні коштують більше: %d (+%s). Залиште їх для аукціону.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "КУПИТИ ОДИН · %s",
+  ["not enough gold"] = "недостатньо золота",
+  ["set a cap first"] = "спершу задайте стелю",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · лотів: %d",
+  ["%s · 1 lot"] = "%s · 1 лот",
+  ["%s · over your cap"] = "%s · вище стелі",
+  ["no cap for this item — right-click the line to set one"] =
+    "у цього предмета немає стелі — задайте її правим кліком по рядку",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "КУПИТИ %d · %s",
+  ["BUY · %s"] = "КУПИТИ · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "До швидкого списку додано: %d× %s.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Предмет не знайдено. Зробіть Shift+клік по ньому або введіть його ID.",
+  ["Item to add"] = "Додати предмет",
+  ["Make a list once, buy it here at or under your price."] =
+    "Складіть список один раз і купуйте тут за своєю ціною або дешевше.",
+  ["Quick list"] = "Швидкий список",
+  ["Remove from the list"] = "Прибрати зі списку",
+  ["or plan a whole profession on goldcap.gg"] = "або сплануйте всю професію на goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Зробіть Shift+клік по предмету або введіть його ID; для кількох — x і кількість: 2589 x20.",
 }

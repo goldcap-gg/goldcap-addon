@@ -85,8 +85,10 @@ local function ownsCommodity(itemID, quantity)
     and GC.Buy.OwnsCommodityPurchase(itemID, quantity)) or false
 end
 
+-- Both windows that bid on a lot of their own are asked, for the same reason (BUY 2.0 week 2).
 local function ownsAuction(auctionID)
-  return GC.Sniper and GC.Sniper.OwnsAuctionPurchase and GC.Sniper.OwnsAuctionPurchase(auctionID)
+  if GC.Sniper and GC.Sniper.OwnsAuctionPurchase and GC.Sniper.OwnsAuctionPurchase(auctionID) then return true end
+  return (GC.Buy and GC.Buy.OwnsAuctionPurchase and GC.Buy.OwnsAuctionPurchase(auctionID)) or false
 end
 
 local function onCommodityStart(itemID, quantity)

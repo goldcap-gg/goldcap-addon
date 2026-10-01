@@ -193,7 +193,6 @@ GC.Locales.koKR = {
   ["Market"] = "시세",
   ["Mount cost cleared."] = "탈것 비용을 지웠습니다.",
   ["Mount cost set to %s."] = "탈것 비용을 %s(으)로 설정했습니다.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "아직 목록이 없습니다. goldcap.gg에서 수량이 있는 목록을 저장하거나, /gc import를 입력하고 목록 문자열을 붙여넣으세요.",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "아직 장비가 담긴 스캔이 없습니다. 경매장을 열어 GoldCap이 스캔하게 하세요.",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -610,7 +609,6 @@ GC.Locales.koKR = {
   ["bought %d for %s"] = "%d개를 %s에 구매함",
   ["buy %d of %d"] = "%d/%d개 구매",
   ["buy %d of %d, have %d in bags and bank"] = "%d/%d개 구매, 가방과 은행에 %d개",
-  ["buy by hand"] = "직접 구매하세요",
   ["buying..."] = "구매 중...",
   ["cap: alert target"] = "상한: 알림 목표가",
   ["cheapest seen %s"] = "최저가 %s",
@@ -626,7 +624,6 @@ GC.Locales.koKR = {
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",
   ["includes %d for crafting %s"] = "%d개는 %s 제작용",
   ["no answer — check your mail"] = "응답 없음 — 우편함을 확인하세요",
-  ["not a commodity — buy by hand"] = "거래 물품 아님 — 직접 구매하세요",
   ["nothing at or under your cap of %s"] = "상한 %s 이하 매물 없음",
   ["nothing on offer"] = "매물 없음",
   ["on %s"] = "%s 서버",
@@ -672,7 +669,6 @@ GC.Locales.koKR = {
   ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
   ["buying commodity..."] = "상품 구매 중...",
   ["cheapest not yours %s"] = "내 것이 아닌 최저가 %s",
-  ["check the item level — buy by hand"] = "아이템 레벨 확인 — 직접 구매",
   ["checking live price..."] = "실시간 가격 확인 중...",
   ["checking live safety..."] = "실시간 안전성 확인 중...",
   ["clears in ~%dd"] = "~%d일 후 소진",
@@ -1090,4 +1086,28 @@ GC.Locales.koKR = {
     "가방 속 아이템 1개가 경매장에서 더 비쌉니다 (+%s). 경매장용으로 남겨 두세요.",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "가방 속 아이템 %d개가 경매장에서 더 비쌉니다 (+%s). 경매장용으로 남겨 두세요.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "1개 구매 · %s",
+  ["not enough gold"] = "골드가 부족합니다",
+  ["set a cap first"] = "먼저 상한을 설정하세요",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d개 경매",
+  ["%s · 1 lot"] = "%s · 경매 1개",
+  ["%s · over your cap"] = "%s · 상한 초과",
+  ["no cap for this item — right-click the line to set one"] = "이 아이템은 상한이 없습니다 — 줄을 우클릭해 설정하세요",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "%d개 구매 · %s",
+  ["BUY · %s"] = "구매 · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "빠른 목록에 %d× %s 추가함.",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "아이템을 찾을 수 없습니다. Shift+클릭하거나 아이템 ID를 입력하세요.",
+  ["Item to add"] = "추가할 아이템",
+  ["Make a list once, buy it here at or under your price."] = "목록을 한 번 만들고, 여기서 내 가격 이하로 구매하세요.",
+  ["Quick list"] = "빠른 목록",
+  ["Remove from the list"] = "목록에서 제거",
+  ["or plan a whole profession on goldcap.gg"] = "또는 goldcap.gg에서 전문 기술 전체를 계획하세요",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요. 여러 개는 x와 수량: 2589 x20.",
 }

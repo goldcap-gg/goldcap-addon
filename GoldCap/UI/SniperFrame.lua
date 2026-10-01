@@ -3573,22 +3573,6 @@ function GC.Sniper._PolledEntry(itemID)
   return entry
 end
 
--- The item key of the cheapest variant of `itemID` at or above `minIlvl` that a poll has seen, or
--- nil. For the BUY tab's gear line with an item-level floor (caps fixes 5h): its search opens
--- Blizzard's own page, where the player buys by hand, and an item key names exactly one
--- item-level variant -- so this is as narrow as that search can be made. Unlike driver.variantKey
--- there is no fallback below the floor, and a poll whose rows state no level at all offers
--- nothing: either way the caller searches the bare key and says the level is not checked.
-function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
-  if not (type(minIlvl) == "number" and minIlvl > 0 and GC.KeyPoll and GC.KeyPoll.VariantKeyFor) then
-    return nil
-  end
-  local variant = GC.KeyPoll.VariantKeyFor(GC.Sniper._PolledEntry(itemID), minIlvl)
-  if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
-  return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
-    variant.battlePetSpeciesID)
-end
-
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
 -- the player has left the Auction House -- browse results die with the AH session anyway.
@@ -7492,6 +7476,10 @@ function GC.Sniper.IsPurchaseQuiet()
   -- applies that bound, so a leaked BUY claim cannot veto the scanner/pre-warm/drill queue/
   -- arbiter for the rest of the session the way a bare Owner() check would.
   if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy() then return true end
+  -- BUY 2.0 week 2: a gear line's read holds the auction house's search from its first search to
+  -- its bid -- PlaceBid buys only while the lot's own buy search is the current one, so a drill, a
+  -- keys batch, a pass page or the Sell walk sent in between would make the bid buy nothing.
+  if GC.Buy and GC.Buy.HoldsSearch and GC.Buy.HoldsSearch() then return true end
   if not GC.Sniper._QuietZoneOpen() then
     GC.Sniper._quietSince = nil
     return false
@@ -7720,6 +7708,12 @@ end
 
 function GC.Sniper.OwnsAuctionPurchase(auctionID)
   return pendingAuction[auctionID] ~= nil
+end
+
+-- BUY 2.0: whether a realm bid of this window is waiting for its answer. The BUY tab does not bid
+-- or start over it: an auction house error names no request.
+function GC.Sniper.BidOut()
+  return next(pendingAuction) ~= nil
 end
 
 -- Fix round 1 (minor 1): a confirmed attempt the server has just re-quoted (see the "confirming"
@@ -8554,6 +8548,16 @@ local function planDialogPrimaryClick()
     -- Only ONE commodity purchase may be in flight at a time. Unreachable in practice --
     -- opening a second dialog already refuses/replaces per the guard in onBuyClick -- kept as
     -- a last-resort guard against orphaning the pending one.
+    setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
+    driver.onStatus(GC.L["finish the pending buy first"])
+    return
+  end
+
+  -- BUY 2.0: one purchase at a time addon-wide. A realm lot waits while the BUY tab has a bid or a
+  -- purchase out, as a commodity waits on the shared slot below. Before anything is written for a
+  -- purchase: this click makes none.
+  if not deal.isCommodity and ((GC.Buy and GC.Buy.BidOut and GC.Buy.BidOut())
+      or (GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy())) then
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
     driver.onStatus(GC.L["finish the pending buy first"])
     return

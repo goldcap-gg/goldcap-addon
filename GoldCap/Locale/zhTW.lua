@@ -192,7 +192,6 @@ GC.Locales.zhTW = {
   ["Market"] = "市場價",
   ["Mount cost cleared."] = "坐騎費用已清除。",
   ["Mount cost set to %s."] = "坐騎費用已設為 %s。",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "還沒有清單。請在 goldcap.gg 儲存帶數量的清單，或輸入 /gc import 並貼上清單字串。",
   ["No scan with gear in it yet. Open the auction house and let GoldCap scan it."] =
     "還沒有包含裝備的掃描。打開拍賣場，讓 GoldCap 掃描。",
   ["No stat weights for your class yet. Set them like this: /gc weights STR 1 STA 0.5"] =
@@ -596,7 +595,6 @@ GC.Locales.zhTW = {
   ["bought %d for %s"] = "已購買 %d 個，花費 %s",
   ["buy %d of %d"] = "購買 %d/%d 個",
   ["buy %d of %d, have %d in bags and bank"] = "購買 %d/%d 個，背包和銀行裡有 %d 個",
-  ["buy by hand"] = "請手動購買",
   ["buying..."] = "購買中...",
   ["cap: alert target"] = "上限：提醒目標價",
   ["cheapest seen %s"] = "見過的最低價 %s",
@@ -612,7 +610,6 @@ GC.Locales.zhTW = {
   ["in bags %d · in bank %d"] = "背包 %d · 銀行 %d",
   ["includes %d for crafting %s"] = "其中 %d 個用於製作 %s",
   ["no answer — check your mail"] = "沒有回應 — 請查看信箱",
-  ["not a commodity — buy by hand"] = "不是商品 — 請手動購買",
   ["nothing at or under your cap of %s"] = "沒有不高於你上限 %s 的",
   ["nothing on offer"] = "無人出售",
   ["on %s"] = "在 %s",
@@ -658,7 +655,6 @@ GC.Locales.zhTW = {
   ["bought %d x item %d after AH close"] = "拍賣場關閉後購買 %d 件 · 道具 %d",
   ["buying commodity..."] = "正在購買商品...",
   ["cheapest not yours %s"] = "非你的最低價 %s",
-  ["check the item level — buy by hand"] = "請核對物品等級 — 手動購買",
   ["checking live price..."] = "正在檢查即時價格...",
   ["checking live safety..."] = "正在即時檢查安全性...",
   ["clears in ~%dd"] = "約 %d 天售罄",
@@ -1063,4 +1059,28 @@ GC.Locales.zhTW = {
     "背包中有 1 件物品在拍賣場更值錢（+%s）。留著去拍賣場賣吧。",
   ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
     "背包中有 %d 件物品在拍賣場更值錢（+%s）。留著去拍賣場賣吧。",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "購買一件 · %s",
+  ["not enough gold"] = "金幣不足",
+  ["set a cap first"] = "請先設定上限",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d 件",
+  ["%s · 1 lot"] = "%s · 1 件",
+  ["%s · over your cap"] = "%s · 超出上限",
+  ["no cap for this item — right-click the line to set one"] = "此物品沒有上限 — 右鍵點擊該行即可設定",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "購買 %d · %s",
+  ["BUY · %s"] = "購買 · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Added %d× %s to your quick list."] = "已將 %d× %s 加入快速清單。",
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "找不到該物品。請 Shift+點擊它，或輸入其物品 ID。",
+  ["Item to add"] = "要加入的物品",
+  ["Make a list once, buy it here at or under your price."] = "只需建一次清單，在這裡以你的價格或更低價買入。",
+  ["Quick list"] = "快速清單",
+  ["Remove from the list"] = "從清單中移除",
+  ["or plan a whole profession on goldcap.gg"] = "或在 goldcap.gg 上規劃整個專業",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
+    "Shift+點擊物品，或輸入其物品 ID；多件時加 x 和數量：2589 x20。",
 }
