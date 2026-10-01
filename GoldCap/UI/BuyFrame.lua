@@ -632,6 +632,7 @@ function GC.Buy.SelectRun(code)
   -- just as much a replacement, and the next run picked must not inherit a stale window.
   lastRefreshAt = 0
   GC.Buy._filter, GC.Buy._query = "all", ""
+  GC.Buy._adding = nil
   if band and band.tools then band.tools.search:SetText("") end
   -- A quote is a plan against one run's lines. A purchase already in the client's hands keeps
   -- its attempt -- its terminal event still has to land somewhere, and OnCommodityPurchaseSucceeded
@@ -824,9 +825,14 @@ openRunMenu = function(owner)
     root:CreateButton(GC.L["Paste a run..."], function()
       if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog() end
     end)
-    -- The item box: on the quick list, or on its own when there is no quick list yet.
+    -- The item box: on the quick list, or -- with none yet -- at the foot of the list on screen,
+    -- which stays; the quick list is made by the first item added.
     root:CreateButton(GC.L["Item to add"], function()
-      GC.Buy.SelectRun(isQuickRun(GC.AppRuns.QUICK) and GC.AppRuns.QUICK or nil)
+      if isQuickRun(GC.AppRuns.QUICK) then
+        GC.Buy.SelectRun(GC.AppRuns.QUICK)
+      else
+        GC.Buy._adding = true
+      end
       GC.Buy.RefreshIfShown()
       local add = GC.Buy._view and GC.Buy._view.add
       if add and add.box.SetFocus then add.box:SetFocus() end
@@ -2420,8 +2426,9 @@ local function buildEntries()
   if #entries == 0 and #lines > 0 then
     entries[1] = { kind = "hint", text = GC.L["Nothing on this list matches."] }
   end
-  -- The quick list ends with its item box, so the next item goes on where the last one did.
-  if isQuickRun(current:Code()) then entries[#entries + 1] = { kind = "add" } end
+  -- The quick list ends with its item box, so the next item goes on where the last one did; any
+  -- other list shows it once the list menu's "Item to add" asked for it.
+  if isQuickRun(current:Code()) or GC.Buy._adding then entries[#entries + 1] = { kind = "add" } end
   return entries
 end
 

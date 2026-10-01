@@ -817,6 +817,29 @@ describe("BuyFrame", function()
       assert.equal(2, #GC.Buy.CurrentRun():Lines())
     end)
 
+    -- With no quick list yet, the list menu's "Item to add" keeps the list on screen and its picker;
+    -- the quick list is made by the first item added.
+    it("opens the item box under the list on screen, which stays until an item is added", function()
+      GC.db.runs["run-1"] = run()
+      GC.Buy.SelectRun("run-1")
+      GC.Buy.RefreshIfShown()
+      local itemToAdd
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, { CreateTitle = function() end, CreateDivider = function() end,
+          CreateButton = function(_, text, fn) if text == "Item to add" then itemToAdd = fn end end })
+      end }
+      bandOf().picker.scripts.OnClick(bandOf().picker)
+      _G.MenuUtil = nil
+      itemToAdd()
+      assert.equal("run-1", GC.Buy.CurrentRun():Code())
+      assert.is_true(bandOf().picker:IsShown())
+      assert.is_true(GC.Buy._view.add.frame:IsShown())
+      assert.is_true(GC.Buy._view.add.box:HasFocus())
+      assert.is_nil(GC.db.runs.quick)
+      enter(LINEN)
+      assert.equal("quick", GC.Buy.CurrentRun():Code())
+    end)
+
     it("takes a line off the quick list from its menu, and the list with its last line", function()
       enter(LINEN)
       local titles
