@@ -111,9 +111,12 @@ local function realBags()
   }
 end
 
--- The client's own bags, priced the way the tooltip prices them.
-function GC.ForeverValue.RealBagTotals()
-  return GC.ForeverValue.BagTotals(realBags(), GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
+-- The client's own bags, priced the way the tooltip prices them. `valueFor` (optional) answers an
+-- item's value table, as GC.Data.GetItemValue does when it is left out: the vendor note
+-- (UI/MerchantNote.lua) hands in the tooltip's own figure, which on retail is an imported realm
+-- item's region price rather than its realm median.
+function GC.ForeverValue.RealBagTotals(valueFor)
+  return GC.ForeverValue.BagTotals(realBags(), valueFor or GC.Data.GetItemValue, GC.ForeverValue.VendorUnit)
 end
 
 -- "your bags: X at a vendor, Y on the AH" (spec §3 Bag value), in chat: after every saved scan

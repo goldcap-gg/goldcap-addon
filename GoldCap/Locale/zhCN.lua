@@ -1054,4 +1054,12 @@ GC.Locales.zhCN = {
   ["▲%d%% over the alert target"] = "▲高于提醒目标价 %d%%",
   ["▲%d%% over usual"] = "▲高于平时 %d%%",
   ["▲%d%% over your cap"] = "▲高于你的上限 %d%%",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap：金色边框中的奖励在拍卖行最值钱（%s）。",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "背包中有 1 件物品在拍卖行更值钱（+%s）。留着去拍卖行卖吧。",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "背包中有 %d 件物品在拍卖行更值钱（+%s）。留着去拍卖行卖吧。",
 }

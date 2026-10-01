@@ -331,7 +331,7 @@ describe("BuyFrame", function()
     stubItemCount({ [102] = { all = 305, carried = 5 } })
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Bravo Ore"))
-    assert.truthy(lineWith(lines, "in bags 5 · in bank 300"))
+    assert.truthy(lineWith(lines, "in bags 5, in bank 300"))
   end)
 
   it("says nothing about the bank on the tooltip when there is none in it", function()
@@ -1023,7 +1023,7 @@ describe("BuyFrame", function()
     GC.Buy.Show()
 
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.truthy(lineWith(lines, "usually cheapest around 05:00 · -18%"))   -- 3 UTC + 2
+    assert.truthy(lineWith(lines, "usually cheapest around 05:00, -18%"))   -- 3 UTC + 2
 
     -- A line the site could not measure says nothing at all.
     assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
@@ -1044,7 +1044,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-w"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.truthy(lineWith(lines, "usually cheapest around 23:00 · -9%"))   -- (1 + 22) % 24
+    assert.truthy(lineWith(lines, "usually cheapest around 23:00, -9%"))   -- (1 + 22) % 24
 
     _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
@@ -1194,7 +1194,7 @@ describe("BuyFrame", function()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
     local craft = lineWith(lines, "craft it: ")
     assert.equal("craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each", craft.text)
-    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to split"))
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house, right-click to split"))
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
       craft.color)
   end)
@@ -1207,7 +1207,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-x"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    local vs = lineWith(lines, "vs 300c at the auction house · right-click to split")
+    local vs = lineWith(lines, "vs 300c at the auction house, right-click to split")
     assert.truthy(vs)
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
       vs.color)
@@ -1216,7 +1216,7 @@ describe("BuyFrame", function()
   it("offers the way back on a line that is already split", function()
     showCraftRun(true)
     local lines = tooltipOn(rowWithText("craft 4×"))
-    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to buy it whole"))
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house, right-click to buy it whole"))
   end)
 
   -- A reagent the run already asked for does not get a second row; its NEED grows instead, and

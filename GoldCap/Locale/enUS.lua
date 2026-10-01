@@ -1133,4 +1133,12 @@ GC.Locales.enUS = {
   ["No sales in these %d days."] = "No sales in these %d days.",
   ["SEARCH 30 DAYS"] = "SEARCH 30 DAYS",
   ["SHOW 30 DAYS"] = "SHOW 30 DAYS",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: the reward in the gold frame is worth the most on the auction house (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 item in your bags fetches more on the auction house (+%s). Keep it for the AH.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "%d items in your bags fetch more on the auction house (+%s). Keep them for the AH.",
 }

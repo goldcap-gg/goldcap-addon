@@ -1082,4 +1082,12 @@ GC.Locales.koKR = {
   ["▲%d%% over the alert target"] = "▲알림 목표가보다 %d%% 높음",
   ["▲%d%% over usual"] = "▲평소보다 %d%% 높음",
   ["▲%d%% over your cap"] = "▲내 상한보다 %d%% 높음",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: 금색 테두리의 보상이 경매장에서 가장 비쌉니다 (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "가방 속 아이템 1개가 경매장에서 더 비쌉니다 (+%s). 경매장용으로 남겨 두세요.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "가방 속 아이템 %d개가 경매장에서 더 비쌉니다 (+%s). 경매장용으로 남겨 두세요.",
 }

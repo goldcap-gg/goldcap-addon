@@ -1220,4 +1220,12 @@ GC.Locales.ruRU = {
   ["▲%d%% over the alert target"] = "▲на %d%% выше цели оповещения",
   ["▲%d%% over usual"] = "▲на %d%% выше обычного",
   ["▲%d%% over your cap"] = "▲на %d%% выше вашего потолка",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: награда в золотой рамке дороже всех на аукционе (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 предмет в ваших сумках на аукционе стоит больше (+%s). Оставьте его для аукциона.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "Предметов в ваших сумках, которые на аукционе стоят больше: %d (+%s). Оставьте их для аукциона.",
 }

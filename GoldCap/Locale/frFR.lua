@@ -1142,4 +1142,12 @@ GC.Locales.frFR = {
   ["▲%d%% over the alert target"] = "▲%d%% au-dessus de la cible de l'alerte",
   ["▲%d%% over usual"] = "▲%d%% au-dessus de l'habituel",
   ["▲%d%% over your cap"] = "▲%d%% au-dessus de ton plafond",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap : la récompense dans le cadre doré est celle qui vaut le plus à l'hôtel des ventes (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 objet de tes sacs vaut plus à l'hôtel des ventes (+%s). Garde-le pour l'HV.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "%d objets de tes sacs valent plus à l'hôtel des ventes (+%s). Garde-les pour l'HV.",
 }

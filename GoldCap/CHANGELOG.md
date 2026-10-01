@@ -18,6 +18,12 @@
 - Copy vendor list is in the list menu.
 - In WoW: Forever, the market price in BUY says how many players' scans it comes from and how old
   it is.
+- When a quest lets you choose a reward, GoldCap puts a gold frame around the one worth the most on
+  the auction house, and a line under the rewards says what it is worth. A reward the auction house
+  has no price for, such as soulbound gear, is never marked.
+- At a vendor, a small GoldCap note beside the vendor window says how many items in your bags fetch
+  more on the auction house than the vendor pays, and how much more, so you can keep them for the
+  auction house.
 
 ## 0.17.2 (2026-09-30)
 
