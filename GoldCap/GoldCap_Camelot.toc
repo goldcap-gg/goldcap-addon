@@ -78,6 +78,7 @@ Core/KeyPoll.lua
 Core/BuyRun.lua
 Core/BuyView.lua
 Core/BuyDock.lua
+Core/BuyLots.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua
 Core/AppRuns.lua
