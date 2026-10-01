@@ -164,3 +164,55 @@ function GC.BuyView.ParseAdd(text)
   if tail then qty, rest = tonumber(tail), before end
   return { name = rest, qty = (qty and qty > 0) and qty or 1 }
 end
+
+-- A link whole, from |H to its closing |h: the [Name] between may hold a comma, a semicolon or a
+-- digit, none of which is the player's.
+local LINK = "|H.-|h.-|h"
+
+--- Several items at once, as the item box is given them: entries separated by commas, semicolons
+--- or line breaks -- outside links -- each read by ParseAdd, in order. Every entry carries its own
+--- `text` (trimmed); one ParseAdd refuses is { bad = true, text = ... }. Two links with nothing
+--- between them (shift-clicked one after the other) are two items. nil when there is nothing.
+function GC.BuyView.ParseAddMany(text)
+  if type(text) ~= "string" then return nil end
+  local links = {}
+  local masked = text:gsub(LINK, function(link)
+    links[#links + 1] = link
+    return "\1" .. #links .. "\2"
+  end)
+  local function restore(s) return (s:gsub("\1(%d+)\2", function(n) return links[tonumber(n)] end)) end
+  local out = {}
+  for piece in (masked .. ","):gmatch("([^,;\n\r]*)[,;\n\r]") do
+    local _, count = piece:gsub("\1%d+\2", "")
+    if count > 1 then
+      for n in piece:gmatch("\1(%d+)\2") do
+        local parsed = GC.BuyView.ParseAdd(links[tonumber(n)])
+        parsed.text = links[tonumber(n)]
+        out[#out + 1] = parsed
+      end
+    else
+      local raw = restore(piece):match("^%s*(.-)%s*$")
+      local parsed = GC.BuyView.ParseAdd(raw)
+      if parsed then
+        parsed.text = raw
+        out[#out + 1] = parsed
+      elseif parsed == false then
+        out[#out + 1] = { bad = true, text = raw }
+      end
+    end
+  end
+  return #out > 0 and out or nil
+end
+
+--- The item box's text with one more shift-clicked link: straight after a count typed for it
+--- ("20 " or "x5") or after a separator, after ", " otherwise -- never inside what is there, so
+--- three shift-clicks are three items wherever the cursor was.
+function GC.BuyView.AppendLink(text, link)
+  text = type(text) == "string" and text or ""
+  local tail = text:gsub(LINK, "\1"):match("([^,;\n\r]*)$") or ""
+  if tail:match("^%s*$") then return text .. link end
+  if not tail:find("\1", 1, true) and tail:match("^%s*x?%d+x?%s*$") then
+    return (text:match("%s$") and text or (text .. " ")) .. link
+  end
+  return text .. ", " .. link
+end

@@ -103,6 +103,66 @@ describe("BuyView", function()
     end
   end)
 
+  describe("ParseAddMany", function()
+    local LINEN = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    local WOOL = "|cnIQ1:|Hitem:2592::::::::|h[Wool Cloth]|h|r"
+    -- A name with a comma in it, as some clients' item names have.
+    local COMMA = "|cnIQ3:|Hitem:12345::::::::|h[Vial of Blood, Thick]|h|r"
+    local cases = {
+      { "nothing", "  ", nil },
+      { "one link", LINEN, { { itemID = 2589, qty = 1, text = LINEN } } },
+      { "three links after commas, as three shift-clicks leave them", LINEN .. ", " .. WOOL .. ", 5 " .. COMMA,
+        { { itemID = 2589, qty = 1, text = LINEN }, { itemID = 2592, qty = 1, text = WOOL },
+          { itemID = 12345, qty = 5, text = "5 " .. COMMA } } },
+      { "a comma inside a link's name splits nothing", COMMA .. " x2",
+        { { itemID = 12345, qty = 2, text = COMMA .. " x2" } } },
+      { "ids with x counts, after semicolons and line breaks", "2589 x20; 2592\n4306 x3",
+        { { itemID = 2589, qty = 20, text = "2589 x20" }, { itemID = 2592, qty = 1, text = "2592" },
+          { itemID = 4306, qty = 3, text = "4306 x3" } } },
+      { "empty entries are skipped", ", 2589,, ;", { { itemID = 2589, qty = 1, text = "2589" } } },
+      { "two links with nothing between them are two items", LINEN .. WOOL,
+        { { itemID = 2589, qty = 1, text = "|Hitem:2589::::::::|h[Linen Cloth]|h" },
+          { itemID = 2592, qty = 1, text = "|Hitem:2592::::::::|h[Wool Cloth]|h" } } },
+      { "an entry it cannot read is kept, and said to be", "2589 20, 2592",
+        { { bad = true, text = "2589 20" }, { itemID = 2592, qty = 1, text = "2592" } } },
+      { "a name is a name", "Linen Cloth x5, 2592",
+        { { name = "Linen Cloth", qty = 5, text = "Linen Cloth x5" }, { itemID = 2592, qty = 1, text = "2592" } } },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.same(case[3], V.ParseAddMany(case[2])) end)
+    end
+  end)
+
+  describe("AppendLink", function()
+    local L = "|cnIQ1:|Hitem:2592::::::::|h[Wool Cloth]|h|r"
+    local OLD = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    local cases = {
+      { "into an empty box", "", L },
+      { "after a link, behind a comma", OLD, OLD .. ", " .. L },
+      { "after a link and its count", OLD .. " x5", OLD .. " x5, " .. L },
+      { "straight after a count typed for it", "20 ", "20 " .. L },
+      { "after a count with no space yet", "20", "20 " .. L },
+      { "after an x count", "x5", "x5 " .. L },
+      { "after a separator the player typed", OLD .. ";", OLD .. ";" .. L },
+      { "after a name, behind a comma", "Linen", "Linen, " .. L },
+      { "after an id with its count, behind a comma", "2589 x20", "2589 x20, " .. L },
+      { "from nothing at all", nil, L },
+    }
+    for _, case in ipairs(cases) do
+      it(case[1], function() assert.equal(case[3], V.AppendLink(case[2], L)) end)
+    end
+
+    it("three appends read back as three items", function()
+      local text = ""
+      for _, id in ipairs({ 2589, 2592, 4306 }) do
+        text = V.AppendLink(text, ("|cnIQ1:|Hitem:%d::::::::|h[Cloth %d]|h|r"):format(id, id))
+      end
+      local ids = {}
+      for i, e in ipairs(V.ParseAddMany(text)) do ids[i] = e.itemID end
+      assert.same({ 2589, 2592, 4306 }, ids)
+    end)
+  end)
+
   describe("Status", function()
     -- Whole tables, not overrides of a template: `{ cap = nil }` cannot remove a key in Lua.
     local cases = {
