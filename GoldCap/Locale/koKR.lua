@@ -1105,9 +1105,27 @@ GC.Locales.koKR = {
   ["Clear"] = "지우기",
   ["Could not read: %s."] = "읽을 수 없음: %s.",
   ["Items to add: %d — %s"] = "추가할 아이템: %d개 — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "일치하는 아이템이 없습니다. 판매 중인 모든 것을 검색하려면 경매장을 여세요. 또는 아이템을 Shift+클릭하세요.",
   ["Recent:"] = "최근:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "아이템을 Shift+클릭하거나, 이름을 입력하거나, 아이템 ID와 x, 수량을 입력하세요: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "수량",
+  ["Add to list…"] = "목록에 추가…",
+  ["Back to %s"] = "%s(으)로 돌아가기",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "클릭하면 여기서 구매합니다. 오른쪽 클릭하면 목록에 추가합니다.",
+  ["Close search"] = "검색 닫기",
+  ["How many"] = "수량",
+  ["How many of %s?"] = "%s 몇 개?",
+  ["Loading more results…"] = "결과를 더 불러오는 중…",
+  ["More results"] = "결과 더 보기",
+  ["Nothing on sale for “%s”."] = "“%s” 판매 중인 물건이 없습니다.",
+  ["On sale for “%s”: %d"] = "“%s” 판매 중: %d",
+  ["Open the auction house to search what's on sale."] = "판매 중인 물건을 검색하려면 경매장을 여세요.",
+  ["PRICE FROM"] = "최저가",
+  ["Search again"] = "다시 검색",
+  ["Searching the auction house for “%s”…"] = "경매장에서 “%s” 검색 중…",
+  ["The auction house did not answer. Search again."] = "경매장이 응답하지 않았습니다. 다시 검색하세요.",
+  ["Type a whole number."] = "정수를 입력하세요.",
+  ["Waiting for the auction house…"] = "경매장을 기다리는 중…",
 }

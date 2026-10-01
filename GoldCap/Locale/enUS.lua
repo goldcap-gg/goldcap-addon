@@ -1153,9 +1153,29 @@ GC.Locales.enUS = {
   ["Clear"] = "Clear",
   ["Could not read: %s."] = "Could not read: %s.",
   ["Items to add: %d — %s"] = "Items to add: %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Nothing here matches. Open the auction house to search everything on sale, or shift-click the item.",
   ["Recent:"] = "Recent:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Shift-click items, type a name, or an item id with x and a count: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "AVAILABLE",
+  ["Add to list…"] = "Add to list…",
+  ["Back to %s"] = "Back to %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Click to buy it here. Right-click to add it to a list.",
+  ["Close search"] = "Close search",
+  ["How many"] = "How many",
+  ["How many of %s?"] = "How many of %s?",
+  ["Loading more results…"] = "Loading more results…",
+  ["More results"] = "More results",
+  ["Nothing on sale for “%s”."] = "Nothing on sale for “%s”.",
+  ["On sale for “%s”: %d"] = "On sale for “%s”: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Open the auction house to search what's on sale.",
+  ["PRICE FROM"] = "PRICE FROM",
+  ["Search again"] = "Search again",
+  ["Searching the auction house for “%s”…"] = "Searching the auction house for “%s”…",
+  ["The auction house did not answer. Search again."] =
+    "The auction house did not answer. Search again.",
+  ["Type a whole number."] = "Type a whole number.",
+  ["Waiting for the auction house…"] = "Waiting for the auction house…",
 }

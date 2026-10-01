@@ -106,6 +106,7 @@ UI/BuyCapEditor.lua
 UI/BuyFrame.lua
 UI/BuyLists.lua
 UI/BuyAddBox.lua
+UI/BuySearch.lua
 UI/BuyVendorPanel.lua
 UI/SettingsFrame.lua
 Core/Init.lua

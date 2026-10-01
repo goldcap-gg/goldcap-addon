@@ -276,7 +276,7 @@ describe("locale layer", function()
   it("carries every BUY tab key in all twelve languages", function()
     local asked = {}
     for _, path in ipairs({ "GoldCap/UI/BuyFrame.lua", "GoldCap/UI/BuyCapEditor.lua", "GoldCap/UI/BuyLists.lua",
-      "GoldCap/UI/BuyAddBox.lua", "GoldCap/Core/AppRuns.lua" }) do
+      "GoldCap/UI/BuyAddBox.lua", "GoldCap/UI/BuySearch.lua", "GoldCap/Core/AppRuns.lua" }) do
       local f = assert(io.open(path))
       local text = f:read("*a")
       f:close()

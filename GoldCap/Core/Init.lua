@@ -710,6 +710,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
       -- down for that item until /reload.
       if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+      -- The BUY search after BUY: the list it put aside comes back once no purchase is in flight.
+      if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
@@ -721,6 +723,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
       GC.Sniper.OnThrottledMessageDropped()
     end
+    -- ...and the BUY search's browse request out may be the one thrown away.
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.BuySearch then GC.BuySearch.OnDropped() end
     -- A post the client holds back until the throttle frees a slot: the Sell tab says it is
     -- waiting for the auction house instead of a bare "Posting…" (GC.Sell.OnThrottleQueued).
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" and GC.Sell.OnThrottleQueued then
@@ -746,6 +750,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnItemKeyInfo then
       GC.Sell.OnItemKeyInfo(itemID)
     end
+    -- A BUY search result waiting for its name (UI/BuySearch.lua).
+    if GC.BuySearch then GC.BuySearch.OnItemKeyInfo(itemID) end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
     -- The payload is documented as an itemKey, and every line below reads a field off it.
@@ -856,6 +862,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+    if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     -- The new auction's id: the Sell tab asks the client which item it is, so a post that went

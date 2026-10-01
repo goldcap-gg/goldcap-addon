@@ -1170,9 +1170,29 @@ GC.Locales.itIT = {
   ["Clear"] = "Cancella",
   ["Could not read: %s."] = "Non leggibile: %s.",
   ["Items to add: %d — %s"] = "Da aggiungere: %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Qui non corrisponde nulla. Apri la casa d'aste per cercare tutto ciò che è in vendita, o fai Maiusc+clic sull'oggetto.",
   ["Recent:"] = "Recenti:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Maiusc+clic sugli oggetti, scrivi un nome o un ID oggetto con x e la quantità: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "DISPONIBILI",
+  ["Add to list…"] = "Aggiungi a una lista…",
+  ["Back to %s"] = "Torna a %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Clicca per comprarlo qui. Clic destro per aggiungerlo a una lista.",
+  ["Close search"] = "Chiudi la ricerca",
+  ["How many"] = "Quanti",
+  ["How many of %s?"] = "Quanti %s?",
+  ["Loading more results…"] = "Caricamento di altri risultati…",
+  ["More results"] = "Altri risultati",
+  ["Nothing on sale for “%s”."] = "Niente in vendita per «%s».",
+  ["On sale for “%s”: %d"] = "In vendita per «%s»: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Apri la casa d'aste per cercare ciò che è in vendita.",
+  ["PRICE FROM"] = "PREZZO DA",
+  ["Search again"] = "Cerca di nuovo",
+  ["Searching the auction house for “%s”…"] = "Ricerca di «%s» nella casa d'aste…",
+  ["The auction house did not answer. Search again."] =
+    "La casa d'aste non ha risposto. Cerca di nuovo.",
+  ["Type a whole number."] = "Scrivi un numero intero.",
+  ["Waiting for the auction house…"] = "In attesa della casa d'aste…",
 }

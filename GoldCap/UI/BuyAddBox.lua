@@ -13,7 +13,8 @@ local _, GC = ...
 --     site asked about), compared case- and accent-blind in the client's language
 --     (Core/NameMatch.lua). A click on one, or the arrow keys and Enter, adds it. The client itself
 --     places almost no typed names (the BUY 2.0 probe: C_Item.GetItemInfoInstant answered 0 of 15 in
---     retail), so a name nothing here matches is said to be one, never guessed.
+--     retail), so nothing is guessed. With the auction house open, Enter searches what is on sale
+--     instead (UI/BuySearch.lua); without it, the line under the well says to open it.
 --
 -- Under it, the last searches and items added (Core/BuyRecents.lua), as chips: an item's adds it
 -- again, a search's runs it again.
@@ -156,11 +157,6 @@ local function read(bar)
   if (bar.selected or 0) > #bar.found then bar.selected = 0 end
 end
 
-local function noMatchText()
-  -- With the auction house open, it is the place to look and needs no pointing at.
-  if ahOpen() then return GC.L["Could not find that item. Shift-click it, or type its item id."] end
-  return GC.L["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."]
-end
 
 local function matchRow(bar, i)
   local row = bar.matches[i]
@@ -285,9 +281,12 @@ local function paint(bar)
   local note
   if bar.feedback then
     note = bar.feedback
-  elseif bar.mode == "search" and #found == 0
+  elseif bar.mode == "search" and not ahOpen()
       and (bar.searched or #GC.NameMatch.Fold(bar.query) >= AB.MIN_QUERY_BYTES) then
-    note = noMatchText()
+    -- Without the auction house a name is looked for only among the items GoldCap knows (the rows
+    -- above, if any). With it open, Enter searches what is on sale (UI/BuySearch.lua) and says so
+    -- there.
+    note = GC.L["Open the auction house to search what's on sale."]
   elseif not bar.mode and (focused or bar.collecting or not (GC.Buy.CurrentRun and GC.Buy.CurrentRun())) then
     note = GC.L["Shift-click items, type a name, or an item id with x and a count: 2589 x20."]
   end
@@ -498,6 +497,8 @@ function GC.Buy._SearchSubmit(query, qty)
   local bar = GC.Buy._view and GC.Buy._view.add
   if GC.BuySearch and GC.BuySearch.Submit and GC.BuySearch.Submit(query, qty or 1) then
     if bar then
+      -- What is on sale answers now: GoldCap's own matches give way to it.
+      bar.found, bar.selected, bar.searched = {}, 0, true
       paint(bar)
       relayout()
     end

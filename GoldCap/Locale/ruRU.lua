@@ -1164,9 +1164,28 @@ GC.Locales.ruRU = {
   ["Clear"] = "Очистить",
   ["Could not read: %s."] = "Не удалось прочитать: %s.",
   ["Items to add: %d — %s"] = "К добавлению: %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Здесь ничего не подходит. Откройте аукцион, чтобы искать среди всего, что продаётся, или сделайте Shift+клик по предмету.",
   ["Recent:"] = "Недавние:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Сделайте Shift+клик по предметам, введите название или ID предмета с x и количеством: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "В НАЛИЧИИ",
+  ["Add to list…"] = "Добавить в список…",
+  ["Back to %s"] = "К списку «%s»",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Щелчок — купить здесь. Правый щелчок — добавить в список.",
+  ["Close search"] = "Закрыть поиск",
+  ["How many"] = "Сколько",
+  ["How many of %s?"] = "Сколько: %s?",
+  ["Loading more results…"] = "Загружаем ещё результаты…",
+  ["More results"] = "Ещё результаты",
+  ["Nothing on sale for “%s”."] = "По запросу «%s» ничего не продаётся.",
+  ["On sale for “%s”: %d"] = "Найдено по запросу «%s»: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Откройте аукцион, чтобы искать среди того, что продаётся.",
+  ["PRICE FROM"] = "ЦЕНА ОТ",
+  ["Search again"] = "Искать снова",
+  ["Searching the auction house for “%s”…"] = "Ищем «%s» на аукционе…",
+  ["The auction house did not answer. Search again."] = "Аукцион не ответил. Повторите поиск.",
+  ["Type a whole number."] = "Введите целое число.",
+  ["Waiting for the auction house…"] = "Ждём аукцион…",
 }

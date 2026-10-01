@@ -1079,9 +1079,26 @@ GC.Locales.zhTW = {
   ["Clear"] = "清除",
   ["Could not read: %s."] = "無法識別：%s。",
   ["Items to add: %d — %s"] = "待加入：%d 件 — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "這裡沒有符合的物品。打開拍賣場可搜尋所有在售物品，或 Shift+點擊該物品。",
   ["Recent:"] = "最近：",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Shift+點擊物品，輸入名稱，或輸入物品 ID 加 x 和數量：2589 x20。",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "數量",
+  ["Add to list…"] = "加入清單…",
+  ["Back to %s"] = "返回「%s」",
+  ["Click to buy it here. Right-click to add it to a list."] = "點擊即可在此購買。右鍵點擊可加入清單。",
+  ["Close search"] = "關閉搜尋",
+  ["How many"] = "數量",
+  ["How many of %s?"] = "%s 要幾個？",
+  ["Loading more results…"] = "正在載入更多結果…",
+  ["More results"] = "更多結果",
+  ["Nothing on sale for “%s”."] = "沒有「%s」的在售物品。",
+  ["On sale for “%s”: %d"] = "「%s」的在售結果：%d",
+  ["Open the auction house to search what's on sale."] = "打開拍賣場即可搜尋在售物品。",
+  ["PRICE FROM"] = "最低價",
+  ["Search again"] = "重新搜尋",
+  ["Searching the auction house for “%s”…"] = "正在拍賣場搜尋「%s」…",
+  ["The auction house did not answer. Search again."] = "拍賣場沒有回應。請重新搜尋。",
+  ["Type a whole number."] = "請輸入整數。",
+  ["Waiting for the auction house…"] = "等待拍賣場…",
 }

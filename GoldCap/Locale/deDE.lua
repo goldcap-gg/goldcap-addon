@@ -1171,9 +1171,29 @@ GC.Locales.deDE = {
   ["Clear"] = "Leeren",
   ["Could not read: %s."] = "Nicht lesbar: %s.",
   ["Items to add: %d — %s"] = "Hinzuzufügen: %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Hier passt nichts. Öffne das Auktionshaus, um alles im Angebot zu durchsuchen, oder füge den Gegenstand mit Umschalt+Klick ein.",
   ["Recent:"] = "Zuletzt:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Gegenstände mit Umschalt+Klick einfügen, einen Namen eingeben oder eine Item-ID mit x und Anzahl: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "VERFÜGBAR",
+  ["Add to list…"] = "Zur Liste hinzufügen…",
+  ["Back to %s"] = "Zurück zu %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Klicken, um es hier zu kaufen. Rechtsklick, um es zu einer Liste hinzuzufügen.",
+  ["Close search"] = "Suche schließen",
+  ["How many"] = "Wie viele",
+  ["How many of %s?"] = "Wie viele %s?",
+  ["Loading more results…"] = "Weitere Ergebnisse werden geladen…",
+  ["More results"] = "Weitere Ergebnisse",
+  ["Nothing on sale for “%s”."] = "Für „%s“ wird nichts angeboten.",
+  ["On sale for “%s”: %d"] = "Treffer für „%s“: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Öffne das Auktionshaus, um das Angebot zu durchsuchen.",
+  ["PRICE FROM"] = "PREIS AB",
+  ["Search again"] = "Erneut suchen",
+  ["Searching the auction house for “%s”…"] = "Suche im Auktionshaus nach „%s“…",
+  ["The auction house did not answer. Search again."] =
+    "Das Auktionshaus hat nicht geantwortet. Suche erneut.",
+  ["Type a whole number."] = "Gib eine ganze Zahl ein.",
+  ["Waiting for the auction house…"] = "Warte auf das Auktionshaus…",
 }

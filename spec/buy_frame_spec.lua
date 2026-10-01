@@ -867,21 +867,20 @@ describe("BuyFrame", function()
     -- A typed name is never claimed to be found: the client places almost none (the BUY 2.0 probe).
     it("says what to do when nothing it knows goes by a typed name, and makes no list", function()
       enter("Linen Cloth")
-      assert.equal("Nothing here matches. Open the auction house to search everything on sale, or shift-click the item.",
-        GC.Buy._view.add.note:GetText())
+      assert.equal("Open the auction house to search what's on sale.", GC.Buy._view.add.note:GetText())
       assert.is_nil(next(GC.db.runs))
       enter("999999")
       assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
       assert.is_nil(next(GC.db.runs))
     end)
 
-    -- With the auction house open it is where everything is searched (next): the box does not point
-    -- the player at it.
+    -- With the auction house open it is where everything is searched (UI/BuySearch.lua, which says
+    -- how that search went): the box does not point the player at it.
     it("does not send the player to the auction house while it is open", function()
       GC.Sniper = { IsAHOpen = function() return true end }
       enter("Linen Cloth")
       GC.Sniper = nil
-      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
+      assert.equal("", GC.Buy._view.add.note:GetText())
     end)
 
     it("takes a shift-click while it has the focus, and none before", function()

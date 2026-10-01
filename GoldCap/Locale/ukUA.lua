@@ -1182,9 +1182,28 @@ GC.Locales.ukUA = {
   ["Clear"] = "Очистити",
   ["Could not read: %s."] = "Не вдалося прочитати: %s.",
   ["Items to add: %d — %s"] = "До додавання: %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Тут нічого не підходить. Відкрийте аукціон, щоб шукати серед усього, що продається, або зробіть Shift+клік по предмету.",
   ["Recent:"] = "Нещодавні:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Зробіть Shift+клік по предметах, введіть назву або ID предмета з x і кількістю: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "У НАЯВНОСТІ",
+  ["Add to list…"] = "Додати до списку…",
+  ["Back to %s"] = "До списку «%s»",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Клік — купити тут. Правий клік — додати до списку.",
+  ["Close search"] = "Закрити пошук",
+  ["How many"] = "Скільки",
+  ["How many of %s?"] = "Скільки: %s?",
+  ["Loading more results…"] = "Завантажуємо ще результати…",
+  ["More results"] = "Ще результати",
+  ["Nothing on sale for “%s”."] = "За запитом «%s» нічого не продається.",
+  ["On sale for “%s”: %d"] = "Знайдено за запитом «%s»: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Відкрийте аукціон, щоб шукати серед того, що продається.",
+  ["PRICE FROM"] = "ЦІНА ВІД",
+  ["Search again"] = "Шукати знову",
+  ["Searching the auction house for “%s”…"] = "Шукаємо «%s» на аукціоні…",
+  ["The auction house did not answer. Search again."] = "Аукціон не відповів. Повторіть пошук.",
+  ["Type a whole number."] = "Введіть ціле число.",
+  ["Waiting for the auction house…"] = "Чекаємо на аукціон…",
 }

@@ -1172,9 +1172,29 @@ GC.Locales.frFR = {
   ["Clear"] = "Effacer",
   ["Could not read: %s."] = "Illisible : %s.",
   ["Items to add: %d — %s"] = "À ajouter : %d — %s",
-  ["Nothing here matches. Open the auction house to search everything on sale, or shift-click the item."] =
-    "Rien ici ne correspond. Ouvrez l'hôtel des ventes pour chercher tout ce qui est en vente, ou faites Maj+clic sur l'objet.",
   ["Recent:"] = "Récents :",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "Maj+clic sur des objets, tapez un nom, ou un ID d'objet avec x et la quantité : 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "DISPONIBLES",
+  ["Add to list…"] = "Ajouter à une liste…",
+  ["Back to %s"] = "Retour à %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Cliquez pour l'acheter ici. Clic droit pour l'ajouter à une liste.",
+  ["Close search"] = "Fermer la recherche",
+  ["How many"] = "Combien",
+  ["How many of %s?"] = "Combien de %s ?",
+  ["Loading more results…"] = "Chargement d'autres résultats…",
+  ["More results"] = "Plus de résultats",
+  ["Nothing on sale for “%s”."] = "Rien en vente pour « %s ».",
+  ["On sale for “%s”: %d"] = "En vente pour « %s » : %d",
+  ["Open the auction house to search what's on sale."] =
+    "Ouvrez l'hôtel des ventes pour chercher ce qui est en vente.",
+  ["PRICE FROM"] = "À PARTIR DE",
+  ["Search again"] = "Relancer la recherche",
+  ["Searching the auction house for “%s”…"] = "Recherche de « %s » à l'hôtel des ventes…",
+  ["The auction house did not answer. Search again."] =
+    "L'hôtel des ventes n'a pas répondu. Relancez la recherche.",
+  ["Type a whole number."] = "Saisissez un nombre entier.",
+  ["Waiting for the auction house…"] = "En attente de l'hôtel des ventes…",
 }

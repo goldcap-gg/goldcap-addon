@@ -6669,6 +6669,9 @@ end
 -- buffer -- every keys batch, the book pass, Auto's next pass -- beside PlayerIsBusy, and by
 -- nothing else. Fails open.
 function GC.Sniper._BrowseOwned()
+  -- The player's own search in the BUY tab (UI/BuySearch.lua): from the moment it may go until its
+  -- answer has landed, or its late answer stopped being owed.
+  if GC.BuySearch and GC.BuySearch.OwnsBrowse() then return true end
   local tab = GC.AuctionHouseTab
   return (tab and tab.PlayerOwnsBrowseList and tab.PlayerOwnsBrowseList()) and true or false
 end
@@ -6825,6 +6828,8 @@ end
 function GC.Sniper.RequestOut()
   local now = time()
   if GC.Sniper._browseOutAt and now - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then return true end
+  -- The BUY tab's search of the auction house, still unanswered (UI/BuySearch.lua).
+  if GC.BuySearch and GC.BuySearch.Pending() then return true end
   for id, out in pairs(GC.Sniper._searchesOut) do
     if now - out.at <= LIM.REQUERY_TIMEOUT_SECONDS then return true end
     GC.Sniper._searchesOut[id] = nil
@@ -6835,6 +6840,9 @@ end
 function GC.Sniper.OnBrowseResults()
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
+  -- The BUY tab's search, once no keys batch has claimed the answer (nothing of ours sends one
+  -- over the other): its own answer, or the late one of a request it gave up.
+  if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   -- A pass that has not sent its query yet has no page to receive: whatever this event
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
@@ -6849,6 +6857,7 @@ end
 function GC.Sniper.OnBrowseResultsAdded()
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
+  if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end -- see OnBrowseResults
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
   if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
