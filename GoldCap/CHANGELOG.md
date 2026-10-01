@@ -1,5 +1,19 @@
 # GoldCap
 
+## 0.18.0 (unreleased)
+
+- The SOLD tab is new. At the top: what you got in the chosen period, your profit where GoldCap
+  knows the cost, and in WoW: Forever how far you are on the road to level 40 riding. Pick today,
+  7 or 30 days, or search by name.
+- Sales show the item's icon and quality colour, grouped by day in WoW: Forever. Hover a sale to
+  see where the money went: the sale price, the auction house cut, what you got, what you paid and
+  the profit, and how the price compares with the market now.
+- In the SELL tab every column is as wide as its longest text, so nothing is cut or written over
+  in any language.
+- The GoldCap logo sits at the top of the side bar, and the tab buttons keep the same soft
+  highlight on hover after you have visited them.
+- GoldCap's tooltips join their details with commas, which every game language's font can draw.
+
 ## 0.17.2 (2026-09-30)
 
 - In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
