@@ -1165,4 +1165,6 @@ GC.Locales.deDE = {
   ["Vendor list"] = "Händlerliste",
   ["run imported: %s (%d lines)"] = "Liste importiert: %s (%d Zeilen)",
   ["the run string is not valid"] = "die Listenzeichenfolge ist ungültig",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "nächster Kauf: %s",
 }

@@ -1099,4 +1099,6 @@ GC.Locales.koKR = {
   ["Vendor list"] = "상인 목록",
   ["run imported: %s (%d lines)"] = "목록 가져옴: %s (%d줄)",
   ["the run string is not valid"] = "목록 문자열이 올바르지 않습니다",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "다음 구매: %s",
 }

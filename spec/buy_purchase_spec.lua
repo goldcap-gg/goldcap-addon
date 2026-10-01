@@ -251,6 +251,12 @@ describe("BUY purchase", function()
       SlicedTexture = function(parent) return region("Texture", parent) end,
       Chip = function(parent) return chip(parent) end,
       WithQuality = function(name) return name end,
+      -- UI/Theme.lua's own: opens GameTooltip on the row, placed beside the window. Which window
+      -- it was placed beside is kept on the tooltip for the hover specs.
+      ItemTooltipOutside = function(row, window)
+        _G.GameTooltip:SetOwner(row, "ANCHOR_NONE")
+        _G.GameTooltip.besideWindow = window
+      end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
     GC.Data = { GetItemValue = function(itemID)
@@ -1777,6 +1783,29 @@ describe("BUY purchase", function()
     assert.equal("nothing on offer", buttonFor(rowWithText("Echo Salt")).label)
   end)
 
+  -- The client's GameTooltip, as far as a line's tooltip uses it: every line it was handed, in
+  -- order, the double ones as "left | right". The game's own lines for an item are the client's to
+  -- draw: SetItemByID and SetHyperlink stand for them as one line naming what was asked for.
+  local tip
+  local function fakeTooltip()
+    tip = { lines = {}, owner = nil }
+    function tip:SetOwner(o) self.owner = o; self.lines = {} end
+    function tip:SetText(t) self.lines[#self.lines + 1] = { t } end
+    function tip:SetItemByID(id) self.lines[#self.lines + 1] = { "item:" .. tostring(id) } end
+    function tip:SetHyperlink(link) self.lines[#self.lines + 1] = { "link:" .. tostring(link) } end
+    function tip:AddLine(t) self.lines[#self.lines + 1] = { t } end
+    function tip:AddDoubleLine(l, r) self.lines[#self.lines + 1] = { l, r } end
+    function tip:Show() end
+    function tip:Hide() self.owner = nil end
+    function tip:IsOwned(o) return self.owner == o end
+    _G.GameTooltip = tip
+  end
+  local function tipText()
+    local out = {}
+    for _, l in ipairs(tip.lines) do out[#out + 1] = table.concat(l, " | ") end
+    return table.concat(out, "\n")
+  end
+
   -- BUY 2.0 week 2: a gear line (anything the client will not sell as a commodity) is bought here,
   -- one lot per press, the cheapest at or under the line's cap, never over it.
   --
@@ -2248,6 +2277,47 @@ describe("BUY purchase", function()
       gearRun({ i = 201, q = 1, cc = 2000, minIlvl = 25 })
       assert.is_truthy(rowWithText("Dark Leather Boots").reagent:GetText():find("item level 25+", 1, true))
     end)
+
+    -- The hover: the game's own tooltip for the lot it buys next (its own link: the item level and
+    -- bonuses the player would get), its lots by price under it, and that lot named.
+    it("shows the lot it buys next in the game's own tooltip, and its lots by price under it", function()
+      LOTS[1].itemLink = "boots-20"
+      readBoots()
+      fakeTooltip()
+      local row = rowWithText("Dark Leather Boots")
+      row.scripts.OnEnter(row)
+      assert.same({ "link:boots-20" }, tip.lines[1])
+      local text = tipText()
+      assert.is_truthy(text:find("4 at 900c", 1, true))
+      assert.is_truthy(text:find("2 at 1000c", 1, true))
+      assert.is_truthy(text:find("1 at 1900c | over your cap", 1, true))
+      assert.is_truthy(text:find("next to buy: 900c | ilvl 20", 1, true))
+      assert.is_nil(text:find("you take", 1, true)) -- a press buys one lot, not a walk up the book
+    end)
+
+    it("shows the item itself when no lot is known yet", function()
+      fakeTooltip()
+      local row = rowWithText("Dark Leather Boots")
+      row.scripts.OnEnter(row)
+      assert.same({ "item:201" }, tip.lines[1])
+      assert.is_nil(tipText():find("next to buy", 1, true))
+    end)
+
+    it("says why there is no lot to buy next", function()
+      money = 500
+      readBoots()
+      fakeTooltip()
+      local row = rowWithText("Dark Leather Boots")
+      row.scripts.OnEnter(row)
+      assert.is_truthy(tipText():find("not enough gold", 1, true))
+      assert.same({ "item:201" }, tip.lines[1])
+      gearRun({ i = 201, q = 1 })
+      money = 1000000
+      readBoots()
+      row = rowWithText("Dark Leather Boots")
+      row.scripts.OnEnter(row)
+      assert.is_truthy(tipText():find("no cap for this item — right-click the line to set one", 1, true))
+    end)
   end)
 
   -- Review round 1: a line whose quote is still fresh keeps its clickable "BUY n" while a batch is
@@ -2654,28 +2724,38 @@ describe("BUY purchase", function()
     end)
   end)
 
-  -- The client's GameTooltip, as far as a line's tooltip uses it: every line it was handed, in
-  -- order, the double ones as "left | right".
-  local tip
-  local function fakeTooltip()
-    tip = { lines = {}, owner = nil }
-    function tip:SetOwner(o) self.owner = o; self.lines = {} end
-    function tip:SetText(t) self.lines[#self.lines + 1] = { t } end
-    function tip:AddLine(t) self.lines[#self.lines + 1] = { t } end
-    function tip:AddDoubleLine(l, r) self.lines[#self.lines + 1] = { l, r } end
-    function tip:Show() end
-    function tip:Hide() self.owner = nil end
-    function tip:IsOwned(o) return self.owner == o end
-    _G.GameTooltip = tip
-  end
-  local function tipText()
-    local out = {}
-    for _, l in ipairs(tip.lines) do out[#out + 1] = table.concat(l, " | ") end
-    return table.concat(out, "\n")
-  end
-
   describe("the hover", function()
     before_each(fakeTooltip)
+
+    -- The game's own tooltip for the item, as the Deals and Sell rows open theirs -- beside the
+    -- window, never over the list -- and GoldCap's lines under it. UI/Tooltip.lua's block stands
+    -- aside for the row (`goldcapOwnLines`): it would print a second market figure and Source.
+    it("opens the game's own tooltip for the line's item beside the window, GoldCap's lines after it", function()
+      local row = rowWithText("Alpha Herb")
+      row.scripts.OnEnter(row)
+      assert.equal(row, tip.owner)
+      assert.equal(containerOf():GetParent(), tip.besideWindow)
+      assert.same({ "item:101" }, tip.lines[1])
+      assert.same({ " " }, tip.lines[2])
+      assert.is_truthy(tip.lines[3][1]:find("buy 10 of 10", 1, true))
+      assert.is_true(row.goldcapOwnLines)
+    end)
+
+    it("says what was bought on the list, and that a vendor sells a vendor line", function()
+      GC.AppRuns._set({ { code = "run-v", name = "Vendor", updatedAt = 900, origin = "app",
+                          lines = { { i = 102, q = 5, v = true, vu = 25 }, { i = 103, q = 4 } } } })
+      GC.db.settings.sniper.buyRun = "run-v"
+      GC.Buy.Show()
+      GC.Buy.CurrentRun():RecordPurchase(103, 2, 5000, now)
+      GC.Buy.RefreshIfShown()
+      local vendorRow = rowWithText("Bravo Ore")
+      vendorRow.scripts.OnEnter(vendorRow)
+      assert.is_truthy(tipText():find("a vendor sells it for 25c each", 1, true))
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      assert.is_truthy(tipText():find("bought 2 for 5000c", 1, true))
+      assert.is_nil(tipText():find("vendor", 1, true))
+    end)
 
     it("draws the ladder the line's purchase would walk, what it takes, the market and the cap", function()
       setBook(101, { { unitPrice = 67, quantity = 53 }, { unitPrice = 68, quantity = 156 }, { unitPrice = 69, quantity = 24 } })
@@ -2684,7 +2764,7 @@ describe("BUY purchase", function()
       GC.Buy.OnCommodityResults(101)
       row.scripts.OnEnter(row)
       local text = tipText()
-      assert.is_truthy(text:find("Alpha Herb", 1, true))
+      assert.same({ "item:101" }, tip.lines[1])
       assert.is_truthy(text:find("buy 10 of 10", 1, true))
       assert.is_truthy(text:find("53 at 67c | you take 10", 1, true))
       assert.is_truthy(text:find("156 at 68c", 1, true))
@@ -2707,6 +2787,8 @@ describe("BUY purchase", function()
       GC.Buy.OnCommodityResults(103)
       assert.equal(attemptBefore, GC.Buy._attempt)
       assert.is_nil(GC.Buy._look)
+      -- Drawn again, the item's own tooltip first and the ladder now under it.
+      assert.same({ "item:103" }, tip.lines[1])
       assert.is_truthy(tipText():find("9 at 2000c | you take 4", 1, true))
     end)
 

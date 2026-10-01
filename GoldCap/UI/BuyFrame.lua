@@ -2174,6 +2174,18 @@ local function readOf(line)
   return nil
 end
 
+-- A gear line's lots as its last read saw them (the dock's price groups, the tooltip): its own
+-- attempt's, returned with the attempt, else a recent read's. nil for a line nobody has read whole.
+local function lotsOf(line)
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.lots and attempt.lotList then
+    return attempt.lotList, attempt
+  end
+  local seen = quotes[line.itemID]
+  if seen and seen.lots and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then return seen.lots, nil end
+  return nil, nil
+end
+
 -- The one word a row and the dock say about a line (GC.BuyView.Status), from what only this tab
 -- knows about it.
 local function lineStatus(line)
@@ -2749,9 +2761,15 @@ local function openRowMenu(owner, line)
   return true
 end
 
--- A line explained: what is left to buy and what the player has, the ladder of prices the
--- purchase would walk (what it takes at each, and the first level it does not), the market price
--- and -- on WoW: Forever -- whose it is and how old, the cap, and the line's other footnotes.
+-- A line explained. First the game's own tooltip for the item, the way the Deals and Sell rows open
+-- theirs: beside the window, never over the list it describes (Theme.ItemTooltipOutside). For a gear
+-- line whose next lot is known, that lot's own link -- the item level and bonuses a press would buy
+-- -- as the Sell rows show a lot's. Under it what only this tab knows: what is left to buy, what
+-- the player has and what was bought on this list, what a vendor asks, what the purchase would walk
+-- (a commodity's price ladder -- what it takes at each level, and the first it does not -- or a
+-- gear line's lots by price and the one it buys next), the market price and -- on WoW: Forever --
+-- whose it is and how old, the cap, and the line's other footnotes. GoldCap's own block under item
+-- tooltips (UI/Tooltip.lua) stands aside for these rows (`goldcapOwnLines`).
 -- GameTooltip draws with the client's own font, which lacks glyphs GoldCap's own face has (the
 -- Russian client drew an empty box for "·"): every line goes through GC.Util.ClientText.
 local function showLineTooltip(row)
@@ -2760,8 +2778,22 @@ local function showLineTooltip(row)
   if not line then return end
   local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
   local tip = GC.Util.ClientText
-  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:SetText(tip(lineName(line)), 1, 1, 1)
+  local buyHere = not line.vendor and line.kind ~= "craft" and not line.done
+  -- A gear line's lots, and the lot it buys next: the one its armed read chose, else the one the
+  -- next read would arm (GC.BuyLots.Next, as judgeLots asks it); `why` says why there is none.
+  local lots, own = nil, nil
+  if buyHere then lots, own = lotsOf(line) end
+  local nextLot, why = own and own.lot or nil, nil
+  if lots and not nextLot then
+    nextLot, why = GC.BuyLots.Next(lots, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+  end
+  Theme.ItemTooltipOutside(row, container:GetParent())
+  if nextLot and nextLot.link then
+    GameTooltip:SetHyperlink(nextLot.link)
+  else
+    GameTooltip:SetItemByID(line.itemID)
+  end
+  GameTooltip:AddLine(" ")
   local bags, bank = haveSplit(line.itemID)
   if line.buy > 0 then
     local have = bags + bank
@@ -2774,24 +2806,52 @@ local function showLineTooltip(row)
   if bank > 0 then
     GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
   end
-  if not line.vendor and line.kind ~= "craft" and not line.done then
+  if (line.bought or 0) > 0 then
+    GameTooltip:AddLine(tip((GC.L["bought %d for %s"]):format(line.bought, formatAmount(line.spent or 0))),
+      dim[1], dim[2], dim[3], true)
+  end
+  if line.vendor then
+    local muted = Theme.color.fgMuted
+    GameTooltip:AddLine(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
+      or GC.L["a vendor sells it"]), muted[1], muted[2], muted[3], true)
+  end
+  if buyHere then
     local read = readOf(line)
-    if read and read.ladder then
+    if lots then
+      -- One lot per press: the lots by price (the dock's groups), the dear ones marked, and the one
+      -- the next press buys -- never a walk up the book.
+      for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl)) do
+        local rc = g.over and Theme.tier.SUSPECT or dim
+        GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(g.count, formatAmount(g.buyout))),
+          tip(g.over and GC.L["over your cap"] or ""), fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
+      end
+      if nextLot then
+        GameTooltip:AddDoubleLine(tip((GC.L["next to buy: %s"]):format(formatAmount(nextLot.buyout))),
+          tip((nextLot.itemLevel or 0) > 0 and (GC.L["ilvl %d"]):format(nextLot.itemLevel) or ""),
+          gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
+      elseif why == "nocap" or why == "wallet" then
+        local sc = Theme.tier.SUSPECT
+        GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item — right-click the line to set one"]
+          or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
+      elseif why == "none" then
+        GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
+      end
+    elseif read and read.ladder then
       for _, r in ipairs(GC.BuyView.Ladder(read.ladder, line.buy, line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
         local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
           fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
-      local age = time() - (read.at or time())
-      if age > BD.QUOTE_SECONDS then
-        GameTooltip:AddLine(tip((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or "")),
-          dim[1], dim[2], dim[3])
-      end
     elseif read and read.ladder == false then
       GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
     elseif line.floor then
       GameTooltip:AddLine(tip((GC.L["cheapest seen %s"]):format(formatAmount(line.floor))), dim[1], dim[2], dim[3])
+    end
+    local age = read and (lots or read.ladder) and time() - (read.at or time()) or 0
+    if age > BD.QUOTE_SECONDS then
+      GameTooltip:AddLine(tip((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or "")),
+        dim[1], dim[2], dim[3])
     end
   end
   GameTooltip:AddLine(" ")
@@ -2913,6 +2973,9 @@ createRow = function(parent)
   -- The line explained on hover (showLineTooltip), and -- after a short dwell -- another line's
   -- book read for it (lookLine). Wired ONCE on the pooled row, reading whatever paintRow last
   -- stamped. A hover no longer picks the line: a left click does (selectLine).
+  -- `goldcapOwnLines`: UI/Tooltip.lua's block under the item's tooltip stands aside for this row,
+  -- whose own lines say the market price the line is capped against and whose it is.
+  row.goldcapOwnLines = true
   row:SetScript("OnEnter", function(self)
     GC.Buy._tooltipRow = self
     showLineTooltip(self)
@@ -3666,11 +3729,9 @@ local function paintDock()
       cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor,
       craft = GC.BuyRun.CraftText(line) }
     -- A gear line: its lots by price, from its own read, or the last one still worth drawing.
-    local seen = quotes[line.itemID]
-    if mine and mine.lots and mine.lotList then
-      d.lots = { groups = GC.BuyLots.Groups(mine.lotList, line.cap, line.minIlvl), why = mine.lotWhy }
-    elseif seen and seen.lots and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then
-      d.lots = { groups = GC.BuyLots.Groups(seen.lots, line.cap, line.minIlvl) }
+    local lots, own = lotsOf(line)
+    if lots then
+      d.lots = { groups = GC.BuyLots.Groups(lots, line.cap, line.minIlvl), why = own and own.lotWhy or nil }
     end
   else
     local t = current:Totals()

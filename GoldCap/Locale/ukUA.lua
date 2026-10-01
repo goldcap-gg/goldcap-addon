@@ -1176,4 +1176,6 @@ GC.Locales.ukUA = {
   ["Vendor list"] = "Список для торговця",
   ["run imported: %s (%d lines)"] = "список імпортовано: %s (рядків: %d)",
   ["the run string is not valid"] = "рядок списку пошкоджено",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "наступна покупка: %s",
 }

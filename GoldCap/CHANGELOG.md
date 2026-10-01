@@ -6,7 +6,10 @@
   and what the rest costs; a line that cannot be bought right now says why in a word instead. One
   button at the bottom buys the line you clicked: press BUY, check Blizzard's price, then press
   CONFIRM, or Cancel.
-- Hover a line to see the prices it would buy at, how many at each, the market price and your cap.
+- Hover a line to see the item's own full tooltip, beside the GoldCap window, and under it what is
+  left to buy and what you have, the prices it would buy at and how many at each, the market price
+  and your cap. For gear it lists the lots by price and the one the next press buys; for an item a
+  vendor sells, the vendor's price.
 - A line over your cap says what the cheapest one costs and what your cap is, and offers to raise
   the cap or skip the line. Right-click any line to skip it for now or type a cap of your own.
 - The top of the BUY tab shows how much of the list is done and what the rest costs to buy here.

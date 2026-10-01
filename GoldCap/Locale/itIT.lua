@@ -1164,4 +1164,6 @@ GC.Locales.itIT = {
   ["Vendor list"] = "Lista del mercante",
   ["run imported: %s (%d lines)"] = "lista importata: %s (%d righe)",
   ["the run string is not valid"] = "la stringa della lista non è valida",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "prossimo acquisto: %s",
 }

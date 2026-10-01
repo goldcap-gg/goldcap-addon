@@ -1158,4 +1158,6 @@ GC.Locales.ruRU = {
   ["Vendor list"] = "Список для торговца",
   ["run imported: %s (%d lines)"] = "список импортирован: %s (строк: %d)",
   ["the run string is not valid"] = "строка списка повреждена",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "следующая покупка: %s",
 }

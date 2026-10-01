@@ -68,6 +68,7 @@ describe("BuyFrame", function()
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
+    function r:GetParent() return parent end
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:SetAutoFocus(on) self.autoFocus = on end
     function r:HasFocus() return self.focused == true end
@@ -154,6 +155,8 @@ describe("BuyFrame", function()
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
       WithQuality = function(name) return name end,
+      -- UI/Theme.lua's own opens GameTooltip on the row, placed beside the window.
+      ItemTooltipOutside = function(row) _G.GameTooltip:SetOwner(row, "ANCHOR_NONE") end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
     GC.Data = { GetItemValue = function(itemID)
@@ -238,12 +241,14 @@ describe("BuyFrame", function()
   local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
 
   -- The client's GameTooltip, as far as a line's tooltip uses it. `lines` are its AddLine calls
-  -- (text and colour), `all` every line in order, the double ones as "left | right".
+  -- (text and colour), `all` every line in order, the double ones as "left | right", the game's
+  -- own lines for an item as one "item:<id>".
   local function tooltipOn(row)
     local lines, all = {}, {}
     _G.GameTooltip = {
       SetOwner = function() end, IsOwned = function() return true end,
       SetText = function(_, text) all[#all + 1] = text end,
+      SetItemByID = function(_, id) all[#all + 1] = "item:" .. tostring(id) end,
       AddLine = function(_, text, r, g, b)
         lines[#lines + 1] = { text = text, color = { r, g, b } }
         all[#all + 1] = text
@@ -353,7 +358,7 @@ describe("BuyFrame", function()
     stubItemCount({ [101] = { all = 4, carried = 0 } })
     GC.Buy.Show()
     local lines, all = tooltipOn(rowWithText("Alpha Herb"))
-    assert.equal("Alpha Herb", all[1])
+    assert.equal("item:101", all[1])
     assert.truthy(lineWith(lines, "buy 6 of 10, have 4 in bags and bank"))
   end)
 

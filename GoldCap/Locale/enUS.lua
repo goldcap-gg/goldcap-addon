@@ -1147,4 +1147,6 @@ GC.Locales.enUS = {
   ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
     "This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator.",
   ["in game"] = "in game",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "next to buy: %s",
 }

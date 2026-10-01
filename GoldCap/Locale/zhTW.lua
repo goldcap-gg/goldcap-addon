@@ -1073,4 +1073,6 @@ GC.Locales.zhTW = {
   ["Vendor list"] = "商人清單",
   ["run imported: %s (%d lines)"] = "已匯入清單：%s（%d 行）",
   ["the run string is not valid"] = "清單字串無效",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "下次購買：%s",
 }
