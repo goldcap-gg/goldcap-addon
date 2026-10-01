@@ -77,13 +77,17 @@ Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
+Core/NameMatch.lua
 Core/BuyRun.lua
 Core/BuyView.lua
 Core/BuyDock.lua
 Core/BuyLots.lua
 Core/BuyVendor.lua
+Core/BuyRecents.lua
+Core/BuySearchModel.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua
+Core/ListStrings.lua
 Core/AppRuns.lua
 Core/Caps.lua
 Core/BoardRows.lua
@@ -104,6 +108,9 @@ UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua
 UI/BuyFrame.lua
+UI/BuyLists.lua
+UI/BuyAddBox.lua
+UI/BuySearch.lua
 UI/BuyVendorPanel.lua
 UI/SettingsFrame.lua
 Core/Init.lua

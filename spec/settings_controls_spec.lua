@@ -299,6 +299,7 @@ describe("Settings controls", function()
     }
     -- The real engine, for the one thing the panel takes from it: the bound on "Max units per
     -- buy". A stubbed constant would let the field and the engine drift apart unseen.
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)

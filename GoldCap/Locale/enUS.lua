@@ -156,7 +156,6 @@ GC.Locales.enUS = {
   ["Level 40 reached: %s to go."] = "Level 40 reached: %s to go.",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
-  ["Lists come from goldcap.gg through the companion."] = "Lists come from goldcap.gg through the companion.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
@@ -283,12 +282,7 @@ GC.Locales.enUS = {
     "open the auction house once so GoldCap can tell how these sell",
   ["over your cap"] = "over your cap",
   ["over your cap · %s"] = "over your cap · %s",
-  ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
-  ["Remove this run"] = "Remove this run",
-  ["From goldcap.gg — remove it there"] = "From goldcap.gg — remove it there",
-  ["Paste a run..."] = "Paste a run...",
-  ["Runs: click to switch, remove or paste one"] = "Runs: click to switch, remove or paste one",
   ["Archived"] = "Archived",
   ["Restore %s"] = "Restore %s",
   ["COST"] = "COST",
@@ -403,7 +397,6 @@ GC.Locales.enUS = {
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
   ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
-  ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
   ["Held back from cancelling"] = "Held back from cancelling",
   ["Held back from the queue"] = "Held back from the queue",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -579,7 +572,6 @@ GC.Locales.enUS = {
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCANNING…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
-  ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sales evidence"] = "Sales evidence",
   ["Sell it on the AH"] = "Sell it on the AH",
@@ -855,7 +847,6 @@ GC.Locales.enUS = {
   ["paid sale unresolved"] = "paid sale unresolved",
   ["placing bid..."] = "placing bid...",
   ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "previous commodity purchase settled -- %s to re-check the price",
   ["price changed after you closed the buy window -- nothing was bought"] =
@@ -977,7 +968,6 @@ GC.Locales.enUS = {
   ["yours ×%s"] = "yours ×%s",
   ["~%dd to reach you"] = "~%dd to reach you",
   ["~%dh to reach you"] = "~%dh to reach you",
-  ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",
   ["×%d in your bags · no stack GoldCap can identify exactly"] = "×%d in your bags · no stack GoldCap can identify exactly",
@@ -988,8 +978,6 @@ GC.Locales.enUS = {
   ["×%d%s · made %s · %s"] = "×%d%s · made %s · %s",
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
   ["▲%d%% over your cap"] = "▲%d%% over your cap",
@@ -1151,16 +1139,101 @@ GC.Locales.enUS = {
   ["BUY %d · %s"] = "BUY %d · %s",
   ["BUY · %s"] = "BUY · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "Added %d× %s to your quick list.",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "Could not find that item. Shift-click it, or type its item id.",
   ["Item to add"] = "Item to add",
   ["Make a list once, buy it here at or under your price."] =
     "Make a list once, buy it here at or under your price.",
-  ["Quick list"] = "Quick list",
   ["Remove from the list"] = "Remove from the list",
   ["or plan a whole profession on goldcap.gg"] = "or plan a whole profession on goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "HIDE DETAILS ▲",
+  ["SHOW DETAILS ▼"] = "SHOW DETAILS ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "plan updated on goldcap.gg · +%d -%d lines",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ goldcap.gg market value — no live quote yet",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ needs price",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "Items the game has not loaded yet are left out: %d. Export again in a moment.",
+  ["%s and %d more"] = "%s and %d more",
+  ["+ New"] = "+ New",
+  ["Add to favourites"] = "Add to favourites",
+  ["Added %d items to %s."] = "Added %d items to %s.",
+  ["Added %d× %s to %s."] = "Added %d× %s to %s.",
+  ["Added %d× %s to a new list, %s."] = "Added %d× %s to a new list, %s.",
+  ["Copy as a TSM item list"] = "Copy as a TSM item list",
+  ["Copy for Auctionator"] = "Copy for Auctionator",
+  ["Delete"] = "Delete",
+  ["Delete %s? This cannot be undone."] = "Delete %s? This cannot be undone.",
+  ["Delete this list…"] = "Delete this list…",
+  ["Export"] = "Export",
+  ["From goldcap.gg — rename or remove it there"] = "From goldcap.gg — rename or remove it there",
+  ["GoldCap — Import a list"] = "GoldCap — Import a list",
+  ["Import a list…"] = "Import a list…",
+  ["Import into this list…"] = "Import into this list…",
+  ["Imported %s with %d items."] = "Imported %s with %d items.",
+  ["List %d"] = "List %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "Lists come from goldcap.gg through the companion, or make one here with + New.",
+  ["Lists: click to switch, make, import or export one"] =
+    "Lists: click to switch, make, import or export one",
+  ["Move down"] = "Move down",
+  ["Move up"] = "Move up",
+  ["Name this list"] = "Name this list",
+  ["New list"] = "New list",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s.",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Press Ctrl+C to copy, then import it in Auctionator's Shopping tab.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] =
+    "Press Ctrl+C to copy, then import it into a TSM group.",
+  ["Remove from favourites"] = "Remove from favourites",
+  ["Rename…"] = "Rename…",
+  ["Save"] = "Save",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "The game could not tell which items these are: %s. Shift-click them into the item box instead.",
+  ["There are no items in this list."] = "There are no items in this list.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator.",
+  ["in game"] = "in game",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "next to buy: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Add",
+  ["Added %d items to a new list, %s."] = "Added %d items to a new list, %s.",
+  ["Clear"] = "Clear",
+  ["Could not read: %s."] = "Could not read: %s.",
+  ["Items to add: %d — %s"] = "Items to add: %d — %s",
+  ["Recent:"] = "Recent:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Shift-click items, type a name, or an item id with x and a count: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "AVAILABLE",
+  ["Add to list…"] = "Add to list…",
+  ["Back to %s"] = "Back to %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Click to buy it here. Right-click to add it to a list.",
+  ["Close search"] = "Close search",
+  ["How many"] = "How many",
+  ["How many of %s?"] = "How many of %s?",
+  ["Loading more results…"] = "Loading more results…",
+  ["More results"] = "More results",
+  ["Nothing on sale for “%s”."] = "Nothing on sale for “%s”.",
+  ["On sale for “%s”: %d"] = "On sale for “%s”: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Open the auction house to search what's on sale.",
+  ["PRICE FROM"] = "PRICE FROM",
+  ["Search again"] = "Search again",
+  ["Searching the auction house for “%s”…"] = "Searching the auction house for “%s”…",
+  ["The auction house did not answer. Search again."] =
+    "The auction house did not answer. Search again.",
+  ["Type a whole number."] = "Type a whole number.",
+  ["Waiting for the auction house…"] = "Waiting for the auction house…",
 }

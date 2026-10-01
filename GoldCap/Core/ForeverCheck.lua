@@ -46,7 +46,7 @@ local function realEnv()
     commodities = function() return GC.db and GC.db.commodityByItem or {} end,
     book = function() return GC.Sniper and GC.Sniper._bookPass and GC.Sniper._bookPass:Book() or nil end,
     lastPass = function() return GC.Sniper and GC.Sniper._lastPass or nil end,
-    print = function(msg) if GC.Print then GC.Print(msg) else print(msg) end end,
+    print = function(msg) if GC.Print then GC.Print(msg) else print(GC.Util.ClientText(msg)) end end,
     -- Plan 3e's client reads, looked up by name so a spec can hand in a client without them.
     global = function(name) return _G[name] end,
   }

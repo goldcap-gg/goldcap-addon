@@ -720,9 +720,9 @@ local function saleTooltip(row)
   -- The sale's own card: the name in its quality colour, then where the money went. The item's
   -- full tooltip (stats, vendor price, GoldCap's own price block) buried the sale under it.
   local nameColor = info.color or COLOR.white
-  GameTooltip:SetText(r.name or GC.L["Unknown item"], nameColor[1], nameColor[2], nameColor[3])
+  GameTooltip:SetText(GC.Util.ClientText(r.name or GC.L["Unknown item"]), nameColor[1], nameColor[2], nameColor[3])
   local dim, body, white = Theme.color.fgDim, { 0.85, 0.85, 0.85 }, COLOR.white
-  local tip = GC.Util.TooltipText
+  local tip = GC.Util.ClientText
   local function line(text, c, wrap) GameTooltip:AddLine(tip(text), c[1], c[2], c[3], wrap) end
   local function pair(left, right, lc, rc)
     GameTooltip:AddDoubleLine(tip(left), tip(right), lc[1], lc[2], lc[3], rc[1], rc[2], rc[3])
@@ -1035,8 +1035,11 @@ local function createTile(parent)
     if not (GameTooltip and s and GC.ForeverRoad and GC.ForeverRoad.Lines) then return end
     GameTooltip:SetOwner(self, Theme.TooltipAnchor and Theme.TooltipAnchor(self) or "ANCHOR_RIGHT")
     for i, text in ipairs(GC.ForeverRoad.Lines(s)) do
-      text = GC.Util.TooltipText(text)
-      if i == 1 then GameTooltip:AddLine(text, 1, 0.82, 0, true) else GameTooltip:AddLine(text, 0.85, 0.85, 0.85, true) end
+      if i == 1 then
+        GameTooltip:AddLine(GC.Util.ClientText(text), 1, 0.82, 0, true)
+      else
+        GameTooltip:AddLine(GC.Util.ClientText(text), 0.85, 0.85, 0.85, true)
+      end
     end
     GameTooltip:Show()
   end)

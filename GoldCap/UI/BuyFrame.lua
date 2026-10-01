@@ -109,8 +109,6 @@ local BD = {
   -- of its own on the left, LISTS_W across.
   WIDE_MIN = 880,
   LISTS_W = 196,
-  -- The item box's well (BUY 2.0's quick list): as wide as this, or the row when that is narrower.
-  ADD_W = 260,
   -- BUY 2.0 week 2: the most rows of a lot line's search this tab reads (the Buyout sort puts the
   -- cheapest first, so the first page holds every lot a press could buy).
   MAX_LOTS = 100,
@@ -369,6 +367,9 @@ end
 -- Beside the run, not on it, for the reason the splits are (a companion sync replaces the run
 -- wholesale), and created only when a write needs it, for the reason splitsFor gives.
 local function lineCapsFor(code, create)
+  -- A result opened from the BUY search (UI/BuySearch.lua) keeps the player's price for it for this
+  -- session only: it is on no list, and nothing of it is stored.
+  if GC.BuySearch and GC.BuySearch.IsCode(code) then return GC.BuySearch._caps end
   local db = GC.db
   if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
   if type(db.runLineCaps) ~= "table" then
@@ -435,7 +436,7 @@ local function noticeText(code)
   if not at or (time() - at) >= BD.NOTICE_SECONDS then return nil end
   local added, removed = tonumber(notice.added) or 0, tonumber(notice.removed) or 0
   if added == 0 and removed == 0 then return GC.L["plan updated on goldcap.gg"] end
-  return (GC.L["plan updated on goldcap.gg · +%d −%d lines"]):format(added, removed)
+  return (GC.L["plan updated on goldcap.gg · +%d -%d lines"]):format(added, removed)
 end
 
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
@@ -589,19 +590,29 @@ end
 local openRunMenu -- defined after cycleRun; the band's picker is the only caller
 local vendorListText -- defined with the rows; the run menu's "Copy vendor list" reads it
 
--- The run's own name if the site gave it one, otherwise its code -- never an invented label.
--- The quick list (BUY 2.0, Core/AppRuns.lua's AddQuick) is named in the player's language.
-local function isQuickRun(code)
+-- The player's own list behind a code -- made in the game or pasted (Core/AppRuns.lua's IsLocal) --
+-- or nil for one of goldcap.gg's. Read off the stored run, so a spec's AppRuns double answers too.
+local function localRun(code)
   local stored = code and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(code) or nil
-  return type(stored) == "table" and stored.quick == true
+  return (type(stored) == "table" and (stored.origin == "game" or stored.origin == "paste")) and stored or nil
 end
 
+-- The run's own name if it has one -- a list made in the game is "List N" in the player's language
+-- until it does (Core/AppRuns.lua's Label) -- otherwise its code: never an invented label.
 local function runLabel(run)
-  if run and isQuickRun(run:Code()) then return GC.L["Quick list"] end
-  return (run and (run:Name() or run:Code())) or ""
+  if not run then return "" end
+  local stored = GC.AppRuns.Label and GC.AppRuns.Get(run:Code())
+  if stored then return GC.AppRuns.Label(stored) end
+  return run:Name() or run:Code()
 end
 
-function GC.Buy.CurrentRun() return current end
+-- The list on screen, or -- while the BUY search (UI/BuySearch.lua) is up -- the one it put aside:
+-- what the item box adds to, and the list a purchase of the search never counts against.
+function GC.Buy.CurrentRun()
+  local aside = GC.Buy._aside
+  if aside then return aside.run end
+  return current
+end
 
 -- What the list is narrowed to: one of GC.BuyView.FILTERS, and a name to look for. Both belong
 -- to the list on screen and are forgotten when another is picked (GC.Buy.SelectRun).
@@ -624,6 +635,9 @@ end
 function GC.Buy.SelectRun(code)
   local run = code and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(code) or nil
   local sniper = settings()
+  -- A list picked is the list on screen: the BUY search, and the list it put aside, go.
+  GC.Buy._aside = nil
+  if GC.BuySearch and GC.BuySearch.OnListSelected then GC.BuySearch.OnListSelected() end
   -- A new BuyRun object carries no floors at all, so the twenty-second window that was
   -- protecting the OLD run's prices is now protecting nothing -- it would just hold every NOW
   -- cell on an em dash for up to twenty seconds after a cycle-run click or a companion sync
@@ -632,7 +646,9 @@ function GC.Buy.SelectRun(code)
   -- just as much a replacement, and the next run picked must not inherit a stale window.
   lastRefreshAt = 0
   GC.Buy._filter, GC.Buy._query = "all", ""
-  GC.Buy._adding = nil
+  -- Every change to a list's lines (an item added or taken off, an import) ends here, so the
+  -- column's progress is worked out again rather than kept from before it.
+  GC.Buy._listMeta = {}
   if band and band.tools then band.tools.search:SetText("") end
   -- A quote is a plan against one run's lines. A purchase already in the client's hands keeps
   -- its attempt -- its terminal event still has to land somewhere, and OnCommodityPurchaseSucceeded
@@ -711,143 +727,156 @@ local function cycleRun()
   GC.Buy.SelectRun(list[index].code)
 end
 
--- Drops the shown run and moves to the next one the addon still holds (or clears the board).
--- Only a pasted run is removable here: an "app" run is the companion's mirror of a list on
--- goldcap.gg and would be back on the next sync, so it is removed where it lives.
-local function removeCurrentRun()
-  if not (current and GC.AppRuns and GC.AppRuns.Remove) then return end
-  local code = current:Code()
-  if not GC.AppRuns.Remove(code) then return end
-  local list = runList()
-  GC.Buy.SelectRun(list[1] and list[1].code or nil)
-  GC.Buy.RefreshIfShown()
+-- Whether a purchase is in the client's hands, for UI/BuyLists.lua: the list on screen is not
+-- archived or deleted under it (Finding 1).
+function GC.Buy._InFlight() return inFlight(GC.Buy._attempt) end
+
+-- ---------------------------------------------------------------------------
+-- The BUY search (UI/BuySearch.lua). While its results are on screen the list is put aside here,
+-- whole -- its BuyRun object, its focus -- and `current` is nil; a result opened from them is a run
+-- of one line that lives only in memory (GC.BuySearch.CODE, never in GC.db.runs), so the dock,
+-- planBuyClick, the quotes, the caps and the stranded-purchase rules all serve it unchanged. Never
+-- while a purchase of the line on screen is in the client's hands: CONFIRM belongs to that line.
+-- ---------------------------------------------------------------------------
+
+-- The list on screen goes aside (once); answers whether it did, or already had.
+function GC.Buy._PutListAside()
+  if GC.Buy._aside then return true end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._aside = { run = current, updatedAt = currentUpdatedAt, focus = GC.Buy._focus }
+  current, currentUpdatedAt = nil, nil
+  GC.Buy._attempt, GC.Buy._focus, GC.Buy._quotedFocus = nil, nil, nil
+  return true
 end
 
--- Puts the shown run away and moves to the next one still on offer (or clears the board).
--- Offered for any run, unlike removal: an "app" run is the companion's mirror of a list on
--- goldcap.gg and comes back on the next sync, and this flag is exactly how a finished one is
--- told to stay out of the picker anyway. A no-op while a purchase is in flight -- belt and
--- braces alongside the menu guard below, since `current` moves on and the in-flight purchase's
--- gold would then book against a run it can no longer see (Finding 1).
-local function archiveCurrentRun()
-  if inFlight(GC.Buy._attempt) then return end
-  if not (current and GC.AppRuns and GC.AppRuns.SetArchived) then return end
-  if not GC.AppRuns.SetArchived(current:Code(), true) then return end
-  local list = runList()
-  GC.Buy.SelectRun(list[1] and list[1].code or nil)
-  GC.Buy.RefreshIfShown()
-end
-
-local function runMenuLabel(run)
-  local name = run.quick and GC.L["Quick list"] or run.name or run.code or "?"
-  local count = type(run.lines) == "table" and #run.lines or 0
-  -- Where a run came from, in one word: the site, the player's own clipboard, or -- for a run
-  -- the player follows -- whose it is.
-  local origin = "goldcap.gg"
-  if run.origin == "paste" then
-    origin = GC.L["pasted"]
-  elseif type(run.by) == "string" and run.by ~= "" then
-    origin = (GC.L["from %s"]):format(run.by)
+-- Puts `run` ({ code = GC.BuySearch.CODE, name, lines = { { i, q, n, key? } } }) in the dock, or
+-- nothing with nil. What the player has is not subtracted -- the search buys what was asked for --
+-- and what this run bought is kept in GC.BuySearch's memory, not in buyProgress.
+function GC.Buy._OpenSearchRun(run)
+  if not GC.Buy._PutListAside() then return false end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  if not run then
+    current, GC.Buy._focus = nil, nil
+    return true
   end
-  local mark = (current and current:Code() == run.code) and "• " or "   "
-  return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
+  current = GC.BuyRun.New(run, setmetatable({
+    haveOf = function() return 0 end,
+    progress = function() return GC.BuySearch.Progress() end,
+  }, { __index = DRIVER }))
+  current:Refresh()
+  GC.Buy._focus = run.lines[1] and run.lines[1].i or nil
+  return true
 end
 
--- The run picker's menu: every live run, the current one marked, then this run's cap, archive
--- and remove / paste, and last what has been archived. Returns false when the client has no
--- MenuUtil, so the caller can fall back to cycling.
+-- The list put aside comes back -- picked again if it changed or went meanwhile. Answers whether it
+-- did: not while a purchase of the opened result is in the client's hands.
+function GC.Buy._TakeListBack()
+  local aside = GC.Buy._aside
+  if not aside then return true end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._aside = nil
+  current, currentUpdatedAt, GC.Buy._focus = aside.run, aside.updatedAt, aside.focus
+  GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  ensureRun()
+  return true
+end
+
+-- The opened result's run, or nil.
+function GC.Buy._SearchRun()
+  return (current and GC.BuySearch and GC.BuySearch.IsCode(current:Code())) and current or nil
+end
+
+-- A list in the picker's menu: the one on screen marked, a favourite's star, its name, how many
+-- lines, and where it came from in a word -- the game, the site, or whose it is (UI/BuyLists.lua).
+local function runMenuLabel(run)
+  local count = type(run.lines) == "table" and #run.lines or 0
+  local mark = (current and current:Code() == run.code) and "• " or "   "
+  return ("%s%s  ·  %s  ·  %s"):format(mark, GC.BuyLists.Title(run), (GC.L["%d lines"]):format(count),
+    GC.BuyLists.Origin(run))
+end
+
+-- The run picker's menu: every live list, the current one marked; then the one on screen -- its
+-- cap, and everything UI/BuyLists.lua does to a list (rename, favourite, order, export, import,
+-- archive, delete); then a new list, an import and the item box; last what has been archived.
+-- Returns false when the client has no MenuUtil, so the caller can fall back to cycling.
 openRunMenu = function(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end
+  -- A menu draws in the client's font: every entry goes through the helper (the Russian client
+  -- drew this menu's "·" as empty boxes).
+  local menuText = GC.Util.ClientText
   local list = runList()
   menu.CreateContextMenu(owner, function(_, root)
-    root:CreateTitle(GC.L["Runs"])
-    -- Core/AppRuns.lua already orders the list own -> followed -> pasted -> alert, so the
-    -- divider goes in at the first alert run and never again: the alert groups are the tail.
+    root:CreateTitle(menuText(GC.L["Runs"]))
+    -- Core/AppRuns.lua keeps the alert groups last, whatever the player's order, so the divider
+    -- goes in at the first alert run and never again: the alert groups are the tail.
     local alertsTitled = false
     for _, run in ipairs(list) do
       local code = run.code
       if run.k == "alert" and not alertsTitled then
         alertsTitled = true
         root:CreateDivider()
-        root:CreateTitle(GC.L["Alerts"])
+        root:CreateTitle(menuText(GC.L["Alerts"]))
       end
-      root:CreateButton(runMenuLabel(run), function()
+      root:CreateButton(menuText(runMenuLabel(run)), function()
         GC.Buy.SelectRun(code)
         GC.Buy.RefreshIfShown()
       end)
     end
     root:CreateDivider()
     local shown = shownRunData()
-    -- A run the site owns -- an alert group's live hits, or somebody else's list the player
-    -- follows -- carries none of the three decisions below. Its cap is the alert's own target
-    -- price, it comes and goes with the group or the follow, and Unfollow lives on goldcap.gg:
-    -- an Archive or a Remove here would last exactly until the next sync.
-    local siteManaged = shown ~= nil
-      and (shown.k == "alert" or (type(shown.by) == "string" and shown.by ~= ""))
-    -- A purchase in flight has already committed to this run's `current`: re-capping the lines
-    -- or archiving out from under it is exactly the hole Finding 1 describes (`settlePurchase`
-    -- would book the gold nowhere a bought-count can see it). Runs/remove/paste are unaffected.
-    if siteManaged then
-      if shown.k == "alert" then root:CreateTitle(GC.L["cap: alert target"]) end
-      root:CreateTitle(GC.L["From goldcap.gg — manage it there"])
-    elseif shown and not inFlight(GC.Buy._attempt) then
-      local code = shown.code
-      -- MenuUtil's own submenu shape: an element description with children added to it displays
-      -- as one (Blizzard's Menu implementation guide), and CreateRadio(text, isSelected,
-      -- setSelected, data) is the same triple UI/SettingsFrame.lua's language picker hands to
-      -- CreateRadioContextMenu. The title carries the cap the run is judged against right now,
-      -- so a run using the global one still reads as capped rather than as unset.
-      local capMenu = root:CreateButton((GC.L["Cap: %d%%"]):format(runCapPct(code)))
-      if capMenu and capMenu.CreateRadio then
-        for _, pct in ipairs(CAP_CHOICES) do
-          capMenu:CreateRadio(("%d%%"):format(pct),
-            function(value) return runCapPct(code) == value end,
-            function(value)
-              setRunCapPct(code, value)
-              GC.Buy.RefreshIfShown()
-            end, pct)
+    if shown then
+      -- A run the site owns -- an alert group's live hits, or somebody else's list the player
+      -- follows -- has no cap of its own here: an alert's cap is its own target price.
+      local siteManaged = shown.k == "alert" or (type(shown.by) == "string" and shown.by ~= "")
+      if shown.k == "alert" then root:CreateTitle(menuText(GC.L["cap: alert target"])) end
+      -- A purchase in flight has already committed to this run's `current`: re-capping the lines
+      -- out from under it is exactly the hole Finding 1 describes (`settlePurchase` would book the
+      -- gold nowhere a bought-count can see it). UI/BuyLists.lua holds archive and delete the same.
+      if not siteManaged and not inFlight(GC.Buy._attempt) then
+        local code = shown.code
+        -- MenuUtil's own submenu shape: an element description with children added to it
+        -- displays as one (Blizzard's Menu implementation guide), and CreateRadio(text,
+        -- isSelected, setSelected, data) is the same triple UI/SettingsFrame.lua's language picker
+        -- hands to CreateRadioContextMenu. The title carries the cap the run is judged against
+        -- right now, so a run using the global one still reads as capped rather than as unset.
+        local capMenu = root:CreateButton(menuText((GC.L["Cap: %d%%"]):format(runCapPct(code))))
+        if capMenu and capMenu.CreateRadio then
+          for _, pct in ipairs(CAP_CHOICES) do
+            capMenu:CreateRadio(menuText(("%d%%"):format(pct)),
+              function(value) return runCapPct(code) == value end,
+              function(value)
+                setRunCapPct(code, value)
+                GC.Buy.RefreshIfShown()
+              end, pct)
+          end
         end
       end
-      root:CreateButton(GC.L["Archive this run"], archiveCurrentRun)
+      GC.BuyLists.FillActions(root, shown)
     end
     -- The run's vendor stops as text to take out of the game: the one part of a run the game
     -- cannot help with. Harmless for a run the site owns too.
     if vendorListText() then
-      root:CreateButton(GC.L["Copy vendor list"], function()
+      root:CreateButton(menuText(GC.L["Copy vendor list"]), function()
         local text = vendorListText()
         if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
       end)
     end
-    if shown and shown.origin == "paste" then
-      root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
-    elseif shown and not siteManaged then
-      root:CreateTitle(GC.L["From goldcap.gg — remove it there"])
-    end
-    root:CreateButton(GC.L["Paste a run..."], function()
-      if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog() end
-    end)
-    -- The item box: on the quick list, or -- with none yet -- at the foot of the list on screen,
-    -- which stays; the quick list is made by the first item added.
-    root:CreateButton(GC.L["Item to add"], function()
-      if isQuickRun(GC.AppRuns.QUICK) then
-        GC.Buy.SelectRun(GC.AppRuns.QUICK)
-      else
-        GC.Buy._adding = true
-      end
-      GC.Buy.RefreshIfShown()
-      local add = GC.Buy._view and GC.Buy._view.add
-      if add and add.box.SetFocus then add.box:SetFocus() end
-    end)
+    -- The same two the wide window's column offers at its top, for a window too narrow for it.
+    root:CreateDivider()
+    root:CreateButton(menuText(GC.L["New list"]), function() GC.BuyLists.New() end)
+    root:CreateButton(menuText(GC.L["Import a list…"]), function() GC.BuyLists.Import() end)
     -- What has been put away, under its own divider: a run leaves the picker but not the addon,
     -- and this is the only way back to it.
     local archivedRuns = (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List({ archived = true })) or {}
     if #archivedRuns > 0 then
       root:CreateDivider()
-      root:CreateTitle(GC.L["Archived"])
+      root:CreateTitle(menuText(GC.L["Archived"]))
       for _, archivedRun in ipairs(archivedRuns) do
         local code = archivedRun.code
-        root:CreateButton((GC.L["Restore %s"]):format(archivedRun.name or code), function()
+        local label = GC.AppRuns.Label and GC.AppRuns.Label(archivedRun) or archivedRun.name or code
+        root:CreateButton(menuText((GC.L["Restore %s"]):format(label)), function()
           if GC.AppRuns.SetArchived then GC.AppRuns.SetArchived(code, false) end
           GC.Buy.SelectRun(code)
           GC.Buy.RefreshIfShown()
@@ -1539,15 +1568,19 @@ local function settlePurchase(itemID, qty, total, runCode, itemKey)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   qty, total = qty or 0, total or 0
   local line = lineFor(itemID)
-  if current and qty > 0 and total > 0 then
+  -- Booked whatever is on screen now -- the BUY search may have put the list aside, with nothing
+  -- opened -- since the gold moved either way.
+  if qty > 0 and total > 0 then
     local at = time()
     -- Read before RecordPurchase re-counts the line. A vendor line is never bought here (buyable),
     -- and would carry no market price if it were: a merchant's price is not the auction house's.
     local mv = (line and not line.vendor and type(line.usual) == "number" and line.usual > 0)
       and math.floor(line.usual) or nil
-    if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
-    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode, itemKey)
-    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode, mv)
+    if current and runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
+    -- A purchase from the BUY search is booked like any other, against no list.
+    local listCode = not (GC.BuySearch and GC.BuySearch.IsCode(runCode)) and runCode or nil
+    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, listCode, itemKey)
+    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, listCode, mv)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The purchase is booked against the run whether or not the units have arrived: the auction
@@ -1757,8 +1790,10 @@ local function quote(line, clicked)
   -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
   -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
-  -- ...nor over a hover's look still out (lookLine): one question per buffer.
-  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending() then
+  -- ...nor over a hover's look still out (lookLine): one question per buffer. Nor over the BUY
+  -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
+  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending()
+      or (GC.BuySearch and GC.BuySearch.Pending()) then
     GC.Buy._quoteOwed = line.itemID
     -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
     if clicked then
@@ -1777,10 +1812,14 @@ local function quote(line, clicked)
 
   -- A gear line (the client will not sell it as a commodity) is read whole first: a sell search on
   -- the bare key answers with every variant's lots, the player's own in rows of their own so
-  -- dropping them hides nobody else's (see "A gear line's read" above).
-  local lotLine = not askableItem(line.itemID)
-  local key = C_AuctionHouse.MakeItemKey(line.itemID)
-  if lotLine then
+  -- dropping them hides nobody else's (see "A gear line's read" above). A result opened from the BUY
+  -- search is one exact variant already (its browse row's key): its own buy search arms it at once.
+  local exact = line.exactKey
+  local lotLine = exact ~= nil or not askableItem(line.itemID)
+  local key = exact or C_AuctionHouse.MakeItemKey(line.itemID)
+  if exact then
+    C_AuctionHouse.SendSearchQuery(key, lotSorts(), true)
+  elseif lotLine then
     C_AuctionHouse.SendSellSearchQuery(key, lotSorts(), true)
   else
     C_AuctionHouse.SendSearchQuery(key, {}, false)
@@ -1794,7 +1833,9 @@ local function quote(line, clicked)
   GC.Buy._attempt = {
     itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
     runCode = current and current:Code() or nil,
-    lots = lotLine or nil, phase = lotLine and "all" or nil, key = lotLine and key or nil,
+    lots = lotLine or nil, phase = lotLine and (exact and "arm" or "all") or nil, key = lotLine and key or nil,
+    -- The armed read's search count (quoteFresh), taken after the send the post-hooks counted.
+    armSeq = exact and (GC.Buy._searchSeq or 0) or nil,
   }
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -2202,6 +2243,18 @@ local function readOf(line)
   return nil
 end
 
+-- A gear line's lots as its last read saw them (the dock's price groups, the tooltip): its own
+-- attempt's, returned with the attempt, else a recent read's. nil for a line nobody has read whole.
+local function lotsOf(line)
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.lots and attempt.lotList then
+    return attempt.lotList, attempt
+  end
+  local seen = quotes[line.itemID]
+  if seen and seen.lots and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then return seen.lots, nil end
+  return nil, nil
+end
+
 -- The one word a row and the dock say about a line (GC.BuyView.Status), from what only this tab
 -- knows about it.
 local function lineStatus(line)
@@ -2210,7 +2263,7 @@ local function lineStatus(line)
   if read and read.ladder ~= nil then
     verdict = (read.qty or 0) > 0 and "fits" or (read.capped and "over" or nil)
   end
-  local byHand = not line.vendor and line.kind ~= "craft" and not askableItem(line.itemID)
+  local byHand = not line.vendor and line.kind ~= "craft" and (line.exactKey ~= nil or not askableItem(line.itemID))
   return GC.BuyView.Status(line, { skipped = isSkipped(line), stranded = strandedFor(line) ~= nil,
     byHand = byHand, quote = verdict })
 end
@@ -2411,10 +2464,10 @@ end
 -- Refresh puts them there); this only decides what is a row at all.
 local function buildEntries()
   local entries = {}
-  -- No list on screen: the first-time state -- the item box that starts a quick list in the game.
+  -- No list on screen: the first-time state, under the item box at the top (UI/BuyAddBox.lua) that
+  -- starts a list in the game.
   if not current then
     entries[#entries + 1] = { kind = "hint", text = GC.L["Make a list once, buy it here at or under your price."] }
-    entries[#entries + 1] = { kind = "add" }
     entries[#entries + 1] = { kind = "hint", text = GC.L["or plan a whole profession on goldcap.gg"] }
     return entries
   end
@@ -2428,19 +2481,12 @@ local function buildEntries()
   if #entries == 0 and #lines > 0 then
     entries[1] = { kind = "hint", text = GC.L["Nothing on this list matches."] }
   end
-  -- The quick list ends with its item box, so the next item goes on where the last one did; any
-  -- other list shows it once the list menu's "Item to add" asked for it.
-  if isQuickRun(current:Code()) or GC.Buy._adding then entries[#entries + 1] = { kind = "add" } end
   return entries
 end
 
 -- How tall a painted row is: its least, or what its wrapped text needs. A name too long for the
 -- item column in the player's language takes a second line rather than losing its end.
 local function heightFor(kind, row)
-  if kind == "add" then
-    local add = GC.Buy._view and GC.Buy._view.add
-    return add and add.h or geometry.rowHeight * 3
-  end
   if kind == "hint" then
     local h = geometry.rowHeight * 2
     if row and row.wide.GetStringHeight then h = math.max(h, math.ceil(row.wide:GetStringHeight() + 12)) end
@@ -2509,7 +2555,7 @@ local function paintLine(row, line)
     decorated = (GC.L["%s → craft %d× (%d per craft)"]):format(
       decorated, line.crafts, line.craft.craftedQty)
   elseif line.parent then
-    decorated = (GC.L["↳ %s"]):format(decorated)
+    decorated = (GC.L["• %s"]):format(decorated)
   end
   -- An alert group's gear member names the item level its price was set for (caps fixes 5h). The
   -- line is bought by hand on Blizzard's own page, and without this a cheaper copy below that
@@ -2593,15 +2639,7 @@ local function paintRow(row, entry, index)
   local zc = Theme.color.zebra
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
-  if entry.kind == "add" then
-    -- The item box itself sits over this row (renderRows); the row only holds its place, and takes
-    -- no clicks, so the box under the pointer gets them.
-    row:EnableMouse(false)
-    row.reagent:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
-  elseif entry.kind == "hint" then
+  if entry.kind == "hint" then
     row.reagent:Hide()
     row.wide:Show()
     row.wide:SetJustifyH("CENTER")
@@ -2698,6 +2736,23 @@ local function openCapEditor(anchor, line)
   })
 end
 
+-- The cap of the line on screen with `itemID`, typed (the price box over `anchor`) or put back to
+-- the default (nil anchor): for the BUY search's opened result, whose row is in UI/BuySearch.lua.
+function GC.Buy._EditLineCap(anchor, itemID)
+  local line = lineFor(itemID)
+  if not line then return end
+  if anchor then
+    openCapEditor(anchor, line)
+  elseif current and not inFlight(GC.Buy._attempt) then
+    setLineCap(current:Code(), itemID, nil)
+    GC.Buy._quotedFocus = nil
+    GC.Buy.RefreshIfShown()
+  end
+end
+
+-- The line on screen with `itemID`, as the dock and the tooltip read it (cap, capFrom, usual), or nil.
+function GC.Buy._LineFor(itemID) return lineFor(itemID) end
+
 -- Right-click on a row: every decision a line carries that is not a purchase -- skip it for this
 -- session, raise its cap to what the dock would offer, type a cap of its own or go back to the
 -- default, and for a line the site sent a recipe for, buy it or craft it. Nothing here spends
@@ -2724,25 +2779,26 @@ local function openRowMenu(owner, line)
   -- it IS split: what is left to get, rounded up to a whole craft.
   local crafts = canSplit and (split and (line.crafts or 0)
     or math.ceil(line.buy / math.max(1, line.craft.craftedQty))) or 0
-  local quick = isQuickRun(code)
+  local own = localRun(code) ~= nil
+  local menuText = GC.Util.ClientText
   menu.CreateContextMenu(owner, function(_, root)
-    root:CreateTitle(lineName(line))
-    -- The quick list is the player's own, line by line.
-    if quick then
-      root:CreateButton(GC.L["Remove from the list"], function()
+    root:CreateTitle(menuText(lineName(line)))
+    -- The player's own list is theirs line by line; the list stays when its last line goes.
+    if own then
+      root:CreateButton(menuText(GC.L["Remove from the list"]), function()
         if inFlight(GC.Buy._attempt) then return end
-        GC.AppRuns.RemoveQuickLine(itemID)
-        GC.Buy.SelectRun(isQuickRun(GC.AppRuns.QUICK) and GC.AppRuns.QUICK or nil)
+        GC.AppRuns.RemoveLine(code, itemID)
+        GC.Buy.SelectRun(code)
         GC.Buy.RefreshIfShown()
       end)
     end
-    root:CreateButton(skipped and GC.L["Don't skip"] or GC.L["Skip for now"], function()
+    root:CreateButton(menuText(skipped and GC.L["Don't skip"] or GC.L["Skip for now"]), function()
       setSkipped(itemID, not skipped)
       if not skipped and GC.Buy._focus == itemID then GC.Buy._focus = nextOpenAfter(itemID) end
       GC.Buy.RefreshIfShown()
     end)
     if raiseTo then
-      root:CreateButton((GC.L["Raise cap to %s"]):format(formatAmount(raiseTo)), function()
+      root:CreateButton(menuText((GC.L["Raise cap to %s"]):format(formatAmount(raiseTo))), function()
         if inFlight(GC.Buy._attempt) then return end
         local now = lineFor(itemID)
         if now then raiseCap(now) end
@@ -2750,9 +2806,9 @@ local function openRowMenu(owner, line)
       end)
     end
     if canCap then
-      root:CreateButton(GC.L["Change the cap…"], function() openCapEditor(owner, lineFor(itemID)) end)
+      root:CreateButton(menuText(GC.L["Change the cap…"]), function() openCapEditor(owner, lineFor(itemID)) end)
       if line.capFrom == "yours" then
-        root:CreateButton(GC.L["Use the default cap"], function()
+        root:CreateButton(menuText(GC.L["Use the default cap"]), function()
           if inFlight(GC.Buy._attempt) then return end
           setLineCap(code, itemID, nil)
           GC.Buy.RefreshIfShown()
@@ -2761,12 +2817,12 @@ local function openRowMenu(owner, line)
     end
     if canSplit then
       if split then
-        root:CreateButton(GC.L["Buy it whole instead"], function()
+        root:CreateButton(menuText(GC.L["Buy it whole instead"]), function()
           setSplit(code, itemID, false)
           GC.Buy.RefreshIfShown()
         end)
       else
-        root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
+        root:CreateButton(menuText((GC.L["Split into reagents (craft %d×)"]):format(crafts)), function()
           setSplit(code, itemID, true)
           GC.Buy.RefreshIfShown()
         end)
@@ -2776,78 +2832,128 @@ local function openRowMenu(owner, line)
   return true
 end
 
--- A line explained: what is left to buy and what the player has, the ladder of prices the
--- purchase would walk (what it takes at each, and the first level it does not), the market price
--- and -- on WoW: Forever -- whose it is and how old, the cap, and the line's other footnotes.
--- GameTooltip draws with the client's own font, which has no "·" in every language (the Russian
--- client drew an empty box): every line that can carry one goes through GC.Util.TooltipText.
+-- A line explained. First the game's own tooltip for the item, the way the Deals and Sell rows open
+-- theirs: beside the window, never over the list it describes (Theme.ItemTooltipOutside). For a gear
+-- line whose next lot is known, that lot's own link -- the item level and bonuses a press would buy
+-- -- as the Sell rows show a lot's. Under it what only this tab knows: what is left to buy, what
+-- the player has and what was bought on this list, what a vendor asks, what the purchase would walk
+-- (a commodity's price ladder -- what it takes at each level, and the first it does not -- or a
+-- gear line's lots by price and the one it buys next), the market price and -- on WoW: Forever --
+-- whose it is and how old, the cap, and the line's other footnotes. GoldCap's own block under item
+-- tooltips (UI/Tooltip.lua) stands aside for these rows (`goldcapOwnLines`).
+-- GameTooltip draws with the client's own font, which lacks glyphs GoldCap's own face has (the
+-- Russian client drew an empty box for "·"): every line goes through GC.Util.ClientText.
 local function showLineTooltip(row)
   if not GameTooltip then return end
   local line = row.lineItemID and lineFor(row.lineItemID) or nil
   if not line then return end
   local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
-  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:SetText(lineName(line), 1, 1, 1)
+  local tip = GC.Util.ClientText
+  local buyHere = not line.vendor and line.kind ~= "craft" and not line.done
+  -- A gear line's lots, and the lot it buys next: the one its armed read chose, else the one the
+  -- next read would arm (GC.BuyLots.Next, as judgeLots asks it); `why` says why there is none.
+  local lots, own = nil, nil
+  if buyHere then lots, own = lotsOf(line) end
+  local nextLot, why = own and own.lot or nil, nil
+  if lots and not nextLot then
+    nextLot, why = GC.BuyLots.Next(lots, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+  end
+  Theme.ItemTooltipOutside(row, container:GetParent())
+  if nextLot and nextLot.link then
+    GameTooltip:SetHyperlink(nextLot.link)
+  else
+    GameTooltip:SetItemByID(line.itemID)
+  end
+  GameTooltip:AddLine(" ")
   local bags, bank = haveSplit(line.itemID)
   if line.buy > 0 then
     local have = bags + bank
-    GameTooltip:AddLine(have > 0
+    GameTooltip:AddLine(tip(have > 0
       and (GC.L["buy %d of %d, have %d in bags and bank"]):format(line.buy, line.need, have)
-      or (GC.L["buy %d of %d"]):format(line.buy, line.need), dim[1], dim[2], dim[3], true)
+      or (GC.L["buy %d of %d"]):format(line.buy, line.need)), dim[1], dim[2], dim[3], true)
   end
   -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
   -- player where they are. Only when the bank actually holds some.
   if bank > 0 then
-    GameTooltip:AddLine(GC.Util.TooltipText((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
   end
-  if not line.vendor and line.kind ~= "craft" and not line.done then
+  if (line.bought or 0) > 0 then
+    GameTooltip:AddLine(tip((GC.L["bought %d for %s"]):format(line.bought, formatAmount(line.spent or 0))),
+      dim[1], dim[2], dim[3], true)
+  end
+  if line.vendor then
+    local muted = Theme.color.fgMuted
+    GameTooltip:AddLine(tip(line.vendorUnit and (GC.L["a vendor sells it for %s each"]):format(formatAmount(line.vendorUnit))
+      or GC.L["a vendor sells it"]), muted[1], muted[2], muted[3], true)
+  end
+  if buyHere then
     local read = readOf(line)
-    if read and read.ladder then
+    if lots then
+      -- One lot per press: the lots by price (the dock's groups), the dear ones marked, and the one
+      -- the next press buys -- never a walk up the book.
+      for _, g in ipairs(GC.BuyLots.Groups(lots, line.cap, line.minIlvl)) do
+        local rc = g.over and Theme.tier.SUSPECT or dim
+        GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(g.count, formatAmount(g.buyout))),
+          tip(g.over and GC.L["over your cap"] or ""), fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
+      end
+      if nextLot then
+        GameTooltip:AddDoubleLine(tip((GC.L["next to buy: %s"]):format(formatAmount(nextLot.buyout))),
+          tip((nextLot.itemLevel or 0) > 0 and (GC.L["ilvl %d"]):format(nextLot.itemLevel) or ""),
+          gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
+      elseif why == "nocap" or why == "wallet" then
+        local sc = Theme.tier.SUSPECT
+        GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item — right-click the line to set one"]
+          or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
+      elseif why == "none" then
+        GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
+      end
+    elseif read and read.ladder then
       for _, r in ipairs(GC.BuyView.Ladder(read.ladder, line.buy, line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
         local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
-        GameTooltip:AddDoubleLine((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit)), right,
+        GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
           fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
-      local age = time() - (read.at or time())
-      if age > BD.QUOTE_SECONDS then
-        GameTooltip:AddLine((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or ""), dim[1], dim[2], dim[3])
-      end
     elseif read and read.ladder == false then
-      GameTooltip:AddLine(GC.L["nothing on offer"], dim[1], dim[2], dim[3])
+      GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
     elseif line.floor then
-      GameTooltip:AddLine((GC.L["cheapest seen %s"]):format(formatAmount(line.floor)), dim[1], dim[2], dim[3])
+      GameTooltip:AddLine(tip((GC.L["cheapest seen %s"]):format(formatAmount(line.floor))), dim[1], dim[2], dim[3])
+    end
+    local age = read and (lots or read.ladder) and time() - (read.at or time()) or 0
+    if age > BD.QUOTE_SECONDS then
+      GameTooltip:AddLine(tip((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or "")),
+        dim[1], dim[2], dim[3])
     end
   end
   GameTooltip:AddLine(" ")
   if line.usual then
-    GameTooltip:AddDoubleLine(GC.L["Market"], (GC.L["%s each"]):format(formatAmount(line.usual)),
+    GameTooltip:AddDoubleLine(tip(GC.L["Market"]), tip((GC.L["%s each"]):format(formatAmount(line.usual))),
       dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
     -- WoW: Forever: a price other players' scans agreed on says how many and how long ago.
     local note = GC.BuyView.MarketNote(line.usualRef, time())
     if note then
       local ago = GC.Util.FormatElapsedWords(note.age) or GC.Util.FormatElapsedWords(0)
-      GameTooltip:AddDoubleLine(GC.L["Source"], note.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
-        or (GC.L["%d scanners, %s ago"]):format(note.scanners, ago), dim[1], dim[2], dim[3], dim[1], dim[2], dim[3])
+      GameTooltip:AddDoubleLine(tip(GC.L["Source"]), tip(note.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
+        or (GC.L["%d scanners, %s ago"]):format(note.scanners, ago)), dim[1], dim[2], dim[3], dim[1], dim[2], dim[3])
     end
   end
   local alert = alertRun()
   if line.cap and not line.vendor and line.kind ~= "craft" then
-    GameTooltip:AddDoubleLine((line.capFrom == "target" and alert) and GC.L["Alert target"] or GC.L["Your cap"],
-      (GC.L["%s each"]):format(formatAmount(line.cap)), dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
+    GameTooltip:AddDoubleLine(tip((line.capFrom == "target" and alert) and GC.L["Alert target"] or GC.L["Your cap"]),
+      tip((GC.L["%s each"]):format(formatAmount(line.cap))), dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
   end
   -- The one thing the item's own data cannot know: when this realm usually sells it cheapest.
   -- Not on a vendor line -- the auction house's cheap hour is noise next to a fixed price -- and
   -- not on a done line, which nobody is about to act on.
   local cheap = not line.vendor and not line.done and cheapHourText(line)
-  if cheap then GameTooltip:AddLine(GC.Util.TooltipText(cheap), dim[1], dim[2], dim[3], true) end
+  if cheap then GameTooltip:AddLine(tip(cheap), dim[1], dim[2], dim[3], true) end
   -- Where a merged line's NEED came from: a reagent the run already asked for grows the row it has
   -- rather than getting a second one, and a NEED that grew with no explanation cannot be checked.
   if line.forCraft then
     for parentID, qty in pairs(line.forCraft) do
       local parentLine = lineFor(parentID)
-      GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
-        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), dim[1], dim[2], dim[3], true)
+      GameTooltip:AddLine(tip((GC.L["includes %d for crafting %s"]):format(
+        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID)))), dim[1], dim[2], dim[3], true)
     end
   end
   -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
@@ -2861,21 +2967,21 @@ local function showLineTooltip(row)
       parts[#parts + 1] = (GC.L["%d× %s"]):format(
         reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
     end
-    GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
-      table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3], true)
+    GameTooltip:AddLine(tip((GC.L["craft it: %s = %s each"]):format(
+      table.concat(parts, " + "), formatAmount(compare.unit))), cc[1], cc[2], cc[3], true)
     -- The hint names what the right-click would DO, which is the opposite thing on a line that is
     -- already split -- and nothing on a line the list's route crafts itself, which has no split.
     if line.kind == "craft" and not line.make then
-      GameTooltip:AddLine(GC.Util.TooltipText((GC.L["vs %s at the auction house · right-click to buy it whole"])
+      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to buy it whole"])
         :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
     elseif not line.make then
-      GameTooltip:AddLine(GC.Util.TooltipText((GC.L["vs %s at the auction house · right-click to split"])
+      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to split"])
         :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
     end
   end
   -- What the row's right-click offers, on a line whose cap it can change (Task 11's menu).
   if not line.done and not line.vendor and line.kind ~= "craft" and not alert then
-    GameTooltip:AddLine(GC.L["right-click to skip or change the cap"], dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(tip(GC.L["right-click to skip or change the cap"]), dim[1], dim[2], dim[3], true)
   end
   GameTooltip:Show()
 end
@@ -2938,6 +3044,9 @@ createRow = function(parent)
   -- The line explained on hover (showLineTooltip), and -- after a short dwell -- another line's
   -- book read for it (lookLine). Wired ONCE on the pooled row, reading whatever paintRow last
   -- stamped. A hover no longer picks the line: a left click does (selectLine).
+  -- `goldcapOwnLines`: UI/Tooltip.lua's block under the item's tooltip stands aside for this row,
+  -- whose own lines say the market price the line is capped against and whose it is.
+  row.goldcapOwnLines = true
   row:SetScript("OnEnter", function(self)
     GC.Buy._tooltipRow = self
     showLineTooltip(self)
@@ -3103,10 +3212,10 @@ local function createBand(parent)
     picker.text:SetWordWrap(true)
     picker.text:SetMaxLines(3)
   end
-  -- A menu of every run the addon holds, with remove and paste beside it. MenuUtil is the
-  -- engine's own framework (UI/SettingsFrame.lua's language picker opens one the same way);
-  -- a client without it falls back to cycling, which is what the button used to do and what
-  -- the headless specs drive.
+  -- A menu of every list the addon holds, with what can be done to the one on screen, a new list
+  -- and an import. MenuUtil is the engine's own framework (UI/SettingsFrame.lua's language picker
+  -- opens one the same way); a client without it falls back to cycling, which is what the button
+  -- used to do and what the headless specs drive.
   picker:SetScript("OnClick", function(self)
     if not openRunMenu(self) then
       cycleRun()
@@ -3116,7 +3225,7 @@ local function createBand(parent)
   picker:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-    GameTooltip:SetText(GC.L["Runs: click to switch, remove or paste one"], 1, 1, 1)
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Lists: click to switch, make, import or export one"]), 1, 1, 1)
     GameTooltip:Show()
   end)
   picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -3190,7 +3299,7 @@ local function createBand(parent)
     if not (menu and menu.CreateContextMenu) then return end
     menu.CreateContextMenu(self, function(_, root)
       for _, key in ipairs(GC.BuyView.FILTERS) do
-        root:CreateRadio(GC.L[FILTER_LABEL[key]], function(v) return GC.Buy._filter == v end,
+        root:CreateRadio(GC.Util.ClientText(GC.L[FILTER_LABEL[key]]), function(v) return GC.Buy._filter == v end,
           function(v) GC.Buy._SetFilter(v) end, key)
       end
     end)
@@ -3329,8 +3438,10 @@ local function listMeta(run)
   return meta
 end
 
--- The wide window's column: YOUR LISTS, one entry per list (its name, wrapping; N of M or N hits;
--- a thin progress bar), and where the lists come from under them.
+-- The wide window's column: YOUR LISTS, "+ New" and "Import" under it, one entry per list (a
+-- favourite's star and its name, wrapping; where it came from; N of M or N hits; a thin progress
+-- bar), and where the lists come from under them. A right-click on a list is its menu
+-- (UI/BuyLists.lua's FillActions, the same as the picker's for the list on screen).
 local function createLists(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
@@ -3344,24 +3455,39 @@ local function createLists(parent)
   caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -6)
   caption:SetText(GC.L["YOUR LISTS"])
   setColor(caption, Theme.color.fgDim)
+  local new = Theme.Button(frame, "ghost", "plaque")
+  new:SetSize(64, 22)
+  new:SetLabel(GC.L["+ New"])
+  new:SetScript("OnClick", function() GC.BuyLists.New() end)
+  local import = Theme.Button(frame, "ghost", "plaque")
+  import:SetSize(64, 22)
+  import:SetLabel(GC.L["Import"])
+  import:SetScript("OnClick", function() GC.BuyLists.Import() end)
   local footer = Theme.Num(frame, 9)
   footer:SetJustifyH("LEFT")
   footer:SetWordWrap(true)
   footer:SetWidth(BD.LISTS_W)
-  footer:SetText(GC.L["Lists come from goldcap.gg through the companion."])
+  footer:SetText(GC.L["Lists come from goldcap.gg through the companion, or make one here with + New."])
   setColor(footer, Theme.color.fgDim)
-  return { frame = frame, caption = caption, footer = footer, entries = {} }
+  return { frame = frame, caption = caption, new = new, import = import, footer = footer, entries = {} }
 end
 
 -- One pooled entry of the column: a button carrying the list's name -- its label re-anchored to
--- wrap beside the count rather than run under it -- the count on the right, a bar along the foot.
+-- wrap beside the count rather than run under it -- where it came from under the name, the count on
+-- the right, a bar along the foot. A left click picks the list, a right click opens its menu.
 local function listEntry(lists, i)
   local entry = lists.entries[i]
   if entry then return entry end
   local button = Theme.Button(lists.frame, "ghost", "plaque")
   button:SetSize(BD.LISTS_W, 34)
-  button:SetScript("OnClick", function(self)
+  -- Not a purchase button: the right click is the list's menu (Theme.Button takes the left alone).
+  button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  button:SetScript("OnClick", function(self, mouseButton)
     if not self.code then return end
+    if mouseButton == "RightButton" then
+      GC.BuyLists.OpenMenu(self, self.code)
+      return
+    end
     GC.Buy.SelectRun(self.code)
     GC.Buy.RefreshIfShown()
   end)
@@ -3375,13 +3501,37 @@ local function listEntry(lists, i)
   button.text:SetJustifyH("LEFT")
   button.text:SetWordWrap(true)
   button.text:SetMaxLines(3)
+  local origin = Theme.Num(button, 9)
+  origin:SetJustifyH("LEFT")
+  origin:SetWordWrap(true)
+  origin:SetPoint("TOPLEFT", button.text, "BOTTOMLEFT", 0, -2)
+  origin:SetPoint("RIGHT", button, "RIGHT", -8, 0)
+  setColor(origin, Theme.color.fgDim)
   local fill = button:CreateTexture(nil, "OVERLAY")
   fill:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 6, 3)
   fill:SetHeight(1)
   fill:Hide()
-  entry = { button = button, meta = meta, fill = fill }
+  entry = { button = button, meta = meta, origin = origin, fill = fill }
   lists.entries[i] = entry
   return entry
+end
+
+-- "+ New" and "Import" side by side under the caption, each as wide as its label in the player's
+-- language; one under the other when the two do not fit the column. Returns where the lists start.
+local function layoutListButtons(lists, y)
+  local new, import = lists.new, lists.import
+  fitButton(new, 48)
+  fitButton(import, 48)
+  local nw, iw = new:GetWidth() or 0, import:GetWidth() or 0
+  new:ClearAllPoints()
+  import:ClearAllPoints()
+  new:SetPoint("TOPLEFT", lists.frame, "TOPLEFT", 0, y)
+  if nw + Theme.pad.s + iw <= BD.LISTS_W then
+    import:SetPoint("TOPLEFT", new, "TOPRIGHT", Theme.pad.s, 0)
+    return y - 22 - 8
+  end
+  import:SetPoint("TOPLEFT", new, "BOTTOMLEFT", 0, -4)
+  return y - 22 - 4 - 22 - 8
 end
 
 local function paintLists()
@@ -3389,7 +3539,7 @@ local function paintLists()
   if not (lists and lists.frame:IsShown()) then return end
   local y = -6
   if lists.caption.GetStringHeight then y = y - math.ceil(lists.caption:GetStringHeight()) end
-  y = y - 8
+  y = layoutListButtons(lists, y - 6)
   local list = runList()
   for i, run in ipairs(list) do
     local entry = listEntry(lists, i)
@@ -3397,7 +3547,8 @@ local function paintLists()
     local button = entry.button
     button.code = run.code
     button:SetVariant((current and current:Code() == run.code) and "active" or "ghost")
-    button:SetLabel(run.name or run.code or "?")
+    button:SetLabel(GC.BuyLists.Title(run))
+    entry.origin:SetText(GC.BuyLists.Origin(run))
     entry.meta:SetText(meta.hits and (GC.L["%d hits"]):format(meta.hits)
       or (GC.L["%d of %d"]):format(meta.done, meta.total))
     local share = meta.hits and 1 or (meta.total > 0 and meta.done / meta.total or 0)
@@ -3410,7 +3561,9 @@ local function paintLists()
       entry.fill:Hide()
     end
     local h = 34
-    if button.text.GetStringHeight then h = math.max(34, math.ceil(button.text:GetStringHeight() + 16)) end
+    if button.text.GetStringHeight then
+      h = math.max(34, math.ceil(button.text:GetStringHeight() + 2 + entry.origin:GetStringHeight() + 16))
+    end
     button:SetHeight(h)
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", lists.frame, "TOPLEFT", 0, y)
@@ -3443,11 +3596,23 @@ local function layoutBand()
   local picker = band.picker
   local inset = GC.Buy._leftInset or 0
   local width = math.max(0, (container and container:GetWidth() or 0) - inset)
+  -- The item box first, at the very top of the right-hand pane (UI/BuyAddBox.lua), as tall as what
+  -- it says; the band under it.
+  local add, top = band.add, 0
+  if add then
+    add.frame:ClearAllPoints()
+    add.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, 0)
+    add.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    top = GC.BuyAddBox.Layout(add, width)
+  end
+  band.top = top
   picker:ClearAllPoints()
-  picker:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -2)
+  picker:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(top + 2))
+  band.totalCaption:ClearAllPoints()
+  band.totalCaption:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(top + 4))
   band.frame:ClearAllPoints()
-  band.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, 0)
-  band.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+  band.frame:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -top)
+  band.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -top)
   local rightW = math.max(measured(band.totalCaption) or 0, measured(band.total) or 0, 60)
   local labelW = picker.text and measured(picker.text)
   local pickerH = 24
@@ -3465,6 +3630,9 @@ local function layoutBand()
   band.done:SetPoint("RIGHT", band.total, "LEFT", -Theme.pad.m, 0)
   local doneH = band.done.GetStringHeight and band.done:GetStringHeight() or 0
   local h = math.max(BD.BAND_HEIGHT, math.ceil(2 + pickerH + 4 + doneH + 8))
+  -- No list, no band: the first-time state's words come straight under the item box -- and none
+  -- while the BUY search is up, whose results take the band's place (UI/BuySearch.lua).
+  if current and not GC.Buy._searching then band.frame:Show() else band.frame:Hide(); h = 0 end
   if h ~= band.h then
     band.h = h
     band.frame:SetHeight(h)
@@ -3476,7 +3644,7 @@ end
 -- progress bar, and the BUY rail badge's count.
 local function paintBand()
   local ready = 0
-  if current then
+  if current and not GC.Buy._searching then
     local shown = shownRunData()
     local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
     band.picker:SetLabel(runLabel(current) .. " ▼")
@@ -3513,12 +3681,14 @@ local function paintBand()
     end
   else
     -- Nothing to name and nothing to count: a picker offering a run that does not exist is worse
-    -- than no picker at all.
+    -- than no picker at all. While the BUY search is up the list is aside, and its count stays on
+    -- the rail's badge.
     band.picker:Hide()
     band.done:SetText("")
     band.totalCaption:Hide()
     band.total:SetText("")
     band.fill:Hide()
+    if GC.Buy._searching then ready = GC.Buy._readyCount or 0 end
   end
   GC.Buy._readyCount = ready
   if GC.Sniper and GC.Sniper.UpdateBuyTabLabel then GC.Sniper.UpdateBuyTabLabel() end
@@ -3526,8 +3696,8 @@ local function paintBand()
   local tools = band.tools
   local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
   local long = current ~= nil and #current:Lines() > BD.TOOLS_MIN_LINES
-  if long or filter ~= "all" or query ~= "" then
-    tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▾")
+  if not GC.Buy._searching and (long or filter ~= "all" or query ~= "") then
+    tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▼")
     fitButton(tools.filter, 96)
     tools.frame:Show()
   else
@@ -3546,16 +3716,30 @@ local function layoutBody()
   local header, scroll = band.header, band.scroll
   local dock = band.dock
   local bottom = (dock and dock:IsShown()) and (dock.h or BD.DOCK_H) or 0
-  local top = band.h or BD.BAND_HEIGHT
+  -- Top to bottom: the item box (band.top), the band, the search and filter, the headings, the rows.
+  local toolsTop = (band.top or 0) + (band.h or BD.BAND_HEIGHT)
+  local top = toolsTop
   local tools = band.tools and band.tools.frame
   if tools and tools:IsShown() then top = top + BD.TOOLS_H end
-  if band.bodyBottom == bottom and band.bodyTop == top then return end
-  band.bodyBottom, band.bodyTop = bottom, top
   local inset = GC.Buy._leftInset or 0
+  -- The BUY search's results in place of the headings and the rows, between the item box and the
+  -- dock (UI/BuySearch.lua); laid out on every render, as its rows change with every answer.
+  local searching = GC.Buy._searching
+  if searching then GC.BuySearch.Place(container, inset, band.top or 0, bottom) end
+  if band.bodyBottom == bottom and band.bodyTop == top and band.bodyToolsTop == toolsTop
+      and band.bodySearching == searching then return end
+  band.bodyBottom, band.bodyTop, band.bodyToolsTop, band.bodySearching = bottom, top, toolsTop, searching
+  if searching then
+    header:Hide()
+    scroll:Hide()
+  else
+    header:Show()
+    scroll:Show()
+  end
   if tools then
     tools:ClearAllPoints()
-    tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -(band.h or BD.BAND_HEIGHT))
-    tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(band.h or BD.BAND_HEIGHT))
+    tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -toolsTop)
+    tools:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -toolsTop)
   end
   header:ClearAllPoints()
   header:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -top)
@@ -3568,6 +3752,14 @@ local function layoutBody()
     dock:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", inset, 0)
     dock:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
   end
+end
+
+-- The top of the tab laid out again for the item box's new height -- a match list opening, a line
+-- wrapping -- without painting the rows again: it changes on every keystroke in the box.
+function GC.Buy._LayoutTop()
+  if not (container and band and container:IsShown()) then return end
+  layoutBand()
+  layoutBody()
 end
 
 -- @localised-keys: literals in this table ARE GC.L keys, looked up in dockSubText. The table closes
@@ -3647,11 +3839,9 @@ local function paintDock()
       cheapest = (read and read.ladder and read.ladder[1] and read.ladder[1].unit) or line.floor,
       craft = GC.BuyRun.CraftText(line) }
     -- A gear line: its lots by price, from its own read, or the last one still worth drawing.
-    local seen = quotes[line.itemID]
-    if mine and mine.lots and mine.lotList then
-      d.lots = { groups = GC.BuyLots.Groups(mine.lotList, line.cap, line.minIlvl), why = mine.lotWhy }
-    elseif seen and seen.lots and (time() - (seen.at or 0)) <= BD.LADDER_SECONDS then
-      d.lots = { groups = GC.BuyLots.Groups(seen.lots, line.cap, line.minIlvl) }
+    local lots, own = lotsOf(line)
+    if lots then
+      d.lots = { groups = GC.BuyLots.Groups(lots, line.cap, line.minIlvl), why = own and own.lotWhy or nil }
     end
   else
     local t = current:Totals()
@@ -3697,6 +3887,8 @@ local function paintDock()
   else
     dock.buy:Hide()
   end
+  -- Skip leaves a line on its list; a result opened from the BUY search is on none.
+  if v.secondary == "skip" and GC.Buy._SearchRun() then v.secondary = nil end
   if v.secondary then
     dock.second:SetLabel(v.secondary == "cancel" and GC.L["Cancel"] or GC.L["Skip"])
     dock.second:Enable()
@@ -3707,92 +3899,6 @@ local function paintDock()
   layoutDock(dock)
 end
 
--- ---------------------------------------------------------------------------
--- The item box (BUY 2.0): a quick list made in the game, one item at a time
--- ---------------------------------------------------------------------------
-
--- What the box adds: an item link (a shift-click into it) or an item id, with an optional count.
--- A typed name is not looked up: the BUY 2.0 probe found the client resolves almost none
--- (C_Item.GetItemInfoInstant answered 0 of 15 typed names in retail, 2 of 15 in the Russian WoW:
--- Forever client), and GoldCap keeps no name index of its own. An id is checked with the client,
--- which always knows its items by id.
-local function addFromBox(box)
-  local add = GC.Buy._view.add
-  local parsed = GC.BuyView.ParseAdd(box:GetText() or "")
-  if parsed == nil then return end
-  -- false: two bare numbers, which say nothing about which one is the item (GC.BuyView.ParseAdd).
-  local itemID = parsed and parsed.itemID
-  if itemID and C_Item and C_Item.GetItemInfoInstant then
-    local ok, known = pcall(C_Item.GetItemInfoInstant, itemID)
-    if not (ok and known) then itemID = nil end
-  end
-  if not itemID then
-    add.note:SetText(GC.L["Could not find that item. Shift-click it, or type its item id."])
-    GC.Buy.RefreshIfShown()
-    return
-  end
-  GC.AppRuns.AddQuick(itemID, parsed.qty)
-  box:SetText("")
-  add.note:SetText((GC.L["Added %d× %s to your quick list."]):format(parsed.qty, lineName({ itemID = itemID })))
-  GC.Buy.SelectRun(GC.AppRuns.QUICK)
-  GC.Buy.RefreshIfShown()
-end
-
--- The box: "Item to add" over a well the player types or shift-clicks into, and a line under it
--- that says how to use it, or what the last Enter did. Every line wraps rather than cut.
-local function createAdd(parent)
-  local frame = CreateFrame("Frame", nil, parent)
-  frame:Hide()
-  local caption = Theme.Num(frame, 9)
-  caption:SetJustifyH("LEFT")
-  caption:SetWordWrap(true)
-  caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -6)
-  caption:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-  caption:SetText(GC.L["Item to add"])
-  setColor(caption, Theme.color.fgDim)
-  local well = CreateFrame("Frame", nil, frame)
-  well:SetSize(BD.ADD_W, 22)
-  well:SetPoint("TOPLEFT", caption, "BOTTOMLEFT", 0, -4)
-  local wc = Theme.color.bg or Theme.color.panel
-  Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
-  local box = CreateFrame("EditBox", nil, well)
-  box:SetAutoFocus(false)
-  box:SetPoint("TOPLEFT", 10, -2)
-  box:SetPoint("BOTTOMRIGHT", -8, 2)
-  if box.SetFont then
-    box:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
-    box:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
-  end
-  box:SetScript("OnEnterPressed", addFromBox)
-  box:SetScript("OnEscapePressed", function(self)
-    self:SetText("")
-    self:ClearFocus()
-  end)
-  local note = Theme.Num(frame, 10)
-  note:SetJustifyH("LEFT")
-  note:SetWordWrap(true)
-  note:SetPoint("TOPLEFT", well, "BOTTOMLEFT", 0, -4)
-  note:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
-  note:SetText(GC.L["Shift-click an item or type its item id, with x and a count for more: 2589 x20."])
-  setColor(note, Theme.color.fgDim)
-  return { frame = frame, caption = caption, well = well, box = box, note = note, h = 64 }
-end
-
--- The box as tall as its wrapped lines, for the row that holds its place (heightFor).
-local function layoutAdd(add)
-  local width = (geometry and geometry.rowWidth or 0) - 8
-  if width > 0 then
-    add.well:SetWidth(math.min(BD.ADD_W, width))
-    add.caption:SetWidth(width)
-    add.note:SetWidth(width)
-  end
-  local ch = add.caption.GetStringHeight and add.caption:GetStringHeight() or 12
-  local nh = add.note.GetStringHeight and add.note:GetStringHeight() or 12
-  add.h = math.ceil(6 + (ch or 12) + 4 + 22 + 4 + (nh or 12) + 8)
-  add.frame:SetHeight(add.h)
-end
-
 local function updateContentWidth()
   if not container or not content then return end
   applyWidth(container:GetWidth())
@@ -3800,6 +3906,9 @@ end
 
 local function renderRows()
   if not content then return end
+  -- The BUY search's results stand in for the list (UI/BuySearch.lua): no list rows meanwhile, and
+  -- the dock holds the result opened from them, if any.
+  GC.Buy._searching = (GC.BuySearch and GC.BuySearch.Shown()) or nil
   -- The dock is on a line whenever there is one to buy: the one the player picked (a purchase
   -- moves it on by itself, settlePurchase), or -- when nothing is picked, or the picked line has
   -- gone from the run -- the first still worth buying. Never moved while a purchase is in the
@@ -3807,7 +3916,7 @@ local function renderRows()
   if current and not inFlight(GC.Buy._attempt) and not lineFor(GC.Buy._focus) then
     GC.Buy._focus = nextOpenAfter(nil)
   end
-  local entries = buildEntries()
+  local entries = GC.Buy._searching and {} or buildEntries()
   -- A filter or search that hides the dock's line moves the dock to the first visible line it can
   -- buy (or, with none, the first visible line, which the dock explains) -- never while a purchase
   -- is in the client's hands, whose CONFIRM belongs to its own line.
@@ -3824,10 +3933,10 @@ local function renderRows()
     if firstShown and not visible[GC.Buy._focus or -1] then GC.Buy._focus = firstBuyable or firstShown end
   end
 
+  if band.add then GC.BuyAddBox.Paint(band.add) end
   paintBand()
 
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
-  if GC.Buy._view and GC.Buy._view.add then layoutAdd(GC.Buy._view.add) end
   -- Painted first, measured second, laid out last: a column is as wide as the widest thing this
   -- render puts in it, and a row as tall as its wrapped name.
   for i, entry in ipairs(entries) do paintRow(rows[i], entry, i) end
@@ -3848,24 +3957,10 @@ local function renderRows()
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
   content:SetHeight(math.max(1, y))
-  local add = GC.Buy._view and GC.Buy._view.add
-  if add then
-    add.frame:Hide()
-    for i, entry in ipairs(entries) do
-      if entry.kind == "add" then
-        add.frame:ClearAllPoints()
-        add.frame:SetPoint("TOPLEFT", rows[i], "TOPLEFT", 0, 0)
-        add.frame:SetPoint("TOPRIGHT", rows[i], "TOPRIGHT", 0, 0)
-        if add.frame.SetFrameLevel and rows[i].GetFrameLevel then
-          add.frame:SetFrameLevel(rows[i]:GetFrameLevel() + 2)
-        end
-        add.frame:Show()
-      end
-    end
-  end
   paintDock()
   layoutBody()
   paintLists()
+  if GC.BuySearch then GC.BuySearch.Paint() end
 end
 
 -- Builds the tab's container, hidden, filling the same region Deals' scroll occupies --
@@ -3883,6 +3978,8 @@ function GC.Buy.Attach(f, geo)
   band.header = createHeaderRow(container)
   band.dock = createDock(container)
   band.lists = createLists(container)
+  -- The item box over everything else on the right (UI/BuyAddBox.lua): layoutBand places it.
+  band.add = GC.BuyAddBox and GC.BuyAddBox.Create(container) or nil
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
@@ -3928,25 +4025,9 @@ function GC.Buy.Attach(f, geo)
 
   GC.Buy._WatchSearches()
 
-  GC.Buy._WatchLinks()
-
   -- The one seam specs use instead of debug.getupvalue.
   GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock, lists = band.lists,
-    add = createAdd(content) }
-end
-
--- A shift-click while the item box has the focus puts the item's link into it (the BUY 2.0 probe:
--- it does, in both games). A post-hook: it sees what Blizzard's InsertLink was handed and changes
--- nothing that function did -- which, with the auction house open, also fills Blizzard's own
--- search box, harmless.
-function GC.Buy._WatchLinks()
-  if GC.Buy._watchingLinks or not (hooksecurefunc and _G.ChatFrameUtil
-      and type(_G.ChatFrameUtil.InsertLink) == "function") then return end
-  GC.Buy._watchingLinks = true
-  hooksecurefunc(_G.ChatFrameUtil, "InsertLink", function(text)
-    local add = GC.Buy._view and GC.Buy._view.add
-    if add and type(text) == "string" and add.box.HasFocus and add.box:HasFocus() then add.box:Insert(text) end
-  end)
+    add = band.add }
 end
 
 function GC.Buy.Show()
@@ -3957,11 +4038,13 @@ function GC.Buy.Show()
   GC.Buy._quotedFocus = nil
   GC.Buy._listMeta = {}
   restampHeadings() -- see its comment: a heading can come back from a hide undrawn
+  if GC.BuySearch then GC.BuySearch.Restamp() end
   -- The bags move while this tab is hidden; a Show that trusted the last scan would open on
   -- counts from whenever the player last looked.
   scanBags()
-  -- SelectRun already refreshes what it builds, so only a run ensureRun left alone needs one.
-  local rebuilt = ensureRun()
+  -- SelectRun already refreshes what it builds, so only a run ensureRun left alone needs one. The
+  -- list the BUY search put aside stays aside, and the result it opened stays on screen.
+  local rebuilt = (not GC.Buy._aside) and ensureRun()
   if current and not rebuilt then current:Refresh() end
   updateContentWidth()
   renderRows()
@@ -4073,12 +4156,19 @@ function GC.Buy._WatchSearches()
   if GC.Buy._watching or not (hooksecurefunc and C_AuctionHouse) then return end
   GC.Buy._watching = true
   local function note() GC.Buy._searchSeq = (GC.Buy._searchSeq or 0) + 1 end
+  -- The three that start a new answer in the browse list, counted apart: the BUY search pages its
+  -- answer only while nobody has sent one of them since (UI/BuySearch.lua).
+  local function browsed()
+    note()
+    GC.Buy._browseSeq = (GC.Buy._browseSeq or 0) + 1
+  end
   for _, name in ipairs({ "SendSearchQuery", "SendSellSearchQuery", "SendBrowseQuery",
       "SearchForItemKeys", "SearchForFavorites", "RefreshItemSearchResults",
       "RefreshCommoditySearchResults", "RequestMoreItemSearchResults",
       "RequestMoreCommoditySearchResults", "RequestMoreBrowseResults", "QueryOwnedAuctions",
       "QueryBids", "ReplicateItems" }) do
-    if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, note) end
+    local browse = name == "SendBrowseQuery" or name == "SearchForItemKeys" or name == "SearchForFavorites"
+    if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, browse and browsed or note) end
   end
 end
 
@@ -4169,6 +4259,9 @@ function GC.Buy.TrySendRefresh(playerBusy)
   -- answer would hold the addon-wide keys interlock shut for the full thirty-second timeout.
   -- Same gate, same reason, as canDrillNow's first line in UI/SniperFrame.lua.
   if not GC.Sniper.IsAHOpen() then return false end
+  -- Not while the BUY search is up: the list is not on screen, and a batch answers into the browse
+  -- list the search's results and their next page are read from (UI/BuySearch.lua).
+  if GC.BuySearch and GC.BuySearch.Shown() then return false end
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
   -- Not over a hover quote still waiting for its answer: a batch sent on top of it would take
   -- that answer (the same collision quote() waits out in the other direction).
@@ -4192,6 +4285,8 @@ function GC.Buy.Tick()
   -- would search over it.
   local arming = GC.Buy._attempt
   if arming and arming.armDue then sendArm(arming) end
+  -- The BUY search's request: sent once nothing stands in its way, given up once it waited too long.
+  if GC.BuySearch then GC.BuySearch.Tick() end
   -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
   -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
   -- of the refresh, which would otherwise take the moment with a batch of its own.

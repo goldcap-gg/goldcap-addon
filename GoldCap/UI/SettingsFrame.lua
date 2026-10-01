@@ -522,7 +522,7 @@ local function build(sniperFrame)
   local function attachExplanation(widgets, labelText, sentence, defaultLineText)
     local function onEnter(self)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
-      local tip = GC.Util.TooltipText
+      local tip = GC.Util.ClientText
       GameTooltip:AddLine(tip(labelText))
       GameTooltip:AddLine(tip(sentence), 1, 1, 1, true)
       GameTooltip:AddLine(tip(defaultLineText), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
@@ -947,7 +947,7 @@ local function build(sniperFrame)
     if not menu or not menu.CreateRadioContextMenu then return end
     local entries = {}
     for _, choice in ipairs(GC.LOCALE_CHOICES) do
-      entries[#entries + 1] = { choice.label, choice.code }
+      entries[#entries + 1] = { GC.Util.ClientText(choice.label), choice.code }
     end
     menu.CreateRadioContextMenu(self,
       function(code) return localeSetting() == code end,

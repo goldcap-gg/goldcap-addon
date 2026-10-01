@@ -275,7 +275,8 @@ describe("locale layer", function()
   -- tab was English in every language before BUY 2.0; the owner plays in Russian.
   it("carries every BUY tab key in all twelve languages", function()
     local asked = {}
-    for _, path in ipairs({ "GoldCap/UI/BuyFrame.lua", "GoldCap/UI/BuyCapEditor.lua" }) do
+    for _, path in ipairs({ "GoldCap/UI/BuyFrame.lua", "GoldCap/UI/BuyCapEditor.lua", "GoldCap/UI/BuyLists.lua",
+      "GoldCap/UI/BuyAddBox.lua", "GoldCap/UI/BuySearch.lua", "GoldCap/Core/AppRuns.lua" }) do
       local f = assert(io.open(path))
       local text = f:read("*a")
       f:close()
@@ -304,10 +305,17 @@ describe("locale layer", function()
       "%s · over your cap", "no cap for this item — right-click the line to set one",
       "BUY · %s", "BUY %d · %s",
       "Make a list once, buy it here at or under your price.", "Item to add",
-      "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
       "or plan a whole profession on goldcap.gg",
-      "Quick list", "Added %d× %s to your quick list.",
       "Could not find that item. Shift-click it, or type its item id.", "Remove from the list",
+      -- Lists made in the game: "+ New", Import, Export, Rename, favourites, order and Delete.
+      "List %d", "in game", "+ New", "New list", "Import a list…", "Rename…", "Add to favourites",
+      "Remove from favourites", "Move up", "Move down", "Export", "Copy for Auctionator",
+      "Copy as a TSM item list", "Delete this list…", "Delete %s? This cannot be undone.",
+      "Added %d× %s to %s.", "Added %d× %s to a new list, %s.",
+      "Lists come from goldcap.gg through the companion, or make one here with + New.",
+      "GoldCap — Import a list", "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
+      "Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s.",
+      "Vendor list", "The run's vendor reagents. Press Ctrl+C to copy the list.",
     }
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
@@ -341,7 +349,7 @@ describe("locale layer", function()
       "Cap for %s", "Set cap",
       "All", "To buy", "Over cap", "At a vendor", "To craft", "Bought", "Skipped",
       "Nothing on this list matches.",
-      "YOUR LISTS", "Lists come from goldcap.gg through the companion.", "%d of %d", "%d hits",
+      "YOUR LISTS", "%d of %d", "%d hits",
       "BUY %d", "buying...", "confirming...",
     }
     for _, code in ipairs(helper.localeCodes()) do

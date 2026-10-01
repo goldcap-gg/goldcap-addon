@@ -237,10 +237,15 @@ local function onTooltip(tooltip, data)
   -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept
   -- outlived a row hidden under the cursor, and every item tooltip after it lost its value.
   local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
+  -- A BUY line's row draws GoldCap's lines for its item itself (UI/BuyFrame.lua's showLineTooltip):
+  -- the market figure that line is priced and capped against, and whose it is. This block's figure
+  -- is not always that one, and its Source line would say the same thing twice. Read off the owner
+  -- for the same reason as the variant below.
+  if type(owner) == "table" and owner.goldcapOwnLines then return end
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
-    tooltip:AddLine(variant == "pet" and GC.L["no market figure for caged pets"]
-      or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
+    tooltip:AddLine(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
+      or GC.L["no market figure for this item level"]), 0.55, 0.55, 0.55, true)
     return
   end
   local now = time()
@@ -257,7 +262,7 @@ local function onTooltip(tooltip, data)
     forever = forever,
   })
   if not lines then return end
-  local tip = GC.Util.TooltipText
+  local tip = GC.Util.ClientText
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
       tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)

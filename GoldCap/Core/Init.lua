@@ -58,10 +58,20 @@ GC.DEFAULTS = {
   -- table, so a populated SavedVariables array is never truncated on login.
   ledger = {},
   gold = {},
-  -- Buy runs (companion "Runs" plan or a pasted GCR1 string) -- Core/AppRuns.lua. code ->
-  -- { code, name, updatedAt, lines, origin = "app"|"paste" }. Same empty-table ApplyDefaults
-  -- contract as `flips` above: a populated SavedVariables table is never touched or truncated.
+  -- Buy runs (companion "Runs" plan, a pasted GCR1 string, or a list made in the game) --
+  -- Core/AppRuns.lua. code -> { code, name, updatedAt, lines, origin = "app"|"paste"|"game" }; a
+  -- list made in the game also carries `num` (its "List N") and `createdAt`. Same empty-table
+  -- ApplyDefaults contract as `flips` above: a populated SavedVariables table is never touched or
+  -- truncated.
   runs = {},
+  -- The player's own say over every list (Core/AppRuns.lua): favourites by code, the order they
+  -- moved the lists into (codes), and the last number a list made in the game took for its code.
+  runFavourites = {},
+  runOrder = {},
+  listSeq = 0,
+  -- The BUY item box's last searches and added items, newest first, for the whole account
+  -- (Core/BuyRecents.lua). Same empty-table ApplyDefaults contract as `flips` above.
+  buyRecents = {},
   -- Metadata for the companion-sourced half of `runs` above: when it was generated, so Adopt
   -- can tell a fresher file from a stale one already applied. generatedAt = 0 means "nothing
   -- adopted yet", which is always older than any real Unix timestamp the companion writes.
@@ -474,6 +484,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- /reload the player did mid-session (for any unrelated reason) is picked up the next
       -- time the Auction House opens, rather than waiting for the next full login.
       GC.AppRuns.Adopt()
+      -- A 0.17 quick list becomes the player's first list made in the game, in place.
+      GC.AppRuns.Migrate()
     end
     -- Live price caps: adopt alongside AppRuns above (same GoldCap_AppRuns file, see
     -- Core/Caps.lua). Guarded on the Sniper frame existing because it is built lazily
@@ -701,6 +713,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
       -- down for that item until /reload.
       if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+      -- The BUY search after BUY: the list it put aside comes back once no purchase is in flight.
+      if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       if GC.MerchantNote then GC.MerchantNote.OnMerchantClosed() end
@@ -714,6 +728,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
       GC.Sniper.OnThrottledMessageDropped()
     end
+    -- ...and the BUY search's browse request out may be the one thrown away.
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.BuySearch then GC.BuySearch.OnDropped() end
     -- A post the client holds back until the throttle frees a slot: the Sell tab says it is
     -- waiting for the auction house instead of a bare "Posting…" (GC.Sell.OnThrottleQueued).
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" and GC.Sell.OnThrottleQueued then
@@ -739,6 +755,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnItemKeyInfo then
       GC.Sell.OnItemKeyInfo(itemID)
     end
+    -- A BUY search result waiting for its name (UI/BuySearch.lua).
+    if GC.BuySearch then GC.BuySearch.OnItemKeyInfo(itemID) end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
     -- The payload is documented as an itemKey, and every line below reads a field off it.
@@ -849,6 +867,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+    if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     -- The new auction's id: the Sell tab asks the client which item it is, so a post that went
@@ -984,8 +1003,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
+-- The chat frame draws in the client's face (ARIALN), so what GoldCap says there goes through
+-- GC.Util.ClientText like every other client-font text: here, once, for every caller.
 function GC.Print(msg)
-  print("|cffffd100GoldCap|r: " .. tostring(msg))
+  print(GC.Util.ClientText("|cffffd100GoldCap|r: " .. tostring(msg)))
 end
 
 function GC.OnSlash(msg)
@@ -1150,7 +1171,7 @@ function GoldCap_OnAddonCompartmentEnter(_, button)
   if not GameTooltip or not button then return end
   GameTooltip:SetOwner(button, "ANCHOR_LEFT")
   GameTooltip:AddLine("GoldCap")
-  GameTooltip:AddLine(GC.L["Open the deals board. /gc for commands."], 1, 1, 1)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Open the deals board. /gc for commands."]), 1, 1, 1)
   GameTooltip:Show()
 end
 

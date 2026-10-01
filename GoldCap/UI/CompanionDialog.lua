@@ -24,12 +24,12 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText(GC.L["GoldCap Companion"])
+  f.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap Companion"]))
 
   -- Why before where: this dialog is the landing spot of every Companion nudge in the addon
   -- (the tooltip hint, the sniper's staleness banner, the empty board, the first-open intro),
   -- so it carries the actual case for installing, not just the link.
-  local why = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local why = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   why:SetPoint("TOPLEFT", 12, -28)
   why:SetWidth(396)
   why:SetJustifyH("LEFT")
@@ -39,7 +39,7 @@ local function createDialog()
     .. "\n\226\128\162 " .. GC.L["Free, sits in the tray, nothing to set up in game."])
   f.why = why
 
-  local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local hint = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   hint:SetPoint("TOPLEFT", why, "BOTTOMLEFT", 0, -10)
   hint:SetWidth(396)
   hint:SetJustifyH("LEFT")
@@ -67,7 +67,7 @@ local function createDialog()
   local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   closeBtn:SetSize(100, 22)
   closeBtn:SetPoint("BOTTOMRIGHT", -12, 10)
-  closeBtn:SetText(GC.L["Close"])
+  closeBtn:SetText(GC.Util.ClientText(GC.L["Close"]))
   closeBtn:SetScript("OnClick", function() f:Hide() end)
   f.closeBtn = closeBtn
 

@@ -81,7 +81,7 @@ local function build(frame)
   -- The line under the rewards: the quest window's own font, wrapped to the reward frame's width.
   -- When GoldCap speaks a language the client's face cannot draw (Russian or Ukrainian on an
   -- English client), the face T.Label would switch to, at the quest font's own size.
-  local label = holder:CreateFontString(nil, "ARTWORK", "QuestFont")
+  local label = T.ClientFont(holder:CreateFontString(nil, "ARTWORK", "QuestFont"))
   if T.FONT_LABEL then
     local _, size, flags = label:GetFont()
     label:SetFont(T.FONT_LABEL, size or 13, flags or "")

@@ -68,6 +68,7 @@ describe("BuyFrame", function()
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
+    function r:GetParent() return parent end
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:SetAutoFocus(on) self.autoFocus = on end
     function r:HasFocus() return self.focused == true end
@@ -154,6 +155,8 @@ describe("BuyFrame", function()
       Button = function(parent) return button(parent) end,
       SlicedTexture = function(parent) return region("Texture", parent) end,
       WithQuality = function(name) return name end,
+      -- UI/Theme.lua's own opens GameTooltip on the row, placed beside the window.
+      ItemTooltipOutside = function(row) _G.GameTooltip:SetOwner(row, "ANCHOR_NONE") end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
     GC.Data = { GetItemValue = function(itemID)
@@ -162,6 +165,7 @@ describe("BuyFrame", function()
     helper.loadModule("Core/DealMath.lua", GC)
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
+    helper.loadModule("Core/NameMatch.lua", GC)
     helper.loadModule("Core/BuyView.lua", GC)
     helper.loadModule("Core/BuyDock.lua", GC)
 
@@ -181,10 +185,20 @@ describe("BuyFrame", function()
         for i, r in ipairs(runs) do if r.code == code then table.remove(runs, i); return true end end
         return false
       end,
+      -- What the picker and the column ask of a list (Core/AppRuns.lua's own answers for a double
+      -- that keeps no favourites and no order of its own).
+      IsLocal = function(r) return r.origin == "game" or r.origin == "paste" end,
+      Label = function(r) return r.name or r.code end,
+      IsFavourite = function() return false end,
+      CanMove = function() return false end,
       _set = function(list) runs = list end,
     }
 
+    helper.loadModule("Core/ListStrings.lua", GC)
+    helper.loadModule("Core/BuyRecents.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
+    helper.loadModule("UI/BuyLists.lua", GC)
+    helper.loadModule("UI/BuyAddBox.lua", GC)
 
     -- GC.Buy._view is the one seam BUY exposes for specs (set at Attach); no upvalue chains.
     rowsOf = function() return GC.Buy._view.rows end
@@ -230,12 +244,14 @@ describe("BuyFrame", function()
   local function pick(row) row.scripts.OnMouseUp(row, "LeftButton") end
 
   -- The client's GameTooltip, as far as a line's tooltip uses it. `lines` are its AddLine calls
-  -- (text and colour), `all` every line in order, the double ones as "left | right".
+  -- (text and colour), `all` every line in order, the double ones as "left | right", the game's
+  -- own lines for an item as one "item:<id>".
   local function tooltipOn(row)
     local lines, all = {}, {}
     _G.GameTooltip = {
       SetOwner = function() end, IsOwned = function() return true end,
       SetText = function(_, text) all[#all + 1] = text end,
+      SetItemByID = function(_, id) all[#all + 1] = "item:" .. tostring(id) end,
       AddLine = function(_, text, r, g, b)
         lines[#lines + 1] = { text = text, color = { r, g, b } }
         all[#all + 1] = text
@@ -345,7 +361,7 @@ describe("BuyFrame", function()
     stubItemCount({ [101] = { all = 4, carried = 0 } })
     GC.Buy.Show()
     local lines, all = tooltipOn(rowWithText("Alpha Herb"))
-    assert.equal("Alpha Herb", all[1])
+    assert.equal("item:101", all[1])
     assert.truthy(lineWith(lines, "buy 6 of 10, have 4 in bags and bank"))
   end)
 
@@ -479,7 +495,7 @@ describe("BuyFrame", function()
     assert.equal("run-1", GC.db.settings.sniper.buyRun)
   end)
 
-  it("opens a menu of runs with remove for a pasted run and paste for everyone", function()
+  it("opens a menu of lists with the shown list's own actions, a new list and an import", function()
     GC.AppRuns._set({ run(), run({ code = "run-2", name = "Potion run", origin = "paste" }) })
     GC.Buy.SelectRun("run-2")
     local entries
@@ -499,18 +515,29 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
-    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
-      "divider", "Cap: 130%", "Archive this run", "Copy vendor list", "Remove this run",
-      "Paste a run...", "Item to add" }, texts)
+    -- A menu draws in the client's font, which on the Russian client has no "·" (it drew a box):
+    -- the entries are joined with commas.
+    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg", "• Potion run, 4 lines, in game",
+      "divider", "Cap: 130%", "Rename…", "Add to favourites", "Export", "Import into this list…",
+      "Archive this run", "Delete this list…", "Copy vendor list", "divider", "New list", "Import a list…" },
+      texts)
 
-    -- Remove drops the pasted run and lands on the one left.
-    entries[8].fn()
+    -- Delete asks first, in the kit's popup, and then drops the list and lands on the one left.
+    local asked
+    GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+    entries[11].fn()
+    assert.equal(bandOf().picker, asked.anchor)
+    assert.is_false(asked.opts.box)
+    assert.equal("Delete Potion run? This cannot be undone.", asked.opts.title)
+    assert.equal("Delete", asked.opts.setLabel)
+    assert.is_not_nil(GC.AppRuns.Get("run-2"))
+    asked.opts.onCommit(true)
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
   end)
 
-  it("says an app run is removed on the site, not here", function()
+  it("says a goldcap.gg list is renamed and removed on the site, not here", function()
     GC.AppRuns._set({ run() })
     GC.Buy.SelectRun("run-1")
     local entries = {}
@@ -524,9 +551,9 @@ describe("BuyFrame", function()
     local band = bandOf()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
-    assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
-      "Archive this run", "Copy vendor list", "From goldcap.gg — remove it there", "Paste a run...", "Item to add" },
-      entries)
+    assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%", "Add to favourites", "Export",
+      "Archive this run", "From goldcap.gg — rename or remove it there", "Copy vendor list", "New list",
+      "Import a list…" }, entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -681,7 +708,7 @@ describe("BuyFrame", function()
     openMenu()
     assert.is_nil(entryNamed("Cap: 130%"))
     assert.is_nil(entryNamed("Archive this run"))
-    assert.truthy(entryNamed("Paste a run..."))
+    assert.truthy(entryNamed("Import a list…"))
 
     -- Belt and braces: the handler captured before the purchase started still refuses to act
     -- while one is in flight, even reached directly.
@@ -728,20 +755,48 @@ describe("BuyFrame", function()
     assert.truthy(text:find("or plan a whole profession on goldcap.gg", 1, true))
     local add = GC.Buy._view.add
     assert.is_true(add.frame:IsShown())
-    assert.equal("Item to add", add.caption:GetText())
-    assert.equal("Shift-click an item or type its item id, with x and a count for more: 2589 x20.", add.note:GetText())
+    assert.equal("Item to add", add.hint:GetText())
+    assert.equal("Shift-click items, type a name, or an item id with x and a count: 2589 x20.", add.note:GetText())
+    -- No list, no band: the words come straight under the box.
+    assert.is_false(bandOf().frame:IsShown())
     assert.is_false(bandOf().picker:IsShown())
     assert.equal("", bandOf().done:GetText())
     assert.is_false(bandOf().totalCaption:IsShown())
     assert.is_false(dock():IsShown())
   end)
 
-  -- BUY 2.0: the quick list a player makes in the game. The BUY 2.0 probe (2026-10-01): a shift-click
-  -- into the focused box delivers the item's link in both games, and the client resolves almost no
-  -- typed names (0 of 15 in retail) -- so the box takes a link or an item id.
-  describe("the quick list", function()
+  -- Where a region is anchored, top-down: the y of its `point`, and what it is anchored to.
+  local function yOf(frame, point)
+    for _, p in ipairs(frame.points) do
+      if p.point == point then return p.y, p.relative end
+    end
+  end
+
+  -- The owner (BUY 2.0): one box, at the top -- not a row under the list.
+  it("puts the item box at the top of the tab, then the band, the headings and the rows", function()
+    local add, band = GC.Buy._view.add, bandOf()
+    local y, anchor = yOf(add.frame, "TOPLEFT")
+    assert.equal(containerOf(), anchor)
+    assert.equal(0, y)
+    assert.is_true(add.h > 0)
+    assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
+    assert.equal(-(add.h + 2), (yOf(band.picker, "TOPLEFT")))
+    assert.equal(-(add.h + 4), (yOf(band.totalCaption, "TOPRIGHT")))
+    assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
+    assert.equal(-(add.h + band.h + 16 + 4), (yOf(band.scroll, "TOPLEFT")))
+    assert.is_true(add.frame:IsShown())
+    -- No row holds a place for it any more: every row on screen is a line of the list.
+    for _, row in ipairs(shownRows()) do assert.truthy(row.lineItemID) end
+  end)
+
+  -- BUY 2.0: lists the player makes in the game. The BUY 2.0 probe (2026-10-01): a shift-click into
+  -- the focused box delivers the item's link in both games, and the client resolves almost no typed
+  -- names (0 of 15 in retail) -- so the box takes a link or an item id.
+  describe("lists made in the game", function()
     -- A link as the client writes it: coloured by quality as |cnIQ<quality>: in both games.
     local LINEN = "|cnIQ1:|Hitem:2589::::::::|h[Linen Cloth]|h|r"
+    local WOOL = "|cnIQ1:|Hitem:2592::::::::|h[Wool Cloth]|h|r"
+    local SILK = "|cnIQ1:|Hitem:4306::::::::|h[Silk Cloth]|h|r"
     local inserted
 
     before_each(function()
@@ -761,7 +816,7 @@ describe("BuyFrame", function()
     end)
 
     after_each(function()
-      _G.ChatFrameUtil, _G.hooksecurefunc = nil, nil
+      _G.ChatFrameUtil, _G.hooksecurefunc, _G.MenuUtil = nil, nil, nil
       NAMES[2589], NAMES[2592] = nil, nil
     end)
 
@@ -771,12 +826,30 @@ describe("BuyFrame", function()
       box.scripts.OnEnterPressed(box)
     end
 
-    it("adds a shift-clicked item with a count, and opens the quick list", function()
+    local function pickerMenu()
+      local entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+          CreateDivider = function() end,
+        })
+      end }
+      bandOf().picker.scripts.OnClick(bandOf().picker)
+      _G.MenuUtil = nil
+      return function(text)
+        for _, e in ipairs(entries) do if e.text == text then return e end end
+      end
+    end
+
+    it("makes List 1 from the first item added, with its count", function()
       enter("20 " .. LINEN)
-      assert.equal("quick", GC.Buy.CurrentRun():Code())
+      local code = GC.Buy.CurrentRun():Code()
+      assert.equal("game", GC.db.runs[code].origin)
       assert.equal(20, GC.Buy.CurrentRun():Lines()[1].need)
-      assert.equal("Added 20× Linen Cloth to your quick list.", GC.Buy._view.add.note:GetText())
+      assert.equal("Added 20× Linen Cloth to a new list, List 1.", GC.Buy._view.add.note:GetText())
       assert.equal("", GC.Buy._view.add.box:GetText())
+      assert.equal("List 1 ▼", bandOf().picker.label)
     end)
 
     it("adds an item by its id, with an x count", function()
@@ -788,18 +861,29 @@ describe("BuyFrame", function()
     it("refuses two bare numbers instead of guessing which is the item", function()
       enter("2592 3")
       assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
-      assert.is_nil(GC.db.runs.quick)
+      assert.is_nil(next(GC.db.runs))
     end)
 
-    it("says so when it cannot find the item, and makes no list", function()
+    -- A typed name is never claimed to be found: the client places almost none (the BUY 2.0 probe).
+    it("says what to do when nothing it knows goes by a typed name, and makes no list", function()
       enter("Linen Cloth")
-      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
-      assert.is_nil(GC.db.runs.quick)
+      assert.equal("Open the auction house to search what's on sale.", GC.Buy._view.add.note:GetText())
+      assert.is_nil(next(GC.db.runs))
       enter("999999")
-      assert.is_nil(GC.db.runs.quick)
+      assert.equal("Could not find that item. Shift-click it, or type its item id.", GC.Buy._view.add.note:GetText())
+      assert.is_nil(next(GC.db.runs))
     end)
 
-    it("fills the box from a shift-click while it has the focus, and not otherwise", function()
+    -- With the auction house open it is where everything is searched (UI/BuySearch.lua, which says
+    -- how that search went): the box does not point the player at it.
+    it("does not send the player to the auction house while it is open", function()
+      GC.Sniper = { IsAHOpen = function() return true end }
+      enter("Linen Cloth")
+      GC.Sniper = nil
+      assert.equal("", GC.Buy._view.add.note:GetText())
+    end)
+
+    it("takes a shift-click while it has the focus, and none before", function()
       local box = GC.Buy._view.add.box
       box:SetText("5 ")
       inserted(LINEN)
@@ -809,39 +893,215 @@ describe("BuyFrame", function()
       assert.equal("5 " .. LINEN, box:GetText())
     end)
 
-    it("names the quick list in the player's language and ends it with the item box", function()
-      enter(LINEN)
-      assert.equal("Quick list ▼", bandOf().picker.label)
-      assert.is_true(GC.Buy._view.add.frame:IsShown())
-      enter("2592 x3")
-      assert.equal(2, #GC.Buy.CurrentRun():Lines())
+    -- The owner: three shift-clicks kept only the last.
+    it("collects three shift-clicks, after the client moved the focus too, and Enter adds all three", function()
+      _G.C_Item.GetItemInfoInstant = function(id) return ({ [2589] = 2589, [2592] = 2592, [4306] = 4306 })[id] end
+      NAMES[4306] = "Silk Cloth"
+      local add = GC.Buy._view.add
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      inserted(LINEN)
+      add.box:ClearFocus() -- a click on a bag
+      inserted(WOOL)
+      inserted(SILK)
+      assert.equal(LINEN .. ", " .. WOOL .. ", " .. SILK, add.box:GetText())
+      assert.equal("Items to add: 3 — Linen Cloth, Wool Cloth, Silk Cloth", add.collected:GetText())
+      assert.equal("Add", add.button.label)
+      add.box.scripts.OnEnterPressed(add.box)
+      NAMES[4306] = nil
+      local ids = {}
+      for i, line in ipairs(GC.Buy.CurrentRun():Lines()) do ids[i] = line.itemID end
+      assert.same({ 2589, 2592, 4306 }, ids)
+      assert.equal("Added 3 items to a new list, List 1.", add.note:GetText())
+      assert.equal("", add.box:GetText())
+      -- Enter ended the collecting: the next shift-click is somebody else's.
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
     end)
 
-    -- With no quick list yet, the list menu's "Item to add" keeps the list on screen and its picker;
-    -- the quick list is made by the first item added.
-    it("opens the item box under the list on screen, which stays until an item is added", function()
+    it("adds what it can read and names what it cannot", function()
+      local add = GC.Buy._view.add
+      add.box:SetText("2589 x2, 2592 3; 999999")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal("Items to add: 1 — Linen Cloth ×2\nCould not read: 2592 3, 999999.", add.collected:GetText())
+      add.box.scripts.OnEnterPressed(add.box)
+      assert.equal("Added 2× Linen Cloth to a new list, List 1. Could not read: 2592 3, 999999.", add.note:GetText())
+      assert.equal(1, #GC.Buy.CurrentRun():Lines())
+    end)
+
+    it("never takes a link bound for an open chat box, or for another box with the keyboard", function()
+      local add = GC.Buy._view.add
+      add.box:SetText("")
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      _G.ChatFrameUtil.GetActiveWindow = function() return {} end
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      _G.ChatFrameUtil.GetActiveWindow = function() return nil end
+      _G.GetCurrentKeyBoardFocus = function() return {} end
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      _G.GetCurrentKeyBoardFocus = function() return add.box end
+      inserted(LINEN)
+      _G.GetCurrentKeyBoardFocus = nil
+      assert.equal(LINEN, add.box:GetText())
+    end)
+
+    it("stops collecting on Escape, on Enter in an empty box, and when the tab goes away", function()
+      local add = GC.Buy._view.add
+      add.box:SetFocus()
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("")
+      add.box.scripts.OnEnterPressed(add.box)
+      assert.is_false(add.box:HasFocus())
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("2589")
+      add.box.scripts.OnEscapePressed(add.box)
+      assert.equal("", add.box:GetText())
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.frame.scripts.OnHide(add.frame)
+      inserted(LINEN)
+      assert.equal("", add.box:GetText())
+    end)
+
+    it("adds to the player's own list on screen", function()
+      enter(LINEN)
+      local code = GC.Buy.CurrentRun():Code()
+      enter("2592 x3")
+      assert.equal(code, GC.Buy.CurrentRun():Code())
+      assert.equal(2, #GC.Buy.CurrentRun():Lines())
+      assert.equal("Added 3× Wool Cloth to List 1.", GC.Buy._view.add.note:GetText())
+    end)
+
+    -- A goldcap.gg list is edited on goldcap.gg: the box over one makes a list in the game.
+    it("shows the box over a goldcap.gg list too, whose first item makes a new list", function()
       GC.db.runs["run-1"] = run()
       GC.Buy.SelectRun("run-1")
       GC.Buy.RefreshIfShown()
-      local itemToAdd
-      _G.MenuUtil = { CreateContextMenu = function(_, generator)
-        generator(nil, { CreateTitle = function() end, CreateDivider = function() end,
-          CreateButton = function(_, text, fn) if text == "Item to add" then itemToAdd = fn end end })
-      end }
-      bandOf().picker.scripts.OnClick(bandOf().picker)
-      _G.MenuUtil = nil
-      itemToAdd()
-      assert.equal("run-1", GC.Buy.CurrentRun():Code())
-      assert.is_true(bandOf().picker:IsShown())
       assert.is_true(GC.Buy._view.add.frame:IsShown())
-      assert.is_true(GC.Buy._view.add.box:HasFocus())
-      assert.is_nil(GC.db.runs.quick)
+      assert.is_true(bandOf().picker:IsShown())
       enter(LINEN)
-      assert.equal("quick", GC.Buy.CurrentRun():Code())
+      local code = GC.Buy.CurrentRun():Code()
+      assert.is_true(code ~= "run-1")
+      assert.equal("game", GC.db.runs[code].origin)
+      assert.equal(4, #GC.db.runs["run-1"].lines)
+      assert.equal("Added 1× Linen Cloth to a new list, List 1.", GC.Buy._view.add.note:GetText())
     end)
 
-    it("takes a line off the quick list from its menu, and the list with its last line", function()
+    -- Typed names: only what the client and GoldCap already know, compared in the client's language.
+    it("offers the items it knows by a typed Russian name, and adds the one clicked with its count", function()
+      GC.db.itemNames = { [2589] = { n = "Плотные льняные бинты" }, [2592] = { n = "Шерстяная ткань" } }
+      NAMES[2589] = "Плотные льняные бинты"
+      local add = GC.Buy._view.add
+      add.box.scripts.OnEditFocusGained(add.box)
+      add.box:SetText("20 ЛЬНЯН")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal("Search", add.button.label)
+      assert.is_true(add.matches[1]:IsShown())
+      assert.equal(2589, add.matches[1].itemID)
+      assert.equal("Плотные льняные бинты", add.matches[1].text:GetText())
+      assert.is_nil(add.matches[2])
+      add.matches[1].scripts.OnClick(add.matches[1])
+      local line = GC.Buy.CurrentRun():Lines()[1]
+      assert.equal(2589, line.itemID)
+      assert.equal(20, line.need)
+      assert.equal("Added 20× Плотные льняные бинты to a new list, List 1.", add.note:GetText())
+      assert.is_false(add.matches[1]:IsShown())
+    end)
+
+    -- Where the names come from: the bank as far as the client has it (its tabs by the client's own
+    -- Enum.BagIndex names, which differ between retail and WoW: Forever), the ledger, and what
+    -- GoldCap recorded buying.
+    it("offers what the bank, the ledger and GoldCap's own purchases know by name", function()
+      local old = _G.Enum
+      _G.Enum = { BagIndex = { Backpack = 0, CharacterBankTab_1 = 6, AccountBankTab_1 = 12, Keyring = -1 } }
+      _G.C_Container = {
+        GetContainerNumSlots = function(bag) return (bag == 6 or bag == 12) and 1 or 0 end,
+        GetContainerItemInfo = function(bag) return ({ [6] = { itemID = 4306 }, [12] = { itemID = 4338 } })[bag] end,
+      }
+      NAMES[4306], NAMES[4338] = "Silk Cloth", "Mageweave Cloth"
+      GC.db.ledger = { { itemID = 14047, itemName = "Runecloth" } }
+      GC.db.acquisitions = { { itemID = 21877, itemName = "Netherweave Cloth" } }
+      local add = GC.Buy._view.add
+      add.box:SetText("cloth")
+      add.box.scripts.OnTextChanged(add.box, true)
+      _G.Enum = old
+      NAMES[4306], NAMES[4338] = nil, nil
+      local ids = {}
+      for i, row in ipairs(add.matches) do if row:IsShown() then ids[i] = row.itemID end end
+      table.sort(ids)
+      assert.same({ 4306, 4338, 14047, 21877 }, ids)
+      add.box:SetText("rune")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal(14047, add.matches[1].itemID)
+    end)
+
+    it("walks the matches with the arrow keys, and Enter adds the one picked", function()
+      GC.db.itemNames = { [2589] = { n = "Linen Cloth" }, [4306] = { n = "Linen Thread" } }
+      local add = GC.Buy._view.add
+      add.box:SetText("linen")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal(2589, add.matches[1].itemID)
+      assert.equal(4306, add.matches[2].itemID)
+      add.box.scripts.OnArrowPressed(add.box, "DOWN")
+      add.box.scripts.OnArrowPressed(add.box, "DOWN")
+      assert.is_true(add.matches[2].picked:IsShown())
+      assert.is_false(add.matches[1].picked:IsShown())
+      assert.equal("Add", add.button.label)
+      add.box.scripts.OnArrowPressed(add.box, "DOWN") -- round, to the first
+      assert.is_true(add.matches[1].picked:IsShown())
+      add.box.scripts.OnArrowPressed(add.box, "UP")
+      assert.is_true(add.matches[2].picked:IsShown())
+      add.box.scripts.OnEnterPressed(add.box)
+      assert.equal(4306, GC.Buy.CurrentRun():Lines()[1].itemID)
+    end)
+
+    it("moves the list down as the box grows, so nothing sits under it", function()
+      GC.db.itemNames = { [2589] = { n = "Linen Cloth" } }
+      GC.db.runs["run-1"] = run()
+      GC.Buy.SelectRun("run-1")
+      GC.Buy.RefreshIfShown()
+      local add, band = GC.Buy._view.add, bandOf()
+      local before = add.h
+      add.box:SetText("linen")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.is_true(add.h > before)
+      assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
+      assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
+    end)
+
+    it("keeps the last searches and items as chips: an item's adds it again, a search's runs again", function()
+      GC.db.itemNames = { [2592] = { n = "Wool Cloth" } }
+      local add = GC.Buy._view.add
+      enter("2589 x20")
+      enter("wool")
+      assert.same({ { s = "wool" }, { i = 2589, q = 20, n = "Linen Cloth" } }, GC.db.buyRecents)
+      assert.equal("“wool”", add.chips[1].label)
+      assert.equal("Linen Cloth ×20", add.chips[2].label)
+      assert.is_true(add.recentCaption:IsShown())
+      assert.is_true(add.clear:IsShown())
+      -- The item's chip adds it again, to the list the box adds to.
+      add.chips[2].scripts.OnClick(add.chips[2])
+      assert.equal(40, GC.Buy.CurrentRun():Lines()[1].need)
+      assert.equal("Linen Cloth ×20", add.chips[1].label)
+      -- The search's chip runs it again.
+      add.chips[2].scripts.OnClick(add.chips[2])
+      assert.equal("wool", add.box:GetText())
+      assert.equal(2592, add.matches[1].itemID)
+      assert.equal("“wool”", add.chips[1].label)
+      add.clear.scripts.OnClick(add.clear)
+      assert.same({}, GC.db.buyRecents)
+      assert.is_false(add.recentCaption:IsShown())
+      assert.is_false(add.chips[1]:IsShown())
+    end)
+
+    it("takes a line off the player's list from its menu, and keeps the list", function()
       enter(LINEN)
+      local code = GC.Buy.CurrentRun():Code()
       local titles
       _G.MenuUtil = { CreateContextMenu = function(_, build)
         titles = {}
@@ -856,9 +1116,84 @@ describe("BuyFrame", function()
       row.scripts.OnMouseUp(row, "RightButton")
       assert.is_truthy(titles.remove)
       titles.remove()
-      assert.is_nil(GC.db.runs.quick)
-      assert.is_nil(GC.Buy.CurrentRun())
+      assert.equal(0, #GC.db.runs[code].lines)
+      assert.equal(code, GC.Buy.CurrentRun():Code())
+      assert.is_true(GC.Buy._view.add.frame:IsShown())
+    end)
+
+    -- "+ New": the next free number, picked, with the name box over it.
+    it("makes a new list from the picker's menu and asks for its name", function()
+      enter(LINEN)
+      local asked
+      GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+      pickerMenu()("New list").fn()
+      assert.equal("List 2 ▼", bandOf().picker.label)
+      assert.equal(bandOf().picker, asked.anchor)
+      assert.is_true(asked.opts.over)
+      assert.equal("List 2", asked.opts.text)
+      assert.equal("Name this list", asked.opts.title)
+      -- Enter keeps what was typed...
+      asked.opts.onCommit("Herbs")
+      assert.equal("Herbs ▼", bandOf().picker.label)
+      -- ...and the default typed back is the default again.
+      pickerMenu()("Rename…").fn()
+      asked.opts.onCommit("List 2")
+      assert.equal("List 2 ▼", bandOf().picker.label)
+      assert.is_nil(GC.AppRuns.Get(GC.Buy.CurrentRun():Code()).name)
+    end)
+
+    it("pins a favourite to the top of the picker with a star, and moves lists", function()
+      local one = GC.AppRuns.NewList()
+      one.createdAt = 10
+      local two = GC.AppRuns.NewList()
+      two.createdAt = 20
+      GC.Buy.SelectRun(one.code)
+      GC.Buy.RefreshIfShown()
+      local find = pickerMenu()
+      assert.is_nil(find("Move down"))
+      find("Move up").fn()
+      find = pickerMenu()
+      assert.truthy(find("• List 1, 0 lines, in game"))
+      assert.truthy(find("Move down"))
+      find("Add to favourites").fn()
+      find = pickerMenu()
+      assert.truthy(find("• |A:auctionhouse-icon-favorite:12:12|a List 1, 0 lines, in game"))
+      assert.truthy(find("Remove from favourites"))
+      assert.is_nil(find("Move down"))
+      assert.equal(one.code, GC.AppRuns.List()[1].code)
+    end)
+
+    it("exports the list on screen for Auctionator and for TSM, in the copy box", function()
+      enter("20 " .. LINEN)
+      enter("2592 x5")
+      local shown
+      GC.UI = { ShowCopyText = function(text, opts) shown = { text = text, opts = opts } end }
+      local exportMenu = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function() end, CreateDivider = function() end,
+          CreateButton = function(_, text)
+            if text == "Export" then
+              return { CreateButton = function(_, t, fn) exportMenu[t] = fn end }
+            end
+          end,
+        })
+      end }
+      bandOf().picker.scripts.OnClick(bandOf().picker)
       _G.MenuUtil = nil
+      exportMenu["Copy for Auctionator"]()
+      assert.equal('List 1^"Linen Cloth";;;;;;;;;;;#;;20^"Wool Cloth";;;;;;;;;;;#;;5', shown.text)
+      assert.equal("Copy for Auctionator", shown.opts.title)
+      exportMenu["Copy as a TSM item list"]()
+      assert.equal("i:2589,i:2592", shown.text)
+      -- An item the client has not loaded is asked for and left out, never written blank.
+      local asked = {}
+      NAMES[2592] = nil
+      _G.C_Item.RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end
+      exportMenu["Copy for Auctionator"]()
+      assert.equal('List 1^"Linen Cloth";;;;;;;;;;;#;;20', shown.text)
+      assert.same({ 2592 }, asked)
+      assert.is_truthy(shown.opts.hint:find("left out: 1.", 1, true))
     end)
   end)
 
@@ -1283,12 +1618,12 @@ describe("BuyFrame", function()
     assert.is_false(parent.cells.price:IsShown())
 
     local ore = rowWithText("Bravo Ore")
-    assert.equal("↳ Bravo Ore ×15", ore.reagent:GetText())
+    assert.equal("• Bravo Ore ×15", ore.reagent:GetText())
     assert.equal("20", tostring(lineOfRow(ore).need))
     assert.equal("15", tostring(lineOfRow(ore).buy))
     pick(ore)
     assert.equal("BUY 15", dock().buy.label)
-    assert.equal("↳ Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
+    assert.equal("• Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
   end)
 
   -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
@@ -1634,10 +1969,10 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     -- `menuTexts`, not `texts`: this describe already has a texts() helper for tooltip lines.
     local menuTexts = menuEntries()
-    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg",
-                  "divider", "Alerts", "• Cheap ore  ·  2 lines  ·  goldcap.gg",
-                  "divider", "cap: alert target", "From goldcap.gg — manage it there",
-                  "Paste a run...", "Item to add" }, menuTexts)
+    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg",
+                  "divider", "Alerts", "• Cheap ore, 2 lines, goldcap.gg",
+                  "divider", "cap: alert target", "Export", "From goldcap.gg — manage it there",
+                  "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
   -- Spec rule 3: a followed run rides in after the player's own, marked with its owner, and
@@ -1649,9 +1984,9 @@ describe("BuyFrame", function()
     assert.equal("Guild flasks ▼", bandOf().picker.label)
     assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
-    assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
-                  "divider", "From goldcap.gg — manage it there", "Copy vendor list",
-                  "Paste a run...", "Item to add" }, menuTexts)
+    assert.same({ "Runs", "• Guild flasks, 4 lines, from Acromion",
+                  "divider", "Add to favourites", "Export", "From goldcap.gg — manage it there",
+                  "Copy vendor list", "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
   -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
@@ -1661,7 +1996,7 @@ describe("BuyFrame", function()
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 −1 lines", bandOf().done:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 -1 lines", bandOf().done:GetText())
 
     -- A day old exactly: the notice goes.
     GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
@@ -1789,7 +2124,7 @@ describe("BuyFrame", function()
     showLong()
     local tools = bandOf().tools
     assert.is_true(tools.frame:IsShown())
-    assert.equal("All ▾", tools.filter.label)
+    assert.equal("All ▼", tools.filter.label)
     tools.search:SetText("alpha"); tools.search.scripts.OnTextChanged(tools.search, true)
     local names = {}
     for _, row in ipairs(shownRows()) do names[#names + 1] = row.reagent:GetText() end
@@ -1805,7 +2140,7 @@ describe("BuyFrame", function()
     GC.Buy._SetFilter("vendor")
     assert.equal(1, #shownRows())
     for _, row in ipairs(shownRows()) do assert.is_truthy((row.status:GetText() or ""):find("at a vendor", 1, true)) end
-    assert.equal("At a vendor ▾", bandOf().tools.filter.label)
+    assert.equal("At a vendor ▼", bandOf().tools.filter.label)
     GC.Buy._SetFilter("done")
     assert.equal("Bravo Ore ×2", shownRows()[1].reagent:GetText())
   end)
@@ -1892,7 +2227,9 @@ describe("BuyFrame", function()
     assert.equal("1 of 4", lists.entries[1].meta:GetText())
     assert.equal("Alchemy restock", lists.entries[2].button.label)
     assert.equal("0 of 1", lists.entries[2].meta:GetText()) -- no Charlie Dust in the bag
-    assert.equal("Lists come from goldcap.gg through the companion.", lists.footer:GetText())
+    assert.equal("goldcap.gg", lists.entries[1].origin:GetText())
+    assert.equal("Lists come from goldcap.gg through the companion, or make one here with + New.",
+      lists.footer:GetText())
     -- The rest of the tab starts after the column.
     assert.equal(196 + 12, GC.Buy._leftInset)
     assert.equal(1040 - 208, GC.Buy._view.band.fill.width * 4) -- one of four done, across what is left
@@ -1930,5 +2267,104 @@ describe("BuyFrame", function()
     goWide(700)
     assert.is_false(GC.Buy._view.lists.frame:IsShown())
     assert.equal(0, GC.Buy._leftInset)
+  end)
+
+  -- The column's own controls for the player's lists: "+ New" and "Import" at its top, where each
+  -- list came from, its star, and a right-click menu that is the picker's for any list.
+  describe("the column with lists made in the game", function()
+    before_each(function()
+      helper.loadModule("Core/AppRuns.lua", GC)
+      GC.db.runs, GC.db.runsArchived = { ["run-1"] = run() }, {}
+      GC.db.settings.sniper.buyRun = "run-1"
+      goWide()
+    end)
+
+    after_each(function() _G.MenuUtil = nil end)
+
+    local function rightClick(i)
+      local entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+          CreateDivider = function() end,
+        })
+      end }
+      local b = GC.Buy._view.lists.entries[i].button
+      b.scripts.OnClick(b, "RightButton")
+      _G.MenuUtil = nil
+      local said = {}
+      for _, e in ipairs(entries) do said[#said + 1] = e.text end
+      return said, function(text)
+        for _, e in ipairs(entries) do if e.text == text then return e end end
+      end
+    end
+
+    it("offers + New and Import at the top of the column", function()
+      local lists = GC.Buy._view.lists
+      assert.equal("+ New", lists.new.label)
+      assert.equal("Import", lists.import.label)
+      local opened
+      GC.UI = { ShowImportDialog = function(opts) opened = opts end }
+      lists.import.scripts.OnClick(lists.import)
+      assert.same({ lists = true }, opened)
+      GC.BuyCapEditor = { Open = function() end }
+      lists.new.scripts.OnClick(lists.new)
+      local code = GC.Buy.CurrentRun():Code()
+      assert.equal("game", GC.db.runs[code].origin)
+      assert.equal("List 1", lists.entries[2].button.label)
+      assert.equal("in game", lists.entries[2].origin:GetText())
+      assert.equal("0 of 0", lists.entries[2].meta:GetText())
+      -- An item added counts in the column at once.
+      _G.C_Item.GetItemInfoInstant = function(id) return id end
+      local box = GC.Buy._view.add.box
+      box:SetText("101 x2")
+      box.scripts.OnEnterPressed(box)
+      assert.equal("0 of 1", lists.entries[2].meta:GetText())
+    end)
+
+    -- Too long for one row in the player's language, the two buttons go one under the other.
+    it("stacks + New and Import when the two do not fit side by side", function()
+      textWidth = function(text) return #text * 20 end
+      goWide()
+      local lists = GC.Buy._view.lists
+      assert.equal("TOPLEFT", lists.import.points[1].point)
+      assert.equal("BOTTOMLEFT", lists.import.points[1].relativePoint)
+    end)
+
+    it("opens a goldcap.gg list's menu on a right click, with no rename and no delete", function()
+      local said = rightClick(1)
+      assert.same({ "Flask run", "Add to favourites", "Export", "Archive this run",
+        "From goldcap.gg — rename or remove it there" }, said)
+      -- A right click picks nothing.
+      assert.equal("run-1", GC.Buy.CurrentRun():Code())
+    end)
+
+    it("renames, pins, moves and deletes a list made in the game from its right click", function()
+      local made = GC.AppRuns.NewList()
+      GC.Buy.RefreshIfShown()
+      local said, find = rightClick(2)
+      assert.same({ "List 1", "Rename…", "Add to favourites", "Move up", "Import into this list…",
+        "Archive this run", "Delete this list…" }, said)
+      -- The name box goes over the list's own entry in the column.
+      local asked
+      GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+      find("Rename…").fn()
+      assert.equal(GC.Buy._view.lists.entries[2].button, asked.anchor)
+      asked.opts.onCommit("Herbs")
+      assert.equal("Herbs", GC.Buy._view.lists.entries[2].button.label)
+      find = select(2, rightClick(2))
+      find("Add to favourites").fn()
+      local lists = GC.Buy._view.lists
+      assert.equal("|A:auctionhouse-icon-favorite:12:12|a Herbs", lists.entries[1].button.label)
+      assert.equal("Flask run", lists.entries[2].button.label)
+      assert.is_true(GC.db.runFavourites[made.code])
+      find = select(2, rightClick(1))
+      find("Delete this list…").fn()
+      asked.opts.onCommit(true)
+      assert.is_nil(GC.db.runs[made.code])
+      assert.equal("Flask run", lists.entries[1].button.label)
+      assert.is_false(lists.entries[2].button:IsShown())
+    end)
   end)
 end)

@@ -179,7 +179,6 @@ GC.Locales.frFR = {
   ["Don't skip"] = "Ne plus ignorer",
   ["Everything here is bought"] = "Tout est acheté ici",
   ["From goldcap.gg — manage it there"] = "De goldcap.gg — gère-la là-bas",
-  ["From goldcap.gg — remove it there"] = "De goldcap.gg — retire-la là-bas",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "D'après votre scan d'il y a %s. Compte seulement %s. À modifier avec /gc weights.",
   ["Gear upgrades on the auction house"] = "Améliorations d'équipement à l'hôtel des ventes",
@@ -189,7 +188,6 @@ GC.Locales.frFR = {
     "Objets de vos sacs qui valent plus à l'hôtel des ventes que chez un marchand : %d (%s de plus).",
   ["Items still loading: %d. Open this again in a moment."] =
     "Objets encore en chargement : %d. Rouvrez ceci dans un instant.",
-  ["Lists come from goldcap.gg through the companion."] = "Les listes viennent de goldcap.gg par le Companion.",
   ["Loot counting is off. Type /gc loot clear to remove what was recorded."] =
     "Le comptage du butin est désactivé. Tapez /gc loot clear pour supprimer ce qui a été enregistré.",
   ["Loot counting is on."] = "Le comptage du butin est activé.",
@@ -206,20 +204,17 @@ GC.Locales.frFR = {
   ["Nothing on this list matches."] = "Rien ne correspond dans cette liste.",
   ["Over cap"] = "Au-dessus du plafond",
   ["PRICE EACH"] = "PRIX À L'UNITÉ",
-  ["Paste a run..."] = "Coller une liste...",
   ["Play a little longer for an estimate of your pace."] =
     "Jouez encore un peu pour une estimation de votre rythme.",
   ["RAISE CAP TO %s"] = "PLAFOND À %s",
   ["ROAD TO 40"] = "EN ROUTE VERS LE NIVEAU 40",
   ["Raise cap to %s"] = "Monter le plafond à %s",
-  ["Remove this run"] = "Retirer cette liste",
   ["Restore %s"] = "Restaurer %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "En route vers le niveau 40 avec GoldCap : %s sur %s pour ma monture (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "En route vers le niveau 40 : %s sur %s (or %s, sacs %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "En route vers le niveau 40 : vous avez %s (or %s, sacs %s).",
   ["Runs"] = "Listes",
-  ["Runs: click to switch, remove or paste one"] = "Listes : clique pour changer, retirer ou coller une liste",
   ["Set cap"] = "Fixer le plafond",
   ["Skip"] = "Ignorer",
   ["Skip for now"] = "Ignorer pour l'instant",
@@ -290,7 +285,6 @@ GC.Locales.frFR = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Grisé signifie que la cotation a vieilli ; Post et Repost la rafraîchissent avant d'agir.",
   ["HIDDEN 0"] = "MASQUÉES 0",
-  ["HIDE DETAILS ▾"] = "MASQUER LES DÉTAILS ▾",
   ["HOLDING %d"] = "À GARDER %d",
   ["Held back from cancelling"] = "Retenu de l'annulation",
   ["Held back from the queue"] = "Retenu de la file",
@@ -484,7 +478,6 @@ GC.Locales.frFR = {
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCAN…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d ACHATS",
-  ["SHOW DETAILS ▸"] = "AFFICHER LES DÉTAILS ▸",
   ["Sales are costed from your oldest units first"] =
     "Les ventes sont imputées d'abord sur tes unités les plus anciennes",
   ["Search"] = "Rechercher",
@@ -666,9 +659,7 @@ GC.Locales.frFR = {
   ["on %s"] = "sur %s",
   ["over your cap"] = "au-dessus du plafond",
   ["over your cap · %s"] = "au-dessus du plafond · %s",
-  ["pasted"] = "collée",
   ["plan updated on goldcap.gg"] = "plan mis à jour sur goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan mis à jour sur goldcap.gg · +%d −%d lignes",
   ["price moved to %s"] = "le prix est passé à %s",
   ["purchase failed — try again"] = "l'achat a échoué — réessaie",
   ["right-click to skip or change the cap"] = "clic droit pour ignorer ou changer le plafond",
@@ -923,7 +914,6 @@ GC.Locales.frFR = {
   ["yours ×%s"] = "à toi ×%s",
   ["~%dd to reach you"] = "~%d j avant ton tour",
   ["~%dh to reach you"] = "~%d h avant ton tour",
-  ["» needs price"] = "» prix requis",
   ["×%d in bags"] = "×%d en sacs",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "×%d dans tes sacs · Post en met %d en vente, la plus grande pile",
@@ -938,9 +928,6 @@ GC.Locales.frFR = {
     "— = rien ne vérifie cette ligne pour le moment",
   ["… = a live check is queued for this row"] =
     "… = une vérification en direct est en file pour cette ligne",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] =
-    "≈ valeur de marché goldcap.gg — pas encore de cotation en direct",
   ["no answer %ds ago -- resting"] = "aucune réponse il y a %ds -- en pause",
   ["the last attempt is still settling -- checking the price again..."] =
     "la dernière tentative n'est pas encore réglée -- nouvelle vérification du prix...",
@@ -1160,16 +1147,109 @@ GC.Locales.frFR = {
   ["BUY %d · %s"] = "ACHETER %d · %s",
   ["BUY · %s"] = "ACHETER · %s",
   -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
-  ["Added %d× %s to your quick list."] = "%d× %s ajouté à votre liste rapide.",
   ["Could not find that item. Shift-click it, or type its item id."] =
     "Objet introuvable. Faites Maj+clic dessus, ou tapez son ID d'objet.",
   ["Item to add"] = "Objet à ajouter",
   ["Make a list once, buy it here at or under your price."] =
     "Faites une liste une fois, achetez ici à votre prix ou moins.",
-  ["Quick list"] = "Liste rapide",
   ["Remove from the list"] = "Retirer de la liste",
   ["or plan a whole profession on goldcap.gg"] = "ou planifiez tout un métier sur goldcap.gg",
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
-  ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
-    "Maj+clic sur un objet ou tapez son ID d'objet ; pour plusieurs, x et la quantité : 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "MASQUER LES DÉTAILS ▲",
+  ["SHOW DETAILS ▼"] = "AFFICHER LES DÉTAILS ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] =
+    "plan mis à jour sur goldcap.gg · +%d -%d lignes",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ valeur de marché goldcap.gg — pas encore de cotation en direct",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ prix requis",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "Le jeu n'a pas encore chargé %d objets, ils sont laissés de côté. Exportez à nouveau dans un instant.",
+  ["%s and %d more"] = "%s et %d autres",
+  ["+ New"] = "+ Nouvelle",
+  ["Add to favourites"] = "Ajouter aux favoris",
+  ["Added %d items to %s."] = "%d objets ajoutés à %s.",
+  ["Added %d× %s to %s."] = "%d× %s ajouté à %s.",
+  ["Added %d× %s to a new list, %s."] = "%d× %s ajouté à une nouvelle liste, %s.",
+  ["Copy as a TSM item list"] = "Copier comme liste d'objets TSM",
+  ["Copy for Auctionator"] = "Copier pour Auctionator",
+  ["Delete"] = "Supprimer",
+  ["Delete %s? This cannot be undone."] = "Supprimer %s ? Cette action est définitive.",
+  ["Delete this list…"] = "Supprimer cette liste…",
+  ["Export"] = "Exporter",
+  ["From goldcap.gg — rename or remove it there"] =
+    "De goldcap.gg — renomme-la ou retire-la là-bas",
+  ["GoldCap — Import a list"] = "GoldCap — Importer une liste",
+  ["Import a list…"] = "Importer une liste…",
+  ["Import into this list…"] = "Importer dans cette liste…",
+  ["Imported %s with %d items."] = "%s importée avec %d objets.",
+  ["List %d"] = "Liste %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "Les listes viennent de goldcap.gg par le Companion, ou créez-en une ici avec + Nouvelle.",
+  ["Lists: click to switch, make, import or export one"] =
+    "Listes : clique pour changer, créer, importer ou exporter une liste",
+  ["Move down"] = "Descendre",
+  ["Move up"] = "Monter",
+  ["Name this list"] = "Nom de la liste",
+  ["New list"] = "Nouvelle liste",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "Collez une liste de goldcap.gg, TSM ou Auctionator et cliquez sur Importer.",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "Collez une liste de goldcap.gg, TSM ou Auctionator et cliquez sur Importer. Ses objets sont ajoutés à %s.",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Appuyez sur Ctrl+C pour copier, puis importez-la dans l'onglet Achats d'Auctionator.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] =
+    "Appuyez sur Ctrl+C pour copier, puis importez-la dans un groupe TSM.",
+  ["Remove from favourites"] = "Retirer des favoris",
+  ["Rename…"] = "Renommer…",
+  ["Save"] = "Enregistrer",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "Le jeu n'a pas pu identifier ces objets : %s. Ajoutez-les plutôt par Maj+clic dans la case d'objet.",
+  ["There are no items in this list."] = "Cette liste ne contient aucun objet.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "C'est l'export de groupe compressé de TSM, que seul TSM sait décompresser. Collez-le sur goldcap.gg/list, cliquez là-bas sur « Copier comme groupe TSM » et collez le résultat ici.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "GoldCap ne sait pas lire cette liste. Collez une liste de goldcap.gg, TSM ou Auctionator.",
+  ["in game"] = "en jeu",
+  -- Buy runs: the import result and the vendor list, now that the BUY tab's lists use them.
+  ["The run's vendor reagents. Press Ctrl+C to copy the list."] =
+    "Les composants de marchand de la liste. Appuyez sur Ctrl+C pour copier la liste.",
+  ["Vendor list"] = "Liste du marchand",
+  ["run imported: %s (%d lines)"] = "liste importée : %s (%d lignes)",
+  ["the run string is not valid"] = "la chaîne de liste n'est pas valide",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "prochain achat : %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Ajouter",
+  ["Added %d items to a new list, %s."] = "%d objets ajoutés à une nouvelle liste, %s.",
+  ["Clear"] = "Effacer",
+  ["Could not read: %s."] = "Illisible : %s.",
+  ["Items to add: %d — %s"] = "À ajouter : %d — %s",
+  ["Recent:"] = "Récents :",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Maj+clic sur des objets, tapez un nom, ou un ID d'objet avec x et la quantité : 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "DISPONIBLES",
+  ["Add to list…"] = "Ajouter à une liste…",
+  ["Back to %s"] = "Retour à %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Cliquez pour l'acheter ici. Clic droit pour l'ajouter à une liste.",
+  ["Close search"] = "Fermer la recherche",
+  ["How many"] = "Combien",
+  ["How many of %s?"] = "Combien de %s ?",
+  ["Loading more results…"] = "Chargement d'autres résultats…",
+  ["More results"] = "Plus de résultats",
+  ["Nothing on sale for “%s”."] = "Rien en vente pour « %s ».",
+  ["On sale for “%s”: %d"] = "En vente pour « %s » : %d",
+  ["Open the auction house to search what's on sale."] =
+    "Ouvrez l'hôtel des ventes pour chercher ce qui est en vente.",
+  ["PRICE FROM"] = "À PARTIR DE",
+  ["Search again"] = "Relancer la recherche",
+  ["Searching the auction house for “%s”…"] = "Recherche de « %s » à l'hôtel des ventes…",
+  ["The auction house did not answer. Search again."] =
+    "L'hôtel des ventes n'a pas répondu. Relancez la recherche.",
+  ["Type a whole number."] = "Saisissez un nombre entier.",
+  ["Waiting for the auction house…"] = "En attente de l'hôtel des ventes…",
 }

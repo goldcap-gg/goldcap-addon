@@ -51,7 +51,7 @@ describe("Theme.Button real-widget label contract", function()
   end
 
   before_each(function()
-    GC = {}
+    GC = helper.loadModule("Core/Util.lua")
     _G.CreateFrame = function() return stubFrame() end
     helper.loadModule("UI/Theme.lua", GC)
   end)
@@ -256,7 +256,7 @@ describe("Theme.Button real-widget label contract", function()
         if template then error("Couldn't find inherited node \"" .. template .. "\"") end
         return stubFrame()
       end
-      GC = {}
+      GC = helper.loadModule("Core/Util.lua")
       helper.loadModule("UI/Theme.lua", GC)
       local btn = GC.Theme.Button(stubFrame(), "primary")
       assert.has_no.errors(function() btn:SetBusy(true) end)

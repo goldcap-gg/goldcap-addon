@@ -353,18 +353,18 @@ describe("Sell widget geometry and manual cost", function()
 
   -- Below "none" and "—" sits a third case: no live quote yet at all, but the position carries
   -- the imported goldcap.gg market value (the same number Deals shows). It stands in, dim and
-  -- "≈"-prefixed so it never impersonates a live number, until a real quote lands.
-  it("falls back to the imported market value, dim and '≈'-prefixed, with no live quote yet", function()
+  -- "~"-prefixed so it never impersonates a live number, until a real quote lands.
+  it("falls back to the imported market value, dim and '~'-prefixed, with no live quote yet", function()
     local GC = load(620, { calls = {} })
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
     })
-    assert.equal("≈10g", rows[1].cells.market.text)
+    assert.equal("~10g", rows[1].cells.market.text)
     assert.same({ .5, .5, .5, 1 }, rows[1].cells.market.color)
     assert.is_true(rows[1].marketFallback)
-    -- Minor (fix wave, sell honesty): "Unknown" profit beside a dim "≈" market used to render
+    -- Minor (fix wave, sell honesty): "Unknown" profit beside a dim "~" market used to render
     -- in the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
     -- number. This fixture's ProfitText stub always returns "Unknown" (never overridden in
     -- this test), so the profit cell should read dim here too.
@@ -400,7 +400,7 @@ describe("Sell widget geometry and manual cost", function()
   -- the tab treats a one-off empty answer as permanent -- see EMPTY_ANSWER_AGE and
   -- uniqueQuoteItemIDs's own re-query staleness check just above where this lives.
   -- MINOR-1 (fix round 1): STATUS now reads the same age-gated `emptyKnown` MARKET's fallback
-  -- decides from, so a stale empty answer can't leave MARKET showing "≈…" while STATUS still
+  -- decides from, so a stale empty answer can't leave MARKET showing "~…" while STATUS still
   -- insists "Nothing listed on the AH right now".
   it("shows the market-value fallback again once an empty answer goes stale, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
@@ -411,7 +411,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
     })
-    assert.equal("≈10g", rows[1].cells.market.text)
+    assert.equal("~10g", rows[1].cells.market.text)
     assert.is_true(rows[1].marketFallback)
     assert.equal("Waiting for a live price", rows[1].cells.status.text)
   end)
@@ -1999,8 +1999,10 @@ describe("Sell widget geometry and manual cost", function()
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
-    -- "»", not "→": U+2192 is missing from the client font and rendered as a tofu box.
-    assert.equal("» needs price", rows[4].cells.market.text)
+    -- "→": the cell is a T.Num, drawn in GoldCap's own face (or the client's Korean/Chinese face),
+    -- all of which have U+2192; "»" is missing from the Chinese faces. The arrow that drew as a
+    -- box was in a Label, i.e. FRIZQT__.
+    assert.equal("→ needs price", rows[4].cells.market.text)
     assert.equal("group", rows[5].kind)
     -- No epoch, no allocator counters: how many, when, at what price, from where. The unit
     -- price no longer repeats -- the COST cell two columns over already carries it.
@@ -2066,7 +2068,7 @@ describe("Sell widget geometry and manual cost", function()
     rows = upvalue(render, "rows")
     -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
     -- because one click lists three of the five, which the panel's heading does not say.
-    assert.equal("» 1g15s", rows[4].cells.market.text)
+    assert.equal("→ 1g15s", rows[4].cells.market.text)
   end)
 
   it("falls back to the raw cheapest ask on a bag-stock sub-row when there is no recommendation", function()
@@ -2084,7 +2086,7 @@ describe("Sell widget geometry and manual cost", function()
       function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
-    assert.equal("» 9900", rows[4].cells.market.text)
+    assert.equal("→ 9900", rows[4].cells.market.text)
   end)
 
   -- Same "two different numbers" defect, the other sub-row. Repost itself only cancels --
@@ -2110,7 +2112,7 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     -- rows[1] the deck's section heading, rows[2] the position, rows[3] "YOUR LOTS", rows[4] the lot.
-    assert.equal("» 1g15s", rows[4].cells.market.text)
+    assert.equal("→ 1g15s", rows[4].cells.market.text)
   end)
 
   it("renders a direct RecommendPost decision with its exact unit and mode", function()

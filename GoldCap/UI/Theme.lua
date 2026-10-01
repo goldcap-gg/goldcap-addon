@@ -655,7 +655,26 @@ function T.Num(parent, size, bold)
   return fs
 end
 
--- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified.
+-- A FontString made from one of Blizzard's font objects draws in the CLIENT's face, which lacks
+-- glyphs the bundled one has (GC.Util.ClientText says which, and how that was read). This gives
+-- such a FontString a SetText that respells them, so no caller has to remember to; it returns
+-- the FontString, so it wraps the CreateFontString call itself. A Theme widget that moves it
+-- onto GoldCap's own face (a rounded Button sets T.FONT_UI and says so in widgetFonts) draws its
+-- text as written: that face has every glyph but ↳, which GoldCap no longer writes.
+function T.ClientFont(fs)
+  if fs.gcClientFont then return fs end
+  fs.gcClientFont = true
+  local setText = fs.SetText
+  fs.SetText = function(self, text, ...)
+    local info = widgetFonts[self]
+    if not info or info.role == "label" then text = GC.Util.ClientText(text) end
+    return setText(self, text, ...)
+  end
+  return fs
+end
+
+-- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified,
+-- and therefore a ClientFont (above): what it is given is drawn through GC.Util.ClientText.
 -- Final fix wave (item 3): applies size*T.Scale() at creation (was a bare `size`, so a Label
 -- never actually respected the current scale on first render) AND registers in widgetFonts
 -- (same data-valued-weak-table idiom T.Num already uses -- see that table's own comment for
@@ -668,7 +687,7 @@ end
 -- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also
 -- scaling layout geometry.
 function T.Label(parent, size)
-  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
   local inherited, _, flags = fs:GetFont()
   -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
   -- language -- see its declaration. Normally nil, and the inherited face stands.

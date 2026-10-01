@@ -105,6 +105,9 @@ function GC.BuyRun.New(run, driver)
         -- The item level an alert group's gear member asks for (Core/AppRuns.lua's copyLine):
         -- UI/BuyFrame.lua says it on the line and narrows the search it opens to it.
         minIlvl = num(src.minIlvl),
+        -- One exact item key: a result opened from the BUY search (UI/BuySearch.lua) is one browse
+        -- row, one variant, and its lots are read under that key alone (UI/BuyFrame.lua).
+        exactKey = type(src.key) == "table" and src.key or nil,
         -- A vendor line is a trip to an NPC at a fixed price. The recipe the site attached
         -- describes what the item is; it is not an offer to make one, and splitting it would
         -- replace a copper purchase from a vendor with reagents bought at the auction house.

@@ -1,15 +1,19 @@
 local helper = require("spec.spec_helper")
 
--- UI/ImportDialog.lua is a router before it is a dialog: a `GCR1;` buy run goes to
--- Core/AppRuns.lua, anything else to the GCS1 price parser. The run parser is the real one; only
--- the widgets and the price parser are faked, since what is under test is which one gets the text
--- and what happens to the BUY tab afterwards.
+-- UI/ImportDialog.lua is a router before it is a dialog: a list -- a `GCR1;` buy run, a TSM string
+-- or an Auctionator list -- goes to UI/BuyLists.lua (and Core/AppRuns.lua), a GCS1 string to the
+-- price parser. The list parsers are the real ones; only the widgets and the price parser are
+-- faked, since what is under test is which one gets the text and what happens to the BUY tab
+-- afterwards.
 describe("ImportDialog", function()
   local GC, frames, pricesParsed, selectedRun, refreshed
 
   local function region(kind)
     local f = { kind = kind, shown = false, scripts = {}, textValue = "" }
     function f:SetPoint() end
+    function f:ClearAllPoints() end
+    function f:SetJustifyH() end
+    function f:SetWordWrap() end
     function f:SetSize() end
     function f:SetWidth() end
     function f:SetHeight() end
@@ -62,6 +66,7 @@ describe("ImportDialog", function()
     _G.ChatFontNormal = {}
 
     GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ListStrings.lua", GC)
     helper.loadModule("Core/AppRuns.lua", GC)
     GC.db = { runs = {} }
     GC.Print = function() end
@@ -73,12 +78,14 @@ describe("ImportDialog", function()
       SelectRun = function(code) selectedRun = code end,
       RefreshIfShown = function() refreshed = true end,
     }
+    helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/ImportDialog.lua", GC)
+    helper.loadModule("UI/BuyLists.lua", GC)
   end)
 
   after_each(function()
     _G.CreateFrame, _G.UIParent, _G.ChatFontNormal = nil, nil, nil
-    _G.GoldCapImportDialog = nil
+    _G.GoldCapImportDialog, _G.C_Item, _G.C_Container = nil, nil, nil
   end)
 
   it("imports a run string", function()
@@ -124,6 +131,97 @@ describe("ImportDialog", function()
     assert.is_nil(selectedRun)
     assert.is_true(dialog.shown)
     assert.is_truthy(dialog.status:GetText():find("the run string is not valid", 1, true))
+  end)
+
+  -- BUY 2.0: the BUY tab's Import opens this box for lists, and a TSM or Auctionator list becomes a
+  -- list made in the game.
+  describe("for the BUY tab's lists", function()
+    local printed
+
+    local function pasteList(text, into)
+      GC.UI.ShowImportDialog({ lists = true, into = into })
+      local dialog = _G.GoldCapImportDialog
+      dialog.edit:SetText(text)
+      importButton().scripts.OnClick()
+      return dialog
+    end
+
+    before_each(function()
+      printed = {}
+      GC.Print = function(line) printed[#printed + 1] = line end
+      _G.C_Item = {
+        GetItemInfoInstant = function(what) return type(what) == "number" and what < 900000 and what or nil end,
+        GetItemInfo = function(id) return ({ [2589] = "Linen Cloth", [2592] = "Wool Cloth" })[id] end,
+      }
+    end)
+
+    it("makes a list from a TSM string and shows it", function()
+      local dialog = pasteList("group:Cloth,i:2589,i:2592")
+      local run = GC.AppRuns.Get(selectedRun)
+      assert.equal("game", run.origin)
+      assert.equal("Cloth", GC.AppRuns.Label(run))
+      assert.same({ 2589, 2592 }, { run.lines[1].i, run.lines[2].i })
+      assert.is_nil(pricesParsed)
+      assert.is_false(dialog.shown)
+      assert.same({ "Imported Cloth with 2 items." }, printed)
+    end)
+
+    -- The client resolves almost no typed names itself (the BUY 2.0 probe), so the names GoldCap
+    -- already knows are asked first: here, a line of a stored list and an item in the bags.
+    it("makes a list from an Auctionator list by the names GoldCap knows, and names the rest", function()
+      GC.db.runs.old = { code = "old", origin = "app", updatedAt = 1, lines = { { i = 2589, q = 1 } } }
+      _G.C_Container = {
+        GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end,
+        GetContainerItemInfo = function() return { itemID = 2592 } end,
+      }
+      local dialog = pasteList('Cloth^"Linen Cloth";;;;;;;;;;;#;;20^"wool cloth";;;;;;;;;;;#;;5^"Mystery Ore"')
+      local run = GC.AppRuns.Get(selectedRun)
+      assert.same({ { 2589, 20 }, { 2592, 5 } }, { { run.lines[1].i, run.lines[1].q }, { run.lines[2].i, run.lines[2].q } })
+      -- What was left out stays on screen, in words, until the player has read it.
+      assert.is_true(dialog.shown)
+      assert.equal("The game could not tell which items these are: Mystery Ore. Shift-click them into the item box"
+        .. " instead.", dialog.status:GetText())
+      assert.equal("", dialog.edit:GetText())
+    end)
+
+    it("imports nothing, and says so, when no name could be placed", function()
+      local dialog = pasteList('Cloth^"Mystery Ore"')
+      assert.is_nil(selectedRun)
+      assert.is_true(dialog.shown)
+      assert.is_truthy(dialog.status:GetText():find("Mystery Ore", 1, true))
+      assert.is_nil(next(GC.db.runs))
+    end)
+
+    it("adds to the list it was opened for, a run string's lines too", function()
+      local run = GC.AppRuns.NewList()
+      GC.AppRuns.AddLine(run.code, 2589, 1)
+      pasteList("i:2589,i:2592", run.code)
+      assert.same({ { 2589, 2 }, { 2592, 1 } }, { { run.lines[1].i, run.lines[1].q }, { run.lines[2].i, run.lines[2].q } })
+      assert.same({ "Added 2 items to List 1." }, printed)
+      pasteList("GCR1;abcd2345;Site;2592=4", run.code)
+      assert.equal(5, run.lines[2].q)
+      assert.is_nil(GC.AppRuns.Get("abcd2345"))
+    end)
+
+    it("says what the box takes when a paste is not a list, and parses no prices", function()
+      local dialog = pasteList("hello there")
+      assert.is_nil(pricesParsed)
+      assert.is_true(dialog.shown)
+      assert.is_truthy(dialog.status:GetText():find("Paste a list from goldcap.gg, TSM or Auctionator.", 1, true))
+      dialog = pasteList("abcdefghijklmnopqrstuvwxyzABCDEF0123(())xyz")
+      assert.is_truthy(dialog.status:GetText():find("goldcap.gg/list", 1, true))
+    end)
+
+    it("still imports prices pasted into the list box", function()
+      pasteList("GCS1;something")
+      assert.equal("GCS1;something", pricesParsed)
+    end)
+
+    it("refuses an id the client does not know", function()
+      local dialog = pasteList("i:999999")
+      assert.is_nil(selectedRun)
+      assert.is_truthy(dialog.status:GetText():find("i:999999", 1, true))
+    end)
   end)
   local function statusLines()
     local printed = {}
