@@ -286,6 +286,7 @@ describe("BUY purchase", function()
 
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
+    helper.loadModule("Core/NameMatch.lua", GC)
     helper.loadModule("Core/BuyView.lua", GC)
     helper.loadModule("Core/BuyDock.lua", GC)
     helper.loadModule("Core/BuyLots.lua", GC)

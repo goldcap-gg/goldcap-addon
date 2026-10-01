@@ -71,15 +71,17 @@ local KEEP = {
   done = { done = true }, skipped = { skipped = true },
 }
 
--- Whether a row stays on screen under the filter and the search box. The search is a plain,
--- case-blind substring of the name the row shows (the client's own, translated name).
+-- Whether a row stays on screen under the filter and the search box. The search is a plain
+-- substring of the name the row shows (the client's own, translated name), case- and accent-blind
+-- in the client's language as Core/NameMatch.lua folds it: "льнян" keeps "Плотные льняные бинты".
 function GC.BuyView.Matches(status, name, filter, query)
   if filter and filter ~= "all" then
     local keep = KEEP[filter]
     if not (keep and keep[status]) then return false end
   end
   if type(query) == "string" and query ~= "" then
-    return type(name) == "string" and name:lower():find(query:lower(), 1, true) ~= nil
+    local fold = GC.NameMatch.Fold
+    return type(name) == "string" and fold(name):find(fold(query), 1, true) ~= nil
   end
   return true
 end

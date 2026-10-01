@@ -5,7 +5,7 @@ describe("BuyView", function()
   local V
 
   before_each(function()
-    V = helper.loadModule("Core/BuyView.lua").BuyView
+    V = helper.loadModule("Core/BuyView.lua", helper.loadModule("Core/NameMatch.lua")).BuyView
   end)
 
   local BOOK = { { unit = 67, qty = 53 }, { unit = 68, qty = 156 }, { unit = 69, qty = 24 },
@@ -141,6 +141,7 @@ describe("BuyView", function()
       { "done keeps done", "done", "Linen", "done", nil, true },
       { "skipped keeps skipped", "skipped", "Linen", "skipped", nil, true },
       { "search is a plain, case-blind substring", "ready", "Linen Cloth", "all", "cLOT", true },
+      { "search is case-blind in Russian too", "ready", "Плотные льняные бинты", "all", "ЛЬНЯН", true },
       { "search misses", "ready", "Linen Cloth", "all", "wool", false },
       { "search with magic characters is literal", "ready", "Linen (Cloth)", "all", "(cl", true },
       { "empty search matches", "ready", "Linen", "all", "", true },

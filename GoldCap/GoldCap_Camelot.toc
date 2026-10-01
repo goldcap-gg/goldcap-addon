@@ -75,6 +75,7 @@ Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
+Core/NameMatch.lua
 Core/BuyRun.lua
 Core/BuyView.lua
 Core/BuyDock.lua
