@@ -37,6 +37,17 @@
   the rest is imported.
 - Right-click a list to rename it, pin it to the top as a favourite, move it up or down, or delete
   it. Lists from goldcap.gg are renamed and deleted on the site.
+- Search the auction house right in the BUY tab, as in Auctionator's Shopping tab: with the auction
+  house open, type a name in the box at the top and press Enter. Every item on sale comes back with
+  its cheapest price and how many are up; each item level of a piece of gear has its own line, and
+  More results loads the rest. Back takes you to your list, which stays as it was.
+- Click a result to buy it at the bottom of the tab: set how many, press BUY, check Blizzard's price,
+  then CONFIRM; gear is bought one item per press. Your usual cap holds, the market price times your
+  BUY cap, and you can raise it or right-click the result to type your own. Gear with no market
+  price waits for a cap of yours.
+- Right-click a result to add it to one of your lists, or to a new one, with how many you want.
+- Without the auction house, the box still offers the items GoldCap knows and says to open the
+  auction house to search what is on sale.
 - Menus, tooltips, chat messages and GoldCap's own labels no longer show empty boxes in place of a
   dot, an arrow or a triangle in some languages.
 
