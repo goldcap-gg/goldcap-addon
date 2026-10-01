@@ -206,6 +206,21 @@ describe("BUY vendor panel", function()
     GC.MerchantNote = nil
   end)
 
+  -- An item added to the quick list, or another list picked, while the merchant is open shows at
+  -- once, not on the next visit.
+  it("reads the list again when the BUY tab changes it while the merchant is open", function()
+    lines = {}
+    panel().OnMerchantShow()
+    assert.is_false(panel()._frame ~= nil and panel()._frame:IsShown())
+    lines[1] = { itemID = 2320, buy = 25, need = 25, name = "Coarse Thread" }
+    panel().OnListChanged()
+    assert.is_true(panel()._frame:IsShown())
+    panel().OnMerchantClosed()
+    lines[1].buy = 5
+    panel().OnListChanged()
+    assert.is_false(panel()._frame:IsShown())
+  end)
+
   it("hides with the merchant", function()
     panel().OnMerchantShow()
     panel().OnMerchantClosed()

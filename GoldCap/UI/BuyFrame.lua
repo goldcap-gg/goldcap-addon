@@ -649,6 +649,8 @@ function GC.Buy.SelectRun(code)
   current = GC.BuyRun.New(run, DRIVER)
   currentUpdatedAt = run.updatedAt
   current:Refresh()
+  -- At a merchant, the vendor panel shows the list on screen (UI/BuyVendorPanel.lua).
+  if GC.BuyVendorPanel and GC.BuyVendorPanel.OnListChanged then GC.BuyVendorPanel.OnListChanged() end
 end
 
 -- Picks up the remembered run, falling back to the first the list offers (app runs first,
@@ -2687,9 +2689,11 @@ local function openCapEditor(anchor, line)
       if inFlight(GC.Buy._attempt) then return end
       setLineCap(code, itemID, copper)
       -- A read judged against the old cap (a gear line's "set a cap first" included) is asked
-      -- again on the next tick; a fresh one is judged again on this repaint (rejudgeQuote).
+      -- again on the next tick; a fresh one is judged again on this repaint (rejudgeQuote). At a
+      -- merchant, the vendor panel holds the line to the new cap too.
       GC.Buy._quotedFocus = nil
       GC.Buy.RefreshIfShown()
+      if GC.BuyVendorPanel and GC.BuyVendorPanel.OnListChanged then GC.BuyVendorPanel.OnListChanged() end
     end,
   })
 end

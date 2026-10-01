@@ -219,7 +219,9 @@ local function paintRow(row, entry, runName)
 end
 
 function P.Refresh()
+  P._refreshing = true
   local want = GC.Buy and GC.Buy.VendorLines and GC.Buy.VendorLines() or nil
+  P._refreshing = nil
   -- Each open line this merchant sells, named with what it still needs; then the lines bought here
   -- this visit, named with what was bought.
   local entries = {}
@@ -263,8 +265,14 @@ function P.Refresh()
 end
 
 function P.OnMerchantShow()
-  P._bought = {}
+  P._open, P._bought = true, {}
   P.Refresh()
+end
+
+-- The BUY tab changed what the panel shows -- another list picked, an item added to the quick list,
+-- a cap typed -- while a merchant is open: read again, without waiting for the next visit.
+function P.OnListChanged()
+  if P._open and not P._refreshing then P.Refresh() end
 end
 
 function P.OnMerchantUpdate()
@@ -272,7 +280,7 @@ function P.OnMerchantUpdate()
 end
 
 function P.OnMerchantClosed()
-  P._pending, P._bought = nil, {}
+  P._open, P._pending, P._bought = false, nil, {}
   if frame then frame:Hide() end
 end
 
