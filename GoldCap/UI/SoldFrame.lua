@@ -582,10 +582,10 @@ createRow = function(parent)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
     if self.tooltipPaidUnit then
-      GameTooltip:AddLine((GC.L["paid %s each"]):format(formatAmount(self.tooltipPaidUnit)),
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["paid %s each"]):format(formatAmount(self.tooltipPaidUnit))),
         0.85, 0.85, 0.85, true)
     elseif self.tooltipCostUnknown then
-      GameTooltip:AddLine(GC.L["cost unknown"], 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["cost unknown"]), 0.85, 0.85, 0.85, true)
     end
     GameTooltip:Show()
   end)

@@ -223,8 +223,8 @@ local function onTooltip(tooltip, data)
   local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
-    tooltip:AddLine(variant == "pet" and GC.L["no market figure for caged pets"]
-      or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
+    tooltip:AddLine(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
+      or GC.L["no market figure for this item level"]), 0.55, 0.55, 0.55, true)
     return
   end
   local now = time()
@@ -241,18 +241,20 @@ local function onTooltip(tooltip, data)
     forever = forever,
   })
   if not lines then return end
+  local tip = GC.Util.ClientText
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
-      tooltip:AddDoubleLine(ln.label, GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "live" then
-      tooltip:AddDoubleLine(ln.left, GC.Util.CoinText(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail),
+        0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "hint" then
-      tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
+      tooltip:AddLine(tip(ln.text), 0.55, 0.55, 0.55, true)
     elseif ln.kind == "verdict" then
       local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
-      tooltip:AddLine(ln.text, c[1], c[2], c[3])
+      tooltip:AddLine(tip(ln.text), c[1], c[2], c[3])
     else
-      tooltip:AddDoubleLine(ln.left, ln.right, 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
     end
   end
 end

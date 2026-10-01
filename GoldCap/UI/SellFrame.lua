@@ -4230,10 +4230,10 @@ local function createRow(parent)
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
       if self.marketFallback then
-        GameTooltip:AddLine(GC.L["≈ goldcap.gg market value — no live quote yet"], 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value — no live quote yet"]), 0.85, 0.85, 0.85, true)
       end
       if self.notOnHand then
-        GameTooltip:AddLine(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"],
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"]),
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
@@ -4244,7 +4244,8 @@ local function createRow(parent)
       -- a paragraph it broke mid-fact ("bought 29 / Aug"), which is harder to read than the row.
       local first = true
       for fact in (self.groupHint .. " · "):gmatch("(.-) · ") do
-        if first then GameTooltip:AddLine(fact, 1, 1, 1) else GameTooltip:AddLine(fact, 0.85, 0.85, 0.85) end
+        local factLine = GC.Util.ClientText(fact)
+        if first then GameTooltip:AddLine(factLine, 1, 1, 1) else GameTooltip:AddLine(factLine, 0.85, 0.85, 0.85) end
         first = false
       end
       GameTooltip:Show()
@@ -4587,8 +4588,10 @@ local function createRow(parent)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
       -- cannot hold GC.L lookups.
-      GameTooltip:AddLine(GC.L[help[1]], 1, 0.82, 0)
-      for _, line in ipairs(help[2]) do GameTooltip:AddLine(GC.L[line], 0.85, 0.85, 0.85, true) end
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[help[1]]), 1, 0.82, 0)
+      for _, line in ipairs(help[2]) do
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L[line]), 0.85, 0.85, 0.85, true)
+      end
       GameTooltip:Show()
     end)
     row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -4620,8 +4623,8 @@ local function explain(frame, title, body)
   frame[hook](frame, "OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(title, 1, 0.82, 0)
-    for _, line in ipairs(body) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+    GameTooltip:AddLine(GC.Util.ClientText(title), 1, 0.82, 0)
+    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.ClientText(line), 0.85, 0.85, 0.85, true) end
     GameTooltip:Show()
   end)
   frame[hook](frame, "OnLeave", function()
@@ -5429,7 +5432,8 @@ renderRows = function()
         if p.displayMarketUnit then
           marketText = formatCell(p.displayMarketUnit)
         elseif marketFallback then
-          marketText = "≈" .. formatCell(p.marketValue)
+          -- "~", not "≈": on Korean this cell draws in the client's 2002.TTF, which has no U+2248.
+          marketText = "~" .. formatCell(p.marketValue)
         else
           marketText = emptyKnown and "none" or "—"
         end
@@ -5453,7 +5457,7 @@ renderRows = function()
         -- get selling into today's book right now). The number itself stays the recommendation
         -- -- it IS the price GoldCap would post at -- but green would claim it as ordinary
         -- market profit when it is really a bet on the hold, so it renders in the same gold the
-        -- MARKET/UNIT column already uses for a computed forward price (see the "» <price>"
+        -- MARKET/UNIT column already uses for a computed forward price (see the "→ <price>"
         -- cells below), with the price it assumes named in the cell rather than left implicit.
         -- A hold that is STILL a loss is not softened by the gold tone -- red outranks it.
         --
@@ -5476,7 +5480,7 @@ renderRows = function()
           setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
         else
           row.cells.profit:SetText(formatCell(profit))
-          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "≈" market used to render in
+          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "~" market used to render in
           -- the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
           -- number. Dim whenever there is no real number here; the gold/red hold-price branch
           -- above (a real number either way) is untouched.
@@ -5505,7 +5509,7 @@ renderRows = function()
           -- is a lie that reads as the addon being slow -- name the real state.
           -- MINOR-1 (fix round 1): reuses the same age-gated `emptyKnown` the MARKET column
           -- decides its fallback from, above -- a bare `emptyAnswers[p.itemID]` here disagreed
-          -- with MARKET once the answer went stale (MARKET said "≈…", STATUS still said
+          -- with MARKET once the answer went stale (MARKET said "~…", STATUS still said
           -- "Nothing listed").
           if p.displayMarketUnit == nil and emptyKnown then
             row.cells.status:SetText(GC.L["Nothing listed on the AH right now"])
@@ -5761,10 +5765,14 @@ renderRows = function()
               and type(rec.unit) == "number" and rec.unit > repostUnit then
             repostUnit = rec.unit
           end
-          row.cells.market:SetText("» " .. formatCell(repostUnit))
+          -- "→", which this cell can draw: it is a T.Num, so T.FONT_UI -- the bundled face, or on
+          -- Korean and Chinese the client's face for the script, all of which have U+2192. The
+          -- "»" it wore after a Label-era tofu (that cell drew in FRIZQT__, which has no arrow)
+          -- is the glyph the Chinese faces lack.
+          row.cells.market:SetText("→ " .. formatCell(repostUnit))
           setColor(row.cells.market, Theme.color.gold)
         else
-          row.cells.market:SetText(GC.L["» needs price"])
+          row.cells.market:SetText(GC.L["→ needs price"])
           setColor(row.cells.market, Theme.color.fgDim)
         end
         row.cells.profit:SetText("")
@@ -5809,10 +5817,10 @@ renderRows = function()
           local postUnit = type(p.postRecommendation) == "table" and type(p.postRecommendation.unit) == "number"
             and p.postRecommendation.unit > 0 and p.postRecommendation.unit or p.displayMarketUnit
           if postUnit and p.freshMarketUnit then
-            row.cells.market:SetText("» " .. formatCell(postUnit))
+            row.cells.market:SetText("→ " .. formatCell(postUnit))
             setColor(row.cells.market, Theme.color.gold)
           else
-            row.cells.market:SetText(GC.L["» needs price"])
+            row.cells.market:SetText(GC.L["→ needs price"])
             setColor(row.cells.market, Theme.color.fgDim)
           end
           row.cells.status:SetText(GC.Sell._RecommendationText(p.recommendation))
@@ -6620,14 +6628,14 @@ function GC.Sell.Attach(f, geometry)
   queueHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.L["Held back from the queue"], 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from the queue"]), 1, 0.82, 0)
     if #queueSkipped == 0 then
-      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(queueSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
+        GameTooltip:AddLine(GC.Util.ClientText(("%s — %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to post"])), 0.85, 0.85, 0.85, true)
+            or GC.L["not ready to post"]))), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -6668,14 +6676,14 @@ function GC.Sell.Attach(f, geometry)
   cancelHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.L["Held back from cancelling"], 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), 1, 0.82, 0)
     if #cancelSkipped == 0 then
-      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(cancelSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
+        GameTooltip:AddLine(GC.Util.ClientText(("%s — %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to cancel"])), 0.85, 0.85, 0.85, true)
+            or GC.L["not ready to cancel"]))), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -6745,12 +6753,12 @@ function GC.Sell.Attach(f, geometry)
       hit:SetScript("OnEnter", function(self)
         if not GameTooltip or not container.summaryProfitDetail then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(GC.L["Est. profit"], 1, 0.82, 0)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Est. profit"]), 1, 0.82, 0)
         GameTooltip:AddLine(
-          GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"],
+          GC.Util.ClientText(GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"]),
           0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(GC.L["Positions without a cost or a live price are excluded."],
+        GameTooltip:AddLine(GC.Util.ClientText(container.summaryProfitDetail), 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Positions without a cost or a live price are excluded."]),
           0.85, 0.85, 0.85, true)
         GameTooltip:Show()
       end)

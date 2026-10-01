@@ -291,7 +291,6 @@ GC.Locales.ruRU = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Серый цвет означает, что котировка устарела; Post и Repost обновят её перед действием.",
   ["HIDDEN 0"] = "СКРЫТО 0",
-  ["HIDE DETAILS ▾"] = "СКРЫТЬ ДЕТАЛИ ▾",
   ["HOLDING %d"] = "ДЕРЖИМ %d",
   ["Held back from cancelling"] = "Придержано от отмены",
   ["Held back from the queue"] = "Придержано из очереди",
@@ -494,7 +493,6 @@ GC.Locales.ruRU = {
   ["SCAN"] = "СКАН",
   ["SCANNING…"] = "СКАНИРУЕМ…",
   ["SESSION %s%s · %d BUYS"] = "СЕССИЯ %s%s · %d ПОКУПОК",
-  ["SHOW DETAILS ▸"] = "ПОКАЗАТЬ ДЕТАЛИ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["%d bag items sell for more on the AH (+%s)"] = "%d предметов дороже на аукционе (+%s)",
@@ -682,7 +680,6 @@ GC.Locales.ruRU = {
   ["over your cap · %s"] = "выше потолка · %s",
   ["pasted"] = "вставлен",
   ["plan updated on goldcap.gg"] = "план обновлён на goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "план обновлён на goldcap.gg · строк +%d −%d",
   ["price moved to %s"] = "цена стала %s",
   ["purchase failed — try again"] = "покупка не прошла — попробуйте снова",
   ["right-click to skip or change the cap"] = "ПКМ — пропустить или изменить потолок",
@@ -937,7 +934,6 @@ GC.Locales.ruRU = {
   ["yours ×%s"] = "ваши ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",
   ["~%dh to reach you"] = "~%d ч до вас",
-  ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "×%d в ваших сумках · Post выставит %d из них, самый большой стек",
@@ -951,9 +947,6 @@ GC.Locales.ruRU = {
   ["— = nothing is checking this row right now"] = "— = сейчас эту строку никто не проверяет",
   ["… = a live check is queued for this row"] =
     "… = для этой строки живая проверка уже в очереди",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] =
-    "≈ рыночная стоимость goldcap.gg — живой котировки пока нет",
   ["no answer %ds ago -- resting"] = "нет ответа %dс назад -- пауза",
   ["the last attempt is still settling -- checking the price again..."] =
     "предыдущая попытка ещё не завершилась -- проверяем цену заново...",
@@ -1110,4 +1103,12 @@ GC.Locales.ruRU = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "Сделайте Shift+клик по предмету или введите его ID; для нескольких — x и количество: 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "СКРЫТЬ ДЕТАЛИ ▲",
+  ["SHOW DETAILS ▼"] = "ПОКАЗАТЬ ДЕТАЛИ ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "план обновлён на goldcap.gg · строк +%d -%d",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ рыночная стоимость goldcap.gg — живой котировки пока нет",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ нужна цена",
 }

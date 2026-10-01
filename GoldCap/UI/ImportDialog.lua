@@ -14,9 +14,9 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText(GC.L["GoldCap — Import realm prices"])
+  f.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import realm prices"]))
 
-  local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local hint = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   hint:SetPoint("TOPLEFT", 12, -28)
   hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
 
@@ -33,14 +33,14 @@ local function createDialog()
   scroll:SetScrollChild(edit)
   f.edit = edit
 
-  local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local status = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   status:SetPoint("BOTTOMLEFT", 12, 16)
   f.status = status
 
   local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   btn:SetSize(100, 22)
   btn:SetPoint("BOTTOMRIGHT", -12, 10)
-  btn:SetText(GC.L["Import"])
+  btn:SetText(GC.Util.ClientText(GC.L["Import"]))
   btn:SetScript("OnClick", function()
     local text = f.edit:GetText() or ""
     -- Buy runs (Core/AppRuns.lua): a GCR1 string is a different grammar entirely, so it is

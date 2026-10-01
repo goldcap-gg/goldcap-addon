@@ -332,7 +332,7 @@ describe("BuyFrame", function()
     stubItemCount({ [102] = { all = 305, carried = 5 } })
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Bravo Ore"))
-    assert.truthy(lineWith(lines, "in bags 5 · in bank 300"))
+    assert.truthy(lineWith(lines, "in bags 5, in bank 300"))
   end)
 
   it("says nothing about the bank on the tooltip when there is none in it", function()
@@ -499,7 +499,9 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
-    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
+    -- A menu draws in the client's font, which on the Russian client has no "·" (it drew a box):
+    -- the entries are joined with commas.
+    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg", "• Potion run, 4 lines, pasted",
       "divider", "Cap: 130%", "Archive this run", "Copy vendor list", "Remove this run",
       "Paste a run...", "Item to add" }, texts)
 
@@ -524,7 +526,7 @@ describe("BuyFrame", function()
     local band = bandOf()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
-    assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
+    assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%",
       "Archive this run", "Copy vendor list", "From goldcap.gg — remove it there", "Paste a run...", "Item to add" },
       entries)
   end)
@@ -1189,7 +1191,7 @@ describe("BuyFrame", function()
     GC.Buy.Show()
 
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.truthy(lineWith(lines, "usually cheapest around 05:00 · -18%"))   -- 3 UTC + 2
+    assert.truthy(lineWith(lines, "usually cheapest around 05:00, -18%"))   -- 3 UTC + 2
 
     -- A line the site could not measure says nothing at all.
     assert.is_nil(lineWith(tooltipOn(rowWithText("Bravo Ore")), "usually cheapest"))
@@ -1210,7 +1212,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-w"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    assert.truthy(lineWith(lines, "usually cheapest around 23:00 · -9%"))   -- (1 + 22) % 24
+    assert.truthy(lineWith(lines, "usually cheapest around 23:00, -9%"))   -- (1 + 22) % 24
 
     _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil
   end)
@@ -1283,12 +1285,12 @@ describe("BuyFrame", function()
     assert.is_false(parent.cells.price:IsShown())
 
     local ore = rowWithText("Bravo Ore")
-    assert.equal("↳ Bravo Ore ×15", ore.reagent:GetText())
+    assert.equal("• Bravo Ore ×15", ore.reagent:GetText())
     assert.equal("20", tostring(lineOfRow(ore).need))
     assert.equal("15", tostring(lineOfRow(ore).buy))
     pick(ore)
     assert.equal("BUY 15", dock().buy.label)
-    assert.equal("↳ Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
+    assert.equal("• Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
   end)
 
   -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
@@ -1360,7 +1362,7 @@ describe("BuyFrame", function()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
     local craft = lineWith(lines, "craft it: ")
     assert.equal("craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each", craft.text)
-    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to split"))
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house, right-click to split"))
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
       craft.color)
   end)
@@ -1373,7 +1375,7 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = "run-x"
     GC.Buy.Show()
     local lines = tooltipOn(rowWithText("Alpha Herb"))
-    local vs = lineWith(lines, "vs 300c at the auction house · right-click to split")
+    local vs = lineWith(lines, "vs 300c at the auction house, right-click to split")
     assert.truthy(vs)
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
       vs.color)
@@ -1382,7 +1384,7 @@ describe("BuyFrame", function()
   it("offers the way back on a line that is already split", function()
     showCraftRun(true)
     local lines = tooltipOn(rowWithText("craft 4×"))
-    assert.truthy(lineWith(lines, "vs 5800c at the auction house · right-click to buy it whole"))
+    assert.truthy(lineWith(lines, "vs 5800c at the auction house, right-click to buy it whole"))
   end)
 
   -- A reagent the run already asked for does not get a second row; its NEED grows instead, and
@@ -1634,8 +1636,8 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     -- `menuTexts`, not `texts`: this describe already has a texts() helper for tooltip lines.
     local menuTexts = menuEntries()
-    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg",
-                  "divider", "Alerts", "• Cheap ore  ·  2 lines  ·  goldcap.gg",
+    assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg",
+                  "divider", "Alerts", "• Cheap ore, 2 lines, goldcap.gg",
                   "divider", "cap: alert target", "From goldcap.gg — manage it there",
                   "Paste a run...", "Item to add" }, menuTexts)
   end)
@@ -1649,7 +1651,7 @@ describe("BuyFrame", function()
     assert.equal("Guild flasks ▼", bandOf().picker.label)
     assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
-    assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
+    assert.same({ "Runs", "• Guild flasks, 4 lines, from Acromion",
                   "divider", "From goldcap.gg — manage it there", "Copy vendor list",
                   "Paste a run...", "Item to add" }, menuTexts)
   end)
@@ -1661,7 +1663,7 @@ describe("BuyFrame", function()
     GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
-    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 −1 lines", bandOf().done:GetText())
+    assert.equal("1 of 4 done · plan updated on goldcap.gg · +2 -1 lines", bandOf().done:GetText())
 
     -- A day old exactly: the notice goes.
     GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
@@ -1789,7 +1791,7 @@ describe("BuyFrame", function()
     showLong()
     local tools = bandOf().tools
     assert.is_true(tools.frame:IsShown())
-    assert.equal("All ▾", tools.filter.label)
+    assert.equal("All ▼", tools.filter.label)
     tools.search:SetText("alpha"); tools.search.scripts.OnTextChanged(tools.search, true)
     local names = {}
     for _, row in ipairs(shownRows()) do names[#names + 1] = row.reagent:GetText() end
@@ -1805,7 +1807,7 @@ describe("BuyFrame", function()
     GC.Buy._SetFilter("vendor")
     assert.equal(1, #shownRows())
     for _, row in ipairs(shownRows()) do assert.is_truthy((row.status:GetText() or ""):find("at a vendor", 1, true)) end
-    assert.equal("At a vendor ▾", bandOf().tools.filter.label)
+    assert.equal("At a vendor ▼", bandOf().tools.filter.label)
     GC.Buy._SetFilter("done")
     assert.equal("Bravo Ore ×2", shownRows()[1].reagent:GetText())
   end)

@@ -25,6 +25,8 @@
   cap, each with a button that buys what you still need, up to a full stack per press.
 - No lists yet? Shift-click an item into the box on the BUY tab, or type its item id, to start a
   quick list right in the game. Right-click a line to take it off again.
+- Menus, tooltips, chat messages and GoldCap's own labels no longer show empty boxes in place of a
+  dot, an arrow or a triangle in some languages.
 
 ## 0.17.2 (2026-09-30)
 

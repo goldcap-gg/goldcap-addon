@@ -43,7 +43,8 @@ describe("CompanionDialog", function()
     _G.UIParent = {}
     _G.UISpecialFrames = {}
     _G.ChatFontNormal = {}
-    GC = { slashHandlers = {}, UI = {} }
+    GC = helper.loadModule("Core/Util.lua", { slashHandlers = {}, UI = {} })
+    helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/CompanionDialog.lua", GC)
   end)
 

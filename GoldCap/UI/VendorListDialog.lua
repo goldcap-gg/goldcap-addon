@@ -23,9 +23,9 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText(GC.L["Vendor list"])
+  f.TitleText:SetText(GC.Util.ClientText(GC.L["Vendor list"]))
 
-  local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  local hint = GC.Theme.ClientFont(f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
   hint:SetPoint("TOPLEFT", 12, -28)
   hint:SetWidth(396)
   hint:SetJustifyH("LEFT")
@@ -55,7 +55,7 @@ local function createDialog()
   local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   closeBtn:SetSize(100, 22)
   closeBtn:SetPoint("BOTTOMRIGHT", -12, 10)
-  closeBtn:SetText(GC.L["Close"])
+  closeBtn:SetText(GC.Util.ClientText(GC.L["Close"]))
   closeBtn:SetScript("OnClick", function() f:Hide() end)
   f.closeBtn = closeBtn
 
@@ -67,7 +67,9 @@ end
 --- has already decided there is a list, and an empty box is a button that looks broken.
 function GC.UI.ShowVendorList(text)
   if type(text) ~= "string" or text == "" then return end
-  shownText = text
+  -- The box draws in the chat face (ChatFontNormal), so the list is the client-font version of
+  -- itself -- and kept as such: OnTextChanged compares against exactly what was set.
+  shownText = GC.Util.ClientText(text)
   dialog = dialog or createDialog()
   -- Above the docked window (HIGH, toplevel) and the auction house it docks into, every time
   -- it opens -- the same three-part fix UI/ImportDialog.lua needed after it came up behind
@@ -75,7 +77,7 @@ function GC.UI.ShowVendorList(text)
   if dialog.SetToplevel then dialog:SetToplevel(true) end
   dialog:Show()
   if dialog.Raise then dialog:Raise() end
-  dialog.edit:SetText(text)
+  dialog.edit:SetText(shownText)
   dialog.edit:SetFocus()
   dialog.edit:HighlightText()
 end

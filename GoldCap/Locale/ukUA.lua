@@ -295,7 +295,6 @@ GC.Locales.ukUA = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Сірий колір означає, що котирування застаріло; Post і Repost оновлять його перед дією.",
   ["HIDDEN 0"] = "ПРИХОВАНО 0",
-  ["HIDE DETAILS ▾"] = "СХОВАТИ ДЕТАЛІ ▾",
   ["HOLDING %d"] = "ТРИМАЄМО %d",
   ["Held back from cancelling"] = "Притримано від скасування",
   ["Held back from the queue"] = "Притримано з черги",
@@ -508,7 +507,6 @@ GC.Locales.ukUA = {
   ["SCAN"] = "СКАН",
   ["SCANNING…"] = "СКАНУЄМО…",
   ["SESSION %s%s · %d BUYS"] = "СЕСІЯ %s%s · %d КУПІВЕЛЬ",
-  ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["%d bag items sell for more on the AH (+%s)"] = "%d предметів дорожчі на аукціоні (+%s)",
@@ -697,7 +695,6 @@ GC.Locales.ukUA = {
   ["over your cap · %s"] = "вище стелі · %s",
   ["pasted"] = "вставлено",
   ["plan updated on goldcap.gg"] = "план оновлено на goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "план оновлено на goldcap.gg · рядків +%d −%d",
   ["price moved to %s"] = "ціна стала %s",
   ["purchase failed — try again"] = "купівля не вдалася — спробуйте ще раз",
   ["right-click to skip or change the cap"] = "ПКМ — пропустити або змінити стелю",
@@ -956,7 +953,6 @@ GC.Locales.ukUA = {
   ["yours ×%s"] = "ваші ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",
   ["~%dh to reach you"] = "~%d год до вас",
-  ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "×%d у ваших сумках · Post виставить %d із них, найбільший стек",
@@ -970,9 +966,6 @@ GC.Locales.ukUA = {
   ["— = nothing is checking this row right now"] = "— = зараз цей рядок ніхто не перевіряє",
   ["… = a live check is queued for this row"] =
     "… = для цього рядка жива перевірка вже в черзі",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] =
-    "≈ ринкова вартість goldcap.gg — живого котирування ще немає",
   ["no answer %ds ago -- resting"] = "немає відповіді %dс тому -- пауза",
   ["the last attempt is still settling -- checking the price again..."] =
     "попередня спроба ще не завершилася -- перевіряємо ціну знову...",
@@ -1129,4 +1122,12 @@ GC.Locales.ukUA = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "Зробіть Shift+клік по предмету або введіть його ID; для кількох — x і кількість: 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "СХОВАТИ ДЕТАЛІ ▲",
+  ["SHOW DETAILS ▼"] = "ПОКАЗАТИ ДЕТАЛІ ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "план оновлено на goldcap.gg · рядків +%d -%d",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ ринкова вартість goldcap.gg — живого котирування ще немає",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ потрібна ціна",
 }

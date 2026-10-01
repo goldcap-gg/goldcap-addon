@@ -293,7 +293,6 @@ GC.Locales.frFR = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Grisé signifie que la cotation a vieilli ; Post et Repost la rafraîchissent avant d'agir.",
   ["HIDDEN 0"] = "MASQUÉES 0",
-  ["HIDE DETAILS ▾"] = "MASQUER LES DÉTAILS ▾",
   ["HOLDING %d"] = "À GARDER %d",
   ["Held back from cancelling"] = "Retenu de l'annulation",
   ["Held back from the queue"] = "Retenu de la file",
@@ -496,7 +495,6 @@ GC.Locales.frFR = {
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCAN…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d ACHATS",
-  ["SHOW DETAILS ▸"] = "AFFICHER LES DÉTAILS ▸",
   ["Sales are costed from your oldest units first"] =
     "Les ventes sont imputées d'abord sur tes unités les plus anciennes",
   ["%d bag items sell for more on the AH (+%s)"] = "%d objets valent plus à l'HV (+%s)",
@@ -684,7 +682,6 @@ GC.Locales.frFR = {
   ["over your cap · %s"] = "au-dessus du plafond · %s",
   ["pasted"] = "collée",
   ["plan updated on goldcap.gg"] = "plan mis à jour sur goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan mis à jour sur goldcap.gg · +%d −%d lignes",
   ["price moved to %s"] = "le prix est passé à %s",
   ["purchase failed — try again"] = "l'achat a échoué — réessaie",
   ["right-click to skip or change the cap"] = "clic droit pour ignorer ou changer le plafond",
@@ -941,7 +938,6 @@ GC.Locales.frFR = {
   ["yours ×%s"] = "à toi ×%s",
   ["~%dd to reach you"] = "~%d j avant ton tour",
   ["~%dh to reach you"] = "~%d h avant ton tour",
-  ["» needs price"] = "» prix requis",
   ["×%d in bags"] = "×%d en sacs",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "×%d dans tes sacs · Post en met %d en vente, la plus grande pile",
@@ -956,9 +952,6 @@ GC.Locales.frFR = {
     "— = rien ne vérifie cette ligne pour le moment",
   ["… = a live check is queued for this row"] =
     "… = une vérification en direct est en file pour cette ligne",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] =
-    "≈ valeur de marché goldcap.gg — pas encore de cotation en direct",
   ["no answer %ds ago -- resting"] = "aucune réponse il y a %ds -- en pause",
   ["the last attempt is still settling -- checking the price again..."] =
     "la dernière tentative n'est pas encore réglée -- nouvelle vérification du prix...",
@@ -1117,4 +1110,13 @@ GC.Locales.frFR = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "Maj+clic sur un objet ou tapez son ID d'objet ; pour plusieurs, x et la quantité : 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "MASQUER LES DÉTAILS ▲",
+  ["SHOW DETAILS ▼"] = "AFFICHER LES DÉTAILS ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] =
+    "plan mis à jour sur goldcap.gg · +%d -%d lignes",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ valeur de marché goldcap.gg — pas encore de cotation en direct",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ prix requis",
 }

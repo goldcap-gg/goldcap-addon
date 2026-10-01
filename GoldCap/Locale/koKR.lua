@@ -283,7 +283,6 @@ GC.Locales.koKR = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",
   ["HIDDEN 0"] = "숨김 0",
-  ["HIDE DETAILS ▾"] = "세부 정보 숨기기 ▾",
   ["HOLDING %d"] = "보류 %d",
   ["Held back from cancelling"] = "취소에서 보류됨",
   ["Held back from the queue"] = "대기열에서 보류됨",
@@ -471,7 +470,6 @@ GC.Locales.koKR = {
   ["SCAN"] = "검색",
   ["SCANNING…"] = "검색 중…",
   ["SESSION %s%s · %d BUYS"] = "세션 %s%s · 구매 %d건",
-  ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["%d bag items sell for more on the AH (+%s)"] = "%d개 아이템이 경매장에서 더 비쌉니다 (+%s)",
   ["Search"] = "검색",
@@ -647,7 +645,6 @@ GC.Locales.koKR = {
   ["over your cap · %s"] = "상한 초과 · %s",
   ["pasted"] = "붙여넣음",
   ["plan updated on goldcap.gg"] = "goldcap.gg에서 계획이 갱신됨",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "goldcap.gg에서 계획이 갱신됨 · 줄 +%d −%d",
   ["price moved to %s"] = "가격이 %s(으)로 바뀜",
   ["purchase failed — try again"] = "구매 실패 — 다시 시도하세요",
   ["right-click to skip or change the cap"] = "우클릭: 건너뛰기 또는 상한 변경",
@@ -888,7 +885,6 @@ GC.Locales.koKR = {
   ["yours ×%s"] = "내 것 ×%s",
   ["~%dd to reach you"] = "내 차례까지 ~%d일",
   ["~%dh to reach you"] = "내 차례까지 ~%d시간",
-  ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "가방에 ×%d · Post는 그중 가장 큰 묶음 %d개를 등록합니다",
@@ -901,9 +897,6 @@ GC.Locales.koKR = {
   ["×%d%s · made %s · %s"] = "×%d%s · 제작 %s · %s",
   ["— = nothing is checking this row right now"] = "— = 지금 이 줄을 확인하는 것은 없습니다",
   ["… = a live check is queued for this row"] = "… = 이 줄의 실시간 확인이 대기 중입니다",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] =
-    "≈ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
   ["no answer %ds ago -- resting"] = "%d초 전 응답 없음 -- 대기 중",
   ["the last attempt is still settling -- checking the price again..."] =
     "이전 시도가 아직 정리되는 중 -- 가격을 다시 확인하는 중...",
@@ -1055,4 +1048,11 @@ GC.Locales.koKR = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "아이템을 Shift+클릭하거나 아이템 ID를 입력하세요. 여러 개는 x와 수량: 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "세부 정보 숨기기 ▲",
+  ["SHOW DETAILS ▼"] = "세부 정보 보기 ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "goldcap.gg에서 계획이 갱신됨 · 줄 +%d -%d",
+  ["~ goldcap.gg market value — no live quote yet"] = "~ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ 가격 필요",
 }

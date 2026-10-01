@@ -9599,7 +9599,7 @@ local function createDialog()
     -- Task 2 restyle: uppercase kit-value labels (were "Show/Hide details"); the
     -- `d.detailsToggle:SetLabel(` call prefix itself is the pinned text (sniper_dialog_
     -- verdict_spec's "Details toggle wiring" describe block), not these strings.
-    d.detailsToggle:SetLabel(d.detailsOpen and GC.L["HIDE DETAILS ▾"] or GC.L["SHOW DETAILS ▸"])
+    d.detailsToggle:SetLabel(d.detailsOpen and GC.L["HIDE DETAILS ▲"] or GC.L["SHOW DETAILS ▼"])
     for _, pair in ipairs(d.evidenceRows) do
       if d.detailsOpen then
         pair.label:Show()
@@ -10355,18 +10355,18 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+      GameTooltip:AddLine(GC.Util.ClientText(capNote), 0.25, 0.85, 0.25, true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
-        GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live -- safe to buy"]), 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
-        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold)), 0.83, 0.64, 0.22, true)
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"]), 1, 0.82, 0)
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
+          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), 1, 0.82, 0)
       end
     elseif not self.deal.pinPlaceholder then
       -- Saying nothing here read as approval. The row already shows a tier, a discount and a
@@ -10375,11 +10375,11 @@ createRow = function(parent, index)
       -- check HAD approved was the word on the button. That is too thin a line to carry the
       -- difference between an estimate and a finding, so the tooltip states it outright.
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
+        self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
@@ -10388,30 +10388,30 @@ createRow = function(parent, index)
     -- the player can see what the discount is a discount FROM.
     local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
     if realmValue then
-      GameTooltip:AddLine((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
-        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0),
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
+        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0)),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
       -- A pinned realm item the region has no price for. It is on the board because the player
       -- put it there, and the row cannot say anything about value -- so the tooltip says the
       -- same sentence a Check on it would, rather than leaving the blank cells to be read as
       -- "nothing to report".
-      GameTooltip:AddLine(GC.SniperDecision.ReasonText("realm_no_reference"),
+      GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
     if self.deal.pinPlaceholder then
-      GameTooltip:AddLine(GC.L["Watching — pinned, but not a deal right now"],
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching — pinned, but not a deal right now"]),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       local watchNote = GC.Sniper._WatchNote(self.deal)
       if watchNote then
-        GameTooltip:AddLine(watchNote, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GameTooltip:AddLine(GC.Util.ClientText(watchNote), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       end
     end
-    GameTooltip:AddLine(isPinned(self.deal.itemID)
+    GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
-      or GC.L["Right-click to watch this item closely"], 0.7, 0.7, 0.7)
+      or GC.L["Right-click to watch this item closely"]), 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
@@ -10478,7 +10478,7 @@ end
 local function setPlainTooltip(widget, text)
   widget:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:SetText(GC.Util.ClientText(text), 1, 1, 1, 1, true)
     GameTooltip:Show()
   end)
   widget:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -10727,9 +10727,9 @@ local function createHeaderRow(f)
       hit:EnableMouse(true)
       hit:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
+        GameTooltip:SetText(GC.Util.ClientText(tooltipLines[1]), 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+          GameTooltip:AddLine(GC.Util.ClientText(tooltipLines[i]), 1, 1, 1, true)
         end
         GameTooltip:Show()
       end)
@@ -10981,9 +10981,9 @@ local function createFrame()
   -- does, so Theme.Button's own hover stays.
   autoBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."],
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
       1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.ClientText(line), 1, 0.82, 0, true) end
     GameTooltip:Show()
   end)
   autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -11010,9 +11010,9 @@ local function createFrame()
   -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
   verifyBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.L["Background check"], 1, 1, 1)
-    GameTooltip:AddLine((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
-      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS), 1, 1, 1, true)
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Background check"]), 1, 1, 1)
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
+      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS)), 1, 1, 1, true)
 
     local list = renderList()
     local checked, newest = 0, nil
@@ -11024,19 +11024,19 @@ local function createFrame()
       end
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine((GC.L["Checked: %d of the top %d on screen"]):format(
-      checked, math.min(#list, LIM.VERIFY_TOP_ROWS)), 0.7, 0.7, 0.7)
-    GameTooltip:AddLine(newest
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Checked: %d of the top %d on screen"]):format(
+      checked, math.min(#list, LIM.VERIFY_TOP_ROWS))), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(GC.Util.ClientText(newest
       and (GC.L["Last result: %ds ago"]):format(math.floor(GetTime() - newest))
-      or GC.L["Last result: none yet this visit"], 0.7, 0.7, 0.7)
-    GameTooltip:AddLine((GC.L["Refused so far: %d"]):format(refusedCount), 0.7, 0.7, 0.7)
+      or GC.L["Last result: none yet this visit"]), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Refused so far: %d"]):format(refusedCount)), 0.7, 0.7, 0.7)
     local watched = #GC.Sniper._liveTargets
     if watched > 0 then
-      GameTooltip:AddLine((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s"),
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s")),
         0.7, 0.7, 0.7)
-      GameTooltip:AddLine(GC.Sniper._cycleSeconds
+      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._cycleSeconds
         and (GC.L["Full pass over them: %.1fs"]):format(GC.Sniper._cycleSeconds)
-        or GC.L["Full pass over them: measuring..."], 0.7, 0.7, 0.7)
+        or GC.L["Full pass over them: measuring..."]), 0.7, 0.7, 0.7)
     end
     GameTooltip:Show()
   end)

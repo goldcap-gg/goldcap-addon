@@ -73,6 +73,7 @@ describe("ImportDialog", function()
       SelectRun = function(code) selectedRun = code end,
       RefreshIfShown = function() refreshed = true end,
     }
+    helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/ImportDialog.lua", GC)
   end)
 

@@ -435,7 +435,7 @@ local function noticeText(code)
   if not at or (time() - at) >= BD.NOTICE_SECONDS then return nil end
   local added, removed = tonumber(notice.added) or 0, tonumber(notice.removed) or 0
   if added == 0 and removed == 0 then return GC.L["plan updated on goldcap.gg"] end
-  return (GC.L["plan updated on goldcap.gg · +%d −%d lines"]):format(added, removed)
+  return (GC.L["plan updated on goldcap.gg · +%d -%d lines"]):format(added, removed)
 end
 
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
@@ -759,9 +759,12 @@ end
 openRunMenu = function(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end
+  -- A menu draws in the client's font: every entry goes through the helper (the Russian client
+  -- drew this menu's "·" as empty boxes).
+  local menuText = GC.Util.ClientText
   local list = runList()
   menu.CreateContextMenu(owner, function(_, root)
-    root:CreateTitle(GC.L["Runs"])
+    root:CreateTitle(menuText(GC.L["Runs"]))
     -- Core/AppRuns.lua already orders the list own -> followed -> pasted -> alert, so the
     -- divider goes in at the first alert run and never again: the alert groups are the tail.
     local alertsTitled = false
@@ -770,9 +773,9 @@ openRunMenu = function(owner)
       if run.k == "alert" and not alertsTitled then
         alertsTitled = true
         root:CreateDivider()
-        root:CreateTitle(GC.L["Alerts"])
+        root:CreateTitle(menuText(GC.L["Alerts"]))
       end
-      root:CreateButton(runMenuLabel(run), function()
+      root:CreateButton(menuText(runMenuLabel(run)), function()
         GC.Buy.SelectRun(code)
         GC.Buy.RefreshIfShown()
       end)
@@ -789,8 +792,8 @@ openRunMenu = function(owner)
     -- or archiving out from under it is exactly the hole Finding 1 describes (`settlePurchase`
     -- would book the gold nowhere a bought-count can see it). Runs/remove/paste are unaffected.
     if siteManaged then
-      if shown.k == "alert" then root:CreateTitle(GC.L["cap: alert target"]) end
-      root:CreateTitle(GC.L["From goldcap.gg — manage it there"])
+      if shown.k == "alert" then root:CreateTitle(menuText(GC.L["cap: alert target"])) end
+      root:CreateTitle(menuText(GC.L["From goldcap.gg — manage it there"]))
     elseif shown and not inFlight(GC.Buy._attempt) then
       local code = shown.code
       -- MenuUtil's own submenu shape: an element description with children added to it displays
@@ -798,10 +801,10 @@ openRunMenu = function(owner)
       -- setSelected, data) is the same triple UI/SettingsFrame.lua's language picker hands to
       -- CreateRadioContextMenu. The title carries the cap the run is judged against right now,
       -- so a run using the global one still reads as capped rather than as unset.
-      local capMenu = root:CreateButton((GC.L["Cap: %d%%"]):format(runCapPct(code)))
+      local capMenu = root:CreateButton(menuText((GC.L["Cap: %d%%"]):format(runCapPct(code))))
       if capMenu and capMenu.CreateRadio then
         for _, pct in ipairs(CAP_CHOICES) do
-          capMenu:CreateRadio(("%d%%"):format(pct),
+          capMenu:CreateRadio(menuText(("%d%%"):format(pct)),
             function(value) return runCapPct(code) == value end,
             function(value)
               setRunCapPct(code, value)
@@ -809,27 +812,27 @@ openRunMenu = function(owner)
             end, pct)
         end
       end
-      root:CreateButton(GC.L["Archive this run"], archiveCurrentRun)
+      root:CreateButton(menuText(GC.L["Archive this run"]), archiveCurrentRun)
     end
     -- The run's vendor stops as text to take out of the game: the one part of a run the game
     -- cannot help with. Harmless for a run the site owns too.
     if vendorListText() then
-      root:CreateButton(GC.L["Copy vendor list"], function()
+      root:CreateButton(menuText(GC.L["Copy vendor list"]), function()
         local text = vendorListText()
         if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
       end)
     end
     if shown and shown.origin == "paste" then
-      root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
+      root:CreateButton(menuText(GC.L["Remove this run"]), removeCurrentRun)
     elseif shown and not siteManaged then
-      root:CreateTitle(GC.L["From goldcap.gg — remove it there"])
+      root:CreateTitle(menuText(GC.L["From goldcap.gg — remove it there"]))
     end
-    root:CreateButton(GC.L["Paste a run..."], function()
+    root:CreateButton(menuText(GC.L["Paste a run..."]), function()
       if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog() end
     end)
     -- The item box: on the quick list, or -- with none yet -- at the foot of the list on screen,
     -- which stays; the quick list is made by the first item added.
-    root:CreateButton(GC.L["Item to add"], function()
+    root:CreateButton(menuText(GC.L["Item to add"]), function()
       if isQuickRun(GC.AppRuns.QUICK) then
         GC.Buy.SelectRun(GC.AppRuns.QUICK)
       else
@@ -844,10 +847,10 @@ openRunMenu = function(owner)
     local archivedRuns = (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List({ archived = true })) or {}
     if #archivedRuns > 0 then
       root:CreateDivider()
-      root:CreateTitle(GC.L["Archived"])
+      root:CreateTitle(menuText(GC.L["Archived"]))
       for _, archivedRun in ipairs(archivedRuns) do
         local code = archivedRun.code
-        root:CreateButton((GC.L["Restore %s"]):format(archivedRun.name or code), function()
+        root:CreateButton(menuText((GC.L["Restore %s"]):format(archivedRun.name or code)), function()
           if GC.AppRuns.SetArchived then GC.AppRuns.SetArchived(code, false) end
           GC.Buy.SelectRun(code)
           GC.Buy.RefreshIfShown()
@@ -2509,7 +2512,7 @@ local function paintLine(row, line)
     decorated = (GC.L["%s → craft %d× (%d per craft)"]):format(
       decorated, line.crafts, line.craft.craftedQty)
   elseif line.parent then
-    decorated = (GC.L["↳ %s"]):format(decorated)
+    decorated = (GC.L["• %s"]):format(decorated)
   end
   -- An alert group's gear member names the item level its price was set for (caps fixes 5h). The
   -- line is bought by hand on Blizzard's own page, and without this a cheaper copy below that
@@ -2725,24 +2728,25 @@ local function openRowMenu(owner, line)
   local crafts = canSplit and (split and (line.crafts or 0)
     or math.ceil(line.buy / math.max(1, line.craft.craftedQty))) or 0
   local quick = isQuickRun(code)
+  local menuText = GC.Util.ClientText
   menu.CreateContextMenu(owner, function(_, root)
-    root:CreateTitle(lineName(line))
+    root:CreateTitle(menuText(lineName(line)))
     -- The quick list is the player's own, line by line.
     if quick then
-      root:CreateButton(GC.L["Remove from the list"], function()
+      root:CreateButton(menuText(GC.L["Remove from the list"]), function()
         if inFlight(GC.Buy._attempt) then return end
         GC.AppRuns.RemoveQuickLine(itemID)
         GC.Buy.SelectRun(isQuickRun(GC.AppRuns.QUICK) and GC.AppRuns.QUICK or nil)
         GC.Buy.RefreshIfShown()
       end)
     end
-    root:CreateButton(skipped and GC.L["Don't skip"] or GC.L["Skip for now"], function()
+    root:CreateButton(menuText(skipped and GC.L["Don't skip"] or GC.L["Skip for now"]), function()
       setSkipped(itemID, not skipped)
       if not skipped and GC.Buy._focus == itemID then GC.Buy._focus = nextOpenAfter(itemID) end
       GC.Buy.RefreshIfShown()
     end)
     if raiseTo then
-      root:CreateButton((GC.L["Raise cap to %s"]):format(formatAmount(raiseTo)), function()
+      root:CreateButton(menuText((GC.L["Raise cap to %s"]):format(formatAmount(raiseTo))), function()
         if inFlight(GC.Buy._attempt) then return end
         local now = lineFor(itemID)
         if now then raiseCap(now) end
@@ -2750,9 +2754,9 @@ local function openRowMenu(owner, line)
       end)
     end
     if canCap then
-      root:CreateButton(GC.L["Change the cap…"], function() openCapEditor(owner, lineFor(itemID)) end)
+      root:CreateButton(menuText(GC.L["Change the cap…"]), function() openCapEditor(owner, lineFor(itemID)) end)
       if line.capFrom == "yours" then
-        root:CreateButton(GC.L["Use the default cap"], function()
+        root:CreateButton(menuText(GC.L["Use the default cap"]), function()
           if inFlight(GC.Buy._attempt) then return end
           setLineCap(code, itemID, nil)
           GC.Buy.RefreshIfShown()
@@ -2761,12 +2765,12 @@ local function openRowMenu(owner, line)
     end
     if canSplit then
       if split then
-        root:CreateButton(GC.L["Buy it whole instead"], function()
+        root:CreateButton(menuText(GC.L["Buy it whole instead"]), function()
           setSplit(code, itemID, false)
           GC.Buy.RefreshIfShown()
         end)
       else
-        root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
+        root:CreateButton(menuText((GC.L["Split into reagents (craft %d×)"]):format(crafts)), function()
           setSplit(code, itemID, true)
           GC.Buy.RefreshIfShown()
         end)
@@ -2779,26 +2783,27 @@ end
 -- A line explained: what is left to buy and what the player has, the ladder of prices the
 -- purchase would walk (what it takes at each, and the first level it does not), the market price
 -- and -- on WoW: Forever -- whose it is and how old, the cap, and the line's other footnotes.
--- GameTooltip draws with the client's own font, which has no "·" in every language (the Russian
--- client drew an empty box): nothing written for this tooltip carries one.
+-- GameTooltip draws with the client's own font, which lacks glyphs GoldCap's own face has (the
+-- Russian client drew an empty box for "·"): every line goes through GC.Util.ClientText.
 local function showLineTooltip(row)
   if not GameTooltip then return end
   local line = row.lineItemID and lineFor(row.lineItemID) or nil
   if not line then return end
   local dim, fg, gold = Theme.color.fgDim, Theme.color.fg, Theme.color.gold
+  local tip = GC.Util.ClientText
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:SetText(lineName(line), 1, 1, 1)
+  GameTooltip:SetText(tip(lineName(line)), 1, 1, 1)
   local bags, bank = haveSplit(line.itemID)
   if line.buy > 0 then
     local have = bags + bank
-    GameTooltip:AddLine(have > 0
+    GameTooltip:AddLine(tip(have > 0
       and (GC.L["buy %d of %d, have %d in bags and bank"]):format(line.buy, line.need, have)
-      or (GC.L["buy %d of %d"]):format(line.buy, line.need), dim[1], dim[2], dim[3], true)
+      or (GC.L["buy %d of %d"]):format(line.buy, line.need)), dim[1], dim[2], dim[3], true)
   end
   -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
   -- player where they are. Only when the bank actually holds some.
   if bank > 0 then
-    GameTooltip:AddLine((GC.L["in bags %d · in bank %d"]):format(bags, bank), dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
   end
   if not line.vendor and line.kind ~= "craft" and not line.done then
     local read = readOf(line)
@@ -2806,48 +2811,49 @@ local function showLineTooltip(row)
       for _, r in ipairs(GC.BuyView.Ladder(read.ladder, line.buy, line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
         local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
-        GameTooltip:AddDoubleLine((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit)), right,
+        GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
           fg[1], fg[2], fg[3], rc[1], rc[2], rc[3])
       end
       local age = time() - (read.at or time())
       if age > BD.QUOTE_SECONDS then
-        GameTooltip:AddLine((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or ""), dim[1], dim[2], dim[3])
+        GameTooltip:AddLine(tip((GC.L["seen %s ago"]):format(GC.Util.FormatElapsedWords(age) or "")),
+          dim[1], dim[2], dim[3])
       end
     elseif read and read.ladder == false then
-      GameTooltip:AddLine(GC.L["nothing on offer"], dim[1], dim[2], dim[3])
+      GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
     elseif line.floor then
-      GameTooltip:AddLine((GC.L["cheapest seen %s"]):format(formatAmount(line.floor)), dim[1], dim[2], dim[3])
+      GameTooltip:AddLine(tip((GC.L["cheapest seen %s"]):format(formatAmount(line.floor))), dim[1], dim[2], dim[3])
     end
   end
   GameTooltip:AddLine(" ")
   if line.usual then
-    GameTooltip:AddDoubleLine(GC.L["Market"], (GC.L["%s each"]):format(formatAmount(line.usual)),
+    GameTooltip:AddDoubleLine(tip(GC.L["Market"]), tip((GC.L["%s each"]):format(formatAmount(line.usual))),
       dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
     -- WoW: Forever: a price other players' scans agreed on says how many and how long ago.
     local note = GC.BuyView.MarketNote(line.usualRef, time())
     if note then
       local ago = GC.Util.FormatElapsedWords(note.age) or GC.Util.FormatElapsedWords(0)
-      GameTooltip:AddDoubleLine(GC.L["Source"], note.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
-        or (GC.L["%d scanners, %s ago"]):format(note.scanners, ago), dim[1], dim[2], dim[3], dim[1], dim[2], dim[3])
+      GameTooltip:AddDoubleLine(tip(GC.L["Source"]), tip(note.scanners == 1 and (GC.L["1 scanner, %s ago"]):format(ago)
+        or (GC.L["%d scanners, %s ago"]):format(note.scanners, ago)), dim[1], dim[2], dim[3], dim[1], dim[2], dim[3])
     end
   end
   local alert = alertRun()
   if line.cap and not line.vendor and line.kind ~= "craft" then
-    GameTooltip:AddDoubleLine((line.capFrom == "target" and alert) and GC.L["Alert target"] or GC.L["Your cap"],
-      (GC.L["%s each"]):format(formatAmount(line.cap)), dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
+    GameTooltip:AddDoubleLine(tip((line.capFrom == "target" and alert) and GC.L["Alert target"] or GC.L["Your cap"]),
+      tip((GC.L["%s each"]):format(formatAmount(line.cap))), dim[1], dim[2], dim[3], fg[1], fg[2], fg[3])
   end
   -- The one thing the item's own data cannot know: when this realm usually sells it cheapest.
   -- Not on a vendor line -- the auction house's cheap hour is noise next to a fixed price -- and
   -- not on a done line, which nobody is about to act on.
   local cheap = not line.vendor and not line.done and cheapHourText(line)
-  if cheap then GameTooltip:AddLine(cheap, dim[1], dim[2], dim[3], true) end
+  if cheap then GameTooltip:AddLine(tip(cheap), dim[1], dim[2], dim[3], true) end
   -- Where a merged line's NEED came from: a reagent the run already asked for grows the row it has
   -- rather than getting a second one, and a NEED that grew with no explanation cannot be checked.
   if line.forCraft then
     for parentID, qty in pairs(line.forCraft) do
       local parentLine = lineFor(parentID)
-      GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
-        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), dim[1], dim[2], dim[3], true)
+      GameTooltip:AddLine(tip((GC.L["includes %d for crafting %s"]):format(
+        qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID)))), dim[1], dim[2], dim[3], true)
     end
   end
   -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
@@ -2861,21 +2867,21 @@ local function showLineTooltip(row)
       parts[#parts + 1] = (GC.L["%d× %s"]):format(
         reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
     end
-    GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
-      table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3], true)
+    GameTooltip:AddLine(tip((GC.L["craft it: %s = %s each"]):format(
+      table.concat(parts, " + "), formatAmount(compare.unit))), cc[1], cc[2], cc[3], true)
     -- The hint names what the right-click would DO, which is the opposite thing on a line that is
     -- already split -- and nothing on a line the list's route crafts itself, which has no split.
     if line.kind == "craft" and not line.make then
-      GameTooltip:AddLine((GC.L["vs %s at the auction house · right-click to buy it whole"])
-        :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3], true)
+      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to buy it whole"])
+        :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
     elseif not line.make then
-      GameTooltip:AddLine((GC.L["vs %s at the auction house · right-click to split"])
-        :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3], true)
+      GameTooltip:AddLine(tip((GC.L["vs %s at the auction house · right-click to split"])
+        :format(formatAmount(compare.ahUnit))), cc[1], cc[2], cc[3], true)
     end
   end
   -- What the row's right-click offers, on a line whose cap it can change (Task 11's menu).
   if not line.done and not line.vendor and line.kind ~= "craft" and not alert then
-    GameTooltip:AddLine(GC.L["right-click to skip or change the cap"], dim[1], dim[2], dim[3], true)
+    GameTooltip:AddLine(tip(GC.L["right-click to skip or change the cap"]), dim[1], dim[2], dim[3], true)
   end
   GameTooltip:Show()
 end
@@ -3116,7 +3122,7 @@ local function createBand(parent)
   picker:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-    GameTooltip:SetText(GC.L["Runs: click to switch, remove or paste one"], 1, 1, 1)
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Runs: click to switch, remove or paste one"]), 1, 1, 1)
     GameTooltip:Show()
   end)
   picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -3190,7 +3196,7 @@ local function createBand(parent)
     if not (menu and menu.CreateContextMenu) then return end
     menu.CreateContextMenu(self, function(_, root)
       for _, key in ipairs(GC.BuyView.FILTERS) do
-        root:CreateRadio(GC.L[FILTER_LABEL[key]], function(v) return GC.Buy._filter == v end,
+        root:CreateRadio(GC.Util.ClientText(GC.L[FILTER_LABEL[key]]), function(v) return GC.Buy._filter == v end,
           function(v) GC.Buy._SetFilter(v) end, key)
       end
     end)
@@ -3527,7 +3533,7 @@ local function paintBand()
   local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
   local long = current ~= nil and #current:Lines() > BD.TOOLS_MIN_LINES
   if long or filter ~= "all" or query ~= "" then
-    tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▾")
+    tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▼")
     fitButton(tools.filter, 96)
     tools.frame:Show()
   else

@@ -409,7 +409,6 @@ GC.Locales.enUS = {
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
   ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
-  ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
   ["Held back from cancelling"] = "Held back from cancelling",
   ["Held back from the queue"] = "Held back from the queue",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -591,7 +590,6 @@ GC.Locales.enUS = {
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCANNING…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
-  ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sales evidence"] = "Sales evidence",
   ["Sell it on the AH"] = "Sell it on the AH",
@@ -870,7 +868,6 @@ GC.Locales.enUS = {
   ["paid sale unresolved"] = "paid sale unresolved",
   ["placing bid..."] = "placing bid...",
   ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "previous commodity purchase settled -- %s to re-check the price",
   ["price changed after you closed the buy window -- nothing was bought"] =
@@ -992,7 +989,6 @@ GC.Locales.enUS = {
   ["yours ×%s"] = "yours ×%s",
   ["~%dd to reach you"] = "~%dd to reach you",
   ["~%dh to reach you"] = "~%dh to reach you",
-  ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",
   ["×%d in your bags · no stack GoldCap can identify exactly"] = "×%d in your bags · no stack GoldCap can identify exactly",
@@ -1003,8 +999,6 @@ GC.Locales.enUS = {
   ["×%d%s · made %s · %s"] = "×%d%s · made %s · %s",
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
   ["▲%d%% over your cap"] = "▲%d%% over your cap",
@@ -1105,4 +1099,12 @@ GC.Locales.enUS = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "Shift-click an item or type its item id, with x and a count for more: 2589 x20.",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "HIDE DETAILS ▲",
+  ["SHOW DETAILS ▼"] = "SHOW DETAILS ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "plan updated on goldcap.gg · +%d -%d lines",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ goldcap.gg market value — no live quote yet",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ needs price",
 }

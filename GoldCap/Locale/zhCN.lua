@@ -279,7 +279,6 @@ GC.Locales.zhCN = {
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "灰色表示报价已过期；Post 和 Repost 会在操作前先刷新。",
   ["HIDDEN 0"] = "隐藏 0",
-  ["HIDE DETAILS ▾"] = "隐藏详情 ▾",
   ["HOLDING %d"] = "持有 %d",
   ["Held back from cancelling"] = "已从取消中保留",
   ["Held back from the queue"] = "已从队列中保留",
@@ -464,7 +463,6 @@ GC.Locales.zhCN = {
   ["SCAN"] = "扫描",
   ["SCANNING…"] = "扫描中…",
   ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 笔购买",
-  ["SHOW DETAILS ▸"] = "显示详情 ▸",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["%d bag items sell for more on the AH (+%s)"] = "%d 件背包物品在拍卖行更值钱（+%s）",
   ["Search"] = "搜索",
@@ -632,7 +630,6 @@ GC.Locales.zhCN = {
   ["over your cap · %s"] = "超出上限 · %s",
   ["pasted"] = "已粘贴",
   ["plan updated on goldcap.gg"] = "计划已在 goldcap.gg 更新",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "计划已在 goldcap.gg 更新 · +%d −%d 行",
   ["price moved to %s"] = "价格变为 %s",
   ["purchase failed — try again"] = "购买失败 — 请重试",
   ["right-click to skip or change the cap"] = "右键可跳过或修改上限",
@@ -863,7 +860,6 @@ GC.Locales.zhCN = {
   ["yours ×%s"] = "你的 ×%s",
   ["~%dd to reach you"] = "约 %d 天轮到你",
   ["~%dh to reach you"] = "约 %d 小时轮到你",
-  ["» needs price"] = "» 需要价格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
     "背包 ×%d · Post 会上架其中最大的一堆 %d 件",
@@ -876,8 +872,6 @@ GC.Locales.zhCN = {
   ["×%d%s · made %s · %s"] = "×%d%s · 制作 %s · %s",
   ["— = nothing is checking this row right now"] = "— = 目前没有在检查该行",
   ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",
   ["no answer %ds ago -- resting"] = "%d 秒前无应答 -- 暂歇",
   ["the last attempt is still settling -- checking the price again..."] =
     "上一次尝试仍在结算 -- 正在重新核对价格...",
@@ -1028,4 +1022,11 @@ GC.Locales.zhCN = {
   -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
   ["Shift-click an item or type its item id, with x and a count for more: 2589 x20."] =
     "Shift+点击物品，或输入其物品 ID；多件时加 x 和数量：2589 x20。",
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "隐藏详情 ▲",
+  ["SHOW DETAILS ▼"] = "显示详情 ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "计划已在 goldcap.gg 更新 · +%d -%d 行",
+  ["~ goldcap.gg market value — no live quote yet"] = "~ goldcap.gg 市场价 — 尚无实时报价",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ 需要价格",
 }

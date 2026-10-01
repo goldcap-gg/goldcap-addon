@@ -974,8 +974,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
+-- The chat frame draws in the client's face (ARIALN), so what GoldCap says there goes through
+-- GC.Util.ClientText like every other client-font text: here, once, for every caller.
 function GC.Print(msg)
-  print("|cffffd100GoldCap|r: " .. tostring(msg))
+  print(GC.Util.ClientText("|cffffd100GoldCap|r: " .. tostring(msg)))
 end
 
 function GC.OnSlash(msg)
@@ -1140,7 +1142,7 @@ function GoldCap_OnAddonCompartmentEnter(_, button)
   if not GameTooltip or not button then return end
   GameTooltip:SetOwner(button, "ANCHOR_LEFT")
   GameTooltip:AddLine("GoldCap")
-  GameTooltip:AddLine(GC.L["Open the deals board. /gc for commands."], 1, 1, 1)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Open the deals board. /gc for commands."]), 1, 1, 1)
   GameTooltip:Show()
 end
 
