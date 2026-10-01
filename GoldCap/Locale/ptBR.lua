@@ -974,4 +974,7 @@ GC.Locales.ptBR = {
     "Seu escaneamento atualizou %s preços em %s -- %s deles ninguém mais tinha nas últimas 24 horas.",
   ["Your scan updated %s prices on %s."] =
     "Seu escaneamento atualizou %s preços em %s.",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: a recompensa na moldura dourada é a que vale mais na casa de leilões (%s).",
 }

@@ -917,4 +917,7 @@ GC.Locales.koKR = {
     "이번 검색으로 시세 %s개를 %s에서 갱신했습니다 -- 그중 %s개는 최근 24시간 동안 다른 누구도 갖고 있지 않았습니다.",
   ["Your scan updated %s prices on %s."] =
     "이번 검색으로 시세 %s개를 %s에서 갱신했습니다.",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: 금색 테두리의 보상이 경매장에서 가장 비쌉니다 (%s).",
 }

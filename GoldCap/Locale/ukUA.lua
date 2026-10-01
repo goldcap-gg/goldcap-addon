@@ -989,4 +989,7 @@ GC.Locales.ukUA = {
     "Ваш скан оновив цін: %s на %s -- з них ні в кого більше не було за останні 24 години: %s.",
   ["Your scan updated %s prices on %s."] =
     "Ваш скан оновив цін: %s на %s.",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: нагорода в золотій рамці найдорожча на аукціоні (%s).",
 }

@@ -923,6 +923,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
+    -- The quest reward mark hooks the quest frame at load; this catches a quest frame the client
+    -- had not loaded by then. Once only, guarded there.
+    if GC.QuestRewardMark then GC.QuestRewardMark.Install() end
     -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
     if GC.ForeverScan then
       GC.ForeverScan.MaybeIntro()

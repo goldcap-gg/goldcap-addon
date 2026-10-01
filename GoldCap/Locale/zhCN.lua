@@ -890,4 +890,7 @@ GC.Locales.zhCN = {
     "你的扫描更新了 %s 个价格(%s) -- 其中 %s 个在过去 24 小时内没有其他人扫描过。",
   ["Your scan updated %s prices on %s."] =
     "你的扫描更新了 %s 个价格(%s)。",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap：金色边框中的奖励在拍卖行最值钱（%s）。",
 }

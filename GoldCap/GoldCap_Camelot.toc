@@ -62,6 +62,7 @@ Core/SniperDecision.lua
 Core/CheckVerdict.lua
 Core/DealMath.lua
 Core/Trigger.lua
+Core/QuestReward.lua
 Core/Scanner.lua
 Core/FullScan.lua
 Core/BookPass.lua
@@ -85,6 +86,7 @@ Core/WatchSet.lua
 Core/AutoScan.lua
 UI/Theme.lua
 UI/Tooltip.lua
+UI/QuestRewardMark.lua
 UI/ImportDialog.lua
 UI/CompanionDialog.lua
 UI/VendorListDialog.lua

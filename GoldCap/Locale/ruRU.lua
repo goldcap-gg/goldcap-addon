@@ -970,4 +970,7 @@ GC.Locales.ruRU = {
     "Ваше сканирование обновило цен: %s на %s -- из них ни у кого больше не было за последние 24 часа: %s.",
   ["Your scan updated %s prices on %s."] =
     "Ваше сканирование обновило цен: %s на %s.",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: награда в золотой рамке дороже всех на аукционе (%s).",
 }

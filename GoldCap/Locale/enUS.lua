@@ -1035,4 +1035,7 @@ GC.Locales.enUS = {
     "Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours.",
   ["Your scan updated %s prices on %s."] =
     "Your scan updated %s prices on %s.",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: the reward in the gold frame is worth the most on the auction house (%s).",
 }

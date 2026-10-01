@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.18.0 (unreleased)
+
+- When a quest lets you choose a reward, GoldCap puts a gold frame around the one worth the most on
+  the auction house, and a line under the rewards says what it is worth. A reward the auction house
+  has no price for, such as soulbound gear, is never marked.
+
 ## 0.17.2 (2026-09-30)
 
 - In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the
