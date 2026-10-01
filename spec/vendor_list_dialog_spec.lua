@@ -117,4 +117,16 @@ describe("VendorListDialog", function()
     end
     assert.is_true(found)
   end)
+
+  -- The same box hands out a list exported for Auctionator or TSM (UI/BuyLists.lua), under its own
+  -- title and hint.
+  it("shows any text to copy under its own title and hint", function()
+    GC.UI.ShowCopyText("i:2589,i:2592", { title = "Copy as a TSM item list", hint = "Press Ctrl+C." })
+    local dialog = _G.GoldCapVendorListDialog
+    assert.equal("Copy as a TSM item list", dialog.titleText)
+    assert.equal("Press Ctrl+C.", dialog.hint:GetText())
+    assert.equal("i:2589,i:2592", dialog.edit:GetText())
+    GC.UI.ShowVendorList("x")
+    assert.equal("Vendor list", dialog.titleText)
+  end)
 end)

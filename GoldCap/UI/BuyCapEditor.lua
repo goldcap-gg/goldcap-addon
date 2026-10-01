@@ -7,6 +7,10 @@ local _, GC = ...
 -- preview shows the amount in coins before Set, because "90" meaning 90 gold is exactly the
 -- surprise a preview exists for. Every line of it wraps rather than being cut, and the popup
 -- grows to what it says (layout).
+--
+-- The same popup asks the BUY tab's two other questions (UI/BuyLists.lua): a list's name (`text`,
+-- the box as wide as the popup, whatever is typed accepted) and "delete this list?" (`box = false`,
+-- a title and two buttons). One popup in the kit, never a Blizzard StaticPopup.
 GC.BuyCapEditor = {}
 
 local W = { WIDTH = 280, PAD = 10, BOX_W = 130, BOX_H = 22, BUTTON_H = 24, BUTTON_MIN = 72 }
@@ -46,13 +50,14 @@ local function layout()
   frame.preview:SetWidth(inner)
   local titleH = measuredHeight(frame.title)
   frame.box:ClearAllPoints()
-  frame.box:SetPoint("TOPLEFT", frame, "TOPLEFT", pad, -(pad + titleH + 6))
+  frame.box:SetPoint("TOPLEFT", frame, "TOPLEFT", pad + 8, -(pad + titleH + 8))
   local previewH = (frame.preview:GetText() or "") ~= "" and measuredHeight(frame.preview) or 0
   frame.preview:ClearAllPoints()
-  frame.preview:SetPoint("TOPLEFT", frame.box, "BOTTOMLEFT", 0, -6)
+  frame.preview:SetPoint("TOPLEFT", frame, "TOPLEFT", pad, -(pad + titleH + 6 + W.BOX_H + 6))
   fitButton(frame.set)
   fitButton(frame.cancel)
-  frame:SetHeight(pad + titleH + 6 + W.BOX_H + 6 + previewH + 8 + W.BUTTON_H + pad)
+  local boxH = frame.asks and (W.BOX_H + 6 + previewH) or 0
+  frame:SetHeight(pad + titleH + 6 + boxH + 8 + W.BUTTON_H + pad)
 end
 
 local function build()
@@ -78,6 +83,7 @@ local function build()
   frame.box:SetAutoFocus(false)
   frame.box:SetSize(W.BOX_W - 16, W.BOX_H - 4)
   well:SetPoint("CENTER", frame.box, "CENTER", 0, 0)
+  frame.well = well
   -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
   if frame.box.SetFont then
     frame.box:SetFont(T.FONT_UI, 11 * T.Scale(), "")
@@ -96,6 +102,7 @@ local function build()
   frame.cancel:SetLabel(GC.L["Cancel"])
 
   local function preview()
+    if frame.read then return nil end -- a name has nothing to preview
     local copper = GC.Util.ParseMoney(frame.box:GetText() or "")
     frame.preview:SetText(copper and GC.Util.CoinText(copper) or "")
     local c = T.color.fgDim
@@ -104,7 +111,14 @@ local function build()
     return copper
   end
   local function commit()
-    local copper = GC.Util.ParseMoney(frame.box:GetText() or "")
+    local copper
+    if not frame.asks then
+      copper = true
+    elseif frame.read then
+      copper = frame.read(frame.box:GetText() or "")
+    else
+      copper = GC.Util.ParseMoney(frame.box:GetText() or "")
+    end
     if not copper then
       frame.preview:SetText(GC.L["Could not read that amount. Type it like 12g 50s."])
       local r = T.color.red
@@ -126,17 +140,43 @@ end
 
 -- Opens the box under `anchor` on `opts.current` (copper), titled `opts.title`; `opts.onCommit`
 -- gets the copper the player set. One box at a time: a second Open takes the first one over.
+-- For the BUY tab's lists: `opts.text` asks for a name instead (the box opens on that text, selected,
+-- and onCommit gets whatever was typed), `opts.box = false` asks only yes or no (onCommit(true)),
+-- `opts.setLabel` names the button that commits, `opts.danger` paints it red, and `opts.over` lays
+-- the popup over the anchor rather than under it.
 function GC.BuyCapEditor.Open(anchor, opts)
   if not frame then build() end
   frame.onCommit = opts.onCommit
+  frame.asks = opts.box ~= false
+  frame.read = opts.text and function(text) return text end or nil
   frame.title:SetText(opts.title or "")
-  frame.box:SetText(opts.current and plain(opts.current) or "")
+  frame.set:SetLabel(opts.setLabel or GC.L["Set cap"])
+  if frame.set.SetVariant then frame.set:SetVariant(opts.danger and "danger" or "primary") end
+  local boxW = opts.text and (W.WIDTH - 2 * W.PAD) or W.BOX_W
+  frame.well:SetWidth(boxW)
+  frame.box:SetWidth(boxW - 16)
+  if frame.box.SetMaxLetters then frame.box:SetMaxLetters(opts.text and 60 or 0) end
+  frame.box:SetText(opts.text or (opts.current and plain(opts.current)) or "")
   frame.preview:SetText("")
+  if frame.asks then
+    frame.well:Show()
+    frame.box:Show()
+  else
+    frame.well:Hide()
+    frame.box:Hide()
+  end
   frame:ClearAllPoints()
-  frame:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
+  if opts.over then
+    frame:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+  else
+    frame:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
+  end
   layout()
   frame:Show()
-  if frame.box.SetFocus then frame.box:SetFocus() end
+  if frame.asks and frame.box.SetFocus then
+    frame.box:SetFocus()
+    if opts.text and frame.box.HighlightText then frame.box:HighlightText() end
+  end
 end
 
 function GC.BuyCapEditor.Close()

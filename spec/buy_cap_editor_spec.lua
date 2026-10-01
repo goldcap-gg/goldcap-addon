@@ -149,4 +149,46 @@ describe("BuyCapEditor", function()
     assert.is_true(f.title.wrap)
     assert.is_true(f.preview.wrap)
   end)
+
+  -- The same popup asks the BUY tab's list questions (UI/BuyLists.lua): a name, and "delete?".
+  describe("for a list", function()
+    it("asks for a name over the list, opening on the name it has, and takes what is typed", function()
+      local named, anchor = "untouched", region("Frame")
+      GC.BuyCapEditor.Open(anchor, { over = true, title = "Name this list", text = "List 2", setLabel = "Save",
+        onCommit = function(text) named = text end })
+      local f = GC.BuyCapEditor._frame
+      assert.equal("List 2", f.box:GetText())
+      assert.equal("Save", f.set.label)
+      assert.same({ "TOPLEFT", anchor, "TOPLEFT", 0, 0 }, f.points[#f.points])
+      assert.is_true(f.box:HasFocus())
+      f.box:SetText("Herbs"); f.box.scripts.OnTextChanged(f.box, true)
+      assert.equal("", f.preview:GetText()) -- a name has no coins to preview
+      f.box.scripts.OnEnterPressed(f.box)
+      assert.equal("Herbs", named)
+      assert.is_false(f:IsShown())
+    end)
+
+    it("keeps the name as it was on Escape", function()
+      local named = "untouched"
+      GC.BuyCapEditor.Open(region("Frame"), { text = "List 2", onCommit = function(text) named = text end })
+      local f = GC.BuyCapEditor._frame
+      f.box.scripts.OnEscapePressed(f.box)
+      assert.equal("untouched", named)
+    end)
+
+    it("asks yes or no with no box, and then opens on a cap again as it always did", function()
+      local answered = false
+      GC.BuyCapEditor.Open(region("Frame"), { box = false, danger = true, title = "Delete Herbs?",
+        setLabel = "Delete", onCommit = function(yes) answered = yes end })
+      local f = GC.BuyCapEditor._frame
+      assert.is_false(f.box:IsShown())
+      assert.equal("Delete", f.set.label)
+      f.set.scripts.OnClick(f.set)
+      assert.is_true(answered)
+      GC.BuyCapEditor.Open(region("Frame"), { title = "x", current = 140, onCommit = function() end })
+      assert.is_true(f.box:IsShown())
+      assert.equal("1s 40c", f.box:GetText())
+      assert.equal("Set cap", f.set.label)
+    end)
+  end)
 end)
