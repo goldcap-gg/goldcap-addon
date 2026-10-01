@@ -120,7 +120,7 @@ local function build()
       copper = GC.Util.ParseMoney(frame.box:GetText() or "")
     end
     if not copper then
-      frame.preview:SetText(GC.L["Could not read that amount. Type it like 12g 50s."])
+      frame.preview:SetText(frame.invalid or GC.L["Could not read that amount. Type it like 12g 50s."])
       local r = T.color.red
       frame.preview:SetTextColor(r[1], r[2], r[3], 1)
       layout()
@@ -143,12 +143,14 @@ end
 -- For the BUY tab's lists: `opts.text` asks for a name instead (the box opens on that text, selected,
 -- and onCommit gets whatever was typed), `opts.box = false` asks only yes or no (onCommit(true)),
 -- `opts.setLabel` names the button that commits, `opts.danger` paints it red, and `opts.over` lays
--- the popup over the anchor rather than under it.
+-- the popup over the anchor rather than under it. With `opts.text`, `opts.read(text)` may answer
+-- what onCommit gets -- nil keeps the popup open on `opts.invalid` (the BUY search's "how many").
 function GC.BuyCapEditor.Open(anchor, opts)
   if not frame then build() end
   frame.onCommit = opts.onCommit
   frame.asks = opts.box ~= false
-  frame.read = opts.text and function(text) return text end or nil
+  frame.read = opts.text and (opts.read or function(text) return text end) or nil
+  frame.invalid = opts.invalid
   frame.title:SetText(opts.title or "")
   frame.set:SetLabel(opts.setLabel or GC.L["Set cap"])
   if frame.set.SetVariant then frame.set:SetVariant(opts.danger and "danger" or "primary") end

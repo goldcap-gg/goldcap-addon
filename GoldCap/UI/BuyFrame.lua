@@ -367,6 +367,9 @@ end
 -- Beside the run, not on it, for the reason the splits are (a companion sync replaces the run
 -- wholesale), and created only when a write needs it, for the reason splitsFor gives.
 local function lineCapsFor(code, create)
+  -- A result opened from the BUY search (UI/BuySearch.lua) keeps the player's price for it for this
+  -- session only: it is on no list, and nothing of it is stored.
+  if GC.BuySearch and GC.BuySearch.IsCode(code) then return GC.BuySearch._caps end
   local db = GC.db
   if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
   if type(db.runLineCaps) ~= "table" then
@@ -603,7 +606,13 @@ local function runLabel(run)
   return run:Name() or run:Code()
 end
 
-function GC.Buy.CurrentRun() return current end
+-- The list on screen, or -- while the BUY search (UI/BuySearch.lua) is up -- the one it put aside:
+-- what the item box adds to, and the list a purchase of the search never counts against.
+function GC.Buy.CurrentRun()
+  local aside = GC.Buy._aside
+  if aside then return aside.run end
+  return current
+end
 
 -- What the list is narrowed to: one of GC.BuyView.FILTERS, and a name to look for. Both belong
 -- to the list on screen and are forgotten when another is picked (GC.Buy.SelectRun).
@@ -626,6 +635,9 @@ end
 function GC.Buy.SelectRun(code)
   local run = code and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(code) or nil
   local sniper = settings()
+  -- A list picked is the list on screen: the BUY search, and the list it put aside, go.
+  GC.Buy._aside = nil
+  if GC.BuySearch and GC.BuySearch.OnListSelected then GC.BuySearch.OnListSelected() end
   -- A new BuyRun object carries no floors at all, so the twenty-second window that was
   -- protecting the OLD run's prices is now protecting nothing -- it would just hold every NOW
   -- cell on an em dash for up to twenty seconds after a cycle-run click or a companion sync
@@ -718,6 +730,62 @@ end
 -- Whether a purchase is in the client's hands, for UI/BuyLists.lua: the list on screen is not
 -- archived or deleted under it (Finding 1).
 function GC.Buy._InFlight() return inFlight(GC.Buy._attempt) end
+
+-- ---------------------------------------------------------------------------
+-- The BUY search (UI/BuySearch.lua). While its results are on screen the list is put aside here,
+-- whole -- its BuyRun object, its focus -- and `current` is nil; a result opened from them is a run
+-- of one line that lives only in memory (GC.BuySearch.CODE, never in GC.db.runs), so the dock,
+-- planBuyClick, the quotes, the caps and the stranded-purchase rules all serve it unchanged. Never
+-- while a purchase of the line on screen is in the client's hands: CONFIRM belongs to that line.
+-- ---------------------------------------------------------------------------
+
+-- The list on screen goes aside (once); answers whether it did, or already had.
+function GC.Buy._PutListAside()
+  if GC.Buy._aside then return true end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._aside = { run = current, updatedAt = currentUpdatedAt, focus = GC.Buy._focus }
+  current, currentUpdatedAt = nil, nil
+  GC.Buy._attempt, GC.Buy._focus, GC.Buy._quotedFocus = nil, nil, nil
+  return true
+end
+
+-- Puts `run` ({ code = GC.BuySearch.CODE, name, lines = { { i, q, n, key? } } }) in the dock, or
+-- nothing with nil. What the player has is not subtracted -- the search buys what was asked for --
+-- and what this run bought is kept in GC.BuySearch's memory, not in buyProgress.
+function GC.Buy._OpenSearchRun(run)
+  if not GC.Buy._PutListAside() then return false end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  if not run then
+    current, GC.Buy._focus = nil, nil
+    return true
+  end
+  current = GC.BuyRun.New(run, setmetatable({
+    haveOf = function() return 0 end,
+    progress = function() return GC.BuySearch.Progress() end,
+  }, { __index = DRIVER }))
+  current:Refresh()
+  GC.Buy._focus = run.lines[1] and run.lines[1].i or nil
+  return true
+end
+
+-- The list put aside comes back -- picked again if it changed or went meanwhile. Answers whether it
+-- did: not while a purchase of the opened result is in the client's hands.
+function GC.Buy._TakeListBack()
+  local aside = GC.Buy._aside
+  if not aside then return true end
+  if inFlight(GC.Buy._attempt) then return false end
+  GC.Buy._aside = nil
+  current, currentUpdatedAt, GC.Buy._focus = aside.run, aside.updatedAt, aside.focus
+  GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  ensureRun()
+  return true
+end
+
+-- The opened result's run, or nil.
+function GC.Buy._SearchRun()
+  return (current and GC.BuySearch and GC.BuySearch.IsCode(current:Code())) and current or nil
+end
 
 -- A list in the picker's menu: the one on screen marked, a favourite's star, its name, how many
 -- lines, and where it came from in a word -- the game, the site, or whose it is (UI/BuyLists.lua).
@@ -1500,15 +1568,19 @@ local function settlePurchase(itemID, qty, total, runCode, itemKey)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   qty, total = qty or 0, total or 0
   local line = lineFor(itemID)
-  if current and qty > 0 and total > 0 then
+  -- Booked whatever is on screen now -- the BUY search may have put the list aside, with nothing
+  -- opened -- since the gold moved either way.
+  if qty > 0 and total > 0 then
     local at = time()
     -- Read before RecordPurchase re-counts the line. A vendor line is never bought here (buyable),
     -- and would carry no market price if it were: a merchant's price is not the auction house's.
     local mv = (line and not line.vendor and type(line.usual) == "number" and line.usual > 0)
       and math.floor(line.usual) or nil
-    if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
-    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode, itemKey)
-    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode, mv)
+    if current and runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
+    -- A purchase from the BUY search is booked like any other, against no list.
+    local listCode = not (GC.BuySearch and GC.BuySearch.IsCode(runCode)) and runCode or nil
+    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, listCode, itemKey)
+    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, listCode, mv)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The purchase is booked against the run whether or not the units have arrived: the auction
@@ -1718,8 +1790,10 @@ local function quote(line, clicked)
   -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
   -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
-  -- ...nor over a hover's look still out (lookLine): one question per buffer.
-  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending() then
+  -- ...nor over a hover's look still out (lookLine): one question per buffer. Nor over the BUY
+  -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
+  if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending()
+      or (GC.BuySearch and GC.BuySearch.Pending()) then
     GC.Buy._quoteOwed = line.itemID
     -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
     if clicked then
@@ -1738,10 +1812,14 @@ local function quote(line, clicked)
 
   -- A gear line (the client will not sell it as a commodity) is read whole first: a sell search on
   -- the bare key answers with every variant's lots, the player's own in rows of their own so
-  -- dropping them hides nobody else's (see "A gear line's read" above).
-  local lotLine = not askableItem(line.itemID)
-  local key = C_AuctionHouse.MakeItemKey(line.itemID)
-  if lotLine then
+  -- dropping them hides nobody else's (see "A gear line's read" above). A result opened from the BUY
+  -- search is one exact variant already (its browse row's key): its own buy search arms it at once.
+  local exact = line.exactKey
+  local lotLine = exact ~= nil or not askableItem(line.itemID)
+  local key = exact or C_AuctionHouse.MakeItemKey(line.itemID)
+  if exact then
+    C_AuctionHouse.SendSearchQuery(key, lotSorts(), true)
+  elseif lotLine then
     C_AuctionHouse.SendSellSearchQuery(key, lotSorts(), true)
   else
     C_AuctionHouse.SendSearchQuery(key, {}, false)
@@ -1755,7 +1833,9 @@ local function quote(line, clicked)
   GC.Buy._attempt = {
     itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
     runCode = current and current:Code() or nil,
-    lots = lotLine or nil, phase = lotLine and "all" or nil, key = lotLine and key or nil,
+    lots = lotLine or nil, phase = lotLine and (exact and "arm" or "all") or nil, key = lotLine and key or nil,
+    -- The armed read's search count (quoteFresh), taken after the send the post-hooks counted.
+    armSeq = exact and (GC.Buy._searchSeq or 0) or nil,
   }
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -2183,7 +2263,7 @@ local function lineStatus(line)
   if read and read.ladder ~= nil then
     verdict = (read.qty or 0) > 0 and "fits" or (read.capped and "over" or nil)
   end
-  local byHand = not line.vendor and line.kind ~= "craft" and not askableItem(line.itemID)
+  local byHand = not line.vendor and line.kind ~= "craft" and (line.exactKey ~= nil or not askableItem(line.itemID))
   return GC.BuyView.Status(line, { skipped = isSkipped(line), stranded = strandedFor(line) ~= nil,
     byHand = byHand, quote = verdict })
 end
@@ -2655,6 +2735,23 @@ local function openCapEditor(anchor, line)
     end,
   })
 end
+
+-- The cap of the line on screen with `itemID`, typed (the price box over `anchor`) or put back to
+-- the default (nil anchor): for the BUY search's opened result, whose row is in UI/BuySearch.lua.
+function GC.Buy._EditLineCap(anchor, itemID)
+  local line = lineFor(itemID)
+  if not line then return end
+  if anchor then
+    openCapEditor(anchor, line)
+  elseif current and not inFlight(GC.Buy._attempt) then
+    setLineCap(current:Code(), itemID, nil)
+    GC.Buy._quotedFocus = nil
+    GC.Buy.RefreshIfShown()
+  end
+end
+
+-- The line on screen with `itemID`, as the dock and the tooltip read it (cap, capFrom, usual), or nil.
+function GC.Buy._LineFor(itemID) return lineFor(itemID) end
 
 -- Right-click on a row: every decision a line carries that is not a purchase -- skip it for this
 -- session, raise its cap to what the dock would offer, type a cap of its own or go back to the
@@ -3533,8 +3630,9 @@ local function layoutBand()
   band.done:SetPoint("RIGHT", band.total, "LEFT", -Theme.pad.m, 0)
   local doneH = band.done.GetStringHeight and band.done:GetStringHeight() or 0
   local h = math.max(BD.BAND_HEIGHT, math.ceil(2 + pickerH + 4 + doneH + 8))
-  -- No list, no band: the first-time state's words come straight under the item box.
-  if current then band.frame:Show() else band.frame:Hide(); h = 0 end
+  -- No list, no band: the first-time state's words come straight under the item box -- and none
+  -- while the BUY search is up, whose results take the band's place (UI/BuySearch.lua).
+  if current and not GC.Buy._searching then band.frame:Show() else band.frame:Hide(); h = 0 end
   if h ~= band.h then
     band.h = h
     band.frame:SetHeight(h)
@@ -3546,7 +3644,7 @@ end
 -- progress bar, and the BUY rail badge's count.
 local function paintBand()
   local ready = 0
-  if current then
+  if current and not GC.Buy._searching then
     local shown = shownRunData()
     local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
     band.picker:SetLabel(runLabel(current) .. " ▼")
@@ -3583,12 +3681,14 @@ local function paintBand()
     end
   else
     -- Nothing to name and nothing to count: a picker offering a run that does not exist is worse
-    -- than no picker at all.
+    -- than no picker at all. While the BUY search is up the list is aside, and its count stays on
+    -- the rail's badge.
     band.picker:Hide()
     band.done:SetText("")
     band.totalCaption:Hide()
     band.total:SetText("")
     band.fill:Hide()
+    if GC.Buy._searching then ready = GC.Buy._readyCount or 0 end
   end
   GC.Buy._readyCount = ready
   if GC.Sniper and GC.Sniper.UpdateBuyTabLabel then GC.Sniper.UpdateBuyTabLabel() end
@@ -3596,7 +3696,7 @@ local function paintBand()
   local tools = band.tools
   local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
   local long = current ~= nil and #current:Lines() > BD.TOOLS_MIN_LINES
-  if long or filter ~= "all" or query ~= "" then
+  if not GC.Buy._searching and (long or filter ~= "all" or query ~= "") then
     tools.filter:SetLabel(GC.L[FILTER_LABEL[filter] or "All"] .. " ▼")
     fitButton(tools.filter, 96)
     tools.frame:Show()
@@ -3621,9 +3721,21 @@ local function layoutBody()
   local top = toolsTop
   local tools = band.tools and band.tools.frame
   if tools and tools:IsShown() then top = top + BD.TOOLS_H end
-  if band.bodyBottom == bottom and band.bodyTop == top and band.bodyToolsTop == toolsTop then return end
-  band.bodyBottom, band.bodyTop, band.bodyToolsTop = bottom, top, toolsTop
   local inset = GC.Buy._leftInset or 0
+  -- The BUY search's results in place of the headings and the rows, between the item box and the
+  -- dock (UI/BuySearch.lua); laid out on every render, as its rows change with every answer.
+  local searching = GC.Buy._searching
+  if searching then GC.BuySearch.Place(container, inset, band.top or 0, bottom) end
+  if band.bodyBottom == bottom and band.bodyTop == top and band.bodyToolsTop == toolsTop
+      and band.bodySearching == searching then return end
+  band.bodyBottom, band.bodyTop, band.bodyToolsTop, band.bodySearching = bottom, top, toolsTop, searching
+  if searching then
+    header:Hide()
+    scroll:Hide()
+  else
+    header:Show()
+    scroll:Show()
+  end
   if tools then
     tools:ClearAllPoints()
     tools:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -toolsTop)
@@ -3775,6 +3887,8 @@ local function paintDock()
   else
     dock.buy:Hide()
   end
+  -- Skip leaves a line on its list; a result opened from the BUY search is on none.
+  if v.secondary == "skip" and GC.Buy._SearchRun() then v.secondary = nil end
   if v.secondary then
     dock.second:SetLabel(v.secondary == "cancel" and GC.L["Cancel"] or GC.L["Skip"])
     dock.second:Enable()
@@ -3792,6 +3906,9 @@ end
 
 local function renderRows()
   if not content then return end
+  -- The BUY search's results stand in for the list (UI/BuySearch.lua): no list rows meanwhile, and
+  -- the dock holds the result opened from them, if any.
+  GC.Buy._searching = (GC.BuySearch and GC.BuySearch.Shown()) or nil
   -- The dock is on a line whenever there is one to buy: the one the player picked (a purchase
   -- moves it on by itself, settlePurchase), or -- when nothing is picked, or the picked line has
   -- gone from the run -- the first still worth buying. Never moved while a purchase is in the
@@ -3799,7 +3916,7 @@ local function renderRows()
   if current and not inFlight(GC.Buy._attempt) and not lineFor(GC.Buy._focus) then
     GC.Buy._focus = nextOpenAfter(nil)
   end
-  local entries = buildEntries()
+  local entries = GC.Buy._searching and {} or buildEntries()
   -- A filter or search that hides the dock's line moves the dock to the first visible line it can
   -- buy (or, with none, the first visible line, which the dock explains) -- never while a purchase
   -- is in the client's hands, whose CONFIRM belongs to its own line.
@@ -3843,6 +3960,7 @@ local function renderRows()
   paintDock()
   layoutBody()
   paintLists()
+  if GC.BuySearch then GC.BuySearch.Paint() end
 end
 
 -- Builds the tab's container, hidden, filling the same region Deals' scroll occupies --
@@ -3920,11 +4038,13 @@ function GC.Buy.Show()
   GC.Buy._quotedFocus = nil
   GC.Buy._listMeta = {}
   restampHeadings() -- see its comment: a heading can come back from a hide undrawn
+  if GC.BuySearch then GC.BuySearch.Restamp() end
   -- The bags move while this tab is hidden; a Show that trusted the last scan would open on
   -- counts from whenever the player last looked.
   scanBags()
-  -- SelectRun already refreshes what it builds, so only a run ensureRun left alone needs one.
-  local rebuilt = ensureRun()
+  -- SelectRun already refreshes what it builds, so only a run ensureRun left alone needs one. The
+  -- list the BUY search put aside stays aside, and the result it opened stays on screen.
+  local rebuilt = (not GC.Buy._aside) and ensureRun()
   if current and not rebuilt then current:Refresh() end
   updateContentWidth()
   renderRows()
@@ -4036,12 +4156,19 @@ function GC.Buy._WatchSearches()
   if GC.Buy._watching or not (hooksecurefunc and C_AuctionHouse) then return end
   GC.Buy._watching = true
   local function note() GC.Buy._searchSeq = (GC.Buy._searchSeq or 0) + 1 end
+  -- The three that start a new answer in the browse list, counted apart: the BUY search pages its
+  -- answer only while nobody has sent one of them since (UI/BuySearch.lua).
+  local function browsed()
+    note()
+    GC.Buy._browseSeq = (GC.Buy._browseSeq or 0) + 1
+  end
   for _, name in ipairs({ "SendSearchQuery", "SendSellSearchQuery", "SendBrowseQuery",
       "SearchForItemKeys", "SearchForFavorites", "RefreshItemSearchResults",
       "RefreshCommoditySearchResults", "RequestMoreItemSearchResults",
       "RequestMoreCommoditySearchResults", "RequestMoreBrowseResults", "QueryOwnedAuctions",
       "QueryBids", "ReplicateItems" }) do
-    if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, note) end
+    local browse = name == "SendBrowseQuery" or name == "SearchForItemKeys" or name == "SearchForFavorites"
+    if type(C_AuctionHouse[name]) == "function" then hooksecurefunc(C_AuctionHouse, name, browse and browsed or note) end
   end
 end
 
@@ -4132,6 +4259,9 @@ function GC.Buy.TrySendRefresh(playerBusy)
   -- answer would hold the addon-wide keys interlock shut for the full thirty-second timeout.
   -- Same gate, same reason, as canDrillNow's first line in UI/SniperFrame.lua.
   if not GC.Sniper.IsAHOpen() then return false end
+  -- Not while the BUY search is up: the list is not on screen, and a batch answers into the browse
+  -- list the search's results and their next page are read from (UI/BuySearch.lua).
+  if GC.BuySearch and GC.BuySearch.Shown() then return false end
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
   -- Not over a hover quote still waiting for its answer: a batch sent on top of it would take
   -- that answer (the same collision quote() waits out in the other direction).
@@ -4155,6 +4285,8 @@ function GC.Buy.Tick()
   -- would search over it.
   local arming = GC.Buy._attempt
   if arming and arming.armDue then sendArm(arming) end
+  -- The BUY search's request: sent once nothing stands in its way, given up once it waited too long.
+  if GC.BuySearch then GC.BuySearch.Tick() end
   -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
   -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
   -- of the refresh, which would otherwise take the moment with a batch of its own.
