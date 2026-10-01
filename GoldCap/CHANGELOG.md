@@ -14,7 +14,8 @@
   the cap or skip the line. Right-click any line to skip it for now or type a cap of your own.
 - The top of the BUY tab shows how much of the list is done and what the rest costs to buy here.
   The BUY button on the left counts the lines ready to buy.
-- Long lists have a search box and a filter.
+- Long lists have a search box and a filter. The search ignores capital letters and accents in
+  every language.
 - A wide GoldCap window lists all your lists on the left.
 - Items a list's profession route crafts itself show as lines to craft, not to buy.
 - The BUY tab speaks every language GoldCap speaks; it was in English until now.
@@ -26,9 +27,11 @@
   price. Before, the button only opened the auction house's own page.
 - At a vendor, GoldCap lists the items of your BUY list that this vendor sells at or under your
   cap, each with a button that buys what you still need, up to a full stack per press.
-- Make lists of your own right in the BUY tab: + New starts one, or shift-click an item into the
-  box on the tab, or type its item id. The lists you make stay in the game. Right-click a line to
-  take it off again.
+- Make lists of your own right in the BUY tab: + New starts one, or use the box at the top of the
+  tab. Shift-click as many items into it as you like, or type item ids, and press Enter to add
+  them all. Type part of a name to pick from the items GoldCap already knows from your bags, bank,
+  lists, purchases and sales. Your last searches and items wait under the box, one click away.
+  The lists you make stay in the game. Right-click a line to take it off again.
 - Import a TSM item string or an Auctionator shopping list as a new list or into one of yours, and
   export any list for Auctionator or TSM. A name the game cannot place is named back to you, and
   the rest is imported.
