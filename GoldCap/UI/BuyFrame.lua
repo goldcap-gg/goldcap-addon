@@ -114,6 +114,8 @@ local BD = {
   -- BUY 2.0 week 2: the most rows of a lot line's search this tab reads (the Buyout sort puts the
   -- cheapest first, so the first page holds every lot a press could buy).
   MAX_LOTS = 100,
+  -- How many other variants one read may arm when the armed one has sold out from under it.
+  MAX_REARMS = 3,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -154,10 +156,13 @@ GC.Buy._log = {}
 -- `have` is the line's HAVE at the moment it was stranded: the warning on that line lifts
 -- when that number moves, which is exactly what a delivery that really happened does to it.
 GC.Buy._stranded = {}
--- The same for a gear line's bid (BUY 2.0 week 2): a PlaceBid the watchdog gave up on, keyed by
--- the auctionID its late AUCTION_HOUSE_PURCHASE_COMPLETED will name, so it is booked exactly once.
+-- The same for a gear line's bid (BUY 2.0 week 2): a PlaceBid whose answer did not come -- the
+-- watchdog gave up, the auction house closed on it, or an error arrived that could be another
+-- request's -- keyed by the auctionID its late AUCTION_HOUSE_PURCHASE_COMPLETED will name, so it is
+-- booked exactly once. Unlike a commodity event that completion names its auction, so a record is
+-- good across an auction house close and reopen too, for BD.STRANDED_SECONDS.
 --
---   auctionID -> { itemID, total, runCode, itemKey, have, at, session }
+--   auctionID -> { itemID, total, runCode, itemKey, have, at }
 GC.Buy._bidStranded = {}
 local sessionToken = 0
 
@@ -884,16 +889,18 @@ end
 -- button under it, one click from buying the same units a second time.
 local function strandedFor(line)
   if not line then return nil end
-  -- A gear line's bid the watchdog gave up on (GC.Buy._bidStranded, keyed by auction): the lot may
-  -- be bought, so the line is not offered again until HAVE moves, the late answer lands or the
-  -- record ages out with its session.
-  for _, bid in pairs(GC.Buy._bidStranded) do
-    if bid.itemID == line.itemID and bid.session == sessionToken
-        and (time() - (bid.at or 0)) <= BD.STRANDED_SECONDS
-        and (bid.have == nil or line.have == bid.have) then
-      return bid
+  -- A gear line's bids with no answer (GC.Buy._bidStranded): each may have bought its lot, so the
+  -- line is not offered past its need -- held once those bids could cover what is left to buy --
+  -- until HAVE moves, the late answers land or the records age out.
+  local holding, bids = nil, 0
+  for auctionID, bid in pairs(GC.Buy._bidStranded) do
+    if (time() - (bid.at or 0)) > BD.STRANDED_SECONDS then
+      GC.Buy._bidStranded[auctionID] = nil
+    elseif bid.itemID == line.itemID and (bid.have == nil or line.have == bid.have) then
+      holding, bids = bid, bids + 1
     end
   end
+  if holding and bids >= (line.buy or 0) then return holding end
   local record = GC.Buy._stranded[line.itemID]
   if not record then return nil end
   if record.session ~= sessionToken or (time() - (record.at or 0)) > BD.STRANDED_SECONDS then
@@ -1089,6 +1096,9 @@ local function actionLabel(line)
   -- Confirm reached the server and nothing came back. Not offered as a retry: the units may
   -- already be paid for, and the mailbox is where the answer is -- an auction house purchase is
   -- delivered as "Auction won" mail, so the bag re-count only settles it once that mail is taken.
+  -- A gear line with more to buy than its unanswered bids could cover (strandedFor said nothing
+  -- above) goes on: the next press reads its lots again.
+  if stage == "unknown" and attempt.lots and attempt.auctionID then return resting, true end
   if stage == "unknown" then return GC.L["no answer — check your mail"], false end
   if stage == "failed" then return GC.L["purchase failed — try again"], true end
   return resting, true
@@ -1698,10 +1708,18 @@ function GC.Buy.OnItemResults(itemKey)
   noteLots(line, attempt, lot)
   if attempt.phase == "all" and lot then
     armLot(attempt, lot)
-  elseif attempt.phase == "arm" and not lot and attempt.afterBuy then
-    -- After a purchase only the armed variant was re-read; with nothing left there the line is
-    -- read whole again (on the next tick), where another variant may still be under the cap.
-    GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+  elseif attempt.phase == "arm" and not lot then
+    -- The armed variant has nothing left under the cap -- sold between the whole-item read and its
+    -- own, or bought out by this line's last press. Another variant the whole-item read saw may
+    -- still be: it is armed instead (a few times at most per read). With none, a read after a
+    -- purchase reads the item whole again on the next tick; any other says what it found.
+    local other = GC.BuyLots.Next(attempt.lotList or {}, line.cap, line.minIlvl, GetMoney and GetMoney() or nil)
+    if other and (attempt.rearms or 0) < BD.MAX_REARMS then
+      attempt.rearms = (attempt.rearms or 0) + 1
+      armLot(attempt, other)
+    elseif attempt.afterBuy then
+      GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil
+    end
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -2043,20 +2061,24 @@ end
 -- reached the server, so gold may well have moved, and offering the line back for another click
 -- could buy the same units twice -- the rule the Sniper's own confirming timeout follows. It
 -- says so instead, and leaves the correction to the bag re-count that any real delivery brings.
+-- A bid that reached the server and got no answer of its own: the lot may be bought. The slot goes
+-- back, the attempt says so (`unknown`), and the record keeps what a late
+-- AUCTION_HOUSE_PURCHASE_COMPLETED needs to book it exactly once (GC.Buy.OnPurchaseCompleted) --
+-- and holds the line from being bought past its need meanwhile (strandedFor).
+local function strandBid(attempt, line)
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  GC.Buy._bidStranded[attempt.auctionID] = { itemID = attempt.itemID, total = attempt.total,
+    runCode = attempt.runCode, itemKey = attempt.itemKey, have = line and line.have or nil, at = time() }
+  attempt.stage = "unknown"
+end
+
 retireStalled = function(token, stall)
   local attempt = GC.Buy._attempt
   if not attempt or attempt.token ~= token or attempt.stall ~= stall then return end
   if not inFlight(attempt) then return end
   local line = lineFor(attempt.itemID)
   if attempt.stage == "bidding" then
-    -- A bid reached the server and nothing came back: the lot may be bought. Never offered again
-    -- (strandedFor); a late AUCTION_HOUSE_PURCHASE_COMPLETED names its auctionID, so it can still
-    -- be booked exactly once.
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
-    GC.Buy._bidStranded[attempt.auctionID] = { itemID = attempt.itemID, total = attempt.total,
-      runCode = attempt.runCode, itemKey = attempt.itemKey, have = line and line.have or nil,
-      at = time(), session = sessionToken }
-    attempt.stage = "unknown"
+    strandBid(attempt, line)
     logAttempt(line)
     GC.Buy.RefreshIfShown()
     return
@@ -2100,7 +2122,6 @@ end
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
-  GC.Buy._bidStranded = {}
   -- A drain belongs to the session that sent the Start (I1).
   if GC.Buy._drain then
     GC.Buy._drain = nil
@@ -2123,10 +2144,10 @@ function GC.Buy.OnAuctionHouseClosed()
   end
   local line = lineFor(attempt.itemID)
   if stage == "bidding" then
-    -- A bid may have bought (like a confirm): the slot goes, the warning stays. Nothing to cancel:
-    -- PlaceBid has no purchase of its own to hand back.
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
-    attempt.stage = "unknown"
+    -- A bid may have bought (like a confirm): the slot goes, the warning stays, and its late
+    -- completion is still booked after the auction house opens again. Nothing to cancel: PlaceBid
+    -- has no purchase of its own to hand back.
+    strandBid(attempt, line)
   elseif stage ~= "confirming" then
     cancelStartedPurchase()
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
@@ -2148,7 +2169,6 @@ end
 function GC.Buy.OnAuctionHouseShow()
   sessionToken = sessionToken + 1
   GC.Buy._stranded = {}
-  GC.Buy._bidStranded = {}
   local attempt = GC.Buy._attempt
   -- ...except a confirm the close hit while it is still owed its answer (load-bearing round, M-3):
   -- its units may still come by mail, and the line keeps saying so instead of offering BUY again.
@@ -2297,7 +2317,8 @@ local function planBuyClick(line, fromDock)
       itemSuffix = lot.itemSuffix or 0, battlePetSpeciesID = lot.species or 0 }
     attempt.stage = "bidding"
     return "bid", lot.auctionID, lot.buyout, function()
-      armStall(attempt, BD.WATCHDOG_SECONDS)
+      -- Not when the client already answered inside the call (an error, a completion).
+      if GC.Buy._attempt == attempt and attempt.stage == "bidding" then armStall(attempt, BD.WATCHDOG_SECONDS) end
       afterClick(line)
     end
   end
@@ -2658,6 +2679,9 @@ local function openCapEditor(anchor, line)
     onCommit = function(copper)
       if inFlight(GC.Buy._attempt) then return end
       setLineCap(code, itemID, copper)
+      -- A read judged against the old cap (a gear line's "set a cap first" included) is asked
+      -- again on the next tick; a fresh one is judged again on this repaint (rejudgeQuote).
+      GC.Buy._quotedFocus = nil
       GC.Buy.RefreshIfShown()
     end,
   })
@@ -4064,12 +4088,14 @@ function GC.Buy.OnPurchaseCompleted(auctionID)
         runCode = attempt.runCode, lots = true, phase = "arm", key = attempt.key, armSeq = attempt.armSeq,
         lotList = attempt.lotList, afterBuy = true }
       GC.Buy._quotedFocus = line.itemID
+      -- The dock shows the line it stays on, and Enter acts on it.
+      GC.Buy.RefreshIfShown()
       if attempt.refreshed then GC.Buy.OnItemResults(attempt.key) end
     end
     return true
   end
   local record = GC.Buy._bidStranded[auctionID]
-  if record and record.session == sessionToken then
+  if record and (time() - (record.at or 0)) <= BD.STRANDED_SECONDS then
     GC.Buy._bidStranded[auctionID] = nil
     if attempt and attempt.stage == "unknown" and attempt.auctionID == auctionID then GC.Buy._attempt = nil end
     settlePurchase(record.itemID, 1, record.total, record.runCode, record.itemKey)
@@ -4078,17 +4104,26 @@ function GC.Buy.OnPurchaseCompleted(auctionID)
   return false
 end
 
--- AUCTION_HOUSE_SHOW_ERROR while a bid of this tab is out: the bid's answer (the lot was sold, the
--- price moved, the wallet was short). An error only a post can raise is the Sell tab's. The dock
--- says it in the client's own words, and the next press reads the lots again.
+-- AUCTION_HOUSE_SHOW_ERROR while a bid of this tab is out. An error only a bid can raise
+-- (GC.Sell._ErrorKind "bid") is this bid's answer: no gold moved, and the next press reads the lots
+-- again. An error only a post can raise is the Sell tab's. Any other names no request and may be
+-- another sender's, so the bid is kept as one with no answer (strandBid): its late completion is
+-- still booked, and the line is not bought past its need meanwhile. The dock says the error in the
+-- client's own words either way.
 function GC.Buy.OnAuctionHouseError(code)
   local attempt = GC.Buy._attempt
   if not (attempt and attempt.stage == "bidding") then return false end
-  if GC.Sell and GC.Sell._ErrorKind and GC.Sell._ErrorKind(code) == "post" then return false end
-  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
-  attempt.stage = "failed"
+  local kind = GC.Sell and GC.Sell._ErrorKind and GC.Sell._ErrorKind(code) or "shared"
+  if kind == "post" then return false end
+  local line = lineFor(attempt.itemID)
   attempt.errorText = GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(code) or nil
-  logAttempt(lineFor(attempt.itemID), attempt.errorText or GC.L["purchase failed — try again"])
+  if kind == "bid" then
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    attempt.stage = "failed"
+  else
+    strandBid(attempt, line)
+  end
+  logAttempt(line, attempt.errorText or GC.L["purchase failed — try again"])
   GC.Buy.RefreshIfShown()
   return true
 end
@@ -4099,7 +4134,7 @@ function GC.Buy.OwnsAuctionPurchase(auctionID)
   local attempt = GC.Buy._attempt
   if attempt and attempt.stage == "bidding" and attempt.auctionID == auctionID then return true end
   local record = GC.Buy._bidStranded[auctionID]
-  return (record ~= nil and record.session == sessionToken) or false
+  return (record ~= nil and (time() - (record.at or 0)) <= BD.STRANDED_SECONDS) or false
 end
 
 -- Whether a bid of this tab is waiting for its answer: the Deals window does not bid over it.

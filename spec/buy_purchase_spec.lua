@@ -2014,12 +2014,40 @@ describe("BUY purchase", function()
       LOTS = { lot(11, 900, 3), lot(12, 1000, 2), lot(13, 1900, 1, 25) }
       rowsFor[keyOf(AT20)] = { LOTS[1], LOTS[2] }
       GC.Buy.OnPurchaseCompleted(11)
-      GC.Buy._focus = 201
+      -- The dock stays on the gear line, so the next press -- and Enter -- act on it.
+      assert.equal(201, dock().lineItemID)
+      assert.equal(201, GC.Buy._focus)
       GC.Buy.OnItemResults(AT20)
       assert.equal(searchesBefore, #sent)
       assert.equal(sellsBefore, #sellSent)
       assert.equal("quoted", GC.Buy._attempt.stage)
       assert.equal(11, GC.Buy._attempt.lot.auctionID)
+      -- ...and the second press bids on the lot that refresh read, with no search in between.
+      assert.equal("BUY ONE · 900c", dock().buy.label)
+      press()
+      assert.same({ 11, 900 }, { placed[2].auctionID, placed[2].amount })
+    end)
+
+    -- The armed variant sold between the whole-item read and its own: the next variant under the
+    -- cap is armed, not a dead "nothing on offer".
+    it("arms the next variant when the armed one sold before its own read", function()
+      LOTS = { lot(11, 900, 1), lot(13, 1000, 1, 25) }
+      pick(rowWithText("Dark Leather Boots"))
+      table.remove(LOTS, 1) -- lot 11 sells before the variant's own search is answered
+      GC.Buy.OnItemResults(BARE)
+      GC.Buy.OnItemResults(AT20)
+      local AT25 = { itemID = 201, itemLevel = 25, itemSuffix = 0, battlePetSpeciesID = 0 }
+      assert.same(AT25, sent[#sent].key)
+      GC.Buy.OnItemResults(AT25)
+      assert.equal("BUY ONE · 1000c", dock().buy.label)
+    end)
+
+    it("arms no watchdog for a bid the client answered inside its own call", function()
+      readBoots()
+      _G.C_AuctionHouse.PlaceBid = function(auctionID) GC.Buy.OnPurchaseCompleted(auctionID) end
+      local before = #timers
+      press()
+      assert.equal(before, #timers)
     end)
 
     it("ignores the completion of an auction it did not bid on", function()
@@ -2031,6 +2059,7 @@ describe("BUY purchase", function()
 
     -- Review Focus 1.
     it("says the auction house's error, frees the slot, and reads the lots again on the next press", function()
+      GC.Sell = { _ErrorKind = function() return "bid" end }
       readBoots()
       press()
       assert.is_true(GC.Buy.OnAuctionHouseError(7))
@@ -2041,6 +2070,47 @@ describe("BUY purchase", function()
       press()
       assert.equal(bids, #placed)
       assert.equal(sells + 1, #sellSent)
+    end)
+
+    -- An error that names no request may be another sender's: the bid is kept as one with no answer,
+    -- so its late completion is still booked and the line is not bought past its need.
+    it("keeps a bid an error of nobody in particular may not have answered", function()
+      GC.Sell = { _ErrorKind = function() return "shared" end }
+      readBoots()
+      press()
+      assert.is_true(GC.Buy.OnAuctionHouseError(9))
+      assert.equal("unknown", GC.Buy._attempt.stage)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.equal("That auction is gone.", dock().sub:GetText())
+      assert.equal("no answer — check your mail", dock().buy.label)
+      assert.is_false(dock().buy.enabled)
+      assert.is_true(GC.Buy.OwnsAuctionPurchase(11))
+      assert.is_true(GC.Buy.OnPurchaseCompleted(11))
+      assert.is_false(GC.Buy.OnPurchaseCompleted(11))
+      assert.equal(1, runLine(201).bought)
+    end)
+
+    it("goes on with a line that wants more than its unanswered bids could cover", function()
+      GC.Sell = { _ErrorKind = function() return "shared" end }
+      gearRun({ i = 201, q = 2, cc = 1170 })
+      readBoots()
+      press()
+      GC.Buy.OnAuctionHouseError(9)
+      assert.is_true(dock().buy.enabled)
+      local sells = #sellSent
+      press()
+      assert.equal(sells + 1, #sellSent)
+    end)
+
+    it("books a bid the auction house closed on once it answers after the reopen", function()
+      readBoots()
+      press()
+      GC.Buy.OnAuctionHouseClosed()
+      GC.Buy.OnAuctionHouseClosed()
+      GC.Buy.OnAuctionHouseShow()
+      assert.is_true(GC.Buy.OnPurchaseCompleted(11))
+      assert.equal(1, runLine(201).bought)
+      assert.equal(900, runLine(201).spent)
     end)
 
     it("leaves an error only a post can raise to the Sell tab", function()
@@ -2072,6 +2142,28 @@ describe("BUY purchase", function()
       assert.is_false(dock().buy.enabled)
       press()
       assert.equal(0, #placed)
+    end)
+
+    it("reads the line again once a cap is typed for it", function()
+      gearRun({ i = 201, q = 1 })
+      readBoots()
+      now = now + 11
+      local commit
+      GC.BuyCapEditor = { Open = function(_, opts) commit = opts.onCommit end, Close = function() end }
+      _G.MenuUtil = { CreateContextMenu = function(_, build)
+        build(nil, { CreateTitle = function() end, CreateDivider = function() end,
+          CreateButton = function(_, text, fn) if text == "Change the cap…" then fn() end end })
+      end }
+      local row = rowWithText("Dark Leather Boots")
+      row.scripts.OnMouseUp(row, "RightButton")
+      _G.MenuUtil = nil
+      local sells = #sellSent
+      commit(1170)
+      GC.Buy.Tick()
+      assert.equal(sells + 1, #sellSent)
+      GC.Buy.OnItemResults(BARE)
+      GC.Buy.OnItemResults(AT20)
+      assert.equal("BUY ONE · 900c", dock().buy.label)
     end)
 
     it("never bids what the wallet cannot pay", function()
