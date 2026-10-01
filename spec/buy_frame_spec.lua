@@ -1007,6 +1007,33 @@ describe("BuyFrame", function()
       assert.is_false(add.matches[1]:IsShown())
     end)
 
+    -- Where the names come from: the bank as far as the client has it (its tabs by the client's own
+    -- Enum.BagIndex names, which differ between retail and WoW: Forever), the ledger, and what
+    -- GoldCap recorded buying.
+    it("offers what the bank, the ledger and GoldCap's own purchases know by name", function()
+      local old = _G.Enum
+      _G.Enum = { BagIndex = { Backpack = 0, CharacterBankTab_1 = 6, AccountBankTab_1 = 12, Keyring = -1 } }
+      _G.C_Container = {
+        GetContainerNumSlots = function(bag) return (bag == 6 or bag == 12) and 1 or 0 end,
+        GetContainerItemInfo = function(bag) return ({ [6] = { itemID = 4306 }, [12] = { itemID = 4338 } })[bag] end,
+      }
+      NAMES[4306], NAMES[4338] = "Silk Cloth", "Mageweave Cloth"
+      GC.db.ledger = { { itemID = 14047, itemName = "Runecloth" } }
+      GC.db.acquisitions = { { itemID = 21877, itemName = "Netherweave Cloth" } }
+      local add = GC.Buy._view.add
+      add.box:SetText("cloth")
+      add.box.scripts.OnTextChanged(add.box, true)
+      _G.Enum = old
+      NAMES[4306], NAMES[4338] = nil, nil
+      local ids = {}
+      for i, row in ipairs(add.matches) do if row:IsShown() then ids[i] = row.itemID end end
+      table.sort(ids)
+      assert.same({ 4306, 4338, 14047, 21877 }, ids)
+      add.box:SetText("rune")
+      add.box.scripts.OnTextChanged(add.box, true)
+      assert.equal(14047, add.matches[1].itemID)
+    end)
+
     it("walks the matches with the arrow keys, and Enter adds the one picked", function()
       GC.db.itemNames = { [2589] = { n = "Linen Cloth" }, [4306] = { n = "Linen Thread" } }
       local add = GC.Buy._view.add
