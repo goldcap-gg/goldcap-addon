@@ -1650,18 +1650,34 @@ end
 --- An exact join on the key, like the realized row it sits beside -- never a match by name. The
 --- Sold tab names these in a sale's tooltip ("You paid · Sniper"). Empty when no batch
 --- carries the key, which includes a batch since removed.
-function GC.Acquisitions.SourcesOf(evidenceKey)
-  local sources, seen = {}, {}
-  if not db or type(evidenceKey) ~= "string" or evidenceKey == "" then return sources end
+--- evidence key -> the sources of the batches that sale consumed, once each, in batch order: every
+-- sale's answer from ONE pass over the store. A caller with many sales (the Sold tab's render)
+-- reads this once instead of calling SourcesOf for each.
+function GC.Acquisitions.SourcesIndex()
+  local index = {}
+  if not db then return index end
   for _, batch in ipairs(db.acquisitions) do
     local keys = batch.consumedEvidenceKeys
-    if type(keys) == "table" and keys[evidenceKey] == true and type(batch.source) == "string"
-        and not seen[batch.source] then
-      seen[batch.source] = true
-      sources[#sources + 1] = batch.source
+    if type(keys) == "table" and type(batch.source) == "string" then
+      for key, consumed in pairs(keys) do
+        if consumed == true and type(key) == "string" and key ~= "" then
+          local entry = index[key]
+          if not entry then entry = { list = {}, seen = {} }; index[key] = entry end
+          if not entry.seen[batch.source] then
+            entry.seen[batch.source] = true
+            entry.list[#entry.list + 1] = batch.source
+          end
+        end
+      end
     end
   end
-  return sources
+  for key, entry in pairs(index) do index[key] = entry.list end
+  return index
+end
+
+function GC.Acquisitions.SourcesOf(evidenceKey)
+  if type(evidenceKey) ~= "string" or evidenceKey == "" then return {} end
+  return GC.Acquisitions.SourcesIndex()[evidenceKey] or {}
 end
 
 function GC.Acquisitions.Allocate(batches, quantity)

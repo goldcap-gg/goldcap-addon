@@ -98,7 +98,7 @@ describe("SoldFrame", function()
     end
     GC.AppLedger = { GetSummary = function() return nil end }
     GC.Ledger = { GetEntries = function() return {} end }
-    GC.Acquisitions = { GetRealized = function() return {} end, SourcesOf = function() return {} end }
+    GC.Acquisitions = { GetRealized = function() return {} end, SourcesIndex = function() return {} end }
     helper.loadModule("UI/SoldFrame.lua", GC)
     host = region("Frame")
     GC.Sold.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -36, bottom = 12,
@@ -458,6 +458,26 @@ describe("SoldFrame", function()
       assert.truthy(saleRow("Wool Cloth"))
     end)
 
+    it("reads the sources of every sale from one pass, and only for the rows the period leaves", function()
+      local passes = 0
+      GC.Acquisitions.GetRealized = function()
+        return {
+          { evidenceKey = "a", profit = 10, cost = 20, quantity = 1, positionKey = "commodity:1" },
+          { evidenceKey = "b", profit = 10, cost = 20, quantity = 1, positionKey = "commodity:1" },
+          { evidenceKey = "c", profit = 10, cost = 20, quantity = 1, positionKey = "commodity:1" },
+        }
+      end
+      GC.Acquisitions.SourcesIndex = function() passes = passes + 1; return { a = { "goldcap" } } end
+      show()
+      assert.equal(1, passes)                       -- three sales, one pass; "c" is outside 7 days
+      local search = view().controls.search
+      search:SetText("nothing matches this")
+      search.scripts.OnTextChanged(search, true)
+      passes = 0
+      search.scripts.OnTextChanged(search, true)
+      assert.equal(0, passes)                       -- no row left, no pass at all
+    end)
+
     it("filters every section by name, ignoring case in any script, and the tiles follow", function()
       show()
       local search = view().controls.search
@@ -504,7 +524,7 @@ describe("SoldFrame", function()
       GC.Acquisitions.GetRealized = function()
         return { { evidenceKey = "k1", profit = 378, cost = 672, quantity = 14, positionKey = "commodity:2589" } }
       end
-      GC.Acquisitions.SourcesOf = function(key) return key == "k1" and { "goldcap" } or {} end
+      GC.Acquisitions.SourcesIndex = function() return { k1 = { "goldcap" } } end
       show()
       local row = saleRow("Linen Cloth")
       assert.equal(135, row.icon.texture)

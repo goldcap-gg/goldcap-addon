@@ -526,6 +526,10 @@ describe("Acquisition store", function()
     assert.same({ "goldcap", "goldcap_buy" }, GC.Acquisitions.SourcesOf("sale:sources"))
     assert.same({}, GC.Acquisitions.SourcesOf("sale:unknown"))
     assert.same({}, GC.Acquisitions.SourcesOf(nil))
+    -- the same answers for every sale at once, from one pass
+    local index = GC.Acquisitions.SourcesIndex()
+    assert.same({ "goldcap", "goldcap_buy" }, index["sale:sources"])
+    assert.is_nil(index["sale:unknown"])
   end)
 
   it("does not mistake same-name batches in separate positions for one sale candidate", function()

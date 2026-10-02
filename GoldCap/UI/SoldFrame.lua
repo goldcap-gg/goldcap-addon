@@ -13,7 +13,7 @@ local _, GC = ...
 --     sales the snapshot is missing. Deriving the boundary from the sales can show one sale in
 --     both labelled sections for a reload (accepted); it can never hide one.
 --   * Local profit only on an EXACT evidence-key join to GC.Acquisitions.GetRealized(), and the
---     stock's sources only through the same key (GC.Acquisitions.SourcesOf). Everything else
+--     stock's sources only through the same key (GC.Acquisitions.SourcesIndex). Everything else
 --     says "—", never an invented number. Pro gating happened server-side: a free summary
 --     carries no basis, and its rows show no profit at all.
 --   * WoW: Forever has no goldcap.gg sales. Its local sales are the whole list, grouped by day,
@@ -288,7 +288,6 @@ local function buildModel()
       if row.evidenceKey then realized[row.evidenceKey] = row end
     end
   end
-  local sourcesOf = GC.Acquisitions and GC.Acquisitions.SourcesOf
   local listed = V.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
     and GC.Acquisitions.GetActivities() or {})
   local entries = GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}
@@ -296,11 +295,23 @@ local function buildModel()
   for _, sale in ipairs(V.LocalSales(entries, V.Boundary(summary))) do
     local hit = sale.key and realized[sale.key] or nil
     local listedID = V.ListedItemID(listed, sale.itemName, sale.char, sale.region)
-    locals[#locals + 1] = V.LocalRow(sale, hit, hit and sourcesOf and sourcesOf(sale.key) or nil, listedID)
+    locals[#locals + 1] = V.LocalRow(sale, hit, nil, listedID)
   end
   for _, sale in ipairs(summary and summary.sales or {}) do servers[#servers + 1] = V.ServerRow(sale) end
   m.anySales = #locals + #servers > 0
   m.locals = V.Filter(locals, m.from, state.query)
+  -- Sources only for the rows the period and the search left, and from one pass over the store
+  -- for all of them: SourcesOf per sale scanned every batch for every sale ever made, on each render.
+  -- A row has a profit exactly when LocalRow found its sale realized.
+  if GC.Acquisitions and GC.Acquisitions.SourcesIndex then
+    local index
+    for _, row in ipairs(m.locals) do
+      if row.profit ~= nil and row.key then
+        index = index or GC.Acquisitions.SourcesIndex()
+        row.sources = index[row.key] or {}
+      end
+    end
+  end
   m.servers = V.Filter(servers, m.from, state.query)
   m.all = {}
   for _, row in ipairs(m.locals) do m.all[#m.all + 1] = row end
