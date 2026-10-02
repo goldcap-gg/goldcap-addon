@@ -15,7 +15,7 @@ describe("vendor purchase wiring", function()
     local listing = assert(io.popen("find GoldCap -name '*.lua'"))
     for path in listing:lines() do
       local text = read(path)
-      if path ~= "GoldCap/UI/BuyVendorPanel.lua" then
+      if path ~= "GoldCap/UI/BuyVendorPanel.lua" and path ~= "GoldCap/Core/VendorBuys.lua" then
         assert.is_nil(text:find("BuyMerchantItem", 1, true), path)
       end
     end
@@ -26,6 +26,16 @@ describe("vendor purchase wiring", function()
     local outside = text:sub(1, from - 1) .. text:sub(to)
     assert.is_nil(outside:find("BuyMerchantItem", 1, true))
     assert.is_truthy(text:sub(from, to):find("BuyMerchantItem(", 1, true))
+  end)
+
+  -- Core/VendorBuys.lua names the call only to observe it: a post-hook cannot make a purchase.
+  it("names BuyMerchantItem in Core/VendorBuys.lua only as a post-hook", function()
+    local text = read("GoldCap/Core/VendorBuys.lua")
+    local count = 0
+    for _ in text:gmatch("BuyMerchantItem") do count = count + 1 end
+    assert.equal(2, count)   -- the existence check and the hook itself
+    assert.is_truthy(text:find('hooksecurefunc("BuyMerchantItem"', 1, true))
+    assert.is_nil(text:find("BuyMerchantItem(", 1, true))
   end)
 
   it("reaches onVendorBuyClick only through the button's OnClick", function()

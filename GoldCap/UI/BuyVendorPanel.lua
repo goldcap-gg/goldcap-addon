@@ -35,15 +35,9 @@ local pendingSeq = 0
 local function merchantRows()
   local rows = {}
   local n = (GetMerchantNumItems and GetMerchantNumItems()) or 0
-  if not (C_MerchantFrame and C_MerchantFrame.GetItemInfo) then return rows end
   for index = 1, n do
-    local ok, info = pcall(C_MerchantFrame.GetItemInfo, index)
-    if ok and type(info) == "table" then
-      rows[#rows + 1] = { index = index, itemID = GetMerchantItemID and GetMerchantItemID(index) or nil,
-        price = info.price, stackCount = info.stackCount, numAvailable = info.numAvailable,
-        isPurchasable = info.isPurchasable, hasExtendedCost = info.hasExtendedCost,
-        maxStack = GetMerchantItemMaxStack and GetMerchantItemMaxStack(index) or nil }
-    end
+    local row = GC.VendorBuys.MerchantRow(index)
+    if row then rows[#rows + 1] = row end
   end
   return rows
 end
@@ -64,6 +58,8 @@ local function onVendorBuyClick(button)
   pendingSeq = pendingSeq + 1
   P._pending = { itemID = plan.itemID, qty = qty, unit = plan.cost / plan.qty,
     countBefore = itemCount(plan.itemID), token = pendingSeq }
+  -- The merchant hook (Core/VendorBuys.lua) books this purchase as cost, once, for the list.
+  if GC.VendorBuys then GC.VendorBuys.Tag(P._code) end
   if P.MULTI_CALL then
     for _, n in ipairs(plan.calls) do BuyMerchantItem(plan.index, n) end
   else
@@ -222,6 +218,7 @@ function P.Refresh()
   P._refreshing = true
   local want = GC.Buy and GC.Buy.VendorLines and GC.Buy.VendorLines() or nil
   P._refreshing = nil
+  P._code = want and want.code or nil
   -- Each open line this merchant sells, named with what it still needs; then the lines bought here
   -- this visit, named with what was bought.
   local entries = {}
