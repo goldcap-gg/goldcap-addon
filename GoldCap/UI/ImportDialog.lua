@@ -57,12 +57,14 @@ local function createDialog()
   btn:SetText(GC.Util.ClientText(GC.L["Import"]))
   btn:SetScript("OnClick", function()
     local text = f.edit:GetText() or ""
-    -- A list -- a goldcap.gg run string (GCR1), a TSM string or an Auctionator list -- goes to
-    -- the BUY tab's lists (UI/BuyLists.lua); a GCS1 price string, and anything that is no list
-    -- when the box was opened for prices, to GC.ImportString.Parse. Leading whitespace is allowed
-    -- for: a GCR1 string pasted with a space in front once went to the price parser, which
-    -- answered "not a GoldCap import string" about a run it had never been asked to read.
-    if not text:find("GCS1;", 1, true) and GC.BuyLists and GC.BuyLists.ImportText then
+    -- Opened by the BUY tab's Import (`lists`): a list -- a goldcap.gg run string (GCR1), a TSM
+    -- string or an Auctionator list -- goes to the BUY tab's lists (UI/BuyLists.lua); a GCS1 price
+    -- string, to GC.ImportString.Parse. Opened for prices (/goldcap import) it never makes a list:
+    -- a price paste that is broken enough to read as a TSM item string would otherwise have
+    -- silently become one. Leading whitespace is allowed for: a GCR1 string pasted with a space in
+    -- front once went to the price parser, which answered "not a GoldCap import string" about a
+    -- run it had never been asked to read.
+    if f.lists and not text:find("GCS1;", 1, true) and GC.BuyLists and GC.BuyLists.ImportText then
       local result, why = GC.BuyLists.ImportText(text, f.into)
       if result and result.error then
         setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. result.error .. "|r")

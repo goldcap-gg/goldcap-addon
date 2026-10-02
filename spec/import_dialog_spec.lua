@@ -54,6 +54,15 @@ describe("ImportDialog", function()
     return dialog
   end
 
+  -- The BUY tab's Import: the same box, opened for lists.
+  local function pasteLists(text)
+    GC.UI.ShowImportDialog({ lists = true })
+    local dialog = _G.GoldCapImportDialog
+    dialog.edit:SetText(text)
+    importButton().scripts.OnClick()
+    return dialog
+  end
+
   before_each(function()
     frames, pricesParsed, selectedRun, refreshed = {}, nil, nil, false
     _G.CreateFrame = function(kind, name, _, _)
@@ -89,7 +98,7 @@ describe("ImportDialog", function()
   end)
 
   it("imports a run string", function()
-    local dialog = paste("GCR1;myrun;Flask%20run;5=210,6=4=v")
+    local dialog = pasteLists("GCR1;myrun;Flask%20run;5=210,6=4=v")
     assert.is_nil(pricesParsed)
     local run = GC.AppRuns.Get("myrun")
     assert.is_not_nil(run)
@@ -101,7 +110,7 @@ describe("ImportDialog", function()
   -- with a space in front is a perfectly good run -- but an anchored `^GCR1;` never saw it, and
   -- the GCS1 parser answered "not a GoldCap import string" about a run it was never asked to read.
   it("imports a run string pasted with leading whitespace", function()
-    paste("  GCR1;spaced;;5=210")
+    pasteLists("  GCR1;spaced;;5=210")
     assert.is_nil(pricesParsed)
     assert.is_not_nil(GC.AppRuns.Get("spaced"))
   end)
@@ -110,7 +119,7 @@ describe("ImportDialog", function()
   -- in the list unseen until the player left it and came back -- which reads as an import that
   -- did nothing at all.
   it("puts the imported run on the BUY tab at once", function()
-    paste("GCR1;myrun;;5=210")
+    pasteLists("GCR1;myrun;;5=210")
     assert.equal("myrun", selectedRun)
     assert.is_true(refreshed)
   end)
@@ -124,8 +133,22 @@ describe("ImportDialog", function()
     assert.is_truthy(dialog.status:GetText():find("Import failed:", 1, true))
   end)
 
+  -- The price box is for prices: a broken price paste that reads as a TSM item string, or a run
+  -- string pasted into it, must not quietly become a BUY list. The lists come from the BUY tab's Import.
+  it("never makes a list from a paste into the price box", function()
+    GC.BuyLists.ImportText = function() error("ImportText must not be called from the price box") end
+    local dialog = paste("group:Cloth,i:2589,i:2592")
+    assert.equal("group:Cloth,i:2589,i:2592", pricesParsed)
+    assert.is_nil(selectedRun)
+    assert.is_nil(next(GC.db.runs))
+    assert.is_true(dialog.shown)
+    assert.is_truthy(dialog.status:GetText():find("Import failed:", 1, true))
+    paste("GCR1;myrun;;5=210")
+    assert.is_nil(GC.AppRuns.Get("myrun"))
+  end)
+
   it("says so when the run string itself is malformed, and keeps the dialog open", function()
-    local dialog = paste("GCR1;myrun;;")
+    local dialog = pasteLists("GCR1;myrun;;")
     assert.is_nil(pricesParsed)
     assert.is_nil(GC.AppRuns.Get("myrun"))
     assert.is_nil(selectedRun)
@@ -344,7 +367,7 @@ describe("ImportDialog", function()
 
     it("still imports buy runs -- a different grammar, not a price string", function()
       _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
-      paste("GCR1;myrun;;5=210")
+      pasteLists("GCR1;myrun;;5=210")
       assert.is_not_nil(GC.AppRuns.Get("myrun"))
     end)
   end)
