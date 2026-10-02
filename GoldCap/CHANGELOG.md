@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.18.0 (unreleased)
+## 0.18.0 (2026-10-02)
 
 - A craft now gets a cost when its reagents came from a vendor, from something you crafted yourself, or from another of your characters, not only from your own auction house purchases. Crafting reagents you buy at a merchant are remembered at the price you paid. Reagents you gathered or got without buying are counted at their current auction house price, and `/gc craft` and the Sold tab's tooltip say which ones and that the cost is partly an estimate. A craft that still cannot be priced no longer leaves the reagents you did buy on the books as if you still held them.
 - The BUY tab is simpler. Each line shows the item and how many are left to buy, the price each
