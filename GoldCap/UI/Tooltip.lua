@@ -68,6 +68,15 @@ function GC.Tooltip.Headline(v)
   return nil
 end
 
+-- Headline, for a number that becomes a cost (a craft's reagent nobody bought): only the two
+-- kinds Core/DealMath.lua and Core/Trigger.lua trust. An imported realm item's unverified median
+-- ("median") is a figure the tooltip may print under its own label, never a basis for a cost.
+function GC.Tooltip.TrustedHeadline(v)
+  local copper, kind = GC.Tooltip.Headline(v)
+  if kind == "value" or kind == "region" then return copper, kind end
+  return nil
+end
+
 -- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
 -- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
 -- than from `v` because none belongs to the market value: the player's own ledger, which bundled
