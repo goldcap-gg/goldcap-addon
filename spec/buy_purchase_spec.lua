@@ -1930,6 +1930,17 @@ describe("BUY purchase", function()
       assert.equal("quoting", GC.Buy._attempt.stage)
     end)
 
+    it("ignores the answer for another species of the cage item once its own key is armed", function()
+      pick(rowWithText("Dark Leather Boots"))
+      GC.Buy.OnItemResults(BARE)
+      assert.same(AT20, sent[#sent].key)
+      -- the same item, level and suffix, but another battle pet species: somebody else's search
+      GC.Buy.OnItemResults({ itemID = 201, itemLevel = 20, itemSuffix = 0, battlePetSpeciesID = 77 })
+      assert.equal("quoting", GC.Buy._attempt.stage)
+      GC.Buy.OnItemResults(AT20)
+      assert.equal("quoted", GC.Buy._attempt.stage)
+    end)
+
     it("reads nothing under the cap as over the cap, and searches no variant", function()
       LOTS = { lot(13, 1900, 1, 25) }
       pick(rowWithText("Dark Leather Boots"))

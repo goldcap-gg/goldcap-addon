@@ -1734,7 +1734,8 @@ function GC.Buy.OnItemResults(itemKey)
   end
   local sent = attempt.key or {}
   if attempt.phase == "arm" and itemKey.itemLevel ~= nil
-      and ((itemKey.itemLevel or 0) ~= (sent.itemLevel or 0) or (itemKey.itemSuffix or 0) ~= (sent.itemSuffix or 0)) then
+      and ((itemKey.itemLevel or 0) ~= (sent.itemLevel or 0) or (itemKey.itemSuffix or 0) ~= (sent.itemSuffix or 0)
+        or (itemKey.battlePetSpeciesID or 0) ~= (sent.battlePetSpeciesID or 0)) then
     return
   end
   -- A bid is out: the refresh that follows a purchase is read once its completion has booked it.
