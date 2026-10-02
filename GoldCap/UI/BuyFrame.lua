@@ -4457,11 +4457,19 @@ end
 -- this one included, tagged with the list -- so it is filed there once and never here as well. Never
 -- a ledger row either: goldcap.gg's ledger is auction house money.
 function GC.Buy.RecordVendorPurchase(itemID, qty, spent, runCode)
-  -- Credited to the list the press was for and to no other, as settlePurchase does: another list
-  -- opened meanwhile has not bought these units.
-  if not (current and (qty or 0) > 0 and runCode == current:Code()) then return end
+  -- Credited to the list the press was for, open or not, and to no other: the units were bought
+  -- for it, and a list left uncredited because another was opened meanwhile would offer them
+  -- again. A list that is not on screen is credited through its saved progress, as a /reload
+  -- would read it back.
+  if not ((qty or 0) > 0 and type(runCode) == "string") then return end
+  local target = current and runCode == current:Code() and current or nil
+  if not target then
+    local run = GC.AppRuns and GC.AppRuns.Get(runCode)
+    if type(run) ~= "table" then return end
+    target = GC.BuyRun.New(run, DRIVER)
+  end
   local at = time()
-  current:RecordPurchase(itemID, qty, spent or 0, at)
+  target:RecordPurchase(itemID, qty, spent or 0, at)
   scanBags()
   GC.Buy._listMeta = {}
   GC.Buy.RefreshIfShown()

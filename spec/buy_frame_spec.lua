@@ -415,6 +415,21 @@ describe("BuyFrame", function()
     end
   end)
 
+  it("credits a vendor purchase to its list even after another list was opened", function()
+    GC.AppRuns._set({ run(), run({ code = "run-2", name = "Other run" }) })
+    GC.Buy.SelectRun("run-1")
+    GC.Buy.SelectRun("run-2")
+    GC.Buy.RecordVendorPurchase(104, 20, 200, "run-1")
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do
+      if l.itemID == 104 then assert.is_true((l.bought or 0) == 0) end
+    end
+    GC.Buy.SelectRun("run-1")
+    local line
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == 104 then line = l end end
+    assert.equal(20, line.bought)
+    assert.equal(200, line.spent)
+  end)
+
   -- A gear line's bid that never got an answer may have bought its lot (delivered by mail), so the
   -- line offers what is left less one per such bid -- not its whole remaining quantity -- and is
   -- held once the bids cover what is left.
