@@ -120,6 +120,40 @@ function GC.CraftCapture.Plan(session)
   return { outputs = outputs, consumed = consumed, ignored = ignored }
 end
 
+--- Every item id a recipe can produce: the declared output plus one per crafting quality, since
+-- a quality variant is its own item. `api` is C_TradeSkillUI, passed in so a spec can hand over a
+-- fake. The variants are read the way Blizzard's own crafter details read them
+-- (recipeInfo.qualityItemIDs), plus GetRecipeQualityItemIDs. GetRecipeOutputItemData's last
+-- argument is a crafting quality ID from recipeInfo.qualityIDs, never an index: read as 1-5 it
+-- named no variant, and a gem cut at its higher quality was refused as "no-output".
+function GC.CraftCapture.OutputIDs(api, spellID, outputItemID)
+  local outputs = {}
+  local function add(id) if isPositiveInteger(id) then outputs[id] = true end end
+  local function addAll(list)
+    if type(list) ~= "table" then return end
+    for _, id in ipairs(list) do add(id) end
+  end
+  add(outputItemID)
+  if type(api) ~= "table" or not isPositiveInteger(spellID) then return outputs end
+  if type(api.GetRecipeQualityItemIDs) == "function" then
+    local ok, ids = pcall(api.GetRecipeQualityItemIDs, spellID)
+    if ok then addAll(ids) end
+  end
+  if type(api.GetRecipeInfo) == "function" then
+    local ok, info = pcall(api.GetRecipeInfo, spellID)
+    if ok and type(info) == "table" then
+      addAll(info.qualityItemIDs)
+      if type(api.GetRecipeOutputItemData) == "function" and type(info.qualityIDs) == "table" then
+        for _, qualityID in ipairs(info.qualityIDs) do
+          local gotData, data = pcall(api.GetRecipeOutputItemData, spellID, nil, nil, qualityID)
+          if gotData and type(data) == "table" then add(data.itemID) end
+        end
+      end
+    end
+  end
+  return outputs
+end
+
 --- What the reagents a session consumed actually cost the player.
 --
 -- `batchesFor(itemID)` hands back that item's active acquisition batches for the crafting
@@ -497,6 +531,17 @@ local function close(now)
     -- What a conversion made is remembered, so a later craft that uses it can say why it has no
     -- price: it was never bought. The run itself is not costed -- splitting one input's cost over
     -- unrelated outputs is a value-share decision nobody has made.
+    -- What the craft did make, when none of it was this recipe's output: the ids /gc craft
+    -- prints so a refused quality variant can be named instead of guessed at.
+    if reason == "no-output" then
+      local made = {}
+      for _, result in ipairs(session.results) do
+        if type(result) == "table" and result.isEnchant ~= true and isPositiveInteger(result.itemID) then
+          made[#made + 1] = { itemID = result.itemID, quantity = result.quantity }
+        end
+      end
+      if #made > 0 then outcome.made = made end
+    end
     if reason == "random-output" and type(driver.noteConverted) == "function" then
       for _, result in ipairs(session.results) do
         if type(result) == "table" and result.isEnchant ~= true and isPositiveInteger(result.itemID) then
