@@ -4,7 +4,7 @@ local helper = require("spec.spec_helper")
 -- that buys what is left of it (UI/BuyVendorPanel.lua). The merchant, the bags and the BUY tab's
 -- answer are faked; Core/BuyVendor.lua is the real one.
 describe("BUY vendor panel", function()
-  local GC, bought, count, recorded, timers, money, lines
+  local GC, bought, count, recorded, timers, money, lines, credits, openCode
 
   local function region(kind)
     local r = { kind = kind, visible = false, enabled = true, scripts = {}, pointsSet = {} }
@@ -46,6 +46,7 @@ describe("BUY vendor panel", function()
 
   before_each(function()
     bought, count, recorded, timers, money = {}, 0, nil, {}, 100000
+    credits, openCode = {}, "r"
     lines = { { itemID = 2320, buy = 45, need = 45, name = "Coarse Thread" } }
     _G.CreateFrame = function(kind) return region(kind) end
     _G.UIParent = region("Frame")
@@ -74,8 +75,11 @@ describe("BUY vendor panel", function()
     helper.loadModule("Core/BuyVendor.lua", GC)
     helper.loadModule("Core/VendorBuys.lua", GC)
     GC.Buy = {
-      VendorLines = function() return { runName = "Tailoring 1 → 100", code = "r", lines = lines } end,
-      RecordVendorPurchase = function(itemID, qty, spent) recorded = { itemID, qty, spent } end,
+      VendorLines = function() return { runName = "Tailoring 1 → 100", code = openCode, lines = lines } end,
+      RecordVendorPurchase = function(itemID, qty, spent, code)
+        recorded = { itemID, qty, spent }
+        credits[#credits + 1] = { itemID, qty, spent, code }
+      end,
     }
     helper.loadModule("UI/BuyVendorPanel.lua", GC)
   end)
@@ -151,6 +155,30 @@ describe("BUY vendor panel", function()
   end)
 
   -- Review Focus 5: loot of the same item landing meanwhile is not this purchase.
+  it("credits the list the press was for, whichever list is open when the bags settle", function()
+    panel().OnMerchantShow()
+    press()
+    openCode = "another-list"
+    count = 20
+    panel().OnBagsChanged()
+    assert.same({ { 2320, 20, 200, "r" } }, credits)
+  end)
+
+  it("keeps the press pending across a partial arrival and credits every later unit", function()
+    panel().OnMerchantShow()
+    press()
+    count = 8                                   -- the first stack lands
+    panel().OnBagsChanged()
+    assert.same({ { 2320, 8, 80, "r" } }, credits)
+    assert.is_not_nil(panel()._pending)
+    panel().OnBagsChanged()                     -- nothing new: nothing credited twice
+    assert.equal(1, #credits)
+    count = 20                                  -- the rest lands
+    panel().OnBagsChanged()
+    assert.same({ 2320, 12, 120, "r" }, credits[2])
+    assert.is_nil(panel()._pending)
+  end)
+
   it("never credits more than the press asked for", function()
     panel().OnMerchantShow()
     press()

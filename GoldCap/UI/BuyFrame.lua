@@ -4441,8 +4441,10 @@ end
 -- addon's own acquisitions is booked by Core/VendorBuys.lua, which sees every merchant purchase --
 -- this one included, tagged with the list -- so it is filed there once and never here as well. Never
 -- a ledger row either: goldcap.gg's ledger is auction house money.
-function GC.Buy.RecordVendorPurchase(itemID, qty, spent)
-  if not (current and (qty or 0) > 0) then return end
+function GC.Buy.RecordVendorPurchase(itemID, qty, spent, runCode)
+  -- Credited to the list the press was for and to no other, as settlePurchase does: another list
+  -- opened meanwhile has not bought these units.
+  if not (current and (qty or 0) > 0 and runCode == current:Code()) then return end
   local at = time()
   current:RecordPurchase(itemID, qty, spent or 0, at)
   scanBags()

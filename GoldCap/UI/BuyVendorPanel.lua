@@ -57,7 +57,7 @@ local function onVendorBuyClick(button)
   local qty = P.MULTI_CALL and plan.qty or plan.calls[1]
   pendingSeq = pendingSeq + 1
   P._pending = { itemID = plan.itemID, qty = qty, unit = plan.cost / plan.qty,
-    countBefore = itemCount(plan.itemID), token = pendingSeq }
+    countBefore = itemCount(plan.itemID), token = pendingSeq, code = P._code }
   -- The merchant hook (Core/VendorBuys.lua) books this purchase as cost, once, for the list.
   if GC.VendorBuys then GC.VendorBuys.Tag(P._code) end
   if P.MULTI_CALL then
@@ -282,14 +282,20 @@ function P.OnMerchantClosed()
 end
 
 -- BAG_UPDATE_DELAYED: what a press bought has arrived (or loot of the same item, which Settle never
--- credits beyond what the press asked for).
+-- credits beyond what the press asked for). The units credit the list the press was for
+-- (`pending.code`), not whichever list is open now, and the press stays pending until the whole
+-- quantity has arrived or P._Expire gives it up: a merchant's stacks can land one bag update at a
+-- time, and the later ones are the press's too.
 function P.OnBagsChanged()
   local pending = P._pending
   if not pending then return end
   local got = GC.BuyVendor.Settle(pending, itemCount(pending.itemID))
   if not got then return end
-  P._pending = nil
+  pending.qty, pending.countBefore = pending.qty - got.qty, pending.countBefore + got.qty
+  if pending.qty <= 0 then P._pending = nil end
   P._bought[got.itemID] = (P._bought[got.itemID] or 0) + got.qty
-  if GC.Buy and GC.Buy.RecordVendorPurchase then GC.Buy.RecordVendorPurchase(got.itemID, got.qty, got.spent) end
+  if GC.Buy and GC.Buy.RecordVendorPurchase then
+    GC.Buy.RecordVendorPurchase(got.itemID, got.qty, got.spent, pending.code)
+  end
   if frame and frame:IsShown() then P.Refresh() end
 end

@@ -398,13 +398,21 @@ describe("BuyFrame", function()
   it("books a vendor purchase against the list and writes no ledger row", function()
     local appended = 0
     GC.Ledger = { Append = function() appended = appended + 1 end }
-    GC.Buy.RecordVendorPurchase(104, 20, 200)
+    GC.Buy.RecordVendorPurchase(104, 20, 200, GC.Buy.CurrentRun():Code())
     local line
     for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do if l.itemID == 104 then line = l end end
     assert.equal(20, line.bought)
     assert.equal(200, line.spent)
     assert.is_true(line.done)
     assert.equal(0, appended)
+  end)
+
+  it("credits a vendor purchase to the list the press was for, never to another one", function()
+    GC.Buy.RecordVendorPurchase(104, 20, 200, "some-other-list")
+    GC.Buy.RecordVendorPurchase(104, 20, 200, nil)
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do
+      if l.itemID == 104 then assert.is_true((l.bought or 0) == 0) end
+    end
   end)
 
   it("puts the vendor line after the open ones and the finished line last", function()
