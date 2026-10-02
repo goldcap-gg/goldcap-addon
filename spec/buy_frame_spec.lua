@@ -1086,6 +1086,18 @@ describe("BuyFrame", function()
       assert.equal(14047, add.matches[1].itemID)
     end)
 
+    -- A purchase recorded by an English client keeps its English name; a Russian client still finds
+    -- it under the name it gives the item itself.
+    it("finds an item recorded under another language by the client's own name", function()
+      GC.db.ledger = { { itemID = 2589, itemName = "Linen Cloth" } }
+      NAMES[2589] = "Льняная ткань"
+      local add = GC.Buy._view.add
+      add.box:SetText("льнян")
+      add.box.scripts.OnTextChanged(add.box, true)
+      NAMES[2589] = nil
+      assert.equal(2589, add.matches[1].itemID)
+    end)
+
     it("walks the matches with the arrow keys, and Enter adds the one picked", function()
       GC.db.itemNames = { [2589] = { n = "Linen Cloth" }, [4306] = { n = "Linen Thread" } }
       local add = GC.Buy._view.add

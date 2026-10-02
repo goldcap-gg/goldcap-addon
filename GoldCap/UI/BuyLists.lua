@@ -193,14 +193,25 @@ function GC.BuyLists.KnownNames(add)
   end
   walkBags(BAGS, add)
   walkBags(bankBags(), add)
+  -- A stored name is in the language of the client that recorded it (a retail purchase made in
+  -- English reads "Linen Cloth" in a Russian Forever client), so each id also gets the client's own
+  -- name, once, when the client has it.
+  local named = {}
+  local function addStored(itemID, name)
+    add(itemID, name)
+    if type(itemID) == "number" and not named[itemID] then
+      named[itemID] = true
+      add(itemID, itemName(itemID))
+    end
+  end
   for itemID, row in pairs(type(db.itemNames) == "table" and db.itemNames or {}) do
-    if type(row) == "table" then add(itemID, row.n) end
+    if type(row) == "table" then addStored(itemID, row.n) end
   end
   for _, row in ipairs(type(db.ledger) == "table" and db.ledger or {}) do
-    if type(row) == "table" then add(row.itemID, row.itemName) end
+    if type(row) == "table" then addStored(row.itemID, row.itemName) end
   end
   for _, batch in ipairs(type(db.acquisitions) == "table" and db.acquisitions or {}) do
-    if type(batch) == "table" then add(batch.itemID, batch.itemName) end
+    if type(batch) == "table" then addStored(batch.itemID, batch.itemName) end
   end
 end
 
