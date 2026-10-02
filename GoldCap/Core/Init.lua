@@ -590,6 +590,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
         vendorUnit = function(itemID)
           return GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
         end,
+        -- What the item sells for now, at the figure its tooltip prints, for a reagent no
+        -- purchase and no vendor price covers (gathered, a quest reward, bought before install).
+        marketUnit = function(itemID)
+          if not (GC.Tooltip and GC.Tooltip.Headline and GC.Data and GC.Data.GetItemValue) then
+            return nil
+          end
+          local ok, unit = pcall(function() return (GC.Tooltip.Headline(GC.Data.GetItemValue(itemID))) end)
+          return ok and type(unit) == "number" and math.floor(unit) or nil
+        end,
         isConverted = function(itemID)
           return type(GC.db.craftConverted) == "table" and GC.db.craftConverted[itemID] == true
         end,

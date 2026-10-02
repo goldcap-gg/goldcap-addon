@@ -48,6 +48,25 @@ local function liveLine(live)
   return { kind = "live", left = GC.L["On the AH now"], copper = live.floor, detail = detail }
 end
 
+-- The price the tooltip's first line prints for `v` (a GC.Data.GetItemValue answer), and which of
+-- its lines that is: "region" (an imported realm item's region reference), "median" (an imported
+-- realm item with no reference: its realm median, labelled unverified) or "value" (everything
+-- else; for a WoW: Forever gear scan, the cheapest version's price). nil when the tooltip prints no
+-- price. Whatever else tells the player what an item fetches on the auction house -- a craft's
+-- reagent the player never bought -- takes its number from here, so it never says something the
+-- item's own tooltip does not. The realm-item rule is explained in BuildLines below.
+function GC.Tooltip.Headline(v)
+  if type(v) ~= "table" then return nil end
+  if v.kind == "realm_item" and v.source == "import" then
+    local ref = GC.Trigger and GC.Trigger.RealmReference and GC.Trigger.RealmReference(v) or nil
+    if ref then return ref, "region" end
+    if v.mv then return v.mv, "median" end
+    return nil
+  end
+  if v.mv then return v.mv, "value" end
+  return nil
+end
+
 -- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
 -- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
 -- than from `v` because none belongs to the market value: the player's own ledger, which bundled

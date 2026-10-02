@@ -1211,6 +1211,10 @@ GC.Locales.itIT = {
     "%s: %d al prezzo del venditore, %s ciascuno",
   ["%s: priced from another character's purchases"] =
     "%s: valutato in base agli acquisti di un altro personaggio",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d al prezzo di mercato, %s l'uno",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Parte di questo costo è una stima: i reagenti che non hai comprato sono contati al loro prezzo attuale alla casa d'aste",
   ["Vendor"] =
     "Venditore",
 }

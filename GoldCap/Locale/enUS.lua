@@ -1194,6 +1194,10 @@ GC.Locales.enUS = {
     "%s: %d at the vendor price, %s each",
   ["%s: priced from another character's purchases"] =
     "%s: priced from another character's purchases",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d at the market price, %s each",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price",
   ["Vendor"] =
     "Vendor",
 }

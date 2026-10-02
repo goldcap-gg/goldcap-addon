@@ -584,6 +584,15 @@ createRow = function(parent)
     if self.tooltipPaidUnit then
       GameTooltip:AddLine(GC.Util.ClientText((GC.L["paid %s each"]):format(formatAmount(self.tooltipPaidUnit))),
         0.85, 0.85, 0.85, true)
+      -- A crafted item whose cost counts reagents at the market price says so, and which.
+      if GC.CraftCapture and GC.CraftCapture.WhyEstimated and C_Item and C_Item.GetItemNameByID then
+        for _, line in ipairs(GC.CraftCapture.WhyEstimated(self.tooltipItemID, function(itemID)
+          local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+          return ok and type(name) == "string" and name or nil
+        end)) do
+          GameTooltip:AddLine(GC.Util.ClientText(line), 0.85, 0.85, 0.85, true)
+        end
+      end
     elseif self.tooltipCostUnknown then
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["cost unknown"]), 0.85, 0.85, 0.85, true)
       -- A crafted item says which reagent had no price and why (/gc craft says the same).

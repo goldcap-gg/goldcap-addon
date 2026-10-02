@@ -42,6 +42,36 @@ local function sortedTotals(totals)
   return out
 end
 
+-- The fall in a recipe's candidate reagents between the session's two counts, as a sorted array,
+-- or nil plus a reason. `allowed` is the set of ids the recipe can make: one that is also a reagent
+-- nets against itself in the delta, and no arithmetic recovers either.
+local function spentOf(recipe, before, after, allowed)
+  local spent = {}
+  for itemID in pairs(recipe.candidates) do
+    if allowed and allowed[itemID] then return nil, "output-is-reagent" end
+    local opened, closed = before[itemID], after[itemID]
+    -- A candidate the counts do not cover means the snapshot and the recipe disagree, and a
+    -- reagent silently priced at zero is exactly the understatement this module exists to
+    -- avoid.
+    if not isExactInteger(opened) or not isExactInteger(closed) then return nil, "bad-counts" end
+    if opened > closed then spent[itemID] = opened - closed end
+  end
+  return sortedTotals(spent)
+end
+
+--- What a session spent even when the craft cannot be costed (a recraft, a prospecting, a result
+-- no recipe output names): the reagents left the bags all the same, so the lots covering them must
+-- follow. A sorted array of { itemID, quantity }, or nil when the counts cannot say.
+function GC.CraftCapture.SpentOf(session)
+  if type(session) ~= "table" or type(session.recipe) ~= "table"
+      or type(session.recipe.candidates) ~= "table"
+      or type(session.before) ~= "table" or type(session.after) ~= "table" then
+    return nil
+  end
+  local consumed = spentOf(session.recipe, session.before, session.after, nil)
+  return consumed and #consumed > 0 and consumed or nil
+end
+
 --- What one crafting session produced and what it cost in materials.
 --
 -- session = {
@@ -102,19 +132,8 @@ function GC.CraftCapture.Plan(session)
   local outputs = sortedTotals(produced)
   if #outputs == 0 then return nil, "no-output" end
 
-  local spent = {}
-  for itemID in pairs(recipe.candidates) do
-    -- An id that is both a reagent and an output nets against itself in the delta: what went
-    -- in is hidden by what came out, and no amount of arithmetic here recovers either.
-    if allowed[itemID] then return nil, "output-is-reagent" end
-    local opened, closed = before[itemID], after[itemID]
-    -- A candidate the counts do not cover means the snapshot and the recipe disagree, and a
-    -- reagent silently priced at zero is exactly the understatement this module exists to
-    -- avoid.
-    if not isExactInteger(opened) or not isExactInteger(closed) then return nil, "bad-counts" end
-    if opened > closed then spent[itemID] = opened - closed end
-  end
-  local consumed = sortedTotals(spent)
+  local consumed, why = spentOf(recipe, before, after, allowed)
+  if not consumed then return nil, why end
   if #consumed == 0 then return nil, "no-consumption" end
 
   return { outputs = outputs, consumed = consumed, ignored = ignored }
@@ -168,21 +187,30 @@ end
 --                         record covers, and is said as "vendor price", never as a purchase.
 --   converted(itemID)  -> true when the item is known to have come out of a crafting session
 --                         that makes several unrelated items (prospecting, crushing, milling).
+--   marketUnit(itemID) -> what the item sells for now, the figure GoldCap's tooltip prints, or
+--                         nil. The last resort for a unit no purchase and no vendor price covers
+--                         (gathered, a quest reward, bought before the install, unknown origin):
+--                         such a reagent is worth what it would sell for, the rule CraftSim, TSM
+--                         and Auctionator use, and the cost is said to be partly an estimate.
+--
+-- Per unit, FIFO: this character's lots, then other characters' lots, then the vendor's fixed
+-- price, then the market price.
 --
 -- Returns { total, reagents = { { itemID, quantity, consumeQty, positionKey, plan, ids,
--- crossChar, vendorQty, vendorUnit, via } } } or nil + a reason + `missing`, one entry per
--- reagent that has no price: { itemID, quantity, known, why } with why one of "no_purchase",
--- "partial", "conversion", "identity". The reason is a stable word; `missing` is how the
--- player is told WHICH reagent and why.
+-- crossChar, vendorQty, vendorUnit, marketQty, marketUnit, via } } } or nil + a reason +
+-- `missing` + `covered`. `missing` has one entry per reagent that has no price at all:
+-- { itemID, quantity, known, why } with why one of "no_purchase", "partial", "conversion",
+-- "identity". The reason is a stable word; `missing` is how the player is told WHICH reagent
+-- and why. `covered` is the reagents (same shape as `reagents`) whose recorded lots cover some
+-- units: those units left the bags whether or not the craft could be costed, so they are spent
+-- from the lots all the same (see Spend).
 --
 -- ALL OR NOTHING. A batch carries ONE unit cost for all of its units, so a craft whose inputs
--- are only partly costed cannot be recorded without either understating that unit cost or
+-- are only partly priced cannot be recorded without either understating that unit cost or
 -- inventing a quantity split that never happened. Understating is the dangerous direction:
 -- Core/Flips.lua turns a cost basis into `breakeven`, and RepostAdvice turns `belowCost` into
--- "hold, you would sell at a loss". A basis that is merely plausible makes GoldCap give advice
--- on a number nobody paid. So a reagent the player gathered or looted leaves the whole craft
--- uncosted -- which is exactly what the Sell tab says today. A vendor's own fixed price is the
--- one exception, because it is what a vendor reagent costs, whoever bought it.
+-- "hold, you would sell at a loss". So a reagent with no price of any of the four kinds leaves
+-- the whole craft uncosted -- which is exactly what the Sell tab says today.
 function GC.CraftCapture.Cost(consumed, batchesFor, extras)
   if type(consumed) ~= "table" or #consumed == 0 or type(batchesFor) ~= "function" then
     return nil, "uncosted"
@@ -191,6 +219,8 @@ function GC.CraftCapture.Cost(consumed, batchesFor, extras)
 
   local reagents, missing, total = {}, {}, 0
   local failure
+  -- Reagents whose recorded lots cover some of the units, whatever happens to the craft.
+  local covered = {}
   for _, line in ipairs(consumed) do
     if not isPositiveInteger(line.itemID) or not isPositiveInteger(line.quantity) then
       return nil, "uncosted"
@@ -266,41 +296,84 @@ function GC.CraftCapture.Cost(consumed, batchesFor, extras)
         end
       end
 
-      if knownQty + vendorQty < line.quantity or not isExactInteger(knownCost + vendorCost) then
+      -- Whatever no purchase and no vendor covers is worth what it would sell for.
+      local marketQty, marketUnit, marketCost = 0, nil, 0
+      if knownQty + vendorQty < line.quantity and type(extras.marketUnit) == "function" then
+        local unit = extras.marketUnit(line.itemID)
+        if isPositiveInteger(unit) then
+          marketQty, marketUnit = line.quantity - knownQty - vendorQty, unit
+          marketCost = marketQty * unit
+        end
+      end
+
+      local priced = knownQty + vendorQty + marketQty >= line.quantity
+        and isExactInteger(knownCost + vendorCost + marketCost)
+      local ids, owner = {}, {}
+      for _, group in ipairs({ own, others }) do
+        for _, candidate in ipairs(group) do owner[candidate.id] = candidate.character end
+      end
+      for _, allocation in ipairs(allocations) do
+        ids[allocation.batchID] = true
+        allocation.character = owner[allocation.batchID]
+      end
+      local plan = { allocations = allocations, knownQty = knownQty, knownCost = knownCost,
+        requestedQty = knownQty, coverage = "COMPLETE" }
+      local via = {}
+      if crossChar then via[#via + 1] = "other-character" end
+      if vendorQty > 0 then via[#via + 1] = "vendor-price" end
+      if marketQty > 0 then via[#via + 1] = "market-price" end
+      local reagent = { itemID = line.itemID, quantity = line.quantity,
+        consumeQty = knownQty, positionKey = positionKey, plan = plan, ids = ids,
+        crossChar = crossChar, vendorQty = vendorQty, vendorUnit = vendorUnit,
+        marketQty = marketQty, marketUnit = marketUnit, via = via }
+      if knownQty > 0 then covered[#covered + 1] = reagent end
+
+      if not priced then
         local converted = type(extras.converted) == "function" and extras.converted(line.itemID)
         missing[#missing + 1] = { itemID = line.itemID, quantity = line.quantity, known = knownQty,
           why = converted and "conversion" or (knownQty > 0 and "partial" or "no_purchase") }
         failure = failure or "uncosted"
       else
-        local ids, owner = {}, {}
-        for _, group in ipairs({ own, others }) do
-          for _, candidate in ipairs(group) do owner[candidate.id] = candidate.character end
-        end
-        for _, allocation in ipairs(allocations) do
-          ids[allocation.batchID] = true
-          allocation.character = owner[allocation.batchID]
-        end
-        local plan = { allocations = allocations, knownQty = knownQty, knownCost = knownCost,
-          requestedQty = knownQty, coverage = "COMPLETE" }
-        local lineCost = knownCost + vendorCost
-        if total > MAX_EXACT - lineCost then return nil, "overflow" end
+        local lineCost = knownCost + vendorCost + marketCost
+        if total > MAX_EXACT - lineCost then return nil, "overflow", nil, covered end
         total = total + lineCost
-        local via = {}
-        if crossChar then via[#via + 1] = "other-character" end
-        if vendorQty > 0 then via[#via + 1] = "vendor-price" end
-        reagents[#reagents + 1] = { itemID = line.itemID, quantity = line.quantity,
-          consumeQty = knownQty, positionKey = positionKey, plan = plan, ids = ids,
-          crossChar = crossChar, vendorQty = vendorQty, vendorUnit = vendorUnit, via = via }
+        reagents[#reagents + 1] = reagent
       end
     end
   end
-  if failure then return nil, failure, missing end
+  if failure then return nil, failure, missing, covered end
 
   -- Mats that are on record as having cost nothing give a basis of zero, and a zero basis
   -- makes every price look like pure profit. Acquisitions.Record refuses a non-positive total
   -- anyway; refusing here names the reason.
-  if not isPositiveInteger(total) then return nil, "uncosted" end
+  if not isPositiveInteger(total) then return nil, "uncosted", nil, covered end
   return { total = total, reagents = reagents }
+end
+
+--- Take the units the recorded lots cover off those lots.
+--
+-- Run for a craft that was costed AND for one that could not be: the reagents left the bags
+-- either way, and a lot left standing would drift above what the player holds. Only what the
+-- books hold is taken -- a vendor's or the market's price has no batch to spend. Every consume
+-- keys its evidence off the session key, so running it again for the same session spends nothing
+-- twice (Acquisitions.Consume refuses a repeated evidence key outright). A refused consume does not
+-- stop the others. Returns whether every consume went through, and the reagents that were spent.
+function GC.CraftCapture.Spend(reagents, context, at, sessionKey)
+  if type(reagents) ~= "table" or type(context) ~= "table" or not isExactInteger(at)
+      or type(sessionKey) ~= "string" or sessionKey == "" then
+    return false, {}
+  end
+  local ok, done = true, {}
+  for _, reagent in ipairs(reagents) do
+    local take = reagent.consumeQty or reagent.quantity
+    if take > 0 then
+      local spent = GC.Acquisitions.Consume(reagent.positionKey, take,
+        sessionKey .. ":" .. reagent.itemID, at, context, reagent.plan,
+        { ids = reagent.ids, crossChar = reagent.crossChar })
+      if spent then done[#done + 1] = reagent else ok = false end
+    end
+  end
+  return ok, done
 end
 
 --- Spend the reagents, record what the session made.
@@ -336,16 +409,8 @@ function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey, outputKe
   if unitCost < 1 then return nil, "sub-copper" end
   local remainder = costing.total - unitCost * units
 
-  for _, reagent in ipairs(costing.reagents) do
-    -- The part a vendor's fixed price covered has no batch to spend; only what the books hold is
-    -- taken off them.
-    local take = reagent.consumeQty or reagent.quantity
-    if take > 0 then
-      local spent = GC.Acquisitions.Consume(reagent.positionKey, take,
-        sessionKey .. ":" .. reagent.itemID, at, context, reagent.plan,
-        { ids = reagent.ids, crossChar = reagent.crossChar })
-      if not spent then return nil, "consume-failed" end
-    end
+  if not GC.CraftCapture.Spend(costing.reagents, context, at, sessionKey) then
+    return nil, "consume-failed"
   end
 
   -- The remainder rides on the first output, so the batches still sum to exactly what was
@@ -430,14 +495,23 @@ function GC.CraftCapture.Describe(outcome, nameOf)
       lines[#lines + 1] = (GC.L[MISSING_WORDS[miss.why]]):format(name(miss.itemID), miss.quantity)
     end
   end
+  local estimated = false
   for _, reagent in ipairs(outcome.reagents or {}) do
     if reagent.vendorQty then
       lines[#lines + 1] = (GC.L["%s: %d at the vendor price, %s each"]):format(name(reagent.itemID),
         reagent.vendorQty, GC.Util.CoinText(reagent.vendorUnit or 0))
     end
+    if reagent.marketQty then
+      lines[#lines + 1] = (GC.L["%s: %d at the market price, %s each"]):format(name(reagent.itemID),
+        reagent.marketQty, GC.Util.CoinText(reagent.marketUnit or 0))
+      estimated = true
+    end
     if reagent.otherCharacter then
       lines[#lines + 1] = (GC.L["%s: priced from another character's purchases"]):format(name(reagent.itemID))
     end
+  end
+  if estimated then
+    lines[#lines + 1] = GC.L["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"]
   end
   return lines
 end
@@ -478,6 +552,7 @@ local outcomes = sessionOutcomes
 --   outcomes -> optional array to keep the diagnostic record in (SavedVariables-resident),
 --   othersFor(itemID) -> optional; active batches of the account's other characters in the region,
 --   vendorUnit(itemID) -> optional; a vendor's fixed price for one of the item, when known,
+--   marketUnit(itemID) -> optional; what the item sells for now (the tooltip's figure), when known,
 --   isConverted(itemID) / noteConverted(itemID) -> optional; items a prospecting-like craft made,
 --   recordLedger(rows) -> optional; hands the settled craft to the site ledger (Core/Ledger.lua),
 -- }
@@ -511,6 +586,73 @@ function GC.CraftCapture.WhyUncosted(itemID, nameOf)
   return {}
 end
 
+--- The words for a costed craft of an item when some of its cost is not a price the player paid
+--- (the Sold tab's tooltip asks it of an item whose cost is known): which reagents were counted at
+--- the market price, and that the cost is partly an estimate. Empty when the newest craft that made
+--- the item was priced from purchases alone, or the item was never crafted here.
+function GC.CraftCapture.WhyEstimated(itemID, nameOf)
+  for index = #outcomes, 1, -1 do
+    local outcome = outcomes[index]
+    local made = outcome.outputItemID == itemID
+    for _, output in ipairs(outcome.outputs or {}) do
+      if output.itemID == itemID then made = true end
+    end
+    if made then
+      if outcome.reason then return {} end
+      for _, reagent in ipairs(outcome.reagents or {}) do
+        if reagent.marketQty then return GC.CraftCapture.Describe(outcome, nameOf) end
+      end
+      return {}
+    end
+  end
+  return {}
+end
+
+local function costExtras()
+  return { others = driver.othersFor, vendorUnit = driver.vendorUnit, converted = driver.isConverted,
+    marketUnit = driver.marketUnit }
+end
+
+-- The site's ledger hears about a craft from BOTH ends, or its books do not balance: a `consume`
+-- row per reagent so the stock the player no longer holds leaves the portfolio, and a `craft` buy
+-- per output so what they made has a basis. The consumes carry no cost, because that gold was
+-- already recorded when the reagents were bought and counting it twice is the one thing this
+-- split exists to avoid. Only what a ledger purchase paid for leaves the ledger's stock: a
+-- merchant's purchase, a vendor price and a market price were never rows there. Lots of another
+-- character leave under that character. The keys follow the session key, so a row read again
+-- is the same row.
+local function consumeRows(reagents, sessionKey, context, now)
+  local rows = {}
+  for _, reagent in ipairs(reagents) do
+    local byChar, order = {}, {}
+    for _, allocation in ipairs(reagent.plan.allocations) do
+      if allocation.source ~= "vendor" then
+        local char = allocation.character or context.char
+        if not byChar[char] then byChar[char] = 0; order[#order + 1] = char end
+        byChar[char] = byChar[char] + allocation.quantity
+      end
+    end
+    for _, char in ipairs(order) do
+      local own = char == context.char
+      rows[#rows + 1] = { key = sessionKey .. "\1" .. reagent.itemID .. (own and "" or "\1" .. char),
+        kind = "consume", source = "craft", itemID = reagent.itemID, qty = byChar[char],
+        total = 0, at = now, char = (not own) and char or nil }
+    end
+  end
+  return rows
+end
+
+-- A craft that could not be costed still spent its reagents: take the units the recorded lots
+-- cover off those lots, once, and tell the ledger. No output lot is written for it.
+local function spendUncosted(session, reagents, now)
+  if type(reagents) ~= "table" or #reagents == 0 then return end
+  local context = driver.context()
+  local _, spent = GC.CraftCapture.Spend(reagents, context, now, session.key)
+  if #spent > 0 and type(driver.recordLedger) == "function" then
+    driver.recordLedger(consumeRows(spent, session.key, context, now))
+  end
+end
+
 local function remember(outcome)
   outcomes[#outcomes + 1] = outcome
   while #outcomes > RECENT_CAP do table.remove(outcomes, 1) end
@@ -542,6 +684,16 @@ local function close(now)
       end
       if #made > 0 then outcome.made = made end
     end
+    -- The mats of a craft that cannot be costed left the bags all the same. A session with no
+    -- result at all is not that: an interrupted cast says nothing about where a count went.
+    if #session.results > 0
+        and (reason == "recraft" or reason == "random-output" or reason == "no-output") then
+      local spent = GC.CraftCapture.SpentOf(session)
+      if spent then
+        local priced, _, _, covered = GC.CraftCapture.Cost(spent, driver.batchesFor, costExtras())
+        spendUncosted(session, priced and priced.reagents or covered, now)
+      end
+    end
     if reason == "random-output" and type(driver.noteConverted) == "function" then
       for _, result in ipairs(session.results) do
         if type(result) == "table" and result.isEnchant ~= true and isPositiveInteger(result.itemID) then
@@ -552,13 +704,13 @@ local function close(now)
     return remember(outcome)
   end
 
-  local costing, missing
-  costing, reason, missing = GC.CraftCapture.Cost(plan.consumed, driver.batchesFor, {
-    others = driver.othersFor, vendorUnit = driver.vendorUnit, converted = driver.isConverted,
-  })
+  local costing, missing, covered
+  costing, reason, missing, covered = GC.CraftCapture.Cost(plan.consumed, driver.batchesFor,
+    costExtras())
   if not costing then
     outcome.reason = reason
     outcome.missing = missing
+    spendUncosted(session, covered, now)
     return remember(outcome)
   end
 
@@ -568,36 +720,14 @@ local function close(now)
     function(itemID) return GC.CraftCapture.OutputKey(itemID, known, driver.batchesFor(itemID)) end)
   if not recorded then
     outcome.reason = reason
+    -- Nothing was written for the output, but the mats are gone all the same. Settle may have
+    -- spent them already; a repeat is refused, so this takes only what is left.
+    spendUncosted(session, costing.reagents, now)
     return remember(outcome)
   end
 
-  -- The site's ledger hears about a craft from BOTH ends, or its books do not
-  -- balance: a `consume` row per reagent so the stock the player no longer
-  -- holds leaves the portfolio, and a `craft` buy per output so what they made
-  -- has a basis. The buy carries the cost; the consumes carry none, because
-  -- that gold was already recorded when the reagents were bought and counting
-  -- it twice is the one thing this split exists to avoid.
   if type(driver.recordLedger) == "function" then
-    local rows = {}
-    -- Only what a ledger purchase paid for leaves the ledger's stock: a merchant's purchase and a
-    -- vendor price were never rows there. Lots of another character leave under that character.
-    local context = driver.context()
-    for _, reagent in ipairs(costing.reagents) do
-      local byChar, order = {}, {}
-      for _, allocation in ipairs(reagent.plan.allocations) do
-        if allocation.source ~= "vendor" then
-          local char = allocation.character or context.char
-          if not byChar[char] then byChar[char] = 0; order[#order + 1] = char end
-          byChar[char] = byChar[char] + allocation.quantity
-        end
-      end
-      for _, char in ipairs(order) do
-        local own = char == context.char
-        rows[#rows + 1] = { key = session.key .. "\1" .. reagent.itemID .. (own and "" or "\1" .. char),
-          kind = "consume", source = "craft", itemID = reagent.itemID, qty = byChar[char],
-          total = 0, at = now, char = (not own) and char or nil }
-      end
-    end
+    local rows = consumeRows(costing.reagents, session.key, driver.context(), now)
     for _, batch in ipairs(recorded.batches) do
       rows[#rows + 1] = { key = session.key .. "\1out\1" .. batch.itemID, kind = "buy",
         source = "craft", itemID = batch.itemID, itemName = batch.itemName,
@@ -615,7 +745,9 @@ local function close(now)
       outcome.reagents = outcome.reagents or {}
       outcome.reagents[#outcome.reagents + 1] = { itemID = reagent.itemID, quantity = reagent.quantity,
         vendorQty = reagent.vendorQty > 0 and reagent.vendorQty or nil,
-        vendorUnit = reagent.vendorUnit, otherCharacter = reagent.crossChar or nil }
+        vendorUnit = reagent.vendorUnit, otherCharacter = reagent.crossChar or nil,
+        marketQty = reagent.marketQty > 0 and reagent.marketQty or nil,
+        marketUnit = reagent.marketQty > 0 and reagent.marketUnit or nil }
     end
   end
   -- Kept so the diagnostic can read each batch's CURRENT identity: a craft away from the

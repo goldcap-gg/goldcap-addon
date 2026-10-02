@@ -1117,6 +1117,10 @@ GC.Locales.zhTW = {
     "%s：%d 個按商人價格計算，每個 %s",
   ["%s: priced from another character's purchases"] =
     "%s：按其他角色的購買記錄計價",
+  ["%s: %d at the market price, %s each"] =
+    "%s：%d 個按市場價計算，每個 %s",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "此成本的一部分是估算值：你沒有購買的材料按其目前拍賣場價格計算",
   ["Vendor"] =
     "商人",
 }

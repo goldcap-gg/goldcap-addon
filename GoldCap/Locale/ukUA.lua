@@ -1222,6 +1222,10 @@ GC.Locales.ukUA = {
     "%s: %d за ціною торговця, %s за штуку",
   ["%s: priced from another character's purchases"] =
     "%s: ціну взято з покупок іншого персонажа",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d за ринковою ціною, по %s за штуку",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Частина цієї вартості — оцінка: реагенти, яких ви не купували, пораховано за їхньою поточною ціною на аукціоні",
   ["Vendor"] =
     "Торговець",
 }

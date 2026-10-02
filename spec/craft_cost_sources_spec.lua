@@ -4,7 +4,7 @@ local helper = require("spec.spec_helper")
 -- a merchant, the player's own earlier craft, another character of the account. Real
 -- Core/Acquisitions.lua and Core/CraftCapture.lua; the client is a driver of API-shaped answers.
 describe("craft cost sources", function()
-  local GC, db, counts, runs, converted, driver_rows
+  local GC, db, counts, runs, converted, driver_rows, market
   local me = { char = "Cook-Realm", region = "eu" }
   local alt = "Alt-Realm"
   local SPELL = { pork = 11, roast = 12, gem = 13, crush = 14 }
@@ -43,6 +43,7 @@ describe("craft cost sources", function()
         return out
       end,
       vendorUnit = function(itemID) return runs[itemID] end,
+      marketUnit = function(itemID) return market[itemID] end,
       isConverted = function(itemID) return converted[itemID] == true end,
       noteConverted = function(itemID) converted[itemID] = true end,
       commodityKinds = function() return {} end,
@@ -81,7 +82,7 @@ describe("craft cost sources", function()
     GC.Util = { CoinText = function(c) return tostring(c) .. "c" end }
     db = { acquisitions = {} }
     GC.Acquisitions.Init(db)
-    counts, runs, converted = {}, {}, {}
+    counts, runs, converted, market = {}, {}, {}, {}
     driver_rows = nil
     GC.CraftCapture.SetDriver(driver())
   end)
@@ -243,5 +244,146 @@ describe("craft cost sources", function()
     counts = { [10] = 4, [11] = 4 }
     craft(SPELL.pork, { { itemID = 500, quantity = 2 } }, { [10] = 0, [11] = 0 }, 100)
     assert.same({}, GC.CraftCapture.Describe(lastOutcome()))
+  end)
+
+  local function names(id) return "Item" .. id end
+
+  describe("the market price as the last resort", function()
+    it("prices a reagent with no purchase and no vendor price at its market price and says so", function()
+      buy(10, 4, 400, 1)
+      market[11] = 128                 -- gathered: no lot, no vendor line
+      counts = { [10] = 4, [11] = 3 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      local outcome = lastOutcome()
+      assert.is_nil(outcome.reason)
+      assert.equal(400 + 3 * 128, outcome.total)
+      assert.same({ { itemID = 11, quantity = 3, marketQty = 3, marketUnit = 128 } }, outcome.reagents)
+      assert.same({ "Item11: 3 at the market price, 128c each",
+        "Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price" },
+        GC.CraftCapture.Describe(outcome, names))
+      assert.same(GC.CraftCapture.Describe(outcome, names), GC.CraftCapture.WhyEstimated(500, names))
+    end)
+
+    it("prefers a purchase, then the vendor's price, then the market price, unit by unit", function()
+      buy(10, 4, 400, 1)
+      buy(11, 2, 14, 1)                -- two bought for real at 7c
+      runs[11] = 5
+      market[11] = 999                 -- never reached: the vendor covers the rest
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      local outcome = lastOutcome()
+      assert.equal(400 + 14 + 2 * 5, outcome.total)
+      assert.same({ { itemID = 11, quantity = 4, vendorQty = 2, vendorUnit = 5 } }, outcome.reagents)
+    end)
+
+    it("covers the rest of a partly bought reagent at the market price", function()
+      buy(10, 4, 400, 1)
+      buy(11, 2, 14, 1)
+      market[11] = 50
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      local outcome = lastOutcome()
+      assert.equal(400 + 14 + 2 * 50, outcome.total)
+      assert.same({ { itemID = 11, quantity = 4, marketQty = 2, marketUnit = 50 } }, outcome.reagents)
+      assert.equal(0, lot(11, "auction_house").remainingQty)
+    end)
+
+    it("prices a conversion's output at the market price", function()
+      buy(10, 4, 400, 1)
+      converted[11] = true
+      market[11] = 20
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.is_nil(lastOutcome().reason)
+      assert.equal(400 + 80, lastOutcome().total)
+    end)
+
+    it("leaves a reagent with no price of any kind missing and the craft uncosted", function()
+      buy(10, 4, 400, 1)
+      counts = { [10] = 4, [11] = 3 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      local outcome = lastOutcome()
+      assert.equal("uncosted", outcome.reason)
+      assert.same({ { itemID = 11, quantity = 3, known = 0, why = "no_purchase" } }, outcome.missing)
+      assert.is_nil(lot(500, "craft"))
+    end)
+
+    it("keeps market-priced units out of the site ledger's consume rows", function()
+      buy(10, 4, 400, 1)
+      market[11] = 128
+      counts = { [10] = 4, [11] = 3 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      local items = {}
+      for _, row in ipairs(driver_rows) do if row.kind == "consume" then items[#items + 1] = row.itemID end end
+      assert.same({ 10 }, items)
+    end)
+
+    it("says nothing about an estimate when every reagent was bought", function()
+      buy(10, 4, 400, 1)
+      buy(11, 4, 20, 1)
+      market[11] = 128
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.same({}, GC.CraftCapture.WhyEstimated(500, names))
+    end)
+  end)
+
+  describe("an uncosted craft still spends the lots it knows", function()
+    it("takes the covered units off their lots, once, and writes no output lot", function()
+      buy(10, 4, 400, 1)               -- covered
+      counts = { [10] = 4, [11] = 3 }  -- 11 has no price of any kind
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.equal("uncosted", lastOutcome().reason)
+      assert.equal(0, lot(10, "auction_house").remainingQty)
+      assert.is_nil(lot(500, "craft"))
+      local consumes = {}
+      for _, row in ipairs(driver_rows) do consumes[#consumes + 1] = row.kind .. row.itemID end
+      assert.same({ "consume10" }, consumes)
+    end)
+
+    it("spends the bought part of a partly bought reagent", function()
+      buy(10, 4, 400, 1)
+      buy(11, 2, 14, 1)
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.equal("uncosted", lastOutcome().reason)
+      assert.equal(0, lot(11, "auction_house").remainingQty)
+    end)
+
+    it("does not spend a reagent bought as different variants", function()
+      buy(10, 2, 200, 1, { positionKey = "item:10:a" })
+      buy(10, 2, 200, 2, { positionKey = "item:10:b" })
+      buy(11, 4, 20, 1)
+      counts = { [10] = 4, [11] = 4 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.equal("ambiguous-identity", lastOutcome().reason)
+      assert.equal(2, lot(10, "auction_house").remainingQty)
+      assert.equal(0, lot(11, "auction_house").remainingQty)
+    end)
+
+    it("spends the lots of a prospecting-like craft the recipe could not name an output for", function()
+      buy(40, 5, 500, 1)
+      counts = { [40] = 5 }
+      craft(SPELL.crush, { { itemID = 41, quantity = 2 } }, { [40] = 0 }, 100)
+      assert.equal("random-output", lastOutcome().reason)
+      assert.equal(0, lot(40, "auction_house").remainingQty)
+    end)
+
+    it("never spends twice when the same session is settled again", function()
+      buy(10, 8, 800, 1)
+      counts = { [10] = 4, [11] = 3 }
+      craft(SPELL.pork, { { itemID = 500, quantity = 1 } }, { [10] = 0, [11] = 0 }, 100)
+      assert.equal(4, lot(10, "auction_house").remainingQty)
+      -- the same evidence read again: the plan is rebuilt from the same lots
+      local session = { recipe = recipes[SPELL.pork], before = { [10] = 4, [11] = 3 },
+        after = { [10] = 0, [11] = 0 }, results = { { itemID = 500, quantity = 1 } } }
+      local plan = GC.CraftCapture.Plan(session)
+      local _, _, _, covered = GC.CraftCapture.Cost(plan.consumed, driver().batchesFor, {})
+      local key = "craft:11:100:1"
+      local first, firstSpent = GC.CraftCapture.Spend(covered, me, 100, key)
+      assert.is_false(first)             -- the real run's own evidence key was this one
+      assert.equal(0, #firstSpent)
+      assert.equal(4, lot(10, "auction_house").remainingQty)
+    end)
   end)
 end)
