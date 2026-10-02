@@ -757,6 +757,15 @@ local function saleTooltip(row)
   else
     line(GC.L["GoldCap never saw this bought, so there is no profit to show. Set what it cost you in SELL."],
       body, true)
+    -- A crafted item says which reagent had no price and why (/gc craft says the same).
+    if info.id and GC.CraftCapture and GC.CraftCapture.WhyUncosted and C_Item and C_Item.GetItemNameByID then
+      for _, why in ipairs(GC.CraftCapture.WhyUncosted(info.id, function(itemID)
+        local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+        return ok and type(name) == "string" and name or nil
+      end)) do
+        line(why, body, true)
+      end
+    end
   end
   local market = info.id and marketFor(info.id)
   local pct = market and V.Percent(r.each, market)

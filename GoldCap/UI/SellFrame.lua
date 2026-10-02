@@ -5749,7 +5749,7 @@ renderRows = function()
           when = acquiredWhen(entry.batch.acquiredAt)
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House",
-          goldcap_buy = GC.L["Buy run"], manual = "entered by hand" })[entry.batch.source]
+          goldcap_buy = GC.L["Buy run"], vendor = GC.L["Vendor"], manual = "entered by hand" })[entry.batch.source]
           or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
         -- invoice or a guess, which is exactly the thing this whole tab refuses to fake. The

@@ -1236,4 +1236,22 @@ GC.Locales.enUS = {
     "The auction house did not answer. Search again.",
   ["Type a whole number."] = "Type a whole number.",
   ["Waiting for the auction house…"] = "Waiting for the auction house…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: no purchase of it found, here or on your other characters",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: only %d of them were bought, the rest has no price",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: made by prospecting, crushing or milling, not bought",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: bought as different variants, so which one was used is unclear",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d at the vendor price, %s each",
+  ["%s: priced from another character's purchases"] =
+    "%s: priced from another character's purchases",
+  ["Vendor"] =
+    "Vendor",
 }

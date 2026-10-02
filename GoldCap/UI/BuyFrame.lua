@@ -4437,16 +4437,14 @@ function GC.Buy.VendorLines()
   return { runName = runLabel(current), code = current:Code(), lines = lines }
 end
 
--- A vendor purchase the bags proved (GC.BuyVendor.Settle): booked against the list, and as cost in
--- the addon's own acquisitions -- never as a ledger row: goldcap.gg's ledger is auction house money.
+-- A vendor purchase the bags proved (GC.BuyVendor.Settle): booked against the list. The cost in the
+-- addon's own acquisitions is booked by Core/VendorBuys.lua, which sees every merchant purchase --
+-- this one included, tagged with the list -- so it is filed there once and never here as well. Never
+-- a ledger row either: goldcap.gg's ledger is auction house money.
 function GC.Buy.RecordVendorPurchase(itemID, qty, spent)
   if not (current and (qty or 0) > 0) then return end
   local at = time()
   current:RecordPurchase(itemID, qty, spent or 0, at)
-  local line = lineFor(itemID)
-  if (spent or 0) > 0 then
-    recordAcquisition(itemID, line and lineName(line) or nil, qty, spent, at, current:Code())
-  end
   scanBags()
   GC.Buy._listMeta = {}
   GC.Buy.RefreshIfShown()

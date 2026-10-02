@@ -1252,4 +1252,22 @@ GC.Locales.frFR = {
     "L'hôtel des ventes n'a pas répondu. Relancez la recherche.",
   ["Type a whole number."] = "Saisissez un nombre entier.",
   ["Waiting for the auction house…"] = "En attente de l'hôtel des ventes…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "cette recette transforme un composant en plusieurs objets différents (prospection, broyage, mouture), donc elle n'a pas de coût",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d : aucun achat trouvé, ni ici ni sur tes autres personnages",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d : seulement %d ont été achetés, le reste n'a pas de prix",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d : obtenu par prospection, broyage ou mouture, pas acheté",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d : acheté sous des variantes différentes, on ne sait donc pas laquelle a servi",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s : %d au prix du marchand, %s pièce",
+  ["%s: priced from another character's purchases"] =
+    "%s : valorisé d'après les achats d'un autre personnage",
+  ["Vendor"] =
+    "Marchand",
 }

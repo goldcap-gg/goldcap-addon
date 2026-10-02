@@ -72,6 +72,7 @@ describe("BUY vendor panel", function()
       Button = function() return button() end,
     }
     helper.loadModule("Core/BuyVendor.lua", GC)
+    helper.loadModule("Core/VendorBuys.lua", GC)
     GC.Buy = {
       VendorLines = function() return { runName = "Tailoring 1 → 100", code = "r", lines = lines } end,
       RecordVendorPurchase = function(itemID, qty, spent) recorded = { itemID, qty, spent } end,
