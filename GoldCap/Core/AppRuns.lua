@@ -387,6 +387,32 @@ function GC.AppRuns.List(opts)
   return result
 end
 
+-- What a vendor charges for one of an item, whole copper, when any list the player holds marks it
+-- a vendor stop (`v`) and carries the vendor's price (`vu`) -- on the line itself or on a reagent
+-- of the recipe attached to a line. The newest list that says so wins. nil when none does: a
+-- price on a line that is not a vendor stop is a ceiling for the auction house, not what a
+-- merchant sells it for. Craft costing prices a vendor reagent it never saw bought with this.
+function GC.AppRuns.VendorUnitFor(itemID)
+  local db = GC.db
+  if type(db) ~= "table" or type(db.runs) ~= "table" or type(itemID) ~= "number" then return nil end
+  local best, bestAt
+  local function offer(run, unit)
+    if type(unit) == "number" and unit > 0 and unit == math.floor(unit)
+        and (not bestAt or (run.updatedAt or 0) > bestAt) then
+      best, bestAt = unit, run.updatedAt or 0
+    end
+  end
+  for _, run in pairs(db.runs) do
+    for _, line in ipairs(type(run.lines) == "table" and run.lines or {}) do
+      if line.i == itemID and line.v == true then offer(run, line.vu) end
+      for _, reagent in ipairs(type(line.cr) == "table" and type(line.cr.i) == "table" and line.cr.i or {}) do
+        if reagent.i == itemID and reagent.v == true then offer(run, reagent.vu) end
+      end
+    end
+  end
+  return best
+end
+
 function GC.AppRuns.Get(code)
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return nil end

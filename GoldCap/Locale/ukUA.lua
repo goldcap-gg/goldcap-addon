@@ -1206,4 +1206,22 @@ GC.Locales.ukUA = {
   ["The auction house did not answer. Search again."] = "Аукціон не відповів. Повторіть пошук.",
   ["Type a whole number."] = "Введіть ціле число.",
   ["Waiting for the auction house…"] = "Чекаємо на аукціон…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "цей рецепт робить з одного матеріалу кілька різних предметів (просіювання, дроблення, помел), тому собівартість не рахується",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: покупку не знайдено ні в цього персонажа, ні в інших твоїх персонажів",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: куплено лише %d, для решти немає ціни",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: отримано просіюванням, дробленням або помелом, не куплено",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: куплено в різних варіантах, тому незрозуміло, який використано",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d за ціною торговця, %s за штуку",
+  ["%s: priced from another character's purchases"] =
+    "%s: ціну взято з покупок іншого персонажа",
+  ["Vendor"] =
+    "Торговець",
 }

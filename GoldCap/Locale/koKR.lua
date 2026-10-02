@@ -1128,4 +1128,22 @@ GC.Locales.koKR = {
   ["The auction house did not answer. Search again."] = "경매장이 응답하지 않았습니다. 다시 검색하세요.",
   ["Type a whole number."] = "정수를 입력하세요.",
   ["Waiting for the auction house…"] = "경매장을 기다리는 중…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "이 조합법은 재료 하나로 서로 다른 여러 아이템을 만들기 때문에 원가를 계산하지 않습니다 (원석 감정, 분쇄, 제분)",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: 구매 기록을 찾을 수 없음, 이 캐릭터와 다른 캐릭터 모두",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: %d개만 구매했고 나머지는 가격이 없음",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: 원석 감정, 분쇄 또는 제분으로 얻은 것이며 구매하지 않음",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: 서로 다른 종류로 구매해서 어느 것을 썼는지 알 수 없음",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d개는 상점 가격 개당 %s",
+  ["%s: priced from another character's purchases"] =
+    "%s: 다른 캐릭터의 구매 기록으로 가격 산정",
+  ["Vendor"] =
+    "상점",
 }

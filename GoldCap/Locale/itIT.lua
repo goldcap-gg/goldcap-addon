@@ -1195,4 +1195,22 @@ GC.Locales.itIT = {
     "La casa d'aste non ha risposto. Cerca di nuovo.",
   ["Type a whole number."] = "Scrivi un numero intero.",
   ["Waiting for the auction house…"] = "In attesa della casa d'aste…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "questa ricetta trasforma un ingrediente in più oggetti diversi (prospezione, frantumazione, macinazione), quindi non ha un costo",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: nessun acquisto trovato, né qui né sugli altri tuoi personaggi",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: ne sono stati comprati solo %d, per il resto non c'è un prezzo",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: ottenuto con prospezione, frantumazione o macinazione, non comprato",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: comprato in varianti diverse, quindi non è chiaro quale sia stata usata",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d al prezzo del venditore, %s ciascuno",
+  ["%s: priced from another character's purchases"] =
+    "%s: valutato in base agli acquisti di un altro personaggio",
+  ["Vendor"] =
+    "Venditore",
 }

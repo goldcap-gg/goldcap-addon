@@ -27,6 +27,9 @@ GC.DEFAULTS = {
   -- looking for it has usually just done. Capped by the module. Same empty-table
   -- ApplyDefaults contract as `flips` above.
   craftOutcomes = {},
+  -- itemID -> true: items a crafting session that makes several unrelated things (prospecting,
+  -- crushing, milling) produced. Only so `/gc craft` can say that such a reagent was never bought.
+  craftConverted = {},
   -- itemID -> true/false, "does this item sell as a commodity". Learned from
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
@@ -497,6 +500,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
+    if GC.VendorBuys then GC.VendorBuys.Install() end
     if GC.CraftCapture then
       -- Every player cast reaches recipeFor, so the answer for a spell is remembered: a
       -- recipe's reagent slots do not change, and a fireball should cost one lookup ever
@@ -580,6 +584,28 @@ frame:SetScript("OnEvent", function(_, event, ...)
           end
           return out
         end,
+        -- The account's other characters' lots of an item, in this region: a craft draws on them
+        -- only for what this character's own purchases do not cover.
+        othersFor = function(itemID)
+          local out = {}
+          if not GC.Acquisitions then return out end
+          local scope = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+          if not scope then return out end
+          for _, batch in ipairs(GC.Acquisitions.GetActiveAccount(scope)) do
+            if batch.itemID == itemID and batch.character ~= scope.char then out[#out + 1] = batch end
+          end
+          return out
+        end,
+        vendorUnit = function(itemID)
+          return GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
+        end,
+        isConverted = function(itemID)
+          return type(GC.db.craftConverted) == "table" and GC.db.craftConverted[itemID] == true
+        end,
+        noteConverted = function(itemID)
+          GC.db.craftConverted = type(GC.db.craftConverted) == "table" and GC.db.craftConverted or {}
+          GC.db.craftConverted[itemID] = true
+        end,
         commodityKinds = function() return GC.db and GC.db.commodityByItem or {} end,
         outcomes = type(GC.db.craftOutcomes) == "table" and GC.db.craftOutcomes or nil,
         -- The site ledger's copy of the craft. `craft` and `consume` are words the API
@@ -595,7 +621,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
               itemID = row.itemID, itemName = row.itemName,
               qty = row.qty, total = row.total,
               cut = 0, deposit = 0, pending = false, at = row.at,
-              char = scope and scope.char or nil, region = scope and scope.region or nil,
+              char = row.char or (scope and scope.char) or nil,
+              region = scope and scope.region or nil,
             })
           end
         end,
@@ -951,6 +978,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
     -- What a vendor press bought arriving in the bags is that purchase's answer.
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnBagsChanged() end
+    if GC.VendorBuys then GC.VendorBuys.OnBagsChanged(time()) end
     -- A craft changes the bags, so this is the cheapest settle signal there is; the ticker
     -- above covers the case where nothing else touches a bag afterwards.
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
@@ -1060,6 +1088,13 @@ GC.slashHandlers.craft = function()
     GC.Print("no crafting sessions seen yet this session")
     return
   end
+  local function nameOf(itemID)
+    if C_Item and C_Item.GetItemNameByID then
+      local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+      if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    return "#" .. tostring(itemID)
+  end
   for _, outcome in ipairs(outcomes) do
     if outcome.reason then
       GC.Print(("recipe %s: nothing recorded (%s)"):format(
@@ -1082,6 +1117,10 @@ GC.slashHandlers.craft = function()
           end
         end
       end
+    end
+    -- Which reagent had no price and why, or which price was not a purchase of this character's.
+    for _, line in ipairs(GC.CraftCapture.Describe(outcome, nameOf)) do
+      GC.Print("  " .. line)
     end
   end
 end

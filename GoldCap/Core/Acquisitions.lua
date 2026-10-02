@@ -16,8 +16,10 @@ local MAX_EXACT = 9007199254740991
 -- for, turned into the item he made out of them. Like `goldcap_buy` it behaves exactly as an
 -- `auction_house` batch everywhere below -- FIFO order, sale reconciliation, the Sell tab's
 -- cost basis -- and is correctly neither the `manual` repair path nor a legacy migration.
+-- `vendor` is a merchant purchase (Core/VendorBuys.lua), at the merchant's own price. It never
+-- reaches the site's ledger, which is auction house money, and otherwise behaves like the rest.
 local SOURCES = { goldcap = true, auction_house = true, manual = true, goldcap_buy = true,
-  craft = true }
+  craft = true, vendor = true }
 local migrateLegacyRepairGroups
 local validRepairGroup
 local repairGroupEvidenceState
@@ -1559,6 +1561,21 @@ function GC.Acquisitions.GetAll()
   return (db and db.acquisitions) or {}
 end
 
+-- The same, for every character of this account in the context's region: what a craft may draw on
+-- when the crafting character has no purchase of its own for a reagent (a warband bank, a mail or
+-- a trade moved the mats). Callers take their own character's batches first.
+function GC.Acquisitions.GetActiveAccount(context)
+  if not db or not validContext(context) then return {} end
+  local active = {}
+  for _, batch in ipairs(db.acquisitions) do
+    if batch.region == context.region and type(batch.character) == "string"
+        and isPositiveInteger(batch.remainingQty) and isExactInteger(batch.remainingTotal) then
+      active[#active + 1] = batch
+    end
+  end
+  return sortedBatches(active)
+end
+
 function GC.Acquisitions.GetActive(context)
   if not db or not validContext(context) then return {} end
   local active = {}
@@ -1672,15 +1689,22 @@ function GC.Acquisitions.AllocateRange(batches, skippedQty, quantity)
   return result
 end
 
-function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context, prevalidatedPlan)
-  if not db or type(positionKey) ~= "string" or not isPositiveInteger(quantity)
+-- `opts` is optional: `ids` ({ [batchID] = true }) names the batches the plan draws on, in place
+-- of a position key (a craft's reagent whose lots are not all keyed yet); `crossChar` lets those
+-- batches belong to any character of the account in this region, not only the context's own.
+function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context, prevalidatedPlan, opts)
+  local ids = type(opts) == "table" and type(opts.ids) == "table" and opts.ids or nil
+  if not db or (type(positionKey) ~= "string" and not (ids and prevalidatedPlan))
+      or not isPositiveInteger(quantity)
       or type(evidenceKey) ~= "string" or evidenceKey == "" or not isExactInteger(at)
       or not validContext(context) or db.acquisitionConsumptionEvidence[evidenceKey] then
     return nil
   end
   local eligible, byID = {}, {}
-  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
-    if batch.positionKey == positionKey then
+  local pool = (type(opts) == "table" and opts.crossChar)
+    and GC.Acquisitions.GetActiveAccount(context) or GC.Acquisitions.GetActive(context)
+  for _, batch in ipairs(pool) do
+    if (ids and ids[batch.id]) or (not ids and batch.positionKey == positionKey) then
       eligible[#eligible + 1] = batch
       byID[batch.id] = batch
       if batch.consumedEvidenceKeys and batch.consumedEvidenceKeys[evidenceKey] then return nil end
@@ -1713,7 +1737,7 @@ function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context
   db.acquisitionConsumptionEvidence[evidenceKey] = true
   return {
     evidenceKey = evidenceKey,
-    scopeKey = GC.Acquisitions.ScopeKey(positionKey, context),
+    scopeKey = positionKey and GC.Acquisitions.ScopeKey(positionKey, context) or nil,
     quantity = quantity,
     cost = plannedCost,
     at = at,

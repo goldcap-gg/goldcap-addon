@@ -1101,4 +1101,22 @@ GC.Locales.zhTW = {
   ["The auction house did not answer. Search again."] = "拍賣場沒有回應。請重新搜尋。",
   ["Type a whole number."] = "請輸入整數。",
   ["Waiting for the auction house…"] = "等待拍賣場…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "這個配方把一種材料變成幾種不同的物品（選礦、粉碎、研磨），所以不計算成本",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d：找不到購買記錄，本角色和你的其他角色都沒有",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d：只買過其中的 %d 個，其餘的沒有價格",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d：透過選礦、粉碎或研磨取得，不是購買的",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d：買的是不同的版本，所以不清楚用了哪一個",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s：%d 個按商人價格計算，每個 %s",
+  ["%s: priced from another character's purchases"] =
+    "%s：按其他角色的購買記錄計價",
+  ["Vendor"] =
+    "商人",
 }

@@ -1188,4 +1188,22 @@ GC.Locales.ruRU = {
   ["The auction house did not answer. Search again."] = "Аукцион не ответил. Повторите поиск.",
   ["Type a whole number."] = "Введите целое число.",
   ["Waiting for the auction house…"] = "Ждём аукцион…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "этот рецепт делает из одного материала несколько разных предметов (просеивание, дробление, помол), поэтому себестоимость не считается",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: покупка не найдена ни у этого персонажа, ни у других твоих персонажей",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: куплено только %d, у остального нет цены",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: получено просеиванием, дроблением или помолом, не куплено",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: куплено в разных вариантах, поэтому неясно, какой использован",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d по цене торговца, %s за штуку",
+  ["%s: priced from another character's purchases"] =
+    "%s: цена взята из покупок другого персонажа",
+  ["Vendor"] =
+    "Торговец",
 }

@@ -586,6 +586,15 @@ createRow = function(parent)
         0.85, 0.85, 0.85, true)
     elseif self.tooltipCostUnknown then
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["cost unknown"]), 0.85, 0.85, 0.85, true)
+      -- A crafted item says which reagent had no price and why (/gc craft says the same).
+      if GC.CraftCapture and GC.CraftCapture.WhyUncosted and C_Item and C_Item.GetItemNameByID then
+        for _, line in ipairs(GC.CraftCapture.WhyUncosted(self.tooltipItemID, function(itemID)
+          local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+          return ok and type(name) == "string" and name or nil
+        end)) do
+          GameTooltip:AddLine(GC.Util.ClientText(line), 0.85, 0.85, 0.85, true)
+        end
+      end
     end
     GameTooltip:Show()
   end)

@@ -1193,4 +1193,22 @@ GC.Locales.ptBR = {
     "A casa de leilões não respondeu. Busque de novo.",
   ["Type a whole number."] = "Digite um número inteiro.",
   ["Waiting for the auction house…"] = "Esperando a casa de leilões…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "esta receita transforma um ingrediente em vários itens diferentes (prospecção, trituração, moagem), então ela não tem custo",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: nenhuma compra encontrada, nem aqui nem nos seus outros personagens",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: só %d deles foram comprados, o resto não tem preço",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: obtido por prospecção, trituração ou moagem, não comprado",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: comprado em variantes diferentes, então não está claro qual foi usada",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d pelo preço do vendedor, %s cada",
+  ["%s: priced from another character's purchases"] =
+    "%s: avaliado pelas compras de outro personagem",
+  ["Vendor"] =
+    "Vendedor",
 }

@@ -1196,4 +1196,22 @@ GC.Locales.deDE = {
     "Das Auktionshaus hat nicht geantwortet. Suche erneut.",
   ["Type a whole number."] = "Gib eine ganze Zahl ein.",
   ["Waiting for the auction house…"] = "Warte auf das Auktionshaus…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "dieses Rezept macht aus einer Zutat mehrere verschiedene Gegenstände (Sondieren, Zermalmen, Mahlen), darum bekommt es keine Kosten",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: kein Kauf gefunden, weder hier noch bei deinen anderen Charakteren",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: nur %d davon wurden gekauft, für den Rest gibt es keinen Preis",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: durch Sondieren, Zermalmen oder Mahlen entstanden, nicht gekauft",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: als verschiedene Varianten gekauft, darum ist unklar, welche benutzt wurde",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d zum Händlerpreis von je %s",
+  ["%s: priced from another character's purchases"] =
+    "%s: nach den Käufen eines anderen Charakters bepreist",
+  ["Vendor"] =
+    "Händler",
 }
