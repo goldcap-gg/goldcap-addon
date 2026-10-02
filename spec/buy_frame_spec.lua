@@ -415,6 +415,29 @@ describe("BuyFrame", function()
     end
   end)
 
+  -- A gear line's bid that never got an answer may have bought its lot (delivered by mail), so the
+  -- line offers what is left less one per such bid -- not its whole remaining quantity -- and is
+  -- held once the bids cover what is left.
+  it("offers a line's remaining quantity less its unanswered bids", function()
+    local function alpha()
+      for _, row in ipairs(shownRows()) do
+        if (row.reagent:GetText() or ""):find("Alpha Herb", 1, true) then return row end
+      end
+    end
+    GC.Buy._bidStranded[9001] = { itemID = 101, have = 0, at = time() }
+    GC.Buy.RefreshIfShown()
+    assert.equal("Alpha Herb ×9", alpha().reagent:GetText())
+    GC.Buy._bidStranded[9002] = { itemID = 101, have = 0, at = time() }
+    GC.Buy.RefreshIfShown()
+    assert.equal("Alpha Herb ×8", alpha().reagent:GetText())
+    -- another item's bid, or one the bags have since moved past, takes nothing off this line
+    GC.Buy._bidStranded[9003] = { itemID = 103, have = 0, at = time() }
+    GC.Buy._bidStranded[9004] = { itemID = 101, have = 7, at = time() }
+    GC.Buy.RefreshIfShown()
+    assert.equal("Alpha Herb ×8", alpha().reagent:GetText())
+    GC.Buy._bidStranded = {}
+  end)
+
   it("puts the vendor line after the open ones and the finished line last", function()
     local lineRows = {}
     for _, row in ipairs(shownRows()) do

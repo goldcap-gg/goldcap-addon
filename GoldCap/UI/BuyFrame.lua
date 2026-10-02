@@ -924,11 +924,10 @@ end
 -- and at render time rather than stamped onto an attempt: an attempt is replaced by the very next
 -- hover, and a warning a hover can erase is a warning that WILL be erased -- with a live BUY
 -- button under it, one click from buying the same units a second time.
-local function strandedFor(line)
-  if not line then return nil end
-  -- A gear line's bids with no answer (GC.Buy._bidStranded): each may have bought its lot, so the
-  -- line is not offered past its need -- held once those bids could cover what is left to buy --
-  -- until HAVE moves, the late answers land or the records age out.
+-- A gear line's bids with no answer (GC.Buy._bidStranded) that still cover this line: each may have
+-- bought its lot, so the line is not offered past its need. They count until HAVE moves, the late
+-- answers land or the records age out. Returns one such bid (or nil) and how many there are.
+local function strandedBids(line)
   local holding, bids = nil, 0
   for auctionID, bid in pairs(GC.Buy._bidStranded) do
     if (time() - (bid.at or 0)) > BD.STRANDED_SECONDS then
@@ -937,7 +936,22 @@ local function strandedFor(line)
       holding, bids = bid, bids + 1
     end
   end
-  if holding and bids >= (line.buy or 0) then return holding end
+  return holding, bids
+end
+
+-- What the line still offers to buy: its remaining quantity less its unanswered bids (each may
+-- already have bought a lot, delivered by mail). Every quantity the tab shows or prices comes from
+-- here, so a line with one bid out of three left says two, not three.
+local function offered(line)
+  local _, bids = strandedBids(line)
+  return math.max((line.buy or 0) - bids, 0)
+end
+
+local function strandedFor(line)
+  if not line then return nil end
+  local holding = strandedBids(line)
+  -- Held once the unanswered bids could cover what is left to buy.
+  if holding and offered(line) <= 0 then return holding end
   local record = GC.Buy._stranded[line.itemID]
   if not record then return nil end
   if record.session ~= sessionToken or (time() - (record.at or 0)) > BD.STRANDED_SECONDS then
@@ -1000,7 +1014,7 @@ end
 -- the auction house again -- which waits while a keys batch is out (quote, GC.Buy._owedByClick).
 local function recentQuote(line)
   local recent = quotes[line.itemID]
-  if recent and recent.qty == line.buy and recent.qty > 0
+  if recent and recent.qty == offered(line) and recent.qty > 0
       and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
     return recent
   end
@@ -1058,7 +1072,7 @@ end
 -- Returns label, enabled, variant (nil variant means "the focus-driven default").
 local function actionLabel(line)
   local attempt = GC.Buy._attempt
-  local resting = (GC.L["BUY %d"]):format(line.buy)
+  local resting = (GC.L["BUY %d"]):format(offered(line))
   -- Ahead of everything, including a fresh quote for some other line: a confirm reached the
   -- server for THIS item and nothing came back, so the units may already be paid for. Retail
   -- auction house purchases are DELIVERED AS MAIL (Core/Ledger.lua reads them as "Auction won"
@@ -1703,7 +1717,7 @@ end
 -- the lot the next press buys.
 local function noteLots(line, attempt, lot)
   local levels = GC.BuyLots.AsLevels(attempt.lotList, line.minIlvl)
-  quotes[line.itemID] = { qty = lot and line.buy or 0, total = lot and lot.buyout * line.buy or 0,
+  quotes[line.itemID] = { qty = lot and offered(line) or 0, total = lot and lot.buyout * offered(line) or 0,
     at = time(), capped = attempt.lotWhy == "over", ladder = #levels > 0 and levels or false,
     lots = attempt.lotList }
 end
@@ -2548,7 +2562,7 @@ local function paintLine(row, line)
   local name = lineName(line)
   local named = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
   -- How many: what is left to buy, or -- once the line is done -- what it asked for.
-  local decorated = ("%s ×%d"):format(named, line.buy > 0 and line.buy or line.need)
+  local decorated = ("%s ×%d"):format(named, offered(line) > 0 and offered(line) or line.need)
   -- A craft line names what it makes and how many batches of it; a reagent the split brought in
   -- is indented under the line it belongs to, so the block reads as one instruction.
   if line.kind == "craft" and line.crafts and line.craft then
@@ -2599,7 +2613,7 @@ local function paintLine(row, line)
     local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.lots
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     local cost, estimated = GC.BuyView.CostOf(line,
-      (quotedTotal and quotedTotal > 0) and { qty = line.buy, total = quotedTotal } or recentQuote(line))
+      (quotedTotal and quotedTotal > 0) and { qty = offered(line), total = quotedTotal } or recentQuote(line))
     row.cells.cost:SetText(cost and ((estimated and "~" or "") .. formatAmount(cost)) or EM_DASH)
     setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
       and Theme.color.goldHi or (estimated and Theme.color.fgDim or Theme.color.fg))
@@ -2866,11 +2880,11 @@ local function showLineTooltip(row)
   end
   GameTooltip:AddLine(" ")
   local bags, bank = haveSplit(line.itemID)
-  if line.buy > 0 then
+  if offered(line) > 0 then
     local have = bags + bank
     GameTooltip:AddLine(tip(have > 0
-      and (GC.L["buy %d of %d, have %d in bags and bank"]):format(line.buy, line.need, have)
-      or (GC.L["buy %d of %d"]):format(line.buy, line.need)), dim[1], dim[2], dim[3], true)
+      and (GC.L["buy %d of %d, have %d in bags and bank"]):format(offered(line), line.need, have)
+      or (GC.L["buy %d of %d"]):format(offered(line), line.need)), dim[1], dim[2], dim[3], true)
   end
   -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
   -- player where they are. Only when the bank actually holds some.
@@ -2908,7 +2922,7 @@ local function showLineTooltip(row)
         GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
       end
     elseif read and read.ladder then
-      for _, r in ipairs(GC.BuyView.Ladder(read.ladder, line.buy, line.cap)) do
+      for _, r in ipairs(GC.BuyView.Ladder(read.ladder, offered(line), line.cap)) do
         local right = (r.take > 0 and (GC.L["you take %d"]):format(r.take)) or (r.over and GC.L["over your cap"]) or ""
         local rc = r.take > 0 and gold or (r.over and Theme.tier.SUSPECT or dim)
         GameTooltip:AddDoubleLine(tip((GC.L["%d at %s"]):format(r.qty, formatAmount(r.unit))), tip(right),
@@ -3854,7 +3868,7 @@ local function paintDock()
   local v = GC.BuyDock.View(d)
   dock.lineItemID = line and line.itemID or nil
   if line then
-    dock.title:SetText(("%s ×%d"):format(lineName(line), line.buy > 0 and line.buy or line.need))
+    dock.title:SetText(("%s ×%d"):format(lineName(line), offered(line) > 0 and offered(line) or line.need))
     local icon = nil
     if C_Item and C_Item.GetItemIconByID then
       local ok, texture = pcall(C_Item.GetItemIconByID, line.itemID)
