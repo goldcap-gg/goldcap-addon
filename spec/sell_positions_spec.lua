@@ -86,6 +86,25 @@ describe("Sell positions", function()
     assert.equal(0, #positions)
   end)
 
+  -- A merchant purchase is cost basis for a craft. With none of it in the bags it is not stock to
+  -- sell, so it is not a SELL row; once the player holds some (or lists it) it is a normal one.
+  it("shows a vendor lot only while some of the item is in the bags or listed", function()
+    local lots = { batch("acq:v", "vendor", 20, 200, 1) }
+    assert.equal(0, #build({ acquisitions = lots }))
+    local held = build({ acquisitions = lots,
+      bagStock = { { itemID = 42, positionKey = "commodity:42", quantity = 5, stacks = {} } } })
+    assert.equal(1, #held)
+    assert.equal(5, held[1].bagQty)
+    local listed = build({ acquisitions = lots, ownedLots = { lot("commodity:42", 3, 12, 900) } })
+    assert.equal(1, #listed)
+  end)
+
+  it("keeps a position that has any non-vendor lot even with nothing in the bags", function()
+    local positions = build({ acquisitions = {
+      batch("acq:v", "vendor", 20, 200, 1), batch("acq:a", "auction_house", 3, 300, 2) } })
+    assert.equal(1, #positions)
+  end)
+
   it("still creates a position for a pending sale of stock that is no longer held", function()
     local positions = build({
       activities = { activity("commodity:42", 42, "Herb", 1) },

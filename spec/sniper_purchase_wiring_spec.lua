@@ -275,13 +275,13 @@ describe("Sniper purchase wiring", function()
         },
         buy = {
           onBuyButtonClick = { "local function onBuyButtonClick(button)",
-            'row.action:SetScript("OnClick", onBuyButtonClick)' },
+            'dock.buy:SetScript("OnClick", onBuyButtonClick)' },
           onBuyKey = { "local function onBuyKey(self, key)", 'container:SetScript("OnKeyDown", onBuyKey)' },
           planBuyButton = { "local function planBuyButton(button)",
             "GC.PurchaseCall.Click(planBuyButton, button)" },
           planBuyKey = { "local function planBuyKey(self, key)", "GC.PurchaseCall.Click(planBuyKey, self, key)" },
-          planBuyClick = { "local function planBuyClick(line)",
-            "return planBuyClick(lineFor(button:GetParent().lineItemID))", "return planBuyClick(line)" },
+          planBuyClick = { "local function planBuyClick(line, fromDock)",
+            "return planBuyClick(lineFor(button:GetParent().lineItemID), true)", "return planBuyClick(line)" },
         },
       }
       local own = (path == "GoldCap/UI/SniperFrame.lua" or path == "test/sniper") and "sniper"
@@ -347,12 +347,12 @@ describe("Sniper purchase wiring", function()
       assert.same({ "test/other %[%s*[\"']Click[\"']%s*%]" },
         handlerViolations("test/other", blankComments('local b = f; b["Click"](b)\n-- b["Click"](b)')))
       local buy = blankComments(table.concat({
-        "local function planBuyClick(line)",
+        "local function planBuyClick(line, fromDock)",
         "end",
-        '  row.action:SetScript("OnClick", onBuyButtonClick)',
+        '  dock.buy:SetScript("OnClick", onBuyButtonClick)',
         "  planBuyClick(lineFor(row.lineItemID))",
         "  C_Timer.After(1, function() GC.PurchaseCall.Click(planBuyKey, f, \"ENTER\") end)",
-        'local handler = row.action:GetScript("OnClick")',
+        'local handler = dock.buy:GetScript("OnClick")',
       }, "\n"))
       assert.same({
         "test/buy C_Timer.After(1, function() GC.PurchaseCall.Click(planBuyKey, f, \"ENTER\") end)",

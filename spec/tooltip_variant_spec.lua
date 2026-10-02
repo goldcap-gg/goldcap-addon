@@ -70,6 +70,15 @@ describe("Tooltip under a Sell variant row", function()
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
   end)
 
+  -- A BUY line's row draws GoldCap's lines for its item itself (UI/BuyFrame.lua's showLineTooltip):
+  -- the market figure the line is priced and capped against, and whose it is. The block's own
+  -- figure is not always that one, and its Source line would say the same thing twice.
+  it("stands aside under a row that draws GoldCap's lines itself", function()
+    owner = { goldcapOwnLines = true }
+    postCall(_G.GameTooltip, { id = 222 })
+    assert.same({}, lines)
+  end)
+
   it("keeps the block on a tooltip with no owner", function()
     postCall(_G.GameTooltip, { id = 222 })
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)

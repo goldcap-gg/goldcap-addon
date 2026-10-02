@@ -429,7 +429,7 @@ local function formatCell(value)
   return type(value) == "number" and GC.Sell._FormatAmount(value) or tostring(value or "")
 end
 
--- Same inline color escape UI/SoldFrame.lua's DIM_HEX uses, for the same reason: the hold-price
+-- Same inline color escape UI/SoldFrame.lua's partial-cost count uses, for the same reason: the hold-price
 -- suffix on the PROFIT/UNIT cell shares one FontString with the number in front of it, so there
 -- is no separate region to SetTextColor -- the only way to dim part of the text is to color it
 -- inline and close with |r.
@@ -3478,6 +3478,11 @@ do
   end
 end
 
+-- Content-sized figure columns. FIT.need (defined below ROW, which it reads) answers how wide a
+-- column must be to print its longest heading and second line in full in the active language
+-- and font scale; shownColumns never makes a column narrower than that.
+local FIT = {}
+
 local function shownColumns()
   local width = INSP.listWidth()
   local deck = (filterMode == "listed" or filterMode == "cancelqueue") and "listed" or "post"
@@ -3489,6 +3494,15 @@ local function shownColumns()
   -- last render would otherwise keep painting it here forever.
   for _, column in ipairs(COLUMNS) do
     if not inDeck[column.key] then dropped[column.key] = true end
+  end
+
+  -- A translation longer than the column's design width widens the column rather than being cut:
+  -- the flexible ITEM column gives up the difference.
+  for _, column in ipairs(COLUMNS) do
+    if not column.flex and not dropped[column.key] then
+      local need = FIT.need(column.key, deck)
+      if need > column.w then columnWidth[column.key] = need end
+    end
   end
 
   local function remaining()
@@ -3507,7 +3521,9 @@ local function shownColumns()
     if remaining() < ITEM_MIN then columnWidth.status = STATUS_MIN end
     if remaining() < ITEM_MIN then
       for _, column in ipairs(COLUMNS) do
-        if column.min then columnWidth[column.key] = column.min end
+        if column.min then
+          columnWidth[column.key] = math.max(column.min, FIT.need(column.key, deck))
+        end
       end
     end
     for _, key in ipairs(DECK_SHED[deck]) do
@@ -3563,6 +3579,24 @@ local BOOK_BAR_H = 6
 -- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
 -- room. LIFT is how far each of the two lines sits from the row's centre.
 local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
+-- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
+ROW.MARKS_W = 5 + ROW.MARKS * 3 + (ROW.MARKS - 1) * 2
+
+-- One hidden probe per font size, the same face and size as the text it stands in for: the
+-- header cells (9), the stand line (10) and the margin line (11).
+function FIT.width(size, text)
+  if not container or not Theme or type(text) ~= "string" or text == "" then return 0 end
+  FIT.probes = FIT.probes or {}
+  local probe = FIT.probes[size]
+  if not probe then
+    probe = Theme.Num(container, size)
+    probe:Hide()
+    FIT.probes[size] = probe
+  end
+  probe:SetText(text)
+  return probe.GetUnboundedStringWidth and probe:GetUnboundedStringWidth() or 0
+end
+
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -4024,6 +4058,35 @@ local HEADINGS_LISTED = {
   profit = "PROFIT / UNIT", status = "WHAT TO DO",
 }
 
+-- The widest thing a column prints besides its figure: its heading on either deck and, for the
+-- two figures that carry one, the second line. The count in the stand line is FormatCount's
+-- widest shape ("99.9k" -- five characters). Cached per language and font scale, the only two
+-- things that change the answer.
+function FIT.need(key, deck)
+  local scale = Theme and Theme.Scale and Theme.Scale() or 1
+  local stamp = tostring(GC.L["YOU GET"]) .. "|" .. tostring(scale) .. "|" .. tostring(deck)
+  if FIT.stamp ~= stamp then
+    FIT.stamp, FIT.cache = stamp, {}
+    local words = deck == "listed" and HEADINGS_LISTED or HEADINGS_POST
+    for columnKey, word in pairs(words) do
+      FIT.cache[columnKey] = FIT.width(9, GC.L[word])
+    end
+    local count = "99.9k"
+    local stand = math.max(FIT.width(10, GC.L["first in line"]),
+      FIT.width(10, (GC.L["%s ahead"]):format(count)),
+      FIT.width(10, (GC.L["%s+ ahead"]):format(count)),
+      FIT.width(10, (GC.L["%s under you"]):format(count)))
+    if stand > 0 then FIT.cache.price = math.max(FIT.cache.price or 0, stand + ROW.MARKS_W) end
+    local margin = math.max(FIT.width(11, GC.L["no cost"]), FIT.width(11, "+9999%"))
+    if margin > 0 then FIT.cache.gross = math.max(FIT.cache.gross or 0, margin) end
+    -- A few pixels of air: an exactly-fitting string sits flush against its neighbour.
+    for columnKey, width in pairs(FIT.cache) do
+      FIT.cache[columnKey] = width > 0 and math.ceil(width + 6) or 0
+    end
+  end
+  return FIT.cache[key] or 0
+end
+
 local function paintHeaderText(header, deck)
   local words = deck == "listed" and HEADINGS_LISTED or HEADINGS_POST
   for key, cell in pairs(header.cells) do
@@ -4097,6 +4160,15 @@ local function layoutCells(row)
       if second then
         second:ClearAllPoints()
         second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
+        -- Held inside its own column: "нет себестоимости" under YOU GET grew leftwards straight
+        -- across "24 впереди" under the price (owner, ruRU, Forever beta 2026-10-01). The column
+        -- itself is sized to fit its longest second line (FIT.need), so nothing here is ever cut
+        -- short -- the owner's rule is that text is read in full, never ended with "…". The stand
+        -- line keeps its own width because its marks hang off its left edge; FIT.need leaves room
+        -- for them.
+        if second ~= row.priceStand then
+          second:SetPoint("LEFT", cell, "LEFT", 0, -2 * ROW.LIFT)
+        end
       end
       right, rightLift = cell, lift
       cell:Show()
@@ -4230,10 +4302,10 @@ local function createRow(parent)
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
       if self.marketFallback then
-        GameTooltip:AddLine(GC.L["≈ goldcap.gg market value — no live quote yet"], 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value — no live quote yet"]), 0.85, 0.85, 0.85, true)
       end
       if self.notOnHand then
-        GameTooltip:AddLine(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"],
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"]),
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
@@ -4244,7 +4316,8 @@ local function createRow(parent)
       -- a paragraph it broke mid-fact ("bought 29 / Aug"), which is harder to read than the row.
       local first = true
       for fact in (self.groupHint .. " · "):gmatch("(.-) · ") do
-        if first then GameTooltip:AddLine(fact, 1, 1, 1) else GameTooltip:AddLine(fact, 0.85, 0.85, 0.85) end
+        local factLine = GC.Util.ClientText(fact)
+        if first then GameTooltip:AddLine(factLine, 1, 1, 1) else GameTooltip:AddLine(factLine, 0.85, 0.85, 0.85) end
         first = false
       end
       GameTooltip:Show()
@@ -4587,8 +4660,10 @@ local function createRow(parent)
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
       -- cannot hold GC.L lookups.
-      GameTooltip:AddLine(GC.L[help[1]], 1, 0.82, 0)
-      for _, line in ipairs(help[2]) do GameTooltip:AddLine(GC.L[line], 0.85, 0.85, 0.85, true) end
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[help[1]]), 1, 0.82, 0)
+      for _, line in ipairs(help[2]) do
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L[line]), 0.85, 0.85, 0.85, true)
+      end
       GameTooltip:Show()
     end)
     row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -4620,8 +4695,8 @@ local function explain(frame, title, body)
   frame[hook](frame, "OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(title, 1, 0.82, 0)
-    for _, line in ipairs(body) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+    GameTooltip:AddLine(GC.Util.ClientText(title), 1, 0.82, 0)
+    for _, line in ipairs(body) do GameTooltip:AddLine(GC.Util.ClientText(line), 0.85, 0.85, 0.85, true) end
     GameTooltip:Show()
   end)
   frame[hook](frame, "OnLeave", function()
@@ -5429,7 +5504,8 @@ renderRows = function()
         if p.displayMarketUnit then
           marketText = formatCell(p.displayMarketUnit)
         elseif marketFallback then
-          marketText = "≈" .. formatCell(p.marketValue)
+          -- "~", not "≈": on Korean this cell draws in the client's 2002.TTF, which has no U+2248.
+          marketText = "~" .. formatCell(p.marketValue)
         else
           marketText = emptyKnown and "none" or "—"
         end
@@ -5453,7 +5529,7 @@ renderRows = function()
         -- get selling into today's book right now). The number itself stays the recommendation
         -- -- it IS the price GoldCap would post at -- but green would claim it as ordinary
         -- market profit when it is really a bet on the hold, so it renders in the same gold the
-        -- MARKET/UNIT column already uses for a computed forward price (see the "» <price>"
+        -- MARKET/UNIT column already uses for a computed forward price (see the "→ <price>"
         -- cells below), with the price it assumes named in the cell rather than left implicit.
         -- A hold that is STILL a loss is not softened by the gold tone -- red outranks it.
         --
@@ -5476,7 +5552,7 @@ renderRows = function()
           setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
         else
           row.cells.profit:SetText(formatCell(profit))
-          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "≈" market used to render in
+          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "~" market used to render in
           -- the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
           -- number. Dim whenever there is no real number here; the gold/red hold-price branch
           -- above (a real number either way) is untouched.
@@ -5505,7 +5581,7 @@ renderRows = function()
           -- is a lie that reads as the addon being slow -- name the real state.
           -- MINOR-1 (fix round 1): reuses the same age-gated `emptyKnown` the MARKET column
           -- decides its fallback from, above -- a bare `emptyAnswers[p.itemID]` here disagreed
-          -- with MARKET once the answer went stale (MARKET said "≈…", STATUS still said
+          -- with MARKET once the answer went stale (MARKET said "~…", STATUS still said
           -- "Nothing listed").
           if p.displayMarketUnit == nil and emptyKnown then
             row.cells.status:SetText(GC.L["Nothing listed on the AH right now"])
@@ -5673,7 +5749,7 @@ renderRows = function()
           when = acquiredWhen(entry.batch.acquiredAt)
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House",
-          goldcap_buy = GC.L["Buy run"], manual = "entered by hand" })[entry.batch.source]
+          goldcap_buy = GC.L["Buy run"], vendor = GC.L["Vendor"], manual = "entered by hand" })[entry.batch.source]
           or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
         -- invoice or a guess, which is exactly the thing this whole tab refuses to fake. The
@@ -5761,10 +5837,14 @@ renderRows = function()
               and type(rec.unit) == "number" and rec.unit > repostUnit then
             repostUnit = rec.unit
           end
-          row.cells.market:SetText("» " .. formatCell(repostUnit))
+          -- "→", which this cell can draw: it is a T.Num, so T.FONT_UI -- the bundled face, or on
+          -- Korean and Chinese the client's face for the script, all of which have U+2192. The
+          -- "»" it wore after a Label-era tofu (that cell drew in FRIZQT__, which has no arrow)
+          -- is the glyph the Chinese faces lack.
+          row.cells.market:SetText("→ " .. formatCell(repostUnit))
           setColor(row.cells.market, Theme.color.gold)
         else
-          row.cells.market:SetText(GC.L["» needs price"])
+          row.cells.market:SetText(GC.L["→ needs price"])
           setColor(row.cells.market, Theme.color.fgDim)
         end
         row.cells.profit:SetText("")
@@ -5809,10 +5889,10 @@ renderRows = function()
           local postUnit = type(p.postRecommendation) == "table" and type(p.postRecommendation.unit) == "number"
             and p.postRecommendation.unit > 0 and p.postRecommendation.unit or p.displayMarketUnit
           if postUnit and p.freshMarketUnit then
-            row.cells.market:SetText("» " .. formatCell(postUnit))
+            row.cells.market:SetText("→ " .. formatCell(postUnit))
             setColor(row.cells.market, Theme.color.gold)
           else
-            row.cells.market:SetText(GC.L["» needs price"])
+            row.cells.market:SetText(GC.L["→ needs price"])
             setColor(row.cells.market, Theme.color.fgDim)
           end
           row.cells.status:SetText(GC.Sell._RecommendationText(p.recommendation))
@@ -6125,7 +6205,7 @@ function GC.Sell.Show()
   -- busy labels with the text they already hold -- a no-op the client does not redraw on a
   -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
   -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
-  -- the cure SoldFrame's restampHeadings uses.
+  -- the cure UI/BuyFrame.lua's restampHeadings uses.
   if container and (postingRow or GC.Sell._postNote) then
     local function restamp(fs)
       if not (fs and fs.IsShown and fs:IsShown()) then return end
@@ -6620,14 +6700,14 @@ function GC.Sell.Attach(f, geometry)
   queueHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.L["Held back from the queue"], 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from the queue"]), 1, 0.82, 0)
     if #queueSkipped == 0 then
-      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(queueSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
+        GameTooltip:AddLine(GC.Util.ClientText(("%s — %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to post"])), 0.85, 0.85, 0.85, true)
+            or GC.L["not ready to post"]))), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -6668,14 +6748,14 @@ function GC.Sell.Attach(f, geometry)
   cancelHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(GC.L["Held back from cancelling"], 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Held back from cancelling"]), 1, 0.82, 0)
     if #cancelSkipped == 0 then
-      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(cancelSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
+        GameTooltip:AddLine(GC.Util.ClientText(("%s — %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
-            or GC.L["not ready to cancel"])), 0.85, 0.85, 0.85, true)
+            or GC.L["not ready to cancel"]))), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -6745,12 +6825,12 @@ function GC.Sell.Attach(f, geometry)
       hit:SetScript("OnEnter", function(self)
         if not GameTooltip or not container.summaryProfitDetail then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(GC.L["Est. profit"], 1, 0.82, 0)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Est. profit"]), 1, 0.82, 0)
         GameTooltip:AddLine(
-          GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"],
+          GC.Util.ClientText(GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"]),
           0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(GC.L["Positions without a cost or a live price are excluded."],
+        GameTooltip:AddLine(GC.Util.ClientText(container.summaryProfitDetail), 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Positions without a cost or a live price are excluded."]),
           0.85, 0.85, 0.85, true)
         GameTooltip:Show()
       end)

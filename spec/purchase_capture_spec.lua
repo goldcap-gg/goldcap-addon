@@ -192,6 +192,23 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(1, batch.originalQty)
   end)
 
+  -- BUY 2.0 week 2: the BUY tab's own bid on a gear lot is filed by the tab (settlePurchase); the
+  -- capture stands down for it, and records one it does not own as before.
+  it("stands down for a bid the BUY tab owns, and records one it does not", function()
+    GC.Buy = { OwnsAuctionPurchase = function(id) return id == 9001 end }
+    results[1] = { auctionID = 9001, quantity = 2, buyoutAmount = 100000 }
+    results[2] = { auctionID = 9002, quantity = 1, buyoutAmount = 50000 }
+    GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10,
+      itemSuffix = 0, battlePetSpeciesID = 0 })
+    fire("PlaceBid", 9001, 100000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    fire("PlaceBid", 9002, 50000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9002)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    GC.Buy = nil
+  end)
+
   it("indexes an item result and records only the matching completed auction", function()
     results[1] = { auctionID = 9001, quantity = 2, buyoutAmount = 100000 }
     GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10,

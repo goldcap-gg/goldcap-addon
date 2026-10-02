@@ -22,6 +22,7 @@ GC.Locales.enUS = {
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
   ["%d ahead of you"] = "%d ahead of you",
+  ["%d at %s"] = "%d at %s",
   ["%d caps · %s"] = "%d caps · %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
@@ -29,18 +30,18 @@ GC.Locales.enUS = {
   ["%d held back"] = "%d held back",
   ["%d held back from posting"] = "%d held back from posting",
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
+  ["%d hits"] = "%d hits",
   ["%d in %d lots"] = "%d in %d lots",
   ["%d in 1 lot"] = "%d in 1 lot",
   ["%d items for %s (%s, %s)"] = "%d items for %s (%s, %s)",
-  ["%d lines · %d to buy · %d at the vendor"] = "%d lines · %d to buy · %d at the vendor",
-  ["%d lines · %d to buy · %d to craft · %d at the vendor"] =
-    "%d lines · %d to buy · %d to craft · %d at the vendor",
   ["%d lots, %s asked"] = "%d lots, %s asked",
   ["%d missing"] = "%d missing",
+  ["%d of %d"] = "%d of %d",
+  ["%d of %d at or under your cap"] = "%d of %d at or under your cap",
+  ["%d of %d done"] = "%d of %d done",
   ["%d partial"] = "%d partial",
   ["%d prices in one request · books still loading"] = "%d prices in one request · books still loading",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
-  ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
   ["%d units"] = "%d units",
   ["%d units · %d prices"] = "%d units · %d prices",
   ["%d without a price"] = "%d without a price",
@@ -55,9 +56,10 @@ GC.Locales.enUS = {
   ["%s listed · %d min ago"] = "%s listed · %d min ago",
   ["%s listed · just now"] = "%s listed · just now",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s needs a number, for example /gc weights %s 1.5",
-  ["%s of %s — gold %s, bags %s"] = "%s of %s — gold %s, bags %s",
   ["%s under you"] = "%s under you",
   ["%s units in %d prices"] = "%s units in %d prices",
+  ["%s · %s under market"] = "%s · %s under market",
+  ["%s · at market price"] = "%s · at market price",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   ["%s+ ahead"] = "%s+ ahead",
@@ -71,7 +73,6 @@ GC.Locales.enUS = {
     "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "A run of several purchases collapsed onto one line removes every one of them.",
-  ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
   ["AH value"] = "AH value",
   ["AH, cheapest version"] = "AH, cheapest version",
@@ -92,8 +93,11 @@ GC.Locales.enUS = {
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
     "Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down.",
   ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
+  ["Alert target"] = "Alert target",
   ["Alerts"] = "Alerts",
+  ["All"] = "All",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
+  ["At a vendor"] = "At a vendor",
   ["At your pace you reach it at level %d."] = "At your pace you reach it at level %d.",
   ["At your pace you will be %s short at level 40."] = "At your pace you will be %s short at level 40.",
   ["At your price"] = "At your price",
@@ -105,12 +109,14 @@ GC.Locales.enUS = {
   ["Avoid"] = "Avoid",
   ["BOOKS %d/%d"] = "BOOKS %d/%d",
   ["BRAKES"] = "BRAKES",
-  ["BUY"] = "BUY",
   ["BUY %d"] = "BUY %d",
   ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
   ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
     "Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect.",
+  ["Blizzard's price: %s"] = "Blizzard's price: %s",
+  ["Blizzard's price: %s · %d s left"] = "Blizzard's price: %s · %d s left",
+  ["Bought"] = "Bought",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
   ["Bundled %s data"] = "Bundled %s data",
@@ -128,8 +134,12 @@ GC.Locales.enUS = {
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
   ["Cancel lot"] = "Cancel lot",
+  ["Cap for %s"] = "Cap for %s",
+  ["Change the cap…"] = "Change the cap…",
   ["Could not read that amount. Type it like 12g 50s."] = "Could not read that amount. Type it like 12g 50s.",
+  ["Don't skip"] = "Don't skip",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
+  ["Everything here is bought"] = "Everything here is bought",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "From your scan %s ago. Counts only %s. Change with /gc weights.",
   ["GOLDCAP"] = "GOLDCAP",
@@ -150,6 +160,7 @@ GC.Locales.enUS = {
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
   ["Loot record cleared."] = "Loot record cleared.",
+  ["Market"] = "Market",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["Mount cost cleared."] = "Mount cost cleared.",
@@ -165,6 +176,9 @@ GC.Locales.enUS = {
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
+  ["Nothing on this list matches."] = "Nothing on this list matches.",
+  ["Over cap"] = "Over cap",
+  ["PRICE EACH"] = "PRICE EACH",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
     "Paused while a buy window is open. Buy or close it and Auto carries on.",
@@ -179,45 +193,69 @@ GC.Locales.enUS = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
   ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
+  ["RAISE CAP TO %s"] = "RAISE CAP TO %s",
   ["ROAD TO 40"] = "ROAD TO 40",
+  ["Raise cap to %s"] = "Raise cap to %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =
     "Road to 40 with GoldCap: %s of %s for my mount (%d%%).",
   ["Road to 40: %s of %s (gold %s, bags %s)."] = "Road to 40: %s of %s (gold %s, bags %s).",
   ["Road to 40: you have %s (gold %s, bags %s)."] = "Road to 40: you have %s (gold %s, bags %s).",
   ["Runs"] = "Runs",
   ["Cap: %d%%"] = "Cap: %d%%",
-  ["%d bag items sell for more on the AH (+%s)"] = "%d bag items sell for more on the AH (+%s)",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
-  ["Set the riding cost: /gc mount 90g"] = "Set the riding cost: /gc mount 90g",
+  ["Set cap"] = "Set cap",
+  ["Skip"] = "Skip",
+  ["Skip for now"] = "Skip for now",
+  ["Skipped"] = "Skipped",
   ["Stat weights: %s"] = "Stat weights: %s",
+  ["TO BUY HERE"] = "TO BUY HERE",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
+  ["The rest is skipped for now"] = "The rest is skipped for now",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "This client does not report item stats, so GoldCap cannot compare gear.",
+  ["To buy"] = "To buy",
+  ["To craft"] = "To craft",
   ["UNDERCUT %d"] = "UNDERCUT %d",
   ["Unknown stat %s. Use one of: %s"] = "Unknown stat %s. Use one of: %s",
   ["Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them."] =
     "Upgrades for your gear on the auction house: %d. Type /gc upgrades to see them.",
+  ["Use the default cap"] = "Use the default cap",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
+  ["YOUR LISTS"] = "YOUR LISTS",
   ["YOUR LOTS"] = "YOUR LOTS",
   ["You can pay for it now."] = "You can pay for it now.",
-  ["You have %s — gold %s, bags %s"] = "You have %s — gold %s, bags %s",
+  ["Your cap"] = "Your cap",
   ["Your gold has not grown lately, so there is no pace to estimate."] =
     "Your gold has not grown lately, so there is no pace to estimate.",
+  ["a vendor sells it"] = "a vendor sells it",
+  ["a vendor sells it for %s each"] = "a vendor sells it for %s each",
+  ["a vendor sells it for %s each · the auction house asks %s"] = "a vendor sells it for %s each · the auction house asks %s",
   ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
     "above the cheapest, inside the cheap quarter · %s units ahead of you",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "above the cheapest, within the day's reach · %s units ahead of you",
   ["age %ss"] = "age %ss",
+  ["already in your bags and bank"] = "already in your bags and bank",
+  ["at a vendor"] = "at a vendor",
+  ["at a vendor · %s each"] = "at a vendor · %s each",
   ["at level %d"] = "at level %d",
+  ["bought"] = "bought",
+  ["buy %d of %d"] = "buy %d of %d",
+  ["buy %d of %d, have %d in bags and bank"] = "buy %d of %d, have %d in bags and bank",
+  ["cheapest seen %s"] = "cheapest seen %s",
   ["clears in ~%dd"] = "clears in ~%dd",
   ["clears in ~%dh"] = "clears in ~%dh",
+  ["craft it for %s each"] = "craft it for %s each",
+  ["craft it for %s each · %s here"] = "craft it for %s each · %s here",
+  ["craft it yourself"] = "craft it yourself",
+  ["craft it · %s each"] = "craft it · %s each",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
@@ -238,15 +276,13 @@ GC.Locales.enUS = {
   ["no market figure for this item level"] = "no market figure for this item level",
   ["not enough gold on this character -- you need %s"] = "not enough gold on this character -- you need %s",
   ["not priced — nothing on hand to sell"] = "not priced — nothing on hand to sell",
+  ["nothing at or under your cap of %s"] = "nothing at or under your cap of %s",
   ["oldest units sell first"] = "oldest units sell first",
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
-  ["pasted"] = "pasted",
+  ["over your cap"] = "over your cap",
+  ["over your cap · %s"] = "over your cap · %s",
   ["Archive this run"] = "Archive this run",
-  ["Remove this run"] = "Remove this run",
-  ["From goldcap.gg — remove it there"] = "From goldcap.gg — remove it there",
-  ["Paste a run..."] = "Paste a run...",
-  ["Runs: click to switch, remove or paste one"] = "Runs: click to switch, remove or paste one",
   ["Archived"] = "Archived",
   ["Restore %s"] = "Restore %s",
   ["COST"] = "COST",
@@ -359,10 +395,8 @@ GC.Locales.enUS = {
   ["Gone"] = "Gone",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
-  ["HAVE"] = "HAVE",
   ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
-  ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
   ["Held back from cancelling"] = "Held back from cancelling",
   ["Held back from the queue"] = "Held back from the queue",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -416,14 +450,10 @@ GC.Locales.enUS = {
   ["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."] = "While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead.",
   ["Min return per buy %"] = "Min return per buy %",
   ["Missing cost"] = "Missing cost",
-  ["NEED"] = "NEED",
   ["NO COST"] = "NO COST",
   ["NO LIVE PRICE YET"] = "NO LIVE PRICE YET",
-  ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT",
-  ["YOUR SALES"] = "YOUR SALES",
   ["NOTHING TO CANCEL"] = "NOTHING TO CANCEL",
   ["NOTHING TO POST"] = "NOTHING TO POST",
-  ["NOW"] = "NOW",
   ["Needs a live price check before it can be bought."] =
     "Needs a live price check before it can be bought.",
   ["Never spend more than this share of your gold on one purchase."] =
@@ -439,10 +469,8 @@ GC.Locales.enUS = {
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "No region reference for this item yet — import again once goldcap.gg publishes one.",
-  ["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] = "No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string.",
   ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
   ["No sales data for this item."] = "No sales data for this item.",
-  ["No sales recorded yet -- open your mailbox with GoldCap loaded"] = "No sales recorded yet -- open your mailbox with GoldCap loaded",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Not enough units on the Auction House to fill that quantity.",
   ["Not in your bags or listed — mail or bank?"] = "Not in your bags or listed — mail or bank?",
@@ -461,8 +489,6 @@ GC.Locales.enUS = {
   ["Nothing queued to post"] = "Nothing queued to post",
   ["Nothing to remove"] = "Nothing to remove",
   ["Nothing to watch on this board yet."] = "Nothing to watch on this board yet.",
-  ["ON GOLDCAP.GG — LAST %d DAYS"] = "ON GOLDCAP.GG — LAST %d DAYS",
-  ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] = "ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d",
   ["ON THE AUCTION HOUSE"] = "ON THE AUCTION HOUSE",
   ["On the AH now"] = "On the AH now",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
@@ -517,8 +543,6 @@ GC.Locales.enUS = {
   ["Quantity is capped by how fast this item actually sells."] =
     "Quantity is capped by how fast this item actually sells.",
   ["READY"] = "READY",
-  ["REAGENT"] = "REAGENT",
-  ["REALIZED PROFIT"] = "REALIZED PROFIT",
   ["REFRESH"] = "REFRESH",
   ["REFUSED %d"] = "REFUSED %d",
   ["RESET WINDOW"] = "RESET WINDOW",
@@ -548,7 +572,6 @@ GC.Locales.enUS = {
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCANNING…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
-  ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sales evidence"] = "Sales evidence",
   ["Sell it on the AH"] = "Sell it on the AH",
@@ -583,7 +606,6 @@ GC.Locales.enUS = {
   ["Stress profit"] = "Stress profit",
   ["THE BOOK"] = "THE BOOK",
   ["TO POST %d"] = "TO POST %d",
-  ["TOTAL"] = "TOTAL",
   ["TREND"] = "TREND",
   ["Tell GoldCap what you actually paid for these units."] =
     "Tell GoldCap what you actually paid for these units.",
@@ -640,7 +662,6 @@ GC.Locales.enUS = {
   ["UNDER YOU"] = "UNDER YOU",
   ["UNDERCUT"] = "UNDERCUT",
   ["UNIT"] = "UNIT",
-  ["USUAL"] = "USUAL",
   ["Unit price"] = "Unit price",
   ["Unknown"] = "Unknown",
   ["Unknown item"] = "Unknown item",
@@ -692,6 +713,11 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
+  ["right-click to skip or change the cap"] = "right-click to skip or change the cap",
+  ["seen %s ago"] = "seen %s ago",
+  ["skipped for now"] = "skipped for now",
+  ["skipped for this session, it stays on the list"] = "skipped for this session, it stays on the list",
+  ["still on the list: %d at a vendor · %d to craft"] = "still on the list: %d at a vendor · %d to craft",
   ["sure profit: a vendor pays %s each"] =
     "sure profit: a vendor pays %s each",
   ["resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown"] =
@@ -726,7 +752,6 @@ GC.Locales.enUS = {
   ["buying..."] = "buying...",
   ["cap: alert target"] = "cap: alert target",
   ["cheapest not yours %s"] = "cheapest not yours %s",
-  ["check the item level — buy by hand"] = "check the item level — buy by hand",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
   ["commodity purchase failed"] = "commodity purchase failed",
@@ -734,14 +759,10 @@ GC.Locales.enUS = {
   ["confirming purchase..."] = "confirming purchase...",
   ["confirming..."] = "confirming...",
   ["cost basis incomplete -- set costs to get repost advice"] = "cost basis incomplete -- set costs to get repost advice",
-  ["cost unknown"] = "cost unknown",
   ["craft"] = "craft",
   ["craft it: %s = %s each"] = "craft it: %s = %s each",
-  ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
   ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
-  ["everything bought"] = "everything bought",
-  ["expires in %d s"] = "expires in %d s",
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["from %s"] = "from %s",
@@ -762,7 +783,6 @@ GC.Locales.enUS = {
   ["import stale -- /goldcap import or /goldcap companion"] = "import stale -- /goldcap import or /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] = "imported %d items for %s (%s) — prices are live now.",
   ["in bags %d · in bank %d"] = "in bags %d · in bank %d",
-  ["in bags and bank · purchases arrive by mail"] = "in bags and bank · purchases arrive by mail",
   ["in the mail"] = "in the mail",
   ["includes %d for crafting %s"] = "includes %d for crafting %s",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
@@ -791,6 +811,7 @@ GC.Locales.enUS = {
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
   ["live verification required"] = "live verification required",
+  ["the cheapest is %s, your cap is %s"] = "the cheapest is %s, your cap is %s",
   ["weak"] = "weak",
   ["manual import"] = "manual import",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
@@ -807,7 +828,6 @@ GC.Locales.enUS = {
     "no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices",
   ["no stock in bags or listed -- nothing to price for"] = "no stock in bags or listed -- nothing to price for",
   ["none"] = "none",
-  ["not a commodity — buy by hand"] = "not a commodity — buy by hand",
   ["not enough gold -- total %s, you have %s"] = "not enough gold -- total %s, you have %s",
   ["not enough gold for this quote -- Cancel"] = "not enough gold for this quote -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
@@ -827,7 +847,6 @@ GC.Locales.enUS = {
   ["paid sale unresolved"] = "paid sale unresolved",
   ["placing bid..."] = "placing bid...",
   ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
-  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "previous commodity purchase settled -- %s to re-check the price",
   ["price changed after you closed the buy window -- nothing was bought"] =
@@ -877,7 +896,6 @@ GC.Locales.enUS = {
   ["session: %d snipes, spent %s, ~%s est. profit"] = "session: %d snipes, spent %s, ~%s est. profit",
   ["sniped (listing changed on rescan)"] = "sniped (listing changed on rescan)",
   ["sniped for "] = "sniped for ",
-  ["spent %s · left ~%s"] = "spent %s · left ~%s",
   ["stack not identified"] = "stack not identified",
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
@@ -937,6 +955,7 @@ GC.Locales.enUS = {
   ["you have enough gold for this now -- Check again"] = "you have enough gold for this now -- Check again",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).",
+  ["you take %d"] = "you take %d",
   ["your game client has no font for this language — the text will show as empty boxes"] =
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
@@ -949,7 +968,6 @@ GC.Locales.enUS = {
   ["yours ×%s"] = "yours ×%s",
   ["~%dd to reach you"] = "~%dd to reach you",
   ["~%dh to reach you"] = "~%dh to reach you",
-  ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",
   ["×%d in your bags · no stack GoldCap can identify exactly"] = "×%d in your bags · no stack GoldCap can identify exactly",
@@ -960,10 +978,9 @@ GC.Locales.enUS = {
   ["×%d%s · made %s · %s"] = "×%d%s · made %s · %s",
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
-  ["↳ %s"] = "↳ %s",
-  ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
+  ["▲%d%% over your cap"] = "▲%d%% over your cap",
   -- WoW: Forever's own scan (Core/ForeverScan.lua): auto on opening the auction house, and SCAN
   -- on the Deals tab.
   ["Scanning the auction house…"] = "Scanning the auction house…",
@@ -1035,4 +1052,210 @@ GC.Locales.enUS = {
     "Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours.",
   ["Your scan updated %s prices on %s."] =
     "Your scan updated %s prices on %s.",
+  -- Sold tab: tiles, period chips, search, day groups and the sale tooltip.
+  ["%d DAYS"] = "%d DAYS",
+  ["TODAY"] = "TODAY",
+  ["YESTERDAY"] = "YESTERDAY",
+  ["SUN"] = "SUN",
+  ["MON"] = "MON",
+  ["TUE"] = "TUE",
+  ["WED"] = "WED",
+  ["THU"] = "THU",
+  ["FRI"] = "FRI",
+  ["SAT"] = "SAT",
+  ["YOU GOT"] = "YOU GOT",
+  ["YOU GOT · %s"] = "YOU GOT · %s",
+  ["EACH"] = "EACH",
+  ["%d sales · after the AH cut"] = "%d sales · after the AH cut",
+  ["1 sale · after the AH cut"] = "1 sale · after the AH cut",
+  ["%d here · all on goldcap.gg"] = "%d here · all on goldcap.gg",
+  ["cost known for %d of %d"] = "cost known for %d of %d",
+  ["%s of %s"] = "%s of %s",
+  ["%s · gold %s, bags %s"] = "%s · gold %s, bags %s",
+  ["set the riding cost: %s"] = "set the riding cost: %s",
+  ["GOLDCAP.GG · %d DAYS"] = "GOLDCAP.GG · %d DAYS",
+  ["profit · synced %s ago"] = "profit · synced %s ago",
+  ["after the AH cut · synced %s ago"] = "after the AH cut · synced %s ago",
+  ["BEST SALE"] = "BEST SALE",
+  ["%s profit"] = "%s profit",
+  ["no sale with a known profit yet"] = "no sale with a known profit yet",
+  ["OPEN SELL"] = "OPEN SELL",
+  ["Find an item"] = "Find an item",
+  ["JUST SOLD"] = "JUST SOLD",
+  ["reaches goldcap.gg on /reload or logout"] = "reaches goldcap.gg on /reload or logout",
+  ["ON GOLDCAP.GG"] = "ON GOLDCAP.GG",
+  ["latest %d of %d · the rest on goldcap.gg"] = "latest %d of %d · the rest on goldcap.gg",
+  ["last %d days"] = "last %d days",
+  ["%d sales · %s"] = "%d sales · %s",
+  ["1 sale · %s"] = "1 sale · %s",
+  ["sold today at %s · %d × %s"] = "sold today at %s · %d × %s",
+  ["sold %s at %s · %d × %s"] = "sold %s at %s · %d × %s",
+  ["sold, the money is in your mail · %d × %s"] = "sold, the money is in your mail · %d × %s",
+  ["Sale price"] = "Sale price",
+  ["Auction house cut"] = "Auction house cut",
+  ["Auction house cut, 5%"] = "Auction house cut, 5%",
+  ["You got"] = "You got",
+  ["You paid (%s)"] = "You paid (%s)",
+  ["%s each"] = "%s each",
+  ["Sniper"] = "Sniper",
+  ["BUY list"] = "BUY list",
+  ["set by you"] = "set by you",
+  ["the auction house"] = "the auction house",
+  ["crafted"] = "crafted",
+  ["The profit is worked out once the money arrives."] = "The profit is worked out once the money arrives.",
+  ["GoldCap never saw this bought, so there is no profit to show. Set what it cost you in SELL."] =
+    "GoldCap never saw this bought, so there is no profit to show. Set what it cost you in SELL.",
+  ["Market now %s · you sold %d%% above it"] = "Market now %s · you sold %d%% above it",
+  ["Market now %s · you sold %d%% under it"] = "Market now %s · you sold %d%% under it",
+  ["Market now %s · you sold at it"] = "Market now %s · you sold at it",
+  ["Your sales show up here once you open a mailbox with GoldCap loaded."] =
+    "Your sales show up here once you open a mailbox with GoldCap loaded.",
+  ["List something in SELL first."] = "List something in SELL first.",
+  ["No sales match “%s” today."] = "No sales match “%s” today.",
+  ["No sales match “%s” in these %d days."] = "No sales match “%s” in these %d days.",
+  ["No sales today."] = "No sales today.",
+  ["No sales in these %d days."] = "No sales in these %d days.",
+  ["SEARCH 30 DAYS"] = "SEARCH 30 DAYS",
+  ["SHOW 30 DAYS"] = "SHOW 30 DAYS",
+  -- The quest reward mark (UI/QuestRewardMark.lua).
+  ["GoldCap: the reward in the gold frame is worth the most on the auction house (%s)."] =
+    "GoldCap: the reward in the gold frame is worth the most on the auction house (%s).",
+  -- The vendor note (UI/MerchantNote.lua).
+  ["1 item in your bags fetches more on the auction house (+%s). Keep it for the AH."] =
+    "1 item in your bags fetches more on the auction house (+%s). Keep it for the AH.",
+  ["%d items in your bags fetch more on the auction house (+%s). Keep them for the AH."] =
+    "%d items in your bags fetch more on the auction house (+%s). Keep them for the AH.",
+  -- BUY 2.0 week 2: a gear line is bought one lot per press (UI/BuyFrame.lua).
+  ["BUY ONE · %s"] = "BUY ONE · %s",
+  ["not enough gold"] = "not enough gold",
+  ["set a cap first"] = "set a cap first",
+  -- BUY 2.0 week 2: a gear line's lots on the dock (UI/BuyFrame.lua).
+  ["%s · %d lots"] = "%s · %d lots",
+  ["%s · 1 lot"] = "%s · 1 lot",
+  ["%s · over your cap"] = "%s · over your cap",
+  ["no cap for this item — right-click the line to set one"] =
+    "no cap for this item — right-click the line to set one",
+  -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
+  ["BUY %d · %s"] = "BUY %d · %s",
+  ["BUY · %s"] = "BUY · %s",
+  -- BUY 2.0: the item box and the quick list (UI/BuyFrame.lua).
+  ["Could not find that item. Shift-click it, or type its item id."] =
+    "Could not find that item. Shift-click it, or type its item id.",
+  ["Item to add"] = "Item to add",
+  ["Make a list once, buy it here at or under your price."] =
+    "Make a list once, buy it here at or under your price.",
+  ["Remove from the list"] = "Remove from the list",
+  ["or plan a whole profession on goldcap.gg"] = "or plan a whole profession on goldcap.gg",
+  -- BUY 2.0: the item box's hint, with the x count (UI/BuyFrame.lua).
+  -- Glyphs every face that draws them has (spec/client_text_spec.lua's glyph inventory).
+  ["HIDE DETAILS ▲"] = "HIDE DETAILS ▲",
+  ["SHOW DETAILS ▼"] = "SHOW DETAILS ▼",
+  ["plan updated on goldcap.gg · +%d -%d lines"] = "plan updated on goldcap.gg · +%d -%d lines",
+  ["~ goldcap.gg market value — no live quote yet"] =
+    "~ goldcap.gg market value — no live quote yet",
+  ["• %s"] = "• %s",
+  ["→ needs price"] = "→ needs price",
+  -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
+  ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
+    "Items the game has not loaded yet are left out: %d. Export again in a moment.",
+  ["%s and %d more"] = "%s and %d more",
+  ["+ New"] = "+ New",
+  ["Add to favourites"] = "Add to favourites",
+  ["Added %d items to %s."] = "Added %d items to %s.",
+  ["Added %d× %s to %s."] = "Added %d× %s to %s.",
+  ["Added %d× %s to a new list, %s."] = "Added %d× %s to a new list, %s.",
+  ["Copy as a TSM item list"] = "Copy as a TSM item list",
+  ["Copy for Auctionator"] = "Copy for Auctionator",
+  ["Delete"] = "Delete",
+  ["Delete %s? This cannot be undone."] = "Delete %s? This cannot be undone.",
+  ["Delete this list…"] = "Delete this list…",
+  ["Export"] = "Export",
+  ["From goldcap.gg — rename or remove it there"] = "From goldcap.gg — rename or remove it there",
+  ["GoldCap — Import a list"] = "GoldCap — Import a list",
+  ["Import a list…"] = "Import a list…",
+  ["Import into this list…"] = "Import into this list…",
+  ["Imported %s with %d items."] = "Imported %s with %d items.",
+  ["List %d"] = "List %d",
+  ["Lists come from goldcap.gg through the companion, or make one here with + New."] =
+    "Lists come from goldcap.gg through the companion, or make one here with + New.",
+  ["Lists: click to switch, make, import or export one"] =
+    "Lists: click to switch, make, import or export one",
+  ["Move down"] = "Move down",
+  ["Move up"] = "Move up",
+  ["Name this list"] = "Name this list",
+  ["New list"] = "New list",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
+  ["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."] =
+    "Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s.",
+  ["Press Ctrl+C to copy, then import it in Auctionator's Shopping tab."] =
+    "Press Ctrl+C to copy, then import it in Auctionator's Shopping tab.",
+  ["Press Ctrl+C to copy, then import it into a TSM group."] =
+    "Press Ctrl+C to copy, then import it into a TSM group.",
+  ["Remove from favourites"] = "Remove from favourites",
+  ["Rename…"] = "Rename…",
+  ["Save"] = "Save",
+  ["The game could not tell which items these are: %s. Shift-click them into the item box instead."] =
+    "The game could not tell which items these are: %s. Shift-click them into the item box instead.",
+  ["There are no items in this list."] = "There are no items in this list.",
+  ["This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here."] =
+    "This is TSM's packed group export, which only TSM can unpack. Paste it into goldcap.gg/list, press Copy as TSM group there, and paste that here.",
+  ["This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator."] =
+    "This is not a list GoldCap can read. Paste a list from goldcap.gg, TSM or Auctionator.",
+  ["in game"] = "in game",
+  -- BUY: a gear line's tooltip names the lot it buys next (UI/BuyFrame.lua).
+  ["next to buy: %s"] = "next to buy: %s",
+  -- BUY: the item box at the top -- several items at once, typed names, recents (UI/BuyAddBox.lua).
+  ["Add"] = "Add",
+  ["Added %d items to a new list, %s."] = "Added %d items to a new list, %s.",
+  ["Clear"] = "Clear",
+  ["Could not read: %s."] = "Could not read: %s.",
+  ["Items to add: %d — %s"] = "Items to add: %d — %s",
+  ["Recent:"] = "Recent:",
+  ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
+    "Shift-click items, type a name, or an item id with x and a count: 2589 x20.",
+  -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
+  ["AVAILABLE"] = "AVAILABLE",
+  ["Add to list…"] = "Add to list…",
+  ["Back to %s"] = "Back to %s",
+  ["Click to buy it here. Right-click to add it to a list."] =
+    "Click to buy it here. Right-click to add it to a list.",
+  ["Close search"] = "Close search",
+  ["How many"] = "How many",
+  ["How many of %s?"] = "How many of %s?",
+  ["Loading more results…"] = "Loading more results…",
+  ["More results"] = "More results",
+  ["Nothing on sale for “%s”."] = "Nothing on sale for “%s”.",
+  ["On sale for “%s”: %d"] = "On sale for “%s”: %d",
+  ["Open the auction house to search what's on sale."] =
+    "Open the auction house to search what's on sale.",
+  ["PRICE FROM"] = "PRICE FROM",
+  ["Search again"] = "Search again",
+  ["Searching the auction house for “%s”…"] = "Searching the auction house for “%s”…",
+  ["The auction house did not answer. Search again."] =
+    "The auction house did not answer. Search again.",
+  ["Type a whole number."] = "Type a whole number.",
+  ["Waiting for the auction house…"] = "Waiting for the auction house…",
+  -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
+  -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
+  ["this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed"] =
+    "this recipe turns one input into several different items (prospecting, crushing, milling), so it is not costed",
+  ["%s ×%d: no purchase of it found, here or on your other characters"] =
+    "%s ×%d: no purchase of it found, here or on your other characters",
+  ["%s ×%d: only %d of them were bought, the rest has no price"] =
+    "%s ×%d: only %d of them were bought, the rest has no price",
+  ["%s ×%d: made by prospecting, crushing or milling, not bought"] =
+    "%s ×%d: made by prospecting, crushing or milling, not bought",
+  ["%s ×%d: bought as different variants, so which one was used is unclear"] =
+    "%s ×%d: bought as different variants, so which one was used is unclear",
+  ["%s: %d at the vendor price, %s each"] =
+    "%s: %d at the vendor price, %s each",
+  ["%s: priced from another character's purchases"] =
+    "%s: priced from another character's purchases",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d at the market price, %s each",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price",
+  ["Vendor"] =
+    "Vendor",
 }

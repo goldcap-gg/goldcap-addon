@@ -56,14 +56,17 @@ describe("Theme.Rail navigation widgets", function()
     assert.is_false(b.enabled)          -- active view's button must not be clickable
     assert.is_true(b.bg.shown)
     assert.is_true(b.glow.shown)
-    assert.equal(0, b.highlightTexture.alpha)
+    assert.is_false(b.highlightTexture.shown)
     local hi = GC.Theme.color.goldHi
     assert.same({ hi[1], hi[2], hi[3], 1 }, b.icon.vertex)
     b:SetActive(false)
     assert.is_true(b.enabled)
     assert.is_false(b.bg.shown)
     assert.is_false(b.glow.shown)
-    assert.equal(1, b.highlightTexture.alpha)
+    assert.is_true(b.highlightTexture.shown)
+    -- The wash keeps its own strength: a SetAlpha(1) here overwrote the 18% the vertex colour
+    -- set and lit a visited tab solid gold under the cursor.
+    assert.is_nil(b.highlightTexture.alpha)
   end)
 
   it("RailButton: badge shows a count and hides on nil", function()

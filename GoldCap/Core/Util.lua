@@ -127,6 +127,31 @@ function GC.Util.FormatGoldCeil(copper, short)
   return GC.Util.IntText(gold) .. "g"
 end
 
+local MONEY_UNIT = { g = 10000, s = 100, c = 1 }
+
+-- "12g 50s", "12g50s", "3s 20c", "90" (a bare number is gold, "0.5" half of one). nil for anything
+-- else, and for zero: a price of nothing is not a price. Every price box in the addon reads
+-- through this one (BUY's cap box, Road to 40's mount cost).
+function GC.Util.ParseMoney(text)
+  if type(text) ~= "string" then return nil end
+  text = text:lower():gsub("%s+", "")
+  if text == "" then return nil end
+  local bare = text:match("^(%d+%.?%d*)$")
+  if bare then
+    local copper = math.floor(tonumber(bare) * 10000 + 0.5)
+    return copper > 0 and copper or nil
+  end
+  local total, rest, seen = 0, text, {}
+  while rest ~= "" do
+    local num, unit, tail = rest:match("^(%d+)([gsc])(.*)$")
+    if not num or seen[unit] then return nil end
+    seen[unit] = true
+    total = total + tonumber(num) * MONEY_UNIT[unit]
+    rest = tail
+  end
+  return total > 0 and total or nil
+end
+
 local function finitePositive(value)
   return type(value) == "number" and value == value
     and value ~= math.huge and value ~= -math.huge and value > 0
@@ -335,6 +360,46 @@ function GC.Util.ClientLine(text)
   if text == "" then return nil end
   return text
 end
+
+-- ---------------------------------------------------------------------------
+-- Text for a widget the CLIENT's font draws: a MenuUtil menu, a tooltip, the chat frame, a
+-- Blizzard template, a Theme.Label (UI/Theme.lua's ClientFont routes those). The client's
+-- faces miss glyphs GoldCap's bundled face has, and a missing glyph draws as an empty box.
+--
+-- Seen in game, 2026-10-01, Russian client: the BUY list menu read "• Quick list [] 2 lines
+-- [] pasted" -- the bullet drawn, every middle dot a box. What the faces hold was then read
+-- from the client's own font cache (Fonts/<id>.slug, its code point table), not guessed:
+--   FRIZQT___CYR (menus, tooltips and labels on a Russian client): no U+00B7 ·, U+2192 →,
+--     U+2212 −, U+2248 ≈, U+25B2 ▲, U+25BC ▼, U+25BE ▾, U+25B8 ▸ or U+21B3 ↳.
+--   FRIZQT__ (the same widgets on every Latin client): has · − ≈; none of → ▲ ▼ ▾ ▸ ↳.
+--   Both have • — – … × « » „ “ ” ’ ¿, which therefore pass untouched.
+-- The chat face (ARIALN) and the Chinese tooltip faces are not in that cache and could not be
+-- read; what reaches them is respelled the same way rather than trusted.
+--
+-- So: a middle dot BETWEEN SPACES is a separator and becomes ", ". One inside a word is left
+-- alone -- that is how Chinese writes a transliterated name, and the Chinese faces have it. The
+-- arrow becomes "->", and the triangles -- GoldCap only writes them in front of a percentage --
+-- "+" and "-". − ≈ ▾ ▸ ↳ are no longer in GoldCap's text at all (spec/client_text_spec.lua's
+-- glyph inventory keeps it that way), so they need no entry here.
+-- ---------------------------------------------------------------------------
+local CLIENT_GLYPHS = {
+  { "\226\134\146", "->" }, -- U+2192 →
+  { "\226\150\178", "+" },  -- U+25B2 ▲
+  { "\226\150\188", "-" },  -- U+25BC ▼
+}
+
+function GC.Util.ClientText(text)
+  -- Every glyph handled here starts with one of these two bytes: ASCII and Cyrillic skip.
+  if type(text) ~= "string" or not text:find("[\194\226]") then return text end
+  text = text:gsub("%s+\194\183%s+", ", ")
+  for _, pair in ipairs(CLIENT_GLYPHS) do
+    if text:find(pair[1], 1, true) then text = text:gsub(pair[1], pair[2]) end
+  end
+  return text
+end
+
+-- The Sold tab's tooltips were written against this name; one implementation, two names.
+GC.Util.TooltipText = GC.Util.ClientText
 
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
 -- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and

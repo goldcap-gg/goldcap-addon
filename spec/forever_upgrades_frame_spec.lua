@@ -52,6 +52,7 @@ describe("Upgrades window", function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/ForeverGear.lua", GC)
     helper.loadModule("Core/ForeverUpgrades.lua", GC)
+    helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/ForeverUpgradesFrame.lua", GC)
     U = GC.ForeverUpgradesUI
   end)

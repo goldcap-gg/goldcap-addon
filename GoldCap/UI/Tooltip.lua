@@ -48,6 +48,35 @@ local function liveLine(live)
   return { kind = "live", left = GC.L["On the AH now"], copper = live.floor, detail = detail }
 end
 
+-- The price the tooltip's first line prints for `v` (a GC.Data.GetItemValue answer), and which of
+-- its three lines that is: "region" (an imported realm item's region reference), "median" (an
+-- imported realm item with no reference: its realm median, labelled unverified) or "value"
+-- (everything else; for a WoW: Forever gear scan, the cheapest version's price). nil when the
+-- tooltip prints no price. Whatever else tells the player what an item fetches on the auction
+-- house -- the quest reward mark, the vendor note, a craft reagent the player never bought -- takes
+-- its number from here, so it never says
+-- something the item's own tooltip does not. The realm-item rule is explained in BuildLines below.
+function GC.Tooltip.Headline(v)
+  if type(v) ~= "table" then return nil end
+  if v.kind == "realm_item" and v.source == "import" then
+    local ref = GC.Trigger and GC.Trigger.RealmReference and GC.Trigger.RealmReference(v) or nil
+    if ref then return ref, "region" end
+    if v.mv then return v.mv, "median" end
+    return nil
+  end
+  if v.mv then return v.mv, "value" end
+  return nil
+end
+
+-- Headline, for a number that becomes a cost (a craft's reagent nobody bought): only the two
+-- kinds Core/DealMath.lua and Core/Trigger.lua trust. An imported realm item's unverified median
+-- ("median") is a figure the tooltip may print under its own label, never a basis for a cost.
+function GC.Tooltip.TrustedHeadline(v)
+  local copper, kind = GC.Tooltip.Headline(v)
+  if kind == "value" or kind == "region" then return copper, kind end
+  return nil
+end
+
 -- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
 -- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
 -- than from `v` because none belongs to the market value: the player's own ledger, which bundled
@@ -58,6 +87,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   if not v then return live and { live } or nil end
   local lines = {}
   local scan = v.source == "scan"
+  local headline, headlineKind = GC.Tooltip.Headline(v)
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
   -- a realm item can sit at two listings for days, so a median of two is whatever the odd
   -- one out happens to be. Core/DealMath.lua and Core/Trigger.lua both refuse it for exactly
@@ -73,27 +103,23 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- Bundled realm items are NOT affected: their `m` comes from item_region_snapshots, a
   -- region-wide median already (see apps/api/src/lib/addonMarketData.ts).
   local realmImport = v.kind == "realm_item" and v.source == "import"
-  if realmImport then
-    local ref = GC.Trigger and GC.Trigger.RealmReference and GC.Trigger.RealmReference(v) or nil
-    if ref then
-      local ilvl = type(v.refIlvl) == "number" and v.refIlvl > 0 and v.refIlvl or nil
-      lines[1] = {
-        kind = "money",
-        label = ilvl and (GC.L["GoldCap region price (ilvl %d)"]):format(ilvl)
-          or GC.L["GoldCap region price"],
-        copper = ref,
-      }
-    else
-      -- No region reference: the realm median is all there is. It is still shown -- a player
-      -- looking at an item wants a figure -- but under its own name, so it is never read as
-      -- the price the rest of the addon would trade on. Nothing else about the item is
-      -- printed below: a median of two listings has no sale speed or depth to report, and a
-      -- second number beside it would lend the first one authority it has not got.
-      if not v.mv then return live and { live } or nil end
-      lines[1] = { kind = "money", label = GC.L["GoldCap realm median (unverified)"], copper = v.mv }
-    end
+  if not headline then return live and { live } or nil end
+  if headlineKind == "region" then
+    local ilvl = type(v.refIlvl) == "number" and v.refIlvl > 0 and v.refIlvl or nil
+    lines[1] = {
+      kind = "money",
+      label = ilvl and (GC.L["GoldCap region price (ilvl %d)"]):format(ilvl)
+        or GC.L["GoldCap region price"],
+      copper = headline,
+    }
+  elseif headlineKind == "median" then
+    -- No region reference: the realm median is all there is. It is still shown -- a player
+    -- looking at an item wants a figure -- but under its own name, so it is never read as
+    -- the price the rest of the addon would trade on. Nothing else about the item is
+    -- printed below: a median of two listings has no sale speed or depth to report, and a
+    -- second number beside it would lend the first one authority it has not got.
+    lines[1] = { kind = "money", label = GC.L["GoldCap realm median (unverified)"], copper = headline }
   else
-    if not v.mv then return live and { live } or nil end
     local label = GC.L["GoldCap value"]
     -- WoW: Forever's own scan (Core/ForeverScan.lua): the auction house's price for it, and for
     -- gear the cheapest version's -- several random suffixes share one item id.
@@ -102,7 +128,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- comment. "On the AH now", when shown below, is the live cheapest, so the two never mean
     -- the same thing.
     if scan then label = v.gear and GC.L["AH, cheapest version"] or GC.L["AH value"] end
-    lines[1] = { kind = "money", label = label, copper = v.mv }
+    lines[1] = { kind = "money", label = label, copper = headline }
   end
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
   -- fields ride commodity tokens (a realm item's I token carries neither -- see itemToken in
@@ -221,10 +247,15 @@ local function onTooltip(tooltip, data)
   -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept
   -- outlived a row hidden under the cursor, and every item tooltip after it lost its value.
   local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
+  -- A BUY line's row draws GoldCap's lines for its item itself (UI/BuyFrame.lua's showLineTooltip):
+  -- the market figure that line is priced and capped against, and whose it is. This block's figure
+  -- is not always that one, and its Source line would say the same thing twice. Read off the owner
+  -- for the same reason as the variant below.
+  if type(owner) == "table" and owner.goldcapOwnLines then return end
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
-    tooltip:AddLine(variant == "pet" and GC.L["no market figure for caged pets"]
-      or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
+    tooltip:AddLine(GC.Util.ClientText(variant == "pet" and GC.L["no market figure for caged pets"]
+      or GC.L["no market figure for this item level"]), 0.55, 0.55, 0.55, true)
     return
   end
   local now = time()
@@ -241,18 +272,20 @@ local function onTooltip(tooltip, data)
     forever = forever,
   })
   if not lines then return end
+  local tip = GC.Util.ClientText
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
-      tooltip:AddDoubleLine(ln.label, GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "live" then
-      tooltip:AddDoubleLine(ln.left, GC.Util.CoinText(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail),
+        0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "hint" then
-      tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
+      tooltip:AddLine(tip(ln.text), 0.55, 0.55, 0.55, true)
     elseif ln.kind == "verdict" then
       local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
-      tooltip:AddLine(ln.text, c[1], c[2], c[3])
+      tooltip:AddLine(tip(ln.text), c[1], c[2], c[3])
     else
-      tooltip:AddDoubleLine(ln.left, ln.right, 0.65, 0.82, 1, 1, 1, 1)
+      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
     end
   end
 end

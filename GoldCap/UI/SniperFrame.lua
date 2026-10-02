@@ -1634,8 +1634,8 @@ end
 -- hidden and shown again -- the header row behind the Sell/Sold/BUY tabs, or the whole window
 -- -- can come back with its text simply not drawn, tooltips still working over empty cells.
 -- Setting the text it already holds is a no-op to the client and does not make it draw, so
--- each label is cleared, set, hidden and shown -- the cure UI/SoldFrame.lua's and
--- UI/BuyFrame.lua's restampHeadings measured in game. A sortable heading is in header.cells
+-- each label is cleared, set, hidden and shown -- the cure UI/BuyFrame.lua's restampHeadings
+-- measured in game, and UI/SoldFrame.lua's put() applies to every string it writes. A sortable heading is in header.cells
 -- and sortHeaders both, so the text is settled first and every label is stamped once, arrow
 -- included.
 local function updateHeaderSortIndicators()
@@ -2620,6 +2620,15 @@ local function updateSellTabLabel()
 end
 GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 
+-- BUY 2.0: the BUY rail button's count of lines ready to buy at or under their cap
+-- (GC.Buy.ReadyCount, recounted each time the tab draws). A field, not a local: this chunk is
+-- 18 locals from Lua's ceiling.
+function GC.Sniper.UpdateBuyTabLabel()
+  if not frame or not frame.buyTab then return end
+  local n = GC.Buy and GC.Buy.ReadyCount and GC.Buy.ReadyCount() or 0
+  frame.buyTab:SetBadge(n > 0 and n or nil)
+end
+
 -- UI/SettingsFrame.lua's RESET WINDOW button needs the real built-in default to restore --
 -- exposed here (a table field, not a new top-level local: this file sits at its 200-local
 -- ceiling) rather than SettingsFrame.lua mirroring WIN.FRAME_WIDTH/HEIGHT in its own copy,
@@ -3562,22 +3571,6 @@ function GC.Sniper._PolledEntry(itemID)
   local capped = GC.Sniper._capPoll and GC.Sniper._capPoll:Book()[itemID]
   if capped and (not entry or (capped.seenAt or 0) >= (entry.seenAt or 0)) then entry = capped end
   return entry
-end
-
--- The item key of the cheapest variant of `itemID` at or above `minIlvl` that a poll has seen, or
--- nil. For the BUY tab's gear line with an item-level floor (caps fixes 5h): its search opens
--- Blizzard's own page, where the player buys by hand, and an item key names exactly one
--- item-level variant -- so this is as narrow as that search can be made. Unlike driver.variantKey
--- there is no fallback below the floor, and a poll whose rows state no level at all offers
--- nothing: either way the caller searches the bare key and says the level is not checked.
-function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
-  if not (type(minIlvl) == "number" and minIlvl > 0 and GC.KeyPoll and GC.KeyPoll.VariantKeyFor) then
-    return nil
-  end
-  local variant = GC.KeyPoll.VariantKeyFor(GC.Sniper._PolledEntry(itemID), minIlvl)
-  if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
-  return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
-    variant.battlePetSpeciesID)
 end
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
@@ -6676,6 +6669,9 @@ end
 -- buffer -- every keys batch, the book pass, Auto's next pass -- beside PlayerIsBusy, and by
 -- nothing else. Fails open.
 function GC.Sniper._BrowseOwned()
+  -- The player's own search in the BUY tab (UI/BuySearch.lua): from the moment it may go until its
+  -- answer has landed, or its late answer stopped being owed.
+  if GC.BuySearch and GC.BuySearch.OwnsBrowse() then return true end
   local tab = GC.AuctionHouseTab
   return (tab and tab.PlayerOwnsBrowseList and tab.PlayerOwnsBrowseList()) and true or false
 end
@@ -6832,6 +6828,8 @@ end
 function GC.Sniper.RequestOut()
   local now = time()
   if GC.Sniper._browseOutAt and now - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then return true end
+  -- The BUY tab's search of the auction house, still unanswered (UI/BuySearch.lua).
+  if GC.BuySearch and GC.BuySearch.Pending() then return true end
   for id, out in pairs(GC.Sniper._searchesOut) do
     if now - out.at <= LIM.REQUERY_TIMEOUT_SECONDS then return true end
     GC.Sniper._searchesOut[id] = nil
@@ -6842,6 +6840,9 @@ end
 function GC.Sniper.OnBrowseResults()
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
+  -- The BUY tab's search, once no keys batch has claimed the answer (nothing of ours sends one
+  -- over the other): its own answer, or the late one of a request it gave up.
+  if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   -- A pass that has not sent its query yet has no page to receive: whatever this event
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
@@ -6856,6 +6857,7 @@ end
 function GC.Sniper.OnBrowseResultsAdded()
   GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
+  if GC.BuySearch and GC.BuySearch.OnBrowseResults() then return end -- see OnBrowseResults
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
   if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
@@ -7483,6 +7485,10 @@ function GC.Sniper.IsPurchaseQuiet()
   -- applies that bound, so a leaked BUY claim cannot veto the scanner/pre-warm/drill queue/
   -- arbiter for the rest of the session the way a bare Owner() check would.
   if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy() then return true end
+  -- BUY 2.0 week 2: a gear line's read holds the auction house's search from its first search to
+  -- its bid -- PlaceBid buys only while the lot's own buy search is the current one, so a drill, a
+  -- keys batch, a pass page or the Sell walk sent in between would make the bid buy nothing.
+  if GC.Buy and GC.Buy.HoldsSearch and GC.Buy.HoldsSearch() then return true end
   if not GC.Sniper._QuietZoneOpen() then
     GC.Sniper._quietSince = nil
     return false
@@ -7711,6 +7717,12 @@ end
 
 function GC.Sniper.OwnsAuctionPurchase(auctionID)
   return pendingAuction[auctionID] ~= nil
+end
+
+-- BUY 2.0: whether a realm bid of this window is waiting for its answer. The BUY tab does not bid
+-- or start over it: an auction house error names no request.
+function GC.Sniper.BidOut()
+  return next(pendingAuction) ~= nil
 end
 
 -- Fix round 1 (minor 1): a confirmed attempt the server has just re-quoted (see the "confirming"
@@ -8545,6 +8557,16 @@ local function planDialogPrimaryClick()
     -- Only ONE commodity purchase may be in flight at a time. Unreachable in practice --
     -- opening a second dialog already refuses/replaces per the guard in onBuyClick -- kept as
     -- a last-resort guard against orphaning the pending one.
+    setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
+    driver.onStatus(GC.L["finish the pending buy first"])
+    return
+  end
+
+  -- BUY 2.0: one purchase at a time addon-wide. A realm lot waits while the BUY tab has a bid or a
+  -- purchase out, as a commodity waits on the shared slot below. Before anything is written for a
+  -- purchase: this click makes none.
+  if not deal.isCommodity and ((GC.Buy and GC.Buy.BidOut and GC.Buy.BidOut())
+      or (GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy())) then
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
     driver.onStatus(GC.L["finish the pending buy first"])
     return
@@ -9586,7 +9608,7 @@ local function createDialog()
     -- Task 2 restyle: uppercase kit-value labels (were "Show/Hide details"); the
     -- `d.detailsToggle:SetLabel(` call prefix itself is the pinned text (sniper_dialog_
     -- verdict_spec's "Details toggle wiring" describe block), not these strings.
-    d.detailsToggle:SetLabel(d.detailsOpen and GC.L["HIDE DETAILS ▾"] or GC.L["SHOW DETAILS ▸"])
+    d.detailsToggle:SetLabel(d.detailsOpen and GC.L["HIDE DETAILS ▲"] or GC.L["SHOW DETAILS ▼"])
     for _, pair in ipairs(d.evidenceRows) do
       if d.detailsOpen then
         pair.label:Show()
@@ -10342,18 +10364,18 @@ createRow = function(parent, index)
     local capNote = GC.Sniper._CapNote(self.deal)
     if capNote then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+      GameTooltip:AddLine(GC.Util.ClientText(capNote), 0.25, 0.85, 0.25, true)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
-        GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live -- safe to buy"]), 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
-        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
-          :format(GC.Util.FormatGoldCeil(verdict.needsGold)), 0.83, 0.64, 0.22, true)
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold))), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
-          GC.BoardRows.Reason(verdict) or GC.L["live verification required"]), 1, 0.82, 0)
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
+          GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), 1, 0.82, 0)
       end
     elseif not self.deal.pinPlaceholder then
       -- Saying nothing here read as approval. The row already shows a tier, a discount and a
@@ -10362,11 +10384,11 @@ createRow = function(parent, index)
       -- check HAD approved was the word on the button. That is too thin a line to carry the
       -- difference between an estimate and a finding, so the tooltip states it outright.
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: not checked against the live auction house yet"]), 0.7, 0.7, 0.7)
     end
     if self.deal.forever then
-      GameTooltip:AddLine(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
-        self.deal.estProfit), self.deal.forever == "market" and 0.83 or 0.25,
+      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._ForeverNote(self.deal.forever, self.deal.ceiling, self.deal.refUnit,
+        self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
     -- Sniper phase 2: a realm row's price is measured against the region, not against a
@@ -10375,30 +10397,30 @@ createRow = function(parent, index)
     -- the player can see what the discount is a discount FROM.
     local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
     if realmValue then
-      GameTooltip:AddLine((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
-        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0),
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
+        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0)),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
       -- A pinned realm item the region has no price for. It is on the board because the player
       -- put it there, and the row cannot say anything about value -- so the tooltip says the
       -- same sentence a Check on it would, rather than leaving the blank cells to be read as
       -- "nothing to report".
-      GameTooltip:AddLine(GC.SniperDecision.ReasonText("realm_no_reference"),
+      GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
     if self.deal.pinPlaceholder then
-      GameTooltip:AddLine(GC.L["Watching — pinned, but not a deal right now"],
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching — pinned, but not a deal right now"]),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       local watchNote = GC.Sniper._WatchNote(self.deal)
       if watchNote then
-        GameTooltip:AddLine(watchNote, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+        GameTooltip:AddLine(GC.Util.ClientText(watchNote), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       end
     end
-    GameTooltip:AddLine(isPinned(self.deal.itemID)
+    GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
-      or GC.L["Right-click to watch this item closely"], 0.7, 0.7, 0.7)
+      or GC.L["Right-click to watch this item closely"]), 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
@@ -10465,7 +10487,7 @@ end
 local function setPlainTooltip(widget, text)
   widget:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:SetText(GC.Util.ClientText(text), 1, 1, 1, 1, true)
     GameTooltip:Show()
   end)
   widget:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -10622,6 +10644,14 @@ local function setView(v)
   end
 end
 
+-- Another tab's own control taking the player to a view, the same way that view's rail button
+-- does: the Sold tab's OPEN SELL, beside the bag items that fetch more on the auction house.
+-- A table field rather than an export of setView, so the file's local count does not move.
+function GC.Sniper.ShowView(v)
+  if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+  setView(v)
+end
+
 -- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, the
 -- gear, a rail click, or the window closing -- to re-apply the active tab's Disable() that
 -- setTabActive normally owns.
@@ -10714,9 +10744,9 @@ local function createHeaderRow(f)
       hit:EnableMouse(true)
       hit:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
+        GameTooltip:SetText(GC.Util.ClientText(tooltipLines[1]), 1, 0.82, 0)
         for i = 2, #tooltipLines do
-          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+          GameTooltip:AddLine(GC.Util.ClientText(tooltipLines[i]), 1, 1, 1, true)
         end
         GameTooltip:Show()
       end)
@@ -10753,8 +10783,7 @@ local function createHeaderRow(f)
   itemHit.label:SetText(GC.L["ITEM"])
 
   -- Not read by any production code; exposed so the heading spec can reach the ITEM cell,
-  -- which is not in header.cells (the flex column has no themed cell of its own). Same
-  -- affordance UI/SoldFrame.lua's own header.itemCell exists for.
+  -- which is not in header.cells (the flex column has no themed cell of its own).
   header.itemCell = itemHit
 
   -- Re-anchors the visible-only column chain (see anchorColumns) and the item header cell's
@@ -10968,9 +10997,9 @@ local function createFrame()
   -- does, so Theme.Button's own hover stays.
   autoBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."],
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."]),
       1, 1, 1, 1, true)
-    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(GC.Util.ClientText(line), 1, 0.82, 0, true) end
     GameTooltip:Show()
   end)
   autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -10997,9 +11026,9 @@ local function createFrame()
   -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
   verifyBtn:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(GC.L["Background check"], 1, 1, 1)
-    GameTooltip:AddLine((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
-      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS), 1, 1, 1, true)
+    GameTooltip:SetText(GC.Util.ClientText(GC.L["Background check"]), 1, 1, 1)
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."])
+      :format(LIM.VERIFY_TOP_ROWS, LIM.VERIFY_INTERVAL_SECONDS)), 1, 1, 1, true)
 
     local list = renderList()
     local checked, newest = 0, nil
@@ -11011,19 +11040,19 @@ local function createFrame()
       end
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine((GC.L["Checked: %d of the top %d on screen"]):format(
-      checked, math.min(#list, LIM.VERIFY_TOP_ROWS)), 0.7, 0.7, 0.7)
-    GameTooltip:AddLine(newest
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Checked: %d of the top %d on screen"]):format(
+      checked, math.min(#list, LIM.VERIFY_TOP_ROWS))), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(GC.Util.ClientText(newest
       and (GC.L["Last result: %ds ago"]):format(math.floor(GetTime() - newest))
-      or GC.L["Last result: none yet this visit"], 0.7, 0.7, 0.7)
-    GameTooltip:AddLine((GC.L["Refused so far: %d"]):format(refusedCount), 0.7, 0.7, 0.7)
+      or GC.L["Last result: none yet this visit"]), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(GC.Util.ClientText((GC.L["Refused so far: %d"]):format(refusedCount)), 0.7, 0.7, 0.7)
     local watched = #GC.Sniper._liveTargets
     if watched > 0 then
-      GameTooltip:AddLine((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s"),
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["Watching closely: %d item%s"]):format(watched, watched == 1 and "" or "s")),
         0.7, 0.7, 0.7)
-      GameTooltip:AddLine(GC.Sniper._cycleSeconds
+      GameTooltip:AddLine(GC.Util.ClientText(GC.Sniper._cycleSeconds
         and (GC.L["Full pass over them: %.1fs"]):format(GC.Sniper._cycleSeconds)
-        or GC.L["Full pass over them: measuring..."], 0.7, 0.7, 0.7)
+        or GC.L["Full pass over them: measuring..."]), 0.7, 0.7, 0.7)
     end
     GameTooltip:Show()
   end)
@@ -11352,6 +11381,7 @@ local function createFrame()
     feedAuto("resume:search")
     updateHeaderSortIndicators() -- heading labels can come back blank after a hide, see its comment
     if view == "deals" then f.restampRows() end -- and so can the row cells under them
+    if view == "sold" and GC.Sold and GC.Sold.Show then GC.Sold.Show() end -- the same, for Sold
   end)
   f:SetScript("OnHide", function()
     feedAuto("tabHidden")

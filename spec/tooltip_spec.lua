@@ -505,3 +505,53 @@ describe("Tooltip.BuildLines in WoW: Forever", function()
     assert.equal(2, #plain)
   end)
 end)
+
+-- GC.Tooltip.Headline is the one answer to "what does the tooltip say this fetches": the quest
+-- reward mark and the vendor note take their numbers from it. Each case also checks that it is
+-- exactly the first line BuildLines prints.
+describe("Tooltip.Headline", function()
+  local GC
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+  end)
+
+  local cases = {
+    { "a commodity: its value", { mv = 1200, ts = 0, source = "import", kind = "region_commodity" }, 1200, "value" },
+    { "bundled data: its value", { mv = 700, ts = 0, source = "bundled", kind = "realm_item" }, 700, "value" },
+    { "an imported realm item: the region reference",
+      { mv = 9000000, ref = 20000, ts = 0, source = "import", kind = "realm_item" }, 20000, "region" },
+    { "an imported realm item under its reference: the lower of the two",
+      { mv = 15000, ref = 20000, ts = 0, source = "import", kind = "realm_item" }, 15000, "region" },
+    { "an imported realm item with no reference: its median, labelled unverified",
+      { mv = 30000, ts = 0, source = "import", kind = "realm_item" }, 30000, "median" },
+    { "WoW: Forever, every player's scans", { mv = 640, ts = 0, source = "scan", kind = "crowd", scanners = 4 }, 640, "value" },
+    { "WoW: Forever gear: the cheapest version's", { mv = 5000, ts = 0, source = "scan", gear = true }, 5000, "value" },
+    { "a realm item with only a reference", { ref = 20000, ts = 0, source = "import", kind = "realm_item" }, 20000, "region" },
+    { "no price at all", { ts = 0, source = "import", kind = "region_commodity" }, nil, nil },
+  }
+  for _, c in ipairs(cases) do
+    it(c[1], function()
+      local copper, kind = GC.Tooltip.Headline(c[2])
+      assert.equal(c[3], copper)
+      assert.equal(c[4], kind)
+      local lines = GC.Tooltip.BuildLines(c[2], 0)
+      assert.equal(c[3], lines and lines[1].copper or nil)
+    end)
+  end
+
+  it("answers nothing for no value", function()
+    assert.is_nil(GC.Tooltip.Headline(nil))
+  end)
+
+  -- The craft cost fallback takes only what the deal maths trusts.
+  it("TrustedHeadline refuses an imported realm median and keeps value and region", function()
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ mv = 30000, ts = 0, source = "import", kind = "realm_item" }))
+    assert.is_nil(GC.Tooltip.TrustedHeadline(nil))
+    assert.is_nil(GC.Tooltip.TrustedHeadline({ ts = 0, source = "import", kind = "region_commodity" }))
+    assert.equal(700, (GC.Tooltip.TrustedHeadline({ mv = 700, ts = 0, source = "bundled", kind = "realm_item" })))
+    assert.equal(20000, (GC.Tooltip.TrustedHeadline(
+      { mv = 9000000, ref = 20000, ts = 0, source = "import", kind = "realm_item" })))
+  end)
+end)

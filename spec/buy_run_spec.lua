@@ -518,3 +518,163 @@ describe("BuyRun's craft-or-buy comparison", function()
     assert.is_nil(GC.BuyRun.CraftText(nil))
   end)
 end)
+
+-- BUY 2.0: the cap is a price the player can see and set per line. Precedence, highest first:
+-- the player's own price for the line, the site's absolute one (an alert target), the run's
+-- percent of the reference price.
+describe("BuyRun: the player's own cap", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(lineCaps, cc)
+    local run = { code = "r", lines = { { i = 1, q = 10, u = 100, cc = cc } } }
+    local obj = GC.BuyRun.New(run, {
+      haveOf = function() return 0 end, usualUnit = function() return nil end,
+      capPct = function() return 130 end, lineCaps = function(code) assert.equal("r", code) return lineCaps end,
+    })
+    obj:Refresh()
+    return obj:Lines()[1]
+  end
+  it("wins over the site's target and the percent", function()
+    local got = build({ [1] = 140 }, 90)
+    assert.equal(140, got.cap)
+    assert.equal("yours", got.capFrom)
+  end)
+  it("leaves the site's target in charge when the player set none", function()
+    local got = build({}, 90)
+    assert.equal(90, got.cap)
+    assert.equal("target", got.capFrom)
+  end)
+  it("falls back to the percent of the reference price", function()
+    local got = build(nil, nil)
+    assert.equal(130, got.cap)
+    assert.equal("default", got.capFrom)
+  end)
+  it("ignores a zero or negative own cap", function()
+    assert.equal("default", build({ [1] = 0 }, nil).capFrom)
+    assert.equal("default", build({ [1] = -5 }, nil).capFrom)
+  end)
+  it("buys under the player's own cap", function()
+    local run = { code = "r", lines = { { i = 1, q = 10, u = 100 } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end, usualUnit = function() end,
+      capPct = function() return 100 end, lineCaps = function() return { [1] = 150 } end })
+    obj:Refresh()
+    local qty, total, capped = obj:PurchaseQuantity(1, { { unit = 120, qty = 4 }, { unit = 160, qty = 9 } })
+    assert.same({ 4, 480, true }, { qty, total, capped })
+  end)
+  -- Retail and every run from before BUY 2.0: a driver with no lineCaps at all.
+  it("is a no-op for a driver that keeps no per-line caps", function()
+    local obj = GC.BuyRun.New({ code = "r", lines = { { i = 1, q = 10, u = 100 } } },
+      { haveOf = function() return 0 end, usualUnit = function() end, capPct = function() return 130 end })
+    obj:Refresh()
+    assert.equal(130, obj:Lines()[1].cap)
+    assert.equal("default", obj:Lines()[1].capFrom)
+  end)
+end)
+
+-- WoW: Forever: a crowd price (other players' scans) seen AFTER the list was priced is the fresher
+-- look at the same shelf, and replaces the list's own price. Retail has no crowd price at all.
+describe("BuyRun: a crowd reference", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(ref, pricedAt, u)
+    local run = { code = "r", pricedAt = pricedAt, updatedAt = 1, lines = { { i = 1, q = 3, u = u } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end,
+      usualUnit = function() return 55 end, capPct = function() return 100 end,
+      usualRef = function() return ref end })
+    obj:Refresh()
+    return obj:Lines()[1]
+  end
+  local CROWD = { value = 70, source = "crowd", scanners = 3, at = 5000 }
+  it("replaces the list's price when it was seen after the list was priced", function()
+    local got = build(CROWD, 4000, 90)
+    assert.equal(70, got.usual)
+    assert.same(CROWD, got.usualRef)
+  end)
+  it("leaves the list's price when the list is newer", function()
+    local got = build(CROWD, 6000, 90)
+    assert.equal(90, got.usual)
+    assert.is_nil(got.usualRef)
+  end)
+  it("prices a line the list could not price", function()
+    local got = build(CROWD, 6000, nil)
+    assert.equal(70, got.usual)
+    assert.same(CROWD, got.usualRef)
+  end)
+  it("changes nothing without one (retail)", function()
+    local got = build(nil, 4000, 90)
+    assert.equal(90, got.usual)
+    assert.is_nil(got.usualRef)
+    assert.equal(55, build(nil, 4000, nil).usual)
+  end)
+  it("falls back to the run's own time for a run nobody stamped (a paste)", function()
+    local run = { code = "p", updatedAt = 6000, lines = { { i = 1, q = 3, u = 90 } } }
+    local obj = GC.BuyRun.New(run, { haveOf = function() return 0 end, usualUnit = function() end,
+      capPct = function() return 100 end, usualRef = function() return CROWD end })
+    obj:Refresh()
+    assert.equal(90, obj:Lines()[1].usual)
+  end)
+end)
+
+-- BUY 2.0 (week 3 contract, part A): a line the list's route crafts itself (`mk`) is a line to
+-- craft, never to buy -- the craft kind every other surface already draws, with nothing to buy
+-- and nothing counted into what the run has left to spend.
+describe("BuyRun: a line the route crafts itself", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local RECIPE = { r = 900, n = 2, c = 272, i = { { i = 51, q = 2, u = 68 } } }
+  local function build(lines, splits)
+    local obj = GC.BuyRun.New({ code = "r", lines = lines }, {
+      haveOf = function() return 0 end, usualUnit = function() return 160 end,
+      capPct = function() return 130 end, splits = function() return splits end })
+    obj:Refresh()
+    return obj
+  end
+  local function lineOf(obj, itemID)
+    for _, l in ipairs(obj:Lines()) do if l.itemID == itemID then return l end end
+  end
+
+  it("is a craft line with nothing to buy", function()
+    local obj = build({ { i = 50, q = 30, mk = true, u = 160 }, { i = 2589, q = 60, u = 68 } })
+    local made = lineOf(obj, 50)
+    assert.equal("craft", made.kind)
+    assert.is_true(made.make)
+    assert.same({ 0, 0, false }, { obj:PurchaseQuantity(50, { { unit = 1, qty = 999 } }) })
+  end)
+
+  it("is left out of what the run has left to spend, and counted as a craft", function()
+    local obj = build({ { i = 50, q = 30, mk = true, u = 160 }, { i = 2589, q = 60, u = 68 } })
+    local totals = obj:Totals()
+    assert.equal(60 * 68, totals.left)
+    assert.equal(1, totals.toCraft)
+    assert.equal(1, totals.toBuy)
+  end)
+
+  -- The route's reagents are already lines of the list: a split would ask for them twice.
+  it("is never split into reagents, whatever recipe it carries", function()
+    local obj = build({ { i = 50, q = 30, mk = true, cr = RECIPE }, { i = 2589, q = 60 } }, { [50] = true })
+    assert.equal(2, #obj:Lines())
+    assert.is_nil(lineOf(obj, 51))
+    assert.equal(15, lineOf(obj, 50).crafts) -- 30 at 2 a craft
+  end)
+
+  it("leaves a line without the flag exactly as it was", function()
+    local obj = build({ { i = 50, q = 30, u = 160 } })
+    local line = lineOf(obj, 50)
+    assert.is_nil(line.kind)
+    assert.is_nil(line.make)
+    assert.equal(30, line.buy)
+    assert.equal(30 * 160, obj:Totals().left)
+  end)
+end)

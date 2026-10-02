@@ -47,6 +47,7 @@ Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua
+Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua
@@ -59,6 +60,7 @@ Core/SniperDecision.lua
 Core/CheckVerdict.lua
 Core/DealMath.lua
 Core/Trigger.lua
+Core/QuestReward.lua
 Core/Scanner.lua
 Core/FullScan.lua
 Core/BookPass.lua
@@ -72,9 +74,18 @@ Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
+Core/NameMatch.lua
 Core/BuyRun.lua
+Core/BuyView.lua
+Core/BuyDock.lua
+Core/BuyLots.lua
+Core/BuyVendor.lua
+Core/VendorBuys.lua
+Core/BuyRecents.lua
+Core/BuySearchModel.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua
+Core/ListStrings.lua
 Core/AppRuns.lua
 Core/Caps.lua
 Core/BoardRows.lua
@@ -83,6 +94,8 @@ Core/AutoScan.lua
 Data/MarketData.lua
 UI/Theme.lua
 UI/Tooltip.lua
+UI/QuestRewardMark.lua
+UI/MerchantNote.lua
 UI/ImportDialog.lua
 UI/CompanionDialog.lua
 UI/VendorListDialog.lua
@@ -92,6 +105,11 @@ UI/SellViewModel.lua
 UI/SellFrame.lua
 UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
+UI/BuyCapEditor.lua
 UI/BuyFrame.lua
+UI/BuyLists.lua
+UI/BuyAddBox.lua
+UI/BuySearch.lua
+UI/BuyVendorPanel.lua
 UI/SettingsFrame.lua
 Core/Init.lua

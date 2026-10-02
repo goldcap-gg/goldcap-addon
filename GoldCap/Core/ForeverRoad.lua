@@ -24,32 +24,16 @@ local C = {
 }
 GC.ForeverRoad.C = C
 
-local UNIT = { g = 10000, s = 100, c = 1 }
-
 local function prefs()
   return GC.ForeverScan and GC.ForeverScan.Prefs and GC.ForeverScan.Prefs() or nil
 end
 
 -- "12g 50s", "12g50s", "3s 20c", "90" (a bare number is gold, "0.5" half of one). nil for anything
--- else, and for zero: a cost of nothing is not a cost.
+-- else, and for zero: a cost of nothing is not a cost. The parser itself is GC.Util.ParseMoney,
+-- shared with every other price box: this file is WoW: Forever's own and shared code must not
+-- reach into it.
 function GC.ForeverRoad.ParseMoney(text)
-  if type(text) ~= "string" then return nil end
-  text = text:lower():gsub("%s+", "")
-  if text == "" then return nil end
-  local bare = text:match("^(%d+%.?%d*)$")
-  if bare then
-    local copper = math.floor(tonumber(bare) * 10000 + 0.5)
-    return copper > 0 and copper or nil
-  end
-  local total, rest, seen = 0, text, {}
-  while rest ~= "" do
-    local num, unit, tail = rest:match("^(%d+)([gsc])(.*)$")
-    if not num or seen[unit] then return nil end
-    seen[unit] = true
-    total = total + tonumber(num) * UNIT[unit]
-    rest = tail
-  end
-  return total > 0 and total or nil
+  return GC.Util.ParseMoney(text)
 end
 
 -- Money for a line the player sends in chat: letters, no coin icons (chat strips texture escapes).
@@ -215,32 +199,6 @@ function GC.ForeverRoad.Snapshot()
   return { money = money(), bags = bags.best or 0, gain = bags.gain or 0, gainItems = bags.gainItems or 0,
     cost = (type(p.mountCost) == "number" and p.mountCost > 0) and p.mountCost or nil,
     level = level, progress = progress, moneyRate = moneyRate, levelRate = levelRate }
-end
-
--- The Sold tab's own compact rows (UI/SoldFrame.lua): up to three short, single-line strings --
--- totals, forecast, AH gain -- never the tall, word-wrapped sentences Lines() builds for chat.
--- Owner, Forever beta 2026-09-28: those sentences, centered in a gold multi-row box, read as
--- clutter at the top of a tab about sales. Lines() itself (what `/gc mount` prints) and
--- ShareText are untouched -- only this function's own composition changes.
-function GC.ForeverRoad.SoldLines()
-  local s = GC.ForeverRoad.Snapshot()
-  if not s then return nil end
-  local coin = GC.Util.CoinText
-  local have = (s.money or 0) + (s.bags or 0)
-  local out = {}
-  if type(s.cost) ~= "number" or s.cost <= 0 then
-    out[1] = GC.L["You have %s — gold %s, bags %s"]:format(coin(have), coin(s.money), coin(s.bags))
-    out[2] = GC.L["Set the riding cost: /gc mount 90g"]
-  else
-    out[1] = GC.L["%s of %s — gold %s, bags %s"]:format(coin(have), coin(s.cost), coin(s.money), coin(s.bags))
-    -- The exact same forecast sentence Lines() would show as its own lines[2] -- reused, not
-    -- recomputed, so the two surfaces can never disagree about what one kind says.
-    out[2] = GC.ForeverRoad.Lines(s)[2]
-  end
-  if (s.gainItems or 0) > 0 and (s.gain or 0) > 0 then
-    out[3] = GC.L["%d bag items sell for more on the AH (+%s)"]:format(s.gainItems, coin(s.gain))
-  end
-  return out
 end
 
 -- PLAYER_MONEY, PLAYER_XP_UPDATE, PLAYER_LEVEL_UP and the ticker. The ticker hands its callback

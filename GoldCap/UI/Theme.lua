@@ -57,7 +57,6 @@ T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
 -- deliberately: on CJK the digits stop being monospaced, so number columns line up by their
 -- RIGHT anchor rather than by character width. Boxes would be worse.
 --
--- The brand logo keeps the bundled face: it is always the Latin "G".
 -- T.Label already does the equivalent by inheriting GameFontHighlightSmall; this is the same
 -- idea for the places that ask for the mono face by name.
 local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
@@ -265,11 +264,13 @@ function T.SetScale(s)
   if GC.db and GC.db.settings and GC.db.settings.sniper then
     GC.db.settings.sniper.fontScale = scale
   end
-  for _, fn in ipairs(hooks) do
-    fn(scale)
-  end
+  -- Fonts first: a hook lays its tab out again and measures its strings, which must already be
+  -- at the new size -- measured at the old one, every fitted column came out too narrow.
   for fs, info in pairs(widgetFonts) do
     applyFont(fs, info)
+  end
+  for _, fn in ipairs(hooks) do
+    fn(scale)
   end
 end
 
@@ -441,15 +442,20 @@ function T.RailButton(parent, iconFile, labelText)
   b.text:SetText(labelText)
   widgetFonts[b.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 8 }
 
-  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+  -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
+  -- the button's whole square, so hovering a rail button drew a square around the rounded
+  -- plate the active one wears (owner, Forever beta 2026-10-01).
+  b.highlightTexture = slicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
-  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
 
   -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
-  -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
-  b:SetScript("OnDisable", function() b.highlightTexture:SetAlpha(0) end)
-  b:SetScript("OnEnable", function() b.highlightTexture:SetAlpha(1) end)
+  -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script.
+  -- Hide/Show, never SetAlpha: on a texture, SetAlpha writes the same alpha SetVertexColor set,
+  -- so SetAlpha(1) on the way back turned the 18% wash into solid gold -- a tab the player had
+  -- visited and left lit up bright yellow under the cursor (owner, Forever beta 2026-10-01).
+  b:SetScript("OnDisable", function() b.highlightTexture:Hide() end)
+  b:SetScript("OnEnable", function() b.highlightTexture:Show() end)
 
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
@@ -508,17 +514,19 @@ function T.Rail(parent)
   edge:SetPoint("BOTTOMRIGHT")
   edge:SetWidth(1)
 
-  -- `small` (plaque.png/PLAQUE_SLICE): the 32px logo is the same size class as the
-  -- badge -- card.png's 24px margins would overlap and notch its corners too.
-  local logo = T.Card(frame, T.color.gold, { T.color.goldHi[1], T.color.goldHi[2], T.color.goldHi[3], 0.5 }, true)
-  logo:SetSize(32, 32)
+  -- The GoldCap mark itself -- the coin in the crosshair the site, the store pages and the
+  -- AddOns list show -- rather than a gold plate with a "G" on it (owner, 2026-10-01). Same
+  -- file as the .toc's IconTexture, full colour on transparent, so it is drawn as it is and
+  -- never tinted. 40px, where the plate was 32: the crosshair's arms take the outer ring, and
+  -- at 32 the coin inside was smaller than a rail icon. The gap under it shrinks by the same
+  -- 8px (LOGO_GAP) so the buttons below stay where they were.
+  local logo = CreateFrame("Frame", nil, frame)
+  logo:SetSize(40, 40)
   logo:SetPoint("TOP", 0, -16)
-  logo.text = logo:CreateFontString(nil, "OVERLAY")
-  logo.text:SetFont(T.FONT_MONO_BOLD, 16 * T.Scale(), "")
-  logo.text:SetPoint("CENTER")
-  logo.text:SetText("G")
-  logo.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[logo.text] = { role = "mono", path = T.FONT_MONO_BOLD, size = 16 }
+  logo.mark = logo:CreateTexture(nil, "ARTWORK")
+  logo.mark:SetTexture(T.MEDIA .. "GoldCap")
+  logo.mark:SetAllPoints()
+  local LOGO_GAP = 14
 
   local buttons = {}
   local order = {
@@ -530,7 +538,7 @@ function T.Rail(parent)
   local prev = logo
   for i, item in ipairs(order) do
     local b = T.RailButton(frame, T.MEDIA .. item.icon, item.label)
-    b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -22 or -T.pad.s)
+    b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -LOGO_GAP or -T.pad.s)
     buttons[item.key] = b
     prev = b
   end
@@ -647,7 +655,26 @@ function T.Num(parent, size, bold)
   return fs
 end
 
--- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified.
+-- A FontString made from one of Blizzard's font objects draws in the CLIENT's face, which lacks
+-- glyphs the bundled one has (GC.Util.ClientText says which, and how that was read). This gives
+-- such a FontString a SetText that respells them, so no caller has to remember to; it returns
+-- the FontString, so it wraps the CreateFontString call itself. A Theme widget that moves it
+-- onto GoldCap's own face (a rounded Button sets T.FONT_UI and says so in widgetFonts) draws its
+-- text as written: that face has every glyph but ↳, which GoldCap no longer writes.
+function T.ClientFont(fs)
+  if fs.gcClientFont then return fs end
+  fs.gcClientFont = true
+  local setText = fs.SetText
+  fs.SetText = function(self, text, ...)
+    local info = widgetFonts[self]
+    if not info or info.role == "label" then text = GC.Util.ClientText(text) end
+    return setText(self, text, ...)
+  end
+  return fs
+end
+
+-- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified,
+-- and therefore a ClientFont (above): what it is given is drawn through GC.Util.ClientText.
 -- Final fix wave (item 3): applies size*T.Scale() at creation (was a bare `size`, so a Label
 -- never actually respected the current scale on first render) AND registers in widgetFonts
 -- (same data-valued-weak-table idiom T.Num already uses -- see that table's own comment for
@@ -660,7 +687,7 @@ end
 -- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also
 -- scaling layout geometry.
 function T.Label(parent, size)
-  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
   local inherited, _, flags = fs:GetFont()
   -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
   -- language -- see its declaration. Normally nil, and the inherited face stands.
@@ -928,8 +955,9 @@ function T.Button(parent, variant, rounded)
     if b.ringAsked then b.ring:SetAlpha(0.45) end
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
     -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
-    -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
-    b.highlightTexture:SetAlpha(0)
+    -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script --
+    -- hidden, not SetAlpha(0): see T.RailButton for how SetAlpha(1) turned the wash solid.
+    b.highlightTexture:Hide()
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
@@ -942,7 +970,7 @@ function T.Button(parent, variant, rounded)
       b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     end
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-    b.highlightTexture:SetAlpha(1)
+    b.highlightTexture:Show()
   end)
 
   return b

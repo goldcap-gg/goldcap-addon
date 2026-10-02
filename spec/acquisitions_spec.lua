@@ -508,6 +508,30 @@ describe("Acquisition store", function()
     assert.equal(1, #GC.Acquisitions.GetRealized(context))
   end)
 
+  -- The Sold tab's "You paid · Sniper": which purchases a sale drew on is read off the batches
+  -- its own evidence key consumed, never off a batch that merely shares the item's name.
+  it("names the sources of exactly the batches a sale consumed, once each", function()
+    record({ itemName = "Ironclaw Ore", quantity = 2, total = 200, evidenceKey = "buy:1", source = "goldcap" })
+    record({ itemName = "Ironclaw Ore", quantity = 2, total = 200, acquiredAt = 101, evidenceKey = "buy:2",
+      source = "goldcap_buy" })
+    record({ itemName = "Ironclaw Ore", quantity = 2, total = 200, acquiredAt = 102, evidenceKey = "buy:3",
+      source = "goldcap" })
+    record({ itemName = "Ironclaw Ore", quantity = 2, total = 200, acquiredAt = 103, evidenceKey = "buy:4",
+      source = "craft" })
+    GC.Acquisitions.RecordPost("commodity:42", 42, "Ironclaw Ore", context.char, context.region, 8, 150)
+    local sale = { key = "sale:sources", kind = "sale", source = "mail", itemName = "Ironclaw Ore",
+      qty = 5, total = 1000, at = 200, char = context.char, region = context.region, pending = false }
+    assert.equal("applied", GC.Acquisitions.ReconcileSale(sale).status)
+    -- FIFO took batches 1, 2 and one unit of 3; batch 4 was never touched.
+    assert.same({ "goldcap", "goldcap_buy" }, GC.Acquisitions.SourcesOf("sale:sources"))
+    assert.same({}, GC.Acquisitions.SourcesOf("sale:unknown"))
+    assert.same({}, GC.Acquisitions.SourcesOf(nil))
+    -- the same answers for every sale at once, from one pass
+    local index = GC.Acquisitions.SourcesIndex()
+    assert.same({ "goldcap", "goldcap_buy" }, index["sale:sources"])
+    assert.is_nil(index["sale:unknown"])
+  end)
+
   it("does not mistake same-name batches in separate positions for one sale candidate", function()
     record({ itemID = 1, positionKey = "item:1:0:0:0", itemName = "Shared Name", evidenceKey = "buy:1" })
     record({ itemID = 2, positionKey = "item:2:0:0:0", itemName = "Shared Name", evidenceKey = "buy:2" })

@@ -26,6 +26,15 @@ describe("Util", function()
   -- Depth for the tooltip: how long the shelf lasts at the rate the market is clearing it.
   -- Both numbers ride the import string's verification token, so either can be absent and
   -- neither may be trusted to be sane.
+  describe("TooltipText", function()
+    it("joins with a comma where GoldCap's own frames use the middle dot", function()
+      assert.equal("9c, 547 listed, just now", GC.Util.TooltipText("9c · 547 listed · just now"))
+      assert.equal("sold today at 11:06, 14 × 75c", GC.Util.TooltipText("sold today at 11:06 · 14 × 75c"))
+      assert.equal("Linen Cloth", GC.Util.TooltipText("Linen Cloth"))
+      assert.is_nil(GC.Util.TooltipText(nil))
+    end)
+  end)
+
   describe("FormatSupplyDays", function()
     it("divides the shelf by the daily rate, floored like FormatAge", function()
       assert.equal("48d", GC.Util.FormatSupplyDays(4210, 86)) -- 48.95, not 49
@@ -187,6 +196,26 @@ describe("Util", function()
       _G.AuctionHouseUtil = { GetErrorText = function() error("boom") end }
       assert.is_nil(GC.Util.AuctionHouseErrorText(0))
     end)
+  end)
+
+  -- One parser for every price box in the addon (BUY's cap box, Road to 40's mount cost). A bare
+  -- number is gold, as it is everywhere else in GoldCap; zero is not a price.
+  describe("ParseMoney", function()
+    local cases = {
+      { "12g 50s", 125000 }, { " 12G50S ", 125000 }, { "90", 900000 }, { "0.5", 5000 },
+      { "3s 20c", 320 }, { "1s 40c", 140 }, { "67c", 67 }, { "1g", 10000 },
+    }
+    for _, case in ipairs(cases) do
+      it(("reads %q as %d copper"):format(case[1], case[2]), function()
+        assert.equal(case[2], GC.Util.ParseMoney(case[1]))
+      end)
+    end
+    for _, bad in ipairs({ "", "abc", "12g 5g", "0", "-5g", "12x", "5 x" }) do
+      it(("refuses %q"):format(bad), function() assert.is_nil(GC.Util.ParseMoney(bad)) end)
+    end
+    -- Whitespace goes first, so a space inside an amount is harmless.
+    it("reads a spaced unit", function() assert.equal(500, GC.Util.ParseMoney("5 s")) end)
+    it("refuses a non-string", function() assert.is_nil(GC.Util.ParseMoney(nil)) end)
   end)
 end)
 

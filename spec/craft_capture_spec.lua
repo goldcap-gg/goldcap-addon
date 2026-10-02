@@ -226,12 +226,26 @@ describe("CraftCapture.Cost", function()
     assert.equal("ambiguous-identity", reason)
   end)
 
-  it("refuses a batch carrying no position key", function()
-    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 1 } }, storeOf({
+  it("prices a keyless batch, which is the same item not yet keyed", function()
+    -- A purchase collected from the mail, or a crafted batch, is keyed on the next auction house
+    -- visit; crafting happens before it, and the item id is all the identity a reagent needs.
+    local costing = GC.CraftCapture.Cost({ { itemID = 10, quantity = 1 } }, storeOf({
       [10] = { batch({ id = "acq:1", itemID = 10, positionKey = nil, qty = 20, total = 2000 }) },
+    }))
+    assert.equal(100, costing.total)
+    assert.is_nil(costing.reagents[1].positionKey)
+  end)
+
+  it("refuses a keyless batch beside a gear key, where it could be either variant", function()
+    local costing, reason, missing = GC.CraftCapture.Cost({ { itemID = 10, quantity = 1 } }, storeOf({
+      [10] = {
+        batch({ id = "acq:1", itemID = 10, positionKey = nil, qty = 20, total = 2000 }),
+        batch({ id = "acq:2", itemID = 10, positionKey = "item:10:600:0:0", qty = 5, total = 900 }),
+      },
     }))
     assert.is_nil(costing)
     assert.equal("ambiguous-identity", reason)
+    assert.equal("identity", missing[1].why)
   end)
 
   it("refuses a craft whose mats cost nothing on record", function()

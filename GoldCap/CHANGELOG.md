@@ -1,5 +1,74 @@
 # GoldCap
 
+## 0.18.0 (2026-10-02)
+
+- A craft now gets a cost when its reagents came from a vendor, from something you crafted yourself, or from another of your characters, not only from your own auction house purchases. Crafting reagents you buy at a merchant are remembered at the price you paid. Reagents you gathered or got without buying are counted at their current auction house price, and `/gc craft` and the Sold tab's tooltip say which ones and that the cost is partly an estimate. A craft that still cannot be priced no longer leaves the reagents you did buy on the books as if you still held them.
+- The BUY tab is simpler. Each line shows the item and how many are left to buy, the price each
+  and what the rest costs; a line that cannot be bought right now says why in a word instead. One
+  button at the bottom buys the line you clicked: press BUY, check Blizzard's price, then press
+  CONFIRM, or Cancel.
+- Hover a line to see the item's own full tooltip, beside the GoldCap window, and under it what is
+  left to buy and what you have, the prices it would buy at and how many at each, the market price
+  and your cap. For gear it lists the lots by price and the one the next press buys; for an item a
+  vendor sells, the vendor's price.
+- A line over your cap says what the cheapest one costs and what your cap is, and offers to raise
+  the cap or skip the line. Right-click any line to skip it for now or type a cap of your own.
+- The top of the BUY tab shows how much of the list is done and what the rest costs to buy here.
+  The BUY button on the left counts the lines ready to buy.
+- Long lists have a search box and a filter. The search ignores capital letters and accents in
+  every language.
+- A wide GoldCap window lists all your lists on the left.
+- Items a list's profession route crafts itself show as lines to craft, not to buy.
+- The BUY tab speaks every language GoldCap speaks; it was in English until now.
+- Copy vendor list is in the list menu.
+- In WoW: Forever, the market price in BUY says how many players' scans it comes from and how old
+  it is.
+- When a quest lets you choose a reward, GoldCap puts a gold frame around the one worth the most on
+  the auction house, and a line under the rewards says what it is worth. A reward the auction house
+  has no price for, such as soulbound gear, is never marked.
+- At a vendor, a small GoldCap note beside the vendor window says how many items in your bags fetch
+  more on the auction house than the vendor pays, and how much more, so you can keep them for the
+  auction house.
+- The SOLD tab is new. At the top: what you got in the chosen period, your profit where GoldCap
+  knows the cost, and in WoW: Forever how far you are on the road to level 40 riding. Pick today,
+  7 or 30 days, or search by name.
+- Sales show the item's icon and quality colour, grouped by day in WoW: Forever. Hover a sale to
+  see where the money went: the sale price, the auction house cut, what you got, what you paid and
+  the profit, and how the price compares with the market now.
+- In the SELL tab every column is as wide as its longest text, so nothing is cut or written over
+  in any language.
+- The GoldCap logo sits at the top of the side bar, and the tab buttons keep the same soft
+  highlight on hover after you have visited them.
+- GoldCap's tooltips join their details with commas, which every game language's font can draw.
+- Gear and other items that are not sold in stacks can now be bought in the BUY tab: one lot per
+  press, the cheapest first, and never above your cap. The bottom of the tab lists the lots by
+  price. Before, the button only opened the auction house's own page.
+- At a vendor, GoldCap lists the items of your BUY list that this vendor sells at or under your
+  cap, each with a button that buys what you still need, up to a full stack per press.
+- Make lists of your own right in the BUY tab: + New starts one, or use the box at the top of the
+  tab. Shift-click as many items into it as you like, or type item ids, and press Enter to add
+  them all. Type part of a name to pick from the items GoldCap already knows from your bags, bank,
+  lists, purchases and sales. Your last searches and items wait under the box, one click away.
+  The lists you make stay in the game. Right-click a line to take it off again.
+- Import a TSM item string or an Auctionator shopping list as a new list or into one of yours, and
+  export any list for Auctionator or TSM. A name the game cannot place is named back to you, and
+  the rest is imported.
+- Right-click a list to rename it, pin it to the top as a favourite, move it up or down, or delete
+  it. Lists from goldcap.gg are renamed and deleted on the site.
+- Search the auction house right in the BUY tab, as in Auctionator's Shopping tab: with the auction
+  house open, type a name in the box at the top and press Enter. Every item on sale comes back with
+  its cheapest price and how many are up; each item level of a piece of gear has its own line, and
+  More results loads the rest. Back takes you to your list, which stays as it was.
+- Click a result to buy it at the bottom of the tab: set how many, press BUY, check Blizzard's price,
+  then CONFIRM; gear is bought one item per press. Your usual cap holds, the market price times your
+  BUY cap, and you can raise it or right-click the result to type your own. Gear with no market
+  price waits for a cap of yours.
+- Right-click a result to add it to one of your lists, or to a new one, with how many you want.
+- Without the auction house, the box still offers the items GoldCap knows and says to open the
+  auction house to search what is on sale.
+- Menus, tooltips, chat messages and GoldCap's own labels no longer show empty boxes in place of a
+  dot, an arrow or a triangle in some languages.
+
 ## 0.17.2 (2026-09-30)
 
 - In WoW: Forever, one scan no longer prints its summary twice in chat when the game hands the

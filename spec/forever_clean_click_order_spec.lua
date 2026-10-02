@@ -180,7 +180,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
     it("planBuyClick (BUY tab)", function()
       local text = source("GoldCap/UI/BuyFrame.lua")
-      local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
+      local clickStart = assert(text:find("local function planBuyClick(line, fromDock)", 1, true))
       local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
       assertClean(text:sub(clickStart, clickEndStop), "planBuyClick")
     end)
@@ -199,13 +199,14 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
   describe("BuyFrame.lua planBuyClick", function()
     local text = source("GoldCap/UI/BuyFrame.lua")
-    local clickStart = assert(text:find("local function planBuyClick(line)", 1, true))
+    local clickStart = assert(text:find("local function planBuyClick(line, fromDock)", 1, true))
     local _, clickEndStop = assert(text:find("\nend\n", clickStart, true))
     local click = text:sub(clickStart, clickEndStop)
 
     it("runs armStall and afterClick only once the call has been made", function()
       for _, answer in ipairs({ 'return "confirm", attempt.itemID, attempt.qty, function()',
-                                'return "start", attempt.itemID, attempt.qty, function()' }) do
+                                'return "start", attempt.itemID, attempt.qty, function()',
+                                'return "bid", lot.auctionID, lot.buyout, function()' }) do
         local answerAt = assert(click:find(answer, 1, true), answer)
         local arm = click:sub(1, answerAt - 1):match('.*()attempt%.stage = "')
         assert.is_nil(click:sub(arm, answerAt - 1):find("logAttempt(", 1, true))

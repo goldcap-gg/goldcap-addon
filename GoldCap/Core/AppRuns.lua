@@ -11,12 +11,23 @@ local _, GC = ...
 --             persisted SavedVariables `db.runs` rather than kept in a module-local.
 --   "paste" -- a `GCR1;...` string pasted into UI/ImportDialog.lua's box, parsed by
 --             ImportString() below, for a player without the companion.
+--   "game"  -- a list made in the game (BUY 2.0): "+ New", the item box, or a TSM or Auctionator
+--             string imported into one (Core/ListStrings.lua). Named by the player, or "List N"
+--             in the player's language until they do (`num`, see Label).
 --
 -- Adopt() replaces every "app" run wholesale on each call (the companion's file is a
--- snapshot of everything it currently knows, not a diff) but never touches a "paste" run --
--- those exist only because the companion did not provide them, so nothing it says can make
--- them stale.
+-- snapshot of everything it currently knows, not a diff) but never touches a "paste" or a
+-- "game" run -- those exist only because the companion did not provide them, so nothing it says
+-- can make them stale. Both are the player's own, "in game" in the BUY tab (IsLocal), and they
+-- never leave the client: the companion uploads ledger rows, never `runs`, and drops a run code
+-- that is not the site's eight letters and digits from the rows it does upload -- which a "game-"
+-- code never is.
 GC.AppRuns = {}
+
+-- Everything stored beside a run, keyed by its code, that goes when the run goes (Adopt, Remove).
+-- A list of names, not of the stores themselves: whichever store is nil would leave a hole in an
+-- array constructor, and ipairs stops dead at the first one, skipping every store after it.
+local PER_RUN = { "runCaps", "runsArchived", "runSplits", "runNotices", "runLineCaps", "runFavourites" }
 
 local function num(v) return type(v) == "number" and v or nil end
 local function itemLevel(v)
@@ -78,6 +89,9 @@ local function copyLine(raw)
     -- `minIlvl` only when the member has one, so absent is no floor. Only a positive whole number
     -- is a level; anything else drops the floor, never the line.
     minIlvl = itemLevel(raw.minIlvl),
+    -- BUY 2.0: `mk` says the route this list was saved from crafts the item itself, at least as
+    -- many as the list needs -- a line to craft, never to buy. Only `true` is the flag.
+    mk = raw.mk == true or nil,
   }
 end
 
@@ -210,12 +224,15 @@ function GC.AppRuns.Adopt()
 
   local kept = {}
   for code, run in pairs(db.runs or {}) do
-    if run.origin == "paste" then kept[code] = run end
+    if run.origin == "paste" or run.origin == "game" then kept[code] = run end
   end
   if type(db.runNotices) ~= "table" then db.runNotices = {} end
   for _, rawRun in ipairs(raw.runs) do
     local run = copyRun(rawRun, "app")
     if run then
+      -- When the site's prices on these lines were fetched: a WoW: Forever crowd price seen after
+      -- this moment is the fresher look and wins over a line's own `u` (Core/BuyRun.lua).
+      run.pricedAt = raw.generatedAt
       -- Compared against what this code held BEFORE the replacement: `db.runs` is still the
       -- previous generation here, and a paste is never compared -- the site did not write it,
       -- so it has nothing to say about it having changed.
@@ -230,17 +247,20 @@ function GC.AppRuns.Adopt()
   end
 
   db.runs = kept
-  -- A run the site deleted takes every per-run setting with it. Nothing else would ever clear
-  -- them, and a code the site later reuses would come back carrying a cap, a split or a notice
-  -- nobody chose for it. Named fields, not `{ db.runCaps, db.runsArchived, ... }`: whichever of
-  -- these is nil (usually runCaps -- most runs never get one) would leave a hole in that array
-  -- constructor, and ipairs stops dead at the first nil, silently skipping every store after it.
-  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+  -- A run the site deleted takes every per-run setting with it, and its place in the player's
+  -- order. Nothing else would ever clear them, and a code the site later reuses would come back
+  -- carrying a cap, a split or a notice nobody chose for it (PER_RUN says why it names fields).
+  for _, field in ipairs(PER_RUN) do
     local store = db[field]
     if type(store) == "table" then
       for code in pairs(store) do
         if not kept[code] then store[code] = nil end
       end
+    end
+  end
+  if type(db.runOrder) == "table" then
+    for i = #db.runOrder, 1, -1 do
+      if not kept[db.runOrder[i]] then table.remove(db.runOrder, i) end
     end
   end
   -- ...and a notice the band has already stopped showing goes with it. A notice is a claim about
@@ -299,20 +319,46 @@ function GC.AppRuns.SetArchived(code, archived)
   return true
 end
 
--- Own app runs, then followed ones, then pastes, then alert groups; each group newest
--- `updatedAt` first. `opts.archived` asks for the other half instead -- the runs that have been
--- put away -- because the picker and the menu's archived section each want exactly one of the two.
+-- The player's order over the default one: favourites first, then every list where the player
+-- moved it (`runOrder`), then any list never placed -- a new one, or one the site added since --
+-- in the default order after them.
+local function playerOrder(base)
+  local db = GC.db
+  local order = type(db.runOrder) == "table" and db.runOrder or {}
+  local rank = {}
+  for i, code in ipairs(order) do
+    if rank[code] == nil then rank[code] = i end
+  end
+  local keyed = {}
+  for i, run in ipairs(base) do
+    keyed[i] = { run = run, fav = GC.AppRuns.IsFavourite(run.code) and 0 or 1, rank = rank[run.code] or (#order + i) }
+  end
+  table.sort(keyed, function(a, b)
+    if a.fav ~= b.fav then return a.fav < b.fav end
+    return a.rank < b.rank
+  end)
+  local out = {}
+  for i, k in ipairs(keyed) do out[i] = k.run end
+  return out
+end
+
+-- Own app runs, then followed ones, then the player's own (made in the game or pasted), then
+-- alert groups; each group newest first -- the player's own by when they were made, since adding an
+-- item must not move a list. The player's favourites and order (playerOrder) then sit over all of
+-- it but the alert groups, which stay last. `opts.archived` asks for the other half instead -- the
+-- runs that have been put away -- because the picker and the menu's archived section each want
+-- exactly one of the two.
 function GC.AppRuns.List(opts)
   local wantArchived = type(opts) == "table" and opts.archived == true
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return {} end
-  local own, shared, pasteRuns, alerts = {}, {}, {}, {}
+  local own, shared, localRuns, alerts = {}, {}, {}, {}
   for _, run in pairs(db.runs) do
     if GC.AppRuns.IsArchived(run.code) == wantArchived then
       if run.k == "alert" then
         alerts[#alerts + 1] = run
-      elseif run.origin == "paste" then
-        pasteRuns[#pasteRuns + 1] = run
+      elseif run.origin == "paste" or run.origin == "game" then
+        localRuns[#localRuns + 1] = run
       elseif type(run.by) == "string" and run.by ~= "" then
         shared[#shared + 1] = run
       else
@@ -320,19 +366,51 @@ function GC.AppRuns.List(opts)
       end
     end
   end
-  local function newestFirst(a, b) return (a.updatedAt or 0) > (b.updatedAt or 0) end
+  local function newestFirst(a, b)
+    local x, y = a.createdAt or a.updatedAt or 0, b.createdAt or b.updatedAt or 0
+    if x ~= y then return x > y end
+    return tostring(a.code) < tostring(b.code)
+  end
   table.sort(own, newestFirst)
   table.sort(shared, newestFirst)
-  table.sort(pasteRuns, newestFirst)
+  table.sort(localRuns, newestFirst)
   table.sort(alerts, newestFirst)
   local result = {}
   -- Own lists first, then the ones the player follows, then their own pastes, then the alert
   -- groups: the picker reads as "yours, then other people's, then what your alerts found", and
   -- a first visit (UI/BuyFrame.lua's ensureRun takes the first) never lands on somebody else's.
-  for _, bucket in ipairs({ own, shared, pasteRuns, alerts }) do
+  for _, bucket in ipairs({ own, shared, localRuns }) do
     for _, run in ipairs(bucket) do result[#result + 1] = run end
   end
+  if not wantArchived then result = playerOrder(result) end
+  for _, run in ipairs(alerts) do result[#result + 1] = run end
   return result
+end
+
+-- What a vendor charges for one of an item, whole copper, when any list the player holds marks it
+-- a vendor stop (`v`) and carries the vendor's price (`vu`) -- on the line itself or on a reagent
+-- of the recipe attached to a line. The newest list that says so wins. nil when none does: a
+-- price on a line that is not a vendor stop is a ceiling for the auction house, not what a
+-- merchant sells it for. Craft costing prices a vendor reagent it never saw bought with this.
+function GC.AppRuns.VendorUnitFor(itemID)
+  local db = GC.db
+  if type(db) ~= "table" or type(db.runs) ~= "table" or type(itemID) ~= "number" then return nil end
+  local best, bestAt
+  local function offer(run, unit)
+    if type(unit) == "number" and unit > 0 and unit == math.floor(unit)
+        and (not bestAt or (run.updatedAt or 0) > bestAt) then
+      best, bestAt = unit, run.updatedAt or 0
+    end
+  end
+  for _, run in pairs(db.runs) do
+    for _, line in ipairs(type(run.lines) == "table" and run.lines or {}) do
+      if line.i == itemID and line.v == true then offer(run, line.vu) end
+      for _, reagent in ipairs(type(line.cr) == "table" and type(line.cr.i) == "table" and line.cr.i or {}) do
+        if reagent.i == itemID and reagent.v == true then offer(run, reagent.vu) end
+      end
+    end
+  end
+  return best
 end
 
 function GC.AppRuns.Get(code)
@@ -362,10 +440,11 @@ end
 -- pasted run never carries per-line names (the string has none to carry): UI/ImportDialog.lua
 -- and whatever draws the run fall back to the client's own item name for each line.
 --
--- On success this also stores the run into `GC.db.runs` (origin "paste"), the same way a
+-- ParseRunString hands the run back unsaved (UI/BuyLists.lua adds its lines to a list the player
+-- picked); ImportString also stores it into `GC.db.runs` (origin "paste"), the same way a
 -- successful GCS1 price import is applied immediately rather than just handed back parsed --
 -- there is no second "now save it" step for a manual paste to skip.
-function GC.AppRuns.ImportString(str)
+function GC.AppRuns.ParseRunString(str)
   if type(str) ~= "string" then return nil, "bad_header" end
   str = str:gsub("%s+", "")
   local code, rawName, rest = str:match("^GCR1;([^;]*);([^;]*);(.*)$")
@@ -399,8 +478,12 @@ function GC.AppRuns.ImportString(str)
   local name = decodeURIComponent(rawName)
   if name == "" then name = nil end
 
-  local run = { code = code, name = name, updatedAt = time(), lines = lines, origin = "paste" }
+  return { code = code, name = name, updatedAt = time(), lines = lines, origin = "paste" }
+end
 
+function GC.AppRuns.ImportString(str)
+  local run, err = GC.AppRuns.ParseRunString(str)
+  if not run then return nil, err end
   local db = GC.db
   if type(db) == "table" then
     db.runs = db.runs or {}
@@ -414,7 +497,7 @@ end
 
 -- Forgets a run. Any origin is accepted, but an "app" run is the companion's mirror of a list
 -- on goldcap.gg and Adopt() brings it back on the next sync -- the caller decides whether to
--- offer that (UI/BuyFrame.lua offers removal for pasted runs only).
+-- offer that (UI/BuyLists.lua offers it for the player's own lists only, as Delete).
 function GC.AppRuns.Remove(code)
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
@@ -424,10 +507,217 @@ function GC.AppRuns.Remove(code)
   if GC.AppRuns.IsAlert(code) or GC.AppRuns.IsShared(code) then return false end
   db.runs[code] = nil
   -- Everything stored beside the run goes with it, for the same reason Adopt prunes: nothing
-  -- else would. Named fields, not an array of the values -- see Adopt's pruning loop for why.
-  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+  -- else would.
+  for _, field in ipairs(PER_RUN) do
     local store = db[field]
     if type(store) == "table" then store[code] = nil end
   end
+  if type(db.runOrder) == "table" then
+    for i = #db.runOrder, 1, -1 do
+      if db.runOrder[i] == code then table.remove(db.runOrder, i) end
+    end
+  end
+  return true
+end
+
+-- ---------------------------------------------------------------------------
+-- The player's own lists (BUY 2.0): made in the game and kept in SavedVariables, beside the
+-- pasted ones. GoldCapDB.runs holds them like any run; `runFavourites` (code -> true) and
+-- `runOrder` (codes, the player's order) hold what the player decided about every list.
+-- ---------------------------------------------------------------------------
+
+-- The one list a 0.17 build could make in the game, before a player could have more than one.
+local OLD_QUICK = "quick"
+
+--- Whether a run is the player's own -- made in the game or pasted -- rather than goldcap.gg's.
+--- Takes the run or its code.
+function GC.AppRuns.IsLocal(runOrCode)
+  local run = type(runOrCode) == "table" and runOrCode or GC.AppRuns.Get(runOrCode)
+  return type(run) == "table" and (run.origin == "game" or run.origin == "paste")
+end
+
+--- What a run is called on screen: its own name; "List N" in the player's language for a list made
+--- in the game that has none; its code otherwise -- never an invented label.
+function GC.AppRuns.Label(run)
+  if type(run) ~= "table" then return "" end
+  if type(run.name) == "string" and run.name ~= "" then return run.name end
+  if run.origin == "game" and type(run.num) == "number" then return (GC.L["List %d"]):format(run.num) end
+  return run.code or "?"
+end
+
+local function labelTaken(label, except)
+  local db = GC.db
+  for code, run in pairs(type(db) == "table" and type(db.runs) == "table" and db.runs or {}) do
+    if code ~= except and GC.AppRuns.Label(run) == label then return true end
+  end
+  return false
+end
+
+-- The smallest N no other list is called "List N" by, so a new list is never a second "List 2".
+local function nextNumber(except)
+  local n = 1
+  while labelTaken((GC.L["List %d"]):format(n), except) do n = n + 1 end
+  return n
+end
+
+function GC.AppRuns.NextNumber() return nextNumber(nil) end
+
+local function cleanName(name)
+  if type(name) ~= "string" then return nil end
+  name = name:gsub("%c", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  return name ~= "" and name or nil
+end
+
+--- Makes a list in the game, named `name` or "List N", holding `lines` ({ i, q }, one per item) or
+--- nothing yet. Returns the run.
+function GC.AppRuns.NewList(name, lines)
+  local db = GC.db
+  if type(db) ~= "table" then return nil end
+  if type(db.runs) ~= "table" then db.runs = {} end
+  -- A code no list ever had: what was bought, its caps and its ledger rows are filed under it, and a
+  -- deleted list's must never be handed to a new one. Never the site's eight letters and digits
+  -- either, so the companion leaves it off the rows it uploads.
+  local seq = math.max(0, math.floor(tonumber(db.listSeq) or 0))
+  repeat seq = seq + 1 until db.runs["game-" .. seq] == nil
+  db.listSeq = seq
+  name = cleanName(name)
+  local now = time()
+  local run = {
+    code = "game-" .. seq, origin = "game", name = name, num = (not name) and nextNumber() or nil,
+    createdAt = now, updatedAt = now, lines = mergeLines(lines or {}),
+  }
+  db.runs[run.code] = run
+  return run
+end
+
+--- Names one of the player's own lists; an empty name puts "List N" back. A goldcap.gg list is
+--- renamed on goldcap.gg -- the next sync would undo it here.
+function GC.AppRuns.Rename(code, name)
+  local run = GC.AppRuns.Get(code)
+  if not GC.AppRuns.IsLocal(run) then return false end
+  name = cleanName(name)
+  if run.origin == "game" and name == nil then
+    run.name = nil
+    if not (run.num and not labelTaken((GC.L["List %d"]):format(run.num), code)) then
+      run.num = nextNumber(code)
+    end
+    return true
+  end
+  -- Typing the default back is keeping the default, which then follows the player's language.
+  if run.origin == "game" and run.num and name == (GC.L["List %d"]):format(run.num) then name = nil end
+  run.name = name
+  return true
+end
+
+function GC.AppRuns.IsFavourite(code)
+  local db = GC.db
+  return type(db) == "table" and type(db.runFavourites) == "table" and code ~= nil
+    and db.runFavourites[code] == true
+end
+
+--- Pins a list to the top of the picker and the column, or takes the pin off. An alert group's live
+--- hits come and go with the group, and stay where the site puts them: after every list.
+function GC.AppRuns.SetFavourite(code, on)
+  local db = GC.db
+  local run = GC.AppRuns.Get(code)
+  if not run or run.k == "alert" then return false end
+  if type(db.runFavourites) ~= "table" then db.runFavourites = {} end
+  db.runFavourites[code] = on and true or nil
+  return true
+end
+
+-- The lists the player orders, in the order they are shown: every live one but the alert groups.
+local function ordered()
+  local out = {}
+  for _, run in ipairs(GC.AppRuns.List()) do
+    if run.k ~= "alert" then out[#out + 1] = run end
+  end
+  return out
+end
+
+local function indexOf(list, code)
+  for i, run in ipairs(list) do
+    if run.code == code then return i end
+  end
+  return nil
+end
+
+--- Whether `code` can move one place up (-1) or down (+1): favourites move among favourites, the
+--- rest among the rest.
+function GC.AppRuns.CanMove(code, delta)
+  local list = ordered()
+  local i = indexOf(list, code)
+  local other = i and list[i + delta] or nil
+  return other ~= nil and GC.AppRuns.IsFavourite(other.code) == GC.AppRuns.IsFavourite(code)
+end
+
+--- Moves a list one place, and keeps the whole order as the player now sees it.
+function GC.AppRuns.Move(code, delta)
+  if not GC.AppRuns.CanMove(code, delta) then return false end
+  local list = ordered()
+  local i = indexOf(list, code)
+  list[i], list[i + delta] = list[i + delta], list[i]
+  local order = {}
+  for n, run in ipairs(list) do order[n] = run.code end
+  GC.db.runOrder = order
+  return true
+end
+
+--- Adds lines ({ i, q }) to one of the player's own lists: an item it already has grows by the
+--- quantity, a new one goes at the end. Returns the run and how many items were given, or nil.
+function GC.AppRuns.AddLines(code, lines)
+  local run = GC.AppRuns.Get(code)
+  if not GC.AppRuns.IsLocal(run) then return nil end
+  local added = mergeLines(lines or {})
+  local byItem = {}
+  for _, line in ipairs(run.lines) do byItem[line.i] = line end
+  for _, line in ipairs(added) do
+    local have = byItem[line.i]
+    if have then
+      have.q = have.q + line.q
+    else
+      run.lines[#run.lines + 1] = line
+      byItem[line.i] = line
+    end
+  end
+  if #added > 0 then run.updatedAt = time() end
+  -- Added to, it is the player's list now: never left in the Archived section unseen.
+  local db = GC.db
+  if type(db.runsArchived) == "table" then db.runsArchived[code] = nil end
+  return run, #added
+end
+
+function GC.AppRuns.AddLine(code, itemID, qty)
+  if type(itemID) ~= "number" or itemID <= 0 then return nil end
+  qty = (type(qty) == "number" and qty > 0) and math.floor(qty) or 1
+  return (GC.AppRuns.AddLines(code, { { i = itemID, q = qty } }))
+end
+
+--- Takes one item off one of the player's own lists. The list stays, empty or not: the player made
+--- it, and Delete is how it goes.
+function GC.AppRuns.RemoveLine(code, itemID)
+  local run = GC.AppRuns.Get(code)
+  if not GC.AppRuns.IsLocal(run) then return false end
+  for i, line in ipairs(run.lines) do
+    if line.i == itemID then
+      table.remove(run.lines, i)
+      run.updatedAt = time()
+      return true
+    end
+  end
+  return false
+end
+
+--- A 0.17 quick list becomes a list made in the game, "List N", in place: same code, so its lines,
+--- its caps, what was bought on it and the BUY tab's choice of it all stay where they are.
+function GC.AppRuns.Migrate()
+  local db = GC.db
+  if type(db) ~= "table" or type(db.runs) ~= "table" then return false end
+  local run = db.runs[OLD_QUICK]
+  if type(run) ~= "table" or run.quick ~= true then return false end
+  run.quick = nil
+  run.origin = "game"
+  run.num = run.num or nextNumber(OLD_QUICK)
+  run.createdAt = run.createdAt or run.updatedAt
   return true
 end

@@ -589,6 +589,19 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   end
 end
 
+-- True for a position whose every batch is a merchant purchase and which has nothing in the bags,
+-- nothing listed and no sale or purchase still open on it.
+local function onlyIdleVendorLots(position)
+  if (position.bagQty or 0) > 0 or (position.listedQty or 0) > 0 or #position.ownedLots > 0
+      or #position.sellerEvidence > 0 or #position.pendingAcquisitions > 0 or #position.batches == 0 then
+    return false
+  end
+  for _, batch in ipairs(position.batches) do
+    if batch.source ~= "vendor" then return false end
+  end
+  return true
+end
+
 function GC.SellPositions.Build(args)
   args = args or {}
   local context = args.context
@@ -863,9 +876,14 @@ function GC.SellPositions.Build(args)
   end
   local result = {}
   for _, position in pairs(positions) do
-    decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-      args.quoteMaxAge, args.chosenUnits, args.scanProjects)
-    result[#result + 1] = position
+    -- A merchant purchase is cost basis for a craft, not stock to sell: with none of it in the
+    -- bags or on the auction house, a position made only of vendor lots has nothing to act on
+    -- here, and (an old save may hold many) would otherwise sit among the rows a player acts on.
+    if not onlyIdleVendorLots(position) then
+      decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
+        args.quoteMaxAge, args.chosenUnits, args.scanProjects)
+      result[#result + 1] = position
+    end
   end
   for _, unresolvedPosition in ipairs(unresolvedRows) do result[#result + 1] = unresolvedPosition end
   table.sort(result, stablePositionOrder)

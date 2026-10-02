@@ -61,6 +61,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       IsShown = function() return false end,
       SetText = function() end,
       SetTexture = function() end,
+      SetTexCoord = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       -- Check panel v3: the hero caption and the reconciliation note are fixed-height

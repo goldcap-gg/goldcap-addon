@@ -27,6 +27,9 @@ GC.DEFAULTS = {
   -- looking for it has usually just done. Capped by the module. Same empty-table
   -- ApplyDefaults contract as `flips` above.
   craftOutcomes = {},
+  -- itemID -> true: items a crafting session that makes several unrelated things (prospecting,
+  -- crushing, milling) produced. Only so `/gc craft` can say that such a reagent was never bought.
+  craftConverted = {},
   -- itemID -> true/false, "does this item sell as a commodity". Learned from
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
@@ -58,10 +61,20 @@ GC.DEFAULTS = {
   -- table, so a populated SavedVariables array is never truncated on login.
   ledger = {},
   gold = {},
-  -- Buy runs (companion "Runs" plan or a pasted GCR1 string) -- Core/AppRuns.lua. code ->
-  -- { code, name, updatedAt, lines, origin = "app"|"paste" }. Same empty-table ApplyDefaults
-  -- contract as `flips` above: a populated SavedVariables table is never touched or truncated.
+  -- Buy runs (companion "Runs" plan, a pasted GCR1 string, or a list made in the game) --
+  -- Core/AppRuns.lua. code -> { code, name, updatedAt, lines, origin = "app"|"paste"|"game" }; a
+  -- list made in the game also carries `num` (its "List N") and `createdAt`. Same empty-table
+  -- ApplyDefaults contract as `flips` above: a populated SavedVariables table is never touched or
+  -- truncated.
   runs = {},
+  -- The player's own say over every list (Core/AppRuns.lua): favourites by code, the order they
+  -- moved the lists into (codes), and the last number a list made in the game took for its code.
+  runFavourites = {},
+  runOrder = {},
+  listSeq = 0,
+  -- The BUY item box's last searches and added items, newest first, for the whole account
+  -- (Core/BuyRecents.lua). Same empty-table ApplyDefaults contract as `flips` above.
+  buyRecents = {},
   -- Metadata for the companion-sourced half of `runs` above: when it was generated, so Adopt
   -- can tell a fresher file from a stale one already applied. generatedAt = 0 means "nothing
   -- adopted yet", which is always older than any real Unix timestamp the companion writes.
@@ -289,6 +302,13 @@ frame:RegisterEvent("PLAYER_MONEY")
 -- BAG_UPDATE_DELAYED, not BAG_UPDATE: the delayed form fires once after a burst of container
 -- changes, which is exactly the granularity a re-count of "what have I already got" wants.
 frame:RegisterEvent("BAG_UPDATE_DELAYED")
+-- BUY 2.0 week 2: at a vendor, the BUY list's vendor lines become buttons (UI/BuyVendorPanel.lua).
+-- Each in its own pcall, like AUCTION_CANCELED above: an event a client does not know must not take
+-- the rest of the registrations with it.
+-- CURSOR_CHANGED tells Core/VendorBuys.lua that a picked-up merchant item was dropped or put back.
+for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED" }) do
+  pcall(frame.RegisterEvent, frame, merchantEvent)
+end
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -468,6 +488,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- /reload the player did mid-session (for any unrelated reason) is picked up the next
       -- time the Auction House opens, rather than waiting for the next full login.
       GC.AppRuns.Adopt()
+      -- A 0.17 quick list becomes the player's first list made in the game, in place.
+      GC.AppRuns.Migrate()
     end
     -- Live price caps: adopt alongside AppRuns above (same GoldCap_AppRuns file, see
     -- Core/Caps.lua). Guarded on the Sniper frame existing because it is built lazily
@@ -479,6 +501,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
+    if GC.VendorBuys then GC.VendorBuys.Install() end
     if GC.CraftCapture then
       -- Every player cast reaches recipeFor, so the answer for a spell is remembered: a
       -- recipe's reagent slots do not change, and a fireball should cost one lookup ever
@@ -513,17 +536,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
         -- because a quality variant is its own item. Without them CraftCapture counts only the
         -- declared id and refuses a run that came out at another quality -- safe, but it would
         -- refuse most crafts that have qualities at all.
-        local outputs = {}
-        if type(schematic.outputItemID) == "number" then outputs[schematic.outputItemID] = true end
-        if type(C_TradeSkillUI.GetRecipeOutputItemData) == "function" then
-          for quality = 1, 5 do
-            local gotData, data = pcall(C_TradeSkillUI.GetRecipeOutputItemData,
-              schematic.recipeID or spellID, nil, nil, quality)
-            if gotData and type(data) == "table" and type(data.itemID) == "number" then
-              outputs[data.itemID] = true
-            end
-          end
-        end
+        local outputs = GC.CraftCapture.OutputIDs(C_TradeSkillUI, schematic.recipeID or spellID,
+          schematic.outputItemID)
 
         local recipe = { recipeID = schematic.recipeID or spellID,
           outputItemID = schematic.outputItemID, isRecraft = schematic.isRecraft == true,
@@ -562,6 +576,38 @@ frame:SetScript("OnEvent", function(_, event, ...)
           end
           return out
         end,
+        -- The account's other characters' lots of an item, in this region: a craft draws on them
+        -- only for what this character's own purchases do not cover.
+        othersFor = function(itemID)
+          local out = {}
+          if not GC.Acquisitions then return out end
+          local scope = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+          if not scope then return out end
+          for _, batch in ipairs(GC.Acquisitions.GetActiveAccount(scope)) do
+            if batch.itemID == itemID and batch.character ~= scope.char then out[#out + 1] = batch end
+          end
+          return out
+        end,
+        vendorUnit = function(itemID)
+          return GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
+        end,
+        -- What the item sells for now, at the figure its tooltip prints, for a reagent no
+        -- purchase and no vendor price covers (gathered, a quest reward, bought before install).
+        marketUnit = function(itemID)
+          if not (GC.Tooltip and GC.Tooltip.TrustedHeadline and GC.Data and GC.Data.GetItemValue) then
+            return nil
+          end
+          -- Only a figure the deal maths trusts: an imported realm median is not a cost basis.
+          local ok, unit = pcall(function() return (GC.Tooltip.TrustedHeadline(GC.Data.GetItemValue(itemID))) end)
+          return ok and type(unit) == "number" and math.floor(unit) or nil
+        end,
+        isConverted = function(itemID)
+          return type(GC.db.craftConverted) == "table" and GC.db.craftConverted[itemID] == true
+        end,
+        noteConverted = function(itemID)
+          GC.db.craftConverted = type(GC.db.craftConverted) == "table" and GC.db.craftConverted or {}
+          GC.db.craftConverted[itemID] = true
+        end,
         commodityKinds = function() return GC.db and GC.db.commodityByItem or {} end,
         outcomes = type(GC.db.craftOutcomes) == "table" and GC.db.craftOutcomes or nil,
         -- The site ledger's copy of the craft. `craft` and `consume` are words the API
@@ -577,7 +623,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
               itemID = row.itemID, itemName = row.itemName,
               qty = row.qty, total = row.total,
               cut = 0, deposit = 0, pending = false, at = row.at,
-              char = scope and scope.char or nil, region = scope and scope.region or nil,
+              char = row.char or (scope and scope.char) or nil,
+              region = scope and scope.region or nil,
             })
           end
         end,
@@ -681,6 +728,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnAuctionHouseShow()
       -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
       if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
+    elseif interactionType == Enum.PlayerInteractionType.Merchant then
+      -- The note beside the vendor window: what in the bags fetches more on the auction house.
+      if GC.MerchantNote then GC.MerchantNote.OnMerchantShow() end
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
@@ -692,7 +742,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
       -- down for that item until /reload.
       if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+      -- The BUY search after BUY: the list it put aside comes back once no purchase is in flight.
+      if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
+    elseif interactionType == Enum.PlayerInteractionType.Merchant then
+      if GC.MerchantNote then GC.MerchantNote.OnMerchantClosed() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
     GC.Util.NoteThrottleEvent(event)
@@ -703,6 +757,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
       GC.Sniper.OnThrottledMessageDropped()
     end
+    -- ...and the BUY search's browse request out may be the one thrown away.
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.BuySearch then GC.BuySearch.OnDropped() end
     -- A post the client holds back until the throttle frees a slot: the Sell tab says it is
     -- waiting for the auction house instead of a bare "Posting…" (GC.Sell.OnThrottleQueued).
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" and GC.Sell.OnThrottleQueued then
@@ -728,6 +784,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnItemKeyInfo then
       GC.Sell.OnItemKeyInfo(itemID)
     end
+    -- A BUY search result waiting for its name (UI/BuySearch.lua).
+    if GC.BuySearch then GC.BuySearch.OnItemKeyInfo(itemID) end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
     -- The payload is documented as an itemKey, and every line below reads a field off it.
@@ -752,6 +810,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- from that key (GC.Sell._QuoteItemKey).
       GC.Sell.OnItemSearchResults(itemKey.itemID, itemKey)
     end
+    -- BUY 2.0 week 2: a gear line's read, matched by the tab against the key it sent.
+    if GC.Buy and GC.Buy.OnItemResults then GC.Buy.OnItemResults(itemKey) end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     local itemID = ...
@@ -768,8 +828,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Buy.OnCommodityResults(itemID)
     end
   elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
+    local auctionID = ...
+    -- The BUY tab's own bid (a gear line) or the Deals window's: each answers only its own auctionID.
+    if GC.Buy and GC.Buy.OnPurchaseCompleted then GC.Buy.OnPurchaseCompleted(auctionID) end
     if GC.Sniper.OnPurchaseCompleted then
-      local auctionID = ...
       GC.Sniper.OnPurchaseCompleted(auctionID)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
@@ -821,8 +883,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnAuctionHouseError then
       GC.Sell.OnAuctionHouseError(errorCode)
     end
-    if GC.Sniper.OnAuctionHouseError then
-      GC.Sniper.OnAuctionHouseError(errorCode)
+    -- A BUY bid out (a gear line) takes the error as its answer; the two windows never have a bid
+    -- out at once (GC.Buy.BidOut, GC.Sniper.BidOut), so the Deals window's waits are not its.
+    if not (GC.Buy and GC.Buy.OnAuctionHouseError and GC.Buy.OnAuctionHouseError(errorCode)) then
+      if GC.Sniper.OnAuctionHouseError then
+        GC.Sniper.OnAuctionHouseError(errorCode)
+      end
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
     if GC.Sniper.OnAuctionHouseClosed then
@@ -830,6 +896,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseClosed() end
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
+    if GC.BuySearch then GC.BuySearch.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     -- The new auction's id: the Sell tab asks the client which item it is, so a post that went
@@ -916,13 +983,29 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
+    -- What a vendor press bought arriving in the bags is that purchase's answer.
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnBagsChanged() end
+    if GC.VendorBuys then GC.VendorBuys.OnBagsChanged(time()) end
     -- A craft changes the bags, so this is the cheapest settle signal there is; the ticker
     -- above covers the case where nothing else touches a bag afterwards.
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
+    -- A sale or a buyback at a vendor changes what the vendor note counts.
+    if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
+  elseif event == "CURSOR_CHANGED" then
+    if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
+  elseif event == "MERCHANT_SHOW" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
+  elseif event == "MERCHANT_UPDATE" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
+  elseif event == "MERCHANT_CLOSED" then
+    if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
     if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
+    -- The quest reward mark hooks the quest frame at load; this catches a quest frame the client
+    -- had not loaded by then. Once only, guarded there.
+    if GC.QuestRewardMark then GC.QuestRewardMark.Install() end
     -- WoW: Forever's first-run lines (Core/ForeverScan.lua): once per account, guarded there.
     if GC.ForeverScan then
       GC.ForeverScan.MaybeIntro()
@@ -952,8 +1035,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
+-- The chat frame draws in the client's face (ARIALN), so what GoldCap says there goes through
+-- GC.Util.ClientText like every other client-font text: here, once, for every caller.
 function GC.Print(msg)
-  print("|cffffd100GoldCap|r: " .. tostring(msg))
+  print(GC.Util.ClientText("|cffffd100GoldCap|r: " .. tostring(msg)))
 end
 
 function GC.OnSlash(msg)
@@ -1017,10 +1102,21 @@ GC.slashHandlers.craft = function()
     GC.Print("no crafting sessions seen yet this session")
     return
   end
+  local function nameOf(itemID)
+    if C_Item and C_Item.GetItemNameByID then
+      local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+      if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    return "#" .. tostring(itemID)
+  end
   for _, outcome in ipairs(outcomes) do
     if outcome.reason then
       GC.Print(("recipe %s: nothing recorded (%s)"):format(
         tostring(outcome.recipeID), outcome.reason))
+      for _, made in ipairs(outcome.made or {}) do
+        GC.Print(("  made item %s x%s, not among this recipe's outputs"):format(
+          tostring(made.itemID), tostring(made.quantity)))
+      end
     else
       local units = 0
       for _, output in ipairs(outcome.outputs or {}) do units = units + output.quantity end
@@ -1039,6 +1135,10 @@ GC.slashHandlers.craft = function()
           end
         end
       end
+    end
+    -- Which reagent had no price and why, or which price was not a purchase of this character's.
+    for _, line in ipairs(GC.CraftCapture.Describe(outcome, nameOf)) do
+      GC.Print("  " .. line)
     end
   end
 end
@@ -1118,7 +1218,7 @@ function GoldCap_OnAddonCompartmentEnter(_, button)
   if not GameTooltip or not button then return end
   GameTooltip:SetOwner(button, "ANCHOR_LEFT")
   GameTooltip:AddLine("GoldCap")
-  GameTooltip:AddLine(GC.L["Open the deals board. /gc for commands."], 1, 1, 1)
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Open the deals board. /gc for commands."]), 1, 1, 1)
   GameTooltip:Show()
 end
 

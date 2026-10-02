@@ -48,6 +48,7 @@ describe("VendorListDialog", function()
     end
     _G.UIParent, _G.UISpecialFrames, _G.ChatFontNormal = {}, {}, {}
     GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/VendorListDialog.lua", GC)
   end)
 
@@ -61,7 +62,9 @@ describe("VendorListDialog", function()
     local dialog = _G.GoldCapVendorListDialog
     assert.is_true(dialog.shown)
     assert.equal("Vendor list", dialog.titleText)
-    assert.equal("5× Water · 25c each · 1s25c\nTotal: 1s25c", dialog.edit:GetText())
+    -- The box draws in the chat face, so it holds the client-font version of the list: the
+    -- separators the Russian client cannot draw are commas (GC.Util.ClientText).
+    assert.equal("5× Water, 25c each, 1s25c\nTotal: 1s25c", dialog.edit:GetText())
     assert.is_true(dialog.edit.focused)
     assert.is_true(dialog.edit.highlighted)
     -- Opened from the BUY band inside the docked auction house window, which sits at the AH's own
@@ -76,7 +79,7 @@ describe("VendorListDialog", function()
     local edit = _G.GoldCapVendorListDialog.edit
     edit.highlighted = false
     edit:SetText("oops")
-    assert.equal("5× Water · 25c each · 1s25c", edit:GetText())
+    assert.equal("5× Water, 25c each, 1s25c", edit:GetText())
     assert.is_true(edit.highlighted)
   end)
 
@@ -113,5 +116,17 @@ describe("VendorListDialog", function()
       if name == "GoldCapVendorListDialog" then found = true end
     end
     assert.is_true(found)
+  end)
+
+  -- The same box hands out a list exported for Auctionator or TSM (UI/BuyLists.lua), under its own
+  -- title and hint.
+  it("shows any text to copy under its own title and hint", function()
+    GC.UI.ShowCopyText("i:2589,i:2592", { title = "Copy as a TSM item list", hint = "Press Ctrl+C." })
+    local dialog = _G.GoldCapVendorListDialog
+    assert.equal("Copy as a TSM item list", dialog.titleText)
+    assert.equal("Press Ctrl+C.", dialog.hint:GetText())
+    assert.equal("i:2589,i:2592", dialog.edit:GetText())
+    GC.UI.ShowVendorList("x")
+    assert.equal("Vendor list", dialog.titleText)
   end)
 end)

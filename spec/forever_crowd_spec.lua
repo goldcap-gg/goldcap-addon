@@ -228,16 +228,26 @@ describe("the Deals board's market reference", function()
     helper.loadModule("Core/Data.lua", GC)
     GC.Data.Init({ settings = {} })
     _G.time = function() return 1790003600 end
-    GC.Data.AdoptForeverPayload("GCF1;s;90;R;Horde;1790000000;I:2589=68=75=74=120=7000=3=0,2592=255=269===2029=1=0",
+    GC.Data.AdoptForeverPayload("GCF1;s;90;R;Horde;1790000000;I:2589=68=75=74=120=7000=3=0,2592=255=269===2029=1=0,"
+      .. "2594=10=20=20=25=100=2=12",
       { region = 90, realm = "R", faction = "Horde" })
   end)
   after_each(function() _G.time = os.time end)
 
   it("is every player's AH value and half-way price when the crowd looked more recently", function()
-    assert.same({ value = 75, p50 = 120, source = "crowd", scanners = 3 },
+    assert.same({ value = 75, p50 = 120, source = "crowd", scanners = 3, at = 1790000000 },
       GC.Data.ForeverReference(2589, 1789999000, 70, 79))
     -- A crowd with no half-way price still has its AH value.
-    assert.same({ value = 269, source = "crowd", scanners = 1 }, GC.Data.ForeverReference(2592, 1, 35, 40))
+    assert.same({ value = 269, source = "crowd", scanners = 1, at = 1790000000 },
+      GC.Data.ForeverReference(2592, 1, 35, 40))
+  end)
+
+  -- BUY 2.0's tooltip says how old a crowd price is ("Source · 3 scanners, 12m ago"): the moment
+  -- the crowd saw it is the payload's own time less the item's age in minutes.
+  it("says when the crowd saw its price", function()
+    local ref = GC.Data.ForeverReference(2594, 0)
+    assert.equal("crowd", ref.source)
+    assert.equal(1790000000 - 12 * 60, ref.at)
   end)
 
   it("is the player's own when their scan is newer, or the crowd has not seen the item", function()

@@ -28,6 +28,15 @@ describe("AppRuns", function()
   end)
 
   describe("Adopt", function()
+    -- BUY 2.0 (WoW: Forever): a line's own price is the site's as of the moment the companion
+    -- fetched the runs; a crowd price seen after that moment is the fresher look and wins.
+    it("stamps each adopted run with the moment its prices were fetched", function()
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 777,
+        runs = { { code = "a", updatedAt = 5, lines = { { i = 1, q = 1, u = 50 } } } } }
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(777, GC.db.runs.a.pricedAt)
+    end)
+
     it("adopts a valid global and exposes it, ignoring what it says about a plan", function()
       _G.GoldCap_AppRuns = fixture()
       assert.is_true(GC.AppRuns.Adopt())
@@ -119,6 +128,20 @@ describe("AppRuns", function()
       assert.equal(7, #lines)
       assert.equal(625, lines[1].minIlvl)
       for n = 2, 7 do assert.is_nil(lines[n].minIlvl, lines[n].i) end
+    end)
+
+    -- BUY 2.0 (week 3 contract, part A): `mk = true` says the route the list was saved from
+    -- crafts this item itself. Only `true` is the flag; anything else is no flag.
+    it("keeps the flag that the route crafts a line itself", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines = { { i = 5, q = 1, mk = true }, { i = 6, q = 1 }, { i = 7, q = 1, mk = "yes" } }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local lines = GC.AppRuns.Get("abcd2345").lines
+      assert.is_true(lines[1].mk)
+      assert.is_nil(lines[2].mk)
+      assert.is_nil(lines[3].mk)
     end)
 
     -- Two lines of one item merge into one; the floor they carry is the higher of the two, so a
@@ -587,6 +610,191 @@ describe("AppRuns", function()
       assert.equal(8, run.lines[2].i)
     end)
   end)
+
+  -- BUY 2.0: lists the player makes in the game, as many as they like, kept in SavedVariables.
+  describe("lists made in the game", function()
+    local function labels()
+      local out = {}
+      for _, run in ipairs(GC.AppRuns.List()) do out[#out + 1] = GC.AppRuns.Label(run) end
+      return out
+    end
+
+    it("makes a list named List N with the next free number, and a code nothing else had", function()
+      local first = GC.AppRuns.NewList()
+      local second = GC.AppRuns.NewList()
+      assert.equal("game", first.origin)
+      assert.same({ "List 1", "List 2" }, { GC.AppRuns.Label(first), GC.AppRuns.Label(second) })
+      assert.same({}, first.lines)
+      GC.AppRuns.Remove(first.code)
+      local third = GC.AppRuns.NewList()
+      assert.equal("List 1", GC.AppRuns.Label(third))
+      -- What was bought on a deleted list is filed under its code: a new list never gets it.
+      assert.is_true(third.code ~= first.code and third.code ~= second.code)
+      -- Never the site's eight letters and digits, which the companion would upload.
+      assert.is_nil(third.code:match("^[a-z0-9]+$"))
+    end)
+
+    it("skips a number another list is already called by", function()
+      GC.db.runs.p = { code = "p", origin = "paste", name = "List 1", updatedAt = 1, lines = {} }
+      assert.equal("List 2", GC.AppRuns.Label(GC.AppRuns.NewList()))
+    end)
+
+    it("keeps a name given at birth, and the lines, one per item", function()
+      local run = GC.AppRuns.NewList("  Herbs\n", { { i = 1, q = 2 }, { i = 1, q = 3 }, { i = 2, q = 1 } })
+      assert.equal("Herbs", GC.AppRuns.Label(run))
+      assert.same({ { 1, 5 }, { 2, 1 } }, { { run.lines[1].i, run.lines[1].q }, { run.lines[2].i, run.lines[2].q } })
+    end)
+
+    it("renames a list, and an empty name or the default puts List N back", function()
+      local run = GC.AppRuns.NewList()
+      assert.is_true(GC.AppRuns.Rename(run.code, "Cloth"))
+      assert.equal("Cloth", GC.AppRuns.Label(run))
+      -- The number is free again while the list has a name of its own...
+      assert.equal("List 1", GC.AppRuns.Label(GC.AppRuns.NewList()))
+      -- ...so clearing the name finds it another.
+      assert.is_true(GC.AppRuns.Rename(run.code, ""))
+      assert.equal("List 2", GC.AppRuns.Label(run))
+      GC.AppRuns.Rename(run.code, "List 2")
+      assert.is_nil(run.name)
+    end)
+
+    it("renames a pasted run, never a goldcap.gg one", function()
+      GC.db.runs.p = { code = "p", origin = "paste", updatedAt = 1, lines = {} }
+      GC.db.runs.a = { code = "a", origin = "app", name = "Site", updatedAt = 1, lines = {} }
+      assert.is_true(GC.AppRuns.Rename("p", "Mine"))
+      assert.equal("Mine", GC.db.runs.p.name)
+      assert.is_false(GC.AppRuns.Rename("a", "Mine"))
+      assert.equal("Site", GC.db.runs.a.name)
+    end)
+
+    it("adds to a list, merging a repeated item, and takes a line off without losing the list", function()
+      local run = GC.AppRuns.NewList()
+      GC.AppRuns.AddLine(run.code, 2589, 20)
+      GC.AppRuns.AddLine(run.code, 2589, 5)
+      GC.AppRuns.AddLine(run.code, 2592)
+      assert.same({ { 2589, 25 }, { 2592, 1 } },
+        { { run.lines[1].i, run.lines[1].q }, { run.lines[2].i, run.lines[2].q } })
+      assert.is_nil(GC.AppRuns.AddLine(run.code, 0, 2))
+      assert.is_true(GC.AppRuns.RemoveLine(run.code, 2589))
+      assert.is_true(GC.AppRuns.RemoveLine(run.code, 2592))
+      assert.is_not_nil(GC.AppRuns.Get(run.code))
+      assert.equal(0, #run.lines)
+    end)
+
+    it("adds nothing to a goldcap.gg list", function()
+      GC.db.runs.a = { code = "a", origin = "app", updatedAt = 1, lines = { { i = 1, q = 1 } } }
+      assert.is_nil(GC.AppRuns.AddLine("a", 2, 1))
+      assert.is_false(GC.AppRuns.RemoveLine("a", 1))
+      assert.equal(1, #GC.db.runs.a.lines)
+    end)
+
+    it("comes back out of the archive when the player adds to it", function()
+      local run = GC.AppRuns.NewList()
+      GC.db.runsArchived[run.code] = true
+      GC.AppRuns.AddLine(run.code, 2592, 1)
+      assert.is_nil(GC.db.runsArchived[run.code])
+    end)
+
+    it("survives a companion sync with its favourite, its place and its caps", function()
+      local run = GC.AppRuns.NewList()
+      GC.AppRuns.AddLine(run.code, 2589, 1)
+      GC.AppRuns.SetFavourite(run.code, true)
+      GC.db.runCaps = { [run.code] = 150 }
+      GC.db.runOrder = { run.code, "gone" }
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 99, runs = {} }
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(run, GC.AppRuns.Get(run.code))
+      assert.is_true(GC.AppRuns.IsFavourite(run.code))
+      assert.equal(150, GC.db.runCaps[run.code])
+      assert.same({ run.code }, GC.db.runOrder)
+    end)
+
+    it("puts favourites first, then the player's order, and keeps that order", function()
+      GC.db.runs.a = { code = "a", origin = "app", name = "Site", updatedAt = 50, lines = {} }
+      local one = GC.AppRuns.NewList()
+      one.createdAt = 10
+      local two = GC.AppRuns.NewList()
+      two.createdAt = 20
+      assert.same({ "Site", "List 2", "List 1" }, labels())
+      assert.is_true(GC.AppRuns.SetFavourite(one.code, true))
+      assert.same({ "List 1", "Site", "List 2" }, labels())
+      -- A favourite moves among favourites, the rest among the rest.
+      assert.is_false(GC.AppRuns.CanMove(one.code, -1))
+      assert.is_false(GC.AppRuns.CanMove(one.code, 1))
+      assert.is_false(GC.AppRuns.CanMove("a", -1))
+      assert.is_true(GC.AppRuns.Move(two.code, -1))
+      assert.same({ "List 1", "List 2", "Site" }, labels())
+      assert.is_false(GC.AppRuns.Move(two.code, -1))
+      -- Unpinned, it stays where the player's order has it: it was first when they moved a list.
+      GC.AppRuns.SetFavourite(one.code, false)
+      assert.same({ "List 1", "List 2", "Site" }, labels())
+      assert.is_true(GC.AppRuns.Move(one.code, 1))
+      assert.same({ "List 2", "List 1", "Site" }, labels())
+      -- A list made after the order was set goes after everything already placed.
+      GC.AppRuns.NewList("Fresh")
+      assert.same({ "List 2", "List 1", "Site", "Fresh" }, labels())
+    end)
+
+    it("keeps an alert group's hits last, out of the favourites and the order", function()
+      GC.db.runs.al = { code = "al", origin = "app", k = "alert", name = "Hits", updatedAt = 99, lines = {} }
+      local run = GC.AppRuns.NewList()
+      assert.is_false(GC.AppRuns.SetFavourite("al", true))
+      assert.is_false(GC.AppRuns.CanMove(run.code, 1))
+      assert.same({ "List 1", "Hits" }, labels())
+    end)
+
+    it("forgets a deleted list's favourite and place", function()
+      local run = GC.AppRuns.NewList()
+      GC.AppRuns.SetFavourite(run.code, true)
+      GC.db.runOrder = { run.code }
+      assert.is_true(GC.AppRuns.Remove(run.code))
+      assert.is_nil(GC.db.runFavourites[run.code])
+      assert.same({}, GC.db.runOrder)
+    end)
+
+    it("tells the player's own lists from goldcap.gg's", function()
+      GC.db.runs.a = { code = "a", origin = "app", updatedAt = 1, lines = {} }
+      GC.db.runs.p = { code = "p", origin = "paste", updatedAt = 1, lines = {} }
+      local run = GC.AppRuns.NewList()
+      assert.is_true(GC.AppRuns.IsLocal(run.code))
+      assert.is_true(GC.AppRuns.IsLocal("p"))
+      assert.is_true(GC.AppRuns.IsLocal(GC.db.runs.p))
+      assert.is_false(GC.AppRuns.IsLocal("a"))
+      assert.is_false(GC.AppRuns.IsLocal("nosuch"))
+    end)
+  end)
+
+  -- A 0.17 save holds at most one list made in the game: `runs.quick`, a paste run flagged quick.
+  describe("the 0.17 quick list", function()
+    it("becomes List 1 in place, keeping its lines, caps, what was bought and the BUY tab's choice", function()
+      GC.db.runs.quick = { code = "quick", origin = "paste", quick = true, updatedAt = 42,
+        lines = { { i = 2589, q = 20, v = false } } }
+      GC.db.runCaps = { quick = 150 }
+      GC.db.runLineCaps = { quick = { [2589] = 900 } }
+      GC.db.buyProgress = { ["Me-Realm"] = { quick = { [2589] = { bought = 5, spent = 500 } } } }
+      GC.db.settings = { sniper = { buyRun = "quick" } }
+      assert.is_true(GC.AppRuns.Migrate())
+      local run = GC.AppRuns.Get("quick")
+      assert.equal("game", run.origin)
+      assert.is_nil(run.quick)
+      assert.equal("List 1", GC.AppRuns.Label(run))
+      assert.same({ { i = 2589, q = 20, v = false } }, run.lines)
+      assert.equal(150, GC.db.runCaps.quick)
+      assert.same({ [2589] = 900 }, GC.db.runLineCaps.quick)
+      assert.equal(5, GC.db.buyProgress["Me-Realm"].quick[2589].bought)
+      assert.equal("quick", GC.db.settings.sniper.buyRun)
+      -- Once only.
+      assert.is_false(GC.AppRuns.Migrate())
+      -- And the next list is List 2.
+      assert.equal("List 2", GC.AppRuns.Label(GC.AppRuns.NewList()))
+    end)
+
+    it("leaves a save with no quick list alone", function()
+      GC.db.runs.p = { code = "p", origin = "paste", updatedAt = 1, lines = {} }
+      assert.is_false(GC.AppRuns.Migrate())
+      assert.equal("paste", GC.db.runs.p.origin)
+    end)
+  end)
 end)
 
 describe("AppRuns runs the site owns", function()
@@ -678,6 +886,22 @@ describe("AppRuns runs the site owns", function()
     assert.is_nil(GC.db.runSplits["gone-run"])
     assert.is_not_nil(GC.db.runNotices["own10000"])
     assert.is_nil(GC.db.runNotices["gone-run"])
+  end)
+
+  it("prunes the player's per-line caps with the run they belong to", function()
+    GC.db.runLineCaps = { ["gone-run"] = { [1] = 140 }, ["own10000"] = { [5] = 90 } }
+    local fresher = fixture()
+    fresher.generatedAt = fresher.generatedAt + 60
+    _G.GoldCap_AppRuns = fresher
+    assert.is_true(GC.AppRuns.Adopt())
+    assert.is_nil(GC.db.runLineCaps["gone-run"])
+    assert.same({ [5] = 90 }, GC.db.runLineCaps["own10000"])
+  end)
+
+  it("removes a pasted run's per-line caps with it", function()
+    GC.db.runLineCaps = { ["paste-1"] = { [9] = 140 } }
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+    assert.is_nil(GC.db.runLineCaps["paste-1"])
   end)
 
   it("takes the splits and the notice with a run that is removed outright", function()
