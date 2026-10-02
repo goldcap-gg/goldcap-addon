@@ -5,7 +5,7 @@ local helper = require("spec.spec_helper")
 -- fakes (C_MerchantFrame.GetItemInfo's price/stackCount/hasExtendedCost, GetMerchantItemID); the
 -- acquisition store and Core/BuyVendor.lua are the real ones.
 describe("vendor purchases as cost", function()
-  local GC, db, bag, shelf, cursor
+  local GC, db, bag, shelf, cursor, classes
   local me = { char = "Cook-Realm", region = "eu" }
 
   local function vendorLots()
@@ -31,7 +31,11 @@ describe("vendor purchases as cost", function()
       { itemID = 2320, price = 10, stackCount = 1, numAvailable = -1, isPurchasable = true, hasExtendedCost = false },
       { itemID = 3371, price = 8, stackCount = 4, numAvailable = -1, isPurchasable = true, hasExtendedCost = false },
       { itemID = 4000, price = 500, stackCount = 1, numAvailable = -1, isPurchasable = true, hasExtendedCost = true },
+      { itemID = 5000, price = 30, stackCount = 5, numAvailable = -1, isPurchasable = true, hasExtendedCost = false },
     }
+    -- classID per C_Item.GetItemInfoInstant (7 Tradeskill, 0 Consumable); 4000 is a reagent only by
+    -- GetItemInfo's isCraftingReagent (its 17th return), and 6000 is not known to the client yet.
+    classes = { [2320] = 7, [3371] = 7, [4000] = 3, [5000] = 0 }
     _G.C_MerchantFrame = { GetItemInfo = function(index) return shelf[index] end }
     _G.GetMerchantItemID = function(index) return shelf[index] and shelf[index].itemID end
     _G.GetMerchantItemMaxStack = function() return 20 end
@@ -39,6 +43,14 @@ describe("vendor purchases as cost", function()
       GetItemCount = function(itemID) return bag[itemID] or 0 end,
       GetItemMaxStackSizeByID = function(itemID) return itemID == 4000 and 1 or 20 end,
       GetItemNameByID = function(itemID) return "Item" .. itemID end,
+      GetItemInfoInstant = function(itemID)
+        if classes[itemID] then return itemID, "type", "subtype", "", 1, classes[itemID], 0 end
+      end,
+      GetItemInfo = function(itemID)
+        if not classes[itemID] then return nil end
+        return "Item" .. itemID, "link", 1, 1, 1, "type", "subtype", 20, "", 1, 1,
+          classes[itemID], 0, 0, 0, nil, itemID == 4000, ""
+      end,
     }
     cursor = nil
     _G.GetCursorInfo = function() return cursor end
@@ -107,6 +119,29 @@ describe("vendor purchases as cost", function()
     bag[2320] = 1
     GC.VendorBuys.OnBagsChanged(102)
     assert.is_nil(vendorLots()[1].runCode)
+  end)
+
+  it("books only crafting reagents: not food, and not an item the client does not know yet", function()
+    GC.VendorBuys.OnBuy(4, 5, 100)             -- 5000: a consumable
+    shelf[5] = { itemID = 6000, price = 5, stackCount = 1, numAvailable = -1, isPurchasable = true,
+      hasExtendedCost = false }
+    GC.VendorBuys.OnBuy(5, 1, 100)             -- 6000: unknown to GetItemInfoInstant
+    assert.equal(0, GC.VendorBuys.Pending())
+    shelf[3].hasExtendedCost = false
+    GC.VendorBuys.OnBuy(3, 1, 100)             -- 4000: isCraftingReagent says so
+    assert.equal(1, GC.VendorBuys.Pending())
+  end)
+
+  it("books a non-reagent when the BUY tab's vendor button bought it for a list", function()
+    GC.VendorBuys.Tag("run-1")
+    GC.VendorBuys.OnBuy(4, 5, 100)
+    assert.equal(1, GC.VendorBuys.Pending())
+  end)
+
+  it("books only crafting reagents picked up from the merchant too", function()
+    cursor = "merchant"
+    GC.VendorBuys.OnPickup(4, 100)
+    assert.equal(0, GC.VendorBuys.Pending())
   end)
 
   it("ignores purchases that cost something other than gold", function()

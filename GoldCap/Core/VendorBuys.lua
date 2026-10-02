@@ -1,9 +1,11 @@
 local _, GC = ...
 
--- Every purchase from a merchant, as a cost. A craft is costed from what the player paid, and a
--- merchant's reagents -- thread, flour, vials -- were paid for at the merchant. Until now only the
--- BUY tab's own vendor button booked such a purchase; one made by clicking the merchant's window
--- left nothing behind, so a craft that used it could never be costed.
+-- Every crafting reagent bought from a merchant, as a cost. A craft is costed from what the player
+-- paid, and a merchant's reagents -- thread, flour, vials -- were paid for at the merchant. Until
+-- now only the BUY tab's own vendor button booked such a purchase; one made by clicking the
+-- merchant's window left nothing behind, so a craft that used it could never be costed. Other
+-- merchant goods (food, water, ammunition) are not booked: nothing consumes them, so they would sit
+-- as stock for good. A purchase the BUY tab's vendor button makes for a list is booked either way.
 --
 -- This watches BuyMerchantItem and PickupMerchantItem (the plain left click, which buys when the
 -- item is dropped into a bag) with post-hooks, which observes a call and cannot make one (the
@@ -19,6 +21,7 @@ local _, GC = ...
 --
 -- Pure by construction like Core/CraftCapture.lua: the client is a driver --
 --   offerAt(index) -> { itemID, price, stack } or nil (not for gold, not purchasable, ...),
+--   isReagent(itemID) -> true for a crafting reagent (anything else is not booked),
 --   countOf(itemID) -> bags count,
 --   record({ itemID, qty, spent, at, runCode }) -> files the lot.
 GC.VendorBuys = {}
@@ -31,6 +34,9 @@ V.EXPIRE_SECONDS = 15
 -- it into a bag. From the moment the cursor lets go of it, the bags have this long to show it: a
 -- pickup the player put back must not claim loot of the same item that lands a moment later.
 V.DROP_SECONDS = 5
+
+-- Enum.ItemClass.Tradeskill, a literal because the module is pure.
+V.TRADESKILL_CLASS = 7
 
 local driver
 local pending = {}
@@ -59,6 +65,7 @@ function V.OnBuy(index, quantity, now)
   if not driver or type(now) ~= "number" then return end
   local offer = driver.offerAt(index)
   if type(offer) ~= "table" or not isPositiveInteger(offer.itemID) then return end
+  if not runCode and not driver.isReagent(offer.itemID) then return end
   local units = quantity == nil and offer.stack or quantity
   if not isPositiveInteger(units) then return end
   local cost = GC.BuyVendor.CostOf(offer, units)
@@ -86,6 +93,7 @@ function V.OnPickup(index, now)
   if not driver.cursorHoldsMerchant() then return end
   local offer = driver.offerAt(index)
   if type(offer) ~= "table" or not isPositiveInteger(offer.itemID) then return end
+  if not driver.isReagent(offer.itemID) then return end
   local units = offer.stack
   if not isPositiveInteger(units) then return end
   local cost = GC.BuyVendor.CostOf(offer, units)
@@ -165,6 +173,22 @@ function V.Install()
       if type(_G.GetCursorInfo) ~= "function" then return false end
       local ok, kind = pcall(_G.GetCursorInfo)
       return ok and kind == "merchant"
+    end,
+    -- A craft consumes a lot of a crafting reagent and nothing consumes any other merchant item
+    -- (food, water, ammunition, a spell's reagent), so those would pile up as unsold stock for
+    -- good. Blizzard's own flag first (C_Item.GetItemInfo's isCraftingReagent, its 17th return),
+    -- then the item class (GetItemInfoInstant's classID, always known: 7 is Tradeskill).
+    isReagent = function(itemID)
+      if not C_Item then return false end
+      if C_Item.GetItemInfo then
+        local ok, flag = pcall(function() return select(17, C_Item.GetItemInfo(itemID)) end)
+        if ok and flag == true then return true end
+      end
+      if C_Item.GetItemInfoInstant then
+        local ok, classID = pcall(function() return select(6, C_Item.GetItemInfoInstant(itemID)) end)
+        if ok and classID == V.TRADESKILL_CLASS then return true end
+      end
+      return false
     end,
     countOf = function(itemID)
       if not (C_Item and C_Item.GetItemCount) then return 0 end
