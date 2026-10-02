@@ -10,7 +10,8 @@ describe("SoldView", function()
   local function at(y, m, d, h, mi) return os.time({ year = y, month = m, day = d, hour = h or 12, min = mi or 0 }) end
 
   before_each(function()
-    V = helper.loadModule("Core/SoldView.lua").SoldView
+    local GC = helper.loadModule("Core/NameMatch.lua")
+    V = helper.loadModule("Core/SoldView.lua", GC).SoldView
   end)
 
   describe("Cut", function()
@@ -140,6 +141,9 @@ describe("SoldView", function()
       { name = "льняная ткань", query = "ЛЬН", want = true },
       { name = "Ґудзик і Їжак", query = "ґудзик і ї", want = true },
       { name = "Élixir de soin", query = "élixir", want = true },
+      { name = "Éclat de Terre", query = "eclat", want = true },
+      { name = "Eclat de Terre", query = "ÉCLAT", want = true },
+      { name = "Плотные Ёлки", query = "елки", want = true },
       { name = "ÄRMEL", query = "ärmel", want = true },
       { name = "리넨 옷감", query = "리넨", want = true },
       { name = "a.b", query = ".", want = true },

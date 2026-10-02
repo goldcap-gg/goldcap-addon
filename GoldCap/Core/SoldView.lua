@@ -145,30 +145,12 @@ function V.LocalSales(entries, boundary)
   return out
 end
 
--- Case folding for the search box. Lua's lower() only knows ASCII, and the item names this
--- matches are in the client's language, so the capitals of Latin-1 (German, French, Spanish,
--- Portuguese, Italian) and of Cyrillic (Russian, Ukrainian) are folded here too. Korean and
--- Chinese have no case.
-local function foldChar(ch)
-  local b1, b2 = ch:byte(1, 2)
-  local cp = (b1 - 192) * 64 + (b2 - 128)
-  if cp >= 0x410 and cp <= 0x42F then cp = cp + 0x20          -- А..Я
-  elseif cp >= 0x400 and cp <= 0x40F then cp = cp + 0x50      -- Ѐ..Џ (Ё, Є, І, Ї)
-  elseif cp == 0x490 then cp = 0x491                          -- Ґ
-  elseif cp >= 0xC0 and cp <= 0xDE and cp ~= 0xD7 then cp = cp + 0x20 -- À..Þ
-  else return ch end
-  return string.char(192 + math.floor(cp / 64), 128 + cp % 64)
-end
-
-function V.Fold(text)
-  return (tostring(text or ""):lower():gsub("[\192-\223][\128-\191]", foldChar))
-end
-
 --- Whether `name` holds `query`, ignoring case; an empty query matches everything.
 function V.Matches(name, query)
-  local q = V.Fold(query):match("^%s*(.-)%s*$")
+  -- Core/NameMatch.lua's fold: case-blind in every script, accent-blind in the Latin ones.
+  local q = GC.NameMatch.Fold(query)
   if q == "" then return true end
-  return V.Fold(name):find(q, 1, true) ~= nil
+  return GC.NameMatch.Fold(name):find(q, 1, true) ~= nil
 end
 
 --- The rows sold at or after `from` whose name holds `query`, in their own order.

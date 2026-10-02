@@ -90,6 +90,7 @@ describe("SoldFrame", function()
 
   local function load(locale)
     GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/NameMatch.lua", GC)
     helper.loadModule("Core/SoldView.lua", GC)
     helper.loadModule("UI/Theme.lua", GC)
     if locale then
