@@ -5,7 +5,7 @@ local helper = require("spec.spec_helper")
 -- fakes (C_MerchantFrame.GetItemInfo's price/stackCount/hasExtendedCost, GetMerchantItemID); the
 -- acquisition store and Core/BuyVendor.lua are the real ones.
 describe("vendor purchases as cost", function()
-  local GC, db, bag, shelf
+  local GC, db, bag, shelf, cursor
   local me = { char = "Cook-Realm", region = "eu" }
 
   local function vendorLots()
@@ -40,12 +40,15 @@ describe("vendor purchases as cost", function()
       GetItemMaxStackSizeByID = function(itemID) return itemID == 4000 and 1 or 20 end,
       GetItemNameByID = function(itemID) return "Item" .. itemID end,
     }
+    cursor = nil
+    _G.GetCursorInfo = function() return cursor end
     _G.hooksecurefunc, _G.BuyMerchantItem = nil, nil
     GC.VendorBuys.Install()
   end)
 
   after_each(function()
     _G.C_MerchantFrame, _G.GetMerchantItemID, _G.GetMerchantItemMaxStack, _G.C_Item = nil, nil, nil, nil
+    _G.GetCursorInfo = nil
   end)
 
   it("books a bought stack at the price per unit once the bags show it", function()
@@ -154,6 +157,64 @@ describe("vendor purchases as cost", function()
     bag[4000] = 1
     GC.VendorBuys.OnBagsChanged(101)
     assert.is_nil(vendorLots()[1].positionKey)
+  end)
+
+  describe("a left click on a merchant item (PickupMerchantItem)", function()
+    it("books the stack once it is dropped into a bag, at the price per unit", function()
+      cursor = "merchant"                        -- GetCursorInfo's first return while carrying one
+      GC.VendorBuys.OnPickup(2, 100)             -- a stack of 4 for 8c
+      GC.VendorBuys.OnBagsChanged(101)
+      assert.equal(0, #vendorLots())             -- still on the cursor
+      cursor = nil
+      GC.VendorBuys.OnCursorChanged(102)
+      bag[3371] = 4
+      GC.VendorBuys.OnBagsChanged(103)
+      assert.equal(1, #vendorLots())
+      assert.equal(4, vendorLots()[1].originalQty)
+      assert.equal(8, vendorLots()[1].originalTotal)
+      GC.VendorBuys.OnBagsChanged(104)
+      assert.equal(1, #vendorLots())
+      assert.equal(0, GC.VendorBuys.Pending())
+    end)
+
+    it("books nothing for a pickup put back, even when loot of the item lands a moment later", function()
+      cursor = "merchant"
+      GC.VendorBuys.OnPickup(1, 100)
+      cursor = nil                               -- put back: nothing bought
+      GC.VendorBuys.OnCursorChanged(101)
+      GC.VendorBuys.OnBagsChanged(100 + GC.VendorBuys.DROP_SECONDS + 5)
+      bag[2320] = 3
+      GC.VendorBuys.OnBagsChanged(100 + GC.VendorBuys.DROP_SECONDS + 6)
+      assert.equal(0, #vendorLots())
+      assert.equal(0, GC.VendorBuys.Pending())
+    end)
+
+    it("ignores a pickup that left nothing of the merchant's on the cursor (a sale, buyback)", function()
+      cursor = nil
+      GC.VendorBuys.OnPickup(0, 100)
+      GC.VendorBuys.OnPickup(1, 100)
+      assert.equal(0, GC.VendorBuys.Pending())
+      cursor = "item"
+      GC.VendorBuys.OnPickup(1, 100)
+      assert.equal(0, GC.VendorBuys.Pending())
+    end)
+
+    it("ignores a pickup of an item that costs something other than gold", function()
+      cursor = "merchant"
+      GC.VendorBuys.OnPickup(3, 100)
+      assert.equal(0, GC.VendorBuys.Pending())
+    end)
+
+    it("is hooked next to BuyMerchantItem and books through the hook", function()
+      local hooks = {}
+      _G.BuyMerchantItem, _G.PickupMerchantItem = function() end, function() end
+      _G.hooksecurefunc = function(name, fn) hooks[name] = fn end
+      GC.VendorBuys.Install()
+      _G.hooksecurefunc, _G.BuyMerchantItem, _G.PickupMerchantItem = nil, nil, nil
+      cursor = "merchant"
+      hooks.PickupMerchantItem(1)
+      assert.equal(1, GC.VendorBuys.Pending())
+    end)
   end)
 
   it("hooks BuyMerchantItem as a post-hook when the client has one", function()

@@ -5,7 +5,8 @@ local _, GC = ...
 -- BUY tab's own vendor button booked such a purchase; one made by clicking the merchant's window
 -- left nothing behind, so a craft that used it could never be costed.
 --
--- This watches BuyMerchantItem with a post-hook, which observes a call and cannot make one (the
+-- This watches BuyMerchantItem and PickupMerchantItem (the plain left click, which buys when the
+-- item is dropped into a bag) with post-hooks, which observes a call and cannot make one (the
 -- one call the addon makes stays in UI/BuyVendorPanel.lua's click handler, and the same hook sees
 -- that one too -- so there is exactly one place a vendor purchase is booked). A merchant purchase
 -- has no answer event: the bag count moving is the answer (GC.BuyVendor.Settle), so a call only
@@ -26,6 +27,10 @@ local V = GC.VendorBuys
 -- A call the bags never showed a result for (the merchant refused it, or it was a repeat of one
 -- already settled) is given up after this long.
 V.EXPIRE_SECONDS = 15
+-- A purchase made by picking the item up from the merchant window completes when the player drops
+-- it into a bag. From the moment the cursor lets go of it, the bags have this long to show it: a
+-- pickup the player put back must not claim loot of the same item that lands a moment later.
+V.DROP_SECONDS = 5
 
 local driver
 local pending = {}
@@ -70,18 +75,56 @@ function V.OnBuy(index, quantity, now)
   end
 end
 
+--- PickupMerchantItem just returned (the post-hook): a plain left click on a merchant's item takes
+-- it onto the cursor, and the purchase is made when the player drops it into a bag. Noted as a
+-- purchase of one stack that is held until the cursor lets go of it; the bags then settle it
+-- exactly like a BuyMerchantItem call. Buyback (another tab, another call) and the drop-to-sell
+-- call PickupMerchantItem(0) never reach the booking: the cursor holds nothing of the merchant's
+-- then, or the index is not a merchant row.
+function V.OnPickup(index, now)
+  if not driver or type(now) ~= "number" or not isPositiveInteger(index) then return end
+  if not driver.cursorHoldsMerchant() then return end
+  local offer = driver.offerAt(index)
+  if type(offer) ~= "table" or not isPositiveInteger(offer.itemID) then return end
+  local units = offer.stack
+  if not isPositiveInteger(units) then return end
+  local cost = GC.BuyVendor.CostOf(offer, units)
+  if not isPositiveInteger(cost) then return end
+  local seen = pending[offer.itemID]
+  if seen then
+    seen.qty, seen.cost, seen.at, seen.held, seen.window = seen.qty + units, seen.cost + cost, now, true, nil
+  else
+    pending[offer.itemID] = { itemID = offer.itemID, qty = units, cost = cost, at = now,
+      countBefore = driver.countOf(offer.itemID), held = true }
+  end
+end
+
+--- The cursor changed (CURSOR_CHANGED): a held pickup the cursor no longer carries was dropped, or
+-- put back; either way the bags now have V.DROP_SECONDS to show it.
+function V.OnCursorChanged(now)
+  if not driver or type(now) ~= "number" or next(pending) == nil or driver.cursorHoldsMerchant() then return end
+  for _, p in pairs(pending) do
+    if p.held then p.held, p.at, p.window = nil, now, V.DROP_SECONDS end
+  end
+end
+
 --- The bags changed (BAG_UPDATE_DELAYED): file what has arrived of each call, give up on the old.
 function V.OnBagsChanged(now)
   if not driver then return end
+  local carrying = driver.cursorHoldsMerchant()
   for itemID, p in pairs(pending) do
-    local got = GC.BuyVendor.Settle({ itemID = itemID, qty = p.qty, unit = p.cost / p.qty,
-      countBefore = p.countBefore }, driver.countOf(itemID))
-    if got then
-      local spent = got.qty >= p.qty and p.cost or math.ceil(got.qty * p.cost / p.qty - 1e-9)
-      driver.record({ itemID = itemID, qty = got.qty, spent = spent, at = now, runCode = p.runCode })
-      p.qty, p.cost, p.countBefore = p.qty - got.qty, p.cost - spent, p.countBefore + got.qty
+    if p.held and carrying then
+      p.at = now
+    else
+      local got = GC.BuyVendor.Settle({ itemID = itemID, qty = p.qty, unit = p.cost / p.qty,
+        countBefore = p.countBefore }, driver.countOf(itemID))
+      if got then
+        local spent = got.qty >= p.qty and p.cost or math.ceil(got.qty * p.cost / p.qty - 1e-9)
+        driver.record({ itemID = itemID, qty = got.qty, spent = spent, at = now, runCode = p.runCode })
+        p.qty, p.cost, p.countBefore = p.qty - got.qty, p.cost - spent, p.countBefore + got.qty
+      end
+      if p.qty <= 0 or now - p.at > (p.window or V.EXPIRE_SECONDS) then pending[itemID] = nil end
     end
-    if p.qty <= 0 or now - p.at > V.EXPIRE_SECONDS then pending[itemID] = nil end
   end
 end
 
@@ -115,6 +158,13 @@ function V.Install()
       if not offer then return nil end
       offer.itemID = row.itemID
       return offer
+    end,
+    -- GetCursorInfo's first return is "merchant" while the cursor carries an item taken from the
+    -- merchant window (Blizzard's ContainerFrame.lua tests the same value on the drop).
+    cursorHoldsMerchant = function()
+      if type(_G.GetCursorInfo) ~= "function" then return false end
+      local ok, kind = pcall(_G.GetCursorInfo)
+      return ok and kind == "merchant"
     end,
     countOf = function(itemID)
       if not (C_Item and C_Item.GetItemCount) then return 0 end
@@ -152,6 +202,13 @@ function V.Install()
   if type(_G.hooksecurefunc) == "function" and type(_G.BuyMerchantItem) == "function" then
     hooksecurefunc("BuyMerchantItem", function(index, quantity)
       pcall(V.OnBuy, index, quantity, time())
+    end)
+  end
+  -- A left click on a merchant item is PickupMerchantItem, not BuyMerchantItem (Blizzard's
+  -- MerchantFrame.lua, both games).
+  if type(_G.hooksecurefunc) == "function" and type(_G.PickupMerchantItem) == "function" then
+    hooksecurefunc("PickupMerchantItem", function(index)
+      pcall(V.OnPickup, index, time())
     end)
   end
 end

@@ -305,7 +305,8 @@ frame:RegisterEvent("BAG_UPDATE_DELAYED")
 -- BUY 2.0 week 2: at a vendor, the BUY list's vendor lines become buttons (UI/BuyVendorPanel.lua).
 -- Each in its own pcall, like AUCTION_CANCELED above: an event a client does not know must not take
 -- the rest of the registrations with it.
-for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED" }) do
+-- CURSOR_CHANGED tells Core/VendorBuys.lua that a picked-up merchant item was dropped or put back.
+for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED" }) do
   pcall(frame.RegisterEvent, frame, merchantEvent)
 end
 frame:RegisterEvent("PLAYER_LOGOUT")
@@ -989,6 +990,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
     -- A sale or a buyback at a vendor changes what the vendor note counts.
     if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
+  elseif event == "CURSOR_CHANGED" then
+    if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
   elseif event == "MERCHANT_UPDATE" then
