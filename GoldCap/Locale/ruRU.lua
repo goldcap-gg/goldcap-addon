@@ -1340,6 +1340,10 @@ GC.Locales.ruRU = {
     "%s: %d по цене торговца, %s за штуку",
   ["%s: priced from another character's purchases"] =
     "%s: цена взята из покупок другого персонажа",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d по рыночной цене, по %s за штуку",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Часть этой стоимости — оценка: реагенты, которые вы не покупали, посчитаны по их текущей цене на аукционе",
   ["Vendor"] =
     "Торговец",
 }

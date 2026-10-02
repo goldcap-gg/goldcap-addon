@@ -535,17 +535,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
         -- because a quality variant is its own item. Without them CraftCapture counts only the
         -- declared id and refuses a run that came out at another quality -- safe, but it would
         -- refuse most crafts that have qualities at all.
-        local outputs = {}
-        if type(schematic.outputItemID) == "number" then outputs[schematic.outputItemID] = true end
-        if type(C_TradeSkillUI.GetRecipeOutputItemData) == "function" then
-          for quality = 1, 5 do
-            local gotData, data = pcall(C_TradeSkillUI.GetRecipeOutputItemData,
-              schematic.recipeID or spellID, nil, nil, quality)
-            if gotData and type(data) == "table" and type(data.itemID) == "number" then
-              outputs[data.itemID] = true
-            end
-          end
-        end
+        local outputs = GC.CraftCapture.OutputIDs(C_TradeSkillUI, schematic.recipeID or spellID,
+          schematic.outputItemID)
 
         local recipe = { recipeID = schematic.recipeID or spellID,
           outputItemID = schematic.outputItemID, isRecraft = schematic.isRecraft == true,
@@ -598,6 +589,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
         end,
         vendorUnit = function(itemID)
           return GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
+        end,
+        -- What the item sells for now, at the figure its tooltip prints, for a reagent no
+        -- purchase and no vendor price covers (gathered, a quest reward, bought before install).
+        marketUnit = function(itemID)
+          if not (GC.Tooltip and GC.Tooltip.Headline and GC.Data and GC.Data.GetItemValue) then
+            return nil
+          end
+          local ok, unit = pcall(function() return (GC.Tooltip.Headline(GC.Data.GetItemValue(itemID))) end)
+          return ok and type(unit) == "number" and math.floor(unit) or nil
         end,
         isConverted = function(itemID)
           return type(GC.db.craftConverted) == "table" and GC.db.craftConverted[itemID] == true
@@ -1109,6 +1109,10 @@ GC.slashHandlers.craft = function()
     if outcome.reason then
       GC.Print(("recipe %s: nothing recorded (%s)"):format(
         tostring(outcome.recipeID), outcome.reason))
+      for _, made in ipairs(outcome.made or {}) do
+        GC.Print(("  made item %s x%s, not among this recipe's outputs"):format(
+          tostring(made.itemID), tostring(made.quantity)))
+      end
     else
       local units = 0
       for _, output in ipairs(outcome.outputs or {}) do units = units + output.quantity end

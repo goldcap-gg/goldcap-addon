@@ -1268,6 +1268,10 @@ GC.Locales.frFR = {
     "%s : %d au prix du marchand, %s pièce",
   ["%s: priced from another character's purchases"] =
     "%s : valorisé d'après les achats d'un autre personnage",
+  ["%s: %d at the market price, %s each"] =
+    "%s : %d au prix du marché, %s l'unité",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "Une partie de ce coût est une estimation : les composants que vous n'avez pas achetés sont comptés à leur prix actuel à l'hôtel des ventes",
   ["Vendor"] =
     "Marchand",
 }

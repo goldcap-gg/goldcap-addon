@@ -1199,6 +1199,10 @@ GC.Locales.koKR = {
     "%s: %d개는 상점 가격 개당 %s",
   ["%s: priced from another character's purchases"] =
     "%s: 다른 캐릭터의 구매 기록으로 가격 산정",
+  ["%s: %d at the market price, %s each"] =
+    "%s: %d개 시장 가격 기준, 개당 %s",
+  ["Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price"] =
+    "이 비용의 일부는 추정치입니다. 직접 구매하지 않은 재료는 현재 경매장 가격으로 계산됩니다",
   ["Vendor"] =
     "상점",
 }

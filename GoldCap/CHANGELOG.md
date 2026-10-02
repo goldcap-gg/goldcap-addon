@@ -2,7 +2,7 @@
 
 ## 0.18.0 (unreleased)
 
-- A craft now gets a cost when its reagents came from a vendor, from something you crafted yourself, or from another of your characters, not only from your own auction house purchases. Every purchase at a merchant is remembered at the price you paid. `/gc craft` and the Sold tab's tooltip say which reagent had no price and why.
+- A craft now gets a cost when its reagents came from a vendor, from something you crafted yourself, or from another of your characters, not only from your own auction house purchases. Every purchase at a merchant is remembered at the price you paid. Reagents you gathered or got without buying are counted at their current auction house price, and `/gc craft` and the Sold tab's tooltip say which ones and that the cost is partly an estimate. A craft that still cannot be priced no longer leaves the reagents you did buy on the books as if you still held them.
 - The BUY tab is simpler. Each line shows the item and how many are left to buy, the price each
   and what the rest costs; a line that cannot be bought right now says why in a word instead. One
   button at the bottom buys the line you clicked: press BUY, check Blizzard's price, then press

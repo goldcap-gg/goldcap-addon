@@ -750,6 +750,15 @@ local function saleTooltip(row)
     if r.paidEach then line(GC.L["%s each"]:format(plain(r.paidEach, true)), dim) end
     if r.costUnits then line(GC.L["cost known for %d of %d"]:format(r.costUnits, r.qty), dim) end
     pair(GC.L["Profit"], signed(r.profit, true), white, r.profit >= 0 and Theme.color.green or Theme.color.red)
+    -- A crafted item whose cost counts reagents at the market price says so, and which.
+    if info.id and GC.CraftCapture and GC.CraftCapture.WhyEstimated and C_Item and C_Item.GetItemNameByID then
+      for _, why in ipairs(GC.CraftCapture.WhyEstimated(info.id, function(itemID)
+        local ok, name = pcall(C_Item.GetItemNameByID, itemID)
+        return ok and type(name) == "string" and name or nil
+      end)) do
+        line(why, dim, true)
+      end
+    end
   elseif r.pending then
     line(GC.L["The profit is worked out once the money arrives."], body, true)
   elseif r.noBasis then

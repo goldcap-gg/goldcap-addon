@@ -53,7 +53,8 @@ end
 -- imported realm item with no reference: its realm median, labelled unverified) or "value"
 -- (everything else; for a WoW: Forever gear scan, the cheapest version's price). nil when the
 -- tooltip prints no price. Whatever else tells the player what an item fetches on the auction
--- house -- the quest reward mark, the vendor note -- takes its number from here, so it never says
+-- house -- the quest reward mark, the vendor note, a craft reagent the player never bought -- takes
+-- its number from here, so it never says
 -- something the item's own tooltip does not. The realm-item rule is explained in BuildLines below.
 function GC.Tooltip.Headline(v)
   if type(v) ~= "table" then return nil end
