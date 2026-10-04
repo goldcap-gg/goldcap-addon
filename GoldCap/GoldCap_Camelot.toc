@@ -85,6 +85,7 @@ Core/BuyLots.lua
 Core/BuyVendor.lua
 Core/VendorBuys.lua
 Core/BuyRecents.lua
+Core/BuyWaitDiag.lua
 Core/BuySearchModel.lua
 Core/PurchaseSlot.lua
 Core/PurchaseCall.lua

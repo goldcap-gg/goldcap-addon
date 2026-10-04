@@ -272,6 +272,7 @@ function S.Submit(query, qty)
   shown, note = true, nil
   GC.Buy._PutListAside()
   request:Submit(query, qty or 1)
+  if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("browse", "submitted " .. request.state, ("reason=%s"):format(tostring(request.reason))) end
   GC.Buy.RefreshIfShown()
   return true
 end
@@ -310,6 +311,9 @@ function S.Tick()
   if not request then return end
   local before = signature()
   request:Step()
+  if signature() ~= before and GC.BuyWaitDiag then
+    GC.BuyWaitDiag.Note("browse", request.state, ("reason=%s failed=%s"):format(tostring(request.reason), tostring(request.failed)))
+  end
   if shown and not GC.Buy._aside then GC.Buy._PutListAside() end
   if shown and signature() ~= before then GC.Buy.RefreshIfShown() end
 end
@@ -319,6 +323,7 @@ end
 function S.OnBrowseResults()
   if not request then return false end
   local took = request:OnBrowse()
+  if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("browse", "event", ("took=%s state=%s"):format(tostring(took), request.state)) end
   if took and shown then GC.Buy.RefreshIfShown() end
   return took
 end

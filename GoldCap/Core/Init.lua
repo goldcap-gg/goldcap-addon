@@ -1090,6 +1090,8 @@ GC.slashHandlers.purchase = function() if GC.Sniper and GC.Sniper.DebugPurchase 
 GC.slashHandlers.taint = function() if GC.Sniper and GC.Sniper.DebugTaint then GC.Sniper.DebugTaint() end end
 -- Diagnostics for the BUY tab's run/attempt state; see GC.Buy.DebugPrint.
 GC.slashHandlers.buy = function() if GC.Buy and GC.Buy.DebugPrint then GC.Buy.DebugPrint() end end
+-- The BUY tab's waits, timed: `/gc buywait on|off|show|clear`; see Core/BuyWaitDiag.lua.
+GC.slashHandlers.buywait = function(rest) if GC.BuyWaitDiag then GC.BuyWaitDiag.Slash(rest) end end
 
 -- What the last few crafting sessions did, and why the ones that recorded nothing did not.
 -- A settled craft is otherwise silent -- it shows up as a cost on the Sell tab and nowhere

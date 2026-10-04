@@ -119,6 +119,8 @@ describe("locale contract", function()
       -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain
       -- English on purpose like the beta probe -- adds no GC.L keys by design.
       ["GoldCap/Core/ForeverCheck.lua"] = true,
+      -- /gc buywait: the BUY tab's wait log, plain text for a bug report, off unless asked for.
+      ["GoldCap/Core/BuyWaitDiag.lua"] = true,
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 
