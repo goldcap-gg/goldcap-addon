@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.18.1 (unreleased)
+## 0.18.1 (2026-10-04)
 
 - In the BUY tab, the line of an item you have not looked at yet this session answers right after
   a search. It could sit on "..." for about ten seconds before.
