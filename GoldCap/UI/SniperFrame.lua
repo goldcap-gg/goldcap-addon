@@ -6579,6 +6579,10 @@ end
 function GC.Sniper._WriteOffKeys(why)
   local owner, asked = GC.Sniper._keysOwner, GC.Sniper._keysBatch
   trace("keys: written off (" .. tostring(why) .. ", " .. tostring(owner) .. ")")
+  if GC.BuyWaitDiag then
+    GC.BuyWaitDiag.Note("keys", "written off", ("%s owner=%s after %ss"):format(tostring(why), tostring(owner),
+      GC.Sniper._keysAwaiting and (time() - GC.Sniper._keysAwaiting) or "?"))
+  end
   if owner == "caps" then
     GC.Sniper._CapsReleased(GC.Sniper._keysAwaiting)
     GC.Sniper._NoteCapBatch("given up (" .. tostring(why) .. ")", asked)
@@ -6730,6 +6734,9 @@ function GC.Sniper._FoldKeysBatch()
     end
   end
   trace("keys: answer landed after " .. (time() - GC.Sniper._keysAwaiting) .. "s")
+  if GC.BuyWaitDiag then
+    GC.BuyWaitDiag.Note("keys", "answered", ("owner=%s after %ss"):format(tostring(GC.Sniper._keysOwner), time() - GC.Sniper._keysAwaiting))
+  end
   local owner, sentAt = GC.Sniper._keysOwner, GC.Sniper._keysAwaiting
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysOwner = nil
@@ -7026,6 +7033,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   trace("keys: SearchForItemKeys x" .. #keys .. " (" .. who .. ")")
+  if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("keys", "armed", ("owner=%s x%d"):format(who, #keys)) end
   C_AuctionHouse.SearchForItemKeys(keys, {})
   return true
 end

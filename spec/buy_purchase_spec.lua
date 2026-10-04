@@ -1930,6 +1930,59 @@ describe("BUY purchase", function()
       assert.equal("quoting", GC.Buy._attempt.stage)
     end)
 
+    -- The client has no key info for the item yet (a fresh session, the first search): the tab takes
+    -- the unknown for a commodity and asks the commodity way. The client answers with ITEM rows, on
+    -- ITEM_SEARCH_RESULTS_UPDATED, and the commodity event this ask waits for never comes. The ask
+    -- used to sit on "..." for BD.QUOTE_SECONDS; it ends with that answer and the line is read as gear.
+    describe("an item the client had no key info for when it was asked", function()
+      before_each(function()
+        _G.C_AuctionHouse.GetItemKeyInfo = function() return nil end
+      end)
+
+      it("is closed by the item answer, and read as a gear line on the next tick", function()
+        pick(rowWithText("Dark Leather Boots"))
+        assert.equal(0, #sellSent)
+        assert.equal("quoting", GC.Buy._attempt.stage)
+        assert.is_nil(GC.Buy._attempt.lots) -- asked the commodity way
+        assert.equal("...", dock().buy.label)
+        GC.Buy.OnItemResults(BARE)
+        assert.is_nil(GC.Buy._attempt)
+        assert.not_equal("...", dock().buy.label)
+        GC.Buy.Tick()
+        assert.equal(1, #sellSent)
+        assert.same(BARE, sellSent[1].key)
+        assert.is_true(GC.Buy._attempt.lots)
+        GC.Buy.OnItemResults(BARE)
+        GC.Buy.OnItemResults(AT20)
+        assert.equal("quoted", GC.Buy._attempt.stage)
+        assert.equal(11, GC.Buy._attempt.lot.auctionID)
+      end)
+
+      it("is not read as a commodity again after that, even when the client still has no info", function()
+        pick(rowWithText("Dark Leather Boots"))
+        GC.Buy.OnItemResults(BARE)
+        GC.Buy.Tick()
+        assert.equal(1, #sellSent)
+        assert.equal(1, #searches) -- the one commodity-way ask, never repeated
+      end)
+
+      it("leaves a commodity ask alone when the client says the item is a commodity", function()
+        _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
+        pick(rowWithText("Dark Leather Boots"))
+        local attempt = GC.Buy._attempt
+        GC.Buy.OnItemResults(BARE) -- somebody else's item search of the same id
+        assert.equal(attempt, GC.Buy._attempt)
+        assert.equal("quoting", attempt.stage)
+      end)
+
+      it("ignores an item answer about another item", function()
+        pick(rowWithText("Dark Leather Boots"))
+        local attempt = GC.Buy._attempt
+        GC.Buy.OnItemResults({ itemID = 101, itemLevel = 0 })
+        assert.equal(attempt, GC.Buy._attempt)
+      end)
+    end)
+
     it("ignores the answer for another species of the cage item once its own key is armed", function()
       pick(rowWithText("Dark Leather Boots"))
       GC.Buy.OnItemResults(BARE)
@@ -2802,6 +2855,23 @@ describe("BUY purchase", function()
       -- Drawn again, the item's own tooltip first and the ladder now under it.
       assert.same({ "item:103" }, tip.lines[1])
       assert.is_truthy(tipText():find("9 at 2000c | you take 4", 1, true))
+    end)
+
+    it("ends a hover's look on the item answer when the item is not a commodity", function()
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return nil end -- not cached yet: taken for a commodity
+      local row = rowWithText("Charlie Dust")
+      row.scripts.OnEnter(row)
+      timers[#timers].fn()
+      assert.equal(103, GC.Buy._look.itemID)
+      -- the look is out, so the dock's own quote is parked behind it
+      local alpha = rowWithText("Alpha Herb")
+      pick(alpha)
+      assert.equal(101, GC.Buy._quoteOwed)
+      GC.Buy.OnItemResults({ itemID = 103, itemLevel = 0 })
+      assert.is_nil(GC.Buy._look)
+      GC.Buy.Tick() -- the debt is paid at once, not after BD.QUOTE_SECONDS
+      assert.is_nil(GC.Buy._quoteOwed)
+      assert.equal(101, searches[#searches])
     end)
 
     it("reads nothing for a pointer that moved on before the dwell", function()

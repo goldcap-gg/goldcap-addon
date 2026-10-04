@@ -1316,6 +1316,24 @@ end
 -- reporting an empty market for a lot list that is full.
 local askableItem
 
+-- Items the client has answered as ITEMS (ITEM_SEARCH_RESULTS_UPDATED) for a search this tab sent
+-- the commodity way, because the item's key was not cached yet and `askableItem` took the unknown
+-- for a commodity. The item buffer answers on its own event, which a commodity quote never hears:
+-- the line sat on "..." for BD.QUOTE_SECONDS. Said once, remembered for the session.
+local seenAsItem = {}
+
+-- One line in the wait log (Core/BuyWaitDiag.lua), when the player has it on.
+local function waitNote(wait, what, detail)
+  if GC.BuyWaitDiag then GC.BuyWaitDiag.Note(wait, what, detail) end
+end
+
+-- Whether the client says this key is a commodity.
+local function isCommodityKey(itemKey)
+  if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return false end
+  local ok, info = pcall(C_AuctionHouse.GetItemKeyInfo, itemKey)
+  return ok and type(info) == "table" and info.isCommodity == true
+end
+
 -- The client's single commodity buffer read as a price ladder: cheapest level first, in the
 -- { unit, qty } shape Core/BuyRun.lua's PurchaseQuantity walks. Level 1 is the probe -- a nil
 -- there means the buffer is holding some other item's book entirely, which is the only way this
@@ -1729,6 +1747,29 @@ end
 -- event about another variant of the item is somebody else's.
 function GC.Buy.OnItemResults(itemKey)
   local attempt = GC.Buy._attempt
+  local id = type(itemKey) == "table" and itemKey.itemID or nil
+  waitNote("event", "ITEM_SEARCH_RESULTS_UPDATED", ("item=%s level=%s attempt=%s/%s look=%s"):format(
+    tostring(id), tostring(type(itemKey) == "table" and itemKey.itemLevel or nil),
+    attempt and tostring(attempt.itemID) or "none", attempt and tostring(attempt.stage) or "-",
+    GC.Buy._look and tostring(GC.Buy._look.itemID) or "none"))
+  -- A search sent the commodity way (a hover's look, or a line quoted before the client knew its
+  -- key) that the client answers with ITEM rows: the item is not a commodity, and the commodity
+  -- event this wait is for will never come. Closed here; the line is asked again as the gear line it
+  -- is (`quote` reads `seenAsItem` through askableItem). Never for a key the client calls a
+  -- commodity: that answer is somebody else's search.
+  if id and not isCommodityKey(itemKey) then
+    local look = GC.Buy._look
+    local commodityAsk = attempt ~= nil and attempt.stage == "quoting" and not attempt.lots and attempt.itemID == id
+    local lookAsk = look ~= nil and look.itemID == id
+    if commodityAsk or lookAsk then
+      seenAsItem[id] = true
+      if lookAsk then GC.Buy._look = nil end
+      if commodityAsk then GC.Buy._attempt, GC.Buy._quotedFocus = nil, nil end
+      waitNote("quote", "closed by ITEM_SEARCH_RESULTS_UPDATED", ("item=%s was asked as a commodity"):format(id))
+      GC.Buy.RefreshIfShown()
+      return
+    end
+  end
   if not (attempt and attempt.lots and type(itemKey) == "table" and itemKey.itemID == attempt.itemID) then
     return
   end
@@ -1809,6 +1850,9 @@ local function quote(line, clicked)
   -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
   if (GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) or lookPending()
       or (GC.BuySearch and GC.BuySearch.Pending()) then
+    waitNote("quote", "parked", ("item=%s keys=%s look=%s browse=%s"):format(line.itemID,
+      tostring(GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() or false), tostring(lookPending()),
+      tostring(GC.BuySearch and GC.BuySearch.Pending() or false)))
     GC.Buy._quoteOwed = line.itemID
     -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
     if clicked then
@@ -1852,6 +1896,8 @@ local function quote(line, clicked)
     -- The armed read's search count (quoteFresh), taken after the send the post-hooks counted.
     armSeq = exact and (GC.Buy._searchSeq or 0) or nil,
   }
+  waitNote("quote", "armed", ("item=%s %s"):format(line.itemID,
+    lotLine and (exact and "buy search, exact key" or "sell search, bare key") or "commodity search"))
   logAttempt(line)
   GC.Buy.RefreshIfShown()
 end
@@ -1879,12 +1925,17 @@ local function lookLine(line)
   if GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   GC.Buy._look = { itemID = line.itemID, askedAt = time() }
+  waitNote("look", "armed", ("item=%s"):format(line.itemID))
 end
 
 -- COMMODITY_SEARCH_RESULTS_UPDATED, routed here by Core/Init.lua. The buffer is addon-wide and
 -- every consumer sees every answer, so an event for anything but the item this tab is currently
 -- quoting -- or looking at for a tooltip -- belongs to somebody else and is left alone.
 function GC.Buy.OnCommodityResults(itemID)
+  local pending = GC.Buy._attempt
+  waitNote("event", "COMMODITY_SEARCH_RESULTS_UPDATED", ("item=%s attempt=%s/%s look=%s"):format(
+    tostring(itemID), pending and tostring(pending.itemID) or "none", pending and tostring(pending.stage) or "-",
+    GC.Buy._look and tostring(GC.Buy._look.itemID) or "none"))
   -- A hover's look answered: drawn, never spent. The attempt, whatever it is, is not touched.
   local look = GC.Buy._look
   if look and look.itemID == itemID then
@@ -4094,6 +4145,7 @@ end
 -- Declared at the top of the quote path (see there), which asks the same question of a line
 -- whose own search came back with no commodity book at all.
 askableItem = function(itemID)
+  if seenAsItem[itemID] then return false end
   if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey) then
     return true
   end
@@ -4300,6 +4352,17 @@ function GC.Buy.Tick()
   -- would search over it.
   local arming = GC.Buy._attempt
   if arming and arming.armDue then sendArm(arming) end
+  if GC.BuyWaitDiag and GC.BuyWaitDiag.On() then
+    if arming and arming.stage == "quoting" and not quotePending(arming) and not arming.timedOutNoted then
+      arming.timedOutNoted = true
+      waitNote("quote", "timed out", ("item=%s after %ds"):format(arming.itemID, time() - (arming.askedAt or 0)))
+    end
+    local look = GC.Buy._look
+    if look and not lookPending() and not look.timedOutNoted then
+      look.timedOutNoted = true
+      waitNote("look", "timed out", ("item=%s"):format(look.itemID))
+    end
+  end
   -- The BUY search's request: sent once nothing stands in its way, given up once it waited too long.
   if GC.BuySearch then GC.BuySearch.Tick() end
   -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
@@ -4308,6 +4371,7 @@ function GC.Buy.Tick()
   local owed = GC.Buy._quoteOwed
   if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding())
       and not lookPending() then
+    waitNote("quote", "released", ("item=%s"):format(owed))
     GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
     local line = lineFor(owed)
     if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
