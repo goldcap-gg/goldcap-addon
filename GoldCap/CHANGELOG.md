@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.18.2 (unreleased)
+## 0.18.2 (2026-10-06)
 
 - The Sniper's column names (Item, Verdict, Price and the rest) show the first time the window opens.
   They could stay blank until you clicked one.
