@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.18.2 (unreleased)
+
+- The Sniper's column names (Item, Verdict, Price and the rest) show the first time the window opens.
+  They could stay blank until you clicked one.
+
 ## 0.18.1 (2026-10-04)
 
 - In the BUY tab, the line of an item you have not looked at yet this session answers right after

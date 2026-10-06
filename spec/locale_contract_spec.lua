@@ -121,6 +121,9 @@ describe("locale contract", function()
       ["GoldCap/Core/ForeverCheck.lua"] = true,
       -- /gc buywait: the BUY tab's wait log, plain text for a bug report, off unless asked for.
       ["GoldCap/Core/BuyWaitDiag.lua"] = true,
+      -- Its one SetText puts a sample in each bundled face, in a frame off screen, so the client
+      -- loads the face at login. The player never sees it.
+      ["GoldCap/UI/FontPreload.lua"] = true,
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 

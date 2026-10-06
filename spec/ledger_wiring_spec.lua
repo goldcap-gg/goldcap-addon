@@ -32,6 +32,7 @@ describe("Ledger event wiring", function()
       GetPoint = function() return nil end, GetHeight = function() return 0 end,
       GetFrameLevel = function() return 1 end, SetFrameLevel = function() end,
       SetColorTexture = function() end, SetAllPoints = function() end,
+      SetFont = function() return true end,
       SetHeight = function() end,
     }
     return f

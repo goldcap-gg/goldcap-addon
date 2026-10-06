@@ -94,6 +94,7 @@ Core/WatchSet.lua
 Core/AutoScan.lua
 Data/MarketData.lua
 UI/Theme.lua
+UI/FontPreload.lua
 UI/Tooltip.lua
 UI/QuestRewardMark.lua
 UI/MerchantNote.lua
