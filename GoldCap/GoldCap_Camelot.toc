@@ -97,6 +97,7 @@ Core/WatchSet.lua
 Core/AutoScan.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
+UI/Kit/Fonts.lua
 UI/Theme.lua
 UI/FontPreload.lua
 UI/Tooltip.lua

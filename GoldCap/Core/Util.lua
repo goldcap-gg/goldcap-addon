@@ -364,7 +364,9 @@ end
 -- ---------------------------------------------------------------------------
 -- Text for a widget the CLIENT's font draws: a MenuUtil menu, a tooltip, the chat frame, a
 -- Blizzard template, a Theme.Label (UI/Theme.lua's ClientFont routes those). The client's
--- faces miss glyphs GoldCap's bundled face has, and a missing glyph draws as an empty box.
+-- faces miss glyphs GoldCap's own faces have, and a missing glyph draws as an empty box. GoldCap's
+-- own are the bundled Fira faces (Fira Mono has · → ▲ ▼; Fira Sans and Fira Sans Condensed have ·
+-- → and no triangles, so their text goes through GC.Util.ClientText).
 --
 -- Seen in game, 2026-10-01, Russian client: the BUY list menu read "• Quick list [] 2 lines
 -- [] pasted" -- the bullet drawn, every middle dot a box. What the faces hold was then read

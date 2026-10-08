@@ -486,7 +486,7 @@ describe("client-font sinks", function()
 end)
 
 -- Every glyph GoldCap writes anywhere, against what the faces that draw it hold -- read from the
--- faces themselves (docs/addon/AGENTS.md, "Text"): the bundled JetBrains Mono, the client's
+-- faces themselves (docs/addon/AGENTS.md, "Text"): the bundled Fira faces (Fira Mono has · → ▲ ▼; Fira Sans and Fira Sans Condensed have · → and no triangles, so their text goes through GC.Util.ClientText), the client's
 -- FRIZQT__ and FRIZQT___CYR (menus, tooltips, labels), and 2002 and the two Kai faces (GoldCap's
 -- own frames on Korean and Chinese). A new glyph fails here until somebody has looked it up.
 describe("glyph inventory", function()
