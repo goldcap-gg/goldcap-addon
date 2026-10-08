@@ -3,33 +3,29 @@ local _, GC = ...
 GC.Theme = GC.Theme or {}
 local T = GC.Theme
 
+-- The names every window reads, drawn from UI/Kit/Tokens.lua. Each keeps its meaning: `red` and
+-- `green` are what TEXT wears (a loss, a profit), `redFill` is what a BUTTON is filled with,
+-- `cost` is a price paid, `hover` is the gold wash a row wears under the cursor, `watch` is a
+-- state that persists while you look elsewhere (the player's own lots) and so has its own colour.
+local K = GC.Kit.Tokens.color
+local function rgb(color) return { color[1], color[2], color[3] } end
 T.color = {
-  bg      = { 0.051, 0.055, 0.071 },
-  panel   = { 0.078, 0.086, 0.110 },
-  panelHi = { 0.102, 0.114, 0.141 },
-  border  = { 1, 1, 1, 0.06 },
-  gold    = { 0.831, 0.643, 0.216 },
-  goldHi  = { 0.910, 0.757, 0.353 },
-  fg      = { 0.92, 0.91, 0.89 },
-  fgMuted = { 0.72, 0.71, 0.69 },
-  fgDim   = { 0.55, 0.54, 0.52 },
-  -- The design's pairs, like gold/goldHi: `red` and `green` are what TEXT wears (a loss, a
-  -- profit), lifted so they read on a panel this dark -- a loss in the fill red was a murky
-  -- brick, and a profit in pure (0.25, 0.85, 0.25) green was the one neon thing on the screen.
-  -- `redFill` is what a BUTTON is filled with (danger below), under near-black lettering.
-  red     = { 0.941, 0.404, 0.420 },
-  redFill = { 0.898, 0.283, 0.302 },
-  green   = { 0.373, 0.827, 0.553 },
-  -- What a unit cost: a muted gold, so a price paid never competes with a price asked.
-  cost    = { 0.788, 0.663, 0.341 },
-  zebra   = { 1, 1, 1, 0.04 },
-  -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
-  -- reads as "grayer", while a gold wash reads as "this is the row you are on".
-  hover   = { 0.831, 0.643, 0.216, 0.16 },
-  -- "The watch loop is polling this row." Its own colour on purpose: gold already means the
-  -- cursor is here, and green and red already mean profit and loss. A state that persists
-  -- while you look elsewhere cannot borrow a colour that means something else.
-  watch   = { 0.35, 0.72, 0.90 },
+  bg      = rgb(K.windowBottom),
+  panel   = rgb(K.windowTop),
+  panelHi = rgb(K.raised),
+  border  = K.glassBorder,
+  gold    = rgb(K.gold),
+  goldHi  = rgb(K.goldText),
+  fg      = rgb(K.text1),
+  fgMuted = rgb(K.text2),
+  fgDim   = rgb(K.text3),
+  red     = rgb(K.loss),
+  redFill = rgb(K.lossFill),
+  green   = rgb(K.profit),
+  cost    = rgb(K.cost),
+  zebra   = { 1, 1, 1, 0.035 },
+  hover   = { K.gold[1], K.gold[2], K.gold[3], 0.16 },
+  watch   = rgb(K.yours),
 }
 
 T.tier = {
@@ -304,7 +300,7 @@ function T.Panel(parent)
   return f
 end
 
-T.MEDIA = "Interface\\AddOns\\GoldCap\\Media\\"
+T.MEDIA = GC.Kit.MEDIA
 T.RAIL_W = 76
 
 -- Rounded chrome comes from ONE white 64px rounded-rect PNG stretched with

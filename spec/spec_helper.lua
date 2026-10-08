@@ -13,6 +13,10 @@ function helper.securecallfunction(fn, ...)
 end
 _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
+--- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
+--- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
+helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua" }
+
 function helper.loadModule(relPath, GC)
   GC = GC or {}
   -- Locale/Core.lua is the second entry in the TOC, so in the real client GC.L exists before
@@ -27,6 +31,20 @@ function helper.loadModule(relPath, GC)
   if relPath:match("^UI/") and GC.PurchaseCall == nil then
     local callChunk = assert(loadfile("GoldCap/Core/PurchaseCall.lua"))
     callChunk("GoldCap", GC)
+  end
+  -- UI/Theme.lua builds on the kit, which loads right before it in both TOCs, and draws its
+  -- headings and labels through Core/Util.lua's ClientText, which loads long before it. Same
+  -- reasoning as the locale above: a spec loading Theme gets what the client would already have
+  -- loaded. A spec that brought its own GC.Util keeps it.
+  if relPath == "UI/Theme.lua" and GC.Kit == nil then
+    if GC.Util == nil then
+      local utilChunk = assert(loadfile("GoldCap/Core/Util.lua"))
+      utilChunk("GoldCap", GC)
+    end
+    for _, kit in ipairs(helper.KIT_FILES) do
+      local kitChunk = assert(loadfile("GoldCap/" .. kit))
+      kitChunk("GoldCap", GC)
+    end
   end
   local chunk, err = loadfile("GoldCap/" .. relPath)
   assert(chunk, err)

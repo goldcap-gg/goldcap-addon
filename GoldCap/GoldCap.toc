@@ -93,6 +93,8 @@ Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Data/MarketData.lua
+UI/Kit/Tokens.lua
+UI/Kit/Icons.lua
 UI/Theme.lua
 UI/FontPreload.lua
 UI/Tooltip.lua
