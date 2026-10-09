@@ -1780,7 +1780,13 @@ local function refreshStaleText()
   -- across the two functions, and "attempt to compare nil with number" below would be an ugly
   -- way to find out it broke. Treat the divergence as "none" rather than raising.
   if origin ~= "none" and not age then origin = "none" end
-  frame.staleHit:EnableMouse(origin ~= "app")
+  -- WoW: Forever takes no import (Core/Data.lua refuses every retail string there): its prices are
+  -- the player's own scan and the Companion's crowd payload, so this banner, which is about
+  -- imports, has nothing to say there. It said "goldcap.gg prices for WoW: Forever are not out
+  -- yet.", written before the crowd payload existed and wrong since; nobody saw it until
+  -- 2026-10-09, when the window's glass stopped hiding this line, and it read as nonsense.
+  local forever = isForever()
+  frame.staleHit:EnableMouse(origin ~= "app" and not forever)
 
   -- Live price caps, addon task 6: text/color/shown are decided here and applied once at the
   -- end, rather than each branch calling SetText/SetTextColor/Show/Hide directly as before --
@@ -1789,15 +1795,13 @@ local function refreshStaleText()
   -- (frame.staleText is a bare fake in several specs, with no GetText/IsShown of its own).
   local text, color, shown
 
-  if origin == "none" then
+  if forever then
+    shown = false
+  elseif origin == "none" then
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    if isForever() then
-      text = GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
-    else
-      text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
-    end
+    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
     color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
@@ -10613,13 +10617,22 @@ local function setView(v)
     frame.scroll:Hide()
     frame.headerRow:Hide()
   end
-  -- Deals-only toolbar chrome (verify/scan/auto/divider/session -- `status` is NOT here, see
-  -- f.dealsChrome's own comment in createFrame: it's a shared cross-view channel). Note:
+  -- Deals-only toolbar chrome (verify/scan/auto/divider/session; `status` is handled below). Note:
   -- refreshSessionText re-Shows f.sessionText on its own clock whenever it runs, so it carries
   -- a `view ~= "deals"` early return of its own -- this loop's Hide() here would otherwise be
   -- undone by the very next 0.25s tick.
   for _, w in ipairs(frame.dealsChrome) do
     if isDeals then w:Show() else w:Hide() end
+  end
+  -- The status line is shown on Deals only. Sell writes every message through it too (UI/Sell/
+  -- Dock.lua's setStatus) and says each one in its own dock; off Deals the line sits over the tab's
+  -- own controls (Sell's MY LOTS, seen 2026-10-09 once the window's glass stopped hiding it). Back
+  -- on Deals, a message Sell left in it is cleared rather than shown as if it were about the board.
+  if isDeals then
+    frame.status:Show()
+    if GC.Sell and GC.Sell._lastStatus and frame.status:GetText() == GC.Sell._lastStatus then frame.status:SetText("") end
+  else
+    frame.status:Hide()
   end
   -- The blanket Show() above just unconditionally showed f.sessionText even if the session has
   -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
@@ -11195,11 +11208,9 @@ local function createFrame()
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
   --
-  -- `status` is deliberately NOT in this list. GC.Sell.Attach (UI/Sell/Frame.lua) captures this
-  -- same `f` as `UI.window` and Dock.SetStatus (UI/Sell/Dock.lua) routes ~40 user-facing messages
-  -- ("Posting…", "Click Confirm to post", timeouts, etc.) through `UI.window.status:SetText`
-  -- -- it is a shared channel across every view, not a Deals-only readout. Hiding it here
-  -- would mute Sell's entire posting-feedback channel while the Sell view is showing.
+  -- `status` is not in this list: setView shows it on Deals only, and clears what the Sell tab
+  -- left in it (GC.Sell.Attach in UI/Sell/Frame.lua captures this same `f` as `UI.window`, and
+  -- Dock.SetStatus writes its messages through `UI.window.status:SetText` as well as its dock).
   f.dealsChrome = { verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText,
     f.boardChips.commodities, f.boardChips.items }
 

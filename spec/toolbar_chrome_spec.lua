@@ -81,7 +81,10 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     _G.GetCoinTextureString, _G.ITEM_QUALITY_COLORS = nil, nil
   end)
 
-  it("status stays shown after switching off Deals -- it is a shared cross-view channel, not deals-only chrome", function()
+  -- Seen in WoW: Forever (2026-10-09), once the window's glass stopped hiding it: on Sell the line
+  -- sat over MY LOTS. Sell says each message in its own dock, and still writes this line (Dock.lua's
+  -- setStatus), so it is kept to Deals, and a message Sell left in it is not shown on the board.
+  it("shows the status line on Deals only, without a message the Sell tab left in it", function()
     local GC = loadSniper()
     -- createFrame is a direct upvalue of OnAuctionHouseShow (it calls `frame = frame or
     -- createFrame()`); setView is a direct upvalue of createFrame (its rail buttons' OnClick
@@ -91,11 +94,10 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     local setView = upvalue(createFrame, "setView")
 
     local status = widget()
-    status.shown = true -- Dock.SetStatus keeps writing through this while Sell is showing
+    function status:GetText() return self.text end
+    status.shown = true
     local fakeFrame = {
       scroll = widget(), headerRow = widget(),
-      -- Deals-only widgets ONLY -- status is deliberately absent, matching the real
-      -- f.dealsChrome built in createFrame after the C1 fix.
       dealsChrome = { widget(), widget(), widget(), widget(), widget() },
       dealsTab = widget(), sellTab = widget(), soldTab = widget(), buyTab = widget(),
       status = status,
@@ -103,8 +105,18 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     set(setView, "frame", fakeFrame)
 
     setView("sell")
+    assert.is_false(status.shown)
 
+    status:SetText("Refreshing listings…")
+    GC.Sell._lastStatus = "Refreshing listings…"
+    setView("deals")
     assert.is_true(status.shown)
+    assert.equal("", status.text)
+
+    status:SetText("scanning auction house...")
+    setView("sell")
+    setView("deals")
+    assert.equal("scanning auction house...", status.text)
   end)
 
   it("refreshSessionText hides the session block when the session has zero buys", function()
