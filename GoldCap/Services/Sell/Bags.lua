@@ -231,8 +231,8 @@ end
 
 
 -- A GC.Sell field, not a top-level local: paint-only (every real call site is inside
--- pushPosition/renderRows, never a click's pre-call body -- SellFrame.lua has no local headroom
--- left to spend on it (final review "Headroom"). Safe unlike the click-path helpers just below
+-- pushPosition/renderRows, never a click's pre-call body -- UI/SellFrame.lua, where it was
+-- written, had no local headroom left to spend on it (final review "Headroom"). Safe unlike the click-path helpers just below
 -- (Bags.ClickSafe, verifyBagStack, Bags.ResolveLocation): this one is never reached from
 -- inside a click at all, so it carries none of their function-field-call taint risk.
 function GC.Sell._CacheBagLocation(position, bagState)
@@ -315,7 +315,7 @@ end
 -- the plain cached values it reads today. Cache only: no render, no recompose -- the rows and
 -- their counts repaint as they always have. A hidden tab skips it: Show() refreshes and renders,
 -- which recaches before any Post can be pressed. A GC.Sell field, not a top-level local
--- (SellFrame.lua's headroom).
+-- (UI/SellFrame.lua's headroom, where it was written).
 function GC.Sell.OnBagsChanged()
   if not Walk.Shown() then return end
   local snapshot = GC.Sell._BagSnapshot()
