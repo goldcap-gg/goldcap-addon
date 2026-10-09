@@ -78,6 +78,17 @@ function ROW.markTooltip(owner, row)
   GameTooltip:Show()
 end
 
+-- The selling mark's look: a gold coin in a gold ring when POST lists the row, an empty dim ring
+-- when only its own Post does.
+function ROW.paintMark(row, selling)
+  row.markSelling = selling
+  local ring = selling and Theme.color.gold or Theme.color.fgDim
+  row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], selling and 0.9 or 0.6)
+  local coin = Theme.color.gold
+  row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
+  if selling then row.mark.coin:Show() else row.mark.coin:Hide() end
+end
+
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
 -- posting deck keeps its plain count beside the bags'.
 function ROW.listedText(position, listedQty, onListed)
@@ -216,8 +227,13 @@ local function createRow(parent)
   row.mark.coin:SetSize(8, 8)
   row.mark.coin:SetPoint("CENTER")
   row.mark:SetScript("OnClick", function()
-    local key = row.position and row.position.positionKey
-    if key then GC.Sell.SetSelling(key, not row.markSelling) end
+    local position = row.position
+    if not (position and type(position.positionKey) == "string") then return end
+    Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no", as a row's does
+    local selling = not GC.Sell.IsSelling(position)
+    GC.Sell.SetSelling(position.positionKey, selling)
+    -- Painted here too: a post already on the wire holds every render back until it is answered.
+    ROW.paintMark(row, selling)
   end)
   row.mark:SetScript("OnEnter", function(self) ROW.markTooltip(self, row) end)
   row.mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -848,15 +864,11 @@ function Row.Style(row, entry, listIndex)
     -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
     -- unconditional 26 left the name floating in a blank gap for a row with no
     -- resolvable icon.
-    -- The selling mark, where the deck has one: the icon and the names make room for it.
-    local markW = entry.selling ~= nil and ROW.MARK_W or 0
+    -- The selling mark, where the deck has marks: every row's icon and name make room for one,
+    -- so the names line up under ITEM whether this row has a mark to draw or not.
+    local markW = entry.markRoom and ROW.MARK_W or 0
     if entry.selling ~= nil then
-      row.markSelling = entry.selling
-      local ring = entry.selling and Theme.color.gold or Theme.color.fgDim
-      row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], entry.selling and 0.9 or 0.6)
-      local coin = Theme.color.gold
-      row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
-      if entry.selling then row.mark.coin:Show() else row.mark.coin:Hide() end
+      ROW.paintMark(row, entry.selling)
       row.mark:Show()
     end
     row.icon:ClearAllPoints()

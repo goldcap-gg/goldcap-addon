@@ -180,19 +180,21 @@ end
 -- `opts` comes from the Sell tab (`GC.Sell._QueueOpts()`); without it the queue is built from
 -- every position, as before the selling list. `opts.marks`, when present, is the player's
 -- selling list (see Selling above): a position it leaves out is in neither list -- it is not held
--- back, the player chose -- and only counted, in `notSelling`, for the dock to say so.
+-- back, the player chose -- but in `notSelling`, shaped like a `skipped` entry, its `reason` the
+-- one it would have been held back for (nil when it could be posted). Its row still has its own
+-- Post, so its row still says what is wrong with it; the dock reads the count.
 -- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
 -- `below_vendor` case above.
 function GC.PostQueue.Build(positions, opts)
-  local entries, skipped, notSelling = {}, {}, 0
+  local entries, skipped, notSelling = {}, {}, {}
   local marks = opts and opts.marks
   for _, position in ipairs(positions or {}) do
-    local onHand = type(position) == "table" and positive(position.bagQty)
-    if onHand and type(marks) == "table" and not GC.PostQueue.Selling(position, marks) then
-      notSelling = notSelling + 1
-    elseif onHand then
+    if type(position) == "table" and positive(position.bagQty) then
       local reason, unit, value, postable = evaluate(position, opts)
-      if reason then
+      if type(marks) == "table" and not GC.PostQueue.Selling(position, marks) then
+        notSelling[#notSelling + 1] = { positionKey = position.positionKey, itemID = position.itemID,
+          itemName = position.itemName, reason = reason }
+      elseif reason then
         skipped[#skipped + 1] = { positionKey = position.positionKey, itemID = position.itemID,
           itemName = position.itemName, reason = reason }
       else
@@ -206,6 +208,7 @@ function GC.PostQueue.Build(positions, opts)
   end
   table.sort(entries, entryLess)
   table.sort(skipped, skipLess)
+  table.sort(notSelling, skipLess)
   return entries, skipped, notSelling
 end
 

@@ -440,15 +440,18 @@ describe("PostQueue", function()
       assert.equal(1, #entries)
       assert.equal("commodity:1", entries[1].positionKey)
       assert.same({}, skipped)
-      assert.equal(1, notSelling)
+      assert.equal(1, #notSelling)
+      assert.equal("commodity:2", notSelling[1].positionKey)
+      assert.is_nil(notSelling[1].reason) -- it could go up; the player has not chosen it
     end)
 
-    it("says nothing about an unmarked item it could not have posted anyway", function()
+    -- Its row still has its own Post, so its row still has to say why that would not go up.
+    it("keeps the reason an unmarked item would be held back for, without holding it back", function()
       local positions = build({ bagStock = { stock("commodity:1", 1, "Ore One", 4) } }) -- no quote
       local entries, skipped, notSelling = GC.PostQueue.Build(positions, { marks = {} })
       assert.same({}, entries)
       assert.same({}, skipped)
-      assert.equal(1, notSelling)
+      assert.equal("no_fresh_price", notSelling[1].reason)
     end)
 
     it("counts what Deals bought as selling, until the player unmarks it", function()

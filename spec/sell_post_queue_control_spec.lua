@@ -315,6 +315,73 @@ describe("Sell tab, the posting queue control", function()
       _G.GameTooltip = nil
     end)
 
+    -- Review of 523fdec, finding 1: an unmarked row lost the tag that says why its own Post would
+    -- not go up.
+    it("still tags an unmarked row with what is wrong with it", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      assert.is_truthy(rowOf("commodity:23427").itemStock.text:find("vendor pays more", 1, true))
+    end)
+
+    -- Finding 2: with the SELLING heading on row 1, the dock's CONFIRM found no row to confirm.
+    it("confirms from the dock a post the head row's own Post armed", function()
+      _G.C_AuctionHouse.PostCommodity = function() return true end -- needs a second click to confirm
+      local confirmCalls = 0
+      _G.C_AuctionHouse.ConfirmPostCommodity = function() confirmCalls = confirmCalls + 1 end
+      GC.db.sellMarks["commodity:23427"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      local row = rowOf("commodity:23427")
+      row.action.scripts.OnClick(row.action)
+      local button = container.queueButton
+      assert.equal("CONFIRM", button.label)
+      button.scripts.OnClick(button)
+      assert.equal(1, confirmCalls)
+    end)
+
+    -- Finding 3: an armed post held the render back, so the mark never changed and a second click
+    -- could not undo the first.
+    it("answers an armed post no, as a row click does, and toggles from what is saved", function()
+      _G.C_AuctionHouse.PostCommodity = function() return true end
+      GC.db.sellMarks["commodity:23427"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      local head = rowOf("commodity:23427")
+      head.action.scripts.OnClick(head.action)
+      assert.is_not_nil(GC.SellState.postingRow)
+
+      local widget = rowOf("commodity:99001")
+      widget.mark.scripts.OnClick(widget.mark)
+      assert.is_nil(GC.SellState.postingRow)
+      assert.is_true(GC.db.sellMarks["commodity:99001"])
+      widget = rowOf("commodity:99001")
+      assert.is_true(widget.mark.coin.shown)
+      widget.mark.scripts.OnClick(widget.mark)
+      assert.is_false(GC.db.sellMarks["commodity:99001"])
+    end)
+
+    -- Finding 5: the hint is for a deck with nothing marked, not one whose marked items wait.
+    it("does not ask for a mark while a marked item is only held back", function()
+      GC.db.sellMarks["commodity:99001"] = true -- Widget has no price: held back
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      assert.matches("NOTHING", container.queueButton.label)
+      assert.equal("", container.queueLabel.text)
+    end)
+
+    -- Finding 6: a row whose identity is not settled is never POST's to list.
+    it("keeps a row whose identity is not settled out of SELLING, whatever Deals bought", function()
+      local repair = { unresolved = true, sources = { goldcap = 3 }, bagQty = 3 }
+      local ordered, sectionOf = GC.SellUI.ROW.bySelling({ repair })
+      assert.equal(repair, ordered[1])
+      assert.equal("notSelling", sectionOf[repair].id)
+    end)
+
     it("draws no marks and no sections before the saved data is loaded, and lists everything as before", function()
       GC.db = nil
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)

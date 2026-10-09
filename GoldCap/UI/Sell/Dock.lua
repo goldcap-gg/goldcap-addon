@@ -187,8 +187,10 @@ paintQueueButton = function()
   elseif not head then
     button:SetLabel(GC.L["NOTHING TO POST"])
     button:Disable()
-    -- Items in the bags, none of them on the selling list: say how to put one on it.
-    if label then label:SetText((S.notSelling or 0) > 0 and GC.L["Mark what to sell with the circle"] or "") end
+    -- Items in the bags, none of them on the selling list: say how to put one on it. Not while
+    -- something marked is only held back -- the counter beside this says why for those.
+    local unmarkedOnly = #S.queueSkipped == 0 and #(S.notSelling or {}) > 0
+    if label then label:SetText(unmarkedOnly and GC.L["Mark what to sell with the circle"] or "") end
   else
     button:SetLabel((GC.L["POST %d"]):format(#S.queueEntries))
     button:Enable()
@@ -516,6 +518,16 @@ local function onQueueClick()
     return
   end
   local head = S.queueEntries[1]
+  -- The dock reads CONFIRM only while the queue's head is the post waiting for it (paintQueueButton's
+  -- sameHead), so this click is that confirmation: it goes to the armed row itself. Row 1 cannot be
+  -- trusted for it -- the arm holds every render back, and on the posting deck row 1 is the SELLING
+  -- heading. onPostClick checks the row's pin as it does for the row's own Post.
+  local armed = S.postingRow
+  if armed and armed.postStage == "confirm" and armed.position
+      and armed.position.positionKey == head.positionKey then
+    onPostClick(armed)
+    return
+  end
   -- `row:IsShown()`, never `row.shown`. A real Frame has no `shown` FIELD -- only the method --
   -- but every widget double in this suite implements Show/Hide by writing `self.shown`, so
   -- reading the field is true in every test and nil in the client, and this button would have

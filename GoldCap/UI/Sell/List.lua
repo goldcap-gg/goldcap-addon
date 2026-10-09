@@ -190,7 +190,9 @@ function ROW.bySelling(filtered)
     if not position.unresolved and (position.bagQty or 0) == 0 and (position.listedQty or 0) == 0 then
       away[#away + 1] = position
     else
-      local section = GC.Sell.IsSelling(position) and selling or notSelling
+      -- A row whose identity is not settled is never POST's to list, whatever was bought.
+      local listable = not position.unresolved and type(position.positionKey) == "string"
+      local section = listable and GC.Sell.IsSelling(position) and selling or notSelling
       section.positions[#section.positions + 1] = position
     end
   end
@@ -529,6 +531,13 @@ local function renderRows()
   for _, skip in ipairs(onListed and S.cancelSkipped or S.queueSkipped) do
     if type(skip.positionKey) == "string" then heldBackReason[skip.positionKey] = skip.reason end
   end
+  -- An unmarked row is not held back, but it still has its own Post, so it still says why that
+  -- would not go up (Core/PostQueue.lua's Build keeps the reason).
+  if not onListed then
+    for _, rest in ipairs(S.notSelling or {}) do
+      if type(rest.positionKey) == "string" and rest.reason then heldBackReason[rest.positionKey] = rest.reason end
+    end
+  end
   -- What every position row reads for this render (Row.PaintPosition).
   local ctx = { onListed = onListed, heldBackReason = heldBackReason }
   local entries = {}
@@ -542,9 +551,13 @@ local function renderRows()
   local openPosition
   local function pushPosition(position)
     -- `selling` is the row's selling mark, true or false; nil where there is none to draw.
+    -- `markRoom`: the deck has marks, so every row's name starts after one, drawn or not.
     local selling
-    if sellingList and position.positionKey ~= nil then selling = GC.Sell.IsSelling(position) end
-    entries[#entries + 1] = { kind = "position", position = position, selling = selling }
+    if sellingList and not position.unresolved and type(position.positionKey) == "string" then
+      selling = GC.Sell.IsSelling(position)
+    end
+    entries[#entries + 1] = { kind = "position", position = position, selling = selling,
+      markRoom = sellingList }
     -- Cached here for every position this render pushes, not only an expanded one: the row's own
     -- Post button (Row.PaintPosition in UI/Sell/Row.lua, "bagQty > 0 and not onListed") is live
     -- whether or not the drawer is open, and onPostClick never builds an ItemLocation itself --

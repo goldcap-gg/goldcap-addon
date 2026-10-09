@@ -144,7 +144,7 @@ function Compose.Queue()
   if GC.PostQueue and GC.PostQueue.Build then
     S.queueEntries, S.queueSkipped, S.notSelling = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
   else
-    S.queueEntries, S.queueSkipped, S.notSelling = {}, {}, 0
+    S.queueEntries, S.queueSkipped, S.notSelling = {}, {}, {}
   end
   GC.Sell._HoldLateInQueue()
   View.paintQueue()

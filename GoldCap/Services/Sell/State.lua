@@ -47,9 +47,10 @@ GC.SellState = {
   -- before (see the price-ladder and market-value postmortems). Both default to {} so the toolbar
   -- control has something sane to paint before the very first compose ever runs.
   queueEntries = {}, queueSkipped = {},
-  -- How many positions in the bags the player has not marked for selling: out of the queue, and
-  -- named by the dock when nothing is left in it (Core/PostQueue.lua's Build).
-  notSelling = 0,
+  -- The positions in the bags the player has not marked for selling, each with the reason it
+  -- would have been held back for: out of the queue, their rows still tagged, and the dock's hint
+  -- when nothing on hand is selling (Core/PostQueue.lua's Build).
+  notSelling = {},
   -- The cancel twin, same statelessness contract: rebuilt from the positions on every compose,
   -- never kept as its own list with an index. A confirmed cancel makes the lot vanish from
   -- GetOwnedAuctions, so the entry drops out of the very next build on its own.
