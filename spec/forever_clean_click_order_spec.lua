@@ -82,9 +82,9 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     it("reads the owned-auctions list fresh but never recomposes positions before CancelAuction", function()
       assert.is_truthy(prepare:find("GC.SellPositions.NormalizeOwnedLots(", 1, true),
         "Post.PrepareCancel must refresh the owned-auctions list before the protected call")
-      -- Read without its comments: the one above the fresh read names composePositions() as
-      -- what this click no longer calls.
-      local code = prepare:gsub("%-%-[^\n]*", "")
+      -- Read without its comment lines: the one above the fresh read names composePositions() as
+      -- what this click no longer calls. Whole lines only, so a `--` inside a string can hide nothing.
+      local code = prepare:gsub("\n[ \t]*%-%-[^\n]*", "")
       for _, banned in ipairs({ "composePositions(", "Compose.Positions(" }) do
         assert.is_nil(code:find(banned, 1, true), banned .. " must not run before the protected Cancel call -- it scans the bags")
       end

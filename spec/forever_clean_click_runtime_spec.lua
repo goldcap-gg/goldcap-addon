@@ -452,6 +452,9 @@ describe("Clean click ordering, driven end to end", function()
       log = {}
       action.scripts.OnClick(action) -- confirm
       assertCleanCall("CancelAuction")
+      -- And every Disable this click ran came after the call, never before it.
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("CancelAuction"))
     end)
 
     it("the cancel queue control, on the confirming click", function()
@@ -486,6 +489,9 @@ describe("Clean click ordering, driven end to end", function()
       button.scripts.OnClick(button) -- confirm
       assertCleanCall("CancelAuction")
       assert.is_nil(logged("IsSellItemValid"))
+      -- And every Disable this click ran came after the call, never before it.
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("CancelAuction"))
     end)
   end)
 
