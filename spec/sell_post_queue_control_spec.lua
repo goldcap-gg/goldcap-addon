@@ -120,7 +120,7 @@ describe("Sell tab, the posting queue control", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
   end
 
   local function quotes()

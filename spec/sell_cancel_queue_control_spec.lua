@@ -51,15 +51,6 @@ describe("Sell tab, the cancel queue control", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- One live lot: 400 Sanguithorn Tea listed at 2g73s against a market that has moved to
   -- 1g98s -- the undercut-leftover shape the queue exists for. The paid basis (1g/unit,
   -- recorded below) sits far under the relist price, so RepostAdvice says "repost".
@@ -143,7 +134,7 @@ describe("Sell tab, the cancel queue control", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
   end
 
   local function quotes()
@@ -305,7 +296,7 @@ describe("Sell tab, the cancel queue control", function()
       local asked = 0
       _G.C_AuctionHouse.QueryOwnedAuctions = function() asked = asked + 1 end
       GC.Sniper = { IsAHOpen = function() return true end, IsBusy = function() return false end }
-      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", { isReady = function() return true end })
+      GC.SellQuotes.driver = { isReady = function() return true end }
       cancelHead()
       GC.Sell.Tick(); GC.Sell.Tick()
       assert.equal(1, asked)

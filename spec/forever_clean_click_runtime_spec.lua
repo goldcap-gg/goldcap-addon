@@ -195,7 +195,7 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     local function compose()
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotes()
@@ -417,7 +417,7 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     local function compose()
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotes()

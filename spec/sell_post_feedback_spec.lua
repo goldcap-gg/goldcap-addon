@@ -164,7 +164,7 @@ describe("Sell tab, a Post says what it is doing", function()
   -- Priced, composed and drawn: the ore's row is on screen with its own Post button.
   local function ready()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
   end
 
@@ -500,7 +500,7 @@ describe("Sell tab, a Post says what it is doing", function()
     local function readyTwo()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
       render()
     end
 
@@ -1031,7 +1031,7 @@ describe("Sell tab, a Post says what it is doing", function()
         GC.Sell.OnAuctionCreated(905)
         _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
         GC.QuoteCache.Set(quotes(), 210796, 5000, 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1)
-        upvalue(GC.Sell.SellableCount, "composePositions")()
+        GC.SellCompose.Positions()
         render()
         pressRowPost(210796)
         GC.Sell.OnAuctionCreated(906)
@@ -1232,7 +1232,7 @@ describe("Sell tab, a Post says what it is doing", function()
           assert.equal(shown, sentUnits[1])
           GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- refused: free again
           overrides()["commodity:23427"] = 190000
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           row = oreRow()
           assert.equal(190000, shownCopper(row))
@@ -1249,7 +1249,7 @@ describe("Sell tab, a Post says what it is doing", function()
           fire(8)
           _G.time = function() return 1040 end
           GC.QuoteCache.Set(quotes(), 23427, 184719, 1040)
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           _G.time = function() return 1061 end
           local row = oreRow()
@@ -1267,7 +1267,7 @@ describe("Sell tab, a Post says what it is doing", function()
           fire(8)
           _G.time = function() return 1061 end
           GC.QuoteCache.Set(quotes(), 23427, 184719, 1061)
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           local row = oreRow()
           assert.equal(190000, shownCopper(row))

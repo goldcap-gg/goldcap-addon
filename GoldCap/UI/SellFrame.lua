@@ -19,7 +19,7 @@ end
 local Theme = GC.Theme
 -- The checks and constants this file shares with the Sell services (Services/Sell/State.lua).
 local S = GC.SellState
-local Bags, Walk, Post = GC.SellBags, GC.SellWalk, GC.SellPost
+local Quotes, Bags, Compose, Walk, Post = GC.SellQuotes, GC.SellBags, GC.SellCompose, GC.SellWalk, GC.SellPost
 local exact, safeAdd, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeAdd,
   GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local context, activeScope, exactRenderEntry, itemName = GC.SellUtil.context, GC.SellUtil.activeScope,
@@ -108,9 +108,6 @@ local COLUMNS = {
 
 local container, content, detailContent, statusOwner
 local rows = {}
--- Stamped by composePositions() as it walks every position, so SellableCount() can read it
--- without recomposing. nil only until the first compose has ever run.
-local sellableCount
 
 local expanded = {}
 -- Whether the posting deck's "not on hand" fold is open. The player's to set and kept for the
@@ -655,284 +652,6 @@ function GC.Sell._RecommendationText(recommendation)
   return text
 end
 
-local function quoteDriver()
-  local function boundedLevels(itemID, commodity)
-    local _, itemKey = GC.Sell._QuoteItemKey(itemID)
-    local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
-      or C_AuctionHouse.GetNumItemSearchResults(itemKey)
-    local cap = GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100
-    for i = 1, math.min(count or 0, cap) do
-      local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
-        or C_AuctionHouse.GetItemSearchResultInfo(itemKey, i)
-      -- An item row groups identical auctions, and its buyoutAmount is what ONE of them costs --
-      -- Blizzard's own sell frame takes it as the unit price. Divided by the row's quantity, 150
-      -- bags at 1,800g read as 12g (player report, 2026-09-26).
-      local unit = info and (commodity and info.unitPrice or info.buyoutAmount)
-      if unit and unit > 0 then
-        levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
-          ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
-      end
-    end
-    -- Whether the read stopped short of the whole book: more rows than it takes, or an answer
-    -- the client does not hold in full. THE BOOK's "past the read" is this flag, never a count
-    -- that happens to equal the cap (review M5).
-    if #levels > 0 then
-      local full = true
-      if commodity and C_AuctionHouse.HasFullCommoditySearchResults then
-        full = C_AuctionHouse.HasFullCommoditySearchResults(itemID) ~= false
-      elseif not commodity and C_AuctionHouse.HasFullItemSearchResults then
-        full = C_AuctionHouse.HasFullItemSearchResults(itemKey) ~= false
-      end
-      levels.cut = (count or 0) > cap or not full or nil
-    end
-    return #levels > 0 and levels or nil
-  end
-
-  local function competingOrOwnUnit(levels)
-    if not levels then return nil end
-    local competing = GC.SellPositions.CheapestCompetingUnit(levels)
-    if competing then return competing end
-    local own
-    for i = 1, #levels do
-      local unit = levels[i].unitPrice
-      if type(unit) == "number" and unit > 0 and (own == nil or unit < own) then own = unit end
-    end
-    return own
-  end
-  return {
-    -- GC.Util.ThrottleReady, not the raw flag: see its comment for the stuck-flag client.
-    isReady = function()
-      if GC.Util and GC.Util.ThrottleReady then return GC.Util.ThrottleReady() end
-      return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady()
-    end,
-    -- isReady answers whether a send is permitted; this takes the permit, once, immediately
-    -- before a query goes out. Under a throttle flag that has stopped changing it is what keeps
-    -- this walk moving at all: the permit used to be one global one, and the Sniper's arbiter
-    -- runs immediately ahead of this tab on every ready event, so the tab never saw one.
-    claimSend = function()
-      if GC.Util and GC.Util.ClaimThrottleSend then return GC.Util.ClaimThrottleSend("sell") end
-      return true
-    end,
-    keyInfo = function(itemID)
-      if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return nil end
-      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
-      return itemKey and C_AuctionHouse.GetItemKeyInfo(itemKey)
-    end,
-    send = function(itemID)
-      local _, key = GC.Sell._QuoteItemKey(itemID)
-      local info = C_AuctionHouse.GetItemKeyInfo(key)
-      -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
-      if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
-      if info and info.isCommodity then
-        if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: search") end
-        C_AuctionHouse.SendSearchQuery(key, {}, false)
-      else
-        C_AuctionHouse.SendSearchQuery(key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
-      end
-    end,
-    -- Both price against the cheapest level somebody ELSE is selling at. Reading level 1 blind
-    -- means pricing against your own auction the moment you are the cheapest seller, so every
-    -- Post/Repost undercut the previous one and the price walked down against nobody. Sharing a
-    -- level with real competitors still counts -- see SellPositions.CheapestCompetingUnit.
-    --
-    -- With no competition at all the fallback is the player's OWN cheapest listing: holding the
-    -- current price is the honest answer there, where undercutting would just resume the walk.
-    item = function(itemID)
-      return competingOrOwnUnit(boundedLevels(itemID, false))
-    end,
-    commodity = function(itemID)
-      return competingOrOwnUnit(boundedLevels(itemID, true))
-    end,
-    itemLevels = function(itemID) return boundedLevels(itemID, false) end,
-    commodityLevels = function(itemID) return boundedLevels(itemID, true) end,
-    -- Is the client holding a COMPLETE reply for this key, or merely whatever result set the
-    -- last search left in the slot? GetNum*SearchResults answers the second question only, and
-    -- the results events this file listens to are raised by the Sniper's searches as well as
-    -- our own -- so a zero read is not proof the auction house said "nothing listed". This is
-    -- the proof; see quoteResolved, which will not gag an item without it.
-    --
-    -- Returns TRUE when the client offers no way to ask. A missing API is not evidence of
-    -- anything, and failing that case closed would gag nothing ever again.
-    hasFullResults = function(itemID, commodity)
-      if not C_AuctionHouse then return true end
-      if commodity then
-        if not C_AuctionHouse.HasFullCommoditySearchResults then return true end
-        return C_AuctionHouse.HasFullCommoditySearchResults(itemID) == true
-      end
-      if not (C_AuctionHouse.HasFullItemSearchResults and C_AuctionHouse.MakeItemKey) then return true end
-      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
-      return C_AuctionHouse.HasFullItemSearchResults(itemKey) == true
-    end,
-  }
-end
-local driver = quoteDriver()
-
--- The Sell tab's own persisted mirror of `quotes` (declared above, near COLUMNS): only
--- {unit, at}, never `levels` -- see Core/Init.lua's `sellQuotes` default for the write side
--- and why. nil once GC.db does not exist yet: Init.lua runs LAST in the .toc, so no store
--- exists at file load, and persistence is simply skipped until it does. Unlike
--- Bags.CommodityKinds, there is no session-local fallback -- an unpersisted quote costs
--- nothing worse than today's behavior (a dash until the walk answers).
-local function persistedQuotes()
-  if not GC.db then return nil end
-  GC.db.sellQuotes = type(GC.db.sellQuotes) == "table" and GC.db.sellQuotes or {}
-  return GC.db.sellQuotes
-end
-
--- How old a persisted quote may be and still seed `quotes` on the first compose after a
--- reload. Loose on purpose: a days-old price is still a better anchor than a dash (the
--- renderer's own " . stale %ds" tag already tells the truth about its age), but week-old
--- garbage should not resurrect and confuse a Post decision. Pruning here is also what stops
--- the persisted store growing forever, since nothing else ever deletes an old entry from it.
-local QUOTE_PERSIST_MAX_AGE = 3 * 24 * 60 * 60
-
-local function seedPersistedQuotes()
-  local store = persistedQuotes()
-  if not store then return end
-  S.quotesSeeded = true
-  local now = time()
-  for itemID, entry in pairs(store) do
-    local unit = type(entry) == "table" and entry.unit or nil
-    local at = type(entry) == "table" and entry.at or nil
-    local valid = exact(unit) and unit > 0 and exact(at) and at <= now and (now - at) <= QUOTE_PERSIST_MAX_AGE
-    if valid then
-      -- A live answer this session already produced beats a persisted one.
-      -- `bookless`: a restored quote is a number with no book under it -- the store keeps the
-      -- unit and its date, never the levels. Seconds after a reload it is still "fresh", so the
-      -- walk left it alone and the row sat with a price and no queue standing, and its panel
-      -- with no book, until the quote aged out (seen in game). The walk owes it a real answer
-      -- exactly as it owes a bulk price one; see uniqueQuoteItemIDs.
-      if S.quotes[itemID] == nil then S.quotes[itemID] = { unit = unit, at = at, bookless = true } end
-    else
-      store[itemID] = nil
-    end
-  end
-end
-
--- `skipPaint`: WoW: Forever's taint engine blocks a protected AH call once the same hardware
--- click has read certain GoldCap runtime state -- and `container.paintDeckSwitch()` below,
--- which reads `position.listedQty`/`bagQty` off `positions`, is one of the reads it flags
--- (see onRepostClick's own comment on this). onRepostClick's pre-cancel validation needs this
--- function's DATA (fresh `ownedLots`/`positions`) but must not trigger that paint before its own
--- protected call further down; it passes true here and repaints the deck switch itself, once,
--- right after that call. Every other caller leaves this at its default (false) and keeps the
--- paint exactly where it always was.
-local function composePositions(skipPaint)
-  if not S.quotesSeeded then seedPersistedQuotes() end
-  local scope = context()
-  Bags.Scan()
-
-  -- A craft happens away from the auction house, where the client will not say whether the
-  -- item sells as a commodity, so Core/CraftCapture.lua records those batches keyless rather
-  -- than filing them under a guessed key. The bag walk immediately above has just put that
-  -- question to GetItemKeyInfo -- the authority itself -- so this is where a crafted batch
-  -- stops being keyless, and it runs before the batches are read below so the cost shows on
-  -- this very pass. BindItemOnly cannot serve here: it is for legacy item-only evidence and
-  -- requires the item to have been LISTED, which stock the player has only just made has not.
-  if GC.Acquisitions and GC.Acquisitions.BindClassifiedIdentity and scope then
-    local classified, ambiguous = {}, {}
-    for _, stock in ipairs(S.bagStock) do
-      if type(stock.positionKey) == "string" and stock.positionKey ~= "" then
-        if classified[stock.itemID] and classified[stock.itemID] ~= stock.positionKey then
-          ambiguous[stock.itemID] = true
-        end
-        classified[stock.itemID] = stock.positionKey
-      end
-    end
-    for _, batch in ipairs(GC.Acquisitions.GetActive(scope)) do
-      -- Two stacks of one item under different keys means the bags cannot say which one this
-      -- batch is; leaving it keyless is the honest answer.
-      if not batch.positionKey and classified[batch.itemID] and not ambiguous[batch.itemID] then
-        GC.Acquisitions.BindClassifiedIdentity(batch.id, classified[batch.itemID], scope)
-      end
-    end
-  end
-  local stats = {}
-  for _, lot in ipairs(S.ownedLots) do
-    stats[lot.itemID] = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(lot.itemID) or nil
-  end
-  for _, stock in ipairs(S.bagStock) do
-    stats[stock.itemID] = stats[stock.itemID]
-      or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(stock.itemID) or nil)
-  end
-  local batches = GC.Acquisitions and GC.Acquisitions.GetActive and GC.Acquisitions.GetActive(scope) or {}
-  for _, batch in ipairs(batches) do
-    stats[batch.itemID] = stats[batch.itemID] or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(batch.itemID) or nil)
-  end
-  local pending = GC.Acquisitions and GC.Acquisitions.GetPending and GC.Acquisitions.GetPending(scope) or {}
-  local activities = GC.Acquisitions and GC.Acquisitions.GetActivities and GC.Acquisitions.GetActivities(scope) or {}
-  local consumed = {}
-  for _, realized in ipairs(GC.Acquisitions and GC.Acquisitions.GetRealized and GC.Acquisitions.GetRealized(scope) or {}) do
-    if realized.evidenceKey then consumed[realized.evidenceKey] = true end
-  end
-  local sellerEvidence = {}
-  for _, entry in ipairs(GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}) do
-    if entry.kind == "sale" and entry.source == "mail" and entry.char == scope.char
-        and entry.region == scope.region and not consumed[entry.key] then
-      sellerEvidence[#sellerEvidence + 1] = entry
-    end
-  end
-  -- Identity evidence travels separately from `batches`: GetActive drops a batch the moment it
-  -- is sold out, and taking the item's auction identity from that same list is what orphaned
-  -- every keyless batch of a fully-sold item into its own repair row.
-  local identityEvidence = GC.Acquisitions and GC.Acquisitions.GetIdentityEvidence
-    and GC.Acquisitions.GetIdentityEvidence(scope) or {}
-  S.positions = GC.SellPositions.Build({ acquisitions = batches, identityEvidence = identityEvidence,
-    pendingAcquisitions = pending,
-    activities = activities, sellerEvidence = sellerEvidence, ownedLots = S.ownedLots,
-    bagStock = S.bagStock, quotes = S.quotes, statsByItemID = stats, context = scope, now = time(),
-    -- "Does this item sell as a commodity", straight from C_AuctionHouse.GetItemKeyInfo and
-    -- remembered. Build cannot reach SavedVariables and must not; it is handed the answer so
-    -- it can settle an activity set holding `commodity:X` and `item:X:...` for one itemID --
-    -- provable corruption that a purchase record can only settle when there IS a purchase.
-    commodityKinds = Bags.CommodityKinds(),
-    -- A price the seller typed has to reach the decoration, not just the post: the PROFIT
-    -- column, the posting queue's own label and the plan all read the recommendation, and
-    -- this file has twice shipped a bug where the price shown and the price sent were two
-    -- different numbers.
-    chosenUnits = S.priceOverrides,
-    -- WoW: Forever only (Core/SellPositions.lua's decoratePosition): the player's own scan is
-    -- the market there, so the projection prices bag stock from it while the live walk is still
-    -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
-    scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
-    quoteMaxAge = SELL_QUOTE_ACTION_AGE })
-  -- Stamped in the same walk this function already does over every position, rather than a
-  -- second pass triggered from SellableCount() -- see that function for why a fresh compose
-  -- per label-read was wasteful (a six-bag scan plus every Acquisitions/Ledger walk, on a tab
-  -- that may not even be the one currently shown).
-  local sellable = 0
-  for _, position in ipairs(S.positions) do
-    if position.itemID and not position.itemName then position.itemName = itemName(position.itemID) end
-    if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
-  end
-  sellableCount = sellable
-  -- Rebuilt from THESE positions, every time -- never kept as a separate stateful list. See
-  -- this file's own queueEntries/queueSkipped declaration for why. Guarded for GC.PostQueue
-  -- being absent: every real load carries Core/PostQueue.lua (GoldCap.toc), but a handful of
-  -- older fixtures in this spec suite load UI/SellFrame.lua without it, and a missing queue
-  -- module must degrade to "nothing queued," never a crash.
-  if GC.PostQueue and GC.PostQueue.Build then
-    S.queueEntries, S.queueSkipped = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
-  else
-    S.queueEntries, S.queueSkipped = {}, {}
-  end
-  GC.Sell._HoldLateInQueue()
-  paintQueueButton()
-  -- The cancel twin, same degradation contract for fixtures loaded without the module.
-  if GC.CancelQueue and GC.CancelQueue.Build then
-    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions)
-  else
-    S.cancelEntries, S.cancelSkipped = {}, {}
-  end
-  paintCancelButton()
-  -- The deck switch's two counts are read straight off `positions`, so they have to be
-  -- repainted whenever `positions` moves. `container.paintDeckSwitch` was exported for exactly
-  -- this and then never called by anybody: the switch was painted once at construction, over an
-  -- empty table, and after that only when the player clicked one of its own two buttons. So it
-  -- sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is what made a fixed
-  -- bag-stock bug look like it was still broken, twice, to two different readers.
-  if not skipPaint and container and container.paintDeckSwitch then container.paintDeckSwitch() end
-end
 
 -- Which items the pricing walk asks the server about.
 --
@@ -1090,7 +809,7 @@ local function scheduleQuoteExpiry()
   if not delay then return end
   C_Timer.After(delay, function()
     if token ~= S.quoteExpiryGeneration then return end
-    composePositions()
+    Compose.Positions()
     renderRows()
   end)
 end
@@ -1110,7 +829,7 @@ function Walk.Shown()
   return not (GC.Sniper and GC.Sniper.IsWindowShown) or GC.Sniper.IsWindowShown()
 end
 
-local function tabIsLive()
+function Walk.Live()
   return Walk.Shown() and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
 end
 
@@ -1123,7 +842,7 @@ local function scheduleNextWalk()
   local token = S.walkRepeatToken
   if not (C_Timer and C_Timer.After) then return end
   C_Timer.After(WALK_REPEAT_SECONDS, function()
-    if token ~= S.walkRepeatToken or not tabIsLive() then return end
+    if token ~= S.walkRepeatToken or not Walk.Live() then return end
     if S.refresh.phase ~= "done" and S.refresh.phase ~= "idle" and S.refresh.phase ~= "error" then return end
     GC.Sell.Refresh(true)
   end)
@@ -1194,7 +913,7 @@ local function skipPendingQuote(pending, timedOut)
     }
   else
     S.quotes[pending.itemID] = nil
-    local persisted = persistedQuotes()
+    local persisted = Quotes.Persisted()
     if persisted then persisted[pending.itemID] = nil end
   end
   S.refresh.pending = nil
@@ -1335,7 +1054,7 @@ advanceQuote = function()
     retryLater()
     return
   end
-  if not driver.isReady() then
+  if not Quotes.driver.isReady() then
     -- The throttle window is closed -- IsThrottledMessageSystemReady() is false -- so the walk
     -- is stalled on purpose, not stuck, and this must feed the watchdog exactly like the
     -- purchase-yield branch above. I4 (fix wave, sell honesty): the code cannot actually tell
@@ -1386,8 +1105,8 @@ advanceQuote = function()
     retryLater()
     return
   end
-  if driver.keyInfo(itemID) then
-    local info = driver.keyInfo(itemID)
+  if Quotes.driver.keyInfo(itemID) then
+    local info = Quotes.driver.keyInfo(itemID)
     local kind = info.isCommodity and "commodity" or "item"
     local tombstone = S.refresh.drain[kind .. ":" .. itemID]
     if tombstone and type(tombstone.at) == "number" and time() - tombstone.at > DRAIN_MAX_SECONDS then
@@ -1414,7 +1133,7 @@ advanceQuote = function()
     -- board and this walk each get a turn instead of whichever of the two happens to ask first
     -- taking every one of them -- which is exactly what left this tab reading "PRICING… 0/20"
     -- through a hundred and twenty ready events.
-    if driver.claimSend and not driver.claimSend() then
+    if Quotes.driver.claimSend and not Quotes.driver.claimSend() then
       markProgress()
       retryLater()
       return
@@ -1426,7 +1145,7 @@ advanceQuote = function()
     markProgress()
     setStatus(fromPriority and GC.L["Checking this item's price…"]
       or (GC.L["Pricing %d/%d…"]):format(S.refresh.index, #S.refresh.queue))
-    driver.send(itemID)
+    Quotes.driver.send(itemID)
     scheduleQuoteTimeout(S.refresh.pending)
   else
     -- Armed once per item, not once per poke: OnThrottleReady drives this function again while
@@ -1458,7 +1177,7 @@ end
 
 local function requestOwnedAuctions()
   if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen() then
-    if not driver.isReady() then return false, true end
+    if not Quotes.driver.isReady() then return false, true end
     if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: QueryOwnedAuctions") end
     C_AuctionHouse.QueryOwnedAuctions({})
     return true, false
@@ -1467,7 +1186,7 @@ local function requestOwnedAuctions()
 end
 
 local function onOwnedAuctionsReady()
-  composePositions()
+  Compose.Positions()
   renderRows()
   if S.refresh.phase == "owned" then
     -- Progress is stamped ONLY by the phase that was actually waiting for this. OWNED_AUCTIONS_
@@ -1671,14 +1390,14 @@ function GC.Sell.OnItemKeyInfo(itemID)
     if C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots then
       S.ownedLots = GC.SellPositions.NormalizeOwnedLots(
         classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
-      composePositions()
+      Compose.Positions()
       renderRows()
     end
   end
   -- Stock the tab could not key without this answer is scanned again: it can be filed now.
   for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
     if waiting.itemID == itemID then
-      composePositions()
+      Compose.Positions()
       renderRows()
       break
     end
@@ -1713,8 +1432,8 @@ local function quoteResolved(kind, itemID, unit, levels)
     -- reply is not in that slot". Only the first may wipe a quote and gag the item for a
     -- minute; without the client's own proof this is treated as a timeout, which keeps the
     -- quote and leaves the fence to catch the real answer when it lands.
-    local proven = driver.hasFullResults == nil
-      or driver.hasFullResults(itemID, kind == "commodity") ~= false
+    local proven = Quotes.driver.hasFullResults == nil
+      or Quotes.driver.hasFullResults(itemID, kind == "commodity") ~= false
     skipPendingQuote(pending, not proven)
     return
   end
@@ -1732,7 +1451,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   -- Mirror the result into the persisted store: whatever Set just did to `quotes[itemID]` --
   -- write it in (it never clears here, since `unit` is already known-valid above, but the
   -- contract matches Set's either way) so a later reload can seed from it.
-  local persisted = persistedQuotes()
+  local persisted = Quotes.Persisted()
   if persisted then
     local resolved = S.quotes[itemID]
     persisted[itemID] = resolved and { unit = resolved.unit, at = resolved.at } or nil
@@ -1752,7 +1471,7 @@ local function quoteResolved(kind, itemID, unit, levels)
       listings = summary.listings, totalQty = summary.totalQty,
       levels = levels }, time())
   end
-  composePositions()
+  Compose.Positions()
   renderRows()
   advanceQuote()
 end
@@ -1767,19 +1486,9 @@ function GC.Sell.OnItemSearchResults(itemID, itemKey)
   if variant and ((S.refresh.pending and S.refresh.pending.itemID == variant) or S.refresh.drain["item:" .. variant]) then
     id = variant
   end
-  quoteResolved("item", id, driver.item(id), driver.itemLevels(id))
+  quoteResolved("item", id, Quotes.driver.item(id), Quotes.driver.itemLevels(id))
 end
-function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
-
-local function freshQuote(position)
-  local quote = GC.QuoteCache.Fresh(S.quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)
-  if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
-  -- A price from the bulk fill (GC.Sell.FoldBulk) is the realm's cheapest unit with nobody
-  -- subtracted from it -- good enough to show, never good enough to spend on. Post and Repost
-  -- get exactly what they get for a stale quote: a fetch of this one item, then the click.
-  if quote.bulk then return nil end
-  return quote
-end
+function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, Quotes.driver.commodity(itemID), Quotes.driver.commodityLevels(itemID)) end
 
 -- Post and Repost both need a quote fresher than they have. This used to call
 -- the full Refresh, which re-queried the owned auctions and then every priced
@@ -1986,7 +1695,7 @@ function Post.PreparePost(row)
     return
   end
   local position = row.position
-  local quote = freshQuote(position)
+  local quote = Quotes.Fresh(position)
   if not quote then
     if S.postingRow == row then disarmPost() end
     -- Same silent first click as Repost had: without this the button looks
@@ -2060,7 +1769,7 @@ function Post.PreparePost(row)
     setStatus(GC.L["Cannot post this position"])
     return
   end
-  local info = driver.keyInfo(plan.itemID)
+  local info = Quotes.driver.keyInfo(plan.itemID)
   if not info then setStatus(GC.L["No exact auction key"]); return end
   if (info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostCommodity))
       or (not info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostItem)) then
@@ -2226,7 +1935,7 @@ function Post.PrepareCancel(row, auctionID)
     setStatus(GC.L["Cancelling lot…"])
     return
   end
-  local quote = freshQuote(position)
+  local quote = Quotes.Fresh(position)
   if not quote then
     if S.repostingRow == row then disarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
@@ -2343,7 +2052,7 @@ function Post.Cancelling(row, pin, scope)
   -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
   -- no protected call follows in this click), and repaints the deck switch, queue and cancel
   -- buttons this click used to paint through composePositions(true) before the call.
-  composePositions()
+  Compose.Positions()
   if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
     GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
   end
@@ -2540,7 +2249,7 @@ end
 -- asks next.
 function GC.Sell._RefreshAfterPost()
   if container and container.IsShown and not container:IsShown() then
-    composePositions()
+    Compose.Positions()
     if not S.postingRow then requestOwnedAuctions() end
   else
     GC.Sell.Refresh()
@@ -2692,7 +2401,7 @@ function GC.Sell.OnAuctionHouseError(errorCode)
       GC.Sell._OweAnswer(table.remove(live, 1))
       S.postingPin.clean = false
       GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
-      composePositions() -- the dock's queue offers that item again
+      Compose.Positions() -- the dock's queue offers that item again
       return
     end
   end
@@ -5701,28 +5410,6 @@ local function onCancelQueueClick()
   ROW.armLot(S.cancelEntries[1])
 end
 
--- The number on the Sell tab. It counted positions whose tracked purchases
--- outran their known listings -- an accounting difference, not a count of
--- anything a player can act on. It now counts items sitting in the bags that
--- the auction house would accept, which is what "Sell (9)" reads as.
---
--- Reads the count composePositions() already stamped rather than recomposing to answer this --
--- a compose is a full six-bag scan plus every Acquisitions/Ledger walk, and every caller of
--- this function calls it right where composePositions() was either just run or is about to be:
---   * updateSellTabLabel(), from renderRows()'s own tail -- always after this same render's
---     composePositions() has already run.
---   * GC.Sniper.Toggle() and the AH-open handler -- both call GC.Sell.Refresh() (which
---     composes synchronously, before any network round trip) immediately before reading this.
---   * recordPurchaseFacts(), right after a purchase -- calls this WITHOUT a fresh compose, but
---     a GoldCap purchase always lands in the mailbox, never straight into the bags, so bagQty
---     (what this counts) cannot have changed at that exact instant; the cached value is still
---     correct, and was already the only thing an immediate recompose there would have measured.
--- Only a cold call before anything has ever composed falls back to composing once itself.
-function GC.Sell.SellableCount()
-  if sellableCount == nil then composePositions() end
-  return sellableCount or 0
-end
-
 function GC.Sell.Show()
   if container then container:Show() end
   -- The headings are otherwise only ever stamped when the DECK changes (renderRows), and this
@@ -5761,80 +5448,6 @@ function GC.Sell.Show()
   end
 end
 function GC.Sell.Hide() if container then container:Hide() end end
--- `automatic` marks the self-driven repeat below, which politely stands aside
--- for anything already in flight. A press of the button does not: it means "do
--- it now", and refusing while a phase was set is what made the button dead.
--- Whatever was in flight is let go of behind a drain tombstone, exactly the way
--- Reset already did it, so a late terminal event is consumed rather than
--- credited to this run.
--- The bulk fill: every commodity on the tab priced by ONE throttled message.
---
--- The walk prices a row per round trip -- a SendSearchQuery each, through the one throttled
--- slot the whole addon shares -- so a tab of twenty rows filled in over half a minute, top to
--- bottom, and a press of Refresh did it all again. C_AuctionHouse.SearchForItemKeys answers
--- for up to a hundred item keys at once with the realm's cheapest unit for each; the Items
--- board and the BUY tab already share one such batch through UI/SniperFrame.lua's arbiter,
--- and this is the third name on it. Every addon-wide rule lives there (one batch outstanding,
--- never across a book pass, never while the player is using the auction house themselves).
---
--- What comes back is a price to SHOW. It is the cheapest unit on the realm with nobody
--- subtracted -- the player's own lots included -- and it carries no book. So a row whose
--- answer says the player is among the sellers is left for the walk, the price is marked
--- `bulk`, freshQuote refuses to post against it, and the walk treats it as still owed a real
--- quote. Commodities only: a basic item key's price can be another variant's, and a wrong
--- number is worse than none (the walk's own rule, see uniqueQuoteItemIDs).
-local BULK_MAX = 100 -- Blizzard's ceiling for one call; more disconnects the client
-
-function GC.Sell.BulkTargets()
-  local ids, seen = {}, {}
-  for _, position in ipairs(S.positions) do
-    local commodity = type(position.positionKey) == "string"
-      and position.positionKey:find("commodity:", 1, true) == 1
-    local actionable = (type(position.bagQty) == "number" and position.bagQty > 0)
-      or (type(position.listedQty) == "number" and position.listedQty > 0)
-    local id = position.itemID
-    if commodity and actionable and exact(id) and id > 0 and not seen[id] then
-      seen[id] = true
-      ids[#ids + 1] = id
-      if #ids >= BULK_MAX then break end
-    end
-  end
-  return ids
-end
-
--- Whether this tab's own batch is still waiting for its answer. Eight seconds, not the
--- arbiter's thirty: that timeout protects a poll that has nothing else to do, whereas this
--- wait holds up the whole pricing walk, and a batch that has not answered in eight seconds is
--- not going to make the tab feel fast.
-function GC.Sell.BulkOutstanding()
-  local sniper = GC.Sniper
-  if not (sniper and sniper._keysOwner == "sell" and sniper._keysAwaiting) then return false end
-  return (time() - sniper._keysAwaiting) < 8
-end
-
--- Whether the pricing walk's own search is still waiting for its answer (refresh.pending, until it
--- lands or is older than a quote can be). Final review m9: UI/SniperFrame.lua's
--- _TrySendKeysBatchFor asks it before any keys batch goes, this tab's own bulk fill included -- a
--- batch sent on top of the search takes its answer.
-function GC.Sell.SearchPending()
-  local pending = S.refresh.pending
-  return pending ~= nil and (time() - (pending.at or 0)) <= QUOTE_STALE_SECONDS
-end
-
-function GC.Sell.TrySendBulk(playerBusy)
-  if not S.refresh.bulkWanted or not tabIsLive() then return false end
-  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView
-      and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return false end
-  local sent = GC.Sniper._TrySendKeysBatchFor({
-    HasPending = function() return S.refresh.bulkWanted == true end,
-    NextBatch = GC.Sell.BulkTargets,
-  }, "sell", function() return GC.Sniper.CurrentView() == "sell" end, playerBusy) and true or false
-  -- Asked once per press. A batch that could not go this second (a pass paging, the throttle
-  -- shut) is asked for again by the ticker; one that went is not repeated until the next press.
-  if sent then S.refresh.bulkWanted, S.refresh.bulkSent = false, true end
-  return sent
-end
-
 -- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker, like GC.Buy.Tick.
 function GC.Sell.Tick()
   -- The listings again after a cancel, once, when the throttle lets it through: the client's
@@ -5849,39 +5462,12 @@ function GC.Sell.Tick()
   end
 end
 
--- The batch's answer, routed here by GC.Sniper._FoldKeysBatch because this tab asked.
-function GC.Sell.FoldBulk(browsed)
-  local now, filled = time(), 0
-  S.refresh.bulkSent = nil
-  for i = 1, #(browsed or {}) do
-    local row = browsed[i]
-    local itemKey = type(row) == "table" and row.itemKey or nil
-    local itemID = type(itemKey) == "table" and itemKey.itemID or nil
-    local unit = type(row) == "table" and row.minPrice or nil
-    local held = itemID and S.quotes[itemID] or nil
-    -- A real quote the walk already holds is better than this in every way; keep it.
-    local keep = type(held) == "table" and not held.bulk and not held.bookless and exact(held.at)
-      and (now - held.at) <= QUOTE_REWALK_AGE
-    if exact(itemID) and exact(unit) and unit > 0 and not row.containsOwnerItem and not keep then
-      GC.QuoteCache.Set(S.quotes, itemID, unit, now)
-      if type(S.quotes[itemID]) == "table" then
-        S.quotes[itemID].bulk = true
-        filled = filled + 1
-      end
-    end
-  end
-  if filled > 0 then
-    S.refresh.bulkLanded = true
-    composePositions()
-    renderRows()
-    -- Said out loud: without it the only sign this happened is that the numbers were already
-    -- there, which is indistinguishable from the walk having been quick.
-    setStatus((GC.L["%d prices in one request · books still loading"]):format(filled))
-  end
-  -- The answer is in: whatever stood still for it -- the listings query, the walk -- goes now.
-  GC.Sell.OnThrottleReady()
-end
-
+-- `automatic` marks the self-driven repeat below, which politely stands aside
+-- for anything already in flight. A press of the button does not: it means "do
+-- it now", and refusing while a phase was set is what made the button dead.
+-- Whatever was in flight is let go of behind a drain tombstone, exactly the way
+-- Reset already did it, so a late terminal event is consumed rather than
+-- credited to this run.
 function GC.Sell.Refresh(automatic)
   if automatic and S.refresh.phase ~= "idle" and S.refresh.phase ~= "done" and S.refresh.phase ~= "error" then
     return
@@ -5905,7 +5491,7 @@ function GC.Sell.Refresh(automatic)
   -- house not being open being the ordinary one. Without this, opening the Sell
   -- tab anywhere but at an auctioneer showed an empty list and a line of text,
   -- when the answer to "what could I sell" was sitting in the player's bags.
-  composePositions()
+  Compose.Positions()
   renderRows()
   setStatus(automatic and GC.L["Checking prices…"] or GC.L["Refreshing listings…"])
   if automatic then

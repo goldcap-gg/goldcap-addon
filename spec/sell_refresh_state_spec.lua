@@ -52,7 +52,7 @@ describe("Sell refresh state fence", function()
       item = function() return 111 end, itemLevels = function() return nil end,
       commodity = function() return 222 end, commodityLevels = function() return nil end,
     }
-    set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", driver)
+    GC.SellQuotes.driver = driver
     return GC
   end
 
@@ -81,9 +81,8 @@ describe("Sell refresh state fence", function()
     local retries = 0
     _G.C_Timer = { After = function() retries = retries + 1 end }
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
     local mayClaim = false
-    upvalue(advance, "driver").claimSend = function() return mayClaim end
+    GC.SellQuotes.driver.claimSend = function() return mayClaim end
 
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({}, sent.keys)   -- nothing sent...
@@ -221,8 +220,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = true
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
     GC.Sell.Refresh()
@@ -245,8 +243,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = true
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
 
@@ -272,8 +269,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = true
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
 
@@ -306,8 +302,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = false
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
 
@@ -329,8 +324,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local ready = false
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
 
     GC.Sell.Refresh()
@@ -376,8 +370,7 @@ describe("Sell refresh state fence", function()
   it("fails closed for an empty search result and clears only that key", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, { [7] = 999 }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.item = function() return nil end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
@@ -428,8 +421,7 @@ describe("Sell refresh state fence", function()
   it("[I1] lets the next same-key run send after an invalid terminal was consumed", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local driver = upvalue(advance, "driver")
+    local driver = GC.SellQuotes.driver
     driver.item = function() return nil end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
     assert.equal("done", refreshState(GC).phase)
@@ -595,8 +587,7 @@ describe("Sell refresh state fence", function()
   it("does not re-ask an item that answered 'nothing listed' until that answer ages", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    upvalue(advance, "driver").commodity = function() return nil end
+    GC.SellQuotes.driver.commodity = function() return nil end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
     GC.Sell.OnCommoditySearchResults(42) -- the answer: nothing on sale
@@ -633,8 +624,7 @@ describe("Sell refresh state fence", function()
   it("a manual Refresh wipes remembered empty answers and re-asks for real", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    upvalue(advance, "driver").commodity = function() return nil end
+    GC.SellQuotes.driver.commodity = function() return nil end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     GC.Sell.OnCommoditySearchResults(42)
     assert.same({ 42 }, sent.keys)
@@ -934,7 +924,7 @@ describe("Sell refresh state fence", function()
   it("[S6] will not call a zero read an answer the client cannot prove is complete", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local driver = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver")
+    local driver = GC.SellQuotes.driver
     driver.commodity = function() return nil end
     driver.hasFullResults = function() return false end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
@@ -948,7 +938,7 @@ describe("Sell refresh state fence", function()
   it("[S6] does treat a zero read the client proves complete as a real 'nothing listed'", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local driver = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver")
+    local driver = GC.SellQuotes.driver
     driver.commodity = function() return nil end
     driver.hasFullResults = function() return true end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
@@ -1006,7 +996,7 @@ describe("Sell refresh state fence", function()
   it("[S18] Reset forgets the rested items, the skip count and a click's pending request", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver").commodity = function() return nil end
+    GC.SellQuotes.driver.commodity = function() return nil end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     GC.Sell.OnCommoditySearchResults(42)
     local state = refreshState(GC)

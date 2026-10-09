@@ -144,7 +144,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
   end
 

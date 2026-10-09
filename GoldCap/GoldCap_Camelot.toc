@@ -96,7 +96,9 @@ Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Services/Sell/State.lua
+Services/Sell/Quotes.lua
 Services/Sell/Bags.lua
+Services/Sell/Compose.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
 UI/Kit/Fonts.lua

@@ -1877,7 +1877,7 @@ describe("Sell widget geometry and manual cost", function()
     -- The location itself is never rebuilt in the click (Bags.ResolveLocation only trusts what
     -- cacheBagLocation already cached at a paint this test never ran), so it is stubbed directly.
     GC.SellBags.ResolveLocation = function() return {} end
-    set(GC.SellPost.PreparePost, "driver", { keyInfo = function() return { isCommodity = true } end })
+    GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = true } end }
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
     GC.SellState.positions = { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
@@ -2310,7 +2310,7 @@ describe("Sell widget geometry and manual cost", function()
       evidenceKey = "buy:43", character = "A-R", region = "eu" })
 
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    local compose = upvalue(GC.Sell.SellableCount, "composePositions")
+    local compose = GC.SellCompose.Positions
     local owned = GC.SellState.ownedLots
     owned[1] = { itemID = 43, positionKey = "commodity:43", quantity = 1,
       unitPrice = 200, auctionID = 7, firstSeenAt = 1 }

@@ -8,24 +8,6 @@ local helper = require("spec.spec_helper")
 -- restoring old quotes at load time is honest by construction; only Post/Repost stay gated on
 -- GC.QuoteCache.Fresh's 45s window (SELL_QUOTE_ACTION_AGE), untouched by any of this.
 describe("Sell quote persistence across a reload", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   after_each(function()
     _G.time, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil
   end)
@@ -43,7 +25,7 @@ describe("Sell quote persistence across a reload", function()
     end
 
     local function compose(GC)
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotesTable(GC)
@@ -144,7 +126,7 @@ describe("Sell quote persistence across a reload", function()
         commodity = function() return 111 end, commodityLevels = function() return nil end,
       }
       for key, value in pairs(driverOverrides or {}) do driver[key] = value end
-      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", driver)
+      GC.SellQuotes.driver = driver
       return GC
     end
 
@@ -198,7 +180,7 @@ describe("Sell quote persistence across a reload", function()
       helper.loadSell(GC)
       GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
 
-      local compose = upvalue(GC.Sell.SellableCount, "composePositions")
+      local compose = GC.SellCompose.Positions
       compose()
       assert.equal(1500, GC.SellState.quotes[42].unit)
 

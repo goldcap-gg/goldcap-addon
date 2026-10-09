@@ -139,7 +139,7 @@ describe("a price the seller chose reaches the post intact", function()
   end)
 
   it("also feeds it to the composition, so the displayed price is the posted price", function()
-    local text = source()
+    local text = helper.sellSource()
     -- PROFIT / UNIT, the posting queue's own label and the plan all read the recommendation.
     -- This file has twice shipped a defect where the price shown and the price sent were two
     -- different numbers (see BuildPostPlan's own floor-raise comment); one source, not two.

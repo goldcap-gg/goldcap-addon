@@ -43,15 +43,6 @@ describe("Sell tab, bags to Post", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- Slot 1: 200 Eternium Ore, a commodity, freely sellable.
   -- Slot 2: 46 more of the same, so the aggregate has to add up across stacks.
   -- Slot 3: soulbound, which the auction house refuses.
@@ -129,7 +120,7 @@ describe("Sell tab, bags to Post", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
     rows = upvalue(render, "rows")
   end
@@ -226,9 +217,9 @@ describe("Sell tab, bags to Post", function()
   -- compose must not trigger a second one.
   it("[perf] does not recompose positions merely to read the sellable count", function()
     compose() -- a real composePositions() run, via the upvalue, the same way `compose()` above does
-    set(GC.Sell.SellableCount, "composePositions", function()
+    GC.SellCompose.Positions = function()
       error("SellableCount must not recompose -- the count was already stamped")
-    end)
+    end
     assert.equal(1, GC.Sell.SellableCount())
   end)
 
@@ -238,8 +229,8 @@ describe("Sell tab, bags to Post", function()
   -- at that exact instant. The cached value already answers correctly with no recompose.
   it("[perf] composes exactly once on a cold call before anything has ever composed", function()
     local composeCalls = 0
-    local realCompose = upvalue(GC.Sell.SellableCount, "composePositions")
-    set(GC.Sell.SellableCount, "composePositions", function() composeCalls = composeCalls + 1; realCompose() end)
+    local realCompose = GC.SellCompose.Positions
+    GC.SellCompose.Positions = function() composeCalls = composeCalls + 1; realCompose() end
     assert.equal(1, GC.Sell.SellableCount())
     assert.equal(1, composeCalls)
     assert.equal(1, GC.Sell.SellableCount()) -- second read: still cached, no second compose
