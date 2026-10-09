@@ -52,6 +52,17 @@ describe("Theme.Rail navigation widgets", function()
     _G.CreateFrame = nil
   end)
 
+  it("RailButton: labels its tab in the condensed heading face", function()
+    local b = GC.Theme.RailButton(stubFrame(), "deals", "DEALS")
+    assert.equal(GC.Theme.FONT_HEAD, b.text.font[1])
+  end)
+
+  it("Rail: puts a soft gold glow behind the GoldCap mark", function()
+    local rail = GC.Theme.Rail(stubFrame())
+    assert.is_not_nil(rail.logo.glow)
+    assert.equal("ADD", rail.logo.glow.blend)
+  end)
+
   it("RailButton: draws its icon from the atlas", function()
     local b = GC.Theme.RailButton(stubFrame(), "sell", "SELL")
     assert.equal(GC.Kit.Icons.file, b.icon.textureFile)

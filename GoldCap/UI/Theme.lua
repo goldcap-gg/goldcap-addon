@@ -81,10 +81,10 @@ end
 -- reuses setTabActive's functional contract: the current view's button is
 -- Disable()d (not clickable), visuals ride on top of that.
 local RAIL_BTN_W, RAIL_BTN_H = 60, 54
-local RAIL_FILL = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.13 }
-local RAIL_RING = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.40 }
-local RAIL_GLOW = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.14 }
-local BADGE_TEXT = { 0.05, 0.05, 0.06 }
+local RAIL_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local RAIL_RING = { K.gold[1], K.gold[2], K.gold[3], 0.38 }
+local RAIL_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local BADGE_TEXT = K.onGold
 
 function T.RailButton(parent, iconName, labelText)
   local b = CreateFrame("Button", nil, parent)
@@ -104,11 +104,9 @@ function T.RailButton(parent, iconName, labelText)
   b.icon:SetSize(20, 20)
   b.icon:SetPoint("TOP", 0, -8)
 
-  b.text = b:CreateFontString(nil, "OVERLAY")
-  b.text:SetFont(T.FONT_UI_BOLD, 8 * T.Scale(), "")
+  b.text = T.Heading(b, 9.5)
   b.text:SetPoint("BOTTOM", 0, 7)
   b.text:SetText(labelText)
-  T.TrackFont(b.text, { role = "uiBold", path = T.FONT_UI_BOLD, size = 8 })
 
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
@@ -131,11 +129,9 @@ function T.RailButton(parent, iconName, labelText)
   -- 14px tall and both of those margins exceed half that (see T.SLICE.badge's own comment).
   b.badge.bg = T.SlicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, T.SLICE.badge)
   b.badge.bg:SetAllPoints()
-  b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
-  b.badge.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
+  b.badge.text = T.Heading(b.badge, 9.5)
   b.badge.text:SetPoint("CENTER")
   b.badge.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  T.TrackFont(b.badge.text, { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 })
   b.badge:Hide()
 
   function b:SetBadge(count)
@@ -171,13 +167,13 @@ end
 function T.Rail(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetWidth(T.RAIL_W)
-  -- card_left.png: left corners rounded to match the window card's own radius 16, right edge
+  -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
   -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
+  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 })
   bg:SetAllPoints()
   local edge = frame:CreateTexture(nil, "BORDER")
-  edge:SetColorTexture(T.color.border[1], T.color.border[2], T.color.border[3], T.color.border[4])
+  edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])
   edge:SetPoint("TOPRIGHT")
   edge:SetPoint("BOTTOMRIGHT")
   edge:SetWidth(1)
@@ -194,6 +190,8 @@ function T.Rail(parent)
   logo.mark = logo:CreateTexture(nil, "ARTWORK")
   logo.mark:SetTexture(T.MEDIA .. "GoldCap")
   logo.mark:SetAllPoints()
+  -- A soft gold glow behind the mark, the window's one warm light.
+  logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
   local LOGO_GAP = 14
 
   local buttons = {}
@@ -233,85 +231,6 @@ function T.Rail(parent)
   return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
 end
 
--- Chip: a tinted pill, not the old solid plaque + underline. Nine-slice invariant (see
--- T.SLICE.plaque/T.SLICE.badge's own comments above): margins must stay BELOW half the smallest
--- widget edge, or the sliced corners overlap and notch. This pill is 20px tall -- T.SLICE.plaque
--- (12) is not below half of a 24px pill (12), so plaque.png was ruled out; T.SLICE.badge (6) IS
--- below half of 20 (10), so this uses badge.png at height 20, with no separate ring texture
--- (badge.png has none -- unlike T.Card's card.png/plaque.png, which pair with ring.png/
--- plaque_ring.png).
--- Grepped every spec and every UI source before removing the old `f.underline` texture: nothing
--- reads `.underline` off a chip (SoldFrame.lua's own header-underline is an unrelated feature
--- with its own texture), so it is dropped outright rather than kept as a hidden stand-in.
-function T.Chip(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f:SetHeight(20)
-
-  -- File texture, recolored via SetVertexColor only (never SetColorTexture, which would strip
-  -- the art) -- same rule T.Card:SetTint and Theme.Button's rounded bg follow.
-  f.bg = T.SlicedTexture(f, "BACKGROUND", T.MEDIA .. "badge.png", T.color.panel, T.SLICE.badge)
-  f.bg:SetAllPoints()
-
-  f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
-  f.text:SetJustifyH("CENTER")
-  -- Bounded to the pill's own width (a bare CENTER point has no width limit at all) and
-  -- non-wrapping, so a long label (e.g. "SUSPECT") truncates inside the pill instead of
-  -- overflowing into whatever sits to its right.
-  f.text:SetPoint("LEFT", 4, 0)
-  f.text:SetPoint("RIGHT", -4, 0)
-  f.text:SetWordWrap(false)
-
-  T.TrackFont(f.text, { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 })
-
-  function f:SetLabel(text, colorTable)
-    f.text:SetText(text)
-    local c = colorTable or T.color.fg
-    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-    -- Fill at low alpha over the dark panel underneath -- a pill reads as a tinted surface,
-    -- not a solid block of the tier color. No ring layer to tint alongside it (see above).
-    f.bg:SetVertexColor(c[1], c[2], c[3], 0.12)
-  end
-
-  return f
-end
-
--- TierMark: a 6x6 color dot + mono label, a plainer stand-in for T.Chip's tinted badge pill
--- (see T.Chip's own comment above) everywhere a tier marker sits inline in a row rather than
--- boxed on its own. `:SetLabel(text, colorTable)` is the exact call signature SniperFrame's
--- row-stamping line already uses on T.Chip, so swapping the widget that builds `row.tierChip`
--- does not touch that call site.
-function T.TierMark(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f:SetHeight(10)
-
-  f.dot = T.Solid(f, "ARTWORK", T.color.fgDim)
-  f.dot:SetSize(6, 6)
-  f.dot:SetPoint("LEFT")
-
-  f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_UI_BOLD, 10 * T.Scale(), "")
-  f.text:SetJustifyH("LEFT")
-  -- Bounded to the mark's own width and non-wrapping, exactly as T.Chip's label is (see its
-  -- comment): a bare LEFT point has no width limit at all, so a label longer than the cell
-  -- paints straight across whatever sits to its right instead of clipping. The Sniper board's
-  -- verdict cell is what found this -- a refusal sentence in that column ran over the discount
-  -- and price figures beside it.
-  f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
-  f.text:SetPoint("RIGHT")
-  f.text:SetWordWrap(false)
-  T.TrackFont(f.text, { role = "uiBold", path = T.FONT_UI_BOLD, size = 10 })
-
-  function f:SetLabel(text, colorTable)
-    f.text:SetText(text)
-    local c = colorTable or T.color.fg
-    f.dot:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-  end
-
-  return f
-end
-
 -- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer
 -- top-right corner, gear sits immediately inboard (left) of close.
 function T.TitleBar(frame, titleText)
@@ -330,14 +249,18 @@ function T.TitleBar(frame, titleText)
     frame:StopMovingOrSizing()
   end)
 
-  bar.title = T.Label(bar, 13)
+  bar.title = T.Heading(bar, 14)
   bar.title:SetPoint("LEFT", bar, "LEFT", T.pad.m, 0)
   bar.title:SetText(titleText or "")
+  bar.title:SetTextColor(K.text1[1], K.text1[2], K.text1[3], 1)
 
   local close = T.Button(bar, "ghost")
   close:SetSize(20, 20)
   close:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -T.pad.s, -T.pad.xs)
-  close:SetLabel("X")
+  close.icon = close:CreateTexture(nil, "ARTWORK")
+  close.icon:SetSize(12, 12)
+  close.icon:SetPoint("CENTER")
+  T.SetIcon(close.icon, "close", K.text3)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)

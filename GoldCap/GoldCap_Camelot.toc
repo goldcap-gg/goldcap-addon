@@ -101,6 +101,7 @@ UI/Kit/Fonts.lua
 UI/Kit/Textures.lua
 UI/Kit/Card.lua
 UI/Kit/Button.lua
+UI/Kit/Chip.lua
 UI/Theme.lua
 UI/FontPreload.lua
 UI/Tooltip.lua

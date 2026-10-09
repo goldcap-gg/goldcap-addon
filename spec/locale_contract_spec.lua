@@ -116,6 +116,8 @@ describe("locale contract", function()
       ["GoldCap/UI/Theme.lua"] = true,
       -- Theme.Button, moved out of Theme.lua: the same widget factory, the label comes from the caller.
       ["GoldCap/UI/Kit/Button.lua"] = true,
+      -- Theme.Chip and Theme.TierMark, moved out of Theme.lua: the same widget factories, the label comes from the caller.
+      ["GoldCap/UI/Kit/Chip.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,
       -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain

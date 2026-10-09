@@ -114,6 +114,7 @@ function W.CreateFrame(kind, _, parent)
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end
+  function f:RegisterForDrag(...) s.drag = { ... } end
   function f:GetScript(name) return s.scripts[name] end
   function f:HookScript(name, fn) s.hooks = s.hooks or {}; s.hooks[name] = fn end
   function f:IsVisible()
