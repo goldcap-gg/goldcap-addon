@@ -195,7 +195,7 @@ describe("Sell tab, a Post says what it is doing", function()
 
   -- What the pricing walk does every few seconds while a post is going up.
   local function walkSays(text)
-    upvalue(GC.Sell.Refresh, "setStatus")(text)
+    GC.SellView.status(text) -- the same writer the walk reaches through View.status
   end
 
   local function fire(seconds)

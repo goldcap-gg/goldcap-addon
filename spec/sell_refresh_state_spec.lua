@@ -223,7 +223,6 @@ describe("Sell refresh state fence", function()
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     GC.SellView.status = function(text) status[#status + 1] = text end
-    set(GC.Sell.Refresh, "setStatus", GC.SellView.status) -- Refresh's own lines, beside the walk's
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions()
@@ -306,7 +305,6 @@ describe("Sell refresh state fence", function()
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
     GC.SellView.status = function(text) status[#status + 1] = text end
-    set(GC.Sell.Refresh, "setStatus", GC.SellView.status) -- Refresh's own lines, beside the walk's
 
     GC.Sell.Refresh()
     assert.equal(0, sent.owned)
