@@ -105,13 +105,13 @@ GC.SellState = {
   -- was unlisted.
   emptyAnswers = {},
   -- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
-  -- through its two call sites in UI/SellFrame.lua), never inside a click. WoW: Forever's taint engine blocks a
-  -- protected auction house call once the same hardware click has run Blizzard's own Lua-side
-  -- ItemLocation mixin code ahead of it -- whether or not the result is kept -- so onPostClick in UI/SellFrame.lua
-  -- never calls ItemLocation:CreateFromBagAndSlot, or GC.Sell._SlotKey (which does, for a
-  -- non-commodity stack), itself. Mirrors Auctionator: it builds itemInfo.location when a bag item
-  -- is picked, well before its own Post click (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem),
-  -- and the click only reads that stored field.
+  -- through its two call sites in UI/SellFrame.lua), never inside a click. WoW: Forever's taint
+  -- engine blocks a protected auction house call once the same hardware click has run Blizzard's
+  -- own Lua-side ItemLocation mixin code ahead of it -- whether or not the result is kept -- so
+  -- onPostClick in UI/SellFrame.lua never calls ItemLocation:CreateFromBagAndSlot, or
+  -- GC.Sell._SlotKey (which does, for a non-commodity stack), itself. Mirrors Auctionator: it
+  -- builds itemInfo.location when a bag item is picked, well before its own Post click
+  -- (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem), and the click only reads that stored field.
   bagLocationCache = {},
 }
 
