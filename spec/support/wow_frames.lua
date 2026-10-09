@@ -62,6 +62,9 @@ function W.Texture(parent)
   function t:SetTextureSliceMargins(...) s.slice = { ... } end
   function t:SetVertexColor(...) s.vertex = { ... } end
   function t:SetBlendMode(mode) s.blend = mode end
+  function t:SetTexCoord(...) s.texCoord = { ... } end
+  function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
+  function t:SetAlpha(a) s.alpha = a end
   return t
 end
 
@@ -127,9 +130,10 @@ function W.CreateFrame(kind, _, parent)
     STATE[fs].layer = layer
     return fs
   end
-  function f:CreateTexture(_, layer)
+  function f:CreateTexture(_, layer, _, sublevel)
     local t = W.Texture(f)
     STATE[t].layer = layer
+    STATE[t].sublevel = sublevel
     return t
   end
   return f

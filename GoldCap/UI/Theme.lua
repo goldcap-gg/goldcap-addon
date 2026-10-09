@@ -38,95 +38,12 @@ T.tier = {
 T.pad = { xs = 4, s = 8, m = 12, l = 16 }
 T.ROW_H = 32
 
-local function solid(parent, layer, c)
-  local tx = parent:CreateTexture(nil, layer)
-  tx:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-  return tx
-end
-
-local function edgeBorder(f, c)
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local e = solid(f, "BORDER", c)
-    if side == "TOP" or side == "BOTTOM" then
-      e:SetPoint(side .. "LEFT")
-      e:SetPoint(side .. "RIGHT")
-      e:SetHeight(1)
-    else
-      e:SetPoint("TOP" .. side)
-      e:SetPoint("BOTTOM" .. side)
-      e:SetWidth(1)
-    end
-  end
-end
-
--- Panel: flat dark texture + 1px border.
-function T.Panel(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f.bg = solid(f, "BACKGROUND", T.color.panel)
-  f.bg:SetAllPoints()
-  edgeBorder(f, T.color.border)
-  return f
-end
-
 T.MEDIA = GC.Kit.MEDIA
 T.RAIL_W = 76
-
--- Rounded chrome comes from ONE white 64px rounded-rect PNG stretched with
--- SetTextureSliceMargins (nine-slice on a single texture, 10.2.0+ -- wiki:
--- API_TextureBase_SetTextureSliceMargins) and recolored via SetVertexColor.
--- White art + vertex color means one file serves every tint; regenerate the
--- PNGs with the project's gen_art.py, never edit them by hand. Margins are 24
--- of the 64px file so the 16px corners survive any widget size.
-local CARD_SLICE = 24
--- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8), used
--- for chrome like the 32px rail logo. Margins must stay below half the
--- smallest widget edge they're applied to, or nine-slice corners overlap and
--- notch -- which is also why the 14px badge below gets its own BADGE_SLICE
--- rather than reusing this one (12 is not below half of 14).
-local PLAQUE_SLICE = 12
--- badge.png (16px, radius 6): the rail-button badge is only 14px tall, so
--- even PLAQUE_SLICE (12) would exceed half its smallest edge (7) and notch
--- it. 6 < 14/2 satisfies the margin invariant above.
-local BADGE_SLICE = 6
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
 local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
-
-local function slicedTexture(parent, layer, file, c, margin)
-  local m = margin or CARD_SLICE
-  local tx = parent:CreateTexture(nil, layer)
-  tx:SetTexture(file)
-  tx:SetTextureSliceMargins(m, m, m, m)
-  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  return tx
-end
-
--- SlicedTexture: public wrapper around slicedTexture (default margin CARD_SLICE).
-function T.SlicedTexture(parent, layer, file, c, margin)
-  return slicedTexture(parent, layer, file, c, margin)
-end
-
--- Card: rounded panel (fill + 2px ring). The rounded sibling of T.Panel; use
--- it for chrome that should read as a surface, keep T.Panel for flat fills.
--- `small`: use plaque.png/plaque_ring.png (radius 8, PLAQUE_SLICE margins)
--- instead of card.png/ring.png (radius 16, CARD_SLICE margins) -- for chrome
--- small enough that the 24px card margins would overlap and notch.
-function T.Card(parent, fill, border, small)
-  local f = CreateFrame("Frame", nil, parent)
-  local bgFile = small and (T.MEDIA .. "plaque.png") or (T.MEDIA .. "card.png")
-  local ringFile = small and (T.MEDIA .. "plaque_ring.png") or (T.MEDIA .. "ring.png")
-  local margin = small and PLAQUE_SLICE or nil
-  f.bg = slicedTexture(f, "BACKGROUND", bgFile, fill or T.color.panel, margin)
-  f.bg:SetAllPoints()
-  f.ring = slicedTexture(f, "BORDER", ringFile, border or T.color.border, margin)
-  f.ring:SetAllPoints()
-  function f:SetTint(fillC, borderC)
-    if fillC then f.bg:SetVertexColor(fillC[1], fillC[2], fillC[3], fillC[4] or 1) end
-    if borderC then f.ring:SetVertexColor(borderC[1], borderC[2], borderC[3], borderC[4] or 1) end
-  end
-  return f
-end
 
 -- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
 -- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
@@ -159,19 +76,6 @@ function T.QuietScrollBar(scroll)
   end
 end
 
--- Glow: additive halo hung `inset` px outside the parent's own rect. ADD
--- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
-function T.Glow(parent, c, inset)
-  local pad = inset or 14
-  local tx = parent:CreateTexture(nil, "BACKGROUND")
-  tx:SetTexture(T.MEDIA .. "glow.png")
-  tx:SetBlendMode("ADD")
-  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  tx:SetPoint("TOPLEFT", -pad, pad)
-  tx:SetPoint("BOTTOMRIGHT", pad, -pad)
-  return tx
-end
-
 -- Rail: the window's primary navigation. Big targets on purpose -- the old
 -- 50x18 ghost tabs were the main menu and read as decoration. Active state
 -- reuses setTabActive's functional contract: the current view's button is
@@ -190,9 +94,9 @@ function T.RailButton(parent, iconFile, labelText)
   b:EnableMouse(true)
 
   b.glow = T.Glow(b, RAIL_GLOW, 10)
-  b.bg = slicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
+  b.bg = T.SlicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
   b.bg:SetAllPoints()
-  b.ring = slicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
+  b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
   b.ring:SetAllPoints()
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
@@ -209,7 +113,7 @@ function T.RailButton(parent, iconFile, labelText)
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
-  b.highlightTexture = slicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
+  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
 
@@ -223,9 +127,9 @@ function T.RailButton(parent, iconFile, labelText)
 
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
-  -- badge.png/BADGE_SLICE, not card.png/CARD_SLICE or plaque.png/PLAQUE_SLICE: the badge is
-  -- 14px tall and both of those margins exceed half that (see BADGE_SLICE's own comment).
-  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, BADGE_SLICE)
+  -- badge.png/T.SLICE.badge, not card.png/T.SLICE.card or plaque.png/T.SLICE.plaque: the badge is
+  -- 14px tall and both of those margins exceed half that (see T.SLICE.badge's own comment).
+  b.badge.bg = T.SlicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, T.SLICE.badge)
   b.badge.bg:SetAllPoints()
   b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
   b.badge.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
@@ -270,7 +174,7 @@ function T.Rail(parent)
   -- card_left.png: left corners rounded to match the window card's own radius 16, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
   -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = slicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
+  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
   bg:SetAllPoints()
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(T.color.border[1], T.color.border[2], T.color.border[3], T.color.border[4])
@@ -331,9 +235,9 @@ function T.Rail(parent)
 end
 
 -- Chip: a tinted pill, not the old solid plaque + underline. Nine-slice invariant (see
--- PLAQUE_SLICE/BADGE_SLICE's own comments above): margins must stay BELOW half the smallest
--- widget edge, or the sliced corners overlap and notch. This pill is 20px tall -- PLAQUE_SLICE
--- (12) is not below half of a 24px pill (12), so plaque.png was ruled out; BADGE_SLICE (6) IS
+-- T.SLICE.plaque/T.SLICE.badge's own comments above): margins must stay BELOW half the smallest
+-- widget edge, or the sliced corners overlap and notch. This pill is 20px tall -- T.SLICE.plaque
+-- (12) is not below half of a 24px pill (12), so plaque.png was ruled out; T.SLICE.badge (6) IS
 -- below half of 20 (10), so this uses badge.png at height 20, with no separate ring texture
 -- (badge.png has none -- unlike T.Card's card.png/plaque.png, which pair with ring.png/
 -- plaque_ring.png).
@@ -346,7 +250,7 @@ function T.Chip(parent)
 
   -- File texture, recolored via SetVertexColor only (never SetColorTexture, which would strip
   -- the art) -- same rule T.Card:SetTint and Theme.Button's rounded bg follow.
-  f.bg = slicedTexture(f, "BACKGROUND", T.MEDIA .. "badge.png", T.color.panel, BADGE_SLICE)
+  f.bg = T.SlicedTexture(f, "BACKGROUND", T.MEDIA .. "badge.png", T.color.panel, T.SLICE.badge)
   f.bg:SetAllPoints()
 
   f.text = f:CreateFontString(nil, "OVERLAY")
@@ -382,7 +286,7 @@ function T.TierMark(parent)
   local f = CreateFrame("Frame", nil, parent)
   f:SetHeight(10)
 
-  f.dot = solid(f, "ARTWORK", T.color.fgDim)
+  f.dot = T.Solid(f, "ARTWORK", T.color.fgDim)
   f.dot:SetSize(6, 6)
   f.dot:SetPoint("LEFT")
 
@@ -426,15 +330,15 @@ local BUTTON_VARIANTS = {
 }
 
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
--- picks plaque over card -- badge is one size class down again (BADGE_SLICE, no ring: see
--- BADGE_SLICE's own comment, the same 16px art is too small for a second nine-slice ring
+-- picks plaque over card -- badge is one size class down again (T.SLICE.badge, no ring: see
+-- T.SLICE.badge's own comment, the same 16px art is too small for a second nine-slice ring
 -- on top of its fill without the two notching each other).
 local ROUNDED_BUTTON = {
-  plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = PLAQUE_SLICE },
+  plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = T.SLICE.plaque },
   -- `askedRing`: badge_ring.png, a 1px outline on badge.png's own radius. Not drawn unless the
   -- caller asks (b:SetRing below) -- a badge button is a row control, and a list of outlined
   -- ones is a grid of boxes.
-  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, askedRing = T.MEDIA .. "badge_ring.png", margin = BADGE_SLICE },
+  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, askedRing = T.MEDIA .. "badge_ring.png", margin = T.SLICE.badge },
 }
 
 -- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
@@ -475,10 +379,10 @@ function T.Button(parent, variant, rounded)
   -- SetColorTexture on that same region would strip the texture file and leave a flat fill.
   b.roundedMargin = roundedSpec and roundedSpec.margin or nil
   if roundedSpec then
-    b.bg = slicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
+    b.bg = T.SlicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
     b.bg:SetAllPoints()
   else
-    b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
+    b.bg = T.Solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
     b.bg:SetAllPoints()
   end
 
@@ -507,7 +411,7 @@ function T.Button(parent, variant, rounded)
 
   if roundedSpec then
     if roundedSpec.ring then
-      b.ring = slicedTexture(b, "BORDER", roundedSpec.ring, T.color.border, roundedSpec.margin)
+      b.ring = T.SlicedTexture(b, "BORDER", roundedSpec.ring, T.color.border, roundedSpec.margin)
       b.ring:SetAllPoints()
     end
   else
@@ -515,7 +419,7 @@ function T.Button(parent, variant, rounded)
     -- needs it to have an edge at all, and a filled one keeps its shape while the fill is
     -- dimmed by OnDisable. Drawing it only for ghost meant a button that changed variant lost
     -- its outline.
-    edgeBorder(b, T.color.border)
+    T.EdgeBorder(b, T.color.border)
   end
 
   b.text = T.Label(b, 12)
@@ -600,7 +504,7 @@ function T.Button(parent, variant, rounded)
     if not b.ring then
       local file = roundedSpec and (roundedSpec.ring or roundedSpec.askedRing)
       if not file then return end
-      b.ring = slicedTexture(b, "BORDER", file, c, roundedSpec.margin)
+      b.ring = T.SlicedTexture(b, "BORDER", file, c, roundedSpec.margin)
       b.ring:SetAllPoints()
       b.ringAsked = true
     end

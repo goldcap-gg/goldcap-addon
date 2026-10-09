@@ -41,6 +41,7 @@ describe("Sniper window layering", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       -- Check panel v3: the hero caption and the reconciliation note are fixed-height wrapped
@@ -135,6 +136,7 @@ describe("Sniper window layering", function()
   end
 
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then _G[name] = f end
@@ -171,7 +173,7 @@ describe("Sniper window layering", function()
   end
 
   after_each(function()
-    for _, name in ipairs({ "CreateFrame", "GoldCapSniperFrame", "UISpecialFrames", "SlashCmdList",
+    for _, name in ipairs({ "CreateFrame", "CreateColor", "GoldCapSniperFrame", "UISpecialFrames", "SlashCmdList",
       "C_AddOns", "GoldCap_MarketData", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "hooksecurefunc",
       "GetTime", "PlaySound", "SOUNDKIT", "C_Timer", "GetCoinTextureString", "GoldCapDB" }) do
       _G[name] = nil

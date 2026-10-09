@@ -55,6 +55,7 @@ describe("Deals board re-stamps itself on the way back", function()
       GetText = function(self) return self.text or "" end,
       SetTexture = function(self, tex) self.texture = tex end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetJustifyV = function() end,
@@ -158,6 +159,7 @@ describe("Deals board re-stamps itself on the way back", function()
   end
 
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then _G[name] = f end
@@ -218,7 +220,7 @@ describe("Deals board re-stamps itself on the way back", function()
   end
 
   after_each(function()
-    for _, name in ipairs({ "CreateFrame", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
+    for _, name in ipairs({ "CreateFrame", "CreateColor", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
       "UISpecialFrames", "SlashCmdList", "C_AddOns", "GoldCap_MarketData", "SLASH_GOLDCAP1",
       "SLASH_GOLDCAP2", "hooksecurefunc", "GetTime", "PlaySound", "SOUNDKIT", "C_Timer",
       "GetCoinTextureString", "ITEM_QUALITY_COLORS", "Item", "GoldCapDB" }) do

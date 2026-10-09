@@ -10828,9 +10828,8 @@ local function createFrame()
     if col.key == "tier" then col.w = isForever() and WIN.FOREVER_TIER_W or WIN.TIER_W end
   end
 
-  -- Rounded card window (Sniper v4). Theme.Panel stays untouched for the
-  -- overlays that still use it; only the main window goes rounded.
-  local panel = Theme.Card(f)
+  -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
+  local panel = Theme.Window(f)
   panel:SetAllPoints(f)
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window

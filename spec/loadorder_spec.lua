@@ -31,6 +31,7 @@ describe("TOC load order", function()
         SetText = function() end,
         SetTexture = function() end,
         SetTexCoord = function() end,
+        SetGradient = function() end,
         SetTextColor = function() end,
         SetJustifyH = function() end,
         SetWidth = function() end,
@@ -174,6 +175,7 @@ describe("TOC load order", function()
     -- than through a getter exposed from UI/SniperFrame.lua. This stub replicates that one
     -- piece of real behavior (it previously discarded the name argument entirely, which never
     -- mattered before nothing looked a frame up by its global name).
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then
@@ -348,7 +350,7 @@ describe("TOC load order", function()
     assert.has_no.errors(function() GC.SettingsUI.Toggle() end)
     assert.has_no.errors(function() GC.SettingsUI.Toggle() end)
 
-    _G.CreateFrame = nil
+    _G.CreateFrame, _G.CreateColor = nil, nil
     _G.GoldCapSniperFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil

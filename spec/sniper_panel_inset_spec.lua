@@ -62,6 +62,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       -- Check panel v3: the hero caption and the reconciliation note are fixed-height
@@ -176,6 +177,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
   -- GC.Sniper.Toggle() (which does `frame = frame or createFrame()`), and hands back that real
   -- frame with point-recorders wired onto the three widgets applyPanelInset re-anchors.
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then
@@ -222,7 +224,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
   end
 
   local function teardown()
-    _G.CreateFrame = nil
+    _G.CreateFrame, _G.CreateColor = nil, nil
     _G.GoldCapSniperFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil

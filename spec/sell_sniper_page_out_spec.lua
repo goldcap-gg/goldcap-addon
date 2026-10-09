@@ -26,6 +26,7 @@ describe("Sell tab, a Sniper request still out after the switch", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetWidth = function() end,
@@ -115,6 +116,7 @@ describe("Sell tab, a Sniper request still out after the switch", function()
 
   local function buildFrame()
     browseSent, searches = 0, {}
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then _G[name] = f end
@@ -168,7 +170,7 @@ describe("Sell tab, a Sniper request still out after the switch", function()
   end
 
   after_each(function()
-    _G.CreateFrame, _G.GoldCapSniperFrame, _G.UISpecialFrames, _G.SlashCmdList = nil, nil, nil, nil
+    _G.CreateColor, _G.CreateFrame, _G.GoldCapSniperFrame, _G.UISpecialFrames, _G.SlashCmdList = nil, nil, nil, nil, nil
     _G.C_AddOns, _G.GoldCap_MarketData, _G.SLASH_GOLDCAP1, _G.hooksecurefunc = nil, nil, nil, nil
     _G.GetTime, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil
     _G.GetCoinTextureString, _G.C_AuctionHouse, _G.time = nil, nil, os.time
