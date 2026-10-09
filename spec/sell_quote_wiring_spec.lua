@@ -46,7 +46,7 @@ describe("Sell quote and action wiring", function()
 
   it("records manual cost only from the dialog confirmation handler", function()
     local text = source()
-    local confirm = assert(text:match("local function confirmCostDialog%(dialog%)(.-)local function shownColumns"))
+    local confirm = helper.functionBody(text, "local function confirmCostDialog(dialog)")
     assert.is_truthy(confirm:find("GC.Acquisitions.RecordManual", 1, true))
     assert.is_truthy(confirm:find("Enter a whole quantity", 1, true))
     assert.is_truthy(confirm:find("Quantity exceeds missing units", 1, true))

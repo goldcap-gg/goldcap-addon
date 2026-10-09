@@ -25,7 +25,7 @@ helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Se
 --- The Sell tab's view, in the order both TOCs load it: one block right after UI/SellViewModel.lua
 --- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
 --- UI/SellFrame.lua stays last until the split moves the rest of it out.
-helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/SellFrame.lua" }
+helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/CostDialog.lua", "UI/SellFrame.lua" }
 
 function helper.loadModule(relPath, GC)
   GC = GC or {}

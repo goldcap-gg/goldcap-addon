@@ -175,3 +175,97 @@ function GC.Sell._InlineColor(color, text)
   return ("|cff%02x%02x%02x%s|r"):format(
     math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
 end
+
+local exact = GC.SellUtil.exact
+
+local COPPER_PER_GOLD = 10000
+
+-- The Unit/Total cost fields are GOLD, explicitly -- see the field labels in UI/Sell/CostDialog.lua's CostDialog.Build.
+-- A player typing "250" means 250 gold, and used to be recorded as 250 COPPER with no unit
+-- shown anywhere; that number then drove cost basis, profit and the below-cost warning
+-- forever. This is the one place that boundary is crossed, and it is crossed the same way
+-- GetCoinTextureString's own rounding implies: round to the nearest copper, never truncate.
+local function dialogGoldCopper(edit)
+  local value = tonumber(edit:GetText())
+  if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge or value < 0 then
+    return nil
+  end
+  local copper = math.floor(value * COPPER_PER_GOLD + 0.5)
+  return exact(copper) and copper or nil
+end
+
+local function dialogGoldPositive(edit)
+  local copper = dialogGoldCopper(edit)
+  return copper and copper > 0 and copper or nil
+end
+
+-- Exact copper -> a decimal gold string with no trailing noise ("2.5", never "2.5000"), so
+-- the Unit/Total fields can keep syncing each other in the same units the player types in.
+-- Copper is always an integer count of 1/10000 gold, so this round-trips exactly -- no
+-- floating point is involved in this direction, only integer division and remainder.
+local function copperToGoldText(copper)
+  if not exact(copper) then return "" end
+  local whole = math.floor(copper / COPPER_PER_GOLD)
+  local remainder = copper - whole * COPPER_PER_GOLD
+  if remainder == 0 then return tostring(whole) end
+  -- `whole` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
+  -- overflow attempting to store N" past +-2^31 copper (about 214,748g). `remainder` stays on
+  -- %d: it is bounded 0-9999 by COPPER_PER_GOLD above.
+  local text = GC.Util.IntText(whole) .. (".%04d"):format(remainder)
+  text = (text:gsub("0+$", ""))
+  text = (text:gsub("%.$", ""))
+  return text
+end
+
+-- YOUR PRICE only (row.priceBox below) -- everything above (the Set-Cost dialog's Unit/Total
+-- fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
+-- purchase cost is always gold-denominated regardless of what the auction house can post.
+--
+-- Exact copper -> plain coin text ("90c", "1g22s90c", never "1g" with a silent 90c dropped),
+-- for the one client where a price can actually carry a copper remainder
+-- (GC.Flips.PriceStep() == 1 -- see that function's own comment). The owner's own bug report:
+-- the gold-decimal box above showed "0.009" for 90c -- correct arithmetic, unreadable, and
+-- easy to mistype back wrong. No coin ICONS (GC.Util.CoinText): this is an EditBox the seller
+-- retypes, not a read-only label, and `|T...|t` escapes are not something a person can edit.
+-- Falls back to the gold-decimal text unconditionally on any other client -- retail's box is
+-- byte-identical to before this existed.
+local function copperToPriceText(copper)
+  if not exact(copper) then return "" end
+  if GC.Flips.PriceStep() ~= 1 then return copperToGoldText(copper) end
+  if copper == 0 then return "0c" end
+  local gold = math.floor(copper / COPPER_PER_GOLD)
+  local silver = math.floor((copper % COPPER_PER_GOLD) / 100)
+  local rest = copper % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = gold .. "g" end
+  if silver > 0 then parts[#parts + 1] = silver .. "s" end
+  if rest > 0 then parts[#parts + 1] = rest .. "c" end
+  return table.concat(parts)
+end
+
+-- The inverse of copperToPriceText, and YOUR PRICE's own parse -- everywhere else (the Set-Cost
+-- dialog) keeps reading dialogGoldPositive/dialogGoldCopper directly, gold-decimal always.
+-- Accepts "1g22s90c" or any subset of those three suffixes, in order, each optional; a bare
+-- number with none of them is read as GOLD, through the exact same parser as retail's own box
+-- and the Set-Cost dialog above it (B2: a bare number used to mean copper here and gold
+-- everywhere else on this same tab -- a typed "5" was 5g in the cost box and 5c one control
+-- down). An explicit g/s/c suffix is still the one way to reach sub-gold precision on Forever.
+-- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing is
+-- exactly what it always was.
+local function priceBoxCopper(box)
+  if GC.Flips.PriceStep() ~= 1 then return dialogGoldPositive(box) end
+  local text = (box:GetText() or ""):gsub("%s+", ""):lower()
+  if text == "" then return nil end
+  if not text:find("[gsc]") then
+    return dialogGoldPositive(box)
+  end
+  local gold = tonumber(text:match("^(%d+)g")) or 0
+  local silver = tonumber(text:match("g?(%d+)s")) or 0
+  local rest = tonumber(text:match("s?(%d+)c")) or 0
+  local copper = gold * COPPER_PER_GOLD + silver * 100 + rest
+  return exact(copper) and copper > 0 and copper or nil
+end
+
+-- The dialog's gold fields and YOUR PRICE's box both read and write these, so they live here.
+fmt.goldPositive, fmt.goldText = dialogGoldPositive, copperToGoldText
+fmt.priceText, fmt.priceBoxCopper = copperToPriceText, priceBoxCopper
