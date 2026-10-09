@@ -152,8 +152,9 @@ function FIT.width(size, text)
   return probe.GetUnboundedStringWidth and probe:GetUnboundedStringWidth() or 0
 end
 
--- MY LOTS, as the redesign drew it. Functions on ROW rather than file locals: this chunk sits
--- at Lua 5.1's limit of 200, and renderRows at its limit of 60 upvalues.
+-- MY LOTS, as the redesign drew it. Functions on ROW rather than file locals: written when this
+-- code lived in UI/SellFrame.lua, whose chunk sat at Lua 5.1's limit of 200 locals and whose renderRows
+-- sat at its limit of 60 upvalues.
 -- (The two key tables stand at file scope, closing brace in column 0: that is how the locale
 -- contract's scanner finds where an @localised-keys table ends.)
 -- @localised-keys

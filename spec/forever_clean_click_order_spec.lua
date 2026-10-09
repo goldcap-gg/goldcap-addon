@@ -63,7 +63,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       assert.is_true(assert(click:find("_NotePost(", confirmAt, true)) > confirmAt)
       assert.is_true(assert(click:find("_NotePost(", postAt, true)) > postAt)
       local before = click:sub(1, math.min(confirmAt, postAt) - 1)
-      for _, banned in ipairs({ "_NotePost(", ":Disable(", ":SetLabel(", "SetBusy(", "setStatus(", "renderRows(", "RenderRows(", "View.render(",
+      for _, banned in ipairs({ "_NotePost(", ":Disable(", ":SetLabel(", "SetBusy(", "setStatus(", "SetStatus(", "View.status(", "renderRows(", "RenderRows(", "View.render(",
           "composePositions(", "Compose.Positions(" }) do
         assert.is_nil(before:find(banned, 1, true), banned .. " must not run in the click before its protected call")
       end
@@ -90,7 +90,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       end
       local callAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
       local before = click:sub(1, callAt - 1)
-      for _, banned in ipairs({ ":Disable(", ":SetLabel(", "setStatus(", "renderRows(", "RenderRows(", "View.render(", "composePositions(",
+      for _, banned in ipairs({ ":Disable(", ":SetLabel(", "setStatus(", "SetStatus(", "View.status(", "renderRows(", "RenderRows(", "View.render(", "composePositions(",
           "Compose.Positions(" }) do
         assert.is_nil(before:find(banned, 1, true), banned .. " must not run in the click before CancelAuction")
       end

@@ -239,8 +239,8 @@ local function copperToGoldText(copper)
   return text
 end
 
--- YOUR PRICE only (row.priceBox below) -- everything above (the Set-Cost dialog's Unit/Total
--- fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
+-- YOUR PRICE only (row.priceBox, in UI/Sell/Inspector.lua) -- everything above (the Set-Cost
+-- dialog's Unit/Total fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
 -- purchase cost is always gold-denominated regardless of what the auction house can post.
 --
 -- Exact copper -> plain coin text ("90c", "1g22s90c", never "1g" with a silent 90c dropped),
@@ -269,7 +269,7 @@ end
 -- dialog) keeps reading dialogGoldPositive/dialogGoldCopper directly, gold-decimal always.
 -- Accepts "1g22s90c" or any subset of those three suffixes, in order, each optional; a bare
 -- number with none of them is read as GOLD, through the exact same parser as retail's own box
--- and the Set-Cost dialog above it (B2: a bare number used to mean copper here and gold
+-- and the Set-Cost dialog (UI/Sell/CostDialog.lua) (B2: a bare number used to mean copper here and gold
 -- everywhere else on this same tab -- a typed "5" was 5g in the cost box and 5c one control
 -- down). An explicit g/s/c suffix is still the one way to reach sub-gold precision on Forever.
 -- Falls back to dialogGoldPositive unconditionally off the copper grid, so retail typing is

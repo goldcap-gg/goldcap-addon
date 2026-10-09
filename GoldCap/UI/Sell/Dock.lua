@@ -56,7 +56,8 @@ Dock.SetStatus = setStatus
 -- said nothing at all. So a note holds the dock -- a post on its way until the post ends
 -- (Post.DisarmPost lets it go), an outcome for its few seconds -- whatever the walk says meanwhile.
 -- The toolbar line keeps the walk's words; when the note ends the dock goes back to them.
--- `tone` is a Theme.color key. Fields rather than locals: this chunk is at Lua 5.1's limit.
+-- `tone` is a Theme.color key. Fields rather than locals: written when this code lived in
+-- UI/SellFrame.lua, whose chunk was at Lua 5.1's limit.
 
 -- The dock's line: the post's note while there is one, else `text`, the tab's ordinary line.
 function GC.Sell._PaintDock(text)
@@ -504,8 +505,9 @@ Dock.UpdateSummary = updateSummary
 -- row 1 is actually the rendered head; it never falls through into onPostClick in the same click
 -- that just rendered. Only a click that finds row 1 already the queue's rendered, shown head
 -- posts -- and then through onPostClick EXACTLY, with no render of its own. The split is gated on
--- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: this file's
--- top-level local headroom is not spent on it) because retail has always rendered inside this click
+-- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: written when this
+-- code lived in UI/SellFrame.lua, whose top-level local headroom was not to be spent on it)
+-- because retail has always rendered inside this click
 -- and a retail player never had to press twice (retail drift audit F1).
 local function onQueueClick()
   if #S.queueEntries == 0 then

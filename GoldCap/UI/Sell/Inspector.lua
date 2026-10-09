@@ -383,8 +383,8 @@ end
 
 -- The detail panel's head: the price control, the book it lands in, and the line of facts.
 -- A function of its own rather than a branch of renderRows, which is where it was written:
--- that function sits two short of Lua 5.1's 60-upvalue cap, and everything this reads -- the
--- price chips, the book hint, the gold parser -- was counted against it.
+-- in UI/SellFrame.lua that function sat two short of Lua 5.1's 60-upvalue cap, and everything
+-- this reads -- the price chips, the book hint, the gold parser -- was counted against it.
 function INSP.paintHead(row, p, d)
   local book = d and d.book or nil
   local postable = (p.bagQty or 0) > 0
@@ -677,7 +677,8 @@ function Inspector.Build()
   -- list now stays exactly where it is, and the panel has the height for the whole book.
   --
   -- From INSP.DOCK_MIN up it takes a column of its own and the list narrows to make room;
-  -- under that it lies over the list's right side as a sheet (see applyListGeometry). Its rows
+  -- under that it lies over the list's right side as a sheet (see List.ApplyListGeometry in
+  -- UI/Sell/List.lua). Its rows
   -- are the SAME pooled rows renderRows has always made -- re-parented, not rebuilt -- so every
   -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
   local inspector = CreateFrame("Frame", nil, container)

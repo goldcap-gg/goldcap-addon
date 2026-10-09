@@ -96,7 +96,7 @@ describe("Services/Sell", function()
   it("builds no frame and reads none: the screen is GC.SellView", function()
     for _, path in ipairs(helper.SELL_FILES) do
       local text = code(read("GoldCap/" .. path))
-      for _, pattern in ipairs({ "CreateFrame", "%f[%w_]container%f[^%w_]", "statusOwner", "GC%.Theme" }) do
+      for _, pattern in ipairs({ "CreateFrame", "%f[%w_]container%f[^%w_]", "statusOwner", "GC%.Theme", "GC%.SellUI" }) do
         assert.is_nil(text:find(pattern), path .. " reaches the frame: " .. pattern)
       end
     end

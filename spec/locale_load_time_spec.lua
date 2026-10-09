@@ -9,7 +9,7 @@ require("spec.spec_helper")
 -- player still reads English.
 --
 -- Three of them shipped that way and were found by hand (Core/SniperDecision's refusal
--- sentences, UI/Sell/Row.lua's action help and keybinding label, UI/SoldFrame's column
+-- sentences, UI/Sell/Row.lua's action help, UI/Sell/Frame.lua's keybinding label, UI/SoldFrame's column
 -- headers). This is the guard that makes the fourth impossible: nothing may resolve a
 -- string at load time at all. A table built at file scope holds KEYS and looks them up
 -- where it is read -- see the @localised-keys marker those three now carry.

@@ -41,7 +41,8 @@ local ROW_TAG_TONE = { no_fresh_price = "wait" }
 --
 -- A function of its own rather than lines inside renderRows for a reason the client enforces
 -- and busted does not: WoW runs Lua 5.1, which caps a function at 60 upvalues, and renderRows
--- sits close enough to that cap that three more tables put the whole file out of action.
+-- sat close enough to that cap, when it lived in UI/SellFrame.lua, that three more tables put
+-- the whole file out of action.
 rowTag = function(position, reason, notOnHand)
   local tag, tone
   if position.facts and position.facts.underpriced then
@@ -528,7 +529,8 @@ function Row.PaintPosition(row, entry, ctx)
   -- -- it IS the price GoldCap would post at -- but green would claim it as ordinary
   -- market profit when it is really a bet on the hold, so it renders in the same gold the
   -- MARKET/UNIT column already uses for a computed forward price (see the "→ <price>"
-  -- cells below), with the price it assumes named in the cell rather than left implicit.
+  -- cells, painted by Inspector.PaintPanelRow), with the price it assumes named in the cell
+  -- rather than left implicit.
   -- A hold that is STILL a loss is not softened by the gold tone -- red outranks it.
   --
   -- setColor runs in BOTH branches, never just the hold one: rows are pooled and rebound

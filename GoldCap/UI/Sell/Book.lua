@@ -36,7 +36,8 @@ end
 
 -- THE BOOK's eight lines. A commodity's book is chosen around the player's price (SellViewModel's
 -- ladder): levels, a gap line for the stretch it skips, and a marker for the price itself. A
--- function of its own: paintHead sits near Lua 5.1's cap on upvalues.
+-- function of its own: paintHead sat near Lua 5.1's cap on upvalues
+-- when this code lived in UI/SellFrame.lua.
 local function paintLadder(row, book)
   local widest = book.widest or 0
   local count = function(n) return GC.Util.FormatCount(n or 0) or tostring(n or 0) end
