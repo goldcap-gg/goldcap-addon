@@ -100,7 +100,7 @@ describe("Sell protected action state", function()
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
     helper.loadSell(GC)
     local post = handlers(GC)
-    set(GC.SellPost.PreparePost, "startQuoteRefreshFor", function() refreshed = true end)
+    GC.SellWalk.RefreshFor = function() refreshed = true end
     post({ position = position(), action = button() })
     assert.equal(0, calls)
     assert.is_true(refreshed)
@@ -115,7 +115,9 @@ describe("Sell protected action state", function()
     local GC = { Sell = {}, Sniper = { IsAHOpen = function() return false end },
       QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
     helper.loadSell(GC)
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    local spy = function(text) status[#status + 1] = text end
+    set(GC.Sell.Refresh, "setStatus", spy) -- the click's own lines
+    GC.SellView.status = spy -- and the walk's
     local post = handlers(GC)
     post({ position = position(), action = button() })
     assert.equal(0, owned)
@@ -134,7 +136,7 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     setLiveBagState(GC, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
     GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = true } end }
-    set(GC.SellPost.PreparePost, "startQuoteRefreshFor", function() end)
+    GC.SellWalk.RefreshFor = function() end
     post({ position = position(), action = button() })
     assert.equal(0, calls)
   end)
@@ -531,7 +533,7 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     setLiveBagState(GC, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = true } end }
-    set(GC.SellPost.PreparePost, "startQuoteRefreshFor", function() refreshes = refreshes + 1 end)
+    GC.SellWalk.RefreshFor = function() refreshes = refreshes + 1 end
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row)
     quote = { unit = 201, at = 101 }
@@ -630,7 +632,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local _, repost = handlers(GC)
-    set(GC.Sell.OnOwnedAuctions, "onOwnedAuctionsReady", function() end)
+    GC.SellOwned.OnReady = function() end
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     GC.Sell.OnOwnedAuctions()

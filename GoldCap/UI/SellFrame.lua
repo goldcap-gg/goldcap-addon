@@ -19,13 +19,13 @@ end
 local Theme = GC.Theme
 -- The checks and constants this file shares with the Sell services (Services/Sell/State.lua).
 local S = GC.SellState
-local Quotes, Bags, Compose, Walk, Post = GC.SellQuotes, GC.SellBags, GC.SellCompose, GC.SellWalk, GC.SellPost
+local Quotes, Bags, Compose, Owned, Walk, Post = GC.SellQuotes, GC.SellBags, GC.SellCompose, GC.SellOwned,
+  GC.SellWalk, GC.SellPost
 local exact, safeAdd, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeAdd,
   GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
-local context, activeScope, exactRenderEntry, itemName = GC.SellUtil.context, GC.SellUtil.activeScope,
-  GC.SellUtil.exactRenderEntry, GC.SellUtil.itemName
-local QUOTE_STALE_SECONDS, SELL_QUOTE_ACTION_AGE = GC.Sell.QUOTE_STALE_SECONDS, GC.Sell.SELL_QUOTE_ACTION_AGE
-local QUOTE_REWALK_AGE, EMPTY_ANSWER_AGE = GC.Sell.QUOTE_REWALK_AGE, GC.Sell.EMPTY_ANSWER_AGE
+local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.SellUtil.exactRenderEntry,
+  GC.SellUtil.itemName
+local EMPTY_ANSWER_AGE = GC.Sell.EMPTY_ANSWER_AGE
 local ROW_HEIGHT, ROW_WIDTH
 -- The auction's listing duration: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration` argument
 -- the two posting calls in onPostClick below take -- see Core/Init.lua's own comment on
@@ -40,9 +40,6 @@ local function postDuration()
   if value == 1 or value == 2 or value == 3 then return value end
   return 2
 end
--- How long a yielded pricing walk (purchase in flight, throttle window closed) waits before
--- asking again from the same queue position -- see advanceQuote's retryLater.
-local QUOTE_RETRY_SECONDS = 2
 -- REPOST_ARM_SECONDS is the deposit guard: how long after the first click a confirming second
 -- click does not count. It was 3, and three seconds of a greyed-out button that still reads
 -- "Cancel lot?" is indistinguishable from a broken control -- reported from a live client as
@@ -65,14 +62,6 @@ local REPOST_CANCEL_TIMEOUT_SECONDS = 30
 -- burning a deposit, and there is no deposit here. The confirmation window still expires, the
 -- same way a repost's does.
 local REMOVE_TIMEOUT_SECONDS = 8
--- Gap between automatic re-pricing passes while the tab is open and the auction
--- house is up. Prices stay live on their own instead of waiting for Refresh --
--- which is also why PROFIT / UNIT no longer reads Unknown until you press it.
-local WALK_REPEAT_SECONDS = 5
--- A phase that answers no event is a wedge: Refresh used to refuse to run while
--- one was in flight, so a single unanswered owned-auctions query or item-key
--- lookup made the button dead for the rest of the session.
-local PHASE_WATCHDOG_SECONDS = 15
 
 -- The positions module owns all accounting and action-plan decisions.  This file only joins
 -- live AH observations, a cached quote stream, and widgets around that single model.
@@ -136,7 +125,6 @@ local CHIP_IDS = { "ready", "nocost" }
 -- "READY" is 5 chars and "NO COST" 7, but both carry the rounded badge's own inset: 92/76 match
 -- what the five chips they replaced used for labels of the same length.
 local CHIP_WIDTHS = { 92, 76 }
-local quoteTimeoutToken, keyTimeoutToken = 0, 0
 local postTimeoutToken
 local repostArmToken = 0
 local removeArmToken = 0
@@ -197,7 +185,7 @@ local function disarmPost()
   paintQueueButton()
 end
 
-local function disarmRepost()
+function Post.DisarmRepost()
   local row = S.repostingRow
   S.repostingRow, S.repostPin = nil, nil
   repostArmToken = (repostArmToken or 0) + 1
@@ -653,890 +641,6 @@ function GC.Sell._RecommendationText(recommendation)
 end
 
 
--- Which items the pricing walk asks the server about.
---
--- This used to be every position, which was fine when a position only existed
--- for something GoldCap had bought. Now that the tab knows what is in the bags,
--- a full inventory is easily sixty sellable stacks -- and the walk repeats. Sixty
--- throttled round trips on a loop would crowd out the Sniper's own scans and the
--- player's own searches, for prices on rows nobody is going to act on.
---
--- So: only what can be acted on (stock in the bags, or a live listing that could
--- be reposted), most valuable first, and capped. Everything else keeps whatever
--- quote it already has and shows its age honestly.
-local QUOTE_WALK_CAP = 40
--- When this item was last rested, or nil. Written as a table (above) and read here so every
--- caller agrees on the shape.
-local function restedAt(itemID)
-  local rest = S.emptyAnswers[itemID]
-  return type(rest) == "table" and type(rest.at) == "number" and rest.at or nil
-end
--- Did the auction house ANSWER, and recently enough that the answer still stands?
-local function restedEmptyFresh(itemID, now)
-  local rest = S.emptyAnswers[itemID]
-  local at = restedAt(itemID)
-  return at ~= nil and (now - at) <= EMPTY_ANSWER_AGE and rest.answered == true
-end
--- How long a drain tombstone may fence off an item. The fence exists so a LATE answer to an
--- abandoned request cannot be credited to a new request for the same item -- but it used to
--- be permanent, cleared only by the very event that never comes for a silently-lost request,
--- and ONE such item then wedged every later pass in "draining" until the watchdog shot it.
--- Past this window the lost answer is not arriving; the fence lifts and the item is asked
--- again (advanceQuote).
-local DRAIN_MAX_SECONDS = 15
-
--- Whether a position has a row on the deck that is up: bag stock on the posting deck, a live
--- lot on the other. Kept on `refresh` rather than as two more file locals -- this chunk sits at
--- Lua 5.1's limit of 200.
-function S.refresh.onDeck(position)
-  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then return (position.listedQty or 0) > 0 end
-  return (position.bagQty or 0) > 0
-end
-
--- How far the walk has got through the rows of the deck on screen: asked about, out of queued.
--- The queue covers both decks, and the Refresh button read "BOOKS 4/27" over a list of ten.
--- Counted when asked rather than when the queue is built, so a deck change mid-walk is followed.
-function S.refresh.deckProgress()
-  local shown = {}
-  for _, position in ipairs(S.positions) do
-    -- By quote id, as the walk queues them: a variant's entry is its own key (_QuoteItemKey).
-    if position.itemID and S.refresh.onDeck(position) then shown[position.quoteKey or position.itemID] = true end
-  end
-  local done, total = 0, 0
-  for index, itemID in ipairs(S.refresh.queue) do
-    if shown[itemID] then
-      total = total + 1
-      if index <= S.refresh.index then done = done + 1 end
-    end
-  end
-  return done, total
-end
-
-local function uniqueQuoteItemIDs()
-  local actionable = {}
-  for _, position in ipairs(S.positions) do
-    local inBags = type(position.bagQty) == "number" and position.bagQty > 0
-    local listed = type(position.listedQty) == "number" and position.listedQty > 0
-    -- Membership, not just order: a still-fresh quote is excluded from the pass entirely.
-    -- Freshness used to decide only the ORDER, so every pass re-asked the server about the
-    -- whole tab -- see QUOTE_REWALK_AGE above for what that cost. A remembered "nothing
-    -- listed" answer counts as fresh too (EMPTY_ANSWER_AGE above).
-    -- Resting, whether the rest was earned by an answer or by silence: both cost the same
-    -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
-    local quoteID = position.quoteKey or position.itemID
-    local restingSince = restedAt(quoteID)
-    local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
-    -- A PRESS of Refresh is served by the bulk fill (GC.Sell.TrySendBulk): one message
-    -- re-prices every commodity on the tab, which is what a press asks for. The walk does not
-    -- also re-ask about all of them -- at one search per throttled round trip that is twelve
-    -- seconds for a tab of twenty-seven, every press (measured in game). It asks about what is
-    -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
-    -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
-    -- it and may not back a post (see freshQuote), however young it is.
-    local held = S.quotes[quoteID]
-    local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
-      or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
-      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
-    -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
-    -- identity question is about cost, and a commodity's market price is exact for its
-    -- itemID no matter whose stock it is -- leaving every tiered reagent caught in identity
-    -- repair at "—" forever read as this walk being broken. Unresolved variant ITEMS stay
-    -- excluded: a basic-key quote can be a different variant's price, and a wrong number is
-    -- worse than none.
-    local commodity = type(position.positionKey) == "string"
-      and position.positionKey:find("commodity:", 1, true) == 1
-    local pricable = not position.unresolved or commodity
-    if pricable and position.itemID and (inBags or listed) and due then
-      actionable[#actionable + 1] = position
-    end
-  end
-  -- Ordered by NEED, not by value. Ordering by value starved the tail: a row
-  -- that had just been priced sorted to the front of the very next pass, ahead
-  -- of rows that had never been priced at all, so the bottom of a long list
-  -- never got asked about. Never-priced first, then oldest quote first, and only
-  -- then by value -- which still decides between two equally stale rows, because
-  -- a stale price on a 200-unit stack of ore costs more than one on a lone flask.
-  -- The deck on screen first, in the order it is drawn. The queue covers BOTH decks -- stock
-  -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
-  -- its first seconds on rows of the other deck while the ones being looked at waited.
-  local need, weight, onScreen, place = {}, {}, {}, {}
-  for index, position in ipairs(actionable) do
-    onScreen[position] = S.refresh.onDeck(position)
-    place[position] = S.rowPlaces[position.positionKey] or math.huge
-    local age = position.quoteAge
-    need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
-      and math.huge or age
-    local unit = position.freshMarketUnit or position.displayMarketUnit
-    local qty = position.bagQty or 0
-    weight[position] = (unit and qty > 0 and unit * qty)
-      or (type(position.listedValue) == "number" and position.listedValue) or 0
-    position.__walkOrder = index
-  end
-  table.sort(actionable, function(left, right)
-    if onScreen[left] ~= onScreen[right] then return onScreen[left] end
-    -- Within the deck on screen, top to bottom as drawn; need and value order the rest, and
-    -- break ties between rows that have no place yet.
-    if onScreen[left] and place[left] ~= place[right] then return place[left] < place[right] end
-    if need[left] ~= need[right] then return need[left] > need[right] end
-    if weight[left] ~= weight[right] then return weight[left] > weight[right] end
-    return left.__walkOrder < right.__walkOrder
-  end)
-  local seen, result = {}, {}
-  for _, position in ipairs(actionable) do
-    local quoteID = position.quoteKey or position.itemID
-    if not seen[quoteID] then
-      seen[quoteID], result[#result + 1] = true, quoteID
-      if #result >= QUOTE_WALK_CAP then break end
-    end
-  end
-  return result
-end
-
-local function scheduleQuoteExpiry()
-  S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
-  local token = S.quoteExpiryGeneration
-  if not (C_Timer and C_Timer.After) then return end
-  local delay
-  for _, position in ipairs(S.positions) do
-    if position.freshMarketUnit and type(position.quoteAge) == "number" then
-      -- Must be the same window the rest of the tab treats as fresh. Left at the
-      -- Sniper's 10s it would wake while the quote was still good and then never
-      -- wake again, so a quote that HAD gone stale kept rendering as current.
-      local remaining = SELL_QUOTE_ACTION_AGE - position.quoteAge + 1
-      if remaining > 0 and (not delay or remaining < delay) then delay = remaining end
-    end
-  end
-  if not delay then return end
-  C_Timer.After(delay, function()
-    if token ~= S.quoteExpiryGeneration then return end
-    Compose.Positions()
-    renderRows()
-  end)
-end
-
--- Whether the Sell CONTENT is the tab actually on screen right now, as opposed to merely
--- attached. `composePositions()`/`GC.Sell.Refresh()` run regardless of which tab the player
--- is looking at (bag counts and the tab badge stay current either way) -- this is the
--- narrower check that guards the expensive part, rebuilding the visible ROWS.
---
--- The container's own flag answers only which tab of the window is up: hiding a parent leaves a
--- child's shown flag alone. So the window is asked too -- closed with its X or Escape while on
--- Sell, or docked and hidden because the player picked another auction-house tab, the walk used
--- to carry on pricing a screen nobody could see. Reopening it runs GC.Sell.Refresh
--- (GC.Sniper.Toggle), which is what picks the walk and any deferred render back up.
-function Walk.Shown()
-  if not (container ~= nil and container.IsShown and container:IsShown()) then return false end
-  return not (GC.Sniper and GC.Sniper.IsWindowShown) or GC.Sniper.IsWindowShown()
-end
-
-function Walk.Live()
-  return Walk.Shown() and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
-end
-
--- Keeps the prices on screen live instead of frozen at whatever the last button
--- press fetched. Without it the market column ages out and PROFIT / UNIT falls
--- back to Unknown until the player presses Refresh, which is the sort of chore a
--- program should not be delegating.
-local function scheduleNextWalk()
-  S.walkRepeatToken = S.walkRepeatToken + 1
-  local token = S.walkRepeatToken
-  if not (C_Timer and C_Timer.After) then return end
-  C_Timer.After(WALK_REPEAT_SECONDS, function()
-    if token ~= S.walkRepeatToken or not Walk.Live() then return end
-    if S.refresh.phase ~= "done" and S.refresh.phase ~= "idle" and S.refresh.phase ~= "error" then return end
-    GC.Sell.Refresh(true)
-  end)
-end
-
--- Let go of a request we are no longer waiting for, leaving a tombstone so its
--- late terminal event is consumed rather than mistaken for the next run's.
-local function abandonInFlightQuote()
-  local pending = S.refresh.pending
-  if pending then
-    S.refresh.drain[pending.kind .. ":" .. pending.itemID] = {
-      abandonedGeneration = pending.generation,
-      terminals = 1,
-      at = time(),
-    }
-  end
-  S.refresh.pending, S.refresh.awaiting = nil, nil
-  quoteTimeoutToken = quoteTimeoutToken + 1
-end
-
-local function markProgress()
-  S.refresh.progressAt = time()
-end
-
--- Forward-declared: skipPendingQuote below has to be able to carry the pass on
--- to the next item, and advanceQuote's real definition needs the walk state it
--- sits above.
-local advanceQuote
-
-local function finishQuoteWalk()
-  S.refresh.phase = "done"
-  S.refresh.pending, S.refresh.awaiting = nil, nil
-  local skipped = S.refresh.skipped or 0
-  setStatus(skipped > 0
-    and (GC.L["Prices up to date · %d did not answer"]):format(skipped)
-    or GC.L["Prices up to date"])
-  renderRows()
-  scheduleNextWalk()
-end
-
--- One item failing is not the pass failing.
---
--- This used to park the whole machine in "error" and stop, so a single item that
--- did not answer within the request window ended the pass -- and with a tab full
--- of bag stock, the automatic repeat then restarted from the top and hit the
--- same item again. Items further down the queue were never reached at all, which
--- is why most rows sat with no market price no matter how long you waited.
---
--- `timedOut` distinguishes the two failures. A timeout taught us nothing, so any
--- quote already on hand is kept and left to age visibly; an answer that came
--- back empty or nonsensical means there is genuinely nothing on sale, and the
--- stale quote must go rather than be presented as current.
-local function skipPendingQuote(pending, timedOut)
-  if S.refresh.pending ~= pending or pending.generation ~= S.refresh.generation then return end
-  -- Either way -- an empty answer or no answer at all -- this item earned a rest: re-asking
-  -- it on the very next pass is what burned the walk's slots (and, for the silent ones, a
-  -- whole request timeout each) on items with nothing to say. See EMPTY_ANSWER_AGE.
-  -- `answered` is the honest half: a timeout taught us nothing, so nothing on screen may claim
-  -- the auction house said this item is unlisted (see renderRows and /gc sellstate).
-  S.emptyAnswers[pending.itemID] = { at = time(), answered = not timedOut }
-  if timedOut then
-    -- A late terminal event for this request must still be consumed rather than
-    -- credited to whatever the walk is asking about by then.
-    S.refresh.drain[pending.kind .. ":" .. pending.itemID] = {
-      abandonedGeneration = pending.generation,
-      terminals = 1,
-      at = time(),
-    }
-  else
-    S.quotes[pending.itemID] = nil
-    local persisted = Quotes.Persisted()
-    if persisted then persisted[pending.itemID] = nil end
-  end
-  S.refresh.pending = nil
-  S.refresh.skipped = (S.refresh.skipped or 0) + 1
-  S.refresh.phase = "pricing"
-  markProgress()
-  advanceQuote()
-end
-
-local function scheduleQuoteTimeout(pending)
-  if not (C_Timer and C_Timer.After) then return end
-  quoteTimeoutToken = quoteTimeoutToken + 1
-  local token = quoteTimeoutToken
-  C_Timer.After(QUOTE_STALE_SECONDS, function()
-    if token == quoteTimeoutToken then skipPendingQuote(pending, true) end
-  end)
-end
-
--- Three of the refresh phases wait on an event that is not guaranteed to arrive:
--- an owned-auctions query, an item-key lookup, and a drain waiting for the
--- terminal of a request that already timed out. Each one used to hold the
--- machine in a phase Refresh refused to leave, so a single unanswered call made
--- the button dead until the player logged out. This lets the phase go.
-local function armPhaseWatchdog()
-  S.watchdogToken = S.watchdogToken + 1
-  local token = S.watchdogToken
-  if not (C_Timer and C_Timer.After) then return end
-  local function tick()
-    if token ~= S.watchdogToken then return end
-    local phase = S.refresh.phase
-    if phase == "idle" or phase == "done" or phase == "error" then return end
-    if time() - (S.refresh.progressAt or 0) >= PHASE_WATCHDOG_SECONDS then
-      abandonInFlightQuote()
-      S.refresh.phase = "error"
-      setStatus(GC.L["Auction House did not answer — press Refresh"])
-      scheduleNextWalk()
-      return
-    end
-    C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
-  end
-  C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
-end
-
--- The Sell CONTENT is attached but not on screen: the player is looking at Deals, Sold or the
--- Sniper. Everything that costs nothing carries on (bag composition, owned lots, the tab's own
--- count), but forty throttled server round trips for prices nobody is looking at are forty the
--- Sniper's scans and the player's own searches do not get. Parked, not cancelled -- GC.Sell.Show
--- calls Refresh unconditionally, which starts the pass for real the moment the tab is up.
---
--- `container == nil` is NOT parked: nothing has been attached yet, so there is no tab to be
--- hidden, and refusing to price there would refuse it forever.
-local function walkParked()
-  return container ~= nil and not Walk.Shown()
-end
-
--- An item key that never resolves used to hold the pass in "waiting_key" until the phase
--- watchdog declared the whole thing dead -- and startQuoteRefreshFor's one-item walk armed no
--- watchdog at all, so there it sat in "PRICING…" for the rest of the session. One item failing
--- is not the pass failing: rest it and carry on, exactly as skipPendingQuote does.
-local function scheduleKeyTimeout(itemID, fromPriority)
-  if not (C_Timer and C_Timer.After) then return end
-  keyTimeoutToken = keyTimeoutToken + 1
-  local token, generation = keyTimeoutToken, S.refresh.generation
-  C_Timer.After(QUOTE_STALE_SECONDS, function()
-    if token ~= keyTimeoutToken or generation ~= S.refresh.generation then return end
-    if S.refresh.phase ~= "waiting_key" or S.refresh.awaiting ~= itemID then return end
-    -- Never answered, so nothing here may later read as the auction house saying "nothing
-    -- listed" -- see the emptyAnswers comment.
-    S.emptyAnswers[itemID] = { at = time(), answered = false }
-    S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil
-    if fromPriority then table.remove(S.refresh.priority, 1) else S.refresh.index = S.refresh.index + 1 end
-    S.refresh.skipped = (S.refresh.skipped or 0) + 1
-    S.refresh.phase = "pricing"
-    markProgress()
-    advanceQuote()
-  end)
-end
-
-advanceQuote = function()
-  -- "draining" belongs here as much as the other two: the fence branch below parks in it, and
-  -- with it excluded nothing could ever come back -- not this function's own retry, not
-  -- OnThrottleReady's tail -- so one fenced item held the pass until the watchdog shot it.
-  if S.refresh.phase ~= "pricing" and S.refresh.phase ~= "waiting_key" and S.refresh.phase ~= "draining" then return end
-  if S.refresh.pending then return end
-  -- Stands still while this tab's own bulk batch is out. The arbiter holds its passes for an
-  -- outstanding batch for a reason: a search sent on top of an unanswered SearchForItemKeys
-  -- takes its answer with it -- the batch never landed, and the walk's first two searches
-  -- came back empty besides (seen in game: the top two rows at "--" with the walk at 21/27).
-  -- FoldBulk and the ticker are what start it again.
-  if GC.Sell.BulkOutstanding() then return end
-  if walkParked() then
-    -- Give the queue up rather than hold a phase nobody is watching: a held phase is one
-    -- Refresh(automatic) refuses to leave.
-    S.refresh.queue, S.refresh.index, S.refresh.awaiting, S.refresh.awaitingPriority = {}, 0, nil, nil
-    S.refresh.phase = "idle"
-    return
-  end
-  if S.refresh.index >= #S.refresh.queue and #S.refresh.priority == 0 then return finishQuoteWalk() end
-  -- Yields to a Check or a purchase -- short, and the player is waiting on it --
-  -- but NOT to the background full scan. Under Auto that scan never stops, and
-  -- standing aside for it meant the Sell tab priced nothing at all while Auto
-  -- was on: Refresh looked hung until a reload happened to catch a gap.
-  local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
-  -- A yield needs its own way back. Nothing fires when a purchase's quiet zone
-  -- ends, and the throttle-ready event can land while the walk has nothing
-  -- pending to catch it -- so a yield used to sit until the 15s phase watchdog
-  -- declared the pass dead and restarted it from item 1, which then yielded
-  -- again: a live client showed "PRICING…" with two rows priced and the other
-  -- 38 blank for as long as the tab stayed open. Re-ask in place instead, on a
-  -- short timer, keeping the queue position; the token makes repeated yields
-  -- collapse into one pending retry, and the generation check drops a retry
-  -- that outlives the walk it was armed for.
-  local function retryLater()
-    if not (C_Timer and C_Timer.After) then return end
-    S.refresh.retryToken = (S.refresh.retryToken or 0) + 1
-    local token, generation = S.refresh.retryToken, S.refresh.generation
-    C_Timer.After(QUOTE_RETRY_SECONDS, function()
-      if token ~= S.refresh.retryToken or generation ~= S.refresh.generation then return end
-      advanceQuote()
-    end)
-  end
-  if blocking and blocking() then
-    -- Yielding is the walk working correctly, not stalling, so the watchdog must
-    -- not read it as an unanswered request.
-    markProgress()
-    setStatus(GC.L["Waiting for the purchase to finish…"])
-    retryLater()
-    return
-  end
-  -- ...and so, just as much, while a keys batch this tab did not send is still out: one still in
-  -- flight from the board the player just left (the Sniper's price caps, its Items poll, BUY's).
-  -- Same evidence as the wait for this tab's own batch above -- a search sent on top of it takes
-  -- its answer and comes back empty. It is written off after eight seconds while this tab is on
-  -- screen (UI/SniperFrame.lua's _KeysOutstanding), so the wait is short, and nothing announces
-  -- its end: the walk comes back by itself, like the yields around it.
-  if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
-    markProgress()
-    retryLater()
-    return
-  end
-  if not Quotes.driver.isReady() then
-    -- The throttle window is closed -- IsThrottledMessageSystemReady() is false -- so the walk
-    -- is stalled on purpose, not stuck, and this must feed the watchdog exactly like the
-    -- purchase-yield branch above. I4 (fix wave, sell honesty): the code cannot actually tell
-    -- WHY the slot is busy -- another search, the walk's own last query still cooling down, or
-    -- the player's own Post -- so say only what is known, once per walk rather than every tick.
-    markProgress()
-    if not S.refresh.waitingNoted then
-      S.refresh.waitingNoted = true
-      -- Its own words, not the posting line's: this is the walk pricing rows in the
-      -- background, and "Waiting for the Auction House…" beside a queue with nothing posting
-      -- read as though a post the player never made was stuck (2026-09-26).
-      setStatus(GC.L["Checking prices — waiting for the Auction House…"])
-    end
-    retryLater()
-    return
-  end
-  -- The tab-wide pass is background traffic, and the player outranks it the same way they
-  -- outrank Auto, the verify walk and the watch loop: posting or buying on Blizzard's panes,
-  -- reading their own search, or working another addon's tab. It was the one sender that did
-  -- not ask, so with the Sell tab open it re-priced forty items back to back, every pass,
-  -- while Auctionator's Selling tab sat on "Fetching item info..." waiting for a turn on the
-  -- same throttled slot (reported in game). A click's own item still goes: that IS the player.
-  local playerBusy = GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
-    and GC.AuctionHouseTab.PlayerIsBusy()
-  -- Three sources, in the order a seller would expect: the key we are already waiting on, then
-  -- whatever a click asked for (refresh.priority), then the pass's own queue. A queue item
-  -- waiting on its key does not hold a click up while the pass is paused: it is still
-  -- queue[index + 1], and is picked up again from there.
-  local itemID, fromPriority
-  if S.refresh.awaiting and not (playerBusy and not S.refresh.awaitingPriority) then
-    itemID, fromPriority = S.refresh.awaiting, S.refresh.awaitingPriority == true
-  elseif S.refresh.priority[1] then
-    itemID, fromPriority = S.refresh.priority[1], true
-  else
-    itemID, fromPriority = S.refresh.queue[S.refresh.index + 1], false
-  end
-  if playerBusy and not fromPriority then
-    -- Let go of a key the pass was waiting on, timeout and all: left armed, it fired under the
-    -- pause -- posting outlasts it -- and wrote the item off as never having answered, even
-    -- with the key already in. It is still queue[index + 1], and is asked for again from there.
-    if S.refresh.awaiting and not S.refresh.awaitingPriority then
-      S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil
-      S.refresh.phase = "pricing"
-      keyTimeoutToken = keyTimeoutToken + 1
-    end
-    markProgress()
-    setStatus(GC.L["Pricing paused while you use the Auction House"])
-    retryLater()
-    return
-  end
-  if Quotes.driver.keyInfo(itemID) then
-    local info = Quotes.driver.keyInfo(itemID)
-    local kind = info.isCommodity and "commodity" or "item"
-    local tombstone = S.refresh.drain[kind .. ":" .. itemID]
-    if tombstone and type(tombstone.at) == "number" and time() - tombstone.at > DRAIN_MAX_SECONDS then
-      -- The lost answer this fence was guarding against is too old to still arrive -- see
-      -- DRAIN_MAX_SECONDS. Lift it and ask for real instead of wedging in "draining".
-      S.refresh.drain[kind .. ":" .. itemID] = nil
-      tombstone = nil
-    end
-    if tombstone then
-      tombstone.resumeGeneration = S.refresh.generation
-      S.refresh.phase = "draining"
-      -- Waiting behind a fence is the walk working, not stalling: feed the watchdog and come
-      -- back by itself, exactly like the two yield branches above. Without these the only exit
-      -- was the watchdog killing the pass over one item, 15s later.
-      markProgress()
-      setStatus(GC.L["Refresh waiting for prior result"])
-      retryLater()
-      return
-    end
-    -- The last gate before the query goes out. driver.isReady() above is a pure read of the
-    -- throttle flag; THIS is the one call that spends the pacing budget a stuck flag puts the
-    -- addon on, and it is asked here rather than up there so a decline further down (the drain
-    -- fence, an uncached key) never spends it. The Sniper claims under its own name, so the
-    -- board and this walk each get a turn instead of whichever of the two happens to ask first
-    -- taking every one of them -- which is exactly what left this tab reading "PRICING… 0/20"
-    -- through a hundred and twenty ready events.
-    if Quotes.driver.claimSend and not Quotes.driver.claimSend() then
-      markProgress()
-      retryLater()
-      return
-    end
-    S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil
-    if fromPriority then table.remove(S.refresh.priority, 1) else S.refresh.index = S.refresh.index + 1 end
-    S.refresh.pending = { itemID = itemID, kind = kind, generation = S.refresh.generation, at = time() }
-    S.refresh.phase = "waiting_result"
-    markProgress()
-    setStatus(fromPriority and GC.L["Checking this item's price…"]
-      or (GC.L["Pricing %d/%d…"]):format(S.refresh.index, #S.refresh.queue))
-    Quotes.driver.send(itemID)
-    scheduleQuoteTimeout(S.refresh.pending)
-  else
-    -- Armed once per item, not once per poke: OnThrottleReady drives this function again while
-    -- the same key is still outstanding, and re-arming there would push the deadline out
-    -- forever.
-    local alreadyWaiting = S.refresh.awaiting == itemID
-    S.refresh.awaiting, S.refresh.awaitingPriority, S.refresh.phase = itemID, fromPriority, "waiting_key"
-    if not alreadyWaiting then scheduleKeyTimeout(itemID, fromPriority) end
-  end
-end
-
-local function beginQuoteWalk()
-  if walkParked() then
-    -- The tab is not on screen. Composition and the owned lots have already been done by the
-    -- caller; the forty throttled round trips have not, and will not until GC.Sell.Show asks.
-    S.refresh.queue, S.refresh.index, S.refresh.phase = {}, 0, "idle"
-    S.refresh.pending, S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil, nil
-    return
-  end
-  S.refresh.queue, S.refresh.index, S.refresh.phase, S.refresh.pending, S.refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
-  S.refresh.awaitingPriority = nil
-  S.refresh.skipped = 0
-  S.refresh.waitingNoted = false
-  -- refresh.priority deliberately survives: it holds the items a CLICK asked about, and this
-  -- rebuild is exactly what used to throw them away.
-  if #S.refresh.queue == 0 and #S.refresh.priority == 0 then return finishQuoteWalk() end
-  advanceQuote()
-end
-
-local function requestOwnedAuctions()
-  if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen() then
-    if not Quotes.driver.isReady() then return false, true end
-    if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: QueryOwnedAuctions") end
-    C_AuctionHouse.QueryOwnedAuctions({})
-    return true, false
-  end
-  return false, false
-end
-
-local function onOwnedAuctionsReady()
-  Compose.Positions()
-  renderRows()
-  if S.refresh.phase == "owned" then
-    -- Progress is stamped ONLY by the phase that was actually waiting for this. OWNED_AUCTIONS_
-    -- UPDATED and AUCTION_CANCELED fire on their own schedule -- a lot expiring, a cancel from
-    -- the Blizzard panel -- and stamping on every one of them fed the watchdog while a pricing
-    -- phase sat wedged on a request that never came back, which is the one thing the watchdog
-    -- exists to catch.
-    markProgress()
-    beginQuoteWalk()
-  end
-end
-
--- GetOwnedAuctions does not report whether an auction is a commodity, so keyForLot saw
--- isCommodity = nil and filed every owned lot under an item-style key built from itemKey's
--- item level. A commodity bought as `commodity:12363` therefore listed itself as
--- `item:12363:10:0:0`: two positions for one item, the purchase holding no listings and the
--- listing holding no cost. On screen that read as "x5 in your bags, not listed" while the
--- Blizzard auctions panel showed those same five on sale.
---
--- GetItemKeyInfo is the authority on that flag -- the quote driver above already relies on it --
--- so classify here, where the API is reachable, and leave NormalizeOwnedLots pure.
---
--- Asking GetItemKeyInfo alone was not enough: it answers nil until the client has cached that
--- key, and a lot left unclassified files itself under an `item:...` key while the SAME item's
--- bag stock -- classified from the remembered answer in GC.db.commodityByItem (classifyBagItem
--- below) -- files under `commodity:...`. Two rows for one item, the listing holding no stock
--- and the stock reading "not on hand"; and when the lot was later re-classified, the repost
--- pin stopped matching and the tab announced "Lot cancelled; wait for it to return to bags"
--- about a lot that was still live. So: read the remembered answer first, and write every fresh
--- answer back into it, exactly as the bag classifier does.
-local function classifyOwnedAuctions(auctions)
-  local cache = Bags.CommodityKinds()
-  for _, auction in ipairs(auctions or {}) do
-    local itemID = auction.itemID or (auction.itemKey and auction.itemKey.itemID)
-    if auction.isCommodity == nil and type(itemID) == "number" then
-      local remembered = cache and cache[itemID]
-      if remembered ~= nil then
-        auction.isCommodity = remembered
-      elseif auction.itemKey and C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo then
-        local ok, info = pcall(C_AuctionHouse.GetItemKeyInfo, auction.itemKey)
-        if ok and type(info) == "table" and info.isCommodity ~= nil then
-          auction.isCommodity = info.isCommodity == true
-          if cache then cache[itemID] = auction.isCommodity end
-        end
-      end
-    end
-    -- What the next ITEM_KEY_ITEM_INFO_RECEIVED has to re-run for: a lot nobody can key yet.
-    if type(itemID) == "number" then
-      if auction.isCommodity == nil then
-        S.ownedAwaitingKind[itemID] = true
-      else
-        S.ownedAwaitingKind[itemID] = nil
-      end
-    end
-  end
-  return auctions
-end
-
--- Lots this tab has cancelled, by auction ID: `{ at = when the cancel was sent, confirmed =
--- whether the server said so }`. A lot in here is left out of every list this tab reads.
---
--- It exists because the tab used to wait, holding every render, until it SAW the lot leave
--- C_AuctionHouse.GetOwnedAuctions() -- and that is a cache only a new QueryOwnedAuctions
--- refreshes, so straight after a cancel it still holds the lot the server has just removed.
--- Seen in game (twice) as a tab that went dead after the confirming click: the lot still
--- listed, its button greyed at "Cancel lot?", no row opening, the panel refusing to shut, until
--- the cancel's own 30-second timeout -- or a trip to another tab, which re-queries. Nothing is
--- waited for any more: the moment CancelAuction is sent the arm is let go (ROW.cancelSent) and
--- the lot stops being shown. AUCTION_CANCELED confirms it when the client sends one; an auction
--- ID is never reused, so a confirmed entry stands for the session. One that nothing confirmed
--- is given SENT_WAIT seconds, after which a list that still holds the lot is believed instead:
--- the cancel did not go through, the lot comes back and the tab says so.
-GC.Sell.cancelledLots = {}
--- How long a cancel nothing confirmed is believed over a list that still holds the lot.
-GC.Sell.CANCEL_SENT_WAIT = 15
-
-function GC.Sell.OnAuctionCanceled(auctionID)
-  local lots = GC.Sell.cancelledLots
-  if not exact(auctionID) or auctionID <= 0 then
-    -- An event that names no lot answers the one cancel still waiting, when there is exactly
-    -- one; with none, or several, it concludes nothing.
-    local waiting
-    for id, lot in pairs(lots) do
-      if not lot.confirmed then
-        if waiting then return end
-        waiting = id
-      end
-    end
-    auctionID = waiting
-  end
-  if not auctionID then return end
-  local known = lots[auctionID] ~= nil
-  lots[auctionID] = { at = time(), confirmed = true }
-  if known then setStatus(GC.L["Lot cancelled; wait for it to return to bags"]) end
-end
-
-function GC.Sell.OnOwnedAuctions()
-  local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
-  do
-    local live, returned = {}, false
-    for _, auction in ipairs(auctions) do
-      local lot = GC.Sell.cancelledLots[auction.auctionID]
-      if lot and not lot.confirmed and time() - lot.at > GC.Sell.CANCEL_SENT_WAIT then
-        GC.Sell.cancelledLots[auction.auctionID], lot, returned = nil, nil, true
-      end
-      if not lot then live[#live + 1] = auction end
-    end
-    auctions = live
-    if returned then setStatus(GC.L["The cancel did not go through — the lot is still listed"]) end
-  end
-  S.ownedLots = GC.SellPositions.NormalizeOwnedLots(classifyOwnedAuctions(auctions), time())
-  local scope = context()
-  -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
-  -- read just produced is the roster the companion uploads, unchanged. No second query.
-  if GC.Data and GC.Data.RecordOwnedLots and scope then
-    GC.Data.RecordOwnedLots(GC.db, S.ownedLots, scope, time())
-  end
-  if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
-    for _, lot in ipairs(S.ownedLots) do
-      -- `lot.unitPrice` is what this position stands at on the auction house right now, and it
-      -- is the only thing that can later tell one quality rank of a reagent from another when a
-      -- mail invoice names both -- see GC.Acquisitions.WasListedAt.
-      GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName(lot.itemID),
-        scope.char, scope.region, time(), lot.unitPrice)
-    end
-    -- Pure composition is allowed to display a currently unique variant, but
-    -- it must never make that inference durable.  The controller has the
-    -- current owned-lot evidence and has just persisted matching activity, so
-    -- it may ask the explicit fail-closed binding API to bind an item-only
-    -- legacy batch only when every candidate and activity agrees on one key.
-    if GC.Acquisitions.BindItemOnly and GC.Acquisitions.GetActive then
-      for _, batch in ipairs(GC.Acquisitions.GetActive(scope)) do
-        if not batch.positionKey then
-          local candidates = {}
-          for _, lot in ipairs(S.ownedLots) do
-            if lot.itemID == batch.itemID then
-              candidates[#candidates + 1] = { positionKey = lot.positionKey, itemID = lot.itemID,
-                character = scope.char, region = scope.region }
-            end
-          end
-          if #candidates > 0 then GC.Acquisitions.BindItemOnly(batch.id, candidates, scope) end
-        end
-      end
-    end
-  end
-  if S.repostingRow and S.repostPin then
-    local pinnedScope, scopeKey = activeScope(S.repostPin.position)
-    local stillOwned = pinnedScope and scopeKey == S.repostPin.scopeKey
-    if stillOwned then
-      stillOwned = false
-      for _, lot in ipairs(S.ownedLots) do
-        if lot.positionKey == S.repostPin.positionKey and lot.itemID == S.repostPin.itemID
-            and lot.auctionID == S.repostPin.auctionID and lot.quantity == S.repostPin.quantity
-            and lot.unitPrice == S.repostPin.listedUnit then
-          stillOwned = true
-          break
-        end
-      end
-    end
-    if not stillOwned then
-      disarmRepost()
-      setStatus(GC.L["Lot cancelled; wait for it to return to bags"])
-    end
-  end
-  onOwnedAuctionsReady()
-end
-
-function GC.Sell.OnThrottleReady()
-  -- A bulk fill that a press asked for goes before anything else this tab sends. It was tried
-  -- only at the press itself and from a once-a-second ticker, and lost both ways: at the press
-  -- the throttle was still shut by the walk's own search in flight, and after it the walk took
-  -- every ready tick the moment it came -- so the one message that prices the whole tab went
-  -- out last, or not at all, and a press looked exactly as slow as it always had (seen in game).
-  if S.refresh.bulkWanted and GC.Sell.TrySendBulk() then return end
-  -- ...and nothing else goes out over an unanswered batch, the listings query included.
-  if GC.Sell.BulkOutstanding() then return end
-  if S.refresh.phase == "waiting_owned" then
-    local sent, waiting = requestOwnedAuctions()
-    if sent then
-      S.refresh.phase = "owned"
-    elseif not waiting then
-      S.refresh.phase = "idle"
-      setStatus(GC.L["Auction House is not open"])
-    end
-    return
-  end
-  if S.refresh.pending and time() - S.refresh.pending.at > QUOTE_STALE_SECONDS then
-    skipPendingQuote(S.refresh.pending, true)
-    return
-  end
-  advanceQuote()
-end
-
-function GC.Sell.OnItemKeyInfo(itemID)
-  -- A lot this character owns was filed under a guessed key because the client could not say
-  -- whether the item sells as a commodity. It can now: re-key the roster from the auctions the
-  -- client is already holding (a local read, not a second query) so the listing and the bag
-  -- stock land on the same row again.
-  if S.ownedAwaitingKind[itemID] then
-    S.ownedAwaitingKind[itemID] = nil
-    if C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots then
-      S.ownedLots = GC.SellPositions.NormalizeOwnedLots(
-        classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
-      Compose.Positions()
-      renderRows()
-    end
-  end
-  -- Stock the tab could not key without this answer is scanned again: it can be filed now.
-  for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
-    if waiting.itemID == itemID then
-      Compose.Positions()
-      renderRows()
-      break
-    end
-  end
-  local awaiting = S.refresh.awaiting
-  if type(awaiting) == "string" then awaiting = GC.Sell._QuoteItemKey(awaiting) end
-  if S.refresh.phase == "waiting_key" and awaiting == itemID then advanceQuote() end
-end
-
-local function quoteResolved(kind, itemID, unit, levels)
-  local drainKey = kind .. ":" .. itemID
-  local tombstone = S.refresh.drain[drainKey]
-  if tombstone then
-    tombstone.terminals = tombstone.terminals - 1
-    local resume = tombstone.terminals <= 0 and tombstone.resumeGeneration == S.refresh.generation
-      and S.refresh.phase == "draining"
-    if tombstone.terminals <= 0 then S.refresh.drain[drainKey] = nil end
-    if resume then
-      S.refresh.phase = "pricing"
-      advanceQuote()
-    elseif S.refresh.phase == "error" then
-      S.refresh.phase = "idle"
-    end
-    return
-  end
-  local pending = S.refresh.pending
-  if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= S.refresh.generation then return end
-  if not exact(unit) or unit <= 0 then
-    -- An empty READ is not an empty ANSWER. GetNum*SearchResults reports whatever result set
-    -- the client holds for this key right now, and these events are raised by the Sniper's
-    -- searches too -- so a zero can mean "the auction house says nothing is listed" or "our own
-    -- reply is not in that slot". Only the first may wipe a quote and gag the item for a
-    -- minute; without the client's own proof this is treated as a timeout, which keeps the
-    -- quote and leaves the fence to catch the real answer when it lands.
-    local proven = Quotes.driver.hasFullResults == nil
-      or Quotes.driver.hasFullResults(itemID, kind == "commodity") ~= false
-    skipPendingQuote(pending, not proven)
-    return
-  end
-  S.refresh.pending = nil
-  S.refresh.phase = "pricing"
-  markProgress()
-  S.emptyAnswers[itemID] = nil -- a real price supersedes any remembered GC.L["nothing listed"]
-  -- Stamped from when the QUERY went out, not from now. The auction house's results events
-  -- carry no request identifier, so a reply cannot be proven to belong to the request waiting
-  -- for it (the addon's engineering notes says the same of commodity purchases) -- the drain fence below is
-  -- the best this file can do, and past DRAIN_MAX_SECONDS a lost reply can still be credited to
-  -- a re-ask. Dating the quote from the ask errs the only safe way: it can make a price look
-  -- older than it is, never fresher, so it ages out and is re-asked rather than backing a post.
-  GC.QuoteCache.Set(S.quotes, itemID, unit, pending.at or time())
-  -- Mirror the result into the persisted store: whatever Set just did to `quotes[itemID]` --
-  -- write it in (it never clears here, since `unit` is already known-valid above, but the
-  -- contract matches Set's either way) so a later reload can seed from it.
-  local persisted = Quotes.Persisted()
-  if persisted then
-    local resolved = S.quotes[itemID]
-    persisted[itemID] = resolved and { unit = resolved.unit, at = resolved.at } or nil
-  end
-  if unit and S.quotes[itemID] then S.quotes[itemID].levels = levels end
-  -- Carry what this walk just saw out of the game (live-prices spec).
-  -- Summarize gives the TRUE floor; `unit` here is the competing-not-own
-  -- price and must not masquerade as the book minimum. Guarded like every
-  -- other cross-module call in this file: specs load only the modules a
-  -- given test needs, so GC.Book/GC.Data may be absent outside the client.
-  -- An item's own floor only: a variant's answer is one variant's, not the item's.
-  local summary = type(itemID) == "number" and GC.Book and GC.Book.Summarize(levels)
-  if summary and GC.Data and GC.Data.RecordLiveObservation then
-    local scope = context()
-    GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
-      region = scope and scope.region, minUnit = summary.minUnit,
-      listings = summary.listings, totalQty = summary.totalQty,
-      levels = levels }, time())
-  end
-  Compose.Positions()
-  renderRows()
-  advanceQuote()
-end
-
--- `itemKey` is the key the answer is for (Core/Init.lua hands it on). An answer for an item-level
--- variant this walk asked about -- or is still draining -- is that variant's, filed under its
--- quote id; anything else goes by itemID, exactly as before.
-function GC.Sell.OnItemSearchResults(itemID, itemKey)
-  local id = itemID
-  local variant = type(itemKey) == "table" and GC.Acquisitions and GC.Acquisitions.PositionKey
-    and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
-  if variant and ((S.refresh.pending and S.refresh.pending.itemID == variant) or S.refresh.drain["item:" .. variant]) then
-    id = variant
-  end
-  quoteResolved("item", id, Quotes.driver.item(id), Quotes.driver.itemLevels(id))
-end
-function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, Quotes.driver.commodity(itemID), Quotes.driver.commodityLevels(itemID)) end
-
--- Post and Repost both need a quote fresher than they have. This used to call
--- the full Refresh, which re-queried the owned auctions and then every priced
--- item in the tab, one throttled round trip at a time -- so the "press it again
--- in a moment" the button promised could be a minute away, by which point the
--- quote for THIS item had aged out again and the next click started another
--- walk. That loop is why Post could not be pressed at all.
---
--- One item, one query. If a walk is already running the item is spliced in as
--- its next step rather than restarting anything.
-local function startQuoteRefreshFor(position)
-  local itemID = type(position) == "table" and (position.quoteKey or position.itemID) or nil
-  if not itemID then return GC.Sell.Refresh() end
-  if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then
-    setStatus(GC.L["Auction House is not open"])
-    return
-  end
-  -- Held OUTSIDE refresh.queue -- see the refresh table's own comment. Inserting into that
-  -- array dropped the item into a slot the walk stepped over whenever it was waiting on an
-  -- item key, and the queue rebuild that ends the owned phase threw it away outright. On an
-  -- idle tab too: refresh.priority is how advanceQuote knows a click asked for this, and a
-  -- click is the one request that does not stand aside for the player being busy elsewhere.
-  local queued = false
-  for _, waitingID in ipairs(S.refresh.priority) do
-    if waitingID == itemID then queued = true break end
-  end
-  if not queued then S.refresh.priority[#S.refresh.priority + 1] = itemID end
-  setStatus(GC.L["Checking this item's price…"])
-  if S.refresh.phase == "idle" or S.refresh.phase == "done" or S.refresh.phase == "error" then
-    S.refresh.generation = S.refresh.generation + 1
-    S.refresh.queue, S.refresh.index = {}, 0
-    S.refresh.pending, S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil, nil
-    S.refresh.phase = "pricing"
-    markProgress()
-    advanceQuote()
-    -- This one-item walk armed no watchdog at all, so an item that landed in "waiting_key" or
-    -- behind a drain fence left the machine sitting there: "PRICING…" for the rest of the
-    -- session, with the automatic repeat refusing to run (it will not leave a set phase) and
-    -- nothing but a manual REFRESH to get out.
-    armPhaseWatchdog()
-  else
-    -- A pass paused for the player has nothing in flight and is only waiting on its retry
-    -- timer; ask now rather than make the click wait for it. With a request already out, or
-    -- outside the pricing phases, advanceQuote declines on its own.
-    advanceQuote()
-  end
-end
-
 local function currentPosition(positionKey)
   for _, position in ipairs(S.positions) do
     if position.positionKey == positionKey then return position end
@@ -1705,7 +809,7 @@ function Post.PreparePost(row)
     -- lands, which is one query away now rather than a whole pass.
     if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
     setStatus(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
-    startQuoteRefreshFor(position); return
+    Walk.RefreshFor(position); return
   end
   if S.postingRow == row and row.postStage ~= "confirm" then return end
   if row.postStage == "confirm" then
@@ -1729,7 +833,7 @@ function Post.PreparePost(row)
         or not sameQuote or not confirmAvailable
         or (pin.duration ~= 1 and pin.duration ~= 2 and pin.duration ~= 3) then
       disarmPost()
-      if not sameQuote then startQuoteRefreshFor(position)
+      if not sameQuote then Walk.RefreshFor(position)
       else setStatus(GC.L["Post confirmation expired"]) end
       return
     end
@@ -1923,7 +1027,7 @@ end
 function Post.PrepareCancel(row, auctionID)
   local position = row.position
   if S.repostingRow and S.repostingRow ~= row then
-    disarmRepost()
+    Post.DisarmRepost()
     setStatus(GC.L["Previous repost selection cleared"])
     return
   end
@@ -1937,17 +1041,17 @@ function Post.PrepareCancel(row, auctionID)
   end
   local quote = Quotes.Fresh(position)
   if not quote then
-    if S.repostingRow == row then disarmRepost() end
+    if S.repostingRow == row then Post.DisarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
     -- a dead button. Say what is happening; the click that follows is the one that arms.
     setStatus(GC.L["Fetching a fresh price for this lot — press Repost again in a moment"])
-    startQuoteRefreshFor(position); return
+    Walk.RefreshFor(position); return
   end
   if row.repostStage == "armed" then
     if not row.repostReady then return end
     local pin = S.repostPin
     if not exactRenderEntry(row, pin) then
-      disarmRepost()
+      Post.DisarmRepost()
       setStatus(GC.L["Repost confirmation expired"])
       return
     end
@@ -1960,7 +1064,7 @@ function Post.PrepareCancel(row, auctionID)
       end
     end
     if not (C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots) then
-      disarmRepost()
+      Post.DisarmRepost()
       setStatus(GC.L["Repost confirmation expired"])
       return
     end
@@ -1973,7 +1077,7 @@ function Post.PrepareCancel(row, auctionID)
     -- CancelAuction below. classifyOwnedAuctions' own GetItemKeyInfo call is a plain C API, not
     -- a mixin method.
     local freshLots = GC.SellPositions.NormalizeOwnedLots(
-      classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
+      Owned.Classify(C_AuctionHouse.GetOwnedAuctions() or {}), time())
     S.ownedLots = freshLots
     local current
     for _, candidate in ipairs(freshLots) do
@@ -1990,7 +1094,7 @@ function Post.PrepareCancel(row, auctionID)
         or not current
         or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit
         or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
-      disarmRepost()
+      Post.DisarmRepost()
       setStatus(GC.L["Repost confirmation expired"])
       return
     end
@@ -2038,7 +1142,7 @@ function Post.PrepareCancel(row, auctionID)
     end)
     C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
       if token == repostArmToken and S.repostingRow == row and row.repostStage == "armed" then
-        disarmRepost()
+        Post.DisarmRepost()
         setStatus(GC.L["Repost confirmation expired"])
       end
     end)
@@ -2061,7 +1165,7 @@ function Post.Cancelling(row, pin, scope)
     local token = repostArmToken
     C_Timer.After(REPOST_CANCEL_TIMEOUT_SECONDS, function()
       if token == repostArmToken and S.repostingRow == row and row.repostStage == "cancelling" then
-        disarmRepost()
+        Post.DisarmRepost()
         setStatus(GC.L["Cancel timed out"])
       end
     end)
@@ -2250,7 +1354,7 @@ end
 function GC.Sell._RefreshAfterPost()
   if container and container.IsShown and not container:IsShown() then
     Compose.Positions()
-    if not S.postingRow then requestOwnedAuctions() end
+    if not S.postingRow then Owned.Request() end
   else
     GC.Sell.Refresh()
   end
@@ -2313,7 +1417,7 @@ end
 function GC.Sell.OnPostError()
   local ours = S.postingRow ~= nil
   disarmPost()
-  disarmRepost()
+  Post.DisarmRepost()
   if ours then
     GC.Sell._NotePost(GC.Util and GC.Util.ClientLine and GC.Util.ClientLine(_G.AUCTION_POSTING_ERROR_TEXT)
       or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
@@ -2962,7 +2066,7 @@ do
   -- looked hung. Anything already SENT keeps its pin until the server answers.
   function ROW.walkAway()
     if S.postingRow and S.postingRow.postStage == "confirm" then disarmPost() end
-    if S.repostingRow and S.repostingRow.repostStage == "armed" then disarmRepost() end
+    if S.repostingRow and S.repostingRow.repostStage == "armed" then Post.DisarmRepost() end
     if S.removingRow and S.removingRow.removeStage == "armed" then disarmRemove() end
   end
 
@@ -2974,7 +2078,7 @@ do
     if not (S.repostingRow and S.repostingRow.repostStage == "cancelling" and S.repostPin) then return end
     GC.Sell.cancelledLots[S.repostPin.auctionID] = { at = time() }
     S.refresh.ownedWanted = true -- ask for the listings again as soon as the throttle allows
-    disarmRepost()
+    Post.DisarmRepost()
     GC.Sell.OnOwnedAuctions()
     setStatus(GC.L["Cancelling lot…"])
   end
@@ -4738,7 +3842,7 @@ renderRows = function()
         -- re-asks -- but it cannot invent one for an item that has never answered.
         -- By quote id: an item-level variant's answers are its own (GC.Sell._QuoteItemKey).
         local quoteID = p.quoteKey or p.itemID
-        local answeredEmpty = restedEmptyFresh(quoteID, time())
+        local answeredEmpty = Walk.RestedEmptyFresh(quoteID, time())
         local requeryingThis = S.refresh.pending and S.refresh.pending.itemID == quoteID
         local rest = S.emptyAnswers[quoteID]
         local emptyKnown = answeredEmpty
@@ -5320,7 +4424,7 @@ renderRows = function()
   -- more than one row's worth, and a scroll child sized by entry COUNT would clip the drawer.
   content:SetHeight(math.max(ROW_HEIGHT, placedHeight))
   if detailContent then detailContent:SetHeight(math.max(ROW_HEIGHT, detailHeight)) end
-  scheduleQuoteExpiry()
+  Walk.ScheduleExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
 
@@ -5452,7 +4556,7 @@ function GC.Sell.Hide() if container then container:Hide() end end
 function GC.Sell.Tick()
   -- The listings again after a cancel, once, when the throttle lets it through: the client's
   -- own list is a cache that nothing else refreshes (see GC.Sell.cancelledLots).
-  if S.refresh.ownedWanted and requestOwnedAuctions() then S.refresh.ownedWanted = nil end
+  if S.refresh.ownedWanted and Owned.Request() then S.refresh.ownedWanted = nil end
   GC.Sell.TrySendBulk()
   -- A batch that never answered: once the wait is over, hand the tab's turn back. Nothing else
   -- would -- the ready event that the walk stood still through has been and gone.
@@ -5476,11 +4580,11 @@ function GC.Sell.Refresh(automatic)
   -- five-second repeat (`automatic`) is not, and neither is opening the tab mid-session. This
   -- is the one place a settled order is deliberately given up -- see rowPlaces.
   if not automatic then S.rowPlaces = {} end
-  abandonInFlightQuote()
+  Walk.Abandon()
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
   S.refresh.generation = S.refresh.generation + 1
   S.refresh.phase, S.refresh.queue, S.refresh.index = "owned", {}, 0
-  markProgress()
+  Walk.MarkProgress()
   if not automatic then
     -- A manual press means "ask for real": remembered no-listing answers are wiped so every
     -- row gets a genuine re-ask instead of being gagged by a minute-old empty result.
@@ -5499,8 +4603,8 @@ function GC.Sell.Refresh(automatic)
     -- AUCTION_CANCELED events regardless, and re-querying them here cost a throttled round
     -- trip plus its wait on every 5-second tick before a single price was asked -- and was
     -- one more phase the walk could wedge in.
-    beginQuoteWalk()
-    armPhaseWatchdog()
+    Walk.Begin()
+    Walk.ArmWatchdog()
     return
   end
   -- The whole tab in one message, before anything else is asked: if it goes, the listings
@@ -5508,10 +4612,10 @@ function GC.Sell.Refresh(automatic)
   S.refresh.bulkWanted, S.refresh.bulkLanded = true, nil
   if GC.Sell.TrySendBulk() then
     S.refresh.phase = "waiting_owned"
-    armPhaseWatchdog()
+    Walk.ArmWatchdog()
     return
   end
-  local sent, waiting = requestOwnedAuctions()
+  local sent, waiting = Owned.Request()
   if waiting then
     S.refresh.phase = "waiting_owned"
     setStatus(GC.L["Waiting for Auction House…"])
@@ -5519,10 +4623,10 @@ function GC.Sell.Refresh(automatic)
     S.refresh.phase = "idle"
     setStatus(GC.L["Auction House is not open"])
   end
-  armPhaseWatchdog()
+  Walk.ArmWatchdog()
 end
 function GC.Sell.Reset()
-  abandonInFlightQuote()
+  Walk.Abandon()
   S.refresh.generation = S.refresh.generation + 1
   S.refresh.phase, S.refresh.queue, S.refresh.index = "idle", {}, 0
   -- The rest of what the walk accumulates goes with the quote cache. It used to outlive it: the
@@ -5569,7 +4673,7 @@ function GC.Sell.Reset()
   S.walkRepeatToken = S.walkRepeatToken + 1
   S.watchdogToken = S.watchdogToken + 1
   disarmPost()
-  disarmRepost()
+  Post.DisarmRepost()
   disarmRemove()
 end
 
@@ -6339,14 +5443,14 @@ GC.slashHandlers.sellstate = function()
       local listed = type(position.listedQty) == "number" and position.listedQty > 0
       local commodity = type(position.positionKey) == "string"
         and position.positionKey:find("commodity:", 1, true) == 1
-      local restingAt = restedAt(position.quoteKey or position.itemID)
+      local restingAt = Walk.RestedAt(position.quoteKey or position.itemID)
       local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
         why = GC.L["identity unresolved (variant item -- not priced by design)"]
       elseif not (inBags or listed) then
         why = GC.L["no stock in bags or listed -- nothing to price for"]
-      elseif resting and restedEmptyFresh(position.quoteKey or position.itemID, time()) then
+      elseif resting and Walk.RestedEmptyFresh(position.quoteKey or position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       elseif resting then
         -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk

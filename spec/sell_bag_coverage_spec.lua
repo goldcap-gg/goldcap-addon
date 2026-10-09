@@ -246,7 +246,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     for _, row in ipairs(upvalue(render, "rows")) do
       assert.is_false(row:IsShown() and row.kind == "waitItem")
     end
-    local walk = upvalue(upvalue(GC.Sell.Refresh, "beginQuoteWalk"), "uniqueQuoteItemIDs")()
+    local walk = GC.SellWalk.Queue()
     for _, id in ipairs(walk) do assert.are_not.equal("item:222:619:0:0", id) end
   end)
 

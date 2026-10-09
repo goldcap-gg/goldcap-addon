@@ -273,8 +273,7 @@ describe("Sell tab, bags to Post", function()
   end)
 
   it("prices only what there is something to do with", function()
-    local ready = upvalue(GC.Sell.OnOwnedAuctions, "onOwnedAuctionsReady")
-    local walk = upvalue(upvalue(ready, "beginQuoteWalk"), "uniqueQuoteItemIDs")
+    local walk = GC.SellWalk.Queue
     compose()
     assert.same({ 23427 }, walk())
   end)

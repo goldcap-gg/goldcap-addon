@@ -117,7 +117,7 @@ describe("Sell refresh state fence", function()
   it("prices one commodity request and reports exact progress", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
     GC.Sell.Refresh()
     assert.equal(1, sent.owned)
     GC.Sell.OnOwnedAuctions()
@@ -222,7 +222,8 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
+    set(GC.Sell.Refresh, "setStatus", GC.SellView.status) -- Refresh's own lines, beside the walk's
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions()
@@ -245,7 +246,7 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
 
     GC.Sell.Refresh()
     ready = false
@@ -271,7 +272,7 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
 
     GC.Sell.Refresh()
     ready = false
@@ -304,7 +305,8 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     local driver = GC.SellQuotes.driver
     driver.isReady = function() return ready end
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
+    set(GC.Sell.Refresh, "setStatus", GC.SellView.status) -- Refresh's own lines, beside the walk's
 
     GC.Sell.Refresh()
     assert.equal(0, sent.owned)
@@ -353,7 +355,7 @@ describe("Sell refresh state fence", function()
       error("no timer waiting " .. tostring(seconds) .. "s")
     end
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
     fire(10)
@@ -372,7 +374,7 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     local driver = GC.SellQuotes.driver
     driver.item = function() return nil end
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
     -- An answer that came back empty means there is genuinely nothing on sale,
     -- so this key's stale quote goes -- unlike a timeout, which teaches nothing
@@ -520,7 +522,7 @@ describe("Sell refresh state fence", function()
       end
       GC.Sell.Refresh(true)
       assert.same({ 42, 43, 50 }, refreshState(GC).queue)
-      local setStatus = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "setStatus")
+      local setStatus = GC.SellView.status
       local paint = upvalue(setStatus, "paintRefreshButton")
       local button = { SetLabel = function(self, label) self.label = label end }
       set(paint, "container", { refreshButton = button })
@@ -685,7 +687,7 @@ describe("Sell refresh state fence", function()
     GC.SellPositions.Build = function()
       return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
     end
-    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
+    local startFor = GC.SellWalk.RefreshFor
     GC.Sell.Refresh() -- the owned phase: there is no queue to splice into yet
     startFor({ itemID = 77 })
     GC.Sell.OnOwnedAuctions()
@@ -704,7 +706,7 @@ describe("Sell refresh state fence", function()
     GC.SellPositions.Build = function()
       return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
     end
-    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
+    local startFor = GC.SellWalk.RefreshFor
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.equal("waiting_key", refreshState(GC).phase)
     startFor({ itemID = 77 })
@@ -724,7 +726,7 @@ describe("Sell refresh state fence", function()
       timers[#timers + 1] = { seconds = seconds, callback = callback }
     end }
     local GC = load(now, sent, cache, function() return nil end)
-    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
+    local startFor = GC.SellWalk.RefreshFor
     startFor({ itemID = 42 })
     assert.equal("waiting_key", refreshState(GC).phase)
     local watchdog
@@ -762,17 +764,16 @@ describe("Sell refresh state fence", function()
   it("[S8] does not price while the Sell tab is not the tab on screen", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local parked = upvalue(advance, "walkParked")
     set(GC.Sell.Attach, "renderRows", function() end)
-    set(parked, "container", { IsShown = function() return false end })
+    GC.SellView.render = function() end
+    set(GC.SellView.attached, "container", { IsShown = function() return false end })
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     -- The owned-auctions read and the composition still happen: the tab badge depends on them
     -- and they cost no price query.
     assert.equal(1, sent.owned)
     assert.same({}, sent.keys)
     assert.equal("idle", refreshState(GC).phase)
-    set(parked, "container", { IsShown = function() return true end })
+    set(GC.SellView.attached, "container", { IsShown = function() return true end })
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
   end)
@@ -791,7 +792,7 @@ describe("Sell refresh state fence", function()
     local busy = true
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
-    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
 
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({}, sent.keys)
@@ -816,7 +817,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
-    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
+    local startFor = GC.SellWalk.RefreshFor
 
     startFor({ itemID = 77 }) -- the tab is idle: a one-item check
     assert.same({ 77 }, sent.keys)
@@ -863,7 +864,7 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function(itemID) return keyed[itemID] and { isCommodity = true } or nil end)
     local busy = false
     GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
-    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
+    local startFor = GC.SellWalk.RefreshFor
 
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.equal("waiting_key", refreshState(GC).phase) -- the pass is waiting on 42's key
@@ -887,10 +888,9 @@ describe("Sell refresh state fence", function()
   it("does not price while the GoldCap window itself is closed", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
-    local parked = upvalue(advance, "walkParked")
     set(GC.Sell.Attach, "renderRows", function() end)
-    set(parked, "container", { IsShown = function() return true end })
+    GC.SellView.render = function() end
+    set(GC.SellView.attached, "container", { IsShown = function() return true end })
     local windowShown = false
     GC.Sniper.IsWindowShown = function() return windowShown end
 
@@ -983,7 +983,7 @@ describe("Sell refresh state fence", function()
     _G.C_AuctionHouse.GetItemKeyInfo = function(key)
       return key.itemID == 43 and { isCommodity = true } or nil
     end
-    local classify = upvalue(GC.Sell.OnOwnedAuctions, "classifyOwnedAuctions")
+    local classify = GC.SellOwned.Classify
     local auctions = { { itemKey = { itemID = 42 } }, { itemKey = { itemID = 43 } },
       { itemKey = { itemID = 44 } } }
     classify(auctions)

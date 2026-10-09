@@ -96,6 +96,8 @@ Services/Sell/State.lua
 Services/Sell/Quotes.lua
 Services/Sell/Bags.lua
 Services/Sell/Compose.lua
+Services/Sell/Owned.lua
+Services/Sell/Walk.lua
 Data/MarketData.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
