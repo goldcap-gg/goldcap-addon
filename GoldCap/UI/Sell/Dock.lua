@@ -651,8 +651,8 @@ function Dock.Build(f)
   queueHeldBack:Hide()
   container.queueHeldBack = queueHeldBack
 
-  -- A FontString cannot take mouse scripts (see the header-cell hit frames a little further
-  -- down for the same fix) -- this invisible frame over the label is what actually raises the
+  -- A FontString cannot take mouse scripts (see the header cells' hit frames in GC.Sell.Attach
+  -- for the same fix) -- this invisible frame over the label is what actually raises the
   -- tooltip. Content is read from queueSkipped live, at hover time, rather than baked in when
   -- the label's text was last set, so it can never go stale between two renders.
   local queueHeldBackHit = CreateFrame("Frame", nil, container)
