@@ -63,6 +63,7 @@ describe("Sell tab, a Sniper request still out after the switch", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       SetFrameStrata = function() end,
       -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
       -- HIGH + toplevel while floating, the host's strata while docked.

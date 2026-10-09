@@ -83,6 +83,7 @@ describe("TOC load order", function()
         SetFont = function() end,
         GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
         RegisterForClicks = function() end,
+        SetPushedTexture = function() end,
         -- Sniper v3 (SniperFrame.lua T5 chrome rebuild): the purchase dialog now floats via
         -- its own strata, and persistWindowGeometry reads GetWidth alongside the pre-existing
         -- GetHeight now that the window is width-resizable too.

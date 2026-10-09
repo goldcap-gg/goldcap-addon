@@ -29,6 +29,8 @@ local function stubFrame()
   function f:SetBlendMode(mode) self.blend = mode end
   function f:SetAllPoints(rel) self.allPoints = rel end
   function f:SetAlpha(a) self.alpha = a end
+  function f:SetPushedTexture(t) self.pushedTexture = t end
+  function f:SetTexCoord(...) self.texCoord = { ... } end
   function f:Show() self.shown = true end
   function f:Hide() self.shown = false end
   function f:IsShown() return self.shown end
@@ -116,7 +118,7 @@ describe("Theme.Button rounded mode / Theme.TierMark", function()
     assert.is_nil(btn.bg.colorTexture)
     assert.is_truthy(btn.bg.vertex)
     local spec = T.color.gold
-    assert.same({ spec[1], spec[2], spec[3], 0.16 }, btn.bg.vertex)
+    assert.same({ spec[1], spec[2], spec[3], 0.14 }, btn.bg.vertex)
   end)
 
   it("leaves square mode (nil 3rd arg) exactly as before: solid bg, no ring", function()

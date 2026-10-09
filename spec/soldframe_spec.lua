@@ -51,6 +51,7 @@ describe("SoldFrame", function()
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
     function r:RegisterForClicks() end
+    function r:SetPushedTexture(t) self.pushedTexture = t end
     function r:Enable() end
     function r:Disable() end
     function r:SetScrollChild() end

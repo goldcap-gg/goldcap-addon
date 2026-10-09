@@ -95,7 +95,7 @@ function W.FontString(parent, inherits)
   return f
 end
 
--- CreateFrame's double. A Button is a Frame here: the specs that use it need no button method.
+-- CreateFrame's double. A Button is a Frame with the state methods Theme.Button calls.
 function W.CreateFrame(kind, _, parent)
   local f, s = region(kind or "Frame", parent)
   s.level = 1
@@ -135,6 +135,25 @@ function W.CreateFrame(kind, _, parent)
     STATE[t].layer = layer
     STATE[t].sublevel = sublevel
     return t
+  end
+  -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
+  -- change, as the client does.
+  if s.kind == "Button" then
+    s.enabled = true
+    function f:RegisterForClicks(...) s.clicks = { ... } end
+    function f:SetPushedTexture(t) s.pushed = t end
+    function f:GetPushedTexture() return s.pushed end
+    function f:IsEnabled() return s.enabled end
+    function f:Enable()
+      if s.enabled then return end
+      s.enabled = true
+      if s.scripts.OnEnable then s.scripts.OnEnable(f) end
+    end
+    function f:Disable()
+      if not s.enabled then return end
+      s.enabled = false
+      if s.scripts.OnDisable then s.scripts.OnDisable(f) end
+    end
   end
   return f
 end

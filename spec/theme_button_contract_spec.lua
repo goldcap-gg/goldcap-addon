@@ -39,9 +39,13 @@ describe("Theme.Button real-widget label contract", function()
     function f:SetFont(path, size, flags) self.font = { path, size, flags } end
     function f:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
     function f:SetColorTexture(...) self.colorTexture = { ... } end
+    function f:SetTexture(file) self.file = file end
+    function f:SetVertexColor(...) self.vertex = { ... } end
     function f:SetBlendMode(mode) self.blend = mode end
     function f:SetAllPoints(rel) self.allPoints = rel end
     function f:SetAlpha(a) self.alpha = a end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
+    function f:SetTexCoord(...) self.texCoord = { ... } end
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
     function f:IsShown() return self.shown end

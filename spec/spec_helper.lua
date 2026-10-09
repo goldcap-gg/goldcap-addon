@@ -15,7 +15,7 @@ _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
-helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua" }
+helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua" }
 
 function helper.loadModule(relPath, GC)
   GC = GC or {}

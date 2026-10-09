@@ -30,6 +30,7 @@ local function stubFrame()
   function f:SetBlendMode(mode) self.blend = mode end
   function f:SetAllPoints(rel) self.allPoints = rel end
   function f:SetAlpha(a) self.alpha = a end
+  function f:SetPushedTexture(t) self.pushedTexture = t end
   function f:Show() self.shown = true end
   function f:Hide() self.shown = false end
   function f:IsShown() return self.shown end

@@ -114,6 +114,8 @@ describe("locale contract", function()
       -- A widget factory: every SetText takes its text from the caller, already translated
       -- there. Its only literal is the brand, "GoldCap".
       ["GoldCap/UI/Theme.lua"] = true,
+      -- Theme.Button, moved out of Theme.lua: the same widget factory, the label comes from the caller.
+      ["GoldCap/UI/Kit/Button.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,
       -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain

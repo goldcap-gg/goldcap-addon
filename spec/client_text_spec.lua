@@ -310,6 +310,8 @@ describe("Theme: a FontString in a client face", function()
     function f:SetBlendMode(mode) self.blend = mode end
     function f:SetAllPoints(rel) self.allPoints = rel end
     function f:SetAlpha(a) self.alpha = a end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
+    function f:SetTexCoord(...) self.texCoord = { ... } end
     function f:SetDrawLayer(l) self.layer = l end
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
@@ -344,10 +346,11 @@ describe("Theme: a FontString in a client face", function()
 
   -- A rounded button draws in GoldCap's own face (T.FONT_UI), which has the triangle the list
   -- picker ends in; only the client's faces need the text changed.
-  it("leaves a rounded button's label as written", function()
+  it("draws a rounded button's trailing ▼ as the caret icon", function()
     local button = GC.Theme.Button(stubRegion(), "ghost", "plaque")
     button:SetLabel("Quick list ▼")
-    assert.equal("Quick list ▼", button.text.drawn)
+    assert.equal("Quick list", button.text.drawn)
+    assert.equal("Quick list ▼", button.label)
   end)
 
   it("wraps a FontString once however often it is handed over", function()

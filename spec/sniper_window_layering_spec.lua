@@ -84,6 +84,7 @@ describe("Sniper window layering", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       -- Recorded, not discarded: layering IS this spec's subject.
       SetFrameStrata = function(self, strata) self.strata = strata end,
       GetFrameStrata = function(self) return self.strata or "MEDIUM" end,

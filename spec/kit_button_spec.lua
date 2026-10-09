@@ -1,0 +1,63 @@
+local helper = require("spec.spec_helper")
+local W = require("spec.support.wow_frames")
+
+describe("kit button", function()
+  local GC, restore
+
+  before_each(function()
+    restore = W.install()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("UI/Theme.lua", GC)
+    GC.Theme.RefreshFonts("enUS")
+  end)
+
+  after_each(function() restore() end)
+
+  local function button(variant, rounded)
+    return GC.Theme.Button(W.CreateFrame("Frame"), variant, rounded)
+  end
+
+  it("darkens while held through the engine's pushed state, not a mouse script", function()
+    local b = button("ghost", "plaque")
+    assert.equal(b.pressedTexture, W.state(b).pushed)
+    assert.is_nil(W.state(b).scripts.OnMouseDown)
+  end)
+
+  it("labels in the condensed heading face: 10 rounded, 12 square", function()
+    local rounded, square = button("ghost", "badge"), button("ghost")
+    assert.same({ GC.Theme.FONT_HEAD, 10 }, { W.state(rounded.text).font[1], W.state(rounded.text).font[2] })
+    assert.same({ GC.Theme.FONT_HEAD, 12 }, { W.state(square.text).font[1], W.state(square.text).font[2] })
+  end)
+
+  it("draws a trailing ▼ as the atlas caret and keeps the label as given", function()
+    local b = button("ghost", "plaque")
+    b:SetLabel("SHOW DETAILS ▼")
+    assert.equal("SHOW DETAILS ▼", b.label)
+    assert.equal("SHOW DETAILS", W.state(b.text).text)
+    assert.same({ GC.Theme.IconCoords("caretDown") }, W.state(b.caret).texCoord)
+    assert.is_true(W.state(b.caret).shown)
+  end)
+
+  it("takes the caret away again for a label without one, as a pooled row is rebound", function()
+    local b = button("ghost", "plaque")
+    b:SetLabel("All ▼")
+    b:SetLabel("Post")
+    assert.is_false(W.state(b.caret).shown)
+    assert.equal("Post", W.state(b.text).text)
+  end)
+
+  it("glows only while primary and enabled", function()
+    local b = button("primary", "plaque")
+    assert.is_true(W.state(b.glow).shown)
+    b:Disable()
+    assert.is_false(W.state(b.glow).shown)
+    b:Enable()
+    assert.is_true(W.state(b.glow).shown)
+    b:SetVariant("ghost")
+    assert.is_false(W.state(b.glow).shown)
+  end)
+
+  it("builds no glow for a button that is never primary", function()
+    assert.is_nil(button("ghost", "badge").glow)
+  end)
+end)

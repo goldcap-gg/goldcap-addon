@@ -532,6 +532,7 @@ describe("Row click wiring (whole-row left-click acts)", function()
     function f:SetScript(name, fn) self.scripts[name] = fn end
     function f:HookScript(name, fn) self.scripts[name] = fn end
     function f:RegisterForClicks(kind) self.clicks = kind end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
     function f:EnableMouse(enabled) self.mouseEnabled = enabled end
     function f:Enable() self.enabled = true; if self.scripts.OnEnable then self.scripts.OnEnable(self) end end
     function f:Disable() self.enabled = false; if self.scripts.OnDisable then self.scripts.OnDisable(self) end end
@@ -803,6 +804,7 @@ describe("Sniper window OnHide clears the hover pin", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       SetFrameStrata = function() end,
       -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
       -- HIGH + toplevel while floating, the host's strata while docked.

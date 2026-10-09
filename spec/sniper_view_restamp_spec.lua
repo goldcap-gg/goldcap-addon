@@ -93,6 +93,7 @@ describe("Deals board re-stamps itself on the way back", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       SetFrameStrata = function() end,
       SetToplevel = function() end,
       GetFrameStrata = function() return "MEDIUM" end,
