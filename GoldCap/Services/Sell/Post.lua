@@ -732,7 +732,7 @@ end
 -- ours is on the wire: a "busy" the query drew would be read as that post's; its own creation
 -- asks next.
 function GC.Sell._RefreshAfterPost()
-  if View.isShown() == false then
+  if View.attached() and not View.isShown() then
     Compose.Positions()
     if not S.postingRow then Owned.Request() end
   else

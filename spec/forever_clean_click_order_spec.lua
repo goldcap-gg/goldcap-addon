@@ -97,6 +97,9 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       local afterAt = assert(click:find("Post.Cancelling(row, pin, scope)", callAt, true),
         "positions must still be recomposed, with their paints, after the call")
       assert.is_true(afterAt > callAt)
+      local cancelling = helper.functionBody(helper.sellSource(), "function Post.Cancelling(row, pin, scope)")
+      assert.is_truthy(cancelling:find("Compose.Positions()", 1, true),
+        "positions must still be recomposed, with their paints, after the call")
     end)
   end)
 

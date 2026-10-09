@@ -26,6 +26,23 @@ describe("GC.Sell.Reset", function()
     GC.Sell._owedUntil = 99
     local generation, expiry = S.refresh.generation, S.quoteExpiryGeneration
     local repeatToken, watchdog = S.walkRepeatToken, S.watchdogToken
+    -- Each machine is armed on a row whose button has the real widget's methods, so Reset's disarm
+    -- is seen to restore it.
+    local function armedRow(stageField, stage)
+      local row = { action = {} }
+      row[stageField] = stage
+      row.action.Enable = function() end
+      row.action.Disable = function() end
+      row.action.SetLabel = function() end
+      row.action.SetBusy = function() end
+      return row
+    end
+    local posting = armedRow("postStage", "posting")
+    local reposting = armedRow("repostStage", "cancelling")
+    local removing = armedRow("removeStage", "confirming")
+    S.postingRow, S.postingPin = posting, { sent = true }
+    S.repostingRow, S.repostPin = reposting, { sent = true }
+    S.removingRow, S.removePin = removing, { sent = true }
 
     GC.Sell.Reset()
 
@@ -50,6 +67,12 @@ describe("GC.Sell.Reset", function()
     assert.is_nil(S.postingRow)
     assert.is_nil(S.repostingRow)
     assert.is_nil(S.removingRow)
+    assert.is_nil(S.postingPin)
+    assert.is_nil(S.repostPin)
+    assert.is_nil(S.removePin)
+    assert.is_nil(posting.postStage)
+    assert.is_nil(reposting.repostStage)
+    assert.is_nil(removing.removeStage)
   end)
 
   it("keeps what outlives a visit: drain tombstones, positions, typed prices, the deck, cancelled lots", function()

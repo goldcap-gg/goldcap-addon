@@ -85,6 +85,11 @@ describe("Services/Sell", function()
       for _, name in ipairs(PROTECTED) do
         assert.is_nil(text:find("C_AuctionHouse." .. name .. "(", 1, true), path .. " calls C_AuctionHouse." .. name)
       end
+      for _, name in ipairs({ "PostItem", "PostCommodity", "ConfirmPostItem", "ConfirmPostCommodity",
+          "CancelAuction" }) do
+        assert.is_nil(text:find("=%s*C_AuctionHouse%." .. name .. "%f[^%w_]"), path .. " aliases C_AuctionHouse." .. name)
+      end
+      assert.is_nil(text:find("C_AuctionHouse%s*%["), path .. " indexes C_AuctionHouse by key")
     end
   end)
 
@@ -105,6 +110,9 @@ describe("Services/Sell", function()
           for _, name in ipairs(MODULES) do
             assert.is_nil(line:match("%f[%w_]" .. name .. "%.%u"), path .. ": " .. line)
           end
+          local rhs = line:match("=(.*)$") or ""
+          assert.is_nil(rhs:find("%f[%w_]View%.%a"), path .. ": copies a view slot: " .. line)
+          assert.is_nil(rhs:find("GC%.SellView%.%a"), path .. ": copies a view slot: " .. line)
         end
       end
     end
