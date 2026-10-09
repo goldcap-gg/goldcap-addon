@@ -112,7 +112,7 @@ UI.DR = {
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
   PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
   -- "wall", at the start of its own level's bar: the bar starts after it. Measured where the client
-  -- can (INSP.paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
+  -- can (UI/Sell/Book.lua's paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
   -- Theme.Scale() 1.3 with air -- 28 cut it to "ст…" (final review I2).
   WALL_TAG_W = 38,
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
