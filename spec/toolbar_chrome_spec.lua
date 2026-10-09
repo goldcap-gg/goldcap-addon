@@ -34,6 +34,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     function w:IsShown() return self.shown end
     function w:SetActive(active) self.active = active end
     function w:SetText(text) self.text = text end
+    function w:GetText() return self.text end
     function w:SetTextColor(...) self.color = { ... } end
     return w
   end
@@ -94,7 +95,6 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     local setView = upvalue(createFrame, "setView")
 
     local status = widget()
-    function status:GetText() return self.text end
     status.shown = true
     local fakeFrame = {
       scroll = widget(), headerRow = widget(),
@@ -455,6 +455,29 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
   -- 0.9.2's board switch: two chips at the top of the deals board, built exactly like the Sell
   -- tab's own deck switch and carried in f.dealsChrome, so they leave with the rest of the
   -- Deals-only chrome rather than sitting over the Sell tab meaning nothing.
+  -- The real window: setView hides the Sold tab on every switch, and Sold.Hide used to show the
+  -- line again after setView had hidden it, so Sell came up with it over MY LOTS.
+  it("keeps the status line off every tab but Deals, and writes it again when Deals comes back", function()
+    local frame = buildFrame()
+    local status = frame.status
+    status.shown, status.text, status.writes = true, "scanning auction house...", {}
+    status.Show = function(self) self.shown = true end
+    status.Hide = function(self) self.shown = false end
+    status.SetText = function(self, text) self.text = text; self.writes[#self.writes + 1] = text end
+    status.GetText = function(self) return self.text end
+
+    for _, tab in ipairs({ "sellTab", "buyTab", "sellTab" }) do
+      frame[tab].scripts.OnClick()
+      assert.is_false(status.shown, tab)
+    end
+    -- A Deals scan writes the line behind the other tabs too.
+    status:SetText("scanning auction house...")
+    status.writes = {}
+    frame.dealsTab.scripts.OnClick()
+    assert.is_true(status.shown)
+    assert.same({ "", "scanning auction house..." }, status.writes)
+  end)
+
   it("hides the board chips with the rest of the Deals chrome, and brings them back", function()
     local frame = buildFrame()
     assert.is_table(frame.boardChips)

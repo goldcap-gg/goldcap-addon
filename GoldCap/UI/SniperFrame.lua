@@ -10628,9 +10628,14 @@ local function setView(v)
   -- Dock.lua's setStatus) and says each one in its own dock; off Deals the line sits over the tab's
   -- own controls (Sell's MY LOTS, seen 2026-10-09 once the window's glass stopped hiding it). Back
   -- on Deals, a message Sell left in it is cleared rather than shown as if it were about the board.
+  -- Written again as it is shown: a one-line FontString hidden and shown again can keep its text
+  -- undrawn, and setting the text it already holds does not redraw it (the engineering notes' "Text").
   if isDeals then
+    local text = frame.status:GetText() or ""
+    if GC.Sell and text == GC.Sell._lastStatus then text = "" end
+    frame.status:SetText("")
+    frame.status:SetText(text)
     frame.status:Show()
-    if GC.Sell and GC.Sell._lastStatus and frame.status:GetText() == GC.Sell._lastStatus then frame.status:SetText("") end
   else
     frame.status:Hide()
   end
@@ -11208,8 +11213,8 @@ local function createFrame()
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
   --
-  -- `status` is not in this list: setView shows it on Deals only, and clears what the Sell tab
-  -- left in it (GC.Sell.Attach in UI/Sell/Frame.lua captures this same `f` as `UI.window`, and
+  -- `status` is not in this list: setView alone shows it, on Deals only, and clears what the Sell
+  -- tab left in it (GC.Sell.Attach in UI/Sell/Frame.lua captures this same `f` as `UI.window`, and
   -- Dock.SetStatus writes its messages through `UI.window.status:SetText` as well as its dock).
   f.dealsChrome = { verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText,
     f.boardChips.commodities, f.boardChips.items }
