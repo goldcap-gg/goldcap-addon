@@ -121,7 +121,7 @@ describe("Services/Sell", function()
       assert.is_function(GC.SellView[name], name)
       assert.are_not.equal(fn, GC.SellView[name], name .. " is still the default")
     end
-    assert.is_nil(GC.SellView.shown(), "shown() is nil before GC.Sell.Attach")
+    assert.is_nil(GC.SellView.isShown(), "isShown() is nil before GC.Sell.Attach")
     assert.is_false(GC.SellView.attached())
   end)
 end)

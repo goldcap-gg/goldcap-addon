@@ -7209,11 +7209,11 @@ GC.SellView.paintCancel = paintCancelButton
 GC.SellView.paintDeck = function()
   if container and container.paintDeckSwitch then container.paintDeckSwitch() end
 end
-GC.SellView.notePost = GC.Sell._NotePost
-GC.SellView.endPostNote = GC.Sell._EndPostNote
+GC.SellView.notePost = function(...) return GC.Sell._NotePost(...) end
+GC.SellView.endPostNote = function(...) return GC.Sell._EndPostNote(...) end
 GC.SellView.attached = function() return container ~= nil end
 -- nil until the tab is built, then its own shown flag: the two questions the services ask of it
 -- ("is it built", "is it up") stay as distinct as `container ~= nil` and `container:IsShown()` were.
-GC.SellView.shown = function()
+GC.SellView.isShown = function()
   if container and container.IsShown then return container:IsShown() end
 end

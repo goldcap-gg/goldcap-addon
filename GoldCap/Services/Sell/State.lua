@@ -50,7 +50,7 @@ GC.SellView = {
   notePost = nothing,    -- GC.Sell._NotePost(text, tone, seconds): the dock's note on the player's own post
   endPostNote = nothing, -- GC.Sell._EndPostNote(heldOnly): that note let go
   attached = function() return false end, -- GC.Sell.Attach has built the tab
-  shown = nothing,       -- the tab's own shown flag; nil until it is built
+  isShown = nothing,     -- the tab's own shown flag; nil until it is built
 }
 
 local MAX_EXACT = 9007199254740991

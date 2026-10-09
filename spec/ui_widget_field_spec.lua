@@ -59,10 +59,7 @@ describe("widget fields the real client actually has", function()
     local file = assert(io.open(path, "r"), path .. " is missing")
     local text = file:read("*a")
     file:close()
-    -- GC.SellView.shown (and View.shown, the alias the Sell services use) is a function slot of the
-    -- view's hooks, not a widget field.
-    text = stripComments(text):gsub("SellView%.shown", "SellView.shownSlot"):gsub("View%.shown", "View.shownSlot")
-    return text
+    return stripComments(text)
   end
 
   for _, path in ipairs(SOURCES) do

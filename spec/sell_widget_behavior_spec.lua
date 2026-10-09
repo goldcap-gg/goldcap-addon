@@ -210,6 +210,18 @@ describe("Sell widget geometry and manual cost", function()
   -- mail, the bank, or on another character. Its status used to talk about cost coverage,
   -- which answered a question nobody asked while the real one -- "where is my ore?" -- went
   -- unanswered.
+  it("tells the Sell services the tab is built and whether it is up, once Attach has run", function()
+    local GC = load(900, {})
+    local container = upvalue(upvalue(GC.Sell.Attach, "renderRows"), "container")
+    assert.is_true(GC.SellView.attached())
+    container:Show()
+    assert.is_true(container:IsShown())
+    assert.equal(container:IsShown(), GC.SellView.isShown())
+    container:Hide()
+    assert.is_false(container:IsShown())
+    assert.equal(container:IsShown(), GC.SellView.isShown())
+  end)
+
   it("says where the stock is not, for a position with no bags and no listings", function()
     local GC = load(620, { calls = {} })
     local rows = topRows(GC, {
