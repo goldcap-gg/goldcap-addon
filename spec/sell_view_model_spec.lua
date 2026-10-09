@@ -29,29 +29,6 @@ describe("Sell view model", function()
       sources = { auction_house = 2, craft = 4, manual = 1 }, coverage = "COMPLETE" }))
   end)
 
-  it("renders unknown summary instead of zero profit", function()
-    local text = GC.SellViewModel.SummaryText({ knownCost = 1000,
-      listedValue = 2000, profit = nil, partialCount = 1, unknownCount = 2 })
-    assert.equal("Unknown · 1 partial · 2 missing", text.profit)
-  end)
-
-  -- Item 2 (addon polish batch): a real profit total that left positions out (missing cost or
-  -- price) must carry its own marker, not just a hover tooltip -- see the honesty comment in
-  -- UI/Sell/Dock.lua's updateSummary right above where this reaches the screen.
-  it("marks a partial profit total as partial when positions were excluded", function()
-    local text = GC.SellViewModel.SummaryText({ knownCost = 1000, listedValue = 2000,
-      profit = 500, countedCount = 3, excludedNoCost = 1, excludedNoPrice = 0 })
-    assert.is_true(text.partial)
-    assert.equal("*", text.profitMarker)
-  end)
-
-  it("does not mark a complete profit total as partial", function()
-    local text = GC.SellViewModel.SummaryText({ knownCost = 1000, listedValue = 2000,
-      profit = 500, countedCount = 3, excludedNoCost = 0, excludedNoPrice = 0 })
-    assert.is_false(text.partial)
-    assert.is_nil(text.profitMarker)
-  end)
-
   it("puts partial and unknown positions in the missing-cost view", function()
     local partial = { coverage = "PARTIAL" }
     local unknown = { coverage = "UNKNOWN" }
@@ -167,7 +144,6 @@ describe("Sell view model", function()
       allocations = { { batchID = "a", quantity = 1 } }, outlook = { days = 1 }, recommendation = { action = "repost", rec = { unit = 9 } } }
     GC.SellViewModel.Filter({ position }, "all")
     GC.SellViewModel.SourceText(position); GC.SellViewModel.CostText(position); GC.SellViewModel.ProfitText(position)
-    GC.SellViewModel.SummaryText({ knownCost = 10, listedValue = 12, profit = 2 })
     GC.SellViewModel.Expansion(position)
     assert.same(snapshot, position)
   end)

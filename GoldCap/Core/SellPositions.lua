@@ -1055,49 +1055,24 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
   return nil, "unknown_auction"
 end
 
-function GC.SellPositions.Summary(positions)
-  local invested, listedValue, projected = 0, 0, 0
-  local complete = true
-  -- `profit` used to be all-or-nothing: one PARTIAL/UNKNOWN position, or one COMPLETE position
-  -- with no live quote yet, nulled the entire total, even though every other position on the
-  -- list had a perfectly good, individually-known profit. Count each position on its own terms
-  -- instead -- COMPLETE coverage and a priced projection, the same two gates `position.profit`
-  -- itself is set under at ~:496 -- and sum only those, reporting what got left out rather than
-  -- pretending the whole total is unknown because of them.
-  local countedCount, excludedNoCost, excludedNoPrice = 0, 0, 0
-  local countedCost, countedNet = 0, 0
-  for _, position in ipairs(positions or {}) do
-    if position.coverage ~= "COMPLETE" then complete = false end
-    invested = invested ~= nil and add(invested, position.knownCost) or nil
-    listedValue = listedValue ~= nil and add(listedValue, position.listedValue) or nil
-    if not complete or projected == nil or position.projectedNet == nil then projected = nil
-    else projected = add(projected, position.projectedNet) end
-
-    if position.coverage ~= "COMPLETE" then
-      excludedNoCost = excludedNoCost + 1
-    elseif position.projectedNet == nil then
-      excludedNoPrice = excludedNoPrice + 1
-    else
-      countedCount = countedCount + 1
-      countedCost = countedCost ~= nil and add(countedCost, position.knownCost) or nil
-      countedNet = countedNet ~= nil and add(countedNet, position.projectedNet) or nil
-    end
+--- What `lines` bring in once they sell and the auction house has taken its 5%, and what that
+-- leaves after what the stock cost: the Sell tab's two totals. A line is { qty = units, unit =
+-- copper each, position = the position they come from }; the cut is taken a line at a time, as
+-- the auction house takes it a sale at a time. Nil for no lines: nothing to add up is not a
+-- zero. `profit` is nil unless the cost of every line is known (PriceRisk's paidUnit, COMPLETE
+-- coverage only) -- a total that left some stock's cost out would show a profit the player does
+-- not have. Both nil when a figure would leave exact accounting.
+function GC.SellPositions.Proceeds(lines)
+  if type(lines) ~= "table" or #lines == 0 then return nil, nil end
+  local proceeds, cost = 0, 0
+  for _, line in ipairs(lines) do
+    proceeds = proceeds and add(proceeds, netFor(line.qty, line.unit))
+    local paidUnit = GC.SellPositions.PriceRisk(line.position, line.unit).paidUnit
+    cost = cost and paidUnit and add(cost, valueFor(line.qty, paidUnit)) or nil
   end
-  -- Same shape as the all-or-nothing `projected - invested` below: sum the two non-negative
-  -- sides separately (add() rejects negatives, so a signed per-position profit can't be summed
-  -- directly), subtract once, and gate the signed result through exactSigned -- the identical
-  -- overflow guard `position.profit` itself relies on.
-  local profit
-  if countedCount > 0 and countedCost ~= nil and countedNet ~= nil then
-    local candidate = countedNet - countedCost
-    if exactSigned(candidate) then profit = candidate end
-  end
-  if not invested or not listedValue or not complete or projected == nil then
-    return { invested = invested, listedValue = listedValue, projected = nil, profit = profit,
-      countedCount = countedCount, excludedNoCost = excludedNoCost, excludedNoPrice = excludedNoPrice }
-  end
-  return { invested = invested, listedValue = listedValue, projected = projected, profit = profit,
-    countedCount = countedCount, excludedNoCost = excludedNoCost, excludedNoPrice = excludedNoPrice }
+  if not proceeds then return nil, nil end
+  local profit = cost and proceeds - cost
+  return proceeds, profit and exactSigned(profit) and profit or nil
 end
 
 -- Cheapest unit price in the book at which somebody OTHER than the player is selling.

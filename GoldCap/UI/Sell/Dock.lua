@@ -1,5 +1,5 @@
 -- The dock along the bottom of the Sell tab, and every click that posts or cancels. The bulk action
--- (POST n / CANCEL n), the two lines beside it and the three totals; the status line; and the click
+-- (POST n / CANCEL n), the two lines beside it and the totals; the status line; and the click
 -- handlers. onPostClick and onRepostClick are the only places the tab makes a protected
 -- auction-house call, one per click, before anything else the click does (docs/addon/AGENTS.md
 -- "Protected actions"). A row's buttons, the inspector's Post and Cancel lot, the dock and the key
@@ -9,7 +9,6 @@ local _, GC = ...
 local Theme = GC.Theme
 local S = GC.SellState
 local Post = GC.SellPost
-local exact, safeAdd = GC.SellUtil.exact, GC.SellUtil.safeAdd
 local UI = GC.SellUI
 local Dock = UI.Dock
 local ROW, DOCK = UI.ROW, UI.DOCK
@@ -370,18 +369,27 @@ local function onRepostClick(row, auctionID)
 end
 Dock.OnRepostClick = onRepostClick
 
--- The footer ledger's three labels, same split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS in
--- UI/Sell/Inspector.lua and for the same reason. "AT MARKET" and "ASKING", not "PROFIT" and
--- "LISTED" (2026-09-11): a player reads three figures left to right as ASKING minus COST equalling
--- the rightmost one, and that arithmetic is false -- ASKING is the sum of the player's own typed
--- prices, AT MARKET is what GoldCap projects these lots clear after the 5% cut, at a price nobody
--- typed. Distinct labels don't fix the misreading by themselves; the AT MARKET tooltip carries the
--- actual sentence.
+-- The footer ledger's two totals, right to left (owner, 2026-10-10). Its three figures before
+-- them were COST, ASKING and AT MARKET over every row on the deck, and read "0", "0" and
+-- "Unknown" on a deck whose every price was known: the tab had moved on to a selling list and a
+-- price per row, and the totals had not. PROCEEDS is what the deck brings in at the prices on
+-- it, after the 5% cut; PROFIT is what that leaves once the stock is paid for, and is not shown
+-- at all while the cost of any of it is unknown -- a figure with a hole in it is worse than
+-- none. Same label/id split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS in UI/Sell/Inspector.lua.
 -- @localised-keys
 local SUMMARY_STAT_LABELS = {
-  "AT MARKET", "ASKING", "COST",
+  "PROCEEDS", "PROFIT",
 }
-local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
+local SUMMARY_STAT_IDS = { "total", "profit" }
+-- What each total's tooltip says under its name; PROCEEDS's, by deck.
+-- @localised-keys
+local SUMMARY_STAT_TIPS = {
+  total = {
+    post = "What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut.",
+    listed = "What your lots bring in if they all sell, after the auction house's 5% cut.",
+  },
+  profit = "PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it.",
+}
 
 -- The button that was pressed is the one that has to answer. The row's Cancel lot arms the
 -- lot's own button over in the panel; left as it was, it read as a dead control ("I press it
@@ -442,47 +450,39 @@ function ROW.armLot(entry)
   setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
 end
 
-local function summaryFor(filtered)
-  local partial, unknown, knownCost, listedValue = 0, 0, 0, 0
-  for _, position in ipairs(filtered) do
-    if position.coverage == "PARTIAL" then partial = partial + 1 end
-    if position.coverage == "UNKNOWN" then unknown = unknown + 1 end
-    if not exact(position.knownCost) then knownCost = nil
-    elseif knownCost ~= nil then knownCost = safeAdd(knownCost, position.knownCost) end
-    if not exact(position.listedValue) then listedValue = nil
-    elseif listedValue ~= nil then listedValue = safeAdd(listedValue, position.listedValue) end
+-- What the totals add up, by deck: on the posting deck, what POST lists -- the queue, whatever
+-- the rows on screen are narrowed to -- at the price and the quantity each entry will post; on
+-- MY LOTS, every lot of the positions the deck shows, at its own price.
+local function proceedsLines(filtered, deck)
+  local lines = {}
+  if deck == "listed" then
+    for _, position in ipairs(filtered) do
+      for _, lot in ipairs(position.ownedLots or {}) do
+        lines[#lines + 1] = { qty = lot.quantity, unit = lot.unitPrice, position = position }
+      end
+    end
+    return lines
   end
-  local raw = GC.SellPositions.Summary(filtered)
-  return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost,
-    listedValue = raw.listedValue or listedValue,
-    profit = raw.profit, partialCount = partial, unknownCount = unknown,
-    countedCount = raw.countedCount, excludedNoCost = raw.excludedNoCost, excludedNoPrice = raw.excludedNoPrice })
+  local byKey = {}
+  for _, position in ipairs(S.positions) do
+    if position.positionKey then byKey[position.positionKey] = position end
+  end
+  for _, entry in ipairs(S.queueEntries or {}) do
+    lines[#lines + 1] = { qty = entry.postableQty, unit = entry.unitPrice, position = byKey[entry.positionKey] }
+  end
+  return lines
 end
 
-local function updateSummary(filtered)
-  local text = summaryFor(filtered)
-  UI.container.summary.cost:SetText(formatCell(text.knownCost))
-  UI.container.summary.listed:SetText(formatCell(text.listedValue))
-  if type(text.profit) == "number" then
-    -- Item 2 (addon polish batch): the number is a sum over only the positions that
-    -- individually cleared both gates, so it can still be a partial total -- the card's own
-    -- hit frame (below) shows the detail on hover, but a player who never hovers must not read
-    -- a partial sum as the whole picture. profitMarker carries that onto the number itself.
-    UI.container.summary.profit:SetText(GC.Sell._FormatAmount(text.profit) .. (text.profitMarker or ""))
-    UI.container.summaryProfitDetail = text.profitDetail
-  else
-    -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
-    -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
-    -- card itself stays a plain "Unknown" and everything after the first " · " moves to
-    -- summaryProfitHit's own tooltip (see the stat-card loop below), read live at hover time.
-    UI.container.summary.profit:SetText(GC.L["Unknown"])
-    local sepStart, sepEnd = text.profit:find(" · ", 1, true)
-    UI.container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
-  end
-  -- A non-number here is an absence, not a result: painting "Unknown" in the same confident
-  -- green as a real profit read as a figure the addon stood behind.
-  setColor(UI.container.summary.profit, type(text.profit) == "number"
-    and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
+local function updateSummary(filtered, deck)
+  local container = UI.container
+  local proceeds, profit = GC.SellPositions.Proceeds(proceedsLines(filtered, deck))
+  container.summaryDeck = deck
+  container.summaryShown = { total = proceeds ~= nil, profit = profit ~= nil }
+  container.summary.total:SetText(proceeds and GC.Sell._FormatAmount(proceeds) or "")
+  container.summary.profit:SetText(profit and GC.Sell._FormatAmount(profit) or "")
+  if profit then setColor(container.summary.profit, profit < 0 and Theme.color.red or Theme.color.green) end
+  -- What shows changes what the lines beside the bulk action run up to.
+  Dock.LayoutLedger()
 end
 Dock.UpdateSummary = updateSummary
 
@@ -587,7 +587,7 @@ end
 function Dock.BuildFill()
   local container = UI.container
   -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it
-  -- will do next, what is happening, and the session's three totals. It used to be a bare strip
+  -- will do next, what is happening, and the session's totals. It used to be a bare strip
   -- of widgets on the window's own background, which read as leftovers under the list rather
   -- than as the place the tab is driven from.
   local phc = Theme.color.panelHi
@@ -601,24 +601,27 @@ end
 -- The leftmost thing in the ledger line, whatever it turned out to be: the held-back counter
 -- and the queue's head label chain LEFT from here, so the footer's two halves can never
 -- overlap however long either grows.
--- Re-run on every resize: under DOCK.NARROW the ledger keeps AT MARKET alone, and whatever
--- is leftmost afterwards is what the two lines beside the bulk action stop short of. The
--- held-back counter rides the upper line (14 above a figure's own centre), the status the
--- lower one, level with the figures.
+-- Re-run on every resize and every summary: under DOCK.NARROW the ledger keeps PROCEEDS alone,
+-- a total with nothing to show is not drawn, and whatever is leftmost afterwards is what the
+-- two lines beside the bulk action stop short of. The held-back counter rides the upper line
+-- (14 above a figure's own centre), the status the lower one, level with the figures.
 function Dock.LayoutLedger()
   local container = UI.container
   local queueHeldBack, dockStatus, queueButton = container.queueHeldBack, container.dockStatus, container.queueButton
   local narrow = (UI.rowWidth or 0) < DOCK.NARROW
+  local shown = container.summaryShown or {}
   local left
   for _, id in ipairs(SUMMARY_STAT_IDS) do
     local value, label = container.summary[id], container.summaryLabels[id]
-    if id == "profit" or not narrow then
+    if shown[id] and (id == "total" or not narrow) then
       value:Show(); label:Show()
       left = value
     else
       value:Hide(); label:Hide()
     end
   end
+  -- Nothing shown: the lines run to where PROCEEDS would stand.
+  left = left or container.summary.total
   container.ledgerLeft = left
   queueHeldBack:ClearAllPoints()
   queueHeldBack:SetPoint("RIGHT", left, "LEFT", -12, 14)
@@ -765,19 +768,14 @@ function Dock.Build(f)
   -- real hardware input event, which is what a protected post actually requires.
   f.GoldCapPostNext = onQueueClick
 
-  -- The same three figures updateSummary has always written, moved out of 40px of stat cards
-  -- sitting ABOVE the work into one right-aligned line in the footer. They are what the session
-  -- adds up to -- a thing to glance at on the way out, not a thing to read before starting. The
-  -- labels shortened with the move: at Theme.Scale() 1.3 three full phrases plus their figures
-  -- would have run into the bulk action sharing this row. See SUMMARY_STAT_LABELS/
-  -- SUMMARY_STAT_IDS above for what each one is and why.
-  container.summary = {}
+  -- The totals: one right-aligned line in the footer, what the session adds up to -- a thing
+  -- to glance at on the way out, not a thing to read before starting. See SUMMARY_STAT_LABELS
+  -- above for what each one is and why.
+  container.summary, container.summaryLabels = {}, {}
   local ledgerPrevious
   for i, id in ipairs(SUMMARY_STAT_IDS) do
-    local stat = { id, SUMMARY_STAT_LABELS[i] }
-    -- Label over figure in a fixed-width column, where they used to run inline as "LABEL
-    -- figure LABEL figure": stacked, three totals take half the width, and that width is what
-    -- the line beside the bulk action needs at the default window.
+    -- Label over figure in a fixed-width column: stacked, the totals take half the width they
+    -- would inline, and that width is what the line beside the bulk action needs.
     local value = Theme.Num(container, 10, true)
     value:SetJustifyH("RIGHT"); value:SetWordWrap(false)
     value:SetWidth(DOCK.STAT_W)
@@ -787,34 +785,28 @@ function Dock.Build(f)
     label:SetJustifyH("RIGHT"); label:SetWordWrap(false)
     label:SetWidth(DOCK.STAT_W)
     label:SetPoint("BOTTOMRIGHT", value, "TOPRIGHT", 0, 3)
-    label:SetText(GC.L[stat[2]]); setColor(label, Theme.color.fgDim)
-    container.summary[stat[1]] = value
-    container.summaryLabels = container.summaryLabels or {}
-    container.summaryLabels[stat[1]] = label
-    if stat[1] == "profit" then
-      -- Same invisible-hit-frame trick the stat card used, for the same reason: a FontString
-      -- cannot take mouse scripts, and the partial/missing detail is read from
-      -- container.summaryProfitDetail LIVE at hover time so it can never go stale between
-      -- renders. Covers the label as well as the figure -- the two read as one control.
-      local hit = CreateFrame("Frame", nil, container)
-      hit:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 2)
-      hit:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 0, -2)
-      hit:EnableMouse(true)
-      hit:SetScript("OnEnter", function(self)
-        if not GameTooltip or not container.summaryProfitDetail then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Est. profit"]), 1, 0.82, 0)
-        GameTooltip:AddLine(
-          GC.Util.ClientText(GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"]),
-          0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(GC.Util.ClientText(container.summaryProfitDetail), 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Positions without a cost or a live price are excluded."]),
-          0.85, 0.85, 0.85, true)
-        GameTooltip:Show()
-      end)
-      hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-      container.summaryProfitHit = hit
-    end
+    label:SetText(GC.L[SUMMARY_STAT_LABELS[i]]); setColor(label, Theme.color.fgDim)
+    if id == "total" then setColor(value, Theme.color.gold) end
+    container.summary[id], container.summaryLabels[id] = value, label
+    -- What the figure is, on hover: a FontString cannot take mouse scripts, so an invisible
+    -- frame over the label and the figure, which read as one control. The deck is read at
+    -- hover time, so the words cannot go stale between renders.
+    local hit = CreateFrame("Frame", nil, container)
+    hit:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 2)
+    hit:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 0, -2)
+    hit:EnableMouse(true)
+    hit:SetScript("OnEnter", function(self)
+      if not GameTooltip or not value:IsShown() then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[SUMMARY_STAT_LABELS[i]]), 1, 0.82, 0)
+      local tip = SUMMARY_STAT_TIPS[id]
+      if type(tip) == "table" then tip = tip[container.summaryDeck or "post"] end
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L[tip]), 0.85, 0.85, 0.85, true)
+      GameTooltip:Show()
+    end)
+    hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    container.summaryHits = container.summaryHits or {}
+    container.summaryHits[id] = hit
     ledgerPrevious = value
   end
   Dock.LayoutLedger()

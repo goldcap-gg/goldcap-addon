@@ -29,18 +29,14 @@ GC.Locales.ruRU = {
   ["%d in %d lots"] = "%d в %d лотах",
   ["%d in 1 lot"] = "%d в 1 лоте",
   ["%d lots, %s asked"] = "%d лотов, просят %s",
-  ["%d missing"] = "%d не хватает",
   ["%d of %d"] = "%d из %d",
   ["%d of %d at or under your cap"] = "%d из %d по вашему потолку или дешевле",
   ["%d of %d done"] = "готово %d из %d",
-  ["%d partial"] = "%d частично",
   ["%d prices in one request · books still loading"] = "%d цен одним запросом · стаканы догружаются",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой -- нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
   ["%d units"] = "%d шт.",
   ["%d units · %d prices"] = "%d шт. · %d цен",
-  ["%d without a price"] = "%d без цены",
-  ["%d without cost"] = "%d без себестоимости",
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
   ["%d/%d covered"] = "%d/%d покрыто",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
@@ -66,8 +62,6 @@ GC.Locales.ruRU = {
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
   ["AH value"] = "Оценка на аукционе",
   ["AH, cheapest version"] = "Аукцион, самая дешёвая версия",
-  ["ASKING"] = "ЗАПРОС",
-  ["AT MARKET"] = "ПО РЫНКУ",
   ["AUTO"] = "АВТО",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА И ОПОВЕЩЕНИЯ",
@@ -234,7 +228,6 @@ GC.Locales.ruRU = {
   ["Enter an exact positive cost"] = "Введите точную положительную себестоимость",
   ["Entry price (avg fill)"] = "Цена входа (среднее исполнение)",
   ["Entry total"] = "Всего на входе",
-  ["Est. profit"] = "Ориент. прибыль",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Всё остальное в порядке. Будь на этом персонаже больше золота — это была бы покупка.",
   ["FIFO allocations"] = "Распределение FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
@@ -398,8 +391,6 @@ GC.Locales.ruRU = {
   ["Play a sound when a checked deal turns SAFE."] =
     "Проигрывать звук, когда проверенная сделка становится SAFE.",
   ["Position scope changed"] = "Область позиции изменилась",
-  ["Positions without a cost or a live price are excluded."] =
-    "Позиции без себестоимости или живой цены не учтены.",
   ["Post"] = "Выставить",
   ["Post above the cheapest"] = "Выставлять выше самого дешёвого",
   ["Post confirmation expired"] = "Подтверждение выставления просрочено",
@@ -661,8 +652,6 @@ GC.Locales.ruRU = {
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["at or under your price -- click Buy to purchase"] =
     "по вашей цене или дешевле -- нажмите Buy, чтобы купить",
-  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
-    "по цене, по которой GoldCap ожидает продажу, за вычетом 5% — а не по вашей запрошенной цене",
   ["auto off"] = "авто выключено",
   ["auto-synced %dh ago"] = "автосинхронизация %dч назад",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -783,7 +772,6 @@ GC.Locales.ruRU = {
     "откройте аукцион один раз, чтобы GoldCap узнал, как они продаются",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "или вставьте строку с goldcap.gg через /goldcap import.",
-  ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
   ["placing bid..."] = "делаем ставку...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
@@ -1351,4 +1339,8 @@ GC.Locales.ruRU = {
   ["Marked for you: you bought it on DEALS."] = "Отмечено само: вы купили это на вкладке DEALS.",
   ["Click to change."] = "Щёлкните, чтобы изменить.",
   ["Mark what to sell with the circle"] = "Отметьте кружком, что продавать",
+  ["PROCEEDS"] = "ВЫРУЧКА",
+  ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Сколько принесёт всё, что выставит ВЫСТАВИТЬ, если продастся по этим ценам, за вычетом 5% комиссии аукциона.",
+  ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Сколько принесут ваши лоты, если продадутся все, за вычетом 5% комиссии аукциона.",
+  ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВЫРУЧКА минус то, что вы заплатили за этот товар. Видна, только пока GoldCap знает, сколько вы заплатили за весь товар.",
 }

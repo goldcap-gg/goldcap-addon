@@ -282,6 +282,21 @@ describe("Sell tab, the posting queue control", function()
       assert.matches("NOTHING", container.queueButton.label)
     end)
 
+    -- The dock's PROCEEDS is what POST lists, so a mark moves it; ore nobody has a receipt for
+    -- has no PROFIT to show.
+    it("adds up only what is marked in the dock's PROCEEDS", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      assert.is_false(container.summary.total.shown)
+      local row = rowOf("commodity:23427")
+      row.mark.scripts.OnClick(row.mark)
+      local entry = GC.SellState.queueEntries[1]
+      assert.equal(GC.Sell._FormatAmount(math.floor(entry.value * 95 / 100)), container.summary.total:GetText())
+      assert.is_true(container.summary.total.shown)
+      assert.is_false(container.summary.profit.shown)
+    end)
+
     it("reads in two sections: what POST lists, then what only its own Post does", function()
       GC.db.sellMarks["commodity:99001"] = true
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)

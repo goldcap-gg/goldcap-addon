@@ -105,7 +105,7 @@ describe("Sell widget geometry and manual cost", function()
       ItemTooltipOutside = function(owner) GameTooltip:SetOwner(owner, "ANCHOR_RIGHT") end,
     }
     -- Loaded into its own table so borrowing Deck below cannot drag the rest of the real view
-    -- model (SourceText, CostText, SummaryText) into a double these tests deliberately control.
+    -- model (SourceText, CostText) into a double these tests deliberately control.
     local realViewModel = helper.loadModule("UI/SellViewModel.lua")
     local GC = {
       Sell = {}, Theme = theme,
@@ -130,10 +130,9 @@ describe("Sell widget geometry and manual cost", function()
         SourceText = function() return "GC ×1" end,
         CostText = function() return "Set cost" end,
         ProfitText = function() return "Unknown" end,
-        SummaryText = function(summary) return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown" } end,
         Expansion = function() return { batches = {}, ownedLots = {}, note = "FIFO allocations" } end,
       },
-      -- Summary/Build stay doubles (see their own note below), but the rest of this module is
+      -- Build stays a double (see its own note below), but the rest of this module is
       -- loaded for real just after: the price control reads GC.SellPositions.PriceRisk, and a
       -- hand-written stand-in for that rule would let the warning a seller reads drift away
       -- from the flag BuildPostPlan actually carries -- which is the exact thing PriceRisk
@@ -155,7 +154,6 @@ describe("Sell widget geometry and manual cost", function()
     -- anything, so the tab shows what you could sell even away from an auctioneer. Tests that
     -- drive Refresh need a Build; those that assert on rows they injected by hand stub Refresh
     -- out instead, and neither wants the real composition walk here.
-    GC.SellPositions.Summary = function() return { invested = nil, projected = nil, profit = nil } end
     GC.SellPositions.Build = function() return {} end
     helper.loadSell(GC)
     local root = region("Frame")
@@ -429,111 +427,67 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Nothing listed on the AH right now", rows[1].cells.status.text)
   end)
 
-  -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real
-  -- profit, which read as a number the addon stood behind. A non-number is an absence: dim.
-  it("paints a non-numeric summary profit dim instead of a confident green", function()
-    local GC = load(620, { calls = {} })
-    local _, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "UNKNOWN",
-        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
-    })
-    assert.equal("Unknown", container.summary.profit.text)
-    assert.same({ .5, .5, .5, 1 }, container.summary.profit.color)
-    -- Plain "Unknown" carries no " · " suffix at all: no detail to show, so no tooltip either.
-    assert.is_nil(container.summaryProfitDetail)
-  end)
+  -- The dock's totals (owner, 2026-10-10): PROCEEDS, what the deck brings in after the 5% cut,
+  -- and PROFIT only while the cost of all of it is known -- the "COST 0 · ASKING 0 · AT MARKET
+  -- Unknown" they replaced said nothing a seller could use.
+  describe("the dock's totals", function()
+    local function lots(coverage)
+      return { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = coverage,
+        exposureQty = 4, knownQty = coverage == "COMPLETE" and 4 or 0, knownCost = coverage == "COMPLETE" and 400 or 0,
+        listedQty = 2, listedValue = 20000, status = "LISTED", sources = {},
+        ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 10000 } } }
+    end
 
-  -- The stat-card's own value line ellipsized into unreadable garbage at Theme.Scale() 1.3 when
-  -- SummaryText's non-number carried a "12 partial"/"37 missing" suffix. The card now shows
-  -- plain "Unknown" and the suffix moves to container.summaryProfitDetail, which the profit
-  -- card's own hit frame reads live to build its tooltip (see summaryProfitHit below).
-  it("moves the missing/partial detail off the profit card and onto its tooltip", function()
-    local GC = load(620, { calls = {} })
-    GC.SellViewModel.SummaryText = function(summary)
-      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown · 2 partial" }
-    end
-    local _, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
-        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
-    })
-    assert.equal("Unknown", container.summary.profit:GetText())
-    assert.equal("2 partial", container.summaryProfitDetail)
-    local hit = container.summaryProfitHit
-    assert.truthy(hit)
-    assert.is_true(hit.mouseEnabled)
-    assert.is_function(hit.scripts.OnEnter)
-    local tooltipLines = {}
-    local hidden = false
-    _G.GameTooltip = {
-      SetOwner = function() end, Show = function() end, Hide = function() hidden = true end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-    }
-    hit.scripts.OnEnter(hit)
-    local joined = table.concat(tooltipLines, " ")
-    assert.matches("Est. profit", joined, 1, true)
-    assert.matches("2 partial", joined, 1, true)
-    assert.matches("excluded", joined, 1, true)
-    hit.scripts.OnLeave(hit)
-    assert.is_true(hidden)
-    _G.GameTooltip = nil
-  end)
+    it("adds up MY LOTS at the lots' own prices after the cut, and what that leaves over their cost", function()
+      local GC = load(900, { calls = {} })
+      local _, container = topRows(GC, { lots("COMPLETE") }, "listed")
+      assert.equal("1g90s", container.summary.total:GetText()) -- 2 x 1g = 2g, less 5%
+      assert.equal("1g88s", container.summary.profit:GetText()) -- less 2 x 1s paid
+      assert.is_true(container.summary.total.shown)
+      assert.is_true(container.summary.profit.shown)
+      assert.same({ 0, 1, 0, 1 }, container.summary.profit.color)
+    end)
 
-  -- Numeric profit is unchanged, and any stale detail from an earlier render is cleared rather
-  -- than lingering for the tooltip to keep showing on a now-complete summary.
-  it("clears summaryProfitDetail once the profit is a real number again", function()
-    local GC = load(620, { calls = {} })
-    GC.SellViewModel.SummaryText = function(summary)
-      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown · 2 partial" }
-    end
-    local _, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
-        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
-    })
-    assert.equal("2 partial", container.summaryProfitDetail)
-    local render = GC.SellUI.List.RenderRows
-    GC.SellViewModel.SummaryText = function(summary)
-      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = 50000 }
-    end
-    render()
-    assert.equal("5g", container.summary.profit:GetText())
-    assert.is_nil(container.summaryProfitDetail)
-  end)
+    it("shows no PROFIT at all while the cost of any of it is unknown", function()
+      local GC = load(900, { calls = {} })
+      local _, container = topRows(GC, { lots("UNKNOWN") }, "listed")
+      assert.equal("1g90s", container.summary.total:GetText())
+      assert.is_false(container.summary.profit.shown)
+      assert.is_false(container.summaryLabels.profit.shown)
+      assert.equal(container.summary.total, container.dockStatus.points[2].relative)
+    end)
 
-  -- A real number is no longer proof that nothing was excluded: SellPositions.Summary sums only
-  -- the positions that individually clear both gates, so the total can still be partial. The
-  -- exclusions ride along on summaryProfitDetail exactly like the "Unknown · ..." case above,
-  -- for the same hit-frame tooltip to show.
-  it("carries the exclusion detail on summaryProfitDetail even when the card shows a real number", function()
-    local GC = load(620, { calls = {} })
-    GC.SellViewModel.SummaryText = function(summary)
-      return { knownCost = summary.knownCost, listedValue = summary.listedValue,
-        profit = 900000, profitDetail = "over 1 position · 1 without cost · 1 without a price" }
-    end
-    local _, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
-        exposureQty = 1, knownQty = 1, knownCost = 0, listedValue = 0, sources = {} },
-    })
-    assert.equal("90g", container.summary.profit:GetText())
-    assert.equal("over 1 position · 1 without cost · 1 without a price", container.summaryProfitDetail)
-  end)
+    it("adds up what POST lists on the posting deck, whatever the rows show", function()
+      local GC = load(900, { calls = {} })
+      local position = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, listedQty = 0, sources = {} }
+      GC.SellState.queueEntries = { { positionKey = "commodity:42", postableQty = 3, unitPrice = 10000 } }
+      local _, container = topRows(GC, { position })
+      assert.equal("2g85s", container.summary.total:GetText()) -- 3 x 1g less 5%
+      assert.equal("2g82s", container.summary.profit:GetText()) -- less 3 x 1s paid
+    end)
 
-  -- Item 2 (addon polish batch): a partial total painting the number itself in full confidence
-  -- (only the tooltip said otherwise) is exactly the failure mode the exclusion-detail fix above
-  -- was meant to close -- the card's own text must carry the marker too. Real (unstubbed)
-  -- SellViewModel.SummaryText here, so this proves the frame actually renders profitMarker, not
-  -- just that the view model computes it (see spec/sell_view_model_spec.lua for that half).
-  it("marks the profit card itself when the total is partial, not only its tooltip", function()
-    local GC = load(620, { calls = {} })
-    GC.SellViewModel.SummaryText = function(summary)
-      return { knownCost = summary.knownCost, listedValue = summary.listedValue,
-        profit = 900000, profitDetail = "over 1 position · 1 without cost", partial = true,
-        profitMarker = "*" }
-    end
-    local _, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
-        exposureQty = 1, knownQty = 1, knownCost = 0, listedValue = 0, sources = {} },
-    })
-    assert.equal("90g*", container.summary.profit:GetText())
+    it("draws neither total when nothing is queued to post", function()
+      local GC = load(900, { calls = {} })
+      local _, container = topRows(GC, {})
+      assert.is_false(container.summary.total.shown)
+      assert.is_false(container.summary.profit.shown)
+      assert.equal(container.summary.total, container.dockStatus.points[2].relative)
+    end)
+
+    it("says on hover what each total is, in the words of the deck on screen", function()
+      local GC = load(900, { calls = {} })
+      local _, container = topRows(GC, { lots("COMPLETE") }, "listed")
+      local lines = {}
+      _G.GameTooltip = { SetOwner = function() end, Show = function() end, Hide = function() end,
+        AddLine = function(_, text) lines[#lines + 1] = text end }
+      container.summaryHits.total.scripts.OnEnter(container.summaryHits.total)
+      assert.same({ "PROCEEDS", "What your lots bring in if they all sell, after the auction house's 5% cut." }, lines)
+      lines = {}
+      container.summaryHits.profit.scripts.OnEnter(container.summaryHits.profit)
+      assert.equal("PROFIT", lines[1])
+      _G.GameTooltip = nil
+    end)
   end)
 
   -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test
@@ -1967,10 +1921,9 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_nil(firstLotRow.repostStage)
   end)
 
-  it("renders expansion facts and filters the top-level summary once", function()
+  it("renders expansion facts", function()
     local record = { calls = {} }
     local GC = load(620, record)
-    GC.SellViewModel.SummaryText = function(summary) return summary end
     GC.SellViewModel.Expansion = function()
       return {
         note = "FIFO allocations", quoteAge = 7, ahead = 3, sold = 4, days = 1.25,
@@ -1980,11 +1933,7 @@ describe("Sell widget geometry and manual cost", function()
         ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } },
       }
     end
-    GC.SellPositions.Summary = function(values)
-      if #values == 1 then return { invested = 100, projected = 95, profit = -5 } end
-      return { invested = 130, projected = 150, profit = 20 }
-    end
-    local rows, container = topRows(GC, {
+    local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 2,
         knownQty = 2, knownCost = 100, listedValue = 400, sources = { goldcap = 2 }, status = "LISTED" },
       -- listedQty makes this one a LIVE LOT, so the post deck under test excludes it and the
@@ -2046,9 +1995,6 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(rows[3].subItem.shown)
     assert.is_true(rows[3].sectionLabel.shown)
     assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
-    assert.equal("100", container.summary.cost.text)
-    assert.equal("400", container.summary.listed.text)
-    assert.equal("-5", container.summary.profit.text)
     assert.equal("position", rows[1].kind)
     assert.equal("drawer", rows[2].kind)
   end)
@@ -2935,16 +2881,17 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(root.status.text, container.dockStatus.text)
   end)
 
-  it("keeps only AT MARKET in the dock's ledger when the window is narrow", function()
+  it("keeps only PROCEEDS in the dock's ledger when the window is narrow", function()
     local GC, root = load(600, { calls = {} })
-    local _, container = topRows(GC, {})
-    assert.is_true(container.summary.profit.shown)
-    assert.is_false(container.summary.cost.shown)
-    assert.is_false(container.summary.listed.shown)
-    assert.equal(container.summary.profit, container.dockStatus.points[2].relative)
+    local _, container = topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+      coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedQty = 1, listedValue = 10000,
+      status = "LISTED", sources = {}, ownedLots = { { auctionID = 9, quantity = 1, unitPrice = 10000 } } } }, "listed")
+    assert.is_true(container.summary.total.shown)
+    assert.is_false(container.summary.profit.shown)
+    assert.equal(container.summary.total, container.dockStatus.points[2].relative)
     root.scripts.OnSizeChanged(root, 900)
-    assert.is_true(container.summary.cost.shown)
-    assert.equal(container.summary.cost, container.dockStatus.points[2].relative)
+    assert.is_true(container.summary.profit.shown)
+    assert.equal(container.summary.profit, container.dockStatus.points[2].relative)
   end)
   -- What a position opens into: a panel beside the list, not ten rows inside it.
   describe("the detail panel", function()
@@ -3078,10 +3025,13 @@ describe("Sell widget geometry and manual cost", function()
 
     it("leaves the dock's totals the deck's own while it narrows the rows", function()
       local GC = load(800, { calls = {} })
+      GC.SellState.queueEntries = { { positionKey = "commodity:1", postableQty = 5, unitPrice = 100 },
+        { positionKey = "commodity:2", postableQty = 5, unitPrice = 100 } }
       local _, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
-      local before = container.summary.cost.text
+      local before = container.summary.total.text
+      assert.truthy(before ~= "")
       type_(container, "pygmy")
-      assert.equal(before, container.summary.cost.text)
+      assert.equal(before, container.summary.total.text)
     end)
 
     it("is not drawn where row 1 has no room for it, and cannot filter from there", function()

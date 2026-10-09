@@ -33,18 +33,14 @@ GC.Locales.ukUA = {
   ["%d in %d lots"] = "%d у %d лотах",
   ["%d in 1 lot"] = "%d в 1 лоті",
   ["%d lots, %s asked"] = "%d лотів, просять %s",
-  ["%d missing"] = "%d бракує",
   ["%d of %d"] = "%d з %d",
   ["%d of %d at or under your cap"] = "%d з %d за вашою стелею або дешевше",
   ["%d of %d done"] = "готово %d з %d",
-  ["%d partial"] = "%d частково",
   ["%d prices in one request · books still loading"] = "%d цін одним запитом · стакани довантажуються",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою -- натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
   ["%d units"] = "%d шт.",
   ["%d units · %d prices"] = "%d шт. · %d цін",
-  ["%d without a price"] = "%d без ціни",
-  ["%d without cost"] = "%d без собівартості",
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
@@ -70,8 +66,6 @@ GC.Locales.ukUA = {
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
   ["AH value"] = "Оцінка на аукціоні",
   ["AH, cheapest version"] = "Аукціон, найдешевша версія",
-  ["ASKING"] = "ЗАПИТ",
-  ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
@@ -237,7 +231,6 @@ GC.Locales.ukUA = {
   ["Enter an exact positive cost"] = "Введіть точну додатну собівартість",
   ["Entry price (avg fill)"] = "Ціна входу (середнє виконання)",
   ["Entry total"] = "Разом на вході",
-  ["Est. profit"] = "Орієнт. прибуток",
   ["Every position in your bags already has a cost on record"] = "У всього, що в сумках, собівартість уже відома",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Усе інше гаразд. Було б на цьому персонажі більше золота — це була б купівля.",
   ["FIFO allocations"] = "Розподіл FIFO",
@@ -410,8 +403,6 @@ GC.Locales.ukUA = {
   ["Per-unit price of this auction"] = "Ціна за одну штуку в цьому лоті",
   ["Play a sound when a checked deal turns SAFE."] = "Відтворювати звук, коли перевірена угода стає SAFE.",
   ["Position scope changed"] = "Область позиції змінилася",
-  ["Positions without a cost or a live price are excluded."] =
-    "Позиції без собівартості чи живої ціни не враховано.",
   ["Post"] = "Виставити",
   ["Post above the cheapest"] = "Виставляти вище найдешевшого",
   ["Post confirmation expired"] = "Підтвердження виставлення протерміновано",
@@ -676,8 +667,6 @@ GC.Locales.ukUA = {
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["at or under your price -- click Buy to purchase"] =
     "за вашою ціною або дешевше -- натисніть Buy, щоб купити",
-  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
-    "за ціною, за якою GoldCap очікує продаж, за вирахуванням 5% — а не за вашою запитаною ціною",
   ["auto off"] = "авто вимкнено",
   ["auto-synced %dh ago"] = "автосинхронізація %dг тому",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -799,7 +788,6 @@ GC.Locales.ukUA = {
     "відкрийте аукціон один раз, щоб GoldCap дізнався, як вони продаються",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",
-  ["over %d position%s"] = "по %d позиціях%s",
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
@@ -1352,4 +1340,8 @@ GC.Locales.ukUA = {
   ["Marked for you: you bought it on DEALS."] = "Позначено саме: ви купили це на вкладці DEALS.",
   ["Click to change."] = "Клацніть, щоб змінити.",
   ["Mark what to sell with the circle"] = "Позначте кружком, що продавати",
+  ["PROCEEDS"] = "ВИРУЧКА",
+  ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Скільки принесе все, що виставить ВИСТАВИТИ, якщо продасться за цими цінами, за вирахуванням 5% комісії аукціону.",
+  ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Скільки принесуть ваші лоти, якщо продадуться всі, за вирахуванням 5% комісії аукціону.",
+  ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВИРУЧКА мінус те, що ви заплатили за цей товар. Видно, лише поки GoldCap знає, скільки ви заплатили за весь товар.",
 }

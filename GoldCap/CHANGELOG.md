@@ -8,6 +8,11 @@
   you bought on DEALS starts on the list; everything else starts off it, so POST no longer lists
   your farmed or crafted goods until you mark them. The list reads in two parts, SELLING and NOT
   SELLING.
+- The totals at the bottom of the Sell tab are now PROCEEDS and PROFIT. PROCEEDS is what
+  everything POST lists brings in at the prices on it, after the auction house's 5% cut; on MY
+  LOTS, what your lots bring in. PROFIT is what that leaves after what you paid, and shows only
+  when GoldCap knows what you paid for all of it. They replace COST, ASKING and AT MARKET, which
+  often read 0 and Unknown.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

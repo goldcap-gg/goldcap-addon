@@ -31,19 +31,15 @@ GC.Locales.frFR = {
   ["%d in 1 lot"] = "%d en 1 lot",
   ["%d lines"] = "%d lignes",
   ["%d lots, %s asked"] = "%d lots, %s demandés",
-  ["%d missing"] = "%d manquantes",
   ["%d of %d"] = "%d sur %d",
   ["%d of %d at or under your cap"] = "%d sur %d à ton plafond ou moins",
   ["%d of %d done"] = "%d sur %d faits",
-  ["%d partial"] = "%d partielles",
   ["%d prices in one request · books still loading"] =
     "%d prix en une seule requête · carnets en cours de chargement",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d refusées par la vérification en direct -- cliquez sur « HIDDEN %d » au-dessus pour les voir",
   ["%d units"] = "%d unités",
   ["%d units · %d prices"] = "%d unités · %d prix",
-  ["%d without a price"] = "%d sans prix",
-  ["%d without cost"] = "%d sans prix d'achat",
   ["%d · %d/%d covered"] = "%d · %d/%d couverts",
   ["%d/%d covered"] = "%d/%d couverts",
   ["%d× %s"] = "%d× %s",
@@ -72,8 +68,6 @@ GC.Locales.frFR = {
   ["AH answered empty %ds ago"] = "l'hôtel des ventes a répondu vide il y a %ds",
   ["AH value"] = "Valeur HV",
   ["AH, cheapest version"] = "HV, version la moins chère",
-  ["ASKING"] = "DEMANDÉ",
-  ["AT MARKET"] = "AU MARCHÉ",
   ["AUTO"] = "AUTO",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
   ["AUTOMATION & ALERTS"] = "AUTOMATISATION & ALERTES",
@@ -247,7 +241,6 @@ GC.Locales.frFR = {
   ["Enter an exact positive cost"] = "Saisis un prix d'achat exact et positif",
   ["Entry price (avg fill)"] = "Prix d'entrée (exécution moy.)",
   ["Entry total"] = "Total à l'entrée",
-  ["Est. profit"] = "Bénéfice est.",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Tout le reste est bon. Avec plus d'or sur ce personnage, ce serait un achat.",
   ["FIFO allocations"] = "Affectations FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
@@ -411,8 +404,6 @@ GC.Locales.frFR = {
   ["Per-unit price of this auction"] = "Prix unitaire de cette enchère",
   ["Play a sound when a checked deal turns SAFE."] = "Jouer un son quand une affaire vérifiée devient SAFE.",
   ["Position scope changed"] = "Périmètre de la position modifié",
-  ["Positions without a cost or a live price are excluded."] =
-    "Les positions sans prix d'achat ni prix en direct sont exclues.",
   ["Post"] = "Vendre",
   ["Post above the cheapest"] = "Poster au-dessus du moins cher",
   ["Post confirmation expired"] = "Confirmation de mise en vente expirée",
@@ -685,8 +676,6 @@ GC.Locales.frFR = {
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
   ["at or under your price -- click Buy to purchase"] =
     "à ton prix ou en dessous -- clique sur Buy pour acheter",
-  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
-    "au prix auquel GoldCap s'attend à ce que cela se vende, après la commission de 5% — pas ton prix demandé",
   ["auto off"] = "auto désactivé",
   ["auto-synced %dh ago"] = "synchronisé automatiquement il y a %dh",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -812,7 +801,6 @@ GC.Locales.frFR = {
     "ouvre l'hôtel des ventes une fois pour que GoldCap sache comment ils se vendent",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "ou collez une chaîne depuis goldcap.gg avec /goldcap import.",
-  ["over %d position%s"] = "sur %d positions%s",
   ["paid sale unresolved"] = "vente encaissée non résolue",
   ["placing bid..."] = "dépôt de l'enchère...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
@@ -1279,4 +1267,8 @@ GC.Locales.frFR = {
   ["Marked for you: you bought it on DEALS."] = "Marqué pour toi : tu l'as acheté dans DEALS.",
   ["Click to change."] = "Clique pour changer.",
   ["Mark what to sell with the circle"] = "Marque d'un cercle ce que tu veux vendre",
+  ["PROCEEDS"] = "RECETTE",
+  ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Ce que te rapporte tout ce que VENDRE met en vente si tout part à ces prix, après les 5 % de commission de l'hôtel des ventes.",
+  ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Ce que te rapportent tes enchères si elles partent toutes, après les 5 % de commission de l'hôtel des ventes.",
+  ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECETTE moins ce que tu as payé ce stock. Affiché seulement tant que GoldCap sait ce que tu l'as payé en entier.",
 }

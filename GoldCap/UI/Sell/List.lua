@@ -522,7 +522,7 @@ local function renderRows()
   local sectionOf
   if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered)
   elseif S.filterMode == "post" and sellingList then filtered, sectionOf = ROW.bySelling(filtered) end
-  UI.Dock.UpdateSummary(filtered)
+  UI.Dock.UpdateSummary(filtered, headerDeck)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter
   -- can never disagree about what was left out.

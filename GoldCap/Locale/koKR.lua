@@ -34,18 +34,14 @@ GC.Locales.koKR = {
   ["%d in 1 lot"] = "%d개 · 물량 1건",
   ["%d lines"] = "%d줄",
   ["%d lots, %s asked"] = "물량 %d건, 요청가 %s",
-  ["%d missing"] = "%d건 없음",
   ["%d of %d"] = "%d/%d",
   ["%d of %d at or under your cap"] = "%d/%d개가 상한 이하",
   ["%d of %d done"] = "%d/%d 완료",
-  ["%d partial"] = "%d건 일부",
   ["%d prices in one request · books still loading"] = "요청 한 번으로 시세 %d개 · 호가창 불러오는 중",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "실시간 확인에서 %d건 거부 -- 위의 \"HIDDEN %d\"를 눌러 확인하세요",
   ["%d units"] = "%d개",
   ["%d units · %d prices"] = "%d개 · 가격 %d단",
-  ["%d without a price"] = "가격 없음 %d건",
-  ["%d without cost"] = "원가 없음 %d건",
   ["%d · %d/%d covered"] = "%d · %d/%d 확인됨",
   ["%d/%d covered"] = "%d/%d 확인됨",
   ["%d× %s"] = "%d× %s",
@@ -74,8 +70,6 @@ GC.Locales.koKR = {
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
   ["AH value"] = "경매장 시세",
   ["AH, cheapest version"] = "경매장, 최저가 버전",
-  ["ASKING"] = "호가",
-  ["AT MARKET"] = "시장가",
   ["AUTO"] = "자동",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
@@ -239,7 +233,6 @@ GC.Locales.koKR = {
   ["Enter an exact positive cost"] = "정확한 양수 원가를 입력하세요",
   ["Entry price (avg fill)"] = "진입가 (평균 체결)",
   ["Entry total"] = "진입 총액",
-  ["Est. profit"] = "예상 수익",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "나머지는 모두 통과했습니다. 이 캐릭터에 골드가 더 있으면 살 만한 매물입니다.",
   ["FIFO allocations"] = "선입선출 배분",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
@@ -390,8 +383,6 @@ GC.Locales.koKR = {
   ["Per-unit price of this auction"] = "이 경매의 개당 가격",
   ["Play a sound when a checked deal turns SAFE."] = "검증된 거래가 SAFE가 되면 소리를 재생합니다.",
   ["Position scope changed"] = "항목 범위가 바뀌었습니다",
-  ["Positions without a cost or a live price are excluded."] =
-    "원가나 실시간 가격이 없는 항목은 제외됩니다.",
   ["Post"] = "등록",
   ["Post above the cheapest"] = "최저가보다 높게 등록",
   ["Post confirmation expired"] = "등록 확인이 만료되었습니다",
@@ -646,8 +637,6 @@ GC.Locales.koKR = {
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["at or under your price -- click Buy to purchase"] = "내 가격 이하 -- Buy를 눌러 구매하세요",
-  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
-    "GoldCap이 팔릴 것으로 예상하는 가격 기준, 수수료 5% 제외 — 내 호가가 아님",
   ["auto off"] = "자동 꺼짐",
   ["auto-synced %dh ago"] = "%d시간 전 자동 동기화",
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
@@ -766,7 +755,6 @@ GC.Locales.koKR = {
     "경매장을 한 번 열면 GoldCap이 판매 방식을 알 수 있습니다",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
-  ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
   ["placing bid..."] = "입찰 중...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
@@ -1210,4 +1198,8 @@ GC.Locales.koKR = {
   ["Marked for you: you bought it on DEALS."] = "자동 표시: DEALS에서 구입한 아이템입니다.",
   ["Click to change."] = "클릭하여 변경합니다.",
   ["Mark what to sell with the circle"] = "판매할 아이템을 동그라미로 표시하세요",
+  ["PROCEEDS"] = "판매 대금",
+  ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "등록 버튼으로 등록할 모든 아이템이 이 가격에 팔렸을 때 경매장 수수료 5%를 빼고 받는 금액입니다.",
+  ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "내 경매가 모두 팔렸을 때 경매장 수수료 5%를 빼고 받는 금액입니다.",
+  ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "판매 대금에서 이 아이템들을 사는 데 쓴 금액을 뺀 값입니다. GoldCap이 전부의 구입가를 알 때만 표시됩니다.",
 }

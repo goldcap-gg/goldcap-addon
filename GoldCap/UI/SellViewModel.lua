@@ -268,39 +268,6 @@ function GC.SellViewModel.ProfitText(position)
   return position.profit
 end
 
-function GC.SellViewModel.SummaryText(summary)
-  summary = summary or {}
-  local partial = summary.partialCount or 0
-  local unknown = summary.unknownCount or 0
-  local profit = summary.profit
-  local profitDetail
-  local isPartial = false
-  if profit == nil then
-    local suffix = {}
-    if partial > 0 then suffix[#suffix + 1] = (GC.L["%d partial"]):format(partial) end
-    if unknown > 0 then suffix[#suffix + 1] = (GC.L["%d missing"]):format(unknown) end
-    profit = GC.L["Unknown"] .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
-  else
-    -- The number is a real total now (SellPositions.Summary sums only the positions that
-    -- individually clear both gates), but it is still a partial one whenever something got
-    -- left out -- say so here, the same way the "Unknown · N partial · M missing" string above
-    -- carries its own detail, so the stat card's tooltip can show it without a second query.
-    local n = summary.countedCount or 0
-    local parts = { (GC.L["over %d position%s"]):format(n, n == 1 and "" or "s") }
-    local noCost = summary.excludedNoCost or 0
-    local noPrice = summary.excludedNoPrice or 0
-    if noCost > 0 then parts[#parts + 1] = (GC.L["%d without cost"]):format(noCost) end
-    if noPrice > 0 then parts[#parts + 1] = (GC.L["%d without a price"]):format(noPrice) end
-    profitDetail = table.concat(parts, " · ")
-    -- Item 2 (addon polish batch): a partial total painted with full confidence contradicts the
-    -- comment above this one -- the number itself must carry a marker, not just the tooltip a
-    -- player might never hover.
-    isPartial = noCost > 0 or noPrice > 0
-  end
-  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit,
-    profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
-end
-
 -- How many lines THE BOOK draws: the panel has room for eight and never scrolls (DR.LINES in
 -- UI/Sell/Frame.lua). Levels beyond them are still counted in the totals, so the header never claims
 -- the book is smaller than it is.
