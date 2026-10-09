@@ -1870,13 +1870,14 @@ describe("Sell widget geometry and manual cost", function()
     local post = upvalue(render, "onPostClick")
     -- onPostClick reads bag state through clickSafeBagState now (never liveBagState directly --
     -- see SellFrame.lua's own comment on why), which for a commodity position still hands
-    -- straight to the real liveBagState -- one upvalue hop further than before.
-    set(upvalue(post, "clickSafeBagState"), "liveBagState",
+    -- straight to the real liveBagState -- one upvalue hop further than before. Both are reached
+    -- from GC.SellPost.PreparePost, the click's pre-call part, as are the stubs below.
+    set(upvalue(GC.SellPost.PreparePost, "clickSafeBagState"), "liveBagState",
       function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     -- The location itself is never rebuilt in the click (resolvePostLocation only trusts what
     -- cacheBagLocation already cached at a paint this test never ran), so it is stubbed directly.
-    set(post, "resolvePostLocation", function() return {} end)
-    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    set(GC.SellPost.PreparePost, "resolvePostLocation", function() return {} end)
+    set(GC.SellPost.PreparePost, "driver", { keyInfo = function() return { isCommodity = true } end })
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
     GC.SellState.positions = { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",

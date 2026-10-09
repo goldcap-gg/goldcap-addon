@@ -20,19 +20,15 @@ describe("Sell posting wiring", function()
     "C_AuctionHouse.ConfirmPostCommodity", "C_AuctionHouse.ConfirmPostItem",
   }
 
-  it("keeps every post/confirm call inside onPostClick, the hardware click handler, and nowhere else", function()
+  it("makes every post/confirm call in onPostClick, the hardware click handler, and nowhere else", function()
     local text = source()
-    local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
-    local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
-    local click = text:sub(clickStart, clickEnd - 1)
-    local before = text:sub(1, clickStart - 1)
-    local after = text:sub(clickEnd)
-
+    local click = helper.functionBody(text, "local function onPostClick(row)")
     for _, call in ipairs(PROTECTED_CALLS) do
-      assert.is_truthy(click:find(call, 1, true), call .. " must be reachable from onPostClick")
-      assert.is_nil(before:find(call, 1, true), call .. " must not appear before onPostClick's body")
-      assert.is_nil(after:find(call, 1, true), call .. " must not appear after onPostClick's body -- "
-        .. "including inside the queue control, a timer callback, or a render path")
+      local made = call .. "("
+      assert.is_truthy(click:find(made, 1, true), call .. " must be made in onPostClick")
+      local pattern = made:gsub("%p", "%%%0")
+      assert.equal(1, select(2, text:gsub(pattern, "")), call .. " must be made once in UI/SellFrame.lua -- in "
+        .. "onPostClick, never inside the queue control, a timer callback, or a render path")
     end
   end)
 
@@ -42,34 +38,20 @@ describe("Sell posting wiring", function()
   -- previous test already proves no protected call exists inside onQueueClick's body at all, so
   -- if onQueueClick posts anything, the ONLY way it can is by calling onPostClick.
   it("routes the queue control's own click through onPostClick, never a duplicate implementation", function()
-    local text = source()
-    local start = assert(text:find("local function onQueueClick()", 1, true))
-    local stop = assert(text:find("function GC.Sell.SellableCount()", 1, true))
-    local body = text:sub(start, stop - 1)
+    local body = helper.functionBody(source(), "local function onQueueClick()")
     assert.is_truthy(body:find("onPostClick(", 1, true), "onQueueClick must call onPostClick")
   end)
 
   -- The cancel queue's own belt, same shape: CancelAuction forfeits a real deposit, so it may
   -- exist ONLY inside onRepostClick (the hardware click handler with the two-click arm), and
   -- the cancel control must reuse that handler rather than grow a second cancel implementation.
-  it("keeps CancelAuction inside onRepostClick and routes the cancel control through it", function()
+  it("makes CancelAuction in onRepostClick and routes the cancel control through it", function()
     local text = source()
-    local repostStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
-    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", repostStart, true))
-    local before = text:sub(1, repostStart - 1)
-    local body = text:sub(repostStart, repostEnd - 1)
-    local after = text:sub(repostEnd)
-    assert.is_truthy(body:find("C_AuctionHouse.CancelAuction", 1, true),
-      "CancelAuction must be reachable from onRepostClick")
-    assert.is_nil(before:find("C_AuctionHouse.CancelAuction", 1, true),
-      "CancelAuction must not appear before onRepostClick's body")
-    assert.is_nil(after:find("C_AuctionHouse.CancelAuction", 1, true),
-      "CancelAuction must not appear after onRepostClick's body -- including the cancel control")
-
-    local start = assert(text:find("local function onCancelQueueClick()", 1, true),
-      "the cancel control's click handler must exist")
-    local stop = assert(text:find("-- The number on the Sell tab", start, true))
-    local control = text:sub(start, stop - 1)
+    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
+    assert.is_truthy(click:find("C_AuctionHouse.CancelAuction(", 1, true), "CancelAuction must be made in onRepostClick")
+    assert.equal(1, select(2, text:gsub("C_AuctionHouse%.CancelAuction%(", "")),
+      "CancelAuction must be made once in UI/SellFrame.lua -- in onRepostClick, never in the cancel control")
+    local control = helper.functionBody(text, "local function onCancelQueueClick()")
     -- The dock's control and a row's own Cancel lot make the same hand-over (ROW.armLot), so
     -- the chain is checked link by link: the control calls the hand-over, and the hand-over's
     -- only way to cancel anything is onRepostClick.
@@ -149,10 +131,7 @@ describe("a price the seller chose reaches the post intact", function()
   end
 
   it("hands the chosen price to the plan at the click, not just to the display", function()
-    local text = source()
-    local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
-    local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
-    local click = text:sub(clickStart, clickEnd - 1)
+    local click = helper.functionBody(helper.sellSource(), "function Post.PreparePost(row)")
     -- BuildPostPlan's floor and queue raises can only ever RAISE, and a raise applied on top
     -- of a chosen price would list above what the seller asked for without saying so. The
     -- override branch there skips both, so the plan has to be told explicitly.

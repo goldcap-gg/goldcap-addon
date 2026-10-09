@@ -19,6 +19,7 @@ end
 local Theme = GC.Theme
 -- The checks and constants this file shares with the Sell services (Services/Sell/State.lua).
 local S = GC.SellState
+local Post = GC.SellPost
 local exact, safeAdd, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeAdd,
   GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local context, activeScope, exactRenderEntry, itemName = GC.SellUtil.context, GC.SellUtil.activeScope,
@@ -2284,7 +2285,12 @@ local function schedulePostTimeout(row)
   end)
 end
 
-local function onPostClick(row)
+-- Everything a Post click does before the protected call: the guards, the plan, the pin, the
+-- row's stage and the timeout that recovers the row. Returns the call for onPostClick to make
+-- -- { confirm = true, pin = pin } or { pin = S.postingPin } -- or nil when the click ends here,
+-- having already said why. On the way to a returned call it only reads and writes plain fields:
+-- the button, the dock and the spinner wait for the handler, after the call.
+function Post.PreparePost(row)
   -- A post already on its way answers every further press with nothing. Its buttons are
   -- disabled, but the keybinding reaches here through onQueueClick whatever they look like --
   -- and the stale-quote branch just below let go of a post in flight the moment its quote
@@ -2359,35 +2365,7 @@ local function onPostClick(row)
     -- what recovers the row if that happens. C_Timer.After only registers a callback -- it does
     -- not read anything GoldCap-owned synchronously, so arming here is not a taint risk.
     schedulePostTimeout(row)
-    if pin.isCommodity then
-      C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
-    else
-      C_AuctionHouse.ConfirmPostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
-    end
-    -- Sent once the call returns, as on the first click: an error the client raises inside the
-    -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
-    -- own), not an older late post's answer -- which left this one "confirming", then held it a
-    -- minute for a post refused on the spot (review NM-B). The same guard now also protects the
-    -- "Posting…" note below: an error raised inside the call already ran OnAuctionHouseError's
-    -- own disarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
-    -- catches -- overwriting that message with "Posting…" would hide the refusal from the player.
-    if S.postingPin == pin then
-      -- The busy look, now that the protected call is behind it: disabled, saying so, the
-      -- spinner turning. Moved here with the note below (final review C3): both run Blizzard or
-      -- GoldCap Lua that WoW: Forever's taint engine blocks ahead of a protected call.
-      row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
-      if row.action.SetBusy then row.action:SetBusy(true) end
-      -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
-      -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
-      -- setStatus -> paintRefreshButton -> refresh.deckProgress() (this file, above) is one of
-      -- the reads it flags. Said the instant the call returns rather than the instant it was
-      -- about to be made -- the player sees the same "Posting…" note either way, just a beat
-      -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
-      -- same guard the first click's own note now reads).
-      GC.Sell._NotePost(pin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
-      pin.sent, pin.clean = true, GC.Sell._Certain()
-    end
-    return
+    return { confirm = true, pin = pin }
   end
   local bagState = clickSafeBagState(position)
   -- Passed explicitly as well as through the decoration above: BuildPostPlan's own floor and
@@ -2468,11 +2446,60 @@ local function onPostClick(row)
   -- C_Timer.After only registers a callback -- it does not read anything GoldCap-owned
   -- synchronously, so arming here is not a taint risk the way the busy look below is.
   schedulePostTimeout(row)
+  return { pin = S.postingPin }
+end
+
+-- A post the auction house took without asking for a Confirm, or a Confirm it took: on its way now
+-- (Blizzard's own sell frame reads the answer the same way), and anything that gives up on it from
+-- here listens for it late. `clean`: no late answer open or owed as it went out, so the next
+-- creation can only be its own (GC.Sell.OnAuctionCreated books it then, and only then).
+function Post.Sent(pin)
+  pin.sent, pin.clean = true, GC.Sell._Certain()
+end
+
+-- The Post click: the row's button, the inspector's, the dock's POST and the key binding all end
+-- here. Post.PreparePost decides; this makes the protected call, the first thing the click does
+-- with the client, and only then gives the button its busy look and the dock its note.
+local function onPostClick(row)
+  local step = Post.PreparePost(row)
+  if not step then return end
+  local pin = step.pin
+  if step.confirm then
+    if pin.isCommodity then
+      C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
+    else
+      C_AuctionHouse.ConfirmPostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
+    end
+    -- Sent once the call returns, as on the first click: an error the client raises inside the
+    -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
+    -- own), not an older late post's answer -- which left this one "confirming", then held it a
+    -- minute for a post refused on the spot (review NM-B). The same guard now also protects the
+    -- "Posting…" note below: an error raised inside the call already ran OnAuctionHouseError's
+    -- own disarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
+    -- catches -- overwriting that message with "Posting…" would hide the refusal from the player.
+    if S.postingPin == pin then
+      -- The busy look, now that the protected call is behind it: disabled, saying so, the
+      -- spinner turning. Moved here with the note below (final review C3): both run Blizzard or
+      -- GoldCap Lua that WoW: Forever's taint engine blocks ahead of a protected call.
+      row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+      if row.action.SetBusy then row.action:SetBusy(true) end
+      -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
+      -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
+      -- setStatus -> paintRefreshButton -> refresh.deckProgress() (this file, above) is one of
+      -- the reads it flags. Said the instant the call returns rather than the instant it was
+      -- about to be made -- the player sees the same "Posting…" note either way, just a beat
+      -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
+      -- same guard the first click's own note now reads).
+      GC.Sell._NotePost(pin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
+      Post.Sent(pin)
+    end
+    return
+  end
   local needsConfirmation
-  if info.isCommodity then
-    needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
+  if pin.isCommodity then
+    needsConfirmation = C_AuctionHouse.PostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
   else
-    needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
+    needsConfirmation = C_AuctionHouse.PostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
   end
   -- The client can answer inside the call itself (an error it raises on the spot). That answer
   -- has already given the row back (OnAuctionHouseError's own disarmPost) and noted its own
@@ -2501,15 +2528,16 @@ local function onPostClick(row)
     if row.action.SetBusy then row.action:SetBusy(false) end
     GC.Sell._NotePost(GC.L["Click Confirm to post"])
   else
-    -- No confirmation asked for: the post is on its way (Blizzard's own sell frame reads the
-    -- answer the same way), and anything that gives up on it from here listens for it late.
-    -- `clean`: no late answer open or owed as it went out, so the next creation can only be its own
-    -- (GC.Sell.OnAuctionCreated books it then, and only then).
-    S.postingPin.sent, S.postingPin.clean = true, GC.Sell._Certain()
+    Post.Sent(S.postingPin)
   end
 end
 
-local function onRepostClick(row, auctionID)
+-- Everything a Cancel lot click does before the protected call. A first click arms (the deposit
+-- warning, REPOST_ARM_SECONDS before a confirm counts, the timeout) and returns nil; the
+-- confirming click checks the pin against a fresh read of the player's own auctions, marks the
+-- row "cancelling" and returns the pin and its scope for onRepostClick to cancel. Plain reads
+-- and writes only on the way there.
+function Post.PrepareCancel(row, auctionID)
   local position = row.position
   if S.repostingRow and S.repostingRow ~= row then
     disarmRepost()
@@ -2588,27 +2616,7 @@ local function onRepostClick(row, auctionID)
     -- runs its own OnDisable script -- moves after the call, with the recompose below (final
     -- review C3's "related" note on this same shape).
     row.repostStage = "cancelling"
-    C_AuctionHouse.CancelAuction(pin.auctionID)
-    row.action:Disable()
-    -- Full recompose and its paints, now that the protected call is behind us: rebuilds
-    -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
-    -- no protected call follows in this click), and repaints the deck switch, queue and cancel
-    -- buttons this click used to paint through composePositions(true) before the call.
-    composePositions()
-    if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
-      GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
-    end
-    setStatus(GC.L["Cancelling lot…"])
-    if C_Timer and C_Timer.After then
-      local token = repostArmToken
-      C_Timer.After(REPOST_CANCEL_TIMEOUT_SECONDS, function()
-        if token == repostArmToken and S.repostingRow == row and row.repostStage == "cancelling" then
-          disarmRepost()
-          setStatus(GC.L["Cancel timed out"])
-        end
-      end)
-    end
-    return
+    return pin, scope
   end
   local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, { unit = quote.unit, fresh = true })
   local scope, scopeKey = activeScope(position)
@@ -2652,6 +2660,39 @@ local function onRepostClick(row, auctionID)
       end
     end)
   end
+end
+
+-- What a sent cancel owes the tab, run by onRepostClick straight after the call, once the
+-- button is disabled.
+function Post.Cancelling(row, pin, scope)
+  -- Full recompose and its paints, now that the protected call is behind us: rebuilds
+  -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
+  -- no protected call follows in this click), and repaints the deck switch, queue and cancel
+  -- buttons this click used to paint through composePositions(true) before the call.
+  composePositions()
+  if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
+    GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
+  end
+  setStatus(GC.L["Cancelling lot…"])
+  if C_Timer and C_Timer.After then
+    local token = repostArmToken
+    C_Timer.After(REPOST_CANCEL_TIMEOUT_SECONDS, function()
+      if token == repostArmToken and S.repostingRow == row and row.repostStage == "cancelling" then
+        disarmRepost()
+        setStatus(GC.L["Cancel timed out"])
+      end
+    end)
+  end
+end
+
+-- The Cancel lot click: a lot's own button, a position's, the dock's CANCEL. Post.PrepareCancel
+-- decides; this makes the protected call first, and only then disables the button and recomposes.
+local function onRepostClick(row, auctionID)
+  local pin, scope = Post.PrepareCancel(row, auctionID)
+  if not pin then return end
+  C_AuctionHouse.CancelAuction(pin.auctionID)
+  row.action:Disable()
+  Post.Cancelling(row, pin, scope)
 end
 
 -- The "What you paid" affordance for a hand-entered cost: a mistaken "Set cost" entry used to

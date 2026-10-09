@@ -695,8 +695,7 @@ describe("Sell refresh state fence", function()
     GC.SellPositions.Build = function()
       return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
     end
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
     GC.Sell.Refresh() -- the owned phase: there is no queue to splice into yet
     startFor({ itemID = 77 })
     GC.Sell.OnOwnedAuctions()
@@ -715,8 +714,7 @@ describe("Sell refresh state fence", function()
     GC.SellPositions.Build = function()
       return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
     end
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.equal("waiting_key", refreshState(GC).phase)
     startFor({ itemID = 77 })
@@ -736,8 +734,7 @@ describe("Sell refresh state fence", function()
       timers[#timers + 1] = { seconds = seconds, callback = callback }
     end }
     local GC = load(now, sent, cache, function() return nil end)
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
     startFor({ itemID = 42 })
     assert.equal("waiting_key", refreshState(GC).phase)
     local watchdog
@@ -829,8 +826,7 @@ describe("Sell refresh state fence", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
 
     startFor({ itemID = 77 }) -- the tab is idle: a one-item check
     assert.same({ 77 }, sent.keys)
@@ -877,8 +873,7 @@ describe("Sell refresh state fence", function()
     local GC = load(now, sent, cache, function(itemID) return keyed[itemID] and { isCommodity = true } or nil end)
     local busy = false
     GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    local startFor = upvalue(GC.SellPost.PreparePost, "startQuoteRefreshFor")
 
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.equal("waiting_key", refreshState(GC).phase) -- the pass is waiting on 42's key

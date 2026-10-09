@@ -103,7 +103,7 @@ describe("Clean click ordering, driven end to end", function()
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
       function v:IsShown() return self.shown end
-      function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+      function v:Enable() self.enabled = true end function v:Disable() if log then record("Disable") end self.enabled = false end
       function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
       function v:SetMaxLines(n) self.maxLines = n end
       function v:SetSpacing() end
@@ -219,6 +219,10 @@ describe("Clean click ordering, driven end to end", function()
       -- Reach: the busy look really ran in this click -- after the call, never before it.
       assert.is_truthy(logged("CreateFrame:SpinnerTemplate"))
       assert.is_true(logged("CreateFrame:SpinnerTemplate") > logged("PostCommodity"))
+      -- And the clicked button went busy after the call, never before it (WoW: Forever refuses
+      -- a protected call from a button disabled ahead of it).
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("PostCommodity"))
     end)
 
     it("Post's Confirm click, once PostCommodity itself asked for one", function()
@@ -300,7 +304,7 @@ describe("Clean click ordering, driven end to end", function()
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
       function v:IsShown() return self.shown end
-      function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+      function v:Enable() self.enabled = true end function v:Disable() if log then record("Disable") end self.enabled = false end
       function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
       function v:SetMaxLines(n) self.maxLines = n end
       function v:SetSpacing() end
