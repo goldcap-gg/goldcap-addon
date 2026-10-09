@@ -64,6 +64,18 @@ describe("kit surfaces", function()
     end
   end)
 
+  -- Seen in WoW: Forever (2026-10-09): drawn by a child frame, the glass sat at the level every
+  -- control in the window has, and its fill covered the buttons' own fills -- an active button's
+  -- gold plate -- and the window's own lines.
+  it("is drawn by the window itself, so it is under every control in the window", function()
+    local window = W.CreateFrame("Frame")
+    local win = GC.Theme.Window(window)
+    for i, piece in ipairs(win.fill) do assert.equal(window, piece:GetParent(), "piece " .. i) end
+    assert.equal(window, win.ring:GetParent())
+    assert.equal(window, win.shadow:GetParent())
+    assert.same({}, W.state(window).children)
+  end)
+
   it("hangs a soft shadow outside the frame, under everything else in it", function()
     local shadow = GC.Theme.Shadow(W.CreateFrame("Frame"), 18, 0.6)
     local s = W.state(shadow)

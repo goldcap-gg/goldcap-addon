@@ -10831,9 +10831,7 @@ local function createFrame()
   end
 
   -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
-  local panel = Theme.Window(f)
-  panel:SetAllPoints(f)
-  f.windowPanel = panel -- SetDocked hides its shadow while the window sits in the AH frame
+  f.windowPanel = Theme.Window(f) -- SetDocked hides its shadow while the window sits in the AH frame
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
   local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT

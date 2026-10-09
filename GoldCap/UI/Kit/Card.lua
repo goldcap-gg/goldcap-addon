@@ -112,12 +112,15 @@ local function windowFill(f, top, bottom)
 end
 
 --- The main window's surface: dark glass shading from top to bottom, a faint white edge, and a
--- soft shadow outside it. Anchor it like T.Card.
-function T.Window(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f.fill = windowFill(f, K.windowTop, K.windowBottom)
-  f.ring = T.SlicedTexture(f, "BORDER", MEDIA .. "ring.png", K.windowBorder, T.SLICE.card)
-  f.ring:SetAllPoints()
-  f.shadow = T.Shadow(f, 18, 0.65)
-  return f
+-- soft shadow outside it, drawn by `window` itself over its whole rect. Returns the pieces.
+--
+-- Regions of the window, never a child frame: a child frame sits at the level every control in
+-- the window gets (the window's plus one), and the client draws frames of one level layer by
+-- layer together, so the glass's fill covered each button's own fill -- an active button's gold
+-- plate -- and the window's own lines (seen in WoW: Forever, 2026-10-09). A frame's own regions
+-- are under all of its children, whatever their levels.
+function T.Window(window)
+  local ring = T.SlicedTexture(window, "BORDER", MEDIA .. "ring.png", K.windowBorder, T.SLICE.card)
+  ring:SetAllPoints()
+  return { fill = windowFill(window, K.windowTop, K.windowBottom), ring = ring, shadow = T.Shadow(window, 18, 0.65) }
 end
