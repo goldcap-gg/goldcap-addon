@@ -48,18 +48,19 @@ describe("kit surfaces", function()
     end
   end)
 
-  -- Docked, the window sits over the auction house's own lists: at 95% the Blizzard sell list
-  -- behind it read through every row (owner's screenshot, Forever, 2026-10-09).
-  it("is opaque everywhere, so nothing behind the window reads through it", function()
+  -- The owner's call (2026-10-09): the world shows through the window at 7%. The window often
+  -- sits over the auction house, whose own rows then show faintly too; an addon cannot blur what
+  -- is behind a frame (the only blur in either game's source is C_CharacterCreation's).
+  it("lets 7% of what is behind it through, the same in every piece", function()
     local win = GC.Theme.Window(W.CreateFrame("Frame"))
     for i = 1, 9 do
       local vertex = W.state(win.fill[i]).vertex
-      if vertex then assert.equal(1, vertex[4], "piece " .. i) end
+      if vertex then assert.equal(0.93, vertex[4], "piece " .. i) end
     end
     for i = 4, 6 do
       local gradient = W.state(win.fill[i]).gradient
-      assert.equal(1, gradient[2].a)
-      assert.equal(1, gradient[3].a)
+      assert.equal(0.93, gradient[2].a)
+      assert.equal(0.93, gradient[3].a)
     end
   end)
 
