@@ -124,10 +124,7 @@ end)
 -- addon underpricing on its own must not silently undo a price the seller chose on purpose.
 describe("a price the seller chose reaches the post intact", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   it("hands the chosen price to the plan at the click, not just to the display", function()

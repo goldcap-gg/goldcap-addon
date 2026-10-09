@@ -121,6 +121,7 @@ UI/AuctionHouseTab.lua
 UI/SellViewModel.lua
 UI/Sell/Frame.lua
 UI/Sell/Book.lua
+UI/Sell/Inspector.lua
 UI/Sell/CostDialog.lua
 UI/SellFrame.lua
 UI/SoldFrame.lua

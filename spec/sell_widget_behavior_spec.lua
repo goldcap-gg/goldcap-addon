@@ -1020,6 +1020,39 @@ describe("Sell widget geometry and manual cost", function()
       },
     }
 
+    -- The head's pooled row is rebound to a list row once the position shuts. Its price control,
+    -- what that price fetches and its book are put away by two parts now (Inspector.PutAway,
+    -- Book.PutAway); none of them may ride along onto the list row.
+    it("puts every panel widget away when the head's pooled row becomes a list row", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = BOOK }
+      end
+      local function ore(id)
+        return { itemID = id, itemName = "Ore", positionKey = "commodity:" .. id, coverage = "COMPLETE",
+          exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0, bagQty = 5, listedQty = 0, sources = {} }
+      end
+      -- Open whichever position the list draws first: its head is then the second pooled row,
+      -- and the second position takes that row once the panel shuts.
+      local rows = topRows(GC, { ore(42), ore(43) })
+      GC.SellUI.expanded = { [rows[1].position.positionKey] = true }
+      GC.SellUI.List.RenderRows()
+      local head = rows[2]
+      assert.equal("drawer", head.kind)
+      assert.is_true(head.drawerBookHead.shown)
+      GC.SellUI.expanded = {}
+      GC.SellUI.List.RenderRows()
+      assert.equal("position", head.kind)
+      for _, field in ipairs({ "priceBox", "priceBoxBg", "priceNote", "chipsBg", "priceNetHead", "priceNet",
+          "priceNetNote", "drawerPriceHead", "drawerBookHead", "drawerHint", "drawerStand", "drawerFacts",
+          "drawerOwn", "drawerDepth", "drawerQuote" }) do
+        assert.is_falsy(head[field].shown, field)
+      end
+      assert.is_falsy(head.headRules[1].shown)
+      for _, chip in ipairs(head.priceChips) do assert.is_falsy(chip.shown) end
+      for _, line in ipairs(head.bookLines) do assert.is_falsy(line.price.shown or line.bar.shown) end
+    end)
+
     -- The heading and its hint are the drawer's own, not a group row: the whole point of the
     -- panel is that the book sits BESIDE the price it justifies instead of eight rows below it.
     it("heads the book with the price to actually beat, not the cheapest row on screen", function()
