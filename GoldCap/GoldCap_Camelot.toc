@@ -125,6 +125,7 @@ UI/Sell/Frame.lua
 UI/Sell/Book.lua
 UI/Sell/Inspector.lua
 UI/Sell/CostDialog.lua
+UI/Sell/Dock.lua
 UI/SellFrame.lua
 UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua

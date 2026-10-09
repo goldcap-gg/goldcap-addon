@@ -127,4 +127,19 @@ describe("UI/Sell", function()
     GC.SellView.render(); GC.SellView.status("hi"); GC.SellView.paintQueue(); GC.SellView.paintCancel()
     assert.same({ "render", "status hi", "queue", "cancel" }, calls)
   end)
+
+  it("makes no protected call outside UI/Sell/Dock.lua, whose click handlers are the only callers", function()
+    local PROTECTED = { "PostItem", "PostCommodity", "ConfirmPostItem", "ConfirmPostCommodity", "CancelAuction",
+      "PlaceBid", "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase" }
+    for _, path in ipairs(helper.SELL_UI_FILES) do
+      if path ~= "UI/Sell/Dock.lua" then
+        local text = code(read("GoldCap/" .. path))
+        for _, name in ipairs(PROTECTED) do
+          assert.is_nil(text:find("C_AuctionHouse." .. name .. "(", 1, true), path .. " calls C_AuctionHouse." .. name)
+          assert.is_nil(text:find("=%s*C_AuctionHouse%." .. name .. "%f[^%w_]"), path .. " aliases C_AuctionHouse." .. name)
+        end
+        assert.is_nil(text:find("C_AuctionHouse%s*%["), path .. " indexes C_AuctionHouse by key")
+      end
+    end
+  end)
 end)

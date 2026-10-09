@@ -86,7 +86,7 @@ describe("Clean click ordering, driven end to end", function()
     end
   end
 
-  describe("SellFrame.lua, the Post/queue paths", function()
+  describe("UI/Sell/Dock.lua, the Post/queue paths", function()
     local GC, root, render, container
 
     local function region(kind, parent)
@@ -288,7 +288,7 @@ describe("Clean click ordering, driven end to end", function()
     end)
   end)
 
-  describe("SellFrame.lua, the Cancel lot paths", function()
+  describe("UI/Sell/Dock.lua, the Cancel lot paths", function()
     local GC, root, render, container
 
     local function region(kind, parent)

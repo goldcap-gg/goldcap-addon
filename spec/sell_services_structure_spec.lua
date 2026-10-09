@@ -4,7 +4,7 @@ local helper = require("spec.spec_helper")
 -- docs/superpowers/specs/2026-10-09-addon-ui-kit-and-sell-design.md, "Part 2: code layout"): both
 -- games load the same files in the same order, after Core and before any UI file; none grows past
 -- 1000 lines or 150 top-level locals; none makes a protected call, which belongs to the click
--- handler in UI/SellFrame.lua; none reaches a frame, which it asks for through GC.SellView; and
+-- handlers in UI/Sell/Dock.lua; none reaches a frame, which it asks for through GC.SellView; and
 -- nothing keeps a copy of a service's function, so a spec that replaces one reaches every caller.
 local function read(path)
   local file = assert(io.open(path, "rb"))
@@ -77,7 +77,7 @@ describe("Services/Sell", function()
     end
   end)
 
-  it("makes no protected call: those belong to the click handlers in UI/SellFrame.lua", function()
+  it("makes no protected call: those belong to the click handlers in UI/Sell/Dock.lua", function()
     local PROTECTED = { "PostItem", "PostCommodity", "ConfirmPostItem", "ConfirmPostCommodity", "CancelAuction",
       "PlaceBid", "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase" }
     for _, path in ipairs(helper.SELL_FILES) do

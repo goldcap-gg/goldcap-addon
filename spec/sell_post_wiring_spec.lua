@@ -9,10 +9,7 @@ local helper = require("spec.spec_helper")
 -- not the player's own hardware click. This exists to catch that before it ships.
 describe("Sell posting wiring", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   local PROTECTED_CALLS = {
@@ -27,7 +24,7 @@ describe("Sell posting wiring", function()
       local made = call .. "("
       assert.is_truthy(click:find(made, 1, true), call .. " must be made in onPostClick")
       local pattern = made:gsub("%p", "%%%0")
-      assert.equal(1, select(2, text:gsub(pattern, "")), call .. " must be made once in UI/SellFrame.lua -- in "
+      assert.equal(1, select(2, text:gsub(pattern, "")), call .. " must be made once in the Sell tab -- in "
         .. "onPostClick, never inside the queue control, a timer callback, or a render path")
     end
   end)
@@ -50,7 +47,7 @@ describe("Sell posting wiring", function()
     local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
     assert.is_truthy(click:find("C_AuctionHouse.CancelAuction(", 1, true), "CancelAuction must be made in onRepostClick")
     assert.equal(1, select(2, text:gsub("C_AuctionHouse%.CancelAuction%(", "")),
-      "CancelAuction must be made once in UI/SellFrame.lua -- in onRepostClick, never in the cancel control")
+      "CancelAuction must be made once in the Sell tab -- in onRepostClick, never in the cancel control")
     local control = helper.functionBody(text, "local function onCancelQueueClick()")
     -- The dock's control and a row's own Cancel lot make the same hand-over (ROW.armLot), so
     -- the chain is checked link by link: the control calls the hand-over, and the hand-over's

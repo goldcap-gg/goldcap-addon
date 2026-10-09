@@ -24,8 +24,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     return text
   end
 
-  describe("SellFrame.lua Post", function()
-    local text = source("GoldCap/UI/SellFrame.lua")
+  describe("UI/Sell/Dock.lua Post", function()
+    local text = source("GoldCap/UI/Sell/Dock.lua")
     local prepare = helper.functionBody(helper.sellSource(), "function Post.PreparePost(row)")
     local click = helper.functionBody(text, "local function onPostClick(row)")
     local QUIET = { "_NotePost(", "notePost(", ":Disable(", ":SetLabel(", "SetBusy(" }
@@ -70,8 +70,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end)
   end)
 
-  describe("SellFrame.lua Cancel lot (onRepostClick)", function()
-    local text = source("GoldCap/UI/SellFrame.lua")
+  describe("UI/Sell/Dock.lua Cancel lot (onRepostClick)", function()
+    local text = source("GoldCap/UI/Sell/Dock.lua")
     local prepare = helper.functionBody(helper.sellSource(), "function Post.PrepareCancel(row, auctionID)")
     local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
 
@@ -165,7 +165,7 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end
 
     it("onPostClick, onRepostClick and the Prepare functions they call", function()
-      local text, all = source("GoldCap/UI/SellFrame.lua"), helper.sellSource()
+      local text, all = source("GoldCap/UI/Sell/Dock.lua"), helper.sellSource()
       assertClean(helper.functionBody(text, "local function onPostClick(row)"), "onPostClick")
       assertClean(helper.functionBody(text, "local function onRepostClick(row, auctionID)"), "onRepostClick")
       assertClean(helper.functionBody(all, "function Post.PreparePost(row)"), "Post.PreparePost")

@@ -124,7 +124,7 @@ describe("Owned lots event wiring", function()
     end
 
     it("the repost flow's own cancel stamps the lot cancelled the moment it fires", function()
-      local click = helper.functionBody(fileText("GoldCap/UI/SellFrame.lua"), "local function onRepostClick(row, auctionID)")
+      local click = helper.functionBody(fileText("GoldCap/UI/Sell/Dock.lua"), "local function onRepostClick(row, auctionID)")
       local cancelAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
       assert.is_true(assert(click:find("Post.Cancelling(row, pin, scope)", cancelAt, true)) > cancelAt)
       local cancelling = helper.functionBody(helper.sellSource(), "function Post.Cancelling(row, pin, scope)")
