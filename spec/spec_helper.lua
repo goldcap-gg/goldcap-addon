@@ -19,7 +19,7 @@ helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua"
 --- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
 --- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
 helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Services/Sell/Bags.lua", "Services/Sell/Compose.lua",
-  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua" }
+  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua" }
 
 function helper.loadModule(relPath, GC)
   GC = GC or {}

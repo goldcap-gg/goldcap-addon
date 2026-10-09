@@ -1245,7 +1245,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     local post = handlers(GC)
     GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = false } end }
-    set(GC.SellPost.PreparePost, "setStatus", function(text) status[#status + 1] = text end)
+    GC.SellView.status = function(text) status[#status + 1] = text end
     local p = position()
     p.positionKey = "item:42:100:7:0"
     p.scopeKey = "eu\1A-R\1item:42:100:7:0"

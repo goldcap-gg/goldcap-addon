@@ -149,7 +149,7 @@ describe("a price the seller chose reaches the post intact", function()
   -- The choice was made against a book that will move. Keeping it would price the next batch
   -- of the same item at a number chosen for a market that is gone.
   it("spends the chosen price when the auction it was chosen for is created", function()
-    local text = source()
+    local text = helper.sellSource()
     local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID%)(.-)\nend"))
     assert.is_truthy(created:find("GC.Sell._SpendPrice(owner)", 1, true))
     local spend = assert(text:match("function GC%.Sell%._SpendPrice%(pin%)(.-)\nend"))
@@ -160,7 +160,7 @@ describe("a price the seller chose reaches the post intact", function()
   -- one. Typing counts as a player driving it -- OnTextChanged fires on the keystroke and is
   -- guarded on `byUser`, so a SetText from a render cannot reach it.
   it("keeps the override table out of every path but the ones a player drives", function()
-    local text = source()
+    local text = helper.sellSource()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
     -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
