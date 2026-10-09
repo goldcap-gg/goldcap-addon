@@ -1872,11 +1872,11 @@ describe("Sell widget geometry and manual cost", function()
     -- see SellFrame.lua's own comment on why), which for a commodity position still hands
     -- straight to the real liveBagState -- one upvalue hop further than before. Both are reached
     -- from GC.SellPost.PreparePost, the click's pre-call part, as are the stubs below.
-    set(upvalue(GC.SellPost.PreparePost, "clickSafeBagState"), "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
-    -- The location itself is never rebuilt in the click (resolvePostLocation only trusts what
+    GC.SellBags.LiveState =
+      function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end
+    -- The location itself is never rebuilt in the click (Bags.ResolveLocation only trusts what
     -- cacheBagLocation already cached at a paint this test never ran), so it is stubbed directly.
-    set(GC.SellPost.PreparePost, "resolvePostLocation", function() return {} end)
+    GC.SellBags.ResolveLocation = function() return {} end
     set(GC.SellPost.PreparePost, "driver", { keyInfo = function() return { isCommodity = true } end })
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
@@ -2071,8 +2071,8 @@ describe("Sell widget geometry and manual cost", function()
         postRecommendation = { unit = 11500, mode = "overcut", ahead = 12 } },
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
+    GC.SellBags.LiveState =
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
     -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
@@ -2091,8 +2091,8 @@ describe("Sell widget geometry and manual cost", function()
         status = "UNLISTED", displayMarketUnit = 9900, freshMarketUnit = 9900 },
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
+    GC.SellBags.LiveState =
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
     assert.equal("→ 9900", rows[4].cells.market.text)
@@ -3094,9 +3094,8 @@ describe("Sell widget geometry and manual cost", function()
   end)
   it("drops the bag line from the panel when it would only repeat the panel's own heading", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+    GC.SellBags.LiveState =
+      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 5,
         knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 } },

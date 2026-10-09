@@ -188,9 +188,9 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
     it("onPostClick resolves its location from the paint-time cache, never builds one itself", function()
       local click = helper.functionBody(helper.sellSource(), "function Post.PreparePost(row)")
-      assert.is_truthy(click:find("resolvePostLocation(position)", 1, true),
+      assert.is_truthy(click:find("Bags.ResolveLocation(position)", 1, true),
         "onPostClick must resolve its location through the paint-time cache")
-      assert.is_truthy(click:find("clickSafeBagState(", 1, true),
+      assert.is_truthy(click:find("Bags.ClickSafe(", 1, true),
         "onPostClick must read bag state through the click-safe wrapper, not liveBagState directly")
     end)
   end)

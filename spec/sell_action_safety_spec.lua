@@ -37,7 +37,7 @@ describe("Sell protected action state", function()
   -- The click's pre-call part is GC.SellPost.PreparePost now, so the hops start there, and so
   -- does every stub below of a helper that part uses.
   local function liveBagState(GC)
-    return upvalue(upvalue(GC.SellPost.PreparePost, "clickSafeBagState"), "liveBagState")
+    return GC.SellBags.LiveState
   end
 
   -- Primes the cache resolvePostLocation reads (onPostClick never builds an ItemLocation itself
@@ -59,7 +59,7 @@ describe("Sell protected action state", function()
   end
 
   local function setLiveBagState(GC, value)
-    set(upvalue(GC.SellPost.PreparePost, "clickSafeBagState"), "liveBagState", value)
+    GC.SellBags.LiveState = value
     -- Same mirror as primeLocation above, run automatically: every stub here returns a fixed bag
     -- state, so priming from that one sample is exactly what a real paint would have cached for
     -- it before the click these specs fire directly.
@@ -266,10 +266,10 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     -- Stubbed directly, not through setLiveBagState, which would prime the cache from the same
     -- sample -- this test needs the cache to stay empty.
-    set(upvalue(GC.SellPost.PreparePost, "clickSafeBagState"), "liveBagState", function()
+    GC.SellBags.LiveState = function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
         itemID = 42, positionKey = "commodity:42" }
-    end)
+    end
     set(GC.SellPost.PreparePost, "driver", { keyInfo = function() return { isCommodity = true } end })
     post({ position = position(), action = button(), renderEntryID = "entry:post:no-location" })
     assert.equal(0, calls)
