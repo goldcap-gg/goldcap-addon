@@ -206,10 +206,6 @@ describe("Sell widget geometry and manual cost", function()
     _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
-  -- A tracked position with nothing in the bags AND nothing listed is stock sitting in the
-  -- mail, the bank, or on another character. Its status used to talk about cost coverage,
-  -- which answered a question nobody asked while the real one -- "where is my ore?" -- went
-  -- unanswered.
   it("tells the Sell services the tab is built and whether it is up, once Attach has run", function()
     local GC = load(900, {})
     local container = upvalue(upvalue(GC.Sell.Attach, "renderRows"), "container")
@@ -222,6 +218,10 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(container:IsShown(), GC.SellView.isShown())
   end)
 
+  -- A tracked position with nothing in the bags AND nothing listed is stock sitting in the
+  -- mail, the bank, or on another character. Its status used to talk about cost coverage,
+  -- which answered a question nobody asked while the real one -- "where is my ore?" -- went
+  -- unanswered.
   it("says where the stock is not, for a position with no bags and no listings", function()
     local GC = load(620, { calls = {} })
     local rows = topRows(GC, {
