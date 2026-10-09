@@ -33,7 +33,7 @@ end
 local function sellFiles()
   local out = {}
   for _, path in ipairs(helper.SELL_FILES) do out[#out + 1] = path end
-  out[#out + 1] = "UI/SellFrame.lua"
+  for _, path in ipairs(helper.SELL_UI_FILES) do out[#out + 1] = path end
   return out
 end
 
@@ -129,13 +129,13 @@ describe("Services/Sell", function()
     end
   end)
 
-  it("lets UI/SellFrame.lua fill every slot of GC.SellView", function()
+  it("lets the Sell view fill every slot of GC.SellView", function()
     local GC = { Sell = {} }
     for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end
     local defaults = {}
     for name, fn in pairs(GC.SellView) do defaults[name] = fn end
     assert.is_not_nil(next(defaults))
-    helper.loadModule("UI/SellFrame.lua", GC)
+    for _, path in ipairs(helper.SELL_UI_FILES) do helper.loadModule(path, GC) end
     for name, fn in pairs(defaults) do
       assert.is_function(GC.SellView[name], name)
       assert.are_not.equal(fn, GC.SellView[name], name .. " is still the default")

@@ -136,11 +136,7 @@ describe("row button labels fit the button", function()
 
   local source
   local function sellSource()
-    if not source then
-      local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-      source = file:read("*a")
-      file:close()
-    end
+    if not source then source = helper.sellSource() end
     return source
   end
 

@@ -1,4 +1,4 @@
-require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
+local helper = require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
 
 describe("TOC load order", function()
   -- Shared by both TOCs below: retail (GoldCap.toc, every money global present) and WoW:
@@ -244,7 +244,7 @@ describe("TOC load order", function()
       if rel == "Core/SellPositions.lua" then sellPositionsIndex = i end
       if rel == "Core/PostQueue.lua" then postQueueIndex = i end
       if rel == "UI/SellViewModel.lua" then sellViewModelIndex = i end
-      if rel == "UI/SellFrame.lua" then sellFrameIndex = i end
+      if rel == helper.SELL_UI_FILES[1] then sellFrameIndex = i end
       if rel == "Core/AppLedger.lua" then appLedgerIndex = i end
       if rel == "UI/SoldFrame.lua" then soldFrameIndex = i end
     end

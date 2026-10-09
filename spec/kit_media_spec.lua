@@ -41,7 +41,7 @@ describe("kit media", function()
   it("names only icons the atlas has, wherever UI code asks for one by name", function()
     local GC = helper.loadModule("UI/Kit/Icons.lua")
     local problems = {}
-    local handle = assert(io.popen("ls GoldCap/UI/*.lua GoldCap/UI/Kit/*.lua"))
+    local handle = assert(io.popen("ls GoldCap/UI/*.lua GoldCap/UI/Kit/*.lua GoldCap/UI/Sell/*.lua"))
     for path in handle:lines() do
       local file = assert(io.open(path, "rb"))
       local text = file:read("*a")

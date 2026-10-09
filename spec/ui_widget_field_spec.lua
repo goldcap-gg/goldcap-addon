@@ -20,7 +20,6 @@ local helper = require("spec.spec_helper")
 -- LESS text, never to invent a hit, so it is safe in the direction that matters.
 describe("widget fields the real client actually has", function()
   local SOURCES = {
-    "GoldCap/UI/SellFrame.lua",
     "GoldCap/UI/SoldFrame.lua",
     "GoldCap/UI/SniperFrame.lua",
     "GoldCap/UI/SettingsFrame.lua",
@@ -41,6 +40,7 @@ describe("widget fields the real client actually has", function()
   }
   for _, path in ipairs(helper.SELL_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
 
+  for _, path in ipairs(helper.SELL_UI_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
   -- Every field the widget doubles in spec/sell_widget_behavior_spec.lua and friends invent for
   -- their own bookkeeping. A real Frame/FontString/Button exposes none of them; each has a
   -- method that answers the same question, named beside it here so a failure says what to use.

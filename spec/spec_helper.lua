@@ -22,6 +22,11 @@ helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Se
   "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua",
   "Services/Sell/Session.lua" }
 
+--- The Sell tab's view, in the order both TOCs load it: one block right after UI/SellViewModel.lua
+--- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
+--- UI/SellFrame.lua stays last until the split moves the rest of it out.
+helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/SellFrame.lua" }
+
 function helper.loadModule(relPath, GC)
   GC = GC or {}
   -- Locale/Core.lua is the second entry in the TOC, so in the real client GC.L exists before
@@ -73,21 +78,21 @@ local function readFile(path)
   return text
 end
 
---- The Sell tab as the client loads it: its services, then UI/SellFrame.lua. Every spec that
---- drives the tab loads it through here, so a file the services gain is loaded everywhere.
+--- The Sell tab as the client loads it: its services, then its view (helper.SELL_UI_FILES). Every
+--- spec that drives the tab loads it through here, so a file either half gains is loaded everywhere.
 function helper.loadSell(GC)
   GC = GC or {}
   for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end
-  return helper.loadModule("UI/SellFrame.lua", GC)
+  for _, path in ipairs(helper.SELL_UI_FILES) do helper.loadModule(path, GC) end
+  return GC
 end
 
---- The Sell tab's source as one text, in load order: its services, then UI/SellFrame.lua. For a
---- spec that checks the tab holds a piece of logic wherever that logic lives. A check on the
---- click handlers' own bodies reads UI/SellFrame.lua, where they are.
+--- The Sell tab's source as one text, in load order: its services, then its view. For a spec that
+--- checks the tab holds a piece of logic wherever that logic lives.
 function helper.sellSource()
   local parts = {}
   for _, path in ipairs(helper.SELL_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
-  parts[#parts + 1] = readFile("GoldCap/UI/SellFrame.lua")
+  for _, path in ipairs(helper.SELL_UI_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
   return table.concat(parts, "\n")
 end
 
