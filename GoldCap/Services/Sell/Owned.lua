@@ -91,7 +91,7 @@ end
 -- Seen in game (twice) as a tab that went dead after the confirming click: the lot still
 -- listed, its button greyed at "Cancel lot?", no row opening, the panel refusing to shut, until
 -- the cancel's own 30-second timeout -- or a trip to another tab, which re-queries. Nothing is
--- waited for any more: the moment CancelAuction is sent the arm is let go (ROW.cancelSent) and
+-- waited for any more: the moment CancelAuction is sent the arm is let go (Post.CancelSent) and
 -- the lot stops being shown. AUCTION_CANCELED confirms it when the client sends one; an auction
 -- ID is never reused, so a confirmed entry stands for the session. One that nothing confirmed
 -- is given SENT_WAIT seconds, after which a list that still holds the lot is believed instead:

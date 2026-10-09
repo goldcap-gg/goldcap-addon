@@ -121,7 +121,7 @@ function GC.Sell.Reset()
   -- (QUOTE_PERSIST_MAX_AGE, three days) and every row it seeds is drawn with its real age, so
   -- nothing here can pass an old price off as a live one.
   --
-  -- Seeding is armed again with it: seedPersistedQuotes runs once per session, and without
+  -- Seeding is armed again with it: Quotes.Seed runs once per session, and without
   -- this the next compose would find an empty live cache and no permission to refill it.
   S.quotesSeeded = false
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1

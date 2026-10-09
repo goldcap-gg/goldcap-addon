@@ -91,20 +91,23 @@ local CHIP_WIDTHS = { 92, 76 }
 local renderGeneration = 0
 local manualRepairNonce = 0
 
--- Forward-declared here rather than further down: disarmPost/disarmRepost (Services/Sell/Post.lua)
--- need to flush a render that was deferred while a purchase was armed.
+-- Forward-declared here rather than further down: the callers above its real body in this
+-- file (setStatus, ROW.armLot, the row handlers) need it. Services/Sell/Post.lua reaches it as
+-- GC.SellView.render, filled at the bottom of this file.
 local function renderRows() end
 -- Forward-declared for the same reason renderRows is: setStatus (defined further down, but
--- above formatCell) needs to call this on every state change, and composePositions (much
--- further down) needs to call it on every data change -- see this function's real body, well
+-- above formatCell) needs to call this on every state change, and the row handlers need it
+-- on every data change -- see this function's real body, well
 -- below formatCell, for why it cannot be defined this early itself. renderRows DEFERS for the
--- whole time a post is armed (disarmPost/disarmRepost's own flushDeferredRender), so a render is
+-- whole time a post is armed (Post.DisarmPost/Post.DisarmRepost's own flushDeferredRender in
+-- Services/Sell/Post.lua), so a render is
 -- not a reliable place to keep the queue control's own label in sync with the confirm/posting
 -- dance -- this is driven the same way paintRefreshButton already is, from setStatus.
 local function paintQueueButton() end
--- Forward-declared for the same reason paintQueueButton is: disarmRepost and the repost arm
--- timer (both in Services/Sell/Post.lua) must keep the cancel control's label in sync with the
--- arm/confirm dance, because renderRows defers for the whole time a repost is armed.
+-- Forward-declared for the same reason paintQueueButton is: setStatus, ROW.armLot and the row
+-- handlers call it before its real body, and Services/Sell/Post.lua reaches it as
+-- GC.SellView.paintCancel to keep the cancel control's label in sync with the arm/confirm dance,
+-- because renderRows defers for the whole time a repost is armed.
 local function paintCancelButton() end
 
 -- The status line lives in the Sniper's toolbar, at the far left of a different
@@ -167,7 +170,7 @@ end
 -- writes this line every few seconds and wrote over "Posting…" within the second, the refresh
 -- after a refusal replaced "Posting failed" before it was ever drawn, and a post that went up
 -- said nothing at all. So a note holds the dock -- a post on its way until the post ends
--- (disarmPost lets it go), an outcome for its few seconds -- whatever the walk says meanwhile.
+-- (Post.DisarmPost lets it go), an outcome for its few seconds -- whatever the walk says meanwhile.
 -- The toolbar line keeps the walk's words; when the note ends the dock goes back to them.
 -- `tone` is a Theme.color key. Fields rather than locals: this chunk is at Lua 5.1's limit.
 
@@ -570,7 +573,7 @@ local function onPostClick(row)
     -- own), not an older late post's answer -- which left this one "confirming", then held it a
     -- minute for a post refused on the spot (review NM-B). The same guard now also protects the
     -- "Posting…" note below: an error raised inside the call already ran OnAuctionHouseError's
-    -- own disarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
+    -- own Post.DisarmPost + _NotePost with the real refusal, which postingPin == pin (now false)
     -- catches -- overwriting that message with "Posting…" would hide the refusal from the player.
     if S.postingPin == pin then
       -- The busy look, now that the protected call is behind it: disabled, saying so, the
@@ -597,7 +600,7 @@ local function onPostClick(row)
     needsConfirmation = C_AuctionHouse.PostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
   end
   -- The client can answer inside the call itself (an error it raises on the spot). That answer
-  -- has already given the row back (OnAuctionHouseError's own disarmPost) and noted its own
+  -- has already given the row back (OnAuctionHouseError's own Post.DisarmPost) and noted its own
   -- message -- so nothing below must run over it; this guard, already needed to stop the call
   -- from being turned into a Confirm or a watchdog it never asked for, is what protects the busy
   -- look and the note too now that both run after the call instead of before.
@@ -2589,7 +2592,7 @@ end
 
 renderRows = function()
   if not container then return end
-  -- The Sell CONTENT may be attached but not the tab currently on screen -- composePositions()
+  -- The Sell CONTENT may be attached but not the tab currently on screen -- Compose.Positions()
   -- and GC.Sell.Refresh() run regardless of which tab is active (bag counts and the tab badge
   -- must stay current either way), and that used to rebuild every visible row along with them:
   -- dragging the window's resize grip alone re-ran this at up to 60fps, and every quote landing
@@ -2608,7 +2611,8 @@ renderRows = function()
   -- confirmation the player was one click away from giving. That was already
   -- wrong; the tab now re-prices itself every few seconds, which made it certain.
   -- Hold the render instead. Every arm is timeout-bounded, so it cannot be held
-  -- indefinitely, and disarmPost/disarmRepost/disarmRemove flush whatever was deferred.
+  -- indefinitely, and Post.DisarmPost/Post.DisarmRepost/Post.DisarmRemove flush whatever was
+  -- deferred.
   if S.postingRow or S.repostingRow or S.removingRow then
     S.deferredRender = true
     return
@@ -2873,7 +2877,7 @@ renderRows = function()
         -- "· watching" suffix in setRowDeal, and its own color code so it never inherits
         -- whatever color the line before it painted.
         --
-        -- Deliberately not queued into the pricing walk: uniqueQuoteItemIDs (above) only picks
+        -- Deliberately not queued into the pricing walk: Walk.Queue (above) only picks
         -- up a position with `inBags or listed`, so this row keeps whatever quote it already
         -- has (or none) and stays ranked last -- there is nothing actionable to price a quote
         -- for, and spending one of the walk's throttled requests on it would starve a row a
@@ -2913,7 +2917,7 @@ renderRows = function()
         -- Item 5 (addon polish batch): a bare `emptyAnswers[p.itemID]` presence check made a
         -- ONE-OFF empty AH answer hide the fallback forever -- only a manual Refresh (which
         -- wipes emptyAnswers outright) brought it back. Age-gate it the same way
-        -- uniqueQuoteItemIDs already does for re-query eligibility, so a stale empty answer
+        -- Walk.Queue already does for re-query eligibility, so a stale empty answer
         -- lets the fallback show again instead of only a fresh one suppressing it. While the
         -- walk is actively re-querying THIS exact item (refresh.pending, the walk's one
         -- in-flight slot), keep "none" rather than flicker the fallback in for the few seconds
@@ -3611,7 +3615,7 @@ function GC.Sell.Show()
     paintHeaderText(container.header, container.headerDeck)
   end
   -- This is what flushes a render renderRows() deferred while the container was hidden: Show()
-  -- has always called Refresh() unconditionally, and Refresh()'s own composePositions()+
+  -- has always called Refresh() unconditionally, and Refresh()'s own Compose.Positions()+
   -- renderRows() pass now runs for real the instant Walk.Shown() is true. An explicit
   -- flushDeferredRender() call here would render this same pass a second time.
   GC.Sell.Refresh()
@@ -4373,7 +4377,7 @@ end
 GC.slashHandlers = GC.slashHandlers or {}
 -- The throttle flag as the CLIENT reports it, with no side effect.
 --
--- driver.isReady() is GC.Util.ThrottleReady(), which past its stuck window answers true on a
+-- Quotes.driver.isReady() is GC.Util.ThrottleReady(), which past its stuck window answers true on a
 -- flag the client is still reporting false. That is the right answer for a sender and the
 -- wrong one for a readout of what the CLIENT says, which is what these two printers want.
 local function throttleReadyForDisplay()
@@ -4397,7 +4401,7 @@ GC.slashHandlers.sellstate = function()
     tostring(throttleReadyForDisplay()),
     tostring(blocking and blocking() or false), rested))
   -- Every row without a market price, and the EXACT reason the walk is not asking about it --
-  -- mirrors uniqueQuoteItemIDs' own membership rules, so a "—" can always be explained.
+  -- mirrors Walk.Queue's own membership rules, so a "—" can always be explained.
   local shown = 0
   for _, position in ipairs(S.positions) do
     if position.displayMarketUnit == nil and position.itemID and shown < 12 then

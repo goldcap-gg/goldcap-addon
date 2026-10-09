@@ -319,7 +319,8 @@ function Post.PreparePost(row)
     return { confirm = true, pin = pin }
   end
   local bagState = Bags.ClickSafe(position)
-  -- Passed explicitly as well as through the decoration above: BuildPostPlan's own floor and
+  -- Passed explicitly as well as through the position's decoration (Compose.Positions):
+  -- BuildPostPlan's own floor and
   -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
@@ -365,7 +366,8 @@ function Post.PreparePost(row)
   -- Never build the bag/slot location fresh here: Bags.ResolveLocation only reuses the one
   -- cacheBagLocation already built at the last paint, re-proven by a plain C API just above (and,
   -- for a commodity, again inside Bags.ResolveLocation itself) -- see the comment above
-  -- Bags.LiveState for why building it in this click is exactly what WoW: Forever's taint engine
+  -- Bags.LiveState in Bags.lua for why building it in this click is exactly what WoW: Forever's
+  -- taint engine
   -- blocks ahead of the protected call in onPostClick (UI/SellFrame.lua).
   local location = Bags.ResolveLocation(position)
   if not location then View.status(GC.L["No exact bag stack"]); return end
@@ -394,7 +396,7 @@ function Post.PreparePost(row)
   -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts onPostClick
   -- (UI/SellFrame.lua), and armed after it the row and the dock stayed on "Posting…" until the
   -- auction house closed, with every other Post answering "Finish the pending post first" (review
-  -- I2). An answer that lands inside the call lets this go through disarmPost's token, like any
+  -- I2). An answer that lands inside the call lets this go through Post.DisarmPost's token, like any
   -- other. C_Timer.After only registers a callback -- it does not read anything GoldCap-owned
   -- synchronously, so arming here is not a taint risk the way the busy look in onPostClick is.
   schedulePostTimeout(row)
@@ -460,11 +462,11 @@ function Post.PrepareCancel(row, auctionID)
     end
     -- A fresh, plain read of the server's own owned-auctions list -- auctionID, quantity, unit
     -- price -- and nothing else. Bag stock plays no part in whether a lot can be cancelled
-    -- (final review C2), so this click no longer calls composePositions()/Bags.Scan() at all:
+    -- (final review C2), so this click no longer calls Compose.Positions()/Bags.Scan() at all:
     -- that used to run classifyBagItem -> C_AuctionHouse.IsSellItemValid on a bag location built
-    -- fresh, right here, from the Blizzard mixin method cacheBagLocation's own comment (above
-    -- Bags.LiveState) names -- for every unbound non-commodity bag stack, ahead of the protected
-    -- CancelAuction in onRepostClick (UI/SellFrame.lua). classifyOwnedAuctions' own
+    -- fresh, right here, from the Blizzard mixin method cacheBagLocation's own comment (in Bags.lua,
+    -- above Bags.LiveState) names -- for every unbound non-commodity bag stack, ahead of the protected
+    -- CancelAuction in onRepostClick (UI/SellFrame.lua). Owned.Classify's own
     -- GetItemKeyInfo call is a plain C API, not a mixin method.
     local freshLots = GC.SellPositions.NormalizeOwnedLots(
       Owned.Classify(C_AuctionHouse.GetOwnedAuctions() or {}), time())
@@ -545,7 +547,7 @@ function Post.Cancelling(row, pin, scope)
   -- Full recompose and its paints, now that the protected call is behind us: rebuilds
   -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
   -- no protected call follows in this click), and repaints the deck switch, queue and cancel
-  -- buttons this click used to paint through composePositions(true) before the call.
+  -- buttons this click used to paint through Compose.Positions(true) before the call.
   Compose.Positions()
   if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
     GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())

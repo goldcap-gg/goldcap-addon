@@ -116,7 +116,7 @@ describe("Sell protected action state", function()
       QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
     helper.loadSell(GC)
     local spy = function(text) status[#status + 1] = text end
-    GC.SellView.status = spy -- the click's own lines (Refresh) and the walk's
+    GC.SellView.status = spy -- the click's own lines and the walk's
     local post = handlers(GC)
     post({ position = position(), action = button() })
     assert.equal(0, owned)

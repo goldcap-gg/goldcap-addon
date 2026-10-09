@@ -39,7 +39,7 @@ GC.Sell.EMPTY_ANSWER_AGE = 60
 
 GC.SellState = {
   positions = {}, ownedLots = {}, quotes = {},
-  -- The posting queue, DERIVED, never stored: rebuilt by composePositions() every time positions
+  -- The posting queue, DERIVED, never stored: rebuilt by Compose.Positions() every time positions
   -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
   -- queue with an index into it -- a post empties that item from the bags, so the entry drops out
   -- of the very next build on its own. A stored queue is a second source of truth that can
@@ -52,7 +52,7 @@ GC.SellState = {
   -- GetOwnedAuctions, so the entry drops out of the very next build on its own.
   cancelEntries = {}, cancelSkipped = {},
   bagStock = {},
-  -- itemIDs whose OWNED lots could not be told commodity-from-item yet (classifyOwnedAuctions).
+  -- itemIDs whose OWNED lots could not be told commodity-from-item yet (Owned.Classify).
   -- Read by GC.Sell.OnItemKeyInfo, which re-keys those lots the moment the client learns the
   -- answer -- without it a lot stayed filed under a guessed key until the next owned-auctions
   -- query happened to come round.
@@ -76,8 +76,8 @@ GC.SellState = {
   rowPlaces = {},
   -- `priority` holds items a CLICK asked about while a pass was already running (Post/Repost on a
   -- row whose quote had aged out). Deliberately outside `queue`: splicing into that array put the
-  -- item in a slot the walk then stepped over -- and a queue rebuilt by beginQuoteWalk, which is
-  -- what the owned-auctions phase ends in, dropped it outright. advanceQuote drains this before
+  -- item in a slot the walk then stepped over -- and a queue rebuilt by Walk.Begin, which is
+  -- what the owned-auctions phase ends in, dropped it outright. Walk.Advance drains this before
   -- the queue's own next step, so the row the player is standing on is answered first.
   refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil,
     drain = {}, priority = {} },
@@ -89,9 +89,9 @@ GC.SellState = {
   -- renderRows holds a render back while a post, a cancel or a removal is armed; the disarm that
   -- lets the last of them go renders it.
   deferredRender = false,
-  -- One-shot: composePositions() runs on every refresh tick, and re-merging the persisted store
+  -- One-shot: Compose.Positions() runs on every refresh tick, and re-merging the persisted store
   -- on every one of them would let a persisted quote silently resurrect over a quote this
-  -- session has already, correctly, forgotten (an empty answer via skipPendingQuote). Guarded on
+  -- session has already, correctly, forgotten (an empty answer via Walk.SkipPending). Guarded on
   -- GC.db existing at all -- the very first compose can run before ADDON_LOADED has -- so a
   -- session with no store yet simply retries on the next compose instead of flipping the flag on
   -- nothing.
@@ -224,7 +224,7 @@ end
 
 -- WoW: Forever: the POST queue holds back what a vendor pays at least as much for (see
 -- Core/PostQueue.lua's below_vendor). nil anywhere else, so retail's queue is built exactly as
--- before. Read-only lookups: it runs inside composePositions, which the Cancel click also calls.
+-- before. Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
 function GC.Sell._QueueOpts()
   if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return nil end
   if not (GC.ForeverValue and GC.ForeverValue.VendorUnit) then return nil end

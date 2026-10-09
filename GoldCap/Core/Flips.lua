@@ -316,7 +316,8 @@ function GC.Flips.SilverUp(copper)
 end
 
 --- The listing duration index the player posts at: settings.sniper.postDuration, 1/2/3 (12/24/48 h
--- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. UI/SellFrame.lua's postDuration and
+-- on retail, 2/8/24 h in WoW: Forever), 2 for anything else. Services/Sell/Post.lua's
+-- postDuration and
 -- UI/SniperFrame.lua's depositFor keep their own copies ON PURPOSE: both run inside the Post and
 -- purchase clicks, and the beta's taint log flagged exactly a GoldCap table-field call made there
 -- ahead of the protected call. New code outside those clicks reads this one.

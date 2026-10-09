@@ -88,7 +88,7 @@ end
 -- follows suit. An item auction carries the total for the whole stack.
 --
 -- Fails toward NOT dividing when the kind is unknown. GetOwnedAuctions does not
--- report isCommodity itself (see classifyOwnedAuctions in UI/SellFrame.lua), so
+-- report isCommodity itself (see GC.SellOwned.Classify in Services/Sell/Owned.lua), so
 -- unknown is a real state, and for a genuine item auction the divisor is almost
 -- always 1 anyway -- in retail, anything that stacks IS a commodity. Dividing on
 -- a guess understates the price, which reads as selling far below market and

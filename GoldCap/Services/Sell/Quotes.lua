@@ -156,7 +156,7 @@ function Quotes.Seed()
       -- unit and its date, never the levels. Seconds after a reload it is still "fresh", so the
       -- walk left it alone and the row sat with a price and no queue standing, and its panel
       -- with no book, until the quote aged out (seen in game). The walk owes it a real answer
-      -- exactly as it owes a bulk price one; see uniqueQuoteItemIDs.
+      -- exactly as it owes a bulk price one; see Walk.Queue.
       if S.quotes[itemID] == nil then S.quotes[itemID] = { unit = unit, at = at, bookless = true } end
     else
       store[itemID] = nil
@@ -187,9 +187,9 @@ end
 -- What comes back is a price to SHOW. It is the cheapest unit on the realm with nobody
 -- subtracted -- the player's own lots included -- and it carries no book. So a row whose
 -- answer says the player is among the sellers is left for the walk, the price is marked
--- `bulk`, freshQuote refuses to post against it, and the walk treats it as still owed a real
+-- `bulk`, Quotes.Fresh refuses to post against it, and the walk treats it as still owed a real
 -- quote. Commodities only: a basic item key's price can be another variant's, and a wrong
--- number is worse than none (the walk's own rule, see uniqueQuoteItemIDs).
+-- number is worse than none (the walk's own rule, see Walk.Queue).
 local BULK_MAX = 100 -- Blizzard's ceiling for one call; more disconnects the client
 
 function GC.Sell.BulkTargets()

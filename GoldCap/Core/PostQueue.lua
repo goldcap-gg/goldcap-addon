@@ -28,8 +28,9 @@ local _, GC = ...
 -- `BuildPostPlan` is responsible for. Copy, don't compute.
 --
 -- What is deliberately NOT decided here: whether an exact bag stack can be identified for a
--- given position is LIVE state (`liveBagState` in UI/SellFrame.lua, a file this module never
--- touches and never will), not something knowable from a position table alone. A position can
+-- given position is LIVE state (`GC.SellBags.LiveState`, in Services/Sell/Bags.lua, a file this
+-- module never touches and never will), not something knowable from a position table alone. A
+-- position can
 -- look perfectly postable here and still fail at click time (ambiguous variant, bag contents
 -- changed since the position was built, etc.) -- that failure belongs to `BuildPostPlan` and the
 -- click handler, and must be surfaced THERE, not guessed at or pre-empted here. Do not "fix"

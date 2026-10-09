@@ -11,7 +11,7 @@ local QUOTE_STALE_SECONDS, SELL_QUOTE_ACTION_AGE = GC.Sell.QUOTE_STALE_SECONDS, 
 local QUOTE_REWALK_AGE, EMPTY_ANSWER_AGE = GC.Sell.QUOTE_REWALK_AGE, GC.Sell.EMPTY_ANSWER_AGE
 
 -- How long a yielded pricing walk (purchase in flight, throttle window closed) waits before
--- asking again from the same queue position -- see advanceQuote's retryLater.
+-- asking again from the same queue position -- see Walk.Advance's retryLater.
 local QUOTE_RETRY_SECONDS = 2
 -- Gap between automatic re-pricing passes while the tab is open and the auction
 -- house is up. Prices stay live on their own instead of waiting for Refresh --
@@ -52,7 +52,7 @@ end
 -- be permanent, cleared only by the very event that never comes for a silently-lost request,
 -- and ONE such item then wedged every later pass in "draining" until the watchdog shot it.
 -- Past this window the lost answer is not arriving; the fence lifts and the item is asked
--- again (advanceQuote).
+-- again (Walk.Advance).
 local DRAIN_MAX_SECONDS = 15
 
 -- Whether a position has a row on the deck that is up: bag stock on the posting deck, a live
@@ -102,7 +102,7 @@ function Walk.Queue()
     -- seconds for a tab of twenty-seven, every press (measured in game). It asks about what is
     -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
     -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
-    -- it and may not back a post (see freshQuote), however young it is.
+    -- it and may not back a post (see Quotes.Fresh), however young it is.
     local held = S.quotes[quoteID]
     local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
       or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
@@ -185,7 +185,7 @@ function Walk.ScheduleExpiry()
 end
 
 -- Whether the Sell CONTENT is the tab actually on screen right now, as opposed to merely
--- attached. `composePositions()`/`GC.Sell.Refresh()` run regardless of which tab the player
+-- attached. `Compose.Positions()`/`GC.Sell.Refresh()` run regardless of which tab the player
 -- is looking at (bag counts and the tab badge stay current either way) -- this is the
 -- narrower check that guards the expensive part, rebuilding the visible ROWS.
 --
@@ -335,9 +335,9 @@ function Walk.Parked()
 end
 
 -- An item key that never resolves used to hold the pass in "waiting_key" until the phase
--- watchdog declared the whole thing dead -- and startQuoteRefreshFor's one-item walk armed no
+-- watchdog declared the whole thing dead -- and Walk.RefreshFor's one-item walk armed no
 -- watchdog at all, so there it sat in "PRICING…" for the rest of the session. One item failing
--- is not the pass failing: rest it and carry on, exactly as skipPendingQuote does.
+-- is not the pass failing: rest it and carry on, exactly as Walk.SkipPending does.
 local function scheduleKeyTimeout(itemID, fromPriority)
   if not (C_Timer and C_Timer.After) then return end
   keyTimeoutToken = keyTimeoutToken + 1
@@ -491,7 +491,7 @@ function Walk.Advance()
       retryLater()
       return
     end
-    -- The last gate before the query goes out. driver.isReady() above is a pure read of the
+    -- The last gate before the query goes out. Quotes.driver.isReady() above is a pure read of the
     -- throttle flag; THIS is the one call that spends the pacing budget a stuck flag puts the
     -- addon on, and it is asked here rather than up there so a decline further down (the drain
     -- fence, an uncached key) never spends it. The Sniper claims under its own name, so the
@@ -668,7 +668,7 @@ function Walk.RefreshFor(position)
   -- Held OUTSIDE refresh.queue -- see the refresh table's own comment. Inserting into that
   -- array dropped the item into a slot the walk stepped over whenever it was waiting on an
   -- item key, and the queue rebuild that ends the owned phase threw it away outright. On an
-  -- idle tab too: refresh.priority is how advanceQuote knows a click asked for this, and a
+  -- idle tab too: refresh.priority is how Walk.Advance knows a click asked for this, and a
   -- click is the one request that does not stand aside for the player being busy elsewhere.
   local queued = false
   for _, waitingID in ipairs(S.refresh.priority) do
@@ -691,7 +691,7 @@ function Walk.RefreshFor(position)
   else
     -- A pass paused for the player has nothing in flight and is only waiting on its retry
     -- timer; ask now rather than make the click wait for it. With a request already out, or
-    -- outside the pricing phases, advanceQuote declines on its own.
+    -- outside the pricing phases, Walk.Advance declines on its own.
     Walk.Advance()
   end
 end

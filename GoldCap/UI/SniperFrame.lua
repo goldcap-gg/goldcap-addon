@@ -244,7 +244,8 @@ LIM.LIVE_TOOLTIP_SECONDS = 900
 -- answers that happened to arrive fast.
 LIM.KEYS_TIMEOUT_SECONDS = 30
 -- The Sell tab's bulk fill is the one owner that stops wanting its answer sooner: its walk
--- stands still for eight seconds (GC.Sell.BulkOutstanding in UI/SellFrame.lua -- keep the two
+-- stands still for eight seconds (GC.Sell.BulkOutstanding in Services/Sell/Quotes.lua -- keep
+-- the two
 -- equal) and then searches on, and a search sent over an unanswered keys call cancels its
 -- answer. Held for the full thirty, a REFRESH on Sell followed by a switch to Deals kept the
 -- board waiting half a minute for rows nobody was going to read.
@@ -2084,7 +2085,8 @@ end
 
 -- The deposit the decision subtracts from the projected profit is the deposit the player will
 -- actually pay, which depends on how long they list for: settings.sniper.postDuration (1 = 12h,
--- 2 = 24h, 3 = 48h), the very setting UI/SellFrame.lua's own postDuration() posts at. This was
+-- 2 = 24h, 3 = 48h), the very setting Services/Sell/Post.lua's own postDuration() posts at. This
+-- was
 -- hardcoded to 24h, so a player selling at 48h was quoted a cheaper deposit than the resale
 -- costs. Same "anything that is not exactly one of the three falls back to 2" contract as the
 -- Sell tab's reader -- a hand-edited value must never reach the API.
@@ -2305,7 +2307,7 @@ driver = {
     trace("search: item " .. tostring(itemID))
     -- Every background search of ours waits for an unanswered keys batch (canDrillNow,
     -- maybeStartPrewarm, the verify walk, mayScan); the player's own Check does not -- it is the
-    -- player. What it sends takes that batch's answer with it (UI/SellFrame.lua's advanceQuote),
+    -- player. What it sends takes that batch's answer with it (GC.SellWalk.Advance),
     -- so the wait is written off now rather than holding every keys consumer, the pass and the
     -- background searches for the rest of its timeout. A late answer is still recognised for
     -- what it is (see _WriteOffKeys).
@@ -5918,7 +5920,7 @@ local function finishRequery(attempt, liveDeal)
   if not isCurrentRequeryAttempt(attempt) then return end
   -- Final review S2 (ii): nothing came back for a Check that went out over a keys batch given up
   -- (attempt.overBatch) -- and a search sent over an unanswered batch comes back empty whatever
-  -- is listed (UI/SellFrame.lua's advanceQuote, seen in game). Asked once more before the window
+  -- is listed (GC.SellWalk.Advance, seen in game). Asked once more before the window
   -- says "gone" and the row comes down; the first answer has landed, so nothing is left to drain.
   if liveDeal == nil and attempt.overBatch and not attempt.retried then
     attempt.retried, attempt.overBatch, attempt.sent = true, nil, false
@@ -6937,7 +6939,7 @@ local function canDrillNow()
   if GC.Sniper.IsPurchaseQuiet() then return false end
   -- Caps fixes 4a, round 1: never over an unanswered keys batch, whoever sent it. A search sent on
   -- top of one takes its answer with it, and comes back empty itself (UI/SellFrame.lua's
-  -- advanceQuote, seen in game). The batch's own answer brings the next ready tick.
+  -- GC.SellWalk.Advance, seen in game). The batch's own answer brings the next ready tick.
   if GC.Sniper._KeysOutstanding() then return false end
   return driver.isReady() and true or false
 end
@@ -7067,7 +7069,7 @@ end
 --
 -- Round 1: not on the Sell or BUY tab. Those run searches of their own -- the Sell tab's pricing
 -- walk, BUY's quotes -- and a search sent on top of an unanswered keys batch takes its answer and
--- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game): cap batches under the
+-- comes back empty itself (GC.SellWalk.Advance, seen in game): cap batches under the
 -- walk cost the player their prices. The player's own tab wins; the caps resume on Deals or Sold.
 --
 -- Fairness. The batch holds the one keys interlock until it answers, and a round is one batch per
@@ -7523,7 +7525,7 @@ function GC.Sniper.IsPurchaseQuiet()
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or a purchase attempt is mid-flight
--- -- GC.Sell's own quote walker (SellFrame.lua) checks this before every send and simply
+-- -- GC.Sell's own quote walker (Services/Sell/Walk.lua) checks this before every send and simply
 -- refuses/waits while it's true, so the Sell tab's traffic can never compete with, or queue
 -- ahead of, a scan or a buy requery on the shared throttled message system.
 function GC.Sniper.IsBusy()
@@ -7547,7 +7549,7 @@ function GC.Sniper.IsSearchCritical()
 end
 
 -- Task 9 fix round 1 (I4): one-line accessor over the existing `ahOpen` local (set true on
--- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.Sell's requestOwnedAuctions checks
+-- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.SellOwned.Request checks
 -- this before ever calling C_AuctionHouse.QueryOwnedAuctions, so a stray owned-lots refresh
 -- (e.g. the tab-show/ghost-Refresh paths firing after the player has already left the AH) can't
 -- issue a query with no live session to answer it.
@@ -10579,7 +10581,7 @@ local function setView(v)
   -- window's OnHide and the AH-close reset already release it here; this path did not.
   clearHover()
   -- One throttled search slot serves the whole addon: a Deals scan running behind the Sell
-  -- tab starved the pricing walk's queries silently (see SellFrame.lua's advanceQuote). Auto
+  -- tab starved the pricing walk's queries silently (see GC.SellWalk.Advance). Auto
   -- pauses for as long as Sell is shown and resumes leaving it -- Sold never queries the AH,
   -- so switching to/from Sold neither pauses nor resumes this reason.
   if v == "sell" then

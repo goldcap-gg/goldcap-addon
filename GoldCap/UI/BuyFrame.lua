@@ -439,7 +439,7 @@ local function noticeText(code)
   return (GC.L["plan updated on goldcap.gg · +%d -%d lines"]):format(added, removed)
 end
 
--- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
+-- Bag stock, from the same C_Container walk GC.SellBags.Scan uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
 -- This tab only ever asks "how many of item N am I already carrying", so it keys on the item id
@@ -1844,7 +1844,7 @@ local function quote(line, clicked)
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
   -- Not over an unanswered keys batch -- one still out from the Deals board the player just left,
   -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
-  -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
+  -- itself (GC.SellWalk.Advance, seen in game): an empty quote. The line is asked for
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
   -- ...nor over a hover's look still out (lookLine): one question per buffer. Nor over the BUY
   -- search's browse request still unanswered (UI/BuySearch.lua), which a search would answer too.
