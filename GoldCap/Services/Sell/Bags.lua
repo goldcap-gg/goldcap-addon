@@ -230,11 +230,13 @@ GC.Sell._LiveBagState = Bags.LiveState -- read by specs, like GC.Sell._SlotKey
 end
 
 
--- A GC.Sell field, not a top-level local: paint-only (every real call site is inside
--- pushPosition/renderRows, never a click's pre-call body -- UI/SellFrame.lua, where it was
--- written, had no local headroom left to spend on it (final review "Headroom"). Safe unlike the click-path helpers just below
--- (Bags.ClickSafe, verifyBagStack, Bags.ResolveLocation): this one is never reached from
--- inside a click at all, so it carries none of their function-field-call taint risk.
+-- A GC.Sell field, not a top-level local: UI/SellFrame.lua, where it was written, had no local
+-- headroom left to spend on it (final review "Headroom"). Paint-only: every real call site is
+-- inside pushPosition/renderRows, never a click's pre-call body, because it builds an ItemLocation
+-- and a click must not do that ahead of its protected call. The click-path helpers just below
+-- (Bags.ClickSafe, verifyBagStack, Bags.ResolveLocation) only read. Reaching them through a
+-- table field is fine: the Services/Sell checkpoint (2026-10-09) posted through Post.PreparePost
+-- and Bags.ClickSafe on retail and on WoW: Forever.
 function GC.Sell._CacheBagLocation(position, bagState)
   if not (bagState and bagState.bag and bagState.slot and bagState.itemID
       and ItemLocation and ItemLocation.CreateFromBagAndSlot) then
