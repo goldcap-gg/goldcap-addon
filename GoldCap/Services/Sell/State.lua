@@ -113,6 +113,13 @@ GC.SellState = {
   -- builds itemInfo.location when a bag item is picked, well before its own Post click
   -- (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem), and the click only reads that stored field.
   bagLocationCache = {},
+  -- positionKey -> the last name a position was shown under, for the session. The client names an
+  -- item it has not loaded yet "" (ContainerItemInfo.itemName is a string that is never nil, and an
+  -- owned lot's link reads "[]" the same way), and on WoW: Forever items went unloaded in the middle
+  -- of a REFRESH: rows painted blank, and some stayed blank until something repainted them. Keyed by
+  -- position, not item: every caged pet is item 82800, "Pet Cage". Never reset -- a position's name
+  -- does not change within a session.
+  knownNames = {},
 }
 
 -- What the services ask of the screen. The view's files (UI/Sell/) fill every slot when they load; until they
@@ -202,6 +209,9 @@ local function itemName(itemID)
     local ok, name = pcall(C_Item.GetItemNameByID, itemID)
     if ok and type(name) == "string" and name ~= "" then return name end
   end
+  -- Not loaded yet. Nothing else asks the client for it, so ask here: the walk's next pass, five
+  -- seconds on, finds the name.
+  if itemID and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
   return (GC.L["Item %d"]):format(itemID or 0)
 end
 

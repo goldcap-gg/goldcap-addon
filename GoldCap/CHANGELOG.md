@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.19.0 (unreleased)
+
+- On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
+  while prices were checked, and some stayed blank afterwards.
+
 ## 0.18.2 (2026-10-06)
 
 - The Sniper's column names (Item, Verdict, Price and the rest) show the first time the window opens.

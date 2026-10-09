@@ -105,7 +105,13 @@ function Compose.Positions(skipPaint)
   -- that may not even be the one currently shown).
   local sellable = 0
   for _, position in ipairs(S.positions) do
-    if position.itemID and not position.itemName then position.itemName = itemName(position.itemID) end
+    -- "" is no name (S.knownNames says why): the name this position was last shown under, else
+    -- the client's for the item, else "Item N" until it loads.
+    if position.itemID then
+      local key, name = position.positionKey or position.itemID, position.itemName
+      if type(name) == "string" and name ~= "" then S.knownNames[key] = name
+      else position.itemName = S.knownNames[key] or itemName(position.itemID) end
+    end
     if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
   end
   sellableCount = sellable

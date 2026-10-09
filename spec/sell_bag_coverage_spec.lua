@@ -220,6 +220,57 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.matches("Posted · Anubisath Idol ×1", container.dockStatus.text, 1, true)
   end)
 
+  local function rowOf(positionKey)
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then return row end
+    end
+    return nil
+  end
+
+  -- Seen in WoW: Forever: names went blank on REFRESH, and some stayed blank after it. The client
+  -- names an item it has not loaded yet "" (ContainerItemInfo.itemName is a string that is never
+  -- nil), and the row painted that "" as the name.
+  it("keeps the name a row already showed when the client names the item \"\"", function()
+    kinds[2589] = true
+    stack(1, 2589, 6, nil, { itemName = "Linen Cloth" })
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+    bags[0][1].itemName = ""
+    _G.C_Item.GetItemNameByID = function() return nil end
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+  end)
+
+  it("names an item first seen unloaded by its id, asks the client for it, and takes the name once it arrives", function()
+    local asked = {}
+    _G.C_Item.GetItemNameByID = function() return nil end
+    _G.C_Item.RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end
+    kinds[2589] = true
+    stack(1, 2589, 6, nil, { itemName = "" })
+    compose()
+    assert.matches("Item 2589", rowOf("commodity:2589").cells.item.text, 1, true)
+    assert.is_true(#asked > 0)
+    for _, id in ipairs(asked) do assert.equal(2589, id) end
+    _G.C_Item.GetItemNameByID = function() return "Linen Cloth" end
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+  end)
+
+  -- Every caged pet is item 82800: a name remembered by item would hand one pet another's.
+  it("never names a caged pet after another pet it saw", function()
+    kinds[82800] = false
+    stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:25:3:1500:300:300:0|h[Anubisath Idol]|h" })
+    slotKeys["0:1"] = key(82800, 25, 0, 1234)
+    compose()
+    assert.matches("Anubisath Idol", rowOf("item:82800:25:0:1234").cells.item.text, 1, true)
+    stack(2, 82800, 1, nil, { hyperlink = "|Hbattlepet:5678:25:3:1500:300:300:0|h[]|h" })
+    slotKeys["0:2"] = key(82800, 25, 0, 5678)
+    compose()
+    local text = rowOf("item:82800:25:0:5678").cells.item.text
+    assert.is_nil(text:find("Anubisath Idol", 1, true))
+    assert.matches("Item 82800", text, 1, true)
+  end)
+
   -- Keyed gear the auction house will not take -- Warbound until equipped, and anything else not
   -- bound yet not auctionable -- is asked about too, while the auction house is open: no TO POST
   -- row, and no search spent on it (final review I3).
