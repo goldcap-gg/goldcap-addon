@@ -460,11 +460,47 @@ describe("Sell widget geometry and manual cost", function()
     it("adds up what POST lists on the posting deck, whatever the rows show", function()
       local GC = load(900, { calls = {} })
       local position = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
-        exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, listedQty = 0, sources = {} }
+        exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, postableQty = 3, listedQty = 0, sources = {},
+        postRecommendation = { unit = 10000 } }
       GC.SellState.queueEntries = { { positionKey = "commodity:42", postableQty = 3, unitPrice = 10000 } }
       local _, container = topRows(GC, { position })
       assert.equal("2g85s", container.summary.total:GetText()) -- 3 x 1g less 5%
       assert.equal("2g82s", container.summary.profit:GetText()) -- less 3 x 1s paid
+    end)
+
+    -- A price or a number being typed moves PROCEEDS with the row's YOU GET, not a compose later.
+    it("follows a typed price and a typed number as the row does", function()
+      local GC = load(900, { calls = {} })
+      local position = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, listedQty = 0, sources = {},
+        postRecommendation = { unit = 10000 } }
+      GC.SellState.queueEntries = { { positionKey = "commodity:42", postableQty = 5, unitPrice = 10000 } }
+      local _, container = topRows(GC, { position })
+      assert.equal("4g75s", container.summary.total:GetText())
+      GC.SellState.priceOverrides["commodity:42"] = 20000
+      GC.SellState.quantityOverrides["commodity:42"] = 2
+      GC.SellUI.List.RenderRows()
+      assert.equal("3g80s", container.summary.total:GetText()) -- 2 x 2g less 5%
+    end)
+
+    -- The cancel queue's focus narrows the rows to the lots it would cancel; the total is still
+    -- every lot the player has, as its tooltip says.
+    it("adds up every lot on MY LOTS, whatever the rows are narrowed to", function()
+      local GC = load(900, { calls = {} })
+      local other = lots("COMPLETE")
+      other.itemID, other.positionKey, other.itemName = 43, "commodity:43", "Herb"
+      local _, container = topRows(GC, { lots("COMPLETE"), other }, "listed")
+      assert.equal("3g80s", container.summary.total:GetText())
+      GC.SellUI.chips.ready = true -- a chip that narrows the deck
+      GC.SellUI.List.RenderRows()
+      assert.equal("3g80s", container.summary.total:GetText())
+    end)
+
+    it("takes the mouse only over a total that is shown", function()
+      local GC = load(900, { calls = {} })
+      local _, container = topRows(GC, { lots("UNKNOWN") }, "listed")
+      assert.is_true(container.summaryHits.total.shown)
+      assert.is_false(container.summaryHits.profit.shown)
     end)
 
     it("draws neither total when nothing is queued to post", function()
@@ -672,6 +708,23 @@ describe("Sell widget geometry and manual cost", function()
         assert.equal(3, chosen(GC))
         assert.equal("3", row.qtyBox.text)
         assert.equal("129g", listRow(GC).cells.gross.text)
+      end)
+
+      -- In the queue's own focus the list is drawn in the queue's order: a rebuild on every
+      -- keystroke re-sorted it under the box being typed into (review).
+      it("builds the queue again once the number is settled, not on every keystroke", function()
+        local GC = load(700, { calls = {} })
+        local built, real = 0, GC.SellCompose.Queue
+        GC.SellCompose.Queue = function(...) built = built + 1; return real(...) end
+        local row = priceRow(GC)
+        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
+        row.qtyBox.focused = true
+        row.qtyBox.text = "3"
+        row.qtyBox.scripts.OnTextChanged(row.qtyBox, true)
+        assert.equal(0, built)
+        row.qtyBox.scripts.OnEnterPressed(row.qtyBox)
+        assert.equal(1, built)
+        assert.equal(3, chosen(GC))
       end)
 
       it("gives the number back on MAX", function()

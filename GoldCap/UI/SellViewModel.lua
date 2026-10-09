@@ -355,7 +355,7 @@ end
 -- would land in the queue. `ownerQty` is what makes the first one answerable -- the commodity
 -- API aggregates a whole price point into one row, so the player's own units have to be
 -- subtracted rather than the level skipped (see CheapestCompetingUnit for the same reasoning).
-local function book(position)
+local function book(position, postQty)
   local levels = type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 then return nil end
 
@@ -421,7 +421,9 @@ local function book(position)
     -- player's own units clearing after it. Both through GC.Flips.SellOutlook -- the same
     -- sells/day and the same trend rule -- so "clears in" can never read shorter than
     -- "to reach you" (review I1: it said ~1h beside ~6h, from a figure that left the queue out).
-    local postable = type(position.postableQty) == "number" and position.postableQty > 0 and position.postableQty
+    -- What the next Post lists: the caller's number when it has one (the Sell tab's HOW MANY).
+    local postable = type(postQty) == "number" and postQty > 0 and postQty
+      or type(position.postableQty) == "number" and position.postableQty > 0 and position.postableQty
       or type(position.bagQty) == "number" and position.bagQty > 0 and position.bagQty or 0
     local function hours(queued)
       local outlook = GC.Flips and GC.Flips.SellOutlook
@@ -501,7 +503,9 @@ function GC.SellViewModel.Standing(position, unit, joining)
   return { ahead = ahead, slot = slot or seen + 1 }
 end
 
-function GC.SellViewModel.Expansion(position)
+-- `postQty`: how many units the next Post lists, when the caller knows better than the position
+-- (a number the seller typed). Optional; the position's own postable quantity otherwise.
+function GC.SellViewModel.Expansion(position, postQty)
   position = position or {}
   local marketFresh = position.displayMarketUnit ~= nil and position.freshMarketUnit ~= nil
   local marketStale = position.displayMarketUnit ~= nil and not marketFresh
@@ -625,6 +629,6 @@ function GC.SellViewModel.Expansion(position)
     pendingAcquisitions = copy(position.pendingAcquisitions),
     sellerEvidence = copy(position.sellerEvidence), facts = position.facts,
     factsText = #facts > 0 and table.concat(facts, " · ") or nil,
-    book = book(position),
+    book = book(position, postQty),
   }
 end

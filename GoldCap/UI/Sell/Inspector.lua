@@ -437,12 +437,15 @@ function Inspector.Decorate(row)
   row.qtyMax:Hide()
 
   -- The seller's number, or none: empty, nought or the most there is all mean "all of it", which
-  -- is no entry at all. Then the queue is built again (the next post, its value, PROCEEDS) and
-  -- the screen with it.
-  local function setQuantity(key, n)
+  -- is no entry at all. The row, the panel and PROCEEDS read it live (GC.SellUtil.postQuantity);
+  -- the queue itself is built again only once the number is settled (`settled`), and not while a
+  -- post is out. Rebuilt on every keystroke it re-sorted the queue's own focus, which draws the
+  -- list in the queue's order, under the box being typed into (review); a post that is out
+  -- carries the number it was pinned with, and the dock's CONFIRM follows the queue's head.
+  local function setQuantity(key, n, settled)
     local _, most = postQuantity(row.position)
     S.quantityOverrides[key] = (n and n > 0 and n < most) and n or nil
-    GC.SellCompose.Queue()
+    if settled and not S.postingRow then GC.SellCompose.Queue() end
     UI.List.RenderRows()
   end
   local function typedQuantity(box)
@@ -462,7 +465,7 @@ function Inspector.Decorate(row)
     row.qtyCommitting = true
     box:ClearFocus()
     row.qtyCommitting = false
-    setQuantity(key, typedQuantity(box))
+    setQuantity(key, typedQuantity(box), true)
   end
   row.qtyBox:SetScript("OnEditFocusGained", function()
     row.qtyEditingKey = overrideKey(row.position)
@@ -473,7 +476,7 @@ function Inspector.Decorate(row)
     if not key or key ~= row.qtyEditingKey then return end
     -- Between two keystrokes the box can be empty; that is not yet an answer.
     local n = typedQuantity(box)
-    if n and n > 0 then setQuantity(key, n) end
+    if n and n > 0 then setQuantity(key, n, false) end
   end)
   row.qtyBox:SetScript("OnEnterPressed", commitQuantity)
   row.qtyBox:SetScript("OnEditFocusLost", commitQuantity)
@@ -493,7 +496,7 @@ function Inspector.Decorate(row)
       row.qtyBox:ClearFocus()
       row.qtyCommitting = false
     end
-    setQuantity(key, nil)
+    setQuantity(key, nil, true)
   end)
 end
 
@@ -768,11 +771,14 @@ function Inspector.PaintPanelRow(row, entry, bagSnapshot)
     GC.Sell._CacheBagLocation(p, bagState)
     local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
     setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
-    if postable > 0 and postable < inBags then
+    -- With a number typed into HOW MANY, the head says how many Post lists; "the largest stack"
+    -- beside it would be a second, different answer.
+    local _, _, typed = postQuantity(p)
+    if postable > 0 and postable < inBags and not typed then
       row.subItem:SetText((GC.L["×%d in your bags · Post lists %d of them, the largest stack"]):format(
         inBags, postable))
     elseif postable > 0 then
-      row.subItem:SetText((GC.L["×%d in your bags, ready to list"]):format(postable))
+      row.subItem:SetText((GC.L["×%d in your bags, ready to list"]):format(typed and inBags or postable))
     else
       row.subItem:SetText((GC.L["×%d in your bags · no stack GoldCap can identify exactly"]):format(inBags))
     end

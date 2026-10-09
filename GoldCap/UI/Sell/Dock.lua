@@ -13,6 +13,7 @@ local UI = GC.SellUI
 local Dock = UI.Dock
 local ROW, DOCK = UI.ROW, UI.DOCK
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
+local effectivePostUnit, postQuantity = GC.SellUtil.effectivePostUnit, GC.SellUtil.postQuantity
 
 -- Forward-declared for the same reason renderRows was (in UI/SellFrame.lua, before the split):
 -- setStatus (below) needs to call this on every state change, and the row handlers need it
@@ -452,13 +453,15 @@ function ROW.armLot(entry)
   setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
 end
 
--- What the totals add up, by deck: on the posting deck, what POST lists -- the queue, whatever
--- the rows on screen are narrowed to -- at the price and the quantity each entry will post; on
--- MY LOTS, every lot of the positions the deck shows, at its own price.
-local function proceedsLines(filtered, deck)
+-- What the totals add up, by deck. On the posting deck, what POST lists -- the queue, whatever
+-- the rows on screen are narrowed to -- at the price and the quantity each entry will post, read
+-- live as the row reads them: a price or a number being typed moves PROCEEDS with the row's YOU
+-- GET, not a compose later (review). On MY LOTS, every lot the player has, at its own price,
+-- whatever the chips, the search or the cancel queue's focus narrow the rows to.
+local function proceedsLines(deck)
   local lines = {}
   if deck == "listed" then
-    for _, position in ipairs(filtered) do
+    for _, position in ipairs(S.positions) do
       for _, lot in ipairs(position.ownedLots or {}) do
         lines[#lines + 1] = { qty = lot.quantity, unit = lot.unitPrice, position = position }
       end
@@ -470,14 +473,17 @@ local function proceedsLines(filtered, deck)
     if position.positionKey then byKey[position.positionKey] = position end
   end
   for _, entry in ipairs(S.queueEntries or {}) do
-    lines[#lines + 1] = { qty = entry.postableQty, unit = entry.unitPrice, position = byKey[entry.positionKey] }
+    local position = byKey[entry.positionKey]
+    lines[#lines + 1] = { position = position,
+      qty = position and postQuantity(position) or entry.postableQty,
+      unit = position and effectivePostUnit(position) or entry.unitPrice }
   end
   return lines
 end
 
-local function updateSummary(filtered, deck)
+local function updateSummary(deck)
   local container = UI.container
-  local proceeds, profit = GC.SellPositions.Proceeds(proceedsLines(filtered, deck))
+  local proceeds, profit = GC.SellPositions.Proceeds(proceedsLines(deck))
   container.summaryDeck = deck
   container.summaryShown = { total = proceeds ~= nil, profit = profit ~= nil }
   container.summary.total:SetText(proceeds and GC.Sell._FormatAmount(proceeds) or "")
@@ -615,11 +621,16 @@ function Dock.LayoutLedger()
   local left
   for _, id in ipairs(SUMMARY_STAT_IDS) do
     local value, label = container.summary[id], container.summaryLabels[id]
+    -- The hover frame goes with its figure: left up over a hidden one it took the mouse from
+    -- the held-back counter that runs under it (review).
+    local hit = container.summaryHits and container.summaryHits[id]
     if shown[id] and (id == "total" or not narrow) then
       value:Show(); label:Show()
+      if hit then hit:Show() end
       left = value
     else
       value:Hide(); label:Hide()
+      if hit then hit:Hide() end
     end
   end
   -- Nothing shown: the lines run to where PROCEEDS would stand.

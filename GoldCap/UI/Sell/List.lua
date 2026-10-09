@@ -522,7 +522,7 @@ local function renderRows()
   local sectionOf
   if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered)
   elseif S.filterMode == "post" and sellingList then filtered, sectionOf = ROW.bySelling(filtered) end
-  UI.Dock.UpdateSummary(filtered, headerDeck)
+  UI.Dock.UpdateSummary(headerDeck)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter
   -- can never disagree about what was left out.
@@ -568,7 +568,7 @@ local function renderRows()
     if UI.expanded[position.positionKey] and not openPosition then
       openPosition = position
       local first = #entries + 1
-      local detail = GC.SellViewModel.Expansion(position)
+      local detail = GC.SellViewModel.Expansion(position, (GC.SellUtil.postQuantity(position)))
       -- ONE panel where this used to spend eleven separate 32px rows: the facts line, the
       -- price control, the book heading and eight levels. Opening a position buried the list
       -- it was opened from -- 25 rows of expansion inside a 430px scroll area -- which is the
