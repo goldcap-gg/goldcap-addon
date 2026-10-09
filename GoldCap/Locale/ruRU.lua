@@ -1343,4 +1343,6 @@ GC.Locales.ruRU = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Сколько принесёт всё, что выставит ВЫСТАВИТЬ, если продастся по этим ценам, за вычетом 5% комиссии аукциона.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Сколько принесут ваши лоты, если продадутся все, за вычетом 5% комиссии аукциона.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВЫРУЧКА минус то, что вы заплатили за этот товар. Видна, только пока GoldCap знает, сколько вы заплатили за весь товар.",
+  ["HOW MANY"] = "СКОЛЬКО",
+  ["MAX"] = "ВСЁ",
 }

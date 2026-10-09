@@ -1257,4 +1257,6 @@ GC.Locales.enUS = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "What your lots bring in if they all sell, after the auction house's 5% cut.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it.",
+  ["HOW MANY"] = "HOW MANY",
+  ["MAX"] = "MAX",
 }

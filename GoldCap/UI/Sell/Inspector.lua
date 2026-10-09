@@ -10,6 +10,7 @@ local S = GC.SellState
 local Bags, Post = GC.SellBags, GC.SellPost
 local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
   GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
+local postQuantity = GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Inspector = UI.Inspector
 local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
@@ -93,6 +94,14 @@ function GC.Sell._RecommendationText(recommendation)
   return text
 end
 
+-- Whether the panel asks how many: only with stock to post, and more than one unit a Post could
+-- list -- "1 of 1" is a question with one answer.
+function INSP.hasQuantity(position)
+  if type(position) ~= "table" or (position.bagQty or 0) <= 0 then return false end
+  local _, most = postQuantity(position)
+  return most > 1
+end
+
 -- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
 -- same things at every window width, and its width is INSP's, not the list's.
 local function layoutDrawer(row)
@@ -114,15 +123,31 @@ local function layoutDrawer(row)
   row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 2)
   row.priceNetNote:ClearAllPoints()
   row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 22)
+  -- ---- how many, on a line of its own under the box; everything below it moves down a slot
+  local drop = INSP.hasQuantity(row.position) and DR.QTY_SLOTS * (UI.rowHeight or 32) or 0
+  row.qtyHead:ClearAllPoints()
+  row.qtyHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.QTY_Y - 7)
+  row.qtyBoxBg:ClearAllPoints()
+  row.qtyBoxBg:SetSize(DR.QTY_BOX_W, DR.QTY_H)
+  row.qtyBoxBg:SetPoint("LEFT", row.qtyHead, "RIGHT", 8, 0)
+  row.qtyBox:ClearAllPoints()
+  row.qtyBox:SetPoint("TOPLEFT", row.qtyBoxBg, "TOPLEFT", 8, -2)
+  row.qtyBox:SetPoint("BOTTOMRIGHT", row.qtyBoxBg, "BOTTOMRIGHT", -6, 2)
+  row.qtyOf:ClearAllPoints()
+  row.qtyOf:SetPoint("LEFT", row.qtyBoxBg, "RIGHT", 8, 0)
+  row.qtyMax:ClearAllPoints()
+  row.qtyMax:SetSize(PRICE_CHIP_W, DR.CHIP_H)
+  row.qtyMax:SetPoint("LEFT", row.qtyOf, "RIGHT", 8, 0)
+
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.BOX_Y)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and (DR.NOTE_Y - drop) or DR.BOX_Y)
   row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:SetWordWrap(false)
 
   -- One strip, five equal segments: a switch with a position, not five loose buttons.
   row.chipsBg:ClearAllPoints()
-  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y)
-  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y)
+  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y - drop)
+  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y - drop)
   row.chipsBg:SetHeight(DR.CHIP_H + 4)
   local prev
   for i = 1, #row.priceChips do
@@ -130,7 +155,7 @@ local function layoutDrawer(row)
     chip:ClearAllPoints()
     chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
     if prev then chip:SetPoint("LEFT", prev, "RIGHT", 2, 0)
-    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - 2) end
+    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - drop - 2) end
     prev = chip
   end
 
@@ -138,7 +163,7 @@ local function layoutDrawer(row)
   -- HERE because WHAT TO DO is not a column on either deck.
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.BOX_Y - 18))
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and (DR.REC_Y - drop) or (DR.BOX_Y - 18))
   row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.subItem:SetWordWrap(true)
   row.subItem:SetMaxLines(2)
@@ -150,12 +175,12 @@ local function layoutDrawer(row)
   local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (UI.rowHeight or 32) or 0
   -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
   row.cells.action:ClearAllPoints()
-  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y + rise)
-  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y + rise)
+  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y - drop + rise)
+  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y - drop + rise)
   row.cells.action:SetHeight(DR.POST_H)
 
   -- ---- the book section, under a rule across the panel
-  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
+  local top = (postable and (DR.BOOK_Y - drop) or DR.BOOK_Y_BARE) + rise
   UI.Book.Layout(row, top)
 end
 
@@ -379,6 +404,132 @@ function Inspector.Decorate(row)
     chip:Hide()
     row.priceChips[slot] = chip
   end
+
+  -- How many. One Post listed the whole stack, so a seller with ten who wanted to sell five
+  -- could not (owner, 2026-10-10). A number in the same kind of well as the price, the most one
+  -- click can list beside it, and MAX, which gives the number back: Blizzard's own sell pane's
+  -- control, where a seller already looks for it. Like the price, it is for the next post only
+  -- (GC.Sell._SpendPrice), and it moves the row, the queue and the dock's PROCEEDS as it is typed.
+  row.qtyHead = Theme.Num(row, 9)
+  row.qtyHead:Hide()
+  row.qtyBoxBg = CreateFrame("Frame", nil, row)
+  local qtyWell = Theme.SlicedTexture(row.qtyBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  qtyWell:SetAllPoints(row.qtyBoxBg)
+  row.qtyBoxRing = Theme.SlicedTexture(row.qtyBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { 1, 1, 1, 0.14 }, 12)
+  row.qtyBoxRing:SetAllPoints(row.qtyBoxBg)
+  row.qtyBoxBg:Hide()
+  row.qtyBox = CreateFrame("EditBox", nil, row.qtyBoxBg)
+  row.qtyBox:SetAutoFocus(false)
+  -- Guarded as the price box's font is: busted's EditBox doubles stop at the text API.
+  if row.qtyBox.SetNumeric then row.qtyBox:SetNumeric(true) end
+  if row.qtyBox.SetMaxLetters then row.qtyBox:SetMaxLetters(6) end
+  if row.qtyBox.SetFont then
+    row.qtyBox:SetFont(Theme.FONT_UI_BOLD, 13 * Theme.Scale(), "")
+    row.qtyBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) row.qtyBox:SetFont(Theme.FONT_UI_BOLD, 13 * scale, "") end)
+  end
+  row.qtyBox:Hide()
+  row.qtyOf = Theme.Num(row, 10)
+  row.qtyOf:Hide()
+  row.qtyMax = Theme.Button(row, "ghost", "badge")
+  row.qtyMax:Hide()
+
+  -- The seller's number, or none: empty, nought or the most there is all mean "all of it", which
+  -- is no entry at all. Then the queue is built again (the next post, its value, PROCEEDS) and
+  -- the screen with it.
+  local function setQuantity(key, n)
+    local _, most = postQuantity(row.position)
+    S.quantityOverrides[key] = (n and n > 0 and n < most) and n or nil
+    GC.SellCompose.Queue()
+    UI.List.RenderRows()
+  end
+  local function typedQuantity(box)
+    return tonumber((box:GetText() or ""):match("^%s*(%d+)%s*$") or "")
+  end
+  -- The price box's whole discipline, for the same reasons: the pooled-row key (a number typed
+  -- for one item never lands on another), live while typing, committed on Enter and on focus
+  -- loss, Escape puts the committed number back.
+  local function commitQuantity(box)
+    if row.qtyCommitting then return end
+    local key = overrideKey(row.position)
+    if not key or key ~= row.qtyEditingKey then
+      row.qtyEditingKey = nil
+      return
+    end
+    row.qtyEditingKey = nil
+    row.qtyCommitting = true
+    box:ClearFocus()
+    row.qtyCommitting = false
+    setQuantity(key, typedQuantity(box))
+  end
+  row.qtyBox:SetScript("OnEditFocusGained", function()
+    row.qtyEditingKey = overrideKey(row.position)
+  end)
+  row.qtyBox:SetScript("OnTextChanged", function(box, byUser)
+    if not byUser or row.qtyCommitting then return end
+    local key = overrideKey(row.position)
+    if not key or key ~= row.qtyEditingKey then return end
+    -- Between two keystrokes the box can be empty; that is not yet an answer.
+    local n = typedQuantity(box)
+    if n and n > 0 then setQuantity(key, n) end
+  end)
+  row.qtyBox:SetScript("OnEnterPressed", commitQuantity)
+  row.qtyBox:SetScript("OnEditFocusLost", commitQuantity)
+  row.qtyBox:SetScript("OnEscapePressed", function(box)
+    row.qtyEditingKey = nil
+    row.qtyCommitting = true
+    box:ClearFocus()
+    row.qtyCommitting = false
+    UI.List.RenderRows()
+  end)
+  row.qtyMax:SetScript("OnClick", function()
+    local key = overrideKey(row.position)
+    if not key then return end
+    if row.qtyBox.HasFocus and row.qtyBox:HasFocus() then
+      row.qtyEditingKey = nil
+      row.qtyCommitting = true
+      row.qtyBox:ClearFocus()
+      row.qtyCommitting = false
+    end
+    setQuantity(key, nil)
+  end)
+end
+
+-- The "how many" line: the seller's number or the most one click lists, the most beside it,
+-- and MAX lit while it is all of it -- a switch with a position, as GOLDCAP is among the price
+-- chips. Gold while the number is the seller's own, as the price box is. A box someone is
+-- typing into, on this same position, is left alone (see the price box's own note).
+function INSP.paintQuantity(row, p)
+  if not INSP.hasQuantity(p) then
+    row.qtyHead:Hide(); row.qtyBoxBg:Hide(); row.qtyBox:Hide(); row.qtyOf:Hide(); row.qtyMax:Hide()
+    return
+  end
+  local qty, most, chosen = postQuantity(p)
+  local box = row.qtyBox
+  local focused = box.HasFocus and box:HasFocus() or false
+  if not (focused and row.qtyEditingKey == overrideKey(p)) then
+    if focused then
+      row.qtyEditingKey = nil
+      row.qtyCommitting = true
+      box:ClearFocus()
+      row.qtyCommitting = false
+    end
+    box:SetText(tostring(qty))
+  end
+  row.qtyHead:SetText(GC.L["HOW MANY"])
+  setColor(row.qtyHead, chosen and Theme.color.gold or Theme.color.fgDim)
+  if chosen then
+    local c = Theme.color.gold
+    row.qtyBoxRing:SetVertexColor(c[1], c[2], c[3], 0.7)
+  else
+    row.qtyBoxRing:SetVertexColor(1, 1, 1, 0.14)
+  end
+  row.qtyOf:SetText((GC.L["of %d"]):format(most)); setColor(row.qtyOf, Theme.color.fgDim)
+  row.qtyMax:SetLabel(GC.L["MAX"])
+  if row.qtyMax.SetVariant then row.qtyMax:SetVariant(chosen and "ghost" or "active") end
+  row.qtyHead:Show(); row.qtyBoxBg:Show(); box:Show(); row.qtyOf:Show(); row.qtyMax:Show()
 end
 
 -- The detail panel's head: the price control, the book it lands in, and the line of facts.
@@ -422,21 +573,21 @@ function INSP.paintHead(row, p, d)
       row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
       setColor(row.priceNote, Theme.color.red)
     elseif unit then
-      -- The quantity this note prices is the one a click lists, not the one in the bags --
-      -- the same rule YOU GET follows above, and for the same reason.
-      -- Whose price, and over how many. What it comes to is YOU GET, beside the box.
-      local postQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
-      row.priceNote:SetText(("%s · ×%d"):format(chosen and GC.L["yours"] or GC.L["GoldCap's"], postQty))
+      -- Whose price, and over how many -- the quantity a click lists, not the one in the bags,
+      -- as YOU GET counts it. With a "how many" line above, that line already says how many.
+      local whose = chosen and GC.L["yours"] or GC.L["GoldCap's"]
+      row.priceNote:SetText(INSP.hasQuantity(p) and whose or ("%s · ×%d"):format(whose, (postQuantity(p))))
       setColor(row.priceNote, Theme.color.fgDim)
     else
       row.priceNote:SetText(GC.L["no live price yet"])
       setColor(row.priceNote, Theme.color.fgDim)
     end
     row.priceNote:Show()
+    INSP.paintQuantity(row, p)
     -- YOU GET and the margin, by the row's own arithmetic (what one click lists, at this price,
     -- against what a unit cost), so the panel and the row under it can never disagree. The
     -- third line is the one figure the row has no room for: what is left after the cut.
-    local listQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
+    local listQty = postQuantity(p)
     local gross = unit and safeMultiply(unit, listQty) or nil
     row.priceNetHead:SetText(GC.L["YOU GET"]); setColor(row.priceNetHead, Theme.color.fgDim)
     row.priceNet:SetText(gross and formatCell(gross) or "—")
@@ -491,6 +642,7 @@ function INSP.paintHead(row, p, d)
     row.priceBox:Hide(); row.priceBoxBg:Hide(); row.chipsBg:Hide()
     row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
     for _, chip in ipairs(row.priceChips) do chip:Hide() end
+    INSP.paintQuantity(row, p) -- puts it away: nothing in the bags, nothing to count
     row.priceNote:SetText(GC.L["nothing in your bags to price"])
     setColor(row.priceNote, Theme.color.fgDim)
     row.priceNote:Show()
@@ -666,6 +818,7 @@ function Inspector.PutAway(row)
   row.headRules[1]:Hide()
   for _, chip in ipairs(row.priceChips) do chip:Hide() end
   row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+  row.qtyHead:Hide(); row.qtyBoxBg:Hide(); row.qtyBox:Hide(); row.qtyOf:Hide(); row.qtyMax:Hide()
 end
 
 -- The panel frame and its scrolling content: built once, by Attach.

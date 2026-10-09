@@ -945,6 +945,10 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   end
   local quantity = bagState.exactQty
   if quantity <= 0 then return nil, "no_unlisted_quantity" end
+  -- Fewer when the seller asked for fewer (the Sell tab's "how many"), never more than is here.
+  if positive(opts and opts.overrideQuantity) and opts.overrideQuantity < quantity then
+    quantity = opts.overrideQuantity
+  end
   -- A price the seller typed replaces the derived one outright -- both raises below included.
   -- Those raises exist to stop the ADDON from underpricing on its own, against a thin cheap
   -- lot it cannot tell from a real market; they were never meant as a veto on a seller who

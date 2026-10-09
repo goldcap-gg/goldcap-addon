@@ -1143,6 +1143,18 @@ describe("Sell positions", function()
     assert.equal("acq:2", plan.allocations[1].batchID)
   end)
 
+  -- How many (owner, 2026-10-10): the seller's number lists fewer, never more than is here.
+  it("lists the quantity the seller asked for, and never more than the bags hold", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    local function quantity(asked)
+      return GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 300, { overrideQuantity = asked }).quantity
+    end
+    assert.equal(2, quantity(2))
+    assert.equal(5, quantity(9))
+    assert.equal(5, quantity(0))
+    assert.equal(5, quantity(nil))
+  end)
+
   -- F5 queue-at-exit: the plan must list at the same number the recommendation displayed --
   -- the raise mirrors the postFloor raise right above it in BuildPostPlan, and can only ever
   -- move the price UP, so a stale queue quote can delay a sale but never underprice one.

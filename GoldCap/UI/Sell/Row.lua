@@ -8,8 +8,8 @@ local _, GC = ...
 local Theme = GC.Theme
 local S = GC.SellState
 local Walk, Post = GC.SellWalk, GC.SellPost
-local exact, safeMultiply, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
-  GC.SellUtil.effectivePostUnit
+local exact, safeMultiply, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
+  GC.SellUtil.effectivePostUnit, GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Row = UI.Row
 local COLUMNS, ROW = UI.COLUMNS, UI.ROW
@@ -673,9 +673,9 @@ function Row.PaintPosition(row, entry, ctx)
   -- YOU GET answers "what does this row fetch if I click Post", so on the post deck it is
   -- counted over what one click LISTS -- the largest stack for a normal item, the whole
   -- pool for a commodity (position.postableQty, see Core/SellPositions). Counting the bag
-  -- sum quoted a figure four fifths of which stayed in the bags.
-  local postableQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or bagQty
-  local grossQty = onListedDeck and listedQty or postableQty
+  -- sum quoted a figure four fifths of which stayed in the bags. Fewer, when the seller asked
+  -- one Post for fewer (the panel's "how many").
+  local grossQty = onListedDeck and listedQty or postQuantity(p)
   local gross = rowUnit and safeMultiply(rowUnit, grossQty) or nil
   row.cells.gross:SetText(gross and formatCell(gross) or "—")
   setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)

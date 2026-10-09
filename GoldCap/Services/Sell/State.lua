@@ -70,6 +70,10 @@ GC.SellState = {
   -- price is decided, and this is only what gets handed to it. Cleared when the position is
   -- posted (the stock leaves the bags and the row with it) or when the box is emptied.
   priceOverrides = {},
+  -- How many units the seller asked one Post to list, keyed the same way and kept the same way:
+  -- not persisted, handed to BuildPostPlan, spent with the post that carried it
+  -- (GC.Sell._SpendPrice). Only ever under what one click could list; "all of it" is no entry.
+  quantityOverrides = {},
   -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "queue" and
   -- "cancelqueue" are transient FOCUS states the queue controls set for a single render, so their
   -- head entry lands on row 1 -- a deck is what the switch paints, a focus state is not.
@@ -183,6 +187,20 @@ local function effectivePostUnit(position)
   return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit)) or unit, chosen ~= nil
 end
 
+-- How many units Post would list for this position right now, the most it could, and whether
+-- the first is the seller's own number. The most is what one click can list (the largest stack
+-- of a normal item, a commodity's whole pool: SellPositions' postableQty, else the bag count);
+-- a number the seller gave counts only under it. Read live, like effectivePostUnit, so the row,
+-- the panel and the queue move as the number is typed.
+local function postQuantity(position)
+  local most = exact(position.postableQty) and position.postableQty > 0 and position.postableQty
+    or exact(position.bagQty) and position.bagQty or 0
+  local key = overrideKey(position)
+  local chosen = key and GC.SellState.quantityOverrides[key] or nil
+  if exact(chosen) and chosen > 0 and chosen < most then return chosen, most, true end
+  return most, most, false
+end
+
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
 end
@@ -220,7 +238,7 @@ local function itemName(itemID)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,
-  effectivePostUnit = effectivePostUnit,
+  effectivePostUnit = effectivePostUnit, postQuantity = postQuantity,
   context = context, activeScope = activeScope, exactRenderEntry = exactRenderEntry, itemName = itemName }
 
 -- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced
@@ -238,11 +256,13 @@ end
 
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
 -- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
--- holds back what a vendor pays at least as much for (below_vendor). Before the saved data is
+-- holds back what a vendor pays at least as much for (below_vendor). `quantities` are the
+-- numbers the seller typed into "how many" (quantityOverrides), so the queue lists and values
+-- what each Post will actually send. Before the saved data is
 -- loaded there are no marks and no list: every position is queued, as before the selling list.
 -- Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
 function GC.Sell._QueueOpts()
-  local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil }
+  local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides }
   if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
       and GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit

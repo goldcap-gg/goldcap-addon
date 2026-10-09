@@ -1270,4 +1270,6 @@ GC.Locales.deDE = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Was alles, was EINSTELLEN einstellt, zu diesen Preisen einbringt, nach der Gebühr des Auktionshauses von 5 %.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Was deine Auktionen einbringen, wenn alle verkauft werden, nach der Gebühr des Auktionshauses von 5 %.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ERLÖS abzüglich dessen, was du für diese Ware bezahlt hast. Nur sichtbar, solange GoldCap weiß, was du für alles bezahlt hast.",
+  ["HOW MANY"] = "ANZAHL",
+  ["MAX"] = "MAX",
 }

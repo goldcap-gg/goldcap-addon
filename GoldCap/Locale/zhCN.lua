@@ -1174,4 +1174,6 @@ GC.Locales.zhCN = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "上架按钮要上架的全部物品按这些价格售出后，扣除拍卖行 5% 手续费你能拿到的金额。",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "你的拍卖全部售出后，扣除拍卖行 5% 手续费你能拿到的金额。",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "收入减去你买这些货花的钱。只有 GoldCap 知道全部货物的买入价时才显示。",
+  ["HOW MANY"] = "数量",
+  ["MAX"] = "最大",
 }

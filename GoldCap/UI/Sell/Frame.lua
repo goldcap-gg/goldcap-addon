@@ -123,6 +123,9 @@ UI.DR = {
   BOX_W = 112, BOX_H = 34, -- the price box: the one figure on this tab that spends gold
   HEAD_Y = -10,            -- "YOUR PRICE" / "YOU GET"
   BOX_Y = -26,             -- the price box, and what it fetches beside it
+  QTY_Y = -68,             -- how many one Post lists, when there is more than one to list
+  QTY_SLOTS = 1,           -- ...and the room it takes: everything under it moves down a slot
+  QTY_BOX_W = 64, QTY_H = 24,
   NOTE_Y = -68,            -- whose price it is, or what is wrong with it
   CHIPS_Y = -88,           -- the five one-click fills, one segmented strip
   CHIP_H = 22,

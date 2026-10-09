@@ -1267,4 +1267,6 @@ GC.Locales.ptBR = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Quanto rende tudo o que ANUNCIAR anuncia se vender a estes preços, depois da taxa de 5% da casa de leilões.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Quanto rendem seus leilões se todos venderem, depois da taxa de 5% da casa de leilões.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECEITA menos o que você pagou por este estoque. Só aparece enquanto o GoldCap sabe quanto você pagou por tudo.",
+  ["HOW MANY"] = "QUANTIDADE",
+  ["MAX"] = "MÁX.",
 }

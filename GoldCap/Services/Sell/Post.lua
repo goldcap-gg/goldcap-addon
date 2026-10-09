@@ -161,20 +161,25 @@ function GC.Sell._Certain()
   return #GC.Sell._LiveLate() == 0 and time() > (GC.Sell._owedUntil or 0)
 end
 
--- The one rule for a typed price (the price column's own choice, priceOverrides): it was chosen
--- for ONE listing, against a book that will move. The post that carried it spends it when a
--- creation is credited to that post, and it is dropped when the auction house closes over a post
--- that went out and was never answered -- carried into the next visit after an outcome nobody
--- saw, it would price that listing at a number chosen for a market that is gone. Only then: a
--- post whose minute ran out unanswered keeps it, on the row, for the retry, as a refused one
--- does. Dropping it there, behind the row, left the row showing it while the next Post sent
--- GoldCap's price (review sell-fix4 I1); at a close the next visit composes before anything can
--- be pressed. Only the price that post carried: one the player has typed since is their next
--- choice and stays. Nothing ever puts a spent price back.
+-- The one rule for a typed price (the price column's own choice, priceOverrides), and for a
+-- typed quantity (quantityOverrides) with it: each was chosen for ONE listing, against a book
+-- that will move, and five of ten is a choice about this post, not about the next five. The
+-- post that carried them spends them when a creation is credited to that post, and they are
+-- dropped when the auction house closes over a post that went out and was never answered --
+-- carried into the next visit after an outcome nobody saw, they would shape that listing with
+-- numbers chosen for a market that is gone. Only then: a post whose minute ran out unanswered
+-- keeps them, on the row, for the retry, as a refused one does. Dropping them there, behind the
+-- row, left the row showing a price while the next Post sent GoldCap's (review sell-fix4 I1);
+-- at a close the next visit composes before anything can be pressed. Only what that post
+-- carried: a number the player has typed since is their next choice and stays. Nothing ever
+-- puts a spent one back.
 function GC.Sell._SpendPrice(pin)
   local key = type(pin) == "table" and pin.positionKey or nil
   if type(key) == "string" and pin.override ~= nil and pin.override == S.priceOverrides[key] then
     S.priceOverrides[key] = nil
+  end
+  if type(key) == "string" and pin.overrideQuantity ~= nil and pin.overrideQuantity == S.quantityOverrides[key] then
+    S.quantityOverrides[key] = nil
   end
 end
 
@@ -324,8 +329,9 @@ function Post.PreparePost(row)
   -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
+  local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
   local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true },
-    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil })
+    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
   if not plan then
     View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
     return
@@ -382,7 +388,7 @@ function Post.PreparePost(row)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil }
+    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates

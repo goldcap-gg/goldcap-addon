@@ -125,6 +125,9 @@ local function evaluate(position, opts)
   -- whole bag pool is one postable quantity. Falls back to bagQty when nothing set the field,
   -- which is exactly the old behaviour.
   local postable = positive(position.postableQty) and position.postableQty or position.bagQty
+  -- ...and on fewer, when the seller asked one Post for fewer (the Sell tab's "how many").
+  local chosen = opts and opts.quantities and opts.quantities[position.positionKey]
+  if positive(chosen) and chosen < postable then postable = chosen end
   local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"

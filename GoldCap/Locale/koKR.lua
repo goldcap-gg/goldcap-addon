@@ -1202,4 +1202,6 @@ GC.Locales.koKR = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "등록 버튼으로 등록할 모든 아이템이 이 가격에 팔렸을 때 경매장 수수료 5%를 빼고 받는 금액입니다.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "내 경매가 모두 팔렸을 때 경매장 수수료 5%를 빼고 받는 금액입니다.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "판매 대금에서 이 아이템들을 사는 데 쓴 금액을 뺀 값입니다. GoldCap이 전부의 구입가를 알 때만 표시됩니다.",
+  ["HOW MANY"] = "수량",
+  ["MAX"] = "최대",
 }

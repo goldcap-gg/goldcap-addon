@@ -423,6 +423,17 @@ describe("PostQueue", function()
   -- The selling list (owner, 2026-10-09): POST and the post-next key list only what the player
   -- marked for selling. What Deals bought and the player still holds counts as marked until they
   -- say otherwise; the player's own choice, either way, wins and is kept per position.
+  -- How many (the Sell tab's quantity box): the queue lists, and values, what each Post sends.
+  it("lists and values the quantity the seller asked one Post for, never more than there is", function()
+    local quotes = {}
+    setQuote(quotes, 1, 10000, 10)
+    local positions = build({ bagStock = { stock("commodity:1", 1, "Ore One", 4) }, quotes = quotes })
+    local entries = GC.PostQueue.Build(positions, { quantities = { ["commodity:1"] = 2 } })
+    assert.equal(2, entries[1].postableQty)
+    assert.equal(entries[1].unitPrice * 2, entries[1].value)
+    assert.equal(4, GC.PostQueue.Build(positions, { quantities = { ["commodity:1"] = 9 } })[1].postableQty)
+  end)
+
   describe("the selling list", function()
     local function twoOres(acquisitions)
       local quotes = {}

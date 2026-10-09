@@ -13,6 +13,9 @@
   LOTS, what your lots bring in. PROFIT is what that leaves after what you paid, and shows only
   when GoldCap knows what you paid for all of it. They replace COST, ASKING and AT MARKET, which
   often read 0 and Unknown.
+- You can post part of a stack from the Sell tab. An item's panel asks HOW MANY, shows the most
+  one post can list beside it, and MAX goes back to all of it. The number is for the next post
+  only, like a price you type, and POST and the key for posting the next item use it too.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

@@ -1271,4 +1271,6 @@ GC.Locales.frFR = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Ce que te rapporte tout ce que VENDRE met en vente si tout part à ces prix, après les 5 % de commission de l'hôtel des ventes.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Ce que te rapportent tes enchères si elles partent toutes, après les 5 % de commission de l'hôtel des ventes.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECETTE moins ce que tu as payé ce stock. Affiché seulement tant que GoldCap sait ce que tu l'as payé en entier.",
+  ["HOW MANY"] = "QUANTITÉ",
+  ["MAX"] = "MAX",
 }

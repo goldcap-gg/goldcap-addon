@@ -622,8 +622,104 @@ describe("Sell widget geometry and manual cost", function()
       local row = priceRow(GC)
       assert.equal("YOUR PRICE", row.drawerPriceHead.text)
       assert.equal("43", row.priceBox.text) -- 430000 copper, in gold, as the box takes it
-      assert.matches("GoldCap's", row.priceNote.text, 1, true)
-      assert.matches("×5", row.priceNote.text, 1, true)
+      assert.equal("GoldCap's", row.priceNote.text) -- how many is the line above's to say
+    end)
+
+    -- How many (owner, 2026-10-10: ten in the bags, five to sell, and one Post listed all ten).
+    describe("how many", function()
+      local function typeQuantity(row, text)
+        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
+        row.qtyBox.focused = true
+        row.qtyBox.text = text
+        row.qtyBox.scripts.OnEnterPressed(row.qtyBox)
+      end
+      local function chosen(GC) return GC.SellState.quantityOverrides["commodity:42"] end
+      local function listRow(GC)
+        for _, row in ipairs(GC.SellUI.rows) do if row.shown and row.kind == "position" then return row end end
+      end
+
+      it("asks how many, out of what one Post can list, with MAX lit while it is all of it", function()
+        local GC = load(700, { calls = {} })
+        local row = priceRow(GC)
+        assert.is_true(row.qtyBox.shown)
+        assert.equal("HOW MANY", row.qtyHead.text)
+        assert.equal("5", row.qtyBox.text)
+        assert.equal("of 5", row.qtyOf.text)
+        assert.equal("MAX", row.qtyMax.label)
+        assert.equal("active", row.qtyMax.variant)
+        assert.equal("215g", row.priceNet.text) -- 43g x 5
+      end)
+
+      it("counts the seller's number in the panel and on the row once they give one", function()
+        local GC = load(700, { calls = {} })
+        typeQuantity(priceRow(GC), "2")
+        assert.equal(2, chosen(GC))
+        local row = priceRow(GC)
+        assert.equal("2", row.qtyBox.text)
+        assert.equal("86g", row.priceNet.text)
+        assert.equal("86g", listRow(GC).cells.gross.text)
+        assert.equal("ghost", row.qtyMax.variant)
+        assert.equal(GC.Theme.color.gold[1], row.qtyHead.color[1])
+      end)
+
+      it("moves with every keystroke, and does not type over the seller", function()
+        local GC = load(700, { calls = {} })
+        local row = priceRow(GC)
+        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
+        row.qtyBox.focused = true
+        row.qtyBox.text = "3"
+        row.qtyBox.scripts.OnTextChanged(row.qtyBox, true)
+        assert.equal(3, chosen(GC))
+        assert.equal("3", row.qtyBox.text)
+        assert.equal("129g", listRow(GC).cells.gross.text)
+      end)
+
+      it("gives the number back on MAX", function()
+        local GC = load(700, { calls = {} })
+        typeQuantity(priceRow(GC), "2")
+        local row = priceRow(GC)
+        row.qtyMax.scripts.OnClick(row.qtyMax)
+        assert.is_nil(chosen(GC))
+        assert.equal("5", priceRow(GC).qtyBox.text)
+      end)
+
+      it("reads all of it, more than there is, nought or nothing as all of it", function()
+        local GC = load(700, { calls = {} })
+        for _, text in ipairs({ "5", "50", "0", "" }) do
+          typeQuantity(priceRow(GC), "2")
+          typeQuantity(priceRow(GC), text)
+          assert.is_nil(chosen(GC), text)
+        end
+      end)
+
+      it("gives up a half-typed number rather than moving it to another item", function()
+        local GC = load(700, { calls = {} })
+        local row = priceRow(GC)
+        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
+        row.qtyBox.focused = true
+        row.qtyBox.text = "2"
+        GC.SellUI.expanded = { ["commodity:99"] = true }
+        topRows(GC, {
+          { itemID = 99, itemName = "Other", positionKey = "commodity:99", coverage = "UNKNOWN",
+            exposureQty = 9, knownQty = 0, knownCost = 0, listedValue = 0,
+            bagQty = 9, listedQty = 0, sources = {}, postRecommendation = { unit = 700000 } },
+        })
+        assert.is_false(row.qtyBox:HasFocus())
+        assert.equal("9", row.qtyBox.text)
+        assert.same({}, GC.SellState.quantityOverrides)
+      end)
+
+      it("does not ask about a single unit, and leaves the rest of the panel where it was", function()
+        local GC = load(700, { calls = {} })
+        local DR = GC.SellUI.DR
+        local row = priceRow(GC, { bagQty = 1, exposureQty = 1, knownQty = 1, knownCost = 400000 })
+        assert.is_false(row.qtyBox.shown)
+        assert.is_false(row.qtyMax.shown)
+        assert.equal("GoldCap's · ×1", row.priceNote.text)
+        assert.equal(DR.CHIPS_Y, row.chipsBg.points[1].y)
+        row = priceRow(GC)
+        assert.equal(DR.CHIPS_Y - DR.QTY_SLOTS * (GC.SellUI.rowHeight or 32), row.chipsBg.points[1].y)
+      end)
     end)
 
     -- The owner's own bug report: WoW: Forever's book carries copper remainders, and the

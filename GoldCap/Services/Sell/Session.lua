@@ -105,7 +105,7 @@ function GC.Sell.Reset()
   -- outliving the visit it was pinned to.
   for key in pairs(S.bagLocationCache) do S.bagLocationCache[key] = nil end
   -- Nothing is answered once the auction house has closed: every post that went out and was never
-  -- answered -- the late ones and the one on the wire -- drops the price typed for it
+  -- answered -- the late ones and the one on the wire -- drops the price and quantity typed for it
   -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.
   for _, late in ipairs(GC.Sell._lateAnswers) do GC.Sell._SpendPrice(late.pin) end
   if S.postingPin and S.postingPin.sent then GC.Sell._SpendPrice(S.postingPin) end

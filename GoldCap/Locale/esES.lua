@@ -1272,4 +1272,6 @@ GC.Locales.esES = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Lo que te deja todo lo que PUBLICAR publica si se vende a estos precios, tras el 5 % de comisión de la casa de subastas.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Lo que te dejan tus subastas si se venden todas, tras el 5 % de comisión de la casa de subastas.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "INGRESOS menos lo que pagaste por esta mercancía. Solo se muestra mientras GoldCap sabe lo que pagaste por toda ella.",
+  ["HOW MANY"] = "CANTIDAD",
+  ["MAX"] = "MÁX.",
 }

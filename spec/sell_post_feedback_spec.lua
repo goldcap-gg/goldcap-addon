@@ -11,6 +11,7 @@ local helper = require("spec.spec_helper")
 -- uses: bags -> positions -> the row and the dock -> onPostClick -> the events that answer it.
 describe("Sell tab, a Post says what it is doing", function()
   local GC, root, render, container, timers, posts, postReturn, onPost, bags, postedSlots, auctions, sentUnits
+  local sentQty
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -70,7 +71,7 @@ describe("Sell tab, a Post says what it is doing", function()
 
   before_each(function()
     timers, posts, postReturn, onPost, bags, postedSlots, auctions = {}, 0, false, nil, BAGS, {}, {}
-    sentUnits = {}
+    sentUnits, sentQty = {}, {}
     _G.time = function() return 1000 end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
@@ -83,10 +84,11 @@ describe("Sell tab, a Post says what it is doing", function()
     _G.C_AuctionHouse = {
       MakeItemKey = function(itemID) return { itemID = itemID } end,
       GetItemKeyInfo = function() return { isCommodity = true } end,
-      PostCommodity = function(location, _, _, unitPrice)
+      PostCommodity = function(location, _, quantity, unitPrice)
         posts = posts + 1
         postedSlots[#postedSlots + 1] = location.slot
         sentUnits[#sentUnits + 1] = unitPrice
+        sentQty[#sentQty + 1] = quantity
         if onPost then onPost() end
         return postReturn
       end,
@@ -1177,6 +1179,47 @@ describe("Sell tab, a Post says what it is doing", function()
         ownedList({ { auctionID = 709, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 } })
         GC.Sell.OnOwnedAuctions()
         assert.equal("posting", row.postStage)
+      end)
+
+      -- How many (owner, 2026-10-10): the number the seller typed is what the post call sends,
+      -- and it lives exactly as long as a typed price does.
+      describe("a typed quantity", function()
+        local function chosen() return GC.SellState.quantityOverrides end
+
+        it("is what the post call sends, and is spent when the post is credited", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          assert.equal(100, sentQty[1])
+          assert.equal(100, chosen()["commodity:23427"]) -- the post may still be refused
+          GC.Sell.OnAuctionCreated(700)
+          assert.is_nil(chosen()["commodity:23427"])
+          assert.equal(100, activityFor("commodity:23427").lastPostedQty)
+        end)
+
+        it("stays for the retry when the post is refused", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
+          assert.equal(100, chosen()["commodity:23427"])
+          pressRowPost()
+          assert.equal(100, sentQty[2])
+        end)
+
+        it("is dropped when the auction house closes over a post that went out unanswered", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          GC.Sell.Reset()
+          assert.is_nil(chosen()["commodity:23427"])
+        end)
+
+        it("sends all of it when nothing was typed", function()
+          ready()
+          pressRowPost()
+          assert.equal(246, sentQty[1])
+        end)
       end)
 
       -- One rule for a typed price: spent by the credit, dropped when the window closes

@@ -577,7 +577,8 @@ local function renderRows()
         -- Without a book the eight levels are not drawn, and neither is the room for them: the
         -- head used to keep 160px of nothing between its heading and "has not answered yet".
         slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS)
-          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0) }
+          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0)
+          + (UI.INSP.hasQuantity(position) and DR.QTY_SLOTS or 0) }
       local head = table.remove(entries)
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.

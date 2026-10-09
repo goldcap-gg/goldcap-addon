@@ -1344,4 +1344,6 @@ GC.Locales.ukUA = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Скільки принесе все, що виставить ВИСТАВИТИ, якщо продасться за цими цінами, за вирахуванням 5% комісії аукціону.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Скільки принесуть ваші лоти, якщо продадуться всі, за вирахуванням 5% комісії аукціону.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВИРУЧКА мінус те, що ви заплатили за цей товар. Видно, лише поки GoldCap знає, скільки ви заплатили за весь товар.",
+  ["HOW MANY"] = "СКІЛЬКИ",
+  ["MAX"] = "УСЕ",
 }

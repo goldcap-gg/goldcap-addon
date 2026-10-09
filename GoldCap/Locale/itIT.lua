@@ -1269,4 +1269,6 @@ GC.Locales.itIT = {
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Quanto ti rende tutto ciò che VENDI mette in vendita se si vende a questi prezzi, dopo il 5% di commissione della casa d'aste.",
   ["What your lots bring in if they all sell, after the auction house's 5% cut."] = "Quanto ti rendono le tue aste se si vendono tutte, dopo il 5% di commissione della casa d'aste.",
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RICAVO meno quanto hai pagato questa merce. Si vede solo finché GoldCap sa quanto l'hai pagata tutta.",
+  ["HOW MANY"] = "QUANTITÀ",
+  ["MAX"] = "MAX",
 }
