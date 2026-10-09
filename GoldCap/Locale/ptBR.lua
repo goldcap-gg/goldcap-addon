@@ -1269,4 +1269,6 @@ GC.Locales.ptBR = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECEITA menos o que você pagou por este estoque. Só aparece enquanto o GoldCap sabe quanto você pagou por tudo.",
   ["HOW MANY"] = "QUANTIDADE",
   ["MAX"] = "MÁX.",
+  ["posted as many as you asked for; its own Post lists more"] = "anunciou quantos você pediu; o botão Anunciar da linha anuncia mais",
+  ["posted"] = "anunciado",
 }

@@ -138,6 +138,8 @@ local QUEUE_SKIP_TEXT = {
   -- Held by this tab, not by the queue module: the item's last post may still go up
   -- (GC.Sell._lateAnswers).
   awaiting_answer = "Last post may still go up -- wait a minute",
+  -- Held by this tab too: posted from a number typed into HOW MANY (GC.Sell._HoldPostedInQueue).
+  posted_this_visit = "posted as many as you asked for; its own Post lists more",
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 

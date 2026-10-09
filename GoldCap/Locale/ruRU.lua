@@ -1345,4 +1345,6 @@ GC.Locales.ruRU = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВЫРУЧКА минус то, что вы заплатили за этот товар. Видна, только пока GoldCap знает, сколько вы заплатили за весь товар.",
   ["HOW MANY"] = "СКОЛЬКО",
   ["MAX"] = "ВСЁ",
+  ["posted as many as you asked for; its own Post lists more"] = "выставлено, сколько вы просили; остальное выставит кнопка «Выставить» в его строке",
+  ["posted"] = "выставлено",
 }

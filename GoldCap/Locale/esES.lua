@@ -1274,4 +1274,6 @@ GC.Locales.esES = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "INGRESOS menos lo que pagaste por esta mercancía. Solo se muestra mientras GoldCap sabe lo que pagaste por toda ella.",
   ["HOW MANY"] = "CANTIDAD",
   ["MAX"] = "MÁX.",
+  ["posted as many as you asked for; its own Post lists more"] = "publicaste los que pediste; el botón Publicar de su fila publica más",
+  ["posted"] = "publicado",
 }

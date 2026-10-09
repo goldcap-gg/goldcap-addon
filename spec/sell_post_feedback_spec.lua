@@ -1215,6 +1215,48 @@ describe("Sell tab, a Post says what it is doing", function()
           assert.is_nil(chosen()["commodity:23427"])
         end)
 
+        -- The owner's run (2026-10-10): one water of six and one linen of sixteen, POST twice. After
+        -- the water went up, POST offered the other five, and the linen waited behind them.
+        it("leaves an item posted from a typed number out of POST for the rest of the visit", function()
+          bags = TWO_ITEMS
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          render()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+          chosen()["commodity:23427"] = 1
+          pressRowPost(23427)
+          GC.Sell.OnAuctionCreated(700)
+          GC.SellCompose.Positions() -- the bags still hold the rest of the ore
+          assert.equal(1, #GC.SellState.queueEntries)
+          assert.equal(210796, GC.SellState.queueEntries[1].itemID)
+          local held
+          for _, skip in ipairs(GC.SellState.queueSkipped) do
+            if skip.positionKey == "commodity:23427" then held = skip.reason end
+          end
+          assert.equal("posted_this_visit", held)
+          -- The next visit starts the list again.
+          GC.Sell.Reset()
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+        end)
+
+        -- A post with no number typed is the whole stack the click could list; what is left of a
+        -- normal item (another stack) is POST's to list next, as before.
+        it("keeps an item in POST after a post of all it could list", function()
+          bags = TWO_ITEMS
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          render()
+          pressRowPost(23427)
+          GC.Sell.OnAuctionCreated(700)
+          GC.SellCompose.Positions()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+        end)
+
         it("sends all of it when nothing was typed", function()
           ready()
           pressRowPost()

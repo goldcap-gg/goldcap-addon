@@ -1204,4 +1204,6 @@ GC.Locales.koKR = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "판매 대금에서 이 아이템들을 사는 데 쓴 금액을 뺀 값입니다. GoldCap이 전부의 구입가를 알 때만 표시됩니다.",
   ["HOW MANY"] = "수량",
   ["MAX"] = "최대",
+  ["posted as many as you asked for; its own Post lists more"] = "요청한 수량만큼 등록했습니다. 더 등록하려면 이 줄의 등록 버튼을 누르세요",
+  ["posted"] = "등록함",
 }

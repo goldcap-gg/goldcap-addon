@@ -1271,4 +1271,6 @@ GC.Locales.itIT = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RICAVO meno quanto hai pagato questa merce. Si vede solo finché GoldCap sa quanto l'hai pagata tutta.",
   ["HOW MANY"] = "QUANTITÀ",
   ["MAX"] = "MAX",
+  ["posted as many as you asked for; its own Post lists more"] = "messi in vendita quanti ne hai chiesti; il pulsante Vendi della sua riga ne mette altri",
+  ["posted"] = "in vendita",
 }

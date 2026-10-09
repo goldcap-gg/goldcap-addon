@@ -26,6 +26,7 @@ local ROW_TAG_TEXT = {
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
   below_vendor = "vendor pays more",
+  posted_this_visit = "posted",
 }
 
 local rowTag

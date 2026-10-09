@@ -15,7 +15,8 @@
   often read 0 and Unknown.
 - You can post part of a stack from the Sell tab. An item's panel asks HOW MANY, shows the most
   one post can list beside it, and MAX goes back to all of it. The number is for the next post
-  only, like a price you type, and POST and the key for posting the next item use it too.
+  only, like a price you type. POST and the key for posting the next item use it too, and then
+  move on to your next item; the item's own Post button lists more of it.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

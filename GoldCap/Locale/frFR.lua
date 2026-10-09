@@ -1273,4 +1273,6 @@ GC.Locales.frFR = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECETTE moins ce que tu as payé ce stock. Affiché seulement tant que GoldCap sait ce que tu l'as payé en entier.",
   ["HOW MANY"] = "QUANTITÉ",
   ["MAX"] = "MAX",
+  ["posted as many as you asked for; its own Post lists more"] = "tu as mis en vente ce que tu voulais ; le bouton Vendre de sa ligne en met plus",
+  ["posted"] = "en vente",
 }

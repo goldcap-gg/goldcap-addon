@@ -1346,4 +1346,6 @@ GC.Locales.ukUA = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВИРУЧКА мінус те, що ви заплатили за цей товар. Видно, лише поки GoldCap знає, скільки ви заплатили за весь товар.",
   ["HOW MANY"] = "СКІЛЬКИ",
   ["MAX"] = "УСЕ",
+  ["posted as many as you asked for; its own Post lists more"] = "виставлено, скільки ви просили; решту виставить кнопка «Виставити» в його рядку",
+  ["posted"] = "виставлено",
 }

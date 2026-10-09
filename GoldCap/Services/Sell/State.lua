@@ -74,6 +74,9 @@ GC.SellState = {
   -- not persisted, handed to BuildPostPlan, spent with the post that carried it
   -- (GC.Sell._SpendPrice). Only ever under what one click could list; "all of it" is no entry.
   quantityOverrides = {},
+  -- Positions posted from a number typed into "how many" this visit, by positionKey: POST is done
+  -- with them until the auction house is closed (GC.Sell._HoldPostedInQueue, GC.Sell.Reset).
+  postedThisVisit = {},
   -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "queue" and
   -- "cancelqueue" are transient FOCUS states the queue controls set for a single render, so their
   -- head entry lands on row 1 -- a deck is what the switch paints, a focus state is not.

@@ -207,6 +207,27 @@ function GC.Sell._HoldLateInQueue()
   S.queueEntries = kept
 end
 
+-- An item posted from a number the seller typed into "how many" is done for this visit: they
+-- asked for that many, not that many and then the rest. Left in, it went straight back to the
+-- head of the queue with what was left (owner, 2026-10-10: one water of six posted, then POST
+-- offered the other five, and the linen marked beside it waited behind them). Its own row's
+-- Post still lists more, and the next visit starts the list again (GC.Sell.Reset). A post with
+-- no number typed is not held: it listed all one click could, and the rest of a normal item --
+-- another stack -- is POST's to list next.
+function GC.Sell._HoldPostedInQueue()
+  if next(S.postedThisVisit) == nil then return end
+  local kept = {}
+  for _, entry in ipairs(S.queueEntries) do
+    if S.postedThisVisit[entry.positionKey] then
+      S.queueSkipped[#S.queueSkipped + 1] = { positionKey = entry.positionKey, itemID = entry.itemID,
+        itemName = entry.itemName, reason = "posted_this_visit" }
+    else
+      kept[#kept + 1] = entry
+    end
+  end
+  S.queueEntries = kept
+end
+
 -- Called while `pin` is still the post on the wire, before it is let go. Only a post that was
 -- sent: a Confirm nobody pressed asked the auction house nothing.
 function GC.Sell._AwaitLate(pin)
@@ -775,6 +796,10 @@ function GC.Sell.OnAuctionCreated(auctionID)
     and pin or nil
   local owner = GC.Sell._CreationOwner(named, wire, info)
   if not owner then return end
+  -- A post of a number the seller typed is all they wanted of that item this visit.
+  if owner.overrideQuantity ~= nil and type(owner.positionKey) == "string" then
+    S.postedThisVisit[owner.positionKey] = true
+  end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then
     -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers): the dock said the

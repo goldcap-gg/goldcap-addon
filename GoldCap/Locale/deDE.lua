@@ -1272,4 +1272,6 @@ GC.Locales.deDE = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ERLÖS abzüglich dessen, was du für diese Ware bezahlt hast. Nur sichtbar, solange GoldCap weiß, was du für alles bezahlt hast.",
   ["HOW MANY"] = "ANZAHL",
   ["MAX"] = "MAX",
+  ["posted as many as you asked for; its own Post lists more"] = "so viele eingestellt, wie du wolltest; mehr stellt „Einstellen“ in seiner Zeile ein",
+  ["posted"] = "eingestellt",
 }

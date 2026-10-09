@@ -1259,4 +1259,6 @@ GC.Locales.enUS = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it.",
   ["HOW MANY"] = "HOW MANY",
   ["MAX"] = "MAX",
+  ["posted as many as you asked for; its own Post lists more"] = "posted as many as you asked for; its own Post lists more",
+  ["posted"] = "posted",
 }

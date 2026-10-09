@@ -147,6 +147,7 @@ function Compose.Queue()
     S.queueEntries, S.queueSkipped, S.notSelling = {}, {}, {}
   end
   GC.Sell._HoldLateInQueue()
+  GC.Sell._HoldPostedInQueue()
   View.paintQueue()
 end
 

@@ -1177,4 +1177,6 @@ GC.Locales.zhTW = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "收入減去你買這些貨花的錢。只有 GoldCap 知道全部貨物的買入價時才顯示。",
   ["HOW MANY"] = "數量",
   ["MAX"] = "最大",
+  ["posted as many as you asked for; its own Post lists more"] = "已按你要的數量上架；該列的上架按鈕可以上架更多",
+  ["posted"] = "已上架",
 }

@@ -111,6 +111,8 @@ function GC.Sell.Reset()
   if S.postingPin and S.postingPin.sent then GC.Sell._SpendPrice(S.postingPin) end
   GC.Sell._lateAnswers = {}
   GC.Sell._owedUntil = nil
+  -- A new visit starts the selling list again: what was posted from a typed number is POST's again.
+  for key in pairs(S.postedThisVisit) do S.postedThisVisit[key] = nil end
   GC.QuoteCache.Clear(S.quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
