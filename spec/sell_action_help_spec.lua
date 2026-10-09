@@ -7,15 +7,6 @@ local helper = require("spec.spec_helper")
 -- player posts them again themselves once they do. These tooltip strings never rendered before
 -- the button exposed the label they were keyed on, so nobody caught the lie until now.
 describe("Sell action help text", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local GC
 
   before_each(function()
@@ -24,9 +15,7 @@ describe("Sell action help text", function()
   end)
 
   local function helpBody(label)
-    local renderRows = upvalue(GC.Sell.Attach, "renderRows")
-    local createRow = upvalue(renderRows, "createRow")
-    local actionHelp = upvalue(createRow, "ACTION_HELP")
+    local actionHelp = GC.SellUI.Row.ACTION_HELP
     return table.concat(actionHelp[label][2], " ")
   end
 
@@ -51,9 +40,7 @@ describe("Sell action help text", function()
   -- tooltip is the one-breath answer to "what does this button do"; the reasoning behind
   -- the behaviour lives in the code and the docs, not on the cursor.
   it("keeps every action's help short enough to sit beside the button", function()
-    local renderRows = upvalue(GC.Sell.Attach, "renderRows")
-    local createRow = upvalue(renderRows, "createRow")
-    local actionHelp = upvalue(createRow, "ACTION_HELP")
+    local actionHelp = GC.SellUI.Row.ACTION_HELP
     for label, help in pairs(actionHelp) do
       assert.is_true(#help[2] <= 2, ("%s: %d paragraphs"):format(label, #help[2]))
       local body = table.concat(help[2], " ")
@@ -65,7 +52,7 @@ describe("Sell action help text", function()
   -- market/profit fields, the 5% AH cut in Flips.lua's breakeven math): all matched. This is not
   -- exhaustive proof, just a sentinel that the two most load-bearing numeric claims stay intact.
   it("keeps the AH cut and breakeven claims consistent with Flips.lua's own math", function()
-    local headerHelp = upvalue(GC.Sell.Attach, "HEADER_HELP")
+    local headerHelp = GC.SellUI.List.HEADER_HELP
     local profit = table.concat(headerHelp.profit[2], " ")
     assert.matches("5%", profit, 1, true)
     local status = table.concat(headerHelp.status[2], " ")
@@ -77,10 +64,8 @@ describe("Sell action help text", function()
   -- silently removed the help from every button that spends gold, in every language but
   -- English, with nothing failing anywhere to say so.
   it("keys the help by the English action, not the translated label", function()
-    local renderRows = upvalue(GC.Sell.Attach, "renderRows")
-    local createRow = upvalue(renderRows, "createRow")
-    local actionHelp = upvalue(createRow, "ACTION_HELP")
-    local showRowAction = upvalue(renderRows, "showRowAction")
+    local actionHelp = GC.SellUI.Row.ACTION_HELP
+    local showRowAction = GC.SellUI.Row.ShowRowAction
 
     GC.Locales = { deDE = { ["Post"] = "Einstellen" } }
     GC.ActivateLocale("deDE")

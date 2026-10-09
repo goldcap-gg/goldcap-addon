@@ -34,15 +34,6 @@ describe("Sell tab, bags to Post", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- Slot 1: 200 Eternium Ore, a commodity, freely sellable.
   -- Slot 2: 46 more of the same, so the aggregate has to add up across stacks.
   -- Slot 3: soulbound, which the auction house refuses.
@@ -297,7 +288,7 @@ describe("Sell tab, bags to Post", function()
   it("opens Set cost for bag stock GoldCap never bought", function()
     compose()
     local row = positionRow()
-    local openCostDialog = upvalue(render, "openCostDialog")
+    local openCostDialog = GC.SellUI.CostDialog.OpenCostDialog
     local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
@@ -308,7 +299,7 @@ describe("Sell tab, bags to Post", function()
   it("offers Set cost only where it would do something", function()
     compose()
     local row = positionRow()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost(row.position))
     -- Nothing held, nothing to cost: the button must not be offered at all,
     -- rather than offered and silently inert.
@@ -329,7 +320,7 @@ describe("Sell tab, bags to Post", function()
     compose()
     local row = positionRow()
     assert.equal("PARTIAL", row.position.coverage)
-    local openCostDialog = upvalue(render, "openCostDialog")
+    local openCostDialog = GC.SellUI.CostDialog.OpenCostDialog
     local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
@@ -344,13 +335,13 @@ describe("Sell tab, bags to Post", function()
   -- manual cost doubled it. knownQty alone can never see past the allocation
   -- cap -- trackedQty can, and must be checked too.
   it("does not offer Set cost for stock a recorded batch already covers beyond the allocation cap", function()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_false(canSetCost({ positionKey = "commodity:1", listedQty = 24, bagQty = 94,
       exposureQty = 24, knownQty = 24, trackedQty = 118 }))
   end)
 
   it("still offers Set cost for stock with no batch recorded against it at all", function()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 50,
       exposureQty = 50, knownQty = 0, trackedQty = 0 }))
   end)
@@ -358,7 +349,7 @@ describe("Sell tab, bags to Post", function()
   it("offers Set cost for the uncovered remainder, and withholds it once a batch closes the gap", function()
     -- 60 of the 100 held units are costed either way; the other 40 stay open
     -- until something -- allocation or a manual entry -- actually accounts for them.
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 100,
       exposureQty = 60, knownQty = 60, trackedQty = 60 }))
     assert.is_false(canSetCost({ positionKey = "commodity:1", bagQty = 100,

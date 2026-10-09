@@ -42,15 +42,6 @@ describe("Sell tab, a Post says what it is doing", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local BAGS = {
     [0] = {
       { itemID = 23427, stackCount = 200, itemName = "Eternium Ore" },
@@ -486,9 +477,9 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal("confirm", row.postStage)
-      local generation = upvalue(render, "renderGeneration")
+      local generation = row.renderEntryID:match("^(%d+):")
       GC.Sell.OnBagsChanged()
-      assert.equal(generation, upvalue(render, "renderGeneration"))
+      assert.equal(generation, row.renderEntryID:match("^(%d+):"))
       assert.equal("confirm", row.postStage)
     end)
   end)

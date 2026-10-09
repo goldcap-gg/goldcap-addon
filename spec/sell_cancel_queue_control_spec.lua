@@ -42,15 +42,6 @@ describe("Sell tab, the cancel queue control", function()
   end
 
   local now
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- One live lot: 400 Sanguithorn Tea listed at 2g73s against a market that has moved to
   -- 1g98s -- the undercut-leftover shape the queue exists for. The paid basis (1g/unit,
   -- recorded below) sits far under the relist price, so RepostAdvice says "repost".
@@ -334,7 +325,7 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal("Cancel lot?", action.label)
       assert.is_false(action.enabled) -- until the arm's delay has passed, like the lot's own
       armedLotRow().repostReady = true
-      upvalue(GC.Sell.Attach, "paintCancelButton")()
+      GC.SellUI.Dock.PaintCancelButton()
       assert.is_true(action.enabled)
       action.scripts.OnClick(action)
       assert.equal(1, cancelCalls)

@@ -1,15 +1,6 @@
 local helper = require("spec.spec_helper")
 
 describe("Sell refresh state fence", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local function refreshState(GC) return GC.SellState.refresh end
 
   local function load(now, sent, cache, keyInfo)
@@ -511,8 +502,7 @@ describe("Sell refresh state fence", function()
       end
       GC.Sell.Refresh(true)
       assert.same({ 42, 43, 50 }, refreshState(GC).queue)
-      local setStatus = GC.SellView.status
-      local paint = upvalue(setStatus, "paintRefreshButton")
+      local paint = GC.SellUI.Toolbar.PaintRefreshButton
       local button = { SetLabel = function(self, label) self.label = label end }
       GC.SellUI.container = { refreshButton = button }
       if filterMode then GC.SellState.filterMode = filterMode end

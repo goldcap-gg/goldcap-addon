@@ -110,6 +110,7 @@ local function paintRefreshButton()
     if button.SetVariant then button:SetVariant(busy and "active" or "ghost") end
   end
 end
+UI.Toolbar.PaintRefreshButton = paintRefreshButton
 
 local function setStatus(text)
   if UI.window and UI.window.status then UI.window.status:SetText(text) end
@@ -128,6 +129,7 @@ local function setStatus(text)
   -- named was already on the wire.
   paintCancelButton()
 end
+UI.Dock.SetStatus = setStatus
 
 -- The dock's line belongs to the player's own post while it has something to say about it.
 -- The owner pressed Post and could not tell whether anything was happening: the pricing walk
@@ -350,6 +352,7 @@ paintQueueButton = function()
     end
   end
 end
+UI.Dock.PaintQueueButton = paintQueueButton
 
 -- The cancel control's mirror of paintQueueButton, over the repost arm instead of the post
 -- pin. States, in the order a click sequence produces them: "CANCEL N" -> "CANCEL LOT?" (the
@@ -419,6 +422,7 @@ paintCancelButton = function()
     end
   end
 end
+UI.Dock.PaintCancelButton = paintCancelButton
 
 -- Action and price, nothing else. This cell used to narrate the pricing mode
 -- in a sentence ("Post (queueing at your exit -- cheaper lots sell through
@@ -540,6 +544,7 @@ local function onPostClick(row)
     Post.Sent(S.postingPin)
   end
 end
+UI.Dock.OnPostClick = onPostClick
 
 -- The Cancel lot click: a lot's own button, a position's, the dock's CANCEL. Post.PrepareCancel
 -- decides; this makes the protected call first, and only then disables the button and recomposes.
@@ -550,6 +555,7 @@ local function onRepostClick(row, auctionID)
   row.action:Disable()
   Post.Cancelling(row, pin, scope)
 end
+UI.Dock.OnRepostClick = onRepostClick
 
 local function setDialogError(dialog, text)
   dialog.error:SetText(text or "")
@@ -716,6 +722,7 @@ local function canSetCost(position)
   local scope = activeScope(position)
   return pendingRepairFor(position, scope) ~= nil
 end
+UI.CostDialog.CanSetCost = canSetCost
 
 local function openCostDialog(position)
   local dialog = UI.container.costDialog
@@ -745,6 +752,7 @@ local function openCostDialog(position)
   setDialogError(dialog)
   dialog:Show()
 end
+UI.CostDialog.OpenCostDialog = openCostDialog
 
 local function confirmCostDialog(dialog)
   if dialog.submitted then return end
@@ -1502,6 +1510,7 @@ local ACTION_HELP = {
   ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
   ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
 }
+UI.Row.ACTION_HELP = ACTION_HELP
 
 local function createRow(parent)
   local row = CreateFrame("Button", nil, parent)
@@ -2011,6 +2020,7 @@ local HEADER_HELP = {
   profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
+UI.List.HEADER_HELP = HEADER_HELP
 
 -- `key` is the ENGLISH action name, not display text. ACTION_HELP is keyed by it, so once the
 -- interface is translated a lookup by the visible label would miss every time and silently
@@ -2025,6 +2035,7 @@ local function showRowAction(row, key, onClick)
   if onClick then row.action:SetScript("OnClick", onClick) end
   row.action:Show()
 end
+UI.Row.ShowRowAction = showRowAction
 
 local function summaryFor(filtered)
   local partial, unknown, knownCost, listedValue = 0, 0, 0, 0
@@ -4349,10 +4360,10 @@ end
 
 -- What the Sell services (GoldCap/Services/Sell) ask of this screen: GC.SellView's slots, filled
 -- here once every function they name exists. The services call these and never reach a frame.
-GC.SellView.render = renderRows
-GC.SellView.status = setStatus
-GC.SellView.paintQueue = paintQueueButton
-GC.SellView.paintCancel = paintCancelButton
+GC.SellView.render = function(...) return UI.List.RenderRows(...) end
+GC.SellView.status = function(...) return UI.Dock.SetStatus(...) end
+GC.SellView.paintQueue = function(...) return UI.Dock.PaintQueueButton(...) end
+GC.SellView.paintCancel = function(...) return UI.Dock.PaintCancelButton(...) end
 GC.SellView.paintDeck = function()
   if UI.container and UI.container.paintDeckSwitch then UI.container.paintDeckSwitch() end
 end

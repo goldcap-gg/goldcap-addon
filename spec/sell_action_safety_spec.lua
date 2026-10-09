@@ -1,15 +1,6 @@
 local helper = require("spec.spec_helper")
 
 describe("Sell protected action state", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local function set(fn, wanted, value)
     for i = 1, math.huge do
       local name = debug.getupvalue(fn, i)
@@ -25,8 +16,7 @@ describe("Sell protected action state", function()
     GC.Acquisitions.ScopeKey = GC.Acquisitions.ScopeKey or function(positionKey, scope)
       return table.concat({ scope.region, scope.char, positionKey }, "\1")
     end
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    return upvalue(render, "onPostClick"), upvalue(render, "onRepostClick")
+    return GC.SellUI.Dock.OnPostClick, GC.SellUI.Dock.OnRepostClick
   end
 
   -- onPostClick no longer calls liveBagState directly for a non-commodity position (it goes

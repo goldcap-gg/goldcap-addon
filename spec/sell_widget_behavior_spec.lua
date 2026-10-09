@@ -60,15 +60,6 @@ describe("Sell widget geometry and manual cost", function()
     return value
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local function load(width, record)
     made = {}
     record.calls, record.repairs = record.calls or {}, record.repairs or {}
@@ -1842,7 +1833,7 @@ describe("Sell widget geometry and manual cost", function()
       knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" }
     local rows = topRows(GC, { p })
     local render = GC.SellUI.List.RenderRows
-    local post = upvalue(render, "onPostClick")
+    local post = GC.SellUI.Dock.OnPostClick
     -- onPostClick reads bag state through clickSafeBagState now (never liveBagState directly --
     -- see SellFrame.lua's own comment on why), which for a commodity position still hands
     -- straight to the real liveBagState -- one upvalue hop further than before. Both are reached

@@ -105,4 +105,26 @@ describe("UI/Sell", function()
       end
     end
   end)
+
+  it("fills GC.SellView's slots with wrappers, never with a copy of a view function", function()
+    for _, path in ipairs(helper.SELL_UI_FILES) do
+      for line in lines(code(read("GoldCap/" .. path))) do
+        local rhs = line:match("^GC%.SellView%.%a+%s*=%s*(.-)%s*$")
+        if rhs then assert.is_truthy(rhs:match("^function"), path .. ": " .. line) end
+      end
+    end
+  end)
+
+  it("reaches a replaced view function through the slot that names it", function()
+    local GC = { Sell = {} }
+    for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end
+    for _, path in ipairs(helper.SELL_UI_FILES) do helper.loadModule(path, GC) end
+    local calls = {}
+    GC.SellUI.List.RenderRows = function() calls[#calls + 1] = "render" end
+    GC.SellUI.Dock.SetStatus = function(text) calls[#calls + 1] = "status " .. text end
+    GC.SellUI.Dock.PaintQueueButton = function() calls[#calls + 1] = "queue" end
+    GC.SellUI.Dock.PaintCancelButton = function() calls[#calls + 1] = "cancel" end
+    GC.SellView.render(); GC.SellView.status("hi"); GC.SellView.paintQueue(); GC.SellView.paintCancel()
+    assert.same({ "render", "status hi", "queue", "cancel" }, calls)
+  end)
 end)
