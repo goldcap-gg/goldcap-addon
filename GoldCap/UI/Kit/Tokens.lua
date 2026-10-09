@@ -17,8 +17,9 @@ GC.Kit.Tokens = Tokens
 local c = {
   -- Five steps of text: titles, body, secondary, labels, faint.
   text1 = hex("F3F1EC"), text2 = hex("C3C8D0"), text3 = hex("8B93A0"), text4 = hex("6F7885"), text5 = hex("4F5763"),
-  -- The window: a vertical gradient between these two, a faint white edge.
-  windowTop = hex("151921", 0.955), windowBottom = hex("0C0E13", 0.97), windowBorder = { 1, 1, 1, 0.14 },
+  -- The window: a vertical gradient between these two, a faint white edge. Opaque: docked, the
+  -- window covers the auction house's own lists, which read through it at 95% (seen in game).
+  windowTop = hex("151921"), windowBottom = hex("0C0E13"), windowBorder = { 1, 1, 1, 0.14 },
   -- Glass: rows, cards and panels inside the window, white at a few percent over the dark.
   glassTop = { 1, 1, 1, 0.035 }, glassBottom = { 1, 1, 1, 0.02 }, glassBorder = { 1, 1, 1, 0.075 },
   -- A panel over the window (the inspector, menus, dialogs): denser, with a shadow.

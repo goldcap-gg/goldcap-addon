@@ -48,6 +48,21 @@ describe("kit surfaces", function()
     end
   end)
 
+  -- Docked, the window sits over the auction house's own lists: at 95% the Blizzard sell list
+  -- behind it read through every row (owner's screenshot, Forever, 2026-10-09).
+  it("is opaque everywhere, so nothing behind the window reads through it", function()
+    local win = GC.Theme.Window(W.CreateFrame("Frame"))
+    for i = 1, 9 do
+      local vertex = W.state(win.fill[i]).vertex
+      if vertex then assert.equal(1, vertex[4], "piece " .. i) end
+    end
+    for i = 4, 6 do
+      local gradient = W.state(win.fill[i]).gradient
+      assert.equal(1, gradient[2].a)
+      assert.equal(1, gradient[3].a)
+    end
+  end)
+
   it("hangs a soft shadow outside the frame, under everything else in it", function()
     local shadow = GC.Theme.Shadow(W.CreateFrame("Frame"), 18, 0.6)
     local s = W.state(shadow)
