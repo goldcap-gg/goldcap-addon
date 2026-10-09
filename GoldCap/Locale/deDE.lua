@@ -8,7 +8,6 @@ GC.Locales.deDE = {
     " %s  %s  x%d zu je %s  (%s gesamt, %s Gebühr)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion hält das aktuell: /goldcap companion.",
-  [" · %d hidden"] = " · %d ausgeblendet",
   [" · %d keys"] = " · %d Schlüssel",
   [" · below cost"] = " · unter Einkaufspreis",
   [" · identity unresolved"] = " · Zuordnung ungeklärt",
@@ -61,7 +60,6 @@ GC.Locales.deDE = {
   ["%s → craft %d× (%d per craft)"] = "%s → %d× herstellen (%d pro Herstellung)",
   ["%s+ ahead"] = "%s+ davor",
   ["%s+, %d prices read"] = "%s+ in %d Preisen",
-  [", %d hidden: hard to resell or under your min profit"] = ", %d ausgeblendet: schwer verkäuflich oder unter deinem Mindestgewinn",
   ["..."] = "...",
   ["1 lot, %s asked"] = "1 Posten, %s verlangt",
   ["24h trend"] = "24h-Trend",
@@ -651,6 +649,7 @@ GC.Locales.deDE = {
   ["craft it yourself"] = "stell es selbst her",
   ["craft it · %s each"] = "herstellen · %s pro Stück",
   ["craft it: %s = %s each"] = "herstellen: %s = %s pro Stück",
+  ["deals %s · items %s · filtered %s"] = "Angebote %s · Gegenstände %s · aussortiert %s",
   ["done"] = "erledigt",
   ["from %s"] = "von %s",
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
@@ -723,8 +722,6 @@ GC.Locales.deDE = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Kostet %s. Mit deinem Limit pro Kauf von %d%% brauchst du %s auf diesem Charakter.",
   ["fresh"] = "aktuell",
   ["full scan already in progress"] = "vollständiger Scan läuft bereits",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "vollständiger Scan fertig: %d Angebot%s aus %d Gegenstandsgruppe%s%s",
   ["full scan interrupted -- confirm your purchase"] =
     "vollständiger Scan unterbrochen -- bestätige deinen Kauf",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -861,11 +858,8 @@ GC.Locales.deDE = {
     "%d doppelte Verkaufseinträge entfernt, die ein Fehler beim Postscan hinterlassen hat",
   ["sale name ambiguous"] = "Verkaufsname mehrdeutig",
   ["sale proceeds pending"] = "Verkaufserlös ausstehend",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "Scan fertig: %d Angebot%s aus %d Gegenstand%s in Reagenzien, Verbrauchsgütern, Edelsteinen, Verzauberungen%s",
   ["scanned %d listings over %d passes"] = "%d Angebote in %d Durchläufen gescannt",
   ["scanning auction house..."] = "Auktionshaus wird gescannt...",
-  ["scanning… %d results · %d deals%s"] = "scannt… %d Ergebnisse · %d Angebote%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "verkauft %s/Tag",

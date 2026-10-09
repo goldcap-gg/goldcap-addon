@@ -207,6 +207,65 @@ describe("one scan state for the toolbar", function()
     end)
   end)
 
+  -- The light beside AUTO (owner, 2026-10-09: "a blinking green thing that says it is working"):
+  -- it breathes for as long as Auto runs, the mode and not each pass, so it does not blink with
+  -- every pass the way the chip used to.
+  describe("the light beside AUTO", function()
+    local function paint(GC, mutate)
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshAutoButton")
+      local autoScan = upvalue(refresh, "autoScan")
+      if mutate then mutate(autoScan) end
+      local f = { autoBtn = { SetVariant = function() end, SetLabel = function() end } }
+      f.liveDot = { SetState = function(self, state) self.state, self.painted = state, true end }
+      refresh(f)
+      assert.is_true(f.liveDot.painted)
+      return f.liveDot.state
+    end
+
+    it("breathes the whole time Auto runs, between passes too, on both games", function()
+      for _, game in ipairs({ true, false }) do
+        forever = game
+        local GC = loadSniper()
+        assert.equal("live", paint(GC, function(a) a:Input("toggleOn", 1) end)) -- IDLE
+        assert.equal("live", paint(GC, function(a)
+          a:Input("pause:mail", 1); a:Input("resume:mail", 1)
+        end)) -- WAITING out its settle
+      end
+    end)
+
+    it("holds amber while the chip names a pause or a hold", function()
+      local GC = loadSniper()
+      assert.equal("held", paint(GC, function(a) a:Input("toggleOn", 1); a:Input("pause:mail", 1) end))
+      GC = loadSniper()
+      GC.Sniper._autoHeld = "busy"
+      assert.equal("held", paint(GC, function(a) a:Input("toggleOn", 1) end))
+      GC.Sniper._autoHeld = nil
+    end)
+
+    it("is out while Auto is off, and while it is paused only for the auction house or its tab", function()
+      local GC = loadSniper()
+      assert.is_nil(paint(GC))
+      assert.is_nil(paint(GC, function(a) a:Input("toggleOn", 1); a:Input("ahClosed", 1) end))
+    end)
+
+    it("breathes for a scan the player started with Auto off", function()
+      local GC = loadSniper()
+      GC.Sniper._bookPass:Start("classes")
+      assert.equal("live", paint(GC))
+    end)
+
+    it("is out on every tab but Deals", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshAutoButton")
+      for i = 1, math.huge do
+        local name = debug.getupvalue(refresh, i)
+        assert.is_not_nil(name, "missing upvalue view")
+        if name == "view" then debug.setupvalue(refresh, i, "sell"); break end
+      end
+      assert.is_nil(paint(GC, function(a) a:Input("toggleOn", 1) end))
+    end)
+  end)
+
   it("a click on SCAN while a scan runs starts nothing (Forever)", function()
     local f = assert(io.open("GoldCap/UI/SniperFrame.lua"))
     local src = f:read("*a")

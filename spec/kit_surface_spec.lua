@@ -76,6 +76,53 @@ describe("kit surfaces", function()
     assert.same({}, W.state(window).children)
   end)
 
+  -- The light beside AUTO (owner, 2026-10-09: "a blinking green thing that says it is working"):
+  -- one look says whether Auto is running or held.
+  describe("the live light", function()
+    local K
+    before_each(function() K = GC.Kit.Tokens.color end)
+
+    local function light()
+      local parent = W.CreateFrame("Frame")
+      return GC.Theme.LiveDot(parent)
+    end
+
+    it("pulses a green halo round a green dot while live", function()
+      local l = light()
+      l:SetState("live")
+      assert.is_true(l.dot:IsShown())
+      assert.same({ K.profit[1], K.profit[2], K.profit[3], 1 }, W.state(l.dot).vertex)
+      assert.is_true(l.halo:IsShown())
+      assert.equal("ADD", W.state(l.halo).blend)
+      assert.is_true(l.pulse:IsPlaying())
+    end)
+
+    it("starts the pulse once, not again on every repaint", function()
+      local l = light()
+      l:SetState("live"); l:SetState("live"); l:SetState("live")
+      assert.equal(1, W.state(l.pulse).plays)
+    end)
+
+    it("holds still in amber while held", function()
+      local l = light()
+      l:SetState("live")
+      l:SetState("held")
+      assert.is_true(l.dot:IsShown())
+      assert.same({ K.warn[1], K.warn[2], K.warn[3], 1 }, W.state(l.dot).vertex)
+      assert.is_false(l.halo:IsShown())
+      assert.is_false(l.pulse:IsPlaying())
+    end)
+
+    it("goes out on nil", function()
+      local l = light()
+      l:SetState("live")
+      l:SetState(nil)
+      assert.is_false(l.dot:IsShown())
+      assert.is_false(l.halo:IsShown())
+      assert.is_false(l.pulse:IsPlaying())
+    end)
+  end)
+
   it("hangs a soft shadow outside the frame, under everything else in it", function()
     local shadow = GC.Theme.Shadow(W.CreateFrame("Frame"), 18, 0.6)
     local s = W.state(shadow)

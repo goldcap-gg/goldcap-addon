@@ -8,7 +8,6 @@ GC.Locales.frFR = {
     " %s  %s  x%d à %s pièce  (%s au total, %s de commission)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion garde ça à jour : /goldcap companion.",
-  [" · %d hidden"] = " · %d masqués",
   [" · %d keys"] = " · %d clés",
   [" · below cost"] = " · sous le prix d'achat",
   [" · identity unresolved"] = " · identité non résolue",
@@ -61,7 +60,6 @@ GC.Locales.frFR = {
   ["%s → craft %d× (%d per craft)"] = "%s → fabriquer %d× (%d par fabrication)",
   ["%s+ ahead"] = "%s+ devant",
   ["%s+, %d prices read"] = "%s+, %d prix lus",
-  [", %d hidden: hard to resell or under your min profit"] = ", %d masqués : difficiles à revendre ou sous votre profit minimum",
   ["..."] = "...",
   ["1 lot, %s asked"] = "1 lot, %s demandés",
   ["24h trend"] = "Tendance 24 h",
@@ -649,6 +647,7 @@ GC.Locales.frFR = {
   ["craft it yourself"] = "fabrique-le toi-même",
   ["craft it · %s each"] = "fabriquer · %s l'unité",
   ["craft it: %s = %s each"] = "fabriquer : %s = %s l'unité",
+  ["deals %s · items %s · filtered %s"] = "affaires %s · objets %s · écartées %s",
   ["done"] = "fait",
   ["from %s"] = "de %s",
   ["in bags %d · in bank %d"] = "dans les sacs %d · en banque %d",
@@ -721,8 +720,6 @@ GC.Locales.frFR = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Coûte %s. Avec votre limite par achat de %d %%, il vous faut %s sur ce personnage.",
   ["fresh"] = "à jour",
   ["full scan already in progress"] = "scan complet déjà en cours",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "scan complet terminé : %d affaire%s issues de %d groupe%s d'objets%s",
   ["full scan interrupted -- confirm your purchase"] =
     "scan complet interrompu -- confirmez votre achat",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -858,11 +855,8 @@ GC.Locales.frFR = {
     "%d enregistrements de vente en double supprimés, laissés par un bug d'analyse du courrier",
   ["sale name ambiguous"] = "nom de la vente ambigu",
   ["sale proceeds pending"] = "recettes de vente en attente",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "scan terminé : %d offre%s sur %d objet%s parmi composants, consommables, gemmes, enchantements%s",
   ["scanned %d listings over %d passes"] = "%d ventes scannées en %d passages",
   ["scanning auction house..."] = "scan de l'hôtel des ventes...",
-  ["scanning… %d results · %d deals%s"] = "scan… %d résultats · %d affaires%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "se vend %s/jour",

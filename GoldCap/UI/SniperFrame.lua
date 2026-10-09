@@ -2491,12 +2491,11 @@ driver = {
 
   getValue = GC.Data.GetItemValue,
 
-  onStatus = function(text)
-    -- setStatus, not SetText: the poll loop writes this on every send, and it must not be
-    -- able to stamp over a held one-shot announcement (right-click pin feedback, most
-    -- visibly) within the same second the player acted.
-    setStatus(text)
-  end,
+  -- The watch loop's own progress ("scanning 3/7", "stopped", in English) is not written to the
+  -- status line: it said something new every second beside AUTO, over the pass's readout (owner,
+  -- 2026-10-09). The light beside AUTO says the addon is working; this file's own messages to
+  -- the player go through setStatus.
+  onStatus = function() end,
 
   onDeal = function(deal)
     -- Fallback success signal for item buys: AUCTION_HOUSE_PURCHASE_COMPLETED is
@@ -2854,32 +2853,23 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   for _, deal in ipairs(scanDeals) do
     deal.stale = true
   end
+  -- The pass's readout: three numbers in the same places every time, so a pass that changes
+  -- nothing changes nothing on screen, and the light beside AUTO says it is working. It used to
+  -- be a sentence after each pass and a page count during it, which under Auto on a small auction
+  -- house swapped every second and could not be read (owner, 2026-10-09). The filtered count stays
+  -- in it: a player who cannot see it cannot tell a quiet market from a strict filter; the empty
+  -- board says what it counts. Deals in gold once there are any. Kept for the next pass to show
+  -- while it runs (sendBrowseQuery). setStatus, not SetText: a held announcement outranks it.
   if frame then
-    -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
-    -- the whole market: a player who cannot see the number cannot tell a quiet market from a
-    -- strict filter. The count takes the rows under the player's Min profit per buy too
-    -- (Core/FullScan.lua), so the sentence names both reasons.
-    local hidden = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[", %d hidden: hard to resell or under your min profit"]):format(GC.Sniper._screenedCount) or ""
-    -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended,
-    -- appended to the SAME trailing slot the hidden count uses. Both sentences below already
-    -- end in a "%s" for it, and adding a second specifier would reword the key -- which
-    -- orphans every translation of it, silently, back to English.
+    local found = #scanDeals > 0 and ("|cfff7cf5a%d|r"):format(#scanDeals) or "0" -- goldText
+    local readout = (GC.L["deals %s · items %s · filtered %s"]):format(
+      found, tostring(groupCount), tostring(GC.Sniper._screenedCount or 0))
+    -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended.
     if (GC.Sniper._keysLastCycle or 0) > 0 then
-      hidden = hidden .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
+      readout = readout .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
     end
-    -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
-    -- held announcement costs nothing -- the next pass rewrites it.
-    -- Two sentences, because the two passes looked at different markets and only one of them
-    -- looked at all of them. A classes pass that reported "full scan complete" was claiming to
-    -- have swept an auction house it never asked about.
-    if kind == "classes" then
-      setStatus((GC.L["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"]):format(
-        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
-    else
-      setStatus((GC.L["full scan complete: %d deal%s from %d item group%s%s"]):format(
-        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
-    end
+    GC.Sniper._readout = readout
+    setStatus(readout)
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -3174,7 +3164,9 @@ GC.Sniper._bookPass = GC.BookPass.New({
     C_AuctionHouse.SendBrowseQuery(query)
     if tab then tab.addonBrowse = false end
     GC.Sniper._browseOutAt = time()
-    if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
+    -- The last pass's readout stays up while this one runs; only the very first pass has nothing
+    -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
+    setStatus(GC.Sniper._readout or GC.L["scanning auction house..."])
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
@@ -3214,9 +3206,10 @@ GC.Sniper._bookPass = GC.BookPass.New({
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
       confidence = GC.DrillQueue.Confidence(value) })
   end,
-  -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping, status),
-  -- just triggered from BookPass's own tail instead of from a raw browse event handler.
-  onRows = function(tail, totalRawSeen)
+  -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping), just
+  -- triggered from BookPass's own tail instead of from a raw browse event handler. No page count
+  -- on the status line: the pass's readout is written once it ends (applyFullScanResults).
+  onRows = function(tail)
     local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue, GC.db.settings.sniper)
     for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
     local deltaDeals, newRowsCount, deltaScreened = GC.FullScan.EvaluateDelta(
@@ -3231,10 +3224,6 @@ GC.Sniper._bookPass = GC.BookPass.New({
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
-    local screenedNote = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[" · %d hidden"]):format(GC.Sniper._screenedCount) or ""
-    setStatus((GC.L["scanning… %d results · %d deals%s"]):format(
-      totalRawSeen, #scanDeals, screenedNote))
   end,
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
@@ -3770,16 +3759,16 @@ local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
 -- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
 -- auction house a pass comes and goes every second, and the chip blinked with it (owner, WoW:
 -- Forever, 2026-10-09); the status line beside it says each pass. A pause or a hold still speaks:
--- those are the player's to act on.
+-- those are the player's to act on. The second value is true when the label names one.
 local function autoButtonText(state, reasons)
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
-      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
+      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]], true end
     end
     return GC.L["AUTO"] -- only the ah/tab reasons
   end
   local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
-  if held then return GC.L[held[1]] end
+  if held then return GC.L[held[1]], true end
   if state == "OFF" then return GC.L["AUTO"] end
   return GC.L["AUTO · SCANNING"]
 end
@@ -3835,7 +3824,8 @@ refreshAutoButton = function(targetFrame)
   -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
   -- button. `active` carries the on-state in gold text, which cannot become unreadable.
   f.autoBtn:SetVariant(on and "active" or "ghost")
-  local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
+  local text, held = GC.L["AUTO"], false
+  if on then text, held = autoButtonText(state, autoScan:PauseReasons()) end
   f.autoBtn:SetLabel(text)
   -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
   -- rather than cutting it, and the status line anchored to its right edge moves with it.
@@ -3846,6 +3836,23 @@ refreshAutoButton = function(targetFrame)
     or label.GetStringWidth and label:GetStringWidth())
   if type(width) == "number" and f.autoBtn.SetWidth then
     f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
+  end
+  -- The light beside it: breathing green for as long as Auto runs -- the mode again, so it does
+  -- not blink with each pass either -- amber while the label names a hold, and out while Auto is
+  -- off, except for a scan the player started. Auto paused only for the auction house or its
+  -- tab (a plain "AUTO" label) is not running and has nothing to say: out too. Deals only.
+  if f.liveDot then
+    local light
+    if view ~= "deals" then
+      light = nil
+    elseif held then
+      light = "held"
+    elseif state == "OFF" or state == "PAUSED" then
+      light = GC.Sniper.ScanActive() and "live" or nil
+    else
+      light = "live"
+    end
+    f.liveDot:SetState(light)
   end
 end
 
@@ -8579,7 +8586,7 @@ local function planDialogPrimaryClick()
     -- opening a second dialog already refuses/replaces per the guard in onBuyClick -- kept as
     -- a last-resort guard against orphaning the pending one.
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-    driver.onStatus(GC.L["finish the pending buy first"])
+    setStatus(GC.L["finish the pending buy first"])
     return
   end
 
@@ -8589,7 +8596,7 @@ local function planDialogPrimaryClick()
   if not deal.isCommodity and ((GC.Buy and GC.Buy.BidOut and GC.Buy.BidOut())
       or (GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy())) then
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-    driver.onStatus(GC.L["finish the pending buy first"])
+    setStatus(GC.L["finish the pending buy first"])
     return
   end
 
@@ -8613,7 +8620,7 @@ local function planDialogPrimaryClick()
       row.purchaseStage = "ready"
       if refreshQtyRow then refreshQtyRow() end
       setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-      driver.onStatus(GC.L["finish the pending buy first"])
+      setStatus(GC.L["finish the pending buy first"])
       return
     end
     row.purchaseDeal = purchaseDeal
@@ -9940,7 +9947,7 @@ local function onBuyClick(row)
       -- A purchase call has already been issued for the row the dialog is showing (between
       -- Start/PlaceBid and its resolution) -- never silently abandon that to open a different
       -- row's dialog; the player must resolve it or explicitly Cancel first.
-      driver.onStatus(GC.L["finish the pending buy first"])
+      setStatus(GC.L["finish the pending buy first"])
       return
     end
     -- The other row is only "ready" or "requerying" -- no purchase call in flight yet. This
@@ -10645,6 +10652,7 @@ local function setView(v)
     frame.status:Show()
   else
     frame.status:Hide()
+    if frame.liveDot then frame.liveDot:SetState(nil) end -- and the light beside AUTO with it
   end
   -- The blanket Show() above just unconditionally showed f.sessionText even if the session has
   -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
@@ -11157,7 +11165,7 @@ local function createFrame()
   local status = Theme.Num(f, 10)
   status:SetJustifyH("LEFT")
   -- One line, no wrapping, same pair every other single-line cell in the kit carries. This
-  -- one is anchored TOPLEFT *and* RIGHT, so it has a fixed width and a height of one line:
+  -- one is anchored LEFT *and* RIGHT, so it has a fixed width and a height of one line:
   -- a long message ("Posting…" and ~40 others from the Sell tab come through here) wrapped
   -- to a second line that does not fit, and a line that does not fit its box is not drawn at
   -- all -- the longest, most useful messages were the ones that said nothing.
@@ -11165,7 +11173,11 @@ local function createFrame()
   status:SetMaxLines(1)
   local muted = Theme.color.fgMuted
   status:SetTextColor(muted[1], muted[2], muted[3], muted[4] or 1)
-  status:SetPoint("TOPLEFT", autoBtn, "TOPRIGHT", Theme.pad.s, 0)
+  -- The light that says Auto is working (refreshAutoButton paints it), between AUTO and the line.
+  -- The line keeps its place whether the light is lit or not, so nothing shifts when it goes out.
+  f.liveDot = Theme.LiveDot(f)
+  f.liveDot:SetPoint("LEFT", autoBtn, "RIGHT", Theme.pad.m, 0)
+  status:SetPoint("LEFT", f.liveDot.dot, "RIGHT", Theme.pad.s, 0)
   status:SetPoint("RIGHT", f.sessionText, "LEFT", -Theme.pad.s, 0)
   status:SetText(GC.L["Open the Auction House to begin scanning."])
   f.status = status

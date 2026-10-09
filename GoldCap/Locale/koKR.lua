@@ -11,7 +11,6 @@ GC.Locales.koKR = {
     " %s  %s  x%d개, 개당 %s  (총 %s, 수수료 %s)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion이 자동으로 갱신합니다: /goldcap companion.",
-  [" · %d hidden"] = " · %d개 숨김",
   [" · %d keys"] = " · 키 %d개",
   [" · below cost"] = " · 원가 미만",
   [" · identity unresolved"] = " · 대상 미확정",
@@ -63,7 +62,6 @@ GC.Locales.koKR = {
   ["%s → craft %d× (%d per craft)"] = "%s → %d회 제작 (제작당 %d개)",
   ["%s+ ahead"] = "앞에 %s+",
   ["%s+, %d prices read"] = "%s+, 가격 %d개 읽음",
-  [", %d hidden: hard to resell or under your min profit"] = ", 재판매가 어렵거나 최소 수익 미만이라 %d개 숨김",
   ["..."] = "...",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
@@ -612,6 +610,7 @@ GC.Locales.koKR = {
   ["craft it yourself"] = "직접 제작하세요",
   ["craft it · %s each"] = "제작 · 개당 %s",
   ["craft it: %s = %s each"] = "제작: %s = 개당 %s",
+  ["deals %s · items %s · filtered %s"] = "거래 %s · 아이템 %s · 제외 %s",
   ["done"] = "완료",
   ["from %s"] = "%s의 목록",
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",
@@ -679,8 +678,6 @@ GC.Locales.koKR = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "가격은 %s입니다. 1회 구매 한도 %d%% 기준으로 이 캐릭터에 %s 이상 있어야 합니다.",
   ["fresh"] = "최신",
   ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "전체 검색 완료: 거래 %d건%s · 아이템 그룹 %d개%s%s",
   ["full scan interrupted -- confirm your purchase"] = "전체 검색이 중단됨 -- 구매를 확정하세요",
   ["full scan stalled -- press Full Scan to retry"] =
     "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
@@ -809,11 +806,8 @@ GC.Locales.koKR = {
     "우편 검사 오류로 남은 중복 판매 기록 %d건을 삭제했습니다",
   ["sale name ambiguous"] = "판매 항목 이름이 모호함",
   ["sale proceeds pending"] = "판매 대금 대기 중",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "검색 완료: 거래 %d건%s · 아이템 %d개%s (재료, 소모품, 보석, 마법부여)%s",
   ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",
   ["scanning auction house..."] = "경매장 검색 중...",
-  ["scanning… %d results · %d deals%s"] = "검색 중… 결과 %d건 · 거래 %d건%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "하루 %s개 판매",

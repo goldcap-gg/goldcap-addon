@@ -9,7 +9,6 @@ GC.Locales.ptBR = {
     " %s  %s  x%d a %s cada  (%s no total, %s de taxa)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " O Companion mantém isso atualizado: /goldcap companion.",
-  [" · %d hidden"] = " · %d ocultos",
   [" · %d keys"] = " · %d chaves",
   [" · below cost"] = " · abaixo do custo",
   [" · identity unresolved"] = " · identidade não resolvida",
@@ -62,7 +61,6 @@ GC.Locales.ptBR = {
   ["%s → craft %d× (%d per craft)"] = "%s → fabricar %d× (%d por fabricação)",
   ["%s+ ahead"] = "%s+ à frente",
   ["%s+, %d prices read"] = "%s+, %d preços lidos",
-  [", %d hidden: hard to resell or under your min profit"] = ", %d ocultos: difíceis de revender ou abaixo do seu lucro mínimo",
   ["..."] = "...",
   ["1 lot, %s asked"] = "1 lote, pedindo %s",
   ["24h trend"] = "Tendência 24h",
@@ -649,6 +647,7 @@ GC.Locales.ptBR = {
   ["craft it yourself"] = "fabrique você mesmo",
   ["craft it · %s each"] = "fabricar · %s cada",
   ["craft it: %s = %s each"] = "fabricar: %s = %s cada",
+  ["deals %s · items %s · filtered %s"] = "oportunidades %s · itens %s · descartadas %s",
   ["done"] = "feito",
   ["from %s"] = "de %s",
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
@@ -721,8 +720,6 @@ GC.Locales.ptBR = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Custa %s. Com o seu limite por compra de %d%% você precisa de %s neste personagem.",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "a varredura completa já está em andamento",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "varredura completa concluída: %d oportunidade%s de %d grupo%s de itens%s",
   ["full scan interrupted -- confirm your purchase"] =
     "varredura completa interrompida -- confirme sua compra",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -857,11 +854,8 @@ GC.Locales.ptBR = {
     "apagados %d registros de venda duplicados deixados por uma falha na leitura do correio",
   ["sale name ambiguous"] = "nome da venda ambíguo",
   ["sale proceeds pending"] = "receita da venda pendente",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "varredura concluída: %d oferta%s de %d item%s em materiais, consumíveis, gemas, encantamentos%s",
   ["scanned %d listings over %d passes"] = "varridos %d anúncios em %d passagens",
   ["scanning auction house..."] = "varrendo a casa de leilões...",
-  ["scanning… %d results · %d deals%s"] = "varrendo… %d resultados · %d oportunidades%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "vende %s/dia",

@@ -163,16 +163,15 @@ describe("Sniper pin feedback and empty state", function()
       GC.Sniper._TogglePin(7)
       assert.matches("watching item 7", status.text)
 
-      -- The scanner's per-send status line -- the exact writer that used to erase the
-      -- announcement within a frame.
-      local driver = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+      -- A periodic writer: WoW: Forever's scan progress, written as each batch of lots is read.
+      -- (The writer this used to name, the watch loop's per-send line, no longer writes here.)
       clock = 101
-      driver.onStatus("scanning 1/10")
+      GC.Sniper.SetScanStatus("reading the auction house: 1 of 10 lots")
       assert.matches("watching item 7", status.text)
 
       clock = 105 -- past the 4s hold
-      driver.onStatus("scanning 2/10")
-      assert.equals("scanning 2/10", status.text)
+      GC.Sniper.SetScanStatus("reading the auction house: 2 of 10 lots")
+      assert.equals("reading the auction house: 2 of 10 lots", status.text)
     end)
 
     it("lets a newer held announcement replace an older one immediately", function()
@@ -227,14 +226,6 @@ describe("Sniper pin feedback and empty state", function()
       -- (Core/FullScan.lua), so the count says so; "hard to resell" alone was not true of them.
       assert.is_truthy(emptyText.text:find("hard to resell", 1, true))
       assert.is_truthy(emptyText.text:find("Min profit per buy", 1, true))
-    end)
-
-    it("says on the scan's own line that the hidden rows include ones under your min profit", function()
-      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
-      local src = file:read("*a")
-      file:close()
-      assert.is_truthy(src:find('GC.L[", %d hidden: hard to resell or under your min profit"]', 1, true))
-      assert.is_nil(src:find("hidden as unsellable", 1, true))
     end)
 
     it("suggests scanning when there is simply nothing yet", function()

@@ -52,6 +52,28 @@ local function region(kind, parent)
   function r:IsShown() return s.shown end
   function r:GetParent() return s.parent end
   function r:SetParent(p) s.parent = p end
+  -- Region:CreateAnimationGroup, down to what an Alpha pulse uses. The group's state is the
+  -- engine's, read back with IsPlaying, as the client does.
+  function r:CreateAnimationGroup()
+    local g, gs = {}, { playing = false, animations = {} }
+    STATE[g] = gs
+    function g:CreateAnimation(animationType)
+      local a = { kind = animationType }
+      function a:SetFromAlpha(v) self.from = v end
+      function a:SetToAlpha(v) self.to = v end
+      function a:SetDuration(v) self.duration = v end
+      function a:SetSmoothing(v) self.smoothing = v end
+      gs.animations[#gs.animations + 1] = a
+      return a
+    end
+    function g:SetLooping(v) gs.looping = v end
+    function g:Play() gs.playing = true; gs.plays = (gs.plays or 0) + 1 end
+    function g:Stop() gs.playing = false end
+    function g:IsPlaying() return gs.playing end
+    s.animationGroups = s.animationGroups or {}
+    s.animationGroups[#s.animationGroups + 1] = g
+    return g
+  end
   return r, s
 end
 

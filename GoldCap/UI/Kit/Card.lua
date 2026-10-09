@@ -53,6 +53,51 @@ function T.Glow(parent, c, inset)
   return tx
 end
 
+--- A small round light that says whether a process is alive, drawn on `parent`. SetState: "live"
+-- (green, its halo breathing), "held" (amber, still), nil (out). The pulse is started once and
+-- left running; a repaint four times a second does not restart it. Place it with :SetPoint, which
+-- places the dot; the halo is centred on it.
+function T.LiveDot(parent)
+  local dot = parent:CreateTexture(nil, "OVERLAY")
+  dot:SetTexture(MEDIA .. "badge.png") -- 16px at radius 6: round at this size
+  dot:SetSize(7, 7)
+  local halo = parent:CreateTexture(nil, "ARTWORK")
+  halo:SetTexture(MEDIA .. "glow.png")
+  halo:SetBlendMode("ADD")
+  halo:SetSize(22, 22)
+  halo:SetPoint("CENTER", dot, "CENTER", 0, 0)
+  -- An Alpha animation sets the halo's own alpha, which replaces what SetVertexColor gave it (see
+  -- T.RailButton), so the colour goes in at full alpha and the animation alone dims it.
+  local pulse = halo:CreateAnimationGroup()
+  local fade = pulse:CreateAnimation("Alpha")
+  fade:SetFromAlpha(0.85)
+  fade:SetToAlpha(0.15)
+  fade:SetDuration(0.8)
+  fade:SetSmoothing("IN_OUT")
+  pulse:SetLooping("BOUNCE")
+
+  local light = { dot = dot, halo = halo, pulse = pulse }
+  function light:SetPoint(...) dot:SetPoint(...) end
+  function light:SetState(state)
+    if state == nil then
+      pulse:Stop(); halo:Hide(); dot:Hide()
+      return
+    end
+    local c = state == "held" and K.warn or K.profit
+    dot:SetVertexColor(c[1], c[2], c[3], 1)
+    dot:Show()
+    if state == "live" then
+      halo:SetVertexColor(c[1], c[2], c[3], 1)
+      halo:Show()
+      if not pulse:IsPlaying() then pulse:Play() end
+    else
+      pulse:Stop(); halo:Hide()
+    end
+  end
+  light:SetState(nil)
+  return light
+end
+
 --- A soft shadow hung `spread` px outside `frame`, below everything else the frame draws.
 function T.Shadow(frame, spread, alpha)
   local t = frame:CreateTexture(nil, "BACKGROUND", nil, -8)

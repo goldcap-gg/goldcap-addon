@@ -11,7 +11,6 @@ GC.Locales.ukUA = {
     " %s  %s  x%d по %s за штуку  (%s разом, %s комісія)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion оновлює це сам: /goldcap companion.",
-  [" · %d hidden"] = " · приховано %d",
   [" · %d keys"] = " · ключів: %d",
   [" · below cost"] = " · нижче собівартості",
   [" · identity unresolved"] = " · позиція не впізнана",
@@ -60,7 +59,6 @@ GC.Locales.ukUA = {
   ["%s → craft %d× (%d per craft)"] = "%s → крафт %d× (по %d за крафт)",
   ["%s+ ahead"] = "%s+ попереду",
   ["%s+, %d prices read"] = "%s+, прочитано %d цін",
-  [", %d hidden: hard to resell or under your min profit"] = ", приховано %d: важко перепродати або нижче вашого мінімального прибутку",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -712,8 +710,6 @@ GC.Locales.ukUA = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Коштує %s. З вашим лімітом %d%% на одну купівлю на цьому персонажі потрібно %s.",
   ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "повне сканування завершено: %d угод%s з %d груп предметів%s%s",
   ["full scan interrupted -- confirm your purchase"] =
     "повне сканування перервано -- підтвердіть купівлю",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -848,11 +844,8 @@ GC.Locales.ukUA = {
     "видалено %d дубльованих записів продажу, залишених помилкою сканування пошти",
   ["sale name ambiguous"] = "назва в продажу неоднозначна",
   ["sale proceeds pending"] = "виторг очікується",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "сканування завершено: %d угод%s із %d предметів%s у реагентах, витратних матеріалах, самоцвітах, чарах%s",
   ["scanned %d listings over %d passes"] = "проскановано %d лотів за %d проходів",
   ["scanning auction house..."] = "скануємо аукціон...",
-  ["scanning… %d results · %d deals%s"] = "скануємо… %d результатів · %d угод%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "продається %s/день",
@@ -1165,6 +1158,7 @@ GC.Locales.ukUA = {
   ["buying..."] = "купівля...",
   ["cap: alert target"] = "стеля: ціль сповіщення",
   ["craft"] = "крафт",
+  ["deals %s · items %s · filtered %s"] = "угоди %s · предмети %s · відсіяно %s",
   ["done"] = "готово",
   ["everything bought"] = "усе куплено",
   ["from %s"] = "від %s",
