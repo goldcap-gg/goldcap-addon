@@ -306,7 +306,7 @@ local function onPostClick(row)
       if row.action.SetBusy then row.action:SetBusy(true) end
       -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
       -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
-      -- setStatus -> paintRefreshButton -> refresh.deckProgress() (this file, above) is one of
+      -- setStatus (this file, above) -> paintRefreshButton (UI/Sell/Toolbar.lua) -> refresh.deckProgress() is one of
       -- the reads it flags. Said the instant the call returns rather than the instant it was
       -- about to be made -- the player sees the same "Posting…" note either way, just a beat
       -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
@@ -334,7 +334,7 @@ local function onPostClick(row)
   if row.action.SetBusy then row.action:SetBusy(true) end
   -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once the
   -- same hardware click has read certain GoldCap runtime state, and _NotePost -> setStatus ->
-  -- paintRefreshButton -> refresh.deckProgress() (this file, above) is one of the reads it
+  -- paintRefreshButton (UI/Sell/Toolbar.lua) -> refresh.deckProgress() is one of the reads it
   -- flags. Said the instant the call returns rather than the instant it was about to be made --
   -- the dock says "Posting…" either way, just a beat later in the same tick, and only when
   -- nothing inside the call already answered it (the guard just above). The client can also

@@ -2825,7 +2825,7 @@ describe("Sell widget geometry and manual cost", function()
       position(5, { bagQty = 0, listedQty = 0, unresolved = true }), -- bought, not yet identified
       position(6, { bagQty = 0, listedQty = 4 }),
     })
-    container.paintDeckSwitch()
+    GC.SellView.paintDeck()
     assert.equal("TO POST 2", container.deckButtons.post.label)
     assert.equal("MY LOTS 2", container.deckButtons.listed.label)
   end)
