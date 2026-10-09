@@ -23,10 +23,10 @@ T.BUNDLED_FACES = { T.FONT_TEXT, T.FONT_TEXT_SEMI, T.FONT_TEXT_BOLD, T.FONT_HEAD
   T.FONT_MONO, T.FONT_MONO_BOLD }
 
 -- The bundled faces cover Latin, Latin Extended and all of Cyrillic (measured by
--- docs/addon/tools/fonts.py, so Russian and Ukrainian need nothing here) and no CJK at all. On Korean and both Chinese
--- locales anything drawn with it would be empty boxes, so those locales draw in one of
--- Blizzard's own faces for the script instead -- see CJK_FACES below for which, and for why
--- "the client's own font" is NOT the same thing.
+-- docs/addon/tools/fonts.py, so Russian and Ukrainian need nothing here) and no CJK at all.
+-- On Korean and both Chinese locales anything drawn with it would be empty boxes, so those
+-- locales draw in one of Blizzard's own faces for the script instead -- see CJK_FACES below
+-- for which, and for why "the client's own font" is NOT the same thing.
 --
 -- This covers T.Num too, not just buttons and chips. T.Num draws the column headers and band
 -- labels as well as the figures, so leaving it on the bundled face would render those headers
@@ -34,8 +34,8 @@ T.BUNDLED_FACES = { T.FONT_TEXT, T.FONT_TEXT_SEMI, T.FONT_TEXT_BOLD, T.FONT_HEAD
 -- deliberately: on CJK the digits stop being monospaced, so number columns line up by their
 -- RIGHT anchor rather than by character width. Boxes would be worse.
 --
--- T.Label already does the equivalent by inheriting GameFontHighlightSmall; this is the same
--- idea for the places that ask for the mono face by name.
+-- T.Label and T.Heading follow the same rule through T.FONT_LABEL and T.FONT_HEADING (see
+-- T.RefreshFonts); this is the same idea for the places that ask for the mono face by name.
 local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
 -- Locales the CLIENT's own face can only draw when the client itself runs them. A client
@@ -54,11 +54,19 @@ T.FONT_UI_BOLD = T.FONT_MONO_BOLD
 T.FONT_LABEL = T.FONT_TEXT
 -- The face T.Heading draws with: the condensed face, or the client's bold face for its script.
 T.FONT_HEADING = T.FONT_HEAD
+-- The face for GoldCap text placed inside Blizzard's own frames (the quest window), or nil to
+-- keep Blizzard's face, which is right whenever the client draws the language. T.RefreshFonts
+-- sets it.
+T.FONT_FOREIGN = nil
 
 local function clientLocale()
   local ok, code = pcall(function() return GetLocale and GetLocale() end)
   return ok and type(code) == "string" and code ~= "" and code or nil
 end
+
+-- Paths of the bundled faces, to tell a widget on one of them from one moved to a client face.
+local bundledFace = {}
+for _, path in ipairs(T.BUNDLED_FACES) do bundledFace[path] = true end
 
 -- Blizzard's locale faces live in the CLIENT's own data, not in the locale install -- probed
 -- in-game on an enUS-only install 2026-08-28: Fonts\ARKai_T.ttf, Fonts\ARHei.ttf,
@@ -132,6 +140,13 @@ function T.RefreshFonts(code)
   if not CJK_LOCALES[code] then
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
     T.FONT_HEADING = T.FONT_HEAD
+    -- Inside Blizzard's frames the client's face stands, unless GoldCap speaks Cyrillic on a
+    -- client that is not running it (the client's face has none).
+    if CYRILLIC_LOCALES[code] and code ~= clientLocale() then
+      T.FONT_FOREIGN = T.FONT_TEXT
+    else
+      T.FONT_FOREIGN = nil
+    end
     -- Fira draws Latin and Cyrillic, so GoldCap's own face carries every label in those languages,
     -- item names included -- except a Latin language on a Korean or Chinese client: an item name
     -- arrives in the client's script there, and only the client's own face can draw it. Cyrillic
@@ -154,6 +169,7 @@ function T.RefreshFonts(code)
     T.FONT_UI_BOLD = firstFace(faces.bold) or regular
     T.FONT_LABEL = T.FONT_UI
     T.FONT_HEADING = T.FONT_UI_BOLD
+    T.FONT_FOREIGN = code ~= clientLocale() and T.FONT_UI or nil
     return T.FONT_UI
   end
   -- Nothing for that script in this install. GameFontNormal is one of the client's own Font
@@ -174,6 +190,7 @@ function T.RefreshFonts(code)
   -- GameFontHighlightSmall is not necessarily the same face this just chose.
   T.FONT_LABEL = T.FONT_UI
   T.FONT_HEADING = T.FONT_UI_BOLD
+  T.FONT_FOREIGN = code ~= clientLocale() and T.FONT_UI or nil
   return T.FONT_UI
 end
 
@@ -266,20 +283,27 @@ function T.Num(parent, size, bold)
   return fs
 end
 
--- A FontString made from one of Blizzard's font objects draws in the CLIENT's face, which lacks
--- glyphs the bundled one has (GC.Util.ClientText says which, and how that was read). This gives
--- such a FontString a SetText that respells them, so no caller has to remember to; it returns
--- the FontString, so it wraps the CreateFontString call itself.
--- A widget in Fira Mono (T.Num, T.TierMark: roles "ui" and "uiBold") draws its text as written:
--- that face has every glyph GoldCap writes. Fira Sans and Fira Sans Condensed (roles "label" and
--- "head") have no ▲ or ▼, so their text goes through ClientText as well.
+-- Gives a FontString a SetText that respells the glyphs its face lacks, so no caller has to
+-- remember to; it returns the FontString, so it wraps the CreateFontString call itself.
+-- The respelling follows the FACE the widget draws in now (GC.Util.ClientText says what the
+-- client's faces lack, and how that was read):
+--   - roles "ui" and "uiBold" (Fira Mono: T.Num, T.TierMark) draw their text as written, the
+--     face has every glyph GoldCap writes;
+--   - roles "label" and "head" on a bundled Fira face lack only ▲ and ▼ (GC.Util.TriangleText),
+--     so a button's "AUTO · SCANNING" keeps its dot and arrow;
+--   - a "label" or "head" widget on any other face (the client's own, or a CJK face after
+--     T.RefontWidget), or one with no tracked info, gets the full ClientText respelling.
 function T.ClientFont(fs)
   if fs.gcClientFont then return fs end
   fs.gcClientFont = true
   local setText = fs.SetText
   fs.SetText = function(self, text, ...)
     local info = widgetFonts[self]
-    if not info or info.role == "label" or info.role == "head" then text = GC.Util.ClientText(text) end
+    if not info then
+      text = GC.Util.ClientText(text)
+    elseif info.role == "label" or info.role == "head" then
+      text = bundledFace[info.path] and GC.Util.TriangleText(text) or GC.Util.ClientText(text)
+    end
     return setText(self, text, ...)
   end
   return fs
@@ -301,8 +325,9 @@ end
 function T.Label(parent, size)
   local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
   local inherited, _, flags = fs:GetFont()
-  -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
-  -- language -- see its declaration. Normally nil, and the inherited face stands.
+  -- T.FONT_LABEL is Fira for every Latin or Cyrillic language and nil only where the client's
+  -- own face must stand (a Latin language on a Korean or Chinese client); then the inherited
+  -- face is used.
   local fontPath = T.FONT_LABEL or inherited
   if fontPath then
     fs:SetFont(fontPath, size * T.Scale(), flags)

@@ -1,5 +1,5 @@
--- Surfaces: a flat panel, a rounded card, the main window's glass, and the glow and shadow around
--- them. Panel, Card and Glow moved out of UI/Theme.lua; Shadow and Window are new.
+-- Surfaces: a flat panel, a rounded card, the main window's glass (T.Window, which the main
+-- window uses), and the glow and shadow around them. Panel, Card and Glow moved out of UI/Theme.lua; Shadow and Window are new.
 local _, GC = ...
 GC.Theme = GC.Theme or {}
 local T = GC.Theme
@@ -42,7 +42,9 @@ end
 -- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
 function T.Glow(parent, c, inset)
   local pad = inset or 14
-  local tx = parent:CreateTexture(nil, "BACKGROUND")
+  -- Sublevel -7: below every fill (sublevel 0), above T.Shadow's -8, so a halo never brightens
+  -- the face it surrounds.
+  local tx = parent:CreateTexture(nil, "BACKGROUND", nil, -7)
   tx:SetTexture(MEDIA .. "glow.png")
   tx:SetBlendMode("ADD")
   tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)

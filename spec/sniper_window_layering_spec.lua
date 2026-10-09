@@ -200,6 +200,18 @@ describe("Sniper window layering", function()
     assert.is_false(frame.toplevel)
   end)
 
+  it("drops the window shadow while docked, so it cannot draw over the auction house's border", function()
+    local frame, GC = buildFrame()
+    local shadow = frame.windowPanel.shadow
+    assert.is_not_nil(shadow)
+    local host = stubFrame()
+    host:SetFrameStrata("MEDIUM")
+    GC.Sniper.SetDocked(host)
+    assert.is_false(shadow:IsShown())
+    GC.Sniper.SetDocked(nil)
+    assert.is_true(shadow:IsShown())
+  end)
+
   -- The check drawer overlays the deals list on any window narrower than WIN.PANEL_SHIFT_MIN,
   -- which the docked auction house always is, and it is an OPAQUE sheet so the rows do not
   -- ghost through. A texture cannot cross a strata boundary, so that only holds while the

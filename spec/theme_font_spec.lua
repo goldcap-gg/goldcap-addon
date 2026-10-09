@@ -95,6 +95,44 @@ describe("Theme fonts per locale", function()
     end)
   end)
 
+  -- GoldCap text placed inside Blizzard's own frames (the quest window) keeps Blizzard's face
+  -- wherever the client draws the language: FONT_FOREIGN is nil there.
+  describe("foreign face", function()
+    local savedGetLocale, savedUIParent
+
+    before_each(function()
+      savedGetLocale, savedUIParent = _G.GetLocale, _G.UIParent
+    end)
+    after_each(function()
+      _G.GetLocale, _G.UIParent = savedGetLocale, savedUIParent
+    end)
+
+    local function on(client, code)
+      _G.GetLocale = function() return client end
+      GC.Theme.RefreshFonts(code)
+      return GC.Theme.FONT_FOREIGN
+    end
+
+    it("is nil for a latin language, and for the client's own language", function()
+      assert.is_nil(on("enUS", "deDE"))
+      assert.is_nil(on("ruRU", "ruRU"))
+    end)
+
+    it("is the bundled text face for Cyrillic on a client that cannot draw it", function()
+      assert.equal(GC.Theme.FONT_TEXT, on("enUS", "ruRU"))
+    end)
+
+    it("is the CJK face the interface settled on for a CJK language on another client", function()
+      _G.UIParent = {
+        CreateFontString = function()
+          return { SetFont = function(_, path) return path == "Fonts\\2002.TTF" end }
+        end,
+      }
+      assert.equal("Fonts\\2002.TTF", on("enUS", "koKR"))
+      assert.equal(GC.Theme.FONT_UI, GC.Theme.FONT_FOREIGN)
+    end)
+  end)
+
   -- Headings, buttons and chips: Fira Sans Condensed in every language GoldCap draws itself,
   -- the client's bold face for the script on Korean and Chinese.
   describe("heading face", function()
@@ -121,12 +159,13 @@ describe("Theme fonts per locale", function()
       restore()
     end)
 
-    -- The condensed face has no ▲ or ▼: GC.Util.ClientText respells them, as for a client face.
-    it("draws its text through ClientText", function()
+    -- The condensed face has no ▲ or ▼ (GC.Util.TriangleText respells them) but does have the
+    -- middle dot, which stays.
+    it("respells only the triangles on the bundled face", function()
       GC.Theme.RefreshFonts("enUS")
       local fs = GC.Theme.Heading(W.CreateFrame("Frame"), 12)
-      fs:SetText("▲4% · over usual")
-      assert.equal("+4%, over usual", W.state(fs).text)
+      fs:SetText("▲4% · over usual → x")
+      assert.equal("+4% · over usual → x", W.state(fs).text)
     end)
 
     it("draws in the heading face at its size and follows the font-size slider", function()
@@ -260,6 +299,17 @@ describe("Theme fonts per locale", function()
       GC.Theme.RefreshFonts("koKR")
       GC.Theme.RefontWidget(num)
       assert.equal("Fonts\\2002.TTF", num.font[1])
+    end)
+
+    -- The Settings language button is a heading; RefontWidget is its only way onto the CJK bold face.
+    it("moves a heading onto the CJK bold face, not the condensed one", function()
+      GC.Theme.RefreshFonts("ukUA")
+      local heading = GC.Theme.Heading(parent, 12)
+      assert.equal(GC.Theme.FONT_HEAD, heading.font[1])
+      GC.Theme.RefreshFonts("koKR")
+      GC.Theme.RefontWidget(heading)
+      assert.equal(GC.Theme.FONT_UI_BOLD, heading.font[1])
+      assert.is_not.equal(GC.Theme.FONT_HEAD, heading.font[1])
     end)
 
     it("keeps a re-fonted widget on its new face across a rescale", function()

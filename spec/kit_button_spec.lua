@@ -61,6 +61,87 @@ describe("kit button", function()
     assert.is_nil(button("ghost", "badge").glow)
   end)
 
+  it("draws a middle dot and an arrow in a label as written: the Fira faces have them", function()
+    local b = button("primary", "plaque")
+    b:SetLabel("AUTO · SCANNING → 12g")
+    assert.equal("AUTO · SCANNING → 12g", W.state(b.text).text)
+  end)
+
+  it("still respells a Label that keeps the client's own face", function()
+    local saved = _G.GetLocale
+    _G.GetLocale = function() return "koKR" end
+    GC.Theme.RefreshFonts("enUS") -- Latin addon on a Korean client: FONT_LABEL nil, face inherited
+    local label = GC.Theme.Label(W.CreateFrame("Frame"), 11)
+    label:SetText("a · b")
+    _G.GetLocale = saved
+    assert.is_nil(GC.Theme.FONT_LABEL)
+    assert.equal("a, b", W.state(label).text)
+  end)
+
+  it("puts the primary button's glow under every fill", function()
+    local b = button("primary", "plaque")
+    local s = W.state(b.glow)
+    assert.equal("BACKGROUND", s.layer)
+    assert.equal(-7, s.sublevel)
+  end)
+
+  describe("disabled look", function()
+    it("dims a rounded ghost's fill by tint and never above its enabled alpha", function()
+      local b = button("ghost", "plaque")
+      local on = W.state(b.bg).vertex[4]
+      b:Disable()
+      local off = W.state(b.bg).vertex[4]
+      assert.is_true(off < on)
+      assert.is_nil(W.state(b.bg).alpha)
+      b:Enable()
+      assert.equal(on, W.state(b.bg).vertex[4])
+      assert.is_nil(W.state(b.bg).alpha)
+    end)
+
+    it("dims a primary's fill to 0.45 and a square one too", function()
+      local b = button("primary", "plaque")
+      b:Disable()
+      assert.is_true(math.abs(W.state(b.bg).vertex[4] - 0.45) < 1e-9)
+      local sq = button("primary")
+      sq:Disable()
+      assert.is_true(math.abs(W.state(sq.bg).color[4] - 0.45) < 1e-9)
+      sq:Enable()
+      assert.equal(1, W.state(sq.bg).color[4])
+    end)
+
+    it("keeps a fill dimmed when the variant changes while disabled", function()
+      local b = button("ghost", "plaque")
+      b:Disable()
+      b:SetVariant("active")
+      assert.is_true(W.state(b.bg).vertex[4] < 0.14)
+    end)
+  end)
+
+  describe("SetBusy with a caret", function()
+    local function rightInset(b)
+      local last
+      for _, p in ipairs(W.state(b.text).points) do
+        if p[1] == "RIGHT" then last = p end
+      end
+      return last and last[4]
+    end
+
+    it("keeps the caret's room on the right and lets the spinner take the left", function()
+      local b = button("ghost", "plaque")
+      b:SetLabel("All ▼")
+      assert.equal(-16, rightInset(b))
+      b:SetBusy(true)
+      assert.equal(-16, rightInset(b))
+      local left
+      for _, p in ipairs(W.state(b.text).points) do
+        if p[1] == "LEFT" then left = p end
+      end
+      assert.equal(b.spinner, left[2])
+      b:SetBusy(false)
+      assert.equal(-16, rightInset(b))
+    end)
+  end)
+
   it("closes the title bar with the atlas cross, not a letter", function()
     local bar = GC.Theme.TitleBar(W.CreateFrame("Frame"), "GoldCap")
     assert.same({ GC.Theme.IconCoords("close") }, W.state(bar.close.icon).texCoord)

@@ -11,6 +11,8 @@ local HOVER_WASH = K.hoverWash
 -- A square button's edge, and the shade the engine lays over any button while it is held.
 local SQUARE_EDGE = { 1, 1, 1, 0.11 }
 local PRESSED = { 0, 0, 0, 0.28 }
+-- A disabled button draws its fill and ring at this share of their own alpha.
+local DIM = 0.45
 local PRIMARY_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
 
 -- A trailing ▼ or ▲ on a label ("SHOW DETAILS ▼", a picker's "All ▼"): drawn as the atlas caret at
@@ -50,8 +52,8 @@ local ROUNDED_BUTTON = {
   badge  = { bg = MEDIA .. "badge.png", ring = nil, askedRing = MEDIA .. "badge_ring.png", margin = T.SLICE.badge },
 }
 
--- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
--- Rounded mode drops edgeBorder entirely, and "badge" rounded buttons get no ring either (too
+-- Square mode's ghost has no fill by design -- T.EdgeBorder (below) draws its outline instead.
+-- Rounded mode drops T.EdgeBorder entirely, and "badge" rounded buttons get no ring either (too
 -- small for the ring art -- ROUNDED_BUTTON's own comment), so a rounded ghost painted with the
 -- same alpha-0 fill has zero at-rest boundary: the row Buy button's "Check" state was bare
 -- text. A faint white fill gives rounded ghost the affordance square ghost got from its border.
@@ -59,8 +61,8 @@ local ROUNDED_GHOST_FILL = { 1, 1, 1, 0.05 }
 
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 -- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,
--- edgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
--- that art (ROUNDED_BUTTON above) and drop the square edgeBorder -- "plaque" gets a sliced
+-- T.EdgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
+-- that art (ROUNDED_BUTTON above) and drop the square T.EdgeBorder -- "plaque" gets a sliced
 -- plaque_ring.png ring in its place, "badge" gets none (too small for the ring art, same as
 -- T.RailButton's own badge).
 function T.Button(parent, variant, rounded)
@@ -185,10 +187,6 @@ function T.Button(parent, variant, rounded)
   -- what is drawn, `.label` for what callers read back.
   function b:SetLabel(text)
     b.label = text
-    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
-    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
-    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
-    -- string either way; only the drawn FontString text is transformed.
     local shown, caret = splitCaret(text)
     if caret then
       if not b.caret then
@@ -202,6 +200,10 @@ function T.Button(parent, variant, rounded)
       b.caret:Hide()
     end
     b.text:SetPoint("RIGHT", b, "RIGHT", caret and -16 or 0, 0)
+    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
+    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
+    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
+    -- string either way; only the drawn FontString text is transformed.
     b.text:SetText(b.uppercase and shown:upper() or shown)
   end
 
@@ -215,6 +217,22 @@ function T.Button(parent, variant, rounded)
     if b.label then b:SetLabel(b.label) end
   end
 
+  -- The fill in its variant's colour, dimmed to 0.45 of its own alpha while disabled. Dimmed by
+  -- re-tinting, never by Texture:SetAlpha: in the client SetAlpha REPLACES the alpha
+  -- SetVertexColor set (see T.RailButton), so SetAlpha(0.45) turned a 5% ghost wash into a light
+  -- plate and SetAlpha(1) turned it solid on enable.
+  local function paintFill()
+    local a = (base[4] or 1) * (b.dimmed and DIM or 1)
+    -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
+    -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
+    -- instead, the same way T.Card:SetTint does.
+    if b.roundedMargin then
+      b.bg:SetVertexColor(base[1], base[2], base[3], a)
+    else
+      b.bg:SetColorTexture(base[1], base[2], base[3], a)
+    end
+  end
+
   -- Switches a live button between variants. One control with two looks, rather than two
   -- controls taking turns being hidden.
   function b:SetVariant(name)
@@ -223,14 +241,7 @@ function T.Button(parent, variant, rounded)
     -- constant's own comment. `base` feeds OnEnable's restore below too, so that path inherits
     -- this fix for free -- it just repaints whatever `base` SetVariant last computed.
     base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 })
-    -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
-    -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
-    -- instead, the same way T.Card:SetTint does.
-    if b.roundedMargin then
-      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
-    else
-      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
-    end
+    paintFill()
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
     paintGlow()
@@ -252,7 +263,8 @@ function T.Button(parent, variant, rounded)
       b.ring:SetAllPoints()
       b.ringAsked = true
     end
-    b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+    b.ringColor = c
+    b.ring:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * (b.dimmed and DIM or 1))
     b.ring:Show()
   end
 
@@ -304,32 +316,31 @@ function T.Button(parent, variant, rounded)
   -- after Enable() (e.g. the red "Buy anyway" requote state) still wins, since that call
   -- happens synchronously afterward in the same Lua step, before the next render.
   b:SetScript("OnDisable", function()
-    b.bg:SetAlpha(0.45)
+    b.dimmed = true
+    paintFill()
     -- Only a ring SetRing drew: a plaque's own border keeps the button's shape while it is dim.
-    if b.ringAsked then b.ring:SetAlpha(0.45) end
+    if b.ringAsked then
+      local c = b.ringColor
+      b.ring:SetVertexColor(c[1], c[2], c[3], (c[4] or 1) * DIM)
+    end
     b.text:SetTextColor(K.text3[1], K.text3[2], K.text3[3], 1)
     -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
     -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script --
     -- hidden, not SetAlpha(0): see T.RailButton for how SetAlpha(1) turned the wash solid.
     b.highlightTexture:Hide()
     if b.caret then b.caret:SetVertexColor(K.text3[1], K.text3[2], K.text3[3], 1) end
-    b.dimmed = true
     paintGlow()
   end)
   b:SetScript("OnEnable", function()
-    b.bg:SetAlpha(1)
-    if b.ringAsked then b.ring:SetAlpha(1) end
-    -- Same rounded-vs-square branch as SetVariant above: SetColorTexture on a textured
-    -- rounded bg would erase the texture file the re-enable path is meant to restore.
-    if b.roundedMargin then
-      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
-    else
-      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    b.dimmed = nil
+    paintFill()
+    if b.ringAsked then
+      local c = b.ringColor
+      b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
     end
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     b.highlightTexture:Show()
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
-    b.dimmed = nil
     paintGlow()
   end)
 

@@ -79,12 +79,13 @@ local function build(frame)
   -- fill, so the reward's icon and name stay as Blizzard drew them.
   holder.ring = T.Card(holder, CLEAR, T.color.gold, true)
   -- The line under the rewards: the quest window's own font, wrapped to the reward frame's width.
-  -- When GoldCap speaks a language the client's face cannot draw (Russian or Ukrainian on an
-  -- English client), the face T.Label would switch to, at the quest font's own size.
+  -- The window is Blizzard's, so its face stands, except when GoldCap speaks a language the
+  -- client's face cannot draw (Russian or Ukrainian on an English client): then T.FONT_FOREIGN,
+  -- at the quest font's own size.
   local label = T.ClientFont(holder:CreateFontString(nil, "ARTWORK", "QuestFont"))
-  if T.FONT_LABEL then
+  if T.FONT_FOREIGN then
     local _, size, flags = label:GetFont()
-    label:SetFont(T.FONT_LABEL, size or 13, flags or "")
+    label:SetFont(T.FONT_FOREIGN, size or 13, flags or "")
   end
   label:SetJustifyH("LEFT")
   label:SetWordWrap(true)

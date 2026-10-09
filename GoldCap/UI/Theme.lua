@@ -211,7 +211,7 @@ function T.Rail(parent)
 
   -- "badge" rounded (margin 6, no ring -- see ROUNDED_BUTTON's own comment): 28px is the same
   -- size class as T.RailButton's own badge, and SetVariant("active") below (SettingsFrame.lua)
-  -- needs a rounded fill to switch, not the square edgeBorder look a bare "ghost" button has.
+  -- needs a rounded fill to switch, not the square T.EdgeBorder look a bare "ghost" button has.
   local gear = T.Button(frame, "ghost", "badge")
   gear:SetSize(28, 28)
   gear:SetPoint("BOTTOM", 0, 14)

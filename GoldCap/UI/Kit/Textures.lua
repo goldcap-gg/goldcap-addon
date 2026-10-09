@@ -32,7 +32,7 @@ function T.Solid(parent, layer, c)
   return tx
 end
 
-
+--- A 1px outline of four solid edges, in colour `c`, drawn on the BORDER layer of `f`.
 function T.EdgeBorder(f, c)
   for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
     local e = T.Solid(f, "BORDER", c)

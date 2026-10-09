@@ -9054,7 +9054,7 @@ local function createDialog()
   icon:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
   d.icon = icon
 
-  -- Task 2 restyle: width 60 (was 56/48 -- see the pill rebuild in Theme.lua's T.Chip, and its
+  -- Task 2 restyle: width 60 (was 56/48 -- see the pill rebuild in UI/Kit/Chip.lua's T.Chip, and its
   -- own comment for why the pill lands at 20px tall rather than 24). Anchored -pad.m,
   -- -(pad.m+6) so the 20-tall pill's vertical center lines up with the 32px icon's own center
   -- (icon top is -pad.m, so its center sits at -(pad.m+16); a 20-tall pill centered there tops
@@ -9147,7 +9147,7 @@ local function createDialog()
   d.verdictLabel = verdictLabel
 
   -- The figure. Two widgets sharing one slot rather than one that re-fonts itself: Theme.Num
-  -- registers its size in Theme's rescale table at creation (see widgetFonts there), so a
+  -- registers its size in the kit's rescale table at creation (see widgetFonts in UI/Kit/Fonts.lua), so a
   -- SetFont behind Theme's back would be undone the next time the player changes UI scale.
   -- verdictAmount carries the numbers; heroText carries "Can't price this" at the same weight,
   -- which is the whole point of the unpriceable case -- a dash would read as a missing value
@@ -9648,7 +9648,7 @@ local function createDialog()
   -- so the status stays glued to the buttons and the empty slot never reads as a gap between
   -- them; F4's resizeDialogDiagnostics anchors `status` at DG.CONTROLS_H to match.
   -- Task 2 restyle: Theme.Card(small=true) -- a rounded plaque.png/PLAQUE_SLICE(12) alarm
-  -- instead of Theme.Panel's flat rectangle + edgeBorder. Sized LIM.REQUOTE_BANNER_HEIGHT (46)
+  -- instead of Theme.Panel's flat rectangle + T.EdgeBorder. Sized LIM.REQUOTE_BANNER_HEIGHT (46)
   -- tall by up to DG.WIDTH-2*pad.m (296) wide -- margin 12 is well under half the smallest
   -- edge (23) either way. Fill tinted red@0.2 at construction (the `fill` argument), the same
   -- SetVertexColor path slicedTexture always uses -- SetColorTexture on `.bg` (the old call)
@@ -10831,6 +10831,7 @@ local function createFrame()
   -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
   local panel = Theme.Window(f)
   panel:SetAllPoints(f)
+  f.windowPanel = panel -- SetDocked hides its shadow while the window sits in the AH frame
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
   local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
@@ -11470,6 +11471,8 @@ function GC.Sniper.SetDocked(host)
     -- toplevel would yank the whole thing forward on every click inside it.
     frame:SetFrameStrata(host:GetFrameStrata())
     frame:SetToplevel(false)
+    -- The 18px shadow would draw over the AH frame's border and the strip above its tabs.
+    if frame.windowPanel then frame.windowPanel.shadow:Hide() end
     -- The drawer follows the window up: adopting the host's strata can otherwise land the
     -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
     -- level with is enough for the deals rows to draw through an opaque sheet.
@@ -11492,6 +11495,7 @@ function GC.Sniper.SetDocked(host)
     -- Back to a window of its own: see createFrame for why both calls are needed.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
+    if frame.windowPanel then frame.windowPanel.shadow:Show() end
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:SetMovable(true)
