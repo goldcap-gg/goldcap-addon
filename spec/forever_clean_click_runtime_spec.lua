@@ -29,6 +29,19 @@ describe("Clean click ordering, driven end to end", function()
     log[#log + 1] = name
   end
 
+  -- The status line and the dock note are the screen's voice: a service that speaks through them
+  -- ahead of the protected call would be logged here, and assertCleanCall would fail. Called after
+  -- loadSell, once UI/SellFrame.lua has filled the slots; each wrapper calls through to the real one.
+  local function logViewWrites(GC)
+    for slot, name in pairs({ status = "status", notePost = "notePost", endPostNote = "endPostNote" }) do
+      local real = GC.SellView[slot]
+      GC.SellView[slot] = function(...)
+        if log then record(name) end
+        return real(...)
+      end
+    end
+  end
+
   local function logged(name)
     for i, entry in ipairs(log) do if entry == name then return i end end
     return nil
@@ -176,6 +189,7 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/PostQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
       helper.loadSell(GC)
+      logViewWrites(GC)
       GC.Acquisitions.Init({})
 
       root = region("Frame")
@@ -394,6 +408,7 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/CancelQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
       helper.loadSell(GC)
+      logViewWrites(GC)
       GC.Acquisitions.Init({})
       assert(GC.Acquisitions.RecordManual({ itemID = 23427, positionKey = "commodity:23427",
         itemName = "Sanguithorn Tea", quantity = 400, total = 4000000, acquiredAt = 900,
