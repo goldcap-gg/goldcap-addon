@@ -56,8 +56,8 @@ end
 local DRAIN_MAX_SECONDS = 15
 
 -- Whether a position has a row on the deck that is up: bag stock on the posting deck, a live
--- lot on the other. Kept on `refresh` rather than as two more file locals -- this chunk sits at
--- Lua 5.1's limit of 200.
+-- lot on the other. Kept on `refresh` rather than as two more file locals -- UI/SellFrame.lua,
+-- where they were written, sat at Lua 5.1's limit of 200.
 function S.refresh.onDeck(position)
   if S.filterMode == "listed" or S.filterMode == "cancelqueue" then return (position.listedQty or 0) > 0 end
   return (position.bagQty or 0) > 0
