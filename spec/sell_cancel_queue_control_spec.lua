@@ -118,8 +118,8 @@ describe("Sell tab, the cancel queue control", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     -- The cancel queue is the LISTED deck's bulk action and shares its footer slot with the
     -- post queue's, so it is hidden on the post deck the tab opens on. Every test in this file
     -- is about that control, which means the listed deck is where they all belong.
@@ -142,7 +142,7 @@ describe("Sell tab, the cancel queue control", function()
   end
 
   local function armedLotRow()
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row.kind == "lot" and row.lot and row.lot.auctionID == 77 then return row end
     end
     return nil
@@ -218,7 +218,7 @@ describe("Sell tab, the cancel queue control", function()
 
     -- The list is now the cancel queue: head position at row 1, force-expanded so the head's
     -- own lot row (the thing onRepostClick pins to) is rendered further down.
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     assert.equal("position", rows[1].kind)
     assert.equal("commodity:23427", rows[1].position.positionKey)
     local lotRow = armedLotRow()
@@ -269,7 +269,7 @@ describe("Sell tab, the cancel queue control", function()
     end
 
     local function lotShown()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown == true and (row.kind == "lot" or row.kind == "position") then return true end
       end
       return false
@@ -327,7 +327,7 @@ describe("Sell tab, the cancel queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose(); render()
       local action
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then action = row.action end
       end
       action.scripts.OnClick(action)
@@ -353,13 +353,13 @@ describe("Sell tab, the cancel queue control", function()
       local lotRow = armedLotRow()
       assert.equal("armed", lotRow.repostStage)
       local position
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then position = row end
       end
       position.scripts.OnClick(position) -- the open position's own row: shut it
       assert.is_nil(lotRow.repostStage)
       assert.equal(0, cancelCalls)
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         assert.is_false(row.shown == true and row.kind == "lot")
       end
     end)
@@ -371,7 +371,7 @@ describe("Sell tab, the cancel queue control", function()
   describe("the deck as designed", function()
     local function shownRows()
       local out = {}
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.IsShown and row:IsShown() then out[#out + 1] = row end
       end
       return out

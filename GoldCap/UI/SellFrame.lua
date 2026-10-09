@@ -24,7 +24,6 @@ local exact, safeAdd, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil
   GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local activeScope, itemName = GC.SellUtil.activeScope, GC.SellUtil.itemName
 local EMPTY_ANSWER_AGE = GC.Sell.EMPTY_ANSWER_AGE
-local ROW_HEIGHT, ROW_WIDTH
 
 -- The view's shared pieces (UI/Sell/Frame.lua): the geometry more than one part lays out by, and
 -- the pure text helpers.
@@ -34,18 +33,6 @@ local setColor, formatCell, DIM_HEX, MONEY_HEX = UI.fmt.setColor, UI.fmt.cell, U
 
 -- The positions module owns all accounting and action-plan decisions.  This file only joins
 -- live AH observations, a cached quote stream, and widgets around that single model.
-
-local container, content, detailContent, statusOwner
-local rows = {}
-
-local expanded = {}
--- Whether the posting deck's "not on hand" fold is open. The player's to set and kept for the
--- session: a fold that shut itself on every refresh would be a control that does not work.
-local showNotOnHand = false
--- The two chips beside the deck switch, keyed by the same stable ids CHIP_IDS carries. Flags
--- that NARROW whichever deck is up rather than replacing it -- which is exactly what the five
--- mutually-exclusive chips this replaced could not express -- so both can be on at once.
-local chips = { ready = false, nocost = false }
 
 -- Labels for the deck switch and the two chips. Parallel tables, exactly like
 -- PRICE_CHIP_LABELS/PRICE_CHIP_IDS further down and for both of the same reasons: the contract
@@ -93,7 +80,7 @@ local function paintCancelButton() end
 -- carries the state too, and the progress with it: "PRICING 3/24" answers "is it
 -- running" without the player having to hunt for a line of text.
 local function paintRefreshButton()
-  local button = container and container.refreshButton
+  local button = UI.container and UI.container.refreshButton
   if not button then return end
   local phase = S.refresh.phase
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
@@ -125,7 +112,7 @@ local function paintRefreshButton()
 end
 
 local function setStatus(text)
-  if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
+  if UI.window and UI.window.status then UI.window.status:SetText(text) end
   GC.Sell._lastStatus = text
   -- And in the dock, under the bulk action: the toolbar line above is a window's width from
   -- every control on this tab, which is why REFRESH, POST and each row button had to grow a
@@ -153,7 +140,7 @@ end
 
 -- The dock's line: the post's note while there is one, else `text`, the tab's ordinary line.
 function GC.Sell._PaintDock(text)
-  local dock = container and container.dockStatus
+  local dock = UI.container and UI.container.dockStatus
   if not dock then return end
   local note = GC.Sell._postNote
   dock:SetText(note and note.text or text or "")
@@ -164,7 +151,7 @@ end
 function GC.Sell._NotePost(text, tone, seconds)
   local note = { text = text, tone = tone or "fg", timed = seconds ~= nil }
   GC.Sell._postNote = note
-  if container and container.IsShown and container:IsShown() then
+  if UI.container and UI.container.IsShown and UI.container:IsShown() then
     local ordinary = GC.Sell._lastStatus
     setStatus(text)
     -- The toolbar says it too, but it is not the tab's ordinary line: the dock returns to that.
@@ -196,7 +183,7 @@ function GC.Sell._EndPostNote(heldOnly)
   -- The toolbar line is the whole window's. With another tab on screen it is that tab's, and a
   -- clock running out here wrote over it -- a Deals line erased ten seconds after a refusal
   -- (review M1). Off the tab, only the dock, which is ours, is repainted.
-  if not (container and container.IsShown and container:IsShown()) then
+  if not (UI.container and UI.container.IsShown and UI.container:IsShown()) then
     if again then GC.Sell._postNote = { text = again, tone = "fg", timed = false } end
     GC.Sell._PaintDock(GC.Sell._lastStatus)
     paintQueueButton()
@@ -287,12 +274,12 @@ local QUEUE_SKIP_TEXT = {
 -- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
 -- (final review "Headroom").
 function GC.Sell._EmptyDeckText()
-  if chips.search then return GC.L["Nothing on this deck matches that search"] end
+  if UI.chips.search then return GC.L["Nothing on this deck matches that search"] end
   if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
     return GC.L["No live auctions on this character"]
   end
-  if chips.ready then return GC.L["Nothing is priced yet - the Auction House is still answering"] end
-  if chips.nocost then return GC.L["Every position in your bags already has a cost on record"] end
+  if UI.chips.ready then return GC.L["Nothing is priced yet - the Auction House is still answering"] end
+  if UI.chips.nocost then return GC.L["Every position in your bags already has a cost on record"] end
   return GC.L["Nothing in your bags to list"]
 end
 
@@ -300,9 +287,9 @@ end
 -- container/queueEntries/queueSkipped/postingRow (all declared well above this point), so it
 -- could not be written any earlier than here.
 paintQueueButton = function()
-  local button, label = container and container.queueButton, container and container.queueLabel
+  local button, label = UI.container and UI.container.queueButton, UI.container and UI.container.queueLabel
   if not button then return end
-  local heldBack, heldBackHit = container.queueHeldBack, container.queueHeldBackHit
+  local heldBack, heldBackHit = UI.container.queueHeldBack, UI.container.queueHeldBackHit
   -- The post queue is the POST deck's bulk action and shares the footer slot with the cancel
   -- queue's. Hidden, not disabled, on the other deck: a disabled control invites a click that
   -- can never work, and this one belongs to a screen the player is not on.
@@ -372,17 +359,17 @@ end
 -- wrong lot, the same rule paintQueueButton applies to a non-head post.
 paintCancelButton = function()
   -- The cancel queue's half of the same footer slot -- see paintQueueButton's own comment.
-  if container and container.cancelButton
+  if UI.container and UI.container.cancelButton
       and S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue" then
-    container.cancelButton:Hide()
-    if container.cancelHeldBack then container.cancelHeldBack:Hide() end
-    if container.cancelHeldBackHit then container.cancelHeldBackHit:Hide() end
+    UI.container.cancelButton:Hide()
+    if UI.container.cancelHeldBack then UI.container.cancelHeldBack:Hide() end
+    if UI.container.cancelHeldBackHit then UI.container.cancelHeldBackHit:Hide() end
     return
   end
-  if container and container.cancelButton then container.cancelButton:Show() end
-  local button = container and container.cancelButton
+  if UI.container and UI.container.cancelButton then UI.container.cancelButton:Show() end
+  local button = UI.container and UI.container.cancelButton
   if not button then return end
-  local heldBack, heldBackHit = container.cancelHeldBack, container.cancelHeldBackHit
+  local heldBack, heldBackHit = UI.container.cancelHeldBack, UI.container.cancelHeldBackHit
   local head = S.cancelEntries[1]
   -- SetVariant runs BEFORE Enable/Disable in every branch: Theme.Button's OnDisable dims the
   -- text to fgDim, and SetVariant restores full-brightness text -- calling SetVariant after
@@ -731,7 +718,7 @@ local function canSetCost(position)
 end
 
 local function openCostDialog(position)
-  local dialog = container.costDialog
+  local dialog = UI.container.costDialog
   local missing = uncostedQty(position)
   if missing < 1 then return end
   local scope = activeScope(position)
@@ -839,11 +826,11 @@ local DECK_SHED = {
 do
   local isOpen = false
   function INSP.docked()
-    return isOpen and (ROW_WIDTH or 0) >= INSP.DOCK_MIN
+    return isOpen and (UI.rowWidth or 0) >= INSP.DOCK_MIN
   end
   -- The LIST's width, which is the container's less a docked panel's column.
   function INSP.listWidth()
-    local width = ROW_WIDTH or 0
+    local width = UI.rowWidth or 0
     if INSP.docked() then width = width - INSP.W - INSP.GAP end
     return width
   end
@@ -851,9 +838,9 @@ do
   -- are re-anchored only when that changes whether the panel has a column of its own.
   function INSP.sync(open)
     isOpen = open
-    if container.applyListGeometry and container.listDocked ~= INSP.docked() then
-      container.listDocked = INSP.docked()
-      container.applyListGeometry()
+    if UI.container.applyListGeometry and UI.container.listDocked ~= INSP.docked() then
+      UI.container.listDocked = INSP.docked()
+      UI.container.applyListGeometry()
     end
   end
 end
@@ -957,11 +944,11 @@ local BOOK_BAR_H = 6
 -- One hidden probe per font size, the same face and size as the text it stands in for: the
 -- header cells (9), the stand line (10) and the margin line (11).
 function FIT.width(size, text)
-  if not container or not Theme or type(text) ~= "string" or text == "" then return 0 end
+  if not UI.container or not Theme or type(text) ~= "string" or text == "" then return 0 end
   FIT.probes = FIT.probes or {}
   local probe = FIT.probes[size]
   if not probe then
-    probe = Theme.Num(container, size)
+    probe = Theme.Num(UI.container, size)
     probe:Hide()
     FIT.probes[size] = probe
   end
@@ -1027,7 +1014,7 @@ do
     for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
       local name = type(waiting.itemName) == "string" and waiting.itemName ~= "" and waiting.itemName
         or itemName(waiting.itemID)
-      if not chips.search or name:lower():find(chips.search, 1, true) then
+      if not UI.chips.search or name:lower():find(UI.chips.search, 1, true) then
         shown[#shown + 1] = { kind = "waitItem", name = name, quantity = waiting.quantity,
           position = { itemID = waiting.itemID, itemName = name } }
       end
@@ -1108,7 +1095,7 @@ do
   function ROW.armLot(entry)
     if not entry then return end
     local alreadyArmed
-    for _, row in ipairs(rows) do
+    for _, row in ipairs(UI.rows) do
       if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
           and row.lot.auctionID == entry.auctionID and row.repostStage == "armed" then
         alreadyArmed = true
@@ -1116,11 +1103,11 @@ do
       end
     end
     if not alreadyArmed then
-      for other in pairs(expanded) do expanded[other] = nil end
-      expanded[entry.positionKey] = true
+      for other in pairs(UI.expanded) do UI.expanded[other] = nil end
+      UI.expanded[entry.positionKey] = true
       renderRows()
     end
-    for _, row in ipairs(rows) do
+    for _, row in ipairs(UI.rows) do
       -- `row:IsShown()`, never `row.shown` -- see onQueueClick's own comment on the
       -- widget-double field that shipped a dead button.
       if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
@@ -1191,7 +1178,7 @@ local function layoutDrawer(row)
 
   -- With nothing to say about the price, Post and the book move up into the paragraph's room
   -- (one slot of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
-  local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (ROW_HEIGHT or 32) or 0
+  local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (UI.rowHeight or 32) or 0
   -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
   row.cells.action:ClearAllPoints()
   row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y + rise)
@@ -1518,7 +1505,7 @@ local ACTION_HELP = {
 
 local function createRow(parent)
   local row = CreateFrame("Button", nil, parent)
-  row:SetHeight(ROW_HEIGHT)
+  row:SetHeight(UI.rowHeight)
 
   -- Sell rows carried no banding, no hover feedback and no rule between them, so a screenful
   -- of positions read as one undifferentiated block -- and an expanded position's children were
@@ -1590,7 +1577,7 @@ local function createRow(parent)
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
       -- Outside the window, never over it -- a row's own item tooltip used to cover the deck
       -- it is describing (Theme.ItemTooltipOutside; see UI/Theme.lua's own comment on it).
-      Theme.ItemTooltipOutside(self, statusOwner)
+      Theme.ItemTooltipOutside(self, UI.window)
       -- A variant is the stack itself -- its item level, its bonuses, its pet -- not the base item
       -- (for every caged pet, "Pet Cage"): the bag slot, else the lot's own link (review M9).
       -- GoldCap's own block under this tooltip (UI/Tooltip.lua) reads the site's figure for the
@@ -1975,16 +1962,16 @@ local function createRow(parent)
   end
   row:SetScript("OnClick", function(self)
     if self.kind == "fold" then
-      showNotOnHand = not showNotOnHand
+      UI.showNotOnHand = not UI.showNotOnHand
       renderRows()
     elseif self.kind == "position" and type(self.position.positionKey) == "string" then
       Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no"
       -- One open position at a time. Two open panels are two hundred pixels of detail each,
       -- and the second one pushed the first -- the one being compared against -- off screen.
       local key = self.position.positionKey
-      local wasOpen = expanded[key]
-      for other in pairs(expanded) do expanded[other] = nil end
-      expanded[key] = not wasOpen or nil
+      local wasOpen = UI.expanded[key]
+      for other in pairs(UI.expanded) do UI.expanded[other] = nil end
+      UI.expanded[key] = not wasOpen or nil
       renderRows()
     end
   end)
@@ -2058,27 +2045,27 @@ end
 
 local function updateSummary(filtered)
   local text = summaryFor(filtered)
-  container.summary.cost:SetText(formatCell(text.knownCost))
-  container.summary.listed:SetText(formatCell(text.listedValue))
+  UI.container.summary.cost:SetText(formatCell(text.knownCost))
+  UI.container.summary.listed:SetText(formatCell(text.listedValue))
   if type(text.profit) == "number" then
     -- Item 2 (addon polish batch): the number is a sum over only the positions that
     -- individually cleared both gates, so it can still be a partial total -- the card's own
     -- hit frame (below) shows the detail on hover, but a player who never hovers must not read
     -- a partial sum as the whole picture. profitMarker carries that onto the number itself.
-    container.summary.profit:SetText(GC.Sell._FormatAmount(text.profit) .. (text.profitMarker or ""))
-    container.summaryProfitDetail = text.profitDetail
+    UI.container.summary.profit:SetText(GC.Sell._FormatAmount(text.profit) .. (text.profitMarker or ""))
+    UI.container.summaryProfitDetail = text.profitDetail
   else
     -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
     -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
     -- card itself stays a plain "Unknown" and everything after the first " · " moves to
     -- summaryProfitHit's own tooltip (see the stat-card loop below), read live at hover time.
-    container.summary.profit:SetText(GC.L["Unknown"])
+    UI.container.summary.profit:SetText(GC.L["Unknown"])
     local sepStart, sepEnd = text.profit:find(" · ", 1, true)
-    container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
+    UI.container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
   end
   -- A non-number here is an absence, not a result: painting "Unknown" in the same confident
   -- green as a real profit read as a figure the addon stood behind.
-  setColor(container.summary.profit, type(text.profit) == "number"
+  setColor(UI.container.summary.profit, type(text.profit) == "number"
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
 
@@ -2457,7 +2444,7 @@ function INSP.paintHead(row, p, d)
 end
 
 renderRows = function()
-  if not container then return end
+  if not UI.container then return end
   -- The Sell CONTENT may be attached but not the tab currently on screen -- Compose.Positions()
   -- and GC.Sell.Refresh() run regardless of which tab is active (bag counts and the tab badge
   -- must stay current either way), and that used to rebuild every visible row along with them:
@@ -2494,10 +2481,10 @@ renderRows = function()
   -- onQueueClick sets "queue", which is the post one. Every path that can change the deck ends
   -- up here, so this is the one place that cannot be forgotten.
   local headerDeck = (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
-  if container and container.header and container.headerDeck ~= headerDeck then
-    container.headerDeck = headerDeck
-    paintHeaderText(container.header, headerDeck)
-    layoutCells(container.header)
+  if UI.container and UI.container.header and UI.container.headerDeck ~= headerDeck then
+    UI.container.headerDeck = headerDeck
+    paintHeaderText(UI.container.header, headerDeck)
+    layoutCells(UI.container.header)
   end
   local filtered
   if S.filterMode == "queue" then
@@ -2529,7 +2516,7 @@ renderRows = function()
     -- Deck ends in SellViewModel.Order itself, so there is no second ordering pass here the
     -- way the old single-filter path needed one.
     filtered = GC.SellViewModel.Deck(S.positions, S.filterMode,
-      { ready = chips.ready, noCost = chips.nocost })
+      { ready = UI.chips.ready, noCost = UI.chips.nocost })
     -- Deck ends in Order, which is the right answer for a list being BUILT and the wrong one
     -- for a list already on screen: the pricing walk answers one item at a time, and every
     -- answer re-ranked a row out from under the cursor.
@@ -2566,7 +2553,7 @@ renderRows = function()
     if (position.bagQty or 0) > 0 then
       GC.Sell._CacheBagLocation(position, Bags.LiveState(position, nil, bagSnapshot))
     end
-    if expanded[position.positionKey] and not openPosition then
+    if UI.expanded[position.positionKey] and not openPosition then
       openPosition = position
       local first = #entries + 1
       local detail = GC.SellViewModel.Expansion(position)
@@ -2624,7 +2611,7 @@ renderRows = function()
     -- lower-cased -- which folds ASCII only, so a Cyrillic name matches in the case it is
     -- written in; the client's Lua has no way to fold the rest.
     local name = type(position.itemName) == "string" and position.itemName:lower() or ""
-    local matches = not chips.search or name:find(chips.search, 1, true) ~= nil
+    local matches = not UI.chips.search or name:find(UI.chips.search, 1, true) ~= nil
     if matches and notOnHand then folded[#folded + 1] = position
     elseif matches then
       -- A heading goes in ahead of the first of its positions that is actually drawn, so a
@@ -2642,7 +2629,7 @@ renderRows = function()
   if #folded > 0 and #entries == 0 then
     for _, position in ipairs(folded) do pushPosition(position) end
   elseif #folded > 0 then
-    local open = showNotOnHand or chips.nocost
+    local open = UI.showNotOnHand or UI.chips.nocost
     entries[#entries + 1] = { kind = "fold", position = folded[1], count = #folded, open = open }
     if open then
       for _, position in ipairs(folded) do pushPosition(position) end
@@ -2655,26 +2642,26 @@ renderRows = function()
     -- Say which of the three reasons it is, because they need different next moves: a deck
     -- that is genuinely empty, versus a chip that emptied it, versus the other deck holding
     -- everything. "No items match this filter" answered none of them.
-    container.emptyText:SetText(GC.Sell._EmptyDeckText())
-    container.emptyText:Show()
+    UI.container.emptyText:SetText(GC.Sell._EmptyDeckText())
+    UI.container.emptyText:Show()
   else
-    container.emptyText:Hide()
+    UI.container.emptyText:Hide()
   end
-  for i = #rows + 1, #entries do rows[i] = createRow(content) end
+  for i = #UI.rows + 1, #entries do UI.rows[i] = createRow(UI.content) end
   -- Known before any row is laid out: a docked panel takes its width out of the list's, and
   -- shownColumns reads that. The heading row and the scroll area follow whenever it changes.
   INSP.sync(openPosition ~= nil)
   -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
   -- render, so both are rebuilt from scratch each time rather than remembered.
   local placedHeight, detailHeight, listIndex = 0, 0, 0
-  for i, row in ipairs(rows) do
+  for i, row in ipairs(UI.rows) do
     local entry = entries[i]
     if not entry then row.renderEntryID = nil; row:Hide()
     else
       -- One pool, two surfaces. A row is re-parented only when its entry moves between them,
       -- which a position being opened or shut does and a re-price never does -- so the price
       -- box a seller is typing into is not touched by the renders their typing causes.
-      local surface = entry.panel and detailContent or content
+      local surface = entry.panel and UI.detailContent or UI.content
       row.inPanel = entry.panel == true
       if surface and row.surface ~= surface then
         row.surface = surface
@@ -2689,7 +2676,7 @@ renderRows = function()
       row:Show(); row:ClearAllPoints()
       row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
       -- A position in the list is ROW.H tall; everything else keeps the slot pitch.
-      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * ROW_HEIGHT
+      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * UI.rowHeight
       row:SetHeight(height)
       if entry.panel then detailHeight = detailHeight + height
       else placedHeight = placedHeight + height; listIndex = listIndex + 1 end
@@ -3227,7 +3214,7 @@ renderRows = function()
       -- An OPEN position and the panel under it are one block, so the row wears the same gold
       -- the panel's left rail does instead of its turn in the white zebra. Without it the pair
       -- read as two unrelated rows that happened to land next to each other.
-      if entry.kind == "position" and expanded[p.positionKey] then
+      if entry.kind == "position" and UI.expanded[p.positionKey] then
         local gc3 = Theme.color.gold
         row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
         row.selectRing:Show()
@@ -3375,14 +3362,15 @@ renderRows = function()
       end
     end
   end
-  if container.paintInspector then container.paintInspector(openPosition) end
+  if UI.container.paintInspector then UI.container.paintInspector(openPosition) end
   -- Measured from what was actually placed, not from #entries: a multi-slot entry occupies
   -- more than one row's worth, and a scroll child sized by entry COUNT would clip the drawer.
-  content:SetHeight(math.max(ROW_HEIGHT, placedHeight))
-  if detailContent then detailContent:SetHeight(math.max(ROW_HEIGHT, detailHeight)) end
+  UI.content:SetHeight(math.max(UI.rowHeight, placedHeight))
+  if UI.detailContent then UI.detailContent:SetHeight(math.max(UI.rowHeight, detailHeight)) end
   Walk.ScheduleExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
+UI.List.RenderRows = renderRows
 
 -- The toolbar queue control's own click. Arms queue mode (so row 1 is guaranteed to be the
 -- head -- see renderRows' own "queue" branch above and the design document's own reasoning for
@@ -3435,7 +3423,7 @@ local function onQueueClick()
   if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
     S.filterMode = "queue"
     renderRows()
-    local row = rows[1]
+    local row = UI.rows[1]
     if isQueueHead(row) then
       onPostClick(row)
     else
@@ -3443,7 +3431,7 @@ local function onQueueClick()
     end
     return
   end
-  local row = rows[1]
+  local row = UI.rows[1]
   if S.filterMode == "queue" and isQueueHead(row) then
     onPostClick(row)
     return
@@ -3471,14 +3459,14 @@ local function onCancelQueueClick()
 end
 
 function GC.Sell.Show()
-  if container then container:Show() end
+  if UI.container then UI.container:Show() end
   -- The headings are otherwise only ever stamped when the DECK changes (renderRows), and this
   -- tab spends most of its life hidden behind Deals or Sold: a one-line FontString that was on
   -- screen when its parent hid can come back with its text simply not drawn, and SetText is
   -- what the client needs to draw it again (UI/SniperFrame.lua's updateHeaderSortIndicators
   -- carries the full story). Unconditional, from the deck the header is currently showing.
-  if container and container.header then
-    paintHeaderText(container.header, container.headerDeck)
+  if UI.container and UI.container.header then
+    paintHeaderText(UI.container.header, UI.container.headerDeck)
   end
   -- This is what flushes a render renderRows() deferred while the container was hidden: Show()
   -- has always called Refresh() unconditionally, and Refresh()'s own Compose.Positions()+
@@ -3490,15 +3478,15 @@ function GC.Sell.Show()
   -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
   -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
   -- the cure UI/BuyFrame.lua's restampHeadings uses.
-  if container and (S.postingRow or GC.Sell._postNote) then
+  if UI.container and (S.postingRow or GC.Sell._postNote) then
     local function restamp(fs)
       if not (fs and fs.IsShown and fs:IsShown()) then return end
       local text = fs:GetText() or ""
       fs:SetText(""); fs:SetText(text); fs:Hide(); fs:Show()
     end
-    restamp(container.dockStatus)
-    restamp(container.queueLabel)
-    for _, button in ipairs({ container.queueButton or false, S.postingRow and S.postingRow.action or false }) do
+    restamp(UI.container.dockStatus)
+    restamp(UI.container.queueLabel)
+    for _, button in ipairs({ UI.container.queueButton or false, S.postingRow and S.postingRow.action or false }) do
       if button and button.label and button.SetLabel then
         local label = button.label
         button:SetLabel(""); button:SetLabel(label)
@@ -3507,11 +3495,12 @@ function GC.Sell.Show()
     end
   end
 end
-function GC.Sell.Hide() if container then container:Hide() end end
+function GC.Sell.Hide() if UI.container then UI.container:Hide() end end
 
 function GC.Sell.Attach(f, geometry)
-  ROW_WIDTH, ROW_HEIGHT, statusOwner = geometry.rowWidth, geometry.rowHeight, f
-  container = CreateFrame("Frame", nil, f)
+  UI.rowWidth, UI.rowHeight, UI.window = geometry.rowWidth, geometry.rowHeight, f
+  UI.container = CreateFrame("Frame", nil, f)
+  local container = UI.container
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
   -- Two rows of chrome and a footer, down from three rows of chrome. The three stat cards that
   -- used to own row 3 were 40px of ACCOUNTING sitting above the work; they are one quiet line
@@ -3562,7 +3551,7 @@ function GC.Sell.Attach(f, geometry)
         -- Both chips ask POST-deck questions, so on LISTED they are disabled rather than
         -- hidden: a control that vanishes reads as a bug, one that dims reads as "not here".
         local onPostDeck = S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue"
-        chip:SetVariant(chips[id] and onPostDeck and "active" or "ghost")
+        chip:SetVariant(UI.chips[id] and onPostDeck and "active" or "ghost")
         if onPostDeck then chip:Enable() else chip:Disable() end
       end
     end
@@ -3574,7 +3563,7 @@ function GC.Sell.Attach(f, geometry)
     button:SetPoint("RIGHT", previous, "LEFT", -2, 0)
     button:SetLabel(GC.L[CHIP_LABELS[slot]])
     button:SetScript("OnClick", function()
-      chips[id] = not chips[id]
+      UI.chips[id] = not UI.chips[id]
       -- "queue" and "cancelqueue" are transient FOCUS states, not decks, and nothing ever
       -- cleared them: press the POST control once and the tab rendered the queue's own order
       -- for the rest of the session, with these chips lighting up over a list they could not
@@ -3683,7 +3672,7 @@ function GC.Sell.Attach(f, geometry)
   container.searchHint = searchHint
   local function applySearch()
     local text = (search:GetText() or ""):lower():match("^%s*(.-)%s*$")
-    chips.search = search:IsShown() and text ~= "" and text or nil
+    UI.chips.search = search:IsShown() and text ~= "" and text or nil
     if text ~= "" or (search.HasFocus and search:HasFocus()) then searchHint:Hide() else searchHint:Show() end
   end
   search:SetScript("OnTextChanged", function(_, byUser)
@@ -3700,7 +3689,7 @@ function GC.Sell.Attach(f, geometry)
   -- Row 1's fixed occupants: two deck buttons and their gap, REFRESH, the two chips and theirs.
   local SEARCH_MIN, SEARCH_MAX, ROW1_FIXED = 120, 220, 2 * 128 + 4 + 104 + 92 + 76 + 4
   container.layoutSearch = function()
-    local room = (ROW_WIDTH or 0) - ROW1_FIXED - 36
+    local room = (UI.rowWidth or 0) - ROW1_FIXED - 36
     if room >= SEARCH_MIN then
       searchWell:SetWidth(math.min(SEARCH_MAX, room)); searchWell:Show(); search:Show()
     else
@@ -3906,7 +3895,7 @@ function GC.Sell.Attach(f, geometry)
   -- held-back counter rides the upper line (14 above a figure's own centre), the status the
   -- lower one, level with the figures.
   local function layoutLedger()
-    local narrow = (ROW_WIDTH or 0) < DOCK.NARROW
+    local narrow = (UI.rowWidth or 0) < DOCK.NARROW
     local left
     for _, id in ipairs(SUMMARY_STAT_IDS) do
       local value, label = container.summary[id], container.summaryLabels[id]
@@ -3976,7 +3965,7 @@ function GC.Sell.Attach(f, geometry)
   -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
   -- `scroll` (not `content`), living where the rows would be, never scrolling.
   local emptyText = Theme.Label(scroll, 12)
-  emptyText:SetPoint("TOP", scroll, "TOP", 0, -ROW_HEIGHT * 2)
+  emptyText:SetPoint("TOP", scroll, "TOP", 0, -UI.rowHeight * 2)
   emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
   emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
   emptyText:SetJustifyH("CENTER")
@@ -3985,7 +3974,7 @@ function GC.Sell.Attach(f, geometry)
   emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   emptyText:Hide()
   container.emptyText = emptyText
-  content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
+  UI.content = CreateFrame("Frame", nil, scroll); UI.content:SetSize(UI.rowWidth, UI.rowHeight); scroll:SetScrollChild(UI.content)
 
   -- The detail panel: what a position opens INTO, beside the list instead of inside it. Opening
   -- a row used to push ten rows of panel, lots and purchases into the list under it, so the
@@ -4032,7 +4021,7 @@ function GC.Sell.Attach(f, geometry)
   closeInspector:SetLabel("X")
   closeInspector:SetScript("OnClick", function()
     Post.WalkAway()
-    for key in pairs(expanded) do expanded[key] = nil end
+    for key in pairs(UI.expanded) do UI.expanded[key] = nil end
     renderRows()
   end)
   inspector.close = closeInspector
@@ -4046,9 +4035,9 @@ function GC.Sell.Attach(f, geometry)
   if Theme.QuietScrollBar then Theme.QuietScrollBar(detailScroll) end -- no Blizzard arrows beside a kit panel
   detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
   detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
-  detailContent = CreateFrame("Frame", nil, detailScroll)
-  detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, ROW_HEIGHT)
-  detailScroll:SetScrollChild(detailContent)
+  UI.detailContent = CreateFrame("Frame", nil, detailScroll)
+  UI.detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, UI.rowHeight)
+  detailScroll:SetScrollChild(UI.detailContent)
 
   -- The list's own width follows the panel: docked, it ends where the panel's column begins
   -- (the gap is where the list's scroll bar hangs); as a sheet, it keeps the whole width and
@@ -4060,7 +4049,7 @@ function GC.Sell.Attach(f, geometry)
     header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
     scroll:ClearAllPoints()
     scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
-    content:SetWidth(INSP.listWidth())
+    UI.content:SetWidth(INSP.listWidth())
     layoutCells(header)
   end
 
@@ -4218,7 +4207,7 @@ function GC.Sell.Attach(f, geometry)
   -- rather than rebuilding the model up to 60 times a second while the grip is dragged.
   local resizeRenderToken = 0
   f:HookScript("OnSizeChanged", function(_, width)
-    ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
+    UI.rowWidth = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
     -- Through the same function a panel opening uses: the width a resize leaves decides
     -- whether the panel still has a column of its own.
     container.listDocked = INSP.docked()
@@ -4352,7 +4341,7 @@ function GC.Sell.DebugPrint()
     tostring(S.repostingRow and S.repostingRow.repostReady), tostring(S.repostPin and S.repostPin.auctionID),
     tostring(S.deferredRender), tostring(S.postingRow ~= nil), tostring(S.removingRow ~= nil),
     sent, confirmed, tostring(S.refresh.ownedWanted)))
-  local status = statusOwner and statusOwner.status and statusOwner.status.GetText and statusOwner.status:GetText()
+  local status = UI.window and UI.window.status and UI.window.status.GetText and UI.window.status:GetText()
   GC.Print("status: " .. tostring(status))
   local t = GC.Util.throttleStats
   GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))
@@ -4365,13 +4354,13 @@ GC.SellView.status = setStatus
 GC.SellView.paintQueue = paintQueueButton
 GC.SellView.paintCancel = paintCancelButton
 GC.SellView.paintDeck = function()
-  if container and container.paintDeckSwitch then container.paintDeckSwitch() end
+  if UI.container and UI.container.paintDeckSwitch then UI.container.paintDeckSwitch() end
 end
 GC.SellView.notePost = function(...) return GC.Sell._NotePost(...) end
 GC.SellView.endPostNote = function(...) return GC.Sell._EndPostNote(...) end
-GC.SellView.attached = function() return container ~= nil end
+GC.SellView.attached = function() return UI.container ~= nil end
 -- nil until the tab is built, then its own shown flag: the two questions the services ask of it
 -- ("is it built", "is it up") stay as distinct as `container ~= nil` and `container:IsShown()` were.
 GC.SellView.isShown = function()
-  if container and container.IsShown then return container:IsShown() end
+  if UI.container and UI.container.IsShown then return UI.container:IsShown() end
 end

@@ -10,6 +10,23 @@ local _, GC = ...
 GC.Sell = GC.Sell or {}
 
 GC.SellUI = {
+  -- Set by GC.Sell.Attach: the tab's own frame (container), the list's and the inspector's scroll
+  -- children (content, detailContent), the Sniper window the tab lives in (window, whose `status`
+  -- is the toolbar's line), and the list's width and line pitch (rowWidth, rowHeight; the resize
+  -- hook keeps rowWidth current). Absent until then: `container == nil` is how the services ask
+  -- whether the tab is built.
+  -- The pool of rows every render draws from. It only grows.
+  rows = {},
+  -- The open position, by position key. One at a time.
+  expanded = {},
+  -- Whether the posting deck's "not on hand" fold is open. The player's to set and kept for the
+  -- session: a fold that shut itself on every refresh would be a control that does not work.
+  showNotOnHand = false,
+  -- The two chips beside the deck switch, keyed by the same stable ids UI/Sell/Toolbar.lua's
+  -- CHIP_IDS carries. Flags
+  -- that NARROW whichever deck is up rather than replacing it -- which is exactly what the five
+  -- mutually-exclusive chips this replaced could not express -- so both can be on at once.
+  chips = { ready = false, nocost = false },
   -- One per part of the view, each filled by its own file under UI/Sell/.
   Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, CostDialog = {},
 }

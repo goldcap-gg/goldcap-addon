@@ -69,15 +69,6 @@ describe("Sell widget geometry and manual cost", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local function load(width, record)
     made = {}
     record.calls, record.repairs = record.calls or {}, record.repairs or {}
@@ -184,8 +175,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Sniper window) -- renderRows now defers a rebuild while it is hidden, so every test
     -- below that reads rendered rows needs the container shown, the way GC.Sell.Show() (or
     -- the real tab switch that calls it) would leave it before a player ever sees this tab.
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    upvalue(render, "container"):Show()
+    GC.SellUI.container:Show()
     return GC, root
   end
 
@@ -194,11 +184,11 @@ describe("Sell widget geometry and manual cost", function()
   -- is the test looking where the row actually is, not a workaround. Set through the same
   -- upvalue the deck buttons write, so a test can never select a deck the chrome cannot.
   local function topRows(GC, values, deck)
-    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local render = GC.SellUI.List.RenderRows
     GC.SellState.positions = values
     if deck then GC.SellState.filterMode = deck end
     render()
-    return upvalue(render, "rows"), upvalue(render, "container")
+    return GC.SellUI.rows, GC.SellUI.container
   end
 
   after_each(function()
@@ -208,7 +198,7 @@ describe("Sell widget geometry and manual cost", function()
 
   it("tells the Sell services the tab is built and whether it is up, once Attach has run", function()
     local GC = load(900, {})
-    local container = upvalue(upvalue(GC.Sell.Attach, "renderRows"), "container")
+    local container = GC.SellUI.container
     assert.is_true(GC.SellView.attached())
     container:Show()
     assert.is_true(container:IsShown())
@@ -509,7 +499,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
     })
     assert.equal("2 partial", container.summaryProfitDetail)
-    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local render = GC.SellUI.List.RenderRows
     GC.SellViewModel.SummaryText = function(summary)
       return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = 50000 }
     end
@@ -635,8 +625,7 @@ describe("Sell widget geometry and manual cost", function()
   describe("detail row copy for the empty-facts fallback", function()
     it("says 'not priced' for a not-on-hand position's expanded detail row", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local rows = topRows(GC, {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
           exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
@@ -648,8 +637,7 @@ describe("Sell widget geometry and manual cost", function()
 
     it("keeps 'no live quote yet -- pricing...' for a bag-stock position awaiting a quote", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local rows = topRows(GC, {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
           exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
@@ -666,8 +654,7 @@ describe("Sell widget geometry and manual cost", function()
   -- price of allowing it, since the floor those warnings name used to be enforced by refusing.
   describe("the price control in an expanded row", function()
     local function priceRow(GC, over)
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations",
           book = { rows = {}, levels = 3, totalUnits = 300, widest = 100,
@@ -830,8 +817,7 @@ describe("Sell widget geometry and manual cost", function()
       row.priceBox.text = "45"
 
       -- Same pooled row, now rendering a different position.
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:99"] = true })
+      GC.SellUI.expanded = { ["commodity:99"] = true }
       topRows(GC, {
         { itemID = 99, itemName = "Other", positionKey = "commodity:99", coverage = "UNKNOWN",
           exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0,
@@ -841,7 +827,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("70", row.priceBox.text)
 
       -- And nothing was recorded for either item.
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       assert.equal("43", priceRow(GC).priceBox.text)
     end)
 
@@ -895,8 +881,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0,
           bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
           postRecommendation = { unit = 430000 } }
-        local render = upvalue(GC.Sell.Attach, "renderRows")
-        set(render, "expanded", { ["commodity:42"] = true })
+        GC.SellUI.expanded = { ["commodity:42"] = true }
         local rows = topRows(GC, { p })
         for _, row in ipairs(rows) do
           if row.kind == "drawer" then return row.priceChips[3].priceSource end
@@ -967,8 +952,7 @@ describe("Sell widget geometry and manual cost", function()
 
     it("draws no price control for a position with nothing in the bags", function()
       local GC = load(700, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations" }
       end
@@ -985,8 +969,7 @@ describe("Sell widget geometry and manual cost", function()
     -- price of 0 as the seller's choice, and the box they had just filled came back empty.
     it("[S16] offers no UNDERCUT rung when there is nothing under the cheapest ask", function()
       local GC = load(700, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations",
           book = { rows = {}, levels = 1, totalUnits = 3, widest = 3, cheapestCompeting = 100 } }
@@ -1011,8 +994,7 @@ describe("Sell widget geometry and manual cost", function()
   -- them (spec/sell_book_spec.lua covers that).
   describe("the order book in an expanded row", function()
     local function bookRows(GC, book)
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book }
       end
@@ -1140,8 +1122,8 @@ describe("Sell widget geometry and manual cost", function()
       -- Collapse the expansion AND give the list a second position, so this pooled row is
       -- rebound to a "position" instead of merely dropped: a row that leaves the list is hidden
       -- by the engine along with its children, which would prove nothing about the reset.
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", {})
+      local render = GC.SellUI.List.RenderRows
+      GC.SellUI.expanded = {}
       GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
@@ -1260,8 +1242,8 @@ describe("Sell widget geometry and manual cost", function()
       for _, line in ipairs(drawer.bookLines) do
         function line.tag:GetUnboundedStringWidth() return #(self.text or "") * 9.2 end
       end
-      upvalue(GC.Sell.Attach, "renderRows")()
-      drawer = nth(upvalue(upvalue(GC.Sell.Attach, "renderRows"), "rows"), "drawer")
+      GC.SellUI.List.RenderRows()
+      drawer = nth(GC.SellUI.rows, "drawer")
       local wall = drawer.bookLines[5]
       assert.equal(40, wall.tag.width) -- ceil(36.8) + 3 of air
       assert.equal(40, wall.bar.fill.points[1].x)
@@ -1274,8 +1256,7 @@ describe("Sell widget geometry and manual cost", function()
       local book = {}
       for k, v in pairs(LADDER) do book[k] = v end
       book.clearsHours = 6.4
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, sold = 9867, days = 0.03,
           ahead = 2321 }
@@ -1300,8 +1281,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local german = { ["clears in ~%dh"] = "weg in ~%d Std.", ["%d ahead of you"] = "%d vor dir" }
       GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations", sold = 9867, days = 0.03, ahead = 12 }
       end
@@ -1325,8 +1305,7 @@ describe("Sell widget geometry and manual cost", function()
           marketState = position.marketState, marketFresh = position.marketFresh,
           marketStale = position.marketStale }
       end
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
         coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
         displayMarketUnit = 150, freshMarketUnit = 150, quoteAge = 3,
@@ -1345,8 +1324,7 @@ describe("Sell widget geometry and manual cost", function()
           marketState = position.marketState, marketFresh = position.marketFresh,
           marketStale = position.marketStale }
       end
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
         coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
         displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
@@ -1366,8 +1344,7 @@ describe("Sell widget geometry and manual cost", function()
           marketState = position.marketState, marketFresh = position.marketFresh,
           marketStale = position.marketStale }
       end
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
         coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
         displayMarketUnit = 150, freshMarketUnit = nil, quoteAge = 188,
@@ -1380,8 +1357,7 @@ describe("Sell widget geometry and manual cost", function()
       local german = { ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
         ["no live quote yet — pricing…"] = "noch kein Live-Kurs — Preis wird ermittelt…" }
       GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellUI.expanded = { ["commodity:42"] = true }
       local empty = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
         coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
         bagQty = 0, listedQty = 0, sources = {} } }), "drawer")
@@ -1430,7 +1406,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(width, record)
       local _, container = topRows(GC, {})
       local header
-      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      header = container.header
       assert.is_true(header.cells.gross.shown, ("gross hidden at %d"):format(width))
       assert.is_true(header.cells.price.shown, ("price hidden at %d"):format(width))
       -- MARGIN is the line under YOU GET now, not a column of its own.
@@ -1445,7 +1421,7 @@ describe("Sell widget geometry and manual cost", function()
     local GC = load(600, record)
     local _, container = topRows(GC, {})
     local header
-    for _, child in ipairs(container.children) do if child.cells then header = child break end end
+    header = container.header
     assert.is_nil(header.cells.queue)
     -- Right to left: the button, what the stack fetches, the price it fetches it at, the name.
     assert.is_nil(header.cells.expand)
@@ -1460,7 +1436,7 @@ describe("Sell widget geometry and manual cost", function()
     local listedDeck = load(600, record)
     local _, listedContainer = topRows(listedDeck, {}, "listed")
     local listedHeader
-    for _, child in ipairs(listedContainer.children) do if child.cells then listedHeader = child break end end
+    listedHeader = listedContainer.header
     -- "Who is under me" is the line under YOUR PRICE on this deck, in units; the column that
     -- carried a bare price under that heading is gone from it.
     assert.is_true(listedHeader.cells.listed.shown)
@@ -1476,7 +1452,7 @@ describe("Sell widget geometry and manual cost", function()
   -- until now every answer re-ranked a row out from under the cursor.
   it("does not move a row when a background render lands a price on it", function()
     local GC = load(700, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local render = GC.SellUI.List.RenderRows
     local slow = { itemID = 42, itemName = "Slow", positionKey = "commodity:42",
       coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 10,
       bagQty = 10, listedQty = 0, sources = {} }
@@ -1488,7 +1464,7 @@ describe("Sell widget geometry and manual cost", function()
 
     local function order()
       local out = {}
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.IsShown and row:IsShown() and row.kind == "position" then
           out[#out + 1] = row.position.itemID
         end
@@ -1521,7 +1497,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 168898, sources = {}, status = "LISTED" },
     })
     local header
-    for _, child in ipairs(container.children) do if child.cells then header = child break end end
+    header = container.header
     for _, key in ipairs({ "cost", "listed", "market", "profit", "status" }) do
       assert.is_false(header.cells[key].wordWrap, key)
       assert.is_false(rows[1].cells[key].wordWrap, key)
@@ -1581,7 +1557,7 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" }
       local rows, container = topRows(GC, { p })
       local header
-      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      header = container.header
       local row = rows[1]
       -- The posting deck's own three, at every width: what the stack fetches, at what price,
       -- and how that compares with what it cost. What you paid is on the stock line under the
@@ -1620,9 +1596,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(header, header.cells.action.points[1].relative)
       assert.equal(0, header.cells.price.points[1].y)
       rows[1].scripts.OnClick(rows[1])
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      local content = upvalue(render, "content")
-      local detailContent = upvalue(render, "detailContent")
+      local content = GC.SellUI.content
+      local detailContent = GC.SellUI.detailContent
       -- An open position's detail is drawn in the side panel. From 880 up the panel has a
       -- column of its own and the list gives up the panel's width and the gap; under that it
       -- lies over the list as a sheet and the list keeps every pixel.
@@ -1866,7 +1841,7 @@ describe("Sell widget geometry and manual cost", function()
       scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
       knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" }
     local rows = topRows(GC, { p })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local render = GC.SellUI.List.RenderRows
     local post = upvalue(render, "onPostClick")
     -- onPostClick reads bag state through clickSafeBagState now (never liveBagState directly --
     -- see SellFrame.lua's own comment on why), which for a commodity position still hands
@@ -1930,8 +1905,8 @@ describe("Sell widget geometry and manual cost", function()
     -- Both positions open at once. A click opens one and shuts the rest, so the pair is set
     -- straight on the state a click writes: what this test needs is the SAME pooled row
     -- carrying a lot before the deck change and a different lot after it.
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local expanded = upvalue(render, "expanded")
+    local render = GC.SellUI.List.RenderRows
+    local expanded = GC.SellUI.expanded
     expanded["commodity:42"], expanded["commodity:43"] = true, true
     render()
     -- rows[3] is the "On the Auction House" group heading now; the lot follows it.
@@ -1996,8 +1971,7 @@ describe("Sell widget geometry and manual cost", function()
         sources = { auction_house = 1 }, status = "LISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.equal("drawer", rows[2].kind)
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
@@ -2070,11 +2044,10 @@ describe("Sell widget geometry and manual cost", function()
         status = "UNLISTED", displayMarketUnit = 9900, freshMarketUnit = 9900,
         postRecommendation = { unit = 11500, mode = "overcut", ahead = 12 } },
     })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
     GC.SellBags.LiveState =
       function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end
     rows[1].scripts.OnClick(rows[1])
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
     -- because one click lists three of the five, which the panel's heading does not say.
     assert.equal("→ 1g15s", rows[4].cells.market.text)
@@ -2090,11 +2063,10 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 },
         status = "UNLISTED", displayMarketUnit = 9900, freshMarketUnit = 9900 },
     })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
     GC.SellBags.LiveState =
       function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end
     rows[1].scripts.OnClick(rows[1])
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.equal("→ 9900", rows[4].cells.market.text)
   end)
 
@@ -2118,8 +2090,7 @@ describe("Sell widget geometry and manual cost", function()
         recommendation = { action = "repost", rec = { unit = 11500, mode = "overcut", ahead = 12 } } },
     }, "listed")
     rows[2].scripts.OnClick(rows[2])
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     -- rows[1] the deck's section heading, rows[2] the position, rows[3] "YOUR LOTS", rows[4] the lot.
     assert.equal("→ 1g15s", rows[4].cells.market.text)
   end)
@@ -2227,8 +2198,7 @@ describe("Sell widget geometry and manual cost", function()
         sources = { goldcap = 430 }, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.equal("group", rows[3].kind)
     assert.matches("^WHAT YOU PAID", rows[3].sectionLabel.text)
     -- The count sits right after the quantity: the sub-row cell ellipsizes at narrow widths and
@@ -2278,8 +2248,7 @@ describe("Sell widget geometry and manual cost", function()
         marketState = "fresh", marketFresh = true, marketStale = false, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.equal("drawer", rows[2].kind)
     -- No book here, so the market price is said in words; the quote's state and age sit at
     -- the right end of the same line, dim while it is fresh.
@@ -2309,7 +2278,7 @@ describe("Sell widget geometry and manual cost", function()
       itemName = "Listed", quantity = 1, total = 100, acquiredAt = 1,
       evidenceKey = "buy:43", character = "A-R", region = "eu" })
 
-    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local render = GC.SellUI.List.RenderRows
     local compose = GC.SellCompose.Positions
     local owned = GC.SellState.ownedLots
     owned[1] = { itemID = 43, positionKey = "commodity:43", quantity = 1,
@@ -2322,7 +2291,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Ghost rows (no bags, no listings -- item 42 here) sink below listed ones now, so the
     -- row under test is found by item, not assumed to be first.
     local function positionRow(itemID)
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.kind == "position" and row.position.itemID == itemID then return row end
       end
     end
@@ -2335,7 +2304,7 @@ describe("Sell widget geometry and manual cost", function()
     -- took longer than the quote lasted.
     assert.equal(46, timers[1].seconds)
     unlisted.scripts.OnClick(unlisted)
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     local freshDetail
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then freshDetail = row end
@@ -2347,7 +2316,7 @@ describe("Sell widget geometry and manual cost", function()
     now.value = 151
     assert.equal(2, #timers) -- the expansion render fences the older expiry callback
     timers[#timers].callback()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     local byItem = {}
     for _, row in ipairs(rows) do if row.kind == "position" then byItem[row.position.itemID] = row end end
     assert.equal(51, byItem[42].position.quoteAge)
@@ -2367,14 +2336,14 @@ describe("Sell widget geometry and manual cost", function()
     -- list holding both halves of the job is exactly what the deck split ended.
     GC.SellState.filterMode = "listed"
     render()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     local listedPosition
     for _, row in ipairs(rows) do
       if row.kind == "position" and row.position.itemID == 43 then listedPosition = row end
     end
     assert.equal(190, listedPosition.position.projectedNet)
     listedPosition.scripts.OnClick(listedPosition)
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     local listedLot
     for _, row in ipairs(rows) do
       if row.kind == "lot" and row.position.itemID == 43 then listedLot = row end
@@ -2418,15 +2387,15 @@ describe("Sell widget geometry and manual cost", function()
   it("[perf] defers a render while the Sell container is hidden, and catches up once GC.Sell.Show reveals it", function()
     local record = { calls = {} }
     local GC = load(620, record)
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local container = upvalue(render, "container")
+    local render = GC.SellUI.List.RenderRows
+    local container = GC.SellUI.container
     container:Hide()
     GC.SellState.positions = {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
     }
     render()
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     assert.equal(0, #rows) -- nothing built while hidden
 
     local refreshes = 0
@@ -2434,7 +2403,7 @@ describe("Sell widget geometry and manual cost", function()
     GC.Sell.Show()
     assert.is_true(container:IsShown())
     assert.equal(1, refreshes) -- Show()'s own Refresh() call is what flushes the deferred render
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.is_true(#rows > 0)
     assert.equal("commodity:42", rows[1].position.positionKey)
   end)
@@ -2446,31 +2415,30 @@ describe("Sell widget geometry and manual cost", function()
     local timers = {}
     _G.C_Timer = { After = function(seconds, callback) timers[#timers + 1] = { seconds = seconds, callback = callback } end }
     local GC, root = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    local container = upvalue(render, "container")
+    local container = GC.SellUI.container
     container:Show()
     GC.SellState.positions = {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
     }
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     assert.equal(0, #rows) -- nothing rendered by Attach itself
 
     -- Simulate a drag: the grip fires OnSizeChanged once per pixel.
     for _, width in ipairs({ 700, 720, 740, 760 }) do
       root.scripts.OnSizeChanged(root, width)
     end
-    local content = upvalue(render, "content")
+    local content = GC.SellUI.content
     assert.equal(760 - 16, content.width) -- ROW_WIDTH = width - panelLeft - panelRightInset (8+8); tracked every event, immediately
     assert.equal(0, #rows) -- but no row rebuild has run yet -- it is still deferred
     assert.is_true(#timers >= 2)
 
     -- Every stale (superseded) resize callback is inert; only the last-scheduled one renders.
     for i = 1, #timers - 1 do timers[i].callback() end
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.equal(0, #rows)
     timers[#timers].callback()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     assert.is_true(#rows > 0)
     assert.equal("commodity:42", rows[1].position.positionKey)
   end)
@@ -2595,14 +2563,13 @@ describe("Sell widget geometry and manual cost", function()
     -- match this filter" for all of them, which told a player nothing about what to do.
     it("names the CHIP that emptied the deck, not just that it is empty", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
       -- Bag stock the Auction House has not answered on yet: on the deck, but not READY.
       GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {} },
       }
-      local container = upvalue(render, "container")
+      local container = GC.SellUI.container
       container.filterButtons.ready.scripts.OnClick()
       assert.is_true(container.emptyText:IsShown())
       assert.equal("Nothing is priced yet - the Auction House is still answering",
@@ -2618,13 +2585,12 @@ describe("Sell widget geometry and manual cost", function()
 
     it("says the OTHER deck holds everything rather than claiming nothing exists", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
       GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {} },
       }
-      local container = upvalue(render, "container")
+      local container = GC.SellUI.container
       container.deckButtons.listed.scripts.OnClick()
       assert.is_true(container.emptyText:IsShown())
       assert.equal("No live auctions on this character", container.emptyText:GetText())
@@ -2661,9 +2627,8 @@ describe("Sell widget geometry and manual cost", function()
   -- rest of the session, with these chips lighting up over a list they could not narrow.
   it("[S14] a filter chip takes the tab back to the deck it belongs to", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
     GC.SellState.filterMode = "queue"
-    local container = upvalue(render, "container")
+    local container = GC.SellUI.container
     local chip = container.filterButtons.ready
     chip.scripts.OnClick(chip)
     assert.equal("post", GC.SellState.filterMode)
@@ -2869,10 +2834,28 @@ describe("Sell widget geometry and manual cost", function()
       rows[2].scripts.OnClick(rows[2])
       assert.same({ "position", "fold", "position", "position" }, kinds(rows))
       assert.matches("^%- NOT ON HAND 2", rows[2].sectionLabel.text)
-      upvalue(GC.Sell.Attach, "renderRows")()
+      GC.SellUI.List.RenderRows()
       assert.same({ "position", "fold", "position", "position" }, kinds(rows))
       rows[2].scripts.OnClick(rows[2])
       assert.same({ "position", "fold" }, kinds(rows))
+    end)
+
+    -- The fold and the open position are GC.SellUI's fields, and a row's click reads them when it
+    -- runs. A row that kept the table or the flag it was built with would open nothing, or fold
+    -- the wrong way, once anything else put a new value there.
+    it("reads the fold and the open position from GC.SellUI when clicked, not from what it was built with", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { onHand(), ghost(43), ghost(44) })
+      GC.SellUI.showNotOnHand = true
+      GC.SellUI.List.RenderRows()
+      assert.same({ "position", "fold", "position", "position" }, kinds(rows))
+      rows[2].scripts.OnClick(rows[2])
+      assert.is_false(GC.SellUI.showNotOnHand)
+      assert.same({ "position", "fold" }, kinds(rows))
+      local key = rows[1].position.positionKey
+      GC.SellUI.expanded = {}
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(GC.SellUI.expanded[key])
     end)
 
     it("does not fold when nothing on the deck is on hand", function()
@@ -2883,10 +2866,9 @@ describe("Sell widget geometry and manual cost", function()
 
     it("opens by itself under NO COST, where Set cost for those positions lives", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
       local noCost = ghost(43); noCost.coverage = "UNKNOWN"
       local partial = onHand(); partial.coverage = "PARTIAL"
-      upvalue(render, "chips").nocost = true
+      GC.SellUI.chips.nocost = true
       local rows = topRows(GC, { partial, noCost })
       assert.same({ "position", "fold", "position" }, kinds(rows))
     end)
@@ -2970,14 +2952,14 @@ describe("Sell widget geometry and manual cost", function()
       local wide = load(1100, { calls = {} })
       local rows, container = topRows(wide, { p(42) })
       local header
-      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      header = container.header
       rows[1].scripts.OnClick(rows[1])
       -- The short SetPoint form: (point, x, y), which the double files under `relative`.
       assert.equal(-(340 + 28), header.points[2].relative)
 
       local narrow = load(620, { calls = {} })
       rows, container = topRows(narrow, { p(42) })
-      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      header = container.header
       rows[1].scripts.OnClick(rows[1])
       assert.is_true(container.inspector.shown)
       assert.equal(0, header.points[2].relative)
@@ -2987,12 +2969,11 @@ describe("Sell widget geometry and manual cost", function()
     it("gives the list its width back when it shuts, from its own close button", function()
       local GC = load(1100, { calls = {} })
       local rows, container = topRows(GC, { p(42) })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
       rows[1].scripts.OnClick(rows[1])
-      assert.equal(1100 - 340 - 28, upvalue(render, "content").width)
+      assert.equal(1100 - 340 - 28, GC.SellUI.content.width)
       container.inspector.close.scripts.OnClick()
       assert.is_false(container.inspector.shown)
-      assert.equal(1100, upvalue(render, "content").width)
+      assert.equal(1100, GC.SellUI.content.width)
       for _, row in ipairs(rows) do assert.is_false(row.shown and row.inPanel) end
     end)
 
@@ -3088,7 +3069,7 @@ describe("Sell widget geometry and manual cost", function()
       -- 640 is the window's resize floor; this harness insets the content by 16.
       root.scripts.OnSizeChanged(root, 640)
       assert.is_false(container.search.shown)
-      upvalue(GC.Sell.Attach, "renderRows")()
+      GC.SellUI.List.RenderRows()
       assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
     end)
   end)
@@ -3123,7 +3104,7 @@ describe("Sell widget geometry and manual cost", function()
     GC.SellViewModel.Expansion = function()
       return { batches = {}, ownedLots = {}, recommendation = p.recommendation }
     end
-    upvalue(GC.Sell.Attach, "renderRows")()
+    GC.SellUI.List.RenderRows()
     assert.equal("", rows[2].subItem.text)
     -- ...and the head gives the paragraph's slot back rather than keeping a gap for it.
     assert.equal(withReason - 24, rows[2].height)

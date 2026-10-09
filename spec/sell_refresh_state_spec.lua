@@ -10,15 +10,6 @@ describe("Sell refresh state fence", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local function refreshState(GC) return GC.SellState.refresh end
 
   local function load(now, sent, cache, keyInfo)
@@ -523,7 +514,7 @@ describe("Sell refresh state fence", function()
       local setStatus = GC.SellView.status
       local paint = upvalue(setStatus, "paintRefreshButton")
       local button = { SetLabel = function(self, label) self.label = label end }
-      set(paint, "container", { refreshButton = button })
+      GC.SellUI.container = { refreshButton = button }
       if filterMode then GC.SellState.filterMode = filterMode end
       return function(index)
         refreshState(GC).index = index
@@ -762,16 +753,16 @@ describe("Sell refresh state fence", function()
   it("[S8] does not price while the Sell tab is not the tab on screen", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    set(GC.Sell.Attach, "renderRows", function() end)
+    GC.SellUI.List.RenderRows = function() end
     GC.SellView.render = function() end
-    set(GC.SellView.attached, "container", { IsShown = function() return false end })
+    GC.SellUI.container = { IsShown = function() return false end }
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     -- The owned-auctions read and the composition still happen: the tab badge depends on them
     -- and they cost no price query.
     assert.equal(1, sent.owned)
     assert.same({}, sent.keys)
     assert.equal("idle", refreshState(GC).phase)
-    set(GC.SellView.attached, "container", { IsShown = function() return true end })
+    GC.SellUI.container = { IsShown = function() return true end }
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
   end)
@@ -886,9 +877,9 @@ describe("Sell refresh state fence", function()
   it("does not price while the GoldCap window itself is closed", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    set(GC.Sell.Attach, "renderRows", function() end)
+    GC.SellUI.List.RenderRows = function() end
     GC.SellView.render = function() end
-    set(GC.SellView.attached, "container", { IsShown = function() return true end })
+    GC.SellUI.container = { IsShown = function() return true end }
     local windowShown = false
     GC.Sniper.IsWindowShown = function() return windowShown end
 

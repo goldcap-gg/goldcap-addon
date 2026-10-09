@@ -106,12 +106,12 @@ describe("Sell tab, bags to Post", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
+    render = GC.SellUI.List.RenderRows
     -- Attach leaves the Sell container hidden (one of several tabs on the real Sniper
     -- window); renderRows now defers a rebuild while it is hidden, so this whole suite --
     -- which reads rendered rows directly -- needs it shown, the way GC.Sell.Show() (the
     -- real tab switch) would leave it.
-    upvalue(render, "container"):Show()
+    GC.SellUI.container:Show()
   end)
 
   after_each(function()
@@ -122,7 +122,7 @@ describe("Sell tab, bags to Post", function()
   local function compose()
     GC.SellCompose.Positions()
     render()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
   end
 
   local function positionRow()
@@ -189,7 +189,7 @@ describe("Sell tab, bags to Post", function()
   -- exactly what made an already-fixed bag bug look like it was still there.
   it("keeps the deck counts in step with the list it is counting", function()
     compose()
-    local container = upvalue(GC.Sell.Attach, "container")
+    local container = GC.SellUI.container
     assert.equal("TO POST 1", container.deckButtons.post.label)
     assert.equal("MY LOTS 0", container.deckButtons.listed.label)
   end)
@@ -283,7 +283,7 @@ describe("Sell tab, bags to Post", function()
     -- text -- while the answer to "what could I sell" sat in the player's bags.
     GC.Sniper = { IsAHOpen = function() return false end }
     GC.Sell.Refresh()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     local row = positionRow()
     assert.is_not_nil(row)
     assert.equal(246, row.position.bagQty)
@@ -298,7 +298,7 @@ describe("Sell tab, bags to Post", function()
     compose()
     local row = positionRow()
     local openCostDialog = upvalue(render, "openCostDialog")
-    local dialog = upvalue(render, "container").costDialog
+    local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
     assert.is_true(dialog.shown)
@@ -330,7 +330,7 @@ describe("Sell tab, bags to Post", function()
     local row = positionRow()
     assert.equal("PARTIAL", row.position.coverage)
     local openCostDialog = upvalue(render, "openCostDialog")
-    local dialog = upvalue(render, "container").costDialog
+    local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
     assert.is_true(dialog.shown)

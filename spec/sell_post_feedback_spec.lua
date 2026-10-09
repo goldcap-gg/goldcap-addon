@@ -145,8 +145,8 @@ describe("Sell tab, a Post says what it is doing", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     container:Show()
   end)
 
@@ -169,7 +169,7 @@ describe("Sell tab, a Post says what it is doing", function()
   end
 
   local function rowOf(itemID)
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "position" and row.position.itemID == itemID then return row end
     end
     error(("item %d's row is not on screen"):format(itemID))

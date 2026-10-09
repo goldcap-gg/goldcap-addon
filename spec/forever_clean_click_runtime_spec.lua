@@ -12,14 +12,6 @@ local helper = require("spec.spec_helper")
 -- protected call is the FIRST thing logged for that click -- nothing Blizzard-Lua-shaped ran
 -- ahead of it, whatever GoldCap's own bookkeeping did before or after.
 describe("Clean click ordering, driven end to end", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
 
   -- The shared log every click path below is checked against: `log[1]` must be the protected
   -- call's own name once a click has fired one, or the click drove nothing yet.
@@ -197,8 +189,8 @@ describe("Clean click ordering, driven end to end", function()
       root.status = region("FontString", root)
       GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
         rowWidth = 1100, rowHeight = 24 })
-      render = upvalue(GC.Sell.Attach, "renderRows")
-      container = upvalue(render, "container")
+      render = GC.SellUI.List.RenderRows
+      container = GC.SellUI.container
       container:Show()
     end)
 
@@ -217,7 +209,7 @@ describe("Clean click ordering, driven end to end", function()
     end
 
     local function oreRow()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
       end
       error("Eternium Ore row is not on screen")
@@ -419,8 +411,8 @@ describe("Clean click ordering, driven end to end", function()
       root.status = region("FontString", root)
       GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
         rowWidth = 1100, rowHeight = 24 })
-      render = upvalue(GC.Sell.Attach, "renderRows")
-      container = upvalue(render, "container")
+      render = GC.SellUI.List.RenderRows
+      container = GC.SellUI.container
       GC.SellState.filterMode = "listed"
       container:Show()
       GC.Sell.OnOwnedAuctions()
@@ -440,7 +432,7 @@ describe("Clean click ordering, driven end to end", function()
     end
 
     local function armedLotRow()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.kind == "lot" and row.lot and row.lot.auctionID == 77 then return row end
       end
       return nil
@@ -457,7 +449,7 @@ describe("Clean click ordering, driven end to end", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose(); render()
       local action
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then action = row.action end
       end
       log = {}
