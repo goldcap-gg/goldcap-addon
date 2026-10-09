@@ -21,15 +21,6 @@ describe("Clean click ordering, driven end to end", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- The shared log every click path below is checked against: `log[1]` must be the protected
   -- call's own name once a click has fired one, or the click drove nothing yet.
   local log
@@ -208,7 +199,7 @@ describe("Clean click ordering, driven end to end", function()
     end
 
     local function quotes()
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     local function oreRow()
@@ -411,7 +402,7 @@ describe("Clean click ordering, driven end to end", function()
         rowWidth = 1100, rowHeight = 24 })
       render = upvalue(GC.Sell.Attach, "renderRows")
       container = upvalue(render, "container")
-      set(render, "filterMode", "listed")
+      GC.SellState.filterMode = "listed"
       container:Show()
       GC.Sell.OnOwnedAuctions()
     end)
@@ -426,7 +417,7 @@ describe("Clean click ordering, driven end to end", function()
     end
 
     local function quotes()
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     local function armedLotRow()

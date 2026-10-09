@@ -254,7 +254,7 @@ describe("Sell tab, bags to Post", function()
   end)
 
   it("advises a price once a live quote lands, and builds a post plan for it", function()
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     -- The honest cheap side of the real EU book, after the ingest fix.
     GC.QuoteCache.Set(quotes, 23427, 184719, 1000)
     compose()

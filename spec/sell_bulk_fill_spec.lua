@@ -22,7 +22,7 @@ describe("Sell bulk price fill", function()
     error("missing upvalue " .. wanted)
   end
 
-  local function refreshState(GC) return upvalue(GC.Sell.OnThrottleReady, "refresh") end
+  local function refreshState(GC) return GC.SellState.refresh end
 
   -- `asked` records what the arbiter was handed; `grant` is whether it lets the batch go.
   local function load(now, positions, asked, grant)
@@ -211,7 +211,7 @@ describe("Sell bulk price fill", function()
       local now, asked = { value = 100 }, {}
       local GC = load(now, STOCK, asked, { value = true })
       GC.Sell.Refresh()
-      local quotes = upvalue(GC.Sell.FoldBulk, "quotes")
+      local quotes = GC.SellState.quotes
       for id, quote in pairs(before or {}) do quotes[id] = quote end
       -- As the arbiter does: its record of the wait is cleared before the rows are handed over.
       asked.sniper._keysOwner, asked.sniper._keysAwaiting = nil, nil

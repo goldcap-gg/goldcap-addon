@@ -47,7 +47,7 @@ describe("Sell quote persistence across a reload", function()
     end
 
     local function quotesTable(GC)
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     it("seeds a valid persisted entry into the live quote cache, and leaves it in the store", function()
@@ -200,16 +200,16 @@ describe("Sell quote persistence across a reload", function()
 
       local compose = upvalue(GC.Sell.SellableCount, "composePositions")
       compose()
-      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
+      assert.equal(1500, GC.SellState.quotes[42].unit)
 
       GC.Sell.Reset()
       -- The live cache is genuinely gone: a quote is a claim about an order book, and there is
       -- no order book once the session is over.
-      assert.is_nil(upvalue(compose, "quotes")[42])
+      assert.is_nil(GC.SellState.quotes[42])
       -- ...but the next compose puts the remembered price back, rather than starting from a
       -- dash and re-walking every item.
       compose()
-      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
+      assert.equal(1500, GC.SellState.quotes[42].unit)
     end)
   end)
 end)

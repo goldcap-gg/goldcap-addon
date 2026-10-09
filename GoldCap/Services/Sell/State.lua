@@ -1,5 +1,5 @@
 -- What the Sell tab's services (GoldCap/Services/Sell) share, in the first of their files to load:
--- GC.SellState, the state they and the screen read (Task 2 of the move fills it); GC.SellView,
+-- GC.SellState, the state they and the screen read; GC.SellView,
 -- what they ask of the screen, which UI/SellFrame.lua fills; and GC.SellUtil, the checks every one
 -- of them makes on a number, a position and a pin.
 local _, GC = ...
@@ -36,6 +36,84 @@ GC.Sell.QUOTE_REWALK_AGE = 30
 -- it (or burned the full request timeout on one that never answers), which is what ground a
 -- tab full of niche items to a crawl. A manual Refresh wipes these: the player asked for real.
 GC.Sell.EMPTY_ANSWER_AGE = 60
+
+GC.SellState = {
+  positions = {}, ownedLots = {}, quotes = {},
+  -- The posting queue, DERIVED, never stored: rebuilt by composePositions() every time positions
+  -- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
+  -- queue with an index into it -- a post empties that item from the bags, so the entry drops out
+  -- of the very next build on its own. A stored queue is a second source of truth that can
+  -- disagree with the bags, which is exactly the class of bug this codebase has been bitten by
+  -- before (see the price-ladder and market-value postmortems). Both default to {} so the toolbar
+  -- control has something sane to paint before the very first compose ever runs.
+  queueEntries = {}, queueSkipped = {},
+  -- The cancel twin, same statelessness contract: rebuilt from the positions on every compose,
+  -- never kept as its own list with an index. A confirmed cancel makes the lot vanish from
+  -- GetOwnedAuctions, so the entry drops out of the very next build on its own.
+  cancelEntries = {}, cancelSkipped = {},
+  bagStock = {},
+  -- itemIDs whose OWNED lots could not be told commodity-from-item yet (classifyOwnedAuctions).
+  -- Read by GC.Sell.OnItemKeyInfo, which re-keys those lots the moment the client learns the
+  -- answer -- without it a lot stayed filed under a guessed key until the next owned-auctions
+  -- query happened to come round.
+  ownedAwaitingKind = {},
+  -- Still "all": hiding the player's live listings behind a filter to answer "what
+  -- can I list" would trade one blind spot for another. What changed is the order
+  -- -- everything postable now sorts to the top (see SellViewModel.Order) -- and a
+  -- Sellable chip for narrowing to it deliberately.
+  -- Prices the seller typed, keyed by position. Deliberately NOT persisted and deliberately not
+  -- a second source of truth about what to list at: BuildPostPlan is still the one place a post
+  -- price is decided, and this is only what gets handed to it. Cleared when the position is
+  -- posted (the stock leaves the bags and the row with it) or when the box is emptied.
+  priceOverrides = {},
+  -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "queue" and
+  -- "cancelqueue" are transient FOCUS states the queue controls set for a single render, so their
+  -- head entry lands on row 1 -- a deck is what the switch paints, a focus state is not.
+  filterMode = "post",
+  -- Where each position sits, remembered across renders (SellViewModel.Settle). Thrown away only
+  -- when the PLAYER asks for a new order -- Refresh, a deck change, a chip -- never by a quote
+  -- landing, an owned-auction scan or the walk's own repeat. Those change numbers, not places.
+  rowPlaces = {},
+  -- `priority` holds items a CLICK asked about while a pass was already running (Post/Repost on a
+  -- row whose quote had aged out). Deliberately outside `queue`: splicing into that array put the
+  -- item in a slot the walk then stepped over -- and a queue rebuilt by beginQuoteWalk, which is
+  -- what the owned-auctions phase ends in, dropped it outright. advanceQuote drains this before
+  -- the queue's own next step, so the row the player is standing on is answered first.
+  refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil,
+    drain = {}, priority = {} },
+  walkRepeatToken = 0, watchdogToken = 0, quoteExpiryGeneration = 0,
+  -- The armed post, cancel and removal: the row each stands on and what its first click pinned.
+  postingRow = nil, postingPin = nil,
+  repostingRow = nil, repostPin = nil,
+  removingRow = nil, removePin = nil,
+  -- renderRows holds a render back while a post, a cancel or a removal is armed; the disarm that
+  -- lets the last of them go renders it.
+  deferredRender = false,
+  -- One-shot: composePositions() runs on every refresh tick, and re-merging the persisted store
+  -- on every one of them would let a persisted quote silently resurrect over a quote this
+  -- session has already, correctly, forgotten (an empty answer via skipPendingQuote). Guarded on
+  -- GC.db existing at all -- the very first compose can run before ADDON_LOADED has -- so a
+  -- session with no store yet simply retries on the next compose instead of flipping the flag on
+  -- nothing.
+  quotesSeeded = false,
+  -- One entry per rested item, `{ at = when, answered = did the auction house actually reply }`.
+  -- The second field is the whole point. A request that timed out and a reply that genuinely
+  -- carried no listings both earn the item a rest -- re-asking either on the very next pass is
+  -- what burned the walk's slots -- but only one of them is an ANSWER, and only an answer may be
+  -- shown to the player as "none"/"Nothing listed". This was a bare timestamp, so an item that
+  -- never came back was reported on screen, and by /gc sellstate, as the auction house saying it
+  -- was unlisted.
+  emptyAnswers = {},
+  -- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
+  -- through its two call sites in UI/SellFrame.lua), never inside a click. WoW: Forever's taint engine blocks a
+  -- protected auction house call once the same hardware click has run Blizzard's own Lua-side
+  -- ItemLocation mixin code ahead of it -- whether or not the result is kept -- so onPostClick in UI/SellFrame.lua
+  -- never calls ItemLocation:CreateFromBagAndSlot, or GC.Sell._SlotKey (which does, for a
+  -- non-commodity stack), itself. Mirrors Auctionator: it builds itemInfo.location when a bag item
+  -- is picked, well before its own Post click (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem),
+  -- and the click only reads that stored field.
+  bagLocationCache = {},
+}
 
 -- What the services ask of the screen. UI/SellFrame.lua fills every slot when it loads; until it
 -- has, and in a spec that loads the services alone, each does nothing and the tab reads as never
@@ -82,6 +160,18 @@ local function overrideKey(position)
   return type(key) == "string" and key ~= "" and key or nil
 end
 
+-- What Post would list this position at right now: the seller's own number when they have
+-- given one, otherwise whatever GoldCap worked out. Both go through the SAME silver-grid
+-- rounding BuildPostPlan applies, so the figure in the box is the figure that gets sent.
+local function effectivePostUnit(position)
+  local key = overrideKey(position)
+  local chosen = key and GC.SellState.priceOverrides[key] or nil
+  local rec = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
+  local unit = chosen or rec
+  if not exact(unit) or unit <= 0 then return nil, chosen ~= nil end
+  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit)) or unit, chosen ~= nil
+end
+
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
 end
@@ -116,6 +206,7 @@ local function itemName(itemID)
 end
 
 GC.SellUtil = { exact = exact, safeAdd = safeAdd, safeMultiply = safeMultiply, overrideKey = overrideKey,
+  effectivePostUnit = effectivePostUnit,
   context = context, activeScope = activeScope, exactRenderEntry = exactRenderEntry, itemName = itemName }
 
 -- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced

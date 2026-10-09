@@ -124,7 +124,7 @@ describe("Sell tab, the posting queue control", function()
   end
 
   local function quotes()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    return GC.SellState.quotes
   end
 
   it("labels the control with the head item and price, and counts the queue on the button itself", function()
@@ -147,7 +147,7 @@ describe("Sell tab, the posting queue control", function()
   it("surfaces the held-back count in plain words, not the raw skip token", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
-    assert.equal(1, #upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped"))
+    assert.equal(1, #GC.SellState.queueSkipped)
     local heldBack = container.queueHeldBack
     assert.is_true(heldBack.shown)
     assert.matches("1", heldBack.text, 1, true)
@@ -215,8 +215,8 @@ describe("Sell tab, the posting queue control", function()
     GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
-    local entries = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
-    local skipped = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped")
+    local entries = GC.SellState.queueEntries
+    local skipped = GC.SellState.queueSkipped
     for _, entry in ipairs(entries) do
       assert.is_not.equal("commodity:23427", entry.positionKey)
     end
@@ -305,7 +305,7 @@ describe("Sell tab, the posting queue control", function()
         assert.equal("armed", removeRow.removeStage)
         GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
         compose()
-        local qe = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+        local qe = GC.SellState.queueEntries
         assert.equal("commodity:23427", qe[1].positionKey) -- sanity: the head moved to Eternium Ore
       end
 

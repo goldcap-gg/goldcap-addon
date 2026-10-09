@@ -110,6 +110,17 @@ describe("Services/Sell", function()
     end
   end)
 
+  it("keeps no top-level copy of a GC.SellState field: a rebound field would leave it stale", function()
+    for _, path in ipairs(sellFiles()) do
+      for line in lines(code(read("GoldCap/" .. path))) do
+        if line:match("^local%s") then
+          assert.is_nil(line:match("GC%.SellState%.%a"), path .. ": " .. line)
+          assert.is_nil(line:match("%f[%w_]S%.%a"), path .. ": " .. line)
+        end
+      end
+    end
+  end)
+
   it("lets UI/SellFrame.lua fill every slot of GC.SellView", function()
     local GC = { Sell = {} }
     for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end

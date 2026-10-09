@@ -12,12 +12,12 @@ describe("Sell quote and action wiring", function()
     -- hours, and a 10s window made Post unclickable.
     -- By the position's quote id: an item-level variant is priced from its own key.
     assert.is_truthy(text:find(
-      "GC.QuoteCache.Fresh(quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
+      "GC.QuoteCache.Fresh(S.quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
     -- Dated from the ASK, not from the moment the reply was processed: the results events carry
     -- no request identifier, so a late reply can still be credited to a re-ask of the same item
     -- once the drain fence has lifted. Stamping with pending.at can only make a quote look older
     -- than it is, never fresher -- so the worst case is a re-ask, not a post at a dead price.
-    assert.is_truthy(text:find("GC.QuoteCache.Set(quotes, itemID, unit, pending.at or time())", 1, true))
+    assert.is_truthy(text:find("GC.QuoteCache.Set(S.quotes, itemID, unit, pending.at or time())", 1, true))
     assert.is_nil(text:find("GC.Data.GetFlips", 1, true))
   end)
 

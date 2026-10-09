@@ -149,7 +149,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
   end
 
   local function positions()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "positions")
+    return GC.SellState.positions
   end
 
   local function positionOf(positionKey)
@@ -218,7 +218,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[82800] = false
     stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:25:3:1500:300:300:0|h[Anubisath Idol]|h" })
     slotKeys["0:1"] = key(82800, 25, 0, 1234)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:82800:25:0:1234", 90000, 1000)
     compose()
     for _, row in ipairs(upvalue(render, "rows")) do
@@ -352,7 +352,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     compose()
     GC.Sell.Refresh(true)
     GC.Sell.OnItemSearchResults(240158, key(240158, 190))
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     local levels = quotes["item:240158:190:0:0"].levels
     assert.equal(18000000, levels[1].unitPrice)
     assert.equal(150, levels[1].quantity)
@@ -379,7 +379,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     stack(2, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
@@ -421,7 +421,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     stack(2, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
@@ -455,7 +455,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[222] = false
     stack(1, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
     for _, row in ipairs(upvalue(render, "rows")) do
@@ -576,7 +576,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     compose()
     GC.Sell.Refresh(true)
     GC.Sell.OnItemSearchResults(222, key(222, 619))
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     assert.is_true(quotes["item:222:619:0:0"].levels.cut)
   end)
 
@@ -587,7 +587,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     compose()
     GC.Sell.Refresh(true)
-    local refresh = upvalue(GC.Sell.Refresh, "refresh")
+    local refresh = GC.SellState.refresh
     local _, total = refresh.deckProgress()
     assert.equal(1, total)
   end)

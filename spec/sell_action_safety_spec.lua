@@ -42,9 +42,9 @@ describe("Sell protected action state", function()
   -- any more -- see SellFrame.lua's own comment on cacheBagLocation) and a matching C_Container
   -- read, mirroring what a real paint would already have done before any of these specs click
   -- Post directly with no render pass first.
-  local function primeLocation(post, positionKey, itemID, bag, slot, stackCount, location)
+  local function primeLocation(GC, positionKey, itemID, bag, slot, stackCount, location)
     location = location or { bag = bag, slot = slot }
-    local cache = upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")
+    local cache = GC.SellState.bagLocationCache
     cache[positionKey] = { itemID = itemID, bag = bag, slot = slot, location = location }
     local previousInfo = _G.C_Container and _G.C_Container.GetContainerItemInfo
     _G.C_Container = _G.C_Container or {}
@@ -56,14 +56,14 @@ describe("Sell protected action state", function()
     return location
   end
 
-  local function setLiveBagState(post, value)
+  local function setLiveBagState(GC, post, value)
     set(upvalue(post, "clickSafeBagState"), "liveBagState", value)
     -- Same mirror as primeLocation above, run automatically: every stub here returns a fixed bag
     -- state, so priming from that one sample is exactly what a real paint would have cached for
     -- it before the click these specs fire directly.
     local ok, sample = pcall(value)
     if ok and type(sample) == "table" and sample.bag and sample.slot and sample.itemID and sample.positionKey then
-      primeLocation(post, sample.positionKey, sample.itemID, sample.bag, sample.slot,
+      primeLocation(GC, sample.positionKey, sample.itemID, sample.bag, sample.slot,
         sample.stackQty or sample.exactQty)
     end
   end
@@ -130,7 +130,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     set(post, "startQuoteRefreshFor", function() end)
     post({ position = position(), action = button() })
@@ -159,10 +159,10 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     -- Overrides setLiveBagState's own auto-primed cache entry with this test's own `location`
     -- table, so the reference-equality checks below (assert.equal, not assert.same) hold.
-    primeLocation(post, "commodity:42", 42, 0, 1, 1, location)
+    primeLocation(GC, "commodity:42", 42, 0, 1, 1, location)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row); post(row); post(row)
@@ -191,7 +191,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
+    primeLocation(GC, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(location, calls[1][1])
     assert.same({ 2, 5, 200 }, { calls[1][2], calls[1][3], calls[1][4] })
@@ -218,7 +218,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
+    primeLocation(GC, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(3, calls[1][2])
   end)
@@ -243,7 +243,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
+    primeLocation(GC, "commodity:42", 42, 0, 1, 2, location)
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.equal(2, calls[1][2])
   end)
@@ -298,7 +298,7 @@ describe("Sell protected action state", function()
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     -- Pinned at the paint's own bag/slot directly (not primeLocation, which would also rewrite
     -- GetContainerItemInfo for that slot and defeat the point of this test).
-    upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")["commodity:42"] =
+    GC.SellState.bagLocationCache["commodity:42"] =
       { itemID = 42, bag = 0, slot = 1, location = { bag = 0, slot = 1 } }
     post({ position = position(), action = button(), renderEntryID = "entry:post:moved-stack" })
     assert.equal(0, calls)
@@ -321,7 +321,7 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
     local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
-    upvalue(upvalue(post, "resolvePostLocation"), "bagLocationCache")["item:42:100:7:0"] =
+    GC.SellState.bagLocationCache["item:42:100:7:0"] =
       { itemID = 42, bag = 0, slot = 2, location = { bag = 0, slot = 2 } }
     post({ position = p, action = button(), renderEntryID = "entry:post:variant-moved" })
     assert.equal(0, calls)
@@ -343,7 +343,7 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     local bagState = { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
       itemID = 42, positionKey = "commodity:42" }
-    setLiveBagState(post, function() return bagState end)
+    setLiveBagState(GC, post, function() return bagState end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:moved" }
 
@@ -377,7 +377,7 @@ describe("Sell protected action state", function()
     -- The cache pins the later stack directly: onPostClick's non-commodity path only re-checks
     -- the bag/slot the cache already resolved (clickSafeBagState), it never re-runs the
     -- GC.Sell._SlotKey matching that picked it -- that only happens at paint time now.
-    primeLocation(post, "item:42:100:7:0", 42, 0, 2, 5)
+    primeLocation(GC, "item:42:100:7:0", 42, 0, 2, 5)
     post({ position = p, action = button(), renderEntryID = "entry:post:variant" })
     assert.equal(2, calls[1][1].slot)
     assert.equal(2, calls[1][2])
@@ -396,7 +396,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
@@ -422,7 +422,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     GC.Sell.Refresh = function() end
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
     local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
@@ -440,7 +440,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position()
     post({ position = p, action = button() })
@@ -467,7 +467,7 @@ describe("Sell protected action state", function()
     }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -500,7 +500,7 @@ describe("Sell protected action state", function()
     }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -527,7 +527,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     set(post, "startQuoteRefreshFor", function() refreshes = refreshes + 1 end)
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
@@ -547,7 +547,7 @@ describe("Sell protected action state", function()
     }, Acquisitions = { RecordPost = function() records = records + 1 end } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    setLiveBagState(GC, post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row)
@@ -895,7 +895,7 @@ describe("Sell protected action state", function()
     GC.QuoteCache.Fresh = function() return quote end
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -945,7 +945,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -1076,7 +1076,7 @@ describe("Sell protected action state", function()
       itemLevels = function() return nil end,
     }
     set(post, "driver", refreshDriver)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
         itemID = 42, positionKey = "commodity:42" }
     end)
@@ -1084,7 +1084,7 @@ describe("Sell protected action state", function()
     GC.Sell.Refresh()
     GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent)
-    local refresh = upvalue(GC.Sell.OnThrottleReady, "refresh")
+    local refresh = GC.SellState.refresh
     local sentGeneration = refresh.generation
     assert.equal("waiting_result", refresh.phase)
     assert.is_table(refresh.pending)
@@ -1295,7 +1295,7 @@ describe("Sell protected action state", function()
     } }
     helper.loadSell(GC)
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -1334,7 +1334,7 @@ describe("Sell protected action state", function()
     helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
-    setLiveBagState(post, function()
+    setLiveBagState(GC, post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
     end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })

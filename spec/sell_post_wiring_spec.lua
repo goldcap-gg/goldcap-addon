@@ -156,7 +156,7 @@ describe("a price the seller chose reaches the post intact", function()
     -- BuildPostPlan's floor and queue raises can only ever RAISE, and a raise applied on top
     -- of a chosen price would list above what the seller asked for without saying so. The
     -- override branch there skips both, so the plan has to be told explicitly.
-    assert.is_truthy(click:find("overrideUnit = chosenKey and priceOverrides[chosenKey] or nil", 1, true))
+    assert.is_truthy(click:find("overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil", 1, true))
   end)
 
   it("also feeds it to the composition, so the displayed price is the posted price", function()
@@ -164,7 +164,7 @@ describe("a price the seller chose reaches the post intact", function()
     -- PROFIT / UNIT, the posting queue's own label and the plan all read the recommendation.
     -- This file has twice shipped a defect where the price shown and the price sent were two
     -- different numbers (see BuildPostPlan's own floor-raise comment); one source, not two.
-    assert.is_truthy(text:find("chosenUnits = priceOverrides", 1, true))
+    assert.is_truthy(text:find("chosenUnits = S.priceOverrides", 1, true))
   end)
 
   -- The choice was made against a book that will move. Keeping it would price the next batch

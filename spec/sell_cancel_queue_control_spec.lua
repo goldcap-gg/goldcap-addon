@@ -132,11 +132,7 @@ describe("Sell tab, the cancel queue control", function()
     -- The cancel queue is the LISTED deck's bulk action and shares its footer slot with the
     -- post queue's, so it is hidden on the post deck the tab opens on. Every test in this file
     -- is about that control, which means the listed deck is where they all belong.
-    for i = 1, math.huge do
-      local name = debug.getupvalue(render, i)
-      if not name then break end
-      if name == "filterMode" then debug.setupvalue(render, i, "listed"); break end
-    end
+    GC.SellState.filterMode = "listed"
     container:Show()
     GC.Sell.OnOwnedAuctions() -- what stamps the module-local ownedLots from GetOwnedAuctions
   end)
@@ -151,7 +147,7 @@ describe("Sell tab, the cancel queue control", function()
   end
 
   local function quotes()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    return GC.SellState.quotes
   end
 
   local function armedLotRow()

@@ -195,8 +195,8 @@ describe("Sell widget geometry and manual cost", function()
   -- upvalue the deck buttons write, so a test can never select a deck the chrome cannot.
   local function topRows(GC, values, deck)
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "positions", values)
-    if deck then set(render, "filterMode", deck) end
+    GC.SellState.positions = values
+    if deck then GC.SellState.filterMode = deck end
     render()
     return upvalue(render, "rows"), upvalue(render, "container")
   end
@@ -352,8 +352,7 @@ describe("Sell widget geometry and manual cost", function()
   -- already answered "nothing is listed". The remembered empty answer paints as "none".
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = { at = 70, answered = true } })
+    GC.SellState.emptyAnswers = { [42] = { at = 70, answered = true } }
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -396,8 +395,7 @@ describe("Sell widget geometry and manual cost", function()
   -- and got a real answer, so falling back to a guess from the last import would contradict it.
   it("keeps 'none' rather than the market-value fallback when the AH already answered empty", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = { at = 70, answered = true } })
+    GC.SellState.emptyAnswers = { [42] = { at = 70, answered = true } }
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -416,8 +414,7 @@ describe("Sell widget geometry and manual cost", function()
   -- insists "Nothing listed on the AH right now".
   it("shows the market-value fallback again once an empty answer goes stale, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = { at = 0, answered = true } }) -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
+    GC.SellState.emptyAnswers = { [42] = { at = 0, answered = true } } -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -435,13 +432,12 @@ describe("Sell widget geometry and manual cost", function()
   -- not stale-and-unknown, while the re-query is in flight.
   it("keeps 'none' while the walk is actively re-querying a now-stale empty answer, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
-    local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = { at = 0, answered = true } })
+    GC.SellState.emptyAnswers = { [42] = { at = 0, answered = true } }
     -- MINOR-4 (fix round 1): sets .pending on the REAL shared `refresh` table (real shape:
     -- generation/phase/queue/index/pending/awaiting/drain) instead of replacing the whole
     -- upvalue with a one-field double -- renderRows only happens to read `.pending` today, but
     -- a double this thin is the "fakes richer than the real widget" trap in reverse.
-    upvalue(render, "refresh").pending = { itemID = 42 }
+    GC.SellState.refresh.pending = { itemID = 42 }
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -1146,12 +1142,12 @@ describe("Sell widget geometry and manual cost", function()
       -- by the engine along with its children, which would prove nothing about the reset.
       local render = upvalue(GC.Sell.Attach, "renderRows")
       set(render, "expanded", {})
-      set(render, "positions", {
+      GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
         { itemID = 43, itemName = "Bar", positionKey = "commodity:43", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
-      })
+      }
       -- The drawer's own button wears no outline; as a position's Post it gets the gold one.
       assert.is_false(reused.action.ringColor)
       render()
@@ -1487,7 +1483,7 @@ describe("Sell widget geometry and manual cost", function()
     local priced = { itemID = 43, itemName = "Priced", positionKey = "commodity:43",
       coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 10,
       bagQty = 10, listedQty = 0, sources = {}, freshMarketUnit = 500 }
-    set(render, "positions", { slow, priced })
+    GC.SellState.positions = { slow, priced }
     render()
 
     local function order()
@@ -1513,7 +1509,7 @@ describe("Sell widget geometry and manual cost", function()
     local looted = { itemID = 44, itemName = "Looted", positionKey = "commodity:44",
       coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 10,
       bagQty = 10, listedQty = 0, sources = {}, freshMarketUnit = 99999 }
-    set(render, "positions", { slow, priced, looted })
+    GC.SellState.positions = { slow, priced, looted }
     render()
     assert.same({ 43, 42, 44 }, order())
   end)
@@ -1883,9 +1879,9 @@ describe("Sell widget geometry and manual cost", function()
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
-    set(render, "positions", { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+    GC.SellState.positions = { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
       scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
-      knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" } })
+      knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" } }
     render()
     assert.equal("posting", rows[1].postStage)
 
@@ -2314,10 +2310,10 @@ describe("Sell widget geometry and manual cost", function()
 
     local render = upvalue(GC.Sell.Attach, "renderRows")
     local compose = upvalue(GC.Sell.SellableCount, "composePositions")
-    local owned = upvalue(compose, "ownedLots")
+    local owned = GC.SellState.ownedLots
     owned[1] = { itemID = 43, positionKey = "commodity:43", quantity = 1,
       unitPrice = 200, auctionID = 7, firstSeenAt = 1 }
-    local quotes = upvalue(compose, "quotes")
+    local quotes = GC.SellState.quotes
     quotes[42], quotes[43] = { unit = 150, at = 100 }, { unit = 150, at = 100 }
     compose()
     render()
@@ -2368,7 +2364,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Item 42 is unlisted and item 43 is a live lot, so they sit on opposite decks: everything
     -- above is the post deck's half of this test, everything below is the listed deck's. One
     -- list holding both halves of the job is exactly what the deck split ended.
-    set(render, "filterMode", "listed")
+    GC.SellState.filterMode = "listed"
     render()
     rows = upvalue(render, "rows")
     local listedPosition
@@ -2398,7 +2394,7 @@ describe("Sell widget geometry and manual cost", function()
     -- next click started another walk. That loop is why Post could not be pressed.
     assert.equal(0, refreshes)
     -- Asked as a click (refresh.priority), with no tab-wide queue behind it.
-    local walk = upvalue(GC.Sell.OnThrottleReady, "refresh")
+    local walk = GC.SellState.refresh
     assert.same({ 43 }, walk.priority)
     assert.same({}, walk.queue)
     assert.equal(0, protectedCalls)
@@ -2424,10 +2420,10 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     local container = upvalue(render, "container")
     container:Hide()
-    set(render, "positions", {
+    GC.SellState.positions = {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
-    })
+    }
     render()
     local rows = upvalue(render, "rows")
     assert.equal(0, #rows) -- nothing built while hidden
@@ -2452,10 +2448,10 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     local container = upvalue(render, "container")
     container:Show()
-    set(render, "positions", {
+    GC.SellState.positions = {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
-    })
+    }
     local rows = upvalue(render, "rows")
     assert.equal(0, #rows) -- nothing rendered by Attach itself
 
@@ -2600,11 +2596,11 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local render = upvalue(GC.Sell.Attach, "renderRows")
       -- Bag stock the Auction House has not answered on yet: on the deck, but not READY.
-      set(render, "positions", {
+      GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {} },
-      })
+      }
       local container = upvalue(render, "container")
       container.filterButtons.ready.scripts.OnClick()
       assert.is_true(container.emptyText:IsShown())
@@ -2622,11 +2618,11 @@ describe("Sell widget geometry and manual cost", function()
     it("says the OTHER deck holds everything rather than claiming nothing exists", function()
       local GC = load(620, { calls = {} })
       local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "positions", {
+      GC.SellState.positions = {
         { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {} },
-      })
+      }
       local container = upvalue(render, "container")
       container.deckButtons.listed.scripts.OnClick()
       assert.is_true(container.emptyText:IsShown())
@@ -2665,15 +2661,15 @@ describe("Sell widget geometry and manual cost", function()
   it("[S14] a filter chip takes the tab back to the deck it belongs to", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "filterMode", "queue")
+    GC.SellState.filterMode = "queue"
     local container = upvalue(render, "container")
     local chip = container.filterButtons.ready
     chip.scripts.OnClick(chip)
-    assert.equal("post", upvalue(render, "filterMode"))
-    set(render, "filterMode", "cancelqueue")
+    assert.equal("post", GC.SellState.filterMode)
+    GC.SellState.filterMode = "cancelqueue"
     -- The chips are disabled on the listed deck, so this is the cancel queue's own restore.
     chip.scripts.OnClick(chip)
-    assert.equal("listed", upvalue(render, "filterMode"))
+    assert.equal("listed", GC.SellState.filterMode)
   end)
 
   -- The row after the redesign: two figures, each with a second line that answers before the
@@ -2737,9 +2733,8 @@ describe("Sell widget geometry and manual cost", function()
     -- under the market wears its price in red -- that figure is the problem.
     it("lights the units under a lot worth cancelling, and reddens a price that is far too low", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
       local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
-      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1 } })
+      GC.SellState.cancelEntries = { { positionKey = lot.positionKey, auctionID = 1 } }
       local rows = topRows(GC, { lot }, "listed")
       local GOLD = GC.Theme.color.goldHi or GC.Theme.color.gold
       assert.equal("360 under you", rows[2].priceStand.text)
@@ -2747,7 +2742,7 @@ describe("Sell widget geometry and manual cost", function()
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)
 
-      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1, urgent = true } })
+      GC.SellState.cancelEntries = { { positionKey = lot.positionKey, auctionID = 1, urgent = true } }
       rows = topRows(GC, { lot }, "listed")
       local RED = GC.Theme.color.red
       assert.same({ RED[1], RED[2], RED[3], 1 }, rows[2].cells.price.color)
@@ -2795,9 +2790,8 @@ describe("Sell widget geometry and manual cost", function()
 
     it("tags a row the post queue left out with the reason, and a ready row with nothing", function()
       local GC = load(620, { calls = {} })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "queueSkipped", { { positionKey = "commodity:42", reason = "no_fresh_price" },
-        { positionKey = "commodity:43", reason = "below_breakeven" } })
+      GC.SellState.queueSkipped = { { positionKey = "commodity:42", reason = "no_fresh_price" },
+        { positionKey = "commodity:43", reason = "below_breakeven" } }
       local rows = topRows(GC, { stock(), stock({ positionKey = "commodity:43", itemID = 43 }),
         stock({ positionKey = "commodity:44", itemID = 44 }) })
       local WATCH = "|cff59b8e6no live price|r"
