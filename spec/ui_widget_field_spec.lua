@@ -1,4 +1,4 @@
-require("spec.spec_helper")
+local helper = require("spec.spec_helper")
 
 -- busted runs headless, with no WoW globals, so every spec builds its own widget doubles. Those
 -- doubles are repeatedly RICHER than the real widget, and each time that happens a green test
@@ -39,6 +39,7 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/BuyAddBox.lua",
     "GoldCap/UI/BuyVendorPanel.lua",
   }
+  for _, path in ipairs(helper.SELL_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
 
   -- Every field the widget doubles in spec/sell_widget_behavior_spec.lua and friends invent for
   -- their own bookkeeping. A real Frame/FontString/Button exposes none of them; each has a
@@ -58,7 +59,10 @@ describe("widget fields the real client actually has", function()
     local file = assert(io.open(path, "r"), path .. " is missing")
     local text = file:read("*a")
     file:close()
-    return stripComments(text)
+    -- GC.SellView.shown (and View.shown, the alias the Sell services use) is a function slot of the
+    -- view's hooks, not a widget field.
+    text = stripComments(text):gsub("SellView%.shown", "SellView.shownSlot"):gsub("View%.shown", "View.shownSlot")
+    return text
   end
 
   for _, path in ipairs(SOURCES) do

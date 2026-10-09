@@ -56,7 +56,7 @@ describe("Sell bulk price fill", function()
         Build = function() return positions end },
     }
     asked.sniper = GC.Sniper
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", {
       isReady = function() return true end, keyInfo = function() return { isCommodity = true } end,
       send = function(itemID) asked.searches = asked.searches or {}; asked.searches[#asked.searches + 1] = itemID end,

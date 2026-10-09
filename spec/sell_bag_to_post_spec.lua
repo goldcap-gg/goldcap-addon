@@ -107,7 +107,7 @@ describe("Sell tab, bags to Post", function()
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")

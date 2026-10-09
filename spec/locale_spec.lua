@@ -81,8 +81,10 @@ describe("locale layer", function()
     helper.loadModule("Locale/frFR.lua", fr)
     local translations = fr.Locales.frFR
     local keys = {}
-    for _, path in ipairs({ "GoldCap/UI/SellFrame.lua", "GoldCap/UI/SellViewModel.lua", "GoldCap/Core/SellPositions.lua",
-        "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua" }) do
+    local sellPaths = { "GoldCap/UI/SellFrame.lua", "GoldCap/UI/SellViewModel.lua", "GoldCap/Core/SellPositions.lua",
+      "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua" }
+    for _, path in ipairs(helper.SELL_FILES) do sellPaths[#sellPaths + 1] = "GoldCap/" .. path end
+    for _, path in ipairs(sellPaths) do
       local file = assert(io.open(path, "r"))
       local source = file:read("*a")
       file:close()

@@ -184,7 +184,7 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/SellPositions.lua", GC)
       helper.loadModule("Core/PostQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       GC.Acquisitions.Init({})
 
       root = region("Frame")
@@ -398,7 +398,7 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/PostQueue.lua", GC)
       helper.loadModule("Core/CancelQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       GC.Acquisitions.Init({})
       assert(GC.Acquisitions.RecordManual({ itemID = 23427, positionKey = "commodity:23427",
         itemName = "Sanguithorn Tea", quantity = 400, total = 4000000, acquiredAt = 900,

@@ -175,7 +175,7 @@ describe("Sell widget geometry and manual cost", function()
     -- out instead, and neither wants the real composition walk here.
     GC.SellPositions.Summary = function() return { invested = nil, projected = nil, profit = nil } end
     GC.SellPositions.Build = function() return {} end
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local root = region("Frame")
     root.HookScript = function(_, name, fn) root.scripts[name] = fn end
     root.status = region("FontString", root)

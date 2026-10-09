@@ -114,7 +114,7 @@ describe("Sell tab, the cancel queue control", function()
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("Core/CancelQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
     -- The cost basis that makes coverage COMPLETE and the repost advice computable: 400 units
     -- at 1g each, well under the 1g98s relist price.

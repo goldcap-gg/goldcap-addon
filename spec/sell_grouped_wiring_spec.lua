@@ -1,9 +1,7 @@
+local helper = require("spec.spec_helper")
 describe("Grouped Sell wiring", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   it("composes positions, remembers expansion by position key, and uses the grouped columns", function()

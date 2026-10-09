@@ -246,7 +246,7 @@ describe("WoW: Forever scan wiring", function()
     before_each(function()
       init = read("GoldCap/Core/Init.lua")
       sniper = read("GoldCap/UI/SniperFrame.lua")
-      sell = read("GoldCap/UI/SellFrame.lua")
+      sell = helper.sellSource()
     end)
 
     it("registers the dump event and the scan command only inside a Forever gate", function()

@@ -38,7 +38,7 @@ describe("Sell quote persistence across a reload", function()
         SellPositions = { Build = function() return {} end },
       }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       return GC
     end
 
@@ -135,7 +135,7 @@ describe("Sell quote persistence across a reload", function()
         },
       }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local driver = {
         isReady = function() return true end,
         keyInfo = keyInfo,
@@ -180,7 +180,7 @@ describe("Sell quote persistence across a reload", function()
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local stored = {
         [42] = { unit = 1500, at = now.value - 100 },
         [7] = { unit = 20, at = now.value - 5 },
@@ -195,7 +195,7 @@ describe("Sell quote persistence across a reload", function()
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
 
       local compose = upvalue(GC.Sell.SellableCount, "composePositions")

@@ -131,7 +131,7 @@ describe("Sell posting wiring", function()
   -- behaviour; this is the same static belt the sniper spec applies).
   it("loads cleanly and exposes the queue's public entry points", function()
     local GC = { Sell = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     assert.is_function(GC.Sell.Attach)
   end)
 end)

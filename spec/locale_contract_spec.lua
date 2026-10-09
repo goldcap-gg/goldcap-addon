@@ -92,7 +92,7 @@ describe("locale contract", function()
       end
       listing:close()
     end
-    scan("Core"); scan("UI"); scan("Data")
+    scan("Core"); scan("Services"); scan("UI"); scan("Data")
 
     for key, path in pairs(asked) do
       assert.is_not_nil(GC.Locales.enUS[key],
@@ -131,7 +131,7 @@ describe("locale contract", function()
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 
-    local listing = io.popen('find GoldCap/Core GoldCap/UI -name "*.lua"')
+    local listing = io.popen('find GoldCap/Core GoldCap/Services GoldCap/UI -name "*.lua"')
     local checked = 0
     for path in listing:lines() do
       local file = assert(io.open(path))

@@ -1,9 +1,7 @@
+local helper = require("spec.spec_helper")
 describe("Sell quote and action wiring", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   it("only derives rows from positions and keeps latest quotes display-only", function()

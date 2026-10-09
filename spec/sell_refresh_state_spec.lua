@@ -44,7 +44,7 @@ describe("Sell refresh state fence", function()
         Build = function() return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } } end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local driver = {
       isReady = function() return true end,
       keyInfo = keyInfo,

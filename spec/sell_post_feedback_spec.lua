@@ -137,7 +137,7 @@ describe("Sell tab, a Post says what it is doing", function()
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")

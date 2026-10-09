@@ -199,7 +199,7 @@ end
 local SOURCES = {}
 local function sources()
   if #SOURCES == 0 then
-    for _, dir in ipairs({ "Core", "UI" }) do
+    for _, dir in ipairs({ "Core", "Services", "UI" }) do
       for _, path in ipairs(luaFiles(dir)) do SOURCES[#SOURCES + 1] = shiftStrings(loadSource(path)) end
     end
   end
@@ -541,7 +541,7 @@ describe("glyph inventory", function()
 
   it("holds only glyphs the faces that draw them have", function()
     local files = {}
-    for _, dir in ipairs({ "Core", "UI", "Locale" }) do
+    for _, dir in ipairs({ "Core", "Services", "UI", "Locale" }) do
       for _, path in ipairs(luaFiles(dir)) do files[#files + 1] = path end
     end
     local problems, seen = {}, {}

@@ -37,9 +37,7 @@ describe("Sell positions", function()
   -- handed Build raw batches and did nothing at all in the client, because the client's own
   -- call site filters spent batches out before Build ever sees them.
   it("[wiring] the Sell tab actually supplies identity evidence to Build", function()
-    local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = file:read("*a")
-    file:close()
+    local text = helper.sellSource()
     assert.is_truthy(text:find("GC.Acquisitions.GetIdentityEvidence(scope)", 1, true))
     assert.is_truthy(text:find("identityEvidence = identityEvidence", 1, true))
   end)

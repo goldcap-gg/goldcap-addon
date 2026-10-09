@@ -96,7 +96,7 @@ describe("Sell protected action state", function()
     local calls, refreshed = 0, false
     _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "startQuoteRefreshFor", function() refreshed = true end)
     post({ position = position(), action = button() })
@@ -112,7 +112,7 @@ describe("Sell protected action state", function()
     }
     local GC = { Sell = {}, Sniper = { IsAHOpen = function() return false end },
       QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
     local post = handlers(GC)
     post({ position = position(), action = button() })
@@ -128,7 +128,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = 1 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -157,7 +157,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     -- Overrides setLiveBagState's own auto-primed cache entry with this test's own `location`
@@ -188,7 +188,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 5, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
@@ -215,7 +215,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 5, unitPrice = 200 } end,
     }, db = { settings = { sniper = { postDuration = 3 } } } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
@@ -240,7 +240,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 5, unitPrice = 200 } end,
     }, db = { settings = { sniper = { postDuration = 99 } } } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     primeLocation(post, "commodity:42", 42, 0, 1, 2, location)
@@ -260,7 +260,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     -- Stubbed directly, not through setLiveBagState, which would prime the cache from the same
     -- sample -- this test needs the cache to stay empty.
@@ -293,7 +293,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 5, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     -- Pinned at the paint's own bag/slot directly (not primeLocation, which would also rewrite
@@ -317,7 +317,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "item:42:100:7:0",
         scopeKey = "eu\1A-R\1item:42:100:7:0", itemID = 42, quantity = 3, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
     local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
@@ -339,7 +339,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     local bagState = { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
       itemID = 42, positionKey = "commodity:42" }
@@ -370,7 +370,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "item:42:100:7:0",
         scopeKey = "eu\1A-R\1item:42:100:7:0", itemID = 42, quantity = 3, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
     local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
@@ -393,7 +393,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     }, Acquisitions = { RecordPost = function(...) records[#records + 1] = { ... } end },
       Ledger = { Context = function() return { char = "A-R", region = "eu" } end } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
@@ -419,7 +419,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = 200 } end,
     }, Acquisitions = { RecordPost = function(...) records[#records + 1] = { ... } end },
       Ledger = { Context = function() return scope end } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Sell.Refresh = function() end
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
@@ -438,7 +438,7 @@ describe("Sell protected action state", function()
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
       BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "other", itemID = 42, quantity = 1, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -465,7 +465,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
@@ -498,7 +498,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
@@ -525,7 +525,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -545,7 +545,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     }, Acquisitions = { RecordPost = function() records = records + 1 end } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
@@ -568,7 +568,7 @@ describe("Sell protected action state", function()
           itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = fresh.unit }
       end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
@@ -585,7 +585,7 @@ describe("Sell protected action state", function()
       BuildRepostPlan = function(_, auctionID) return { positionKey = "commodity:42",
         scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
@@ -609,7 +609,7 @@ describe("Sell protected action state", function()
         { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
       } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     local p = position(); p.scopeKey = "mine"
@@ -626,7 +626,7 @@ describe("Sell protected action state", function()
         scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
       NormalizeOwnedLots = function() return {} end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(GC.Sell.OnOwnedAuctions, "onOwnedAuctionsReady", function() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
@@ -651,7 +651,7 @@ describe("Sell protected action state", function()
         { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
       } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
@@ -696,7 +696,7 @@ describe("Sell protected action state", function()
     -- The REAL BuildRepostPlan/NormalizeOwnedLots, not a stub: a double that just passes
     -- fresh.unit through would prove nothing about the guard this test exists to protect.
     GC = helper.loadModule("Core/SellPositions.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     local row = { position = overcutPosition(), action = button(), renderEntryID = "entry:lot:7" }
@@ -716,7 +716,7 @@ describe("Sell protected action state", function()
       BuildRepostPlan = function(_, auctionID, fresh) return { positionKey = "commodity:42",
         scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = fresh.unit } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
@@ -743,7 +743,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     local first = { itemID = 42, positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
       ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 220 } } }
@@ -787,7 +787,7 @@ describe("Sell protected action state", function()
           end,
         },
       }
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local _, repost = handlers(GC)
       set(repost, "composePositions", function() end)
       local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
@@ -818,7 +818,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     local p = position()
     p.ownedLots[2] = { auctionID = 8, quantity = 1, unitPrice = 200 }
@@ -846,7 +846,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local _, repost = handlers(GC)
     local p = position()
@@ -893,7 +893,7 @@ describe("Sell protected action state", function()
     }
     local quote = { unit = 200, at = 100 }
     GC.QuoteCache.Fresh = function() return quote end
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
@@ -942,7 +942,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
     setLiveBagState(post, function()
@@ -979,7 +979,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
@@ -1058,7 +1058,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
@@ -1171,7 +1171,7 @@ describe("Sell protected action state", function()
           end,
         },
       }
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local post = handlers(GC)
       set(post, "driver", { keyInfo = function() return { isCommodity = fixture.key == "commodity:42" } end })
       local p = position()
@@ -1193,7 +1193,7 @@ describe("Sell protected action state", function()
     }
     _G.C_Item = { GetDetailedItemLevelInfo = function() return 100 end }
     local GC = { Sell = {}, QuoteCache = {}, SellPositions = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     assert.equal(5, liveBagState(post)({ itemID = 42, positionKey = "commodity:42" }).exactQty)
     local normal = liveBagState(post)({ itemID = 42, positionKey = "item:42:100:7:0" })
@@ -1238,7 +1238,7 @@ describe("Sell protected action state", function()
         end,
       },
     }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
     set(post, "setStatus", function(text) status[#status + 1] = text end)
@@ -1268,7 +1268,7 @@ describe("Sell protected action state", function()
     }
     _G.C_Item = { GetDetailedItemLevelInfo = function() return 100 end }
     local GC = { Sell = {}, QuoteCache = {}, SellPositions = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     local state = liveBagState(post)({ itemID = 42, positionKey = "item:42:100:7:0" })
     assert.equal(2, state.exactQty)
@@ -1293,7 +1293,7 @@ describe("Sell protected action state", function()
       BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42",
         scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local post = handlers(GC)
     setLiveBagState(post, function()
       return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
@@ -1331,7 +1331,7 @@ describe("Sell protected action state", function()
         scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     }, Acquisitions = { RecordPost = function(...) records[#records + 1] = { ... } end },
       Ledger = { Context = function() return { char = "A-R", region = "eu" } end } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local post = handlers(GC)
     setLiveBagState(post, function()
@@ -1372,7 +1372,7 @@ describe("Sell protected action state", function()
         { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
       } end,
     } }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"

@@ -16,6 +16,9 @@ _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 --- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
 --- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
 helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua" }
+--- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
+--- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
+helper.SELL_FILES = { "Services/Sell/State.lua" }
 
 function helper.loadModule(relPath, GC)
   GC = GC or {}
@@ -59,6 +62,38 @@ helper.LOCALE_CODES = { "deDE", "enUS", "esES", "esMX", "frFR", "itIT", "koKR", 
 
 function helper.localeCodes()
   return helper.LOCALE_CODES
+end
+
+local function readFile(path)
+  local file = assert(io.open(path, "rb"))
+  local text = file:read("*a")
+  file:close()
+  return text
+end
+
+--- The Sell tab as the client loads it: its services, then UI/SellFrame.lua. Every spec that
+--- drives the tab loads it through here, so a file the services gain is loaded everywhere.
+function helper.loadSell(GC)
+  GC = GC or {}
+  for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end
+  return helper.loadModule("UI/SellFrame.lua", GC)
+end
+
+--- The Sell tab's source as one text, in load order: its services, then UI/SellFrame.lua. For a
+--- spec that checks the tab holds a piece of logic wherever that logic lives. A check on the
+--- click handlers' own bodies reads UI/SellFrame.lua, where they are.
+function helper.sellSource()
+  local parts = {}
+  for _, path in ipairs(helper.SELL_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
+  parts[#parts + 1] = readFile("GoldCap/UI/SellFrame.lua")
+  return table.concat(parts, "\n")
+end
+
+--- A top-level function's text, from its `header` line to the `end` that closes it at column 0.
+function helper.functionBody(text, header)
+  local start = assert(text:find(header, 1, true), "missing " .. header)
+  local stop = assert(text:find("\nend\n", start, true), "no column-0 end after " .. header)
+  return text:sub(start, stop + 4)
 end
 
 return helper

@@ -20,7 +20,7 @@ describe("Sell action help text", function()
 
   before_each(function()
     GC = { Sell = {} }
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
   end)
 
   local function helpBody(label)
