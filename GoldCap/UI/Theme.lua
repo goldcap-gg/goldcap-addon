@@ -86,7 +86,7 @@ local RAIL_RING = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.40 }
 local RAIL_GLOW = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.14 }
 local BADGE_TEXT = { 0.05, 0.05, 0.06 }
 
-function T.RailButton(parent, iconFile, labelText)
+function T.RailButton(parent, iconName, labelText)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(RAIL_BTN_W, RAIL_BTN_H)
   b:RegisterForClicks("LeftButtonUp")
@@ -100,7 +100,7 @@ function T.RailButton(parent, iconFile, labelText)
   b.ring:SetAllPoints()
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
-  b.icon:SetTexture(iconFile)
+  T.SetIcon(b.icon, iconName)
   b.icon:SetSize(20, 20)
   b.icon:SetPoint("TOP", 0, -8)
 
@@ -198,14 +198,14 @@ function T.Rail(parent)
 
   local buttons = {}
   local order = {
-    { key = "deals", icon = "icon_deals.png", label = "DEALS" },
-    { key = "sell", icon = "icon_sell.png", label = "SELL" },
-    { key = "sold", icon = "icon_sold.png", label = "SOLD" },
-    { key = "buy", icon = "icon_buy.png", label = "BUY" },
+    { key = "deals", icon = "deals", label = "DEALS" },
+    { key = "sell", icon = "sell", label = "SELL" },
+    { key = "sold", icon = "sold", label = "SOLD" },
+    { key = "buy", icon = "buy", label = "BUY" },
   }
   local prev = logo
   for i, item in ipairs(order) do
-    local b = T.RailButton(frame, T.MEDIA .. item.icon, item.label)
+    local b = T.RailButton(frame, item.icon, item.label)
     b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -LOGO_GAP or -T.pad.s)
     buttons[item.key] = b
     prev = b
@@ -218,10 +218,9 @@ function T.Rail(parent)
   gear:SetSize(28, 28)
   gear:SetPoint("BOTTOM", 0, 14)
   gear.icon = gear:CreateTexture(nil, "ARTWORK")
-  gear.icon:SetTexture(T.MEDIA .. "icon_gear.png")
+  T.SetIcon(gear.icon, "gear", T.color.fgDim)
   gear.icon:SetSize(17, 17)
   gear.icon:SetPoint("CENTER")
-  gear.icon:SetVertexColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], 1)
 
   -- Docked into the Auction House the host's portrait overhangs the rail's top-left corner;
   -- SetDocked pushes the logo (and the nav chain anchored to it) below it. The gear is

@@ -1083,7 +1083,7 @@ local function createBanner(parent)
   b.text:SetJustifyH("LEFT")
   setColor(b.text, Theme.color.fgMuted)
   b.icon = b.frame:CreateTexture(nil, "ARTWORK")
-  b.icon:SetTexture(Theme.MEDIA .. "icon_trend.png")
+  Theme.SetIcon(b.icon, "trend")
   b.icon:SetVertexColor(green[1], green[2], green[3], 1)
   b.icon:SetSize(SD.GLYPH + 2, SD.GLYPH + 2)
   b.icon:SetPoint("LEFT", b.frame, "LEFT", SD.BANNER_PAD_X, 0)
@@ -1114,7 +1114,7 @@ local function createControls(parent)
   end
   c.well = Theme.Card(parent, COLOR.tile, { 1, 1, 1, 0.08 }, true)
   c.glass = c.well:CreateTexture(nil, "ARTWORK")
-  c.glass:SetTexture(Theme.MEDIA .. "icon_search.png")
+  Theme.SetIcon(c.glass, "search")
   local dim = Theme.color.fgDim
   c.glass:SetVertexColor(dim[1], dim[2], dim[3], 1)
   c.glass:SetSize(SD.GLYPH, SD.GLYPH)
@@ -1172,7 +1172,7 @@ end
 local function createEmpty(parent)
   local e = { frame = Theme.Card(parent, COLOR.empty, { 1, 1, 1, 0.07 }, true) }
   e.icon = e.frame:CreateTexture(nil, "ARTWORK")
-  e.icon:SetTexture(Theme.MEDIA .. "icon_mail.png")
+  Theme.SetIcon(e.icon, "mail")
   local gold = Theme.color.goldHi
   e.icon:SetVertexColor(gold[1], gold[2], gold[3], 1)
   e.icon:SetSize(26, 26)

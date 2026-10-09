@@ -24,6 +24,7 @@ local function stubFrame()
   function f:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
   function f:SetColorTexture(...) self.colorTexture = { ... } end
   function f:SetTexture(file) self.textureFile = file end
+  function f:SetTexCoord(...) self.texCoord = { ... } end
   function f:SetTextureSliceMargins(l, t, r, b) self.slice = { l, t, r, b } end
   function f:SetVertexColor(...) self.vertex = { ... } end
   function f:SetBlendMode(mode) self.blend = mode end
@@ -50,8 +51,14 @@ describe("Theme.Rail navigation widgets", function()
     _G.CreateFrame = nil
   end)
 
+  it("RailButton: draws its icon from the atlas", function()
+    local b = GC.Theme.RailButton(stubFrame(), "sell", "SELL")
+    assert.equal(GC.Kit.Icons.file, b.icon.textureFile)
+    assert.same({ GC.Theme.IconCoords("sell") }, b.icon.texCoord)
+  end)
+
   it("RailButton: active disables the button and paints gold; inactive re-enables and dims", function()
-    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_deals.png", "DEALS")
+    local b = GC.Theme.RailButton(stubFrame(), "deals", "DEALS")
     b:SetActive(true)
     assert.is_false(b.enabled)          -- active view's button must not be clickable
     assert.is_true(b.bg.shown)
@@ -70,7 +77,7 @@ describe("Theme.Rail navigation widgets", function()
   end)
 
   it("RailButton: badge shows a count and hides on nil", function()
-    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sell.png", "SELL")
+    local b = GC.Theme.RailButton(stubFrame(), "sell", "SELL")
     assert.is_false(b.badge.shown)
     b:SetBadge(3)
     assert.is_true(b.badge.shown)
@@ -80,7 +87,7 @@ describe("Theme.Rail navigation widgets", function()
   end)
 
   it("RailButton: badge bg is its own badge texture (14px tall -- even plaque.png's margins would notch it)", function()
-    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sell.png", "SELL")
+    local b = GC.Theme.RailButton(stubFrame(), "sell", "SELL")
     assert.equal(GC.Theme.MEDIA .. "badge.png", b.badge.bg.textureFile)
     assert.same({ 6, 6, 6, 6 }, b.badge.bg.slice)
   end)
@@ -90,14 +97,14 @@ describe("Theme.Rail navigation widgets", function()
   -- font-scale slider extremes the pill's aspect ratio no longer matched its own width.
   it("RailButton: badge height scales with T.Scale() the same way its width already does", function()
     GC.Theme.SetScale(1.3)
-    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sell.png", "SELL")
+    local b = GC.Theme.RailButton(stubFrame(), "sell", "SELL")
     b:SetBadge(3)
     assert.equal(14 * 1.3, b.badge.height)
     GC.Theme.SetScale(1.0)
   end)
 
   it("RailButton: hover is the engine HIGHLIGHT layer on a mouse-enabled button", function()
-    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sold.png", "SOLD")
+    local b = GC.Theme.RailButton(stubFrame(), "sold", "SOLD")
     assert.is_true(b.mouseEnabled)
     assert.equal("HIGHLIGHT", b.highlightTexture.layer)
     assert.equal("ADD", b.highlightTexture.blend)

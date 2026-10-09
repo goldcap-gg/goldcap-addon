@@ -37,4 +37,23 @@ describe("kit media", function()
       assert.is_number(GC.Kit.Icons.index[name], name)
     end
   end)
+
+  it("names only icons the atlas has, wherever UI code asks for one by name", function()
+    local GC = helper.loadModule("UI/Kit/Icons.lua")
+    local problems = {}
+    local handle = assert(io.popen("ls GoldCap/UI/*.lua GoldCap/UI/Kit/*.lua"))
+    for path in handle:lines() do
+      local file = assert(io.open(path, "rb"))
+      local text = file:read("*a")
+      file:close()
+      for name in text:gmatch("SetIcon%([^,]+,%s*\"([%w]+)\"") do
+        if not GC.Kit.Icons.index[name] then problems[#problems + 1] = path .. ": " .. name end
+      end
+      for name in text:gmatch("icon%s*=%s*\"([%w]+)\"") do
+        if not GC.Kit.Icons.index[name] then problems[#problems + 1] = path .. ": " .. name end
+      end
+    end
+    handle:close()
+    assert.same({}, problems)
+  end)
 end)
