@@ -1253,4 +1253,15 @@ GC.Locales.enUS = {
     "Part of this cost is an estimate: reagents you did not buy are counted at their current auction house price",
   ["Vendor"] =
     "Vendor",
+  ["SELLING %d"] = "SELLING %d",
+  ["NOT SELLING %d"] = "NOT SELLING %d",
+  ["POST lists these"] = "POST lists these",
+  ["only their own Post lists these"] = "only their own Post lists these",
+  ["Selling"] = "Selling",
+  ["Not selling"] = "Not selling",
+  ["POST lists it, and so does the key for posting the next item."] = "POST lists it, and so does the key for posting the next item.",
+  ["Only this row's own Post lists it."] = "Only this row's own Post lists it.",
+  ["Marked for you: you bought it on DEALS."] = "Marked for you: you bought it on DEALS.",
+  ["Click to change."] = "Click to change.",
+  ["Mark what to sell with the circle"] = "Mark what to sell with the circle",
 }

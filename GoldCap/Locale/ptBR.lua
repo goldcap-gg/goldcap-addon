@@ -1264,4 +1264,15 @@ GC.Locales.ptBR = {
     "Parte deste custo é uma estimativa: os reagentes que você não comprou são contados pelo preço atual na casa de leilões",
   ["Vendor"] =
     "Vendedor",
+  ["SELLING %d"] = "VENDENDO %d",
+  ["NOT SELLING %d"] = "NÃO VENDENDO %d",
+  ["POST lists these"] = "ANUNCIAR anuncia estes",
+  ["only their own Post lists these"] = "só o próprio Anunciar anuncia estes",
+  ["Selling"] = "Vendendo",
+  ["Not selling"] = "Não vendendo",
+  ["POST lists it, and so does the key for posting the next item."] = "ANUNCIAR anuncia este item, assim como a tecla para anunciar o próximo.",
+  ["Only this row's own Post lists it."] = "Só o botão Anunciar desta linha anuncia este item.",
+  ["Marked for you: you bought it on DEALS."] = "Marcado para você: você comprou em DEALS.",
+  ["Click to change."] = "Clique para mudar.",
+  ["Mark what to sell with the circle"] = "Marque com o círculo o que quer vender",
 }

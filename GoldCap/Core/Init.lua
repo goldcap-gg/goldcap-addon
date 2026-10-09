@@ -46,6 +46,10 @@ GC.DEFAULTS = {
   -- the way back in. Same
   -- empty-table ApplyDefaults contract as `flips` above.
   sellQuotes = {},
+  -- positionKey -> true/false: the player's selling list, what the Sell tab's POST and the
+  -- post-next key list (Core/PostQueue.lua's Selling). Account-wide: an item sold on one character
+  -- is sold on all of them. Same empty-table ApplyDefaults contract as `flips` above.
+  sellMarks = {},
   -- Live observations: bounded facts about the book the client just saw, for the companion
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.

@@ -1269,4 +1269,15 @@ GC.Locales.esES = {
     "Parte de este coste es una estimación: los reactivos que no compraste se cuentan a su precio actual en la casa de subastas",
   ["Vendor"] =
     "Vendedor",
+  ["SELLING %d"] = "VENDO %d",
+  ["NOT SELLING %d"] = "NO VENDO %d",
+  ["POST lists these"] = "PUBLICAR los publica",
+  ["only their own Post lists these"] = "solo su propio Publicar los publica",
+  ["Selling"] = "Vendo",
+  ["Not selling"] = "No vendo",
+  ["POST lists it, and so does the key for posting the next item."] = "PUBLICAR lo publica, y también la tecla para publicar el siguiente objeto.",
+  ["Only this row's own Post lists it."] = "Solo el botón Publicar de esta fila lo publica.",
+  ["Marked for you: you bought it on DEALS."] = "Marcado automáticamente: lo compraste en DEALS.",
+  ["Click to change."] = "Haz clic para cambiar.",
+  ["Mark what to sell with the circle"] = "Marca con el círculo lo que quieres vender",
 }

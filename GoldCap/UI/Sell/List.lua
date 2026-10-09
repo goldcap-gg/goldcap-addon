@@ -160,10 +160,12 @@ end
 -- @localised-keys
 ROW.SECTION_TITLES = {
   undercut = "UNDERCUT %d", low = "PRICED TOO LOW %d", hold = "HOLDING %d",
+  selling = "SELLING %d", notSelling = "NOT SELLING %d",
 }
 -- @localised-keys
 ROW.SECTION_HINTS = {
   undercut = "worth cancelling", hold = "leave these alone",
+  selling = "POST lists these", notSelling = "only their own Post lists these",
 }
 -- The deck in section order, and which section each position fell into.
 function ROW.bySection(filtered)
@@ -174,6 +176,32 @@ function ROW.bySection(filtered)
       sectionOf[position] = section
     end
   end
+  return ordered, sectionOf
+end
+
+-- TO POST, once the player keeps a selling list (GC.Sell.IsSelling): what POST lists, then what
+-- only its own row's Post does, each in the order it came. Stock not on hand belongs to neither:
+-- it keeps its place at the end, where renderRows folds it.
+function ROW.bySelling(filtered)
+  local selling = { id = "selling", positions = {} }
+  local notSelling = { id = "notSelling", positions = {} }
+  local away = {}
+  for _, position in ipairs(filtered) do
+    if not position.unresolved and (position.bagQty or 0) == 0 and (position.listedQty or 0) == 0 then
+      away[#away + 1] = position
+    else
+      local section = GC.Sell.IsSelling(position) and selling or notSelling
+      section.positions[#section.positions + 1] = position
+    end
+  end
+  local ordered, sectionOf = {}, {}
+  for _, section in ipairs({ selling, notSelling }) do
+    for _, position in ipairs(section.positions) do
+      ordered[#ordered + 1] = position
+      sectionOf[position] = section
+    end
+  end
+  for _, position in ipairs(away) do ordered[#ordered + 1] = position end
   return ordered, sectionOf
 end
 
@@ -439,10 +467,17 @@ local function renderRows()
   -- onQueueClick sets "queue", which is the post one. Every path that can change the deck ends
   -- up here, so this is the one place that cannot be forgotten.
   local headerDeck = (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
-  if UI.container and UI.container.header and UI.container.headerDeck ~= headerDeck then
+  -- The player's selling list (GC.Sell._QueueOpts): nil until the saved data is loaded, and then
+  -- the posting deck marks every row and splits in two.
+  local sellingList = headerDeck == "post" and GC.Sell._QueueOpts().marks ~= nil
+  -- ITEM stands over the names, which the selling mark moves right on the posting deck.
+  local headerInset = ROW.ICON + 10 + (sellingList and ROW.MARK_W or 0)
+  local header = UI.container and UI.container.header
+  if header and (UI.container.headerDeck ~= headerDeck or header.itemInset ~= headerInset) then
     UI.container.headerDeck = headerDeck
-    paintHeaderText(UI.container.header, headerDeck)
-    layoutCells(UI.container.header)
+    header.itemInset = headerInset
+    paintHeaderText(header, headerDeck)
+    layoutCells(header)
   end
   local filtered
   if S.filterMode == "queue" then
@@ -483,7 +518,8 @@ local function renderRows()
   -- MY LOTS reads in three sections (SellViewModel.LotSections); the queue's own focus state
   -- keeps the queue's order, which is the point of it.
   local sectionOf
-  if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered) end
+  if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered)
+  elseif S.filterMode == "post" and sellingList then filtered, sectionOf = ROW.bySelling(filtered) end
   UI.Dock.UpdateSummary(filtered)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter
@@ -505,7 +541,10 @@ local function renderRows()
   -- chip can take the row away, and a panel describing a row that is not there shuts.
   local openPosition
   local function pushPosition(position)
-    entries[#entries + 1] = { kind = "position", position = position }
+    -- `selling` is the row's selling mark, true or false; nil where there is none to draw.
+    local selling
+    if sellingList and position.positionKey ~= nil then selling = GC.Sell.IsSelling(position) end
+    entries[#entries + 1] = { kind = "position", position = position, selling = selling }
     -- Cached here for every position this render pushes, not only an expanded one: the row's own
     -- Post button (Row.PaintPosition in UI/Sell/Row.lua, "bagQty > 0 and not onListed") is live
     -- whether or not the drawer is open, and onPostClick never builds an ItemLocation itself --

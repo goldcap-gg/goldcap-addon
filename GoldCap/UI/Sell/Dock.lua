@@ -187,7 +187,8 @@ paintQueueButton = function()
   elseif not head then
     button:SetLabel(GC.L["NOTHING TO POST"])
     button:Disable()
-    if label then label:SetText("") end
+    -- Items in the bags, none of them on the selling list: say how to put one on it.
+    if label then label:SetText((S.notSelling or 0) > 0 and GC.L["Mark what to sell with the circle"] or "") end
   else
     button:SetLabel((GC.L["POST %d"]):format(#S.queueEntries))
     button:Enable()

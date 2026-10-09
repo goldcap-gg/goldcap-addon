@@ -47,6 +47,9 @@ GC.SellState = {
   -- before (see the price-ladder and market-value postmortems). Both default to {} so the toolbar
   -- control has something sane to paint before the very first compose ever runs.
   queueEntries = {}, queueSkipped = {},
+  -- How many positions in the bags the player has not marked for selling: out of the queue, and
+  -- named by the dock when nothing is left in it (Core/PostQueue.lua's Build).
+  notSelling = 0,
   -- The cancel twin, same statelessness contract: rebuilt from the positions on every compose,
   -- never kept as its own list with an index. A confirmed cancel makes the lot vanish from
   -- GetOwnedAuctions, so the entry drops out of the very next build on its own.
@@ -232,11 +235,16 @@ function GC.Sell._QuoteItemKey(id)
   return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
 end
 
--- WoW: Forever: the POST queue holds back what a vendor pays at least as much for (see
--- Core/PostQueue.lua's below_vendor). nil anywhere else, so retail's queue is built exactly as
--- before. Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
+-- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
+-- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
+-- holds back what a vendor pays at least as much for (below_vendor). Before the saved data is
+-- loaded there are no marks and no list: every position is queued, as before the selling list.
+-- Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
 function GC.Sell._QueueOpts()
-  if not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()) then return nil end
-  if not (GC.ForeverValue and GC.ForeverValue.VendorUnit) then return nil end
-  return { vendorUnit = GC.ForeverValue.VendorUnit }
+  local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil }
+  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
+      and GC.ForeverValue and GC.ForeverValue.VendorUnit then
+    opts.vendorUnit = GC.ForeverValue.VendorUnit
+  end
+  return opts
 end

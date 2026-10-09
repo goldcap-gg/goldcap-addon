@@ -1199,4 +1199,15 @@ GC.Locales.koKR = {
     "이 비용의 일부는 추정치입니다. 직접 구매하지 않은 재료는 현재 경매장 가격으로 계산됩니다",
   ["Vendor"] =
     "상점",
+  ["SELLING %d"] = "판매 %d",
+  ["NOT SELLING %d"] = "판매 안 함 %d",
+  ["POST lists these"] = "등록 버튼으로 등록",
+  ["only their own Post lists these"] = "각 줄의 등록으로만 등록",
+  ["Selling"] = "판매",
+  ["Not selling"] = "판매 안 함",
+  ["POST lists it, and so does the key for posting the next item."] = "등록 버튼과 다음 아이템 등록 단축키로 등록됩니다.",
+  ["Only this row's own Post lists it."] = "이 줄의 등록 버튼으로만 등록됩니다.",
+  ["Marked for you: you bought it on DEALS."] = "자동 표시: DEALS에서 구입한 아이템입니다.",
+  ["Click to change."] = "클릭하여 변경합니다.",
+  ["Mark what to sell with the circle"] = "판매할 아이템을 동그라미로 표시하세요",
 }

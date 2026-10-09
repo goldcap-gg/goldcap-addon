@@ -2,6 +2,12 @@
 
 ## 0.19.0 (unreleased)
 
+- The Sell tab keeps a selling list. A circle before each item says whether POST and the key for
+  posting the next item list it: gold when they do, empty when only the item's own Post button
+  does. Click the circle to change it, and GoldCap remembers your choice on every character. What
+  you bought on DEALS starts on the list; everything else starts off it, so POST no longer lists
+  your farmed or crafted goods until you mark them. The list reads in two parts, SELLING and NOT
+  SELLING.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

@@ -420,6 +420,65 @@ describe("PostQueue", function()
     assert.equal(1, #entries)
   end)
 
+  -- The selling list (owner, 2026-10-09): POST and the post-next key list only what the player
+  -- marked for selling. What Deals bought and the player still holds counts as marked until they
+  -- say otherwise; the player's own choice, either way, wins and is kept per position.
+  describe("the selling list", function()
+    local function twoOres(acquisitions)
+      local quotes = {}
+      setQuote(quotes, 1, 10000, 10)
+      setQuote(quotes, 2, 10000, 10)
+      return build({
+        acquisitions = acquisitions,
+        bagStock = { stock("commodity:1", 1, "Ore One", 4), stock("commodity:2", 2, "Ore Two", 4) },
+        quotes = quotes,
+      })
+    end
+
+    it("lists only what is marked, and holds back nothing on behalf of the rest", function()
+      local entries, skipped, notSelling = GC.PostQueue.Build(twoOres(), { marks = { ["commodity:1"] = true } })
+      assert.equal(1, #entries)
+      assert.equal("commodity:1", entries[1].positionKey)
+      assert.same({}, skipped)
+      assert.equal(1, notSelling)
+    end)
+
+    it("says nothing about an unmarked item it could not have posted anyway", function()
+      local positions = build({ bagStock = { stock("commodity:1", 1, "Ore One", 4) } }) -- no quote
+      local entries, skipped, notSelling = GC.PostQueue.Build(positions, { marks = {} })
+      assert.same({}, entries)
+      assert.same({}, skipped)
+      assert.equal(1, notSelling)
+    end)
+
+    it("counts what Deals bought as selling, until the player unmarks it", function()
+      -- Bought at half the market, so posting it is no loss.
+      local positions = twoOres({ batch("b1", "goldcap", 4, 20000, 5, 1, "commodity:1") })
+      assert.is_true(GC.PostQueue.Selling(findPosition(positions, "commodity:1"), {}))
+      local entries = GC.PostQueue.Build(positions, { marks = {} })
+      assert.equal(1, #entries)
+      assert.equal("commodity:1", entries[1].positionKey)
+      entries = GC.PostQueue.Build(positions, { marks = { ["commodity:1"] = false } })
+      assert.same({}, entries)
+    end)
+
+    -- The BUY tab's runs are shopping lists -- what a craft still needs -- and a merchant sells
+    -- thread as readily as anything: selling those by default would post the reagents a player
+    -- just bought to use. Only the Deals board's purchases are bought to sell again.
+    it("does not count the BUY tab's shopping, a vendor's goods or an outside purchase as selling", function()
+      for _, source in ipairs({ "goldcap_buy", "vendor", "auction_house", "manual" }) do
+        local positions = twoOres({ batch("b1", source, 4, 40000, 5, 1, "commodity:1") })
+        assert.is_false(GC.PostQueue.Selling(findPosition(positions, "commodity:1"), {}), source)
+      end
+    end)
+
+    it("keeps a choice per position: one caged pet marked is not every pet", function()
+      local marks = { ["item:82800:25:0:1155"] = true }
+      assert.is_true(GC.PostQueue.Selling({ positionKey = "item:82800:25:0:1155", itemID = 82800 }, marks))
+      assert.is_false(GC.PostQueue.Selling({ positionKey = "item:82800:25:0:2526", itemID = 82800 }, marks))
+    end)
+  end)
+
   it("is unchanged without options", function()
     local quotes = {}
     setQuote(quotes, 1, 51, 10)

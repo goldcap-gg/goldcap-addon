@@ -1268,4 +1268,15 @@ GC.Locales.frFR = {
     "Une partie de ce coût est une estimation : les composants que vous n'avez pas achetés sont comptés à leur prix actuel à l'hôtel des ventes",
   ["Vendor"] =
     "Marchand",
+  ["SELLING %d"] = "EN VENTE %d",
+  ["NOT SELLING %d"] = "PAS EN VENTE %d",
+  ["POST lists these"] = "VENDRE les met en vente",
+  ["only their own Post lists these"] = "seul leur propre Vendre les met en vente",
+  ["Selling"] = "En vente",
+  ["Not selling"] = "Pas en vente",
+  ["POST lists it, and so does the key for posting the next item."] = "VENDRE le met en vente, de même que la touche pour l'objet suivant.",
+  ["Only this row's own Post lists it."] = "Seul le bouton Vendre de cette ligne le met en vente.",
+  ["Marked for you: you bought it on DEALS."] = "Marqué pour toi : tu l'as acheté dans DEALS.",
+  ["Click to change."] = "Clique pour changer.",
+  ["Mark what to sell with the circle"] = "Marque d'un cercle ce que tu veux vendre",
 }

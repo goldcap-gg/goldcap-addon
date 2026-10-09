@@ -1341,4 +1341,15 @@ GC.Locales.ukUA = {
     "Частина цієї вартості — оцінка: реагенти, яких ви не купували, пораховано за їхньою поточною ціною на аукціоні",
   ["Vendor"] =
     "Торговець",
+  ["SELLING %d"] = "ПРОДАЮ %d",
+  ["NOT SELLING %d"] = "НЕ ПРОДАЮ %d",
+  ["POST lists these"] = "їх виставляє ВИСТАВИТИ",
+  ["only their own Post lists these"] = "лише своя кнопка «Виставити»",
+  ["Selling"] = "Продаю",
+  ["Not selling"] = "Не продаю",
+  ["POST lists it, and so does the key for posting the next item."] = "Виставляють ВИСТАВИТИ і клавіша для наступного предмета.",
+  ["Only this row's own Post lists it."] = "Виставить лише кнопка «Виставити» в цьому рядку.",
+  ["Marked for you: you bought it on DEALS."] = "Позначено саме: ви купили це на вкладці DEALS.",
+  ["Click to change."] = "Клацніть, щоб змінити.",
+  ["Mark what to sell with the circle"] = "Позначте кружком, що продавати",
 }

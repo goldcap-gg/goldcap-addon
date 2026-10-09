@@ -99,6 +99,8 @@ UI.INSP = { W = 340, GAP = 28, HEAD_H = 58, SCROLL_GUTTER = 26, PAD = 8, DOCK_MI
 UI.ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
 -- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
 UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
+-- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
+UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a

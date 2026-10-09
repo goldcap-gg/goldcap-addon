@@ -61,6 +61,23 @@ rowTag = function(position, reason, notOnHand)
 end
 end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 allows 200)
 
+-- The selling mark's tooltip (Row.CreateRow): what the mark means for this row, why it is marked
+-- when the player never chose (Deals bought it), and that a click changes it.
+function ROW.markTooltip(owner, row)
+  if not GameTooltip then return end
+  local selling, position = row.markSelling == true, row.position
+  GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
+  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), 1, 0.82, 0)
+  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["POST lists it, and so does the key for posting the next item."]
+    or GC.L["Only this row's own Post lists it."]), 0.85, 0.85, 0.85, true)
+  local marks = GC.Sell._QueueOpts().marks
+  if selling and position and type(marks) == "table" and marks[position.positionKey] == nil then
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Marked for you: you bought it on DEALS."]), 0.85, 0.85, 0.85, true)
+  end
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Click to change."]), 0.6, 0.6, 0.6)
+  GameTooltip:Show()
+end
+
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
 -- posting deck keeps its plain count beside the bags'.
 function ROW.listedText(position, listedQty, onListed)
@@ -182,6 +199,29 @@ local function createRow(parent)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
+  -- The selling mark, before the icon on the posting deck (Row.Style shows it): a gold coin in a
+  -- ring when POST and the post-next key list this item, an empty ring when only the row's own
+  -- Post does. A click is the player's choice for the position, kept across sessions
+  -- (GC.Sell.SetSelling) -- a click of its own, never on the way to a post. A button of its own,
+  -- so the row's item tooltip stays the row's.
+  row.mark = CreateFrame("Button", nil, row)
+  row.mark:SetSize(ROW.MARK, ROW.MARK)
+  row.mark:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.mark.ring = row.mark:CreateTexture(nil, "ARTWORK")
+  row.mark.ring:SetTexture(Theme.MEDIA .. "badge_ring.png")
+  row.mark.ring:SetSize(12, 12)
+  row.mark.ring:SetPoint("CENTER")
+  row.mark.coin = row.mark:CreateTexture(nil, "OVERLAY")
+  row.mark.coin:SetTexture(Theme.MEDIA .. "badge.png")
+  row.mark.coin:SetSize(8, 8)
+  row.mark.coin:SetPoint("CENTER")
+  row.mark:SetScript("OnClick", function()
+    local key = row.position and row.position.positionKey
+    if key then GC.Sell.SetSelling(key, not row.markSelling) end
+  end)
+  row.mark:SetScript("OnEnter", function(self) ROW.markTooltip(self, row) end)
+  row.mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  row.mark:Hide()
   row:SetScript("OnEnter", function(self)
     self.goldcapVariant = nil
     -- The list's rows are what a hover picks between; a wash over the panel's twelve-slot
@@ -777,6 +817,11 @@ function Row.Style(row, entry, listIndex)
   if entry.kind ~= "drawer" then
     UI.Book.PutAway(row)
   end
+  -- The selling mark is a position's on the posting deck alone (renderRows sets entry.selling).
+  if entry.kind ~= "position" or entry.selling == nil then
+    row.markSelling = nil
+    row.mark:Hide()
+  end
   -- The second lines belong to a position alone; a pooled row that was one last render
   -- must not keep its queue marks under a lot or a batch.
   local twoLine = entry.kind == "position"
@@ -803,7 +848,20 @@ function Row.Style(row, entry, listIndex)
     -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
     -- unconditional 26 left the name floating in a blank gap for a row with no
     -- resolvable icon.
-    row.itemInset = icon and (ROW.ICON + 10) or 0
+    -- The selling mark, where the deck has one: the icon and the names make room for it.
+    local markW = entry.selling ~= nil and ROW.MARK_W or 0
+    if entry.selling ~= nil then
+      row.markSelling = entry.selling
+      local ring = entry.selling and Theme.color.gold or Theme.color.fgDim
+      row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], entry.selling and 0.9 or 0.6)
+      local coin = Theme.color.gold
+      row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
+      if entry.selling then row.mark.coin:Show() else row.mark.coin:Hide() end
+      row.mark:Show()
+    end
+    row.icon:ClearAllPoints()
+    row.icon:SetPoint("LEFT", row, "LEFT", 4 + markW, 0)
+    row.itemInset = (icon and (ROW.ICON + 10) or 0) + markW
     if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
   elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
       or entry.kind == "waitItem" then

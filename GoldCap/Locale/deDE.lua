@@ -1267,4 +1267,15 @@ GC.Locales.deDE = {
     "Ein Teil dieser Kosten ist eine Schätzung: Reagenzien, die du nicht gekauft hast, werden zu ihrem aktuellen Auktionshauspreis gerechnet",
   ["Vendor"] =
     "Händler",
+  ["SELLING %d"] = "VERKAUFE %d",
+  ["NOT SELLING %d"] = "VERKAUFE NICHT %d",
+  ["POST lists these"] = "EINSTELLEN stellt diese ein",
+  ["only their own Post lists these"] = "nur ihr eigenes Einstellen stellt diese ein",
+  ["Selling"] = "Verkaufe",
+  ["Not selling"] = "Verkaufe nicht",
+  ["POST lists it, and so does the key for posting the next item."] = "EINSTELLEN stellt es ein, ebenso die Taste für den nächsten Gegenstand.",
+  ["Only this row's own Post lists it."] = "Nur „Einstellen“ in dieser Zeile stellt es ein.",
+  ["Marked for you: you bought it on DEALS."] = "Für dich markiert: du hast es unter DEALS gekauft.",
+  ["Click to change."] = "Klicken zum Ändern.",
+  ["Mark what to sell with the circle"] = "Markiere mit dem Kreis, was du verkaufen willst",
 }

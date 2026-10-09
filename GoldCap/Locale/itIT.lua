@@ -1266,4 +1266,15 @@ GC.Locales.itIT = {
     "Parte di questo costo è una stima: i reagenti che non hai comprato sono contati al loro prezzo attuale alla casa d'aste",
   ["Vendor"] =
     "Venditore",
+  ["SELLING %d"] = "IN VENDITA %d",
+  ["NOT SELLING %d"] = "NON IN VENDITA %d",
+  ["POST lists these"] = "VENDI li mette in vendita",
+  ["only their own Post lists these"] = "solo il loro Vendi li mette in vendita",
+  ["Selling"] = "In vendita",
+  ["Not selling"] = "Non in vendita",
+  ["POST lists it, and so does the key for posting the next item."] = "VENDI lo mette in vendita, e così il tasto per l'oggetto successivo.",
+  ["Only this row's own Post lists it."] = "Solo il pulsante Vendi di questa riga lo mette in vendita.",
+  ["Marked for you: you bought it on DEALS."] = "Segnato per te: l'hai comprato in DEALS.",
+  ["Click to change."] = "Clicca per cambiare.",
+  ["Mark what to sell with the circle"] = "Segna con il cerchio cosa vuoi vendere",
 }

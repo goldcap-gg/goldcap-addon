@@ -1340,4 +1340,15 @@ GC.Locales.ruRU = {
     "Часть этой стоимости — оценка: реагенты, которые вы не покупали, посчитаны по их текущей цене на аукционе",
   ["Vendor"] =
     "Торговец",
+  ["SELLING %d"] = "ПРОДАЮ %d",
+  ["NOT SELLING %d"] = "НЕ ПРОДАЮ %d",
+  ["POST lists these"] = "их выставляет ВЫСТАВИТЬ",
+  ["only their own Post lists these"] = "только своя кнопка «Выставить»",
+  ["Selling"] = "Продаю",
+  ["Not selling"] = "Не продаю",
+  ["POST lists it, and so does the key for posting the next item."] = "Выставляют ВЫСТАВИТЬ и клавиша для следующего предмета.",
+  ["Only this row's own Post lists it."] = "Выставит только кнопка «Выставить» в этой строке.",
+  ["Marked for you: you bought it on DEALS."] = "Отмечено само: вы купили это на вкладке DEALS.",
+  ["Click to change."] = "Щёлкните, чтобы изменить.",
+  ["Mark what to sell with the circle"] = "Отметьте кружком, что продавать",
 }

@@ -115,18 +115,7 @@ function Compose.Positions(skipPaint)
     if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
   end
   sellableCount = sellable
-  -- Rebuilt from THESE positions, every time -- never kept as a separate stateful list. See
-  -- State.lua's queueEntries/queueSkipped declaration for why. Guarded for GC.PostQueue
-  -- being absent: every real load carries Core/PostQueue.lua (GoldCap.toc), but a handful of
-  -- older fixtures in this spec suite load the Sell view (helper.loadSell) without it, and a missing queue
-  -- module must degrade to "nothing queued," never a crash.
-  if GC.PostQueue and GC.PostQueue.Build then
-    S.queueEntries, S.queueSkipped = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
-  else
-    S.queueEntries, S.queueSkipped = {}, {}
-  end
-  GC.Sell._HoldLateInQueue()
-  View.paintQueue()
+  Compose.Queue()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
     S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions)
@@ -141,6 +130,41 @@ function Compose.Positions(skipPaint)
   -- own two buttons. So it sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is
   -- what made a fixed bag-stock bug look like it was still broken, twice, to two different readers.
   if not skipPaint then View.paintDeck() end
+end
+
+-- The posting queue, rebuilt from THESE positions every time -- never kept as a separate stateful
+-- list (see State.lua's queueEntries/queueSkipped declaration for why) -- and from the player's
+-- selling list. Its own function so a click on a row's selling mark can rebuild it without a
+-- whole compose (a six-bag scan and every purchase record): a mark changes which positions are
+-- queued, not the positions. Guarded for GC.PostQueue being absent: every real load carries
+-- Core/PostQueue.lua (GoldCap.toc), but a handful of older fixtures in this spec suite load the
+-- Sell view (helper.loadSell) without it, and a missing queue module must degrade to "nothing
+-- queued," never a crash.
+function Compose.Queue()
+  if GC.PostQueue and GC.PostQueue.Build then
+    S.queueEntries, S.queueSkipped, S.notSelling = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
+  else
+    S.queueEntries, S.queueSkipped, S.notSelling = {}, {}, 0
+  end
+  GC.Sell._HoldLateInQueue()
+  View.paintQueue()
+end
+
+--- The player's click on a row's selling mark (UI/Sell/Row.lua): kept for the position in the saved
+-- data, for every character, then the queue rebuilt and the list drawn again. Its own click,
+-- never on the way to a post.
+function GC.Sell.SetSelling(positionKey, selling)
+  if type(positionKey) ~= "string" or positionKey == "" or type(GC.db) ~= "table" then return end
+  GC.db.sellMarks = GC.db.sellMarks or {}
+  GC.db.sellMarks[positionKey] = selling == true
+  Compose.Queue()
+  View.render()
+end
+
+--- Is this position on the player's selling list (Core/PostQueue.lua's Selling, over the saved
+-- marks)? For the row's mark and the list's two sections.
+function GC.Sell.IsSelling(position)
+  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, GC.Sell._QueueOpts().marks)
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

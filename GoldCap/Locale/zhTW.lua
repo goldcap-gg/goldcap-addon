@@ -1171,4 +1171,15 @@ GC.Locales.zhTW = {
     "此成本的一部分是估算值：你沒有購買的材料按其目前拍賣場價格計算",
   ["Vendor"] =
     "商人",
+  ["SELLING %d"] = "出售 %d",
+  ["NOT SELLING %d"] = "不出售 %d",
+  ["POST lists these"] = "上架按鈕會上架這些",
+  ["only their own Post lists these"] = "只有各自的上架按鈕會上架",
+  ["Selling"] = "出售",
+  ["Not selling"] = "不出售",
+  ["POST lists it, and so does the key for posting the next item."] = "上架按鈕和上架下一個道具的按鍵都會上架它。",
+  ["Only this row's own Post lists it."] = "只有這一列的上架按鈕會上架它。",
+  ["Marked for you: you bought it on DEALS."] = "已自動標記：你在 DEALS 買入了它。",
+  ["Click to change."] = "點擊以變更。",
+  ["Mark what to sell with the circle"] = "用圓圈標記要出售的道具",
 }

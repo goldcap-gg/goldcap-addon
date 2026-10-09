@@ -234,6 +234,98 @@ describe("Sell tab, the posting queue control", function()
   -- addon-v0.15.3 did (retail drift audit F1). These pin the retail passport explicitly, and the
   -- WoW: Forever split -- where the press that has to render first renders only, and the next
   -- press posts (final review C1).
+  -- The selling list (owner, 2026-10-09): POST and the post-next key list only what the player
+  -- marked; a row's mark is the choice, kept in the saved data; TO POST reads in two sections.
+  describe("the selling list", function()
+    before_each(function() GC.db = { sellMarks = {} } end)
+
+    local function rowOf(positionKey)
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row.shown and row.kind == "position" and row.position.positionKey == positionKey then return row end
+      end
+    end
+
+    -- What the list draws, top to bottom: a heading's words, or a position's key.
+    local function drawn()
+      local out = {}
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row.shown and row.kind == "section" then out[#out + 1] = row.sectionLabel.text
+        elseif row.shown and row.kind == "position" then out[#out + 1] = row.position.positionKey end
+      end
+      return out
+    end
+
+    it("posts nothing the player has not marked, and says how to mark it", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      assert.is_false(container.queueButton.enabled)
+      assert.matches("NOTHING", container.queueButton.label)
+      assert.equal("Mark what to sell with the circle", container.queueLabel.text)
+    end)
+
+    it("puts an item on the list from its row's mark, keeps the choice, and takes it off again", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      local row = rowOf("commodity:23427")
+      assert.is_true(row.mark.shown)
+      assert.is_false(row.mark.coin.shown)
+
+      row.mark.scripts.OnClick(row.mark)
+      assert.is_true(GC.db.sellMarks["commodity:23427"])
+      assert.equal("POST 1", container.queueButton.label)
+      assert.is_true(rowOf("commodity:23427").mark.coin.shown)
+
+      row = rowOf("commodity:23427")
+      row.mark.scripts.OnClick(row.mark)
+      assert.is_false(GC.db.sellMarks["commodity:23427"])
+      assert.matches("NOTHING", container.queueButton.label)
+    end)
+
+    it("reads in two sections: what POST lists, then what only its own Post does", function()
+      GC.db.sellMarks["commodity:99001"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      local list = drawn()
+      assert.equal(4, #list)
+      assert.matches("^SELLING 1", list[1])
+      assert.equal("commodity:99001", list[2])
+      assert.matches("^NOT SELLING 1", list[3])
+      assert.equal("commodity:23427", list[4])
+    end)
+
+    it("counts what Deals bought as marked without a click, and says why", function()
+      GC.Acquisitions.Record({ source = "goldcap", itemID = 23427, positionKey = "commodity:23427",
+        itemName = "Eternium Ore", quantity = 246, total = 246 * 1000, acquiredAt = 900,
+        character = "Owner-Dentarg", region = "eu" })
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      assert.equal("POST 1", container.queueButton.label)
+      local lines = {}
+      _G.GameTooltip = { SetOwner = function() end, Show = function() end,
+        AddLine = function(_, text) lines[#lines + 1] = text end }
+      GC.Theme.TooltipAnchor = function() return "ANCHOR_RIGHT" end
+      local row = rowOf("commodity:23427")
+      assert.is_true(row.mark.coin.shown)
+      row.mark.scripts.OnEnter(row.mark)
+      assert.equal("Selling", lines[1])
+      assert.is_truthy(table.concat(lines, "\n"):find("you bought it on DEALS", 1, true))
+      _G.GameTooltip = nil
+    end)
+
+    it("draws no marks and no sections before the saved data is loaded, and lists everything as before", function()
+      GC.db = nil
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      compose()
+      render()
+      assert.equal("POST 1", container.queueButton.label)
+      assert.is_false(rowOf("commodity:23427").mark.shown)
+      for _, text in ipairs(drawn()) do assert.is_nil(text:find("SELLING", 1, true)) end
+    end)
+  end)
+
   describe("per game", function()
     local function passport(interface)
       helper.loadModule("Core/Game.lua", GC)
