@@ -90,7 +90,7 @@ describe("locale layer", function()
       local source = file:read("*a")
       file:close()
       for key in source:gmatch('GC%.L%["(.-)"%]') do keys[key] = true end
-      -- The queue's reasons, looked up by value (UI/SellFrame.lua's reason table).
+      -- The queue's reasons, looked up by value (UI/Sell/Row.lua's ROW_TAG_TEXT).
       for key in source:gmatch('= "([^"\n]-)",\n') do keys[key] = true end
     end
     local checked = 0

@@ -37,7 +37,8 @@ local PRICE_CHIP_IDS = { "goldcap", "match", "under", "market", "cost" }
 
 -- Whether the panel is open, and whether it has a column of its own. Hung on INSP rather than
 -- left as four more file-level locals: WoW's Lua 5.1 allows a chunk 200 of them, and
--- UI/SellFrame.lua is close enough to that for the client to refuse to load it (busted's newer Lua never says).
+-- UI/SellFrame.lua was close enough to that for the client to refuse to load it (busted's newer
+-- Lua never says).
 do
   local isOpen = false
   function INSP.docked()
@@ -53,9 +54,10 @@ do
   -- are re-anchored only when that changes whether the panel has a column of its own.
   function INSP.sync(open)
     isOpen = open
-    if UI.container.applyListGeometry and UI.container.listDocked ~= INSP.docked() then
-      UI.container.listDocked = INSP.docked()
-      UI.container.applyListGeometry()
+    local container = UI.container
+    if container.scroll and container.listDocked ~= INSP.docked() then
+      container.listDocked = INSP.docked()
+      UI.List.ApplyListGeometry()
     end
   end
 end
@@ -222,7 +224,7 @@ end
 
 Inspector.LayoutDetailRow = layoutDetailRow
 
--- The price control on every pooled row: createRow (UI/Sell/Row.lua from Task 9) calls this. Only
+-- The price control on every pooled row: createRow (UI/Sell/Row.lua) calls this. Only
 -- the panel's head shows it (INSP.paintHead); every other kind puts it away (Inspector.PutAway).
 function Inspector.Decorate(row)
   -- The price control. The one number on this screen that spends real gold was, until now, the

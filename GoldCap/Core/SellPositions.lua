@@ -275,7 +275,7 @@ end
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
-  -- `quoteKey` (UI/SellFrame.lua); anything else under its itemID, as ever.
+  -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
   local quoteID = position.quoteKey or position.itemID
   local fresh, display, age = quoteInfo(quotes, quoteID, now, quoteMaxAge)
   position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
@@ -303,7 +303,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- `exposureQty` above is left exactly as it was (listedQty alone once anything is listed, else
   -- trackedQty, plus pending) -- it feeds SellOutlook's queue-depth math and RepostAdvice/
   -- RecommendPost's `qty` argument below, both asking "how many units are moving through the
-  -- pipeline" (SellFrame.lua's uncostedQty/canSetCost already documents that this field stays
+  -- pipeline" (UI/Sell/CostDialog.lua's uncostedQty/canSetCost already documents that this field stays
   -- capped at listedQty on purpose and works around it with trackedQty; nothing here changes
   -- that fact). `heldQty` answers a different question -- "what did the units I am holding right
   -- now cost" -- and only the allocation, knownQty/knownCost and coverage below follow it.
@@ -439,7 +439,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- paidUnit is knownCost/knownQty, not knownCost/exposureQty: knownCost now covers heldQty
   -- (listed + bags), and knownQty equals heldQty exactly whenever coverage is COMPLETE (the
   -- guard both branches share), so this is the same per-unit figure COST/UNIT itself displays
-  -- (SellFrame.lua). Dividing by exposureQty here would price the FULL blended cost per the
+  -- (UI/Sell/Row.lua). Dividing by exposureQty here would price the FULL blended cost per the
   -- narrower listed-only quantity -- exactly the incoherence this fix exists to remove.
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
     position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.knownQty),
@@ -999,7 +999,7 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- branch's job above, on the modes that own it.
   if not chosen then
     local rec = position.postRecommendation
-    -- Through SilverUp, exactly as UI/SellFrame's effectivePostUnit renders it, so the two are
+    -- Through SilverUp, exactly as GC.SellUtil.effectivePostUnit (Services/Sell/State.lua) renders it, so the two are
     -- the same number by construction rather than by coincidence.
     local published = type(rec) == "table" and positive(rec.unit) and GC.Flips.SilverUp(rec.unit) or nil
     local floorGrid = GC.Flips.SilverDown(unit)
@@ -1020,7 +1020,7 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
 end
 
 -- Repost is a cancel-only click: this plan's `unitPrice` is never posted at anything. Its only
--- runtime reader is onRepostClick's second-click confirm guard (UI/SellFrame.lua), which
+-- runtime reader is onRepostClick's second-click confirm guard (UI/Sell/Dock.lua), which
 -- compares it against the RAW fresh quote the row armed on -- never against a raised number --
 -- so this must keep pricing at exactly the fresh quote. The actual relist happens later, once
 -- the cancelled units are back in the bags, through the ordinary Post path (BuildPostPlan

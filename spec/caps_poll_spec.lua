@@ -117,7 +117,7 @@ describe("Caps polling", function()
   end)
 
   -- Round 1. A search sent on top of an unanswered SearchForItemKeys takes its answer with it and
-  -- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game). With the caps polling
+  -- comes back empty itself (Services/Sell/Walk.lua's quote walk, seen in game). With the caps polling
   -- on the Deals boards, a keys batch is out there most of the time -- so no background search of
   -- ours goes out over one, whoever sent it, and no keys batch goes out over a search of ours.
   describe("never one search over another", function()
@@ -757,7 +757,7 @@ describe("Caps polling", function()
 
       -- Round 1: the Sell and BUY tabs run searches of their own (the pricing walk, BUY's quotes),
       -- and a search sent on top of an unanswered keys batch takes its answer and comes back empty
-      -- itself (UI/SellFrame.lua's advanceQuote, seen in game). The player's own tab wins.
+      -- itself (Services/Sell/Walk.lua's quote walk, seen in game). The player's own tab wins.
       for _, v in ipairs({ "sell", "buy" }) do
         it("stays quiet on the " .. v .. " tab, and asks again back on Deals", function()
           local GC = loadSniper()

@@ -1,5 +1,5 @@
 -- The Sell tab's post, cancel and removal: what each click checks and pins before the protected
--- call its handler makes (UI/SellFrame.lua's onPostClick and onRepostClick -- nothing here makes
+-- call its handler makes (UI/Sell/Dock.lua's onPostClick and onRepostClick -- nothing here makes
 -- one), the timeouts that give a row back, the answers that come late, and the auction house's
 -- created, error and queued events. The only widget it touches is the clicked row's own button,
 -- through the button's methods, and never on the way to a protected call. Moved from
@@ -14,7 +14,7 @@ local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.Sell
   GC.SellUtil.itemName
 
 -- The auction's listing duration: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration` argument
--- the two posting calls in onPostClick (UI/SellFrame.lua) take -- see Core/Init.lua's own comment
+-- the two posting calls in onPostClick (UI/Sell/Dock.lua) take -- see Core/Init.lua's own comment
 -- on settings.sniper.postDuration for the same mapping. Read fresh on every post rather than
 -- cached once, so a change in the settings panel takes effect on the very next click with no
 -- reload. Falls back to 2 (this addon's long-standing default) for a missing settings table, a
@@ -306,12 +306,12 @@ function Post.PreparePost(row)
     -- (lazily creates a Blizzard SpinnerTemplate frame -- mixin OnLoad the first time, and
     -- SpinnerMixin's OnShow every time after) -- moves after the call, beside _NotePost (final
     -- review C3): all three can run Blizzard or GoldCap Lua ahead of the protected call in
-    -- onPostClick (UI/SellFrame.lua), which is exactly what WoW: Forever's taint engine blocks on.
+    -- onPostClick (UI/Sell/Dock.lua), which is exactly what WoW: Forever's taint engine blocks on.
     row.postStage = "confirming"
     -- The confirming click gets its own full window. Sharing the first click's clock meant the
     -- time a player spent reading the confirmation came out of the time the server had to
     -- answer it -- see schedulePostTimeout. Armed BEFORE the call for the same reason the first
-    -- click arms it before posting: a call that raises aborts onPostClick (UI/SellFrame.lua), and
+    -- click arms it before posting: a call that raises aborts onPostClick (UI/Sell/Dock.lua), and
     -- the timeout is what recovers the row if that happens. C_Timer.After only registers a
     -- callback -- it does not read anything GoldCap-owned synchronously, so arming here is not a
     -- taint risk.
@@ -368,7 +368,7 @@ function Post.PreparePost(row)
   -- for a commodity, again inside Bags.ResolveLocation itself) -- see the comment above
   -- Bags.LiveState in Bags.lua for why building it in this click is exactly what WoW: Forever's
   -- taint engine
-  -- blocks ahead of the protected call in onPostClick (UI/SellFrame.lua).
+  -- blocks ahead of the protected call in onPostClick (UI/Sell/Dock.lua).
   local location = Bags.ResolveLocation(position)
   if not location then View.status(GC.L["No exact bag stack"]); return end
   S.postingRow = row
@@ -388,13 +388,13 @@ function Post.PreparePost(row)
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates
   -- a Blizzard SpinnerTemplate frame -- mixin OnLoad the first time, and SpinnerMixin's OnShow
   -- every time after) -- moves after the call, beside _NotePost (final review C3): all three can
-  -- run Blizzard or GoldCap Lua ahead of the protected call in onPostClick (UI/SellFrame.lua),
+  -- run Blizzard or GoldCap Lua ahead of the protected call in onPostClick (UI/Sell/Dock.lua),
   -- which is exactly what WoW: Forever's taint engine blocks on. The owner could not tell a
   -- pressed Post from a dead one when it only dimmed; it still says so, just a beat later, once
   -- the call is behind it.
   row.postStage = "posting"
   -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts onPostClick
-  -- (UI/SellFrame.lua), and armed after it the row and the dock stayed on "Posting…" until the
+  -- (UI/Sell/Dock.lua), and armed after it the row and the dock stayed on "Posting…" until the
   -- auction house closed, with every other Post answering "Finish the pending post first" (review
   -- I2). An answer that lands inside the call lets this go through Post.DisarmPost's token, like any
   -- other. C_Timer.After only registers a callback -- it does not read anything GoldCap-owned
@@ -466,7 +466,7 @@ function Post.PrepareCancel(row, auctionID)
     -- that used to run classifyBagItem -> C_AuctionHouse.IsSellItemValid on a bag location built
     -- fresh, right here, from the Blizzard mixin method cacheBagLocation's own comment (in Bags.lua,
     -- above Bags.LiveState) names -- for every unbound non-commodity bag stack, ahead of the protected
-    -- CancelAuction in onRepostClick (UI/SellFrame.lua). Owned.Classify's own
+    -- CancelAuction in onRepostClick (UI/Sell/Dock.lua). Owned.Classify's own
     -- GetItemKeyInfo call is a plain C API, not a mixin method.
     local freshLots = GC.SellPositions.NormalizeOwnedLots(
       Owned.Classify(C_AuctionHouse.GetOwnedAuctions() or {}), time())

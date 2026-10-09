@@ -483,7 +483,7 @@ describe("Sell positions", function()
       -- cost across both tranches -- not just the expensive listed 24.
       assert.equal(121931900, p.knownCost)
       assert.equal("COMPLETE", p.coverage)
-      -- 121931900 / 118 = 1033321 remainder 22 (floor, same rounding SellFrame.lua's COST/UNIT
+      -- 121931900 / 118 = 1033321 remainder 22 (floor, same rounding UI/Sell/Row.lua's COST/UNIT
       -- column already applies) -- the real blended per-unit cost, nowhere near the 1708800
       -- (170g88s) the incident showed by only ever costing the listed slice.
       assert.equal(1033321, math.floor(p.knownCost / p.knownQty))

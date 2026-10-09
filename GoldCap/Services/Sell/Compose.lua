@@ -112,7 +112,7 @@ function Compose.Positions(skipPaint)
   -- Rebuilt from THESE positions, every time -- never kept as a separate stateful list. See
   -- State.lua's queueEntries/queueSkipped declaration for why. Guarded for GC.PostQueue
   -- being absent: every real load carries Core/PostQueue.lua (GoldCap.toc), but a handful of
-  -- older fixtures in this spec suite load UI/SellFrame.lua without it, and a missing queue
+  -- older fixtures in this spec suite load the Sell view (helper.loadSell) without it, and a missing queue
   -- module must degrade to "nothing queued," never a crash.
   if GC.PostQueue and GC.PostQueue.Build then
     S.queueEntries, S.queueSkipped = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())

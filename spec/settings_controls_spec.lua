@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- Loads UI/SettingsFrame.lua standalone (like sell_widget_behavior_spec.lua loads
--- UI/SellFrame.lua) against a minimal fake Theme -- this spec is about the controls
+-- the Sell view) against a minimal fake Theme -- this spec is about the controls
 -- (pill toggle / segmented duration / slider thumb), not the panel layout Task 4 already
 -- covers via loadorder_spec.lua's real-Theme construction pass.
 describe("Settings controls", function()
@@ -11,7 +11,7 @@ describe("Settings controls", function()
   -- Same recording double shape as soldframe_spec.lua/sell_widget_behavior_spec.lua's own
   -- region() -- `.points`/`.scripts`/`.variant`/`.label` are bookkeeping the double alone
   -- defines; production code never reads them back (ui_widget_field_spec.lua's DOUBLE_ONLY
-  -- guard covers the same rule for SoldFrame/SellFrame).
+  -- guard covers the same rule for SoldFrame and the Sell view).
   local function region(kind, parent)
     local r = { __frame = true, kind = kind, parent = parent, shown = true, points = {},
                 scripts = {}, children = {} }

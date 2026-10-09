@@ -180,7 +180,7 @@ function T.Button(parent, variant, rounded)
   b.text:SetMaxLines(1)
 
   -- `b.label` is the contract every caller and every spec test double already assumed --
-  -- ACTION_HELP's tooltip lookup in UI/SellFrame.lua reads `self.label`, and every fake
+  -- ACTION_HELP's tooltip lookup in UI/Sell/Row.lua reads `self.label`, and every fake
   -- button in the test suite implements SetLabel by writing exactly this field. The real
   -- widget never did, so anything reading `.label` off a REAL button got nil forever; the
   -- fakes just made every test that depended on it look green. Set both: the FontString for

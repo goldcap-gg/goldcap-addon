@@ -69,7 +69,7 @@ end
 -- caller needing to know about the counter). Deliberately module-local, not persisted --
 -- "this session" means "since the addon loaded", the same window SavedVariables stays
 -- unflushed for (WoW only writes them to disk on /reload or logout), which is exactly the gap
--- UI/SellFrame.lua's pending-sync hint exists to explain. A dedupe-skipped mailbox re-scan
+-- the Sell tab's pending-sync hint exists to explain. A dedupe-skipped mailbox re-scan
 -- (Append's repeat-key UPDATE branch) must NOT bump this -- it isn't a new fact reaching the
 -- ledger, just the same invoice being re-read.
 local sessionEventCount = 0

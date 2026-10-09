@@ -123,10 +123,10 @@ UI/Sell/Frame.lua
 UI/Sell/Book.lua
 UI/Sell/Row.lua
 UI/Sell/Inspector.lua
+UI/Sell/List.lua
 UI/Sell/CostDialog.lua
 UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua
-UI/SellFrame.lua
 UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua

@@ -1,7 +1,7 @@
 local _, GC = ...
 
 -- BUY 2.0's price box: the player types the most one unit of a line may cost. A popup the addon's
--- own way (UI/SellFrame.lua's search well is the model for the box): a background, a strata above
+-- own way (UI/Sell/Toolbar.lua's search well is the model for the box): a background, a strata above
 -- the list it covers, and its own mouse, so a click aimed at it never falls through to a row.
 -- Parsing is GC.Util.ParseMoney's -- a bare number is gold, as in every other GoldCap box -- and the
 -- preview shows the amount in coins before Set, because "90" meaning 90 gold is exactly the
@@ -73,7 +73,7 @@ local function build()
   frame.title:SetJustifyH("LEFT")
   frame.title:SetWordWrap(true)
   frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", W.PAD, -W.PAD)
-  -- The well the box sits in, and the bare EditBox inside it (UI/SellFrame.lua's search).
+  -- The well the box sits in, and the bare EditBox inside it (UI/Sell/Toolbar.lua's search).
   local well = CreateFrame("Frame", nil, frame)
   well:SetSize(W.BOX_W, W.BOX_H)
   local wc = T.color.bg or T.color.panel

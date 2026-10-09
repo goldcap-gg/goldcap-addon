@@ -1,6 +1,6 @@
 -- What the Sell tab's services (GoldCap/Services/Sell) share, in the first of their files to load:
 -- GC.SellState, the state they and the screen read; GC.SellView,
--- what they ask of the screen, which UI/SellFrame.lua fills; and GC.SellUtil, the checks every one
+-- what they ask of the screen, which the view's files (UI/Sell/) fill; and GC.SellUtil, the checks every one
 -- of them makes on a number, a position and a pin.
 local _, GC = ...
 
@@ -105,18 +105,18 @@ GC.SellState = {
   -- was unlisted.
   emptyAnswers = {},
   -- Where every position's current ItemLocation is built and cached: at paint time (renderRows,
-  -- through its two call sites in UI/SellFrame.lua), never inside a click. WoW: Forever's taint
+  -- through its two call sites in UI/Sell/List.lua), never inside a click. WoW: Forever's taint
   -- engine blocks a protected auction house call once the same hardware click has run Blizzard's
   -- own Lua-side ItemLocation mixin code ahead of it -- whether or not the result is kept -- so
-  -- onPostClick in UI/SellFrame.lua never calls ItemLocation:CreateFromBagAndSlot, or
+  -- onPostClick in UI/Sell/Dock.lua never calls ItemLocation:CreateFromBagAndSlot, or
   -- GC.Sell._SlotKey (which does, for a non-commodity stack), itself. Mirrors Auctionator: it
   -- builds itemInfo.location when a bag item is picked, well before its own Post click
   -- (Source_ModernAH/Selling/Hooks.lua's SelectOwnItem), and the click only reads that stored field.
   bagLocationCache = {},
 }
 
--- What the services ask of the screen. UI/SellFrame.lua fills every slot when it loads; until it
--- has, and in a spec that loads the services alone, each does nothing and the tab reads as never
+-- What the services ask of the screen. The view's files (UI/Sell/) fill every slot when they load; until they
+-- have, and in a spec that loads the services alone, each does nothing and the tab reads as never
 -- built.
 local function nothing() end
 GC.SellView = {

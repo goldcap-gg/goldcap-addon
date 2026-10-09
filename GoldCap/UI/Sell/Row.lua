@@ -128,8 +128,8 @@ local function createRow(parent)
   -- rows are scannable by shape rather than by reading every name.
   -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 15 = half of
   -- the 30px effective fill (Theme.ROW_H 32 minus 2px); right inset is 2, NOT Deals' 26 -- this
-  -- container is already inset by CONTENT_RIGHT_GUTTER (see Attach in UI/SellFrame.lua) and the scrollbar hangs
-  -- outside in that gutter.
+  -- container is already inset by CONTENT_RIGHT_GUTTER (see GC.Sell.Attach in UI/Sell/Frame.lua) and the
+  -- scrollbar hangs outside in that gutter.
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
   row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
@@ -391,7 +391,6 @@ local function showRowAction(row, key, onClick)
   if onClick then row.action:SetScript("OnClick", onClick) end
   row.action:Show()
 end
-UI.Row.ShowRowAction = showRowAction
 Row.ShowRowAction = showRowAction
 
 -- A position in the list: its name and stock line, the deck's figures and their second lines, and

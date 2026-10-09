@@ -30,8 +30,8 @@ local function lines(text)
   return (text .. "\n"):gmatch("([^\n]*)\n")
 end
 
--- The files under UI/Sell/. helper.SELL_UI_FILES also names UI/SellFrame.lua until the split
--- ends; the size rule is for the new files.
+-- The files under UI/Sell/: all of helper.SELL_UI_FILES, now that UI/SellFrame.lua is gone; the
+-- size rule is for them.
 local function folderFiles()
   local out = {}
   for _, path in ipairs(helper.SELL_UI_FILES) do

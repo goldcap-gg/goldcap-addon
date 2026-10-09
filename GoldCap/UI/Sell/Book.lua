@@ -139,8 +139,8 @@ local function wallWords(book)
   return words
 end
 
--- The book lines and the drawer's headings, on every pooled row: createRow (UI/Sell/Row.lua from
--- Task 9) calls this. See the first comment inside for why they are built up front.
+-- The book lines and the drawer's headings, on every pooled row: createRow (UI/Sell/Row.lua) calls
+-- this. See the first comment inside for why they are built up front.
 function Book.Decorate(row)
   -- The drawer's own five book lines. Built here rather than lazily on first open: a widget
   -- created mid-render is how this suite's fakes start failing on a method they were never
@@ -210,7 +210,7 @@ function Book.Decorate(row)
 end
 
 -- The book section of the panel's head, under the rule across the panel at `top`, which the price
--- section above decides (layoutDrawer, UI/Sell/Inspector.lua from Task 6).
+-- section above decides (layoutDrawer, UI/Sell/Inspector.lua).
 function Book.Layout(row, top)
   local left, right = INSP.PAD, -INSP.PAD
   row.headRules[1]:ClearAllPoints()

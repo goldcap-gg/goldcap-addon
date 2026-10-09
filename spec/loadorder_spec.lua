@@ -202,7 +202,7 @@ describe("TOC load order", function()
     _G.PlaySound = _G.PlaySound or function() end
     _G.SOUNDKIT = _G.SOUNDKIT or { MAP_PING = 3175, RAID_WARNING = 1 }
     _G.C_Timer = _G.C_Timer or { After = function() end, NewTicker = function() return { Cancel = function() end } end }
-    -- Sniper v3 Task 9 (SellFrame.lua's rebuilt flips table): GC.Sniper.Toggle()'s show path
+    -- Sniper v3 Task 9 (the Sell view's rebuilt flips table): GC.Sniper.Toggle()'s show path
     -- unconditionally calls GC.Sell.Refresh() -> renderRows() -> updateSummary(), which now
     -- formats the summary strip's invested/projected/profit figures (Theme.Num) even with
     -- zero flips -- unlike the old bags-vs-mail checklist, which never touched formatAmount
@@ -260,8 +260,8 @@ describe("TOC load order", function()
     assert.is_true(flipsIndex < sellPositionsIndex)
     -- PostQueue.Build consumes SellPositions.Build's own return shape, so it belongs right
     -- after it in the pipeline, and (the property that actually matters -- see the design doc's
-    -- "one click, one control" constraint) strictly before UI/SellFrame.lua, which is the only
-    -- file that will ever call it.
+    -- "one click, one control" constraint) strictly before UI/Sell/Frame.lua, the first of the view's
+    -- files, which are the only ones that will ever call it.
     assert.is_number(postQueueIndex)
     assert.is_true(sellPositionsIndex < postQueueIndex)
     assert.is_number(sellViewModelIndex)
@@ -269,8 +269,8 @@ describe("TOC load order", function()
     assert.is_true(sellViewModelIndex < sellFrameIndex)
     assert.is_true(postQueueIndex < sellFrameIndex)
     -- The Sold tab renders what AppLedger adopted, so the data module loads
-    -- strictly before the UI that reads it; SoldFrame follows SellFrame in
-    -- the .toc (same tab family, same window).
+    -- strictly before the UI that reads it; SoldFrame follows the Sell view's
+    -- files in the .toc (same tab family, same window).
     assert.is_number(appLedgerIndex)
     assert.is_number(soldFrameIndex)
     assert.is_true(appLedgerIndex < soldFrameIndex)

@@ -301,11 +301,11 @@ function GC.SellViewModel.SummaryText(summary)
     profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
 end
 
--- How many lines THE BOOK draws: the panel has room for eight and never scrolls (SellFrame's
--- DR.LINES). Levels beyond them are still counted in the totals, so the header never claims
+-- How many lines THE BOOK draws: the panel has room for eight and never scrolls (DR.LINES in
+-- UI/Sell/Frame.lua). Levels beyond them are still counted in the totals, so the header never claims
 -- the book is smaller than it is.
 local BOOK_ROWS = 8
--- The most price levels the tab reads per item (UI/SellFrame.lua's quote driver reads through
+-- The most price levels the tab reads per item (Services/Sell/Quotes.lua's quote driver reads through
 -- this). A book of this many may have been cut there: a price past its last level has at least
 -- all of it ahead, and an unknown amount more.
 GC.SellViewModel.BOOK_READ_MAX = 100

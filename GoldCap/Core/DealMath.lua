@@ -154,7 +154,7 @@ end
 -- You cannot sell above what is already listed, so an mv the visible market broadly
 -- contradicts must not drive the projection: on 2026-08-10 an mv of 195g on an item trading
 -- near 35g turned into a +63,201g "profit" on the confirmation dialog. Clamping to one copper
--- under the competing ask is the same rule UI/SellFrame.lua already posts at
+-- under the competing ask is the same rule the Sell tab (Services/Sell/) already posts at
 -- (`recommended = max(1, quote - 1)`), so the buy screen and the sell screen finally agree.
 -- A legitimate snipe is untouched: the competing ask sits near mv, not far below it.
 -- The market value arrives from an import that has been wrong before, and this function

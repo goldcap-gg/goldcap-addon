@@ -102,7 +102,7 @@ local function quoteDriver()
     commodityLevels = function(itemID) return boundedLevels(itemID, true) end,
     -- Is the client holding a COMPLETE reply for this key, or merely whatever result set the
     -- last search left in the slot? GetNum*SearchResults answers the second question only, and
-    -- the results events UI/SellFrame.lua listens to are raised by the Sniper's searches as well as
+    -- the results events the Sell tab listens to are raised by the Sniper's searches as well as
     -- our own -- so a zero read is not proof the auction house said "nothing listed". This is
     -- the proof; see quoteResolved, which will not gag an item without it.
     --

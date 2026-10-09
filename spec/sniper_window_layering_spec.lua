@@ -17,7 +17,7 @@ require("spec.spec_helper")
 describe("Sniper window layering", function()
   -- spec/sniper_panel_inset_spec.lua's own double, with the layering calls recorded instead
   -- of discarded. A blanket "every unknown method is a no-op" metatable was tried first and
-  -- is wrong for this construction path: SellFrame's layoutCells branches on `row.subItem`
+  -- is wrong for this construction path: UI/Sell/List.lua's layoutCells branches on `row.subItem`
   -- being nil for the header row, and a metatable that answers every field with a function
   -- makes that branch always true.
   local function stubFrame()

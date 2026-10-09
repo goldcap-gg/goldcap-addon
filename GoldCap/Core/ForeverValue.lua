@@ -53,7 +53,7 @@ function GC.ForeverValue.Verdict(ahUnit, vendorUnit, depositUnit, gear)
   return "ah"
 end
 
--- The bags GoldCap counts: UI/SellFrame.lua's SELL_BAGS (bag 5 is the reagent bag; a bag the
+-- The bags GoldCap counts: Services/Sell/Bags.lua's SELL_BAGS (bag 5 is the reagent bag; a bag the
 -- client does not have reports no slots).
 GC.ForeverValue.BAGS = { 0, 1, 2, 3, 4, 5 }
 

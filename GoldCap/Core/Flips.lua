@@ -4,7 +4,7 @@ GC.Flips = {}
 
 --- Total units strictly cheaper than `ourUnit` across `levels` (an ascending array of
 -- {unitPrice, quantity} entries -- a commodity book or a set of competing item lots, both in
--- the shape UI/SellFrame.lua's bounded book reader produces). A level priced EXACTLY at
+-- the shape Services/Sell/Quotes.lua's bounded book reader produces). A level priced EXACTLY at
 -- ourUnit is not counted: the AH doesn't expose the intra-tie ordering, and a tie is not the
 -- same fact as "N units are cheaper than mine" -- reporting it as ahead would overstate the
 -- competition. Returns nil (never 0) whenever the question can't honestly be answered: no book
@@ -87,7 +87,7 @@ function GC.Flips.SalesForItem(entries, itemName, sinceAt)
 end
 
 --- The row tooltip's "Recommended post" line -- and, because the Sell tab shows one price in
--- three places, the number the Post button actually posts at (see UI/SellFrame.lua's
+-- three places, the number the Post button actually posts at (see UI/Sell/Dock.lua's
 -- onPostClick and Core/SellPositions.lua's BuildPostPlan). Pure: `paidUnit`/`marketUnit`/`mv`
 -- are whatever the caller already has on hand.
 --
@@ -114,7 +114,7 @@ end
 --      study could measure (the paired test straddles zero), and a made-up rung one silver
 --      ABOVE the cheapest puts the post behind that entire rung to gain one silver. Both
 --      collapse into match once newest-first is known. The Sell tab's manual UNDERCUT chip
---      keeps its own arithmetic (UI/SellFrame.lua) -- that is a price the player asked for,
+--      keeps its own arithmetic (UI/Sell/Inspector.lua) -- that is a price the player asked for,
 --      not one this function recommends.
 --   4. No live quote at all: `mv` on the grid, mode nil -- there is no ask to match.
 --   5. F5, queue-at-exit, for a flip carrying the exit it was underwritten at
@@ -607,7 +607,7 @@ end
 -- ---------------------------------------------------------------------------
 -- F4: repost advice. Blizzard throttles auction cancels (since patch 8.3) -- a blind
 -- cancel-and-repost wastes a share of that limited budget, and can lock in a loss the player
--- never actually meant to take. GC.Flips.RepostAdvice is a pure pre-flight check UI/SellFrame.lua's
+-- never actually meant to take. GC.Flips.RepostAdvice is a pure pre-flight check UI/Sell/Dock.lua's
 -- onRepostClick gates the FIRST click of its two-click cancel flow behind (see that file's own
 -- comment on the armed/disarm pattern this reuses).
 -- ---------------------------------------------------------------------------

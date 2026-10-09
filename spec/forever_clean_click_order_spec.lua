@@ -5,9 +5,9 @@ local helper = require("spec.spec_helper")
 -- itself (see docs/superpowers/sdd/2026-09-24-forever-addon-3a/post-taint-analysis.md and
 -- clean-click-report.md). The confirmed culprits so far:
 --   * GC.Sell._NotePost -> setStatus -> paintRefreshButton -> refresh.deckProgress()
---     (SellFrame.lua, refresh is a plain module-local table -- see paintRefreshButton's own
+--     (UI/Sell/Toolbar.lua, refresh is a plain table -- see paintRefreshButton's own
 --     comment for why reading and calling that particular field is what trips it).
---   * composePositions()'s own trailing container.paintDeckSwitch() call, which reads
+--   * composePositions()'s own trailing View.paintDeck() call (Toolbar.PaintDeckSwitch), which reads
 --     position.listedQty/bagQty off `positions`.
 --   * SniperFrame's refreshQtyRow(), which reads dialog.bookLevels and calls
 --     GC.Sniper._RowCap -- the buy dialog's own analogue of paintRefreshButton.
@@ -147,8 +147,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
   -- arguments were clean locals. Any Blizzard Lua/mixin call reached from inside a click -- not
   -- just GoldCap's own tables -- risks the same block, so every protected-call click handler is
   -- pinned source-text clean of the whole family: ItemLocation's own methods, Item:CreateFrom*,
-  -- ContinuableContainer and CreateFromMixins. A location built at paint time (SellFrame.lua's
-  -- cacheBagLocation, above liveBagState) and only read, never rebuilt, in the click is the fix --
+  -- ContinuableContainer and CreateFromMixins. A location built at paint time (GC.Sell._CacheBagLocation in
+  -- Services/Sell/Bags.lua, above Bags.LiveState) and only read, never rebuilt, in the click is the fix --
   -- see spec/sell_action_safety_spec.lua's "[Forever]" tests for the behavioural half of it.
   describe("No Blizzard mixin/location code inside a protected-call click handler", function()
     local BANNED = {

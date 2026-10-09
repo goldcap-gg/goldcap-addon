@@ -241,7 +241,7 @@ local function onTooltip(tooltip, data)
     if shownLink then itemID = C_Item.GetItemInfoInstant(shownLink) end
   end
   if type(itemID) ~= "number" then return end
-  -- The tooltip of a Sell row standing for one item level or one pet (UI/SellFrame.lua): the
+  -- The tooltip of a Sell row standing for one item level or one pet (UI/Sell/Row.lua): the
   -- figure GetItemValue has is every item level's, or every pet's, and the row's panel says there
   -- is none for this one -- so this says the same, rather than print the merged one under it.
   -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept

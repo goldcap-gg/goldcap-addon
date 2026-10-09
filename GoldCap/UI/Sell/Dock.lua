@@ -15,7 +15,8 @@ local Dock = UI.Dock
 local ROW, DOCK = UI.ROW, UI.DOCK
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
 
--- Forward-declared for the same reason renderRows is (in UI/SellFrame.lua): setStatus (below) needs to call this on every state change, and the row handlers need it
+-- Forward-declared for the same reason renderRows was (in UI/SellFrame.lua, before the split):
+-- setStatus (below) needs to call this on every state change, and the row handlers need it
 -- on every data change -- see this function's real body, below,
 -- for why it cannot be defined this early itself. renderRows DEFERS for the
 -- whole time a post is armed (Post.DisarmPost/Post.DisarmRepost's own flushDeferredRender in
@@ -306,11 +307,11 @@ local function onPostClick(row)
       if row.action.SetBusy then row.action:SetBusy(true) end
       -- Moved here, after the call: WoW: Forever's taint engine blocks a protected AH call once
       -- the same hardware click has read certain GoldCap runtime state, and _NotePost ->
-      -- setStatus (this file, above) -> paintRefreshButton (UI/Sell/Toolbar.lua) -> refresh.deckProgress() is one of
-      -- the reads it flags. Said the instant the call returns rather than the instant it was
-      -- about to be made -- the player sees the same "Posting…" note either way, just a beat
-      -- later in the same tick, unless the call queued the confirm itself (OnThrottleQueued,
-      -- same guard the first click's own note now reads).
+      -- setStatus (this file, above) -> paintRefreshButton (UI/Sell/Toolbar.lua) ->
+      -- refresh.deckProgress() is one of the reads it flags. Said the instant the call returns
+      -- rather than the instant it was about to be made -- the player sees the same "Posting…" note
+      -- either way, just a beat later in the same tick, unless the call queued the confirm itself
+      -- (OnThrottleQueued, same guard the first click's own note now reads).
       GC.Sell._NotePost(pin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
       Post.Sent(pin)
     end
@@ -366,11 +367,11 @@ end
 Dock.OnRepostClick = onRepostClick
 
 -- The footer ledger's three labels, same split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS in
--- UI/Sell/Inspector.lua and for the same reason. "AT MARKET" and "ASKING", not "PROFIT" and "LISTED" (2026-09-11): a
--- player reads three figures left to right as ASKING minus COST equalling the rightmost one,
--- and that arithmetic is false -- ASKING is the sum of the player's own typed prices, AT
--- MARKET is what GoldCap projects these lots clear after the 5% cut, at a price nobody typed.
--- Distinct labels don't fix the misreading by themselves; the AT MARKET tooltip carries the
+-- UI/Sell/Inspector.lua and for the same reason. "AT MARKET" and "ASKING", not "PROFIT" and
+-- "LISTED" (2026-09-11): a player reads three figures left to right as ASKING minus COST equalling
+-- the rightmost one, and that arithmetic is false -- ASKING is the sum of the player's own typed
+-- prices, AT MARKET is what GoldCap projects these lots clear after the 5% cut, at a price nobody
+-- typed. Distinct labels don't fix the misreading by themselves; the AT MARKET tooltip carries the
 -- actual sentence.
 -- @localised-keys
 local SUMMARY_STAT_LABELS = {
@@ -503,9 +504,9 @@ Dock.UpdateSummary = updateSummary
 -- row 1 is actually the rendered head; it never falls through into onPostClick in the same click
 -- that just rendered. Only a click that finds row 1 already the queue's rendered, shown head
 -- posts -- and then through onPostClick EXACTLY, with no render of its own. The split is gated on
--- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: UI/SellFrame.lua's top-level
--- local headroom is not spent on it) because retail has always rendered inside this click and a
--- retail player never had to press twice (retail drift audit F1).
+-- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: this file's
+-- top-level local headroom is not spent on it) because retail has always rendered inside this click
+-- and a retail player never had to press twice (retail drift audit F1).
 local function onQueueClick()
   if #S.queueEntries == 0 then
     setStatus(GC.L["Nothing queued to post"])

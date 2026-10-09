@@ -1,6 +1,6 @@
 local helper = require("spec.spec_helper")
 
--- A /reload wipes `quotes` (see SellFrame.lua's own module-local declaration): it is never
+-- A /reload wipes `quotes` (see GC.SellState.quotes in Services/Sell/State.lua): it is never
 -- persisted, so every MARKET/UNIT cell used to show "-" and the expansion "quote ?s" for
 -- minutes after every reload, until the pricing walk repopulated it from scratch. The display
 -- path was already safe for old data -- SellPositions' quoteInfo reads GC.QuoteCache.Latest

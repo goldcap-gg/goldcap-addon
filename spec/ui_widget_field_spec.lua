@@ -15,7 +15,7 @@ local helper = require("spec.spec_helper")
 -- the next one: production code may not read a field that only the doubles define.
 --
 -- Comments are stripped before matching, so the explanations above (and the one at the call site
--- in UI/SellFrame.lua) do not trip it. Stripping is a plain `--` to end-of-line cut, which can
+-- in UI/Sell/Dock.lua) do not trip it. Stripping is a plain `--` to end-of-line cut, which can
 -- also truncate a string literal containing `--`; that can only ever cause this spec to scan
 -- LESS text, never to invent a hit, so it is safe in the direction that matters.
 describe("widget fields the real client actually has", function()

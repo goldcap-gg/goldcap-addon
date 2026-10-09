@@ -39,7 +39,7 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
 -- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
 -- the Sell tab; M8).
--- 720, not 716: UI/SellFrame.lua's own COLUMNS grid derives its content width from this same
+-- 720, not 716: UI/Sell/Frame.lua's own COLUMNS grid derives its content width from this same
 -- FRAME_WIDTH (minus the rail and the scrollbar gutter), and at 716 that content area comes
 -- out to 596px -- short of the 600px shownColumns needs to keep the COST column past its
 -- other fixed columns, so a fresh install silently opened with COST already dropped.
@@ -2613,7 +2613,7 @@ driver = {
 
 -- D: keeps the Sell rail button's count badge current. Called after a purchase (a new flip may
 -- now exist), on every AH open (bag counts may have changed since a mailbox visit), and by
--- SellFrame.lua itself after Post/Remove/a bag-count refresh -- one shared place instead of
+-- the Sell view (UI/Sell/) itself after Post/Remove/a bag-count refresh -- one shared place instead of
 -- every call site re-deriving the badge. Safe to call before the frame/tab exist yet.
 local function updateSellTabLabel()
   if not frame or not frame.sellTab then return end
@@ -6938,7 +6938,7 @@ local function canDrillNow()
   if prewarmAttempt then return false end
   if GC.Sniper.IsPurchaseQuiet() then return false end
   -- Caps fixes 4a, round 1: never over an unanswered keys batch, whoever sent it. A search sent on
-  -- top of one takes its answer with it, and comes back empty itself (UI/SellFrame.lua's
+  -- top of one takes its answer with it, and comes back empty itself (Services/Sell/Walk.lua's
   -- GC.SellWalk.Advance, seen in game). The batch's own answer brings the next ready tick.
   if GC.Sniper._KeysOutstanding() then return false end
   return driver.isReady() and true or false
@@ -11148,7 +11148,7 @@ local function createFrame()
   f.status = status
 
   -- Row 3: the board switch -- COMMODITIES | ITEMS N, the Sell tab's own deck chips
-  -- (SellFrame.lua's deckButtons/paintDeckSwitch) applied to the same kind of question. Two
+  -- (UI/Sell/Toolbar.lua's deckButtons/Toolbar.PaintDeckSwitch) applied to the same kind of question. Two
   -- boards, because the rows are two different promises: a commodity row is region-priced,
   -- live-verifiable and can become BUY, a realm row is a lead on gear/pets/recipes that can
   -- only ever be WATCH. See GC.Sniper._Board.
@@ -11197,9 +11197,9 @@ local function createFrame()
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
   --
-  -- `status` is deliberately NOT in this list. GC.Sell.Attach (SellFrame.lua) captures this
-  -- same `f` as `statusOwner` and its own setStatus() routes ~40 user-facing messages
-  -- ("Posting…", "Click Confirm to post", timeouts, etc.) through `statusOwner.status:SetText`
+  -- `status` is deliberately NOT in this list. GC.Sell.Attach (UI/Sell/Frame.lua) captures this
+  -- same `f` as `UI.window` and Dock.SetStatus (UI/Sell/Dock.lua) routes ~40 user-facing messages
+  -- ("Posting…", "Click Confirm to post", timeouts, etc.) through `UI.window.status:SetText`
   -- -- it is a shared channel across every view, not a Deals-only readout. Hiding it here
   -- would mute Sell's entire posting-feedback channel while the Sell view is showing.
   f.dealsChrome = { verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText,
@@ -11344,8 +11344,8 @@ local function createFrame()
   -- where the Deals toolbar starts (row2Y), not below Deals' header row -- Deals is the only
   -- view with a third (column-header) row. The shared invariant across all three views is
   -- horizontal (WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER) plus the bottom edge (scrollBottom);
-  -- rowWidth is initial geometry only -- SellFrame keeps its own responsive column layout
-  -- current from this same window's OnSizeChanged hook.
+  -- rowWidth is initial geometry only -- the Sell tab (GC.Sell.Attach, UI/Sell/Frame.lua) keeps
+  -- its own responsive column layout current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
     panelLeft = WIN.CONTENT_LEFT,
     panelRightInset = WIN.CONTENT_RIGHT_GUTTER,

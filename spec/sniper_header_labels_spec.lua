@@ -7,7 +7,7 @@ require("spec.spec_helper")
 --
 -- Every OTHER single-line cell in the kit is built with word wrap off and a one-line cap:
 -- the deals ROW cells (buildRowCell), the Sold headings (UI/SoldFrame.lua) and the Sell
--- headings (UI/SellFrame.lua). The Deals headings were the one place that left the default
+-- headings (UI/Sell/List.lua). The Deals headings were the one place that left the default
 -- on -- and they are also the one place whose FontString is SetAllPoints() onto a cell that
 -- is only CH.HEADER (16px) tall, so a wrapped line that does not fit that height is simply
 -- not drawn rather than clipped.

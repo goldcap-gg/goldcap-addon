@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- Fix round (C1/I1 on the toolbar rework): `status` is a shared cross-view channel --
--- SellFrame.lua's setStatus routes ~40 user-facing messages through it -- and must survive
+-- UI/Sell/Dock.lua's setStatus routes ~40 user-facing messages through it -- and must survive
 -- setView's Deals-only chrome toggle, while `sessionText` must never be left showing a stale
 -- or zero-buy figure. Self-contained per house style; reaches setView/refreshSessionText the
 -- same debug.getupvalue way spec/auto_verify_spec.lua and spec/sniper_pin_feedback_spec.lua
@@ -91,7 +91,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     local setView = upvalue(createFrame, "setView")
 
     local status = widget()
-    status.shown = true -- SellFrame.setStatus keeps writing through this while Sell is showing
+    status.shown = true -- Dock.SetStatus keeps writing through this while Sell is showing
     local fakeFrame = {
       scroll = widget(), headerRow = widget(),
       -- Deals-only widgets ONLY -- status is deliberately absent, matching the real

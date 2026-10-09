@@ -1868,7 +1868,7 @@ describe("Sell widget geometry and manual cost", function()
     local render = GC.SellUI.List.RenderRows
     local post = GC.SellUI.Dock.OnPostClick
     -- onPostClick reads bag state through clickSafeBagState now (never liveBagState directly --
-    -- see SellFrame.lua's own comment on why), which for a commodity position still hands
+    -- see Services/Sell/Bags.lua's comment on _CacheBagLocation), which for a commodity position still hands
     -- straight to the real liveBagState -- one upvalue hop further than before. Both are reached
     -- from GC.SellPost.PreparePost, the click's pre-call part, as are the stubs below.
     GC.SellBags.LiveState =
@@ -2055,7 +2055,7 @@ describe("Sell widget geometry and manual cost", function()
 
   -- Post charges postRecommendation.unit, floor/queue/overcut raises included -- not the raw
   -- cheapest ask (see the "Say what Post will charge before it is clicked" comment in
-  -- SellFrame.lua). The sub-row cell has to name that same price, or it is the "two different
+  -- UI/Sell/Inspector.lua). The sub-row cell has to name that same price, or it is the "two different
   -- numbers" defect the queue-at-exit raise comment in Core/SellPositions.lua describes.
   it("shows the overcut-raised unit on a bag-stock sub-row, not the raw cheapest ask", function()
     local GC = load(620, { calls = {} })

@@ -4,10 +4,26 @@
 -- part lays out by, and the pure helpers that colour text and format money. Calls between the
 -- parts go through these tables at call time, never through a copy taken at load, so a spec that
 -- replaces a function reaches every caller (spec/sell_ui_structure_spec.lua).
+-- The positions module owns all accounting and action-plan decisions.  The view only joins
+-- live AH observations, a cached quote stream, and widgets around that single model.
 -- wow-auction: docs/superpowers/specs/2026-10-09-addon-ui-kit-and-sell-design.md, Part 2.
 local _, GC = ...
 
 GC.Sell = GC.Sell or {}
+
+-- Labels for the posting-queue keybinding (Bindings.xml, auto-loaded by the client -- see that
+-- file for the binding itself and UI/Sell/Dock.lua's Dock.Build for the handler it calls). Purely
+-- cosmetic: the Key Bindings UI falls back to the raw action name if these are missing, so the
+-- feature works without them, but a human label is worth the two lines. `_G.` explicit, not a
+-- bare assignment, so this is a plain field write on the standard `_G` table rather than a new
+-- global luacheck would need to be told about.
+_G.BINDING_HEADER_GOLDCAP = "GoldCap"
+-- Assigned through GC.SellUI_RefreshBindingName, called from Init once the locale is
+-- active. Resolving GC.L here would capture the English fallback: this file loads long
+-- before ApplyLocale picks a language, so the binding would read English forever.
+function GC.SellUI_RefreshBindingName()
+  _G.BINDING_NAME_GOLDCAP_POST_NEXT = GC.L["Post the next queued item"]
+end
 
 GC.SellUI = {
   -- Set by GC.Sell.Attach: the tab's own frame (container), the list's and the inspector's scroll
@@ -31,6 +47,12 @@ GC.SellUI = {
   Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, CostDialog = {},
 }
 local UI = GC.SellUI
+
+-- The checks and constants this file shares with the Sell services (Services/Sell/State.lua).
+local S = GC.SellState
+local Walk = GC.SellWalk
+local itemName = GC.SellUtil.itemName
+local EMPTY_ANSWER_AGE = GC.Sell.EMPTY_ANSWER_AGE
 
 -- Per-unit framing: a seller reasons in "what did one cost me, what does one fetch, what do I
 -- clear on one", not in position totals -- the totals already sit in the summary above the list.
@@ -269,3 +291,220 @@ end
 -- The dialog's gold fields and YOUR PRICE's box both read and write these, so they live here.
 fmt.goldPositive, fmt.goldText = dialogGoldPositive, copperToGoldText
 fmt.priceText, fmt.priceBoxCopper = copperToPriceText, priceBoxCopper
+
+function GC.Sell.Show()
+  if UI.container then UI.container:Show() end
+  -- The headings are otherwise only ever stamped when the DECK changes (List.RenderRows), and this
+  -- tab spends most of its life hidden behind Deals or Sold: a one-line FontString that was on
+  -- screen when its parent hid can come back with its text simply not drawn, and SetText is
+  -- what the client needs to draw it again (UI/SniperFrame.lua's updateHeaderSortIndicators
+  -- carries the full story). Unconditional, from the deck the header is currently showing.
+  if UI.container and UI.container.header then
+    UI.List.PaintHeaderText(UI.container.header, UI.container.headerDeck)
+  end
+  -- This is what flushes a render List.RenderRows() deferred while the container was hidden: Show()
+  -- has always called Refresh() unconditionally, and Refresh()'s own Compose.Positions()+
+  -- List.RenderRows() pass now runs for real the instant Walk.Shown() is true. An explicit
+  -- flushDeferredRender() call here would render this same pass a second time.
+  GC.Sell.Refresh()
+  -- Mid-post the render is held, so coming back to the tab re-sets the dock's line and the
+  -- busy labels with the text they already hold -- a no-op the client does not redraw on a
+  -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
+  -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
+  -- the cure UI/BuyFrame.lua's restampHeadings uses.
+  if UI.container and (S.postingRow or GC.Sell._postNote) then
+    local function restamp(fs)
+      if not (fs and fs.IsShown and fs:IsShown()) then return end
+      local text = fs:GetText() or ""
+      fs:SetText(""); fs:SetText(text); fs:Hide(); fs:Show()
+    end
+    restamp(UI.container.dockStatus)
+    restamp(UI.container.queueLabel)
+    for _, button in ipairs({ UI.container.queueButton or false, S.postingRow and S.postingRow.action or false }) do
+      if button and button.label and button.SetLabel then
+        local label = button.label
+        button:SetLabel(""); button:SetLabel(label)
+        if type(button.text) == "table" then restamp(button.text) end
+      end
+    end
+  end
+end
+function GC.Sell.Hide() if UI.container then UI.container:Hide() end end
+
+function GC.Sell.Attach(f, geometry)
+  UI.rowWidth, UI.rowHeight, UI.window = geometry.rowWidth, geometry.rowHeight, f
+  UI.container = CreateFrame("Frame", nil, f)
+  local container = UI.container
+  container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
+  -- Two rows of chrome and a footer, down from three rows of chrome. The three stat cards that
+  -- used to own row 3 were 40px of ACCOUNTING sitting above the work; they are one quiet line
+  -- in the footer now, beside the bulk action, where the eye ends rather than where it starts.
+  --   row 1 (y   0): [TO POST N][MY LOTS N] ·········· [NO COST][READY][REFRESH]
+  --   row 2 (y -34): column headings for the deck below
+  --   list  (y -52) ......................................................... (to footer)
+  --   footer (bottom, h32): [POST N] head label ··· held-back · cost / listed / profit
+  -- Each row still owns its whole width: the layout this replaced let two anchor chains grow
+  -- toward each other on one shared row and collide at ordinary window widths (the queue's head
+  -- label ran under the filter chips; the cancel cluster ran under EST. PROFIT).
+  UI.Dock.BuildFill()
+  UI.Toolbar.Build()
+  UI.Dock.Build(f)
+  UI.List.Build()
+  UI.Inspector.Build()
+  UI.CostDialog.Build()
+  -- OnSizeChanged fires once per pixel while the resize grip is being dragged -- as often as
+  -- every frame -- and List.RenderRows is not free: it walks the filtered position list and
+  -- rebuilds every visible row. Layout (the width-driven column drop) is cheap and stays
+  -- immediate; the row rebuild is coalesced to a single pass once the size has settled,
+  -- rather than rebuilding the model up to 60 times a second while the grip is dragged.
+  local resizeRenderToken = 0
+  f:HookScript("OnSizeChanged", function(_, width)
+    UI.rowWidth = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
+    -- Through the same function a panel opening uses: the width a resize leaves decides
+    -- whether the panel still has a column of its own.
+    container.listDocked = UI.INSP.docked()
+    UI.List.ApplyListGeometry()
+    UI.Dock.LayoutLedger()
+    UI.Toolbar.LayoutSearch()
+    resizeRenderToken = resizeRenderToken + 1
+    local token = resizeRenderToken
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0, function()
+        if token == resizeRenderToken then UI.List.RenderRows() end
+      end)
+    else
+      UI.List.RenderRows()
+    end
+  end)
+end
+
+-- Live diagnosis for a wedged pricing walk, straight from the client: /goldcap sellstate
+-- prints the machine's actual state instead of leaving "PRICING…" to be guessed about.
+-- Registered here (not Core/Init.lua) because every field it reads is the Sell tab's own.
+GC.slashHandlers = GC.slashHandlers or {}
+-- The throttle flag as the CLIENT reports it, with no side effect.
+--
+-- Quotes.driver.isReady() is GC.Util.ThrottleReady(), which past its stuck window answers true on a
+-- flag the client is still reporting false. That is the right answer for a sender and the
+-- wrong one for a readout of what the CLIENT says, which is what these two printers want.
+local function throttleReadyForDisplay()
+  return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady
+    and C_AuctionHouse.IsThrottledMessageSystemReady() == true or false
+end
+
+GC.slashHandlers.sellstate = function()
+  local pending = S.refresh.pending
+  GC.Print((GC.L["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"]):format(
+    tostring(S.refresh.phase), #S.refresh.queue, S.refresh.index or 0, S.refresh.skipped or 0,
+    time() - (S.refresh.progressAt or 0),
+    pending and (" · pending item %s for %ds"):format(tostring(pending.itemID), time() - pending.at) or ""))
+  local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
+  local rested = 0
+  for _, rest in pairs(S.emptyAnswers) do
+    if type(rest) == "table" and type(rest.at) == "number"
+        and time() - rest.at <= EMPTY_ANSWER_AGE then rested = rested + 1 end
+  end
+  GC.Print((GC.L["throttle ready=%s · sniper busy=%s · empty answers resting=%d"]):format(
+    tostring(throttleReadyForDisplay()),
+    tostring(blocking and blocking() or false), rested))
+  -- Every row without a market price, and the EXACT reason the walk is not asking about it --
+  -- mirrors Walk.Queue's own membership rules, so a "—" can always be explained.
+  local shown = 0
+  for _, position in ipairs(S.positions) do
+    if position.displayMarketUnit == nil and position.itemID and shown < 12 then
+      local inBags = type(position.bagQty) == "number" and position.bagQty > 0
+      local listed = type(position.listedQty) == "number" and position.listedQty > 0
+      local commodity = type(position.positionKey) == "string"
+        and position.positionKey:find("commodity:", 1, true) == 1
+      local restingAt = Walk.RestedAt(position.quoteKey or position.itemID)
+      local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
+      local why
+      if position.unresolved and not commodity then
+        why = GC.L["identity unresolved (variant item -- not priced by design)"]
+      elseif not (inBags or listed) then
+        why = GC.L["no stock in bags or listed -- nothing to price for"]
+      elseif resting and Walk.RestedEmptyFresh(position.quoteKey or position.itemID, time()) then
+        why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
+      elseif resting then
+        -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk
+        -- read as a quiet auction house.
+        why = (GC.L["no answer %ds ago -- resting"]):format(time() - restingAt)
+      else
+        why = GC.L["due -- will be asked next pass"]
+      end
+      shown = shown + 1
+      -- A variant by its exact key: two item levels of one piece read as one line by item ID.
+      GC.Print(("  %s (%s): %s"):format(tostring(position.itemName or "?"),
+        tostring(position.quoteKey or position.itemID), why))
+    end
+  end
+end
+
+-- `/gc sell`: the pricing walk's state and who holds the shared search slot, printed to
+-- chat. For a live client that sits at "PRICING…" -- the walk yields to whatever owns the
+-- slot and there is otherwise nothing on screen that says which gate it is waiting on.
+function GC.Sell.DebugPrint()
+  local sniper = GC.Sniper or {}
+  -- What C_AuctionHouse.GetAuctionInfoByID said about the last auction created (GC.Sell.
+  -- OnAuctionCreated): whether the client names a just-created auction at all.
+  GC.Print(GC.Sell._createdSeen or "sell: created -- none this session")
+  local function call(fn, ...) if type(fn) == "function" then return tostring(fn(...)) end return "n/a" end
+  -- Why an item will not post, or a post was not booked (final review M7): the items a late
+  -- answer holds and for how long, how long an answer a guess ended may still be owed, whether a
+  -- post now would be certain, the stock waiting for the auction house, and the requests out.
+  local held, now = {}, time()
+  for _, late in ipairs(GC.Sell._LiveLate()) do
+    held[#held + 1] = ("%s %ds"):format(itemName(late.pin.itemID) or tostring(late.pin.itemID),
+      GC.Sell.LATE_ANSWER_SECONDS - (now - late.at))
+  end
+  GC.Print(("post: late=%d [%s] owed=%ds certain=%s waiting=%d requestOut=%s confirmOwed=%s"):format(
+    #held, table.concat(held, ", "), math.max(0, (GC.Sell._owedUntil or 0) - now), tostring(GC.Sell._Certain()),
+    #(GC.Sell._waitingStock or {}), call(sniper.RequestOut),
+    GC.PurchaseSlot and call(GC.PurchaseSlot.ConfirmOwed) or "n/a"))
+  GC.Print(("sell walk: phase=%s index=%d/%d pending=%s awaiting=%s gen=%d progress=%ds ago waitingNoted=%s"):format(
+    tostring(S.refresh.phase), S.refresh.index or 0, #(S.refresh.queue or {}),
+    tostring(S.refresh.pending and S.refresh.pending.itemID), tostring(S.refresh.awaiting),
+    S.refresh.generation or 0, time() - (S.refresh.progressAt or time()), tostring(S.refresh.waitingNoted)))
+  -- `apiReady` is the CLIENT's own flag, read with no side effect -- see throttleReadyForDisplay.
+  GC.Print(("slot: ahOpen=%s apiReady=%s searchCritical=%s busy=%s paging=%s quietZone=%s quietSince=%s"):format(
+    call(sniper.IsAHOpen),
+    tostring(throttleReadyForDisplay()),
+    call(sniper.IsSearchCritical), call(sniper.IsBusy),
+    sniper._bookPass and call(function() return sniper._bookPass:IsPaging() end) or "n/a",
+    call(sniper._QuietZoneOpen), tostring(sniper._quietSince)))
+  -- The bulk fill's own state: whether a press is still owed one, whether it went, whether it
+  -- landed, and every gate the arbiter would hold it at -- so "the prices did not come at once"
+  -- can be answered from a paste instead of guessed at.
+  GC.Print(("bulk: wanted=%s sent=%s landed=%s outstanding=%s targets=%d view=%s keysOwner=%s keysOut=%s pendingStart=%s playerBusy=%s"):format(
+    tostring(S.refresh.bulkWanted), tostring(S.refresh.bulkSent), tostring(S.refresh.bulkLanded),
+    tostring(GC.Sell.BulkOutstanding()), #GC.Sell.BulkTargets(), call(sniper.CurrentView),
+    tostring(sniper._keysOwner), call(sniper._KeysOutstanding),
+    sniper._bookPass and call(function() return sniper._bookPass:PendingStart() end) or "n/a",
+    GC.AuctionHouseTab and call(GC.AuctionHouseTab.PlayerIsBusy) or "n/a"))
+  -- A cancel's own state, so "I pressed Cancel lot and the tab went dead" can be answered from a
+  -- paste: what is armed and how far it got, whether a render is being held behind it, and
+  -- which lots were sent for cancelling and whether the server ever confirmed them.
+  local sent, confirmed = 0, 0
+  for _, lot in pairs(GC.Sell.cancelledLots or {}) do
+    if lot.confirmed then confirmed = confirmed + 1 else sent = sent + 1 end
+  end
+  GC.Print(("cancel: armed=%s stage=%s ready=%s lot=%s renderHeld=%s posting=%s removing=%s sentUnconfirmed=%d confirmed=%d requery=%s"):format(
+    tostring(S.repostingRow ~= nil), tostring(S.repostingRow and S.repostingRow.repostStage),
+    tostring(S.repostingRow and S.repostingRow.repostReady), tostring(S.repostPin and S.repostPin.auctionID),
+    tostring(S.deferredRender), tostring(S.postingRow ~= nil), tostring(S.removingRow ~= nil),
+    sent, confirmed, tostring(S.refresh.ownedWanted)))
+  local status = UI.window and UI.window.status and UI.window.status.GetText and UI.window.status:GetText()
+  GC.Print("status: " .. tostring(status))
+  local t = GC.Util.throttleStats
+  GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))
+end
+
+-- What the Sell services (GoldCap/Services/Sell) ask of this screen. Each part fills its own slots
+-- (List: render; Dock: status, paintQueue, paintCancel, notePost, endPostNote; Toolbar: paintDeck);
+-- these two are the view's as a whole.
+GC.SellView.attached = function() return UI.container ~= nil end
+-- nil until the tab is built, then its own shown flag: the two questions the services ask of it
+-- ("is it built", "is it up") stay as distinct as `container ~= nil` and `container:IsShown()` were.
+GC.SellView.isShown = function()
+  if UI.container and UI.container.IsShown then return UI.container:IsShown() end
+end

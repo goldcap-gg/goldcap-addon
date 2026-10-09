@@ -34,7 +34,7 @@ GC.DEFAULTS = {
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
   -- is standing. Getting this wrong files one item under two position keys (see
-  -- UI/SellFrame.lua's classifyBagItem), so an unknown item is left out rather
+  -- Services/Sell/Bags.lua's classifyBagItem), so an unknown item is left out rather
   -- than guessed at. Same empty-table ApplyDefaults contract as `flips` above.
   commodityByItem = {},
   -- itemID -> { unit, at } (copper, epoch seconds): the Sell tab's own last resolved market
@@ -160,7 +160,7 @@ GC.DEFAULTS = {
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
       -- How long a posted auction runs: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration`
-      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what UI/SellFrame.lua
+      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what the Sell tab
       -- had hardcoded, so an existing save keeps posting exactly as it did and needs no
       -- migration -- ApplyDefaults fills the field in on the next login.
       --
@@ -277,7 +277,7 @@ frame:RegisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 frame:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
 frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
 -- Task 9: fires after C_AuctionHouse.QueryOwnedAuctions({}) resolves (tab show or the Sell
--- tab's own ghost Refresh button -- see UI/SellFrame.lua) AND after any other change to the
+-- tab's own ghost Refresh button -- see UI/Sell/Toolbar.lua) AND after any other change to the
 -- player's own listed lots (a post going through, an in-flight repost's CancelAuction landing).
 -- No payload -- the handler re-reads C_AuctionHouse.GetOwnedAuctions() itself.
 frame:RegisterEvent("OWNED_AUCTIONS_UPDATED")

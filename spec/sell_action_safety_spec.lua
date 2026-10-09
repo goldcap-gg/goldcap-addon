@@ -20,7 +20,7 @@ describe("Sell protected action state", function()
   end
 
   -- onPostClick no longer calls liveBagState directly for a non-commodity position (it goes
-  -- through clickSafeBagState's cache instead -- see SellFrame.lua's own comment on why), so
+  -- through clickSafeBagState's cache instead -- see Services/Sell/Bags.lua's comment on _CacheBagLocation), so
   -- liveBagState is now clickSafeBagState's upvalue, not onPostClick's own. Every test here posts
   -- a "commodity:42" position, which clickSafeBagState still hands straight to the real
   -- liveBagState, so reaching it one hop further still reaches exactly what these tests stub.
@@ -31,8 +31,8 @@ describe("Sell protected action state", function()
   end
 
   -- Primes the cache resolvePostLocation reads (onPostClick never builds an ItemLocation itself
-  -- any more -- see SellFrame.lua's own comment on cacheBagLocation) and a matching C_Container
-  -- read, mirroring what a real paint would already have done before any of these specs click
+  -- any more -- see Services/Sell/Bags.lua's own comment on cacheBagLocation) and a matching
+  -- C_Container read, mirroring what a real paint would already have done before any of these specs click
   -- Post directly with no render pass first.
   local function primeLocation(GC, positionKey, itemID, bag, slot, stackCount, location)
     location = location or { bag = bag, slot = slot }

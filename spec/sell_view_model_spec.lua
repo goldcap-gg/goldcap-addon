@@ -37,7 +37,7 @@ describe("Sell view model", function()
 
   -- Item 2 (addon polish batch): a real profit total that left positions out (missing cost or
   -- price) must carry its own marker, not just a hover tooltip -- see the honesty comment in
-  -- UI/SellFrame.lua's updateSummary right above where this reaches the screen.
+  -- UI/Sell/Dock.lua's updateSummary right above where this reaches the screen.
   it("marks a partial profit total as partial when positions were excluded", function()
     local text = GC.SellViewModel.SummaryText({ knownCost = 1000, listedValue = 2000,
       profit = 500, countedCount = 3, excludedNoCost = 1, excludedNoPrice = 0 })

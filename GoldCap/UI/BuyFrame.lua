@@ -183,8 +183,8 @@ local function setColor(fontString, color)
   end
 end
 
--- Mirrors SellFrame/SoldFrame's formatAmount: plain "65g24s" text, coin icons only below one
--- gold (icon escapes truncate mid-escape in clipped FontStrings).
+-- Mirrors UI/Sell/Frame.lua's _FormatAmount and SoldFrame's formatAmount: plain "65g24s" text,
+-- coin icons only below one gold (icon escapes truncate mid-escape in clipped FontStrings).
 -- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
 -- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
 -- it is bounded 0-99 by the mod above.
@@ -3266,8 +3266,8 @@ end
 
 -- The band above the table (BUY 2.0): the list picker, under it how much of the list is done
 -- (and whose it is, and what the site last changed), on the right TO BUY HERE and the total of every
--- line ready to buy, and a thin progress bar along the bottom. SellFrame/SoldFrame's header-band
--- convention.
+-- line ready to buy, and a thin progress bar along the bottom. The Sell tab's (UI/Sell/) and SoldFrame's
+-- header-band convention.
 local function createBand(parent)
   local picker = Theme.Button(parent, "ghost", "plaque")
   picker:SetSize(150, 24)
@@ -3315,7 +3315,7 @@ local function createBand(parent)
   setColor(done, Theme.color.fgDim)
 
   -- The search box and the filter (BD.TOOLS_MIN_LINES), in a row of their own under the band. The
-  -- well and the box are UI/SellFrame.lua's search, the filter a menu of GC.BuyView.FILTERS.
+  -- well and the box are UI/Sell/Toolbar.lua's search, the filter a menu of GC.BuyView.FILTERS.
   local tools = CreateFrame("Frame", nil, parent)
   tools:SetHeight(BD.TOOLS_H)
   tools:Hide()

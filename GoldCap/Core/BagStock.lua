@@ -103,7 +103,7 @@ function GC.BagStock.Scan(driver, bags)
           -- exactly must not be offered for posting at all, so drop the whole entry.
           if total then
             entry.quantity = total
-            -- The stack's own link: a caged pet's level is the one it states (UI/SellFrame.lua).
+            -- The stack's own link: a caged pet's level is the one it states (Services/Sell/Bags.lua).
             entry.stacks[#entry.stacks + 1] = { bag = bag, slot = slot, quantity = quantity, link = info.hyperlink }
           else
             entry.overflow = true

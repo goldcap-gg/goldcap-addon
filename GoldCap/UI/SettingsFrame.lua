@@ -20,7 +20,7 @@ end
 -- Minimal Theme-consistent widgets (editbox / pill toggle / segmented
 -- duration / slider). Theme.lua has factories for Panel/Card/Chip/Num/Label/
 -- Button/TitleBar because every one of those is reused across SniperFrame +
--- SellFrame + ImportDialog + Tooltip. Nothing else in the addon needs a
+-- the Sell view + ImportDialog + Tooltip. Nothing else in the addon needs a
 -- slider, a toggle, or a raw numeric input -- this settings screen is the
 -- only consumer -- so adding first-class Theme factories for them now would
 -- be speculative API surface nobody else calls. These stay built inline,
@@ -290,7 +290,7 @@ end
 -- Forever window shows "8 Hours", "2 Hours") without changing at all. Only the LABEL a player
 -- reads depends on which client this is; see durationHours below.
 
--- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
+-- Same "invalid/missing falls back to the default" contract as Services/Sell/Post.lua's own
 -- postDuration() reader -- these controls must never show, let alone write, a value that
 -- reader would refuse to post at.
 local function storedDurationIndex()

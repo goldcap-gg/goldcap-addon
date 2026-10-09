@@ -9,8 +9,8 @@
   This does NOT call the button's own Click method: the wiki is explicit that a click made
   that way inherits the caller's taint and skips RegisterForClicks and the mouse-down
   handling. Instead it calls the exact same Lua function the posting queue's toolbar button
-  calls from its own OnClick (see GC.Sell.Attach in UI/SellFrame.lua, which assigns
-  f.GoldCapPostNext = onQueueClick). Bindings.xml executes as an isolated chunk with no
+  calls from its own OnClick (see Dock.Build in UI/Sell/Dock.lua, called from GC.Sell.Attach in
+  UI/Sell/Frame.lua, which assigns f.GoldCapPostNext = onQueueClick). Bindings.xml executes as an isolated chunk with no
   upvalues into any addon file, so a reachable global is the only way in.
 
   A keybinding handler runs synchronously inside a real hardware input event, which is what a

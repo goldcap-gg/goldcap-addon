@@ -23,7 +23,7 @@ describe("Clean click ordering, driven end to end", function()
 
   -- The status line and the dock note are the screen's voice: a service that speaks through them
   -- ahead of the protected call would be logged here, and assertCleanCall would fail. Called after
-  -- loadSell, once UI/SellFrame.lua has filled the slots; each wrapper calls through to the real one.
+  -- loadSell, once the Sell view's files have filled the slots; each wrapper calls through to the real one.
   local function logViewWrites(GC)
     for slot, name in pairs({ status = "status", notePost = "notePost", endPostNote = "endPostNote" }) do
       local real = GC.SellView[slot]

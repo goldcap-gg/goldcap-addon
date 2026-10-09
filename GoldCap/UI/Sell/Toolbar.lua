@@ -252,3 +252,7 @@ function Toolbar.Build()
   end)
   Toolbar.LayoutSearch()
 end
+
+GC.SellView.paintDeck = function()
+  if UI.container and UI.container.deckButtons then UI.Toolbar.PaintDeckSwitch() end
+end

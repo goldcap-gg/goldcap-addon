@@ -68,7 +68,7 @@ describe("CompanionDialog", function()
     assert.is_true(dialog.edit.highlighted)
     -- Reachable from a click inside the docked AH window (SniperFrame.lua), which sits at the
     -- AH's own strata with a high frame level -- without DIALOG strata this dialog opens behind
-    -- it, invisible to the player. Same rule as SniperFrame.lua/SellFrame.lua's own dialogs.
+    -- it, invisible to the player. Same rule as SniperFrame.lua/Sell/CostDialog.lua's own dialogs.
     assert.equal("DIALOG", dialog.strata)
   end)
 

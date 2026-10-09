@@ -1,6 +1,6 @@
 local helper = require("spec.spec_helper")
 
--- The Sell tab's action column is 86px wide and its button is sized to the pixel: UI/SellFrame
+-- The Sell tab's action column is 86px wide and its button is sized to the pixel: UI/Sell/Row.lua
 -- comments the choice as "the largest width that still leaves >=2px clearance" for
 -- "Cancel lot?" at 85.8px, using this project's own measured figure of ~7.8px per character
 -- (mono-10 at Theme.Scale() 1.3). Eleven characters is therefore the whole budget.
@@ -19,7 +19,7 @@ local helper = require("spec.spec_helper")
 describe("row button labels fit the button", function()
   -- Two fixed-width row buttons, each with the set of labels its own code can put on it, and
   -- each budget derived the same way: width divided by ~7.8px per character.
-  --   row.action:SetSize(86, 18)          -- UI/SellFrame.lua, showRowAction
+  --   row.action:SetSize(86, 18)          -- UI/Sell/Row.lua, showRowAction
   --   COLUMNS { key = "buy", w = 64 }     -- UI/SniperFrame.lua, setRowDeal
   --
   -- A button that is posting shares its width with the client's spinner (Theme.Button's
