@@ -4,9 +4,10 @@
 
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
-- The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while it
-  scans, and the board you picked. On Deals the scan status beside AUTO can be read now, and on
-  retail so can the line at the top of the window that says how old your prices are.
+- The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a
+  scan you started runs, and the board you picked. AUTO reads AUTO · SCANNING for as long as it is
+  on, instead of blinking with every pass. On Deals the scan status beside AUTO can be read now,
+  and on retail so can the line at the top of the window that says how old your prices are.
 
 ## 0.18.2 (2026-10-06)
 

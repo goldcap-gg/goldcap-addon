@@ -3767,20 +3767,21 @@ local AUTO_PAUSE_LABEL = {
 -- neither reflects something the player is actively DOING right now.
 local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
 
+-- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
+-- auction house a pass comes and goes every second, and the chip blinked with it (owner, WoW:
+-- Forever, 2026-10-09); the status line beside it says each pass. A pause or a hold still speaks:
+-- those are the player's to act on.
 local function autoButtonText(state, reasons)
-  if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
-  -- WoW: Forever: the suffix follows the scanner, not only Auto's own machine -- a scan Auto did
-  -- not start (the one on opening the auction house, SCAN) is a scan all the same, and the SCAN
-  -- button beside it already says so. A pause reason still speaks over it.
-  if state ~= "PAUSED" and isForever() and GC.Sniper.ScanActive() then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
     end
+    return GC.L["AUTO"] -- only the ah/tab reasons
   end
   local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
   if held then return GC.L[held[1]] end
-  return GC.L["AUTO"] -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+  if state == "OFF" then return GC.L["AUTO"] end
+  return GC.L["AUTO · SCANNING"]
 end
 
 -- The tooltip's lines under the Auto button's own description: one sentence per thing holding
@@ -3889,7 +3890,11 @@ end
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = GC.Sniper.ScanActive()
+  local active = GC.Sniper.ScanActive()
+  if not active then GC.Sniper._scanPressed = nil end
+  -- Lit for a scan the player pressed, or any scan while Auto is off -- not for Auto's own passes,
+  -- which the AUTO chip already says and which made this blink every second (see autoButtonText).
+  local busy = active and (GC.Sniper._scanPressed or autoScan == nil or autoScan:State() == "OFF")
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -3934,6 +3939,8 @@ local function onFullScanClick()
     frame.status:SetText(GC.L["Open the Auction House first."])
     return
   end
+  -- The button lights for the scan this press started or joined, until it ends (refreshScanButton).
+  GC.Sniper._scanPressed = true
 
   -- WoW: Forever: SCAN is the market scan -- a full list when the server's throttle allows,
   -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself). A click while any

@@ -106,6 +106,45 @@ describe("one scan state for the toolbar", function()
       assert.equal("ghost", b.variant)
     end)
 
+    it("stays SCAN through Auto's own passes, and lights for a scan the player pressed", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local autoScan = upvalue(GC.Sniper.ScanActive, "autoScan")
+      local b = fakeButton(function(t) return #t * 8 end)
+      local state = "SCANNING"
+      autoScan.State = function() return state end
+      foreverBusy = true
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+
+      -- Between two passes the player presses SCAN, and the scan it starts runs.
+      state, foreverBusy = "IDLE", false
+      local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
+      local click = upvalue(createFrame, "onFullScanClick")
+      for i = 1, math.huge do
+        local name = debug.getupvalue(click, i)
+        if not name then break end
+        if name == "frame" then
+          debug.setupvalue(click, i, { status = { SetText = function() end }, fullScanBtn = b })
+        end
+      end
+      GC.Sniper.scanner = {}
+      GC.ForeverScan.Request = function() foreverBusy = true; return "started" end
+      click()
+      refresh({ fullScanBtn = b })
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      assert.equal("active", b.variant)
+
+      -- It ends; Auto's next pass does not light the button again.
+      foreverBusy = false
+      refresh({ fullScanBtn = b })
+      state, foreverBusy = "SCANNING", true
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+    end)
+
     it("is sized to the longer label, never under the old 64px, and measured once", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
@@ -137,19 +176,34 @@ describe("one scan state for the toolbar", function()
     end)
   end)
 
+  -- Owner, WoW: Forever 2026-10-09: on a small auction house Auto's passes come and go every
+  -- second, and AUTO and SCAN blinked with them. The chip says the mode; the status line beside it
+  -- says each pass.
   describe("the AUTO chip", function()
-    it("follows the scanner in Forever, yields to a pause, and is untouched on retail", function()
+    it("reads AUTO · SCANNING the whole time Auto runs, between passes too, on both games", function()
+      local GC = loadSniper()
+      local text = upvalue(upvalue(GC.Sniper.RepaintScanState, "refreshAutoButton"), "autoButtonText")
+      for _, game in ipairs({ true, false }) do
+        forever = game
+        for _, busy in ipairs({ true, false }) do
+          foreverBusy = busy
+          for _, state in ipairs({ "IDLE", "SCANNING", "WAITING" }) do
+            assert.equal("AUTO · SCANNING", text(state, {}), state)
+          end
+        end
+      end
+    end)
+
+    it("still says a pause or a hold the player has to act on, and plain AUTO for the rest", function()
       local GC = loadSniper()
       local text = upvalue(upvalue(GC.Sniper.RepaintScanState, "refreshAutoButton"), "autoButtonText")
       foreverBusy = true
-      assert.equal("AUTO · SCANNING", text("IDLE", {}))
       assert.equal("AUTO · PAUSED: MAILBOX OPEN", text("PAUSED", { mail = true }))
-      foreverBusy = false
-      assert.equal("AUTO", text("IDLE", {}))
-      foreverBusy = true
-      forever = false
-      assert.equal("AUTO", text("IDLE", {}))
-      assert.equal("AUTO · SCANNING", text("SCANNING", {}))
+      assert.equal("AUTO", text("PAUSED", { ah = true }))
+      GC.Sniper._autoHeld = "busy"
+      assert.equal("AUTO · WAITING FOR YOU", text("WAITING", {}))
+      assert.equal("AUTO · WAITING FOR YOU", text("IDLE", {}))
+      GC.Sniper._autoHeld = nil
     end)
   end)
 
