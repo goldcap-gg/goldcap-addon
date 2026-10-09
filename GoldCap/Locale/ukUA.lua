@@ -44,7 +44,6 @@ GC.Locales.ukUA = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
-  ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s: потрібне число, наприклад /gc weights %s 1.5",
   ["%s under you"] = "%s дешевше за вас",
@@ -209,8 +208,6 @@ GC.Locales.ukUA = {
     "Цей клієнт не повідомляє характеристики предметів, тому GoldCap не може порівняти спорядження.",
   ["This lot holds more units than your Max units per buy."] =
     "У цьому лоті більше штук, ніж ваш «Макс. штук за одну купівлю».",
-  ["Could not find the queue's next item to post — try again"] =
-    "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Не вдалося знайти наступний лот у черзі на скасування — спробуйте ще раз",
   ["DEFAULTS"] = "СТАНДАРТНІ",
@@ -337,7 +334,6 @@ GC.Locales.ukUA = {
   ["NO COST"] = "БЕЗ ЧЕКА",
   ["NOT ON HAND %d"] = "НЕМАЄ НА РУКАХ %d",
   ["NOTHING TO CANCEL"] = "НЕМА ЩО СКАСОВУВАТИ",
-  ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкою потрібна жива перевірка ціни.",
   ["Needs gold"] = "Потрібне золото",
@@ -385,7 +381,6 @@ GC.Locales.ukUA = {
   ["Open the Auction House first."] = "Спершу відкрийте аукціон.",
   ["Open the Auction House to begin scanning."] = "Відкрийте аукціон, щоб почати сканування.",
   ["Open the deals board. /gc for commands."] = "Відкрити дошку угод. /gc — команди.",
-  ["POST %d"] = "ВИСТАВИТИ %d",
   ["POSTING"] = "ВИСТАВЛЕННЯ",
   ["POSTING…"] = "ВИСТАВЛЯЄМО…",
   ["PRICE"] = "ЦІНА",
@@ -435,7 +430,6 @@ GC.Locales.ukUA = {
   ["Quantity is capped by how fast this item actually sells."] =
     "Кількість обмежена тим, як швидко предмет реально продається.",
   ["READY"] = "ГОТОВЕ",
-  ["Queue ready — press POST again to post it"] = "Черга готова — натисніть Виставити ще раз, щоб виставити його",
   ["REFRESH"] = "ОНОВИТИ",
   ["RESET WINDOW"] = "СКИНУТИ ВІКНО",
   ["Reason"] = "Причина",
@@ -1346,6 +1340,9 @@ GC.Locales.ukUA = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВИРУЧКА мінус те, що ви заплатили за цей товар. Видно, лише поки GoldCap знає, скільки ви заплатили за весь товар.",
   ["HOW MANY"] = "СКІЛЬКИ",
   ["MAX"] = "УСЕ",
-  ["posted as many as you asked for; its own Post lists more"] = "виставлено, скільки ви просили; решту виставить кнопка «Виставити» в його рядку",
+  ["skipped"] = "пропущено",
   ["posted"] = "виставлено",
+  ["POST"] = "ВИСТАВИТИ",
+  ["SKIP"] = "ПРОПУСТИТИ",
+  ["then %s"] = "далі %s",
 }

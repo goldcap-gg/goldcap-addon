@@ -46,7 +46,6 @@ GC.Locales.ptBR = {
   ["%d× %s"] = "%d× %s",
   ["%d× %s · %s each · %s"] = "%d× %s · %s cada · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidade    total %s -> %s",
-  ["%s after the AH cut"] = "%s após a taxa da CdL",
   ["%s ahead"] = "%s à frente",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s precisa de um número, por exemplo /gc weights %s 1.5",
   ["%s under you"] = "%s abaixo de você",
@@ -219,8 +218,6 @@ GC.Locales.ptBR = {
     "Este cliente não informa os atributos dos itens, então o GoldCap não consegue comparar equipamentos.",
   ["This lot holds more units than your Max units per buy."] =
     "Este lote tem mais unidades que o seu \"Máx. de unidades por compra\".",
-  ["Could not find the queue's next item to post — try again"] =
-    "Não achei o próximo item da fila para anunciar — tente de novo",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Não achei o próximo lote da fila para cancelar — tente de novo",
   ["DEFAULTS"] = "PADRÃO",
@@ -341,7 +338,6 @@ GC.Locales.ptBR = {
   ["YOUR LISTS"] = "SUAS LISTAS",
   ["NOT ON HAND %d"] = "FORA DE MÃO %d",
   ["NOTHING TO CANCEL"] = "NADA PARA CANCELAR",
-  ["NOTHING TO POST"] = "NADA PARA ANUNCIAR",
   ["Needs a live price check before it can be bought."] =
     "Precisa de uma verificação de preço ao vivo antes de poder ser comprado.",
   ["Needs gold"] = "Precisa de ouro",
@@ -387,7 +383,6 @@ GC.Locales.ptBR = {
   ["Open the Auction House to begin scanning."] =
     "Abra a casa de leilões para começar a varredura.",
   ["Open the deals board. /gc for commands."] = "Abre o painel de oportunidades. /gc para os comandos.",
-  ["POST %d"] = "ANUNCIAR %d",
   ["POSTING"] = "PUBLICAÇÃO",
   ["POSTING…"] = "ANUNCIANDO…",
   ["PRICE"] = "PREÇO",
@@ -435,7 +430,6 @@ GC.Locales.ptBR = {
   ["Quantity exceeds missing units"] = "A quantidade passa das unidades que faltam",
   ["Quantity is capped by how fast this item actually sells."] =
     "A quantidade é limitada pela rapidez com que este item realmente vende.",
-  ["Queue ready — press POST again to post it"] = "Fila pronta — pressione Anunciar novamente para anunciá-lo",
   ["REFRESH"] = "ATUALIZAR",
   ["RESET WINDOW"] = "REDEFINIR JANELA",
   ["Reason"] = "Motivo",
@@ -1269,6 +1263,9 @@ GC.Locales.ptBR = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "RECEITA menos o que você pagou por este estoque. Só aparece enquanto o GoldCap sabe quanto você pagou por tudo.",
   ["HOW MANY"] = "QUANTIDADE",
   ["MAX"] = "MÁX.",
-  ["posted as many as you asked for; its own Post lists more"] = "anunciou quantos você pediu; o botão Anunciar da linha anuncia mais",
+  ["skipped"] = "pulado",
   ["posted"] = "anunciado",
+  ["POST"] = "ANUNCIAR",
+  ["SKIP"] = "PULAR",
+  ["then %s"] = "depois %s",
 }

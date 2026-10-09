@@ -45,7 +45,6 @@ GC.Locales.deDE = {
   ["%d× %s"] = "%d× %s",
   ["%d× %s · %s each · %s"] = "%d× %s · %s pro Stück · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s pro Stück    gesamt %s -> %s",
-  ["%s after the AH cut"] = "%s nach der AH-Gebühr",
   ["%s ahead"] = "%s davor",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s braucht eine Zahl, zum Beispiel /gc weights %s 1.5",
   ["%s under you"] = "%s unter dir",
@@ -218,8 +217,6 @@ GC.Locales.deDE = {
     "Dieser Client liefert keine Gegenstandswerte, daher kann GoldCap keine Ausrüstung vergleichen.",
   ["This lot holds more units than your Max units per buy."] =
     "Dieser Posten hat mehr Stück als dein „Max. Stück pro Kauf“.",
-  ["Could not find the queue's next item to post — try again"] =
-    "Nächster Gegenstand der Einstellwarteschlange nicht gefunden — nochmal versuchen",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Nächster Posten der Abbruchwarteschlange nicht gefunden — nochmal versuchen",
   ["DEFAULTS"] = "STANDARD",
@@ -340,7 +337,6 @@ GC.Locales.deDE = {
   ["YOUR LISTS"] = "DEINE LISTEN",
   ["NOT ON HAND %d"] = "NICHT ZUR HAND %d",
   ["NOTHING TO CANCEL"] = "NICHTS ABZUBRECHEN",
-  ["NOTHING TO POST"] = "NICHTS EINZUSTELLEN",
   ["Needs a live price check before it can be bought."] =
     "Braucht eine Live-Preisprüfung, bevor es gekauft werden kann.",
   ["Needs gold"] = "Braucht Gold",
@@ -386,7 +382,6 @@ GC.Locales.deDE = {
   ["Open the Auction House first."] = "Öffne zuerst das Auktionshaus.",
   ["Open the Auction House to begin scanning."] = "Öffne das Auktionshaus, um zu scannen.",
   ["Open the deals board. /gc for commands."] = "Öffnet die Angebotsliste. /gc für Befehle.",
-  ["POST %d"] = "EINSTELLEN %d",
   ["POSTING"] = "EINSTELLEN",
   ["POSTING…"] = "SENDEN…",
   ["PRICE"] = "PREIS",
@@ -435,7 +430,6 @@ GC.Locales.deDE = {
   ["Quantity exceeds missing units"] = "Menge übersteigt die fehlenden Stück",
   ["Quantity is capped by how fast this item actually sells."] =
     "Die Menge ist dadurch begrenzt, wie schnell sich der Gegenstand wirklich verkauft.",
-  ["Queue ready — press POST again to post it"] = "Warteschlange bereit — klicke erneut auf Einstellen, um es einzustellen",
   ["REFRESH"] = "AKTUALISIEREN",
   ["RESET WINDOW"] = "FENSTER ZURÜCKSETZEN",
   ["Reason"] = "Grund",
@@ -1272,6 +1266,9 @@ GC.Locales.deDE = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ERLÖS abzüglich dessen, was du für diese Ware bezahlt hast. Nur sichtbar, solange GoldCap weiß, was du für alles bezahlt hast.",
   ["HOW MANY"] = "ANZAHL",
   ["MAX"] = "MAX",
-  ["posted as many as you asked for; its own Post lists more"] = "so viele eingestellt, wie du wolltest; mehr stellt „Einstellen“ in seiner Zeile ein",
+  ["skipped"] = "übersprungen",
   ["posted"] = "eingestellt",
+  ["POST"] = "EINSTELLEN",
+  ["SKIP"] = "AUSLASSEN",
+  ["then %s"] = "danach %s",
 }

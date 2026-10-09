@@ -1,6 +1,6 @@
--- The dock along the bottom of the Sell tab, and every click that posts or cancels. The bulk action
--- (POST n / CANCEL n), the two lines beside it and the totals; the status line; and the click
--- handlers. onPostClick and onRepostClick are the only places the tab makes a protected
+-- The dock along the bottom of the Sell tab, and every click that posts or cancels. POST and the
+-- item it posts (UI/Sell/PostPanel.lua paints the rest of that tier), CANCEL n and its line, the
+-- totals and the status line; and the click handlers. onPostClick and onRepostClick are the only places the tab makes a protected
 -- auction-house call, one per click, before anything else the click does (docs/addon/AGENTS.md
 -- "Protected actions"). A row's buttons, the inspector's Post and Cancel lot, the dock and the key
 -- binding all reach them through UI.Dock. Moved from UI/SellFrame.lua as it was.
@@ -139,65 +139,54 @@ local QUEUE_SKIP_TEXT = {
   -- Held by this tab, not by the queue module: the item's last post may still go up
   -- (GC.Sell._lateAnswers).
   awaiting_answer = "Last post may still go up -- wait a minute",
-  -- Held by this tab too: posted from a number typed into HOW MANY (GC.Sell._HoldPostedInQueue).
-  posted_this_visit = "posted as many as you asked for; its own Post lists more",
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
 -- The real body, promised by the forward declaration above. Reads UI.container and
 -- GC.SellState's queue fields.
 paintQueueButton = function()
-  local button, label = UI.container and UI.container.queueButton, UI.container and UI.container.queueLabel
+  local button = UI.container and UI.container.queueButton
   if not button then return end
   local heldBack, heldBackHit = UI.container.queueHeldBack, UI.container.queueHeldBackHit
-  -- The post queue is the POST deck's bulk action and shares the footer slot with the cancel
-  -- queue's. Hidden, not disabled, on the other deck: a disabled control invites a click that
-  -- can never work, and this one belongs to a screen the player is not on.
+  -- POST belongs to the posting deck and shares the dock with the cancel queue's controls.
+  -- Hidden, not disabled, on the other deck: a disabled control invites a click that can never
+  -- work, and this one belongs to a screen the player is not on.
   if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
     button:Hide()
-    if label then label:SetText(""); label:Hide() end
+    UI.PostPanel.Hide()
     if heldBack then heldBack:Hide() end
     if heldBackHit then heldBackHit:Hide() end
     return
   end
   button:Show()
-  if label then label:Show() end
-  -- Row 1 of the QUEUE's own order, not of whatever filter chip happens to be on screen right
-  -- now: this control acts on GC.PostQueue's own head regardless of what the player is currently
-  -- looking at, and paints itself from that same head so what it says is never a guess about
-  -- what a render would show if one ran right now.
-  local head = S.queueEntries[1]
-  -- The spinner turns for as long as a post of ours is on the wire, whichever button sent it:
-  -- the dock's POST is disabled either way, and disabled alone reads as dead.
+  -- The dock's item: what a press of POST posts, painted from the same answer the press reads.
+  local row, nextRow = Dock.Current()
+  -- The spinner turns for as long as a post of ours is on the wire: POST is disabled meanwhile,
+  -- and disabled alone reads as dead.
   local sending = S.postingRow ~= nil and (S.postingRow.postStage == "posting" or S.postingRow.postStage == "confirming")
   if button.SetBusy then button:SetBusy(sending) end
+  local hint
   if S.postingRow then
-    -- Mirror the row postingRow itself pins to -- see onQueueClick/onPostClick -- only when
-    -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
-    -- player clicked a row's own Post button directly, on a position that is not the head),
-    -- this control simply disables rather than offering a second, conflicting click; it must
-    -- never claim "CONFIRM" for a click that would land on the wrong row.
-    local sameHead = head and S.postingRow.position and S.postingRow.position.positionKey == head.positionKey
-    if sameHead and S.postingRow.postStage == "confirm" then
+    -- CONFIRM only while the post waiting for it is the dock's item's: a press must never land
+    -- on another item than the one the dock names.
+    local same = row and S.postingRow.position and S.postingRow.position.positionKey == row.position.positionKey
+    if same and S.postingRow.postStage == "confirm" then
       button:SetLabel(GC.L["CONFIRM"]); button:Enable()
     else
       button:SetLabel(GC.L["POSTING…"]); button:Disable()
     end
-    -- The item going up, not the head: a row's own Post can be any row on the list.
-    local going = S.postingRow.position and S.postingRow.position.itemName or head and head.itemName
-    if label then label:SetText(going or "") end
-  elseif not head then
-    button:SetLabel(GC.L["NOTHING TO POST"])
+  elseif not row then
+    button:SetLabel(GC.L["POST"])
     button:Disable()
     -- Items in the bags, none of them on the selling list: say how to put one on it. Not while
     -- something marked is only held back -- the counter beside this says why for those.
     local unmarkedOnly = #S.queueSkipped == 0 and #(S.notSelling or {}) > 0
-    if label then label:SetText(unmarkedOnly and GC.L["Mark what to sell with the circle"] or "") end
+    hint = unmarkedOnly and GC.L["Mark what to sell with the circle"] or GC.L["Nothing queued to post"]
   else
-    button:SetLabel((GC.L["POST %d"]):format(#S.queueEntries))
+    button:SetLabel(GC.L["POST"])
     button:Enable()
-    if label then label:SetText(("%s @ %s"):format(head.itemName or GC.L["Item"], formatCell(head.unitPrice))) end
   end
+  UI.PostPanel.Paint(row, nextRow, hint)
   if heldBack then
     if #S.queueSkipped > 0 then
       -- "from posting", because the cancel queue paints an identical counter near its own
@@ -211,6 +200,7 @@ paintQueueButton = function()
       heldBack:Hide()
       if heldBackHit then heldBackHit:Hide() end
     end
+    Dock.LayoutLedger()
   end
 end
 Dock.PaintQueueButton = paintQueueButton
@@ -494,84 +484,52 @@ local function updateSummary(deck)
 end
 Dock.UpdateSummary = updateSummary
 
--- The toolbar queue control's own click. Arms queue mode (so row 1 is guaranteed to be the
--- head -- see UI.List.RenderRows' own "queue" branch and the design document's own reasoning for
--- why this, rather than teaching onPostClick a second way to find a row) and then posts row 1
--- through onPostClick EXACTLY -- its own pin validation, its needsConfirmation branch, its
--- timeout. There is no second posting implementation here, and nothing here calls a protected
--- API directly; see spec/sell_post_wiring_spec.lua for the static guard on both.
---
--- Retail posts on the first press, exactly as addon-v0.15.3 did: switch into queue mode, render,
--- post row 1, all in the same click. If row 1 does not come back as a rendered "position" row
--- after that render -- the container hidden, a render some other in-flight arm is still
--- deferring -- no protected call is attempted on a guess; the status line says so and the player
--- can press again.
---
--- WoW: Forever only: renderRows() -> pushPosition -> cacheBagLocation runs Blizzard's
--- ItemLocation:CreateFromBagAndSlot for every position with bag stock, plus GC.Sell._SlotKey for
--- every non-commodity one, and paints besides -- all of it Blizzard or GoldCap Lua a click that
--- ends in PostCommodity/PostItem must not run ahead of that call there (final review C1). So in
--- Forever a click that would have to render first -- switching into queue mode, or the queue's
--- own head having moved since the last render -- renders ONLY, and asks for one more press once
--- row 1 is actually the rendered head; it never falls through into onPostClick in the same click
--- that just rendered. Only a click that finds row 1 already the queue's rendered, shown head
--- posts -- and then through onPostClick EXACTLY, with no render of its own. The split is gated on
--- Forever (read fresh, like every other GC.Game.IsForever gate, and inline: written when this
--- code lived in UI/SellFrame.lua, whose top-level local headroom was not to be spent on it)
--- because retail has always rendered inside this click
--- and a retail player never had to press twice (retail drift audit F1).
+-- The item the dock posts: the one the player put there by clicking its row (S.dockKey), or the
+-- first item of the queue in the list's own order, top to bottom -- not the queue's value order:
+-- by value a part-posted water stood in front of the linen marked beside it (owner, 2026-10-10).
+-- Returns that item's rendered position row, which is what the Post machinery pins (Services/
+-- Sell/Post.lua), and the row of the item after it. Every position on the deck has a row of its
+-- own -- the list is not windowed -- so the dock never renders to find one: a render in the
+-- click that posts is what WoW: Forever's taint engine refuses (final review C1). `row:IsShown()`,
+-- never `row.shown`: a real Frame has no such field (spec/ui_widget_field_spec.lua).
+function Dock.Current()
+  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then return nil, nil end
+  local queued = {}
+  for _, entry in ipairs(S.queueEntries) do queued[entry.positionKey] = true end
+  local chosen
+  local walk = {}
+  for _, row in ipairs(UI.rows or {}) do
+    if row.IsShown and row:IsShown() and row.kind == "position" and row.position
+        and type(row.position.positionKey) == "string" and (row.position.bagQty or 0) > 0 then
+      local key = row.position.positionKey
+      if key == S.dockKey then chosen = row end
+      if queued[key] then walk[#walk + 1] = row end
+    end
+  end
+  local current = chosen or walk[1]
+  for _, row in ipairs(walk) do
+    if row ~= current then return current, row end
+  end
+  return current, nil
+end
+
+-- The dock's POST and the post-next key: the dock's item, through onPostClick EXACTLY -- its own
+-- pin validation, its confirmation, its timeout. There is no second posting implementation here,
+-- and nothing here calls a protected API directly (spec/sell_post_wiring_spec.lua). A post
+-- waiting for its Confirm is that item's, so a press while it waits confirms it.
 local function onQueueClick()
-  if #S.queueEntries == 0 then
+  local row = Dock.Current()
+  if not row then
     setStatus(GC.L["Nothing queued to post"])
     return
   end
-  local head = S.queueEntries[1]
-  -- The dock reads CONFIRM only while the queue's head is the post waiting for it (paintQueueButton's
-  -- sameHead), so this click is that confirmation: it goes to the armed row itself. Row 1 cannot be
-  -- trusted for it -- the arm holds every render back, and on the posting deck row 1 is the SELLING
-  -- heading. onPostClick checks the row's pin as it does for the row's own Post.
   local armed = S.postingRow
   if armed and armed.postStage == "confirm" and armed.position
-      and armed.position.positionKey == head.positionKey then
+      and armed.position.positionKey == row.position.positionKey then
     onPostClick(armed)
     return
   end
-  -- `row:IsShown()`, never `row.shown`. A real Frame has no `shown` FIELD -- only the method --
-  -- but every widget double in this suite implements Show/Hide by writing `self.shown`, so
-  -- reading the field is true in every test and nil in the client, and this button would have
-  -- shipped refusing to post anything at all while seven tests proved it worked. That is the
-  -- third time today a field only the fakes define reached production; see
-  -- spec/ui_widget_field_spec.lua, which now fails the build for it.
-  --
-  -- Shared by both branches below: row 1 only counts as the queue's own head when it is actually
-  -- showing that exact position. A Cancel lot or a Remove armed anywhere holds renderRows() to a
-  -- no-op (UI.List.RenderRows' own guard) rather than rebinding rows out from under a pin
-  -- the player is mid-confirming, so without this identity check row 1 can still be whatever
-  -- OTHER deck was on screen before the click -- and the retail branch used to post that instead
-  -- of the position the button, or its keybinding, actually named as next.
-  local function isQueueHead(row)
-    return row and row.IsShown and row:IsShown() and row.kind == "position"
-      and row.position and row.position.positionKey == head.positionKey
-  end
-  if not (GC.Game and GC.Game.IsForever(GC.Game.Passport())) then
-    S.filterMode = "queue"
-    UI.List.RenderRows()
-    local row = UI.rows[1]
-    if isQueueHead(row) then
-      onPostClick(row)
-    else
-      setStatus(GC.L["Could not find the queue's next item to post — try again"])
-    end
-    return
-  end
-  local row = UI.rows[1]
-  if S.filterMode == "queue" and isQueueHead(row) then
-    onPostClick(row)
-    return
-  end
-  S.filterMode = "queue"
-  UI.List.RenderRows()
-  setStatus(GC.L["Queue ready — press POST again to post it"])
+  onPostClick(row)
 end
 
 -- The cancel control's click. Same discipline as onQueueClick, plus the destructive-action
@@ -606,16 +564,16 @@ function Dock.BuildFill()
   container.dockFill = dockFill
 end
 
--- The leftmost thing in the ledger line, whatever it turned out to be: the held-back counter
--- and the queue's head label chain LEFT from here, so the footer's two halves can never
--- overlap however long either grows.
--- Re-run on every resize and every summary: under DOCK.NARROW the ledger keeps PROCEEDS alone,
--- a total with nothing to show is not drawn, and whatever is leftmost afterwards is what the
--- two lines beside the bulk action stop short of. The held-back counter rides the upper line
--- (14 above a figure's own centre), the status the lower one, level with the figures.
+-- The lower tier, right to left: the totals, the held-back counter, then the status line, which
+-- stops short of whichever of those is leftmost so the two halves never overlap however long
+-- either grows. Re-run on every resize and every paint: under DOCK.NARROW the ledger keeps
+-- PROCEEDS alone, and a total with nothing to show is not drawn. The upper tier's own layout
+-- (UI/Sell/PostPanel.lua) follows the width with it.
 function Dock.LayoutLedger()
   local container = UI.container
-  local queueHeldBack, dockStatus, queueButton = container.queueHeldBack, container.dockStatus, container.queueButton
+  -- Painted once before the totals are built (Dock.Build's first paintQueueButton).
+  if not (container and container.summary) then return end
+  local queueHeldBack, dockStatus = container.queueHeldBack, container.dockStatus
   local narrow = (UI.rowWidth or 0) < DOCK.NARROW
   local shown = container.summaryShown or {}
   local left
@@ -627,48 +585,40 @@ function Dock.LayoutLedger()
     if shown[id] and (id == "total" or not narrow) then
       value:Show(); label:Show()
       if hit then hit:Show() end
-      left = value
+      left = label
     else
       value:Hide(); label:Hide()
       if hit then hit:Hide() end
     end
   end
   -- Nothing shown: the lines run to where PROCEEDS would stand.
-  left = left or container.summary.total
+  left = left or container.summaryLabels.total
   container.ledgerLeft = left
   queueHeldBack:ClearAllPoints()
-  queueHeldBack:SetPoint("RIGHT", left, "LEFT", -12, 14)
+  queueHeldBack:SetPoint("RIGHT", left, "LEFT", -16, 0)
   dockStatus:ClearAllPoints()
-  dockStatus:SetPoint("LEFT", queueButton, "RIGHT", 10, -7)
-  dockStatus:SetPoint("RIGHT", left, "LEFT", -12, 0)
+  dockStatus:SetPoint("LEFT", container, "BOTTOMLEFT", DOCK.PAD, DOCK.LOW_Y)
+  dockStatus:SetPoint("RIGHT", queueHeldBack:IsShown() and queueHeldBack or left, "LEFT", -12, 0)
+  UI.PostPanel.Layout()
 end
 
 function Dock.Build(f)
   local container = UI.container
-  -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
-  -- "POST N" (its own count, so the number is on the button a click actually is), a label
-  -- beside it naming the item and unit price that click will post -- a blind click is not one a
-  -- seller should be asked to make -- and a held-back indicator with a tooltip that explains,
-  -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
-  -- are painted, and onQueueClick for what a click does.
+  -- POST, beside the item it posts and everything about that post (UI/Sell/PostPanel.lua) -- a
+  -- blind click is not one a seller should be asked to make -- and, on the lower tier, a
+  -- held-back count with a tooltip that explains, in words, everything GC.PostQueue.Build held
+  -- back. See paintQueueButton for how they are painted, and onQueueClick for what a click does.
   local queueButton = Theme.Button(container, "primary", "plaque")
-  -- 136, not 110: matches cancelButton below, sized for its own widest label ("NOTHING TO
-  -- CANCEL", 132.6px at mono-10 and Theme.Scale() 1.3 -- JetBrains Mono ~0.6em/char ->
-  -- 7.8px/char) -- a narrower button let "NOTHING TO POST" spill past its own borders.
-  queueButton:SetSize(136, 26)
-  queueButton:SetPoint("BOTTOMLEFT", DOCK.PAD, (DOCK.H - 26) / 2)
+  -- The upper tier's right end; the posting panel (UI/Sell/PostPanel.lua) lines up to its left.
+  queueButton:SetSize(DOCK.POST_W, DOCK.BUTTON_H)
+  queueButton:SetPoint("RIGHT", container, "BOTTOMRIGHT", -DOCK.PAD, DOCK.TOP_Y)
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
+  UI.PostPanel.Build()
 
-  -- Two lines beside the button: what the next press does, and under it what is happening.
-  local queueLabel = Theme.Num(container, 10)
-  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 10, 7)
-  queueLabel:SetJustifyH("LEFT")
-  queueLabel:SetWordWrap(false)
-  container.queueLabel = queueLabel
-
+  -- The lower tier's left end: what is happening (LayoutLedger bounds its right edge).
   local dockStatus = Theme.Num(container, 9)
-  dockStatus:SetPoint("LEFT", queueButton, "RIGHT", 10, -7)
+  dockStatus:SetPoint("LEFT", container, "BOTTOMLEFT", DOCK.PAD, DOCK.LOW_Y)
   dockStatus:SetJustifyH("LEFT")
   dockStatus:SetWordWrap(false)
   setColor(dockStatus, Theme.color.fgMuted)
@@ -677,9 +627,8 @@ function Dock.Build(f)
   local queueHeldBack = Theme.Num(container, 9)
   queueHeldBack:SetJustifyH("LEFT")
   setColor(queueHeldBack, Theme.color.fgDim)
-  -- Both anchors set below, once its row-2 position and the ALL chip it abuts exist -- see the
-  -- row-1 bounding block after the cancel cluster (M5: RIGHT-bound against the ALL chip, or a
-  -- long held-back count ran under the filter chips at narrow widths).
+  -- The lower tier, between the status and the totals (LayoutLedger anchors it).
+  queueHeldBack:SetWordWrap(false)
   queueHeldBack:Hide()
   container.queueHeldBack = queueHeldBack
 
@@ -717,20 +666,18 @@ function Dock.Build(f)
   -- quieter look next to POST. See paintCancelButton for the states and onCancelQueueClick
   -- for what a click does (and, more importantly, does not) do.
   local cancelButton = Theme.Button(container, "ghost", "plaque")
-  -- 136 for the same reason as the Post button: "NOTHING TO CANCEL" (132.6px at mono-10 and
-  -- Theme.Scale() 1.3) must fit inside.
-  cancelButton:SetSize(136, 26)
-  -- The SAME footer slot as the post queue's control, not the far end of a row: only one deck
-  -- is ever on screen, so only one of these is ever shown, and putting them in one place means
-  -- the bulk action never moves under the cursor when the deck changes.
-  cancelButton:SetPoint("BOTTOMLEFT", DOCK.PAD, (DOCK.H - 26) / 2)
+  -- 136: "NOTHING TO CANCEL" (132.6px at mono-10 and Theme.Scale() 1.3) must fit inside.
+  cancelButton:SetSize(136, DOCK.BUTTON_H)
+  -- The upper tier's left end: only one deck is ever on screen, so only POST's panel or this
+  -- cluster is ever shown there.
+  cancelButton:SetPoint("LEFT", container, "BOTTOMLEFT", DOCK.PAD, DOCK.TOP_Y)
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
 
   local cancelHeldBack = Theme.Num(container, 9)
   cancelHeldBack:SetJustifyH("LEFT")
   setColor(cancelHeldBack, Theme.color.fgDim)
-  cancelHeldBack:SetPoint("LEFT", cancelButton, "RIGHT", 10, 7)
+  cancelHeldBack:SetPoint("LEFT", cancelButton, "RIGHT", 10, 0)
   cancelHeldBack:Hide()
   container.cancelHeldBack = cancelHeldBack
 
@@ -757,19 +704,6 @@ function Dock.Build(f)
   cancelHeldBackHit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   container.cancelHeldBackHit = cancelHeldBackHit
 
-  -- Row-1 bounding, settable only now that the cancel cluster exists: the head label
-  -- stretches between the Post button and the cancel cluster, so a long item name TRUNCATES
-  -- instead of running under the controls to its right -- exactly the collision the old
-  -- one-row toolbar shipped. The post queue's own held-back count does NOT sit here: two
-  -- identical "N held back" strings side by side (one the post queue's, one the cancel
-  -- queue's) read as one meaningless phrase, so the post one moves to row 2's empty left
-  -- end, under the cluster it belongs to, and says which queue it is about in words.
-  queueLabel:SetPoint("RIGHT", queueHeldBack, "LEFT", -10, 0)
-  -- RIGHT edge deliberately NOT set here: the ledger line built further down owns the
-  -- footer's right corner, and anchoring both to it painted the held-back count straight
-  -- through the profit figure. Bound against the ledger's leftmost label once that exists.
-  queueHeldBack:SetWordWrap(false)
-
   paintCancelButton()
 
   -- The real keybinding (Bindings.xml, auto-loaded by the client, not listed in the .toc -- see
@@ -781,23 +715,19 @@ function Dock.Build(f)
   -- real hardware input event, which is what a protected post actually requires.
   f.GoldCapPostNext = onQueueClick
 
-  -- The totals: one right-aligned line in the footer, what the session adds up to -- a thing
-  -- to glance at on the way out, not a thing to read before starting. See SUMMARY_STAT_LABELS
-  -- above for what each one is and why.
+  -- The totals: the lower tier's right end, what the session adds up to -- a thing to glance at
+  -- on the way out, not a thing to read before starting. See SUMMARY_STAT_LABELS above for what
+  -- each one is and why. Inline, label then figure, each as wide as its text.
   container.summary, container.summaryLabels = {}, {}
   local ledgerPrevious
   for i, id in ipairs(SUMMARY_STAT_IDS) do
-    -- Label over figure in a fixed-width column: stacked, the totals take half the width they
-    -- would inline, and that width is what the line beside the bulk action needs.
     local value = Theme.Num(container, 10, true)
     value:SetJustifyH("RIGHT"); value:SetWordWrap(false)
-    value:SetWidth(DOCK.STAT_W)
-    if ledgerPrevious then value:SetPoint("RIGHT", ledgerPrevious, "LEFT", -8, 0)
-    else value:SetPoint("RIGHT", container, "BOTTOMRIGHT", -DOCK.PAD, DOCK.H / 2 - 7) end
+    if ledgerPrevious then value:SetPoint("RIGHT", ledgerPrevious, "LEFT", -16, 0)
+    else value:SetPoint("RIGHT", container, "BOTTOMRIGHT", -DOCK.PAD, DOCK.LOW_Y) end
     local label = Theme.Num(container, 9)
     label:SetJustifyH("RIGHT"); label:SetWordWrap(false)
-    label:SetWidth(DOCK.STAT_W)
-    label:SetPoint("BOTTOMRIGHT", value, "TOPRIGHT", 0, 3)
+    label:SetPoint("RIGHT", value, "LEFT", -6, 0)
     label:SetText(GC.L[SUMMARY_STAT_LABELS[i]]); setColor(label, Theme.color.fgDim)
     if id == "total" then setColor(value, Theme.color.gold) end
     container.summary[id], container.summaryLabels[id] = value, label
@@ -805,8 +735,8 @@ function Dock.Build(f)
     -- frame over the label and the figure, which read as one control. The deck is read at
     -- hover time, so the words cannot go stale between renders.
     local hit = CreateFrame("Frame", nil, container)
-    hit:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 2)
-    hit:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 0, -2)
+    hit:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 4)
+    hit:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 0, -4)
     hit:EnableMouse(true)
     hit:SetScript("OnEnter", function(self)
       if not GameTooltip or not value:IsShown() then return end
@@ -820,7 +750,7 @@ function Dock.Build(f)
     hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     container.summaryHits = container.summaryHits or {}
     container.summaryHits[id] = hit
-    ledgerPrevious = value
+    ledgerPrevious = label
   end
   Dock.LayoutLedger()
 end

@@ -454,7 +454,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("1g90s", container.summary.total:GetText())
       assert.is_false(container.summary.profit.shown)
       assert.is_false(container.summaryLabels.profit.shown)
-      assert.equal(container.summary.total, container.dockStatus.points[2].relative)
+      assert.equal(container.summaryLabels.total, container.dockStatus.points[2].relative)
     end)
 
     it("adds up what POST lists on the posting deck, whatever the rows show", function()
@@ -508,7 +508,7 @@ describe("Sell widget geometry and manual cost", function()
       local _, container = topRows(GC, {})
       assert.is_false(container.summary.total.shown)
       assert.is_false(container.summary.profit.shown)
-      assert.equal(container.summary.total, container.dockStatus.points[2].relative)
+      assert.equal(container.summaryLabels.total, container.dockStatus.points[2].relative)
     end)
 
     it("says on hover what each total is, in the words of the deck on screen", function()
@@ -633,9 +633,14 @@ describe("Sell widget geometry and manual cost", function()
   -- seller could not see the workings of or change: GoldCap picked it and Post sent it. These
   -- cover the control that changed that -- and, just as much, the two warnings that are the
   -- price of allowing it, since the floor those warnings name used to be enforced by refusing.
+  -- The price an item posts at, typed in the dock beside POST (UI/Sell/PostPanel.lua) and filled
+  -- from the panel's chips; the panel shows it and says whose it is. Covered as the seller meets it:
+  -- the panel of the item they clicked, with that item in the dock.
   describe("the price control in an expanded row", function()
     local function priceRow(GC, over)
       GC.SellUI.expanded = { ["commodity:42"] = true }
+      -- A click on the row puts the item in the dock as it opens the panel (UI/Sell/Row.lua).
+      GC.SellState.dockKey = "commodity:42"
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations",
           book = { rows = {}, levels = 3, totalUnits = 300, widest = 100,
@@ -647,27 +652,31 @@ describe("Sell widget geometry and manual cost", function()
         postRecommendation = { unit = 430000 } }
       for k, v in pairs(over or {}) do p[k] = v end
       local rows = topRows(GC, { p })
-      -- The price control moved into the drawer panel, widgets and commit path unchanged --
-      -- only the row kind that hosts it.
       for _, row in ipairs(rows) do if row.kind == "drawer" then return row, rows, GC end end
       error("no drawer rendered")
     end
 
-    it("prefills the box with the price Post would actually list at", function()
+    local function dock(GC) return GC.SellUI.container end
+
+    it("prefills the dock's box with the price Post would actually list at, and shows it in the panel", function()
       local GC = load(700, { calls = {} })
       local row = priceRow(GC)
+      assert.equal("Ore", dock(GC).queueLabel.text)
+      assert.equal("YOUR PRICE", dock(GC).priceHead.text)
+      assert.equal("43", dock(GC).priceBox.text) -- 430000 copper, in gold, as the box takes it
       assert.equal("YOUR PRICE", row.drawerPriceHead.text)
-      assert.equal("43", row.priceBox.text) -- 430000 copper, in gold, as the box takes it
-      assert.equal("GoldCap's", row.priceNote.text) -- how many is the line above's to say
+      assert.equal("43g", row.priceFigure.text)
+      assert.equal("GoldCap's · ×5", row.priceNote.text)
     end)
 
     -- How many (owner, 2026-10-10: ten in the bags, five to sell, and one Post listed all ten).
     describe("how many", function()
-      local function typeQuantity(row, text)
-        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
-        row.qtyBox.focused = true
-        row.qtyBox.text = text
-        row.qtyBox.scripts.OnEnterPressed(row.qtyBox)
+      local function typeQuantity(GC, text)
+        local box = dock(GC).qtyBox
+        box.scripts.OnEditFocusGained(box)
+        box.focused = true
+        box.text = text
+        box.scripts.OnEnterPressed(box)
       end
       local function chosen(GC) return GC.SellState.quantityOverrides["commodity:42"] end
       local function listRow(GC)
@@ -676,102 +685,108 @@ describe("Sell widget geometry and manual cost", function()
 
       it("asks how many, out of what one Post can list, with MAX lit while it is all of it", function()
         local GC = load(700, { calls = {} })
-        local row = priceRow(GC)
-        assert.is_true(row.qtyBox.shown)
-        assert.equal("HOW MANY", row.qtyHead.text)
-        assert.equal("5", row.qtyBox.text)
-        assert.equal("of 5", row.qtyOf.text)
-        assert.equal("MAX", row.qtyMax.label)
-        assert.equal("active", row.qtyMax.variant)
-        assert.equal("215g", row.priceNet.text) -- 43g x 5
+        priceRow(GC)
+        local d = dock(GC)
+        assert.is_true(d.qtyBoxBg.shown)
+        assert.equal("HOW MANY", d.qtyHead.text)
+        assert.equal("5", d.qtyBox.text)
+        assert.equal("of 5", d.qtyOf.text)
+        assert.equal("MAX", d.qtyMax.label)
+        assert.equal("active", d.qtyMax.variant)
+        assert.equal("215g", listRow(GC).cells.gross.text) -- 43g x 5
       end)
 
-      it("counts the seller's number in the panel and on the row once they give one", function()
+      it("counts the seller's number in the dock, the panel and the row once they give one", function()
         local GC = load(700, { calls = {} })
-        typeQuantity(priceRow(GC), "2")
+        priceRow(GC)
+        typeQuantity(GC, "2")
         assert.equal(2, chosen(GC))
         local row = priceRow(GC)
-        assert.equal("2", row.qtyBox.text)
-        assert.equal("86g", row.priceNet.text)
+        local d = dock(GC)
+        assert.equal("2", d.qtyBox.text)
+        assert.equal("GoldCap's · ×2", row.priceNote.text)
         assert.equal("86g", listRow(GC).cells.gross.text)
-        assert.equal("ghost", row.qtyMax.variant)
-        assert.equal(GC.Theme.color.gold[1], row.qtyHead.color[1])
+        assert.equal("ghost", d.qtyMax.variant)
+        assert.equal(GC.Theme.color.gold[1], d.qtyHead.color[1])
       end)
 
       it("moves with every keystroke, and does not type over the seller", function()
         local GC = load(700, { calls = {} })
-        local row = priceRow(GC)
-        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
-        row.qtyBox.focused = true
-        row.qtyBox.text = "3"
-        row.qtyBox.scripts.OnTextChanged(row.qtyBox, true)
+        priceRow(GC)
+        local box = dock(GC).qtyBox
+        box.scripts.OnEditFocusGained(box)
+        box.focused = true
+        box.text = "3"
+        box.scripts.OnTextChanged(box, true)
         assert.equal(3, chosen(GC))
-        assert.equal("3", row.qtyBox.text)
+        assert.equal("3", box.text)
         assert.equal("129g", listRow(GC).cells.gross.text)
       end)
 
-      -- In the queue's own focus the list is drawn in the queue's order: a rebuild on every
-      -- keystroke re-sorted it under the box being typed into (review).
       it("builds the queue again once the number is settled, not on every keystroke", function()
         local GC = load(700, { calls = {} })
         local built, real = 0, GC.SellCompose.Queue
         GC.SellCompose.Queue = function(...) built = built + 1; return real(...) end
-        local row = priceRow(GC)
-        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
-        row.qtyBox.focused = true
-        row.qtyBox.text = "3"
-        row.qtyBox.scripts.OnTextChanged(row.qtyBox, true)
+        priceRow(GC)
+        local box = dock(GC).qtyBox
+        box.scripts.OnEditFocusGained(box)
+        box.focused = true
+        box.text = "3"
+        box.scripts.OnTextChanged(box, true)
         assert.equal(0, built)
-        row.qtyBox.scripts.OnEnterPressed(row.qtyBox)
+        box.scripts.OnEnterPressed(box)
         assert.equal(1, built)
         assert.equal(3, chosen(GC))
       end)
 
       it("gives the number back on MAX", function()
         local GC = load(700, { calls = {} })
-        typeQuantity(priceRow(GC), "2")
-        local row = priceRow(GC)
-        row.qtyMax.scripts.OnClick(row.qtyMax)
+        priceRow(GC)
+        typeQuantity(GC, "2")
+        priceRow(GC)
+        local max = dock(GC).qtyMax
+        max.scripts.OnClick(max)
         assert.is_nil(chosen(GC))
-        assert.equal("5", priceRow(GC).qtyBox.text)
+        priceRow(GC)
+        assert.equal("5", dock(GC).qtyBox.text)
       end)
 
       it("reads all of it, more than there is, nought or nothing as all of it", function()
         local GC = load(700, { calls = {} })
+        priceRow(GC)
         for _, text in ipairs({ "5", "50", "0", "" }) do
-          typeQuantity(priceRow(GC), "2")
-          typeQuantity(priceRow(GC), text)
+          typeQuantity(GC, "2")
+          typeQuantity(GC, text)
           assert.is_nil(chosen(GC), text)
         end
       end)
 
+      -- A post that lands mid-typing moves the dock on: the number belongs to the item it was
+      -- typed for, never to the next.
       it("gives up a half-typed number rather than moving it to another item", function()
         local GC = load(700, { calls = {} })
-        local row = priceRow(GC)
-        row.qtyBox.scripts.OnEditFocusGained(row.qtyBox)
-        row.qtyBox.focused = true
-        row.qtyBox.text = "2"
-        GC.SellUI.expanded = { ["commodity:99"] = true }
+        priceRow(GC)
+        local box = dock(GC).qtyBox
+        box.scripts.OnEditFocusGained(box)
+        box.focused = true
+        box.text = "2"
+        GC.SellState.dockKey = "commodity:99"
         topRows(GC, {
           { itemID = 99, itemName = "Other", positionKey = "commodity:99", coverage = "UNKNOWN",
             exposureQty = 9, knownQty = 0, knownCost = 0, listedValue = 0,
             bagQty = 9, listedQty = 0, sources = {}, postRecommendation = { unit = 700000 } },
         })
-        assert.is_false(row.qtyBox:HasFocus())
-        assert.equal("9", row.qtyBox.text)
+        assert.is_false(box:HasFocus())
+        assert.equal("9", box.text)
         assert.same({}, GC.SellState.quantityOverrides)
       end)
 
-      it("does not ask about a single unit, and leaves the rest of the panel where it was", function()
+      it("does not ask about a single unit", function()
         local GC = load(700, { calls = {} })
-        local DR = GC.SellUI.DR
         local row = priceRow(GC, { bagQty = 1, exposureQty = 1, knownQty = 1, knownCost = 400000 })
-        assert.is_false(row.qtyBox.shown)
-        assert.is_false(row.qtyMax.shown)
+        assert.is_false(dock(GC).qtyBoxBg.shown)
+        assert.is_false(dock(GC).qtyMax.shown)
         assert.equal("GoldCap's · ×1", row.priceNote.text)
-        assert.equal(DR.CHIPS_Y, row.chipsBg.points[1].y)
-        row = priceRow(GC)
-        assert.equal(DR.CHIPS_Y - DR.QTY_SLOTS * (GC.SellUI.rowHeight or 32), row.chipsBg.points[1].y)
       end)
     end)
 
@@ -782,39 +797,42 @@ describe("Sell widget geometry and manual cost", function()
     it("shows a copper price in coin text on WoW: Forever, not a gold fraction", function()
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC, { postRecommendation = { unit = 90 } })
-      assert.equal("90c", row.priceBox.text)
+      priceRow(GC, { postRecommendation = { unit = 90 } })
+      assert.equal("90c", dock(GC).priceBox.text)
       _G.C_AuctionHouse = nil
     end)
 
     it("shows gold, silver and copper together on WoW: Forever, no unit at zero", function()
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC, { postRecommendation = { unit = 12290 } }) -- 1g 22s 90c
-      assert.equal("1g22s90c", row.priceBox.text)
+      priceRow(GC, { postRecommendation = { unit = 12290 } }) -- 1g 22s 90c
+      assert.equal("1g22s90c", dock(GC).priceBox.text)
       _G.C_AuctionHouse = nil
     end)
 
-    -- A real commit starts in the box: the focus is what tells the row which position the
-    -- typing belongs to, and a commit with no focus behind it is refused (pooled rows).
-    local function typePrice(row, text)
-      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
-      row.priceBox.focused = true
-      row.priceBox.text = text
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+    -- A real commit starts in the box: the focus is what tells the box which item the typing
+    -- belongs to, and a commit with no focus behind it records nothing.
+    local function typePrice(GC, text)
+      local box = dock(GC).priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = text
+      box.scripts.OnEnterPressed(box)
     end
 
     -- Asserted through the box the seller looks at, not through the table behind it: what
-    -- matters is that the number they typed is the number the row now shows and prices with.
+    -- matters is that the number they typed is the number the dock now shows and posts with.
     it("takes a price the seller types and says it is theirs now", function()
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
+      priceRow(GC)
       -- Above the 40g break-even on purpose: a price under it gets the loss warning instead,
       -- which is its own test below.
-      typePrice(row, "45")
+      typePrice(GC, "45")
       local after = priceRow(GC)
-      assert.equal("45", after.priceBox.text)
+      assert.equal("45", dock(GC).priceBox.text)
+      assert.equal("45g", after.priceFigure.text)
       assert.matches("yours", after.priceNote.text, 1, true)
+      assert.equal(GC.Theme.color.gold[1], dock(GC).priceHead.color[1])
     end)
 
     -- The inverse of the two display tests above: what the seller types on Forever is read as
@@ -826,10 +844,10 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(700, { calls = {} })
       -- knownCost = 0: takes the below-cost warning out of the way, so this test is purely
       -- about whether the typed coin text parses and round-trips, not about PriceRisk.
-      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
-      typePrice(row, "90c")
+      priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(GC, "90c")
       local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
-      assert.equal("90c", after.priceBox.text)
+      assert.equal("90c", dock(GC).priceBox.text)
       assert.matches("yours", after.priceNote.text, 1, true)
       _G.C_AuctionHouse = nil
     end)
@@ -842,21 +860,22 @@ describe("Sell widget geometry and manual cost", function()
     it("accepts a bare number typed into the box on WoW: Forever as gold, like everywhere else on this tab", function()
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
-      typePrice(row, "150")
-      local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
-      assert.equal("150g", after.priceBox.text)
+      priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      typePrice(GC, "150")
+      priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
+      assert.equal("150g", dock(GC).priceBox.text)
       _G.C_AuctionHouse = nil
     end)
 
     -- Emptying the box is an answer, not a failure to give one.
     it("hands the decision back to GoldCap when the box is cleared", function()
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
-      typePrice(row, "45")
-      typePrice(priceRow(GC), "  ")
+      priceRow(GC)
+      typePrice(GC, "45")
+      priceRow(GC)
+      typePrice(GC, "  ")
       local after = priceRow(GC)
-      assert.equal("43", after.priceBox.text)
+      assert.equal("43", dock(GC).priceBox.text)
       assert.matches("GoldCap's", after.priceNote.text, 1, true)
     end)
 
@@ -865,77 +884,85 @@ describe("Sell widget geometry and manual cost", function()
     -- gold is not something to leave to luck.
     it("does not re-enter itself when committing clears the focus", function()
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
+      priceRow(GC)
+      local box = dock(GC).priceBox
       local clears = 0
-      local realClear = row.priceBox.ClearFocus
-      row.priceBox.ClearFocus = function(self)
+      local realClear = box.ClearFocus
+      box.ClearFocus = function(self)
         clears = clears + 1
         realClear(self)
-        if clears < 5 then row.priceBox.scripts.OnEditFocusLost(row.priceBox) end
+        if clears < 5 then box.scripts.OnEditFocusLost(box) end
       end
-      typePrice(row, "45")
+      typePrice(GC, "45")
       assert.equal(1, clears)
-      assert.equal("45", priceRow(GC).priceBox.text)
+      priceRow(GC)
+      assert.equal("45", box.text)
     end)
 
     -- Reported in-game 2026-08-28: "из-за того, что делается постоянно refresh, цена
     -- сбивается до 40.3 хотя вводил другую". This tab re-renders on its own constantly -- the
-    -- quote walk finishes an item, an owned-auction scan lands, a refresh ticks -- and the
-    -- render stamped the box every time, so a price typed and not yet committed was wiped
-    -- back to the recommendation before Enter could ever reach it.
+    -- quote walk finishes an item, an owned-auction scan lands, a refresh ticks -- and a paint
+    -- that stamped the box every time wiped a price typed and not yet committed back to the
+    -- recommendation before Enter could ever reach it.
     it("does not type over the seller when the list refreshes under them", function()
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
-      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
-      row.priceBox.focused = true
-      row.priceBox.text = "45"        -- typed, NOT committed
+      priceRow(GC)
+      local box = dock(GC).priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = "45"        -- typed, NOT committed
 
-      local again = priceRow(GC)      -- the refresh the player did not ask for
-      assert.equal("45", again.priceBox.text)
+      priceRow(GC)           -- the refresh the player did not ask for
+      assert.equal("45", box.text)
 
-      -- And the commit that follows records what was actually typed, not what the render
+      -- And the commit that follows records what was actually typed, not what the paint
       -- would have put back.
-      again.priceBox.scripts.OnEnterPressed(again.priceBox)
-      assert.equal("45", priceRow(GC).priceBox.text)
+      box.scripts.OnEnterPressed(box)
+      assert.equal("45", box.text)
       assert.matches("yours", priceRow(GC).priceNote.text, 1, true)
     end)
 
-    -- The other half of the same defect: rows are POOLED, so a refresh can hand the row --
-    -- and the box holding the cursor -- to a different position. A price typed for one item
-    -- must never be committed against another.
+    -- The other half of the same defect: the dock moves on when a post lands, and the box holding
+    -- the cursor then belongs to another item. A price typed for one item must never be committed
+    -- against another.
     it("gives up a half-typed price rather than moving it to another item", function()
       local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
-      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
-      row.priceBox.focused = true
-      row.priceBox.text = "45"
+      priceRow(GC)
+      local box = dock(GC).priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = "45"
 
-      -- Same pooled row, now rendering a different position.
-      GC.SellUI.expanded = { ["commodity:99"] = true }
+      GC.SellState.dockKey = "commodity:99"
       topRows(GC, {
         { itemID = 99, itemName = "Other", positionKey = "commodity:99", coverage = "UNKNOWN",
           exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0,
           bagQty = 1, listedQty = 0, sources = {}, postRecommendation = { unit = 700000 } },
       })
-      assert.is_false(row.priceBox:HasFocus())
-      assert.equal("70", row.priceBox.text)
+      assert.is_false(box:HasFocus())
+      assert.equal("70", box.text)
+      box.scripts.OnEditFocusLost(box) -- the focus the paint took raises this in the client
 
       -- And nothing was recorded for either item.
-      GC.SellUI.expanded = { ["commodity:42"] = true }
-      assert.equal("43", priceRow(GC).priceBox.text)
+      assert.same({}, GC.SellState.priceOverrides)
+      priceRow(GC)
+      assert.equal("43", box.text)
     end)
 
     -- Nothing is recorded, and the typo is left where the seller can see and fix it: the box
     -- keeps the cursor rather than silently reverting under them. Escape is the way out.
     it("refuses a price it cannot read rather than recording a nonsense one", function()
-      local GC = load(700, { calls = {} })
-      local row = priceRow(GC)
-      typePrice(row, "not a price")
-      assert.equal("not a price", row.priceBox.text)
-      assert.is_true(row.priceBox:HasFocus())
+      local GC, root = load(700, { calls = {} })
+      priceRow(GC)
+      typePrice(GC, "not a price")
+      local box = dock(GC).priceBox
+      assert.equal("not a price", box.text)
+      assert.is_true(box:HasFocus())
+      assert.equal("Type a price in gold, or clear the box to use GoldCap's", root.status.text)
+      assert.same({}, GC.SellState.priceOverrides)
 
-      row.priceBox.scripts.OnEscapePressed(row.priceBox)
-      assert.equal("43", priceRow(GC).priceBox.text)
+      box.scripts.OnEscapePressed(box)
+      assert.equal("43", box.text)
     end)
 
     -- Every fill comes from a number already on the screen, so none of them can invent a price.
@@ -944,7 +971,7 @@ describe("Sell widget geometry and manual cost", function()
         local GC = load(700, { calls = {} })
         local row = priceRow(GC)
         row.priceChips[slot].scripts.OnClick(row.priceChips[slot])
-        return priceRow(GC).priceBox.text
+        return dock(GC).priceBox.text
       end
       assert.equal("42.05", fill(2)) -- MATCH: the cheapest ask that is not yours
       assert.equal("42.04", fill(3)) -- UNDERCUT: one silver under it
@@ -1004,25 +1031,32 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("GOLDCAP", row.priceChips[1].label)
       assert.equal("active", row.priceChips[1].variant)
       assert.equal("ghost", row.priceChips[2].variant)
-      local theirs = row.priceBox.text
+      local theirs = dock(GC).priceBox.text
       row.priceChips[4].scripts.OnClick(row.priceChips[4]) -- MARKET
       row = priceRow(GC)
-      assert.equal("50", row.priceBox.text)
+      assert.equal("50", dock(GC).priceBox.text)
       assert.equal("active", row.priceChips[4].variant)
       assert.equal("ghost", row.priceChips[1].variant)
       row.priceChips[1].scripts.OnClick(row.priceChips[1])
       row = priceRow(GC)
-      assert.equal(theirs, row.priceBox.text)
+      assert.equal(theirs, dock(GC).priceBox.text)
       assert.equal("active", row.priceChips[1].variant)
     end)
 
-    it("shows what the price fetches beside the box, by the row's own arithmetic", function()
-      local GC = load(700, { calls = {} })
-      local row, rows = priceRow(GC)
-      assert.equal("YOU GET", row.priceNetHead.text)
-      assert.equal(rows[1].cells.gross.text, row.priceNet.text)
-      assert.matches(rows[1].grossNote.text, row.priceNetNote.text, 1, true)
-      assert.matches("after the AH cut", row.priceNetNote.text, 1, true)
+    -- In the dock beside the price, where there is room for it; at the default width the row and
+    -- the totals already say it, and the item's name needs the room.
+    it("shows what the post fetches beside the price in a wide dock, by the row's own arithmetic", function()
+      local GC = load(900, { calls = {} })
+      local _, rows = priceRow(GC)
+      local position
+      for _, row in ipairs(rows) do if row.shown and row.kind == "position" then position = row end end
+      assert.equal("YOU GET", dock(GC).netHead.text)
+      assert.equal(position.cells.gross.text, dock(GC).netValue.text)
+      assert.is_true(dock(GC).netValue.shown)
+
+      local narrow = load(700, { calls = {} })
+      priceRow(narrow)
+      assert.is_false(dock(narrow).netValue.shown)
     end)
 
     -- The price of letting the price be typed: the addon says what it would otherwise have
@@ -1146,9 +1180,8 @@ describe("Sell widget geometry and manual cost", function()
       GC.SellUI.expanded = {}
       GC.SellUI.List.RenderRows()
       assert.equal("position", head.kind)
-      for _, field in ipairs({ "priceBox", "priceBoxBg", "priceNote", "chipsBg", "priceNetHead", "priceNet",
-          "priceNetNote", "drawerPriceHead", "drawerBookHead", "drawerHint", "drawerStand", "drawerFacts",
-          "drawerOwn", "drawerDepth", "drawerQuote" }) do
+      for _, field in ipairs({ "priceFigure", "priceNote", "chipsBg", "drawerPriceHead", "drawerBookHead",
+          "drawerHint", "drawerStand", "drawerFacts", "drawerOwn", "drawerDepth", "drawerQuote" }) do
         assert.is_falsy(head[field].shown, field)
       end
       assert.is_falsy(head.headRules[1].shown)
@@ -1257,12 +1290,8 @@ describe("Sell widget geometry and manual cost", function()
         { itemID = 43, itemName = "Bar", positionKey = "commodity:43", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
       }
-      -- The drawer's own button wears no outline; as a position's Post it gets the gold one.
-      assert.is_false(reused.action.ringColor)
       render()
-      local GOLD = GC.Theme.color.gold
       assert.equal("position", reused.kind)
-      assert.same({ GOLD[1], GOLD[2], GOLD[3], 0.45 }, reused.action.ringColor)
       assert.is_false(reused.bookLines[1].qty.shown)
       assert.is_false(reused.bookLines[1].bar.shown)
       assert.is_false(reused.drawerBookHead.shown)
@@ -2741,16 +2770,13 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("20g", rows[1].cells.gross.text)
   end)
 
-  -- "queue" and "cancelqueue" are transient FOCUS states, not decks, and nothing ever cleared
-  -- them: one press of the POST control left the tab rendering the queue's own order for the
-  -- rest of the session, with these chips lighting up over a list they could not narrow.
+  -- "cancelqueue" is a transient FOCUS state, not a deck, and nothing ever cleared it: one press
+  -- of the CANCEL control left the tab rendering the queue's own order for the rest of the
+  -- session, with these chips lighting up over a list they could not narrow.
   it("[S14] a filter chip takes the tab back to the deck it belongs to", function()
     local GC = load(620, { calls = {} })
-    GC.SellState.filterMode = "queue"
     local container = GC.SellUI.container
     local chip = container.filterButtons.ready
-    chip.scripts.OnClick(chip)
-    assert.equal("post", GC.SellState.filterMode)
     GC.SellState.filterMode = "cancelqueue"
     -- The chips are disabled on the listed deck, so this is the cancel queue's own restore.
     chip.scripts.OnClick(chip)
@@ -3037,10 +3063,10 @@ describe("Sell widget geometry and manual cost", function()
       status = "LISTED", sources = {}, ownedLots = { { auctionID = 9, quantity = 1, unitPrice = 10000 } } } }, "listed")
     assert.is_true(container.summary.total.shown)
     assert.is_false(container.summary.profit.shown)
-    assert.equal(container.summary.total, container.dockStatus.points[2].relative)
+    assert.equal(container.summaryLabels.total, container.dockStatus.points[2].relative)
     root.scripts.OnSizeChanged(root, 900)
     assert.is_true(container.summary.profit.shown)
-    assert.equal(container.summary.profit, container.dockStatus.points[2].relative)
+    assert.equal(container.summaryLabels.profit, container.dockStatus.points[2].relative)
   end)
   -- What a position opens into: a panel beside the list, not ten rows inside it.
   describe("the detail panel", function()
@@ -3106,13 +3132,16 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.inspector.shown)
     end)
 
-    it("carries Post in its head for stock in the bags, and no button for stock that is not", function()
+    -- One place to post from (owner, 2026-10-10): opening an item with stock puts it in the dock,
+    -- and the panel carries no Post of its own.
+    it("puts the item in the dock for stock in the bags, and carries no button of its own", function()
       local GC = load(620, { calls = {} })
-      local rows = topRows(GC, { p(42) })
+      local rows, container = topRows(GC, { p(42) })
       rows[1].scripts.OnClick(rows[1])
       assert.equal("drawer", rows[2].kind)
-      assert.is_true(rows[2].action.shown)
-      assert.equal("Post", rows[2].action.helpKey)
+      assert.is_false(rows[2].action.shown)
+      assert.equal("commodity:42", GC.SellState.dockKey)
+      assert.equal("Ore 42", container.queueLabel.text)
 
       local listedOnly = load(620, { calls = {} })
       rows = topRows(listedOnly, { p(42, { bagQty = 0, listedQty = 5, listedValue = 500 }) }, "listed")

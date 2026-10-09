@@ -46,7 +46,6 @@ GC.Locales.enUS = {
   ["%d× %s"] = "%d× %s",
   ["%d× %s · %s each · %s"] = "%d× %s · %s each · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
-  ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s listed · %d min ago"] = "%s listed · %d min ago",
   ["%s listed · just now"] = "%s listed · just now",
@@ -328,7 +327,6 @@ GC.Locales.enUS = {
     "Costs more than your per-buy wallet limit allows.",
   ["This lot holds more units than your Max units per buy."] =
     "This lot holds more units than your Max units per buy.",
-  ["Could not find the queue's next item to post — try again"] = "Could not find the queue's next item to post — try again",
   ["Could not find the queue's next lot to cancel — try again"] = "Could not find the queue's next lot to cancel — try again",
   ["DEFAULTS"] = "DEFAULTS",
   ["DISC"] = "DISC",
@@ -444,7 +442,6 @@ GC.Locales.enUS = {
   ["NO COST"] = "NO COST",
   ["NO LIVE PRICE YET"] = "NO LIVE PRICE YET",
   ["NOTHING TO CANCEL"] = "NOTHING TO CANCEL",
-  ["NOTHING TO POST"] = "NOTHING TO POST",
   ["Needs a live price check before it can be bought."] =
     "Needs a live price check before it can be bought.",
   ["Never spend more than this share of your gold on one purchase."] =
@@ -487,7 +484,6 @@ GC.Locales.enUS = {
   ["Open the Auction House first."] = "Open the Auction House first.",
   ["Open the Auction House to begin scanning."] = "Open the Auction House to begin scanning.",
   ["Open the deals board. /gc for commands."] = "Open the deals board. /gc for commands.",
-  ["POST %d"] = "POST %d",
   ["POSTING"] = "POSTING",
   ["POSTING…"] = "POSTING…",
   ["PRICE"] = "PRICE",
@@ -1015,9 +1011,6 @@ GC.Locales.enUS = {
     "In WoW: Forever, GoldCap's prices come from your own auction house scans.",
   ["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."] =
     "Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again.",
-  -- onQueueClick (final review C1): the click that switches into queue mode and renders it makes
-  -- no protected call itself -- a second press is what posts the head.
-  ["Queue ready — press POST again to post it"] = "Queue ready — press POST again to post it",
   -- GC.Util.FormatElapsedWords (final review m10): how long ago, inside a translated sentence.
   ["%ds"] = "%ds",
   ["%dm"] = "%dm",
@@ -1259,6 +1252,9 @@ GC.Locales.enUS = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it.",
   ["HOW MANY"] = "HOW MANY",
   ["MAX"] = "MAX",
-  ["posted as many as you asked for; its own Post lists more"] = "posted as many as you asked for; its own Post lists more",
+  ["skipped"] = "skipped",
   ["posted"] = "posted",
+  ["POST"] = "POST",
+  ["SKIP"] = "SKIP",
+  ["then %s"] = "then %s",
 }

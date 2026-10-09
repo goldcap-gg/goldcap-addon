@@ -96,9 +96,8 @@ local function deckCounts()
   end
   return post, listed
 end
--- Deliberately reads the deck the QUEUE focus states belong to: "queue" is a focus inside the
--- post deck and "cancelqueue" one inside listed, so pressing a queue control must not leave
--- the switch painting neither half as active.
+-- Deliberately reads the deck the cancel queue's focus state belongs to: "cancelqueue" is a
+-- focus inside listed, so pressing CANCEL must not leave the switch painting neither half active.
 local function activeDeck()
   return (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
 end
@@ -165,12 +164,11 @@ function Toolbar.Build()
     button:SetLabel(GC.L[CHIP_LABELS[slot]])
     button:SetScript("OnClick", function()
       UI.chips[id] = not UI.chips[id]
-      -- "queue" and "cancelqueue" are transient FOCUS states, not decks, and nothing ever
-      -- cleared them: press the POST control once and the tab rendered the queue's own order
-      -- for the rest of the session, with these chips lighting up over a list they could not
-      -- narrow. Pressing a chip is a request to filter a deck, so give the chip its deck back.
-      if S.filterMode == "queue" then S.filterMode = "post"
-      elseif S.filterMode == "cancelqueue" then S.filterMode = "listed" end
+      -- "cancelqueue" is a transient FOCUS state, not a deck, and nothing else clears it: press
+      -- CANCEL once and the tab rendered the cancel queue's own order for the rest of the
+      -- session, with these chips lighting up over a list they could not narrow. Pressing a
+      -- chip is a request to filter a deck, so give the chip its deck back.
+      if S.filterMode == "cancelqueue" then S.filterMode = "listed" end
       -- A chip changes which rows are on screen, so the order is the player's to have again.
       S.rowPlaces = {}
       Toolbar.PaintDeckSwitch()

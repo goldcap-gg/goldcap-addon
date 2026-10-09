@@ -1,6 +1,7 @@
--- The inspector: the side panel a position opens into. The price control (the box and its five
--- fills), what that price fetches, GoldCap's advice and the panel's own Post; the panel's other
--- lines (a heading, a live lot, the bag line); the panel frame. THE BOOK beside the price is
+-- The inspector: the side panel a position opens into. The price the dock posts the item at, the
+-- five fills for it and GoldCap's advice; the panel's other lines (a heading, a live lot, the bag
+-- line); the panel frame. The price is typed, and the item posted, in the dock (UI/Sell/
+-- PostPanel.lua): one place to post from (owner, 2026-10-10). THE BOOK beside the price is
 -- UI/Sell/Book.lua's, and a purchase line UI/Sell/CostDialog.lua's. Moved from UI/SellFrame.lua
 -- as it was.
 local _, GC = ...
@@ -15,14 +16,13 @@ local UI = GC.SellUI
 local Inspector = UI.Inspector
 local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
-local copperToPriceText, priceBoxCopper = UI.fmt.priceText, UI.fmt.priceBoxCopper
 
 -- The book's own four columns, mirroring the design: price, depth at that price, a bar for
 -- that depth, and the units queued in front of it. Fixed, and deliberately independent of
 -- shownColumns -- a book row shows the same four things at every window width.
--- The price control's own widths. Laid out by layoutDrawer now, independently of the shedding
--- column set: the panel shows the same things at every width.
-local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 56
+-- The chips' own width. Laid out by layoutDrawer, independently of the shedding column set: the
+-- panel shows the same things at every width.
+local PRICE_CHIP_W = 56
 -- The chips, by slot. Two parallel tables rather than one of {id, label} pairs: the contract
 -- scanner reads every literal inside an @localised-keys table, and an id sitting in the same
 -- table would be collected as a translatable string nobody ever shows.
@@ -94,60 +94,30 @@ function GC.Sell._RecommendationText(recommendation)
   return text
 end
 
--- Whether the panel asks how many: only with stock to post, and more than one unit a Post could
--- list -- "1 of 1" is a question with one answer.
-function INSP.hasQuantity(position)
-  if type(position) ~= "table" or (position.bagQty or 0) <= 0 then return false end
-  local _, most = postQuantity(position)
-  return most > 1
-end
-
 -- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
 -- same things at every window width, and its width is INSP's, not the list's.
 local function layoutDrawer(row)
   local left, right = INSP.PAD, -INSP.PAD
   local postable = type(row.position) == "table" and (row.position.bagQty or 0) > 0
 
-  -- ---- the price section: label and box on the left, what the price fetches on the right
+  -- ---- the price section: the price the dock posts at, whose it is, and the fills for it
   row.drawerPriceHead:ClearAllPoints()
   row.drawerPriceHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HEAD_Y)
-  row.priceBoxBg:ClearAllPoints()
-  row.priceBoxBg:SetSize(DR.BOX_W, DR.BOX_H)
-  row.priceBoxBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOX_Y)
-  row.priceBox:ClearAllPoints()
-  row.priceBox:SetPoint("TOPLEFT", row.priceBoxBg, "TOPLEFT", 10, -2)
-  row.priceBox:SetPoint("BOTTOMRIGHT", row.priceBoxBg, "BOTTOMRIGHT", -6, 2)
-  row.priceNetHead:ClearAllPoints()
-  row.priceNetHead:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.HEAD_Y)
-  row.priceNet:ClearAllPoints()
-  row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 2)
-  row.priceNetNote:ClearAllPoints()
-  row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 22)
-  -- ---- how many, on a line of its own under the box; everything below it moves down a slot
-  local drop = INSP.hasQuantity(row.position) and DR.QTY_SLOTS * (UI.rowHeight or 32) or 0
-  row.qtyHead:ClearAllPoints()
-  row.qtyHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.QTY_Y - 7)
-  row.qtyBoxBg:ClearAllPoints()
-  row.qtyBoxBg:SetSize(DR.QTY_BOX_W, DR.QTY_H)
-  row.qtyBoxBg:SetPoint("LEFT", row.qtyHead, "RIGHT", 8, 0)
-  row.qtyBox:ClearAllPoints()
-  row.qtyBox:SetPoint("TOPLEFT", row.qtyBoxBg, "TOPLEFT", 8, -2)
-  row.qtyBox:SetPoint("BOTTOMRIGHT", row.qtyBoxBg, "BOTTOMRIGHT", -6, 2)
-  row.qtyOf:ClearAllPoints()
-  row.qtyOf:SetPoint("LEFT", row.qtyBoxBg, "RIGHT", 8, 0)
-  row.qtyMax:ClearAllPoints()
-  row.qtyMax:SetSize(PRICE_CHIP_W, DR.CHIP_H)
-  row.qtyMax:SetPoint("LEFT", row.qtyOf, "RIGHT", 8, 0)
-
+  row.priceFigure:ClearAllPoints()
+  row.priceFigure:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.PRICE_Y)
+  row.priceFigure:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and (DR.NOTE_Y - drop) or DR.BOX_Y)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.PRICE_Y)
   row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
-  row.priceNote:SetWordWrap(false)
+  -- Wraps rather than cuts: "under GoldCap's own floor of ..." has to be read whole in every
+  -- language.
+  row.priceNote:SetWordWrap(true)
+  row.priceNote:SetMaxLines(2)
 
   -- One strip, five equal segments: a switch with a position, not five loose buttons.
   row.chipsBg:ClearAllPoints()
-  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y - drop)
-  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y - drop)
+  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y)
+  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y)
   row.chipsBg:SetHeight(DR.CHIP_H + 4)
   local prev
   for i = 1, #row.priceChips do
@@ -155,7 +125,7 @@ local function layoutDrawer(row)
     chip:ClearAllPoints()
     chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
     if prev then chip:SetPoint("LEFT", prev, "RIGHT", 2, 0)
-    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - drop - 2) end
+    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - 2) end
     prev = chip
   end
 
@@ -163,24 +133,19 @@ local function layoutDrawer(row)
   -- HERE because WHAT TO DO is not a column on either deck.
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and (DR.REC_Y - drop) or (DR.BOX_Y - 18))
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.PRICE_Y - 18))
   row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.subItem:SetWordWrap(true)
   row.subItem:SetMaxLines(2)
   if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
   row.subItem:SetText(row.subItem:GetText() or "") -- measured again now that it wraps
 
-  -- With nothing to say about the price, Post and the book move up into the paragraph's room
-  -- (one slot of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
+  -- With nothing to say about the price, the book moves up into the paragraph's room (one slot
+  -- of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
   local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (UI.rowHeight or 32) or 0
-  -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
-  row.cells.action:ClearAllPoints()
-  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y - drop + rise)
-  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y - drop + rise)
-  row.cells.action:SetHeight(DR.POST_H)
 
   -- ---- the book section, under a rule across the panel
-  local top = (postable and (DR.BOOK_Y - drop) or DR.BOOK_Y_BARE) + rise
+  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
   UI.Book.Layout(row, top)
 end
 
@@ -249,39 +214,19 @@ end
 
 Inspector.LayoutDetailRow = layoutDetailRow
 
--- The price control on every pooled row: createRow (UI/Sell/Row.lua) calls this. Only
--- the panel's head shows it (INSP.paintHead); every other kind puts it away (Inspector.PutAway).
+-- The price section on every pooled row: createRow (UI/Sell/Row.lua) calls this. Only the panel's
+-- head shows it (INSP.paintHead); every other kind puts it away (Inspector.PutAway).
 function Inspector.Decorate(row)
-  -- The price control. The one number on this screen that spends real gold was, until now, the
-  -- one number a seller could not see the workings of or change: GoldCap picked it and Post
-  -- sent it. The box is prefilled with exactly what Post would list at, in gold, and emptying
-  -- it hands the decision back to GoldCap rather than leaving nothing behind.
-  -- The kit's own surface rather than InputBoxTemplate's stone border, and a figure big enough
-  -- to be the first thing read in the panel: a dark rounded well, a ring that says whose price
-  -- it is (see INSP.paintHead), bold mono inside. The EditBox itself is bare and sits in it.
-  row.priceBoxBg = CreateFrame("Frame", nil, row)
-  -- The window's own ground colour, a step darker than the panel it is set into. Several of
-  -- this suite's theme doubles carry no `bg`, hence the fallback.
+  -- The price the dock posts this item at, big enough to be the first thing read in the panel.
+  -- Read-only here: it is typed in the dock beside POST, the one place it posts from, and the
+  -- chips under it fill the same price.
+  row.priceFigure = Theme.Num(row, 14, true)
+  row.priceFigure:SetJustifyH("LEFT"); row.priceFigure:SetWordWrap(false)
+  row.priceFigure:Hide()
+  -- The strip the five price chips sit in, and the rule over the book section. The window's own
+  -- ground colour, a step darker than the panel; several of this suite's theme doubles carry no
+  -- `bg`, hence the fallback.
   local wellc = Theme.color.bg or Theme.color.panel
-  local well = Theme.SlicedTexture(row.priceBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
-  well:SetAllPoints(row.priceBoxBg)
-  row.priceBoxRing = Theme.SlicedTexture(row.priceBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { 1, 1, 1, 0.14 }, 12)
-  row.priceBoxRing:SetAllPoints(row.priceBoxBg)
-  row.priceBoxBg:Hide()
-  row.priceBox = CreateFrame("EditBox", nil, row.priceBoxBg)
-  row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
-  row.priceBox:SetAutoFocus(false)
-  -- Guarded for busted, whose frame doubles were never taught an EditBox's font API. In the
-  -- client a bare EditBox with no font does not draw its text at all, so this is not optional.
-  if row.priceBox.SetFont then
-    row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * Theme.Scale(), "")
-    row.priceBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
-    Theme.OnRescale(function(scale) row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * scale, "") end)
-  end
-  row.priceBox:Hide()
-  -- The strip the five price chips sit in, and the rule over the book section.
   row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
     { wellc[1], wellc[2], wellc[3], 1 }, 12)
   row.chipsBg:Hide()
@@ -294,106 +239,17 @@ function Inspector.Decorate(row)
     row.headRules[i] = rule
   end
 
-  -- What that price fetches, beside the box it is typed into: the same YOU GET and margin the
-  -- row carries, moving with every keystroke, plus what is left once the auction house has
-  -- taken its cut. They were on the row only -- which, as a sheet, the panel covers.
-  row.priceNetHead = Theme.Num(row, 9)
-  row.priceNet = Theme.Num(row, 14, true)
-  row.priceNetNote = Theme.Num(row, 9)
-  for _, line in ipairs({ row.priceNetHead, row.priceNet, row.priceNetNote }) do
-    line:SetJustifyH("RIGHT"); line:SetWordWrap(false); line:Hide()
-  end
-
   row.priceNote = Theme.Num(row, 10)
   row.priceNote:SetJustifyH("LEFT")
   row.priceNote:SetWordWrap(false)
   row.priceNote:Hide()
 
-  -- Four one-click fills, each from a number already on the screen. They exist beside the box,
-  -- not instead of it: the box is what the owner asked for, and these are what stop the common
-  -- cases from needing arithmetic.
-  -- Reads the box and records (or clears) the seller's choice. Emptying it is a real answer,
-  -- not a failure to type one: it hands the decision back to GoldCap rather than leaving the
-  -- position with no price at all.
-  -- Re-entrant by construction: ClearFocus below raises OnEditFocusLost, which is bound to
-  -- this same function. One extra pass would be harmless, but a loop inside the client is
-  -- not the kind of thing to leave to luck on a path that spends gold. The same flag is what
-  -- renderRows raises when it has to take the box away from a row it just rebound.
-  local function commitPrice(box)
-    if row.priceCommitting then return end
-    local key = overrideKey(row.position)
-    -- Rows are POOLED: a refresh between the click into the box and this commit can rebind
-    -- this very row to a different position. `priceEditingKey` is the position the typing
-    -- started on, and a price typed for one item must never land on another.
-    if not key or key ~= row.priceEditingKey then
-      row.priceEditingKey = nil
-      return
-    end
-    local text = box:GetText() or ""
-    if text:match("^%s*$") then
-      S.priceOverrides[key] = nil
-    else
-      local copper = priceBoxCopper(box)
-      if not copper then
-        UI.Dock.SetStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
-        return
-      end
-      S.priceOverrides[key] = copper
-    end
-    row.priceEditingKey = nil
-    row.priceCommitting = true
-    box:ClearFocus()
-    row.priceCommitting = false
-    UI.List.RenderRows()
-  end
-  -- Remembers which position the typing belongs to, for the pooled-row check above.
-  row.priceBox:SetScript("OnEditFocusGained", function()
-    row.priceEditingKey = overrideKey(row.position)
-  end)
-  -- Live while typing. Everything this number DRIVES -- what the stack fetches, the margin,
-  -- the note under the box and where the gold marker sits in the book -- used to sit still
-  -- until Enter or until the box lost focus, so the seller was typing into a screen that did
-  -- not answer (reported in game). Each keystroke that reads as a price now re-renders.
-  --
-  -- The write to priceOverrides is what makes the rest of the screen move, and it is safe to
-  -- make it here: OnEscapePressed already discards by re-rendering from the committed state,
-  -- and clearing the box still means "hand the decision back to GoldCap", exactly as commit
-  -- does. What this must NOT do is fight the typist -- renderRows leaves a focused box alone
-  -- (see the drawer branch's own guard), so the text itself is never restamped.
-  row.priceBox:SetScript("OnTextChanged", function(box, byUser)
-    -- Only the player's own typing. A SetText from a render fires this too, and reacting to
-    -- that would re-enter the render that caused it.
-    if not byUser or row.priceCommitting then return end
-    local key = overrideKey(row.position)
-    if not key or key ~= row.priceEditingKey then return end
-    local text = box:GetText() or ""
-    if text:match("^%s*$") then
-      S.priceOverrides[key] = nil
-    else
-      local copper = priceBoxCopper(box)
-      -- Half-typed text ("39." between two keystrokes) parses to nothing. Keep the last price
-      -- that did read as one and leave the box alone rather than snapping it back.
-      if not copper then return end
-      S.priceOverrides[key] = copper
-    end
-    UI.List.RenderRows()
-  end)
-  row.priceBox:SetScript("OnEnterPressed", commitPrice)
-  -- Committing on focus loss as well: a price typed and then clicked away from is still a
-  -- price the seller typed, and the alternative is a box that silently reverts.
-  row.priceBox:SetScript("OnEditFocusLost", commitPrice)
-  row.priceBox:SetScript("OnEscapePressed", function(box)
-    row.priceEditingKey = nil
-    row.priceCommitting = true
-    box:ClearFocus()
-    row.priceCommitting = false
-    UI.List.RenderRows() -- puts the committed price back, discarding whatever was half-typed
-  end)
-
+  -- Five one-click fills, each from a number already on the screen, so the common cases need no
+  -- arithmetic. Each writes the price the dock posts at; GOLDCAP gives it back to GoldCap.
   row.priceChips = {}
   for slot = 1, #PRICE_CHIP_LABELS do
     local chip = Theme.Button(row, "ghost", "badge")
-    chip:SetSize(PRICE_CHIP_W, PRICE_BOX_H)
+    chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
     chip:SetScript("OnClick", function(self)
       local key = overrideKey(row.position)
       if not key or not (self.priceSource or self.handsBack) then return end
@@ -404,135 +260,6 @@ function Inspector.Decorate(row)
     chip:Hide()
     row.priceChips[slot] = chip
   end
-
-  -- How many. One Post listed the whole stack, so a seller with ten who wanted to sell five
-  -- could not (owner, 2026-10-10). A number in the same kind of well as the price, the most one
-  -- click can list beside it, and MAX, which gives the number back: Blizzard's own sell pane's
-  -- control, where a seller already looks for it. Like the price, it is for the next post only
-  -- (GC.Sell._SpendPrice), and it moves the row, the queue and the dock's PROCEEDS as it is typed.
-  row.qtyHead = Theme.Num(row, 9)
-  row.qtyHead:Hide()
-  row.qtyBoxBg = CreateFrame("Frame", nil, row)
-  local qtyWell = Theme.SlicedTexture(row.qtyBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
-  qtyWell:SetAllPoints(row.qtyBoxBg)
-  row.qtyBoxRing = Theme.SlicedTexture(row.qtyBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { 1, 1, 1, 0.14 }, 12)
-  row.qtyBoxRing:SetAllPoints(row.qtyBoxBg)
-  row.qtyBoxBg:Hide()
-  row.qtyBox = CreateFrame("EditBox", nil, row.qtyBoxBg)
-  row.qtyBox:SetAutoFocus(false)
-  -- Guarded as the price box's font is: busted's EditBox doubles stop at the text API.
-  if row.qtyBox.SetNumeric then row.qtyBox:SetNumeric(true) end
-  if row.qtyBox.SetMaxLetters then row.qtyBox:SetMaxLetters(6) end
-  if row.qtyBox.SetFont then
-    row.qtyBox:SetFont(Theme.FONT_UI_BOLD, 13 * Theme.Scale(), "")
-    row.qtyBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
-    Theme.OnRescale(function(scale) row.qtyBox:SetFont(Theme.FONT_UI_BOLD, 13 * scale, "") end)
-  end
-  row.qtyBox:Hide()
-  row.qtyOf = Theme.Num(row, 10)
-  row.qtyOf:Hide()
-  row.qtyMax = Theme.Button(row, "ghost", "badge")
-  row.qtyMax:Hide()
-
-  -- The seller's number, or none: empty, nought or the most there is all mean "all of it", which
-  -- is no entry at all. The row, the panel and PROCEEDS read it live (GC.SellUtil.postQuantity);
-  -- the queue itself is built again only once the number is settled (`settled`), and not while a
-  -- post is out. Rebuilt on every keystroke it re-sorted the queue's own focus, which draws the
-  -- list in the queue's order, under the box being typed into (review); a post that is out
-  -- carries the number it was pinned with, and the dock's CONFIRM follows the queue's head.
-  local function setQuantity(key, n, settled)
-    local _, most = postQuantity(row.position)
-    S.quantityOverrides[key] = (n and n > 0 and n < most) and n or nil
-    if settled and not S.postingRow then GC.SellCompose.Queue() end
-    UI.List.RenderRows()
-  end
-  local function typedQuantity(box)
-    return tonumber((box:GetText() or ""):match("^%s*(%d+)%s*$") or "")
-  end
-  -- The price box's whole discipline, for the same reasons: the pooled-row key (a number typed
-  -- for one item never lands on another), live while typing, committed on Enter and on focus
-  -- loss, Escape puts the committed number back.
-  local function commitQuantity(box)
-    if row.qtyCommitting then return end
-    local key = overrideKey(row.position)
-    if not key or key ~= row.qtyEditingKey then
-      row.qtyEditingKey = nil
-      return
-    end
-    row.qtyEditingKey = nil
-    row.qtyCommitting = true
-    box:ClearFocus()
-    row.qtyCommitting = false
-    setQuantity(key, typedQuantity(box), true)
-  end
-  row.qtyBox:SetScript("OnEditFocusGained", function()
-    row.qtyEditingKey = overrideKey(row.position)
-  end)
-  row.qtyBox:SetScript("OnTextChanged", function(box, byUser)
-    if not byUser or row.qtyCommitting then return end
-    local key = overrideKey(row.position)
-    if not key or key ~= row.qtyEditingKey then return end
-    -- Between two keystrokes the box can be empty; that is not yet an answer.
-    local n = typedQuantity(box)
-    if n and n > 0 then setQuantity(key, n, false) end
-  end)
-  row.qtyBox:SetScript("OnEnterPressed", commitQuantity)
-  row.qtyBox:SetScript("OnEditFocusLost", commitQuantity)
-  row.qtyBox:SetScript("OnEscapePressed", function(box)
-    row.qtyEditingKey = nil
-    row.qtyCommitting = true
-    box:ClearFocus()
-    row.qtyCommitting = false
-    UI.List.RenderRows()
-  end)
-  row.qtyMax:SetScript("OnClick", function()
-    local key = overrideKey(row.position)
-    if not key then return end
-    if row.qtyBox.HasFocus and row.qtyBox:HasFocus() then
-      row.qtyEditingKey = nil
-      row.qtyCommitting = true
-      row.qtyBox:ClearFocus()
-      row.qtyCommitting = false
-    end
-    setQuantity(key, nil, true)
-  end)
-end
-
--- The "how many" line: the seller's number or the most one click lists, the most beside it,
--- and MAX lit while it is all of it -- a switch with a position, as GOLDCAP is among the price
--- chips. Gold while the number is the seller's own, as the price box is. A box someone is
--- typing into, on this same position, is left alone (see the price box's own note).
-function INSP.paintQuantity(row, p)
-  if not INSP.hasQuantity(p) then
-    row.qtyHead:Hide(); row.qtyBoxBg:Hide(); row.qtyBox:Hide(); row.qtyOf:Hide(); row.qtyMax:Hide()
-    return
-  end
-  local qty, most, chosen = postQuantity(p)
-  local box = row.qtyBox
-  local focused = box.HasFocus and box:HasFocus() or false
-  if not (focused and row.qtyEditingKey == overrideKey(p)) then
-    if focused then
-      row.qtyEditingKey = nil
-      row.qtyCommitting = true
-      box:ClearFocus()
-      row.qtyCommitting = false
-    end
-    box:SetText(tostring(qty))
-  end
-  row.qtyHead:SetText(GC.L["HOW MANY"])
-  setColor(row.qtyHead, chosen and Theme.color.gold or Theme.color.fgDim)
-  if chosen then
-    local c = Theme.color.gold
-    row.qtyBoxRing:SetVertexColor(c[1], c[2], c[3], 0.7)
-  else
-    row.qtyBoxRing:SetVertexColor(1, 1, 1, 0.14)
-  end
-  row.qtyOf:SetText((GC.L["of %d"]):format(most)); setColor(row.qtyOf, Theme.color.fgDim)
-  row.qtyMax:SetLabel(GC.L["MAX"])
-  if row.qtyMax.SetVariant then row.qtyMax:SetVariant(chosen and "ghost" or "active") end
-  row.qtyHead:Show(); row.qtyBoxBg:Show(); box:Show(); row.qtyOf:Show(); row.qtyMax:Show()
 end
 
 -- The detail panel's head: the price control, the book it lands in, and the line of facts.
@@ -550,25 +277,12 @@ function INSP.paintHead(row, p, d)
   row.drawerPriceHead:SetText(GC.L["YOUR PRICE"]); row.drawerPriceHead:Show()
   setColor(row.drawerPriceHead, chosen and Theme.color.gold or Theme.color.fgDim)
   if postable then
-    local box = row.priceBox
-    local focused = box.HasFocus and box:HasFocus() or false
-    -- Someone typing into this box, on this same position, owns it -- see the price row's
-    -- own note: a render that stamped it unconditionally wiped half-typed prices.
-    if not (focused and row.priceEditingKey == overrideKey(p)) then
-      if focused then
-        row.priceEditingKey = nil
-        row.priceCommitting = true
-        box:ClearFocus()
-        row.priceCommitting = false
-      end
-      box:SetText(unit and copperToPriceText(unit) or "")
-    end
-    box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
-    -- The ring says whose price this is before a word is read: red under cost or under the
-    -- floor, gold once it is the seller's own, the panel's quiet edge while it is GoldCap's.
-    local ring = (risk.belowCost or risk.belowFloor) and Theme.color.red or chosen and Theme.color.gold or nil
-    if ring then row.priceBoxRing:SetVertexColor(ring[1], ring[2], ring[3], 0.7)
-    else row.priceBoxRing:SetVertexColor(1, 1, 1, 0.14) end
+    -- The price the dock posts at (UI/Sell/PostPanel.lua), with whose it is and how many go, or
+    -- what is wrong with it in red -- the dock's own box says the same.
+    row.priceFigure:SetText(unit and formatCell(unit) or "")
+    setColor(row.priceFigure, (risk.belowCost or risk.belowFloor) and Theme.color.red
+      or chosen and Theme.color.gold or Theme.color.fg)
+    row.priceFigure:Show(); row.chipsBg:Show()
     if risk.belowCost then
       row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
       setColor(row.priceNote, Theme.color.red)
@@ -576,34 +290,16 @@ function INSP.paintHead(row, p, d)
       row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
       setColor(row.priceNote, Theme.color.red)
     elseif unit then
-      -- Whose price, and over how many -- the quantity a click lists, not the one in the bags,
-      -- as YOU GET counts it. With a "how many" line above, that line already says how many.
+      -- Whose price, and over how many -- the number the dock's POST lists, not the one in the
+      -- bags.
       local whose = chosen and GC.L["yours"] or GC.L["GoldCap's"]
-      row.priceNote:SetText(INSP.hasQuantity(p) and whose or ("%s · ×%d"):format(whose, (postQuantity(p))))
+      row.priceNote:SetText(("%s · ×%d"):format(whose, (postQuantity(p))))
       setColor(row.priceNote, Theme.color.fgDim)
     else
       row.priceNote:SetText(GC.L["no live price yet"])
       setColor(row.priceNote, Theme.color.fgDim)
     end
     row.priceNote:Show()
-    INSP.paintQuantity(row, p)
-    -- YOU GET and the margin, by the row's own arithmetic (what one click lists, at this price,
-    -- against what a unit cost), so the panel and the row under it can never disagree. The
-    -- third line is the one figure the row has no room for: what is left after the cut.
-    local listQty = postQuantity(p)
-    local gross = unit and safeMultiply(unit, listQty) or nil
-    row.priceNetHead:SetText(GC.L["YOU GET"]); setColor(row.priceNetHead, Theme.color.fgDim)
-    row.priceNet:SetText(gross and formatCell(gross) or "—")
-    setColor(row.priceNet, gross and Theme.color.fg or Theme.color.fgDim)
-    local paid = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil
-    local netNote = gross and (GC.L["%s after the AH cut"]):format(formatCell(math.floor(gross * 0.95))) or ""
-    if unit and paid then
-      local pct = math.floor(((unit - paid) / paid) * 100 + 0.5)
-      netNote = GC.Sell._InlineColor(pct >= 0 and Theme.color.green or Theme.color.red, (pct >= 0 and "+" or "") .. pct .. "%")
-        .. "  " .. netNote
-    end
-    row.priceNetNote:SetText(netNote); setColor(row.priceNetNote, Theme.color.fgDim)
-    row.priceNetHead:Show(); row.priceNet:Show(); row.priceNetNote:Show()
     -- UNDERCUT is a rung BELOW the cheapest competing ask, one step of the auction house's own
     -- grid (GC.Flips.PriceStep() -- 1 copper where the client takes copper, a silver
     -- otherwise), and a step under an ask of a step or less is zero or negative. Zero is
@@ -640,12 +336,9 @@ function INSP.paintHead(row, p, d)
       chip:Show()
     end
   else
-    -- Nothing in the bags: there is no price to set, and an editable box that cannot post
-    -- is an invitation to a click that does nothing. Say why instead.
-    row.priceBox:Hide(); row.priceBoxBg:Hide(); row.chipsBg:Hide()
-    row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+    -- Nothing in the bags: there is no price to set. Say why instead.
+    row.priceFigure:Hide(); row.chipsBg:Hide()
     for _, chip in ipairs(row.priceChips) do chip:Hide() end
-    INSP.paintQuantity(row, p) -- puts it away: nothing in the bags, nothing to count
     row.priceNote:SetText(GC.L["nothing in your bags to price"])
     setColor(row.priceNote, Theme.color.fgDim)
     row.priceNote:Show()
@@ -681,20 +374,8 @@ function INSP.paintHead(row, p, d)
   setColor(row.subItem, Theme.color.fgMuted)
   row.subItem:Show()
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
-  -- Post, beside the price it posts at. As a sheet the panel lies over the right side of
-  -- the list -- over the open row's own button -- so without this the one position a
-  -- seller had just priced was the one they could not post. It is the row's Post, through
-  -- the same onPostClick and the same pin; two buttons for one position cannot both arm
-  -- (onPostClick refuses a second row while one is pending).
-  if postable then
-    UI.Row.ShowRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
-    row.action:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD, DR.POST_H)
-    if row.action.SetVariant then row.action:SetVariant("primary") end
-    -- Solid gold already; the outline is the list row's, and this pooled button may have been one.
-    if row.action.SetRing then row.action:SetRing(nil) end
-  else
-    row.action:Hide()
-  end
+  -- Nothing to press in the head: the item posts from the dock.
+  row.action:Hide()
 end
 
 -- The panel's other lines: a heading (YOUR LOTS, ON THE AUCTION HOUSE, WHAT YOU PAID), a live lot
@@ -817,14 +498,12 @@ function Inspector.PaintPanelRow(row, entry, bagSnapshot)
   end
 end
 
--- The price control and what it fetches, put away by whatever kind takes the head's pooled row
--- next (renderRows' put-away).
+-- The price section, put away by whatever kind takes the head's pooled row next (renderRows'
+-- put-away).
 function Inspector.PutAway(row)
-  row.priceBox:Hide(); row.priceBoxBg:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
+  row.priceFigure:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
   row.headRules[1]:Hide()
   for _, chip in ipairs(row.priceChips) do chip:Hide() end
-  row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
-  row.qtyHead:Hide(); row.qtyBoxBg:Hide(); row.qtyBox:Hide(); row.qtyOf:Hide(); row.qtyMax:Hide()
 end
 
 -- The panel frame and its scrolling content: built once, by Attach.

@@ -215,17 +215,23 @@ describe("Clean click ordering, driven end to end", function()
       error("Eternium Ore row is not on screen")
     end
 
-    it("Post's first click: the row's own button", function()
+    local function press()
+      container.queueButton.scripts.OnClick(container.queueButton)
+    end
+
+    -- The dock's POST is the one place the posting deck posts from (owner, 2026-10-10). It posts
+    -- a row already drawn (UI.Dock.Current), so on both games one press posts: nothing renders or
+    -- paints in the click ahead of the call.
+    it("Post's first click: the dock's POST", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose(); render()
       log = {}
-      local row = oreRow()
-      row.action.scripts.OnClick(row.action)
+      press()
       assertCleanCall("PostCommodity")
       -- Reach: the busy look really ran in this click -- after the call, never before it.
       assert.is_truthy(logged("CreateFrame:SpinnerTemplate"))
       assert.is_true(logged("CreateFrame:SpinnerTemplate") > logged("PostCommodity"))
-      -- And the clicked button went busy after the call, never before it (WoW: Forever refuses
+      -- And the pressed button went busy after the call, never before it (WoW: Forever refuses
       -- a protected call from a button disabled ahead of it).
       assert.is_truthy(logged("Disable"))
       assert.is_true(logged("Disable") > logged("PostCommodity"))
@@ -236,56 +242,50 @@ describe("Clean click ordering, driven end to end", function()
       wrapAH({ "PostCommodity" })
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose(); render()
-      local row = oreRow()
-      row.action.scripts.OnClick(row.action) -- first click: posts, asks for Confirm
-      assert.equal("confirm", row.postStage)
+      press() -- first click: posts, asks for Confirm
+      assert.equal("confirm", GC.SellState.postingRow.postStage)
       log = {}
-      row.action.scripts.OnClick(row.action) -- Confirm
+      press() -- Confirm
       assertCleanCall("ConfirmPostCommodity")
     end)
 
-    -- The dock's two-press split is WoW: Forever's only (retail drift audit F1): the passport
-    -- below is Forever's, read fresh by onQueueClick through the real Core/Game.lua.
-    local function forever()
+    local function passport(interface)
       helper.loadModule("Core/Game.lua", GC)
-      _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+      _G.GetBuildInfo = function() return "x", "1", "Sep 23 2026", interface end
     end
 
-    it("the dock's POST queue button, on the click that actually posts", function()
-      forever()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      local button = container.queueButton
-      -- The first click only switches into queue mode and renders it (final review C1): no
-      -- protected call in that click at all.
-      button.scripts.OnClick(button)
-      assertNoProtectedCall()
-      log = {}
-      button.scripts.OnClick(button)
-      assertCleanCall("PostCommodity")
-    end)
+    for _, game in ipairs({ { "WoW: Forever", 16001 }, { "retail", 120100 } }) do
+      it(("on %s the dock's POST posts on its first press, the call first"):format(game[1]), function()
+        passport(game[2])
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose(); render()
+        log = {}
+        press()
+        assertCleanCall("PostCommodity")
+      end)
 
-    it("the POST keybinding (f.GoldCapPostNext), the same handler onQueueClick is", function()
-      forever()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      root.GoldCapPostNext()
-      assertNoProtectedCall()
-      log = {}
-      root.GoldCapPostNext()
-      assertCleanCall("PostCommodity")
-    end)
+      it(("on %s the POST keybinding (f.GoldCapPostNext), the same handler"):format(game[1]), function()
+        passport(game[2])
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose(); render()
+        log = {}
+        root.GoldCapPostNext()
+        assertCleanCall("PostCommodity")
+      end)
 
-    -- Retail keeps addon-v0.15.3's one press: the render runs inside the same click, ahead of the
-    -- call, exactly as it always has there. Pinned so the Forever split never leaks back in.
-    it("on retail the dock's POST and the keybinding post on the first press, as 0.15.3 did", function()
-      helper.loadModule("Core/Game.lua", GC)
-      _G.GetBuildInfo = function() return "12.1.0", "69933", "Sep 23 2026", 120100 end
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      container.queueButton.scripts.OnClick(container.queueButton)
-      assert.is_truthy(logged("PostCommodity"))
-    end)
+      -- An item a row click put in the dock, not the walk's: the click on the row renders, the
+      -- press after it does not.
+      it(("on %s a press after a row click posts that item, the call first"):format(game[1]), function()
+        passport(game[2])
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose(); render()
+        local ore = oreRow()
+        ore.scripts.OnClick(ore)
+        log = {}
+        press()
+        assertCleanCall("PostCommodity")
+      end)
+    end
   end)
 
   describe("UI/Sell/Dock.lua, the Cancel lot paths", function()

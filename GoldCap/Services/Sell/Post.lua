@@ -207,25 +207,34 @@ function GC.Sell._HoldLateInQueue()
   S.queueEntries = kept
 end
 
--- An item posted from a number the seller typed into "how many" is done for this visit: they
--- asked for that many, not that many and then the rest. Left in, it went straight back to the
--- head of the queue with what was left (owner, 2026-10-10: one water of six posted, then POST
--- offered the other five, and the linen marked beside it waited behind them). Its own row's
--- Post still lists more, and the next visit starts the list again (GC.Sell.Reset). A post with
--- no number typed is not held: it listed all one click could, and the rest of a normal item --
--- another stack -- is POST's to list next.
-function GC.Sell._HoldPostedInQueue()
-  if next(S.postedThisVisit) == nil then return end
+-- The dock walks the selling list once a visit (owner, 2026-10-10): an item posted this visit,
+-- or passed over with SKIP, leaves the queue for the rest of it. Left in, a part-posted item went
+-- straight back to the head with what was left (one water of six posted, then POST offered the
+-- other five, and the linen marked beside it waited behind them). A click on its row still puts
+-- it in the dock, and the next visit starts the list again (GC.Sell.Reset). Into S.queueDone,
+-- not queueSkipped: nothing held these back, and the footer's held-back count says so.
+function GC.Sell._HoldDoneInQueue()
+  S.queueDone = {}
+  if next(S.postedThisVisit) == nil and next(S.passedThisVisit) == nil then return end
   local kept = {}
   for _, entry in ipairs(S.queueEntries) do
-    if S.postedThisVisit[entry.positionKey] then
-      S.queueSkipped[#S.queueSkipped + 1] = { positionKey = entry.positionKey, itemID = entry.itemID,
-        itemName = entry.itemName, reason = "posted_this_visit" }
+    local key = entry.positionKey
+    if S.postedThisVisit[key] or S.passedThisVisit[key] then
+      S.queueDone[#S.queueDone + 1] = { positionKey = key, itemID = entry.itemID, itemName = entry.itemName,
+        reason = S.postedThisVisit[key] and "posted_this_visit" or "skipped_this_visit" }
     else
       kept[#kept + 1] = entry
     end
   end
   S.queueEntries = kept
+end
+
+-- SKIP: the dock's item is passed over for this visit, and the dock moves on.
+function GC.Sell.PassDockItem(positionKey)
+  if type(positionKey) ~= "string" then return end
+  S.passedThisVisit[positionKey] = true
+  if S.dockKey == positionKey then S.dockKey = nil end
+  Compose.Queue()
 end
 
 -- Called while `pin` is still the post on the wire, before it is let go. Only a post that was
@@ -249,6 +258,9 @@ local function schedulePostTimeout(row)
       -- A post that was sent can still go up after this; keep listening for it.
       local sent = S.postingPin and S.postingPin.sent
       GC.Sell._AwaitLate(S.postingPin)
+      -- Held while it may still go up (Compose's awaiting_answer): the dock moves on meanwhile,
+      -- whether the item came to it by the walk or by a click on its row.
+      if sent and S.dockKey == S.postingPin.positionKey then S.dockKey = nil end
       Post.DisarmPost()
       -- Said by what is actually true. A Confirm nobody pressed asked the auction house nothing:
       -- the player's confirmation lapsed. A post that went out is still listened for and the
@@ -796,9 +808,15 @@ function GC.Sell.OnAuctionCreated(auctionID)
     and pin or nil
   local owner = GC.Sell._CreationOwner(named, wire, info)
   if not owner then return end
-  -- A post of a number the seller typed is all they wanted of that item this visit.
-  if owner.overrideQuantity ~= nil and type(owner.positionKey) == "string" then
+  -- Posted is done for this visit, and the dock moves on to the next item (GC.Sell._HoldDoneInQueue):
+  -- a post of a number the player typed, or of everything the item had in the bags -- that one
+  -- would otherwise stand in the dock again until the bags caught up. A normal item with another
+  -- stack still in the bags is not done: one post lists one stack, and POST lists the next.
+  local whole = type(owner.position) == "table" and exact(owner.quantity)
+    and owner.quantity >= (owner.position.bagQty or 0)
+  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole) then
     S.postedThisVisit[owner.positionKey] = true
+    if S.dockKey == owner.positionKey then S.dockKey = nil end
   end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then

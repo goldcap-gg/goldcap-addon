@@ -48,7 +48,6 @@ GC.Locales.esMX = {
   ["%d× %s"] = "%d× %s",
   ["%d× %s · %s each · %s"] = "%d× %s · %s c/u · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidad    total %s -> %s",
-  ["%s after the AH cut"] = "%s tras la comisión de la CdS",
   ["%s ahead"] = "%s por delante",
   ["%s each"] = "%s c/u",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s necesita un número, por ejemplo /gc weights %s 1.5",
@@ -222,8 +221,6 @@ GC.Locales.esMX = {
     "Este cliente no informa de las estadísticas de los objetos, así que GoldCap no puede comparar equipo.",
   ["This lot holds more units than your Max units per buy."] =
     "Este lote tiene más unidades que tu «Máx. de unidades por compra».",
-  ["Could not find the queue's next item to post — try again"] =
-    "No se encontró el siguiente objeto de la cola para publicar — inténtalo otra vez",
   ["Could not find the queue's next lot to cancel — try again"] =
     "No se encontró el siguiente lote de la cola para cancelar — inténtalo otra vez",
   ["DEFAULTS"] = "PREDETERMINADO",
@@ -345,7 +342,6 @@ GC.Locales.esMX = {
   ["YOUR LISTS"] = "TUS LISTAS",
   ["NOT ON HAND %d"] = "NO A MANO %d",
   ["NOTHING TO CANCEL"] = "NADA QUE CANCELAR",
-  ["NOTHING TO POST"] = "NADA QUE PUBLICAR",
   ["Needs a live price check before it can be bought."] =
     "Necesita una verificación de precio en vivo antes de poder comprarse.",
   ["Needs gold"] = "Necesita oro",
@@ -392,7 +388,6 @@ GC.Locales.esMX = {
   ["Open the Auction House to begin scanning."] =
     "Abre la casa de subastas para empezar a escanear.",
   ["Open the deals board. /gc for commands."] = "Abre el tablero de oportunidades. /gc para los comandos.",
-  ["POST %d"] = "PUBLICAR %d",
   ["POSTING"] = "PUBLICACIÓN",
   ["POSTING…"] = "PUBLICANDO…",
   ["PRICE"] = "PRECIO",
@@ -441,7 +436,6 @@ GC.Locales.esMX = {
   ["Quantity exceeds missing units"] = "La cantidad supera las unidades que faltan",
   ["Quantity is capped by how fast this item actually sells."] =
     "La cantidad está limitada por lo rápido que se vende realmente este objeto.",
-  ["Queue ready — press POST again to post it"] = "Cola lista — presiona Publicar de nuevo para publicarlo",
   ["REFRESH"] = "ACTUALIZAR",
   ["RESET WINDOW"] = "RESTABLECER VENTANA",
   ["Reason"] = "Motivo",
@@ -1276,6 +1270,9 @@ GC.Locales.esMX = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "INGRESOS menos lo que pagaste por esta mercancía. Solo se muestra mientras GoldCap sabe lo que pagaste por toda ella.",
   ["HOW MANY"] = "CANTIDAD",
   ["MAX"] = "MÁX.",
-  ["posted as many as you asked for; its own Post lists more"] = "publicaste los que pediste; el botón Publicar de su fila publica más",
+  ["skipped"] = "omitido",
   ["posted"] = "publicado",
+  ["POST"] = "PUBLICAR",
+  ["SKIP"] = "OMITIR",
+  ["then %s"] = "luego %s",
 }

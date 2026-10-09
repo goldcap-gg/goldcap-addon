@@ -193,7 +193,6 @@ describe("locale layer", function()
   -- not. The 3b follow-up key and every key plan 3c added.
   it("carries the Forever keys in all twelve languages", function()
     local keys = {
-      "Queue ready — press POST again to post it",
       "What this buy would make is under your minimum profit.",
       "Below vendor", "Under market",
       " · buy at %s or less, vendor pays %s", " · buy at %s or less, AH value %s",

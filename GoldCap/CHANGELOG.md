@@ -3,20 +3,22 @@
 ## 0.19.0 (unreleased)
 
 - The Sell tab keeps a selling list. A circle before each item says whether POST and the key for
-  posting the next item list it: gold when they do, empty when only the item's own Post button
-  does. Click the circle to change it, and GoldCap remembers your choice on every character. What
-  you bought on DEALS starts on the list; everything else starts off it, so POST no longer lists
-  your farmed or crafted goods until you mark them. The list reads in two parts, SELLING and NOT
-  SELLING.
+  posting the next item go through it: gold when they do, empty when they do not. Click the circle
+  to change it, and GoldCap remembers your choice on every character. What you bought on DEALS
+  starts on the list; everything else starts off it, so POST no longer lists your farmed or
+  crafted goods until you mark them. The list reads in two parts, SELLING and NOT SELLING.
+- You post from the bar at the bottom of the Sell tab. It shows the item POST lists next, how many
+  you have, its price and HOW MANY to list, and you can change both right there; MAX goes back to
+  all of it, so you can post part of a stack. POST lists it and moves on to the next item on your
+  selling list, top to bottom, and SKIP moves on without posting. Click any item to put it in the
+  bar, whether it is on the list or not. Items no longer have a Post button of their own; an
+  item's panel keeps the book and the quick prices, which set the price in the bar. A price or a
+  number you type is for the next post of that item only.
 - The totals at the bottom of the Sell tab are now PROCEEDS and PROFIT. PROCEEDS is what
   everything POST lists brings in at the prices on it, after the auction house's 5% cut; on MY
   LOTS, what your lots bring in. PROFIT is what that leaves after what you paid, and shows only
   when GoldCap knows what you paid for all of it. They replace COST, ASKING and AT MARKET, which
   often read 0 and Unknown.
-- You can post part of a stack from the Sell tab. An item's panel asks HOW MANY, shows the most
-  one post can list beside it, and MAX goes back to all of it. The number is for the next post
-  only, like a price you type. POST and the key for posting the next item use it too, and then
-  move on to your next item; the item's own Post button lists more of it.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

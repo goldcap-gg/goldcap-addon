@@ -139,6 +139,13 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     render()
   end
 
+  -- The item goes in the dock (what a click on its row does, UI/Sell/Row.lua) and the dock's POST
+  -- is pressed: the one place the posting deck posts from.
+  local function postFromDock(row)
+    GC.SellState.dockKey = row.position.positionKey
+    container.queueButton.scripts.OnClick(container.queueButton)
+  end
+
   local function positions()
     return GC.SellState.positions
   end
@@ -213,7 +220,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.QuoteCache.Set(quotes, "item:82800:25:0:1234", 90000, 1000)
     compose()
     for _, row in ipairs(GC.SellUI.rows) do
-      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+      if row:IsShown() and row.kind == "position" then postFromDock(row) end
     end
     assert.equal(1, #posted)
     GC.Sell.OnAuctionCreated(880)
@@ -428,7 +435,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     local function press(positionKey)
       for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
-          row.action.scripts.OnClick(row.action)
+          postFromDock(row)
           return row
         end
       end
@@ -470,7 +477,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     local function press(positionKey)
       for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
-          row.action.scripts.OnClick(row.action)
+          postFromDock(row)
           return row
         end
       end
@@ -501,7 +508,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
     for _, row in ipairs(GC.SellUI.rows) do
-      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+      if row:IsShown() and row.kind == "position" then postFromDock(row) end
     end
     assert.equal(1, #posted)
     for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end

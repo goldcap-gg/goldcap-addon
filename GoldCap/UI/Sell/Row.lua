@@ -27,6 +27,7 @@ local ROW_TAG_TEXT = {
   advised_hold = "hold",
   below_vendor = "vendor pays more",
   posted_this_visit = "posted",
+  skipped_this_visit = "skipped",
 }
 
 local rowTag
@@ -423,9 +424,14 @@ local function createRow(parent)
       UI.List.RenderRows()
     elseif self.kind == "position" and type(self.position.positionKey) == "string" then
       Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no"
+      local key = self.position.positionKey
+      -- On the posting deck the clicked item goes in the dock, the one place it posts from,
+      -- whether or not it is on the selling list (UI/Sell/PostPanel.lua).
+      if S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue" and (self.position.bagQty or 0) > 0 then
+        S.dockKey = key
+      end
       -- One open position at a time. Two open panels are two hundred pixels of detail each,
       -- and the second one pushed the first -- the one being compared against -- off screen.
-      local key = self.position.positionKey
       local wasOpen = UI.expanded[key]
       for other in pairs(UI.expanded) do UI.expanded[other] = nil end
       UI.expanded[key] = not wasOpen or nil
@@ -727,12 +733,10 @@ function Row.PaintPosition(row, entry, ctx)
     setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
       and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
   end
-  -- Post is the point of this screen, so it lives on the row itself. It
-  -- used to be reachable only by expanding the position and finding a
-  -- sub-row, and only for stock GoldCap had a receipt for -- which is why
-  -- the honest answer to "what can I list" was "go use the Blizzard tab".
-  -- Set cost is bookkeeping and stays available whenever there is no
-  -- stock to act on; the expansion carries it in either case.
+  -- Stock in the bags posts from the dock alone (owner, 2026-10-10): a Post on every row beside
+  -- the dock's made three places to post one item, and a click on the row puts it in the dock.
+  -- Set cost is bookkeeping and stays available whenever there is no stock to act on; the
+  -- expansion carries it in either case.
   if onListed and ROW.queuedLot(p) then
     -- MY LOTS' own control, on the rows worth cancelling and no others. It cancels nothing
     -- itself: ROW.armLot opens the position and hands the click to the lot's own button.
@@ -741,7 +745,7 @@ function Row.PaintPosition(row, entry, ctx)
       ROW.armLot(ROW.queuedLot(row.position))
     end)
   elseif bagQty > 0 and not onListed then
-    showRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
+    row.action:Hide()
   elseif UI.CostDialog.CanSetCost(p) then
     showRowAction(row, GC.L["Set cost"], function() UI.CostDialog.OpenCostDialog(p) end)
   else

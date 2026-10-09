@@ -40,7 +40,6 @@ GC.Locales.ruRU = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
   ["%d/%d covered"] = "%d/%d покрыто",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
-  ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s: нужно число, например /gc weights %s 1.5",
   ["%s under you"] = "%s дешевле вас",
@@ -206,8 +205,6 @@ GC.Locales.ruRU = {
     "Этот клиент не сообщает характеристики предметов, поэтому GoldCap не может сравнить экипировку.",
   ["This lot holds more units than your Max units per buy."] =
     "В этом лоте больше штук, чем ваш «Макс. штук за одну покупку».",
-  ["Could not find the queue's next item to post — try again"] =
-    "Не нашли следующий предмет в очереди на выставление — попробуйте ещё раз",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Не нашли следующий лот в очереди на отмену — попробуйте ещё раз",
   ["DEFAULTS"] = "ПО УМОЛЧАНИЮ",
@@ -328,7 +325,6 @@ GC.Locales.ruRU = {
   ["YOUR LISTS"] = "ВАШИ СПИСКИ",
   ["NOT ON HAND %d"] = "НЕТ НА РУКАХ %d",
   ["NOTHING TO CANCEL"] = "НЕЧЕГО ОТМЕНЯТЬ",
-  ["NOTHING TO POST"] = "НЕЧЕГО ВЫСТАВЛЯТЬ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкой нужна живая проверка цены.",
   ["Needs gold"] = "Нужно золото",
@@ -373,7 +369,6 @@ GC.Locales.ruRU = {
   ["Open the Auction House first."] = "Сначала откройте аукцион.",
   ["Open the Auction House to begin scanning."] = "Откройте аукцион, чтобы начать сканирование.",
   ["Open the deals board. /gc for commands."] = "Открыть доску сделок. /gc — команды.",
-  ["POST %d"] = "ВЫСТАВИТЬ %d",
   ["POSTING"] = "ВЫСТАВЛЕНИЕ",
   ["POSTING…"] = "ВЫСТАВЛЯЕМ…",
   ["PRICE"] = "ЦЕНА",
@@ -421,7 +416,6 @@ GC.Locales.ruRU = {
   ["Quantity exceeds missing units"] = "Количество превышает недостающие единицы",
   ["Quantity is capped by how fast this item actually sells."] =
     "Количество ограничено тем, как быстро предмет реально продаётся.",
-  ["Queue ready — press POST again to post it"] = "Очередь готова — нажмите Выставить ещё раз, чтобы выставить его",
   ["REFRESH"] = "ОБНОВИТЬ",
   ["RESET WINDOW"] = "СБРОСИТЬ ОКНО",
   ["Reason"] = "Причина",
@@ -1345,6 +1339,9 @@ GC.Locales.ruRU = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "ВЫРУЧКА минус то, что вы заплатили за этот товар. Видна, только пока GoldCap знает, сколько вы заплатили за весь товар.",
   ["HOW MANY"] = "СКОЛЬКО",
   ["MAX"] = "ВСЁ",
-  ["posted as many as you asked for; its own Post lists more"] = "выставлено, сколько вы просили; остальное выставит кнопка «Выставить» в его строке",
+  ["skipped"] = "пропущено",
   ["posted"] = "выставлено",
+  ["POST"] = "ВЫСТАВИТЬ",
+  ["SKIP"] = "ПРОПУСТИТЬ",
+  ["then %s"] = "дальше %s",
 }

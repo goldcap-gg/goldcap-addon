@@ -465,9 +465,9 @@ local function renderRows()
   -- The two decks carry DIFFERENT column sets, so the heading row has to be re-laid out when
   -- the deck changes -- rows are laid out on every render (below) but the header is built once.
   -- Done here rather than in the deck buttons' own handler because filterMode also moves
-  -- underneath us: onCancelQueueClick (UI/Sell/Dock.lua) sets "cancelqueue", which is the listed deck, and
-  -- onQueueClick sets "queue", which is the post one. Every path that can change the deck ends
-  -- up here, so this is the one place that cannot be forgotten.
+  -- underneath us: onCancelQueueClick (UI/Sell/Dock.lua) sets "cancelqueue", which is the listed
+  -- deck. Every path that can change the deck ends up here, so this is the one place that
+  -- cannot be forgotten.
   local headerDeck = (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
   -- The player's selling list (GC.Sell._QueueOpts): nil until the saved data is loaded, and then
   -- the posting deck marks every row and splits in two.
@@ -482,19 +482,7 @@ local function renderRows()
     layoutCells(header)
   end
   local filtered
-  if S.filterMode == "queue" then
-    -- The queue's own order, head first -- deliberately NOT SellViewModel.Order, which ranks
-    -- by a different question ("what could I act on, roughly") than GC.PostQueue.Build's "what
-    -- is most valuable to post right now, in a stable order." See PostQueue.lua's own
-    -- entryLess. Every entry maps back to its live position object -- the queue itself carries
-    -- only display figures, never a second copy of the position -- so the row this produces is
-    -- the exact same row a normal filter chip would have rendered for that position.
-    filtered = {}
-    for _, entry in ipairs(S.queueEntries) do
-      local position = currentPosition(entry.positionKey)
-      if position then filtered[#filtered + 1] = position end
-    end
-  elseif S.filterMode == "cancelqueue" then
+  if S.filterMode == "cancelqueue" then
     -- The cancel queue's own order, head first -- one row per position however many of its
     -- lots are queued; the queued lots themselves render through the position's expansion,
     -- which is where the Repost/Cancel action a click needs actually lives.
@@ -538,6 +526,10 @@ local function renderRows()
       if type(rest.positionKey) == "string" and rest.reason then heldBackReason[rest.positionKey] = rest.reason end
     end
   end
+  -- Posted or passed over this visit (GC.Sell._HoldDoneInQueue): the row says which.
+  if not onListed then
+    for _, done in ipairs(S.queueDone or {}) do heldBackReason[done.positionKey] = done.reason end
+  end
   -- What every position row reads for this render (Row.PaintPosition).
   local ctx = { onListed = onListed, heldBackReason = heldBackReason }
   local entries = {}
@@ -577,8 +569,7 @@ local function renderRows()
         -- Without a book the eight levels are not drawn, and neither is the room for them: the
         -- head used to keep 160px of nothing between its heading and "has not answered yet".
         slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS)
-          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0)
-          + (UI.INSP.hasQuantity(position) and DR.QTY_SLOTS or 0) }
+          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0) }
       local head = table.remove(entries)
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
@@ -729,6 +720,9 @@ local function renderRows()
   if UI.detailContent then UI.detailContent:SetHeight(math.max(UI.rowHeight, detailHeight)) end
   Walk.ScheduleExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
+  -- The dock's item is read off the rows just placed (UI.Dock.Current), so the dock is painted
+  -- after every render that placed them.
+  UI.Dock.PaintQueueButton()
 end
 List.RenderRows = renderRows
 

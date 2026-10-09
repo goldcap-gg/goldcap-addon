@@ -130,8 +130,12 @@ describe("Sell tab, bags to Post", function()
     -- 200 + 46, added across both stacks.
     assert.equal(246, row.position.bagQty)
     assert.match("×246 in bags", row.itemStock.text)
-    assert.equal("Post", row.action.label)
-    assert.is_true(row.action.shown)
+    -- Posted from the dock; the row carries no Post of its own. Unpriced, it is not on POST's
+    -- walk yet, but a click on its row puts it in the dock.
+    assert.is_false(row.action.shown)
+    row.scripts.OnClick(row)
+    assert.equal("Eternium Ore", GC.SellUI.container.queueLabel.text)
+    assert.is_true(GC.SellUI.container.queueButton.enabled)
   end)
 
   it("counts only what the auction house would accept", function()

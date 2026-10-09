@@ -1,9 +1,10 @@
 local helper = require("spec.spec_helper")
 
--- End to end through the real modules, the same shape spec/sell_bag_to_post_spec.lua already
--- proves for a single row's own Post button: bags -> positions -> GC.PostQueue.Build -> the
--- toolbar control -> onPostClick. This is the seam that proves the queue and the button beside
--- it are wired to each other, not just that each one works alone.
+-- End to end through the real modules: bags -> positions -> GC.PostQueue.Build -> the rows ->
+-- the dock (UI/Sell/PostPanel.lua) -> onPostClick. This is the seam that proves the queue, the
+-- rows and the dock's POST are wired to each other, not just that each one works alone. The dock
+-- names the item POST posts (owner, 2026-10-10): the one a row click put there, or the first item
+-- of the queue in the list's own order.
 describe("Sell tab, the posting queue control", function()
   local GC, root, render, container
 
@@ -118,21 +119,31 @@ describe("Sell tab, the posting queue control", function()
     return GC.SellState.quotes
   end
 
-  it("labels the control with the head item and price, and counts the queue on the button itself", function()
-    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+  -- Composed and drawn, as GC.Sell.Refresh does it: the dock reads the rows it walks.
+  local function ready()
     compose()
+    render()
+  end
+
+  it("names the item POST posts, with what is in the bags", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
     local button = container.queueButton
-    local label = container.queueLabel
-    assert.equal("POST 1", button.label)
+    assert.equal("POST", button.label)
     assert.is_true(button.enabled)
-    assert.matches("Eternium Ore", label.text, 1, true)
+    assert.equal("Eternium Ore", container.queueLabel.text)
+    assert.equal("×246 in bags", container.dockSub.text)
+    assert.is_true(container.skipButton.shown)
   end)
 
   it("disables with an honest word when nothing is postable", function()
-    compose() -- no quote at all: BOTH bag items are held back, nothing enters the queue
+    ready() -- no quote at all: BOTH bag items are held back, nothing enters the queue
     local button = container.queueButton
     assert.is_false(button.enabled)
-    assert.matches("NOTHING", button.label)
+    assert.equal("POST", button.label)
+    assert.equal("Nothing queued to post", container.queueLabel.text)
+    assert.is_false(container.skipButton.shown)
+    assert.is_false(container.priceBoxBg.shown)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -156,15 +167,15 @@ describe("Sell tab, the posting queue control", function()
     _G.GameTooltip = nil
   end)
 
-  it("posts the queue head when clicked, through onPostClick's own pin and validation", function()
+  it("posts the dock's item when clicked, through onPostClick's own pin and validation", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    compose()
+    ready()
     local button = container.queueButton
     button.scripts.OnClick(button)
-    local rows = GC.SellUI.rows
-    -- Row 1 is now the queue's head, mid-post: onPostClick's own pin has taken over its label.
-    assert.equal("commodity:23427", rows[1].position.positionKey)
-    assert.is_false(rows[1].action.enabled)
+    local pin = GC.SellState.postingPin
+    assert.equal("commodity:23427", pin.positionKey)
+    assert.equal(pin.row, GC.SellState.postingRow)
+    assert.equal("posting", pin.row.postStage)
   end)
 
   it("reads Confirm on the control and routes the second click to the same row", function()
@@ -172,7 +183,7 @@ describe("Sell tab, the posting queue control", function()
     local confirmCalls = 0
     _G.C_AuctionHouse.ConfirmPostCommodity = function() confirmCalls = confirmCalls + 1 end
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    compose()
+    ready()
     local button = container.queueButton
     button.scripts.OnClick(button)
     assert.equal("CONFIRM", button.label)
@@ -181,24 +192,74 @@ describe("Sell tab, the posting queue control", function()
     assert.equal(1, confirmCalls)
   end)
 
-  it("disables while the head's post is genuinely in flight (posting/confirming)", function()
+  it("disables while its post is genuinely in flight (posting/confirming)", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    compose()
+    ready()
     local button = container.queueButton
     button.scripts.OnClick(button) -- PostCommodity returns false above: lands on postStage "posting"
     assert.is_false(button.enabled)
+    assert.equal("POSTING…", button.label)
   end)
 
-  it("shows the queue in queue order, head at row 1, as its own filter mode", function()
+  -- The owner's run (2026-10-10): by value, a part-posted water stood in front of the linen
+  -- marked beside it. The list's order is the one the player reads, and it settles: a quote that
+  -- lands later moves a figure, never a row (GC.SellViewModel.Settle).
+  it("names the first item in the list's own order, not the queue's value order", function()
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready() -- Widget is priced first, so it settles above the ore
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    compose()
-    -- Clicking the control is what arms queue mode -- see onQueueClick -- so this drives the
-    -- exact same path a player would, rather than reaching in to flip filterMode by hand.
-    local button = container.queueButton
-    button.scripts.OnClick(button)
-    local rows = GC.SellUI.rows
-    assert.equal("position", rows[1].kind)
-    assert.equal("commodity:23427", rows[1].position.positionKey)
+    ready()
+    assert.equal("commodity:23427", GC.SellState.queueEntries[1].positionKey) -- worth more
+    assert.equal("Widget", container.queueLabel.text)
+    assert.equal("×5 in bags · then Eternium Ore", container.dockSub.text)
+  end)
+
+  it("puts the item whose row is clicked in the dock, whatever the queue's order", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready()
+    local widget
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.itemID == 99001 then widget = row end
+    end
+    widget.scripts.OnClick(widget)
+    assert.equal("Widget", container.queueLabel.text)
+    container.queueButton.scripts.OnClick(container.queueButton)
+    assert.equal("commodity:99001", GC.SellState.postingPin.positionKey)
+  end)
+
+  it("passes the dock's item over with SKIP, for this visit, and names the next", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready()
+    local first = container.queueLabel.text
+    container.skipButton.scripts.OnClick(container.skipButton)
+    assert.is_not.equal(first, container.queueLabel.text)
+    local skipped
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.itemName == first then skipped = row end
+    end
+    assert.matches("skipped", skipped.itemStock.text, 1, true)
+    -- Not held back: the footer's count is for what the queue refused.
+    assert.equal(0, #GC.SellState.queueSkipped)
+    container.skipButton.scripts.OnClick(container.skipButton)
+    assert.equal("Nothing queued to post", container.queueLabel.text)
+    -- The next visit walks the list again.
+    GC.Sell.Reset()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready()
+    assert.equal(first, container.queueLabel.text)
+  end)
+
+  it("has no Post of its own on a row with stock: the dock is where it posts from", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and (row.position.bagQty or 0) > 0 then
+        assert.is_false(row.action.shown)
+      end
+    end
   end)
 
   it("holds Eternium Ore back in WoW: Forever when a vendor pays more for it", function()
@@ -216,8 +277,9 @@ describe("Sell tab, the posting queue control", function()
       if skip.positionKey == "commodity:23427" then sawEternium = true end
     end
     assert.is_true(sawEternium)
+    render()
     local button = container.queueButton
-    assert.matches("NOTHING", button.label)
+    assert.is_false(button.enabled)
     local hit = container.queueHeldBackHit
     local tooltipLines = {}
     _G.GameTooltip = {
@@ -257,9 +319,8 @@ describe("Sell tab, the posting queue control", function()
 
     it("posts nothing the player has not marked, and says how to mark it", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
+      ready()
       assert.is_false(container.queueButton.enabled)
-      assert.matches("NOTHING", container.queueButton.label)
       assert.equal("Mark what to sell with the circle", container.queueLabel.text)
     end)
 
@@ -273,13 +334,14 @@ describe("Sell tab, the posting queue control", function()
 
       row.mark.scripts.OnClick(row.mark)
       assert.is_true(GC.db.sellMarks["commodity:23427"])
-      assert.equal("POST 1", container.queueButton.label)
+      assert.is_true(container.queueButton.enabled)
+      assert.equal("Eternium Ore", container.queueLabel.text)
       assert.is_true(rowOf("commodity:23427").mark.coin.shown)
 
       row = rowOf("commodity:23427")
       row.mark.scripts.OnClick(row.mark)
       assert.is_false(GC.db.sellMarks["commodity:23427"])
-      assert.matches("NOTHING", container.queueButton.label)
+      assert.is_false(container.queueButton.enabled)
     end)
 
     -- The dock's PROCEEDS is what POST lists, so a mark moves it; ore nobody has a receipt for
@@ -317,7 +379,7 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       render()
-      assert.equal("POST 1", container.queueButton.label)
+      assert.equal("Eternium Ore", container.queueLabel.text)
       local lines = {}
       _G.GameTooltip = { SetOwner = function() end, Show = function() end,
         AddLine = function(_, text) lines[#lines + 1] = text end }
@@ -342,7 +404,7 @@ describe("Sell tab, the posting queue control", function()
     end)
 
     -- Finding 2: with the SELLING heading on row 1, the dock's CONFIRM found no row to confirm.
-    it("confirms from the dock a post the head row's own Post armed", function()
+    it("confirms from the dock a post it armed under the SELLING heading", function()
       _G.C_AuctionHouse.PostCommodity = function() return true end -- needs a second click to confirm
       local confirmCalls = 0
       _G.C_AuctionHouse.ConfirmPostCommodity = function() confirmCalls = confirmCalls + 1 end
@@ -350,9 +412,8 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       render()
-      local row = rowOf("commodity:23427")
-      row.action.scripts.OnClick(row.action)
       local button = container.queueButton
+      button.scripts.OnClick(button)
       assert.equal("CONFIRM", button.label)
       button.scripts.OnClick(button)
       assert.equal(1, confirmCalls)
@@ -366,8 +427,7 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       render()
-      local head = rowOf("commodity:23427")
-      head.action.scripts.OnClick(head.action)
+      container.queueButton.scripts.OnClick(container.queueButton)
       assert.is_not_nil(GC.SellState.postingRow)
 
       local widget = rowOf("commodity:99001")
@@ -384,9 +444,9 @@ describe("Sell tab, the posting queue control", function()
     it("does not ask for a mark while a marked item is only held back", function()
       GC.db.sellMarks["commodity:99001"] = true -- Widget has no price: held back
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      assert.matches("NOTHING", container.queueButton.label)
-      assert.equal("", container.queueLabel.text)
+      ready()
+      assert.is_false(container.queueButton.enabled)
+      assert.equal("Nothing queued to post", container.queueLabel.text)
     end)
 
     -- Finding 6: a row whose identity is not settled is never POST's to list.
@@ -402,7 +462,7 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       render()
-      assert.equal("POST 1", container.queueButton.label)
+      assert.equal("Eternium Ore", container.queueLabel.text)
       assert.is_false(rowOf("commodity:23427").mark.shown)
       for _, text in ipairs(drawn()) do assert.is_nil(text:find("SELLING", 1, true)) end
     end)
@@ -414,45 +474,66 @@ describe("Sell tab, the posting queue control", function()
       _G.GetBuildInfo = function() return "x", "1", "Sep 27 2026", interface end
     end
 
+    -- Which bag slot each post took: the ore is slots 1-2, the Widget slot 3.
     local function postCounter()
-      local posts = 0
-      _G.C_AuctionHouse.PostCommodity = function() posts = posts + 1; return false end
-      return function() return posts end
+      local posts, slots = 0, {}
+      _G.C_AuctionHouse.PostCommodity = function(location)
+        posts = posts + 1
+        slots[#slots + 1] = location.slot
+        return false
+      end
+      return function() return posts end, slots
     end
 
-    it("on retail the dock's POST posts the head on the first press, from any deck", function()
-      passport(120100)
-      local posts = postCounter()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      local button = container.queueButton
-      button.scripts.OnClick(button)
-      assert.equal(1, posts())
-      assert.equal("commodity:23427", GC.SellUI.rows[1].position.positionKey)
-    end)
+    for _, game in ipairs({ { "retail", 120100 }, { "WoW: Forever", 16001 } }) do
+      it(("on %s the dock's POST posts its item on the first press"):format(game[1]), function()
+        passport(game[2])
+        local posts = postCounter()
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        ready()
+        container.queueButton.scripts.OnClick(container.queueButton)
+        assert.equal(1, posts())
+      end)
 
-    it("on retail the POST keybinding posts on the first press too", function()
-      passport(120100)
-      local posts = postCounter()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      root.GoldCapPostNext()
-      assert.equal(1, posts())
-    end)
+      it(("on %s the POST keybinding posts on the first press too"):format(game[1]), function()
+        passport(game[2])
+        local posts = postCounter()
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        ready()
+        root.GoldCapPostNext()
+        assert.equal(1, posts())
+      end)
+
+      -- WoW: Forever refuses a protected call once the click that makes it has run a render or the
+      -- dock's own paint (final review C1, C3): the press reads the rows already drawn, and paints
+      -- after the call.
+      it(("on %s the press renders and paints nothing before the call"):format(game[1]), function()
+        passport(game[2])
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        ready()
+        local renders, paints, before = 0, 0, nil
+        local List, PostPanel = GC.SellUI.List, GC.SellUI.PostPanel
+        local realRender, realPaint = List.RenderRows, PostPanel.Paint
+        List.RenderRows = function(...) renders = renders + 1; return realRender(...) end
+        PostPanel.Paint = function(...) paints = paints + 1; return realPaint(...) end
+        _G.C_AuctionHouse.PostCommodity = function() before = { renders, paints }; return false end
+        container.queueButton.scripts.OnClick(container.queueButton)
+        List.RenderRows, PostPanel.Paint = realRender, realPaint
+        assert.same({ 0, 0 }, before)
+      end)
+    end
 
     -- P1: a Cancel lot or a Remove armed on another row holds renderRows() to a no-op (its own
-    -- guard, above), so `rows` can still be whatever deck was on screen before the click. The
-    -- retail branch used to trust row 1's `kind == "position"` alone, so it posted that stale
-    -- row instead of refusing -- even though it was not the position the button (or the
-    -- keybinding) actually named as next.
-    describe("with a Remove armed elsewhere while row 1 is stale", function()
-      -- Widget (99001) is quoted and fully evidenced first, so it alone is postable and sorts to
-      -- row 1 (SellViewModel.Order ranks a priced position ahead of an unpriced one). A Remove is
-      -- armed on ITS OWN manual cost entry -- any armed row would hold the render, this one just
-      -- happens to be real -- and only THEN is Eternium Ore quoted too: its far larger value
-      -- (246 units against Widget's 5) makes it the queue's new head, but nothing re-renders to
-      -- move row 1 off Widget.
-      local function armRemoveWithStaleRow1()
+    -- guard), so the rows can still be whatever was drawn before the click. The dock walks those
+    -- rows and paints from the same answer the press reads, so what it names is what goes up --
+    -- never an item it did not name.
+    describe("with a Remove armed elsewhere while the rows are stale", function()
+      -- Widget (99001) is quoted and fully evidenced first, so it alone is postable and settles
+      -- on row 1. A Remove is armed on ITS OWN manual cost entry -- any armed row would hold the
+      -- render, this one just happens to be real -- and only THEN is Eternium Ore quoted too: its
+      -- far larger value (246 units against Widget's 5) makes it the queue's new head, but
+      -- nothing re-renders.
+      local function armRemoveWithStaleRows()
         GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
         GC.Acquisitions.RecordManual({ itemID = 99001, positionKey = "commodity:99001",
           quantity = 5, total = 2500, acquiredAt = 1000, character = "Owner-Dentarg", region = "eu" })
@@ -474,60 +555,17 @@ describe("Sell tab, the posting queue control", function()
         assert.equal("commodity:23427", qe[1].positionKey) -- sanity: the head moved to Eternium Ore
       end
 
-      it("on retail the dock's POST refuses rather than post row 1's stale item", function()
-        passport(120100)
-        armRemoveWithStaleRow1()
-        local posts = postCounter()
-        local button = container.queueButton
-        button.scripts.OnClick(button)
-        assert.equal(0, posts())
-      end)
-
-      it("on retail the POST keybinding refuses rather than post row 1's stale item", function()
-        passport(120100)
-        armRemoveWithStaleRow1()
-        local posts = postCounter()
-        root.GoldCapPostNext()
-        assert.equal(0, posts())
-      end)
-    end)
-
-    it("in WoW: Forever the first press only switches into queue mode, and the second posts", function()
-      passport(16001)
-      local posts = postCounter()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      local button = container.queueButton
-      button.scripts.OnClick(button)
-      assert.equal(0, posts())
-      assert.equal("commodity:23427", GC.SellUI.rows[1].position.positionKey)
-      assert.equal("Queue ready — press POST again to post it", root.status.text)
-      button.scripts.OnClick(button)
-      assert.equal(1, posts())
-    end)
-
-    it("in WoW: Forever the POST keybinding takes the same two presses", function()
-      passport(16001)
-      local posts = postCounter()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      root.GoldCapPostNext()
-      assert.equal(0, posts())
-      root.GoldCapPostNext()
-      assert.equal(1, posts())
-    end)
-
-    it("in WoW: Forever one press posts once the queue is already the rendered view", function()
-      passport(16001)
-      local posts = postCounter()
-      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-      compose()
-      local button = container.queueButton
-      button.scripts.OnClick(button) -- into queue mode, rendered
-      assert.equal(0, posts())
-      render()
-      button.scripts.OnClick(button)
-      assert.equal(1, posts())
+      for _, game in ipairs({ { "retail", 120100 }, { "WoW: Forever", 16001 } }) do
+        it(("on %s the dock's POST posts the item the dock names"):format(game[1]), function()
+          passport(game[2])
+          armRemoveWithStaleRows()
+          local posts, slots = postCounter()
+          assert.equal("Widget", container.queueLabel.text)
+          container.queueButton.scripts.OnClick(container.queueButton)
+          assert.equal(1, posts())
+          assert.equal(3, slots[1])
+        end)
+      end
     end)
   end)
 end)

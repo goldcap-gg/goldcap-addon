@@ -74,12 +74,19 @@ GC.SellState = {
   -- not persisted, handed to BuildPostPlan, spent with the post that carried it
   -- (GC.Sell._SpendPrice). Only ever under what one click could list; "all of it" is no entry.
   quantityOverrides = {},
-  -- Positions posted from a number typed into "how many" this visit, by positionKey: POST is done
-  -- with them until the auction house is closed (GC.Sell._HoldPostedInQueue, GC.Sell.Reset).
+  -- The dock walks the selling list once a visit (owner, 2026-10-10): what was posted this visit,
+  -- and what the player passed over with SKIP, by positionKey. Out of the walk until the auction
+  -- house is closed (GC.Sell._HoldDoneInQueue, GC.Sell.Reset); a row click still puts either in
+  -- the dock. queueDone is what they took out of the queue, for the rows' tags.
   postedThisVisit = {},
-  -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "queue" and
-  -- "cancelqueue" are transient FOCUS states the queue controls set for a single render, so their
-  -- head entry lands on row 1 -- a deck is what the switch paints, a focus state is not.
+  passedThisVisit = {},
+  queueDone = {},
+  -- The item the player put in the dock by clicking its row, by positionKey; nil while the dock
+  -- shows the walk's next. Let go once posted or passed (GC.Sell.PassDockItem).
+  dockKey = nil,
+  -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "cancelqueue"
+  -- is a transient FOCUS state the CANCEL control sets for a single render, so its head entry
+  -- lands on row 1 -- a deck is what the switch paints, a focus state is not.
   filterMode = "post",
   -- Where each position sits, remembered across renders (SellViewModel.Settle). Thrown away only
   -- when the PLAYER asks for a new order -- Refresh, a deck change, a chip -- never by a quote

@@ -47,7 +47,6 @@ GC.Locales.koKR = {
   ["%d× %s"] = "%d× %s",
   ["%d× %s · %s each · %s"] = "%d× %s · 개당 %s · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 개당    총 %s -> %s",
-  ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s needs a number, for example /gc weights %s 1.5"] = "%s 뒤에 숫자가 필요합니다. 예: /gc weights %s 1.5",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
@@ -212,8 +211,6 @@ GC.Locales.koKR = {
     "이 클라이언트는 아이템 능력치를 알려주지 않아 GoldCap이 장비를 비교할 수 없습니다.",
   ["This lot holds more units than your Max units per buy."] =
     "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
-  ["Could not find the queue's next item to post — try again"] =
-    "등록 대기열의 다음 아이템을 찾지 못했습니다 — 다시 시도하세요",
   ["Could not find the queue's next lot to cancel — try again"] =
     "취소 대기열의 다음 물량을 찾지 못했습니다 — 다시 시도하세요",
   ["DEFAULTS"] = "기본값",
@@ -328,7 +325,6 @@ GC.Locales.koKR = {
   ["YOUR LISTS"] = "내 목록",
   ["NOT ON HAND %d"] = "수중에 없음 %d",
   ["NOTHING TO CANCEL"] = "취소할 것 없음",
-  ["NOTHING TO POST"] = "등록할 것 없음",
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
   ["Needs gold"] = "골드 필요",
   ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
@@ -366,7 +362,6 @@ GC.Locales.koKR = {
   ["Open the Auction House first."] = "먼저 경매장을 여세요.",
   ["Open the Auction House to begin scanning."] = "검색을 시작하려면 경매장을 여세요.",
   ["Open the deals board. /gc for commands."] = "거래 목록을 엽니다. 명령어는 /gc.",
-  ["POST %d"] = "등록 %d",
   ["POSTING"] = "등록",
   ["POSTING…"] = "등록 중…",
   ["PRICE"] = "가격",
@@ -412,7 +407,6 @@ GC.Locales.koKR = {
   ["QTY"] = "수량",
   ["Quantity exceeds missing units"] = "수량이 부족분을 초과합니다",
   ["Quantity is capped by how fast this item actually sells."] = "수량은 이 아이템이 실제로 팔리는 속도에 의해 제한됩니다.",
-  ["Queue ready — press POST again to post it"] = "대기열 준비 완료 — 등록하려면 등록을 다시 누르세요",
   ["REFRESH"] = "새로고침",
   ["RESET WINDOW"] = "창 초기화",
   ["Reason"] = "이유",
@@ -1204,6 +1198,9 @@ GC.Locales.koKR = {
   ["PROCEEDS less what you paid for this stock. Shown only while GoldCap knows what you paid for all of it."] = "판매 대금에서 이 아이템들을 사는 데 쓴 금액을 뺀 값입니다. GoldCap이 전부의 구입가를 알 때만 표시됩니다.",
   ["HOW MANY"] = "수량",
   ["MAX"] = "최대",
-  ["posted as many as you asked for; its own Post lists more"] = "요청한 수량만큼 등록했습니다. 더 등록하려면 이 줄의 등록 버튼을 누르세요",
+  ["skipped"] = "건너뜀",
   ["posted"] = "등록함",
+  ["POST"] = "등록",
+  ["SKIP"] = "건너뛰기",
+  ["then %s"] = "다음: %s",
 }

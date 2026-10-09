@@ -44,7 +44,7 @@ GC.SellUI = {
   -- mutually-exclusive chips this replaced could not express -- so both can be on at once.
   chips = { ready = false, nocost = false },
   -- One per part of the view, each filled by its own file under UI/Sell/.
-  Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, CostDialog = {},
+  Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, PostPanel = {}, CostDialog = {},
 }
 local UI = GC.SellUI
 
@@ -102,11 +102,17 @@ UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
 -- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
 UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 
--- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
--- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
--- seller is here for -- at the default 720px window all three would leave the line beside the
--- bulk action no room to name the item it is about to post.
-UI.DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
+-- The dock along the bottom of the tab, in two tiers (owner, 2026-10-10: post from here, not
+-- from every row). The upper carries the item POST posts next and everything about that post --
+-- how many, the price, what it fetches, SKIP and POST -- centred on TOP_Y; the lower the status
+-- line and the totals, on LOW_Y. Both measured up from the dock's bottom edge. Widths fit the
+-- widest label at mono-10 and Theme.Scale() 1.3 (~7.8px/char): "MISE EN VENTE…" on POST,
+-- "ПРОПУСТИТЬ" on SKIP. NARROW is the content width under which the ledger keeps only PROCEEDS;
+-- under WIDE the upper tier drops YOU GET, which the row and the totals already say -- at the
+-- default 720px window the item's name needs that room.
+UI.DOCK = { H = 76, PAD = 8, NARROW = 700, WIDE = 860, TOP_Y = 42, LOW_Y = 13,
+  BUTTON_H = 28, BOX_H = 24, ICON = 30, POST_W = 128, SKIP_W = 96, PRICE_W = 96, QTY_W = 56,
+  MAX_W = 48, NET_W = 84 }
 
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
 -- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
@@ -116,23 +122,17 @@ UI.DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 -- It lives in the side panel now (see INSP), one column: the price you are about to list at,
 -- then the book that price lands in, all eight levels the view model hands over.
 UI.DR = {
-  SLOTS = 14,              -- 14 * ROW_H(32) = 448px: a position with stock to price
-  SLOTS_BARE = 11,         -- no stock in the bags: no price control, the book moves up
+  SLOTS = 13,              -- 13 * ROW_H(32) = 416px: a position with stock to price
+  SLOTS_BARE = 11,         -- no stock in the bags: no price section, the book moves up
   LINE_H = 20,             -- one book level
   LINES = 8,               -- SellViewModel's own BOOK_ROWS
-  BOX_W = 112, BOX_H = 34, -- the price box: the one figure on this tab that spends gold
-  HEAD_Y = -10,            -- "YOUR PRICE" / "YOU GET"
-  BOX_Y = -26,             -- the price box, and what it fetches beside it
-  QTY_Y = -68,             -- how many one Post lists, when there is more than one to list
-  QTY_SLOTS = 1,           -- ...and the room it takes: everything under it moves down a slot
-  QTY_BOX_W = 64, QTY_H = 24,
-  NOTE_Y = -68,            -- whose price it is, or what is wrong with it
-  CHIPS_Y = -88,           -- the five one-click fills, one segmented strip
+  HEAD_Y = -10,            -- "YOUR PRICE"
+  PRICE_Y = -26,           -- the price the dock posts at
+  NOTE_Y = -48,            -- whose price it is and how many go, or what is wrong with it
+  CHIPS_Y = -66,           -- the five one-click fills, one segmented strip
   CHIP_H = 22,
-  REC_Y = -120,            -- what GoldCap would do and why, two lines of it
-  POST_Y = -156,           -- Post, the panel's own
-  POST_H = 24,
-  BOOK_Y = -192,           -- where the book section starts when there is a price control
+  REC_Y = -98,             -- what GoldCap would do and why, two lines of it
+  BOOK_Y = -134,           -- where the book section starts when there is a price section
   BOOK_Y_BARE = -84,       -- ...and when there is not
   BAR_MAX = 160,
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
@@ -244,7 +244,7 @@ local function copperToGoldText(copper)
   return text
 end
 
--- YOUR PRICE only (row.priceBox, in UI/Sell/Inspector.lua) -- everything above (the Set-Cost
+-- YOUR PRICE only (the dock's price box, in UI/Sell/PostPanel.lua) -- everything above (the Set-Cost
 -- dialog's Unit/Total fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
 -- purchase cost is always gold-denominated regardless of what the auction house can post.
 --
