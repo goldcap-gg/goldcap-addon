@@ -216,11 +216,10 @@ function T.Button(parent, variant, rounded)
       b.caret:Hide()
     end
     b.text:SetPoint("RIGHT", b, "RIGHT", caret and -16 or 0, 0)
-    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
-    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
-    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
-    -- string either way; only the drawn FontString text is transformed.
-    b.text:SetText(b.uppercase and shown:upper() or shown)
+    -- In capitals in every cased language (GC.Util.Upper: Lua's own upper stops at ASCII, and a
+    -- Russian label stayed as written). b.label above stays the caller's exact SOURCE string
+    -- either way; only the drawn FontString text is transformed.
+    b.text:SetText(b.uppercase and GC.Util.Upper(shown) or shown)
   end
 
   -- Draws the label upper-case without touching `.label` -- theme_button_contract_spec pins
@@ -242,7 +241,7 @@ function T.Button(parent, variant, rounded)
     if not (fs and fs.GetUnboundedStringWidth) then return end
     local widest = 0
     for _, label in ipairs(labels) do
-      fs:SetText(b.uppercase and label:upper() or label)
+      fs:SetText(b.uppercase and GC.Util.Upper(label) or label)
       widest = math.max(widest, (fs:GetUnboundedStringWidth() or 0) + (label == busy and 15 or 0))
     end
     fs:SetText("")

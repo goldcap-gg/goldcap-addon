@@ -429,6 +429,20 @@ end
 -- The Sold tab's tooltips were written against this name; one implementation, two names.
 GC.Util.TooltipText = GC.Util.ClientText
 
+--- `text` in capitals in every language the addon ships with a cased alphabet: Lua's string.upper
+-- is byte-wise and leaves everything past ASCII as it was, so a capitalised button read "POST" in
+-- English and "Выставить" in Russian (owner, 2026-10-09: Russian and Ukrainian in capitals too).
+-- UTF-8 by its two-byte pairs: Latin-1's accented letters (é -> É), the Cyrillic of ruRU and ukUA
+-- (а-я, ё, є, і, ї, ў) and ґ. CJK has no case and passes through.
+function GC.Util.Upper(text)
+  return (text:upper()
+    :gsub("\195([\160-\182\184-\190])", function(c) return "\195" .. string.char(c:byte() - 32) end) -- not ÷
+    :gsub("\208([\176-\191])", function(c) return "\208" .. string.char(c:byte() - 32) end)
+    :gsub("\209([\128-\143])", function(c) return "\208" .. string.char(c:byte() + 32) end)
+    :gsub("\209([\144-\159])", function(c) return "\208" .. string.char(c:byte() - 16) end)
+    :gsub("\210\145", "\210\144"))
+end
+
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
 -- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and
 -- that lookup answers "" for a code it has no text for. The table lives in the auction house's

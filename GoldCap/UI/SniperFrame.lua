@@ -5204,7 +5204,7 @@ function GC.Sniper._HandOffSettled()
   -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
   -- SetUppercase is `text:upper()`), in the player's language (fix round 1, nit 2).
   GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- %s to re-check the price"]
-    :format(GC.L["Refresh"]:upper()), 1, 0.82, 0)
+    :format(GC.Util.Upper(GC.L["Refresh"])), 1, 0.82, 0)
 end
 
 -- Fix round 1 (minor 2): a window armed while a confirmed purchase is still owed its answer says

@@ -29,7 +29,7 @@ describe("row button labels fit the button", function()
   --   queueButton:SetSize(136, 26)         -- the dock's POST while a post is out
   local BUTTONS = {
     { what = "the 86px Sell action button", budget = 11,
-      keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?" } },
+      keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?", "Confirm", "Pricing…" } },
     { what = "the 64px Deals buy button", budget = 8,
       keys = { "Buy", "Check", "Avoid" } },
     -- UI/BuyFrame.lua's dock button (BUY 2.0) is as wide as its label in the player's language
