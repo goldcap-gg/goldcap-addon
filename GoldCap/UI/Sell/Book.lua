@@ -132,7 +132,7 @@ local function wallWords(book)
     return GC.Util.FormatCount(wall.units) or tostring(wall.units), formatCell(wall.unit)
   end
   if book.commodity and book.wallBelow then
-    words[#words + 1] = (GC.L["wall %s at %s -- price under it to sell first"]):format(amount(book.wallBelow))
+    words[#words + 1] = (GC.L["wall %s at %s: price under it to sell first"]):format(amount(book.wallBelow))
   end
   if book.commodity and book.wallAbove then
     words[#words + 1] = (GC.L["wall %s at %s above you"]):format(amount(book.wallAbove))
@@ -288,12 +288,17 @@ function Book.Layout(row, top)
   row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
-  row.drawerFacts:SetMaxLines(2)
+  -- As many lines as it takes, and the head grows to hold them (row.fitHeight, read by
+  -- List.RenderRows): cut at two, the line ended "97..." and the client drew the coins of the
+  -- cut text in the wrong places, one over the line and the rest not at all (owner, 2026-10-11).
+  row.drawerFacts:SetMaxLines(0)
   if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3) end
   -- A FontString sizes itself when its text is SET, and renderRows sets these before this
   -- runs: on a pooled row that was a one-line kind a moment ago, two lines of facts got one
   -- line's height and the rest was not drawn until the next render (seen in game).
   row.drawerFacts:SetText(row.drawerFacts:GetText() or "")
+  local h = row.drawerFacts.GetStringHeight and row.drawerFacts:GetStringHeight()
+  if h then row.fitHeight = math.max(row.fitHeight or 0, math.ceil(36 - foot + h + 16)) end
 end
 
 -- THE BOOK's half of the panel's head: the heading, the eight levels, and the lines under them.

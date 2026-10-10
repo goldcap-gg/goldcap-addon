@@ -884,8 +884,8 @@ GC.Locales.esMX = {
     "esperando el resultado de la búsqueda anterior",
   ["waiting..."] = "en espera…",
   ["wall"] = "muro",
-  ["wall %s at %s -- price under it to sell first"] =
-    "muro de %s a %s -- pon el precio por debajo para vender antes",
+  ["wall %s at %s: price under it to sell first"] =
+    "muro de %s a %s: pon el precio por debajo para vender antes",
   ["wall %s at %s above you"] = "muro de %s a %s por encima de ti",
   ["watching %s closely -- re-checked every few seconds"] =
     "vigilando %s de cerca -- se recomprueba cada pocos segundos",

@@ -882,8 +882,8 @@ GC.Locales.deDE = {
   ["waiting for previous search result to settle"] = "warte auf das vorherige Suchergebnis",
   ["waiting..."] = "warte...",
   ["wall"] = "Wand",
-  ["wall %s at %s -- price under it to sell first"] =
-    "Wand %s bei %s -- darunter anbieten, um zuerst zu verkaufen",
+  ["wall %s at %s: price under it to sell first"] =
+    "Wand %s bei %s: darunter anbieten, um zuerst zu verkaufen",
   ["wall %s at %s above you"] = "Wand %s bei %s über dir",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s wird genau beobachtet -- alle paar Sekunden neu geprüft",

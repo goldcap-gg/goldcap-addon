@@ -928,8 +928,8 @@ GC.Locales.enUS = {
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["waiting..."] = "waiting...",
   ["wall"] = "wall",
-  ["wall %s at %s -- price under it to sell first"] =
-    "wall %s at %s -- price under it to sell first",
+  ["wall %s at %s: price under it to sell first"] =
+    "wall %s at %s: price under it to sell first",
   ["wall %s at %s above you"] = "wall %s at %s above you",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
   ["whole-market data not in use: %s"] = "whole-market data not in use: %s",

@@ -880,8 +880,8 @@ GC.Locales.frFR = {
     "en attente du résultat de recherche précédent",
   ["waiting..."] = "en attente…",
   ["wall"] = "mur",
-  ["wall %s at %s -- price under it to sell first"] =
-    "mur de %s à %s -- passe en dessous pour vendre d'abord",
+  ["wall %s at %s: price under it to sell first"] =
+    "mur de %s à %s: passe en dessous pour vendre d'abord",
   ["wall %s at %s above you"] = "mur de %s à %s au-dessus de toi",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s surveillé de près -- revérifié toutes les quelques secondes",

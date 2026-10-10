@@ -1413,9 +1413,23 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(wall.tag.shown)
       assert.same({ RED[1], RED[2], RED[3], 0.8 }, wall.bar.fill.vertexColor)
       assert.is_false(drawer.bookLines[4].tag.shown)
-      assert.matches("wall 420 at " .. helper.money("11g50s") .. " -- price under it to sell first", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 420 at " .. helper.money("11g50s") .. ": price under it to sell first", drawer.drawerFacts.text, 1, true)
       assert.matches("wall 400 at " .. helper.money("11g70s") .. " above you", drawer.drawerFacts.text, 1, true)
 
+    end)
+
+    -- Cut at two lines the facts ended "97..." and the client drew the cut text's coins in the
+    -- wrong places (owner, 2026-10-11): every line is drawn, and the head grows to hold them.
+    it("draws every line of the facts under the book, and the head grows to hold them", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, LADDER), "drawer")
+      assert.equal(0, drawer.drawerFacts.maxLines)
+      local before = drawer.height
+      drawer.drawerFacts.GetStringHeight = function() return 400 end
+      GC.SellUI.List.RenderRows()
+      drawer = nth(GC.SellUI.rows, "drawer")
+      assert.is_true(drawer.height > before)
+      assert.is_true(drawer.height >= 400)
     end)
 
     it("says how long the queue ahead of your price takes at today's pace", function()

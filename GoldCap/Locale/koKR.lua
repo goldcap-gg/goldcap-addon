@@ -828,8 +828,8 @@ GC.Locales.koKR = {
   ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
   ["waiting..."] = "대기 중...",
   ["wall"] = "벽",
-  ["wall %s at %s -- price under it to sell first"] = "%s개 벽 (%s) -- 그보다 낮게 올려야 먼저 팔립니다",
-  ["wall %s at %s above you"] = "%s개 벽 (%s) -- 내 가격보다 위",
+  ["wall %s at %s: price under it to sell first"] = "%s개 벽 (%s): 그보다 낮게 올려야 먼저 팔립니다",
+  ["wall %s at %s above you"] = "%s개 벽 (%s): 내 가격보다 위",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =
