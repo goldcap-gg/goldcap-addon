@@ -330,6 +330,30 @@ describe("Sniper window layering", function()
       GC.Sniper.ShowView("deals")
       assert.is_false(drawer:IsShown())
     end)
+
+    -- The Sell item panel's look (owner, 2026-10-11): an X where "ESC" was printed, which shuts
+    -- it the way Escape does.
+    it("shuts from its own X, as Escape does", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      frame:Show()
+      drawer:Show()
+      drawer.closeBtn.scripts.OnClick(drawer.closeBtn)
+      assert.is_false(drawer:IsShown())
+      assert.is_true(frame:IsShown())
+    end)
+
+    -- A long name wraps rather than ending in "…", and the head grows to hold it.
+    it("grows its head for a name that wraps, and gives the room back for a short one", function()
+      local _, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      drawer.nameText.GetStringHeight = function() return 40 end
+      drawer.fitHeader()
+      assert.equal(12 + 40 + 8, drawer.headerH)
+      drawer.nameText.GetStringHeight = function() return 18 end
+      drawer.fitHeader()
+      assert.equal(12 + 32 + 8, drawer.headerH)
+    end)
   end)
 
   -- The Settings screen is an OVERLAY on the window's own content -- an opaque Theme.Panel

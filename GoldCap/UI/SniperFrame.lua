@@ -4129,6 +4129,7 @@ local function setDialogHeader(deal, decision)
   local quantity = decision and decision.quantity or nil
   local suffix = quantity and quantity > 0 and ("  x%d"):format(quantity) or ""
   dialog.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. suffix)
+  if dialog.fitHeader then dialog.fitHeader() end
   dialog.icon:SetTexture(nil)
 
   local item = Item:CreateFromItemID(deal.itemID)
@@ -4139,6 +4140,7 @@ local function setDialogHeader(deal, decision)
     local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. suffix)
+    if dialog.fitHeader then dialog.fitHeader() end
   end)
 end
 
@@ -4181,9 +4183,9 @@ DG.CANCEL_H = 22 -- Task 2 restyle (was 20)
 -- Header is just top margin + icon + gap: the item, and nothing that competes with it.
 -- 12 + 32 + 8 = 52
 DG.HEADER_H = Theme.pad.m + DG.ICON + Theme.pad.s
--- The "ESC" hint's own column, and what is left for the item's name beside it. The name gets
--- ONE anchor and this width rather than a LEFT/RIGHT pair -- see its own comment in
--- createDialog for why that pair is a trap here.
+-- The X's own column (it was an "ESC" hint), and what is left for the item's name beside it. The
+-- name gets ONE anchor and this width rather than a LEFT/RIGHT pair, so it wraps down rather
+-- than running under the X.
 DG.HEADER_ESC_W = 30
 -- 320 - 12 - 32 - 8 - 30 - 8 - 12 = 218
 DG.HEADER_NAME_W = DG.WIDTH - Theme.pad.m - DG.ICON - Theme.pad.s
@@ -9047,23 +9049,33 @@ local function createDialog()
   -- running as harmless no-ops and the bottom-anchored controls/banner block just sits
   -- at the drawer's foot with the middle stretching.
   d:SetWidth(DG.WIDTH)
-  d:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -CH.TITLEBAR)
-  d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-  -- Sheet chrome: right corners must match the window card's radius; the drawer's
-  -- top-left/bottom-left corners are square against the content area.
+  -- Inside the window's right gutter, where the Sell tab's item panel stands (owner, 2026-10-11:
+  -- the two panels read as two different products), and still from under the title bar to the
+  -- foot: docked, the drawer has no height to spare. `dx` px right of that while it slides in
+  -- (Theme.Slide, below).
+  d.place = function(dx)
+    d:ClearAllPoints()
+    d:SetPoint("TOPRIGHT", frame, "TOPRIGHT", (dx or 0) - WIN.CONTENT_RIGHT_GUTTER, -CH.TITLEBAR)
+    d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", (dx or 0) - WIN.CONTENT_RIGHT_GUTTER, 0)
+  end
+  d.place(0)
+  -- The Sell item panel's own card (UI/Sell/Inspector.lua): the panel colour, rounded, with a
+  -- faint ring. It was the window's darker ground with a hairline down its left edge, and read
+  -- as a black sheet beside the Sell tab's (owner, 2026-10-11).
   -- Opaque by design (alpha 1, not 0.97): at 0.97 the Deals rows underneath ghosted through
   -- just enough to read as a rendering bug in the first in-game pass. The panel now also
   -- shifts the list out from behind it on wide windows (applyPanelInset, createFrame) --
   -- opacity is what keeps the narrower/docked case, which still overlays, honest instead.
-  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card_right.png",
-    { Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 1 })
+  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card.png",
+    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 }, 24)
   d.sheet:SetAllPoints()
-  d.edge = d:CreateTexture(nil, "BORDER")
-  d.edge:SetColorTexture(Theme.color.border[1], Theme.color.border[2], Theme.color.border[3], Theme.color.border[4])
-  d.edge:SetPoint("TOPLEFT")
-  d.edge:SetPoint("BOTTOMLEFT")
-  d.edge:SetWidth(1)
+  d.ring = Theme.SlicedTexture(d, "BORDER", Theme.MEDIA .. "ring.png",
+    { 1, 1, 1, (Theme.color.border[4] or 0.06) * 2 }, 24)
+  d.ring:SetAllPoints()
   d:EnableMouse(true)
+  -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what
+  -- gives a Check up (OnHide, below), and that is not put off for an animation.
+  if Theme.Slide then d.slider = Theme.Slide(d, d.place) end
 
   -- Task 2 restyle: the old mono "CONFIRM PURCHASE" kicker (d.title) is gone from the top of
   -- the header -- that text now lives in d.subtitle, under the item name, where it reads as a
@@ -9085,27 +9097,39 @@ local function createDialog()
   -- gets you out. "CONFIRM PURCHASE" (a document title above the thing it titled) and the tier
   -- chip both left: the chip is the imported snapshot's opinion, which belongs beside the
   -- verdict that disagrees with it, not level with the item's own name.
-  local subtitle = Theme.Num(d, 9)
-  subtitle:SetJustifyH("RIGHT")
-  subtitle:SetWidth(DG.HEADER_ESC_W)
-  subtitle:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 10))
-  subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  -- Not wrapped: "ESC" is the key cap the client itself prints, and a translated key name
-  -- names a key the player's keyboard does not have.
-  subtitle:SetText("ESC")
-  d.subtitle = subtitle
+  -- Shut from its own X, as the Sell item panel is (owner, 2026-10-11: "ESC" printed where the
+  -- other panel has a button), and from Escape (the OnKeyDown at the end): one Hide either way,
+  -- whose OnHide gives a Check up and keeps a sent purchase the server's.
+  local closeBtn = Theme.Button(d, "ghost", "badge")
+  closeBtn:SetSize(22, 20)
+  closeBtn:SetPoint("TOPRIGHT", -(Theme.pad.s + 2), -(Theme.pad.m + DG.ICON / 2 - 10))
+  closeBtn:SetLabel("X")
+  closeBtn:SetScript("OnClick", function() d:Hide() end)
+  d.closeBtn = closeBtn
 
-  local nameText = Theme.Label(d, 13)
-  -- ONE anchor plus an explicit width, deliberately -- not LEFT + RIGHT. Both of those are
-  -- centre-Y constraints, and here they would disagree (the icon's centre against the ESC
-  -- hint's), which is the exact trap the qtyLotText comment further down already records.
-  -- Centred on the icon: with the old "CONFIRM PURCHASE" caption gone there is nothing under
-  -- the name to balance a top-flush anchor against.
-  nameText:SetPoint("LEFT", icon, "RIGHT", Theme.pad.s, 0)
+  -- The name as the Sell item panel sets it: 15, and wrapped rather than cut with "…" (the
+  -- owner's rule). DG.HEADER_NAME_W keeps it clear of the X.
+  local nameText = Theme.Label(d, 15)
   nameText:SetWidth(DG.HEADER_NAME_W)
-  nameText:SetWordWrap(false)
-  nameText:SetMaxLines(1)
+  nameText:SetJustifyH("LEFT")
+  nameText:SetWordWrap(true)
   d.nameText = nameText
+  -- The head as tall as the name it holds and never shorter than the icon's room, the name
+  -- centred on the icon while it fits beside it. setDialogHeader runs this after every name it
+  -- sets, the late one from the item cache too; a head that changes height restacks the blocks.
+  d.headerH = DG.HEADER_H
+  d.fitHeader = function()
+    nameText:SetText(nameText:GetText() or "") -- laid out at its width before it is measured
+    local h = nameText:GetStringHeight() or 0
+    nameText:ClearAllPoints()
+    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h) / 2)))
+    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + Theme.pad.s))
+    if headerH ~= d.headerH then
+      d.headerH = headerH
+      if d.layoutBlocks then d.layoutBlocks() end
+    end
+  end
+  d.fitHeader()
 
   -- Hover tooltip over the icon + name, same as a row (see createRow) -- Texture and
   -- FontString objects can't take mouse scripts themselves, so this is an invisible Frame
@@ -9470,12 +9494,14 @@ local function createDialog()
   local function layoutBlocks(shape)
     shape = shape or d.blockShape or {}
     d.blockShape = shape
-    local y = -DG.HEADER_H
+    local y = -d.headerH
+    -- A pixel in from each side: the hero's wash runs edge to edge, and over the card's ring it
+    -- would cut the ring away down the band's height.
     local function place(block, height, shown)
       if not shown then block:Hide() return end
       block:ClearAllPoints()
-      block:SetPoint("TOPLEFT", d, "TOPLEFT", 0, y)
-      block:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, y)
+      block:SetPoint("TOPLEFT", d, "TOPLEFT", 1, y)
+      block:SetPoint("TOPRIGHT", d, "TOPRIGHT", -1, y)
       block:SetHeight(height)
       block:Show()
       y = y - height
@@ -9506,7 +9532,7 @@ local function createDialog()
     d.evidenceTop = y - Theme.pad.xs
     d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
 
-    local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
+    local above = d.headerH + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
       + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
     local openBefore = d.fixedHeightOpen
     d.fixedHeightClosed = above + DG.FACTS_H
@@ -9744,6 +9770,8 @@ local function createDialog()
   -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
   -- Esc can never discard the token/final quote while a terminal event is still possible.
   d:SetScript("OnHide", function()
+    -- Hidden mid-slide, it is put back home and opaque for the next open.
+    if d.slider then d.slider:Settle() end
     -- Panel-inset reset comes first and unconditionally, same reasoning as
     -- GC.Sniper.NotifyDialogClosed() right below it: the deals list must snap back to the
     -- plain gutter anchor whenever the sheet stops covering it, regardless of why it closed.
@@ -9866,7 +9894,7 @@ local function openDialog(row, deal)
   local discovery = { status = deal.status or "WATCH", reasons = { deal.reason or "live_verification_required" } }
   setDialogHeader(deal, discovery)
   stampDialogFromDecision(deal, discovery)
-  dialog:Show()
+  if dialog.slider then dialog.slider:Open() else dialog:Show() end
   -- Follow-up 2: a quiet close is the window's own, not the next one's. A long Reason that stopped
   -- the transcript fitting closed it for that window (layoutBlocks' fit guard) and kept the saved
   -- preference -- but left the flag every later layout reads shut, so the next window opened with
@@ -9936,7 +9964,8 @@ local function onBuyClick(row)
   if not deal then return end
 
   if dialog and dialog.row == row then
-    dialog:Show() -- already this row's dialog (e.g. it got buried); nothing else to do
+    -- Already this row's dialog (e.g. it got buried); nothing else to do.
+    if dialog.slider then dialog.slider:Open() else dialog:Show() end
     return
   end
 
