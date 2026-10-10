@@ -303,6 +303,29 @@ List.PaintHeaderText = paintHeaderText
 -- Which figure carries a second line, and the row field that line lives in.
 ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
 
+-- How tall a position's name and stock line stand together at the width their anchors give them,
+-- both wrapped (Row.CreateRow): what the card has to hold. nil where the client cannot say.
+local function blockHeight(row)
+  local name, stock = row.cells.item, row.itemStock
+  if not (name.GetStringHeight and stock.GetStringHeight) then return nil end
+  local h = name:GetStringHeight() or 0
+  if (stock:GetText() or "") ~= "" then h = h + 2 + (stock:GetStringHeight() or 0) end
+  return h > 0 and h or nil
+end
+
+-- A position's name over its stock line, the pair centred on the row with `top` the name's top
+-- edge above the row's middle. Top points only: a LEFT or RIGHT point pins a FontString's middle,
+-- and with it the height of one line, so a wrapped name would spill over its stock line.
+local function placeName(row, right, rightLift, top)
+  local cell, inset = row.cells.item, row.itemInset or 2
+  cell:ClearAllPoints()
+  cell:SetPoint("TOPLEFT", row, "LEFT", inset, top)
+  cell:SetPoint("TOPRIGHT", right, "LEFT", -4, top - rightLift)
+  row.itemStock:ClearAllPoints()
+  row.itemStock:SetPoint("TOPLEFT", cell, "BOTTOMLEFT", 0, -2)
+  row.itemStock:SetPoint("TOPRIGHT", cell, "BOTTOMRIGHT", 0, -2)
+end
+
 local function layoutCells(row)
   local right = row
   -- How far `right` itself sits above the row's centre. Every cell anchors to its neighbour,
@@ -325,13 +348,22 @@ local function layoutCells(row)
       -- header row and every sub-row keep the whole box, centred, because they carry one line.
       -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
-      local nameY = row.itemStock and ROW.LIFT or 0
-      cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
-      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
-      if row.itemStock then
-        row.itemStock:ClearAllPoints()
-        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
-        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
+      if row.kind == "position" and row.itemStock then
+        -- Laid out once to be measured at its real width, then again centred on what it measured;
+        -- the card grows to hold it (row.cardHeight, read by List.RenderRows).
+        placeName(row, right, rightLift, ROW.LIFT)
+        local block = blockHeight(row)
+        if block then placeName(row, right, rightLift, block / 2) end
+        row.cardHeight = block and math.ceil(block + 2 * ROW.PAD + ROW.GAP) or nil
+      else
+        local nameY = row.itemStock and ROW.LIFT or 0
+        cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
+        cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
+        if row.itemStock then
+          row.itemStock:ClearAllPoints()
+          row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
+          row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
+        end
       end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
@@ -658,7 +690,7 @@ local function renderRows()
   INSP.sync(openPosition ~= nil)
   -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
   -- render, so both are rebuilt from scratch each time rather than remembered.
-  local placedHeight, detailHeight, listIndex = 0, 0, 0
+  local placedHeight, detailHeight = 0, 0
   for i, row in ipairs(UI.rows) do
     local entry = entries[i]
     if not entry then row.renderEntryID = nil; row:Hide()
@@ -680,11 +712,9 @@ local function renderRows()
       local offset = entry.panel and detailHeight or placedHeight
       row:Show(); row:ClearAllPoints()
       row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
-      -- A position in the list is ROW.H tall; everything else keeps the slot pitch.
-      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * UI.rowHeight
-      row:SetHeight(height)
-      if entry.panel then detailHeight = detailHeight + height
-      else placedHeight = placedHeight + height; listIndex = listIndex + 1 end
+      -- A position in the list is a card at least ROW.H tall; everything else keeps the slot pitch.
+      local card = entry.kind == "position" and not entry.panel
+      row:SetHeight(card and ROW.H or slots * UI.rowHeight)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (Row.CreateRow) to decide whether to add a tooltip line about the
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
@@ -711,7 +741,11 @@ local function renderRows()
       else
         UI.Inspector.PaintPanelRow(row, entry, bagSnapshot)
       end
-      UI.Row.Style(row, entry, listIndex)
+      UI.Row.Style(row, entry)
+      -- Taller when its name or stock line wraps: Row.Style's layout measured the pair.
+      local height = card and math.max(ROW.H, row.cardHeight or 0) or slots * UI.rowHeight
+      row:SetHeight(height)
+      if entry.panel then detailHeight = detailHeight + height else placedHeight = placedHeight + height end
     end
   end
   UI.Inspector.PaintInspector(openPosition)

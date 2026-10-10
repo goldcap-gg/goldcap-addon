@@ -167,21 +167,30 @@ local function createRow(parent)
   -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
   -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
   -- rows are scannable by shape rather than by reading every name.
-  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 15 = half of
-  -- the 30px effective fill (Theme.ROW_H 32 minus 2px); right inset is 2, NOT Deals' 26 -- this
-  -- container is already inset by CONTENT_RIGHT_GUTTER (see GC.Sell.Attach in UI/Sell/Frame.lua) and the
-  -- scrollbar hangs outside in that gutter.
+  -- Sliced rounded fills (batch-2 pattern). Insets: half of ROW.GAP top and bottom, so two
+  -- positions' cards stand ROW.GAP apart (margin 12 <= 14, half of the 28px fill of the list's
+  -- shortest row); right inset is 2, NOT Deals' 26 -- this container is already inset by
+  -- CONTENT_RIGHT_GUTTER (see GC.Sell.Attach in UI/Sell/Frame.lua) and the scrollbar hangs outside
+  -- in that gutter. On a position the fill is its glass card (Row.Style), every row alike: the
+  -- cards are what separates one item from the next now, not alternate shading.
+  local inset = ROW.GAP / 2
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
   row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
   row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
-  row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.zebra:SetPoint("TOPLEFT", 2, -inset); row.zebra:SetPoint("BOTTOMRIGHT", -2, inset)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- The card's edge: the glass border (Theme.color.border) every panel in the kit wears.
+  local gb = Theme.color.border
+  row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  row.cardRing:SetPoint("TOPLEFT", 2, -inset); row.cardRing:SetPoint("BOTTOMRIGHT", -2, inset)
+  row.cardRing:Hide()
   -- The open position's outline, over the same rect as its fill: gold at the design's 38%.
   -- Built through the kit's own sliced texture so a spec's Theme double serves it too.
   row.selectRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
     { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
-  row.selectRing:SetPoint("TOPLEFT", 2, -1); row.selectRing:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.selectRing:SetPoint("TOPLEFT", 2, -inset); row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
   -- The "well": a sunken fill an expanded position's children sit in instead of the list's
   -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
@@ -198,7 +207,7 @@ local function createRow(parent)
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
   row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
   row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
-  row.highlight:SetPoint("TOPLEFT", 2, -1); row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)
   local hc = Theme.color.hover
   row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight:Hide()
@@ -333,11 +342,12 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
+  -- A name too long for its box wraps and the card grows to hold it (UI.List.LayoutCells measures
+  -- the pair): cut with "…" it was the one cell a seller could not read in full (owner's rule).
+  row.cells.item:SetWordWrap(true)
   -- The stock line ("×246 in bags · ×11 listed") used to ride in cells.item as a second line
-  -- behind a "\n". cells.item is SetWordWrap(false) like every other cell, which renders ONE
-  -- line and marks the rest with an ellipsis -- so the second line was never drawn at all and
-  -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
-  -- own anchor (UI.List.LayoutCells splits the flex box in half vertically for the pair).
+  -- behind a "\n", and was never drawn. Its own FontString now, hung under the name, and it wraps
+  -- the same way: a held-back tag at its end is the line's most important word.
   row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
   -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
@@ -345,7 +355,7 @@ local function createRow(parent)
   -- compete with the name and the cost compete with nothing.
   row.itemStock:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   row.itemStock:SetJustifyH("LEFT")
-  row.itemStock:SetWordWrap(false)
+  row.itemStock:SetWordWrap(true)
   row.itemStock:Hide()
 
   -- The second line of the two figures, the same split the name and its stock line already
@@ -796,28 +806,29 @@ function Row.PaintHeading(row, entry)
   end
 end
 
--- How a row looks for its kind this render, after its cells are filled: banding, the open
+-- How a row looks for its kind this render, after its cells are filled: a position's card, the open
 -- position's ring, the surface's fill, what it puts away of the last kind's widgets, which of the
 -- three name widgets shows, the icon, and the layout (the list's columns, or the panel's).
-function Row.Style(row, entry, listIndex)
+function Row.Style(row, entry)
   local p = entry.position
-  -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
+  -- The card, hierarchy and the icon are decided here, after the cells are filled, because
   -- only `entry.kind` distinguishes a position from one of its expanded children. Exactly
   -- one of row.cells.item / row.subItem / row.sectionLabel is shown per row -- the other
   -- two are hidden here rather than merely left un-set, since rows are pooled and rebound
   -- to a different kind on every render (a "batch" this pass can be a "position" the next).
   local zc2 = Theme.color.zebra
-  -- An OPEN position and the panel under it are one block, so the row wears the same gold
-  -- the panel's left rail does instead of its turn in the white zebra. Without it the pair
-  -- read as two unrelated rows that happened to land next to each other.
-  if entry.kind == "position" and UI.expanded[p.positionKey] then
+  -- An OPEN position and the panel beside it are one block, so its card wears the gold the
+  -- panel's own rail does in place of the glass. Without it the pair read as two unrelated things.
+  local open = entry.kind == "position" and UI.expanded[p.positionKey]
+  if open then
     local gc3 = Theme.color.gold
     row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
     row.selectRing:Show()
   else
-    row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (listIndex % 2 == 1) and (zc2[4] or 0.04) or 0)
+    row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], zc2[4] or 0.035)
     row.selectRing:Hide()
   end
+  if entry.kind == "position" and not open and not entry.panel then row.cardRing:Show() else row.cardRing:Hide() end
   -- The drawer is a SURFACE, not a shaded row: at the well's usual half alpha the window
   -- behind it (and, docked, the auction house's own art at the edges) mixed straight
   -- through and left the panel looking washed out rather than the flat panel colour the
@@ -875,7 +886,7 @@ function Row.Style(row, entry, listIndex)
   end
   if entry.kind == "position" then
     row.spine:Hide()
-    row.divider:Show()
+    row.divider:Hide() -- a card has its own edge
     row.zebra:Show()
     row.well:Hide()
     row.cells.item:Show()

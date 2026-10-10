@@ -295,7 +295,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED" },
     })
-    assert.equal(38, rows[1].itemInset) -- a 28px icon and its gap
+    assert.equal(40, rows[1].itemInset) -- a 30px icon and its gap
     -- MINOR-5 (fix round 1): no inline `_G.C_Item = nil` here on purpose -- the file's own
     -- after_each (top of this describe block) already clears it unconditionally, even if an
     -- assertion above this point had failed. A cleanup line living only on this test's last
@@ -1747,6 +1747,31 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("badge", rows[1].action.rounded)
   end)
 
+  -- The owner's rule: nothing on a row is cut short with "…". A name too long for its box wraps
+  -- and the card grows to hold it, the name and its stock line centred together.
+  it("grows a position's card to hold a name that wraps, and keeps the rest at 56", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Handwraps of Flowing Thought", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+      { itemID = 43, itemName = "Ore", positionKey = "commodity:43", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    -- What the client measures at the width the anchors give: two lines of name, one of stock.
+    rows[1].cells.item.GetStringHeight = function() return 31 end
+    rows[1].itemStock.GetStringHeight = function() return 13 end
+    rows[2].cells.item.GetStringHeight = function() return 16 end
+    rows[2].itemStock.GetStringHeight = function() return 13 end
+    GC.SellUI.List.RenderRows()
+    assert.equal(66, rows[1].height) -- 31 + 2 + 13, 8 above and below, 4 between cards
+    assert.equal(23, rows[1].cells.item.points[1].y) -- the pair's top, half of 46 above the middle
+    assert.equal(56, rows[2].height)
+    assert.equal(66, rows[2].points[1].y * -1) -- the second card starts where the first one ends
+    assert.is_true(rows[1].cardRing.shown)
+  end)
+
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
     local function assertRow(width)
       local GC = load(width, { calls = {} })
@@ -1787,10 +1812,15 @@ describe("Sell widget geometry and manual cost", function()
       -- lift it a second time: YOU GET rises 10 off the button, the price 0 off YOU GET.
       assert.equal(10, row.cells.gross.points[1].y)
       assert.equal(0, row.cells.price.points[1].y)
+      -- The name hangs from its top edge and the stock line from the name's bottom, so either
+      -- can wrap without running into the other.
+      assert.equal("TOPRIGHT", row.cells.item.points[2].point)
       assert.equal(0, row.cells.item.points[2].y)
-      assert.equal(-20, row.itemStock.points[2].y)
-      -- A position is 44px tall whatever the list's slot pitch, with a button to match.
-      assert.equal(44, row.height)
+      assert.equal(row.cells.item, row.itemStock.points[1].relative)
+      assert.equal("BOTTOMLEFT", row.itemStock.points[1].relativePoint)
+      assert.equal(-2, row.itemStock.points[2].y)
+      -- A position is a 56px card pitch whatever the list's slot pitch, with a button to match.
+      assert.equal(56, row.height)
       assert.equal(26, row.action.height)
       assert.equal(row.cells.price, row.priceStand.points[1].relative)
       assert.equal(row.cells.gross, row.grossNote.points[1].relative)
@@ -1805,7 +1835,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(width >= 880 and width - 340 - 28 or width, content.width)
       assert.is_true(container.inspector.shown)
       -- The list does not grow by a single row when a position opens -- that is the point.
-      assert.equal(44, content.height)
+      assert.equal(56, content.height)
       -- Eleven slots in the panel: a seven-slot head (this position has nothing in the bags, so
       -- no price control, and no book, so no room kept for its levels), the auction-house
       -- heading, its lot, the purchase heading and its batch. A scroll child sized by entry

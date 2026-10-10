@@ -93,10 +93,12 @@ UI.INSP = { W = 340, GAP = 28, HEAD_H = 58, SCROLL_GUTTER = 26, PAD = 8, DOCK_MI
 
 -- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
 -- where a seller stops caring which level exactly -- past that the words beside them carry it.
--- H is a POSITION row's height in the list -- taller than the list's 32px pitch, which every
--- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
--- room. LIFT is how far each of the two lines sits from the row's centre.
-UI.ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
+-- H is a POSITION row's pitch in the list -- taller than the list's 32px pitch, which every
+-- other kind keeps: a glass card of H - GAP (52) with GAP between two cards, the design's
+-- (owner, 2026-10-09 and again 10-10). A name or a stock line too long for its box wraps, and the
+-- card grows to hold it, PAD above and below the pair: nothing on a row is cut short with "…".
+-- LIFT is how far each figure and its second line sit from the row's centre.
+UI.ROW = { MARKS = 5, H = 56, GAP = 4, PAD = 8, LIFT = 10, ICON = 30, BUTTON_H = 26, BUTTON_GAP = 14 }
 -- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
 UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
 -- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
