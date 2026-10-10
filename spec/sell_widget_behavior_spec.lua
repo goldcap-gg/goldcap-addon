@@ -1825,6 +1825,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(row.cells.status.shown)
       assert.is_nil(row.cells.queue)
       assert.equal(row, row.cells.action.points[1].relative)
+      -- The button stands clear of the card's right edge, and the header's column with it.
+      assert.equal(-10, row.cells.action.points[1].x)
       -- Each shown column anchors to the one on its right, right to left.
       local chain = { "price", "gross", "action" }
       for i = 1, #chain - 1 do
@@ -1850,6 +1852,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(row.cells.price, row.priceStand.points[1].relative)
       assert.equal(row.cells.gross, row.grossNote.points[1].relative)
       assert.equal(header, header.cells.action.points[1].relative)
+      assert.equal(-10, header.cells.action.points[1].x)
       assert.equal(0, header.cells.price.points[1].y)
       rows[1].scripts.OnClick(rows[1])
       local content = GC.SellUI.content

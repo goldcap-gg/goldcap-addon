@@ -398,8 +398,10 @@ local function layoutCells(row)
       local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
       local lift = second and ROW.LIFT or 0
       -- The figure beside the button stands clear of it: at the usual 2px the row's total ran
-      -- into the button's own edge.
-      local gap = right == row and 0 or right == row.cells.action and -ROW.BUTTON_GAP or -2
+      -- into the button's own edge. The button stands clear of the card's right edge in turn: at 0
+      -- it sat against the card's ring (owner, 2026-10-10).
+      local edge = column.key == "action" and -(ROW.PAD + ROW.GAP / 2) or 0
+      local gap = right == row and edge or right == row.cells.action and -ROW.BUTTON_GAP or -2
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", gap, lift - rightLift)
       if second then
         second:ClearAllPoints()
