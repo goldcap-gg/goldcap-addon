@@ -588,7 +588,8 @@ function Inspector.Build()
   end
   inspector:SetScript("OnKeyDown", function(_, key)
     if InCombatLockdown and InCombatLockdown() then return end
-    if key ~= "ESCAPE" then passKeys(true) return end
+    -- On its way out the panel is already shut: the next Escape is the window's.
+    if key ~= "ESCAPE" or (inspector.fade and inspector.fade:IsPlaying()) then passKeys(true) return end
     passKeys(false)
     shut()
     if C_Timer and C_Timer.After then C_Timer.After(0, function() passKeys(true) end) end
@@ -607,6 +608,15 @@ function Inspector.Build()
     back:SetSmoothing("OUT")
     local up = step(slide:CreateAnimation("Alpha"), 2, 0.15); up:SetFromAlpha(0); up:SetToAlpha(1)
     inspector.slide = slide
+    -- And back out to the right as it shuts, a little quicker, hidden once it is clear (owner,
+    -- 2026-10-11: it came out smoothly and then just vanished). Slow off the mark, so it travels
+    -- while it is already faint.
+    local fade = inspector:CreateAnimationGroup()
+    local out = step(fade:CreateAnimation("Translation"), 1, 0.12); out:SetOffset(24, 0)
+    out:SetSmoothing("IN")
+    local dim = step(fade:CreateAnimation("Alpha"), 1, 0.12); dim:SetFromAlpha(1); dim:SetToAlpha(0)
+    fade:SetScript("OnFinished", function() inspector:Hide() end)
+    inspector.fade = fade
   end
   local headRule = inspector:CreateTexture(nil, "ARTWORK")
   headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
@@ -640,7 +650,21 @@ end
 function Inspector.PaintInspector(position)
   local inspector = UI.container and UI.container.inspector
   if not inspector then return end
-  if not position then inspector:Hide(); return end
+  if not position then
+    -- Out the way it came, once: a repaint on the way out does not start it over. Off screen
+    -- (the window or the tab gone) there is nothing to watch, so it simply goes.
+    local fade, seen = inspector.fade, inspector:IsShown()
+    if inspector.IsVisible then seen = inspector:IsVisible() end
+    if fade and seen then
+      if not fade:IsPlaying() then
+        if inspector.slide then inspector.slide:Stop() end
+        fade:Play()
+      end
+    else
+      inspector:Hide()
+    end
+    return
+  end
   local icon
   if position.itemID and C_Item and C_Item.GetItemIconByID then
     local ok, texture = pcall(C_Item.GetItemIconByID, position.itemID)
@@ -669,8 +693,11 @@ function Inspector.PaintInspector(position)
       + (inspector.stock:GetStringHeight() or 0) + 10))
   end
   Inspector.PlaceHead(head)
-  -- Out from the right only as it opens, never on a repaint of a panel already up.
-  local opening = not inspector:IsShown()
+  -- Out from the right only as it opens, never on a repaint of a panel already up. One on its
+  -- way out is called back: it would hide itself under the item just opened.
+  local fade = inspector.fade
+  local opening = not inspector:IsShown() or (fade and fade:IsPlaying())
+  if fade then fade:Stop() end
   inspector:Show()
   if opening and inspector.slide then inspector.slide:Play() end
 end

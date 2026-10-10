@@ -3270,6 +3270,40 @@ describe("Sell widget geometry and manual cost", function()
       _G.C_Timer, _G.InCombatLockdown = savedTimer, savedCombat
     end)
 
+    -- It came out smoothly and then just vanished (owner, 2026-10-11): it backs out now, once,
+    -- and an item opened while it is on its way comes straight back in. The groups are stand-ins:
+    -- this suite's frames have none, and what the engine does with one is the client's to show.
+    it("backs out as it shuts, once, and comes back in for an item opened on the way", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42), p(43) })
+      local inspector = container.inspector
+      local function group()
+        local g = { plays = 0 }
+        function g:Play() self.playing = true; self.plays = self.plays + 1 end
+        function g:Stop() self.playing = false end
+        function g:IsPlaying() return self.playing == true end
+        return g
+      end
+      inspector.slide, inspector.fade = group(), group()
+      local passed
+      inspector.SetPropagateKeyboardInput = function(_, on) passed = on end
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal(1, inspector.slide.plays)
+      inspector.close.scripts.OnClick()
+      assert.is_true(inspector.shown) -- still there, on its way out
+      assert.equal(1, inspector.fade.plays)
+      assert.equal(1100, GC.SellUI.content.width) -- the list has its width back already
+      GC.SellUI.List.RenderRows()
+      assert.equal(1, inspector.fade.plays) -- a repaint does not start it over
+      inspector.scripts.OnKeyDown(inspector, "ESCAPE")
+      assert.is_true(passed) -- shut already: this Escape is the window's
+      rows[2].scripts.OnClick(rows[2])
+      assert.is_false(inspector.fade.playing)
+      assert.equal(2, inspector.slide.plays)
+      assert.is_true(inspector.shown)
+      assert.equal("Ore 43", inspector.name.text)
+    end)
+
     it("shuts when the open position is no longer on the deck", function()
       local GC = load(620, { calls = {} })
       local rows, container = topRows(GC, { p(42) })
