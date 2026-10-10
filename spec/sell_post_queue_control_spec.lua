@@ -33,7 +33,8 @@ describe("Sell tab, the posting queue control", function()
     function v:CreateTexture() return region("Texture", self) end
     function v:SetAllPoints() end function v:SetColorTexture() end
     function v:SetTexture() end function v:SetTexCoord() end
-    function v:SetTextureSliceMargins() end function v:SetVertexColor() end
+    function v:SetTextureSliceMargins() end
+    function v:SetVertexColor(r, g, b, a) self.vertexColor = { r, g, b, a } end
     function v:SetFrameStrata() end function v:SetFrameLevel() end
     function v:GetFrameLevel() return 0 end function v:EnableMouse() end
     return v
@@ -139,6 +140,28 @@ describe("Sell tab, the posting queue control", function()
     -- Widget, held back for want of a price, is next: the walk stops at it too.
     assert.equal("×246 in bags · then Widget", container.dockSub.text)
     assert.is_true(container.skipButton.shown)
+  end)
+
+  -- The owner, 2026-10-10: the gold spine beside the dock's item stood out of its card. The card's
+  -- own edge is gold instead, and every other card keeps the glass edge.
+  it("lights the dock's item by its card's edge, not a bar beside it", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    local lit, plain = 0, 0
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" then
+        assert.is_false(row.spine.shown)
+        if row.position.positionKey == "commodity:23427" then
+          assert.same({ 1, 1, 0, 0.45 }, row.cardRing.vertexColor)
+          lit = lit + 1
+        else
+          assert.same({ 1, 1, 1, 0.06 }, row.cardRing.vertexColor)
+          plain = plain + 1
+        end
+      end
+    end
+    assert.equal(1, lit)
+    assert.is_true(plain > 0)
   end)
 
   -- The owner, 2026-10-10: a tier for the item over the controls was crooked and took the list's

@@ -333,14 +333,17 @@ function PostPanel.Hide()
 end
 
 --- Paints the posting row for `row`, the dock's item (UI.Dock.Current), with `nextRow` the one
--- after it; `hint` is what to say when there is no item. Also lights the item's row: the gold
--- edge says this is what POST posts.
+-- after it; `hint` is what to say when there is no item. Also lights the item's card: its edge in
+-- gold says this is what POST posts. The card's own edge, not a bar beside it: the spine stood out
+-- of the card at its left (owner, 2026-10-10).
 function PostPanel.Paint(row, nextRow, hint)
   local c = UI.container
   if not (c and c.dockIcon) then return end
+  local gold, edge = Theme.color.gold, Theme.color.border or { 1, 1, 1, 0.075 }
   for _, r in ipairs(UI.rows or {}) do
-    if r.kind == "position" and r.spine then
-      if r == row then r.spine:Show() else r.spine:Hide() end
+    if r.kind == "position" and r.cardRing then
+      if r == row then r.cardRing:SetVertexColor(gold[1], gold[2], gold[3], 0.45)
+      else r.cardRing:SetVertexColor(edge[1], edge[2], edge[3], edge[4] or 0.075) end
     end
   end
   local p = row and row.position or nil
