@@ -8423,6 +8423,9 @@ end
 -- after it, in the same click -- WoW: Forever only needs the call not to share an execution
 -- with what these reads may have picked up.
 local function planDialogPrimaryClick()
+  -- Shut by the player and on its way out (createDialog's d.close): nothing on it is asked of the
+  -- server any more.
+  if dialog.slider and dialog.slider:Leaving() then return end
   local row = dialog.row
   if not row then return end
   local stage = row.purchaseStage
@@ -9076,6 +9079,16 @@ local function createDialog()
   -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what
   -- gives a Check up (OnHide, below), and that is not put off for an animation.
   if Theme.Slide then d.slider = Theme.Slide(d, d.place) end
+  -- The player's own close (Escape, the X, CANCEL): out the way it came, as the Sell item panel
+  -- goes (owner, 2026-10-11), and given up as a Check once it is out of sight, by the OnHide
+  -- below, 0.12 s on; its BUY answers nothing meanwhile (planDialogPrimaryClick). A purchase open
+  -- on the server goes at once: its cancel is not put off for an animation. Every other close (a
+  -- purchase that resolved, another row's Buy, a tab or the window going) is a Hide, at once.
+  d.close = function()
+    local pending = commodityPurchase
+    local open = pending ~= nil and d.row ~= nil and pending.row == d.row
+    if d.slider and not open then d.slider:Shut() else d:Hide() end
+  end
 
   -- Task 2 restyle: the old mono "CONFIRM PURCHASE" kicker (d.title) is gone from the top of
   -- the header -- that text now lives in d.subtitle, under the item name, where it reads as a
@@ -9104,7 +9117,7 @@ local function createDialog()
   closeBtn:SetSize(22, 20)
   closeBtn:SetPoint("TOPRIGHT", -(Theme.pad.s + 2), -(Theme.pad.m + DG.ICON / 2 - 10))
   closeBtn:SetLabel("X")
-  closeBtn:SetScript("OnClick", function() d:Hide() end)
+  closeBtn:SetScript("OnClick", function() d.close() end)
   d.closeBtn = closeBtn
 
   -- The name as the Sell item panel sets it: 15, and wrapped rather than cut with "…" (the
@@ -9746,7 +9759,7 @@ local function createDialog()
         if pending and pending.row == row then pending.cancelRequested = true end
       end
     end
-    dialog:Hide() -- OnHide below does the actual local-state reset
+    dialog.close() -- OnHide below does the actual local-state reset
   end)
   d.cancelBtn = cancelBtn
 
@@ -9831,9 +9844,10 @@ local function createDialog()
   -- focus its own OnEscapePressed fires first and only clears focus.
   d:EnableKeyboard(true)
   d:SetScript("OnKeyDown", function(self, key)
-    if key == "ESCAPE" then
+    -- On its way out it is shut already: the next Escape is the window's, as on the Sell panel.
+    if key == "ESCAPE" and not (d.slider and d.slider:Leaving()) then
       self:SetPropagateKeyboardInput(false)
-      self:Hide()
+      d.close()
     else
       self:SetPropagateKeyboardInput(true)
     end
