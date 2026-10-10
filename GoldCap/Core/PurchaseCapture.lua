@@ -192,9 +192,17 @@ function GC.PurchaseCapture.OnPurchaseCompleted(auctionID)
   end
 end
 
+-- After Confirm, a price update is the server re-quoting: nothing was bought, Blizzard's own buy
+-- dialog shows the new price and asks for Buy Now again (Blizzard_AuctionHouseBuyDialog.lua keeps
+-- COMMODITY_PRICE_UPDATED live through BuyState.Purchasing; UI/SniperFrame.lua reads it the same
+-- way). The new total is the one a second Confirm pays. Kept frozen at the old one, a purchase
+-- confirmed again at 22g was booked at 20g, and its mail -- 22g, so no match -- booked the same
+-- units a second time (review).
 function GC.PurchaseCapture.OnCommodityPriceUpdated(_, totalPrice)
   local attempt = commodityAttempt
-  if attempt and not attempt.confirmed and isPositiveInteger(totalPrice) then attempt.finalTotal = totalPrice end
+  if not attempt or not isPositiveInteger(totalPrice) then return end
+  if attempt.confirmed then attempt.confirmed, attempt.requoted = false, true end
+  attempt.finalTotal = totalPrice
 end
 
 function GC.PurchaseCapture.OnCommodityPriceUnavailable()
@@ -208,7 +216,13 @@ end
 function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
   local attempt = commodityAttempt
   commodityAttempt = nil
-  if not attempt or not attempt.confirmed then return end
+  if not attempt then return end
+  if not attempt.confirmed then
+    -- Re-quoted after Confirm and not confirmed again, yet something went through: which price
+    -- it paid is not known, so the mail settles it.
+    if attempt.requoted then recordPending(attempt, "commodity purchase re-quoted after confirm") end
+    return
+  end
   if isPositiveInteger(attempt.finalTotal) then
     recordExact(attempt)
   else

@@ -20,6 +20,11 @@
   LOTS, what your lots bring in. PROFIT is what that leaves after what you paid, and shows only
   when GoldCap knows what you paid for all of it. They replace COST, ASKING and AT MARKET, which
   often read 0 and Unknown.
+- A string copied from goldcap.gg's profession pages imports into BUY every time. About half of
+  them stopped with an error before, and nothing was imported.
+- A commodity bought in the auction house's own Buy window after its price changed, and confirmed
+  again, is recorded once, at the price you paid. It could be recorded twice, once at the old
+  price.
 - On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
   while prices were checked, and some stayed blank afterwards.
 - The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a

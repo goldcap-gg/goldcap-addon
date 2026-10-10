@@ -555,6 +555,14 @@ describe("AppRuns", function()
       assert.is_truthy(run.code:match("^paste%-%x%x%x%x%x%x%x%x$"))
     end)
 
+    -- The string goldcap.gg's professions page copies has no code, and this one's hash is above
+    -- 2^31: WoW's %x refused it (spec/support/wow_format.lua) and nothing was imported.
+    it("names a code-less paste whose hash is above 2^31", function()
+      local run = GC.AppRuns.ImportString("GCR1;;Cooking;2589=20=v")
+      assert.is_not_nil(run)
+      assert.equal("paste-fc2b1baf", run.code)
+    end)
+
     it("skips suffixes a newer site writes after the quantity, still reading =v", function()
       local run = GC.AppRuns.ImportString("GCR1;abcd2345;Cooking;2589=20@450,159=5=v~25,7=3~9=v")
       assert.same({ { i = 2589, q = 20, v = false }, { i = 159, q = 5, v = true }, { i = 7, q = 3, v = true } },
