@@ -113,6 +113,7 @@ function GC.Sell.Reset()
   GC.Sell._owedUntil = nil
   -- A new visit starts the selling list again: the dock walks all of it once more.
   for key in pairs(S.postedThisVisit) do S.postedThisVisit[key] = nil end
+  for key in pairs(S.postedOut) do S.postedOut[key] = nil end
   for key in pairs(S.passedThisVisit) do S.passedThisVisit[key] = nil end
   S.queueDone, S.dockKey = {}, nil
   GC.QuoteCache.Clear(S.quotes)

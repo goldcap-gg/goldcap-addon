@@ -796,6 +796,15 @@ function GC.Sell.OnAuctionCreated(auctionID)
     View.moveOn(owner.positionKey) -- the item after it, and its panel if this one's was open
     if S.dockKey == owner.positionKey then S.dockKey = nil end
   end
+  -- All of it went up: its row goes now, not when the bags next catch up (owner, 2026-10-11).
+  -- Only when it is certainly this post's -- the client named the item, or it is the post on the
+  -- wire with no late answer open -- never on the order rule's guess: a guessed item may well
+  -- still be in the bags, and its row is how it gets posted.
+  local certain = named ~= nil or (owner == wire and wire.clean)
+  if whole and certain and type(owner.positionKey) == "string" then
+    S.postedOut[owner.positionKey] = owner.position.bagQty or 0
+    View.leave(owner.positionKey)
+  end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then
     -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers): the dock said the

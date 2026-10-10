@@ -79,6 +79,9 @@ GC.SellState = {
   -- house is closed (GC.Sell._HoldDoneInQueue, GC.Sell.Reset); a row click still puts either in
   -- the dock. queueDone is what they took out of the queue, for the rows' tags.
   postedThisVisit = {},
+  -- Posted whole, by positionKey: how many the bags held when all of it went up. The row leaves
+  -- the posting deck at once, for as long as the bags still count exactly that (UI/Sell/List.lua).
+  postedOut = {},
   passedThisVisit = {},
   queueDone = {},
   -- The item the player put in the dock by clicking its row, by positionKey; nil while the dock
@@ -153,6 +156,7 @@ GC.SellView = {
   notePost = nothing,    -- GC.Sell._NotePost(text, tone, seconds): the dock's note on the player's own post
   endPostNote = nothing, -- GC.Sell._EndPostNote(heldOnly): that note let go
   moveOn = nothing,      -- UI.Dock.MoveOn(positionKey): the dock, and an open panel, go on to the next item
+  leave = nothing,       -- UI.List.Leave(positionKey): a row posted whole fades out and the list closes up
   attached = function() return false end, -- GC.Sell.Attach has built the tab
   isShown = nothing,     -- the tab's own shown flag; nil until it is built
 }

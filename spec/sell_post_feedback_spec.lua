@@ -288,6 +288,74 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.matches("Mycobloom", container.queueLabel.text, 1, true)
       assert.equal("Mycobloom", container.inspector.name.text)
     end)
+
+    -- Posted whole, the row goes at once, not when the bags next catch up (owner, 2026-10-11),
+    -- and comes back only for stock the bags count afresh.
+    local function oreShown()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
+      end
+    end
+
+    it("takes a row posted whole off the deck at once, until the bags count something else", function()
+      ready()
+      pressRowPost()
+      GC.Sell.OnAuctionCreated()
+      assert.is_nil(oreShown())
+      render()
+      assert.is_nil(oreShown()) -- the bags still count the 246 that went up
+      GC.SellUI.Toolbar.PaintDeckSwitch()
+      -- ...and the count lets it go
+      assert.matches("^TO POST |c%x%x%x%x%x%x%x%x0|r$", container.deckButtons.post.label)
+      bags = { [0] = { { itemID = 23427, stackCount = 30, itemName = "Eternium Ore" } } }
+      GC.Sell.OnBagsChanged()
+      GC.SellCompose.Positions()
+      render()
+      assert.is_truthy(oreShown())
+    end)
+
+    -- On screen it fades where it stands, then the rows under it close up over its gap.
+    it("fades the row out on screen, then closes the list up over it", function()
+      bags = TWO_ITEMS
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+      GC.SellCompose.Positions()
+      render()
+      container.IsVisible = function() return true end
+      for _, row in ipairs(GC.SellUI.rows) do
+        row.GetHeight = function() return 56 end
+        row.SetAlpha = function(self, a) self.alpha = a end
+        -- This file's frames drop their anchors; these rows keep them, to be read back.
+        row.ClearAllPoints = function(self) self.points = {} end
+        row.SetPoint = function(self, point, _, _, x, y) self.points[#self.points + 1] = { point = point, x = x, y = y } end
+      end
+      render()
+      pressRowPost(23427)
+      GC.Sell.OnAuctionCreated()
+      local ore = assert(oreShown()) -- still there, on its way
+      local gapY = ore.placedY
+      local driver = GC.SellUI.List.leaveDriver
+      driver.scripts.OnUpdate(driver, 0.075)
+      assert.equal(0.5, ore.alpha)
+      driver.scripts.OnUpdate(driver, 0.1) -- faded: out, and the rows under it start where they stood
+      assert.is_nil(oreShown())
+      local moved = 0
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and not row.inPanel and row.placedY and row.placedY >= gapY then
+          assert.equal(-(row.placedY + 56), row.points[#row.points].y)
+          moved = moved + 1
+        end
+      end
+      assert.is_true(moved > 0)
+      driver.scripts.OnUpdate(driver, 1)
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and not row.inPanel and row.placedY then
+          assert.equal(-row.placedY, row.points[#row.points].y)
+          assert.equal(1, row.alpha or 1)
+        end
+      end
+      assert.is_nil(driver.scripts.OnUpdate)
+    end)
   end)
 
   describe("when the auction house refuses it", function()

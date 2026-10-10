@@ -91,7 +91,9 @@ local function deckCounts()
     -- neither in the bags nor listed -- folded away under NOT ON HAND, or a purchase not yet
     -- identified -- and counting those read "TO POST 17" over three rows with a Post button
     -- (seen in game). The rows stay where they were; only the number says what it names.
-    if bags > 0 then post = post + 1 end
+    -- Nor what went up whole a moment ago while the bags still count it (UI/Sell/List.lua's
+    -- List.DropPostedOut): its row has gone, and the number goes with it.
+    if bags > 0 and S.postedOut[position.positionKey] ~= bags then post = post + 1 end
     if live > 0 then listed = listed + 1 end
   end
   return post, listed

@@ -850,3 +850,4 @@ GC.SellView.paintCancel = function(...) return UI.Dock.PaintCancelButton(...) en
 GC.SellView.notePost = function(...) return GC.Sell._NotePost(...) end
 GC.SellView.endPostNote = function(...) return GC.Sell._EndPostNote(...) end
 GC.SellView.moveOn = function(...) return UI.Dock.MoveOn(...) end
+GC.SellView.leave = function(...) return UI.List.Leave(...) end

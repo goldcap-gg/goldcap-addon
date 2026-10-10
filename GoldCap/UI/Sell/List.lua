@@ -50,6 +50,88 @@ local function currentPosition(positionKey)
   return nil
 end
 
+-- A row posted whole goes (owner, 2026-10-11: it stayed on as "posted" until the bags caught up,
+-- unmarked, moving, and then went with a jump). It fades where it stands, then the rows under it
+-- close up over its gap, in a third of a second, by their anchors (UI.List.Leave starts it), and
+-- it stays off the posting deck for as long as the bags still count what went up.
+do
+  local FADE, CLOSE = 0.15, 0.18
+  local leaving -- { key, t, gone, gapY, gapH }
+  local function rowOf(key)
+    for _, row in ipairs(UI.rows or {}) do
+      if row:IsShown() and row.kind == "position" and not row.inPanel and row.position
+          and row.position.positionKey == key then return row end
+    end
+  end
+  -- A list row `extra` px below the place renderRows gave it.
+  local function anchor(row, extra)
+    local y = -(row.placedY + extra)
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", row.surface, "TOPLEFT", 0, y)
+    row:SetPoint("TOPRIGHT", row.surface, "TOPRIGHT", 0, y)
+  end
+  local function shift(extra)
+    for _, row in ipairs(UI.rows or {}) do
+      if row:IsShown() and not row.inPanel and row.placedY and row.surface and row.placedY >= leaving.gapY then
+        anchor(row, extra)
+      end
+    end
+  end
+  local function finish()
+    List.leaveDriver:SetScript("OnUpdate", nil)
+    local was = leaving
+    if was.gone and was.gapY then shift(0) end
+    leaving = nil
+    if not was.gone then List.RenderRows() end
+  end
+  local function step(_, elapsed)
+    leaving.t = leaving.t + (elapsed or 0)
+    if not leaving.gone then
+      local row = rowOf(leaving.key)
+      if row and leaving.t < FADE then
+        if row.SetAlpha then row:SetAlpha(1 - leaving.t / FADE) end
+        return
+      end
+      -- Faded: out of the list, and the rows under it start where they stood.
+      leaving.gone, leaving.t = true, 0
+      leaving.gapY, leaving.gapH = row and row.placedY, row and row:GetHeight()
+      List.RenderRows()
+      if not (leaving.gapY and leaving.gapH) then finish() return end
+    end
+    local p = math.min(1, leaving.t / CLOSE)
+    shift(leaving.gapH * (1 - p) * (1 - p)) -- quick at first, settling at the end
+    if p >= 1 then finish() end
+  end
+
+  -- Starts the row's going. Nothing to watch -- the tab not on screen, the row not drawn -- and it
+  -- simply goes with the next render.
+  function List.Leave(key)
+    if leaving then finish() end
+    local container = UI.container
+    if not (List.leaveDriver and container and container.IsVisible and container:IsVisible()
+        and rowOf(key)) then return end
+    leaving = { key = key, t = 0 }
+    List.leaveDriver:SetScript("OnUpdate", step)
+  end
+
+  -- The posting deck less what went up whole, the row still fading kept on until it has.
+  function List.DropPostedOut(filtered)
+    for key, qty in pairs(S.postedOut) do
+      local position = currentPosition(key)
+      if not position or (position.bagQty or 0) ~= qty then S.postedOut[key] = nil end
+    end
+    if next(S.postedOut) == nil then return filtered end
+    local kept = {}
+    for _, position in ipairs(filtered) do
+      local key = position.positionKey
+      if not (key and S.postedOut[key]) or (leaving and leaving.key == key and not leaving.gone) then
+        kept[#kept + 1] = position
+      end
+    end
+    return kept
+  end
+end
+
 -- The item name is the one column that must stay readable: every other cell is a number that
 -- also lives in the tooltip or the expansion, but a row whose name is "Aze..." is useless.
 -- `min` on the flex column was declared and never honoured, so the name silently collapsed to
@@ -556,6 +638,7 @@ local function renderRows()
     -- for a list already on screen: the pricing walk answers one item at a time, and every
     -- answer re-ranked a row out from under the cursor.
     filtered = GC.SellViewModel.Settle(filtered, S.rowPlaces)
+    if S.filterMode == "post" then filtered = List.DropPostedOut(filtered) end
   end
   -- MY LOTS reads in three sections (SellViewModel.LotSections); the queue's own focus state
   -- keeps the queue's order, which is the point of it.
@@ -734,6 +817,10 @@ local function renderRows()
       local offset = entry.panel and detailHeight or placedHeight
       row:Show(); row:ClearAllPoints()
       row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
+      -- Where it was placed, for a closing gap to move it from (List.Leave), and opaque: a pooled
+      -- row may have been the one fading.
+      row.placedY = offset
+      if row.SetAlpha then row:SetAlpha(1) end
       -- A position in the list is a card at least ROW.H tall; everything else keeps the slot pitch.
       local card = entry.kind == "position" and not entry.panel
       row:SetHeight(card and ROW.H or slots * UI.rowHeight)
@@ -789,6 +876,7 @@ GC.SellView.render = function(...) return UI.List.RenderRows(...) end
 
 function List.Build()
   local container = UI.container
+  List.leaveDriver = CreateFrame("Frame", nil, container) -- runs a posted row's going (List.Leave)
   local header = CreateFrame("Frame", nil, container)
   -- Kept on the container so renderRows can re-lay it out when the deck changes; see its own
   -- comment for why that cannot live in the deck buttons' click handler.
