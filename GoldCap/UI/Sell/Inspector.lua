@@ -178,6 +178,9 @@ local function layoutDetailRow(row)
     row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
     if row.action:IsShown() then row.sectionHint:Hide() end
     row.itemStock:ClearAllPoints()
+    -- One line in a one-slot row: a list position wraps its stock line (List.lua's placeName), a
+    -- purchase's source and date are short words that stay on theirs.
+    row.itemStock:SetWordWrap(false)
     row.itemStock:SetPoint("LEFT", row.cells.cost, "RIGHT", 10, 0)
     if row.action:IsShown() then row.itemStock:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
     else row.itemStock:SetPoint("RIGHT", row.sectionHint, "LEFT", -8, 0) end
@@ -547,10 +550,12 @@ function Inspector.Build()
   -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
   -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
   if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+  -- The name and the stock line wrap, and the head grows to hold them (PaintInspector): a name
+  -- cut with "…" is the one thing the panel exists to say (owner's rule).
   inspector.name = Theme.Label(inspector, 15)
-  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(false)
+  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(true)
   inspector.stock = Theme.Num(inspector, 10)
-  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(false)
+  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(true)
   setColor(inspector.stock, Theme.color.fgMuted)
   local closeInspector = Theme.Button(inspector, "ghost", "badge")
   closeInspector:SetSize(22, 20)
@@ -569,16 +574,28 @@ function Inspector.Build()
   local headRule = inspector:CreateTexture(nil, "ARTWORK")
   headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
   headRule:SetHeight(1)
-  headRule:SetPoint("TOPLEFT", INSP.PAD, -INSP.HEAD_H + 2)
-  headRule:SetPoint("TOPRIGHT", -INSP.PAD, -INSP.HEAD_H + 2)
+  inspector.headRule = headRule
 
   local detailScroll = CreateFrame("ScrollFrame", nil, inspector, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(detailScroll) end -- no Blizzard arrows beside a kit panel
-  detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
-  detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
+  inspector.detailScroll = detailScroll
+  Inspector.PlaceHead(INSP.HEAD_H)
   UI.detailContent = CreateFrame("Frame", nil, detailScroll)
   UI.detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, UI.rowHeight)
   detailScroll:SetScrollChild(UI.detailContent)
+end
+
+-- The rule under the panel's head and the scrolling body below it, `height` down from the top.
+function Inspector.PlaceHead(height)
+  local inspector = UI.container and UI.container.inspector
+  if not (inspector and inspector.headRule) or inspector.headHeight == height then return end
+  inspector.headHeight = height
+  inspector.headRule:ClearAllPoints()
+  inspector.headRule:SetPoint("TOPLEFT", inspector, "TOPLEFT", INSP.PAD, -height + 2)
+  inspector.headRule:SetPoint("TOPRIGHT", inspector, "TOPRIGHT", -INSP.PAD, -height + 2)
+  inspector.detailScroll:ClearAllPoints()
+  inspector.detailScroll:SetPoint("TOPLEFT", inspector, "TOPLEFT", 4, -height)
+  inspector.detailScroll:SetPoint("BOTTOMRIGHT", inspector, "BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
 end
 
 -- The panel's head: which item this is, and where its stock is. Read off the position at
@@ -594,17 +611,26 @@ function Inspector.PaintInspector(position)
   end
   if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
   local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
+  -- Top points only, so a wrapped name pushes its stock line down rather than over it.
+  local right = -(INSP.PAD + 2 + 22 + 6) -- clear of the close button
   inspector.name:ClearAllPoints()
   inspector.name:SetPoint("TOPLEFT", left, -12)
-  inspector.name:SetPoint("RIGHT", inspector.close, "LEFT", -6, 0)
+  inspector.name:SetPoint("TOPRIGHT", right, -12)
   inspector.stock:ClearAllPoints()
-  inspector.stock:SetPoint("TOPLEFT", left, -33)
-  inspector.stock:SetPoint("RIGHT", inspector.close, "LEFT", -6, 0)
+  inspector.stock:SetPoint("TOPLEFT", inspector.name, "BOTTOMLEFT", 0, -4)
+  inspector.stock:SetPoint("TOPRIGHT", inspector.name, "BOTTOMRIGHT", 0, -4)
   local name = position.itemName or GC.L["Item"]
   inspector.name:SetText(Theme.WithQuality and Theme.WithQuality(name, position.itemID) or name)
   local parts = {}
   if (position.bagQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d in bags"]):format(position.bagQty) end
   if (position.listedQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d listed"]):format(position.listedQty) end
   inspector.stock:SetText(#parts > 0 and table.concat(parts, " · ") or GC.SellViewModel.SourceText(position))
+  -- The head as tall as what it says, never shorter than the icon's own room.
+  local head = INSP.HEAD_H
+  if inspector.name.GetStringHeight then
+    head = math.max(head, math.ceil(12 + (inspector.name:GetStringHeight() or 0) + 4
+      + (inspector.stock:GetStringHeight() or 0) + 10))
+  end
+  Inspector.PlaceHead(head)
   inspector:Show()
 end

@@ -322,6 +322,7 @@ local function placeName(row, right, rightLift, top)
   cell:SetPoint("TOPLEFT", row, "LEFT", inset, top)
   cell:SetPoint("TOPRIGHT", right, "LEFT", -4, top - rightLift)
   row.itemStock:ClearAllPoints()
+  row.itemStock:SetWordWrap(true) -- a pooled row that was a purchase in the panel held it to one line
   row.itemStock:SetPoint("TOPLEFT", cell, "BOTTOMLEFT", 0, -2)
   row.itemStock:SetPoint("TOPRIGHT", cell, "BOTTOMRIGHT", 0, -2)
 end

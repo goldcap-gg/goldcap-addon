@@ -1776,6 +1776,24 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(rows[1].cardRing.shown)
   end)
 
+  -- The panel's head says which item it is: a long name wraps and the head grows to hold it.
+  it("grows the panel's head to hold a name that wraps, and the body starts under it", function()
+    local GC = load(620, { calls = {} })
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Handwraps of Flowing Thought", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    local inspector = container.inspector
+    inspector.name.GetStringHeight = function() return 39 end -- two lines
+    inspector.stock.GetStringHeight = function() return 13 end
+    rows[1].scripts.OnClick(rows[1])
+    assert.is_true(inspector.shown)
+    assert.equal("TOPRIGHT", inspector.name.points[2].point)
+    assert.equal(inspector.name, inspector.stock.points[1].relative)
+    assert.equal(-78, inspector.detailScroll.points[1].y) -- 12 + 39 + 4 + 13 + 10
+  end)
+
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
     local function assertRow(width)
       local GC = load(width, { calls = {} })
