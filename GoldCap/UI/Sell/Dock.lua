@@ -667,11 +667,7 @@ function Dock.SetHeight(height)
   if not container or Dock.Height() == height then return end
   Dock.height = height
   if container.dockFill then container.dockFill:SetHeight(height) end
-  if container.inspector then
-    container.inspector:ClearAllPoints()
-    container.inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -34)
-    container.inspector:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, height + 6)
-  end
+  UI.Inspector.Place()
   if container.scroll and container.header then UI.List.ApplyListGeometry() end
 end
 

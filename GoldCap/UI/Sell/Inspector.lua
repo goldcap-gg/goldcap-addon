@@ -526,15 +526,14 @@ function Inspector.Build()
   -- are the SAME pooled rows renderRows has always made -- re-parented, not rebuilt -- so every
   -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
   local inspector = CreateFrame("Frame", nil, container)
-  inspector:SetPoint("TOPRIGHT", 0, -34)
-  inspector:SetPoint("BOTTOMRIGHT", 0, UI.Dock.Height() + 6)
+  container.inspector = inspector
+  Inspector.Place(0)
   inspector:SetWidth(INSP.W)
   -- Above the list it may be lying over, and swallowing its own mouse: a click on the panel's
   -- background must not land on whichever row sits behind it.
   inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
   inspector:EnableMouse(true)
   inspector:Hide()
-  container.inspector = inspector
   local ipc = Theme.color.panel
   local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
     { ipc[1], ipc[2], ipc[3], 1 }, 24)
@@ -589,35 +588,16 @@ function Inspector.Build()
   inspector:SetScript("OnKeyDown", function(_, key)
     if InCombatLockdown and InCombatLockdown() then return end
     -- On its way out the panel is already shut: the next Escape is the window's.
-    if key ~= "ESCAPE" or (inspector.fade and inspector.fade:IsPlaying()) then passKeys(true) return end
+    if key ~= "ESCAPE" or (inspector.slider and inspector.slider:Leaving()) then passKeys(true) return end
     passKeys(false)
     shut()
     if C_Timer and C_Timer.After then C_Timer.After(0, function() passKeys(true) end) end
   end)
 
-  -- Out from the right as it opens, over 0.15 s (the 3C design): the row's own panel coming out
-  -- beside it rather than a sheet dropped over the list. The first two steps put it 24px right
-  -- and clear; the next two bring it back and up. Played by Inspector.PaintInspector.
-  local slide = inspector.CreateAnimationGroup and inspector:CreateAnimationGroup()
-  local away = slide and slide:CreateAnimation("Translation")
-  if away and away.SetOffset then -- several spec doubles stop at the group
-    local function step(a, order, duration) a:SetOrder(order); a:SetDuration(duration); return a end
-    step(away, 1, 0):SetOffset(24, 0)
-    local clear = step(slide:CreateAnimation("Alpha"), 1, 0); clear:SetFromAlpha(0); clear:SetToAlpha(0)
-    local back = step(slide:CreateAnimation("Translation"), 2, 0.15); back:SetOffset(-24, 0)
-    back:SetSmoothing("OUT")
-    local up = step(slide:CreateAnimation("Alpha"), 2, 0.15); up:SetFromAlpha(0); up:SetToAlpha(1)
-    inspector.slide = slide
-    -- And back out to the right as it shuts, a little quicker, hidden once it is clear (owner,
-    -- 2026-10-11: it came out smoothly and then just vanished). Slow off the mark, so it travels
-    -- while it is already faint.
-    local fade = inspector:CreateAnimationGroup()
-    local out = step(fade:CreateAnimation("Translation"), 1, 0.12); out:SetOffset(24, 0)
-    out:SetSmoothing("IN")
-    local dim = step(fade:CreateAnimation("Alpha"), 1, 0.12); dim:SetFromAlpha(1); dim:SetToAlpha(0)
-    fade:SetScript("OnFinished", function() inspector:Hide() end)
-    inspector.fade = fade
-  end
+  -- Out from the right as it opens and back as it shuts (the 3C design; owner, 2026-10-11): the
+  -- row's own panel coming out beside it rather than a sheet dropped over the list. The kit's
+  -- slider moves it by its anchor (Inspector.Place); spec themes without one show and hide it.
+  if Theme.Slide then inspector.slider = Theme.Slide(inspector, Inspector.Place) end
   local headRule = inspector:CreateTexture(nil, "ARTWORK")
   headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
   headRule:SetHeight(1)
@@ -630,6 +610,20 @@ function Inspector.Build()
   UI.detailContent = CreateFrame("Frame", nil, detailScroll)
   UI.detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, UI.rowHeight)
   detailScroll:SetScrollChild(UI.detailContent)
+end
+
+-- Where the panel lives: down the container's right side, from under the toolbar to the dock's top
+-- edge, `dx` px right of that while it slides (the kit's slider). Dock.SetHeight re-places it as the
+-- dock grows, at whatever offset the slide has reached.
+function Inspector.Place(dx)
+  local container = UI.container
+  local inspector = container and container.inspector
+  if not inspector then return end
+  if dx then inspector.dx = dx end
+  local x = inspector.dx or 0
+  inspector:ClearAllPoints()
+  inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", x, -34)
+  inspector:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", x, UI.Dock.Height() + 6)
 end
 
 -- The rule under the panel's head and the scrolling body below it, `height` down from the top.
@@ -651,18 +645,8 @@ function Inspector.PaintInspector(position)
   local inspector = UI.container and UI.container.inspector
   if not inspector then return end
   if not position then
-    -- Out the way it came, once: a repaint on the way out does not start it over. Off screen
-    -- (the window or the tab gone) there is nothing to watch, so it simply goes.
-    local fade, seen = inspector.fade, inspector:IsShown()
-    if inspector.IsVisible then seen = inspector:IsVisible() end
-    if fade and seen then
-      if not fade:IsPlaying() then
-        if inspector.slide then inspector.slide:Stop() end
-        fade:Play()
-      end
-    else
-      inspector:Hide()
-    end
+    -- Out the way it came, once: a repaint on the way out does not start it over.
+    if inspector.slider then inspector.slider:Shut() else inspector:Hide() end
     return
   end
   local icon
@@ -695,9 +679,5 @@ function Inspector.PaintInspector(position)
   Inspector.PlaceHead(head)
   -- Out from the right only as it opens, never on a repaint of a panel already up. One on its
   -- way out is called back: it would hide itself under the item just opened.
-  local fade = inspector.fade
-  local opening = not inspector:IsShown() or (fade and fade:IsPlaying())
-  if fade then fade:Stop() end
-  inspector:Show()
-  if opening and inspector.slide then inspector.slide:Play() end
+  if inspector.slider then inspector.slider:Open() else inspector:Show() end
 end

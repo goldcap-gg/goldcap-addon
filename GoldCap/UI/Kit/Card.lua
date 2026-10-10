@@ -169,3 +169,59 @@ function T.Window(window)
   ring:SetAllPoints()
   return { fill = windowFill(window, K.windowTop, K.windowBottom), ring = ring, shadow = T.Shadow(window, 18, 0.65) }
 end
+
+--- Slides `frame` in from the right as it opens, over 0.15 s, and back out as it shuts, over
+-- 0.12 s, hiding it at the end. `place(dx)` anchors the frame `dx` px right of where it lives;
+-- its alpha goes with it. Moved by its anchor and faded by SetAlpha a frame at a time, never by an
+-- animation group: the coins in a figure are textures inside its text, and a Translation carried
+-- the panel away from under coins that stayed where they were (owner, 2026-10-11). The steps run
+-- on a frame of its own, so the frame's own OnUpdate is left alone.
+--
+-- Returns a slider. :Open() shows the frame and brings it in, from where it is if it was on its
+-- way out. :Shut() takes it out, and a frame the client is not drawing simply goes. :Leaving()
+-- is true while it is on its way out. :Settle() puts it home, hidden, at once.
+function T.Slide(frame, place)
+  local DX, IN_S, OUT_S = 24, 0.15, 0.12
+  local away, goal = 0, 0 -- 0 home, 1 gone
+  local driver = CreateFrame("Frame", nil, frame)
+  local slider = {}
+  -- The offset goes as the square: out slowly while it is still clear, in softly at the end.
+  local function apply()
+    place(DX * away * away)
+    frame:SetAlpha(1 - away)
+  end
+  local function step(_, elapsed)
+    local by = (elapsed or 0) / (goal == 1 and OUT_S or IN_S)
+    away = goal == 1 and math.min(1, away + by) or math.max(0, away - by)
+    apply()
+    if away ~= goal then return end
+    driver:SetScript("OnUpdate", nil)
+    if goal == 1 then
+      frame:Hide()
+      away, goal = 0, 0
+      apply()
+    end
+  end
+  function slider:Open()
+    if frame:IsShown() and goal == 0 then return end -- up already, or on its way in
+    if not frame:IsShown() then away = 1 end
+    goal = 0
+    frame:Show()
+    apply()
+    driver:SetScript("OnUpdate", step)
+  end
+  function slider:Shut()
+    if not frame:IsShown() or goal == 1 then return end
+    if not frame:IsVisible() then slider:Settle() return end
+    goal = 1
+    driver:SetScript("OnUpdate", step)
+  end
+  function slider:Settle()
+    driver:SetScript("OnUpdate", nil)
+    away, goal = 0, 0
+    apply()
+    frame:Hide()
+  end
+  function slider:Leaving() return goal == 1 end
+  return slider
+end
