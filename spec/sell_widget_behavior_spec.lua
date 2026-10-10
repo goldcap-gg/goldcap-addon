@@ -3022,8 +3022,10 @@ describe("Sell widget geometry and manual cost", function()
       position(6, { bagQty = 0, listedQty = 4 }),
     })
     GC.SellView.paintDeck()
-    assert.equal("TO POST 2", container.deckButtons.post.label)
-    assert.equal("MY LOTS 2", container.deckButtons.listed.label)
+    -- The count lit in gold, through the translation's own "%d" (owner, 2026-10-09).
+    local gold = GC.Theme.color.goldHi or GC.Theme.color.gold
+    assert.equal("TO POST " .. GC.Sell._InlineColor(gold, "2"), container.deckButtons.post.label)
+    assert.equal("MY LOTS 2", helper.plain(container.deckButtons.listed.label))
   end)
 
   describe("the not-on-hand fold", function()

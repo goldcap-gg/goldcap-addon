@@ -14,6 +14,7 @@ local PRESSED = { 0, 0, 0, 0.28 }
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
 local PRIMARY_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local DANGER_GLOW = { K.loss[1], K.loss[2], K.loss[3], 0.35 }
 
 -- A trailing ▼ or ▲ on a label ("SHOW DETAILS ▼", a picker's "All ▼"): drawn as the atlas caret at
 -- the right edge, because the condensed face has neither triangle (docs/addon/tools/fonts.py).
@@ -130,14 +131,26 @@ function T.Button(parent, variant, rounded)
   b.pressedTexture:SetAllPoints()
   b:SetPushedTexture(b.pressedTexture)
 
-  -- A soft gold halo under the primary action, only while it is primary and live: a dim button
-  -- with a bright glow reads as clickable. Built on first need.
+  -- A soft halo under the main action, only while it is live: a dim button with a bright glow
+  -- reads as clickable. A primary button wears it in gold unless told not to; a danger one, in
+  -- red, only when asked: b:SetGlow(true) or (false), nil for the variant's own say (the Sell
+  -- dock's POST and CANCEL are the only ones on that tab, the owner's call of 2026-10-09).
+  -- Built on first need.
+  local glowAsked
   local function paintGlow()
-    local want = spec == BUTTON_VARIANTS.primary and not b.dimmed
+    local danger = spec == BUTTON_VARIANTS.danger
+    local glows = spec == BUTTON_VARIANTS.primary or (danger and glowAsked == true)
+    local want = glows and glowAsked ~= false and not b.dimmed
     if want and not b.glow then b.glow = T.Glow(b, PRIMARY_GLOW, 12) end
     if b.glow then
+      local c = danger and DANGER_GLOW or PRIMARY_GLOW
+      b.glow:SetVertexColor(c[1], c[2], c[3], c[4])
       if want then b.glow:Show() else b.glow:Hide() end
     end
+  end
+  function b:SetGlow(on)
+    glowAsked = on
+    paintGlow()
   end
 
   if roundedSpec then

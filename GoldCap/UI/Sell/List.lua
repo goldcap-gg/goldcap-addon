@@ -209,7 +209,7 @@ end
 
 function ROW.sectionText(section)
   local hint = ROW.SECTION_HINTS[section.id]
-  return (GC.L[ROW.SECTION_TITLES[section.id]]):format(#section.positions)
+  return UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
     .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
 end
 
@@ -238,7 +238,7 @@ end
 function ROW.waitText(entry)
   if entry.kind == "waitHead" then
     local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
-    return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count),
+    return UI.fmt.count(GC.L["WAITING FOR THE AUCTION HOUSE %d"], entry.count),
       open and GC.L["the auction house has not sent details for these yet"]
         or GC.L["open the auction house once so GoldCap can tell how these sell"]
   end

@@ -185,8 +185,8 @@ describe("Sell tab, bags to Post", function()
   it("keeps the deck counts in step with the list it is counting", function()
     compose()
     local container = GC.SellUI.container
-    assert.equal("TO POST 1", container.deckButtons.post.label)
-    assert.equal("MY LOTS 0", container.deckButtons.listed.label)
+    assert.equal("TO POST 1", helper.plain(container.deckButtons.post.label))
+    assert.equal("MY LOTS 0", helper.plain(container.deckButtons.listed.label))
   end)
 
   -- Regression from a live client: `hasNoValue` means the VENDOR will not buy the item, which

@@ -108,7 +108,7 @@ function Toolbar.PaintDeckSwitch()
   for slot, id in ipairs(DECK_IDS) do
     local button = container.deckButtons[id]
     if button then
-      button:SetLabel((GC.L[DECK_LABELS[slot]]):format(counts[id] or 0))
+      button:SetLabel(UI.fmt.count(GC.L[DECK_LABELS[slot]], counts[id] or 0))
       button:SetVariant(activeDeck() == id and "active" or "ghost")
     end
   end

@@ -335,7 +335,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
       if row:IsShown() and row.kind == "waitItem" then item = row end
     end
     assert.is_truthy(head, "no heading for the stock the tab cannot key yet")
-    assert.matches("WAITING FOR THE AUCTION HOUSE 1", head.sectionLabel.text, 1, true)
+    assert.matches("WAITING FOR THE AUCTION HOUSE 1", helper.plain(head.sectionLabel.text), 1, true)
     -- The heading's aside is in the heading's own hint cell, one line to the row's right edge --
     -- as long as the rest of the heading, it ran on past the list and was cut mid-word (M1).
     assert.is_nil(head.sectionLabel.text:find("open the auction house", 1, true))

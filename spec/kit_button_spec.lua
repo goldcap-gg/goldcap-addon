@@ -61,6 +61,24 @@ describe("kit button", function()
     assert.is_nil(button("ghost", "badge").glow)
   end)
 
+  -- The Sell tab glows in one place, its dock's POST and CANCEL n (owner, 2026-10-09).
+  it("glows red as danger only when asked, and not at all when told not to", function()
+    local b = button("primary", "plaque")
+    b:SetGlow(true)
+    b:SetVariant("danger")
+    assert.is_true(W.state(b.glow).shown)
+    assert.same({ GC.Kit.Tokens.color.loss[1], GC.Kit.Tokens.color.loss[2], GC.Kit.Tokens.color.loss[3], 0.35 },
+      W.state(b.glow).vertex)
+    b:SetVariant("primary")
+    assert.same({ GC.Kit.Tokens.color.gold[1], GC.Kit.Tokens.color.gold[2], GC.Kit.Tokens.color.gold[3], 0.35 },
+      W.state(b.glow).vertex)
+    local plain = button("danger", "plaque")
+    assert.is_nil(plain.glow)
+    local quiet = button("primary", "badge")
+    quiet:SetGlow(false)
+    assert.is_false(W.state(quiet.glow).shown)
+  end)
+
   it("draws a middle dot and an arrow in a label as written: the Fira faces have them", function()
     local b = button("primary", "plaque")
     b:SetLabel("AUTO · SCANNING → 12g")

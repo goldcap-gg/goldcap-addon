@@ -29,6 +29,12 @@ helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.l
 -- An amount in the Sell view's own coins (GC.Sell._FormatAmount), written the short way a spec
 -- reads best: helper.money("1g90s") is "1[gold] 90[silver]", helper.money("2450g") is
 -- "2,450[gold]", with the client's coin icons and the spec suite's comma grouping.
+-- What a label reads with its colour escapes taken out: a heading's count is lit gold
+-- (UI.fmt.count), and a spec about its words reads past the colour.
+function helper.plain(text)
+  return (tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+end
+
 function helper.money(short)
   local gold, silver = short:match("^(%d+)g(%d*)s?$")
   assert(gold, "helper.money takes \"<gold>g\" or \"<gold>g<silver>s\", got " .. tostring(short))

@@ -209,6 +209,14 @@ function GC.Sell._InlineColor(color, text)
     math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
 end
 
+-- A heading with its count in gold (owner, 2026-10-09): "UNDERCUT 2", the 2 lit. `format` is the
+-- translated heading; its own "%d" takes the number already coloured, so no locale needs a key of
+-- its own for it.
+function fmt.count(format, count)
+  local gold = GC.Theme.color.goldHi or GC.Theme.color.gold
+  return (format:gsub("%%d", GC.Sell._InlineColor(gold, tostring(count)), 1))
+end
+
 local exact = GC.SellUtil.exact
 
 local COPPER_PER_GOLD = 10000

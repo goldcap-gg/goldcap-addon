@@ -303,6 +303,8 @@ function CostDialog.Build()
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
   local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel(GC.L["Cancel"]); cancel:SetScript("OnClick", function() dialog:Hide() end)
   local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel(GC.L["Confirm"]); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
+  -- Primary without the halo: the dock's POST and CANCEL are the only things on the tab that glow.
+  if confirm.SetGlow then confirm:SetGlow(false) end
   local function syncText(edit, text)
     dialog.syncing = true
     edit:SetText(text)

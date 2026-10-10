@@ -640,6 +640,8 @@ function Dock.Build(f)
   local queueButton = Theme.Button(container, "primary", "plaque")
   -- The upper tier's right end; the posting panel (UI/Sell/PostPanel.lua) lines up to its left.
   queueButton:SetSize(DOCK.POST_W, DOCK.BUTTON_H)
+  -- The one glow on the tab (owner, 2026-10-09): POST in gold, CANCEL n in red when it turns to it.
+  if queueButton.SetGlow then queueButton:SetGlow(true) end
   queueButton:SetPoint("RIGHT", container, "BOTTOMRIGHT", -DOCK.PAD, DOCK.TOP_Y)
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
