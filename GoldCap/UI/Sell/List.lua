@@ -351,11 +351,11 @@ local function layoutCells(row)
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
       if row.kind == "position" and row.itemStock then
         -- Laid out once to be measured at its real width, then again centred on what it measured;
-        -- the card grows to hold it (row.cardHeight, read by List.RenderRows).
+        -- the card grows to hold it (row.fitHeight, read by List.RenderRows).
         placeName(row, right, rightLift, ROW.LIFT)
         local block = blockHeight(row)
         if block then placeName(row, right, rightLift, block / 2) end
-        row.cardHeight = block and math.ceil(block + 2 * ROW.PAD + ROW.GAP) or nil
+        row.fitHeight = block and math.ceil(block + 2 * ROW.PAD + ROW.GAP) or nil
       else
         local nameY = row.itemStock and ROW.LIFT or 0
         cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
@@ -742,9 +742,11 @@ local function renderRows()
       else
         UI.Inspector.PaintPanelRow(row, entry, bagSnapshot)
       end
+      row.fitHeight = nil
       UI.Row.Style(row, entry)
-      -- Taller when its name or stock line wraps: Row.Style's layout measured the pair.
-      local height = card and math.max(ROW.H, row.cardHeight or 0) or slots * UI.rowHeight
+      -- Taller when its words wrap: Row.Style measured them (a card's name and stock line, the
+      -- waiting heading's aside).
+      local height = math.max(card and ROW.H or slots * UI.rowHeight, row.fitHeight or 0)
       row:SetHeight(height)
       if entry.panel then detailHeight = detailHeight + height else placedHeight = placedHeight + height end
     end

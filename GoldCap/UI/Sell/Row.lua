@@ -931,16 +931,18 @@ function Row.Style(row, entry)
     setColor(row.sectionLabel, fgc)
     -- An item waiting for its key is a line under that heading, not a heading of its own.
     if entry.kind == "waitItem" then row.sectionRule:Hide() end
-    -- The waiting heading's aside, one line from its title to the list's edge, where the
-    -- rule would run.
+    -- The waiting heading's aside, from its title to the list's edge, where the rule would run.
+    -- It wraps, and the heading grows to hold it (row.fitHeight, read by List.RenderRows): "open
+    -- the auction house once so GoldCap can tell how these sell" is wider than that in English.
     if entry.kind == "waitHead" then
       row.sectionRule:Hide()
       row.sectionHint:ClearAllPoints()
       row.sectionHint:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.m, 0)
       row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
-      row.sectionHint:SetWordWrap(false)
-      row.sectionHint:SetMaxLines(1)
+      row.sectionHint:SetWordWrap(true) -- and no line limit: nothing else on a row sets one on it
       row.sectionHint:Show()
+      local h = row.sectionHint.GetStringHeight and row.sectionHint:GetStringHeight()
+      if h then row.fitHeight = math.ceil(h + 2 * ROW.PAD) end
     end
   else
     row.itemInset = 34

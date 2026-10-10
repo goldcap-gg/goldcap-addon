@@ -26,7 +26,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
-    function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetJustifyH() end function v:SetWordWrap(on) self.wordWrap = on end function v:SetTextColor(...) self.color = { ... } end
     function v:SetMaxLines(n) self.maxLines = n end
     function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
@@ -336,12 +336,14 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end
     assert.is_truthy(head, "no heading for the stock the tab cannot key yet")
     assert.matches("WAITING FOR THE AUCTION HOUSE 1", helper.plain(head.sectionLabel.text), 1, true)
-    -- The heading's aside is in the heading's own hint cell, one line to the row's right edge --
-    -- as long as the rest of the heading, it ran on past the list and was cut mid-word (M1).
+    -- The heading's aside is in the heading's own hint cell, to the row's right edge -- as long as
+    -- the rest of the heading, it ran on past the list and was cut mid-word (M1). It wraps there
+    -- rather than ending in "…", and the heading grows with it (owner's rule).
     assert.is_nil(head.sectionLabel.text:find("open the auction house", 1, true))
     assert.matches("open the auction house once", head.sectionHint.text, 1, true)
     assert.is_true(head.sectionHint.shown)
-    assert.equal(1, head.sectionHint.maxLines)
+    assert.is_true(head.sectionHint.wordWrap)
+    assert.is_nil(head.sectionHint.maxLines)
     assert.is_truthy(item)
     assert.matches("Jeb's Underwear ×1", item.sectionLabel.text, 1, true)
     assert.is_nil(positionOf("item:333:100:7:0"))
