@@ -15,21 +15,32 @@ local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, DIM_HEX = UI.fmt.setColor, UI.fmt.DIM_HEX
 local renderGeneration = 0
 
--- Three different emptinesses needing three different next moves, where the old copy had one
--- sentence ("No items match this filter") that answered none of them: a deck that is genuinely
--- empty, a chip that emptied it, or the OTHER deck holding everything. Read live from the deck
--- and chip state rather than passed in, so it can never disagree with what the switch is
--- painting.
+-- Why the deck is empty, in the five ways the owner approved (3C mockup, 2026-10-10): the icon
+-- for its tile, a title, and a line saying what to do about it. Each reason needs a different next
+-- move: a deck that is genuinely empty, a chip or a search that emptied it, the other deck holding
+-- everything. Read live from the deck and chip state rather than passed in, so it can never
+-- disagree with what the switch is painting.
 -- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount
 -- (UI/Sell/Frame.lua) (final review "Headroom").
-function GC.Sell._EmptyDeckText()
-  if UI.chips.search then return GC.L["Nothing on this deck matches that search"] end
-  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
-    return GC.L["No live auctions on this character"]
+function GC.Sell._EmptyDeck()
+  if UI.chips.search then
+    return "search", GC.L["No match"],
+      GC.L["Nothing on this deck matches that search. Clear the box to see everything."]
   end
-  if UI.chips.ready then return GC.L["Nothing is priced yet - the Auction House is still answering"] end
-  if UI.chips.nocost then return GC.L["Every position in your bags already has a cost on record"] end
-  return GC.L["Nothing in your bags to list"]
+  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
+    return "sell", GC.L["No auctions up"],
+      GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
+  end
+  if UI.chips.ready then
+    return "clock", GC.L["Still pricing"],
+      GC.L["The auction house is still answering. Items show up here as their prices arrive."]
+  end
+  if UI.chips.nocost then
+    return "check", GC.L["Every cost is known"],
+      GC.L["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."]
+  end
+  return "bag", GC.L["Nothing to sell"],
+    GC.L["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."]
 end
 
 local function currentPosition(positionKey)
@@ -682,16 +693,18 @@ local function renderRows()
     end
   end
   if S.filterMode == "post" then ROW.pushWaiting(entries) end
+  local empty = UI.container.empty
   if #entries == 0 then
-    -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
-    -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
-    -- Say which of the three reasons it is, because they need different next moves: a deck
-    -- that is genuinely empty, versus a chip that emptied it, versus the other deck holding
-    -- everything. "No items match this filter" answered none of them.
-    UI.container.emptyText:SetText(GC.Sell._EmptyDeckText())
-    UI.container.emptyText:Show()
+    local icon, title, line = GC.Sell._EmptyDeck()
+    if Theme.SetIcon then Theme.SetIcon(empty.icon, icon, Theme.color.gold) end
+    -- The line no wider than a comfortable read, and never wider than the list leaves it.
+    local width = math.min(340, math.max(160, (UI.rowWidth or 340) - 72))
+    empty.title:SetWidth(width); empty.line:SetWidth(width)
+    empty.title:SetText(GC.Util.Upper(title))
+    empty.line:SetText(line)
+    empty:Show()
   else
-    UI.container.emptyText:Hide()
+    empty:Hide()
   end
   for i = #UI.rows + 1, #entries do UI.rows[i] = UI.Row.CreateRow(UI.content) end
   -- Known before any row is laid out: a docked panel takes its width out of the list's, and
@@ -824,18 +837,32 @@ function List.Build()
   -- action and the ledger line live there now, and a list that scrolled under them would put
   -- rows behind a control that can spend gold.
   scroll:SetPoint("BOTTOMRIGHT", 0, UI.Dock.Height() + 6)
-  -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
-  -- `scroll` (not `content`), living where the rows would be, never scrolling.
-  local emptyText = Theme.Label(scroll, 12)
-  emptyText:SetPoint("TOP", scroll, "TOP", 0, -UI.rowHeight * 2)
-  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
-  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
-  emptyText:SetJustifyH("CENTER")
-  emptyText:SetWordWrap(true)
-  emptyText:SetSpacing(4)
-  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  emptyText:Hide()
-  container.emptyText = emptyText
+  -- The empty deck (GC.Sell._EmptyDeck): a gold tile with the reason's icon, the reason in
+  -- capitals under it, and the line saying what to do, in the middle of where the rows would be.
+  -- Parented to `scroll` (not `content`), so it never scrolls.
+  local empty = CreateFrame("Frame", nil, scroll)
+  empty:SetSize(64, 64)
+  empty:SetPoint("BOTTOM", scroll, "CENTER", 0, 10)
+  local gc = Theme.color.gold
+  Theme.SlicedTexture(empty, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.08 }, 12)
+    :SetAllPoints(empty)
+  Theme.SlicedTexture(empty, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.3 }, 12)
+    :SetAllPoints(empty)
+  if Theme.Glow then Theme.Glow(empty, { gc[1], gc[2], gc[3], 0.12 }, 16) end
+  empty.icon = empty:CreateTexture(nil, "ARTWORK")
+  empty.icon:SetSize(30, 30)
+  empty.icon:SetPoint("CENTER", empty, "CENTER", 0, 0)
+  empty.title = (Theme.Heading or Theme.Label)(empty, 15)
+  empty.title:SetPoint("TOP", empty, "BOTTOM", 0, -14)
+  empty.title:SetJustifyH("CENTER"); empty.title:SetWordWrap(true)
+  setColor(empty.title, Theme.color.fg)
+  empty.line = Theme.Label(empty, 12)
+  empty.line:SetPoint("TOP", empty.title, "BOTTOM", 0, -8)
+  empty.line:SetJustifyH("CENTER"); empty.line:SetWordWrap(true)
+  empty.line:SetSpacing(3)
+  setColor(empty.line, Theme.color.fgDim)
+  empty:Hide()
+  container.empty = empty
   UI.content = CreateFrame("Frame", nil, scroll); UI.content:SetSize(UI.rowWidth, UI.rowHeight); scroll:SetScrollChild(UI.content)
 end
 

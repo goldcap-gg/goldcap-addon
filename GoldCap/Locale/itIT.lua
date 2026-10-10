@@ -372,7 +372,21 @@ GC.Locales.itIT = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Nessuna inserzione raggiunge il livello oggetto su cui è stato misurato il prezzo di riferimento.",
   ["Nothing listed on the AH right now"] = "Al momento non c'è nulla in vendita all'asta",
-  ["Nothing on this deck matches that search"] = "Niente in questa scheda corrisponde a questa ricerca",
+  ["Nothing to sell"] = "Niente da vendere",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "Nelle tue borse non c'è niente da mettere all'asta. Compra nella scheda Deals o ritira la posta: tutto ciò che puoi vendere compare qui con un prezzo pronto.",
+  ["No auctions up"] = "Nessuna asta attiva",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "Nessuna asta attiva su questo personaggio. Ciò che metti all'asta compare qui, con cosa annullare e cosa lasciare.",
+  ["No match"] = "Nessun risultato",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Niente in questa scheda corrisponde a questa ricerca. Svuota la casella per vedere tutto.",
+  ["Still pricing"] = "Prezzi in arrivo",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "La casa d'aste sta ancora rispondendo. Gli oggetti compaiono qui man mano che arrivano i loro prezzi.",
+  ["Every cost is known"] = "Tutti i costi sono noti",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Per tutto ciò che hai nelle borse è già registrato quanto hai pagato. Disattiva NO COST per vederli tutti.",
   ["Nothing queued to cancel"] = "Nulla in coda da annullare",
   ["Nothing queued to post"] = "Nulla in coda da mettere in vendita",
   ["Nothing to remove"] = "Nulla da eliminare",

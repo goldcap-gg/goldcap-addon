@@ -374,7 +374,21 @@ GC.Locales.esES = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Ningún anuncio alcanza el nivel de objeto con el que se midió el precio de referencia.",
   ["Nothing listed on the AH right now"] = "Ahora mismo no hay nada publicado en la subasta",
-  ["Nothing on this deck matches that search"] = "Nada en esta pestaña coincide con esa búsqueda",
+  ["Nothing to sell"] = "Nada que vender",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "No hay nada en tus bolsas para publicar. Compra en la pestaña Deals o recoge tu correo: todo lo que puedas vender aparece aquí con un precio listo.",
+  ["No auctions up"] = "Sin subastas activas",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "Este personaje no tiene subastas activas. Lo que publiques aparece aquí, con lo que conviene cancelar y lo que conviene dejar.",
+  ["No match"] = "Sin resultados",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Nada en esta pestaña coincide con esa búsqueda. Vacía el cuadro para verlo todo.",
+  ["Still pricing"] = "Consultando precios",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "La casa de subastas aún está respondiendo. Los objetos aparecen aquí a medida que llegan sus precios.",
+  ["Every cost is known"] = "Todos los costes conocidos",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Todo lo que hay en tus bolsas ya tiene registrado lo que pagaste. Desactiva NO COST para verlo todo.",
   ["Nothing queued to cancel"] = "Nada en cola para cancelar",
   ["Nothing queued to post"] = "Nada en cola para publicar",
   ["Nothing to remove"] = "Nada que borrar",

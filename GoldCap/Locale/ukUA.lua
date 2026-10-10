@@ -227,7 +227,6 @@ GC.Locales.ukUA = {
   ["Enter an exact positive cost"] = "Введіть точну додатну собівартість",
   ["Entry price (avg fill)"] = "Ціна входу (середнє виконання)",
   ["Entry total"] = "Разом на вході",
-  ["Every position in your bags already has a cost on record"] = "У всього, що в сумках, собівартість уже відома",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Усе інше гаразд. Було б на цьому персонажі більше золота — це була б купівля.",
   ["FIFO allocations"] = "Розподіл FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
@@ -349,7 +348,6 @@ GC.Locales.ukUA = {
   ["No exact bag variant"] = "Немає точного варіанта в сумці",
   ["No live listings came back for this item."] =
     "За цим предметом не прийшло жодного живого лота.",
-  ["No live auctions on this character"] = "На цьому персонажі немає активних лотів",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "Для цього предмета ще немає еталонної ціни регіону — імпортуйте знову, коли goldcap.gg її опублікує.",
   ["No safe resale price could be worked out."] = "Безпечну ціну перепродажу обчислити не вдалося.",
@@ -362,15 +360,27 @@ GC.Locales.ukUA = {
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою — запас у пошті, банку або на іншому персонажі",
   ["Not worth the deposit on the AH"] = "Не окупає заставу на аукціоні",
-  ["Nothing in your bags to list"] = "У сумках немає чого виставити",
   ["Nothing is being held back."] = "Нічого не притримано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Після цієї покупки не лишиться того, у що продавати, — ціни виходу немає.",
-  ["Nothing is priced yet - the Auction House is still answering"] = "Ціни ще не отримані — аукціон досі відповідає",
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Жоден лот не дотягує до рівня предмета, на якому виміряно еталонну ціну.",
   ["Nothing listed on the AH right now"] = "Зараз на аукціоні нічого не виставлено",
-  ["Nothing on this deck matches that search"] = "На цій вкладці нічого не відповідає пошуку",
+  ["Nothing to sell"] = "Нічого продавати",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "У сумках немає чого виставити. Купіть щось на вкладці DEALS або заберіть пошту: усе, що можна продати, з'явиться тут із готовою ціною.",
+  ["No auctions up"] = "Лотів немає",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "На цьому персонажі немає активних лотів. Те, що ви виставите, з'явиться тут, з підказкою, що зняти, а що залишити.",
+  ["No match"] = "Нічого не знайдено",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "На цій вкладці нічого не відповідає пошуку. Очистьте поле, щоб побачити все.",
+  ["Still pricing"] = "Ціни ще надходять",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "Аукціон ще відповідає. Предмети з'являться тут, щойно надійдуть їхні ціни.",
+  ["Every cost is known"] = "Собівартість відома",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Для всього в сумках уже записано, скільки ви заплатили. Вимкніть БЕЗ ЧЕКА, щоб побачити все.",
   ["Nothing queued to cancel"] = "У черзі на скасування нічого немає",
   ["Nothing queued to post"] = "У черзі на виставлення нічого немає",
   ["Nothing to remove"] = "Нічого видаляти",

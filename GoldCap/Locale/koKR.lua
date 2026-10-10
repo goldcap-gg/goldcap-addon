@@ -351,7 +351,21 @@ GC.Locales.koKR = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "기준 가격을 측정한 아이템 레벨에 맞는 매물이 없습니다.",
   ["Nothing listed on the AH right now"] = "지금 경매장에 등록된 것이 없습니다",
-  ["Nothing on this deck matches that search"] = "이 탭에는 검색과 일치하는 항목이 없습니다",
+  ["Nothing to sell"] = "판매할 것 없음",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "가방에 등록할 물건이 없습니다. Deals 탭에서 구매하거나 우편을 받으세요. 판매할 수 있는 물건은 가격과 함께 여기에 표시됩니다.",
+  ["No auctions up"] = "등록된 경매 없음",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "이 캐릭터에는 진행 중인 경매가 없습니다. 등록한 물건이 여기에 표시되며, 취소할 것과 둘 것을 알려 드립니다.",
+  ["No match"] = "결과 없음",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "이 탭에는 검색과 일치하는 항목이 없습니다. 검색창을 비우면 모두 볼 수 있습니다.",
+  ["Still pricing"] = "가격 조회 중",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "경매장이 아직 응답하는 중입니다. 가격이 도착하는 대로 물건이 여기에 표시됩니다.",
+  ["Every cost is known"] = "모든 원가 확인됨",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "가방의 모든 물건에 구매 가격이 이미 기록되어 있습니다. 모두 보려면 NO COST를 끄세요.",
   ["Nothing queued to cancel"] = "취소 대기열이 비었습니다",
   ["Nothing queued to post"] = "등록 대기열이 비었습니다",
   ["Nothing to remove"] = "삭제할 것이 없습니다",

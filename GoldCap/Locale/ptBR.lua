@@ -371,7 +371,21 @@ GC.Locales.ptBR = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Nenhum anúncio alcança o nível de item em que o preço de referência foi medido.",
   ["Nothing listed on the AH right now"] = "Nada anunciado na casa de leilões agora",
-  ["Nothing on this deck matches that search"] = "Nada nesta aba corresponde a essa busca",
+  ["Nothing to sell"] = "Nada para vender",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "Não há nada nas suas bolsas para anunciar. Compre na aba Deals ou pegue sua correspondência: tudo o que você pode vender aparece aqui com um preço pronto.",
+  ["No auctions up"] = "Nenhum leilão ativo",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "Este personagem não tem leilões ativos. O que você anunciar aparece aqui, com o que cancelar e o que deixar.",
+  ["No match"] = "Nenhum resultado",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Nada nesta aba corresponde a essa busca. Limpe o campo para ver tudo.",
+  ["Still pricing"] = "Consultando preços",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "A casa de leilões ainda está respondendo. Os itens aparecem aqui conforme os preços chegam.",
+  ["Every cost is known"] = "Todos os custos conhecidos",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Tudo nas suas bolsas já tem registrado quanto você pagou. Desative NO COST para ver tudo.",
   ["Nothing queued to cancel"] = "Nada na fila para cancelar",
   ["Nothing queued to post"] = "Nada na fila para anunciar",
   ["Nothing to remove"] = "Nada para apagar",

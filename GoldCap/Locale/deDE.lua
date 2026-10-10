@@ -371,7 +371,21 @@ GC.Locales.deDE = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Kein Angebot erreicht die Gegenstandsstufe, auf der der Referenzpreis gemessen wurde.",
   ["Nothing listed on the AH right now"] = "Derzeit nichts im Auktionshaus eingestellt",
-  ["Nothing on this deck matches that search"] = "Auf diesem Reiter passt nichts zu dieser Suche",
+  ["Nothing to sell"] = "Nichts zu verkaufen",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "In deinen Taschen ist nichts zum Einstellen. Kauf auf dem Deals-Tab oder hol deine Post ab: Alles, was du verkaufen kannst, erscheint hier mit fertigem Preis.",
+  ["No auctions up"] = "Keine Auktionen aktiv",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "Dieser Charakter hat keine laufenden Auktionen. Was du einstellst, erscheint hier, mit dem, was du abbrechen und was du stehen lassen solltest.",
+  ["No match"] = "Kein Treffer",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Auf diesem Reiter passt nichts zu dieser Suche. Leere das Feld, um alles zu sehen.",
+  ["Still pricing"] = "Preise kommen noch",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "Das Auktionshaus antwortet noch. Die Gegenstände erscheinen hier, sobald ihre Preise da sind.",
+  ["Every cost is known"] = "Alle Kosten bekannt",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Für alles in deinen Taschen ist schon erfasst, was du bezahlt hast. Schalte NO COST aus, um alles zu sehen.",
   ["Nothing queued to cancel"] = "Nichts zum Abbrechen in der Warteschlange",
   ["Nothing queued to post"] = "Nichts zum Einstellen in der Warteschlange",
   ["Nothing to remove"] = "Nichts zu löschen",

@@ -371,7 +371,21 @@ GC.Locales.frFR = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Aucune vente n'atteint le niveau d'objet sur lequel le prix de référence a été mesuré.",
   ["Nothing listed on the AH right now"] = "Rien en vente à l'hôtel des ventes pour l'instant",
-  ["Nothing on this deck matches that search"] = "Rien dans cet onglet ne correspond à cette recherche",
+  ["Nothing to sell"] = "Rien à vendre",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "Rien à mettre en vente dans tes sacs. Achète dans l'onglet Deals ou récupère ton courrier : tout ce que tu peux vendre apparaît ici avec un prix prêt.",
+  ["No auctions up"] = "Aucune enchère en cours",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "Aucune enchère active sur ce personnage. Ce que tu mets en vente apparaît ici, avec ce qu'il faut annuler et ce qu'il faut laisser.",
+  ["No match"] = "Aucun résultat",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Rien dans cet onglet ne correspond à cette recherche. Vide le champ pour tout voir.",
+  ["Still pricing"] = "Prix en cours",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "L'hôtel des ventes répond encore. Les objets apparaissent ici à mesure que leurs prix arrivent.",
+  ["Every cost is known"] = "Tous les coûts sont connus",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Pour tout ce qui est dans tes sacs, ce que tu as payé est déjà enregistré. Désactive NO COST pour tout voir.",
   ["Nothing queued to cancel"] = "Rien à annuler dans la file",
   ["Nothing queued to post"] = "Rien à mettre en vente dans la file",
   ["Nothing to remove"] = "Rien à supprimer",

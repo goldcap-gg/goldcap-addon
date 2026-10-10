@@ -165,7 +165,21 @@ GC.Locales.enUS = {
   ["Not enough gold on this character to buy what GoldCap finds"] = "Not enough gold on this character to buy what GoldCap finds",
   ["Nothing on the auction house beats what you wear at your level."] =
     "Nothing on the auction house beats what you wear at your level.",
-  ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
+  ["Nothing to sell"] = "Nothing to sell",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready.",
+  ["No auctions up"] = "No auctions up",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "No live auctions on this character. What you post shows up here, with what to cancel and what to leave.",
+  ["No match"] = "No match",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "Nothing on this deck matches that search. Clear the box to see everything.",
+  ["Still pricing"] = "Still pricing",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "The auction house is still answering. Items show up here as their prices arrive.",
+  ["Every cost is known"] = "Every cost is known",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Every item in your bags already has what you paid on record. Turn off NO COST to see them all.",
   ["Nothing on this list matches."] = "Nothing on this list matches.",
   ["Over cap"] = "Over cap",
   ["PRICE EACH"] = "PRICE EACH",
@@ -345,7 +359,6 @@ GC.Locales.enUS = {
   ["Enter an exact positive cost"] = "Enter an exact positive cost",
   ["Entry price (avg fill)"] = "Entry price (avg fill)",
   ["Entry total"] = "Entry total",
-  ["Every position in your bags already has a cost on record"] = "Every position in your bags already has a cost on record",
   ["FIFO allocations"] = "FIFO allocations",
   ["Fetching a fresh price for this item — press Post again in a moment"] = "Fetching a fresh price for this item — press Post again in a moment",
   ["Fetching a fresh price for this lot — press Repost again in a moment"] = "Fetching a fresh price for this lot — press Repost again in a moment",
@@ -452,7 +465,6 @@ GC.Locales.enUS = {
   ["No exact bag stack"] = "No exact bag stack",
   ["No exact bag variant"] = "No exact bag variant",
   ["No gear, pets or recipes under their region price right now."] = "No gear, pets or recipes under their region price right now.",
-  ["No live auctions on this character"] = "No live auctions on this character",
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "No region reference for this item yet — import again once goldcap.gg publishes one.",
@@ -464,9 +476,7 @@ GC.Locales.enUS = {
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Not on hand — the stock is in the mail, the bank, or on another character",
   ["Not worth the deposit on the AH"] = "Not worth the deposit on the AH",
-  ["Nothing in your bags to list"] = "Nothing in your bags to list",
   ["Nothing is being held back."] = "Nothing is being held back.",
-  ["Nothing is priced yet - the Auction House is still answering"] = "Nothing is priced yet - the Auction House is still answering",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nothing left to sell against after this buy, so there is no exit price.",
   ["Nothing listed matches the item level the reference price was measured on."] =

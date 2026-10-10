@@ -348,7 +348,21 @@ GC.Locales.zhTW = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "沒有掛單達到參考價格所對應的物品等級。",
   ["Nothing listed on the AH right now"] = "目前拍賣場上沒有上架",
-  ["Nothing on this deck matches that search"] = "此頁沒有符合該搜尋的內容",
+  ["Nothing to sell"] = "沒有可賣的物品",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "背包裡沒有可上架的物品。到 Deals 頁購買，或者收取郵件：所有可出售的物品都會帶著現成的價格顯示在這裡。",
+  ["No auctions up"] = "沒有在售的拍賣",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "這個角色沒有在售的拍賣。你上架的物品會顯示在這裡，並告訴你哪些該取消、哪些該保留。",
+  ["No match"] = "沒有符合項目",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "此頁沒有符合該搜尋的內容。清空搜尋框即可查看全部。",
+  ["Still pricing"] = "正在查價",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "拍賣場仍在回應。物品會隨著價格到達陸續顯示在這裡。",
+  ["Every cost is known"] = "成本皆已知",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "背包裡的每件物品都已記錄你支付的價格。關閉 NO COST 即可查看全部。",
   ["Nothing queued to cancel"] = "取消佇列是空的",
   ["Nothing queued to post"] = "上架佇列是空的",
   ["Nothing to remove"] = "沒有可刪除的",

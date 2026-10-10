@@ -358,7 +358,21 @@ GC.Locales.ruRU = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Ни один лот не дотягивает до уровня предмета, на котором измерена эталонная цена.",
   ["Nothing listed on the AH right now"] = "Сейчас на аукционе ничего не выставлено",
-  ["Nothing on this deck matches that search"] = "На этой вкладке ничего не подходит под поиск",
+  ["Nothing to sell"] = "Нечего продавать",
+  ["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."] =
+    "В сумках нечего выставить. Купите что-нибудь на вкладке DEALS или заберите почту: всё, что можно продать, появится здесь с готовой ценой.",
+  ["No auctions up"] = "Лотов нет",
+  ["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."] =
+    "У этого персонажа нет активных лотов. То, что вы выставите, появится здесь, с подсказкой, что снять, а что оставить.",
+  ["No match"] = "Ничего не найдено",
+  ["Nothing on this deck matches that search. Clear the box to see everything."] =
+    "На этой вкладке ничего не подходит под поиск. Очистите поле, чтобы увидеть всё.",
+  ["Still pricing"] = "Цены ещё идут",
+  ["The auction house is still answering. Items show up here as their prices arrive."] =
+    "Аукцион ещё отвечает. Предметы появятся здесь по мере того, как придут их цены.",
+  ["Every cost is known"] = "Себестоимость известна",
+  ["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."] =
+    "Для всего в сумках уже записано, сколько вы заплатили. Выключите БЕЗ ЧЕКА, чтобы увидеть всё.",
   ["Nothing queued to cancel"] = "В очереди на отмену ничего нет",
   ["Nothing queued to post"] = "В очереди на выставление ничего нет",
   ["Nothing to remove"] = "Нечего удалять",
@@ -1088,7 +1102,6 @@ GC.Locales.ruRU = {
   ["Cap: %d%%"] = "Потолок: %d%%",
   ["Commodities: reagents, consumables, gems and enchants the scan found under their region price. These are the rows a live check can approve for buying."] =
     "Товары: реагенты, расходники, самоцветы и чары, которые скан нашёл дешевле цены по региону. Только такие строки живая проверка может одобрить к покупке.",
-  ["Every position in your bags already has a cost on record"] = "У всего в сумках себестоимость уже известна",
   ["From goldcap.gg — manage it there"] = "С goldcap.gg — управляйте там",
   ["From goldcap.gg — remove it there"] = "С goldcap.gg — удаляйте там",
   ["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."] =
@@ -1113,9 +1126,6 @@ GC.Locales.ruRU = {
   ["NOW"] = "СЕЙЧАС",
   ["No gear, pets or recipes under their region price right now."] =
     "Сейчас нет снаряжения, питомцев или рецептов дешевле цены по региону.",
-  ["No live auctions on this character"] = "У этого персонажа нет активных лотов",
-  ["Nothing in your bags to list"] = "В сумках нечего выставить",
-  ["Nothing is priced yet - the Auction House is still answering"] = "Цен ещё нет — аукцион всё ещё отвечает",
   ["Nothing to watch on this board yet."] = "На этой доске пока нечего отслеживать.",
   ["PRICE / UNIT"] = "ЦЕНА / ШТ",
   ["READY"] = "ГОТОВО",

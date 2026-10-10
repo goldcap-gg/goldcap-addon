@@ -2806,8 +2806,10 @@ describe("Sell widget geometry and manual cost", function()
     it("says nothing is in bags or listed when the default filter has no positions at all", function()
       local GC = load(620, { calls = {} })
       local _, container = topRows(GC, {})
-      assert.is_true(container.emptyText:IsShown())
-      assert.equal("Nothing in your bags to list", container.emptyText:GetText())
+      assert.is_true(container.empty:IsShown())
+      assert.equal("NOTHING TO SELL", container.empty.title:GetText())
+      assert.equal("Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you"
+        .. " can sell shows up here with a price ready.", container.empty.line:GetText())
     end)
 
     -- Three emptinesses, three different next moves. The copy this replaced said "No items
@@ -2822,16 +2824,18 @@ describe("Sell widget geometry and manual cost", function()
       }
       local container = GC.SellUI.container
       container.filterButtons.ready.scripts.OnClick()
-      assert.is_true(container.emptyText:IsShown())
-      assert.equal("Nothing is priced yet - the Auction House is still answering",
-        container.emptyText:GetText())
+      assert.is_true(container.empty:IsShown())
+      assert.equal("STILL PRICING", container.empty.title:GetText())
+      assert.equal("The auction house is still answering. Items show up here as their prices arrive.",
+        container.empty.line:GetText())
 
       -- Same deck, same stock, the other chip: this one is about the cost basis, and saying so
       -- is what stops a player hunting for stock that is right there.
       container.filterButtons.ready.scripts.OnClick()
       container.filterButtons.nocost.scripts.OnClick()
-      assert.equal("Every position in your bags already has a cost on record",
-        container.emptyText:GetText())
+      assert.equal("EVERY COST IS KNOWN", container.empty.title:GetText())
+      assert.equal("Every item in your bags already has what you paid on record. Turn off NO COST to see"
+        .. " them all.", container.empty.line:GetText())
     end)
 
     it("says the OTHER deck holds everything rather than claiming nothing exists", function()
@@ -2843,8 +2847,10 @@ describe("Sell widget geometry and manual cost", function()
       }
       local container = GC.SellUI.container
       container.deckButtons.listed.scripts.OnClick()
-      assert.is_true(container.emptyText:IsShown())
-      assert.equal("No live auctions on this character", container.emptyText:GetText())
+      assert.is_true(container.empty:IsShown())
+      assert.equal("NO AUCTIONS UP", container.empty.title:GetText())
+      assert.equal("No live auctions on this character. What you post shows up here, with what to cancel"
+        .. " and what to leave.", container.empty.line:GetText())
     end)
 
     it("hides once a render produces at least one row", function()
@@ -2854,7 +2860,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {} },
       })
-      assert.is_false(container.emptyText:IsShown())
+      assert.is_false(container.empty:IsShown())
     end)
   end)
 
@@ -3299,8 +3305,10 @@ describe("Sell widget geometry and manual cost", function()
       local rows, container = topRows(GC, { p(1, "Arcanoweave") })
       type_(container, "zzz")
       assert.same({}, names(rows))
-      assert.is_true(container.emptyText.shown)
-      assert.equal("Nothing on this deck matches that search", container.emptyText.text)
+      assert.is_true(container.empty.shown)
+      assert.equal("NO MATCH", container.empty.title.text)
+      assert.equal("Nothing on this deck matches that search. Clear the box to see everything.",
+        container.empty.line.text)
       container.search.scripts.OnEscapePressed(container.search)
       assert.equal("", container.search.text)
       assert.same({ "Arcanoweave" }, names(rows))
