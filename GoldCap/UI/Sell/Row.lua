@@ -69,6 +69,13 @@ function ROW.markTooltip(owner, row)
   if not GameTooltip then return end
   local selling, position = row.markSelling == true, row.position
   GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
+  if row.markDone then
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Done for this visit"]), 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["POST passes it by until you close the auction house. Click to have POST list it again."]),
+      0.85, 0.85, 0.85, true)
+    GameTooltip:Show()
+    return
+  end
   GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), 1, 0.82, 0)
   GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["POST lists it, and so does the key for posting the next item."]
     or GC.L["POST passes it by. Click the item to post it from the bar below."]), 0.85, 0.85, 0.85, true)
@@ -81,14 +88,17 @@ function ROW.markTooltip(owner, row)
 end
 
 -- The selling mark's look: a gold coin in a gold ring when POST lists the row, an empty dim ring
--- when POST passes it by.
-function ROW.paintMark(row, selling)
-  row.markSelling = selling
-  local ring = selling and Theme.color.gold or Theme.color.fgDim
-  row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], selling and 0.9 or 0.6)
+-- when POST passes it by. `done`: an item of the list that SKIP or a post took off POST's walk
+-- for this visit (GC.Sell.DoneThisVisit) wears the empty ring too, until the auction house is
+-- closed (owner, 2026-10-10: after SKIP the mark stayed lit and nothing looked changed).
+function ROW.paintMark(row, selling, done)
+  row.markSelling, row.markDone = selling, (selling and done) or nil
+  local lit = selling and not done
+  local ring = lit and Theme.color.gold or Theme.color.fgDim
+  row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], lit and 0.9 or 0.6)
   local coin = Theme.color.gold
   row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
-  if selling then row.mark.coin:Show() else row.mark.coin:Hide() end
+  if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
 end
 
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
@@ -228,14 +238,26 @@ local function createRow(parent)
   row.mark.coin:SetTexture(Theme.MEDIA .. "badge.png")
   row.mark.coin:SetSize(8, 8)
   row.mark.coin:SetPoint("CENTER")
-  row.mark:SetScript("OnClick", function()
+  row.mark:SetScript("OnClick", function(self)
     local position = row.position
     if not (position and type(position.positionKey) == "string") then return end
     Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no", as a row's does
-    local selling = not GC.Sell.IsSelling(position)
-    GC.Sell.SetSelling(position.positionKey, selling)
+    local key = position.positionKey
+    local selling = GC.Sell.IsSelling(position)
+    if selling and GC.Sell.DoneThisVisit(key) then
+      -- The empty ring of an item done for this visit: back on POST's walk, the saved mark as it was.
+      GC.Sell.BackOnWalk(key)
+    else
+      selling = not selling
+      GC.Sell.SetSelling(key, selling)
+    end
     -- Painted here too: a post already on the wire holds every render back until it is answered.
-    ROW.paintMark(row, selling)
+    -- Only while this pooled row still shows the item clicked: a render that ran has put the next
+    -- item on it, painted from the saved marks (owner, 2026-10-10: the item below the one taken
+    -- off the list lost its coin until the list was drawn again).
+    if row.position and row.position.positionKey == key then ROW.paintMark(row, selling, false) end
+    -- The tooltip still up is about the row under the pointer, which may be another item now.
+    if GameTooltip and GameTooltip:GetOwner() == self then ROW.markTooltip(self, row) end
   end)
   row.mark:SetScript("OnEnter", function(self) ROW.markTooltip(self, row) end)
   row.mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -873,7 +895,7 @@ function Row.Style(row, entry, listIndex)
     -- so the names line up under ITEM whether this row has a mark to draw or not.
     local markW = entry.markRoom and ROW.MARK_W or 0
     if entry.selling ~= nil then
-      ROW.paintMark(row, entry.selling)
+      ROW.paintMark(row, entry.selling, entry.done)
       row.mark:Show()
     end
     row.icon:ClearAllPoints()

@@ -1261,6 +1261,9 @@ GC.Locales.esES = {
   ["POST passes it by. Click the item to post it from the bar below."] = "PUBLICAR lo salta. Haz clic en el objeto para publicarlo desde la barra de abajo.",
   ["Marked for you: you bought it on DEALS."] = "Marcado automáticamente: lo compraste en DEALS.",
   ["Click to change."] = "Haz clic para cambiar.",
+  ["Done for this visit"] = "Listo por esta visita",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "PUBLICAR lo salta hasta que cierres la casa de subastas. Haz clic para que PUBLICAR vuelva a publicarlo.",
   ["Mark what to sell with the circle"] = "Marca con el círculo lo que quieres vender",
   ["PROCEEDS"] = "INGRESOS",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Lo que te deja todo lo que PUBLICAR publica si se vende a estos precios, tras el 5 % de comisión de la casa de subastas.",

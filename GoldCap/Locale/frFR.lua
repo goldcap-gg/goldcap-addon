@@ -1260,6 +1260,9 @@ GC.Locales.frFR = {
   ["POST passes it by. Click the item to post it from the bar below."] = "VENDRE le passe. Clique sur l'objet pour le vendre depuis la barre du bas.",
   ["Marked for you: you bought it on DEALS."] = "Marqué pour toi : tu l'as acheté dans DEALS.",
   ["Click to change."] = "Clique pour changer.",
+  ["Done for this visit"] = "Fait pour cette visite",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "VENDRE le passe jusqu'à ce que tu fermes l'hôtel des ventes. Clique pour que VENDRE le remette en vente.",
   ["Mark what to sell with the circle"] = "Marque d'un cercle ce que tu veux vendre",
   ["PROCEEDS"] = "RECETTE",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Ce que te rapporte tout ce que VENDRE met en vente si tout part à ces prix, après les 5 % de commission de l'hôtel des ventes.",

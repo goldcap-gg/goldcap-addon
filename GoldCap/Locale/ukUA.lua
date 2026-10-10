@@ -1333,6 +1333,9 @@ GC.Locales.ukUA = {
   ["POST passes it by. Click the item to post it from the bar below."] = "ВИСТАВИТИ його пропускає. Клацніть по предмету, щоб виставити його з панелі внизу.",
   ["Marked for you: you bought it on DEALS."] = "Позначено саме: ви купили це на вкладці DEALS.",
   ["Click to change."] = "Клацніть, щоб змінити.",
+  ["Done for this visit"] = "На цей захід готово",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "ВИСТАВИТИ пропускає його, доки ви не закриєте аукціон. Клацніть, щоб ВИСТАВИТИ знову його виставляв.",
   ["Mark what to sell with the circle"] = "Позначте кружком, що продавати",
   ["PROCEEDS"] = "ВИРУЧКА",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Скільки принесе все, що виставить ВИСТАВИТИ, якщо продасться за цими цінами, за вирахуванням 5% комісії аукціону.",

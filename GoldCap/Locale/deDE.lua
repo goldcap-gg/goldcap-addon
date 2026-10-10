@@ -1259,6 +1259,9 @@ GC.Locales.deDE = {
   ["POST passes it by. Click the item to post it from the bar below."] = "EINSTELLEN lässt es aus. Klicke auf den Gegenstand, um ihn unten in der Leiste einzustellen.",
   ["Marked for you: you bought it on DEALS."] = "Für dich markiert: du hast es unter DEALS gekauft.",
   ["Click to change."] = "Klicken zum Ändern.",
+  ["Done for this visit"] = "Für diesen Besuch erledigt",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "EINSTELLEN lässt es aus, bis du das Auktionshaus schließt. Klicke, damit EINSTELLEN es wieder einstellt.",
   ["Mark what to sell with the circle"] = "Markiere mit dem Kreis, was du verkaufen willst",
   ["PROCEEDS"] = "ERLÖS",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Was alles, was EINSTELLEN einstellt, zu diesen Preisen einbringt, nach der Gebühr des Auktionshauses von 5 %.",

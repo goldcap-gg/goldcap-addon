@@ -1245,6 +1245,9 @@ GC.Locales.enUS = {
   ["POST passes it by. Click the item to post it from the bar below."] = "POST passes it by. Click the item to post it from the bar below.",
   ["Marked for you: you bought it on DEALS."] = "Marked for you: you bought it on DEALS.",
   ["Click to change."] = "Click to change.",
+  ["Done for this visit"] = "Done for this visit",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "POST passes it by until you close the auction house. Click to have POST list it again.",
   ["Mark what to sell with the circle"] = "Mark what to sell with the circle",
   ["PROCEEDS"] = "PROCEEDS",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut.",

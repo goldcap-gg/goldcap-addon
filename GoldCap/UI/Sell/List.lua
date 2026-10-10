@@ -544,11 +544,12 @@ local function renderRows()
   local function pushPosition(position)
     -- `selling` is the row's selling mark, true or false; nil where there is none to draw.
     -- `markRoom`: the deck has marks, so every row's name starts after one, drawn or not.
-    local selling
+    local selling, done
     if sellingList and not position.unresolved and type(position.positionKey) == "string" then
       selling = GC.Sell.IsSelling(position)
+      done = selling and GC.Sell.DoneThisVisit(position.positionKey)
     end
-    entries[#entries + 1] = { kind = "position", position = position, selling = selling,
+    entries[#entries + 1] = { kind = "position", position = position, selling = selling, done = done,
       markRoom = sellingList }
     -- Cached here for every position this render pushes, not only an expanded one: the row's own
     -- Post button (Row.PaintPosition in UI/Sell/Row.lua, "bagQty > 0 and not onListed") is live

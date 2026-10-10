@@ -639,6 +639,69 @@ describe("Sell tab, the posting queue control", function()
       assert.equal("Nothing queued to post", container.queueLabel.text)
     end)
 
+    local function positionsDrawn()
+      local out = {}
+      for _, text in ipairs(drawn()) do
+        if text:find("commodity:", 1, true) == 1 then out[#out + 1] = text end
+      end
+      return out
+    end
+
+    -- The owner, 2026-10-10: two items marked, the first taken off the list, and the second one's
+    -- coin went out until the list was drawn again. The rows are pooled: the click painted the
+    -- row it came from after the render had already put the second item on it.
+    it("leaves the next item's coin lit when the item above it comes off the list", function()
+      GC.db.sellMarks["commodity:23427"] = true
+      GC.db.sellMarks["commodity:99001"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      local order = positionsDrawn()
+      local first = rowOf(order[1])
+      first.mark.scripts.OnClick(first.mark)
+      assert.is_false(GC.db.sellMarks[order[1]])
+      assert.equal(first, rowOf(order[2])) -- the same pooled row, the second item on it now
+      assert.is_true(first.mark.coin.shown)
+      assert.is_true(first.markSelling)
+    end)
+
+    -- The owner, 2026-10-10: after SKIP the mark stayed lit and nothing on the row looked changed.
+    it("puts out a skipped item's coin for this visit, and a click on it puts it back on the walk", function()
+      GC.db.sellMarks["commodity:23427"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      assert.equal("Eternium Ore", container.queueLabel.text)
+      container.skipButton.scripts.OnClick(container.skipButton)
+      local ore = rowOf("commodity:23427")
+      assert.is_false(ore.mark.coin.shown)
+      assert.is_true(ore.markDone)
+      assert.is_true(GC.db.sellMarks["commodity:23427"]) -- the saved mark is as it was
+      assert.equal("Nothing queued to post", container.queueLabel.text)
+      local lines = {}
+      _G.GameTooltip = { SetOwner = function() end, Show = function() end, GetOwner = function() end,
+        AddLine = function(_, text) lines[#lines + 1] = text end }
+      GC.Theme.TooltipAnchor = function() return "ANCHOR_RIGHT" end
+      ore.mark.scripts.OnEnter(ore.mark)
+      assert.equal("Done for this visit", lines[1])
+      ore.mark.scripts.OnClick(ore.mark)
+      _G.GameTooltip = nil
+      ore = rowOf("commodity:23427")
+      assert.is_true(ore.mark.coin.shown)
+      assert.is_nil(ore.markDone)
+      assert.is_true(GC.db.sellMarks["commodity:23427"])
+      assert.equal("Eternium Ore", container.queueLabel.text)
+    end)
+
+    it("puts an item on the walk when it is marked, whatever this visit did with it before", function()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      GC.SellState.passedThisVisit["commodity:23427"] = true
+      local ore = rowOf("commodity:23427")
+      ore.mark.scripts.OnClick(ore.mark)
+      assert.is_true(GC.db.sellMarks["commodity:23427"])
+      assert.is_true(rowOf("commodity:23427").mark.coin.shown)
+      assert.equal("Eternium Ore", container.queueLabel.text)
+    end)
+
     -- Finding 6: a row whose identity is not settled is never POST's to list.
     it("keeps a row whose identity is not settled out of SELLING, whatever Deals bought", function()
       local repair = { unresolved = true, sources = { goldcap = 3 }, bagQty = 3 }

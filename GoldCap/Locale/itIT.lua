@@ -1258,6 +1258,9 @@ GC.Locales.itIT = {
   ["POST passes it by. Click the item to post it from the bar below."] = "VENDI lo salta. Clicca sull'oggetto per venderlo dalla barra in basso.",
   ["Marked for you: you bought it on DEALS."] = "Segnato per te: l'hai comprato in DEALS.",
   ["Click to change."] = "Clicca per cambiare.",
+  ["Done for this visit"] = "Fatto per questa visita",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "VENDI lo salta finché non chiudi la casa d'aste. Clicca perché VENDI lo metta di nuovo in vendita.",
   ["Mark what to sell with the circle"] = "Segna con il cerchio cosa vuoi vendere",
   ["PROCEEDS"] = "RICAVO",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Quanto ti rende tutto ciò che VENDI mette in vendita se si vende a questi prezzi, dopo il 5% di commissione della casa d'aste.",

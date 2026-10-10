@@ -1191,6 +1191,9 @@ GC.Locales.koKR = {
   ["POST passes it by. Click the item to post it from the bar below."] = "등록은 이 아이템을 건너뜁니다. 아이템을 클릭하면 아래 막대에서 등록할 수 있습니다.",
   ["Marked for you: you bought it on DEALS."] = "자동 표시: DEALS에서 구입한 아이템입니다.",
   ["Click to change."] = "클릭하여 변경합니다.",
+  ["Done for this visit"] = "이번 방문에서는 완료",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "경매장을 닫을 때까지 등록은 이 아이템을 건너뜁니다. 클릭하면 등록이 다시 이 아이템을 등록합니다.",
   ["Mark what to sell with the circle"] = "판매할 아이템을 동그라미로 표시하세요",
   ["PROCEEDS"] = "판매 대금",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "등록 버튼으로 등록할 모든 아이템이 이 가격에 팔렸을 때 경매장 수수료 5%를 빼고 받는 금액입니다.",

@@ -1332,6 +1332,9 @@ GC.Locales.ruRU = {
   ["POST passes it by. Click the item to post it from the bar below."] = "ВЫСТАВИТЬ его пропускает. Щёлкните по предмету, чтобы выставить его из панели внизу.",
   ["Marked for you: you bought it on DEALS."] = "Отмечено само: вы купили это на вкладке DEALS.",
   ["Click to change."] = "Щёлкните, чтобы изменить.",
+  ["Done for this visit"] = "На этот заход готово",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "ВЫСТАВИТЬ пропускает его, пока вы не закроете аукцион. Щёлкните, чтобы ВЫСТАВИТЬ снова его выставлял.",
   ["Mark what to sell with the circle"] = "Отметьте кружком, что продавать",
   ["PROCEEDS"] = "ВЫРУЧКА",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Сколько принесёт всё, что выставит ВЫСТАВИТЬ, если продастся по этим ценам, за вычетом 5% комиссии аукциона.",

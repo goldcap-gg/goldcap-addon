@@ -1163,6 +1163,9 @@ GC.Locales.zhCN = {
   ["POST passes it by. Click the item to post it from the bar below."] = "上架会跳过它。点击该物品，即可在下方栏中上架。",
   ["Marked for you: you bought it on DEALS."] = "已自动标记：你在 DEALS 买入了它。",
   ["Click to change."] = "点击更改。",
+  ["Done for this visit"] = "本次已处理",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "关闭拍卖行之前，上架会跳过它。点击后，上架会重新上架它。",
   ["Mark what to sell with the circle"] = "用圆圈标记要出售的物品",
   ["PROCEEDS"] = "收入",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "上架按钮要上架的全部物品按这些价格售出后，扣除拍卖行 5% 手续费你能拿到的金额。",

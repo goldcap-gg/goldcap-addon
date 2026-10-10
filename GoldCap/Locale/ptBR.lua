@@ -1256,6 +1256,9 @@ GC.Locales.ptBR = {
   ["POST passes it by. Click the item to post it from the bar below."] = "ANUNCIAR pula este item. Clique no item para anunciá-lo pela barra abaixo.",
   ["Marked for you: you bought it on DEALS."] = "Marcado para você: você comprou em DEALS.",
   ["Click to change."] = "Clique para mudar.",
+  ["Done for this visit"] = "Feito nesta visita",
+  ["POST passes it by until you close the auction house. Click to have POST list it again."] =
+    "ANUNCIAR pula este item até você fechar a casa de leilões. Clique para que ANUNCIAR volte a anunciá-lo.",
   ["Mark what to sell with the circle"] = "Marque com o círculo o que quer vender",
   ["PROCEEDS"] = "RECEITA",
   ["What everything POST lists brings in if it sells at these prices, after the auction house's 5% cut."] = "Quanto rende tudo o que ANUNCIAR anuncia se vender a estes preços, depois da taxa de 5% da casa de leilões.",
