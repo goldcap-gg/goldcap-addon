@@ -22,8 +22,6 @@ local PostPanel, DOCK = UI.PostPanel, UI.DOCK
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
 local priceText, priceBoxCopper = UI.fmt.priceText, UI.fmt.priceBoxCopper
 
-local QTY_OF_W = 56
-
 -- A sunken well with a bare EditBox in it: the look the item panel's price box had.
 local function well(container, width)
   local bg = CreateFrame("Frame", nil, container)
@@ -125,7 +123,7 @@ end
 local function unreadablePrice(box)
   local text = box:GetText() or ""
   if text:match("^%s*$") or priceBoxCopper(box) then return false end
-  UI.Dock.SetStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
+  UI.Dock.Answer(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
   return true
 end
 
@@ -149,36 +147,72 @@ local function applyQuantity(box, key, settled)
   setQuantity(key, n, settled)
 end
 
--- The item tier's top `height` over the dock's two tiers: icon and name hang from it, top points
--- only, so a wrapped name pushes its stock line down rather than over it.
-local function placeItem(c, height)
-  local top = DOCK.H + height - 2
-  c.dockIcon:ClearAllPoints()
-  c.dockIcon:SetPoint("TOPLEFT", c, "BOTTOMLEFT", DOCK.PAD, top)
-  c.queueLabel:ClearAllPoints()
-  c.queueLabel:SetPoint("TOPLEFT", c, "BOTTOMLEFT", DOCK.PAD + DOCK.ICON + 8, top + 1)
-  c.queueLabel:SetPoint("TOPRIGHT", c, "BOTTOMRIGHT", -DOCK.PAD, top + 1)
+-- How far from the dock's right edge the item's words stop: the controls right to left from POST,
+-- as Build and Layout chain them, and DOCK.GAP. Read off the widths the client measured (POST and
+-- SKIP fit their words), so the name keeps whatever the player's language leaves it.
+local function controlsWidth(c)
+  -- Off the client (busted) a button double may not answer GetWidth: its narrowest, then.
+  local function width(button, least) return button.GetWidth and button:GetWidth() or least end
+  local w = DOCK.PAD + width(c.queueButton, DOCK.POST_W)
+  if c.skipButton:IsShown() then
+    w = w + 8 + width(c.skipButton, DOCK.SKIP_W)
+    if c.netValue:IsShown() then w = w + 16 + DOCK.NET_W end
+    w = w + 16 + DOCK.PRICE_W
+    if c.qtyBoxBg:IsShown() then w = w + 14 + DOCK.MAX_W + 4 + DOCK.QTY_W end
+  end
+  return w + DOCK.GAP
 end
 
--- The item tier's height for what it says now, and the dock with it (UI.Dock.SetHeight): the name
--- and the line under it as tall as they wrap, never shorter than the icon's own room.
+-- The item's icon, its name and the line under it -- the stock line, or the player's own post's
+-- news in its place -- left of the controls and centred on the dock, which grows when they wrap
+-- past its height (UI.Dock.SetHeight). Top points only, so a wrapped name pushes the line under
+-- it down rather than over it. Run after the controls are shown or hidden: they set the width.
 local function fitItem(c)
-  local height = DOCK.ITEM_H
+  local right = controlsWidth(c)
+  local x = DOCK.PAD + (c.dockIcon:IsShown() and DOCK.ICON + 8 or 0)
+  local function place(top)
+    c.queueLabel:ClearAllPoints()
+    c.queueLabel:SetPoint("TOPLEFT", c, "BOTTOMLEFT", x, top)
+    c.queueLabel:SetPoint("TOPRIGHT", c, "BOTTOMRIGHT", -right, top)
+  end
+  place(DOCK.H)
+  for _, line in ipairs({ c.dockSub, c.dockStatus }) do
+    line:ClearAllPoints()
+    line:SetPoint("TOPLEFT", c.queueLabel, "BOTTOMLEFT", 0, -2)
+    line:SetPoint("TOPRIGHT", c.queueLabel, "BOTTOMRIGHT", 0, -2)
+  end
+  local under = c.dockStatus:IsShown() and c.dockStatus or c.dockSub:IsShown() and c.dockSub or nil
+  local h = 26 -- a name and a line under it, where the face cannot be measured
   if c.queueLabel.GetStringHeight then
     c.queueLabel:SetText(c.queueLabel:GetText() or "") -- laid out at this width (Book.Layout)
-    local h = c.queueLabel:GetStringHeight() or 0
-    if c.dockSub:IsShown() then
-      c.dockSub:SetText(c.dockSub:GetText() or "")
-      h = h + 2 + (c.dockSub:GetStringHeight() or 0)
+    h = c.queueLabel:GetStringHeight() or 0
+    if under then
+      under:SetText(under:GetText() or "")
+      h = h + 2 + (under:GetStringHeight() or 0)
     end
-    height = math.max(height, math.ceil(h + 4))
   end
-  placeItem(c, height)
-  UI.Dock.SetHeight(DOCK.H + height)
+  h = math.ceil(h)
+  local height = math.max(DOCK.H, h + 2 * DOCK.PAD)
+  local mid = height / 2
+  place(math.floor(mid + h / 2))
+  c.dockIcon:ClearAllPoints()
+  c.dockIcon:SetPoint("LEFT", c, "BOTTOMLEFT", DOCK.PAD, mid)
+  UI.Dock.SetHeight(height)
 end
 
--- The upper tier, right to left from POST (built by UI/Sell/Dock.lua): SKIP, what the post
--- fetches, the price and how many; the item itself in its own tier over them.
+-- The player's own post's news under the item's name, in the stock line's place, for as long as
+-- there is any (GC.Sell._PaintDock wrote it); the walk's words stay in the toolbar's line.
+local function placeNews(c, item)
+  if GC.Sell._postNote then
+    c.dockStatus:Show(); c.dockSub:Hide()
+  else
+    c.dockStatus:Hide()
+    if item then c.dockSub:Show() end
+  end
+end
+
+-- The posting row, right to left from POST (built by UI/Sell/Dock.lua): SKIP, what the post
+-- fetches, the price and how many; the item itself left of them (fitItem).
 function PostPanel.Build()
   local c = UI.container
 
@@ -186,6 +220,8 @@ function PostPanel.Build()
   skip:SetSize(DOCK.SKIP_W, DOCK.BUTTON_H)
   skip:SetPoint("RIGHT", c.queueButton, "LEFT", -8, 0)
   skip:SetLabel(GC.L["SKIP"])
+  local function fitSkip() skip:FitLabels({ GC.L["SKIP"] }, DOCK.SKIP_W) end
+  if skip.FitLabels and Theme.OnRescale then fitSkip(); Theme.OnRescale(fitSkip) end
   skip:SetScript("OnClick", function()
     local key = PostPanel.key
     if not key then return end
@@ -219,31 +255,25 @@ function PostPanel.Build()
 
   c.qtyMax = Theme.Button(c, "ghost", "badge")
   c.qtyMax:SetSize(DOCK.MAX_W, 22)
-  c.qtyMax:SetPoint("RIGHT", c.priceBoxBg, "LEFT", -16, 0)
+  c.qtyMax:SetPoint("RIGHT", c.priceBoxBg, "LEFT", -14, 0)
   c.qtyMax:SetScript("OnClick", function()
     local key = PostPanel.key
     if not key then return end
     letGo(c.qtyBox)
     setQuantity(key, nil, true)
   end)
-  -- "of 246": a column at least QTY_OF_W wide, so the box beside it does not shift as the count
-  -- grows a digit, and wider when the words need it ("sur 99999" is 70px).
-  c.qtyOf = Theme.Num(c, 10)
-  c.qtyOf:SetWidth(QTY_OF_W); c.qtyOf:SetJustifyH("LEFT"); c.qtyOf:SetWordWrap(false)
-  c.qtyOf:SetPoint("RIGHT", c.qtyMax, "LEFT", -6, 0)
-  setColor(c.qtyOf, Theme.color.fgDim)
+  -- How many there are is the stock line's "×246 in bags"; MAX sets all of them.
   c.qtyBoxBg, c.qtyBox = well(c, DOCK.QTY_W)
   if c.qtyBox.SetNumeric then c.qtyBox:SetNumeric(true) end
   if c.qtyBox.SetMaxLetters then c.qtyBox:SetMaxLetters(6) end
-  c.qtyBoxBg:SetPoint("RIGHT", c.qtyOf, "LEFT", -2, 0)
+  c.qtyBoxBg:SetPoint("RIGHT", c.qtyMax, "LEFT", -4, 0)
   bind(c.qtyBox, "quantityOverrides", applyQuantity)
   c.qtyHead = Theme.Num(c, 9)
   c.qtyHead:SetPoint("BOTTOMLEFT", c.qtyBoxBg, "TOPLEFT", 0, 3)
 
-  -- The item tier, over the controls: the item's icon, its name, and under it how many are in the
-  -- bags and what comes after it -- or, when the price is under what it cost, that, in red. The
-  -- dock's whole width is theirs, and both wrap with the tier growing to hold them (Paint): beside
-  -- the controls the name had 2px at the default window (owner, 2026-10-10).
+  -- The item, left of the controls: its icon, its name, and under it how many are in the bags and
+  -- what comes after it -- or, when the price is under what it cost, that, in red. Both wrap, and
+  -- the dock grows to hold them (fitItem): nothing here ends in "…".
   c.dockIcon = c:CreateTexture(nil, "ARTWORK")
   c.dockIcon:SetSize(DOCK.ICON, DOCK.ICON)
   c.dockIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
@@ -251,14 +281,11 @@ function PostPanel.Build()
   c.queueLabel:SetJustifyH("LEFT"); c.queueLabel:SetWordWrap(true)
   c.dockSub = Theme.Num(c, 9)
   c.dockSub:SetJustifyH("LEFT"); c.dockSub:SetWordWrap(true)
-  c.dockSub:SetPoint("TOPLEFT", c.queueLabel, "BOTTOMLEFT", 0, -2)
-  c.dockSub:SetPoint("TOPRIGHT", c.queueLabel, "BOTTOMRIGHT", 0, -2)
-  placeItem(c, DOCK.ITEM_H)
   PostPanel.Layout()
 end
 
--- Re-run on every resize: under DOCK.WIDE the upper tier drops YOU GET and the price moves up
--- against SKIP.
+-- Re-run on every resize: under DOCK.WIDE the row drops YOU GET and the price moves up against
+-- SKIP.
 function PostPanel.Layout()
   local c = UI.container
   if not (c and c.priceBoxBg) then return end
@@ -269,7 +296,7 @@ function PostPanel.Layout()
   c.priceBoxBg:SetPoint("RIGHT", PostPanel.wide and c.netValue or c.skipButton, "LEFT", -16, 0)
 end
 
-local ITEM_WIDGETS = { "dockIcon", "dockSub", "qtyHead", "qtyBoxBg", "qtyOf", "qtyMax", "priceHead",
+local ITEM_WIDGETS = { "dockIcon", "dockSub", "qtyHead", "qtyBoxBg", "qtyMax", "priceHead",
   "priceBoxBg", "netHead", "netValue", "skipButton" }
 
 local function hideItem(c)
@@ -292,18 +319,20 @@ local function stamp(box, key, text)
   box:SetText(text)
 end
 
--- Off the posting deck the upper tier is the cancel queue's.
+-- Off the posting deck the row is the cancel queue's, and the status line is its own again
+-- (UI.Dock.LayoutLedger places it).
 function PostPanel.Hide()
   local c = UI.container
   if not (c and c.dockIcon) then return end
   hideItem(c)
   letGo(c.priceBox); letGo(c.qtyBox)
   c.queueLabel:Hide()
+  c.dockStatus:Show()
   PostPanel.position, PostPanel.key = nil, nil
-  UI.Dock.SetHeight(DOCK.H) -- no item tier off the posting deck
+  UI.Dock.SetHeight(DOCK.H)
 end
 
---- Paints the upper tier for `row`, the dock's item (UI.Dock.Current), with `nextRow` the one
+--- Paints the posting row for `row`, the dock's item (UI.Dock.Current), with `nextRow` the one
 -- after it; `hint` is what to say when there is no item. Also lights the item's row: the gold
 -- edge says this is what POST posts.
 function PostPanel.Paint(row, nextRow, hint)
@@ -322,6 +351,7 @@ function PostPanel.Paint(row, nextRow, hint)
     c.queueLabel:SetText(hint or "")
     setColor(c.queueLabel, Theme.color.fgDim)
     c.queueLabel:Show()
+    placeNews(c, false)
     fitItem(c)
     return
   end
@@ -356,8 +386,7 @@ function PostPanel.Paint(row, nextRow, hint)
     c.dockSub:SetText(line)
     setColor(c.dockSub, Theme.color.fgDim)
   end
-  c.dockSub:Show()
-  fitItem(c)
+  placeNews(c, true)
 
   -- How many, only when there is more than one to choose from.
   local qty, most, typed = postQuantity(p)
@@ -368,16 +397,13 @@ function PostPanel.Paint(row, nextRow, hint)
     local gc = Theme.color.gold
     if typed then c.qtyBoxBg.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.7)
     else c.qtyBoxBg.ring:SetVertexColor(1, 1, 1, 0.14) end
-    c.qtyOf:SetText((GC.L["of %d"]):format(most))
-    local need = c.qtyOf.GetUnboundedStringWidth and c.qtyOf:GetUnboundedStringWidth() or 0
-    c.qtyOf:SetWidth(math.max(QTY_OF_W, math.ceil(need) + 2))
     c.qtyMax:SetLabel(GC.L["MAX"])
     -- Lit while it is all of it: a switch with a position. SetVariant before Show, as the kit asks.
     if c.qtyMax.SetVariant then c.qtyMax:SetVariant(typed and "ghost" or "active") end
-    c.qtyHead:Show(); c.qtyBoxBg:Show(); c.qtyOf:Show(); c.qtyMax:Show()
+    c.qtyHead:Show(); c.qtyBoxBg:Show(); c.qtyMax:Show()
   else
     letGo(c.qtyBox)
-    c.qtyHead:Hide(); c.qtyBoxBg:Hide(); c.qtyOf:Hide(); c.qtyMax:Hide()
+    c.qtyHead:Hide(); c.qtyBoxBg:Hide(); c.qtyMax:Hide()
   end
 
   -- The price: gold once it is the seller's own, red under cost or the floor, quiet while it is
@@ -405,4 +431,5 @@ function PostPanel.Paint(row, nextRow, hint)
     and (out.postStage == "posting" or out.postStage == "confirming")
   c.skipButton:Show()
   if sending then c.skipButton:Disable() else c.skipButton:Enable() end
+  fitItem(c)
 end

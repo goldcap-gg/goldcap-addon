@@ -46,6 +46,19 @@ describe("kit button", function()
     assert.equal("Post", W.state(b.text).text)
   end)
 
+  -- The Sell dock's POST and SKIP (owner, 2026-10-10): as wide as their words, one width through
+  -- every word the button takes, the spinner's room on the busy one.
+  it("fits the widest of its labels, the spinner's room on the busy one, never under its least", function()
+    local b = button("primary", "plaque")
+    b.text.GetUnboundedStringWidth = function() return #W.state(b.text).text * 7 end
+    b:SetLabel("POST")
+    b:FitLabels({ "POST", "POSTING…", "CONFIRM" }, 40, "POSTING…")
+    assert.equal(10 * 7 + 15 + 24, b:GetWidth()) -- "POSTING…" is ten bytes, the ring, 12 a side
+    assert.equal("POST", W.state(b.text).text) -- the label it carries is drawn again
+    b:FitLabels({ "OK" }, 72)
+    assert.equal(72, b:GetWidth())
+  end)
+
   it("glows only while primary and enabled", function()
     local b = button("primary", "plaque")
     assert.is_true(W.state(b.glow).shown)

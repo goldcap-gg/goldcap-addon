@@ -305,7 +305,7 @@ local function createRow(parent)
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
-    elseif GameTooltip and (self.kind == "group" or self.kind == "batch")
+    elseif GameTooltip and (self.kind == "group" or self.kind == "batch" or self.kind == "section")
         and self.groupHint and self.groupHint ~= "" then
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       -- A fact a line. The sentence is a run of facts joined by one separator, and wrapped as
@@ -797,6 +797,7 @@ function Row.PaintHeading(row, entry)
     row.action:Hide()
   elseif entry.kind == "section" then
     row.sectionLabel:SetText(ROW.sectionText(entry.section))
+    row.groupHint = entry.section.id == "selling" and UI.Dock.HeldBackHint() or nil -- the hover's facts
     row.action:Hide()
   else
     local title, aside = ROW.waitText(entry)
@@ -849,20 +850,18 @@ function Row.Style(row, entry)
     -- ...at the row's own height for a position, where it is the control the row exists for.
     row.action:SetSize(86, entry.kind == "position" and ROW.BUTTON_H or 18)
     if row.action.SetVariant then row.action:SetVariant("ghost") end
-    -- Gold lettering on a position's button (Set cost), the way the design drew it: the fill
-    -- stays the quiet ghost, so a list of ten does not become ten gold bars.
-    -- Red for the one that cancels, on the row and on the panel's lots alike.
+    -- A position's button and a cancel's: capitals in gold (red for the one that cancels) on the
+    -- ghost's glass, with no outline, the lettering of the dock's SKIP and the deck switch (owner,
+    -- 2026-10-10: the outlined "Post" read as a box of its own beside every price). The fill stays
+    -- the quiet ghost, so a list of ten does not become ten gold bars.
     local cancels = row.action.helpKey == "Cancel lot"
-    if (entry.kind == "position" or cancels) and row.action.text and row.action.text.SetTextColor then
+    local lettered = entry.kind == "position" or cancels
+    if row.action.SetUppercase then row.action:SetUppercase(lettered) end
+    if lettered and row.action.text and row.action.text.SetTextColor then
       local lettering = cancels and Theme.color.red or Theme.color.goldHi or Theme.color.gold
       row.action.text:SetTextColor(lettering[1], lettering[2], lettering[3], 1)
     end
-    -- ...and a thin outline with it, on a position or a cancel alone: the pooled button is
-    -- every other kind's too, and theirs stay bare.
-    if row.action.SetRing then
-      local ring = cancels and Theme.color.red or Theme.color.gold
-      row.action:SetRing((entry.kind == "position" or cancels) and { ring[1], ring[2], ring[3], cancels and 0.5 or 0.45 } or nil)
-    end
+    if row.action.SetRing then row.action:SetRing(nil) end
   end
   if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
   -- Same rule, and the drawer has the most to put away: five book lines and four headings.

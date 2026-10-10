@@ -503,12 +503,14 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.summaryHits.profit.shown)
     end)
 
+    -- On the posting deck the totals are the SELLING heading's (Dock.SellingAside), never the
+    -- dock's: it is one row there (owner, 2026-10-10).
     it("draws neither total when nothing is queued to post", function()
       local GC = load(900, { calls = {} })
       local _, container = topRows(GC, {})
       assert.is_false(container.summary.total.shown)
       assert.is_false(container.summary.profit.shown)
-      assert.equal(container.summaryLabels.total, container.dockStatus.points[2].relative)
+      assert.equal("", GC.SellUI.Dock.SellingAside())
     end)
 
     it("says on hover what each total is, in the words of the deck on screen", function()
@@ -684,14 +686,15 @@ describe("Sell widget geometry and manual cost", function()
         for _, row in ipairs(GC.SellUI.rows) do if row.shown and row.kind == "position" then return row end end
       end
 
-      it("asks how many, out of what one Post can list, with MAX lit while it is all of it", function()
+      -- How many there are is the stock line's: the dock has no "of 5" of its own (owner, 2026-10-10).
+      it("asks how many, with MAX lit while it is all of it", function()
         local GC = load(700, { calls = {} })
         priceRow(GC)
         local d = dock(GC)
         assert.is_true(d.qtyBoxBg.shown)
         assert.equal("HOW MANY", d.qtyHead.text)
         assert.equal("5", d.qtyBox.text)
-        assert.equal("of 5", d.qtyOf.text)
+        assert.is_nil(d.qtyOf)
         assert.equal("MAX", d.qtyMax.label)
         assert.equal("active", d.qtyMax.variant)
         assert.equal(helper.money("215g"), listRow(GC).cells.gross.text) -- 43g x 5
@@ -1843,7 +1846,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(-2, row.itemStock.points[2].y)
       -- A position is a 56px card pitch whatever the list's slot pitch, with a button to match.
       assert.equal(56, row.height)
-      assert.equal(26, row.action.height)
+      assert.equal(24, row.action.height)
       assert.equal(row.cells.price, row.priceStand.points[1].relative)
       assert.equal(row.cells.gross, row.grossNote.points[1].relative)
       assert.equal(header, header.cells.action.points[1].relative)

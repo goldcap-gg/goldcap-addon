@@ -141,22 +141,51 @@ describe("Sell tab, the posting queue control", function()
     assert.is_true(container.skipButton.shown)
   end)
 
-  -- The owner, 2026-10-10: beside the controls the item's name had 2px at the default window. It
-  -- has the dock's whole width on a tier of its own now, and the tier grows when the name wraps.
-  it("gives the item its own tier over the controls, as tall as its name wraps", function()
+  -- The owner, 2026-10-10: a tier for the item over the controls was crooked and took the list's
+  -- room. One row: the item left of the controls, its words stopping short of them, and the row
+  -- growing only when the name wraps past it.
+  it("keeps the item left of the controls in one row, which grows when its name wraps", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     ready()
     local DOCK = GC.SellUI.DOCK
-    assert.equal(container, container.queueLabel.points[2].relative)
-    assert.equal("TOPRIGHT", container.queueLabel.points[2].point)
-    assert.equal(DOCK.H + DOCK.ITEM_H, GC.SellUI.Dock.Height())
-    container.queueLabel.GetStringHeight = function() return 30 end -- two lines of name
+    local label = container.queueLabel
+    assert.equal(container, label.points[2].relative)
+    assert.equal("TOPRIGHT", label.points[2].point)
+    -- POST, SKIP, the price, MAX and how many, right to left, then the gap.
+    local right = DOCK.PAD + DOCK.POST_W + 8 + DOCK.SKIP_W + 16 + DOCK.PRICE_W
+      + 14 + DOCK.MAX_W + 4 + DOCK.QTY_W + DOCK.GAP
+    if container.netValue.shown then right = right + 16 + DOCK.NET_W end
+    assert.equal(-right, label.points[2].x)
+    assert.equal(DOCK.H, GC.SellUI.Dock.Height())
+    label.GetStringHeight = function() return 30 end -- two lines of name
     container.dockSub.GetStringHeight = function() return 12 end
     render()
-    local height = DOCK.H + 48 -- 30 + 2 + 12, and 4 of air
+    local height = 30 + 2 + 12 + 2 * DOCK.PAD
     assert.equal(height, GC.SellUI.Dock.Height())
+    assert.equal(math.floor(height / 2 + 22), label.points[1].y) -- the words centred on the row
     assert.equal(height + 6, container.scroll.points[2].y) -- the list stops at the dock's top edge
     assert.equal(height + 6, container.inspector.points[2].y)
+  end)
+
+  -- A refused press is answered beside the button, in the stock line's place, for a few seconds.
+  it("says what a refused press is told under the item, then gives the stock line back", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    local timers = {}
+    local saved = _G.C_Timer
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local box = container.priceBox
+    box.scripts.OnEditFocusGained(box)
+    box:SetText("abc")
+    box.scripts.OnTextChanged(box, true)
+    box.scripts.OnEnterPressed(box)
+    assert.equal("Type a price in gold, or clear the box to use GoldCap's", container.dockStatus.text)
+    assert.is_true(container.dockStatus.shown)
+    assert.is_false(container.dockSub.shown)
+    timers[#timers]()
+    assert.is_false(container.dockStatus.shown)
+    assert.is_true(container.dockSub.shown)
+    _G.C_Timer = saved
   end)
 
   -- The owner, 2026-10-10: two items marked, both held back below what they cost; SKIP on the
@@ -184,7 +213,7 @@ describe("Sell tab, the posting queue control", function()
     assert.is_false(container.priceBoxBg.shown)
     -- Passed over, they are not held back any more: the rows say "skipped".
     assert.equal(0, #GC.SellState.queueSkipped)
-    assert.is_false(container.queueHeldBack.shown)
+    assert.is_nil(GC.SellUI.Dock.SellingAside():find("held back", 1, true))
   end)
 
   -- Not one whose last post may still go up: that one waits for its answer.
@@ -212,25 +241,16 @@ describe("Sell tab, the posting queue control", function()
     assert.equal("Widget", container.queueLabel.text)
   end)
 
+  -- The SELLING heading carries the count, and its hover the reasons (Dock.SellingAside,
+  -- Dock.HeldBackHint): the dock is one row on this deck.
   it("surfaces the held-back count in plain words, not the raw skip token", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
     assert.equal(1, #GC.SellState.queueSkipped)
-    local heldBack = container.queueHeldBack
-    assert.is_true(heldBack.shown)
-    assert.matches("1", heldBack.text, 1, true)
-    local hit = container.queueHeldBackHit
-    assert.is_function(hit.scripts.OnEnter)
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, Show = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-    }
-    hit.scripts.OnEnter(hit)
-    local joined = table.concat(tooltipLines, " ")
-    assert.matches("Widget", joined, 1, true)
-    assert.is_nil(joined:find("no_fresh_price", 1, true))
-    _G.GameTooltip = nil
+    assert.matches("1 held back", GC.SellUI.Dock.SellingAside(), 1, true)
+    local hint = GC.SellUI.Dock.HeldBackHint()
+    assert.matches("Widget", hint, 1, true)
+    assert.is_nil(hint:find("no_fresh_price", 1, true))
   end)
 
   it("posts the dock's item when clicked, through onPostClick's own pin and validation", function()
@@ -480,16 +500,7 @@ describe("Sell tab, the posting queue control", function()
     render()
     -- The dock stops at it all the same, and says why in red.
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
-    local hit = container.queueHeldBackHit
-    local tooltipLines = {}
-    _G.GameTooltip = {
-      SetOwner = function() end, Show = function() end,
-      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
-    }
-    hit.scripts.OnEnter(hit)
-    local joined = table.concat(tooltipLines, " ")
-    assert.matches("a vendor pays more -- sell it there", joined, 1, true)
-    _G.GameTooltip = nil
+    assert.matches("a vendor pays more -- sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
   end)
 
   -- The tests above run with no GC.Game at all, which is retail: one press posts, exactly as
@@ -544,19 +555,22 @@ describe("Sell tab, the posting queue control", function()
       assert.is_false(container.queueButton.enabled)
     end)
 
-    -- The dock's PROCEEDS is what POST lists, so a mark moves it; ore nobody has a receipt for
-    -- has no PROFIT to show.
-    it("adds up only what is marked in the dock's PROCEEDS", function()
+    -- PROCEEDS is what POST lists, so a mark moves it; ore nobody has a receipt for has no PROFIT
+    -- to show. On this deck it is the SELLING heading's: the dock is one row (owner, 2026-10-10).
+    it("adds up only what is marked, in the SELLING heading", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose()
       render()
-      assert.is_false(container.summary.total.shown)
+      assert.is_nil(GC.SellUI.Dock.SellingAside():find("PROCEEDS", 1, true))
       local row = rowOf("commodity:23427")
       row.mark.scripts.OnClick(row.mark)
       local entry = GC.SellState.queueEntries[1]
-      assert.equal(GC.Sell._FormatAmount(math.floor(entry.value * 95 / 100)), container.summary.total:GetText())
-      assert.is_true(container.summary.total.shown)
-      assert.is_false(container.summary.profit.shown)
+      local amount = GC.Sell._FormatAmount(math.floor(entry.value * 95 / 100))
+      local heading = helper.plain(drawn()[1])
+      assert.matches("^SELLING 1", heading)
+      assert.is_truthy(heading:find("PROCEEDS " .. helper.plain(amount), 1, true))
+      assert.is_nil(heading:find("PROFIT", 1, true))
+      assert.is_false(container.summary.total.shown) -- the dock keeps no ledger on this deck
     end)
 
     it("reads in two sections: what POST lists, then what only its own Post does", function()

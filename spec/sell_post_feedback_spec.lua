@@ -564,7 +564,7 @@ describe("Sell tab, a Post says what it is doing", function()
       -- The dock does not offer it by itself: held back, with the reason in words.
       assert.is_false(container.queueButton.enabled)
       assert.equal("Nothing queued to post", container.queueLabel.text)
-      assert.matches("1", container.queueHeldBack.text, 1, true)
+      assert.matches("1 held back", GC.SellUI.Dock.SellingAside(), 1, true)
       root.GoldCapPostNext()
       assert.equal(1, posts)
       -- Put back in the dock by a click on its row, a press is still refused while it may go up.

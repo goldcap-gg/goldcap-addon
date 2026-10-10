@@ -233,6 +233,23 @@ function T.Button(parent, variant, rounded)
     if b.label then b:SetLabel(b.label) end
   end
 
+  -- As wide as the widest of `labels` (display text) in the player's language, and never under
+  -- `minW`: a button whose words change (POST, POSTING…, CONFIRM) keeps one width through them.
+  -- `busy` is the label drawn beside the spinner (SetBusy below), whose ring takes 15px of the
+  -- face. Measured by the client; where the face cannot be measured the width stays as it was.
+  function b:FitLabels(labels, minW, busy)
+    local fs = b.text
+    if not (fs and fs.GetUnboundedStringWidth) then return end
+    local widest = 0
+    for _, label in ipairs(labels) do
+      fs:SetText(b.uppercase and label:upper() or label)
+      widest = math.max(widest, (fs:GetUnboundedStringWidth() or 0) + (label == busy and 15 or 0))
+    end
+    fs:SetText("")
+    if b.label then b:SetLabel(b.label) end
+    b:SetWidth(math.max(minW or 0, math.ceil(widest) + 2 * T.pad.m))
+  end
+
   -- The fill in its variant's colour, dimmed to 0.45 of its own alpha while disabled. Dimmed by
   -- re-tinting, never by Texture:SetAlpha: in the client SetAlpha REPLACES the alpha
   -- SetVertexColor set (see T.RailButton), so SetAlpha(0.45) turned a 5% ghost wash into a light

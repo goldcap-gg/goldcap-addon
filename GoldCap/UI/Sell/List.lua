@@ -209,8 +209,11 @@ end
 
 function ROW.sectionText(section)
   local hint = ROW.SECTION_HINTS[section.id]
-  return UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
+  local text = UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
     .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
+  -- SELLING carries the posting deck's totals: the dock is one row there (owner, 2026-10-10).
+  local aside = section.id == "selling" and UI.Dock.SellingAside() or ""
+  return aside ~= "" and (text .. "  ·  " .. aside) or text
 end
 
 -- The TO POST deck's last section: stock in the bags the tab cannot key yet (the client has
