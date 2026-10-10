@@ -1432,6 +1432,27 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(drawer.height >= 400)
     end)
 
+    -- Beside the heading the price to beat read "cheapest not yours 2..." in French, Spanish,
+    -- German and Italian: when the two do not fit the panel's line, the price takes a line of
+    -- its own under the heading, wrapped, and the book moves down to make room.
+    it("puts the price to beat under the heading when the two do not fit one line", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, BOOK), "drawer")
+      assert.equal("TOPRIGHT", drawer.drawerHint.points[1].point) -- English fits beside it
+      assert.is_false(drawer.drawerHint.wordWrap)
+      local y = drawer.bookLines[1].price.points[1].y
+      drawer.drawerBookHead.GetUnboundedStringWidth = function() return 70 end
+      drawer.drawerHint.GetUnboundedStringWidth = function() return 260 end
+      drawer.drawerHint.GetStringHeight = function() return 26 end
+      GC.SellUI.List.RenderRows()
+      drawer = nth(GC.SellUI.rows, "drawer")
+      assert.equal("TOPLEFT", drawer.drawerHint.points[1].point)
+      assert.equal("TOPRIGHT", drawer.drawerHint.points[2].point)
+      assert.equal(drawer.drawerHint.points[1].y, drawer.drawerHint.points[2].y)
+      assert.is_true(drawer.drawerHint.wordWrap)
+      assert.equal(y - 32, drawer.bookLines[1].price.points[1].y) -- 26 and 6 of air
+    end)
+
     it("says how long the queue ahead of your price takes at today's pace", function()
       local GC = load(620, { calls = {} })
       local drawer = nth(bookRows(GC, LADDER), "drawer")
@@ -2299,6 +2320,38 @@ describe("Sell widget geometry and manual cost", function()
     assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
     assert.equal("position", rows[1].kind)
     assert.equal("drawer", rows[2].kind)
+  end)
+
+  -- Cut at two lines, a lot's sentence ended "..." in Portuguese, Italian and Spanish, and a
+  -- purchase's source and date beside Remove ("Casa de subastas, 28 ago") were cut at one: each
+  -- wraps as far as it needs and its line grows to hold it. A heading's hidden line does not.
+  it("grows a panel line to hold every line of its words", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations",
+        batches = { { source = "goldcap", acquiredAt = 4, originalQty = 5, remainingQty = 2,
+          allocatedQty = 2, unitCost = 50, totalCost = 100, evidence = "Auction 9" } },
+        ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } } }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 2,
+        knownQty = 2, knownCost = 100, listedValue = 400, sources = { goldcap = 2 }, status = "LISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    rows = GC.SellUI.rows
+    local lot, heading, batch = rows[4], rows[3], rows[6]
+    assert.equal("batch", batch.kind)
+    assert.equal(0, lot.subItem.maxLines)
+    assert.is_true(batch.itemStock.wordWrap)
+    assert.equal(0, batch.itemStock.maxLines)
+    local slot = lot.height
+    lot.subItem.GetStringHeight = function() return 60 end
+    batch.itemStock.GetStringHeight = function() return 50 end
+    heading.subItem.GetStringHeight = function() return 90 end
+    GC.SellUI.List.RenderRows()
+    assert.equal(72, lot.height) -- 60 and 12 of air
+    assert.equal(62, batch.height)
+    assert.equal(slot, heading.height)
   end)
 
   -- Post charges postRecommendation.unit, floor/queue/overcut raises included -- not the raw

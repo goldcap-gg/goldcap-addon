@@ -219,13 +219,31 @@ function Book.Layout(row, top)
   row.headRules[1]:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, top)
   row.drawerBookHead:ClearAllPoints()
   row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 12)
+  -- The price to beat sits beside the heading while it fits there, and otherwise on a line of its
+  -- own under it, wrapped, the book moving down to make room: beside it, it read "cheapest not
+  -- yours 2..." in French, Spanish, German and Italian. The panel's line is its 340 less the
+  -- scroll gutter and the edges.
+  local room = INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD
+  local hintW = row.drawerHint:IsShown() and row.drawerHint.GetUnboundedStringWidth
+    and row.drawerHint:GetUnboundedStringWidth() or 0
+  local headW = row.drawerBookHead.GetUnboundedStringWidth and row.drawerBookHead:GetUnboundedStringWidth() or 0
+  local drop = 0
   row.drawerHint:ClearAllPoints()
-  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
-  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
-  row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerHint:SetWordWrap(false)
+  if headW + 8 + hintW > room then
+    row.drawerHint:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 30)
+    row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 30)
+    row.drawerHint:SetJustifyH("LEFT")
+    row.drawerHint:SetWordWrap(true)
+    row.drawerHint:SetText(row.drawerHint:GetText() or "") -- laid out at its new width
+    drop = math.ceil((row.drawerHint.GetStringHeight and row.drawerHint:GetStringHeight() or 12) + 6)
+  else
+    row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
+    row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
+    row.drawerHint:SetJustifyH("RIGHT")
+    row.drawerHint:SetWordWrap(false)
+  end
 
-  local body = top - 32
+  local body = top - 32 - drop
   for i = 1, DR.LINES do
     local line = row.bookLines[i]
     local y = body - (i - 1) * DR.LINE_H

@@ -149,10 +149,18 @@ local function layoutDrawer(row)
   UI.Book.Layout(row, top)
 end
 
+-- A panel line as tall as its words, with air above and below (row.fitHeight, read by
+-- List.RenderRows); never shorter than its slot. Only words on show: a heading keeps the last
+-- kind's sentence in its hidden line.
+local function fitWords(row, words)
+  local h = words:IsShown() and words.GetStringHeight and words:GetStringHeight()
+  if h then row.fitHeight = math.max(row.fitHeight or 0, math.ceil(h + 12)) end
+end
+
 -- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
 -- apply at this width: a line is its sentence, with its one button -- or, for a purchase, its
--- unit cost -- at the right edge. Two lines allowed, because "x50 . 3 purchases . bought 29 Aug
--- . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
+-- unit cost -- at the right edge. As many lines as it takes, because "x50 . 3 purchases .
+-- bought 29 Aug . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
 local function layoutDetailRow(row)
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:Hide() end
   local edge, edgePoint, inset = row, "RIGHT", -INSP.PAD
@@ -178,13 +186,16 @@ local function layoutDetailRow(row)
     row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
     if row.action:IsShown() then row.sectionHint:Hide() end
     row.itemStock:ClearAllPoints()
-    -- One line in a one-slot row: a list position wraps its stock line (List.lua's placeName), a
-    -- purchase's source and date are short words that stay on theirs.
-    row.itemStock:SetWordWrap(false)
+    -- Where it came from and when, wrapped rather than cut ("Casa de subastas, 28 ago" beside
+    -- Remove), the row growing to hold it (fitWords, below).
+    row.itemStock:SetWordWrap(true)
+    row.itemStock:SetMaxLines(0)
     row.itemStock:SetPoint("LEFT", row.cells.cost, "RIGHT", 10, 0)
     if row.action:IsShown() then row.itemStock:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
     else row.itemStock:SetPoint("RIGHT", row.sectionHint, "LEFT", -8, 0) end
     row.itemStock:Show()
+    row.itemStock:SetText(row.itemStock:GetText() or "") -- laid out at its width before it is measured
+    fitWords(row, row.itemStock)
   else
     -- Every other line is one sentence, allowed a second line when the panel is narrower than
     -- it, with air between the two.
@@ -193,9 +204,11 @@ local function layoutDetailRow(row)
     row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
     row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
     row.subItem:SetWordWrap(true)
-    row.subItem:SetMaxLines(2)
+    -- As many lines as it takes: at two, the bag line was cut in Portuguese, Italian and Spanish.
+    row.subItem:SetMaxLines(0)
     if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
     row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
+    fitWords(row, row.subItem)
   end
   row.sectionLabel:ClearAllPoints()
   row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, -4)
