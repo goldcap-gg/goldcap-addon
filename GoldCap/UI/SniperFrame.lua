@@ -10622,6 +10622,10 @@ local function setView(v)
     abortFullScan()
   end
   local isDeals = (v == "deals")
+  -- The purchase sheet is the Deals board's: left open, it lay over the Sell tab (owner,
+  -- 2026-10-11). Hidden the way the window's own hide does it: its OnHide gives a Check up as
+  -- Escape does, and keeps a sent purchase the server's.
+  if not isDeals and dialog then dialog:Hide() end
   if isDeals then
     frame.scroll:Show()
     frame.headerRow:Show()

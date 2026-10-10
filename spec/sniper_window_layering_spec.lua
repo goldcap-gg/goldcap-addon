@@ -317,6 +317,19 @@ describe("Sniper window layering", function()
       drawer.scripts.OnKeyDown(drawer, "W")
       assert.is_true(drawer.propagate)
     end)
+
+    -- The sheet is the Deals board's. Left open across a rail click it lay over the Sell tab
+    -- (owner, 2026-10-11), and coming back to Deals must not bring it back on its own.
+    it("closes when the player leaves Deals for another tab", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      frame:Show()
+      drawer:Show()
+      GC.Sniper.ShowView("sell")
+      assert.is_false(drawer:IsShown())
+      GC.Sniper.ShowView("deals")
+      assert.is_false(drawer:IsShown())
+    end)
   end)
 
   -- The Settings screen is an OVERLAY on the window's own content -- an opaque Theme.Panel
