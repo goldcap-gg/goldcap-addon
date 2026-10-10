@@ -26,6 +26,21 @@ helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Se
 --- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
 helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua", "UI/Sell/PostPanel.lua" }
 
+-- An amount in the Sell view's own coins (GC.Sell._FormatAmount), written the short way a spec
+-- reads best: helper.money("1g90s") is "1[gold] 90[silver]", helper.money("2450g") is
+-- "2,450[gold]", with the client's coin icons and the spec suite's comma grouping.
+function helper.money(short)
+  local gold, silver = short:match("^(%d+)g(%d*)s?$")
+  assert(gold, "helper.money takes \"<gold>g\" or \"<gold>g<silver>s\", got " .. tostring(short))
+  local grouped, found = gold, 1
+  while found > 0 do grouped, found = grouped:gsub("^(%d+)(%d%d%d)", "%1,%2") end
+  local text = grouped .. "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+  if silver ~= "" and tonumber(silver) > 0 then
+    text = text .. " " .. tonumber(silver) .. "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t"
+  end
+  return text
+end
+
 function helper.loadModule(relPath, GC)
   GC = GC or {}
   -- Locale/Core.lua is the second entry in the TOC, so in the real client GC.L exists before

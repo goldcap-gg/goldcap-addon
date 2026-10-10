@@ -54,6 +54,23 @@ local ICON = {
   s = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
   c = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
 }
+-- The same three coins, for a caller that lays an amount out itself (the Sell tab's figures).
+GC.Util.COIN = ICON
+
+-- A whole number grouped in thousands with the player's own separator: "98,470", and "98.470" in
+-- a German client. The client's BreakUpLargeNumbers (both games) where it exists, a plain comma
+-- grouping where it does not, which is the spec suite.
+function GC.Util.Grouped(n)
+  n = math.floor(n + 0.5)
+  local fn = _G.BreakUpLargeNumbers
+  if type(fn) == "function" then
+    local ok, text = pcall(fn, n)
+    if ok and text ~= nil then return tostring(text) end
+  end
+  local text, found = GC.Util.IntText(n), 1
+  while found > 0 do text, found = text:gsub("^(-?%d+)(%d%d%d)", "%1,%2") end
+  return text
+end
 
 local function coinTextFallback(copper)
   -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints

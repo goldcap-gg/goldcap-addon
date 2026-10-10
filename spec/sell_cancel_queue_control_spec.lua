@@ -161,7 +161,7 @@ describe("Sell tab, the cancel queue control", function()
     assert.is_true(button.enabled)
     assert.equal("danger", button.variant)
     -- ...and the line beside it names the lot the next click is about.
-    assert.matches("Sanguithorn Tea ×400 @ 2g73s", container.cancelHeldBack.text, 1, true)
+    assert.matches("Sanguithorn Tea ×400 @ " .. helper.money("2g73s"), container.cancelHeldBack.text, 1, true)
     assert.is_true(container.cancelHeldBack.shown)
   end)
 

@@ -159,7 +159,7 @@ describe("Sell tab, bags to Post", function()
     compose()
     local row = positionRow()
     assert.equal("COMPLETE", row.position.coverage)
-    assert.equal("×246 in bags · paid |cffc9a95798g56s|r each", row.itemStock.text)
+    assert.equal("×246 in bags · paid |cffc9a957" .. helper.money("98g56s") .. "|r each", row.itemStock.text)
   end)
 
   -- SellPositions.Build cannot reach SavedVariables and must not, so the commodity-versus-item

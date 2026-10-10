@@ -351,7 +351,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
     })
-    assert.equal("~10g", rows[1].cells.market.text)
+    assert.equal("~" .. helper.money("10g"), rows[1].cells.market.text)
     assert.same({ .5, .5, .5, 1 }, rows[1].cells.market.color)
     assert.is_true(rows[1].marketFallback)
     -- Minor (fix wave, sell honesty): "Unknown" profit beside a dim "~" market used to render
@@ -399,7 +399,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
     })
-    assert.equal("~10g", rows[1].cells.market.text)
+    assert.equal("~" .. helper.money("10g"), rows[1].cells.market.text)
     assert.is_true(rows[1].marketFallback)
     assert.equal("Waiting for a live price", rows[1].cells.status.text)
   end)
@@ -441,8 +441,8 @@ describe("Sell widget geometry and manual cost", function()
     it("adds up MY LOTS at the lots' own prices after the cut, and what that leaves over their cost", function()
       local GC = load(900, { calls = {} })
       local _, container = topRows(GC, { lots("COMPLETE") }, "listed")
-      assert.equal("1g90s", container.summary.total:GetText()) -- 2 x 1g = 2g, less 5%
-      assert.equal("1g88s", container.summary.profit:GetText()) -- less 2 x 1s paid
+      assert.equal(helper.money("1g90s"), container.summary.total:GetText()) -- 2 x 1g = 2g, less 5%
+      assert.equal(helper.money("1g88s"), container.summary.profit:GetText()) -- less 2 x 1s paid
       assert.is_true(container.summary.total.shown)
       assert.is_true(container.summary.profit.shown)
       assert.same({ 0, 1, 0, 1 }, container.summary.profit.color)
@@ -451,7 +451,7 @@ describe("Sell widget geometry and manual cost", function()
     it("shows no PROFIT at all while the cost of any of it is unknown", function()
       local GC = load(900, { calls = {} })
       local _, container = topRows(GC, { lots("UNKNOWN") }, "listed")
-      assert.equal("1g90s", container.summary.total:GetText())
+      assert.equal(helper.money("1g90s"), container.summary.total:GetText())
       assert.is_false(container.summary.profit.shown)
       assert.is_false(container.summaryLabels.profit.shown)
       assert.equal(container.summaryLabels.total, container.dockStatus.points[2].relative)
@@ -464,8 +464,8 @@ describe("Sell widget geometry and manual cost", function()
         postRecommendation = { unit = 10000 } }
       GC.SellState.queueEntries = { { positionKey = "commodity:42", postableQty = 3, unitPrice = 10000 } }
       local _, container = topRows(GC, { position })
-      assert.equal("2g85s", container.summary.total:GetText()) -- 3 x 1g less 5%
-      assert.equal("2g82s", container.summary.profit:GetText()) -- less 3 x 1s paid
+      assert.equal(helper.money("2g85s"), container.summary.total:GetText()) -- 3 x 1g less 5%
+      assert.equal(helper.money("2g82s"), container.summary.profit:GetText()) -- less 3 x 1s paid
     end)
 
     -- A price or a number being typed moves PROCEEDS with the row's YOU GET, not a compose later.
@@ -476,11 +476,11 @@ describe("Sell widget geometry and manual cost", function()
         postRecommendation = { unit = 10000 } }
       GC.SellState.queueEntries = { { positionKey = "commodity:42", postableQty = 5, unitPrice = 10000 } }
       local _, container = topRows(GC, { position })
-      assert.equal("4g75s", container.summary.total:GetText())
+      assert.equal(helper.money("4g75s"), container.summary.total:GetText())
       GC.SellState.priceOverrides["commodity:42"] = 20000
       GC.SellState.quantityOverrides["commodity:42"] = 2
       GC.SellUI.List.RenderRows()
-      assert.equal("3g80s", container.summary.total:GetText()) -- 2 x 2g less 5%
+      assert.equal(helper.money("3g80s"), container.summary.total:GetText()) -- 2 x 2g less 5%
     end)
 
     -- The cancel queue's focus narrows the rows to the lots it would cancel; the total is still
@@ -490,10 +490,10 @@ describe("Sell widget geometry and manual cost", function()
       local other = lots("COMPLETE")
       other.itemID, other.positionKey, other.itemName = 43, "commodity:43", "Herb"
       local _, container = topRows(GC, { lots("COMPLETE"), other }, "listed")
-      assert.equal("3g80s", container.summary.total:GetText())
+      assert.equal(helper.money("3g80s"), container.summary.total:GetText())
       GC.SellUI.chips.ready = true -- a chip that narrows the deck
       GC.SellUI.List.RenderRows()
-      assert.equal("3g80s", container.summary.total:GetText())
+      assert.equal(helper.money("3g80s"), container.summary.total:GetText())
     end)
 
     it("takes the mouse only over a total that is shown", function()
@@ -544,7 +544,7 @@ describe("Sell widget geometry and manual cost", function()
           listedQty = 0, sources = {}, profit = 170000 },
       })
       -- 170000 / 2 = 85000/unit = 8g50s.
-      assert.equal("8g50s", rows[1].cells.profit.text)
+      assert.equal(helper.money("8g50s"), rows[1].cells.profit.text)
       assert.same({ 1, 1, 1, 1 }, rows[1].cells.profit.color)
     end)
 
@@ -592,7 +592,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {}, profit = -11500, profitAtHold = 15000 },
       })
-      assert.equal("-1g15s |cff8f8d88@1g|r", rows[1].cells.profit.text)
+      assert.equal("-" .. helper.money("1g15s") .. " |cff8f8d88@1g|r", rows[1].cells.profit.text)
       assert.same({ 1, 0, 0, 1 }, rows[1].cells.profit.color)
     end)
   end)
@@ -665,7 +665,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("YOUR PRICE", dock(GC).priceHead.text)
       assert.equal("43", dock(GC).priceBox.text) -- 430000 copper, in gold, as the box takes it
       assert.equal("YOUR PRICE", row.drawerPriceHead.text)
-      assert.equal("43g", row.priceFigure.text)
+      assert.equal(helper.money("43g"), row.priceFigure.text)
       assert.equal("GoldCap's · ×5", row.priceNote.text)
     end)
 
@@ -694,7 +694,7 @@ describe("Sell widget geometry and manual cost", function()
         assert.equal("of 5", d.qtyOf.text)
         assert.equal("MAX", d.qtyMax.label)
         assert.equal("active", d.qtyMax.variant)
-        assert.equal("215g", listRow(GC).cells.gross.text) -- 43g x 5
+        assert.equal(helper.money("215g"), listRow(GC).cells.gross.text) -- 43g x 5
       end)
 
       it("counts the seller's number in the dock, the panel and the row once they give one", function()
@@ -706,7 +706,7 @@ describe("Sell widget geometry and manual cost", function()
         local d = dock(GC)
         assert.equal("2", d.qtyBox.text)
         assert.equal("GoldCap's · ×2", row.priceNote.text)
-        assert.equal("86g", listRow(GC).cells.gross.text)
+        assert.equal(helper.money("86g"), listRow(GC).cells.gross.text)
         assert.equal("ghost", d.qtyMax.variant)
         assert.equal(GC.Theme.color.gold[1], d.qtyHead.color[1])
       end)
@@ -721,7 +721,7 @@ describe("Sell widget geometry and manual cost", function()
         box.scripts.OnTextChanged(box, true)
         assert.equal(3, chosen(GC))
         assert.equal("3", box.text)
-        assert.equal("129g", listRow(GC).cells.gross.text)
+        assert.equal(helper.money("129g"), listRow(GC).cells.gross.text)
       end)
 
       it("builds the queue again once the number is settled, not on every keystroke", function()
@@ -832,7 +832,7 @@ describe("Sell widget geometry and manual cost", function()
       typePrice(GC, "45")
       local after = priceRow(GC)
       assert.equal("45", dock(GC).priceBox.text)
-      assert.equal("45g", after.priceFigure.text)
+      assert.equal(helper.money("45g"), after.priceFigure.text)
       assert.matches("yours", after.priceNote.text, 1, true)
       assert.equal(GC.Theme.color.gold[1], dock(GC).priceHead.color[1])
     end)
@@ -1119,7 +1119,7 @@ describe("Sell widget geometry and manual cost", function()
     it("leads with the loss when the price is under what the stock cost", function()
       local GC = load(700, { calls = {} })
       local row = priceRow(GC, { postFloor = 450000, postRecommendation = { unit = 300000 } })
-      assert.matches("below the 40g you paid", row.priceNote.text, 1, true)
+      assert.matches("below the " .. helper.money("40g") .. " you paid", row.priceNote.text, 1, true)
       assert.same({ 1, 0, 0, 1 }, row.priceNote.color)
     end)
 
@@ -1371,7 +1371,7 @@ describe("Sell widget geometry and manual cost", function()
       local drawer = nth(bookRows(GC, LADDER), "drawer")
       local marker = drawer.bookLines[6]
       local GOLD = GC.Theme.color.gold
-      assert.equal("11g55s", marker.price.text)
+      assert.equal(helper.money("11g55s"), marker.price.text)
       assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, marker.price.color)
       -- The gold price and the wash already say "your price": the words lead with the count, so a
       -- narrow panel or a long language cuts words, never the number (review M1).
@@ -1403,8 +1403,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(wall.tag.shown)
       assert.same({ RED[1], RED[2], RED[3], 0.8 }, wall.bar.fill.vertexColor)
       assert.is_false(drawer.bookLines[4].tag.shown)
-      assert.matches("wall 420 at 11g50s -- price under it to sell first", drawer.drawerFacts.text, 1, true)
-      assert.matches("wall 400 at 11g70s above you", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 420 at " .. helper.money("11g50s") .. " -- price under it to sell first", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 400 at " .. helper.money("11g70s") .. " above you", drawer.drawerFacts.text, 1, true)
 
     end)
 
@@ -2273,7 +2273,7 @@ describe("Sell widget geometry and manual cost", function()
     rows = GC.SellUI.rows
     -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
     -- because one click lists three of the five, which the panel's heading does not say.
-    assert.equal("→ 1g15s", rows[4].cells.market.text)
+    assert.equal("→ " .. helper.money("1g15s"), rows[4].cells.market.text)
   end)
 
   it("falls back to the raw cheapest ask on a bag-stock sub-row when there is no recommendation", function()
@@ -2315,7 +2315,7 @@ describe("Sell widget geometry and manual cost", function()
     rows[2].scripts.OnClick(rows[2])
     rows = GC.SellUI.rows
     -- rows[1] the deck's section heading, rows[2] the position, rows[3] "YOUR LOTS", rows[4] the lot.
-    assert.equal("→ 1g15s", rows[4].cells.market.text)
+    assert.equal("→ " .. helper.money("1g15s"), rows[4].cells.market.text)
   end)
 
   it("renders a direct RecommendPost decision with its exact unit and mode", function()
@@ -2435,7 +2435,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("captured", rows[4].sectionHint.text)
     assert.equal("×400 · 2 purchases · bought 4 - 9 · GoldCap · captured · 350 still unsold", rows[4].groupHint)
     assert.equal("198", rows[4].cells.cost.text)
-    assert.equal("7g92s", rows[4].cells.listed.text)
+    assert.equal(helper.money("7g92s"), rows[4].cells.listed.text)
     assert.equal("350 still unsold", rows[4].cells.status.text)
     assert.equal("×30", rows[5].subItem.text)
     assert.match("^×30 · 3 purchases · bought 12 · GoldCap · captured · all sold$", rows[5].groupHint)
@@ -2841,8 +2841,8 @@ describe("Sell widget geometry and manual cost", function()
         postableQty = 20, listedQty = 0, sources = {}, status = "UNLISTED",
         postRecommendation = { unit = 10000 } },
     })
-    assert.equal("1g", rows[1].cells.price.text)
-    assert.equal("20g", rows[1].cells.gross.text)
+    assert.equal(helper.money("1g"), rows[1].cells.price.text)
+    assert.equal(helper.money("20g"), rows[1].cells.gross.text)
   end)
 
   -- "cancelqueue" is a transient FOCUS state, not a deck, and nothing ever cleared it: one press

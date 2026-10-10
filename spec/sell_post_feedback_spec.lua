@@ -1323,7 +1323,9 @@ describe("Sell tab, a Post says what it is doing", function()
         -- The price on the row is the price that goes out: whatever the row says when Post is
         -- pressed is the unit the post call is given.
         local function shownCopper(row)
-          local gold, silver = row.cells.price.text:match("^(%d+)g(%d*)s?$")
+          -- The figure in the Sell view's coins: "1[gold] 90[silver]", gold grouped in thousands.
+          local gold, silver = row.cells.price.text:match("^([%d,]+)|T[^|]*GoldIcon[^|]*|t ?(%d*)")
+          gold = gold and gold:gsub(",", "")
           return gold and (tonumber(gold) * 10000 + (tonumber(silver) or 0) * 100) or nil
         end
 
