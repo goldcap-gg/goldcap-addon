@@ -114,7 +114,7 @@ UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 -- default 720px window the item's name needs that room.
 UI.DOCK = { H = 76, PAD = 8, NARROW = 700, WIDE = 860, TOP_Y = 42, LOW_Y = 13,
   BUTTON_H = 28, BOX_H = 24, ICON = 30, POST_W = 128, SKIP_W = 96, PRICE_W = 96, QTY_W = 56,
-  MAX_W = 48, NET_W = 84 }
+  MAX_W = 48, NET_W = 96 }
 
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
 -- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
@@ -136,10 +136,12 @@ UI.DR = {
   REC_Y = -98,             -- what GoldCap would do and why, two lines of it
   BOOK_Y = -134,           -- where the book section starts when there is a price section
   BOOK_Y_BARE = -84,       -- ...and when there is not
-  BAR_MAX = 160,
+  BAR_MAX = 140,           -- what the bar keeps of the panel once PRICE_W and UNITS_W are out
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
-  PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
+  -- PRICE_W holds "2,147,483[g]" in mono-11 with its coin (~94px): a level's price in the game's
+  -- coins, cut short, would cut the coin's escape mid-way.
+  PRICE_W = 96, UNITS_W = 40, TAG_W = 40,
   -- "wall", at the start of its own level's bar: the bar starts after it. Measured where the client
   -- can (UI/Sell/Book.lua's paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
   -- Theme.Scale() 1.3 with air -- 28 cut it to "ст…" (final review I2).
@@ -162,8 +164,9 @@ end
 -- past a hundred: it is noise there, and the column it would widen is YOU GET. Copper only under a
 -- gold, where it is most of the figure. These were plain text ("65g24s") for as long as a cell
 -- could be cut short: a FontString cuts an icon escape MID-ESCAPE, which painted lot labels as
--- "bought 17 Aug at 1|..." in game. Nothing in the Sell view is cut any more (the owner's rule);
--- every place an amount lands is sized for the widest one (spec/sell_money_width_spec.lua).
+-- "bought 17 Aug at 1|..." in game. Nothing in the Sell view is cut any more (the owner's rule):
+-- every fixed box an amount lands in is sized for the widest one it can get (DR.PRICE_W, DOCK.NET_W,
+-- a purchase's cost in UI/Sell/Inspector.lua); the list's money columns already hold theirs.
 --
 -- A GC.Sell field, not a top-level local: paint-only (every call site is inside render or
 -- drawer/summary paint code, never a click's pre-call body; final review "Headroom").

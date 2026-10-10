@@ -22,6 +22,8 @@ local PostPanel, DOCK = UI.PostPanel, UI.DOCK
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
 local priceText, priceBoxCopper = UI.fmt.priceText, UI.fmt.priceBoxCopper
 
+local QTY_OF_W = 56
+
 -- A sunken well with a bare EditBox in it: the look the item panel's price box had.
 local function well(container, width)
   local bg = CreateFrame("Frame", nil, container)
@@ -197,9 +199,10 @@ function PostPanel.Build()
     letGo(c.qtyBox)
     setQuantity(key, nil, true)
   end)
-  -- "of 246": a fixed column, so the box beside it does not shift as the count grows a digit.
+  -- "of 246": a column at least QTY_OF_W wide, so the box beside it does not shift as the count
+  -- grows a digit, and wider when the words need it ("sur 99999" is 70px).
   c.qtyOf = Theme.Num(c, 10)
-  c.qtyOf:SetWidth(56); c.qtyOf:SetJustifyH("LEFT"); c.qtyOf:SetWordWrap(false)
+  c.qtyOf:SetWidth(QTY_OF_W); c.qtyOf:SetJustifyH("LEFT"); c.qtyOf:SetWordWrap(false)
   c.qtyOf:SetPoint("RIGHT", c.qtyMax, "LEFT", -6, 0)
   setColor(c.qtyOf, Theme.color.fgDim)
   c.qtyBoxBg, c.qtyBox = well(c, DOCK.QTY_W)
@@ -337,6 +340,8 @@ function PostPanel.Paint(row, nextRow, hint)
     if typed then c.qtyBoxBg.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.7)
     else c.qtyBoxBg.ring:SetVertexColor(1, 1, 1, 0.14) end
     c.qtyOf:SetText((GC.L["of %d"]):format(most))
+    local need = c.qtyOf.GetUnboundedStringWidth and c.qtyOf:GetUnboundedStringWidth() or 0
+    c.qtyOf:SetWidth(math.max(QTY_OF_W, math.ceil(need) + 2))
     c.qtyMax:SetLabel(GC.L["MAX"])
     -- Lit while it is all of it: a switch with a position. SetVariant before Show, as the kit asks.
     if c.qtyMax.SetVariant then c.qtyMax:SetVariant(typed and "ghost" or "active") end

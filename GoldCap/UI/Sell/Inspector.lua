@@ -166,12 +166,12 @@ local function layoutDetailRow(row)
     -- Quantity, unit cost, source-and-date, evidence -- or, for a hand-entered cost, the button
     -- that takes it back, where the evidence word would only say "manual" a second time.
     row.subItem:ClearAllPoints()
-    row.subItem:SetWidth(44)
+    row.subItem:SetWidth(50) -- "×99999"
     row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
     row.subItem:SetWordWrap(false)
     row.subItem:SetMaxLines(1)
     row.cells.cost:ClearAllPoints()
-    row.cells.cost:SetWidth(76)
+    row.cells.cost:SetWidth(88) -- "999[g] 99[s]" in the game's coins
     row.cells.cost:SetPoint("LEFT", row.subItem, "RIGHT", 2, 0)
     row.cells.cost:Show()
     row.sectionHint:ClearAllPoints()
