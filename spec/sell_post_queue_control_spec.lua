@@ -287,6 +287,23 @@ describe("Sell tab, the posting queue control", function()
       assert.same({ 200000 }, confirms)
     end)
 
+    -- The box keeps its focus through a click on POST: Escape after it puts back the price the
+    -- post was not armed with, and the Confirm goes with it.
+    it("lets it go when Escape puts back the price it was armed with", function()
+      local box = container.priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = "20"
+      box.scripts.OnTextChanged(box, true) -- lets the first Confirm go
+      container.queueButton.scripts.OnClick(container.queueButton) -- POST at 20g, asks to confirm
+      assert.equal(200000, sent[2])
+      assert.equal("CONFIRM", container.queueButton.label)
+      box.scripts.OnEscapePressed(box)
+      assert.is_nil(GC.SellState.priceOverrides["commodity:23427"])
+      assert.is_nil(GC.SellState.postingRow)
+      assert.equal("POST", container.queueButton.label)
+    end)
+
     it("refuses the Confirm if the price changed some other way", function()
       GC.SellState.priceOverrides["commodity:23427"] = 200000
       container.queueButton.scripts.OnClick(container.queueButton)

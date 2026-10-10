@@ -84,7 +84,11 @@ local function bind(box, store, apply, refuse)
   box:SetScript("OnEditFocusLost", commit)
   box:SetScript("OnEscapePressed", function(self)
     local key = self.editingKey
-    if key ~= nil and key == PostPanel.key and self.edited then S[store][key] = self.before end
+    if key ~= nil and key == PostPanel.key and self.edited then
+      -- A Confirm armed with what was typed is let go, as any other change does.
+      if S[store][key] ~= self.before then Post.WalkAway() end
+      S[store][key] = self.before
+    end
     self.editingKey, self.edited = nil, false
     self.committing = true
     self:ClearFocus()
@@ -156,6 +160,11 @@ function PostPanel.Build()
   skip:SetScript("OnClick", function()
     local key = PostPanel.key
     if not key then return end
+    -- Its post on the wire decides where the dock goes (Paint disables SKIP meanwhile; a click
+    -- before that paint lands here).
+    local out = S.postingRow
+    if out and out.position and out.position.positionKey == key
+        and (out.postStage == "posting" or out.postStage == "confirming") then return end
     Post.WalkAway() -- an armed post is a question; moving on answers it "no"
     GC.Sell.PassDockItem(key)
     UI.List.RenderRows()
