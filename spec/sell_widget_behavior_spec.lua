@@ -676,6 +676,7 @@ describe("Sell widget geometry and manual cost", function()
         box.scripts.OnEditFocusGained(box)
         box.focused = true
         box.text = text
+        box.scripts.OnTextChanged(box, true)
         box.scripts.OnEnterPressed(box)
       end
       local function chosen(GC) return GC.SellState.quantityOverrides["commodity:42"] end
@@ -817,6 +818,7 @@ describe("Sell widget geometry and manual cost", function()
       box.scripts.OnEditFocusGained(box)
       box.focused = true
       box.text = text
+      box.scripts.OnTextChanged(box, true)
       box.scripts.OnEnterPressed(box)
     end
 
@@ -911,6 +913,7 @@ describe("Sell widget geometry and manual cost", function()
       box.scripts.OnEditFocusGained(box)
       box.focused = true
       box.text = "45"        -- typed, NOT committed
+      box.scripts.OnTextChanged(box, true)
 
       priceRow(GC)           -- the refresh the player did not ask for
       assert.equal("45", box.text)
@@ -963,6 +966,48 @@ describe("Sell widget geometry and manual cost", function()
 
       box.scripts.OnEscapePressed(box)
       assert.equal("43", box.text)
+    end)
+
+    -- The keystrokes record as they go, so Escape has to put back what was there (review).
+    it("puts back the price and the number that were there when Escape is pressed", function()
+      local GC = load(700, { calls = {} })
+      priceRow(GC)
+      typePrice(GC, "45")
+      priceRow(GC)
+      local box = dock(GC).priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = "1"
+      box.scripts.OnTextChanged(box, true)
+      assert.equal(10000, GC.SellState.priceOverrides["commodity:42"]) -- live, as typed
+      box.scripts.OnEscapePressed(box)
+      assert.equal(450000, GC.SellState.priceOverrides["commodity:42"])
+      assert.equal("45", box.text)
+
+      local qty = dock(GC).qtyBox
+      qty.scripts.OnEditFocusGained(qty)
+      qty.focused = true
+      qty.text = "1"
+      qty.scripts.OnTextChanged(qty, true)
+      qty.scripts.OnEscapePressed(qty)
+      assert.is_nil(GC.SellState.quantityOverrides["commodity:42"])
+      assert.equal("5", qty.text)
+    end)
+
+    -- Clicked into and out of with no keystroke: GoldCap's price stays GoldCap's, and goes on
+    -- following the market (review).
+    it("records nothing for a box clicked into and out of without typing", function()
+      local GC = load(700, { calls = {} })
+      priceRow(GC)
+      for _, name in ipairs({ "priceBox", "qtyBox" }) do
+        local box = dock(GC)[name]
+        box.scripts.OnEditFocusGained(box)
+        box.focused = true
+        box.scripts.OnEditFocusLost(box)
+      end
+      assert.same({}, GC.SellState.priceOverrides)
+      assert.same({}, GC.SellState.quantityOverrides)
+      assert.matches("GoldCap's", priceRow(GC).priceNote.text, 1, true)
     end)
 
     -- Every fill comes from a number already on the screen, so none of them can invent a price.

@@ -157,11 +157,12 @@ describe("a price the seller chose reaches the post intact", function()
     local text = helper.sellSource()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
-    -- The dock's price box (UI/Sell/PostPanel.lua applyPrice: clear, set -- on a keystroke, on
-    -- Enter, on focus loss), the panel's chip click, and GC.Sell._SpendPrice -- the one rule that
-    -- spends a typed price when its post's creation is credited, or drops it when that post's
-    -- late window closes unanswered. Nothing puts a spent price back.
-    assert.equal(4, writes)
+    -- The dock's price box (UI/Sell/PostPanel.lua applyPrice -- on a keystroke, on Enter, on focus
+    -- loss -- and Escape putting back what was there, through bind's S[store]), the panel's chip
+    -- click, and GC.Sell._SpendPrice -- the one rule that spends a typed price when its post's
+    -- creation is credited, or drops it when that post's late window closes unanswered. Nothing
+    -- puts a spent price back.
+    assert.equal(3, writes)
   end)
 
   -- The live-preview handler is the easiest way into that table to get wrong: without the byUser

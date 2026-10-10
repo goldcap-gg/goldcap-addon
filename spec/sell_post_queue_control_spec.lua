@@ -22,6 +22,8 @@ describe("Sell tab, the posting queue control", function()
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+    -- An EditBox's focus, as the dock's boxes read it.
+    function v:ClearFocus() self.focused = false end function v:HasFocus() return self.focused == true end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
     function v:SetMaxLines(n) self.maxLines = n end
     function v:SetSpacing() end
@@ -250,6 +252,113 @@ describe("Sell tab, the posting queue control", function()
     GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
     ready()
     assert.equal(first, container.queueLabel.text)
+  end)
+
+  -- Review, 2026-10-10: a Confirm sends what it was armed with, so a price or a number changed
+  -- while it waits has to let it go, or CONFIRM lists at a price no longer on screen.
+  describe("a Confirm waiting while the price changes", function()
+    local sent, confirms
+    before_each(function()
+      sent, confirms = {}, {}
+      _G.C_AuctionHouse.PostCommodity = function(_, _, _, unit) sent[#sent + 1] = unit; return true end
+      _G.C_AuctionHouse.ConfirmPostCommodity = function(_, _, _, unit) confirms[#confirms + 1] = unit end
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.equal("CONFIRM", container.queueButton.label)
+    end)
+
+    local function typePrice(text)
+      local box = container.priceBox
+      box.scripts.OnEditFocusGained(box)
+      box.focused = true
+      box.text = text
+      box.scripts.OnTextChanged(box, true)
+      box.scripts.OnEnterPressed(box)
+    end
+
+    it("lets it go when the dock's price is typed over, and posts at the new price", function()
+      typePrice("20")
+      assert.is_nil(GC.SellState.postingRow)
+      assert.equal("POST", container.queueButton.label)
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.equal(200000, sent[2])
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.same({ 200000 }, confirms)
+    end)
+
+    it("refuses the Confirm if the price changed some other way", function()
+      GC.SellState.priceOverrides["commodity:23427"] = 200000
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.same({}, confirms)
+      assert.equal("Post confirmation expired", root.status.text)
+    end)
+
+    -- The queue can move while a Confirm waits (the walk prices, a mark changes): the dock stays
+    -- on the item that is waiting, and CONFIRM stays reachable.
+    it("keeps the item it is waiting on in the dock however the queue moves", function()
+      GC.db = { sellMarks = { ["commodity:23427"] = false } }
+      GC.SellCompose.Queue()
+      assert.equal(0, #GC.SellState.queueEntries)
+      assert.equal("Eternium Ore", container.queueLabel.text)
+      assert.equal("CONFIRM", container.queueButton.label)
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.equal(1, #confirms)
+    end)
+  end)
+
+  it("posts nothing from the key while the Sell tab is not on screen", function()
+    local posts = 0
+    _G.C_AuctionHouse.PostCommodity = function() posts = posts + 1; return false end
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    container:Hide()
+    root.GoldCapPostNext()
+    assert.equal(0, posts)
+    container:Show()
+    root.GoldCapPostNext()
+    assert.equal(1, posts)
+  end)
+
+  it("takes SKIP away while the dock's post is on the wire", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    assert.is_true(container.skipButton.enabled)
+    container.queueButton.scripts.OnClick(container.queueButton) -- lands on postStage "posting"
+    assert.is_false(container.skipButton.enabled)
+  end)
+
+  -- Opening an item to read its book must not take POST over for good (review): shut again, the
+  -- dock goes back to the list.
+  it("gives the dock back to the list when the clicked item's panel is shut", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    GC.QuoteCache.Set(quotes(), 99001, 700, 1000)
+    ready()
+    assert.equal("Eternium Ore", container.queueLabel.text)
+    local function widget()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and row.kind == "position" and row.position.itemID == 99001 then return row end
+      end
+    end
+    widget().scripts.OnClick(widget())
+    assert.equal("Widget", container.queueLabel.text)
+    widget().scripts.OnClick(widget())
+    assert.equal("Eternium Ore", container.queueLabel.text)
+  end)
+
+  it("says in red why the queue held back an item a click put in the dock", function()
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    local ore
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then ore = row end
+    end
+    ore.scripts.OnClick(ore)
+    assert.equal("Eternium Ore", container.queueLabel.text)
+    assert.equal("a vendor pays more -- sell it there", container.dockSub.text)
+    assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
   end)
 
   it("has no Post of its own on a row with stock: the dock is where it posts from", function()

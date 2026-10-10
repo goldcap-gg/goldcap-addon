@@ -254,7 +254,10 @@ function Inspector.Decorate(row)
       local key = overrideKey(row.position)
       if not key or not (self.priceSource or self.handsBack) then return end
       -- handsBack is the GOLDCAP chip: no price of its own, it gives the decision back.
-      S.priceOverrides[key] = not self.handsBack and self.priceSource or nil
+      local price = not self.handsBack and self.priceSource or nil
+      -- A Confirm armed with the old price is let go: it would send that one (review).
+      if S.priceOverrides[key] ~= price then Post.WalkAway() end
+      S.priceOverrides[key] = price
       UI.List.RenderRows()
     end)
     chip:Hide()
@@ -555,7 +558,11 @@ function Inspector.Build()
   closeInspector:SetLabel("X")
   closeInspector:SetScript("OnClick", function()
     Post.WalkAway()
-    for key in pairs(UI.expanded) do UI.expanded[key] = nil end
+    for key in pairs(UI.expanded) do
+      UI.expanded[key] = nil
+      -- Shut, the item leaves the dock as it does when its row is clicked again (UI/Sell/Row.lua).
+      if S.dockKey == key then S.dockKey = nil end
+    end
     UI.List.RenderRows()
   end)
   inspector.close = closeInspector

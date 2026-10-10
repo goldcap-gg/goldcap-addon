@@ -50,32 +50,42 @@ end
 -- What a box typed into belongs to: the item that was in the dock when the box was clicked into.
 -- A post landing mid-typing moves the dock on, and a number typed for one item must never land
 -- on the next. `apply(box, key, settled)` records it -- live on every keystroke, settled on
--- Enter or focus loss; Escape gives the box back to what was recorded. `refuse(box)`, when
--- given, turns away text that cannot be recorded at all: nothing is, and the typing and the
--- cursor stay for the seller to fix rather than reverting under them.
-local function bind(box, apply, refuse)
-  box:SetScript("OnEditFocusGained", function(self) self.editingKey = PostPanel.key end)
+-- Enter or focus loss -- into S[`store`]; Escape puts back what was there before the box was
+-- clicked into, since the keystrokes recorded as they went (review). A box clicked into and out
+-- of without a keystroke records nothing: GoldCap's own price must not turn into the seller's
+-- and stop following the market (review). `refuse(box)`, when given, turns away text that
+-- cannot be recorded at all: nothing is, and the typing and the cursor stay for the seller to
+-- fix rather than reverting under them.
+local function bind(box, store, apply, refuse)
+  box:SetScript("OnEditFocusGained", function(self)
+    self.editingKey, self.edited = PostPanel.key, false
+    self.before = self.editingKey and S[store][self.editingKey]
+  end)
   box:SetScript("OnTextChanged", function(self, byUser)
     -- Only the player's own typing: a SetText from a paint fires this too.
     if not byUser or self.committing then return end
     if not self.editingKey or self.editingKey ~= PostPanel.key then return end
+    self.edited = true
     apply(self, self.editingKey, false)
   end)
   local function commit(self)
     if self.committing then return end
     local key = self.editingKey
-    if key and key == PostPanel.key and refuse and refuse(self) then return end
-    self.editingKey = nil
+    local mine = key ~= nil and key == PostPanel.key and self.edited
+    if mine and refuse and refuse(self) then return end
+    self.editingKey, self.edited = nil, false
     -- ClearFocus raises OnEditFocusLost, which is this same function.
     self.committing = true
     self:ClearFocus()
     self.committing = false
-    if key and key == PostPanel.key then apply(self, key, true) else UI.List.RenderRows() end
+    if mine then apply(self, key, true) else UI.List.RenderRows() end
   end
   box:SetScript("OnEnterPressed", commit)
   box:SetScript("OnEditFocusLost", commit)
   box:SetScript("OnEscapePressed", function(self)
-    self.editingKey = nil
+    local key = self.editingKey
+    if key ~= nil and key == PostPanel.key and self.edited then S[store][key] = self.before end
+    self.editingKey, self.edited = nil, false
     self.committing = true
     self:ClearFocus()
     self.committing = false
@@ -93,16 +103,16 @@ local function letGo(box)
 end
 
 -- The price: empty hands the decision back to GoldCap, which is a real answer. Half-typed text
--- ("39." between two keystrokes) keeps the last price that read as one.
+-- ("39." between two keystrokes) keeps the last price that read as one. A Confirm waiting on the
+-- old price is let go: it would send the price it was armed with, not the one now on screen.
 local function applyPrice(box, key)
-  local text = box:GetText() or ""
-  if text:match("^%s*$") then
-    S.priceOverrides[key] = nil
-  else
-    local copper = priceBoxCopper(box)
+  local copper
+  if not (box:GetText() or ""):match("^%s*$") then
+    copper = priceBoxCopper(box)
     if not copper then return end
-    S.priceOverrides[key] = copper
   end
+  if S.priceOverrides[key] ~= copper then Post.WalkAway() end
+  S.priceOverrides[key] = copper
   UI.List.RenderRows()
 end
 
@@ -118,7 +128,10 @@ end
 -- carries the number it was pinned with, and the dock's CONFIRM follows the item it pinned.
 local function setQuantity(key, n, settled)
   local _, most = postQuantity(PostPanel.position)
-  S.quantityOverrides[key] = (n and n > 0 and n < most) and n or nil
+  local chosen = (n and n > 0 and n < most) and n or nil
+  -- As the price's: a Confirm armed with another number is let go.
+  if S.quantityOverrides[key] ~= chosen then Post.WalkAway() end
+  S.quantityOverrides[key] = chosen
   if settled and not S.postingRow then GC.SellCompose.Queue() end
   UI.List.RenderRows()
 end
@@ -159,7 +172,7 @@ function PostPanel.Build()
   setColor(c.netHead, Theme.color.fgDim)
 
   c.priceBoxBg, c.priceBox = well(c, DOCK.PRICE_W)
-  bind(c.priceBox, applyPrice, unreadablePrice)
+  bind(c.priceBox, "priceOverrides", applyPrice, unreadablePrice)
   c.priceHead = Theme.Num(c, 9)
   c.priceHead:SetPoint("BOTTOMLEFT", c.priceBoxBg, "TOPLEFT", 0, 3)
 
@@ -181,7 +194,7 @@ function PostPanel.Build()
   if c.qtyBox.SetNumeric then c.qtyBox:SetNumeric(true) end
   if c.qtyBox.SetMaxLetters then c.qtyBox:SetMaxLetters(6) end
   c.qtyBoxBg:SetPoint("RIGHT", c.qtyOf, "LEFT", -2, 0)
-  bind(c.qtyBox, applyQuantity)
+  bind(c.qtyBox, "quantityOverrides", applyQuantity)
   c.qtyHead = Theme.Num(c, 9)
   c.qtyHead:SetPoint("BOTTOMLEFT", c.qtyBoxBg, "TOPLEFT", 0, 3)
 
@@ -279,13 +292,19 @@ function PostPanel.Paint(row, nextRow, hint)
 
   local unit, chosen = effectivePostUnit(p)
   local risk = GC.SellPositions.PriceRisk(p, unit)
-  -- Under what it cost or under GoldCap's floor is what the line says first, in red; otherwise
-  -- what is in the bags and what POST goes to after this.
+  -- A row click can put an item the queue held back in the dock (a vendor pays more, it would
+  -- sell at a loss): POST will list it, so the dock says why the queue would not (review).
+  local heldBack = UI.Dock.HeldBackText(p.positionKey)
+  -- Under what it cost, under GoldCap's floor or held back is what the line says first, in red;
+  -- otherwise what is in the bags and what POST goes to after this.
   if risk.belowCost then
     c.dockSub:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
     setColor(c.dockSub, Theme.color.red)
   elseif risk.belowFloor then
     c.dockSub:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
+    setColor(c.dockSub, Theme.color.red)
+  elseif heldBack then
+    c.dockSub:SetText(heldBack)
     setColor(c.dockSub, Theme.color.red)
   else
     local line = (GC.L["×%d in bags"]):format(p.bagQty or 0)
@@ -334,5 +353,10 @@ function PostPanel.Paint(row, nextRow, hint)
   else
     c.netHead:Hide(); c.netValue:Hide()
   end
+  -- Nothing to pass over while its post is on the wire: the answer decides where the dock goes.
+  local out = S.postingRow
+  local sending = out and out.position and out.position.positionKey == p.positionKey
+    and (out.postStage == "posting" or out.postStage == "confirming")
   c.skipButton:Show()
+  if sending then c.skipButton:Disable() else c.skipButton:Enable() end
 end

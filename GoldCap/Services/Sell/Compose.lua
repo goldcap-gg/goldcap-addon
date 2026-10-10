@@ -163,9 +163,10 @@ function GC.Sell.SetSelling(positionKey, selling)
 end
 
 --- Is this position on the player's selling list (Core/PostQueue.lua's Selling, over the saved
--- marks)? For the row's mark and the list's two sections.
+-- marks)? For the row's mark and the list's two sections. Asked once a row on every render, so
+-- it reads the marks straight from the saved data rather than building _QueueOpts each time.
 function GC.Sell.IsSelling(position)
-  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, GC.Sell._QueueOpts().marks)
+  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil)
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

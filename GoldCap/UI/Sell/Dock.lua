@@ -142,6 +142,15 @@ local QUEUE_SKIP_TEXT = {
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
+-- Why the queue held a position back, in the words above; nil when it did not.
+function Dock.HeldBackText(positionKey)
+  for _, skip in ipairs(S.queueSkipped or {}) do
+    if skip.positionKey == positionKey then
+      return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+    end
+  end
+end
+
 -- The real body, promised by the forward declaration above. Reads UI.container and
 -- GC.SellState's queue fields.
 paintQueueButton = function()
@@ -484,9 +493,11 @@ local function updateSummary(deck)
 end
 Dock.UpdateSummary = updateSummary
 
--- The item the dock posts: the one the player put there by clicking its row (S.dockKey), or the
--- first item of the queue in the list's own order, top to bottom -- not the queue's value order:
--- by value a part-posted water stood in front of the linen marked beside it (owner, 2026-10-10).
+-- The item the dock posts: the one a post of ours is out for while it is (its CONFIRM must stay
+-- reachable however the queue moves meanwhile -- review), else the one the player put there by
+-- clicking its row (S.dockKey), else the first item of the queue in the list's own order, top to
+-- bottom -- not the queue's value order: by value a part-posted water stood in front of the linen
+-- marked beside it (owner, 2026-10-10).
 -- Returns that item's rendered position row, which is what the Post machinery pins (Services/
 -- Sell/Post.lua), and the row of the item after it. Every position on the deck has a row of its
 -- own -- the list is not windowed -- so the dock never renders to find one: a render in the
@@ -506,7 +517,9 @@ function Dock.Current()
       if queued[key] then walk[#walk + 1] = row end
     end
   end
-  local current = chosen or walk[1]
+  local out = S.postingRow
+  if not (out and out.kind == "position" and out.IsShown and out:IsShown()) then out = nil end
+  local current = out or chosen or walk[1]
   for _, row in ipairs(walk) do
     if row ~= current then return current, row end
   end
@@ -518,12 +531,21 @@ end
 -- and nothing here calls a protected API directly (spec/sell_post_wiring_spec.lua). A post
 -- waiting for its Confirm is that item's, so a press while it waits confirms it.
 local function onQueueClick()
+  -- The key works from every tab of the window, and from a closed one: a post the player cannot
+  -- see is not one they chose (review). Shown flags only, which the press may read.
+  if not GC.SellWalk.Shown() then return end
   local row = Dock.Current()
   if not row then
     setStatus(GC.L["Nothing queued to post"])
     return
   end
   local armed = S.postingRow
+  -- The dock stays on a post of ours while it is out (Dock.Current): its answer is the one to
+  -- wait for, and the key press says so rather than nothing.
+  if armed == row and (armed.postStage == "posting" or armed.postStage == "confirming") then
+    setStatus(GC.L["Finish the pending post first"])
+    return
+  end
   if armed and armed.postStage == "confirm" and armed.position
       and armed.position.positionKey == row.position.positionKey then
     onPostClick(armed)

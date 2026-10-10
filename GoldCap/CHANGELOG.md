@@ -11,7 +11,8 @@
   you have, its price and HOW MANY to list, and you can change both right there; MAX goes back to
   all of it, so you can post part of a stack. POST lists it and moves on to the next item on your
   selling list, top to bottom, and SKIP moves on without posting. Click any item to put it in the
-  bar, whether it is on the list or not. Items no longer have a Post button of their own; an
+  bar, whether it is on the list or not, and click it again to give the bar back to your list.
+  When the item in the bar is one POST would pass by, the bar says why in red. Items no longer have a Post button of their own; an
   item's panel keeps the book and the quick prices, which set the price in the bar. A price or a
   number you type is for the next post of that item only.
 - The totals at the bottom of the Sell tab are now PROCEEDS and PROFIT. PROCEEDS is what

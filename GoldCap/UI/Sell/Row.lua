@@ -71,7 +71,7 @@ function ROW.markTooltip(owner, row)
   GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
   GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), 1, 0.82, 0)
   GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["POST lists it, and so does the key for posting the next item."]
-    or GC.L["Only this row's own Post lists it."]), 0.85, 0.85, 0.85, true)
+    or GC.L["POST passes it by. Click the item to post it from the bar below."]), 0.85, 0.85, 0.85, true)
   local marks = GC.Sell._QueueOpts().marks
   if selling and position and type(marks) == "table" and marks[position.positionKey] == nil then
     GameTooltip:AddLine(GC.Util.ClientText(GC.L["Marked for you: you bought it on DEALS."]), 0.85, 0.85, 0.85, true)
@@ -81,7 +81,7 @@ function ROW.markTooltip(owner, row)
 end
 
 -- The selling mark's look: a gold coin in a gold ring when POST lists the row, an empty dim ring
--- when only its own Post does.
+-- when POST passes it by.
 function ROW.paintMark(row, selling)
   row.markSelling = selling
   local ring = selling and Theme.color.gold or Theme.color.fgDim
@@ -425,14 +425,15 @@ local function createRow(parent)
     elseif self.kind == "position" and type(self.position.positionKey) == "string" then
       Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no"
       local key = self.position.positionKey
-      -- On the posting deck the clicked item goes in the dock, the one place it posts from,
-      -- whether or not it is on the selling list (UI/Sell/PostPanel.lua).
-      if S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue" and (self.position.bagQty or 0) > 0 then
-        S.dockKey = key
-      end
       -- One open position at a time. Two open panels are two hundred pixels of detail each,
       -- and the second one pushed the first -- the one being compared against -- off screen.
       local wasOpen = UI.expanded[key]
+      -- On the posting deck the item a click opens goes in the dock, the one place it posts from,
+      -- whether or not it is on the selling list (UI/Sell/PostPanel.lua). Shut again, the dock
+      -- goes back to the list: a look at an item's book does not take POST over (review).
+      if S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue" and (self.position.bagQty or 0) > 0 then
+        if not wasOpen then S.dockKey = key elseif S.dockKey == key then S.dockKey = nil end
+      end
       for other in pairs(UI.expanded) do UI.expanded[other] = nil end
       UI.expanded[key] = not wasOpen or nil
       UI.List.RenderRows()
@@ -811,13 +812,12 @@ function Row.Style(row, entry, listIndex)
   -- widgets have to be put away by whatever kind takes the row next.
   if entry.kind ~= "price" and entry.kind ~= "drawer" then
     UI.Inspector.PutAway(row)
-    -- The head dresses the pooled action button as the panel's own Post; every other kind
-    -- gets the row button back.
+    -- Every kind but the head gets the row button back.
     -- ...at the row's own height for a position, where it is the control the row exists for.
     row.action:SetSize(86, entry.kind == "position" and ROW.BUTTON_H or 18)
     if row.action.SetVariant then row.action:SetVariant("ghost") end
-    -- Gold lettering on the row's Post, the way the design drew it: the fill stays the
-    -- quiet ghost, so a list of ten does not become ten gold bars.
+    -- Gold lettering on a position's button (Set cost), the way the design drew it: the fill
+    -- stays the quiet ghost, so a list of ten does not become ten gold bars.
     -- Red for the one that cancels, on the row and on the panel's lots alike.
     local cancels = row.action.helpKey == "Cancel lot"
     if (entry.kind == "position" or cancels) and row.action.text and row.action.text.SetTextColor then

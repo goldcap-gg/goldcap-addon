@@ -165,7 +165,7 @@ ROW.SECTION_TITLES = {
 -- @localised-keys
 ROW.SECTION_HINTS = {
   undercut = "worth cancelling", hold = "leave these alone",
-  selling = "POST lists these", notSelling = "only their own Post lists these",
+  selling = "POST lists these", notSelling = "click one to post it",
 }
 -- The deck in section order, and which section each position fell into.
 function ROW.bySection(filtered)
@@ -519,8 +519,8 @@ local function renderRows()
   for _, skip in ipairs(onListed and S.cancelSkipped or S.queueSkipped) do
     if type(skip.positionKey) == "string" then heldBackReason[skip.positionKey] = skip.reason end
   end
-  -- An unmarked row is not held back, but it still has its own Post, so it still says why that
-  -- would not go up (Core/PostQueue.lua's Build keeps the reason).
+  -- An unmarked row is not held back, but a click still puts it in the dock, so it still says why
+  -- it would not go up (Core/PostQueue.lua's Build keeps the reason).
   if not onListed then
     for _, rest in ipairs(S.notSelling or {}) do
       if type(rest.positionKey) == "string" and rest.reason then heldBackReason[rest.positionKey] = rest.reason end

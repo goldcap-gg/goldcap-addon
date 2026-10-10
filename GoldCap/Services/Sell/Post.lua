@@ -322,7 +322,13 @@ function Post.PreparePost(row)
     local confirmAvailable = pin and C_AuctionHouse
       and ((pin.isCommodity and C_AuctionHouse.ConfirmPostCommodity)
         or (not pin.isCommodity and C_AuctionHouse.ConfirmPostItem))
-    if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
+    -- The price and the number the seller sees now are the ones the Confirm must send: one
+    -- changed since the post was armed lets it go (the dock's boxes and the panel's chips do that
+    -- themselves; this is the press's own check -- review).
+    local chosenKey = overrideKey(position)
+    local sameChoice = pin and chosenKey and pin.override == S.priceOverrides[chosenKey]
+      and pin.overrideQuantity == S.quantityOverrides[chosenKey]
+    if not sameChoice or not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
         or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
         or not exact(pin.quantity) or pin.quantity <= 0 or not exact(pin.unitPrice) or pin.unitPrice <= 0
