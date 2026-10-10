@@ -79,6 +79,13 @@ describe("kit button", function()
     assert.is_false(W.state(quiet.glow).shown)
   end)
 
+  it("draws the bare half of a segmented switch with no ring, and gives it back when it is on", function()
+    local b = button("segment", "plaque")
+    assert.is_false(W.state(b.ring).shown)
+    b:SetVariant("active")
+    assert.is_true(W.state(b.ring).shown)
+  end)
+
   it("draws a middle dot and an arrow in a label as written: the Fira faces have them", function()
     local b = button("primary", "plaque")
     b:SetLabel("AUTO · SCANNING → 12g")

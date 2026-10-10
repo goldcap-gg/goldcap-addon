@@ -109,7 +109,7 @@ function Toolbar.PaintDeckSwitch()
     local button = container.deckButtons[id]
     if button then
       button:SetLabel(UI.fmt.count(GC.L[DECK_LABELS[slot]], counts[id] or 0))
-      button:SetVariant(activeDeck() == id and "active" or "ghost")
+      button:SetVariant(activeDeck() == id and "active" or "segment")
     end
   end
 end
@@ -121,8 +121,10 @@ local function applySearch()
   if text ~= "" or (search.HasFocus and search:HasFocus()) then searchHint:Hide() else searchHint:Show() end
 end
 
--- Row 1's fixed occupants: two deck buttons and their gap, REFRESH, the two chips and theirs.
-local SEARCH_MIN, SEARCH_MAX, ROW1_FIXED = 120, 220, 2 * 128 + 4 + 104 + 92 + 76 + 4
+-- The deck switch's two halves and the track's inset around and between them.
+local DECK_W, DECK_PAD = 127, 2
+-- Row 1's fixed occupants: the deck switch, REFRESH, the two chips and their gaps.
+local SEARCH_MIN, SEARCH_MAX, ROW1_FIXED = 120, 220, 2 * DECK_W + 3 * DECK_PAD + 104 + 92 + 76 + 4
 function Toolbar.LayoutSearch()
   local container = UI.container
   local room = (UI.rowWidth or 0) - ROW1_FIXED - 36
@@ -183,15 +185,27 @@ function Toolbar.Build()
   -- already listed" are two jobs, and serving both from one table is what forced the action
   -- column to change its verb from row to row -- Post here, Repost there, Set cost on the next
   -- -- so no player could ever read ahead. One deck, one verb.
+  -- One control, as the design draws it: a sunken track the two decks sit in, the one that is on
+  -- lit and the other bare text. The track is the tab's own regions, not a frame of its own: a
+  -- frame at the buttons' level would draw its fill over theirs, layer by layer (the window
+  -- glass did that to the Sniper's buttons, 691786b).
+  local trackW = 2 * DECK_W + 3 * DECK_PAD
+  local trackFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12)
+  trackFill:SetPoint("TOPLEFT"); trackFill:SetSize(trackW, 26)
+  local tb = Theme.color.border
+  local trackRing = Theme.SlicedTexture(container, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { tb[1], tb[2], tb[3], tb[4] or 0.075 }, 12)
+  trackRing:SetPoint("TOPLEFT"); trackRing:SetSize(trackW, 26)
+  container.deckTrack = trackFill
   container.deckButtons = {}
   local deckPrevious
   for _, id in ipairs(DECK_IDS) do
-    local button = Theme.Button(container, "ghost", "plaque")
-    -- 128, sized for "TO POST 88" at mono-10 and Theme.Scale() 1.3 (~7.8px/char = 78px) with
+    local button = Theme.Button(container, "segment", "plaque")
+    -- DECK_W, sized for "TO POST 88" at mono-10 and Theme.Scale() 1.3 (~7.8px/char = 78px) with
     -- room for the rounded plaque's own inset, the same way REFRESH is sized for "PRICING 10/24".
-    button:SetSize(128, 26)
-    if deckPrevious then button:SetPoint("LEFT", deckPrevious, "RIGHT", 4, 0)
-    else button:SetPoint("TOPLEFT") end
+    button:SetSize(DECK_W, 26 - 2 * DECK_PAD)
+    if deckPrevious then button:SetPoint("LEFT", deckPrevious, "RIGHT", DECK_PAD, 0)
+    else button:SetPoint("TOPLEFT", DECK_PAD, -DECK_PAD) end
     button:SetScript("OnClick", function()
       S.filterMode = id
       S.rowPlaces = {} -- a different deck is a different list; settle it fresh
@@ -214,7 +228,7 @@ function Toolbar.Build()
   local searchWell = CreateFrame("Frame", nil, container)
   container.searchWell = searchWell
   searchWell:SetHeight(26)
-  searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12, 0)
+  searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12 + DECK_PAD, 0)
   local swc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
     { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)

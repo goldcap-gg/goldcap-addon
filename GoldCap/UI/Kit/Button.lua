@@ -39,6 +39,9 @@ local BUTTON_VARIANTS = {
   -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
   -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
   warn    = { bg = { K.warn[1], K.warn[2], K.warn[3], 0.16 }, text = K.warn },
+  -- The half of a segmented switch that is not on: bare text in the track the switch draws, no
+  -- fill and no ring of its own (the Sell tab's TO POST / MY LOTS). Its other half is `active`.
+  segment = { bg = { 1, 1, 1, 0 }, text = K.text3, bare = true },
 }
 
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
@@ -257,6 +260,9 @@ function T.Button(parent, variant, rounded)
     paintFill()
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
+    if b.ring and not b.ringAsked then
+      if spec.bare then b.ring:Hide() else b.ring:Show() end
+    end
     paintGlow()
   end
   b:SetVariant(variant)

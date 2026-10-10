@@ -1744,6 +1744,10 @@ describe("Sell widget geometry and manual cost", function()
     -- it selects the JOB, the chips only narrow it.
     assert.equal("plaque", container.deckButtons.post.rounded)
     assert.equal("plaque", container.deckButtons.listed.rounded)
+    -- One segmented switch (the design's): the deck on screen lit, the other bare in the track.
+    assert.equal("active", container.deckButtons.post.variant)
+    assert.equal("segment", container.deckButtons.listed.variant)
+    assert.is_not_nil(container.deckTrack)
     assert.equal("badge", rows[1].action.rounded)
   end)
 
