@@ -3313,6 +3313,39 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.inspector.shown)
     end)
 
+    -- The dock's next is the marked item below its own, then round from the top, and moving on
+    -- takes an open panel along (owner, 2026-10-11: posting the third item shut its panel and
+    -- put the first in the dock).
+    it("goes on to the item below the dock's, round from the top, with its panel", function()
+      local GC = load(1100, { calls = {} })
+      local values = { p(41), p(42), p(43), p(44) }
+      GC.SellState.queueEntries = {}
+      for _, value in ipairs(values) do
+        local queue = GC.SellState.queueEntries
+        queue[#queue + 1] = { positionKey = value.positionKey, postableQty = 5, unitPrice = 100 }
+      end
+      local rows, container = topRows(GC, values)
+      local function listed()
+        local out = {}
+        for _, row in ipairs(rows) do
+          if row.shown and row.kind == "position" and not row.inPanel then out[#out + 1] = row end
+        end
+        return out
+      end
+      local names = {}
+      for _, row in ipairs(listed()) do names[#names + 1] = row.position.itemName end
+      local third = listed()[3]
+      third.scripts.OnClick(third)
+      assert.equal(names[3], container.queueLabel.text)
+      assert.matches("then " .. names[4], container.dockSub.text, 1, true)
+      GC.SellView.moveOn(third.position.positionKey)
+      GC.SellUI.List.RenderRows()
+      assert.equal(names[4], container.queueLabel.text)
+      assert.equal(names[4], container.inspector.name.text)
+      assert.is_true(container.inspector.shown)
+      assert.matches("then " .. names[1], container.dockSub.text, 1, true)
+    end)
+
     -- One place to post from (owner, 2026-10-10): opening an item with stock puts it in the dock,
     -- and the panel carries no Post of its own.
     it("puts the item in the dock for stock in the bags, and carries no button of its own", function()

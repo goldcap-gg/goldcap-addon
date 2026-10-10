@@ -234,10 +234,9 @@ function PostPanel.Build()
     if out and out.position and out.position.positionKey == key
         and (out.postStage == "posting" or out.postStage == "confirming") then return end
     Post.WalkAway() -- an armed post is a question; moving on answers it "no"
+    -- The dock goes on to the next item, and the item's panel, if open, goes with it: its row
+    -- does not stay lit under a dock that has moved on (owner, 2026-10-10 and 2026-10-11).
     GC.Sell.PassDockItem(key)
-    -- The item's panel shuts with it, and its row stops looking chosen: the dock has moved on
-    -- (owner, 2026-10-10).
-    UI.expanded[key] = nil
     UI.List.RenderRows()
   end)
   c.skipButton = skip

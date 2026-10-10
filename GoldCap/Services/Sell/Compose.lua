@@ -183,6 +183,7 @@ end
 function GC.Sell.PassDockItem(positionKey)
   if type(positionKey) ~= "string" then return end
   S.passedThisVisit[positionKey] = true
+  View.moveOn(positionKey)
   if S.dockKey == positionKey then S.dockKey = nil end
   Compose.Queue()
 end

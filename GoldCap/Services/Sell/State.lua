@@ -82,7 +82,7 @@ GC.SellState = {
   passedThisVisit = {},
   queueDone = {},
   -- The item the player put in the dock by clicking its row, by positionKey; nil while the dock
-  -- shows the walk's next. Let go once posted or passed (GC.Sell.PassDockItem).
+  -- shows the walk's next. Once posted or passed it moves to the item after it (UI.Dock.MoveOn).
   dockKey = nil,
   -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "cancelqueue"
   -- is a transient FOCUS state the CANCEL control sets for a single render, so its head entry
@@ -152,6 +152,7 @@ GC.SellView = {
   paintDeck = nothing,   -- the deck switch's two counts
   notePost = nothing,    -- GC.Sell._NotePost(text, tone, seconds): the dock's note on the player's own post
   endPostNote = nothing, -- GC.Sell._EndPostNote(heldOnly): that note let go
+  moveOn = nothing,      -- UI.Dock.MoveOn(positionKey): the dock, and an open panel, go on to the next item
   attached = function() return false end, -- GC.Sell.Attach has built the tab
   isShown = nothing,     -- the tab's own shown flag; nil until it is built
 }

@@ -230,6 +230,7 @@ local function schedulePostTimeout(row)
       GC.Sell._AwaitLate(S.postingPin)
       -- Held while it may still go up (Compose's awaiting_answer): the dock moves on meanwhile,
       -- whether the item came to it by the walk or by a click on its row.
+      if sent then View.moveOn(S.postingPin.positionKey) end
       if sent and S.dockKey == S.postingPin.positionKey then S.dockKey = nil end
       Post.DisarmPost()
       -- Said by what is actually true. A Confirm nobody pressed asked the auction house nothing:
@@ -792,6 +793,7 @@ function GC.Sell.OnAuctionCreated(auctionID)
     and owner.quantity >= (owner.position.bagQty or 0)
   if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole) then
     S.postedThisVisit[owner.positionKey] = true
+    View.moveOn(owner.positionKey) -- the item after it, and its panel if this one's was open
     if S.dockKey == owner.positionKey then S.dockKey = nil end
   end
   GC.Sell._SpendPrice(owner)

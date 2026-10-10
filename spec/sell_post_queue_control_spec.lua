@@ -249,8 +249,8 @@ describe("Sell tab, the posting queue control", function()
   end)
 
   -- The owner, 2026-10-10: the skipped item's row stayed lit, its panel open, under a dock that
-  -- had moved on.
-  it("shuts the skipped item's panel", function()
+  -- had moved on. The panel goes on with the dock now (2026-10-11).
+  it("takes the skipped item's panel on to the next item with the dock", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     ready()
     local ore
@@ -261,7 +261,9 @@ describe("Sell tab, the posting queue control", function()
     assert.is_true(GC.SellUI.expanded["commodity:23427"])
     container.skipButton.scripts.OnClick(container.skipButton)
     assert.is_nil(GC.SellUI.expanded["commodity:23427"])
+    assert.is_true(GC.SellUI.expanded["commodity:99001"])
     assert.equal("Widget", container.queueLabel.text)
+    assert.equal("Widget", container.inspector.name.text)
   end)
 
   -- The SELLING heading carries the count, and its hover the reasons (Dock.SellingAside,

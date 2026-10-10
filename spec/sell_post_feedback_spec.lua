@@ -268,6 +268,26 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal("Checking prices…", container.dockStatus.text)
       assert.same(MUTED, { unpack(container.dockStatus.color, 1, 3) })
     end)
+
+    -- Posted from its open panel, the item's panel goes on with the dock to the next item rather
+    -- than shut (owner, 2026-10-11).
+    it("takes an open panel on to the next item with the dock", function()
+      bags = TWO_ITEMS
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+      GC.SellCompose.Positions()
+      render()
+      local ore = rowOf(23427)
+      ore.scripts.OnClick(ore)
+      assert.is_true(GC.SellUI.expanded["commodity:23427"])
+      container.queueButton.scripts.OnClick(container.queueButton)
+      GC.Sell.OnAuctionCreated()
+      assert.is_nil(GC.SellUI.expanded["commodity:23427"])
+      assert.is_true(GC.SellUI.expanded["commodity:210796"])
+      assert.equal("commodity:210796", GC.SellState.dockKey)
+      assert.matches("Mycobloom", container.queueLabel.text, 1, true)
+      assert.equal("Mycobloom", container.inspector.name.text)
+    end)
   end)
 
   describe("when the auction house refuses it", function()

@@ -554,8 +554,9 @@ function Dock.Current()
     if skip.reason ~= "awaiting_answer" then queued[skip.positionKey] = true end
   end
   local chosen
-  local walk = {}
-  for _, row in ipairs(UI.rows or {}) do
+  local walk, at = {}, {}
+  for index, row in ipairs(UI.rows or {}) do
+    at[row] = index -- rows are bound to the list's entries by index (renderRows)
     if row.IsShown and row:IsShown() and row.kind == "position" and row.position
         and type(row.position.positionKey) == "string" and (row.position.bagQty or 0) > 0 then
       local key = row.position.positionKey
@@ -566,10 +567,32 @@ function Dock.Current()
   local out = S.postingRow
   if not (out and out.kind == "position" and out.IsShown and out:IsShown()) then out = nil end
   local current = out or chosen or walk[1]
+  -- After it, the next marked item down the list, then round from the top (owner, 2026-10-11:
+  -- the third item in the dock named the first as its next).
+  local from, wrap = current and at[current] or 0, nil
   for _, row in ipairs(walk) do
-    if row ~= current then return current, row end
+    if row ~= current then
+      if at[row] > from then return current, row end
+      wrap = wrap or row
+    end
   end
-  return current, nil
+  return current, wrap
+end
+
+-- The dock leaving its item, posted or passed over (Services/Sell/Post.lua, Compose.lua): it goes
+-- on to the item after it, not back to the top, and the item's panel, if open, goes along with it
+-- (owner, 2026-10-11: posting the third item shut its panel and put the first in the dock). Read
+-- off the rows as they stand, before the render that takes the item away.
+function Dock.MoveOn(positionKey)
+  local current, nextRow = Dock.Current()
+  if not (current and current.position and current.position.positionKey == positionKey) then return end
+  local nextKey = nextRow and nextRow.position.positionKey or nil
+  -- A row's own Post of another item leaves the item the player put in the dock where it is.
+  if S.dockKey == positionKey or UI.expanded[positionKey] then S.dockKey = nextKey end
+  if UI.expanded[positionKey] then
+    UI.expanded[positionKey] = nil
+    if nextKey then UI.expanded[nextKey] = true end
+  end
 end
 
 -- The dock's POST and the post-next key: the dock's item, through onPostClick EXACTLY -- its own
@@ -830,3 +853,4 @@ GC.SellView.paintQueue = function(...) return UI.Dock.PaintQueueButton(...) end
 GC.SellView.paintCancel = function(...) return UI.Dock.PaintCancelButton(...) end
 GC.SellView.notePost = function(...) return GC.Sell._NotePost(...) end
 GC.SellView.endPostNote = function(...) return GC.Sell._EndPostNote(...) end
+GC.SellView.moveOn = function(...) return UI.Dock.MoveOn(...) end
