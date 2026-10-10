@@ -156,7 +156,10 @@ local function controlsWidth(c)
   local w = DOCK.PAD + width(c.queueButton, DOCK.POST_W)
   if c.skipButton:IsShown() then
     w = w + 8 + width(c.skipButton, DOCK.SKIP_W)
-    if c.netValue:IsShown() then w = w + 16 + DOCK.NET_W end
+    if c.netValue:IsShown() then
+      local note = c.netNote.GetUnboundedStringWidth and c.netNote:GetUnboundedStringWidth() or 0
+      w = w + 16 + math.ceil(note) + 4 + DOCK.NET_W
+    end
     w = w + 16 + DOCK.PRICE_W
     if c.qtyBoxBg:IsShown() then w = w + 14 + DOCK.MAX_W + 4 + DOCK.QTY_W end
   end
@@ -239,10 +242,13 @@ function PostPanel.Build()
   end)
   c.skipButton = skip
 
-  -- What this post fetches: the row's YOU GET, for what the dock is about to send.
+  -- What this post fetches: the row's YOU GET, for what the dock is about to send, and beside it
+  -- what the price makes over what one cost (the 3C design). The margin is as wide as its words.
   c.netValue = Theme.Num(c, 11, true)
   c.netValue:SetWidth(DOCK.NET_W)
   c.netValue:SetJustifyH("RIGHT"); c.netValue:SetWordWrap(false)
+  c.netNote = Theme.Num(c, 10)
+  c.netNote:SetJustifyH("LEFT"); c.netNote:SetWordWrap(false)
   c.netHead = Theme.Num(c, 9)
   c.netHead:SetJustifyH("RIGHT")
   c.netHead:SetPoint("BOTTOMRIGHT", c.netValue, "TOPRIGHT", 0, 6)
@@ -290,14 +296,16 @@ function PostPanel.Layout()
   local c = UI.container
   if not (c and c.priceBoxBg) then return end
   PostPanel.wide = (UI.rowWidth or 0) >= DOCK.WIDE
+  c.netNote:ClearAllPoints()
+  c.netNote:SetPoint("RIGHT", c.skipButton, "LEFT", -16, 0)
   c.netValue:ClearAllPoints()
-  c.netValue:SetPoint("RIGHT", c.skipButton, "LEFT", -16, 0)
+  c.netValue:SetPoint("RIGHT", c.netNote, "LEFT", -4, 0)
   c.priceBoxBg:ClearAllPoints()
   c.priceBoxBg:SetPoint("RIGHT", PostPanel.wide and c.netValue or c.skipButton, "LEFT", -16, 0)
 end
 
 local ITEM_WIDGETS = { "dockIcon", "dockSub", "qtyHead", "qtyBoxBg", "qtyMax", "priceHead",
-  "priceBoxBg", "netHead", "netValue", "skipButton" }
+  "priceBoxBg", "netHead", "netValue", "netNote", "skipButton" }
 
 local function hideItem(c)
   for _, name in ipairs(ITEM_WIDGETS) do c[name]:Hide() end
@@ -424,9 +432,12 @@ function PostPanel.Paint(row, nextRow, hint)
     c.netHead:SetText(GC.L["YOU GET"])
     c.netValue:SetText(gross and formatCell(gross) or "")
     setColor(c.netValue, Theme.color.fg)
-    c.netHead:Show(); c.netValue:Show()
+    local margin, tone = UI.fmt.margin(unit, risk.paidUnit)
+    c.netNote:SetText(margin or "")
+    if margin then setColor(c.netNote, tone) end
+    c.netHead:Show(); c.netValue:Show(); c.netNote:Show()
   else
-    c.netHead:Hide(); c.netValue:Hide()
+    c.netHead:Hide(); c.netValue:Hide(); c.netNote:Hide()
   end
   -- Nothing to pass over while its post is on the wire: the answer decides where the dock goes.
   local out = S.postingRow

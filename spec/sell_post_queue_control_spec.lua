@@ -177,7 +177,7 @@ describe("Sell tab, the posting queue control", function()
     -- POST, SKIP, the price, MAX and how many, right to left, then the gap.
     local right = DOCK.PAD + DOCK.POST_W + 8 + DOCK.SKIP_W + 16 + DOCK.PRICE_W
       + 14 + DOCK.MAX_W + 4 + DOCK.QTY_W + DOCK.GAP
-    if container.netValue.shown then right = right + 16 + DOCK.NET_W end
+    if container.netValue.shown then right = right + 16 + 4 + DOCK.NET_W end -- and the margin beside it
     assert.equal(-right, label.points[2].x)
     assert.equal(DOCK.H, GC.SellUI.Dock.Height())
     label.GetStringHeight = function() return 30 end -- two lines of name

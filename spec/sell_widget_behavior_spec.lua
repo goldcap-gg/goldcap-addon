@@ -1101,6 +1101,13 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("YOU GET", dock(GC).netHead.text)
       assert.equal(position.cells.gross.text, dock(GC).netValue.text)
       assert.is_true(dock(GC).netValue.shown)
+      -- And what the price makes over what one cost, as the row's line under YOU GET says it.
+      assert.equal("+8%", dock(GC).netNote.text) -- 43g over 40g paid
+      assert.equal(position.grossNote.text, dock(GC).netNote.text)
+      assert.same(dock(GC).netNote.color, position.grossNote.color)
+      local unknown = load(900, { calls = {} })
+      priceRow(unknown, { coverage = "PARTIAL" })
+      assert.equal("", dock(unknown).netNote.text)
 
       local narrow = load(700, { calls = {} })
       priceRow(narrow)
@@ -3232,6 +3239,35 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.inspector.shown)
       assert.equal(1100, GC.SellUI.content.width)
       for _, row in ipairs(rows) do assert.is_false(row.shown and row.inPanel) end
+    end)
+
+    -- The 3C design (2026-10-10): Escape shuts the panel and goes no further, so the window's own
+    -- Escape is the next press's; every other key goes on; in combat the panel stands down.
+    it("shuts on Escape and keeps it, passes every other key on, and stands down in combat", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42) })
+      local inspector = container.inspector
+      local passed
+      inspector.SetPropagateKeyboardInput = function(_, on) passed = on end
+      local later = {}
+      local savedTimer, savedCombat = _G.C_Timer, _G.InCombatLockdown
+      _G.C_Timer = { After = function(_, fn) later[#later + 1] = fn end }
+      rows[1].scripts.OnClick(rows[1])
+      inspector.scripts.OnKeyDown(inspector, "W")
+      assert.is_true(passed)
+      assert.is_true(inspector.shown)
+      inspector.scripts.OnKeyDown(inspector, "ESCAPE")
+      assert.is_false(passed)
+      assert.is_false(inspector.shown)
+      later[1]()
+      assert.is_true(passed) -- the keys go on again once the panel is gone
+      rows[1].scripts.OnClick(rows[1])
+      _G.InCombatLockdown = function() return true end
+      passed = nil
+      inspector.scripts.OnKeyDown(inspector, "ESCAPE")
+      assert.is_nil(passed)
+      assert.is_true(inspector.shown)
+      _G.C_Timer, _G.InCombatLockdown = savedTimer, savedCombat
     end)
 
     it("shuts when the open position is no longer on the deck", function()

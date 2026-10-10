@@ -725,10 +725,10 @@ function Row.PaintPosition(row, entry, ctx)
   local queuedLot = onListed and ROW.queuedLot(p) or nil
   setColor(row.cells.price, (queuedLot and queuedLot.urgent and Theme.color.red)
     or (rowUnit and Theme.color.fg) or Theme.color.fgDim)
-  if rowUnit and paidUnit and paidUnit > 0 then
-    local pct = math.floor(((rowUnit - paidUnit) / paidUnit) * 100 + 0.5)
-    row.grossNote:SetText((pct >= 0 and "+" or "") .. pct .. "%")
-    setColor(row.grossNote, pct >= 0 and Theme.color.green or Theme.color.red)
+  local margin, marginTone = UI.fmt.margin(rowUnit, paidUnit)
+  if margin then
+    row.grossNote:SetText(margin)
+    setColor(row.grossNote, marginTone)
   else
     -- Nothing is "no price yet"; the words are "no receipt, so the margin is not a number
     -- anybody can know". Conflating them is what made Unknown read as broken.

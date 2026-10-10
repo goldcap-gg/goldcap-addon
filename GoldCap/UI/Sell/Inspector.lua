@@ -557,11 +557,8 @@ function Inspector.Build()
   inspector.stock = Theme.Num(inspector, 10)
   inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(true)
   setColor(inspector.stock, Theme.color.fgMuted)
-  local closeInspector = Theme.Button(inspector, "ghost", "badge")
-  closeInspector:SetSize(22, 20)
-  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
-  closeInspector:SetLabel("X")
-  closeInspector:SetScript("OnClick", function()
+  -- Shuts the panel, from its X and from Escape.
+  local function shut()
     Post.WalkAway()
     for key in pairs(UI.expanded) do
       UI.expanded[key] = nil
@@ -569,8 +566,48 @@ function Inspector.Build()
       if S.dockKey == key then S.dockKey = nil end
     end
     UI.List.RenderRows()
-  end)
+  end
+  local closeInspector = Theme.Button(inspector, "ghost", "badge")
+  closeInspector:SetSize(22, 20)
+  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
+  closeInspector:SetLabel("X")
+  closeInspector:SetScript("OnClick", shut)
   inspector.close = closeInspector
+
+  -- Escape shuts the panel, never the whole window: the window's own Escape (UISpecialFrames,
+  -- UI/SniperFrame.lua) is what the next press reaches (the 3C design, 2026-10-10). This frame
+  -- gets EVERY key while it is up, so only Escape is kept from going on, per keystroke, and the
+  -- keys go on again a frame later, the panel being gone by then (it never sees the release).
+  -- In combat it stands down: SetPropagateKeyboardInput is restricted there (the BUY tab's
+  -- Enter, UI/BuyFrame.lua, says the same).
+  if inspector.EnableKeyboard then inspector:EnableKeyboard(true) end
+  local function passKeys(on)
+    if inspector.SetPropagateKeyboardInput and not (InCombatLockdown and InCombatLockdown()) then
+      inspector:SetPropagateKeyboardInput(on)
+    end
+  end
+  inspector:SetScript("OnKeyDown", function(_, key)
+    if InCombatLockdown and InCombatLockdown() then return end
+    if key ~= "ESCAPE" then passKeys(true) return end
+    passKeys(false)
+    shut()
+    if C_Timer and C_Timer.After then C_Timer.After(0, function() passKeys(true) end) end
+  end)
+
+  -- Out from the right as it opens, over 0.15 s (the 3C design): the row's own panel coming out
+  -- beside it rather than a sheet dropped over the list. The first two steps put it 24px right
+  -- and clear; the next two bring it back and up. Played by Inspector.PaintInspector.
+  local slide = inspector.CreateAnimationGroup and inspector:CreateAnimationGroup()
+  local away = slide and slide:CreateAnimation("Translation")
+  if away and away.SetOffset then -- several spec doubles stop at the group
+    local function step(a, order, duration) a:SetOrder(order); a:SetDuration(duration); return a end
+    step(away, 1, 0):SetOffset(24, 0)
+    local clear = step(slide:CreateAnimation("Alpha"), 1, 0); clear:SetFromAlpha(0); clear:SetToAlpha(0)
+    local back = step(slide:CreateAnimation("Translation"), 2, 0.15); back:SetOffset(-24, 0)
+    back:SetSmoothing("OUT")
+    local up = step(slide:CreateAnimation("Alpha"), 2, 0.15); up:SetFromAlpha(0); up:SetToAlpha(1)
+    inspector.slide = slide
+  end
   local headRule = inspector:CreateTexture(nil, "ARTWORK")
   headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
   headRule:SetHeight(1)
@@ -632,5 +669,8 @@ function Inspector.PaintInspector(position)
       + (inspector.stock:GetStringHeight() or 0) + 10))
   end
   Inspector.PlaceHead(head)
+  -- Out from the right only as it opens, never on a repaint of a panel already up.
+  local opening = not inspector:IsShown()
   inspector:Show()
+  if opening and inspector.slide then inspector.slide:Play() end
 end

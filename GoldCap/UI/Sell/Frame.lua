@@ -223,6 +223,14 @@ function fmt.count(format, count)
   return (format:gsub("%%d", GC.Sell._InlineColor(gold, tostring(count)), 1))
 end
 
+-- What a price makes over what one cost, as the row's line under YOU GET and the dock's YOU GET
+-- both say it: "+43%" and green, "-20%" and red. Nil when either is not a figure.
+function fmt.margin(unit, paidUnit)
+  if not (unit and paidUnit and paidUnit > 0) then return nil end
+  local pct = math.floor(((unit - paidUnit) / paidUnit) * 100 + 0.5)
+  return (pct >= 0 and "+" or "") .. pct .. "%", pct >= 0 and GC.Theme.color.green or GC.Theme.color.red
+end
+
 local exact = GC.SellUtil.exact
 
 local COPPER_PER_GOLD = 10000
