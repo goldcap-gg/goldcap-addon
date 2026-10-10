@@ -27,7 +27,6 @@ GC.Locales.enUS = {
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d filtered out: hard to resell, or under your Min profit per buy",
   ["%d held back"] = "%d held back",
-  ["%d held back from posting"] = "%d held back from posting",
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
   ["%d hits"] = "%d hits",
   ["%d in %d lots"] = "%d in %d lots",

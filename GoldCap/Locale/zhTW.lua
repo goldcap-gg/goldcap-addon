@@ -29,7 +29,6 @@ GC.Locales.zhTW = {
     "上次掃描的 %d 筆交易 -- 按 Full Scan 更新",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d 筆因難以轉售或低於單次購買最低利潤而濾除",
   ["%d held back"] = "%d 筆保留",
-  ["%d held back from posting"] = "%d 筆未上架",
   ["%d hidden -- the live check refused them"] = "已隱藏 %d 項 -- 即時核對已拒絕",
   ["%d hits"] = "%d 筆命中",
   ["%d in %d lots"] = "%d 件 · %d 批",

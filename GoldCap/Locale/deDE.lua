@@ -24,7 +24,6 @@ GC.Locales.deDE = {
     "%d Angebote aus dem letzten Scan -- Full Scan zum Aktualisieren",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d aussortiert: schwer verkäuflich oder unter deinem Mindestgewinn pro Kauf",
   ["%d held back"] = "%d zurückgehalten",
-  ["%d held back from posting"] = "%d nicht eingestellt",
   ["%d hidden -- the live check refused them"] = "%d ausgeblendet -- die Live-Prüfung hat sie abgelehnt",
   ["%d hits"] = "%d Treffer",
   ["%d in %d lots"] = "%d in %d Posten",

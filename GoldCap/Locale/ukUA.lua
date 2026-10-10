@@ -27,7 +27,6 @@ GC.Locales.ukUA = {
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d відсіяно: важко перепродати або нижче вашого мінімального прибутку з купівлі",
   ["%d held back"] = "%d притримано",
-  ["%d held back from posting"] = "%d притримано від виставлення",
   ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
   ["%d hits"] = "знахідок: %d",
   ["%d in %d lots"] = "%d у %d лотах",

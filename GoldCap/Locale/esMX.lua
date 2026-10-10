@@ -27,7 +27,6 @@ GC.Locales.esMX = {
     "%d oportunidades del último escaneo -- pulsa Full Scan para actualizar",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d descartadas: difíciles de revender o bajo tu ganancia mínima por compra",
   ["%d held back"] = "%d retenidas",
-  ["%d held back from posting"] = "%d sin publicar",
   ["%d hidden -- the live check refused them"] = "%d ocultos -- la comprobación en vivo los rechazó",
   ["%d hits"] = "%d hallazgos",
   ["%d in %d lots"] = "%d en %d lotes",

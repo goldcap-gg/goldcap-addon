@@ -23,7 +23,6 @@ GC.Locales.ruRU = {
     "%d сделок с последнего сканирования -- Full Scan, чтобы обновить",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d отсеяно: трудно перепродать или ниже вашей минимальной прибыли с покупки",
   ["%d held back"] = "%d придержано",
-  ["%d held back from posting"] = "%d придержано от выставления",
   ["%d hidden -- the live check refused them"] = "%d скрыто -- живая проверка их отклонила",
   ["%d hits"] = "находок: %d",
   ["%d in %d lots"] = "%d в %d лотах",

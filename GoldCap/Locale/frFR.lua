@@ -24,7 +24,6 @@ GC.Locales.frFR = {
     "%d affaires du dernier scan -- Full Scan pour actualiser",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d écartées : difficiles à revendre, ou sous votre profit min. par achat",
   ["%d held back"] = "%d retenues",
-  ["%d held back from posting"] = "%d non mises en vente",
   ["%d hidden -- the live check refused them"] = "%d masqués -- la vérification en direct les a refusés",
   ["%d hits"] = "%d trouvailles",
   ["%d in %d lots"] = "%d en %d lots",

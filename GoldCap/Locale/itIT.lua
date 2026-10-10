@@ -24,7 +24,6 @@ GC.Locales.itIT = {
     "%d occasioni dall'ultima scansione -- Full Scan per aggiornare",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d scartate: difficili da rivendere o sotto il tuo profitto min. per acquisto",
   ["%d held back"] = "%d trattenute",
-  ["%d held back from posting"] = "%d non messe in vendita",
   ["%d hidden -- the live check refused them"] = "%d nascoste -- la verifica dal vivo le ha rifiutate",
   ["%d hits"] = "%d trovati",
   ["%d in %d lots"] = "%d in %d lotti",

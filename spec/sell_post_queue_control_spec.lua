@@ -11,8 +11,10 @@ describe("Sell tab, the posting queue control", function()
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
     if parent then parent.children[#parent.children + 1] = v end
-    function v:SetPoint() end
-    function v:ClearAllPoints() end
+    function v:SetPoint(point, relative, relativePoint, x, y)
+      self.points[#self.points + 1] = { point = point, relative = relative, relativePoint = relativePoint, x = x, y = y }
+    end
+    function v:ClearAllPoints() self.points = {} end
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
@@ -137,6 +139,24 @@ describe("Sell tab, the posting queue control", function()
     -- Widget, held back for want of a price, is next: the walk stops at it too.
     assert.equal("×246 in bags · then Widget", container.dockSub.text)
     assert.is_true(container.skipButton.shown)
+  end)
+
+  -- The owner, 2026-10-10: beside the controls the item's name had 2px at the default window. It
+  -- has the dock's whole width on a tier of its own now, and the tier grows when the name wraps.
+  it("gives the item its own tier over the controls, as tall as its name wraps", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    local DOCK = GC.SellUI.DOCK
+    assert.equal(container, container.queueLabel.points[2].relative)
+    assert.equal("TOPRIGHT", container.queueLabel.points[2].point)
+    assert.equal(DOCK.H + DOCK.ITEM_H, GC.SellUI.Dock.Height())
+    container.queueLabel.GetStringHeight = function() return 30 end -- two lines of name
+    container.dockSub.GetStringHeight = function() return 12 end
+    render()
+    local height = DOCK.H + 48 -- 30 + 2 + 12, and 4 of air
+    assert.equal(height, GC.SellUI.Dock.Height())
+    assert.equal(height + 6, container.scroll.points[2].y) -- the list stops at the dock's top edge
+    assert.equal(height + 6, container.inspector.points[2].y)
   end)
 
   -- The owner, 2026-10-10: two items marked, both held back below what they cost; SKIP on the

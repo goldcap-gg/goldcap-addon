@@ -104,16 +104,19 @@ UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
 -- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
 UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 
--- The dock along the bottom of the tab, in two tiers (owner, 2026-10-10: post from here, not
--- from every row). The upper carries the item POST posts next and everything about that post --
--- how many, the price, what it fetches, SKIP and POST -- centred on TOP_Y; the lower the status
--- line and the totals, on LOW_Y. Both measured up from the dock's bottom edge. Widths fit the
--- widest label at mono-10 and Theme.Scale() 1.3 (~7.8px/char): "MISE EN VENTE…" on POST,
--- "ПРОПУСТИТЬ" on SKIP. NARROW is the content width under which the ledger keeps only PROCEEDS;
--- under WIDE the upper tier drops YOU GET, which the row and the totals already say -- at the
--- default 720px window the item's name needs that room.
-UI.DOCK = { H = 76, PAD = 8, NARROW = 700, WIDE = 860, TOP_Y = 42, LOW_Y = 13,
-  BUTTON_H = 28, BOX_H = 24, ICON = 30, POST_W = 128, SKIP_W = 96, PRICE_W = 96, QTY_W = 56,
+-- The dock along the bottom of the tab (owner, 2026-10-10: post from here, not from every row).
+-- Two tiers H tall: the upper carries everything about the post -- how many, the price, what it
+-- fetches, SKIP and POST -- centred on TOP_Y; the lower the status line and the totals, on LOW_Y.
+-- Both measured up from the dock's bottom edge. Over them, on the posting deck, the item tier:
+-- the item's icon, its name and its stock line, the whole width of the dock to themselves and at
+-- least ITEM_H tall (owner, 2026-10-10: beside the controls a name had 2px at the default window
+-- and was cut). Widths fit the widest label at mono-10 and Theme.Scale() 1.3 (~7.8px/char):
+-- "MISE EN VENTE…" on POST, "ПРОПУСТИТЬ" on SKIP. NARROW is the content width under which the
+-- ledger keeps only PROCEEDS; under WIDE the upper tier drops YOU GET, which the row and the
+-- totals already say.
+-- The lower tier is two lines tall: the status line wraps rather than ending in "…".
+UI.DOCK = { H = 78, ITEM_H = 30, PAD = 8, NARROW = 700, WIDE = 860, TOP_Y = 44, LOW_Y = 14,
+  BUTTON_H = 28, BOX_H = 24, ICON = 26, POST_W = 128, SKIP_W = 96, PRICE_W = 96, QTY_W = 56,
   MAX_W = 48, NET_W = 96 }
 
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the

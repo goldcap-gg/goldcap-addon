@@ -27,7 +27,6 @@ GC.Locales.koKR = {
     "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "재판매가 어렵거나 1회 구매 최소 수익 미만이라 %d건 제외",
   ["%d held back"] = "%d건 보류",
-  ["%d held back from posting"] = "등록에서 %d건 보류",
   ["%d hidden -- the live check refused them"] = "%d개 숨김 -- 실시간 확인에서 거부됨",
   ["%d hits"] = "%d건 발견",
   ["%d in %d lots"] = "%d개 · 물량 %d건",

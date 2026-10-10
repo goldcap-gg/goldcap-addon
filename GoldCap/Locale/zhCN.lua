@@ -28,7 +28,6 @@ GC.Locales.zhCN = {
     "上次扫描的 %d 笔交易 -- 按 Full Scan 刷新",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d 笔因难以转卖或低于单次购买最低利润被过滤",
   ["%d held back"] = "%d 笔已保留",
-  ["%d held back from posting"] = "%d 笔未上架",
   ["%d hidden -- the live check refused them"] = "已隐藏 %d 项 -- 实时核对已拒绝",
   ["%d hits"] = "%d 条命中",
   ["%d in %d lots"] = "%d 件 · %d 批",

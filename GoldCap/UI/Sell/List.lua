@@ -11,7 +11,7 @@ local Bags, Walk = GC.SellBags, GC.SellWalk
 local exact, itemName = GC.SellUtil.exact, GC.SellUtil.itemName
 local UI = GC.SellUI
 local List = UI.List
-local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
+local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, DIM_HEX = UI.fmt.setColor, UI.fmt.DIM_HEX
 local renderGeneration = 0
 
@@ -818,7 +818,7 @@ function List.Build()
   -- Stops above the footer instead of running to the container's own bottom edge: the bulk
   -- action and the ledger line live there now, and a list that scrolled under them would put
   -- rows behind a control that can spend gold.
-  scroll:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
+  scroll:SetPoint("BOTTOMRIGHT", 0, UI.Dock.Height() + 6)
   -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
   -- `scroll` (not `content`), living where the rows would be, never scrolling.
   local emptyText = Theme.Label(scroll, 12)
@@ -845,7 +845,8 @@ function List.ApplyListGeometry()
   header:ClearAllPoints()
   header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
+  scroll:SetPoint("TOPLEFT", 0, -52)
+  scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -inset, UI.Dock.Height() + 6)
   UI.content:SetWidth(INSP.listWidth())
   layoutCells(header)
 end

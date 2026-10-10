@@ -198,10 +198,10 @@ paintQueueButton = function()
   UI.PostPanel.Paint(row, nextRow, hint)
   if heldBack then
     if #S.queueSkipped > 0 then
-      -- "from posting", because the cancel queue paints an identical counter near its own
-      -- button (paintCancelButton below) and two bare "N held back" strings on one screen
-      -- would leave the reader guessing which queue each one describes.
-      heldBack:SetText((GC.L["%d held back from posting"]):format(#S.queueSkipped))
+      -- The cancel queue's own count shows on MY LOTS alone (paintCancelButton), so this one
+      -- is never beside it to be told apart from: the short words leave the status line the
+      -- room to say its sentence whole.
+      heldBack:SetText((GC.L["%d held back"]):format(#S.queueSkipped))
       heldBack:Show()
       if heldBackHit then heldBackHit:Show() end
     else
@@ -589,8 +589,28 @@ function Dock.BuildFill()
   local dockFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png",
     { phc[1], phc[2], phc[3], 1 }, 12)
   dockFill:SetPoint("BOTTOMLEFT"); dockFill:SetPoint("BOTTOMRIGHT")
-  dockFill:SetHeight(DOCK.H)
+  dockFill:SetHeight(Dock.Height())
   container.dockFill = dockFill
+end
+
+-- How tall the dock stands: its two tiers, and the item tier over them while the posting deck has
+-- an item or a word to say (UI/Sell/PostPanel.lua sets it). The list and the item panel stop at
+-- its top edge, so they follow it here.
+function Dock.Height()
+  return Dock.height or DOCK.H
+end
+
+function Dock.SetHeight(height)
+  local container = UI.container
+  if not container or Dock.Height() == height then return end
+  Dock.height = height
+  if container.dockFill then container.dockFill:SetHeight(height) end
+  if container.inspector then
+    container.inspector:ClearAllPoints()
+    container.inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -34)
+    container.inspector:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, height + 6)
+  end
+  if container.scroll and container.header then UI.List.ApplyListGeometry() end
 end
 
 -- The lower tier, right to left: the totals, the held-back counter, then the status line, which
@@ -651,7 +671,9 @@ function Dock.Build(f)
   local dockStatus = Theme.Num(container, 9)
   dockStatus:SetPoint("LEFT", container, "BOTTOMLEFT", DOCK.PAD, DOCK.LOW_Y)
   dockStatus:SetJustifyH("LEFT")
-  dockStatus:SetWordWrap(false)
+  -- Two lines where one is not enough ("Fetching a fresh price for this item..." is wider than the
+  -- room the totals leave it, in English too): the lower tier is DOCK.LOW_Y * 2 tall for them.
+  dockStatus:SetWordWrap(true)
   setColor(dockStatus, Theme.color.fgMuted)
   container.dockStatus = dockStatus
 

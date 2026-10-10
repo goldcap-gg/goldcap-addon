@@ -149,11 +149,38 @@ local function applyQuantity(box, key, settled)
   setQuantity(key, n, settled)
 end
 
+-- The item tier's top `height` over the dock's two tiers: icon and name hang from it, top points
+-- only, so a wrapped name pushes its stock line down rather than over it.
+local function placeItem(c, height)
+  local top = DOCK.H + height - 2
+  c.dockIcon:ClearAllPoints()
+  c.dockIcon:SetPoint("TOPLEFT", c, "BOTTOMLEFT", DOCK.PAD, top)
+  c.queueLabel:ClearAllPoints()
+  c.queueLabel:SetPoint("TOPLEFT", c, "BOTTOMLEFT", DOCK.PAD + DOCK.ICON + 8, top + 1)
+  c.queueLabel:SetPoint("TOPRIGHT", c, "BOTTOMRIGHT", -DOCK.PAD, top + 1)
+end
+
+-- The item tier's height for what it says now, and the dock with it (UI.Dock.SetHeight): the name
+-- and the line under it as tall as they wrap, never shorter than the icon's own room.
+local function fitItem(c)
+  local height = DOCK.ITEM_H
+  if c.queueLabel.GetStringHeight then
+    c.queueLabel:SetText(c.queueLabel:GetText() or "") -- laid out at this width (Book.Layout)
+    local h = c.queueLabel:GetStringHeight() or 0
+    if c.dockSub:IsShown() then
+      c.dockSub:SetText(c.dockSub:GetText() or "")
+      h = h + 2 + (c.dockSub:GetStringHeight() or 0)
+    end
+    height = math.max(height, math.ceil(h + 4))
+  end
+  placeItem(c, height)
+  UI.Dock.SetHeight(DOCK.H + height)
+end
+
 -- The upper tier, right to left from POST (built by UI/Sell/Dock.lua): SKIP, what the post
--- fetches, the price, how many, and the item itself in the room left at the left end.
+-- fetches, the price and how many; the item itself in its own tier over them.
 function PostPanel.Build()
   local c = UI.container
-  local y = DOCK.TOP_Y
 
   local skip = Theme.Button(c, "ghost", "plaque")
   skip:SetSize(DOCK.SKIP_W, DOCK.BUTTON_H)
@@ -213,21 +240,20 @@ function PostPanel.Build()
   c.qtyHead = Theme.Num(c, 9)
   c.qtyHead:SetPoint("BOTTOMLEFT", c.qtyBoxBg, "TOPLEFT", 0, 3)
 
+  -- The item tier, over the controls: the item's icon, its name, and under it how many are in the
+  -- bags and what comes after it -- or, when the price is under what it cost, that, in red. The
+  -- dock's whole width is theirs, and both wrap with the tier growing to hold them (Paint): beside
+  -- the controls the name had 2px at the default window (owner, 2026-10-10).
   c.dockIcon = c:CreateTexture(nil, "ARTWORK")
   c.dockIcon:SetSize(DOCK.ICON, DOCK.ICON)
-  c.dockIcon:SetPoint("LEFT", c, "BOTTOMLEFT", DOCK.PAD, y + 4)
   c.dockIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
-  -- The item's name, and under it how many are in the bags and what comes after it -- or, when
-  -- the price is under what it cost, that, in red. Both wrap rather than cut: every language's
-  -- item names have to be read whole.
   c.queueLabel = Theme.Num(c, 11, true)
-  c.queueLabel:SetJustifyH("LEFT"); c.queueLabel:SetWordWrap(true); c.queueLabel:SetMaxLines(2)
-  c.queueLabel:SetPoint("TOPLEFT", c.dockIcon, "TOPRIGHT", 8, 2)
-  c.queueLabel:SetPoint("RIGHT", c.qtyBoxBg, "LEFT", -16, 0)
+  c.queueLabel:SetJustifyH("LEFT"); c.queueLabel:SetWordWrap(true)
   c.dockSub = Theme.Num(c, 9)
-  c.dockSub:SetJustifyH("LEFT"); c.dockSub:SetWordWrap(true); c.dockSub:SetMaxLines(2)
-  c.dockSub:SetPoint("TOPLEFT", c.queueLabel, "BOTTOMLEFT", 0, -3)
-  c.dockSub:SetPoint("RIGHT", c.qtyBoxBg, "LEFT", -16, 0)
+  c.dockSub:SetJustifyH("LEFT"); c.dockSub:SetWordWrap(true)
+  c.dockSub:SetPoint("TOPLEFT", c.queueLabel, "BOTTOMLEFT", 0, -2)
+  c.dockSub:SetPoint("TOPRIGHT", c.queueLabel, "BOTTOMRIGHT", 0, -2)
+  placeItem(c, DOCK.ITEM_H)
   PostPanel.Layout()
 end
 
@@ -274,6 +300,7 @@ function PostPanel.Hide()
   letGo(c.priceBox); letGo(c.qtyBox)
   c.queueLabel:Hide()
   PostPanel.position, PostPanel.key = nil, nil
+  UI.Dock.SetHeight(DOCK.H) -- no item tier off the posting deck
 end
 
 --- Paints the upper tier for `row`, the dock's item (UI.Dock.Current), with `nextRow` the one
@@ -295,6 +322,7 @@ function PostPanel.Paint(row, nextRow, hint)
     c.queueLabel:SetText(hint or "")
     setColor(c.queueLabel, Theme.color.fgDim)
     c.queueLabel:Show()
+    fitItem(c)
     return
   end
   local key = PostPanel.key
@@ -329,6 +357,7 @@ function PostPanel.Paint(row, nextRow, hint)
     setColor(c.dockSub, Theme.color.fgDim)
   end
   c.dockSub:Show()
+  fitItem(c)
 
   -- How many, only when there is more than one to choose from.
   local qty, most, typed = postQuantity(p)

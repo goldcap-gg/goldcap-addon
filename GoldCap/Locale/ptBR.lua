@@ -25,7 +25,6 @@ GC.Locales.ptBR = {
     "%d oportunidades da última varredura -- Full Scan para atualizar",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d descartadas: difíceis de revender ou abaixo do seu lucro mínimo por compra",
   ["%d held back"] = "%d retidas",
-  ["%d held back from posting"] = "%d não anunciadas",
   ["%d hidden -- the live check refused them"] = "%d ocultos -- a verificação ao vivo os recusou",
   ["%d hits"] = "%d achados",
   ["%d in %d lots"] = "%d em %d lotes",

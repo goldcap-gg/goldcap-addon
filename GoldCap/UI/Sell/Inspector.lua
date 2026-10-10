@@ -14,7 +14,7 @@ local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, G
 local postQuantity = GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Inspector = UI.Inspector
-local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
+local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
 
 -- The book's own four columns, mirroring the design: price, depth at that price, a bar for
@@ -527,7 +527,7 @@ function Inspector.Build()
   -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
   local inspector = CreateFrame("Frame", nil, container)
   inspector:SetPoint("TOPRIGHT", 0, -34)
-  inspector:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
+  inspector:SetPoint("BOTTOMRIGHT", 0, UI.Dock.Height() + 6)
   inspector:SetWidth(INSP.W)
   -- Above the list it may be lying over, and swallowing its own mouse: a click on the panel's
   -- background must not land on whichever row sits behind it.
