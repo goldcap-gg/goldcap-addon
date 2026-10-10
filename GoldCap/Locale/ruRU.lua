@@ -298,8 +298,8 @@ GC.Locales.ruRU = {
     "Выставлено по цене, заданной вами на goldcap.gg, или дешевле. Перепродастся ли — судить вам.",
   ["Listed value"] = "Выставлено на сумму",
   ["Listings"] = "Лотов",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Выставляет то, что лежит в сумках, по цене из колонки ЧТО ДЕЛАТЬ: товар — всем объёмом, обычный предмет — одним стеком.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Выставляет этот предмет по цене из его строки: товар всем объёмом, обычный предмет одним стеком, или столько, сколько указано в СКОЛЬКО.",
   ["Live ask"] = "Цена в стакане",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот отменён; дождитесь его возврата в сумки",

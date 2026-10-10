@@ -134,18 +134,62 @@ describe("Sell tab, the posting queue control", function()
     assert.equal("POST", button.label)
     assert.is_true(button.enabled)
     assert.equal("Eternium Ore", container.queueLabel.text)
-    assert.equal("×246 in bags", container.dockSub.text)
+    -- Widget, held back for want of a price, is next: the walk stops at it too.
+    assert.equal("×246 in bags · then Widget", container.dockSub.text)
     assert.is_true(container.skipButton.shown)
   end)
 
-  it("disables with an honest word when nothing is postable", function()
+  -- The owner, 2026-10-10: two items marked, both held back below what they cost; SKIP on the
+  -- first left the dock saying "Nothing queued to post" with the second still on the list.
+  it("walks to the items the queue held back, says why in red, and SKIP goes from one to the next", function()
     ready() -- no quote at all: BOTH bag items are held back, nothing enters the queue
     local button = container.queueButton
+    assert.equal(0, #GC.SellState.queueEntries)
+    local first = container.queueLabel.text
+    assert.is_true(first == "Eternium Ore" or first == "Widget")
+    assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+    assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
+    -- POST asks for the price, as the row's Post does.
+    assert.is_true(button.enabled)
+    container.skipButton.scripts.OnClick(container.skipButton)
+    local second = container.queueLabel.text
+    assert.is_true(second == "Eternium Ore" or second == "Widget")
+    assert.is_not.equal(first, second)
+    assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+    container.skipButton.scripts.OnClick(container.skipButton)
     assert.is_false(button.enabled)
     assert.equal("POST", button.label)
     assert.equal("Nothing queued to post", container.queueLabel.text)
     assert.is_false(container.skipButton.shown)
     assert.is_false(container.priceBoxBg.shown)
+    -- Passed over, they are not held back any more: the rows say "skipped".
+    assert.equal(0, #GC.SellState.queueSkipped)
+    assert.is_false(container.queueHeldBack.shown)
+  end)
+
+  -- Not one whose last post may still go up: that one waits for its answer.
+  it("does not walk to an item waiting for its last post's answer", function()
+    ready()
+    GC.SellState.queueSkipped = { { positionKey = "commodity:23427", itemName = "Eternium Ore",
+      reason = "awaiting_answer" } }
+    GC.SellUI.Dock.PaintQueueButton()
+    assert.equal("Nothing queued to post", container.queueLabel.text)
+  end)
+
+  -- The owner, 2026-10-10: the skipped item's row stayed lit, its panel open, under a dock that
+  -- had moved on.
+  it("shuts the skipped item's panel", function()
+    GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+    ready()
+    local ore
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then ore = row end
+    end
+    ore.scripts.OnClick(ore)
+    assert.is_true(GC.SellUI.expanded["commodity:23427"])
+    container.skipButton.scripts.OnClick(container.skipButton)
+    assert.is_nil(GC.SellUI.expanded["commodity:23427"])
+    assert.equal("Widget", container.queueLabel.text)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -378,14 +422,24 @@ describe("Sell tab, the posting queue control", function()
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
   end)
 
-  it("has no Post of its own on a row with stock: the dock is where it posts from", function()
+  -- The owner, 2026-10-10: keep the row's own Post, "it is handy". The same click as the dock's.
+  it("keeps a Post on a row with stock, which posts that row", function()
+    local posted = 0
+    _G.C_AuctionHouse.PostCommodity = function() posted = posted + 1; return false end
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     ready()
+    local ore
     for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "position" and (row.position.bagQty or 0) > 0 then
-        assert.is_false(row.action.shown)
+        assert.is_true(row.action.shown)
+        assert.equal("Post", row.action.label)
+        assert.equal("Post", row.action.helpKey)
       end
+      if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then ore = row end
     end
+    ore.action.scripts.OnClick(ore.action)
+    assert.equal(1, posted)
+    assert.equal(ore, GC.SellState.postingRow)
   end)
 
   it("holds Eternium Ore back in WoW: Forever when a vendor pays more for it", function()
@@ -404,8 +458,8 @@ describe("Sell tab, the posting queue control", function()
     end
     assert.is_true(sawEternium)
     render()
-    local button = container.queueButton
-    assert.is_false(button.enabled)
+    -- The dock stops at it all the same, and says why in red.
+    assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
     local hit = container.queueHeldBackHit
     local tooltipLines = {}
     _G.GameTooltip = {
@@ -567,10 +621,20 @@ describe("Sell tab, the posting queue control", function()
     end)
 
     -- Finding 5: the hint is for a deck with nothing marked, not one whose marked items wait.
-    it("does not ask for a mark while a marked item is only held back", function()
+    it("does not ask for a mark while a marked item is only held back: it shows that item", function()
       GC.db.sellMarks["commodity:99001"] = true -- Widget has no price: held back
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       ready()
+      assert.equal("Widget", container.queueLabel.text)
+      assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+    end)
+
+    -- ...nor once the walk has been down the list.
+    it("does not ask for a mark once every marked item was passed over", function()
+      GC.db.sellMarks["commodity:99001"] = true
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      ready()
+      container.skipButton.scripts.OnClick(container.skipButton)
       assert.is_false(container.queueButton.enabled)
       assert.equal("Nothing queued to post", container.queueLabel.text)
     end)

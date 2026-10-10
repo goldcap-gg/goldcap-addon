@@ -309,8 +309,8 @@ GC.Locales.deDE = {
     "Zu oder unter dem Preis angeboten, den du auf goldcap.gg festgelegt hast. Ob es sich weiterverkaufen lässt, schätzt du selbst ein.",
   ["Listed value"] = "Eingestellter Wert",
   ["Listings"] = "Angebote",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Stellt ein, was in deinen Taschen liegt — zum Preis unter WAS ZU TUN IST: eine Handelsware als gesamter Taschenbestand, ein normaler Gegenstand als ein Stapel.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Stellt diesen Gegenstand zum Preis in seiner Zeile ein: eine Handelsware als gesamter Taschenbestand, ein normaler Gegenstand als ein Stapel, oder die Zahl unter ANZAHL.",
   ["Live ask"] = "Aktueller Preis",
   ["Lot cancelled; wait for it to return to bags"] =
     "Posten abgebrochen; warte, bis er in die Taschen zurückkommt",

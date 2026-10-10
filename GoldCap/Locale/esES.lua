@@ -312,8 +312,8 @@ GC.Locales.esES = {
     "Publicado a tu precio de goldcap.gg o por debajo. Si se revende o no, lo valoras tú.",
   ["Listed value"] = "Valor publicado",
   ["Listings"] = "Publicaciones",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Publica lo que tienes en las bolsas al precio de QUÉ HACER: toda la bolsa si es una mercancía, una pila si es un objeto normal.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Publica este objeto al precio de su fila: toda la bolsa si es una mercancía, una pila si es un objeto normal, o el número de CANTIDAD.",
   ["Live ask"] = "Precio en vivo",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lote cancelado; espera a que vuelva a las bolsas",

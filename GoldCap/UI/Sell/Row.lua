@@ -140,7 +140,7 @@ local ACTION_HELP = {
   ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
   -- Two short paragraphs each, never more (sell_action_help_spec locks the length): the
   -- tooltip opens beside a button inside the list, so every extra line is a row it covers.
-  ["Post"] = { "Post", { "Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
+  ["Post"] = { "Post", { "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
   ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
   ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
@@ -734,10 +734,10 @@ function Row.PaintPosition(row, entry, ctx)
     setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
       and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
   end
-  -- Stock in the bags posts from the dock alone (owner, 2026-10-10): a Post on every row beside
-  -- the dock's made three places to post one item, and a click on the row puts it in the dock.
-  -- Set cost is bookkeeping and stays available whenever there is no stock to act on; the
-  -- expansion carries it in either case.
+  -- Stock in the bags posts from the row's own Post or from the dock's POST, the same click
+  -- (UI.Dock.OnPostClick) at the same price and number (owner, 2026-10-10: keep the row's, "it is
+  -- handy"). Set cost is bookkeeping and stays available whenever there is no stock to act on;
+  -- the expansion carries it in either case.
   if onListed and ROW.queuedLot(p) then
     -- MY LOTS' own control, on the rows worth cancelling and no others. It cancels nothing
     -- itself: ROW.armLot opens the position and hands the click to the lot's own button.
@@ -746,7 +746,7 @@ function Row.PaintPosition(row, entry, ctx)
       ROW.armLot(ROW.queuedLot(row.position))
     end)
   elseif bagQty > 0 and not onListed then
-    row.action:Hide()
+    showRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
   elseif UI.CostDialog.CanSetCost(p) then
     showRowAction(row, GC.L["Set cost"], function() UI.CostDialog.OpenCostDialog(p) end)
   else

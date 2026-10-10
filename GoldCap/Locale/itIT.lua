@@ -310,8 +310,8 @@ GC.Locales.itIT = {
     "In vendita al prezzo che hai fissato su goldcap.gg o meno. Se si rivende, giudichi tu.",
   ["Listed value"] = "Valore in vendita",
   ["Listings"] = "Vendite",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Mette in vendita ciò che hai nelle borse al prezzo sotto COSA FARE: l'intera borsa per una merce, una pila per un oggetto normale.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Mette in vendita questo oggetto al prezzo della sua riga: l'intera borsa per una merce, una pila per un oggetto normale, o il numero sotto QUANTITÀ.",
   ["Live ask"] = "Prezzo attuale",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lotto annullato; aspetta che torni nelle borse",

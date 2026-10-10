@@ -2,8 +2,8 @@
 -- item it posts (UI/Sell/PostPanel.lua paints the rest of that tier), CANCEL n and its line, the
 -- totals and the status line; and the click handlers. onPostClick and onRepostClick are the only places the tab makes a protected
 -- auction-house call, one per click, before anything else the click does (docs/addon/AGENTS.md
--- "Protected actions"). A row's buttons, the inspector's Post and Cancel lot, the dock and the key
--- binding all reach them through UI.Dock. Moved from UI/SellFrame.lua as it was.
+-- "Protected actions"). A row's buttons, the inspector's Cancel lot, the dock and the key binding
+-- all reach them through UI.Dock. Moved from UI/SellFrame.lua as it was.
 local _, GC = ...
 
 local Theme = GC.Theme
@@ -187,9 +187,9 @@ paintQueueButton = function()
   elseif not row then
     button:SetLabel(GC.L["POST"])
     button:Disable()
-    -- Items in the bags, none of them on the selling list: say how to put one on it. Not while
-    -- something marked is only held back -- the counter beside this says why for those.
-    local unmarkedOnly = #S.queueSkipped == 0 and #(S.notSelling or {}) > 0
+    -- Items in the bags, none of them on the selling list: say how to put one on it. Not once
+    -- the walk has been down a list there was, nor while an item waits for its last post.
+    local unmarkedOnly = #S.queueSkipped == 0 and #(S.queueDone or {}) == 0 and #(S.notSelling or {}) > 0
     hint = unmarkedOnly and GC.L["Mark what to sell with the circle"] or GC.L["Nothing queued to post"]
   else
     button:SetLabel(GC.L["POST"])
@@ -507,6 +507,13 @@ function Dock.Current()
   if S.filterMode == "listed" or S.filterMode == "cancelqueue" then return nil, nil end
   local queued = {}
   for _, entry in ipairs(S.queueEntries) do queued[entry.positionKey] = true end
+  -- ...and what the queue held back but the player marked: the walk stops at it too, and the dock
+  -- says in red why GoldCap would not list it (owner, 2026-10-10: two items held back below what
+  -- they cost, and SKIP on the first left the second unoffered). Not one whose last post may
+  -- still go up: that one waits.
+  for _, skip in ipairs(S.queueSkipped) do
+    if skip.reason ~= "awaiting_answer" then queued[skip.positionKey] = true end
+  end
   local chosen
   local walk = {}
   for _, row in ipairs(UI.rows or {}) do

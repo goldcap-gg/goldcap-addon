@@ -219,9 +219,9 @@ describe("Clean click ordering, driven end to end", function()
       container.queueButton.scripts.OnClick(container.queueButton)
     end
 
-    -- The dock's POST is the one place the posting deck posts from (owner, 2026-10-10). It posts
-    -- a row already drawn (UI.Dock.Current), so on both games one press posts: nothing renders or
-    -- paints in the click ahead of the call.
+    -- The dock's POST and each row's own Post (owner, 2026-10-10). The dock posts a row already
+    -- drawn (UI.Dock.Current), so on both games one press posts: nothing renders or paints in the
+    -- click ahead of the call.
     it("Post's first click: the dock's POST", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       compose(); render()
@@ -271,6 +271,31 @@ describe("Clean click ordering, driven end to end", function()
         log = {}
         root.GoldCapPostNext()
         assertCleanCall("PostCommodity")
+      end)
+
+      it(("on %s a row's own Post posts on its first click, the call first"):format(game[1]), function()
+        passport(game[2])
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose(); render()
+        local ore = oreRow()
+        log = {}
+        ore.action.scripts.OnClick(ore.action)
+        assertCleanCall("PostCommodity")
+        assert.is_true(logged("Disable") > logged("PostCommodity"))
+      end)
+
+      it(("on %s a row's own Post confirms on its second click, the call first"):format(game[1]), function()
+        passport(game[2])
+        _G.C_AuctionHouse.PostCommodity = function() return true end
+        wrapAH({ "PostCommodity" })
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+        compose(); render()
+        local ore = oreRow()
+        ore.action.scripts.OnClick(ore.action)
+        assert.equal("confirm", ore.postStage)
+        log = {}
+        ore.action.scripts.OnClick(ore.action)
+        assertCleanCall("ConfirmPostCommodity")
       end)
 
       -- An item a row click put in the dock, not the walk's: the click on the row renders, the

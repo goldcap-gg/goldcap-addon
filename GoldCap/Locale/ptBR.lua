@@ -310,8 +310,8 @@ GC.Locales.ptBR = {
     "Anunciado no preço que você definiu no goldcap.gg ou abaixo. Se revende ou não, o julgamento é seu.",
   ["Listed value"] = "Valor anunciado",
   ["Listings"] = "Anúncios",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Anuncia o que está nas suas bolsas pelo preço de O QUE FAZER: a bolsa inteira para uma mercadoria, uma pilha para um item normal.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Anuncia este item pelo preço da sua linha: a bolsa inteira para uma mercadoria, uma pilha para um item normal, ou o número em QUANTIDADE.",
   ["Live ask"] = "Preço ao vivo",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lote cancelado; espere ele voltar para as bolsas",

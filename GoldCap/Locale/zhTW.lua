@@ -295,8 +295,8 @@ GC.Locales.zhTW = {
     "掛單價不高於你在 goldcap.gg 設定的價格。能否轉手賣出，要你自己判斷。",
   ["Listed value"] = "在售金額",
   ["Listings"] = "上架數",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "按「該做什麼」一欄的價格上架你包裡的物品：商品上架包裡的全部數量，普通物品上架一組。",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "按這一行的價格上架此物品：商品上架包裡的全部數量，普通物品上架一組，或按「數量」裡填寫的數目。",
   ["Live ask"] = "即時要價",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；請等它回到背包",
   ["MARKET"] = "市價",

@@ -423,8 +423,8 @@ GC.Locales.enUS = {
     "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
   ["Listed value"] = "Listed value",
   ["Listings"] = "Listings",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.",
   ["Live ask"] = "Live ask",
   ["Lot cancelled; wait for it to return to bags"] = "Lot cancelled; wait for it to return to bags",
   ["MARKET"] = "MARKET",

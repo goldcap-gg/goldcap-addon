@@ -305,8 +305,8 @@ GC.Locales.ukUA = {
     "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше. Чи перепродасться — судити вам.",
   ["Listed value"] = "Виставлено на суму",
   ["Listings"] = "Лотів",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "Виставляє те, що лежить у сумках, за ціною з колонки ЩО РОБИТИ: товар — усім обсягом, звичайний предмет — одним стеком.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "Виставляє цей предмет за ціною з його рядка: товар усім обсягом, звичайний предмет одним стеком, або стільки, скільки вказано в СКІЛЬКИ.",
   ["Live ask"] = "Ціна в стакані",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",

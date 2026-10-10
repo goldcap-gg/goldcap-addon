@@ -298,8 +298,8 @@ GC.Locales.koKR = {
     "goldcap.gg에서 정한 내 가격 이하로 등록되어 있습니다. 되팔 수 있을지는 직접 판단하세요.",
   ["Listed value"] = "등록 금액",
   ["Listings"] = "등록 수",
-  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
-    "가방에 있는 물량을 무엇을 할지 항목의 가격으로 등록합니다: 상품은 가방 전체 수량을, 일반 아이템은 묶음 하나를.",
+  ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
+    "이 아이템을 해당 줄의 가격으로 등록합니다: 상품은 가방 전체 수량을, 일반 아이템은 묶음 하나를, 또는 수량에 적은 개수를.",
   ["Live ask"] = "현재 호가",
   ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",
   ["MARKET"] = "시세",

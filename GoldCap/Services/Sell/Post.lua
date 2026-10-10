@@ -212,21 +212,27 @@ end
 -- straight back to the head with what was left (one water of six posted, then POST offered the
 -- other five, and the linen marked beside it waited behind them). A click on its row still puts
 -- it in the dock, and the next visit starts the list again (GC.Sell.Reset). Into S.queueDone,
--- not queueSkipped: nothing held these back, and the footer's held-back count says so.
+-- not queueSkipped: nothing holds these back now, and the footer's held-back count says so. An
+-- item the queue held back leaves it the same way: the walk stops at those too (UI.Dock.Current).
+-- Not one waiting for its last post's answer, which stays held until the answer comes.
 function GC.Sell._HoldDoneInQueue()
   S.queueDone = {}
   if next(S.postedThisVisit) == nil and next(S.passedThisVisit) == nil then return end
-  local kept = {}
-  for _, entry in ipairs(S.queueEntries) do
-    local key = entry.positionKey
-    if S.postedThisVisit[key] or S.passedThisVisit[key] then
-      S.queueDone[#S.queueDone + 1] = { positionKey = key, itemID = entry.itemID, itemName = entry.itemName,
-        reason = S.postedThisVisit[key] and "posted_this_visit" or "skipped_this_visit" }
-    else
-      kept[#kept + 1] = entry
+  local function sift(list, keep)
+    local kept = {}
+    for _, entry in ipairs(list) do
+      local key = entry.positionKey
+      if keep(entry) or not (S.postedThisVisit[key] or S.passedThisVisit[key]) then
+        kept[#kept + 1] = entry
+      else
+        S.queueDone[#S.queueDone + 1] = { positionKey = key, itemID = entry.itemID, itemName = entry.itemName,
+          reason = S.postedThisVisit[key] and "posted_this_visit" or "skipped_this_visit" }
+      end
     end
+    return kept
   end
-  S.queueEntries = kept
+  S.queueEntries = sift(S.queueEntries, function() return false end)
+  S.queueSkipped = sift(S.queueSkipped, function(skip) return skip.reason == "awaiting_answer" end)
 end
 
 -- SKIP: the dock's item is passed over for this visit, and the dock moves on.

@@ -1,10 +1,10 @@
--- The dock's posting panel: the one place the posting deck posts from (owner, 2026-10-10). It
--- used to take three places to post one item -- the circle to mark it, the item's panel for its
--- price and how many, the dock's POST to send it -- while every row carried a Post of its own,
--- so the bulk action was more work than the row it was meant to save. Now the dock holds the
+-- The dock's posting panel (owner, 2026-10-10). It used to take three places to post one item --
+-- the circle to mark it, the item's panel for its price and how many, the dock's POST to send it
+-- -- so the bulk action was more work than the row it was meant to save. Now the dock holds the
 -- item POST posts next, with its price and how many, beside SKIP and POST: Blizzard's own sell
--- pane, and Auctionator's. The item is the one the player clicked (S.dockKey), or the next one
--- on the selling list in the list's own order (UI.Dock.Current). After a post or a SKIP the dock
+-- pane, and Auctionator's. Each row keeps a Post of its own beside its price (owner, same day:
+-- "it is handy"). The dock's item is the one the player clicked (S.dockKey), or the next one on
+-- the selling list in the list's own order (UI.Dock.Current). After a post or a SKIP the dock
 -- moves on; the walk goes over the list once a visit (GC.Sell._HoldDoneInQueue).
 --
 -- What a post spends is still decided where it always was: the price and the number typed here
@@ -167,6 +167,9 @@ function PostPanel.Build()
         and (out.postStage == "posting" or out.postStage == "confirming") then return end
     Post.WalkAway() -- an armed post is a question; moving on answers it "no"
     GC.Sell.PassDockItem(key)
+    -- The item's panel shuts with it, and its row stops looking chosen: the dock has moved on
+    -- (owner, 2026-10-10).
+    UI.expanded[key] = nil
     UI.List.RenderRows()
   end)
   c.skipButton = skip
@@ -301,8 +304,8 @@ function PostPanel.Paint(row, nextRow, hint)
 
   local unit, chosen = effectivePostUnit(p)
   local risk = GC.SellPositions.PriceRisk(p, unit)
-  -- A row click can put an item the queue held back in the dock (a vendor pays more, it would
-  -- sell at a loss): POST will list it, so the dock says why the queue would not (review).
+  -- The walk and a row click both bring an item the queue held back to the dock (a vendor pays
+  -- more, it would sell at a loss): POST will list it, so the dock says why the queue would not.
   local heldBack = UI.Dock.HeldBackText(p.positionKey)
   -- Under what it cost, under GoldCap's floor or held back is what the line says first, in red;
   -- otherwise what is in the bags and what POST goes to after this.
