@@ -308,6 +308,9 @@ ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNo
 local function blockHeight(row)
   local name, stock = row.cells.item, row.itemStock
   if not (name.GetStringHeight and stock.GetStringHeight) then return nil end
+  -- A FontString lays its lines out when its text is SET (UI/Sell/Book.lua's Book.Layout, seen in
+  -- game): set again at the width just anchored, or a pooled row measures its last item's lines.
+  name:SetText(name:GetText() or ""); stock:SetText(stock:GetText() or "")
   local h = name:GetStringHeight() or 0
   if (stock:GetText() or "") ~= "" then h = h + 2 + (stock:GetStringHeight() or 0) end
   return h > 0 and h or nil

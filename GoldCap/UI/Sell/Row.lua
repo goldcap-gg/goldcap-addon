@@ -941,6 +941,7 @@ function Row.Style(row, entry)
       row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
       row.sectionHint:SetWordWrap(true) -- and no line limit: nothing else on a row sets one on it
       row.sectionHint:Show()
+      row.sectionHint:SetText(row.sectionHint:GetText() or "") -- laid out at this width (Book.Layout)
       local h = row.sectionHint.GetStringHeight and row.sectionHint:GetStringHeight()
       if h then row.fitHeight = math.ceil(h + 2 * ROW.PAD) end
     end
