@@ -365,10 +365,30 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     return f
   end
 
-  local function buildFrame()
+  -- The window as the client makes it: CreateFrame hands it back shown, and Show() or Hide() runs
+  -- its OnShow or OnHide only when the state actually changes.
+  local function clientShown(f)
+    f.shown = true
+    f.IsShown = function(self) return self.shown end
+    f.IsVisible = function(self) return self.shown end
+    f.Show = function(self)
+      if self.shown then return end
+      self.shown = true
+      if self.scripts.OnShow then self.scripts.OnShow(self) end
+    end
+    f.Hide = function(self)
+      if not self.shown then return end
+      self.shown = false
+      if self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
+    return f
+  end
+
+  local function loadAddon()
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
+      if name == "GoldCapSniperFrame" then clientShown(f) end
       if name and name ~= "" then
         _G[name] = f
       end
@@ -399,7 +419,11 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       assert(chunk, err)
       chunk("GoldCap", GC)
     end
+    return GC
+  end
 
+  local function buildFrame()
+    local GC = loadAddon()
     GC.Sniper.Toggle() -- constructs and shows the real window; frame = frame or createFrame()
     local frame = _G.GoldCapSniperFrame
     assert(frame, "GC.Sniper.Toggle() did not publish _G.GoldCapSniperFrame")
@@ -435,6 +459,21 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     end
     error("missing upvalue " .. wanted)
   end
+
+  -- Owner, WoW: Forever 11.10: AUTO lit on the first visit with nothing scanning, and the first
+  -- click on it seemed to do nothing. The window's first Show() ran no OnShow (the client makes a
+  -- frame shown), so the "tab" pause Auto was armed with on opening the auction house stayed on.
+  it("opens the first window through its own OnShow, so Auto is not left paused for it", function()
+    local GC = loadAddon()
+    local feedAuto = upvalue(GC.Sniper._OnPlayerBrowse, "feedAuto")
+    local autoScan = upvalue(GC.Sniper.ScanActive, "autoScan")
+    feedAuto("toggleOn")
+    feedAuto("tabHidden") -- what opening the auction house does while the window is not up yet
+    assert.is_true(autoScan:PauseReasons().tab)
+    GC.Sniper.Toggle()
+    assert.is_true(_G.GoldCapSniperFrame:IsShown())
+    assert.is_falsy(autoScan:PauseReasons().tab)
+  end)
 
   it("re-arms the sell pause when Auto is toggled off then back on while Sell is the active view", function()
     local frame = buildFrame()

@@ -145,6 +145,32 @@ describe("one scan state for the toolbar", function()
       assert.equal("ghost", b.variant)
     end)
 
+    -- Owner, WoW: Forever 11.10: Auto stood paused, the scan on opening the auction house read
+    -- 75,230 lots, and SCAN read idle the whole time. Only "AUTO · SCANNING" speaks for a scan.
+    it("lights for a scan while the AUTO chip names a pause or a hold, or reads plain AUTO", function()
+      local GC = loadSniper()
+      local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")
+      local autoScan = upvalue(GC.Sniper.ScanActive, "autoScan")
+      local b = fakeButton(function(t) return #t * 8 end)
+      local state, reasons = "PAUSED", { tab = true }
+      autoScan.State = function() return state end
+      autoScan.PauseReasons = function() return reasons end
+      foreverBusy = true
+      refresh({ fullScanBtn = b })
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      assert.equal("active", b.variant)
+      reasons = { sell = true }
+      refresh({ fullScanBtn = b })
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      state, GC.Sniper._autoHeld = "WAITING", "busy"
+      refresh({ fullScanBtn = b })
+      assert.equal("SCANNING…", b.labels[#b.labels])
+      GC.Sniper._autoHeld = nil
+      refresh({ fullScanBtn = b })
+      assert.equal("SCAN", b.labels[#b.labels])
+      assert.equal("ghost", b.variant)
+    end)
+
     it("is sized to the longer label, never under the old 64px, and measured once", function()
       local GC = loadSniper()
       local refresh = upvalue(GC.Sniper.RepaintScanState, "refreshScanButton")

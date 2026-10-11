@@ -94,6 +94,31 @@ function GC.Util.CoinText(copper)
   return coinTextFallback(copper)
 end
 
+-- Money as the game writes it, in its own coins, gold grouped in thousands (owner, 2026-10-09):
+-- "2,450[g] 50[s]". From a thousand gold up the silver is dropped: it is noise there. Copper only
+-- under a gold, where it is most of the figure. The Sell and BUY tabs' figures (each says what a
+-- missing amount reads as itself). Never in a box that cuts its text: a FontString cuts an icon
+-- escape mid-escape. Gold goes through GC.Util.Grouped, never %d: WoW's own string.format raises
+-- "integer overflow" past +-2^31 copper (about 214,748g); silver is bounded 0-99 by the mod.
+function GC.Util.Money(copper)
+  if copper < 0 then return "-" .. GC.Util.Money(-copper) end
+  if copper >= 10000 then
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    local text = GC.Util.Grouped(gold) .. ICON.g
+    if silver == 0 or gold >= 1000 then return text end
+    return text .. (" %d"):format(silver) .. ICON.s
+  end
+  return GC.Util.CoinText(copper)
+end
+
+-- `text` in `color` ({ r, g, b }, 0-1) as an inline escape: part of one FontString lit, where
+-- there is no region of its own to SetTextColor.
+function GC.Util.Colored(color, text)
+  return ("|cff%02x%02x%02x%s|r"):format(
+    math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
+end
+
 -- Compact gold display: whole gold past 100g, gold+silver below it, a coin-icon string
 -- under a gold. Moved here (Sniper fast loop, phase 1) from UI/SniperFrame.lua's own
 -- formatColumnAmount so Core/BoardRows.lua can format a verdict label without a WoW frame --

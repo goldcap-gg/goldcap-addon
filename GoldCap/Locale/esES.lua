@@ -53,7 +53,6 @@ GC.Locales.esES = {
   ["%s · %s under market"] = "%s · %s bajo mercado",
   ["%s · at market price"] = "%s · a precio de mercado",
   ["%s: %d unit%s without a cost"] = "%s: %d unidad%s sin coste",
-  ["%s → craft %d× (%d per craft)"] = "%s → fabricar %d× (%d por fabricación)",
   ["%s+ ahead"] = "%s+ por delante",
   ["%s+, %d prices read"] = "%s+ en %d precios",
   ["..."] = "...",
@@ -212,7 +211,6 @@ GC.Locales.esES = {
   ["Skipped"] = "Omitido",
   ["Split into reagents (craft %d×)"] = "Dividir en componentes (fabricar %d×)",
   ["Stat weights: %s"] = "Pesos de estadísticas: %s",
-  ["TO BUY HERE"] = "POR COMPRAR AQUÍ",
   ["The rest is skipped for now"] = "El resto está omitido por ahora",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "Este cliente no informa de las estadísticas de los objetos, así que GoldCap no puede comparar equipo.",
@@ -656,7 +654,6 @@ GC.Locales.esES = {
   ["nothing on offer"] = "nada a la venta",
   ["on %s"] = "en %s",
   ["over your cap"] = "sobre tu tope",
-  ["over your cap · %s"] = "sobre tu tope · %s",
   ["plan updated on goldcap.gg"] = "plan actualizado en goldcap.gg",
   ["price moved to %s"] = "el precio pasó a %s",
   ["purchase failed. Try again"] = "la compra falló. Inténtalo de nuevo",
@@ -1148,7 +1145,6 @@ GC.Locales.esES = {
     "plan actualizado en goldcap.gg · +%d -%d líneas",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ valor de mercado de goldcap.gg, aún sin cotización en vivo",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ falta precio",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1218,13 +1214,11 @@ GC.Locales.esES = {
     "Haz Mayús+clic en objetos, escribe un nombre o un ID de objeto con x y la cantidad: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "DISPONIBLES",
-  ["Add to list…"] = "Añadir a una lista…",
   ["Back to %s"] = "Volver a %s",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Haz clic para comprarlo aquí. Clic derecho para añadirlo a una lista.",
   ["Close search"] = "Cerrar búsqueda",
   ["How many"] = "Cuántos",
-  ["How many of %s?"] = "¿Cuántos de %s?",
   ["Loading more results…"] = "Cargando más resultados…",
   ["More results"] = "Más resultados",
   ["Nothing on sale for “%s”."] = "No hay nada a la venta para «%s».",
@@ -1236,7 +1230,6 @@ GC.Locales.esES = {
   ["Searching the auction house for “%s”…"] = "Buscando «%s» en la casa de subastas…",
   ["The auction house did not answer. Search again."] =
     "La casa de subastas no respondió. Busca de nuevo.",
-  ["Type a whole number."] = "Escribe un número entero.",
   ["Waiting for the auction house…"] = "Esperando a la casa de subastas…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1285,4 +1278,19 @@ GC.Locales.esES = {
   ["POST"] = "PUBLICAR",
   ["SKIP"] = "OMITIR",
   ["then %s"] = "luego %s",
+  ["need %d"] = "necesitas %d",
+  ["need %d · have %d"] = "necesitas %d · tienes %d",
+  ["cap %s"] = "tope %s",
+  ["no cap"] = "sin tope",
+  ["%s under your cap"] = "%s bajo tu tope",
+  ["at your cap"] = "justo en tu tope",
+  ["for %d"] = "por %d",
+  ["goes into %s"] = "para %s",
+  ["market price"] = "precio de mercado",
+  ["craft %d× (%d per craft)"] = "fabricar %d× (%d por fabricación)",
+  ["%s spent"] = "%s gastado",
+  ["No list yet"] = "Aún no hay lista",
+  ["Add to %s"] = "Añadir a %s",
+  ["Add to a new list"] = "Añadir a una lista nueva",
+  ["Add %d to a list"] = "Añadir %d a una lista",
 }

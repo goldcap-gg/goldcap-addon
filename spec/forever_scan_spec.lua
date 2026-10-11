@@ -325,6 +325,41 @@ describe("ForeverScan", function()
     runAll()
     assert.is_true(store.fold.partial)
     assert.equal("replicate", store.fold.source)
+    assert.is_true(noted("done")[2].givenUp)
+  end)
+
+  -- Beta, 11.10: a cut dump's wide pass got no page for 15 s and the stall watchdog gave it up;
+  -- the scan waited out BROWSE_WAIT_SECONDS with the SCAN button on SCANNING under "stalled".
+  it("saves at once what the given-up browse pass saw, and is free again", function()
+    d.browseAnswer = "started"
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP)
+    runRead(s)
+    assert.equal("browsing", s:State())
+    s:OnBrowsePassAbandoned({
+      [2589] = { floor = 64, qty = 5814 },
+      [4000] = { floor = 9, qty = 1, variants = true },
+    })
+    assert.is_false(s:IsBusy())
+    local fold = store.fold
+    assert.is_true(fold.partial)
+    assert.equal("replicate+browse", fold.source)
+    assert.equal(1, fold.itemCount)              -- the cut dump's own items go, as after a whole pass
+    assert.equal(64, GC.ForeverFold.Decode(fold.items[2589]).min)
+    assert.is_nil(fold.items[4000])
+    assert.is_true(noted("done")[2].givenUp)
+    local saved = #notes
+    runAll()                                     -- the browse timeout finds nothing to do
+    assert.equal(saved, #notes)
+  end)
+
+  it("ignores a given-up browse pass it was not waiting for", function()
+    local s = GC.ForeverScan.New(driver())
+    s:OnBrowsePassAbandoned({ [2589] = { floor = 64, qty = 5814 } })
+    assert.equal("idle", s:State())
+    assert.is_nil(store.fold)
+    assert.equal(0, #notes)
   end)
 
   it("browses wide when the full scan never answers", function()

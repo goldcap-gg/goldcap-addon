@@ -54,7 +54,6 @@ GC.Locales.enUS = {
   ["%s · %s under market"] = "%s · %s under market",
   ["%s · at market price"] = "%s · at market price",
   ["%s: %d unit%s without a cost"] = "%s: %d unit%s without a cost",
-  ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   ["%s+ ahead"] = "%s+ ahead",
   ["%s+, %d prices read"] = "%s+, %d prices read",
   ["1 lot, %s asked"] = "1 lot, %s asked",
@@ -213,7 +212,6 @@ GC.Locales.enUS = {
   ["Skip for now"] = "Skip for now",
   ["Skipped"] = "Skipped",
   ["Stat weights: %s"] = "Stat weights: %s",
-  ["TO BUY HERE"] = "TO BUY HERE",
   ["The cancel did not go through: the lot is still listed"] = "The cancel did not go through: the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
@@ -285,7 +283,6 @@ GC.Locales.enUS = {
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
   ["over your cap"] = "over your cap",
-  ["over your cap · %s"] = "over your cap · %s",
   ["Archive this run"] = "Archive this run",
   ["Archived"] = "Archived",
   ["Restore %s"] = "Restore %s",
@@ -1139,7 +1136,6 @@ GC.Locales.enUS = {
   ["plan updated on goldcap.gg · +%d -%d lines"] = "plan updated on goldcap.gg · +%d -%d lines",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ goldcap.gg market value, no live quote yet",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ needs price",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1202,13 +1198,11 @@ GC.Locales.enUS = {
     "Shift-click items, type a name, or an item id with x and a count: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "AVAILABLE",
-  ["Add to list…"] = "Add to list…",
   ["Back to %s"] = "Back to %s",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Click to buy it here. Right-click to add it to a list.",
   ["Close search"] = "Close search",
   ["How many"] = "How many",
-  ["How many of %s?"] = "How many of %s?",
   ["Loading more results…"] = "Loading more results…",
   ["More results"] = "More results",
   ["Nothing on sale for “%s”."] = "Nothing on sale for “%s”.",
@@ -1220,7 +1214,6 @@ GC.Locales.enUS = {
   ["Searching the auction house for “%s”…"] = "Searching the auction house for “%s”…",
   ["The auction house did not answer. Search again."] =
     "The auction house did not answer. Search again.",
-  ["Type a whole number."] = "Type a whole number.",
   ["Waiting for the auction house…"] = "Waiting for the auction house…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1269,4 +1262,19 @@ GC.Locales.enUS = {
   ["POST"] = "POST",
   ["SKIP"] = "SKIP",
   ["then %s"] = "then %s",
+  ["need %d"] = "need %d",
+  ["need %d · have %d"] = "need %d · have %d",
+  ["cap %s"] = "cap %s",
+  ["no cap"] = "no cap",
+  ["%s under your cap"] = "%s under your cap",
+  ["at your cap"] = "at your cap",
+  ["for %d"] = "for %d",
+  ["goes into %s"] = "goes into %s",
+  ["market price"] = "market price",
+  ["craft %d× (%d per craft)"] = "craft %d× (%d per craft)",
+  ["%s spent"] = "%s spent",
+  ["No list yet"] = "No list yet",
+  ["Add to %s"] = "Add to %s",
+  ["Add to a new list"] = "Add to a new list",
+  ["Add %d to a list"] = "Add %d to a list",
 }

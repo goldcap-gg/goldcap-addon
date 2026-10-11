@@ -46,7 +46,6 @@ GC.Locales.ruRU = {
   ["%s · %s under market"] = "%s · на %s ниже рынка",
   ["%s · at market price"] = "%s · по рыночной цене",
   ["%s: %d unit%s without a cost"] = "%s: %d единиц%s без себестоимости",
-  ["%s → craft %d× (%d per craft)"] = "%s → крафт %d× (по %d за крафт)",
   ["%s+ ahead"] = "%s+ впереди",
   ["%s+, %d prices read"] = "%s+, прочитано %d цен",
   ["1 lot, %s asked"] = "1 лот, просят %s",
@@ -198,7 +197,6 @@ GC.Locales.ruRU = {
   ["Skipped"] = "Пропущено",
   ["Split into reagents (craft %d×)"] = "Разложить на реагенты (крафт %d×)",
   ["Stat weights: %s"] = "Веса характеристик: %s",
-  ["TO BUY HERE"] = "К ПОКУПКЕ ЗДЕСЬ",
   ["The rest is skipped for now"] = "Остальное пока пропущено",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "Этот клиент не сообщает характеристики предметов, поэтому GoldCap не может сравнить экипировку.",
@@ -633,7 +631,6 @@ GC.Locales.ruRU = {
   ["nothing at or under your cap of %s"] = "ничего по вашему потолку %s или дешевле",
   ["nothing on offer"] = "в продаже нет",
   ["over your cap"] = "выше потолка",
-  ["over your cap · %s"] = "выше потолка · %s",
   ["purchase failed. Try again"] = "покупка не прошла. Попробуйте снова",
   ["right-click to skip or change the cap"] = "ПКМ: пропустить или изменить потолок",
   ["seen %s ago"] = "видели %s назад",
@@ -1215,7 +1212,6 @@ GC.Locales.ruRU = {
   ["plan updated on goldcap.gg · +%d -%d lines"] = "план обновлён на goldcap.gg · строк +%d -%d",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ рыночная стоимость goldcap.gg, живой котировки пока нет",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ нужна цена",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1285,13 +1281,11 @@ GC.Locales.ruRU = {
     "Сделайте Shift+клик по предметам, введите название или ID предмета с x и количеством: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "В НАЛИЧИИ",
-  ["Add to list…"] = "Добавить в список…",
   ["Back to %s"] = "К списку «%s»",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Щелчок покупает здесь. Правый щелчок добавляет в список.",
   ["Close search"] = "Закрыть поиск",
   ["How many"] = "Сколько",
-  ["How many of %s?"] = "Сколько: %s?",
   ["Loading more results…"] = "Загружаем ещё результаты…",
   ["More results"] = "Ещё результаты",
   ["Nothing on sale for “%s”."] = "По запросу «%s» ничего не продаётся.",
@@ -1302,7 +1296,6 @@ GC.Locales.ruRU = {
   ["Search again"] = "Искать снова",
   ["Searching the auction house for “%s”…"] = "Ищем «%s» на аукционе…",
   ["The auction house did not answer. Search again."] = "Аукцион не ответил. Повторите поиск.",
-  ["Type a whole number."] = "Введите целое число.",
   ["Waiting for the auction house…"] = "Ждём аукцион…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1351,4 +1344,19 @@ GC.Locales.ruRU = {
   ["POST"] = "ВЫСТАВИТЬ",
   ["SKIP"] = "ПРОПУСТИТЬ",
   ["then %s"] = "дальше %s",
+  ["need %d"] = "нужно %d",
+  ["need %d · have %d"] = "нужно %d · есть %d",
+  ["cap %s"] = "потолок %s",
+  ["no cap"] = "без потолка",
+  ["%s under your cap"] = "на %s ниже потолка",
+  ["at your cap"] = "ровно потолок",
+  ["for %d"] = "за %d шт.",
+  ["goes into %s"] = "для %s",
+  ["market price"] = "рыночная цена",
+  ["craft %d× (%d per craft)"] = "крафт %d× (по %d за крафт)",
+  ["%s spent"] = "потрачено %s",
+  ["No list yet"] = "Списка пока нет",
+  ["Add to %s"] = "В список «%s»",
+  ["Add to a new list"] = "В новый список",
+  ["Add %d to a list"] = "Добавить %d в список",
 }

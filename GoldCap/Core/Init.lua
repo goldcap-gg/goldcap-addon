@@ -1023,6 +1023,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
+    -- BUY shows an item it has no name for yet by its id, and repaints once the name is in.
+    if GC.Buy and GC.Buy.OnItemInfo then GC.Buy.OnItemInfo(itemID, success) end
     -- The upgrades window repaints once the items it counted as loading arrive (Forever only: the
     -- window never exists elsewhere). itemID lets it ignore an answer it was not waiting for (M1).
     if GC.ForeverUpgradesUI then GC.ForeverUpgradesUI.OnItemInfo(itemID) end

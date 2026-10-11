@@ -108,6 +108,16 @@ describe("WoW: Forever scan wiring", function()
       assert.is_false(GC.ForeverScan.IsBusy())
     end)
 
+    -- A dump stage that comes while the scan browses is not read (Core/ForeverScan.lua's
+    -- OnReplicateUpdate), so once the browse pass is given up no fuller read is coming to wait for.
+    it("prints a partial read at once and is free when its browse pass was given up", function()
+      GC.ForeverScan.Init({})
+      GC.ForeverScan._Notify("done", { rows = 2048, items = 10, replicated = true, partial = true, givenUp = true })
+      assert.equal("2048 lots scanned and saved", printed[1])
+      assert.equal(0, #timers)
+      assert.is_false(GC.ForeverScan.IsBusy())
+    end)
+
     it("a full read ends the hold at once", function()
       GC.ForeverScan.Init({})
       done(2048, true)
@@ -279,6 +289,10 @@ describe("WoW: Forever scan wiring", function()
       assert.truthy(sniper:find("GC.ForeverScan.OnBrowsePassDone(GC.Sniper._bookPass:Book())", 1, true))
       assert.truthy(sniper:find('GC.ForeverScan.Request("button")', 1, true))
       assert.truthy(sniper:find("function GC.Sniper.StartBrowsePass(kind)", 1, true))
+    end)
+
+    it("folds a given-up browse pass at once", function()
+      assert.truthy(sniper:find("GC.ForeverScan.OnBrowsePassAbandoned(GC.Sniper._bookPass:Book())", 1, true))
     end)
 
     it("keeps scan work out of the Sell tab entirely", function()

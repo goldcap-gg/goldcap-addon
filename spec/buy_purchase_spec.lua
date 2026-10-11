@@ -127,6 +127,14 @@ describe("BUY purchase", function()
     end
   end
 
+  -- The game's coins as letters: "1|T...GoldIcon...|t 2|T...SilverIcon...|t" reads "1g 2s".
+  local function plain(text)
+    return (tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      :gsub("|TInterface\\MoneyFrame\\UI%-GoldIcon[^|]*|t", "g")
+      :gsub("|TInterface\\MoneyFrame\\UI%-SilverIcon[^|]*|t", "s")
+      :gsub("|TInterface\\MoneyFrame\\UI%-CopperIcon[^|]*|t", "c"))
+  end
+
   -- A bought-out line sinks to the bottom of the run, so a line is found by its item and never
   -- by the position it held before the purchase.
   local function runLine(itemID)
@@ -384,7 +392,7 @@ describe("BUY purchase", function()
     assert.equal(6 * 900 + 4 * 1200, attempt.total)
     assert.is_false(attempt.capped)
     assert.equal("BUY 10", buttonFor(rowWithText("Alpha Herb")).label)
-    assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
+    assert.equal("1g 2s", plain(rowWithText("Alpha Herb").cells.cost:GetText()))
   end)
 
   it("never prices against the player's own units", function()
@@ -674,7 +682,7 @@ describe("BUY purchase", function()
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.same({}, confirmed) -- nothing is confirmed by the event itself
     assert.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
-    assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
+    assert.equal("1g 2s", plain(rowWithText("Alpha Herb").cells.cost:GetText()))
 
     click(rowWithText("Alpha Herb"))
     assert.same({ { itemID = 101, quantity = 10 } }, confirmed)
@@ -698,15 +706,15 @@ describe("BUY purchase", function()
     -- button -- "CONFIRM (9)" clipped the digit in seven languages.
     it("counts down its last ten seconds beside Blizzard's price, leaving CONFIRM as it is", function()
       atConfirm()
-      assert.equal("Blizzard's price: 1g02s", dock().sub:GetText())
+      assert.equal("Blizzard's price: 1g 2s", plain(dock().sub:GetText()))
       now = now + 8 -- 12 s left: nothing yet
       GC.Buy.TickCountdown()
       GC.Buy.RefreshIfShown()
-      assert.equal("Blizzard's price: 1g02s", dock().sub:GetText())
+      assert.equal("Blizzard's price: 1g 2s", plain(dock().sub:GetText()))
 
       now = now + 3 -- 11 s after the quote: 9 left
       GC.Buy.TickCountdown()
-      assert.equal("Blizzard's price: 1g02s · 9 s left", dock().sub:GetText())
+      assert.equal("Blizzard's price: 1g 2s · 9 s left", plain(dock().sub:GetText()))
       local row = rowWithText("Alpha Herb")
       assert.equal("CONFIRM", buttonFor(row).label)
       assert.is_true(buttonFor(row):IsEnabled())
@@ -1047,7 +1055,7 @@ describe("BUY purchase", function()
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.equal(12000, GC.Buy._attempt.serverTotal)
     assert.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
-    assert.equal("1g20s", rowWithText("Alpha Herb").cells.cost:GetText())
+    assert.equal("1g 20s", plain(rowWithText("Alpha Herb").cells.cost:GetText()))
     assert.equal(1, #confirmed) -- the event confirmed nothing by itself
 
     -- ...and the click that follows agrees to the NEW price.
@@ -2002,7 +2010,8 @@ describe("BUY purchase", function()
       assert.equal("quoted", GC.Buy._attempt.stage)
       assert.equal("over", GC.Buy._attempt.lotWhy)
       local row = rowWithText("Dark Leather Boots")
-      assert.equal("over your cap · 1900c", row.status:GetText())
+      assert.equal("1900c", row.cells.price:GetText())
+      assert.equal("over your cap", row.notes.price:GetText())
       assert.equal("RAISE CAP TO 1900c", dock().buy.label)
     end)
 
@@ -2340,7 +2349,7 @@ describe("BUY purchase", function()
 
     it("says the floor on a gear line that has one", function()
       gearRun({ i = 201, q = 1, cc = 2000, minIlvl = 25 })
-      assert.is_truthy(rowWithText("Dark Leather Boots").reagent:GetText():find("item level 25+", 1, true))
+      assert.is_truthy(rowWithText("Dark Leather Boots").sub:GetText():find("item level 25+", 1, true))
     end)
 
     -- The hover: the game's own tooltip for the lot it buys next (its own link: the item level and
@@ -2637,7 +2646,7 @@ describe("BUY purchase", function()
       setBook(101, { { unitPrice = 900, quantity = 50 } })
       pick(rowWithText("Alpha Herb"))
       GC.Buy.OnCommodityResults(101)
-      assert.equal("Alpha Herb ×10", dock().title:GetText())
+      assert.equal("Alpha Herb ×10", (dock().title:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")))
       assert.equal("9000c · 1000c under market", dock().sub:GetText())
     end)
 

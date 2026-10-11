@@ -53,7 +53,6 @@ GC.Locales.koKR = {
   ["%s · %s under market"] = "%s · 시세보다 %s 저렴",
   ["%s · at market price"] = "%s · 시세와 같음",
   ["%s: %d unit%s without a cost"] = "%s: 원가 없는 %d개%s",
-  ["%s → craft %d× (%d per craft)"] = "%s → %d회 제작 (제작당 %d개)",
   ["%s+ ahead"] = "앞에 %s+",
   ["%s+, %d prices read"] = "%s+, 가격 %d개 읽음",
   ["..."] = "...",
@@ -204,7 +203,6 @@ GC.Locales.koKR = {
   ["Skipped"] = "건너뜀",
   ["Split into reagents (craft %d×)"] = "재료로 나누기 (%d회 제작)",
   ["Stat weights: %s"] = "능력치 가중치: %s",
-  ["TO BUY HERE"] = "여기서 살 금액",
   ["The rest is skipped for now"] = "나머지는 잠시 건너뜀",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "이 클라이언트는 아이템 능력치를 알려주지 않아 GoldCap이 장비를 비교할 수 없습니다.",
@@ -618,7 +616,6 @@ GC.Locales.koKR = {
   ["nothing on offer"] = "매물 없음",
   ["on %s"] = "%s 서버",
   ["over your cap"] = "상한 초과",
-  ["over your cap · %s"] = "상한 초과 · %s",
   ["plan updated on goldcap.gg"] = "goldcap.gg에서 계획이 갱신됨",
   ["price moved to %s"] = "가격이 %s(으)로 바뀜",
   ["purchase failed. Try again"] = "구매 실패. 다시 시도하세요",
@@ -1085,7 +1082,6 @@ GC.Locales.koKR = {
   ["SHOW DETAILS ▼"] = "세부 정보 보기 ▼",
   ["plan updated on goldcap.gg · +%d -%d lines"] = "goldcap.gg에서 계획이 갱신됨 · 줄 +%d -%d",
   ["~ goldcap.gg market value, no live quote yet"] = "~ goldcap.gg 시세, 아직 실시간 시세가 없습니다",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ 가격 필요",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1152,13 +1148,11 @@ GC.Locales.koKR = {
     "아이템을 Shift+클릭하거나, 이름을 입력하거나, 아이템 ID와 x, 수량을 입력하세요: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "수량",
-  ["Add to list…"] = "목록에 추가…",
   ["Back to %s"] = "%s(으)로 돌아가기",
   ["Click to buy it here. Right-click to add it to a list."] =
     "클릭하면 여기서 구매합니다. 오른쪽 클릭하면 목록에 추가합니다.",
   ["Close search"] = "검색 닫기",
   ["How many"] = "수량",
-  ["How many of %s?"] = "%s 몇 개?",
   ["Loading more results…"] = "결과를 더 불러오는 중…",
   ["More results"] = "결과 더 보기",
   ["Nothing on sale for “%s”."] = "“%s” 판매 중인 물건이 없습니다.",
@@ -1168,7 +1162,6 @@ GC.Locales.koKR = {
   ["Search again"] = "다시 검색",
   ["Searching the auction house for “%s”…"] = "경매장에서 “%s” 검색 중…",
   ["The auction house did not answer. Search again."] = "경매장이 응답하지 않았습니다. 다시 검색하세요.",
-  ["Type a whole number."] = "정수를 입력하세요.",
   ["Waiting for the auction house…"] = "경매장을 기다리는 중…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1217,4 +1210,19 @@ GC.Locales.koKR = {
   ["POST"] = "등록",
   ["SKIP"] = "건너뛰기",
   ["then %s"] = "다음: %s",
+  ["need %d"] = "필요 %d",
+  ["need %d · have %d"] = "필요 %d · 보유 %d",
+  ["cap %s"] = "상한 %s",
+  ["no cap"] = "상한 없음",
+  ["%s under your cap"] = "상한보다 %s 낮음",
+  ["at your cap"] = "상한과 같음",
+  ["for %d"] = "%d개",
+  ["goes into %s"] = "%s 재료",
+  ["market price"] = "시세",
+  ["craft %d× (%d per craft)"] = "%d회 제작 (제작당 %d개)",
+  ["%s spent"] = "%s 지출",
+  ["No list yet"] = "아직 목록 없음",
+  ["Add to %s"] = "%s에 추가",
+  ["Add to a new list"] = "새 목록에 추가",
+  ["Add %d to a list"] = "목록에 %d개 추가",
 }

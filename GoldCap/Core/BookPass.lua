@@ -192,11 +192,16 @@ function GC.BookPass.New(driver, opts)
   -- which is why the caller's ticker nudges the arbiter for this case and only this one.
   function obj:PendingStart() return pendingStart end
 
+  -- A pass given up says so (driver.onAbort, when the driver has one): whoever waits for its end
+  -- (Core/ForeverScan.lua's browse, through UI/SniperFrame.lua) would otherwise wait out its own
+  -- timer for an onPassDone that is never coming.
   function obj:Abort()
+    local was, k = paging, kind
     paging = false
     pendingStart = false
     pendingPage = false
     kind = nil
+    if was and driver.onAbort then driver.onAbort({ kind = k, pages = pagesThisPass, items = rawWatermark }) end
   end
 
   -- Everything this module remembers is a claim about one Auction House session's order

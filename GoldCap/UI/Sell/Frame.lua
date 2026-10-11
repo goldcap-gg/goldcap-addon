@@ -162,31 +162,18 @@ function fmt.setColor(fontString, color)
   if fontString and color then fontString:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
 end
 
--- Money as the game writes it, in its own coins, gold grouped in thousands (owner, 2026-10-09):
--- "2,450[g] 50[s]". From a thousand gold up the silver is dropped, the way the Deals board drops it
--- past a hundred: it is noise there, and the column it would widen is YOU GET. Copper only under a
--- gold, where it is most of the figure. These were plain text ("65g24s") for as long as a cell
--- could be cut short: a FontString cuts an icon escape MID-ESCAPE, which painted lot labels as
--- "bought 17 Aug at 1|..." in game. Nothing in the Sell view is cut any more (the owner's rule):
--- every fixed box an amount lands in is sized for the widest one it can get (DR.PRICE_W, DOCK.NET_W,
--- a purchase's cost in UI/Sell/Inspector.lua); the list's money columns already hold theirs.
+-- Money as the game writes it, in its own coins (GC.Util.Money). These were plain text ("65g24s")
+-- for as long as a cell could be cut short: a FontString cuts an icon escape MID-ESCAPE, which
+-- painted lot labels as "bought 17 Aug at 1|..." in game. Nothing in the Sell view is cut any more
+-- (the owner's rule): every fixed box an amount lands in is sized for the widest one it can get
+-- (DR.PRICE_W, DOCK.NET_W, a purchase's cost in UI/Sell/Inspector.lua); the list's money columns
+-- already hold theirs.
 --
 -- A GC.Sell field, not a top-level local: paint-only (every call site is inside render or
 -- drawer/summary paint code, never a click's pre-call body; final review "Headroom").
--- `silver` stays on %d: it is bounded 0-99 by the mod above. Gold goes through GC.Util.Grouped,
--- never %d: WoW's own string.format raises "integer overflow" past +-2^31 copper (about 214,748g).
 function GC.Sell._FormatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
-  if amount < 0 then return "-" .. GC.Sell._FormatAmount(-amount) end
-  if amount >= 10000 then
-    local COIN = GC.Util.COIN
-    local gold = math.floor(amount / 10000)
-    local silver = math.floor((amount % 10000) / 100)
-    local text = GC.Util.Grouped(gold) .. COIN.g
-    if silver == 0 or gold >= 1000 then return text end
-    return text .. (" %d"):format(silver) .. COIN.s
-  end
-  return GC.Util.CoinText(amount)
+  return GC.Util.Money(amount)
 end
 
 function fmt.cell(value)
@@ -211,8 +198,7 @@ fmt.MONEY_HEX = "|cffc9a957"
 -- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount above
 -- (final review "Headroom").
 function GC.Sell._InlineColor(color, text)
-  return ("|cff%02x%02x%02x%s|r"):format(
-    math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
+  return GC.Util.Colored(color, text)
 end
 
 -- A heading with its count in gold (owner, 2026-10-09): "UNDERCUT 2", the 2 lit. `format` is the
