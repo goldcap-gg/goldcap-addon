@@ -29,6 +29,11 @@
 - WoW: Forever: when a full scan stalls, the scan saves what it read right away and the SCAN
   button is free again, instead of showing SCANNING for up to three minutes under "full scan
   stalled".
+- The first time you open the auction house after logging in, AUTO no longer looks switched on
+  while nothing scans, and one click on it is enough. The addon button opens the window on the
+  first click.
+- SCAN says SCANNING… whenever a scan runs that AUTO does not already announce, such as the full
+  scan on opening the auction house while Auto is paused.
 
 ## 0.19.0 (2026-10-11)
 

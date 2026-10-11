@@ -3907,9 +3907,13 @@ refreshScanButton = function(targetFrame)
   if not f or not f.fullScanBtn then return end
   local active = GC.Sniper.ScanActive()
   if not active then GC.Sniper._scanPressed = nil end
-  -- Lit for a scan the player pressed, or any scan while Auto is off -- not for Auto's own passes,
-  -- which the AUTO chip already says and which made this blink every second (see autoButtonText).
-  local busy = active and (GC.Sniper._scanPressed or autoScan == nil or autoScan:State() == "OFF")
+  -- Lit for a scan the player pressed, or any scan the AUTO chip does not already say -- not while
+  -- it reads "AUTO · SCANNING", which made this blink every second with Auto's own passes (see
+  -- autoButtonText). Auto paused or held reads otherwise, and a scan then is this button's to say
+  -- (owner, WoW: Forever 11.10: the scan on opening ran with both controls reading idle).
+  local state = autoScan and autoScan:State() or "OFF"
+  local autoSays = state ~= "OFF" and autoButtonText(state, autoScan:PauseReasons()) == GC.L["AUTO · SCANNING"]
+  local busy = active and (GC.Sniper._scanPressed or not autoSays)
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -10917,6 +10921,13 @@ local function createFrame()
   for _, col in ipairs(COLUMNS) do
     if col.key == "tier" then col.w = isForever() and WIN.FOREVER_TIER_W or WIN.TIER_W end
   end
+  -- Hidden from the start, before any script is set: the client makes a frame shown, and Show()
+  -- on a shown frame runs no OnShow. Every opener (Toggle, SetDocked, OnAuctionHouseShow) shows
+  -- it, so its first appearance goes through OnShow like every later one -- which takes off the
+  -- "tab" pause Auto is armed with while the window is not up (owner, WoW: Forever 11.10: AUTO lit
+  -- with nothing scanning on the first visit), and the first Toggle no longer hides the window it
+  -- has just made.
+  f:Hide()
 
   -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
   f.windowPanel = Theme.Window(f) -- SetDocked hides its shadow while the window sits in the AH frame
