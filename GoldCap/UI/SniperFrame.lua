@@ -26,6 +26,7 @@ local Theme = GC.Theme
 local WIN = {}
 WIN.ROW_HEIGHT = Theme.ROW_H
 WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
+WIN.ROW_TEXT_PAD = 8 -- above and below a row's item cell once its words wrap (GC.Sniper._FitRowHeights)
 
 -- Sniper v3: window chrome is Theme.Panel + Theme.TitleBar (see createFrame) instead of
 -- BasicFrameTemplateWithInset, and BOTH width and height are now resizable (T5 -- previously
@@ -1599,7 +1600,11 @@ local function refreshRows()
     end
   end
 
-  content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
+  -- Each row as tall as its item cell's words, and the list as tall as its rows. Held while the
+  -- cursor rests on a row or a purchase holds one: OnLeave renders again, and fits them then.
+  local held = hoveredRow ~= nil
+  for i = 1, #rows do held = held or rows[i].purchaseStage ~= nil end
+  GC.Sniper._FitRowHeights(rows, content, held)
   -- The empty-state panel describes THIS render, so it is driven from here.
   if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   GC.Sniper._PaintGoldLine(list)
@@ -1622,6 +1627,51 @@ end
 -- reads GC.ForeverDeals.Rows, so it repaints.
 function GC.Sniper.OnForeverFold()
   if frame then refreshRows() end
+end
+
+-- Every row as tall as its item cell needs (a name that wraps grows its row instead of ending in
+-- "…", the way the Sell tab's cards do; one line keeps WIN.ROW_HEIGHT), and `child`, the scroll
+-- child, as tall as the rows down to the last one shown. Rows hang one under another (createRow),
+-- so a taller row moves the ones below it. `held`: the cursor rests on a row or a purchase holds
+-- one, and no row may move out from under a click; heights stay as they stand until the next
+-- render. A row is measured again only when its words or the cell's width changed: the board
+-- renders on every browse page.
+function GC.Sniper._FitRowHeights(list, child, held)
+  local y, bottom = 0, 0
+  for i = 1, #list do
+    local row = list[i]
+    if row.SetHeight and row.IsShown then
+      local text = row.nameText
+      if not held then
+        local height = WIN.ROW_HEIGHT
+        if row:IsShown() and text and text.GetStringHeight then
+          local words, width = text:GetText() or "", text.GetWidth and text:GetWidth() or 0
+          if row._fitWords ~= words or row._fitWidth ~= width then
+            text:SetText(words) -- laid out at its width before it is measured
+            row._fitWords, row._fitWidth = words, width
+            row._fitHeight = math.max(WIN.ROW_HEIGHT,
+              math.ceil((text:GetStringHeight() or 0) + 2 * WIN.ROW_TEXT_PAD))
+          end
+          height = row._fitHeight
+        end
+        if (row.GetHeight and row:GetHeight()) ~= height then row:SetHeight(height) end
+      end
+      y = y + (row.GetHeight and row:GetHeight() or WIN.ROW_HEIGHT)
+      if row:IsShown() then bottom = y end
+    end
+  end
+  if child and child.SetHeight then child:SetHeight(math.max(bottom, WIN.ROW_HEIGHT)) end
+end
+
+-- A row's width changed (the window resized, a column dropped): its words may wrap differently,
+-- so the board renders once more, on the next frame, however many rows changed at once.
+function GC.Sniper._QueueRowFit()
+  if GC.Sniper._rowFitQueued or not (C_Timer and C_Timer.After) then return end
+  GC.Sniper._rowFitQueued = true
+  C_Timer.After(0, function()
+    GC.Sniper._rowFitQueued = nil
+    if frame and frame:IsShown() then refreshRows() end
+  end)
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -10289,8 +10339,16 @@ end
 
 createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * WIN.ROW_HEIGHT)
-  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * WIN.ROW_HEIGHT)
+  -- Under the row before it, not at index * WIN.ROW_HEIGHT: a row grows to hold a name that
+  -- wraps (GC.Sniper._FitRowHeights), and the rows below move down with it.
+  local above = rows[index - 1]
+  if above then
+    row:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, 0)
+    row:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, 0)
+  else
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+  end
   row:SetHeight(WIN.ROW_HEIGHT)
 
   -- E.1 zebra + hover: full-width BACKGROUND textures, drawn behind every other row widget
@@ -10393,9 +10451,10 @@ createRow = function(parent, index)
   icon:SetPoint("LEFT")
   row.icon = icon
 
+  -- Wraps, never cut with "…": the row grows to hold it (GC.Sniper._FitRowHeights).
   local nameText = Theme.Label(row, 12)
-  nameText:SetWordWrap(false)
-  nameText:SetMaxLines(1)
+  nameText:SetWordWrap(true)
+  nameText:SetJustifyH("LEFT")
   row.nameText = nameText
 
   row.cells = {}
@@ -10425,8 +10484,16 @@ createRow = function(parent, index)
   -- anything, the result is still cached on the deal for whichever row/dialog eventually reads
   -- it.
   row:EnableMouse(true)
-  -- The item cell's room follows the row's width; a cap row's group is re-decided with it.
-  row:SetScript("OnSizeChanged", function(self) GC.Sniper._FitRowName(self) end)
+  -- The item cell's room follows the row's width; a cap row's group is re-decided with it, and a
+  -- new width can wrap the cell differently, so the rows are fitted again (not on a height change:
+  -- that is the fit itself).
+  row:SetScript("OnSizeChanged", function(self, width)
+    GC.Sniper._FitRowName(self)
+    if width ~= self._sizedWidth then
+      self._sizedWidth = width
+      GC.Sniper._QueueRowFit()
+    end
+  end)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
     self.rail:Show()

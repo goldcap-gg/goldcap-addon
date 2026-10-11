@@ -1,5 +1,15 @@
 # GoldCap
 
+## 0.21.0 (unreleased)
+
+- Deals no longer cuts a long item name with "…": in a narrow window or a long language the name
+  wraps and its row grows to hold it. Rows keep still while your cursor is on one.
+- WoW: Forever: a full scan reads the rest of the auction house when it arrives in a second
+  part while the scan is still busy with the first, instead of saving only the first part.
+- WoW: Forever: a character no longer picks up goldcap.gg prices of the other faction on the
+  same realm when the game names the faction late at login.
+- WoW: Forever: Road to 40 keeps counting past 214,748 gold.
+
 ## 0.20.1 (2026-10-14)
 
 - GoldCap is up to date for patch 12.1.5, so it loads without ticking "Load out of date AddOns".
