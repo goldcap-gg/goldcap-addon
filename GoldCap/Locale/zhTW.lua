@@ -1122,12 +1122,10 @@ GC.Locales.zhTW = {
     "Shift+點擊物品，輸入名稱，或輸入物品 ID 加 x 和數量：2589 x20。",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "數量",
-  ["Add to list…"] = "加入清單…",
   ["Back to %s"] = "返回「%s」",
   ["Click to buy it here. Right-click to add it to a list."] = "點擊即可在此購買。右鍵點擊可加入清單。",
   ["Close search"] = "關閉搜尋",
   ["How many"] = "數量",
-  ["How many of %s?"] = "%s 要幾個？",
   ["Loading more results…"] = "正在載入更多結果…",
   ["More results"] = "更多結果",
   ["Nothing on sale for “%s”."] = "沒有「%s」的在售物品。",
@@ -1137,7 +1135,6 @@ GC.Locales.zhTW = {
   ["Search again"] = "重新搜尋",
   ["Searching the auction house for “%s”…"] = "正在拍賣場搜尋「%s」…",
   ["The auction house did not answer. Search again."] = "拍賣場沒有回應。請重新搜尋。",
-  ["Type a whole number."] = "請輸入整數。",
   ["Waiting for the auction house…"] = "等待拍賣場…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1198,4 +1195,7 @@ GC.Locales.zhTW = {
   ["craft %d× (%d per craft)"] = "製作 %d× （每次 %d 個）",
   ["%s spent"] = "花費 %s",
   ["No list yet"] = "還沒有清單",
+  ["Add to %s"] = "加入「%s」",
+  ["Add to a new list"] = "加入新清單",
+  ["Add %d to a list"] = "將 %d 個加入清單",
 }

@@ -20,6 +20,12 @@
 - In a wide window, YOUR LISTS are cards with each list's first item, how much of it is done and a
   bar; the list on screen is outlined in gold. The auction house search's results are cards too.
 - Money on the BUY tab is in the game's own coins.
+- Adding an item from the auction house search takes one click: the button under the results
+  names the list and puts as many as you typed in How many on it, with Enter pressed or not. The
+  arrow beside it lists all your lists and a new one, and a click there adds straight away; no
+  second window asks how many. The list you add to is the one BUY goes back to. A long menu of
+  lists scrolls.
+- Item names on the BUY tab no longer turn into numbers while you click around it.
 
 ## 0.19.0 (2026-10-11)
 

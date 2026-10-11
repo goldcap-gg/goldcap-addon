@@ -1198,13 +1198,11 @@ GC.Locales.enUS = {
     "Shift-click items, type a name, or an item id with x and a count: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "AVAILABLE",
-  ["Add to list…"] = "Add to list…",
   ["Back to %s"] = "Back to %s",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Click to buy it here. Right-click to add it to a list.",
   ["Close search"] = "Close search",
   ["How many"] = "How many",
-  ["How many of %s?"] = "How many of %s?",
   ["Loading more results…"] = "Loading more results…",
   ["More results"] = "More results",
   ["Nothing on sale for “%s”."] = "Nothing on sale for “%s”.",
@@ -1216,7 +1214,6 @@ GC.Locales.enUS = {
   ["Searching the auction house for “%s”…"] = "Searching the auction house for “%s”…",
   ["The auction house did not answer. Search again."] =
     "The auction house did not answer. Search again.",
-  ["Type a whole number."] = "Type a whole number.",
   ["Waiting for the auction house…"] = "Waiting for the auction house…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1277,4 +1274,7 @@ GC.Locales.enUS = {
   ["craft %d× (%d per craft)"] = "craft %d× (%d per craft)",
   ["%s spent"] = "%s spent",
   ["No list yet"] = "No list yet",
+  ["Add to %s"] = "Add to %s",
+  ["Add to a new list"] = "Add to a new list",
+  ["Add %d to a list"] = "Add %d to a list",
 }

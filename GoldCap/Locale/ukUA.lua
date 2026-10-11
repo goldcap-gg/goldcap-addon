@@ -1282,13 +1282,11 @@ GC.Locales.ukUA = {
     "Зробіть Shift+клік по предметах, введіть назву або ID предмета з x і кількістю: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "У НАЯВНОСТІ",
-  ["Add to list…"] = "Додати до списку…",
   ["Back to %s"] = "До списку «%s»",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Клік купує тут. Правий клік додає до списку.",
   ["Close search"] = "Закрити пошук",
   ["How many"] = "Скільки",
-  ["How many of %s?"] = "Скільки: %s?",
   ["Loading more results…"] = "Завантажуємо ще результати…",
   ["More results"] = "Ще результати",
   ["Nothing on sale for “%s”."] = "За запитом «%s» нічого не продається.",
@@ -1299,7 +1297,6 @@ GC.Locales.ukUA = {
   ["Search again"] = "Шукати знову",
   ["Searching the auction house for “%s”…"] = "Шукаємо «%s» на аукціоні…",
   ["The auction house did not answer. Search again."] = "Аукціон не відповів. Повторіть пошук.",
-  ["Type a whole number."] = "Введіть ціле число.",
   ["Waiting for the auction house…"] = "Чекаємо на аукціон…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1360,4 +1357,7 @@ GC.Locales.ukUA = {
   ["craft %d× (%d per craft)"] = "крафт %d× (по %d за крафт)",
   ["%s spent"] = "витрачено %s",
   ["No list yet"] = "Списку поки немає",
+  ["Add to %s"] = "До списку «%s»",
+  ["Add to a new list"] = "До нового списку",
+  ["Add %d to a list"] = "Додати %d до списку",
 }

@@ -35,7 +35,7 @@ S._progress = {}
 -- between two, ICON its item's icon framed in its quality's colour, INSET where the name starts and
 -- RIGHT how far the figures stand in from the card's right edge.
 local LAYOUT = { HEAD_MIN = 24, HEADING_H = 16, ROW_H = 48, CARD_GAP = 4, ICON = 30, INSET = 52, RIGHT = 12,
-  PRICE_MIN = 72, AVAIL_MIN = 64, STRIP_H = 36, BOX_W = 64, MORE_H = 26, BUTTON_MIN = 72, GAP = 4 }
+  PRICE_MIN = 72, AVAIL_MIN = 64, STRIP_H = 36, BOX_W = 64, CARET_W = 24, MORE_H = 26, BUTTON_MIN = 72, GAP = 4 }
 
 -- @localised-keys: literals in this table ARE GC.L keys, looked up where the headings are drawn.
 -- The table closes with a `}` on its own line.
@@ -194,8 +194,17 @@ local function ownLists()
   return out
 end
 
+-- The list the search adds to: the one it put aside, when that is the player's own (a list from
+-- goldcap.gg takes nothing from the game), else none, and a new list is made for the item.
+local function target()
+  local run = GC.Buy.CurrentRun and GC.Buy.CurrentRun()
+  local stored = run and GC.AppRuns.Get(run:Code()) or nil
+  return (stored and GC.AppRuns.IsLocal(stored)) and stored or nil
+end
+
 --- Adds `qty` of the row's item to the list `code`, or to a new list with nil, and says so under the
---- results. The search stays on screen. Answers whether it added.
+--- results. That list is the one the search adds to from now on (GC.Buy._SwapAside), and the one
+--- "Back" brings up. The search stays on screen. Answers whether it added.
 function S.AddToList(id, code, qty)
   local row = rowById(id)
   if not (row and qty and qty >= 1) then return false end
@@ -208,6 +217,7 @@ function S.AddToList(id, code, qty)
   if type(GC.db) == "table" then
     GC.db.buyRecents = GC.BuyRecents.Push(GC.db.buyRecents, { i = row.itemID, q = qty, n = row.name })
   end
+  GC.Buy._SwapAside(code)
   local label = GC.AppRuns.Label(GC.AppRuns.Get(code))
   note = (made and GC.L["Added %d× %s to a new list, %s."] or GC.L["Added %d× %s to %s."])
     :format(qty, nameOf(row), label)
@@ -216,41 +226,58 @@ function S.AddToList(id, code, qty)
   return true
 end
 
--- How many to add, in the kit's popup over `anchor`, then onto the list.
-local function askQty(anchor, id, code)
-  local row = rowById(id)
-  if not (row and GC.BuyCapEditor) then return end
-  local qty = (opened == id and openedQty) or (request.query and request.query.qty) or 1
-  GC.BuyCapEditor.Open(anchor, {
-    title = (GC.L["How many of %s?"]):format(nameOf(row)), text = tostring(qty), setLabel = GC.L["Add"],
-    read = function(text)
-      local n = tonumber((text or ""):match("^%s*(%d+)%s*$"))
-      return (n and n >= 1) and n or nil
-    end,
-    invalid = GC.L["Type a whole number."],
-    onCommit = function(n) S.AddToList(id, code, n) end,
-  })
+-- How many the opened result's box says, applied with Enter or not: what the next add puts on a list.
+local function boxQty()
+  local box = panel and panel.strip.box
+  local n = box and tonumber(box:GetText() or "")
+  if n and n >= 1 then return math.floor(n) end
+  return openedQty or 1
 end
 
---- A result's menu (its right-click, and the button under the results for the opened one): add it to
---- one of the player's lists or a new one, and for the opened result its cap. Never a purchase.
+-- How many of a result an add puts on a list: the opened one's box, any other what the search asked
+-- for ("linen x20").
+local function qtyFor(id)
+  if id == opened then return boxQty() end
+  return (request and request.query and request.query.qty) or 1
+end
+
+-- Adds `qty` of the result `id` to `code` (nil: a new list). The opened result's dock buys that
+-- many from now on too: one number for both, typed once.
+local function add(id, code, qty)
+  if id == opened and qty ~= openedQty then S.SetQty(qty) end
+  if panel then panel.strip.box:ClearFocus() end
+  return S.AddToList(id, code, qty)
+end
+
+--- The opened result's button: as many as its box says, onto the list the search adds to, in one click.
+function S.AddOpened()
+  if not opened then return false end
+  local list = target()
+  return add(opened, list and list.code, boxQty())
+end
+
+--- A result's menu (its right-click, and the arrow beside the opened one's button): each of the
+--- player's lists and a new one, a click adding as many as qtyFor says at once; and for the opened
+--- result its cap. Never a purchase.
 function S.OpenMenu(owner, id)
   local menu = _G.MenuUtil
   local row = rowById(id)
   if not (row and menu and menu.CreateContextMenu) then return false end
   local menuText = GC.Util.ClientText
+  local qty = qtyFor(id)
   menu.CreateContextMenu(owner, function(_, root)
+    -- Many lists scroll inside the menu instead of running it off the screen (both games' Menu).
+    if root.SetScrollMode then root:SetScrollMode(400) end
     root:CreateTitle(menuText(nameOf(row)))
-    local add = root:CreateButton(menuText(GC.L["Add to list…"]))
-    if add and add.CreateButton then
-      for _, run in ipairs(ownLists()) do
-        local code = run.code
-        add:CreateButton(menuText(GC.BuyLists.Title(run)), function() askQty(owner, id, code) end)
-      end
-      add:CreateButton(menuText(GC.L["New list"]), function() askQty(owner, id, nil) end)
+    root:CreateTitle(menuText((GC.L["Add %d to a list"]):format(qty)))
+    for _, run in ipairs(ownLists()) do
+      local code = run.code
+      root:CreateButton(menuText(GC.BuyLists.Title(run)), function() add(id, code, qty) end)
     end
+    root:CreateButton(menuText(GC.L["New list"]), function() add(id, nil, qty) end)
     local line = opened == id and GC.Buy._SearchRun() and GC.Buy._LineFor(row.itemID) or nil
     if line and not GC.Buy._InFlight() then
+      root:CreateDivider()
       root:CreateButton(menuText(GC.L["Change the cap…"]), function() GC.Buy._EditLineCap(owner, row.itemID) end)
       if line.capFrom == "yours" then
         root:CreateButton(menuText(GC.L["Use the default cap"]), function() GC.Buy._EditLineCap(nil, row.itemID) end)
@@ -398,7 +425,8 @@ build = function()
   panel.more:SetScript("OnClick", function() S.More() end)
   panel.more:Hide()
 
-  -- Under the results while a result is open: how many it buys, and adding it to a list.
+  -- Under the results while a result is open: how many it buys, and adding that many to a list in
+  -- one click -- the list the search adds to, or through the arrow beside it any other.
   local strip = CreateFrame("Frame", nil, panel)
   strip:SetHeight(LAYOUT.STRIP_H)
   strip:Hide()
@@ -433,7 +461,11 @@ build = function()
   strip.well, strip.box = well, box
   strip.add = Theme.Button(strip, "ghost", "plaque")
   strip.add:SetHeight(22)
-  strip.add:SetScript("OnClick", function(self) if opened then S.OpenMenu(self, opened) end end)
+  strip.add:SetScript("OnClick", function() S.AddOpened() end)
+  strip.lists = Theme.Button(strip, "ghost", "plaque")
+  strip.lists:SetSize(LAYOUT.CARET_W, 22)
+  strip.lists:SetLabel(" ▼")
+  strip.lists:SetScript("OnClick", function(self) if opened then S.OpenMenu(self, opened) end end)
   panel.strip = strip
   S._panel = panel -- spec seam
 end
@@ -689,15 +721,36 @@ function S.Paint()
     strip.well:ClearAllPoints()
     strip.well:SetPoint("LEFT", strip.label, "RIGHT", pad.s, 0)
     if not (strip.box.HasFocus and strip.box:HasFocus()) then strip.box:SetText(tostring(openedQty or 1)) end
-    strip.add:SetLabel(GC.L["Add to list…"])
-    fitButton(strip.add, LAYOUT.BUTTON_MIN)
-    strip.add:ClearAllPoints()
-    strip.add:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
+    -- The button names the list it adds to; as wide as its words, up to what the count leaves, where
+    -- a long list name wraps rather than being cut.
+    local into = target()
+    local button = strip.add
+    button:SetLabel(into and (GC.L["Add to %s"]):format(GC.AppRuns.Label(into)) or GC.L["Add to a new list"])
+    local room = math.max(LAYOUT.BUTTON_MIN,
+      width - (measure(strip.label) or 0) - LAYOUT.BOX_W - LAYOUT.CARET_W - 2 * pad.s - 10)
+    local wanted = measure(button.text)
+    local addH = 22
+    if wanted and wanted + 2 * pad.m > room then
+      button.text:SetWordWrap(true)
+      button.text:SetMaxLines(3)
+      button:SetWidth(room)
+      addH = math.max(22, heightOf(button.text) + 8)
+    else
+      button.text:SetWordWrap(false)
+      fitButton(button, LAYOUT.BUTTON_MIN)
+    end
+    button:SetHeight(addH)
+    strip.lists:SetHeight(addH)
+    strip.lists:ClearAllPoints()
+    strip.lists:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
+    button:ClearAllPoints()
+    button:SetPoint("RIGHT", strip.lists, "LEFT", -2, 0)
+    stripH = math.max(LAYOUT.STRIP_H, addH + 14)
+    strip:SetHeight(stripH)
     strip:ClearAllPoints()
     strip:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 0)
     strip:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
     strip:Show()
-    stripH = LAYOUT.STRIP_H
   else
     strip:Hide()
   end

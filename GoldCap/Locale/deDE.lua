@@ -1212,13 +1212,11 @@ GC.Locales.deDE = {
     "Gegenstände mit Umschalt+Klick einfügen, einen Namen eingeben oder eine Item-ID mit x und Anzahl: 2589 x20.",
   -- BUY search: what is on sale, the results, opening one and adding it to a list (UI/BuySearch.lua).
   ["AVAILABLE"] = "VERFÜGBAR",
-  ["Add to list…"] = "Zur Liste hinzufügen…",
   ["Back to %s"] = "Zurück zu %s",
   ["Click to buy it here. Right-click to add it to a list."] =
     "Klicken, um es hier zu kaufen. Rechtsklick, um es zu einer Liste hinzuzufügen.",
   ["Close search"] = "Suche schließen",
   ["How many"] = "Wie viele",
-  ["How many of %s?"] = "Wie viele %s?",
   ["Loading more results…"] = "Weitere Ergebnisse werden geladen…",
   ["More results"] = "Weitere Ergebnisse",
   ["Nothing on sale for “%s”."] = "Für „%s“ wird nichts angeboten.",
@@ -1230,7 +1228,6 @@ GC.Locales.deDE = {
   ["Searching the auction house for “%s”…"] = "Suche im Auktionshaus nach „%s“…",
   ["The auction house did not answer. Search again."] =
     "Das Auktionshaus hat nicht geantwortet. Suche erneut.",
-  ["Type a whole number."] = "Gib eine ganze Zahl ein.",
   ["Waiting for the auction house…"] = "Warte auf das Auktionshaus…",
   -- Craft costs: which reagent had no price and why, and the merchant as a source of cost
   -- (Core/CraftCapture.lua, Core/VendorBuys.lua).
@@ -1291,4 +1288,7 @@ GC.Locales.deDE = {
   ["craft %d× (%d per craft)"] = "%d× herstellen (%d pro Herstellung)",
   ["%s spent"] = "%s ausgegeben",
   ["No list yet"] = "Noch keine Liste",
+  ["Add to %s"] = "Zu %s hinzufügen",
+  ["Add to a new list"] = "Zu einer neuen Liste hinzufügen",
+  ["Add %d to a list"] = "%d zu einer Liste hinzufügen",
 }

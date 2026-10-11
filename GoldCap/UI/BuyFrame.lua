@@ -791,6 +791,22 @@ function GC.Buy._TakeListBack()
   return true
 end
 
+-- The search added to `code`, one of the player's own lists: that list is now the one aside -- what
+-- the search adds to next, what the item box adds to, and the list "Back" brings up -- and the
+-- list remembered as on screen. Answers whether it is.
+function GC.Buy._SwapAside(code)
+  local aside, stored = GC.Buy._aside, localRun(code)
+  if not (aside and stored) then return false end
+  if not (aside.run and aside.run:Code() == code) then
+    aside.run = GC.BuyRun.New(stored, DRIVER)
+    aside.run:Refresh()
+    aside.updatedAt, aside.focus = stored.updatedAt, nil
+  end
+  local sniper = settings()
+  if sniper then sniper.buyRun = code end
+  return true
+end
+
 -- The opened result's run, or nil.
 function GC.Buy._SearchRun()
   return (current and GC.BuySearch and GC.BuySearch.IsCode(current:Code())) and current or nil
@@ -817,6 +833,8 @@ openRunMenu = function(owner)
   local menuText = GC.Util.ClientText
   local list = runList()
   menu.CreateContextMenu(owner, function(_, root)
+    -- Many lists scroll inside the menu instead of running it off the screen (both games' Menu).
+    if root.SetScrollMode then root:SetScrollMode(600) end
     root:CreateTitle(menuText(GC.L["Runs"]))
     -- Core/AppRuns.lua keeps the alert groups last, whatever the player's order, so the divider
     -- goes in at the first alert run and never again: the alert groups are the tail.
@@ -896,16 +914,30 @@ openRunMenu = function(owner)
   return true
 end
 
+-- What this session learned of each item a row named: the name, once the client gave it -- kept, so
+-- a row never falls back to the id when the client answers nil for an item it named a moment ago
+-- (names turned into ids while the player clicked about the tab) -- true while a row waits for a
+-- name the client is fetching, false once the server said there is no such item.
+local itemNames = {}
+
 -- The client's own name for the line's item. A run from the companion carries one; a pasted
--- GCR1 string carries none (Core/AppRuns.lua's ImportString), and an item the client has never
--- cached answers nothing at all -- so the id itself is the last honest fallback.
+-- GCR1 string or an item added in the game carries none (Core/AppRuns.lua). GetItemInfo answers
+-- nil for an item the client does not have and asks the server for it: the name this session
+-- already had stands in, or else the id, until GET_ITEM_INFO_RECEIVED (GC.Buy.OnItemInfo).
 local function lineName(line)
   if line.name then return line.name end
+  local id = line.itemID
   if C_Item and C_Item.GetItemInfo then
-    local ok, name = pcall(C_Item.GetItemInfo, line.itemID)
-    if ok and type(name) == "string" and name ~= "" then return name end
+    local ok, name = pcall(C_Item.GetItemInfo, id)
+    if ok and type(name) == "string" and name ~= "" then
+      itemNames[id] = name
+      return name
+    end
   end
-  return "#" .. tostring(line.itemID)
+  local known = itemNames[id]
+  if type(known) == "string" then return known end
+  if id and known == nil then itemNames[id] = true end
+  return "#" .. tostring(id)
 end
 
 -- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
@@ -4668,6 +4700,31 @@ function GC.Buy.RefreshIfShown()
     rejudgeQuote()
     renderRows()
   end
+end
+
+--- GET_ITEM_INFO_RECEIVED (Core/Init.lua): an item a row showed by its id has its name now. One
+--- repaint a moment after the first such answer, not one per item; an answer for an item no row
+--- is waiting on, or a "no such item", repaints nothing. An item this session had already named
+--- being fetched again is noted for `/gc buywait` -- the client had let it go.
+function GC.Buy.OnItemInfo(itemID, success)
+  local known = itemNames[itemID]
+  if type(known) == "string" then
+    if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("name", "fetched again", tostring(itemID)) end
+    return
+  end
+  if known ~= true then return end
+  if success == false then
+    itemNames[itemID] = false
+    return
+  end
+  itemNames[itemID] = nil
+  local timer = _G.C_Timer
+  if GC.Buy._namesDue or not (timer and timer.After) then return end
+  GC.Buy._namesDue = true
+  timer.After(0.2, function()
+    GC.Buy._namesDue = nil
+    GC.Buy.RefreshIfShown()
+  end)
 end
 
 -- ---------------------------------------------------------------------------

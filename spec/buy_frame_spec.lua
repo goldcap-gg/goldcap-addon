@@ -311,6 +311,50 @@ describe("BuyFrame", function()
     assert.is_false(dock().buy:IsShown())
   end)
 
+  -- The client answers nil for an item it has not cached, and fetches it; it can also answer nil
+  -- for an item it named a moment ago. A row keeps a name once it had one, and a row still waiting
+  -- for its name shows the id until GET_ITEM_INFO_RECEIVED says the name is in.
+  describe("an item the client has no name for", function()
+    local names, timers
+    before_each(function()
+      names, timers = { [101] = "Alpha Herb" }, {}
+      _G.C_Item.GetItemInfo = function(id) return names[id] end
+      _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+      GC.AppRuns._set({ run({ lines = { { i = 101, q = 10 }, { i = 105, q = 2 } } }) })
+      GC.Buy.SelectRun("run-1")
+      GC.Buy.RefreshIfShown()
+    end)
+    after_each(function() _G.C_Timer = nil end)
+
+    it("shows its id, and its name once the client has fetched it, in one repaint", function()
+      assert.truthy(rowWithText("#105"))
+      names[105] = "Echo Salt"
+      GC.Buy.OnItemInfo(105, true)
+      -- Another answer in the same moment, for an item already named: still one repaint.
+      GC.Buy.OnItemInfo(101, true)
+      assert.equal(1, #timers)
+      timers[1]()
+      assert.truthy(rowWithText("Echo Salt"))
+      assert.is_nil(rowWithText("#105"))
+    end)
+
+    it("keeps a name it had when the client answers nil for it later", function()
+      names[101] = nil
+      GC.Buy.RefreshIfShown()
+      assert.truthy(rowWithText("Alpha Herb"))
+      assert.is_nil(rowWithText("#101"))
+    end)
+
+    it("repaints nothing for an item no row waits on, or one the server says does not exist", function()
+      GC.Buy.OnItemInfo(999, true)
+      GC.Buy.OnItemInfo(105, false)
+      GC.Buy.RefreshIfShown()
+      GC.Buy.OnItemInfo(105, true)
+      assert.equal(0, #timers)
+      assert.truthy(rowWithText("#105"))
+    end)
+  end)
+
   -- HAVE is what the player owns, not what they happen to be carrying: three hundred units in
   -- the bank are three hundred units nobody has to go shopping for.
   it("counts bank stock into HAVE alongside the bags", function()

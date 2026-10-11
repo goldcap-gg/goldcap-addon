@@ -100,17 +100,22 @@ describe("BUY search", function()
     end
     function e:CreateTitle(t) self.children[#self.children + 1] = { text = t, children = {} } end
     function e:CreateDivider() end
+    function e:SetScrollMode(extent) self.scroll = extent end
     return e
   end
-  local function openMenuOf(row)
+  -- The menu `fire` opens.
+  local function menuFrom(fire)
     menu = nil
     _G.MenuUtil = { CreateContextMenu = function(_, generator)
       menu = entry("root")
       generator(nil, menu)
     end }
-    row.scripts.OnMouseUp(row, "RightButton")
+    fire()
     _G.MenuUtil = nil
     return menu
+  end
+  local function openMenuOf(row)
+    return menuFrom(function() row.scripts.OnMouseUp(row, "RightButton") end)
   end
   local function find(e, text)
     for _, child in ipairs(e.children) do if child.text == text then return child end end
@@ -558,44 +563,86 @@ describe("BUY search", function()
       answer(LINEN_ANSWER)
     end)
 
-    it("adds it to one of the player's lists with the quantity asked for, and stays on the search", function()
+    local function strip() return panel().strip end
+    local function click(b) b.scripts.OnClick(b) end
+    local function title() return (dock().title:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+
+    it("puts as many as the search asked for on the list picked, in one click, and stays on the search", function()
       local m = openMenuOf(resultRow("Bolt of Linen Cloth"))
-      local add = find(m, "Add to list…")
-      find(add, "List 1").fn()
-      local editor = GC.BuyCapEditor._frame
-      assert.equal("How many of Bolt of Linen Cloth?", editor.title:GetText())
-      assert.equal("20", editor.box:GetText())
-      editor.box:SetText("5")
-      editor.set.scripts.OnClick(editor.set)
+      assert.is_truthy(find(m, "Add 20 to a list"))
+      -- Many lists scroll inside the menu.
+      assert.equal(400, m.scroll)
+      find(m, "List 1").fn()
       local lines = GC.db.runs["game-1"].lines
-      assert.same({ 2996, 5 }, { lines[2].i, lines[2].q })
-      assert.is_truthy(panel().status:GetText():find("Added 5× Bolt of Linen Cloth to List 1.", 1, true))
+      assert.same({ 2996, 20 }, { lines[2].i, lines[2].q })
+      assert.is_truthy(panel().status:GetText():find("Added 20× Bolt of Linen Cloth to List 1.", 1, true))
       assert.is_true(GC.BuySearch.Shown())
       assert.equal(2996, GC.db.buyRecents[1].i)
     end)
 
-    it("makes a new list for it", function()
-      local m = openMenuOf(resultRow("Linen Cloth"))
-      find(find(m, "Add to list…"), "New list").fn()
-      local editor = GC.BuyCapEditor._frame
-      editor.set.scripts.OnClick(editor.set)
+    it("makes a new list for it, adds to that one from then on, and goes back to it", function()
+      find(openMenuOf(resultRow("Linen Cloth")), "New list").fn()
       assert.equal(20, GC.db.runs["game-2"].lines[1].q)
       assert.is_truthy(panel().status:GetText():find("to a new list, List 2.", 1, true))
-    end)
-
-    it("refuses a quantity that is not a whole number", function()
-      local m = openMenuOf(resultRow("Linen Cloth"))
-      find(find(m, "Add to list…"), "List 1").fn()
-      local editor = GC.BuyCapEditor._frame
-      editor.box:SetText("lots")
-      editor.set.scripts.OnClick(editor.set)
-      assert.equal("Type a whole number.", editor.preview:GetText())
+      assert.equal("game-2", GC.Buy.CurrentRun():Code())
+      open("Bolt of Linen Cloth")
+      assert.equal("Add to List 2", strip().add.label)
+      click(strip().add)
+      local lines = GC.db.runs["game-2"].lines
+      assert.same({ 2996, 20 }, { lines[2].i, lines[2].q })
       assert.equal(1, #GC.db.runs["game-1"].lines)
+      GC.BuySearch.Close()
+      assert.equal("game-2", GC.Buy.CurrentRun():Code())
+      assert.equal("game-2", GC.db.settings.sniper.buyRun)
     end)
 
-    it("offers the opened result's own button for it too", function()
+    it("adds the opened result with the count typed in its box, Enter or not, and the dock buys as many", function()
+      open("Bolt of Linen Cloth")
+      assert.equal("Add to List 1", strip().add.label)
+      local box = strip().box
+      box:SetFocus()
+      box:SetText("7")
+      click(strip().add)
+      local lines = GC.db.runs["game-1"].lines
+      assert.same({ 2996, 7 }, { lines[2].i, lines[2].q })
+      assert.equal("Bolt of Linen Cloth ×7", title())
+      assert.is_false(box:HasFocus())
+      assert.equal("7", box:GetText())
+      assert.is_truthy(panel().status:GetText():find("Added 7× Bolt of Linen Cloth to List 1.", 1, true))
+    end)
+
+    it("adds what the dock buys when the box holds no number", function()
       open("Linen Cloth")
-      assert.equal("Add to list…", panel().strip.add.label)
+      strip().box:SetText("")
+      click(strip().add)
+      -- Ten were on the list already.
+      assert.equal(30, GC.db.runs["game-1"].lines[1].q)
+    end)
+
+    it("offers every list, and a new one, behind the arrow beside the button", function()
+      open("Linen Cloth")
+      strip().box:SetText("5")
+      local m = menuFrom(function() click(strip().lists) end)
+      assert.is_truthy(find(m, "Add 5 to a list"))
+      assert.is_truthy(find(m, "New list"))
+      find(m, "List 1").fn()
+      assert.equal(15, GC.db.runs["game-1"].lines[1].q)
+      assert.equal("Linen Cloth ×5", title())
+    end)
+
+    it("makes a new list when the list on screen is one from goldcap.gg, which takes nothing from the game", function()
+      GC.BuySearch.Close()
+      GC.db.runs["k7m2p9q4"] = { code = "k7m2p9q4", name = "Site list", origin = "app", updatedAt = 1,
+                                 lines = { { i = 2589, q = 3 } } }
+      GC.Buy.SelectRun("k7m2p9q4")
+      enter("linen x20")
+      answer(LINEN_ANSWER)
+      open("Linen Cloth")
+      assert.equal("Add to a new list", strip().add.label)
+      click(strip().add)
+      assert.equal(20, GC.db.runs["game-2"].lines[1].q)
+      assert.equal(3, GC.db.runs["k7m2p9q4"].lines[1].q)
+      assert.equal("Add to List 2", strip().add.label)
     end)
   end)
 end)
