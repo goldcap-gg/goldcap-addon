@@ -1224,4 +1224,5 @@ GC.Locales.koKR = {
   ["market price"] = "시세",
   ["craft %d× (%d per craft)"] = "%d회 제작 (제작당 %d개)",
   ["%s spent"] = "%s 지출",
+  ["No list yet"] = "아직 목록 없음",
 }

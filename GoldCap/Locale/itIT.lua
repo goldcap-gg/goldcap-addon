@@ -1289,4 +1289,5 @@ GC.Locales.itIT = {
   ["market price"] = "prezzo di mercato",
   ["craft %d× (%d per craft)"] = "crea %d× (%d per creazione)",
   ["%s spent"] = "%s spesi",
+  ["No list yet"] = "Ancora nessuna lista",
 }

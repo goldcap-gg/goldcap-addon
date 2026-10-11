@@ -1359,4 +1359,5 @@ GC.Locales.ukUA = {
   ["market price"] = "ринкова ціна",
   ["craft %d× (%d per craft)"] = "крафт %d× (по %d за крафт)",
   ["%s spent"] = "витрачено %s",
+  ["No list yet"] = "Списку поки немає",
 }

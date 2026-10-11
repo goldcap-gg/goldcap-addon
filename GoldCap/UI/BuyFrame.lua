@@ -2550,13 +2550,9 @@ local SECTION_ORDER = { "buy", "craft", "vendor", "done" }
 -- screen, unless the player opened it (GC.Buy._boughtOpen, a click on the heading).
 local function buildEntries()
   local entries = {}
-  -- No list on screen: the first-time state, under the item box at the top (UI/BuyAddBox.lua) that
-  -- starts a list in the game.
-  if not current then
-    entries[#entries + 1] = { kind = "hint", text = GC.L["Make a list once, buy it here at or under your price."] }
-    entries[#entries + 1] = { kind = "hint", text = GC.L["or plan a whole profession on goldcap.gg"] }
-    return entries
-  end
+  -- No list on screen: no rows, the first-time state instead (paintEmpty), under the item box at
+  -- the top (UI/BuyAddBox.lua) that starts a list in the game.
+  if not current then return entries end
   local filter, query = GC.Buy._filter or "all", GC.Buy._query or ""
   local lines = current:Lines()
   local groups, shown = {}, 0
@@ -2634,6 +2630,7 @@ local function clearRow(row)
   row.headRight:SetText("")
   row.headRight:Hide()
   row.fold:Hide()
+  row.rule:Hide()
   local zc = Theme.color.zebra
   row.card:SetVertexColor(zc[1], zc[2], zc[3], zc[4] or 0.035)
   row.card:Show()
@@ -2834,8 +2831,11 @@ local function paintSection(row, entry)
   local gold = Theme.color.goldHi or Theme.color.gold
   row.head:SetText(("%s  %s"):format(GC.Util.Upper(GC.L[SECTION_LABEL[key]]),
     GC.Util.Colored(gold, tostring(#entry.lines))))
-  setColor(row.head, Theme.color.fgDim)
+  setColor(row.head, key == "done" and gold or Theme.color.fgDim)
   row.head:Show()
+  local rc = key == "done" and { gold[1], gold[2], gold[3], 0.25 } or Theme.color.border
+  row.rule:SetColorTexture(rc[1], rc[2], rc[3], rc[4] or 0.075)
+  row.rule:Show()
   local right
   if key == "buy" then
     local sum, estimated, any = 0, false, false
@@ -2852,7 +2852,7 @@ local function paintSection(row, entry)
     local spent = 0
     for _, line in ipairs(entry.lines) do spent = spent + (tonumber(line.spent) or 0) end
     if spent > 0 then right = (GC.L["%s spent"]):format(formatAmount(spent)) end
-    if Theme.SetIcon then Theme.SetIcon(row.fold, entry.open and "caretDown" or "caretRight", Theme.color.fgDim) end
+    if Theme.SetIcon then Theme.SetIcon(row.fold, entry.open and "caretDown" or "caretRight", gold) end
     row.fold:Show()
   end
   if right then
@@ -2974,6 +2974,13 @@ layoutRow = function(row)
   row.headRight:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -BD.CELL_RIGHT, 7)
   row.fold:ClearAllPoints()
   row.fold:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 4, 8)
+  row.rule:ClearAllPoints()
+  row.rule:SetPoint("LEFT", row.head, "RIGHT", Theme.pad.s, 0)
+  if row.headRight:IsShown() then
+    row.rule:SetPoint("RIGHT", row.headRight, "LEFT", -Theme.pad.s, 0)
+  else
+    row.rule:SetPoint("RIGHT", row, "RIGHT", -BD.CELL_RIGHT, 0)
+  end
 end
 
 -- The player's own cap for a line, typed into UI/BuyCapEditor.lua's price box. Refused while a
@@ -3298,8 +3305,8 @@ createRow = function(parent)
   -- dock buys. Neither is a purchase: the dock's own button is. A click on the BOUGHT heading folds
   -- or unfolds it.
   row:SetScript("OnMouseUp", function(self, button)
-    if self.sectionKey == "done" then
-      if button == "LeftButton" then
+    if self.sectionKey then
+      if self.sectionKey == "done" and button == "LeftButton" then
         GC.Buy._boughtOpen = not GC.Buy._boughtOpen
         GC.Buy.RefreshIfShown()
       end
@@ -3387,6 +3394,10 @@ createRow = function(parent)
   row.fold = row:CreateTexture(nil, "ARTWORK")
   row.fold:SetSize(12, 12)
   row.fold:Hide()
+  -- A hairline from the heading's name to its sum, gold under BOUGHT, which a click opens.
+  row.rule = row:CreateTexture(nil, "ARTWORK")
+  row.rule:SetHeight(1)
+  row.rule:Hide()
 
   layoutRow(row)
   return row
@@ -3784,6 +3795,132 @@ local function layoutDock(dock)
   return h
 end
 
+-- The first-time state, no list on screen (the Sell tab's empty deck, UI/Sell/List.lua): a gold tile
+-- with the BUY glyph, NO LIST YET, what the tab is for, the two ways to start a list -- a new one,
+-- or one brought in -- and where whole plans come from. Over the middle of the list's place.
+local function createEmpty(parent, scroll)
+  local empty = CreateFrame("Frame", nil, parent)
+  empty:SetSize(64, 64)
+  empty:SetPoint("BOTTOM", scroll, "CENTER", 0, 30)
+  local gc = Theme.color.gold
+  Theme.SlicedTexture(empty, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.08 }, 12)
+    :SetAllPoints(empty)
+  Theme.SlicedTexture(empty, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.3 }, 12)
+    :SetAllPoints(empty)
+  if Theme.Glow then Theme.Glow(empty, { gc[1], gc[2], gc[3], 0.12 }, 16) end
+  empty.icon = empty:CreateTexture(nil, "ARTWORK")
+  empty.icon:SetSize(30, 30)
+  empty.icon:SetPoint("CENTER", empty, "CENTER", 0, 0)
+  if Theme.SetIcon then Theme.SetIcon(empty.icon, "buy", Theme.color.goldHi or gc) end
+  empty.title = (Theme.Heading or Theme.Label)(empty, 15)
+  empty.title:SetPoint("TOP", empty, "BOTTOM", 0, -14)
+  empty.title:SetJustifyH("CENTER")
+  empty.title:SetWordWrap(true)
+  setColor(empty.title, Theme.color.fg)
+  empty.line = Theme.Label(empty, 12)
+  empty.line:SetPoint("TOP", empty.title, "BOTTOM", 0, -6)
+  empty.line:SetJustifyH("CENTER")
+  empty.line:SetWordWrap(true)
+  setColor(empty.line, Theme.color.fgDim)
+  empty.new = Theme.Button(empty, "primary", "plaque")
+  empty.new:SetSize(96, 28)
+  empty.new:SetPoint("TOPRIGHT", empty.line, "BOTTOM", -4, -14)
+  empty.new:SetScript("OnClick", function() GC.BuyLists.New() end)
+  empty.import = Theme.Button(empty, "ghost", "plaque")
+  empty.import:SetSize(96, 28)
+  empty.import:SetPoint("TOPLEFT", empty.line, "BOTTOM", 4, -14)
+  empty.import:SetScript("OnClick", function() GC.BuyLists.Import() end)
+  empty.foot = Theme.Num(empty, 10)
+  empty.foot:SetPoint("TOP", empty.line, "BOTTOM", 0, -14 - 28 - 12)
+  empty.foot:SetJustifyH("CENTER")
+  empty.foot:SetWordWrap(true)
+  setColor(empty.foot, Theme.color.fgDim)
+  empty:Hide()
+  return empty
+end
+
+-- The first-time state's words, in the width the list has.
+local function paintEmpty()
+  local empty = band.empty
+  if not empty then return end
+  if current or GC.Buy._searching then
+    empty:Hide()
+    return
+  end
+  local width = math.max(160, math.min(380, (geometry and geometry.rowWidth or 380) - 40))
+  empty.title:SetWidth(width)
+  empty.line:SetWidth(width)
+  empty.foot:SetWidth(width)
+  empty.title:SetText(GC.Util.Upper(GC.L["No list yet"]))
+  empty.line:SetText(GC.L["Make a list once, buy it here at or under your price."])
+  empty.foot:SetText(GC.L["or plan a whole profession on goldcap.gg"])
+  empty.new:SetLabel(GC.L["New list"])
+  empty.import:SetLabel(GC.L["Import"])
+  fitButton(empty.new, 96)
+  fitButton(empty.import, 96)
+  empty:Show()
+end
+
+-- A list with nothing left on it: over its BOUGHT lines, a gold tile with a check, EVERYTHING HERE IS
+-- BOUGHT and what it came to. Scrolls with the list it heads (it sits in the list's own content).
+local HERO_H = 118
+
+local function createHero(parent)
+  local hero = CreateFrame("Frame", nil, parent)
+  hero:SetHeight(HERO_H)
+  local tile = CreateFrame("Frame", nil, hero)
+  tile:SetSize(48, 48)
+  tile:SetPoint("TOP", hero, "TOP", 0, -12)
+  local gc = Theme.color.gold
+  Theme.SlicedTexture(tile, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.10 }, 12):SetAllPoints(tile)
+  Theme.SlicedTexture(tile, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.35 }, 12):SetAllPoints(tile)
+  if Theme.Glow then Theme.Glow(tile, { gc[1], gc[2], gc[3], 0.14 }, 16) end
+  local check = tile:CreateTexture(nil, "ARTWORK")
+  check:SetSize(24, 24)
+  check:SetPoint("CENTER", tile, "CENTER", 0, 0)
+  if Theme.SetIcon then Theme.SetIcon(check, "check", Theme.color.goldHi or gc) end
+  hero.title = (Theme.Heading or Theme.Label)(hero, 14)
+  hero.title:SetPoint("TOP", tile, "BOTTOM", 0, -12)
+  hero.title:SetJustifyH("CENTER")
+  hero.title:SetWordWrap(true)
+  setColor(hero.title, Theme.color.fg)
+  hero.line = Theme.Num(hero, 10)
+  hero.line:SetPoint("TOP", hero.title, "BOTTOM", 0, -5)
+  hero.line:SetJustifyH("CENTER")
+  hero.line:SetWordWrap(true)
+  setColor(hero.line, Theme.color.fgDim)
+  hero:Hide()
+  return hero
+end
+
+-- Shown when every line of the list on screen is done and nothing narrows it. Returns the height it
+-- takes at the top of the list (0 when hidden).
+local function paintHero(entries)
+  local hero = band.hero
+  if not hero then return 0 end
+  local all = current ~= nil and #entries > 0 and entries[1].kind == "section" and entries[1].key == "done"
+    and (GC.Buy._filter or "all") == "all" and (GC.Buy._query or "") == ""
+  if not all then
+    hero:Hide()
+    return 0
+  end
+  local width = math.max(160, (geometry and geometry.rowWidth or 400) - 40)
+  hero.title:SetWidth(width)
+  hero.line:SetWidth(width)
+  hero.title:SetText(GC.Util.Upper(GC.L["Everything here is bought"]))
+  local count, spent = 0, 0
+  for _, line in ipairs(entries[1].lines) do
+    count = count + 1
+    spent = spent + (tonumber(line.spent) or 0)
+  end
+  hero.line:SetText(spent > 0 and (GC.L["bought %d for %s"]):format(count, formatAmount(spent)) or "")
+  hero:ClearAllPoints()
+  hero:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
+  hero:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0)
+  hero:Show()
+  return HERO_H
+end
+
 -- A list's progress for the column: `done` of `total` of its own lines, or an alert group's hits.
 local function listMeta(run)
   local meta = GC.Buy._listMeta[run.code]
@@ -4077,14 +4214,17 @@ local function layoutBody()
   -- dock (UI/BuySearch.lua); laid out on every render, as its rows change with every answer.
   local searching = GC.Buy._searching
   if searching then GC.BuySearch.Place(container, inset, band.top or 0, bottom) end
+  local listed = current ~= nil
   if band.bodyBottom == bottom and band.bodyTop == top and band.bodyToolsTop == toolsTop
-      and band.bodySearching == searching then return end
+      and band.bodySearching == searching and band.bodyListed == listed then return end
   band.bodyBottom, band.bodyTop, band.bodyToolsTop, band.bodySearching = bottom, top, toolsTop, searching
+  band.bodyListed = listed
   if searching then
     header:Hide()
     scroll:Hide()
   else
-    header:Show()
+    -- No list, no headings over the first-time state.
+    if listed then header:Show() else header:Hide() end
     scroll:Show()
   end
   if tools then
@@ -4355,7 +4495,7 @@ local function renderRows()
   -- render puts in it, and a row as tall as its wrapped name.
   for i, entry in ipairs(entries) do paintRow(rows[i], entry, i) end
   fitColumns(#entries)
-  local y = 0
+  local y = paintHero(entries)
   for i, entry in ipairs(entries) do
     local row = rows[i]
     layoutRow(row)
@@ -4371,6 +4511,7 @@ local function renderRows()
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
   content:SetHeight(math.max(1, y))
+  paintEmpty()
   paintDock()
   layoutBody()
   paintLists()
@@ -4402,6 +4543,8 @@ function GC.Buy.Attach(f, geo)
   content = CreateFrame("Frame", nil, scroll)
   content:SetSize(geo.rowWidth, geo.rowHeight)
   scroll:SetScrollChild(content)
+  band.empty = createEmpty(container, scroll)
+  band.hero = createHero(content)
   -- OnSizeChanged is the live path (the resize grip, or the AH tab reparenting the window into
   -- a different-width dock); Show() below is the catch-up path for a frame that was hidden
   -- while that happened, since a hidden frame does not reliably fire OnSizeChanged.
@@ -4441,7 +4584,7 @@ function GC.Buy.Attach(f, geo)
 
   -- The one seam specs use instead of debug.getupvalue.
   GC.Buy._view = { container = container, rows = rows, band = band, dock = band.dock, lists = band.lists,
-    add = band.add }
+    add = band.add, empty = band.empty }
 end
 
 function GC.Buy.Show()

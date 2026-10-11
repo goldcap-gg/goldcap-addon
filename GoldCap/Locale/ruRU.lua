@@ -1358,4 +1358,5 @@ GC.Locales.ruRU = {
   ["market price"] = "рыночная цена",
   ["craft %d× (%d per craft)"] = "крафт %d× (по %d за крафт)",
   ["%s spent"] = "потрачено %s",
+  ["No list yet"] = "Списка пока нет",
 }

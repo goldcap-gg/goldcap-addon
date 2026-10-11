@@ -1287,4 +1287,5 @@ GC.Locales.ptBR = {
   ["market price"] = "preço de mercado",
   ["craft %d× (%d per craft)"] = "fabricar %d× (%d por fabricação)",
   ["%s spent"] = "%s gasto",
+  ["No list yet"] = "Ainda sem lista",
 }

@@ -1292,4 +1292,5 @@ GC.Locales.esES = {
   ["market price"] = "precio de mercado",
   ["craft %d× (%d per craft)"] = "fabricar %d× (%d por fabricación)",
   ["%s spent"] = "%s gastado",
+  ["No list yet"] = "Aún no hay lista",
 }

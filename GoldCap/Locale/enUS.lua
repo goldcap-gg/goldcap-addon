@@ -1276,4 +1276,5 @@ GC.Locales.enUS = {
   ["market price"] = "market price",
   ["craft %d× (%d per craft)"] = "craft %d× (%d per craft)",
   ["%s spent"] = "%s spent",
+  ["No list yet"] = "No list yet",
 }

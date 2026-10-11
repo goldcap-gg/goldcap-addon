@@ -1197,4 +1197,5 @@ GC.Locales.zhTW = {
   ["market price"] = "市場價",
   ["craft %d× (%d per craft)"] = "製作 %d× （每次 %d 個）",
   ["%s spent"] = "花費 %s",
+  ["No list yet"] = "還沒有清單",
 }

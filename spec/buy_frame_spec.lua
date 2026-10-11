@@ -535,9 +535,32 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.equal("2 of 2 done", bandOf().done:GetText())
     assert.equal("Everything here is bought", dock().title:GetText())
-    -- Nothing left to buy: no TO BUY heading, and BOUGHT open under its own.
+    -- Nothing left to buy: no TO BUY heading, and BOUGHT open under its own, a check over it.
     assert.is_nil(sectionRow("buy"))
     assert.truthy(sectionRow("done"))
+    local hero = GC.Buy._view.band.hero
+    assert.is_true(hero:IsShown())
+    assert.equal("EVERYTHING HERE IS BOUGHT", hero.title:GetText())
+  end)
+
+  -- BOUGHT stays out of the way while there is anything else to do: its heading says how many, and a
+  -- click opens it and shuts it again.
+  it("folds BOUGHT under its heading until a click opens it", function()
+    GC.Buy._boughtOpen = nil
+    GC.Buy.RefreshIfShown()
+    assert.is_nil(rowWithText("Bravo Ore")) -- covered by the bag: bought, folded
+    assert.is_false(GC.Buy._view.band.hero:IsShown())
+    local head = sectionRow("done")
+    assert.equal("BOUGHT  1", plain(head.head:GetText()))
+    head.scripts.OnMouseUp(head, "LeftButton")
+    assert.truthy(rowWithText("Bravo Ore"))
+    head = sectionRow("done")
+    head.scripts.OnMouseUp(head, "LeftButton")
+    assert.is_nil(rowWithText("Bravo Ore"))
+    -- A heading with nothing to open takes no click.
+    head = sectionRow("buy")
+    head.scripts.OnMouseUp(head, "LeftButton")
+    assert.is_nil(rowWithText("Bravo Ore"))
   end)
 
   it("draws the progress bar over the done share of the run", function()
@@ -819,9 +842,17 @@ describe("BuyFrame", function()
     GC.db.settings.sniper.buyRun = nil
     GC.Buy.Show()
     assert.is_nil(GC.Buy.CurrentRun())
-    local text = shownTexts()
-    assert.truthy(text:find("Make a list once, buy it here at or under your price.", 1, true))
-    assert.truthy(text:find("or plan a whole profession on goldcap.gg", 1, true))
+    -- No rows: the first-time state, a tile with NO LIST YET, what the tab is for, a new list or an
+    -- import, and where whole plans come from.
+    assert.equal(0, #shownRows())
+    local empty = GC.Buy._view.empty
+    assert.is_true(empty:IsShown())
+    assert.equal("NO LIST YET", empty.title:GetText())
+    assert.equal("Make a list once, buy it here at or under your price.", empty.line:GetText())
+    assert.equal("or plan a whole profession on goldcap.gg", empty.foot:GetText())
+    assert.equal("New list", empty.new.label)
+    assert.equal("Import", empty.import.label)
+    assert.is_false(bandOf().header:IsShown())
     local add = GC.Buy._view.add
     assert.is_true(add.frame:IsShown())
     assert.equal("Item to add", add.hint:GetText())

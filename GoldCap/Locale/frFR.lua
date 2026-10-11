@@ -1291,4 +1291,5 @@ GC.Locales.frFR = {
   ["market price"] = "prix du marché",
   ["craft %d× (%d per craft)"] = "fabriquer %d× (%d par fabrication)",
   ["%s spent"] = "%s dépensé",
+  ["No list yet"] = "Pas encore de liste",
 }
