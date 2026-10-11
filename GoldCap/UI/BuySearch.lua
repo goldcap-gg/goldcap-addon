@@ -31,8 +31,11 @@ S.CODE = "buy search"
 S._caps = {}
 S._progress = {}
 
-local LAYOUT = { HEAD_MIN = 24, HEADING_H = 16, ROW_H = 24, ICON = 18, INSET = 26, PRICE_MIN = 72,
-  AVAIL_MIN = 64, STRIP_H = 30, BOX_W = 64, MORE_H = 24, BUTTON_MIN = 72, GAP = 4 }
+-- A result is a glass card, the BUY list's own (UI/BuyFrame.lua): ROW_H its least pitch, CARD_GAP
+-- between two, ICON its item's icon framed in its quality's colour, INSET where the name starts and
+-- RIGHT how far the figures stand in from the card's right edge.
+local LAYOUT = { HEAD_MIN = 24, HEADING_H = 16, ROW_H = 48, CARD_GAP = 4, ICON = 30, INSET = 52, RIGHT = 12,
+  PRICE_MIN = 72, AVAIL_MIN = 64, STRIP_H = 36, BOX_W = 64, MORE_H = 26, BUTTON_MIN = 72, GAP = 4 }
 
 -- @localised-keys: literals in this table ARE GC.L keys, looked up where the headings are drawn.
 -- The table closes with a `}` on its own line.
@@ -444,30 +447,40 @@ local function rowAt(i)
   local Theme = GC.Theme
   row = CreateFrame("Frame", nil, panel.content)
   row:EnableMouse(true)
-  local zc, hc, gc = Theme.color.zebra, Theme.color.hover, Theme.color.gold
-  local function wash(layer, c, a)
+  local zc, hc, gc, gb = Theme.color.zebra, Theme.color.hover, Theme.color.gold, Theme.color.border
+  local inset = LAYOUT.CARD_GAP / 2
+  local function wash(layer, file, c, a)
     local t = row:CreateTexture(nil, layer)
-    t:SetTexture(Theme.MEDIA .. "plaque.png")
+    t:SetTexture(Theme.MEDIA .. file)
     t:SetTextureSliceMargins(12, 12, 12, 12)
-    t:SetPoint("TOPLEFT", 2, -1)
-    t:SetPoint("BOTTOMRIGHT", -2, 1)
+    t:SetPoint("TOPLEFT", 2, -inset)
+    t:SetPoint("BOTTOMRIGHT", -2, inset)
     t:SetVertexColor(c[1], c[2], c[3], a)
     return t
   end
-  row.zebra = wash("BACKGROUND", zc, 0)
-  wash("HIGHLIGHT", hc, hc[4] or 0.08)
-  row.picked = wash("BORDER", gc, 0.10)
+  row.zebra = wash("BACKGROUND", "plaque.png", zc, zc[4] or 0.035)
+  wash("BORDER", "plaque_ring.png", gb, gb[4] or 0.075)
+  wash("HIGHLIGHT", "plaque.png", hc, hc[4] or 0.08)
+  row.picked = wash("BORDER", "plaque.png", gc, 0.10)
   row.picked:Hide()
-  row.icon = row:CreateTexture(nil, "ARTWORK")
+  row.pickedRing = wash("ARTWORK", "plaque_ring.png", gc, 0.38)
+  row.pickedRing:Hide()
+  row.iconEdge = row:CreateTexture(nil, "BORDER", nil, 1)
+  row.iconEdge:SetSize(LAYOUT.ICON + 2, LAYOUT.ICON + 2)
+  row.iconEdge:SetPoint("LEFT", row, "LEFT", LAYOUT.RIGHT - 1, 0)
+  row.iconEdge:Hide()
+  row.icon = row:CreateTexture(nil, "ARTWORK", nil, 1)
   row.icon:SetSize(LAYOUT.ICON, LAYOUT.ICON)
-  row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.icon:SetPoint("LEFT", row, "LEFT", LAYOUT.RIGHT, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-  row.name = Theme.Label(row, 11)
+  row.name = Theme.Label(row, 12)
   row.name:SetJustifyH("LEFT")
   row.name:SetWordWrap(true)
-  row.price = Theme.Num(row, 11)
+  row.price = Theme.Num(row, 12, true)
+  row.price:SetJustifyH("RIGHT")
   row.price:SetWordWrap(false)
-  row.avail = Theme.Num(row, 11)
+  row.avail = Theme.Num(row, 12)
+  row.avail:SetJustifyH("RIGHT")
   row.avail:SetWordWrap(false)
   row:SetScript("OnMouseUp", function(self, button)
     if not self.id then return end
@@ -527,18 +540,27 @@ local function backLabel()
   return GC.L["Close search"]
 end
 
-local function paintRow(row, r, index)
+local function paintRow(row, r)
   local Theme = GC.Theme
   row.id = r.id
-  local zc = Theme.color.zebra
-  row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
-  if r.id == opened then row.picked:Show() else row.picked:Hide() end
+  -- The result open in the dock: the card's gold fill and edge.
+  if r.id == opened then row.picked:Show(); row.pickedRing:Show() else row.picked:Hide(); row.pickedRing:Hide() end
   local icon = r.icon
   if not icon and C_Item and C_Item.GetItemIconByID then
     local ok, texture = pcall(C_Item.GetItemIconByID, r.itemID)
     icon = ok and texture or nil
   end
-  if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+  if icon then
+    row.icon:SetTexture(icon)
+    row.icon:Show()
+    local q = Theme.QualityColor and Theme.QualityColor(r.itemID)
+    local edge = q and { q.r, q.g, q.b, 0.9 } or Theme.color.border
+    row.iconEdge:SetColorTexture(edge[1], edge[2], edge[3], edge[4] or 1)
+    row.iconEdge:Show()
+  else
+    row.icon:Hide()
+    row.iconEdge:Hide()
+  end
   local label = r.known and Theme.WithQuality(nameOf(r), r.itemID, 12) or nameOf(r)
   if r.known and r.commodity == false and r.itemLevel > 0 then
     label = ("%s · %s"):format(label, (GC.L["ilvl %d"]):format(r.itemLevel))
@@ -549,7 +571,7 @@ local function paintRow(row, r, index)
   row.name:SetText(label)
   setColor(row.name, r.known and Theme.color.fg or Theme.color.fgDim)
   row.price:SetText("")
-  row.price:SetText(r.minPrice and GC.Util.FormatMoney(r.minPrice) or "")
+  row.price:SetText(r.minPrice and GC.Util.Money(r.minPrice) or "")
   row.avail:SetText("")
   row.avail:SetText(GC.Util.IntText(r.available or 0))
   setColor(row.price, Theme.color.fg)
@@ -627,7 +649,7 @@ function S.Paint()
   -- The results, painted first and measured second: each number column is as wide as its heading
   -- and its widest cell in the player's language.
   local list = request.rows or {}
-  for i, r in ipairs(list) do paintRow(rowAt(i), r, i) end
+  for i, r in ipairs(list) do paintRow(rowAt(i), r) end
   for i = #list + 1, #panel.rows do panel.rows[i]:Hide(); panel.rows[i].id = nil end
   local priceW, availW = LAYOUT.PRICE_MIN, LAYOUT.AVAIL_MIN
   for key, label in pairs(panel.headings) do
@@ -640,17 +662,17 @@ function S.Paint()
     priceW = math.max(priceW, measure(row.price) or 0)
     availW = math.max(availW, measure(row.avail) or 0)
   end
-  local nameW = math.max(40, width - LAYOUT.INSET - priceW - availW - 2 * pad.s - 4)
+  local nameW = math.max(40, width - LAYOUT.INSET - priceW - availW - 2 * pad.s - LAYOUT.RIGHT)
 
   local h = panel.headings
   h.avail:ClearAllPoints()
-  h.avail:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -headH)
+  h.avail:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -LAYOUT.RIGHT, -headH)
   h.avail:SetSize(availW, LAYOUT.HEADING_H)
   h.price:ClearAllPoints()
   h.price:SetPoint("TOPRIGHT", h.avail, "TOPLEFT", -pad.s, 0)
   h.price:SetSize(priceW, LAYOUT.HEADING_H)
   h.name:ClearAllPoints()
-  h.name:SetPoint("TOPLEFT", panel, "TOPLEFT", LAYOUT.INSET, -headH)
+  h.name:SetPoint("TOPLEFT", panel, "TOPLEFT", LAYOUT.RIGHT, -headH)
   h.name:SetSize(nameW, LAYOUT.HEADING_H)
   panel.rule:ClearAllPoints()
   panel.rule:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -(headH + LAYOUT.HEADING_H))
@@ -690,7 +712,7 @@ function S.Paint()
   for i = 1, #list do
     local row = panel.rows[i]
     row.avail:ClearAllPoints()
-    row.avail:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    row.avail:SetPoint("RIGHT", row, "RIGHT", -LAYOUT.RIGHT, 0)
     row.avail:SetWidth(availW)
     row.price:ClearAllPoints()
     row.price:SetPoint("RIGHT", row.avail, "LEFT", -pad.s, 0)
@@ -698,7 +720,7 @@ function S.Paint()
     row.name:ClearAllPoints()
     row.name:SetPoint("LEFT", row, "LEFT", LAYOUT.INSET, 0)
     row.name:SetWidth(nameW)
-    local rh = math.max(LAYOUT.ROW_H, heightOf(row.name) + 8)
+    local rh = math.max(LAYOUT.ROW_H, heightOf(row.name) + 16 + LAYOUT.CARD_GAP)
     row:SetHeight(rh)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)

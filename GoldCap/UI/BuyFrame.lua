@@ -3967,14 +3967,15 @@ local function createLists(parent)
   return { frame = frame, caption = caption, new = new, import = import, footer = footer, entries = {} }
 end
 
--- One pooled entry of the column: a button carrying the list's name -- its label re-anchored to
--- wrap beside the count rather than run under it -- where it came from under the name, the count on
--- the right, a bar along the foot. A left click picks the list, a right click opens its menu.
+-- One pooled entry of the column, a glass card: the list's first item's icon, its name -- wrapping
+-- beside the count rather than running under it -- where it came from under the name, the count on
+-- the right, a bar along the foot. The list on screen wears the gold edge. A left click picks the
+-- list, a right click opens its menu.
 local function listEntry(lists, i)
   local entry = lists.entries[i]
   if entry then return entry end
   local button = Theme.Button(lists.frame, "ghost", "plaque")
-  button:SetSize(BD.LISTS_W, 34)
+  button:SetSize(BD.LISTS_W, 40)
   -- Not a purchase button: the right click is the list's menu (Theme.Button takes the left alone).
   button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   button:SetScript("OnClick", function(self, mouseButton)
@@ -3986,13 +3987,16 @@ local function listEntry(lists, i)
     GC.Buy.SelectRun(self.code)
     GC.Buy.RefreshIfShown()
   end)
-  local meta = Theme.Num(button, 9)
+  local icon = button:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(24, 24)
+  icon:SetPoint("TOPLEFT", button, "TOPLEFT", 7, -7)
+  icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  icon:Hide()
+  local meta = Theme.Num(button, 10, true)
   meta:SetJustifyH("RIGHT")
   meta:SetWordWrap(false)
   meta:SetPoint("TOPRIGHT", button, "TOPRIGHT", -8, -8)
   button.text:ClearAllPoints()
-  button.text:SetPoint("TOPLEFT", button, "TOPLEFT", 8, -7)
-  button.text:SetPoint("RIGHT", meta, "LEFT", -6, 0)
   button.text:SetJustifyH("LEFT")
   button.text:SetWordWrap(true)
   button.text:SetMaxLines(3)
@@ -4002,11 +4006,17 @@ local function listEntry(lists, i)
   origin:SetPoint("TOPLEFT", button.text, "BOTTOMLEFT", 0, -2)
   origin:SetPoint("RIGHT", button, "RIGHT", -8, 0)
   setColor(origin, Theme.color.fgDim)
-  local fill = button:CreateTexture(nil, "OVERLAY")
-  fill:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 6, 3)
-  fill:SetHeight(1)
+  local bc = Theme.color.border
+  local track = button:CreateTexture(nil, "OVERLAY")
+  track:SetColorTexture(bc[1], bc[2], bc[3], bc[4] or 0.075)
+  track:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 8, 3)
+  track:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -8, 3)
+  track:SetHeight(2)
+  local fill = button:CreateTexture(nil, "OVERLAY", nil, 1)
+  fill:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 8, 3)
+  fill:SetHeight(2)
   fill:Hide()
-  entry = { button = button, meta = meta, origin = origin, fill = fill }
+  entry = { button = button, icon = icon, meta = meta, origin = origin, fill = fill }
   lists.entries[i] = entry
   return entry
 end
@@ -4036,34 +4046,51 @@ local function paintLists()
   if lists.caption.GetStringHeight then y = y - math.ceil(lists.caption:GetStringHeight()) end
   y = layoutListButtons(lists, y - 6)
   local list = runList()
+  local gc, gb = Theme.color.gold, Theme.color.border
   for i, run in ipairs(list) do
     local entry = listEntry(lists, i)
     local meta = listMeta(run)
     local button = entry.button
+    local on = current ~= nil and current:Code() == run.code
     button.code = run.code
-    button:SetVariant((current and current:Code() == run.code) and "active" or "ghost")
+    button:SetVariant(on and "active" or "ghost")
+    if button.SetRing then
+      button:SetRing(on and { gc[1], gc[2], gc[3], 0.55 } or { gb[1], gb[2], gb[3], gb[4] or 0.075 })
+    end
     button:SetLabel(GC.BuyLists.Title(run))
+    -- SetLabel bounds the label at the card's right edge; it wraps short of the count instead.
+    local first = type(run.lines) == "table" and run.lines[1] or nil
+    local icon = nil
+    if first and C_Item and C_Item.GetItemIconByID then
+      local ok, texture = pcall(C_Item.GetItemIconByID, first.i)
+      icon = ok and texture or nil
+    end
+    if icon then entry.icon:SetTexture(icon); entry.icon:Show() else entry.icon:Hide() end
+    button.text:ClearAllPoints()
+    button.text:SetPoint("TOPLEFT", button, "TOPLEFT", icon and 38 or 8, -7)
+    button.text:SetPoint("RIGHT", entry.meta, "LEFT", -6, 0)
     entry.origin:SetText(GC.BuyLists.Origin(run))
     entry.meta:SetText(meta.hits and (GC.L["%d hits"]):format(meta.hits)
       or (GC.L["%d of %d"]):format(meta.done, meta.total))
+    setColor(entry.meta, meta.hits and Theme.tier.SUSPECT or Theme.color.fgMuted)
     local share = meta.hits and 1 or (meta.total > 0 and meta.done / meta.total or 0)
     if share > 0 then
-      local c = meta.hits and Theme.color.green or Theme.color.gold
+      local c = meta.hits and Theme.color.green or gc
       entry.fill:SetColorTexture(c[1], c[2], c[3], 0.9)
-      entry.fill:SetWidth(math.max(1, (BD.LISTS_W - 12) * share))
+      entry.fill:SetWidth(math.max(1, (BD.LISTS_W - 16) * share))
       entry.fill:Show()
     else
       entry.fill:Hide()
     end
-    local h = 34
+    local h = 40
     if button.text.GetStringHeight then
-      h = math.max(34, math.ceil(button.text:GetStringHeight() + 2 + entry.origin:GetStringHeight() + 16))
+      h = math.max(40, math.ceil(button.text:GetStringHeight() + 2 + entry.origin:GetStringHeight() + 18))
     end
     button:SetHeight(h)
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", lists.frame, "TOPLEFT", 0, y)
     button:Show()
-    y = y - h - 4
+    y = y - h - 6
   end
   for i = #list + 1, #lists.entries do lists.entries[i].button:Hide() end
   lists.footer:ClearAllPoints()
