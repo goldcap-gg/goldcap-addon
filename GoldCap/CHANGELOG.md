@@ -26,6 +26,9 @@
   second window asks how many. The list you add to is the one BUY goes back to. A long menu of
   lists scrolls.
 - Item names on the BUY tab no longer turn into numbers while you click around it.
+- WoW: Forever: when a full scan stalls, the scan saves what it read right away and the SCAN
+  button is free again, instead of showing SCANNING for up to three minutes under "full scan
+  stalled".
 
 ## 0.19.0 (2026-10-11)
 

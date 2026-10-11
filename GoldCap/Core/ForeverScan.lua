@@ -185,7 +185,7 @@ function GC.ForeverScan.New(driver)
     end
     driver.notify("done", { rows = a.replicated and a.rows or nil, items = count,
       partial = a.partial == true, replicated = a.replicated == true, pending = a.pending,
-      skipped = a.skipped })
+      skipped = a.skipped, givenUp = a.givenUp })
   end
 
   local function toBrowse(kind)
@@ -196,11 +196,24 @@ function GC.ForeverScan.New(driver)
     local t = token
     driver.after(C.BROWSE_WAIT_SECONDS, function()
       if token == t and state == "browsing" then
-        acc.partial = true
+        acc.partial, acc.givenUp = true, true
         commit()
       end
     end)
     return true
+  end
+
+  -- What a browse pass saw goes into the fold: every item's whole floor, over a cut dump's partial
+  -- view of it. A variant row (gear by item level, a caged pet by species) is one version, not the
+  -- item's floor -- the same rule UI/SniperFrame.lua's _LiveRow applies to the tooltip.
+  local function takeBook(book)
+    dropCutDump(acc)
+    for itemID, row in pairs(type(book) == "table" and book or {}) do
+      if type(row) == "table" and not row.variants then
+        GC.ForeverFold.AddBrowse(acc, itemID, row.floor, row.qty)
+        acc.browsed = true
+      end
+    end
   end
 
   local function afterRead()
@@ -344,15 +357,18 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnBrowsePassDone(book)
     if state ~= "browsing" then return end
-    dropCutDump(acc)
-    for itemID, row in pairs(type(book) == "table" and book or {}) do
-      -- A variant row (gear by item level, a caged pet by species) is one version, not the
-      -- item's floor -- the same rule UI/SniperFrame.lua's _LiveRow applies to the tooltip.
-      if type(row) == "table" and not row.variants then
-        GC.ForeverFold.AddBrowse(acc, itemID, row.floor, row.qty)
-      end
-    end
+    takeBook(book)
     acc.browsed = true
+    commit()
+  end
+
+  -- The pass this scan waits for was given up (the stall watchdog, the player's own search, Auto
+  -- pausing): its end is not coming, so what it saw is saved now, marked partial, rather than at
+  -- BROWSE_WAIT_SECONDS with the SCAN button on SCANNING all the while.
+  function obj:OnBrowsePassAbandoned(book)
+    if state ~= "browsing" then return end
+    takeBook(book)
+    acc.partial, acc.givenUp = true, true
     commit()
   end
 
@@ -464,7 +480,10 @@ local function notify(kind, a, b)
     end
   elseif kind == "done" then
     local timer = _G.C_Timer
-    if a and a.replicated and a.partial and type(timer) == "table" and type(timer.After) == "function" then
+    -- Not after a browse pass that was given up: a dump stage that came while the scan browsed was
+    -- not read (OnReplicateUpdate), so no fuller read is on its way to replace this one.
+    if a and a.replicated and a.partial and not a.givenUp
+        and type(timer) == "table" and type(timer.After) == "function" then
       local mine = sayToken
       sayHeld = true
       timer.After(C.SAY_GRACE_SECONDS, function()
@@ -788,6 +807,7 @@ function GC.ForeverScan.Request(reason)
 end
 function GC.ForeverScan.OnReplicateUpdate() local s = scanner(); if s then s:OnReplicateUpdate(); repaint() end end
 function GC.ForeverScan.OnBrowsePassDone(book) local s = scanner(); if s then s:OnBrowsePassDone(book); repaint() end end
+function GC.ForeverScan.OnBrowsePassAbandoned(book) local s = scanner(); if s then s:OnBrowsePassAbandoned(book); repaint() end end
 function GC.ForeverScan.OnAuctionHouseShow() local s = scanner(); local r = s and s:OnAuctionHouseShow() or nil; repaint(); return r end
 function GC.ForeverScan.OnAuctionHouseClosed() local s = scanner(); if s then s:OnAuctionHouseClosed(); repaint() end end
 function GC.ForeverScan.IsBusy() local s = scanner(); return s ~= nil and (s:IsBusy() or sayHeld) end

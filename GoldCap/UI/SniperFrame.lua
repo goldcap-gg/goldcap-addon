@@ -3234,6 +3234,14 @@ GC.Sniper._bookPass = GC.BookPass.New({
       GC.ForeverScan.OnBrowsePassDone(GC.Sniper._bookPass:Book())
     end
   end,
+  -- Every Abort of a pass that was out (the stall watchdog, abortFullScan): the Forever scan saves
+  -- what the pass saw now instead of waiting for an end that is not coming. A no-op anywhere else.
+  onAbort = function(info)
+    trace(("pass: given up (%s, %d pages)"):format(tostring(info.kind), info.pages or 0))
+    if GC.ForeverScan and GC.ForeverScan.OnBrowsePassAbandoned then
+      GC.ForeverScan.OnBrowsePassAbandoned(GC.Sniper._bookPass:Book())
+    end
+  end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
   rehitSeconds = LIM.REHIT_SECONDS,

@@ -222,6 +222,29 @@ describe("BookPass", function()
     assert.equal(0, sent.pages)
   end)
 
+  -- Core/ForeverScan.lua waits for the end of a pass it asked for: a pass given up has to say so,
+  -- or the scan sits out its own timer with the SCAN button stuck on SCANNING.
+  it("tells the driver when it gives up a pass, and only then", function()
+    local given = {}
+    local driver = fakeDriver()
+    driver.onAbort = function(info) given[#given + 1] = info end
+    local bp = GC.BookPass.New(driver)
+    bp:Abort() -- nothing out: nothing to tell
+    assert.equal(0, #given)
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults, hasFullResults = { row(1, 10, 1) }, false
+    bp:OnResultsUpdated()
+    bp:Abort()
+    assert.equal(1, #given)
+    assert.equal("wide", given[1].kind)
+    assert.equal(1, given[1].pages)
+    assert.equal(1, given[1].items)
+    bp:Abort()
+    assert.equal(1, #given)
+    assert.equal(0, #passesDone)
+  end)
+
   it("keeps its book across an abort, so the next pass's ratchet is against real history", function()
     sent.triggers[1] = 100
     local bp = newPass()
