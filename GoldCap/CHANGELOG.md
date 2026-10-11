@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.20.0 (unreleased)
+## 0.20.0 (2026-10-11)
 
 - The BUY tab has the new look too. Each item on a list is a card with its icon framed in its
   quality's colour, its name and how many are left to buy, and under the name what you need, what
