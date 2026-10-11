@@ -3510,16 +3510,16 @@ local function createBand(parent)
   local picker = Theme.Button(bandFrame, "ghost", "plaque")
   picker:SetSize(BD.PICKER_MIN_W, BD.PICKER_H)
   picker:SetPoint("TOPLEFT", bandFrame, "TOPLEFT", 0, 0)
-  -- A list's name is the player's own words, of any length: it wraps beside the tile rather than
-  -- being cut (layoutBand grows the card to it), with the caret Theme.Button draws for " ▼" at the
-  -- card's right end.
-  if picker.text then
-    picker.text:ClearAllPoints()
-    picker.text:SetPoint("TOPLEFT", picker, "TOPLEFT", 42, -6)
-    picker.text:SetJustifyH("LEFT")
-    picker.text:SetWordWrap(true)
-    picker.text:SetMaxLines(3)
-  end
+  -- A list's name is the player's own words, of any length: in the body face rather than the
+  -- buttons' capitals, wrapping beside the tile rather than being cut (layoutBand grows the card to
+  -- it), with the caret Theme.Button draws for " ▼" at the card's right end. The button's own label
+  -- stays its `.label` and is not drawn.
+  if picker.text then picker.text:Hide() end
+  picker.name = Theme.Label(picker, 12)
+  picker.name:SetPoint("TOPLEFT", picker, "TOPLEFT", 42, -6)
+  picker.name:SetJustifyH("LEFT")
+  picker.name:SetWordWrap(true)
+  setColor(picker.name, Theme.color.fg)
   -- The tile: a gold plate with the BUY glyph on it.
   local gc = Theme.color.gold
   local tile = Theme.SlicedTexture(picker, "ARTWORK", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.14 }, 12)
@@ -3690,6 +3690,8 @@ local function createDock(parent)
   -- row menu's "Change the cap". Never a purchase.
   dock.cap = CreateFrame("Button", nil, dock)
   dock.cap:SetSize(BD.DOCK_CAP_W, 24)
+  dock.cap:EnableMouse(true)
+  dock.cap:RegisterForClicks("LeftButtonUp")
   local wc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(dock.cap, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(dock.cap)
   Theme.SlicedTexture(dock.cap, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12):SetAllPoints(dock.cap)
@@ -4126,19 +4128,19 @@ local function layoutBand()
   local pickerW, pickerH = 0, 0
   if shown then
     pickerW = BD.PICKER_MIN_W
-    local labelW = picker.text and measured(picker.text)
+    local labelW = measured(picker.name)
     if labelW then pickerW = math.min(BD.PICKER_MAX_W, math.max(BD.PICKER_MIN_W, labelW + 42 + 24)) end
     if width > 0 then pickerW = math.min(pickerW, math.max(120, math.floor(width * 0.4))) end
     local textW = pickerW - 42 - 22
     picker:SetWidth(pickerW)
-    if picker.text then picker.text:SetWidth(textW) end
+    picker.name:SetWidth(textW)
     band.done:SetWidth(textW)
     band.done:ClearAllPoints()
-    band.done:SetPoint("TOPLEFT", picker.text or picker, "BOTTOMLEFT", 0, -2)
+    band.done:SetPoint("TOPLEFT", picker.name, "BOTTOMLEFT", 0, -2)
     pickerH = BD.PICKER_H
-    if picker.text and picker.text.GetStringHeight then
+    if picker.name.GetStringHeight then
       pickerH = math.max(BD.PICKER_H,
-        math.ceil(6 + picker.text:GetStringHeight() + 2 + (band.done:GetStringHeight() or 0) + 9))
+        math.ceil(6 + picker.name:GetStringHeight() + 2 + (band.done:GetStringHeight() or 0) + 9))
     end
     picker:SetHeight(pickerH)
     band.frame:SetSize(pickerW, pickerH)
@@ -4177,6 +4179,7 @@ local function paintBand()
     local shown = shownRunData()
     local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
     band.picker:SetLabel(runLabel(current) .. " ▼")
+    band.picker.name:SetText(runLabel(current))
     band.picker:Show()
     local lines = current:Lines()
     local doneCount, totalCount = GC.BuyView.Progress(lines)
