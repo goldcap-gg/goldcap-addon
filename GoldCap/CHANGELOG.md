@@ -1,5 +1,26 @@
 # GoldCap
 
+## 0.20.0 (unreleased)
+
+- The BUY tab has the new look too. Each item on a list is a card with its icon framed in its
+  quality's colour, its name and how many are left to buy, and under the name what you need, what
+  you already have and your cap, or NO CAP in amber. Under PRICE EACH it says how far under your cap
+  one unit is, or that it is only the market price while nobody has looked yet; under COST, for
+  how many. An item over your cap shows the cheapest price in red.
+- The list is in groups: TO BUY, with what it all costs in its heading, TO CRAFT, AT A VENDOR and
+  BOUGHT. BOUGHT stays folded until you click it, and opens by itself under a gold check once
+  everything is bought.
+- The list picker is a card at the top left with the list's name, how much of it is done and a bar
+  of that. The box for adding items beside it is taller, with a gold plus and its button inside;
+  while you type, its matches open over the list instead of pushing it down.
+- The bar at the bottom shows the item BUY buys next, YOUR CAP (click it to change the cap), COST,
+  SKIP and BUY. At CONFIRM it turns gold, and a line along its foot runs out with the last seconds
+  of Blizzard's price.
+- With no list yet, the tab says so and offers New list and Import.
+- In a wide window, YOUR LISTS are cards with each list's first item, how much of it is done and a
+  bar; the list on screen is outlined in gold. The auction house search's results are cards too.
+- Money on the BUY tab is in the game's own coins.
+
 ## 0.19.0 (2026-10-11)
 
 - GoldCap has a new look: dark glass panels, new fonts picked for each language, and new icons.
