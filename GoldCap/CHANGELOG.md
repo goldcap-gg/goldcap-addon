@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.19.0 (unreleased)
+## 0.19.0 (2026-10-11)
 
 - GoldCap has a new look: dark glass panels, new fonts picked for each language, and new icons.
   Buttons and headings are in capitals in every language that has them, Russian and Ukrainian
