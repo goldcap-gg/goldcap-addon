@@ -496,23 +496,49 @@ end
 -- payload names one — faction must all match (plan 3d decision E11). A payload for another
 -- auction house is someone else's prices. Dated more than PAYLOAD_FUTURE_SLACK_SECONDS ahead of
 -- this machine's clock, it is refused like the region payload is.
+-- Whether the payload names another realm or faction than the one given: only what both name
+-- counts, so an unnamed side refuses nothing.
+local function otherHouse(parsed, realm, faction)
+  if type(realm) == "string" and parsed.realm ~= realm then return "realm" end
+  if parsed.faction and type(faction) == "string" and parsed.faction ~= faction then return "faction" end
+  return nil
+end
+
+-- Adopted before the client named this character's realm or faction (ADDON_LOADED can come first,
+-- night review 10.10): the check waits for them, and runs again on every read until both are named.
+local payloadUnsettled = false
+
 function GC.Data.AdoptForeverPayload(str, here)
-  foreverPayload = nil
+  foreverPayload, payloadUnsettled = nil, false
   local parsed, reason = GC.ImportString.ParseForever(str)
   if not parsed then return nil, reason end
   if parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "future" end
   here = here or {}
   if parsed.regionId ~= here.region then return nil, "region" end
-  if type(here.realm) == "string" and parsed.realm ~= here.realm then return nil, "realm" end
-  if parsed.faction and type(here.faction) == "string" and parsed.faction ~= here.faction then
-    return nil, "faction"
-  end
+  local other = otherHouse(parsed, here.realm, here.faction)
+  if other then return nil, other end
   foreverPayload = parsed
+  payloadUnsettled = type(here.realm) ~= "string" or type(here.faction) ~= "string"
   return parsed
 end
 
-function GC.Data.ForeverPayload()
+-- The adopted payload, once more checked against the house while the client has not named it all:
+-- one that turns out to be another realm's or faction's is dropped for the session.
+local function adoptedPayload()
+  if not (foreverPayload and payloadUnsettled) then return foreverPayload end
+  local F = GC.ForeverScan
+  if not (F and F.House) then return foreverPayload end
+  local realm, faction = F.House()
+  if otherHouse(foreverPayload, realm, faction) then
+    foreverPayload, payloadUnsettled = nil, false
+    return nil
+  end
+  if type(realm) == "string" and type(faction) == "string" then payloadUnsettled = false end
   return foreverPayload
+end
+
+function GC.Data.ForeverPayload()
+  return adoptedPayload()
 end
 
 -- A Companion paired with goldcap.gg writes this install's GoldCap_AppData and uploads its saved
@@ -578,7 +604,7 @@ end
 -- scanner count, which is all the tooltip needs to say whose it is. nil outside Forever.
 function GC.Data.ForeverValueFor(itemID)
   local own = GC.ForeverScan and GC.ForeverScan.ValueFor and GC.ForeverScan.ValueFor(itemID) or nil
-  local p = foreverPayload
+  local p = adoptedPayload()
   local c = p and p.items[itemID]
   if not c then return own end
   local at = p.ts - c.age * 60
@@ -593,7 +619,7 @@ end
 -- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
 -- A crowd answer says when the crowd saw it (`at`, epoch seconds): BUY's tooltip says how old it is.
 function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
-  local p = foreverPayload
+  local p = adoptedPayload()
   local c = p and p.items[itemID]
   if c and c.ah then
     local at = p.ts - c.age * 60

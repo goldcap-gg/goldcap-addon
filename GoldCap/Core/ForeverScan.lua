@@ -626,6 +626,13 @@ local function settleHouse()
   if F._faction == nil then F._faction = p.faction end
 end
 
+-- This character's realm and faction, as far as the client has named them yet (settleHouse): nil
+-- for either one it has not. Core/Data.lua checks an adopted crowd payload against them.
+function GC.ForeverScan.House()
+  settleHouse()
+  return GC.ForeverScan._realm, GC.ForeverScan._faction
+end
+
 -- Both named and different: another auction house. Unnamed on either side is not evidence.
 local function differs(saved, current)
   return saved ~= nil and current ~= nil and saved ~= current

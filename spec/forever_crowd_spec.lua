@@ -98,6 +98,38 @@ describe("adopting the crowd payload", function()
     assert.is_nil(GC.Data.ForeverPayload())
   end)
 
+  -- Night review 10.10: the client may not name the character's realm or faction yet at
+  -- ADDON_LOADED, where the payload is read, and a check that skipped what was unnamed let an
+  -- Alliance character keep the Horde prices of the same realm for the whole session.
+  local function unnamedAtLoad()
+    load(16001)
+    local named = {}
+    GC.ForeverScan.Init(db, { passport = function()
+      return { interface = 16001, region = 90, realm = named.realm, faction = named.faction }
+    end })
+    _G.GoldCap_AppData = { foreverString = body() } -- Classic Beta PvE 2, Horde
+    GC.Data.AdoptAppData()
+    return named
+  end
+
+  it("checks the realm and faction again once the client names them", function()
+    local named = unnamedAtLoad()
+    assert.is_not_nil(GC.Data.ForeverPayload())    -- nothing named yet: nothing to refuse it on
+    named.realm = "Classic Beta PvE 2"
+    assert.is_not_nil(GC.Data.ForeverPayload())    -- the realm matches; the faction is still unnamed
+    named.faction = "Alliance"
+    assert.is_nil(GC.Data.ForeverPayload())
+    assert.is_nil(GC.Data.ForeverValueFor(2589))
+    assert.equal("own", GC.Data.ForeverReference(2589, 0, nil).source)
+  end)
+
+  it("keeps the payload once the client names this same house", function()
+    local named = unnamedAtLoad()
+    named.realm, named.faction = "Classic Beta PvE 2", "Horde"
+    assert.is_not_nil(GC.Data.ForeverPayload())
+    assert.equal("crowd", GC.Data.ForeverValueFor(2589).kind)
+  end)
+
   it("a payload naming no faction serves both", function()
     load(16001, nil, "Alliance")
     _G.GoldCap_AppData = { foreverString = body(nil, "-") }

@@ -62,7 +62,9 @@ function GC.ForeverRoad.Tick(c, now, money, progress)
   local lastSample = c.samples[#c.samples]
   local lastPlayed = lastSample and tonumber(lastSample:match("^(%d+)")) or nil
   if not lastPlayed or c.played - lastPlayed >= C.SAMPLE_SECONDS then
-    c.samples[#c.samples + 1] = ("%d:%d:%.3f"):format(c.played, money, progress)
+    -- Whole numbers through IntText, not %d: WoW's Lua formats %d through a 32-bit int, which
+    -- money passes at 214,748g.
+    c.samples[#c.samples + 1] = ("%s:%s:%.3f"):format(GC.Util.IntText(c.played), GC.Util.IntText(money), progress)
     while #c.samples > C.MAX_SAMPLES do table.remove(c.samples, 1) end
   end
   c.money, c.progress = money, progress
