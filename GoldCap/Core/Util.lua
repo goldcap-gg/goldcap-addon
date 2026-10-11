@@ -364,7 +364,9 @@ end
 -- ---------------------------------------------------------------------------
 -- Text for a widget the CLIENT's font draws: a MenuUtil menu, a tooltip, the chat frame, a
 -- Blizzard template, a Theme.Label (UI/Theme.lua's ClientFont routes those). The client's
--- faces miss glyphs GoldCap's bundled face has, and a missing glyph draws as an empty box.
+-- faces miss glyphs GoldCap's own faces have, and a missing glyph draws as an empty box. GoldCap's
+-- own are the bundled Fira faces (Fira Mono has · → ▲ ▼; Fira Sans and Fira Sans Condensed have ·
+-- → and no triangles, so their text goes through GC.Util.ClientText).
 --
 -- Seen in game, 2026-10-01, Russian client: the BUY list menu read "• Quick list [] 2 lines
 -- [] pasted" -- the bullet drawn, every middle dot a box. What the faces hold was then read
@@ -379,23 +381,32 @@ end
 -- So: a middle dot BETWEEN SPACES is a separator and becomes ", ". One inside a word is left
 -- alone -- that is how Chinese writes a transliterated name, and the Chinese faces have it. The
 -- arrow becomes "->", and the triangles -- GoldCap only writes them in front of a percentage --
--- "+" and "-". − ≈ ▾ ▸ ↳ are no longer in GoldCap's text at all (spec/client_text_spec.lua's
--- glyph inventory keeps it that way), so they need no entry here.
+-- "+" and "-" (TriangleText below, which GoldCap's own Fira faces use on its own: they hold · and
+-- →). − ≈ ▾ ▸ ↳ are no longer in GoldCap's text at all (spec/client_text_spec.lua's glyph
+-- inventory keeps it that way), so they need no entry here.
 -- ---------------------------------------------------------------------------
-local CLIENT_GLYPHS = {
-  { "\226\134\146", "->" }, -- U+2192 →
-  { "\226\150\178", "+" },  -- U+25B2 ▲
-  { "\226\150\188", "-" },  -- U+25BC ▼
+local TRIANGLE_GLYPHS = {
+  { "\226\150\178", "+" }, -- U+25B2 ▲
+  { "\226\150\188", "-" }, -- U+25BC ▼
 }
 
+--- Only the two triangles respelled ("+" and "-"), for text drawn by a face that has everything
+-- else GoldCap writes: GoldCap's own Fira faces hold · → ≈ − and lack just ▲ and ▼.
+function GC.Util.TriangleText(text)
+  if type(text) ~= "string" or not text:find("\226", 1, true) then return text end
+  for _, pair in ipairs(TRIANGLE_GLYPHS) do
+    if text:find(pair[1], 1, true) then text = text:gsub(pair[1], pair[2]) end
+  end
+  return text
+end
+
+--- All of the respelling above, for text drawn by one of the client's own faces.
 function GC.Util.ClientText(text)
   -- Every glyph handled here starts with one of these two bytes: ASCII and Cyrillic skip.
   if type(text) ~= "string" or not text:find("[\194\226]") then return text end
   text = text:gsub("%s+\194\183%s+", ", ")
-  for _, pair in ipairs(CLIENT_GLYPHS) do
-    if text:find(pair[1], 1, true) then text = text:gsub(pair[1], pair[2]) end
-  end
-  return text
+  text = text:gsub("\226\134\146", "->")
+  return GC.Util.TriangleText(text)
 end
 
 -- The Sold tab's tooltips were written against this name; one implementation, two names.

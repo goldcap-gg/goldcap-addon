@@ -39,15 +39,6 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- Links: the same item-string shape the existing specs use. Field 14 is the bonus-ID count.
   local PLAIN = "item:%d:0::0:0:0:7:0:0:0:0:0:0"
   local BONUSED = "item:%d:0::0:0:0:0:0:0:0:0:0:2:6652:1520"
@@ -125,7 +116,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")
@@ -133,8 +124,8 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     container:Show()
   end)
 
@@ -144,12 +135,12 @@ describe("Sell tab, every tradeable bag item gets a row", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
   end
 
   local function positions()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "positions")
+    return GC.SellState.positions
   end
 
   local function positionOf(positionKey)
@@ -205,7 +196,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(82800, 1, 0, 1234)
     compose()
     local row
-    for _, candidate in ipairs(upvalue(render, "rows")) do
+    for _, candidate in ipairs(GC.SellUI.rows) do
       if candidate:IsShown() and candidate.kind == "position" then row = candidate end
     end
     assert.matches("level 17", row.cells.item.text, 1, true)
@@ -218,15 +209,66 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[82800] = false
     stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:25:3:1500:300:300:0|h[Anubisath Idol]|h" })
     slotKeys["0:1"] = key(82800, 25, 0, 1234)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:82800:25:0:1234", 90000, 1000)
     compose()
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
     end
     assert.equal(1, #posted)
     GC.Sell.OnAuctionCreated(880)
     assert.matches("Posted · Anubisath Idol ×1", container.dockStatus.text, 1, true)
+  end)
+
+  local function rowOf(positionKey)
+    for _, row in ipairs(GC.SellUI.rows) do
+      if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then return row end
+    end
+    return nil
+  end
+
+  -- Seen in WoW: Forever: names went blank on REFRESH, and some stayed blank after it. The client
+  -- names an item it has not loaded yet "" (ContainerItemInfo.itemName is a string that is never
+  -- nil), and the row painted that "" as the name.
+  it("keeps the name a row already showed when the client names the item \"\"", function()
+    kinds[2589] = true
+    stack(1, 2589, 6, nil, { itemName = "Linen Cloth" })
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+    bags[0][1].itemName = ""
+    _G.C_Item.GetItemNameByID = function() return nil end
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+  end)
+
+  it("names an item first seen unloaded by its id, asks the client for it, and takes the name once it arrives", function()
+    local asked = {}
+    _G.C_Item.GetItemNameByID = function() return nil end
+    _G.C_Item.RequestLoadItemDataByID = function(id) asked[#asked + 1] = id end
+    kinds[2589] = true
+    stack(1, 2589, 6, nil, { itemName = "" })
+    compose()
+    assert.matches("Item 2589", rowOf("commodity:2589").cells.item.text, 1, true)
+    assert.is_true(#asked > 0)
+    for _, id in ipairs(asked) do assert.equal(2589, id) end
+    _G.C_Item.GetItemNameByID = function() return "Linen Cloth" end
+    compose()
+    assert.matches("Linen Cloth", rowOf("commodity:2589").cells.item.text, 1, true)
+  end)
+
+  -- Every caged pet is item 82800: a name remembered by item would hand one pet another's.
+  it("never names a caged pet after another pet it saw", function()
+    kinds[82800] = false
+    stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:25:3:1500:300:300:0|h[Anubisath Idol]|h" })
+    slotKeys["0:1"] = key(82800, 25, 0, 1234)
+    compose()
+    assert.matches("Anubisath Idol", rowOf("item:82800:25:0:1234").cells.item.text, 1, true)
+    stack(2, 82800, 1, nil, { hyperlink = "|Hbattlepet:5678:25:3:1500:300:300:0|h[]|h" })
+    slotKeys["0:2"] = key(82800, 25, 0, 5678)
+    compose()
+    local text = rowOf("item:82800:25:0:5678").cells.item.text
+    assert.is_nil(text:find("Anubisath Idol", 1, true))
+    assert.matches("Item 82800", text, 1, true)
   end)
 
   -- Keyed gear the auction house will not take -- Warbound until equipped, and anything else not
@@ -243,10 +285,10 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     compose()
     assert.is_nil(positionOf("item:222:619:0:0"))
     assert.is_truthy(positionOf("item:222:626:0:0"))
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       assert.is_false(row:IsShown() and row.kind == "waitItem")
     end
-    local walk = upvalue(upvalue(GC.Sell.Refresh, "beginQuoteWalk"), "uniqueQuoteItemIDs")()
+    local walk = GC.SellWalk.Queue()
     for _, id in ipairs(walk) do assert.are_not.equal("item:222:619:0:0", id) end
   end)
 
@@ -269,7 +311,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     compose()
     assert.is_nil(positionOf("item:222:619:0:0"))
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       assert.is_false(row:IsShown() and row.kind == "waitItem")
     end
   end)
@@ -281,7 +323,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     stack(1, 333, 1, PLAIN, { itemName = "Jeb's Underwear" })
     compose()
     local head, item
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "waitHead" then head = row end
       if row:IsShown() and row.kind == "waitItem" then item = row end
     end
@@ -300,7 +342,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[333] = false
     GC.Sell.OnItemKeyInfo(333)
     assert.is_truthy(positionOf("item:333:100:7:0"))
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       assert.is_false(row:IsShown() and (row.kind == "waitHead" or row.kind == "waitItem"))
     end
   end)
@@ -313,10 +355,10 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 626)
     compose()
-    local state = upvalue(upvalue(upvalue(render, "onPostClick"), "clickSafeBagState"), "liveBagState")(positionOf("item:222:626:0:0"), 1)
+    local state = GC.SellBags.LiveState(positionOf("item:222:626:0:0"), 1)
     assert.equal(2, state.slot)
     assert.equal("item:222:626:0:0", state.positionKey)
-    state = upvalue(upvalue(upvalue(render, "onPostClick"), "clickSafeBagState"), "liveBagState")(positionOf("item:222:619:0:0"), 1)
+    state = GC.SellBags.LiveState(positionOf("item:222:619:0:0"), 1)
     assert.equal(1, state.slot)
   end)
 
@@ -352,7 +394,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     compose()
     GC.Sell.Refresh(true)
     GC.Sell.OnItemSearchResults(240158, key(240158, 190))
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     local levels = quotes["item:240158:190:0:0"].levels
     assert.equal(18000000, levels[1].unitPrice)
     assert.equal(150, levels[1].quantity)
@@ -379,12 +421,12 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     stack(2, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
     local function press(positionKey)
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
           row.action.scripts.OnClick(row.action)
           return row
@@ -421,12 +463,12 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     stack(2, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
     local function press(positionKey)
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
           row.action.scripts.OnClick(row.action)
           return row
@@ -455,10 +497,10 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[222] = false
     stack(1, 222, 1, BONUSED)
     slotKeys["0:1"] = key(222, 626)
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
     end
     assert.equal(1, #posted)
@@ -486,7 +528,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     slotKeys["0:2"] = key(222, 619)
     compose()
-    local state = upvalue(upvalue(upvalue(render, "onPostClick"), "clickSafeBagState"), "liveBagState")(positionOf("item:222:619:0:0"), 1)
+    local state = GC.SellBags.LiveState(positionOf("item:222:619:0:0"), 1)
     assert.equal(2, state.slot)
   end)
 
@@ -498,7 +540,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     compose()
     local row
-    for _, candidate in ipairs(upvalue(render, "rows")) do
+    for _, candidate in ipairs(GC.SellUI.rows) do
       if candidate:IsShown() and candidate.kind == "position" then row = candidate end
     end
     assert.matches("ilvl 619", row.cells.item.text, 1, true)
@@ -531,7 +573,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     compose()
     local row
-    for _, candidate in ipairs(upvalue(render, "rows")) do
+    for _, candidate in ipairs(GC.SellUI.rows) do
       if candidate:IsShown() and candidate.kind == "position" then row = candidate end
     end
     local owner, lines, postCall = nil, {}, nil
@@ -576,7 +618,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     compose()
     GC.Sell.Refresh(true)
     GC.Sell.OnItemSearchResults(222, key(222, 619))
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     assert.is_true(quotes["item:222:619:0:0"].levels.cut)
   end)
 
@@ -587,7 +629,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     slotKeys["0:1"] = key(222, 619)
     compose()
     GC.Sell.Refresh(true)
-    local refresh = upvalue(GC.Sell.Refresh, "refresh")
+    local refresh = GC.SellState.refresh
     local _, total = refresh.deckProgress()
     assert.equal(1, total)
   end)
@@ -608,7 +650,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end
     compose()
     local head, items = nil, {}
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "waitHead" then head = row end
       if row:IsShown() and row.kind == "waitItem" then items[#items + 1] = row.sectionLabel.text end
     end

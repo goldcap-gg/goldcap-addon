@@ -116,19 +116,19 @@ describe("Sniper stale-text banner (companion nudge)", function()
     assert.is_true(companionShown)
   end)
 
-  -- goldcap.gg has no WoW: Forever prices yet (Core/Data.lua's import guard already refuses a
-  -- pasted string there), so pointing a Forever player at /goldcap companion or /goldcap
-  -- import sends them chasing an import that can never succeed. Same "not out yet" key
-  -- ImportDialog.lua already shows when the paste itself is refused; no new locale key.
-  it("says goldcap.gg has no Forever prices yet, instead of the companion/import advice", function()
+  -- WoW: Forever takes no import (Core/Data.lua's guard refuses every retail string there): its
+  -- prices are the player's own scan and the Companion's crowd payload. The banner said
+  -- "goldcap.gg prices for WoW: Forever are not out yet." there, wrong since the crowd payload,
+  -- and the owner read it as nonsense the day it first showed (2026-10-09).
+  it("says nothing about imports on WoW: Forever, and takes no click there", function()
     _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
     local GC = loadSniper()
     helper.loadModule("Core/Game.lua", GC)
     origin = "none"
+    staleFrame.staleText:Show()
     refresh(GC)
-    assert.equal("goldcap.gg prices for WoW: Forever are not out yet.", staleFrame.staleText.text)
-    assert.same({ 1, 0, 0 }, staleFrame.staleText.colors)
-    assert.is_true(staleFrame.staleText.shown)
+    assert.is_false(staleFrame.staleText.shown)
+    assert.is_false(staleFrame.staleHit.mouseEnabled)
     _G.GetBuildInfo = nil
   end)
 

@@ -42,15 +42,6 @@ describe("Sell tab, a Post says what it is doing", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   local BAGS = {
     [0] = {
       { itemID = 23427, stackCount = 200, itemName = "Eternium Ore" },
@@ -137,7 +128,7 @@ describe("Sell tab, a Post says what it is doing", function()
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")
@@ -145,8 +136,8 @@ describe("Sell tab, a Post says what it is doing", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     container:Show()
   end)
 
@@ -158,18 +149,18 @@ describe("Sell tab, a Post says what it is doing", function()
   end)
 
   local function quotes()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    return GC.SellState.quotes
   end
 
   -- Priced, composed and drawn: the ore's row is on screen with its own Post button.
   local function ready()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
   end
 
   local function rowOf(itemID)
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row:IsShown() and row.kind == "position" and row.position.itemID == itemID then return row end
     end
     error(("item %d's row is not on screen"):format(itemID))
@@ -195,7 +186,7 @@ describe("Sell tab, a Post says what it is doing", function()
 
   -- What the pricing walk does every few seconds while a post is going up.
   local function walkSays(text)
-    upvalue(GC.Sell.Refresh, "setStatus")(text)
+    GC.SellView.status(text) -- the same writer the walk reaches through View.status
   end
 
   local function fire(seconds)
@@ -410,7 +401,7 @@ describe("Sell tab, a Post says what it is doing", function()
     }
 
     local function cachedSlot()
-      local entry = upvalue(GC.Sell._CacheBagLocation, "bagLocationCache")["commodity:23427"]
+      local entry = GC.SellState.bagLocationCache["commodity:23427"]
       return entry and entry.slot
     end
 
@@ -486,9 +477,9 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal("confirm", row.postStage)
-      local generation = upvalue(render, "renderGeneration")
+      local generation = row.renderEntryID:match("^(%d+):")
       GC.Sell.OnBagsChanged()
-      assert.equal(generation, upvalue(render, "renderGeneration"))
+      assert.equal(generation, row.renderEntryID:match("^(%d+):"))
       assert.equal("confirm", row.postStage)
     end)
   end)
@@ -500,7 +491,7 @@ describe("Sell tab, a Post says what it is doing", function()
     local function readyTwo()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
       render()
     end
 
@@ -835,9 +826,9 @@ describe("Sell tab, a Post says what it is doing", function()
     it("listens late after a shared error while the owned-auctions query or a Sniper page is out", function()
       ready()
       pressRowPost()
-      upvalue(GC.Sell.Refresh, "refresh").phase = "owned"
+      GC.SellState.refresh.phase = "owned"
       GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
-      upvalue(GC.Sell.Refresh, "refresh").phase = "idle"
+      GC.SellState.refresh.phase = "idle"
       pressRowPost()
       assert.equal(1, posts) -- held: that post may still go up
       assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
@@ -912,7 +903,7 @@ describe("Sell tab, a Post says what it is doing", function()
         return nil
       end
       local function ownedList(list) _G.C_AuctionHouse.GetOwnedAuctions = function() return list end end
-      local function overrides() return upvalue(GC.Sell._SpendPrice, "priceOverrides") end
+      local function overrides() return GC.SellState.priceOverrides end
 
       it("books the post on the wire at its creation when no late answer shared its flight", function()
         local recorded = recordedPosts()
@@ -978,7 +969,7 @@ describe("Sell tab, a Post says what it is doing", function()
         pressRowPost(23427)
         fire(8)
         local myco = pressRowPost(210796)
-        upvalue(GC.Sell.OnAuctionCreated, "postingPin").clean = true -- as if nothing had been open
+        GC.SellState.postingPin.clean = true -- as if nothing had been open
         GC.Sell.OnAuctionCreated(611) -- unnamed: the ore's, the oldest
         GC.Sell.OnAuctionCreated(612) -- Mycobloom's
         assert.is_nil(myco.postStage)
@@ -1031,7 +1022,7 @@ describe("Sell tab, a Post says what it is doing", function()
         GC.Sell.OnAuctionCreated(905)
         _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
         GC.QuoteCache.Set(quotes(), 210796, 5000, 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1)
-        upvalue(GC.Sell.SellableCount, "composePositions")()
+        GC.SellCompose.Positions()
         render()
         pressRowPost(210796)
         GC.Sell.OnAuctionCreated(906)
@@ -1065,7 +1056,7 @@ describe("Sell tab, a Post says what it is doing", function()
         pressRowPost(23427)
         fire(8)
         pressRowPost(210796)
-        upvalue(GC.Sell.OnAuctionCreated, "postingPin").clean = true -- as if nothing had been open
+        GC.SellState.postingPin.clean = true -- as if nothing had been open
         GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
         auctions[908] = 210796
         GC.Sell.OnAuctionCreated(908)
@@ -1087,7 +1078,7 @@ describe("Sell tab, a Post says what it is doing", function()
         GC.Sell.OnAuctionCreated(909)
         GC.Sniper = nil
         assert.equal(1, queried)
-        assert.are_not.equal("owned", upvalue(GC.Sell.Refresh, "refresh").phase)
+        assert.are_not.equal("owned", GC.SellState.refresh.phase)
       end)
 
       -- S1: a commodity lot sells from the front of the queue. However much of it has gone by the
@@ -1232,7 +1223,7 @@ describe("Sell tab, a Post says what it is doing", function()
           assert.equal(shown, sentUnits[1])
           GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- refused: free again
           overrides()["commodity:23427"] = 190000
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           row = oreRow()
           assert.equal(190000, shownCopper(row))
@@ -1249,7 +1240,7 @@ describe("Sell tab, a Post says what it is doing", function()
           fire(8)
           _G.time = function() return 1040 end
           GC.QuoteCache.Set(quotes(), 23427, 184719, 1040)
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           _G.time = function() return 1061 end
           local row = oreRow()
@@ -1267,7 +1258,7 @@ describe("Sell tab, a Post says what it is doing", function()
           fire(8)
           _G.time = function() return 1061 end
           GC.QuoteCache.Set(quotes(), 23427, 184719, 1061)
-          upvalue(GC.Sell.SellableCount, "composePositions")()
+          GC.SellCompose.Positions()
           render()
           local row = oreRow()
           assert.equal(190000, shownCopper(row))
@@ -1334,9 +1325,9 @@ describe("Sell tab, a Post says what it is doing", function()
       pressRowPost(23427)
       fire(8)
       local myco = pressRowPost(210796)
-      upvalue(GC.Sell.Refresh, "refresh").pending = true
+      GC.SellState.refresh.pending = true
       GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
-      upvalue(GC.Sell.Refresh, "refresh").pending = nil
+      GC.SellState.refresh.pending = nil
       assert.equal("posting", myco.postStage)
       assert.equal(0, #GC.Sell._LiveLate())
     end)

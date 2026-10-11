@@ -532,6 +532,7 @@ describe("Row click wiring (whole-row left-click acts)", function()
     function f:SetScript(name, fn) self.scripts[name] = fn end
     function f:HookScript(name, fn) self.scripts[name] = fn end
     function f:RegisterForClicks(kind) self.clicks = kind end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
     function f:EnableMouse(enabled) self.mouseEnabled = enabled end
     function f:Enable() self.enabled = true; if self.scripts.OnEnable then self.scripts.OnEnable(self) end end
     function f:Disable() self.enabled = false; if self.scripts.OnDisable then self.scripts.OnDisable(self) end end
@@ -596,6 +597,7 @@ describe("Row click wiring (whole-row left-click acts)", function()
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     _G.ITEM_QUALITY_COLORS = {}
     _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function() return stubFrame() end
     -- Only OnLeave (GameTooltip:Hide()) is exercised below, never OnEnter's fuller GameTooltip
     -- use -- an any-method-is-a-no-op stub covers whichever of GameTooltip's methods any given
@@ -765,6 +767,7 @@ describe("Sniper window OnHide clears the hover pin", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetWidth = function() end,
@@ -801,6 +804,7 @@ describe("Sniper window OnHide clears the hover pin", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       SetFrameStrata = function() end,
       -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
       -- HIGH + toplevel while floating, the host's strata while docked.
@@ -863,6 +867,7 @@ describe("Sniper window OnHide clears the hover pin", function()
   -- GC.Sniper.Toggle() (which does `frame = frame or createFrame()`), and hands back that real
   -- frame plus GC so a spec can reach the real OnHide script off `frame.scripts.OnHide`.
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then
@@ -920,7 +925,7 @@ describe("Sniper window OnHide clears the hover pin", function()
   end
 
   local function teardown()
-    _G.CreateFrame = nil
+    _G.CreateFrame, _G.CreateColor = nil, nil
     _G.GoldCapSniperFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil

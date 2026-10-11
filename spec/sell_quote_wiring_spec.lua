@@ -1,9 +1,7 @@
+local helper = require("spec.spec_helper")
 describe("Sell quote and action wiring", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   it("only derives rows from positions and keeps latest quotes display-only", function()
@@ -14,24 +12,25 @@ describe("Sell quote and action wiring", function()
     -- hours, and a 10s window made Post unclickable.
     -- By the position's quote id: an item-level variant is priced from its own key.
     assert.is_truthy(text:find(
-      "GC.QuoteCache.Fresh(quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
+      "GC.QuoteCache.Fresh(S.quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
     -- Dated from the ASK, not from the moment the reply was processed: the results events carry
     -- no request identifier, so a late reply can still be credited to a re-ask of the same item
     -- once the drain fence has lifted. Stamping with pending.at can only make a quote look older
     -- than it is, never fresher -- so the worst case is a re-ask, not a post at a dead price.
-    assert.is_truthy(text:find("GC.QuoteCache.Set(quotes, itemID, unit, pending.at or time())", 1, true))
+    assert.is_truthy(text:find("GC.QuoteCache.Set(S.quotes, itemID, unit, pending.at or time())", 1, true))
     assert.is_nil(text:find("GC.Data.GetFlips", 1, true))
   end)
 
   it("fails closed on stale quotes before protected post or cancel calls", function()
-    local text = source()
-    local post = assert(text:match("local function onPostClick%(row%)(.-)local function onRepostClick"))
-    local repost = assert(text:match("local function onRepostClick%(row, auctionID%)(.-)function GC%.Sell%.OnAuctionCreated"))
+    local text = helper.sellSource()
+    local post = helper.functionBody(text, "function Post.PreparePost(row)")
+    local repost = helper.functionBody(text, "function Post.PrepareCancel(row, auctionID)")
     assert.is_truthy(post:find("if not quote then", 1, true))
     assert.is_truthy(post:find("GC.SellPositions.BuildPostPlan", 1, true))
     assert.is_truthy(repost:find("if not quote then", 1, true))
     assert.is_truthy(repost:find("GC.SellPositions.BuildRepostPlan", 1, true))
-    assert.is_truthy(repost:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
+    assert.is_truthy(helper.functionBody(text, "local function onRepostClick(row, auctionID)")
+      :find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
     assert.is_truthy(text:find("C_AuctionHouse.ConfirmPostCommodity", 1, true))
     assert.is_truthy(text:find("C_AuctionHouse.ConfirmPostItem", 1, true))
   end)
@@ -47,7 +46,7 @@ describe("Sell quote and action wiring", function()
 
   it("records manual cost only from the dialog confirmation handler", function()
     local text = source()
-    local confirm = assert(text:match("local function confirmCostDialog%(dialog%)(.-)local function shownColumns"))
+    local confirm = helper.functionBody(text, "local function confirmCostDialog(dialog)")
     assert.is_truthy(confirm:find("GC.Acquisitions.RecordManual", 1, true))
     assert.is_truthy(confirm:find("Enter a whole quantity", 1, true))
     assert.is_truthy(confirm:find("Quantity exceeds missing units", 1, true))

@@ -1,9 +1,7 @@
+local helper = require("spec.spec_helper")
 describe("Grouped Sell wiring", function()
   local function source()
-    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = f:read("*a")
-    f:close()
-    return text
+    return helper.sellSource()
   end
 
   it("composes positions, remembers expansion by position key, and uses the grouped columns", function()
@@ -31,7 +29,7 @@ describe("Grouped Sell wiring", function()
   it("uses one owned-auctions refresh followed by the sequential quote walk", function()
     local text = source()
     local refresh = assert(text:match("function GC%.Sell%.Refresh%(automatic%)(.-)function GC%.Sell%.Reset"))
-    assert.is_truthy(refresh:find("requestOwnedAuctions()", 1, true))
+    assert.is_truthy(refresh:find("Owned.Request()", 1, true))
     assert.is_truthy(refresh:find("refresh.phase", 1, true))
     assert.is_truthy(text:find("Refreshing listings…", 1, true))
     assert.is_truthy(text:find("Pricing %d/%d…", 1, true))

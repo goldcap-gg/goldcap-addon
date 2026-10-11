@@ -81,13 +81,16 @@ describe("locale layer", function()
     helper.loadModule("Locale/frFR.lua", fr)
     local translations = fr.Locales.frFR
     local keys = {}
-    for _, path in ipairs({ "GoldCap/UI/SellFrame.lua", "GoldCap/UI/SellViewModel.lua", "GoldCap/Core/SellPositions.lua",
-        "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua" }) do
+    local sellPaths = { "GoldCap/UI/SellViewModel.lua", "GoldCap/Core/SellPositions.lua",
+      "GoldCap/Core/PostQueue.lua", "GoldCap/Core/CancelQueue.lua" }
+    for _, path in ipairs(helper.SELL_FILES) do sellPaths[#sellPaths + 1] = "GoldCap/" .. path end
+    for _, path in ipairs(helper.SELL_UI_FILES) do sellPaths[#sellPaths + 1] = "GoldCap/" .. path end
+    for _, path in ipairs(sellPaths) do
       local file = assert(io.open(path, "r"))
       local source = file:read("*a")
       file:close()
       for key in source:gmatch('GC%.L%["(.-)"%]') do keys[key] = true end
-      -- The queue's reasons, looked up by value (UI/SellFrame.lua's reason table).
+      -- The queue's reasons, looked up by value (UI/Sell/Row.lua's ROW_TAG_TEXT).
       for key in source:gmatch('= "([^"\n]-)",\n') do keys[key] = true end
     end
     local checked = 0
@@ -147,19 +150,22 @@ describe("locale layer", function()
     end
   end)
 
-  -- The scan's hidden count takes rows under the player's Min profit per buy as well as the ones
-  -- that are hard to resell (Core/FullScan.lua), and both of its sentences say so in every
-  -- language; the old keys, which named only the second reason, are gone.
-  it("says what the scan's hidden count counts, in every language", function()
+  -- The scan's filtered count takes rows under the player's Min profit per buy as well as the
+  -- ones that are hard to resell (Core/FullScan.lua). The empty board says so in every language;
+  -- the pass's readout counts them under the same word. The old keys, which named only the second
+  -- reason, are gone, and so are the readout's old sentences.
+  it("says what the scan's filtered count counts, in every language", function()
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", loc)
-      for _, key in ipairs({ ", %d hidden: hard to resell or under your min profit",
+      for _, key in ipairs({ "deals %s · items %s · filtered %s",
           "%d filtered out: hard to resell, or under your Min profit per buy" }) do
         assert.is_string(loc.Locales[code][key], code .. " is missing " .. key)
       end
       assert.is_nil(loc.Locales[code][", %d hidden as unsellable"], code .. " keeps the old status key")
       assert.is_nil(loc.Locales[code]["%d filtered out as hard to resell"], code .. " keeps the old empty-state key")
+      assert.is_nil(loc.Locales[code][", %d hidden: hard to resell or under your min profit"],
+        code .. " keeps the old readout's hidden note")
     end
   end)
 

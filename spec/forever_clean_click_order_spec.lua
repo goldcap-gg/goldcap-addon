@@ -1,12 +1,13 @@
+local helper = require("spec.spec_helper")
 -- WoW: Forever's taint engine blocks a protected AH call once the same hardware click has
 -- already read certain GoldCap runtime state -- observed in the beta as a click that starts
 -- clean but taints partway through, on a read that happens well before the protected call
 -- itself (see docs/superpowers/sdd/2026-09-24-forever-addon-3a/post-taint-analysis.md and
 -- clean-click-report.md). The confirmed culprits so far:
 --   * GC.Sell._NotePost -> setStatus -> paintRefreshButton -> refresh.deckProgress()
---     (SellFrame.lua, refresh is a plain module-local table -- see paintRefreshButton's own
+--     (UI/Sell/Toolbar.lua, refresh is a plain table -- see paintRefreshButton's own
 --     comment for why reading and calling that particular field is what trips it).
---   * composePositions()'s own trailing container.paintDeckSwitch() call, which reads
+--   * composePositions()'s own trailing View.paintDeck() call (Toolbar.PaintDeckSwitch), which reads
 --     position.listedQty/bagQty off `positions`.
 --   * SniperFrame's refreshQtyRow(), which reads dialog.bookLevels and calls
 --     GC.Sniper._RowCap -- the buy dialog's own analogue of paintRefreshButton.
@@ -23,83 +24,89 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     return text
   end
 
-  describe("SellFrame.lua Post", function()
-    local text = source("GoldCap/UI/SellFrame.lua")
-    local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
-    local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
-    local click = text:sub(clickStart, clickEnd - 1)
+  describe("UI/Sell/Dock.lua Post", function()
+    local text = source("GoldCap/UI/Sell/Dock.lua")
+    local prepare = helper.functionBody(helper.sellSource(), "function Post.PreparePost(row)")
+    local click = helper.functionBody(text, "local function onPostClick(row)")
+    local QUIET = { "_NotePost(", "notePost(", ":Disable(", ":SetLabel(", "SetBusy(" }
+    -- Each arm is anchored on the statement itself (the line it ends): the comment above it
+    -- quotes the same assignment and then names the busy look's calls it moved after the call.
 
-    it("arms the confirming stage but never notes it before ConfirmPostCommodity/ConfirmPostItem", function()
-      local armAt = assert(click:find('row.postStage = "confirming"', 1, true))
-      local callAt = assert(click:find("C_AuctionHouse.ConfirmPostCommodity(pin.location", armAt, true))
-      local between = click:sub(armAt, callAt - 1)
-      assert.is_nil(between:find("_NotePost(", 1, true),
-        "_NotePost must not run between arming \"confirming\" and the protected Confirm call")
-      local noteAt = assert(click:find("_NotePost(", callAt, true),
-        "the Confirm branch must still note \"Posting…\" after the call")
-      assert.is_true(noteAt > callAt)
+    -- schedulePostTimeout is what recovers the row if the protected call itself raises an
+    -- error and aborts the handler -- it has to stay BEFORE the call, unlike _NotePost. It
+    -- only calls C_Timer.After, which registers a callback rather than reading anything
+    -- GoldCap-owned synchronously, so it carries none of _NotePost's taint risk.
+    it("arms the confirming stage and its recovery timeout, then hands the Confirm to the click", function()
+      local armAt = assert(prepare:find('row.postStage = "confirming"\n', 1, true))
+      local timeoutAt = assert(prepare:find("schedulePostTimeout(row)", armAt, true))
+      local handAt = assert(prepare:find("return { confirm = true, pin = pin }", timeoutAt, true))
+      local between = prepare:sub(armAt, handAt - 1)
+      for _, banned in ipairs(QUIET) do
+        assert.is_nil(between:find(banned, 1, true), banned .. " must not run between arming \"confirming\" and the Confirm call")
+      end
     end)
 
-    it("arms the posting stage but never notes it before PostCommodity/PostItem", function()
-      local armAt = assert(click:find('row.postStage = "posting"', 1, true))
-      local callAt = assert(click:find(
-        "C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)", armAt, true))
-      local between = click:sub(armAt, callAt - 1)
-      assert.is_nil(between:find("_NotePost(", 1, true),
-        "_NotePost must not run between arming \"posting\" and the protected Post call")
-      local noteAt = assert(click:find("_NotePost(", callAt, true),
-        "the first click must still note \"Posting…\" after the call")
-      assert.is_true(noteAt > callAt)
+    it("arms the posting stage and its recovery timeout, then hands the post to the click", function()
+      local armAt = assert(prepare:find('row.postStage = "posting"\n', 1, true))
+      local timeoutAt = assert(prepare:find("schedulePostTimeout(row)", armAt, true))
+      local handAt = assert(prepare:find("return { pin = S.postingPin }", timeoutAt, true))
+      local between = prepare:sub(armAt, handAt - 1)
+      for _, banned in ipairs(QUIET) do
+        assert.is_nil(between:find(banned, 1, true), banned .. " must not run between arming \"posting\" and the Post call")
+      end
     end)
 
-    it("still arms the recovery timeout before the call (C_Timer.After only registers a callback)", function()
-      -- schedulePostTimeout is what recovers the row if the protected call itself raises an
-      -- error and aborts the handler -- it has to stay BEFORE the call, unlike _NotePost. It
-      -- only calls C_Timer.After, which registers a callback rather than reading anything
-      -- GoldCap-owned synchronously, so it carries none of _NotePost's taint risk.
-      local confirmArm = assert(click:find('row.postStage = "confirming"', 1, true))
-      local confirmCall = assert(click:find("C_AuctionHouse.ConfirmPostCommodity(pin.location", confirmArm, true))
-      local confirmTimeout = assert(click:find("schedulePostTimeout(row)", confirmArm, true))
-      assert.is_true(confirmTimeout < confirmCall)
-
-      local postArm = assert(click:find('row.postStage = "posting"', confirmCall, true))
-      local postCall = assert(click:find(
-        "C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)", postArm, true))
-      local postTimeout = assert(click:find("schedulePostTimeout(row)", postArm, true))
-      assert.is_true(postTimeout < postCall)
+    it("makes the protected call before anything else and notes \"Posting…\" after it", function()
+      local confirmAt = assert(click:find("C_AuctionHouse.ConfirmPostCommodity(pin.location", 1, true))
+      local postAt = assert(click:find(
+        "C_AuctionHouse.PostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)", 1, true))
+      assert.is_true(assert(click:find("_NotePost(", confirmAt, true)) > confirmAt)
+      assert.is_true(assert(click:find("_NotePost(", postAt, true)) > postAt)
+      local before = click:sub(1, math.min(confirmAt, postAt) - 1)
+      for _, banned in ipairs({ "_NotePost(", ":Disable(", ":SetLabel(", "SetBusy(", "setStatus(", "SetStatus(", "View.status(", "renderRows(", "RenderRows(", "View.render(",
+          "composePositions(", "Compose.Positions(" }) do
+        assert.is_nil(before:find(banned, 1, true), banned .. " must not run in the click before its protected call")
+      end
     end)
   end)
 
-  describe("SellFrame.lua Cancel lot (onRepostClick)", function()
-    local text = source("GoldCap/UI/SellFrame.lua")
-    local clickStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
-    local clickEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", clickStart, true))
-    local click = text:sub(clickStart, clickEnd - 1)
+  describe("UI/Sell/Dock.lua Cancel lot (onRepostClick)", function()
+    local text = source("GoldCap/UI/Sell/Dock.lua")
+    local prepare = helper.functionBody(helper.sellSource(), "function Post.PrepareCancel(row, auctionID)")
+    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
 
     -- The armed lot is validated against a fresh, plain GetOwnedAuctions/NormalizeOwnedLots
     -- read, never against a recompose: composePositions() runs scanBagStock(), and bag stock
     -- plays no part in whether a lot can be cancelled (final review C2). The full recompose,
     -- with its paints, moves to after the call.
     it("reads the owned-auctions list fresh but never recomposes positions before CancelAuction", function()
-      local ownedAt = assert(click:find("GC.SellPositions.NormalizeOwnedLots(", 1, true),
-        "onRepostClick must refresh the owned-auctions list before its protected call")
-      local callAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", ownedAt, true))
-      local between = click:sub(ownedAt, callAt - 1)
-      assert.is_nil(between:find("composePositions(", 1, true),
-        "composePositions must not run before the protected Cancel call -- it scans the bags")
-      local composeAt = assert(click:find("composePositions()", callAt, true),
+      assert.is_truthy(prepare:find("GC.SellPositions.NormalizeOwnedLots(", 1, true),
+        "Post.PrepareCancel must refresh the owned-auctions list before the protected call")
+      -- Read without its comment lines: the one above the fresh read names composePositions() as
+      -- what this click no longer calls. Whole lines only, so a `--` inside a string can hide nothing.
+      local code = prepare:gsub("\n[ \t]*%-%-[^\n]*", "")
+      for _, banned in ipairs({ "composePositions(", "Compose.Positions(" }) do
+        assert.is_nil(code:find(banned, 1, true), banned .. " must not run before the protected Cancel call -- it scans the bags")
+      end
+      local callAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
+      local before = click:sub(1, callAt - 1)
+      for _, banned in ipairs({ ":Disable(", ":SetLabel(", "setStatus(", "SetStatus(", "View.status(", "renderRows(", "RenderRows(", "View.render(", "composePositions(",
+          "Compose.Positions(" }) do
+        assert.is_nil(before:find(banned, 1, true), banned .. " must not run in the click before CancelAuction")
+      end
+      local afterAt = assert(click:find("Post.Cancelling(row, pin, scope)", callAt, true),
         "positions must still be recomposed, with their paints, after the call")
-      assert.is_true(composeAt > callAt)
+      assert.is_true(afterAt > callAt)
+      local cancelling = helper.functionBody(helper.sellSource(), "function Post.Cancelling(row, pin, scope)")
+      assert.is_truthy(cancelling:find("Compose.Positions()", 1, true),
+        "positions must still be recomposed, with their paints, after the call")
     end)
   end)
 
-  describe("SellFrame.lua composePositions", function()
+  describe("Compose.Positions", function()
     it("only repaints the deck switch by default; the caller can skip it", function()
-      local text = source("GoldCap/UI/SellFrame.lua")
-      local defAt = assert(text:find("local function composePositions(skipPaint)", 1, true))
-      local endAt = assert(text:find("\nend\n", defAt, true))
-      local body = text:sub(defAt, endAt)
-      assert.is_truthy(body:find("if not skipPaint and container and container.paintDeckSwitch then", 1, true))
+      local body = helper.functionBody(helper.sellSource(), "function Compose.Positions(skipPaint)")
+      assert.is_truthy(body:find("if not skipPaint then View.paintDeck() end", 1, true))
     end)
   end)
 
@@ -140,8 +147,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
   -- arguments were clean locals. Any Blizzard Lua/mixin call reached from inside a click -- not
   -- just GoldCap's own tables -- risks the same block, so every protected-call click handler is
   -- pinned source-text clean of the whole family: ItemLocation's own methods, Item:CreateFrom*,
-  -- ContinuableContainer and CreateFromMixins. A location built at paint time (SellFrame.lua's
-  -- cacheBagLocation, above liveBagState) and only read, never rebuilt, in the click is the fix --
+  -- ContinuableContainer and CreateFromMixins. A location built at paint time (GC.Sell._CacheBagLocation in
+  -- Services/Sell/Bags.lua, above Bags.LiveState) and only read, never rebuilt, in the click is the fix --
   -- see spec/sell_action_safety_spec.lua's "[Forever]" tests for the behavioural half of it.
   describe("No Blizzard mixin/location code inside a protected-call click handler", function()
     local BANNED = {
@@ -157,18 +164,12 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
       end
     end
 
-    it("onPostClick (Post/Confirm)", function()
-      local text = source("GoldCap/UI/SellFrame.lua")
-      local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
-      local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
-      assertClean(text:sub(clickStart, clickEnd - 1), "onPostClick")
-    end)
-
-    it("onRepostClick (Cancel lot)", function()
-      local text = source("GoldCap/UI/SellFrame.lua")
-      local clickStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
-      local clickEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", clickStart, true))
-      assertClean(text:sub(clickStart, clickEnd - 1), "onRepostClick")
+    it("onPostClick, onRepostClick and the Prepare functions they call", function()
+      local text, all = source("GoldCap/UI/Sell/Dock.lua"), helper.sellSource()
+      assertClean(helper.functionBody(text, "local function onPostClick(row)"), "onPostClick")
+      assertClean(helper.functionBody(text, "local function onRepostClick(row, auctionID)"), "onRepostClick")
+      assertClean(helper.functionBody(all, "function Post.PreparePost(row)"), "Post.PreparePost")
+      assertClean(helper.functionBody(all, "function Post.PrepareCancel(row, auctionID)"), "Post.PrepareCancel")
     end)
 
     it("planDialogPrimaryClick (Sniper Start/Confirm/PlaceBid)", function()
@@ -186,13 +187,10 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     end)
 
     it("onPostClick resolves its location from the paint-time cache, never builds one itself", function()
-      local text = source("GoldCap/UI/SellFrame.lua")
-      local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
-      local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
-      local click = text:sub(clickStart, clickEnd - 1)
-      assert.is_truthy(click:find("resolvePostLocation(position)", 1, true),
+      local click = helper.functionBody(helper.sellSource(), "function Post.PreparePost(row)")
+      assert.is_truthy(click:find("Bags.ResolveLocation(position)", 1, true),
         "onPostClick must resolve its location through the paint-time cache")
-      assert.is_truthy(click:find("clickSafeBagState(", 1, true),
+      assert.is_truthy(click:find("Bags.ClickSafe(", 1, true),
         "onPostClick must read bag state through the click-safe wrapper, not liveBagState directly")
     end)
   end)

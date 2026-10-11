@@ -1,6 +1,6 @@
 local helper = require("spec.spec_helper")
 
--- A /reload wipes `quotes` (see SellFrame.lua's own module-local declaration): it is never
+-- A /reload wipes `quotes` (see GC.SellState.quotes in Services/Sell/State.lua): it is never
 -- persisted, so every MARKET/UNIT cell used to show "-" and the expansion "quote ?s" for
 -- minutes after every reload, until the pricing walk repopulated it from scratch. The display
 -- path was already safe for old data -- SellPositions' quoteInfo reads GC.QuoteCache.Latest
@@ -8,24 +8,6 @@ local helper = require("spec.spec_helper")
 -- restoring old quotes at load time is honest by construction; only Post/Repost stay gated on
 -- GC.QuoteCache.Fresh's 45s window (SELL_QUOTE_ACTION_AGE), untouched by any of this.
 describe("Sell quote persistence across a reload", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   after_each(function()
     _G.time, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil
   end)
@@ -38,16 +20,16 @@ describe("Sell quote persistence across a reload", function()
         SellPositions = { Build = function() return {} end },
       }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       return GC
     end
 
     local function compose(GC)
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotesTable(GC)
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     it("seeds a valid persisted entry into the live quote cache, and leaves it in the store", function()
@@ -135,7 +117,7 @@ describe("Sell quote persistence across a reload", function()
         },
       }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local driver = {
         isReady = function() return true end,
         keyInfo = keyInfo,
@@ -144,7 +126,7 @@ describe("Sell quote persistence across a reload", function()
         commodity = function() return 111 end, commodityLevels = function() return nil end,
       }
       for key, value in pairs(driverOverrides or {}) do driver[key] = value end
-      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", driver)
+      GC.SellQuotes.driver = driver
       return GC
     end
 
@@ -180,7 +162,7 @@ describe("Sell quote persistence across a reload", function()
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       local stored = {
         [42] = { unit = 1500, at = now.value - 100 },
         [7] = { unit = 20, at = now.value - 5 },
@@ -195,21 +177,21 @@ describe("Sell quote persistence across a reload", function()
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
       helper.loadModule("Core/QuoteCache.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
       GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
 
-      local compose = upvalue(GC.Sell.SellableCount, "composePositions")
+      local compose = GC.SellCompose.Positions
       compose()
-      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
+      assert.equal(1500, GC.SellState.quotes[42].unit)
 
       GC.Sell.Reset()
       -- The live cache is genuinely gone: a quote is a claim about an order book, and there is
       -- no order book once the session is over.
-      assert.is_nil(upvalue(compose, "quotes")[42])
+      assert.is_nil(GC.SellState.quotes[42])
       -- ...but the next compose puts the remembered price back, rather than starting from a
       -- dash and re-walking every item.
       compose()
-      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
+      assert.equal(1500, GC.SellState.quotes[42].unit)
     end)
   end)
 end)

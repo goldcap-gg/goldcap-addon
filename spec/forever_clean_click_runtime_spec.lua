@@ -12,23 +12,6 @@ local helper = require("spec.spec_helper")
 -- protected call is the FIRST thing logged for that click -- nothing Blizzard-Lua-shaped ran
 -- ahead of it, whatever GoldCap's own bookkeeping did before or after.
 describe("Clean click ordering, driven end to end", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
 
   -- The shared log every click path below is checked against: `log[1]` must be the protected
   -- call's own name once a click has fired one, or the click drove nothing yet.
@@ -36,6 +19,19 @@ describe("Clean click ordering, driven end to end", function()
 
   local function record(name)
     log[#log + 1] = name
+  end
+
+  -- The status line and the dock note are the screen's voice: a service that speaks through them
+  -- ahead of the protected call would be logged here, and assertCleanCall would fail. Called after
+  -- loadSell, once the Sell view's files have filled the slots; each wrapper calls through to the real one.
+  local function logViewWrites(GC)
+    for slot, name in pairs({ status = "status", notePost = "notePost", endPostNote = "endPostNote" }) do
+      local real = GC.SellView[slot]
+      GC.SellView[slot] = function(...)
+        if log then record(name) end
+        return real(...)
+      end
+    end
   end
 
   local function logged(name)
@@ -90,7 +86,7 @@ describe("Clean click ordering, driven end to end", function()
     end
   end
 
-  describe("SellFrame.lua, the Post/queue paths", function()
+  describe("UI/Sell/Dock.lua, the Post/queue paths", function()
     local GC, root, render, container
 
     local function region(kind, parent)
@@ -112,7 +108,7 @@ describe("Clean click ordering, driven end to end", function()
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
       function v:IsShown() return self.shown end
-      function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+      function v:Enable() self.enabled = true end function v:Disable() if log then record("Disable") end self.enabled = false end
       function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
       function v:SetMaxLines(n) self.maxLines = n end
       function v:SetSpacing() end
@@ -184,7 +180,8 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/SellPositions.lua", GC)
       helper.loadModule("Core/PostQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
+      logViewWrites(GC)
       GC.Acquisitions.Init({})
 
       root = region("Frame")
@@ -192,8 +189,8 @@ describe("Clean click ordering, driven end to end", function()
       root.status = region("FontString", root)
       GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
         rowWidth = 1100, rowHeight = 24 })
-      render = upvalue(GC.Sell.Attach, "renderRows")
-      container = upvalue(render, "container")
+      render = GC.SellUI.List.RenderRows
+      container = GC.SellUI.container
       container:Show()
     end)
 
@@ -204,15 +201,15 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     local function compose()
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotes()
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     local function oreRow()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
       end
       error("Eternium Ore row is not on screen")
@@ -228,6 +225,10 @@ describe("Clean click ordering, driven end to end", function()
       -- Reach: the busy look really ran in this click -- after the call, never before it.
       assert.is_truthy(logged("CreateFrame:SpinnerTemplate"))
       assert.is_true(logged("CreateFrame:SpinnerTemplate") > logged("PostCommodity"))
+      -- And the clicked button went busy after the call, never before it (WoW: Forever refuses
+      -- a protected call from a button disabled ahead of it).
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("PostCommodity"))
     end)
 
     it("Post's Confirm click, once PostCommodity itself asked for one", function()
@@ -287,7 +288,7 @@ describe("Clean click ordering, driven end to end", function()
     end)
   end)
 
-  describe("SellFrame.lua, the Cancel lot paths", function()
+  describe("UI/Sell/Dock.lua, the Cancel lot paths", function()
     local GC, root, render, container
 
     local function region(kind, parent)
@@ -309,7 +310,7 @@ describe("Clean click ordering, driven end to end", function()
       function v:HookScript(n, f) self.scripts[n] = f end
       function v:Show() self.shown = true end function v:Hide() self.shown = false end
       function v:IsShown() return self.shown end
-      function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+      function v:Enable() self.enabled = true end function v:Disable() if log then record("Disable") end self.enabled = false end
       function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
       function v:SetMaxLines(n) self.maxLines = n end
       function v:SetSpacing() end
@@ -398,7 +399,8 @@ describe("Clean click ordering, driven end to end", function()
       helper.loadModule("Core/PostQueue.lua", GC)
       helper.loadModule("Core/CancelQueue.lua", GC)
       helper.loadModule("UI/SellViewModel.lua", GC)
-      helper.loadModule("UI/SellFrame.lua", GC)
+      helper.loadSell(GC)
+      logViewWrites(GC)
       GC.Acquisitions.Init({})
       assert(GC.Acquisitions.RecordManual({ itemID = 23427, positionKey = "commodity:23427",
         itemName = "Sanguithorn Tea", quantity = 400, total = 4000000, acquiredAt = 900,
@@ -409,9 +411,9 @@ describe("Clean click ordering, driven end to end", function()
       root.status = region("FontString", root)
       GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
         rowWidth = 1100, rowHeight = 24 })
-      render = upvalue(GC.Sell.Attach, "renderRows")
-      container = upvalue(render, "container")
-      set(render, "filterMode", "listed")
+      render = GC.SellUI.List.RenderRows
+      container = GC.SellUI.container
+      GC.SellState.filterMode = "listed"
       container:Show()
       GC.Sell.OnOwnedAuctions()
     end)
@@ -422,15 +424,15 @@ describe("Clean click ordering, driven end to end", function()
     end)
 
     local function compose()
-      upvalue(GC.Sell.SellableCount, "composePositions")()
+      GC.SellCompose.Positions()
     end
 
     local function quotes()
-      return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+      return GC.SellState.quotes
     end
 
     local function armedLotRow()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.kind == "lot" and row.lot and row.lot.auctionID == 77 then return row end
       end
       return nil
@@ -447,7 +449,7 @@ describe("Clean click ordering, driven end to end", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose(); render()
       local action
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then action = row.action end
       end
       log = {}
@@ -457,6 +459,9 @@ describe("Clean click ordering, driven end to end", function()
       log = {}
       action.scripts.OnClick(action) -- confirm
       assertCleanCall("CancelAuction")
+      -- And every Disable this click ran came after the call, never before it.
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("CancelAuction"))
     end)
 
     it("the cancel queue control, on the confirming click", function()
@@ -491,6 +496,9 @@ describe("Clean click ordering, driven end to end", function()
       button.scripts.OnClick(button) -- confirm
       assertCleanCall("CancelAuction")
       assert.is_nil(logged("IsSellItemValid"))
+      -- And every Disable this click ran came after the call, never before it.
+      assert.is_truthy(logged("Disable"))
+      assert.is_true(logged("Disable") > logged("CancelAuction"))
     end)
   end)
 

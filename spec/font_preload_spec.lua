@@ -71,7 +71,8 @@ describe("GoldCap's own font files are loaded at login", function()
     local GC = helper.loadModule("UI/Theme.lua")
     helper.loadModule("UI/FontPreload.lua", GC)
 
-    for _, path in ipairs({ GC.Theme.FONT_MONO, GC.Theme.FONT_MONO_BOLD }) do
+    assert.equal(7, #GC.Theme.BUNDLED_FACES)
+    for _, path in ipairs(GC.Theme.BUNDLED_FACES) do
       local f, fs = preloaderFor(path)
       assert.is_not_nil(f, path .. " was never put on a string")
       assert.is_true(fs.font.size > 0, path .. " has no size")

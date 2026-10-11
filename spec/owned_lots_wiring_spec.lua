@@ -1,4 +1,4 @@
-require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
+local helper = require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
 
 -- Wiring, not just capability (live_observations_spec.lua's phrase): OWNED_AUCTIONS_UPDATED
 -- and AUCTION_CANCELED must actually reach GC.Data.RecordOwnedLots / MarkOwnedLotCancelled,
@@ -124,12 +124,11 @@ describe("Owned lots event wiring", function()
     end
 
     it("the repost flow's own cancel stamps the lot cancelled the moment it fires", function()
-      local text = fileText("GoldCap/UI/SellFrame.lua")
-      local cancelAt = text:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true)
-      local markAt = text:find("GC.Data.MarkOwnedLotCancelled(", 1, true)
-      assert.is_truthy(cancelAt)
-      assert.is_truthy(markAt)
-      assert.is_true(markAt > cancelAt)
+      local click = helper.functionBody(fileText("GoldCap/UI/Sell/Dock.lua"), "local function onRepostClick(row, auctionID)")
+      local cancelAt = assert(click:find("C_AuctionHouse.CancelAuction(pin.auctionID)", 1, true))
+      assert.is_true(assert(click:find("Post.Cancelling(row, pin, scope)", cancelAt, true)) > cancelAt)
+      local cancelling = helper.functionBody(helper.sellSource(), "function Post.Cancelling(row, pin, scope)")
+      assert.is_truthy(cancelling:find("GC.Data.MarkOwnedLotCancelled(", 1, true))
     end)
   end)
 end)

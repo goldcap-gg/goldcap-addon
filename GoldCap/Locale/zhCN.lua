@@ -12,7 +12,6 @@ GC.Locales.zhCN = {
     " %s  %s  x%d 件，每件 %s（共 %s，手续费 %s）%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion 会自动更新：/goldcap companion。",
-  [" · %d hidden"] = " · 已隐藏 %d",
   [" · %d keys"] = " · %d 个物品键",
   [" · below cost"] = " · 低于成本",
   [" · identity unresolved"] = " · 归属未确定",
@@ -64,7 +63,6 @@ GC.Locales.zhCN = {
   ["%s → craft %d× (%d per craft)"] = "%s → 制作 %d× （每次 %d 个）",
   ["%s+ ahead"] = "前面有 %s+",
   ["%s+, %d prices read"] = "%s+，已读 %d 个价位",
-  [", %d hidden: hard to resell or under your min profit"] = "，%d 件因难以转卖或低于你的最低利润已隐藏",
   ["..."] = "...",
   ["1 lot, %s asked"] = "1 批，要价 %s",
   ["24h trend"] = "24小时走势",
@@ -597,6 +595,7 @@ GC.Locales.zhCN = {
   ["craft it yourself"] = "请自己制作",
   ["craft it · %s each"] = "制作 · 每个 %s",
   ["craft it: %s = %s each"] = "制作：%s = 每个 %s",
+  ["deals %s · items %s · filtered %s"] = "交易 %s · 物品 %s · 已过滤 %s",
   ["done"] = "完成",
   ["from %s"] = "来自 %s",
   ["in bags %d · in bank %d"] = "背包 %d · 银行 %d",
@@ -663,8 +662,6 @@ GC.Locales.zhCN = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花费 %s。按你 %d%% 的单次购买上限，这个角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "完整扫描结束：%d 笔交易%s，来自 %d 个物品组%s%s",
   ["full scan interrupted -- confirm your purchase"] = "完整扫描被中断 -- 请确认你的购买",
   ["full scan stalled -- press Full Scan to retry"] = "完整扫描卡住了 -- 按 Full Scan 重试",
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
@@ -785,11 +782,8 @@ GC.Locales.zhCN = {
     "已删除邮件扫描错误留下的 %d 条重复销售记录",
   ["sale name ambiguous"] = "销售名称有歧义",
   ["sale proceeds pending"] = "销售款项待入账",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "扫描结束：%d 笔交易%s，来自 %d 个物品%s（材料、消耗品、宝石、附魔）%s",
   ["scanned %d listings over %d passes"] = "扫描了 %d 条挂单，共 %d 轮",
   ["scanning auction house..."] = "正在扫描拍卖行...",
-  ["scanning… %d results · %d deals%s"] = "扫描中… %d 条结果 · %d 笔交易%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "每日售出 %s",

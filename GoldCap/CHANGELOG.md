@@ -1,5 +1,17 @@
 # GoldCap
 
+## 0.19.0 (unreleased)
+
+- On WoW: Forever, item names in the Sell tab stay put when you press Refresh. They could go blank
+  while prices were checked, and some stayed blank afterwards.
+- The GoldCap window lights up the buttons that are on again: AUTO while it runs, SCAN while a
+  scan you started runs, and the board you picked. AUTO reads AUTO · SCANNING for as long as it is
+  on, instead of blinking with every pass. On retail the line at the top of the window that says
+  how old your prices are can be read again.
+- On Deals, a green light beside AUTO glows while Auto is scanning, and turns amber while Auto is
+  paused. The line next to it now shows three numbers after each scan: deals found, items looked
+  at, and items filtered out. It used to change every second while Auto ran, too fast to read.
+
 ## 0.18.2 (2026-10-06)
 
 - The Sniper's column names (Item, Verdict, Price and the rest) show the first time the window opens.

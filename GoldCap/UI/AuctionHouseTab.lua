@@ -499,7 +499,7 @@ function GC.AuctionHouseTab.PlayerIsBuying()
 end
 
 -- Every per-item search this addon sends passes through here first (SniperFrame's driver,
--- the realm key poll, SellFrame's quote driver), so the SetDisplayMode hook can tell a page
+-- the realm key poll, the Sell tab's quote driver), so the SetDisplayMode hook can tell a page
 -- our search opened from one the player clicked open. `now` is for specs.
 function GC.AuctionHouseTab.NoteAddonSearch(now)
   addonSearchAt = now or time()

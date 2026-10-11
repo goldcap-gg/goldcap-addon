@@ -39,7 +39,7 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
 -- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
 -- the Sell tab; M8).
--- 720, not 716: UI/SellFrame.lua's own COLUMNS grid derives its content width from this same
+-- 720, not 716: UI/Sell/Frame.lua's own COLUMNS grid derives its content width from this same
 -- FRAME_WIDTH (minus the rail and the scrollbar gutter), and at 716 that content area comes
 -- out to 596px -- short of the 600px shownColumns needs to keep the COST column past its
 -- other fixed columns, so a fresh install silently opened with COST already dropped.
@@ -244,7 +244,8 @@ LIM.LIVE_TOOLTIP_SECONDS = 900
 -- answers that happened to arrive fast.
 LIM.KEYS_TIMEOUT_SECONDS = 30
 -- The Sell tab's bulk fill is the one owner that stops wanting its answer sooner: its walk
--- stands still for eight seconds (GC.Sell.BulkOutstanding in UI/SellFrame.lua -- keep the two
+-- stands still for eight seconds (GC.Sell.BulkOutstanding in Services/Sell/Quotes.lua -- keep
+-- the two
 -- equal) and then searches on, and a search sent over an unanswered keys call cancels its
 -- answer. Held for the full thirty, a REFRESH on Sell followed by a switch to Deals kept the
 -- board waiting half a minute for rows nobody was going to read.
@@ -1779,7 +1780,13 @@ local function refreshStaleText()
   -- across the two functions, and "attempt to compare nil with number" below would be an ugly
   -- way to find out it broke. Treat the divergence as "none" rather than raising.
   if origin ~= "none" and not age then origin = "none" end
-  frame.staleHit:EnableMouse(origin ~= "app")
+  -- WoW: Forever takes no import (Core/Data.lua refuses every retail string there): its prices are
+  -- the player's own scan and the Companion's crowd payload, so this banner, which is about
+  -- imports, has nothing to say there. It said "goldcap.gg prices for WoW: Forever are not out
+  -- yet.", written before the crowd payload existed and wrong since; nobody saw it until
+  -- 2026-10-09, when the window's glass stopped hiding this line, and it read as nonsense.
+  local forever = isForever()
+  frame.staleHit:EnableMouse(origin ~= "app" and not forever)
 
   -- Live price caps, addon task 6: text/color/shown are decided here and applied once at the
   -- end, rather than each branch calling SetText/SetTextColor/Show/Hide directly as before --
@@ -1788,15 +1795,13 @@ local function refreshStaleText()
   -- (frame.staleText is a bare fake in several specs, with no GetText/IsShown of its own).
   local text, color, shown
 
-  if origin == "none" then
+  if forever then
+    shown = false
+  elseif origin == "none" then
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    if isForever() then
-      text = GC.L["goldcap.gg prices for WoW: Forever are not out yet."]
-    else
-      text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
-    end
+    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
     color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
@@ -2084,7 +2089,8 @@ end
 
 -- The deposit the decision subtracts from the projected profit is the deposit the player will
 -- actually pay, which depends on how long they list for: settings.sniper.postDuration (1 = 12h,
--- 2 = 24h, 3 = 48h), the very setting UI/SellFrame.lua's own postDuration() posts at. This was
+-- 2 = 24h, 3 = 48h), the very setting Services/Sell/Post.lua's own postDuration() posts at. This
+-- was
 -- hardcoded to 24h, so a player selling at 48h was quoted a cheaper deposit than the resale
 -- costs. Same "anything that is not exactly one of the three falls back to 2" contract as the
 -- Sell tab's reader -- a hand-edited value must never reach the API.
@@ -2305,7 +2311,7 @@ driver = {
     trace("search: item " .. tostring(itemID))
     -- Every background search of ours waits for an unanswered keys batch (canDrillNow,
     -- maybeStartPrewarm, the verify walk, mayScan); the player's own Check does not -- it is the
-    -- player. What it sends takes that batch's answer with it (UI/SellFrame.lua's advanceQuote),
+    -- player. What it sends takes that batch's answer with it (GC.SellWalk.Advance),
     -- so the wait is written off now rather than holding every keys consumer, the pass and the
     -- background searches for the rest of its timeout. A late answer is still recognised for
     -- what it is (see _WriteOffKeys).
@@ -2485,12 +2491,11 @@ driver = {
 
   getValue = GC.Data.GetItemValue,
 
-  onStatus = function(text)
-    -- setStatus, not SetText: the poll loop writes this on every send, and it must not be
-    -- able to stamp over a held one-shot announcement (right-click pin feedback, most
-    -- visibly) within the same second the player acted.
-    setStatus(text)
-  end,
+  -- The watch loop's own progress ("scanning 3/7", "stopped", in English) is not written to the
+  -- status line: it said something new every second beside AUTO, over the pass's readout (owner,
+  -- 2026-10-09). The light beside AUTO says the addon is working; this file's own messages to
+  -- the player go through setStatus.
+  onStatus = function() end,
 
   onDeal = function(deal)
     -- Fallback success signal for item buys: AUCTION_HOUSE_PURCHASE_COMPLETED is
@@ -2611,7 +2616,7 @@ driver = {
 
 -- D: keeps the Sell rail button's count badge current. Called after a purchase (a new flip may
 -- now exist), on every AH open (bag counts may have changed since a mailbox visit), and by
--- SellFrame.lua itself after Post/Remove/a bag-count refresh -- one shared place instead of
+-- the Sell view (UI/Sell/) itself after Post/Remove/a bag-count refresh -- one shared place instead of
 -- every call site re-deriving the badge. Safe to call before the frame/tab exist yet.
 local function updateSellTabLabel()
   if not frame or not frame.sellTab then return end
@@ -2848,32 +2853,23 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   for _, deal in ipairs(scanDeals) do
     deal.stale = true
   end
+  -- The pass's readout: three numbers in the same places every time, so a pass that changes
+  -- nothing changes nothing on screen, and the light beside AUTO says it is working. It used to
+  -- be a sentence after each pass and a page count during it, which under Auto on a small auction
+  -- house swapped every second and could not be read (owner, 2026-10-09). The filtered count stays
+  -- in it: a player who cannot see it cannot tell a quiet market from a strict filter; the empty
+  -- board says what it counts. Deals in gold once there are any. Kept for the next pass to show
+  -- while it runs (sendBrowseQuery). setStatus, not SetText: a held announcement outranks it.
   if frame then
-    -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
-    -- the whole market: a player who cannot see the number cannot tell a quiet market from a
-    -- strict filter. The count takes the rows under the player's Min profit per buy too
-    -- (Core/FullScan.lua), so the sentence names both reasons.
-    local hidden = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[", %d hidden: hard to resell or under your min profit"]):format(GC.Sniper._screenedCount) or ""
-    -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended,
-    -- appended to the SAME trailing slot the hidden count uses. Both sentences below already
-    -- end in a "%s" for it, and adding a second specifier would reword the key -- which
-    -- orphans every translation of it, silently, back to English.
+    local found = #scanDeals > 0 and ("|cfff7cf5a%d|r"):format(#scanDeals) or "0" -- goldText
+    local readout = (GC.L["deals %s · items %s · filtered %s"]):format(
+      found, tostring(groupCount), tostring(GC.Sniper._screenedCount or 0))
+    -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended.
     if (GC.Sniper._keysLastCycle or 0) > 0 then
-      hidden = hidden .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
+      readout = readout .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
     end
-    -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
-    -- held announcement costs nothing -- the next pass rewrites it.
-    -- Two sentences, because the two passes looked at different markets and only one of them
-    -- looked at all of them. A classes pass that reported "full scan complete" was claiming to
-    -- have swept an auction house it never asked about.
-    if kind == "classes" then
-      setStatus((GC.L["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"]):format(
-        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
-    else
-      setStatus((GC.L["full scan complete: %d deal%s from %d item group%s%s"]):format(
-        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
-    end
+    GC.Sniper._readout = readout
+    setStatus(readout)
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -3168,7 +3164,9 @@ GC.Sniper._bookPass = GC.BookPass.New({
     C_AuctionHouse.SendBrowseQuery(query)
     if tab then tab.addonBrowse = false end
     GC.Sniper._browseOutAt = time()
-    if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
+    -- The last pass's readout stays up while this one runs; only the very first pass has nothing
+    -- to show yet. Written again rather than left: it replaces whatever one-shot came since.
+    setStatus(GC.Sniper._readout or GC.L["scanning auction house..."])
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
@@ -3208,9 +3206,10 @@ GC.Sniper._bookPass = GC.BookPass.New({
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
       confidence = GC.DrillQueue.Confidence(value) })
   end,
-  -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping, status),
-  -- just triggered from BookPass's own tail instead of from a raw browse event handler.
-  onRows = function(tail, totalRawSeen)
+  -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping), just
+  -- triggered from BookPass's own tail instead of from a raw browse event handler. No page count
+  -- on the status line: the pass's readout is written once it ends (applyFullScanResults).
+  onRows = function(tail)
     local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue, GC.db.settings.sniper)
     for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
     local deltaDeals, newRowsCount, deltaScreened = GC.FullScan.EvaluateDelta(
@@ -3225,10 +3224,6 @@ GC.Sniper._bookPass = GC.BookPass.New({
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
-    local screenedNote = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[" · %d hidden"]):format(GC.Sniper._screenedCount) or ""
-    setStatus((GC.L["scanning… %d results · %d deals%s"]):format(
-      totalRawSeen, #scanDeals, screenedNote))
   end,
   onPassDone = function(info)
     GC.Sniper._lastPass = info -- /gc board's lastPass
@@ -3761,20 +3756,21 @@ local AUTO_PAUSE_LABEL = {
 -- neither reflects something the player is actively DOING right now.
 local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
 
+-- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
+-- auction house a pass comes and goes every second, and the chip blinked with it (owner, WoW:
+-- Forever, 2026-10-09); the status line beside it says each pass. A pause or a hold still speaks:
+-- those are the player's to act on. The second value is true when the label names one.
 local function autoButtonText(state, reasons)
-  if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
-  -- WoW: Forever: the suffix follows the scanner, not only Auto's own machine -- a scan Auto did
-  -- not start (the one on opening the auction house, SCAN) is a scan all the same, and the SCAN
-  -- button beside it already says so. A pause reason still speaks over it.
-  if state ~= "PAUSED" and isForever() and GC.Sniper.ScanActive() then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
-      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
+      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]], true end
     end
+    return GC.L["AUTO"] -- only the ah/tab reasons
   end
   local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
-  if held then return GC.L[held[1]] end
-  return GC.L["AUTO"] -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+  if held then return GC.L[held[1]], true end
+  if state == "OFF" then return GC.L["AUTO"] end
+  return GC.L["AUTO · SCANNING"]
 end
 
 -- The tooltip's lines under the Auto button's own description: one sentence per thing holding
@@ -3828,7 +3824,8 @@ refreshAutoButton = function(targetFrame)
   -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
   -- button. `active` carries the on-state in gold text, which cannot become unreadable.
   f.autoBtn:SetVariant(on and "active" or "ghost")
-  local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
+  local text, held = GC.L["AUTO"], false
+  if on then text, held = autoButtonText(state, autoScan:PauseReasons()) end
   f.autoBtn:SetLabel(text)
   -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
   -- rather than cutting it, and the status line anchored to its right edge moves with it.
@@ -3839,6 +3836,23 @@ refreshAutoButton = function(targetFrame)
     or label.GetStringWidth and label:GetStringWidth())
   if type(width) == "number" and f.autoBtn.SetWidth then
     f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
+  end
+  -- The light beside it: breathing green for as long as Auto runs -- the mode again, so it does
+  -- not blink with each pass either -- amber while the label names a hold, and out while Auto is
+  -- off, except for a scan the player started. Auto paused only for the auction house or its
+  -- tab (a plain "AUTO" label) is not running and has nothing to say: out too. Deals only.
+  if f.liveDot then
+    local light
+    if view ~= "deals" then
+      light = nil
+    elseif held then
+      light = "held"
+    elseif state == "OFF" or state == "PAUSED" then
+      light = GC.Sniper.ScanActive() and "live" or nil
+    else
+      light = "live"
+    end
+    f.liveDot:SetState(light)
   end
 end
 
@@ -3883,7 +3897,11 @@ end
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = GC.Sniper.ScanActive()
+  local active = GC.Sniper.ScanActive()
+  if not active then GC.Sniper._scanPressed = nil end
+  -- Lit for a scan the player pressed, or any scan while Auto is off -- not for Auto's own passes,
+  -- which the AUTO chip already says and which made this blink every second (see autoButtonText).
+  local busy = active and (GC.Sniper._scanPressed or autoScan == nil or autoScan:State() == "OFF")
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -3928,6 +3946,8 @@ local function onFullScanClick()
     frame.status:SetText(GC.L["Open the Auction House first."])
     return
   end
+  -- The button lights for the scan this press started or joined, until it ends (refreshScanButton).
+  GC.Sniper._scanPressed = true
 
   -- WoW: Forever: SCAN is the market scan -- a full list when the server's throttle allows,
   -- browsing otherwise (Core/ForeverScan.lua starts the browse pass itself). A click while any
@@ -5918,7 +5938,7 @@ local function finishRequery(attempt, liveDeal)
   if not isCurrentRequeryAttempt(attempt) then return end
   -- Final review S2 (ii): nothing came back for a Check that went out over a keys batch given up
   -- (attempt.overBatch) -- and a search sent over an unanswered batch comes back empty whatever
-  -- is listed (UI/SellFrame.lua's advanceQuote, seen in game). Asked once more before the window
+  -- is listed (GC.SellWalk.Advance, seen in game). Asked once more before the window
   -- says "gone" and the row comes down; the first answer has landed, so nothing is left to drain.
   if liveDeal == nil and attempt.overBatch and not attempt.retried then
     attempt.retried, attempt.overBatch, attempt.sent = true, nil, false
@@ -6936,8 +6956,8 @@ local function canDrillNow()
   if prewarmAttempt then return false end
   if GC.Sniper.IsPurchaseQuiet() then return false end
   -- Caps fixes 4a, round 1: never over an unanswered keys batch, whoever sent it. A search sent on
-  -- top of one takes its answer with it, and comes back empty itself (UI/SellFrame.lua's
-  -- advanceQuote, seen in game). The batch's own answer brings the next ready tick.
+  -- top of one takes its answer with it, and comes back empty itself (Services/Sell/Walk.lua's
+  -- GC.SellWalk.Advance, seen in game). The batch's own answer brings the next ready tick.
   if GC.Sniper._KeysOutstanding() then return false end
   return driver.isReady() and true or false
 end
@@ -7067,7 +7087,7 @@ end
 --
 -- Round 1: not on the Sell or BUY tab. Those run searches of their own -- the Sell tab's pricing
 -- walk, BUY's quotes -- and a search sent on top of an unanswered keys batch takes its answer and
--- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game): cap batches under the
+-- comes back empty itself (GC.SellWalk.Advance, seen in game): cap batches under the
 -- walk cost the player their prices. The player's own tab wins; the caps resume on Deals or Sold.
 --
 -- Fairness. The batch holds the one keys interlock until it answers, and a round is one batch per
@@ -7523,7 +7543,7 @@ function GC.Sniper.IsPurchaseQuiet()
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or a purchase attempt is mid-flight
--- -- GC.Sell's own quote walker (SellFrame.lua) checks this before every send and simply
+-- -- GC.Sell's own quote walker (Services/Sell/Walk.lua) checks this before every send and simply
 -- refuses/waits while it's true, so the Sell tab's traffic can never compete with, or queue
 -- ahead of, a scan or a buy requery on the shared throttled message system.
 function GC.Sniper.IsBusy()
@@ -7547,7 +7567,7 @@ function GC.Sniper.IsSearchCritical()
 end
 
 -- Task 9 fix round 1 (I4): one-line accessor over the existing `ahOpen` local (set true on
--- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.Sell's requestOwnedAuctions checks
+-- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.SellOwned.Request checks
 -- this before ever calling C_AuctionHouse.QueryOwnedAuctions, so a stray owned-lots refresh
 -- (e.g. the tab-show/ghost-Refresh paths firing after the player has already left the AH) can't
 -- issue a query with no live session to answer it.
@@ -8566,7 +8586,7 @@ local function planDialogPrimaryClick()
     -- opening a second dialog already refuses/replaces per the guard in onBuyClick -- kept as
     -- a last-resort guard against orphaning the pending one.
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-    driver.onStatus(GC.L["finish the pending buy first"])
+    setStatus(GC.L["finish the pending buy first"])
     return
   end
 
@@ -8576,7 +8596,7 @@ local function planDialogPrimaryClick()
   if not deal.isCommodity and ((GC.Buy and GC.Buy.BidOut and GC.Buy.BidOut())
       or (GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy())) then
     setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-    driver.onStatus(GC.L["finish the pending buy first"])
+    setStatus(GC.L["finish the pending buy first"])
     return
   end
 
@@ -8600,7 +8620,7 @@ local function planDialogPrimaryClick()
       row.purchaseStage = "ready"
       if refreshQtyRow then refreshQtyRow() end
       setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
-      driver.onStatus(GC.L["finish the pending buy first"])
+      setStatus(GC.L["finish the pending buy first"])
       return
     end
     row.purchaseDeal = purchaseDeal
@@ -9054,7 +9074,7 @@ local function createDialog()
   icon:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
   d.icon = icon
 
-  -- Task 2 restyle: width 60 (was 56/48 -- see the pill rebuild in Theme.lua's T.Chip, and its
+  -- Task 2 restyle: width 60 (was 56/48 -- see the pill rebuild in UI/Kit/Chip.lua's T.Chip, and its
   -- own comment for why the pill lands at 20px tall rather than 24). Anchored -pad.m,
   -- -(pad.m+6) so the 20-tall pill's vertical center lines up with the 32px icon's own center
   -- (icon top is -pad.m, so its center sits at -(pad.m+16); a 20-tall pill centered there tops
@@ -9147,7 +9167,7 @@ local function createDialog()
   d.verdictLabel = verdictLabel
 
   -- The figure. Two widgets sharing one slot rather than one that re-fonts itself: Theme.Num
-  -- registers its size in Theme's rescale table at creation (see widgetFonts there), so a
+  -- registers its size in the kit's rescale table at creation (see widgetFonts in UI/Kit/Fonts.lua), so a
   -- SetFont behind Theme's back would be undone the next time the player changes UI scale.
   -- verdictAmount carries the numbers; heroText carries "Can't price this" at the same weight,
   -- which is the whole point of the unpriceable case -- a dash would read as a missing value
@@ -9648,7 +9668,7 @@ local function createDialog()
   -- so the status stays glued to the buttons and the empty slot never reads as a gap between
   -- them; F4's resizeDialogDiagnostics anchors `status` at DG.CONTROLS_H to match.
   -- Task 2 restyle: Theme.Card(small=true) -- a rounded plaque.png/PLAQUE_SLICE(12) alarm
-  -- instead of Theme.Panel's flat rectangle + edgeBorder. Sized LIM.REQUOTE_BANNER_HEIGHT (46)
+  -- instead of Theme.Panel's flat rectangle + T.EdgeBorder. Sized LIM.REQUOTE_BANNER_HEIGHT (46)
   -- tall by up to DG.WIDTH-2*pad.m (296) wide -- margin 12 is well under half the smallest
   -- edge (23) either way. Fill tinted red@0.2 at construction (the `fill` argument), the same
   -- SetVertexColor path slicedTexture always uses -- SetColorTexture on `.bg` (the old call)
@@ -9927,7 +9947,7 @@ local function onBuyClick(row)
       -- A purchase call has already been issued for the row the dialog is showing (between
       -- Start/PlaceBid and its resolution) -- never silently abandon that to open a different
       -- row's dialog; the player must resolve it or explicitly Cancel first.
-      driver.onStatus(GC.L["finish the pending buy first"])
+      setStatus(GC.L["finish the pending buy first"])
       return
     end
     -- The other row is only "ready" or "requerying" -- no purchase call in flight yet. This
@@ -10579,7 +10599,7 @@ local function setView(v)
   -- window's OnHide and the AH-close reset already release it here; this path did not.
   clearHover()
   -- One throttled search slot serves the whole addon: a Deals scan running behind the Sell
-  -- tab starved the pricing walk's queries silently (see SellFrame.lua's advanceQuote). Auto
+  -- tab starved the pricing walk's queries silently (see GC.SellWalk.Advance). Auto
   -- pauses for as long as Sell is shown and resumes leaving it -- Sold never queries the AH,
   -- so switching to/from Sold neither pauses nor resumes this reason.
   if v == "sell" then
@@ -10611,13 +10631,28 @@ local function setView(v)
     frame.scroll:Hide()
     frame.headerRow:Hide()
   end
-  -- Deals-only toolbar chrome (verify/scan/auto/divider/session -- `status` is NOT here, see
-  -- f.dealsChrome's own comment in createFrame: it's a shared cross-view channel). Note:
+  -- Deals-only toolbar chrome (verify/scan/auto/divider/session; `status` is handled below). Note:
   -- refreshSessionText re-Shows f.sessionText on its own clock whenever it runs, so it carries
   -- a `view ~= "deals"` early return of its own -- this loop's Hide() here would otherwise be
   -- undone by the very next 0.25s tick.
   for _, w in ipairs(frame.dealsChrome) do
     if isDeals then w:Show() else w:Hide() end
+  end
+  -- The status line is shown on Deals only. Sell writes every message through it too (UI/Sell/
+  -- Dock.lua's setStatus) and says each one in its own dock; off Deals the line sits over the tab's
+  -- own controls (Sell's MY LOTS, seen 2026-10-09 once the window's glass stopped hiding it). Back
+  -- on Deals, a message Sell left in it is cleared rather than shown as if it were about the board.
+  -- Written again as it is shown: a one-line FontString hidden and shown again can keep its text
+  -- undrawn, and setting the text it already holds does not redraw it (the engineering notes' "Text").
+  if isDeals then
+    local text = frame.status:GetText() or ""
+    if GC.Sell and text == GC.Sell._lastStatus then text = "" end
+    frame.status:SetText("")
+    frame.status:SetText(text)
+    frame.status:Show()
+  else
+    frame.status:Hide()
+    if frame.liveDot then frame.liveDot:SetState(nil) end -- and the light beside AUTO with it
   end
   -- The blanket Show() above just unconditionally showed f.sessionText even if the session has
   -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
@@ -10828,10 +10863,8 @@ local function createFrame()
     if col.key == "tier" then col.w = isForever() and WIN.FOREVER_TIER_W or WIN.TIER_W end
   end
 
-  -- Rounded card window (Sniper v4). Theme.Panel stays untouched for the
-  -- overlays that still use it; only the main window goes rounded.
-  local panel = Theme.Card(f)
-  panel:SetAllPoints(f)
+  -- The window's dark glass: a gradient card with a soft shadow (UI/Kit/Card.lua's Theme.Window).
+  f.windowPanel = Theme.Window(f) -- SetDocked hides its shadow while the window sits in the AH frame
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
   local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
@@ -11132,7 +11165,7 @@ local function createFrame()
   local status = Theme.Num(f, 10)
   status:SetJustifyH("LEFT")
   -- One line, no wrapping, same pair every other single-line cell in the kit carries. This
-  -- one is anchored TOPLEFT *and* RIGHT, so it has a fixed width and a height of one line:
+  -- one is anchored LEFT *and* RIGHT, so it has a fixed width and a height of one line:
   -- a long message ("Posting…" and ~40 others from the Sell tab come through here) wrapped
   -- to a second line that does not fit, and a line that does not fit its box is not drawn at
   -- all -- the longest, most useful messages were the ones that said nothing.
@@ -11140,13 +11173,17 @@ local function createFrame()
   status:SetMaxLines(1)
   local muted = Theme.color.fgMuted
   status:SetTextColor(muted[1], muted[2], muted[3], muted[4] or 1)
-  status:SetPoint("TOPLEFT", autoBtn, "TOPRIGHT", Theme.pad.s, 0)
+  -- The light that says Auto is working (refreshAutoButton paints it), between AUTO and the line.
+  -- The line keeps its place whether the light is lit or not, so nothing shifts when it goes out.
+  f.liveDot = Theme.LiveDot(f)
+  f.liveDot:SetPoint("LEFT", autoBtn, "RIGHT", Theme.pad.m, 0)
+  status:SetPoint("LEFT", f.liveDot.dot, "RIGHT", Theme.pad.s, 0)
   status:SetPoint("RIGHT", f.sessionText, "LEFT", -Theme.pad.s, 0)
   status:SetText(GC.L["Open the Auction House to begin scanning."])
   f.status = status
 
   -- Row 3: the board switch -- COMMODITIES | ITEMS N, the Sell tab's own deck chips
-  -- (SellFrame.lua's deckButtons/paintDeckSwitch) applied to the same kind of question. Two
+  -- (UI/Sell/Toolbar.lua's deckButtons/Toolbar.PaintDeckSwitch) applied to the same kind of question. Two
   -- boards, because the rows are two different promises: a commodity row is region-priced,
   -- live-verifiable and can become BUY, a realm row is a lead on gear/pets/recipes that can
   -- only ever be WATCH. See GC.Sniper._Board.
@@ -11195,11 +11232,9 @@ local function createFrame()
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
   --
-  -- `status` is deliberately NOT in this list. GC.Sell.Attach (SellFrame.lua) captures this
-  -- same `f` as `statusOwner` and its own setStatus() routes ~40 user-facing messages
-  -- ("Posting…", "Click Confirm to post", timeouts, etc.) through `statusOwner.status:SetText`
-  -- -- it is a shared channel across every view, not a Deals-only readout. Hiding it here
-  -- would mute Sell's entire posting-feedback channel while the Sell view is showing.
+  -- `status` is not in this list: setView alone shows it, on Deals only, and clears what the Sell
+  -- tab left in it (GC.Sell.Attach in UI/Sell/Frame.lua captures this same `f` as `UI.window`, and
+  -- Dock.SetStatus writes its messages through `UI.window.status:SetText` as well as its dock).
   f.dealsChrome = { verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText,
     f.boardChips.commodities, f.boardChips.items }
 
@@ -11342,8 +11377,8 @@ local function createFrame()
   -- where the Deals toolbar starts (row2Y), not below Deals' header row -- Deals is the only
   -- view with a third (column-header) row. The shared invariant across all three views is
   -- horizontal (WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER) plus the bottom edge (scrollBottom);
-  -- rowWidth is initial geometry only -- SellFrame keeps its own responsive column layout
-  -- current from this same window's OnSizeChanged hook.
+  -- rowWidth is initial geometry only -- the Sell tab (GC.Sell.Attach, UI/Sell/Frame.lua) keeps
+  -- its own responsive column layout current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
     panelLeft = WIN.CONTENT_LEFT,
     panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
@@ -11471,6 +11506,8 @@ function GC.Sniper.SetDocked(host)
     -- toplevel would yank the whole thing forward on every click inside it.
     frame:SetFrameStrata(host:GetFrameStrata())
     frame:SetToplevel(false)
+    -- The 18px shadow would draw over the AH frame's border and the strip above its tabs.
+    if frame.windowPanel then frame.windowPanel.shadow:Hide() end
     -- The drawer follows the window up: adopting the host's strata can otherwise land the
     -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
     -- level with is enough for the deals rows to draw through an opaque sheet.
@@ -11493,6 +11530,7 @@ function GC.Sniper.SetDocked(host)
     -- Back to a window of its own: see createFrame for why both calls are needed.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
+    if frame.windowPanel then frame.windowPanel.shadow:Show() end
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:SetMovable(true)

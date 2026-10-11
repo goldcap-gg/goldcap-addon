@@ -302,7 +302,7 @@ describe("Search slot arbiter", function()
     assert.is_false(GC.Sniper.IsPurchaseQuiet())
   end)
 
-  -- The Sell tab's quote walk (UI/SellFrame.lua's advanceQuote) stands down on exactly this
+  -- The Sell tab's quote walk (Services/Sell/Walk.lua) stands down on exactly this
   -- predicate, and an armed dialog used to be enough to stop it -- so a quote left on screen
   -- froze the board and parked the Sell tab on "Waiting for the purchase to finish…" for the
   -- whole 30-second arm window, over a purchase nobody had made. An armed quote has nothing
@@ -610,8 +610,8 @@ describe("Search slot arbiter", function()
       end)
 
       -- Caps fixes 4a, round 1: a batch still out from the board the player just left, while the
-      -- Sell or BUY tab is on screen. Those tabs' own searches take its answer (UI/SellFrame.lua's
-      -- advanceQuote, seen in game) and the Sell walk now stands still for it -- thirty seconds of
+      -- Sell or BUY tab is on screen. Those tabs' own searches take its answer (Services/Sell/Walk.lua's
+      -- quote walk, seen in game) and the Sell walk now stands still for it -- thirty seconds of
       -- that held every keys consumer and the walk. The tab's own batch keeps its own allowance.
       it("gives a batch the tab on screen did not send eight seconds on the Sell and BUY tabs", function()
         local function after(owner, onView, seconds)

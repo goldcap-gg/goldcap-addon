@@ -13,6 +13,19 @@ function helper.securecallfunction(fn, ...)
 end
 _G.securecallfunction = _G.securecallfunction or helper.securecallfunction
 
+--- UI/Kit/*.lua, in the order both TOCs load them, right before UI/Theme.lua
+--- (spec/kit_structure_spec.lua holds the TOCs to this list). Theme.lua builds on them.
+helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua", "UI/Kit/Textures.lua", "UI/Kit/Card.lua", "UI/Kit/Button.lua", "UI/Kit/Chip.lua" }
+--- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
+--- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
+helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Services/Sell/Bags.lua", "Services/Sell/Compose.lua",
+  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua",
+  "Services/Sell/Session.lua" }
+
+--- The Sell tab's view, in the order both TOCs load it: one block right after UI/SellViewModel.lua
+--- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
+helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua" }
+
 function helper.loadModule(relPath, GC)
   GC = GC or {}
   -- Locale/Core.lua is the second entry in the TOC, so in the real client GC.L exists before
@@ -28,6 +41,20 @@ function helper.loadModule(relPath, GC)
     local callChunk = assert(loadfile("GoldCap/Core/PurchaseCall.lua"))
     callChunk("GoldCap", GC)
   end
+  -- UI/Theme.lua builds on the kit, which loads right before it in both TOCs, and draws its
+  -- headings and labels through Core/Util.lua's ClientText, which loads long before it. Same
+  -- reasoning as the locale above: a spec loading Theme gets what the client would already have
+  -- loaded. A spec that brought its own GC.Util keeps it.
+  if relPath == "UI/Theme.lua" and GC.Kit == nil then
+    if GC.Util == nil then
+      local utilChunk = assert(loadfile("GoldCap/Core/Util.lua"))
+      utilChunk("GoldCap", GC)
+    end
+    for _, kit in ipairs(helper.KIT_FILES) do
+      local kitChunk = assert(loadfile("GoldCap/" .. kit))
+      kitChunk("GoldCap", GC)
+    end
+  end
   local chunk, err = loadfile("GoldCap/" .. relPath)
   assert(chunk, err)
   chunk("GoldCap", GC)
@@ -41,6 +68,38 @@ helper.LOCALE_CODES = { "deDE", "enUS", "esES", "esMX", "frFR", "itIT", "koKR", 
 
 function helper.localeCodes()
   return helper.LOCALE_CODES
+end
+
+local function readFile(path)
+  local file = assert(io.open(path, "rb"))
+  local text = file:read("*a")
+  file:close()
+  return text
+end
+
+--- The Sell tab as the client loads it: its services, then its view (helper.SELL_UI_FILES). Every
+--- spec that drives the tab loads it through here, so a file either half gains is loaded everywhere.
+function helper.loadSell(GC)
+  GC = GC or {}
+  for _, path in ipairs(helper.SELL_FILES) do helper.loadModule(path, GC) end
+  for _, path in ipairs(helper.SELL_UI_FILES) do helper.loadModule(path, GC) end
+  return GC
+end
+
+--- The Sell tab's source as one text, in load order: its services, then its view. For a spec that
+--- checks the tab holds a piece of logic wherever that logic lives.
+function helper.sellSource()
+  local parts = {}
+  for _, path in ipairs(helper.SELL_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
+  for _, path in ipairs(helper.SELL_UI_FILES) do parts[#parts + 1] = readFile("GoldCap/" .. path) end
+  return table.concat(parts, "\n")
+end
+
+--- A top-level function's text, from its `header` line to the `end` that closes it at column 0.
+function helper.functionBody(text, header)
+  local start = assert(text:find(header, 1, true), "missing " .. header)
+  local stop = assert(text:find("\nend\n", start, true), "no column-0 end after " .. header)
+  return text:sub(start, stop + 4)
 end
 
 return helper

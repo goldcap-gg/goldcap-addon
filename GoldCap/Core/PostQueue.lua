@@ -28,8 +28,9 @@ local _, GC = ...
 -- `BuildPostPlan` is responsible for. Copy, don't compute.
 --
 -- What is deliberately NOT decided here: whether an exact bag stack can be identified for a
--- given position is LIVE state (`liveBagState` in UI/SellFrame.lua, a file this module never
--- touches and never will), not something knowable from a position table alone. A position can
+-- given position is LIVE state (`GC.SellBags.LiveState`, in Services/Sell/Bags.lua, a file this
+-- module never touches and never will), not something knowable from a position table alone. A
+-- position can
 -- look perfectly postable here and still fail at click time (ambiguous variant, bag contents
 -- changed since the position was built, etc.) -- that failure belongs to `BuildPostPlan` and the
 -- click handler, and must be surfaced THERE, not guessed at or pre-empted here. Do not "fix"
@@ -46,7 +47,7 @@ end
 local function positive(value) return exact(value) and value > 0 end
 
 -- left * right, without ever constructing a product that has already lost precision or wrapped.
--- Same guard UI/SellFrame.lua's own safeMultiply uses for the same reason: `value` below is
+-- Same guard GC.SellUtil.safeMultiply (Services/Sell/State.lua) uses for the same reason: `value` below is
 -- exactly what the design calls "money", and a position whose value cannot be stated exactly
 -- must be dropped, never silently clamped to something smaller than it really is.
 local function mulExact(left, right)
@@ -185,7 +186,7 @@ end
 
 --- GC.PostQueue.Without(entries, positionKey) -> a NEW array holding every entry except the one
 -- whose positionKey matches. Never mutates `entries` -- the UI renders straight from the array
--- it holds (`renderRows`/`renderEntryID` in UI/SellFrame.lua), and mutating that array out from
+-- it holds (`renderRows`/`renderEntryID` in UI/Sell/List.lua), and mutating that array out from
 -- under an in-flight render is exactly how a row gets bound to the wrong pin mid-click.
 function GC.PostQueue.Without(entries, positionKey)
   local result = {}

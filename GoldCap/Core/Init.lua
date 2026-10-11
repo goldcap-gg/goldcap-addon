@@ -34,15 +34,16 @@ GC.DEFAULTS = {
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
   -- is standing. Getting this wrong files one item under two position keys (see
-  -- UI/SellFrame.lua's classifyBagItem), so an unknown item is left out rather
+  -- Services/Sell/Bags.lua's classifyBagItem), so an unknown item is left out rather
   -- than guessed at. Same empty-table ApplyDefaults contract as `flips` above.
   commodityByItem = {},
   -- itemID -> { unit, at } (copper, epoch seconds): the Sell tab's own last resolved market
   -- quote, so a /reload shows the last known price and its age instead of a dash for the
   -- minutes it takes the pricing walk to catch back up. `levels` is deliberately never
   -- persisted here -- only a fresh walk's levels are usable for anything beyond the headline
-  -- unit, and keeping them would just bloat the save file for no reader. See UI/SellFrame.lua's
-  -- seedPersistedQuotes for the retention window that prunes this on the way back in. Same
+  -- unit, and keeping them would just bloat the save file for no reader. See
+  -- GC.SellQuotes.Seed (Services/Sell/Quotes.lua) for the retention window that prunes this on
+  -- the way back in. Same
   -- empty-table ApplyDefaults contract as `flips` above.
   sellQuotes = {},
   -- Live observations: bounded facts about the book the client just saw, for the companion
@@ -159,7 +160,7 @@ GC.DEFAULTS = {
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
       -- How long a posted auction runs: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration`
-      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what UI/SellFrame.lua
+      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what the Sell tab
       -- had hardcoded, so an existing save keeps posting exactly as it did and needs no
       -- migration -- ApplyDefaults fills the field in on the next login.
       --
@@ -276,7 +277,7 @@ frame:RegisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 frame:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
 frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
 -- Task 9: fires after C_AuctionHouse.QueryOwnedAuctions({}) resolves (tab show or the Sell
--- tab's own ghost Refresh button -- see UI/SellFrame.lua) AND after any other change to the
+-- tab's own ghost Refresh button -- see UI/Sell/Toolbar.lua) AND after any other change to the
 -- player's own listed lots (a post going through, an in-flight repost's CancelAuction landing).
 -- No payload -- the handler re-reads C_AuctionHouse.GetOwnedAuctions() itself.
 frame:RegisterEvent("OWNED_AUCTIONS_UPDATED")
@@ -803,7 +804,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnItemSearchResults(itemKey.itemID, itemKey)
     end
     -- D: GC.Sell's own handler only reacts when itemKey.itemID matches its own pending quote
-    -- slot -- see SellFrame.lua's OnItemSearchResults -- so this adds zero crosstalk with the
+    -- slot -- see GC.Sell.OnItemSearchResults in Services/Sell/Walk.lua -- so this adds zero
+    -- crosstalk with the
     -- scanner's or the buy-requery's unrelated in-flight searches.
     if GC.Sell.OnItemSearchResults then
       -- With the key: an item-level variant the Sell tab priced by its own key reads its answer
@@ -976,7 +978,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.ForeverLoot then GC.ForeverLoot.OnSpellSucceeded(spellID) end
   elseif event == "BAG_UPDATE_DELAYED" then
     -- The Sell tab's Post reads a bag location cached at paint time; re-pin it to where the stack
-    -- sits now, while that tab is on screen (UI/SellFrame.lua, GC.Sell.OnBagsChanged). First in
+    -- sits now, while that tab is on screen (GC.Sell.OnBagsChanged, Services/Sell/Bags.lua). First in
     -- this event's execution, ahead of the BUY tab and craft capture, so nothing they read runs
     -- before the cache a Post click reads is written.
     if GC.Sell and GC.Sell.OnBagsChanged then GC.Sell.OnBagsChanged() end

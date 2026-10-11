@@ -7,7 +7,6 @@ GC.Locales.ruRU = {
     " %s  %s  x%d по %s за штуку  (%s всего, %s комиссия)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion обновляет это сам: /goldcap companion.",
-  [" · %d hidden"] = " · скрыто %d",
   [" · %d keys"] = " · ключей: %d",
   [" · below cost"] = " · ниже себестоимости",
   [" · identity unresolved"] = " · позиция не опознана",
@@ -56,7 +55,6 @@ GC.Locales.ruRU = {
   ["%s → craft %d× (%d per craft)"] = "%s → крафт %d× (по %d за крафт)",
   ["%s+ ahead"] = "%s+ впереди",
   ["%s+, %d prices read"] = "%s+, прочитано %d цен",
-  [", %d hidden: hard to resell or under your min profit"] = ", скрыто %d: трудно перепродать или ниже вашей минимальной прибыли",
   ["1 lot, %s asked"] = "1 лот, просят %s",
   ["24h trend"] = "Тренд за 24ч",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -697,8 +695,6 @@ GC.Locales.ruRU = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Стоит %s. При вашем лимите %d%% на одну покупку на этом персонаже нужно %s.",
   ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "полное сканирование завершено: %d сделок%s из %d групп предметов%s%s",
   ["full scan interrupted -- confirm your purchase"] =
     "полное сканирование прервано -- подтвердите покупку",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -831,11 +827,8 @@ GC.Locales.ruRU = {
     "удалено %d дублирующих записей продажи, оставленных ошибкой сканирования почты",
   ["sale name ambiguous"] = "имя в продаже неоднозначно",
   ["sale proceeds pending"] = "выручка ожидается",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "сканирование завершено: %d сделок%s из %d предметов%s в реагентах, расходниках, самоцветах, чарах%s",
   ["scanned %d listings over %d passes"] = "просканировано %d лотов за %d проходов",
   ["scanning auction house..."] = "сканируем аукцион...",
-  ["scanning… %d results · %d deals%s"] = "сканируем… %d результатов · %d сделок%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "продаётся %s/день",
@@ -1161,6 +1154,7 @@ GC.Locales.ruRU = {
   ["buying..."] = "покупка...",
   ["cap: alert target"] = "потолок: цель оповещения",
   ["craft"] = "крафт",
+  ["deals %s · items %s · filtered %s"] = "сделки %s · предметы %s · отсеяно %s",
   ["done"] = "готово",
   ["everything bought"] = "всё куплено",
   ["from %s"] = "от %s",

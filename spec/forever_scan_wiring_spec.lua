@@ -246,7 +246,7 @@ describe("WoW: Forever scan wiring", function()
     before_each(function()
       init = read("GoldCap/Core/Init.lua")
       sniper = read("GoldCap/UI/SniperFrame.lua")
-      sell = read("GoldCap/UI/SellFrame.lua")
+      sell = helper.sellSource()
     end)
 
     it("registers the dump event and the scan command only inside a Forever gate", function()
@@ -262,7 +262,7 @@ describe("WoW: Forever scan wiring", function()
     end)
 
     it("builds the post queue with the Sell tab's own WoW: Forever options", function()
-      assert.truthy(sell:find("GC.PostQueue.Build(positions, GC.Sell._QueueOpts())", 1, true))
+      assert.truthy(sell:find("GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())", 1, true))
     end)
 
     it("routes the dump event, the auction house's open and close, and the load", function()

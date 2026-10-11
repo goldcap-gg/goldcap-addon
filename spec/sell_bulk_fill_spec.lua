@@ -4,25 +4,7 @@ local helper = require("spec.spec_helper")
 -- borrowed from UI/SniperFrame.lua's arbiter the way the BUY tab borrows it. What comes back is
 -- a price to SHOW -- never one to post against.
 describe("Sell bulk price fill", function()
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local name, value = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then return value end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function refreshState(GC) return upvalue(GC.Sell.OnThrottleReady, "refresh") end
+  local function refreshState(GC) return GC.SellState.refresh end
 
   -- `asked` records what the arbiter was handed; `grant` is whether it lets the batch go.
   local function load(now, positions, asked, grant)
@@ -56,15 +38,15 @@ describe("Sell bulk price fill", function()
         Build = function() return positions end },
     }
     asked.sniper = GC.Sniper
-    helper.loadModule("UI/SellFrame.lua", GC)
-    set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", {
+    helper.loadSell(GC)
+    GC.SellQuotes.driver = {
       isReady = function() return true end, keyInfo = function() return { isCommodity = true } end,
       send = function(itemID) asked.searches = asked.searches or {}; asked.searches[#asked.searches + 1] = itemID end,
       item = function() return nil end, itemLevels = function() return nil end,
       commodity = function() return nil end, commodityLevels = function() return nil end,
-    })
-    -- tabIsLive wants the container on screen; these specs have no frames, so say it is.
-    set(GC.Sell.TrySendBulk, "tabIsLive", function() return true end)
+    }
+    -- Walk.Live wants the container on screen; these specs have no frames, so say it is.
+    GC.SellWalk.Live = function() return true end
     return GC
   end
 
@@ -211,7 +193,7 @@ describe("Sell bulk price fill", function()
       local now, asked = { value = 100 }, {}
       local GC = load(now, STOCK, asked, { value = true })
       GC.Sell.Refresh()
-      local quotes = upvalue(GC.Sell.FoldBulk, "quotes")
+      local quotes = GC.SellState.quotes
       for id, quote in pairs(before or {}) do quotes[id] = quote end
       -- As the arbiter does: its record of the wait is cleared before the rows are handed over.
       asked.sniper._keysOwner, asked.sniper._keysAwaiting = nil, nil
@@ -241,8 +223,7 @@ describe("Sell bulk price fill", function()
     it("never backs a post: freshQuote refuses a bulk price and still takes a real one", function()
       local quotes, GC = folded({ { itemKey = { itemID = 42 }, minPrice = 1200 } },
         { [43] = { unit = 1500, at = 95 } })
-      local render = upvalue(GC.Sell.Attach, "renderRows")
-      local freshQuote = upvalue(upvalue(render, "onPostClick"), "freshQuote")
+      local freshQuote = GC.SellQuotes.Fresh
       assert.is_true(quotes[42].bulk)
       assert.is_nil(freshQuote({ itemID = 42 }))
       assert.equal(1500, freshQuote({ itemID = 43 }).unit)

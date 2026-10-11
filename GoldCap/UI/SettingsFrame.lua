@@ -20,7 +20,7 @@ end
 -- Minimal Theme-consistent widgets (editbox / pill toggle / segmented
 -- duration / slider). Theme.lua has factories for Panel/Card/Chip/Num/Label/
 -- Button/TitleBar because every one of those is reused across SniperFrame +
--- SellFrame + ImportDialog + Tooltip. Nothing else in the addon needs a
+-- the Sell view + ImportDialog + Tooltip. Nothing else in the addon needs a
 -- slider, a toggle, or a raw numeric input -- this settings screen is the
 -- only consumer -- so adding first-class Theme factories for them now would
 -- be speculative API surface nobody else calls. These stay built inline,
@@ -86,7 +86,7 @@ local function makeEditBox(parent, width, height)
   eb:SetScript("OnEditFocusLost", function() box:SetFocusTint(false) end)
 
   -- Live font-scale slider support: Theme.Num/Chip re-font themselves on rescale via Theme.lua's
-  -- own private weak-keyed `widgetFonts` table, which isn't reachable from outside Theme.lua.
+  -- own private weak-keyed `widgetFonts` table (UI/Kit/Fonts.lua), which isn't reachable from outside.
   -- Theme.OnRescale is the public hook for exactly this case (a non-Theme-factory widget that
   -- still needs to track T.Scale()).
   Theme.OnRescale(function(scale)
@@ -290,7 +290,7 @@ end
 -- Forever window shows "8 Hours", "2 Hours") without changing at all. Only the LABEL a player
 -- reads depends on which client this is; see durationHours below.
 
--- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
+-- Same "invalid/missing falls back to the default" contract as Services/Sell/Post.lua's own
 -- postDuration() reader -- these controls must never show, let alone write, a value that
 -- reader would refuse to post at.
 local function storedDurationIndex()
@@ -347,7 +347,7 @@ local function bindDurationSegments(buttons)
 end
 
 -- Binds the font-scale slider straight to GC.Theme.SetScale -- live (every drag tick rescales
--- the whole addon's already-built widgets via Theme's OnRescale hooks/widgetFonts), and
+-- the whole addon's already-built widgets via Theme's OnRescale hooks and the kit's widgetFonts), and
 -- self-persisting (Theme.SetScale itself writes GC.db.settings.sniper.fontScale on every call,
 -- see Theme.lua -- no extra plumbing needed here).
 -- Fix round 1 (M4): `display()` below calls slider:SetValue(...) to re-sync the widget from
@@ -355,7 +355,7 @@ end
 -- the REAL client SetValue fires OnValueChanged exactly like a user drag does, so without a
 -- guard, every re-sync would re-enter Theme.SetScale with a value that's already current. Harmless
 -- by itself (SetScale is idempotent for an unchanged value), but wasteful (re-walks every
--- registered OnRescale hook + the widgetFonts table on every panel open) and, if a future
+-- registered OnRescale hook + the kit's widgetFonts table on every panel open) and, if a future
 -- Theme.OnRescale hook ever gains a side effect beyond re-fonting, a latent re-entrancy trap. A
 -- module-local suppress flag distinguishes "this SetValue came from display()" from "this
 -- OnValueChanged came from an actual drag/click/keyboard step."

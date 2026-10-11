@@ -18,11 +18,11 @@ local preloader = CreateFrame("Frame")
 preloader:SetPoint("TOP", UIParent, "BOTTOM", 0, -10000)
 preloader:SetSize(100, 100)
 
-for _, path in ipairs({ T.FONT_MONO, T.FONT_MONO_BOLD }) do
+for _, path in ipairs(T.BUNDLED_FACES) do
   local fs = preloader:CreateFontString()
   fs:SetAllPoints()
   -- SetFont says whether the face was accepted; SetText on a string with no font is an error.
   if fs:SetFont(path, 14, "") then
-    fs:SetText("GoldCap 0123 Аа") -- Latin, digits and Cyrillic: what these faces draw
+    fs:SetText("GoldCap 0123 Аа ґї") -- Latin, digits and Cyrillic: what these faces draw
   end
 end

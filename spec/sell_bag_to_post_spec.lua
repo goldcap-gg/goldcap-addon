@@ -34,24 +34,6 @@ describe("Sell tab, bags to Post", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- Slot 1: 200 Eternium Ore, a commodity, freely sellable.
   -- Slot 2: 46 more of the same, so the aggregate has to add up across stacks.
   -- Slot 3: soulbound, which the auction house refuses.
@@ -107,7 +89,7 @@ describe("Sell tab, bags to Post", function()
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")
@@ -115,12 +97,12 @@ describe("Sell tab, bags to Post", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
+    render = GC.SellUI.List.RenderRows
     -- Attach leaves the Sell container hidden (one of several tabs on the real Sniper
     -- window); renderRows now defers a rebuild while it is hidden, so this whole suite --
     -- which reads rendered rows directly -- needs it shown, the way GC.Sell.Show() (the
     -- real tab switch) would leave it.
-    upvalue(render, "container"):Show()
+    GC.SellUI.container:Show()
   end)
 
   after_each(function()
@@ -129,9 +111,9 @@ describe("Sell tab, bags to Post", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
     render()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
   end
 
   local function positionRow()
@@ -198,7 +180,7 @@ describe("Sell tab, bags to Post", function()
   -- exactly what made an already-fixed bag bug look like it was still there.
   it("keeps the deck counts in step with the list it is counting", function()
     compose()
-    local container = upvalue(GC.Sell.Attach, "container")
+    local container = GC.SellUI.container
     assert.equal("TO POST 1", container.deckButtons.post.label)
     assert.equal("MY LOTS 0", container.deckButtons.listed.label)
   end)
@@ -226,9 +208,9 @@ describe("Sell tab, bags to Post", function()
   -- compose must not trigger a second one.
   it("[perf] does not recompose positions merely to read the sellable count", function()
     compose() -- a real composePositions() run, via the upvalue, the same way `compose()` above does
-    set(GC.Sell.SellableCount, "composePositions", function()
+    GC.SellCompose.Positions = function()
       error("SellableCount must not recompose -- the count was already stamped")
-    end)
+    end
     assert.equal(1, GC.Sell.SellableCount())
   end)
 
@@ -238,8 +220,8 @@ describe("Sell tab, bags to Post", function()
   -- at that exact instant. The cached value already answers correctly with no recompose.
   it("[perf] composes exactly once on a cold call before anything has ever composed", function()
     local composeCalls = 0
-    local realCompose = upvalue(GC.Sell.SellableCount, "composePositions")
-    set(GC.Sell.SellableCount, "composePositions", function() composeCalls = composeCalls + 1; realCompose() end)
+    local realCompose = GC.SellCompose.Positions
+    GC.SellCompose.Positions = function() composeCalls = composeCalls + 1; realCompose() end
     assert.equal(1, GC.Sell.SellableCount())
     assert.equal(1, composeCalls)
     assert.equal(1, GC.Sell.SellableCount()) -- second read: still cached, no second compose
@@ -254,7 +236,7 @@ describe("Sell tab, bags to Post", function()
   end)
 
   it("advises a price once a live quote lands, and builds a post plan for it", function()
-    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    local quotes = GC.SellState.quotes
     -- The honest cheap side of the real EU book, after the ingest fix.
     GC.QuoteCache.Set(quotes, 23427, 184719, 1000)
     compose()
@@ -282,8 +264,7 @@ describe("Sell tab, bags to Post", function()
   end)
 
   it("prices only what there is something to do with", function()
-    local ready = upvalue(GC.Sell.OnOwnedAuctions, "onOwnedAuctionsReady")
-    local walk = upvalue(upvalue(ready, "beginQuoteWalk"), "uniqueQuoteItemIDs")
+    local walk = GC.SellWalk.Queue
     compose()
     assert.same({ 23427 }, walk())
   end)
@@ -293,7 +274,7 @@ describe("Sell tab, bags to Post", function()
     -- text -- while the answer to "what could I sell" sat in the player's bags.
     GC.Sniper = { IsAHOpen = function() return false end }
     GC.Sell.Refresh()
-    rows = upvalue(render, "rows")
+    rows = GC.SellUI.rows
     local row = positionRow()
     assert.is_not_nil(row)
     assert.equal(246, row.position.bagQty)
@@ -307,8 +288,8 @@ describe("Sell tab, bags to Post", function()
   it("opens Set cost for bag stock GoldCap never bought", function()
     compose()
     local row = positionRow()
-    local openCostDialog = upvalue(render, "openCostDialog")
-    local dialog = upvalue(render, "container").costDialog
+    local openCostDialog = GC.SellUI.CostDialog.OpenCostDialog
+    local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
     assert.is_true(dialog.shown)
@@ -318,7 +299,7 @@ describe("Sell tab, bags to Post", function()
   it("offers Set cost only where it would do something", function()
     compose()
     local row = positionRow()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost(row.position))
     -- Nothing held, nothing to cost: the button must not be offered at all,
     -- rather than offered and silently inert.
@@ -339,8 +320,8 @@ describe("Sell tab, bags to Post", function()
     compose()
     local row = positionRow()
     assert.equal("PARTIAL", row.position.coverage)
-    local openCostDialog = upvalue(render, "openCostDialog")
-    local dialog = upvalue(render, "container").costDialog
+    local openCostDialog = GC.SellUI.CostDialog.OpenCostDialog
+    local dialog = GC.SellUI.container.costDialog
     dialog.shown = false
     openCostDialog(row.position)
     assert.is_true(dialog.shown)
@@ -354,13 +335,13 @@ describe("Sell tab, bags to Post", function()
   -- manual cost doubled it. knownQty alone can never see past the allocation
   -- cap -- trackedQty can, and must be checked too.
   it("does not offer Set cost for stock a recorded batch already covers beyond the allocation cap", function()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_false(canSetCost({ positionKey = "commodity:1", listedQty = 24, bagQty = 94,
       exposureQty = 24, knownQty = 24, trackedQty = 118 }))
   end)
 
   it("still offers Set cost for stock with no batch recorded against it at all", function()
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 50,
       exposureQty = 50, knownQty = 0, trackedQty = 0 }))
   end)
@@ -368,7 +349,7 @@ describe("Sell tab, bags to Post", function()
   it("offers Set cost for the uncovered remainder, and withholds it once a batch closes the gap", function()
     -- 60 of the 100 held units are costed either way; the other 40 stay open
     -- until something -- allocation or a manual entry -- actually accounts for them.
-    local canSetCost = upvalue(render, "canSetCost")
+    local canSetCost = GC.SellUI.CostDialog.CanSetCost
     assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 100,
       exposureQty = 60, knownQty = 60, trackedQty = 60 }))
     assert.is_false(canSetCost({ positionKey = "commodity:1", bagQty = 100,

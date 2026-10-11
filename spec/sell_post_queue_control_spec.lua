@@ -34,15 +34,6 @@ describe("Sell tab, the posting queue control", function()
     return v
   end
 
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- Two commodities in the bags:
   --   23427 Eternium Ore, x246 -- priced, the queue's only postable entry.
   --   99001 Widget, x5 -- in the bags but never quoted, so PostQueue.Build holds it back with
@@ -100,7 +91,7 @@ describe("Sell tab, the posting queue control", function()
     helper.loadModule("Core/SellPositions.lua", GC)
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
 
     root = region("Frame")
@@ -108,8 +99,8 @@ describe("Sell tab, the posting queue control", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     container:Show()
   end)
 
@@ -120,11 +111,11 @@ describe("Sell tab, the posting queue control", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
   end
 
   local function quotes()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    return GC.SellState.quotes
   end
 
   it("labels the control with the head item and price, and counts the queue on the button itself", function()
@@ -147,7 +138,7 @@ describe("Sell tab, the posting queue control", function()
   it("surfaces the held-back count in plain words, not the raw skip token", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
-    assert.equal(1, #upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped"))
+    assert.equal(1, #GC.SellState.queueSkipped)
     local heldBack = container.queueHeldBack
     assert.is_true(heldBack.shown)
     assert.matches("1", heldBack.text, 1, true)
@@ -170,7 +161,7 @@ describe("Sell tab, the posting queue control", function()
     compose()
     local button = container.queueButton
     button.scripts.OnClick(button)
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     -- Row 1 is now the queue's head, mid-post: onPostClick's own pin has taken over its label.
     assert.equal("commodity:23427", rows[1].position.positionKey)
     assert.is_false(rows[1].action.enabled)
@@ -205,7 +196,7 @@ describe("Sell tab, the posting queue control", function()
     -- exact same path a player would, rather than reaching in to flip filterMode by hand.
     local button = container.queueButton
     button.scripts.OnClick(button)
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     assert.equal("position", rows[1].kind)
     assert.equal("commodity:23427", rows[1].position.positionKey)
   end)
@@ -215,8 +206,8 @@ describe("Sell tab, the posting queue control", function()
     GC.ForeverValue = { VendorUnit = function(id) return id == 23427 and 10 ^ 9 or nil end }
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     compose()
-    local entries = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
-    local skipped = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueSkipped")
+    local entries = GC.SellState.queueEntries
+    local skipped = GC.SellState.queueSkipped
     for _, entry in ipairs(entries) do
       assert.is_not.equal("commodity:23427", entry.positionKey)
     end
@@ -263,7 +254,7 @@ describe("Sell tab, the posting queue control", function()
       local button = container.queueButton
       button.scripts.OnClick(button)
       assert.equal(1, posts())
-      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+      assert.equal("commodity:23427", GC.SellUI.rows[1].position.positionKey)
     end)
 
     it("on retail the POST keybinding posts on the first press too", function()
@@ -292,9 +283,9 @@ describe("Sell tab, the posting queue control", function()
         GC.Acquisitions.RecordManual({ itemID = 99001, positionKey = "commodity:99001",
           quantity = 5, total = 2500, acquiredAt = 1000, character = "Owner-Dentarg", region = "eu" })
         compose()
-        upvalue(render, "expanded")["commodity:99001"] = true
+        GC.SellUI.expanded["commodity:99001"] = true
         render()
-        local rows = upvalue(render, "rows")
+        local rows = GC.SellUI.rows
         assert.equal("commodity:99001", rows[1].position.positionKey) -- sanity: Widget is row 1
         local removeRow
         for _, r in ipairs(rows) do
@@ -305,7 +296,7 @@ describe("Sell tab, the posting queue control", function()
         assert.equal("armed", removeRow.removeStage)
         GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
         compose()
-        local qe = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "queueEntries")
+        local qe = GC.SellState.queueEntries
         assert.equal("commodity:23427", qe[1].positionKey) -- sanity: the head moved to Eternium Ore
       end
 
@@ -335,7 +326,7 @@ describe("Sell tab, the posting queue control", function()
       local button = container.queueButton
       button.scripts.OnClick(button)
       assert.equal(0, posts())
-      assert.equal("commodity:23427", upvalue(render, "rows")[1].position.positionKey)
+      assert.equal("commodity:23427", GC.SellUI.rows[1].position.positionKey)
       assert.equal("Queue ready — press POST again to post it", root.status.text)
       button.scripts.OnClick(button)
       assert.equal(1, posts())

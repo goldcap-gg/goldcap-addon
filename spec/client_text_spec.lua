@@ -199,7 +199,7 @@ end
 local SOURCES = {}
 local function sources()
   if #SOURCES == 0 then
-    for _, dir in ipairs({ "Core", "UI" }) do
+    for _, dir in ipairs({ "Core", "Services", "UI" }) do
       for _, path in ipairs(luaFiles(dir)) do SOURCES[#SOURCES + 1] = shiftStrings(loadSource(path)) end
     end
   end
@@ -280,8 +280,12 @@ describe("GC.Util.ClientText", function()
   end)
 end)
 
+-- A Label inherits the client's own face (here a Russian client's FRIZQT___CYR) only where
+-- T.FONT_LABEL is nil: a Latin addon language on a Korean client. A Heading or a button's label
+-- draws in GoldCap's Fira, which holds the middle dot and the arrow and lacks only the triangles.
 describe("Theme: a FontString in a client face", function()
   local GC
+  local savedGetLocale
 
   local function stubRegion()
     local f = { points = {}, scripts = {} }
@@ -310,6 +314,8 @@ describe("Theme: a FontString in a client face", function()
     function f:SetBlendMode(mode) self.blend = mode end
     function f:SetAllPoints(rel) self.allPoints = rel end
     function f:SetAlpha(a) self.alpha = a end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
+    function f:SetTexCoord(...) self.texCoord = { ... } end
     function f:SetDrawLayer(l) self.layer = l end
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
@@ -323,31 +329,37 @@ describe("Theme: a FontString in a client face", function()
     GC = helper.loadModule("Core/Util.lua")
     _G.CreateFrame = function() return stubRegion() end
     helper.loadModule("UI/Theme.lua", GC)
+    savedGetLocale = _G.GetLocale
+    _G.GetLocale = function() return "koKR" end
+    GC.Theme.RefreshFonts("enUS") -- Korean client, English addon: FONT_LABEL nil, the client's face stays
   end)
 
   after_each(function()
     _G.CreateFrame = nil
+    _G.GetLocale = savedGetLocale
   end)
 
   it("draws a Label's text through ClientText", function()
+    assert.is_nil(GC.Theme.FONT_LABEL)
     local label = GC.Theme.Label(stubRegion(), 11)
     label:SetText("Linen ×4 · item level 200+ → craft")
     assert.equal("Linen ×4, item level 200+ -> craft", label.drawn)
   end)
 
-  it("does so for a plain button's label, which is a Label", function()
+  -- A button's label is a Heading in Fira Sans Condensed: it has · and →, so only ▲ and ▼ change.
+  it("draws a plain button's label in Fira, keeping the dot and the arrow", function()
     local button = GC.Theme.Button(stubRegion(), "ghost")
-    button:SetLabel("a · b")
-    assert.equal("a, b", button.text.drawn)
-    assert.equal("a · b", button.label)
+    button:SetLabel("a · b → ▲4%")
+    assert.equal("a · b → +4%", button.text.drawn)
+    assert.equal("a · b → ▲4%", button.label)
   end)
 
-  -- A rounded button draws in GoldCap's own face (T.FONT_UI), which has the triangle the list
-  -- picker ends in; only the client's faces need the text changed.
-  it("leaves a rounded button's label as written", function()
+  -- A rounded button turns its trailing triangle into the atlas caret.
+  it("draws a rounded button's trailing ▼ as the caret icon", function()
     local button = GC.Theme.Button(stubRegion(), "ghost", "plaque")
     button:SetLabel("Quick list ▼")
-    assert.equal("Quick list ▼", button.text.drawn)
+    assert.equal("Quick list", button.text.drawn)
+    assert.equal("Quick list ▼", button.label)
   end)
 
   it("wraps a FontString once however often it is handed over", function()
@@ -486,7 +498,7 @@ describe("client-font sinks", function()
 end)
 
 -- Every glyph GoldCap writes anywhere, against what the faces that draw it hold -- read from the
--- faces themselves (docs/addon/AGENTS.md, "Text"): the bundled JetBrains Mono, the client's
+-- faces themselves (docs/addon/AGENTS.md, "Text"): the bundled Fira faces (Fira Mono has · → ▲ ▼; Fira Sans and Fira Sans Condensed have · → and no triangles, so their text goes through GC.Util.ClientText), the client's
 -- FRIZQT__ and FRIZQT___CYR (menus, tooltips, labels), and 2002 and the two Kai faces (GoldCap's
 -- own frames on Korean and Chinese). A new glyph fails here until somebody has looked it up.
 describe("glyph inventory", function()
@@ -509,7 +521,7 @@ describe("glyph inventory", function()
 
   local function isLetter(cp)
     return (cp >= 0xC0 and cp <= 0x24F and cp ~= 0xD7 and cp ~= 0xF7) -- Latin-1 and Latin Extended
-      or (cp >= 0x370 and cp <= 0x52F)     -- Greek, Cyrillic
+      or (cp >= 0x400 and cp <= 0x45F) or cp == 0x490 or cp == 0x491 -- Cyrillic, as the Fira subset holds it
       or (cp >= 0x1100 and cp <= 0x11FF) or (cp >= 0x3130 and cp <= 0x318F) or (cp >= 0xAC00 and cp <= 0xD7AF) -- Hangul
       or (cp >= 0x3400 and cp <= 0x4DBF) or (cp >= 0x4E00 and cp <= 0x9FFF) or (cp >= 0xF900 and cp <= 0xFAFF) -- Han
       or (cp >= 0x3040 and cp <= 0x30FF)   -- kana
@@ -529,7 +541,7 @@ describe("glyph inventory", function()
 
   it("holds only glyphs the faces that draw them have", function()
     local files = {}
-    for _, dir in ipairs({ "Core", "UI", "Locale" }) do
+    for _, dir in ipairs({ "Core", "Services", "UI", "Locale" }) do
       for _, path in ipairs(luaFiles(dir)) do files[#files + 1] = path end
     end
     local problems, seen = {}, {}

@@ -52,6 +52,28 @@ local function region(kind, parent)
   function r:IsShown() return s.shown end
   function r:GetParent() return s.parent end
   function r:SetParent(p) s.parent = p end
+  -- Region:CreateAnimationGroup, down to what an Alpha pulse uses. The group's state is the
+  -- engine's, read back with IsPlaying, as the client does.
+  function r:CreateAnimationGroup()
+    local g, gs = {}, { playing = false, animations = {} }
+    STATE[g] = gs
+    function g:CreateAnimation(animationType)
+      local a = { kind = animationType }
+      function a:SetFromAlpha(v) self.from = v end
+      function a:SetToAlpha(v) self.to = v end
+      function a:SetDuration(v) self.duration = v end
+      function a:SetSmoothing(v) self.smoothing = v end
+      gs.animations[#gs.animations + 1] = a
+      return a
+    end
+    function g:SetLooping(v) gs.looping = v end
+    function g:Play() gs.playing = true; gs.plays = (gs.plays or 0) + 1 end
+    function g:Stop() gs.playing = false end
+    function g:IsPlaying() return gs.playing end
+    s.animationGroups = s.animationGroups or {}
+    s.animationGroups[#s.animationGroups + 1] = g
+    return g
+  end
   return r, s
 end
 
@@ -62,6 +84,9 @@ function W.Texture(parent)
   function t:SetTextureSliceMargins(...) s.slice = { ... } end
   function t:SetVertexColor(...) s.vertex = { ... } end
   function t:SetBlendMode(mode) s.blend = mode end
+  function t:SetTexCoord(...) s.texCoord = { ... } end
+  function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
+  function t:SetAlpha(a) s.alpha = a end
   return t
 end
 
@@ -92,7 +117,7 @@ function W.FontString(parent, inherits)
   return f
 end
 
--- CreateFrame's double. A Button is a Frame here: the specs that use it need no button method.
+-- CreateFrame's double. A Button is a Frame with the state methods Theme.Button calls.
 function W.CreateFrame(kind, _, parent)
   local f, s = region(kind or "Frame", parent)
   s.level = 1
@@ -111,6 +136,7 @@ function W.CreateFrame(kind, _, parent)
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end
+  function f:RegisterForDrag(...) s.drag = { ... } end
   function f:GetScript(name) return s.scripts[name] end
   function f:HookScript(name, fn) s.hooks = s.hooks or {}; s.hooks[name] = fn end
   function f:IsVisible()
@@ -127,10 +153,30 @@ function W.CreateFrame(kind, _, parent)
     STATE[fs].layer = layer
     return fs
   end
-  function f:CreateTexture(_, layer)
+  function f:CreateTexture(_, layer, _, sublevel)
     local t = W.Texture(f)
     STATE[t].layer = layer
+    STATE[t].sublevel = sublevel
     return t
+  end
+  -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
+  -- change, as the client does.
+  if s.kind == "Button" then
+    s.enabled = true
+    function f:RegisterForClicks(...) s.clicks = { ... } end
+    function f:SetPushedTexture(t) s.pushed = t end
+    function f:GetPushedTexture() return s.pushed end
+    function f:IsEnabled() return s.enabled end
+    function f:Enable()
+      if s.enabled then return end
+      s.enabled = true
+      if s.scripts.OnEnable then s.scripts.OnEnable(f) end
+    end
+    function f:Disable()
+      if not s.enabled then return end
+      s.enabled = false
+      if s.scripts.OnDisable then s.scripts.OnDisable(f) end
+    end
   end
   return f
 end

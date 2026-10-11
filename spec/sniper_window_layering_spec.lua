@@ -17,7 +17,7 @@ require("spec.spec_helper")
 describe("Sniper window layering", function()
   -- spec/sniper_panel_inset_spec.lua's own double, with the layering calls recorded instead
   -- of discarded. A blanket "every unknown method is a no-op" metatable was tried first and
-  -- is wrong for this construction path: SellFrame's layoutCells branches on `row.subItem`
+  -- is wrong for this construction path: UI/Sell/List.lua's layoutCells branches on `row.subItem`
   -- being nil for the header row, and a metatable that answers every field with a function
   -- makes that branch always true.
   local function stubFrame()
@@ -41,6 +41,7 @@ describe("Sniper window layering", function()
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       -- Check panel v3: the hero caption and the reconciliation note are fixed-height wrapped
@@ -83,6 +84,7 @@ describe("Sniper window layering", function()
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       -- Recorded, not discarded: layering IS this spec's subject.
       SetFrameStrata = function(self, strata) self.strata = strata end,
       GetFrameStrata = function(self) return self.strata or "MEDIUM" end,
@@ -135,6 +137,7 @@ describe("Sniper window layering", function()
   end
 
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then _G[name] = f end
@@ -171,7 +174,7 @@ describe("Sniper window layering", function()
   end
 
   after_each(function()
-    for _, name in ipairs({ "CreateFrame", "GoldCapSniperFrame", "UISpecialFrames", "SlashCmdList",
+    for _, name in ipairs({ "CreateFrame", "CreateColor", "GoldCapSniperFrame", "UISpecialFrames", "SlashCmdList",
       "C_AddOns", "GoldCap_MarketData", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "hooksecurefunc",
       "GetTime", "PlaySound", "SOUNDKIT", "C_Timer", "GetCoinTextureString", "GoldCapDB" }) do
       _G[name] = nil
@@ -195,6 +198,18 @@ describe("Sniper window layering", function()
     GC.Sniper.SetDocked(host)
     assert.equal("MEDIUM", frame.strata)
     assert.is_false(frame.toplevel)
+  end)
+
+  it("drops the window shadow while docked, so it cannot draw over the auction house's border", function()
+    local frame, GC = buildFrame()
+    local shadow = frame.windowPanel.shadow
+    assert.is_not_nil(shadow)
+    local host = stubFrame()
+    host:SetFrameStrata("MEDIUM")
+    GC.Sniper.SetDocked(host)
+    assert.is_false(shadow:IsShown())
+    GC.Sniper.SetDocked(nil)
+    assert.is_true(shadow:IsShown())
   end)
 
   -- The check drawer overlays the deals list on any window narrower than WIN.PANEL_SHIFT_MIN,

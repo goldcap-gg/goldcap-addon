@@ -828,7 +828,8 @@ end
 -- more time, not silently dropped a tick early.
 --
 -- F1 (lifecycle fix): NO LONGER prunes on `f.posted`. The old rule pruned a flip the instant
--- MarkFlipPosted fired (AUCTION_HOUSE_AUCTION_CREATED, see UI/SellFrame.lua's OnAuctionCreated)
+-- MarkFlipPosted fired (AUCTION_HOUSE_AUCTION_CREATED, see GC.Sell.OnAuctionCreated in
+-- Services/Sell/Post.lua)
 -- -- meaning the exact moment a player posted a lot, its cost basis vanished from db.flips and
 -- the live lot degraded to a basis-less orphan row (the Sell tab's old row model) for the
 -- REST of its time on the AH. Direct player requirement: the paid price must always stay
@@ -838,8 +839,8 @@ end
 -- outlive any realistic listing duration.
 --
 -- No SavedVariables migration needed for this change: the OLD rule pruned on every single
--- GetFlips() call (renderRows/uniqueQuoteItemIDs/currentIndexOf/SellableCount in
--- UI/SellFrame.lua all call it constantly), so a posted flip was removed from db.flips within
+-- GetFlips() call (the Sell tab's renderRows, GC.SellWalk.Queue, currentIndexOf and
+-- SellableCount all call it constantly), so a posted flip was removed from db.flips within
 -- one call of ever being marked -- no player's persisted db.flips can contain a lingering
 -- `posted = true` row from before this fix; there is nothing stale to migrate away from.
 function GC.Data.GetFlips(now)
@@ -912,7 +913,8 @@ local function evictLeastPosted(stats)
   if victimID then stats[victimID] = nil end
 end
 
---- Records one posting event for itemID -- called from UI/SellFrame.lua's OnAuctionCreated
+--- Records one posting event for itemID -- called from GC.Sell.OnAuctionCreated
+-- (Services/Sell/Post.lua)
 -- right after a post is confirmed via MarkFlipPosted. `itemName` refreshes the cached display
 -- name whenever a real (non-nil) one is passed -- RecordSaleEvent below has nothing else to key
 -- a sale against, so an entry's name needs to track the item's actual current name, not freeze

@@ -59,7 +59,7 @@ describe("Bindings.xml", function()
 
   -- The design forbids reaching the post through Button:Click(), which would carry this chunk's
   -- taint into a protected call. The binding must call the same function the button's OnClick
-  -- calls, and UI/SellFrame.lua must actually publish it under that name.
+  -- calls, and UI/Sell/Dock.lua must actually publish it under that name.
   it("calls the published function, never a button's Click method", function()
     local text = source()
     -- Plain find, not a pattern: an unescaped `(` would open a capture group and error out.
@@ -67,10 +67,10 @@ describe("Bindings.xml", function()
       "Bindings.xml calls Click() -- see the design's keybinding section for why that is wrong")
     assert.is_not_nil(text:find("GoldCapSniperFrame.GoldCapPostNext", 1, true))
 
-    local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
+    local file = assert(io.open("GoldCap/UI/Sell/Dock.lua", "r"))
     local lua = file:read("*a")
     file:close()
     assert.is_not_nil(lua:find("GoldCapPostNext", 1, true),
-      "Bindings.xml calls GoldCapPostNext but UI/SellFrame.lua never assigns it")
+      "Bindings.xml calls GoldCapPostNext but UI/Sell/Dock.lua never assigns it")
   end)
 end)

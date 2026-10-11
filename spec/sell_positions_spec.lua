@@ -37,9 +37,7 @@ describe("Sell positions", function()
   -- handed Build raw batches and did nothing at all in the client, because the client's own
   -- call site filters spent batches out before Build ever sees them.
   it("[wiring] the Sell tab actually supplies identity evidence to Build", function()
-    local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
-    local text = file:read("*a")
-    file:close()
+    local text = helper.sellSource()
     assert.is_truthy(text:find("GC.Acquisitions.GetIdentityEvidence(scope)", 1, true))
     assert.is_truthy(text:find("identityEvidence = identityEvidence", 1, true))
   end)
@@ -485,7 +483,7 @@ describe("Sell positions", function()
       -- cost across both tranches -- not just the expensive listed 24.
       assert.equal(121931900, p.knownCost)
       assert.equal("COMPLETE", p.coverage)
-      -- 121931900 / 118 = 1033321 remainder 22 (floor, same rounding SellFrame.lua's COST/UNIT
+      -- 121931900 / 118 = 1033321 remainder 22 (floor, same rounding UI/Sell/Row.lua's COST/UNIT
       -- column already applies) -- the real blended per-unit cost, nowhere near the 1708800
       -- (170g88s) the incident showed by only ever costing the listed slice.
       assert.equal(1033321, math.floor(p.knownCost / p.knownQty))

@@ -2,7 +2,7 @@ local helper = require("spec.spec_helper")
 
 -- Option (a) from the Task 1 brief: build a REAL Theme.Button against stubbed globals,
 -- the way the client would build it, rather than faking Theme.Button and asserting the
--- fake's own bookkeeping. Every spec that drives UI/SellFrame.lua fakes GC.Theme.Button
+-- fake's own bookkeeping. Every spec that drives the Sell view (UI/Sell/) fakes GC.Theme.Button
 -- with its own `function w:SetLabel(t) self.label = t end` (sell_widget_behavior_spec.lua,
 -- sell_action_safety_spec.lua, sell_bag_to_post_spec.lua, auto_verify_spec.lua,
 -- watch_loop_spec.lua, auction_house_tab_spec.lua) -- so ~10 assertions of the shape
@@ -39,9 +39,13 @@ describe("Theme.Button real-widget label contract", function()
     function f:SetFont(path, size, flags) self.font = { path, size, flags } end
     function f:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
     function f:SetColorTexture(...) self.colorTexture = { ... } end
+    function f:SetTexture(file) self.file = file end
+    function f:SetVertexColor(...) self.vertex = { ... } end
     function f:SetBlendMode(mode) self.blend = mode end
     function f:SetAllPoints(rel) self.allPoints = rel end
     function f:SetAlpha(a) self.alpha = a end
+    function f:SetPushedTexture(t) self.pushedTexture = t end
+    function f:SetTexCoord(...) self.texCoord = { ... } end
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
     function f:IsShown() return self.shown end
@@ -125,7 +129,7 @@ describe("Theme.Button real-widget label contract", function()
     assert.equal(1, btn.text.maxLines)
   end)
 
-  -- The exact failure mode: UI/SellFrame.lua's ACTION_HELP tooltip keys off
+  -- The exact failure mode: UI/Sell/Row.lua's ACTION_HELP tooltip keys off
   -- `self.label` inside the button's own OnEnter hook.
   it("makes a hand-rolled ACTION_HELP-style lookup work against the real widget", function()
     local ACTION_HELP = { Post = "Lists what is sitting in your bags." }

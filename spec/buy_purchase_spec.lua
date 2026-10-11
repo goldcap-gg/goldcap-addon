@@ -340,7 +340,7 @@ describe("BUY purchase", function()
   end)
 
   -- Caps fixes 4a, round 2: a search sent on top of an unanswered keys batch takes its answer
-  -- and comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game) -- an empty quote
+  -- and comes back empty itself (Services/Sell/Walk.lua's quote walk, seen in game) -- an empty quote
   -- here. So a hover waits for the batch (one still out from the Deals board, or this tab's own
   -- refresh) and is asked again once it is gone, while the line still has the focus.
   it("waits for an unanswered keys batch, then asks for the line still in focus", function()

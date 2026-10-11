@@ -111,7 +111,7 @@ describe("Live observations store", function()
     end
 
     it("the Sell quote walk records an observation when a quote resolves", function()
-      local text = fileText("GoldCap/UI/SellFrame.lua")
+      local text = helper.sellSource()
       assert.is_truthy(text:find("GC.Data.RecordLiveObservation(", 1, true))
       assert.is_truthy(text:find("GC.Book.Summarize(levels)", 1, true))
     end)

@@ -8,7 +8,6 @@ GC.Locales.itIT = {
     " %s  %s  x%d a %s l'uno  (%s in totale, %s di commissione)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion lo tiene aggiornato: /goldcap companion.",
-  [" · %d hidden"] = " · %d nascosti",
   [" · %d keys"] = " · %d chiavi",
   [" · below cost"] = " · sotto il costo",
   [" · identity unresolved"] = " · identità non risolta",
@@ -62,7 +61,6 @@ GC.Locales.itIT = {
   ["%s → craft %d× (%d per craft)"] = "%s → crea %d× (%d per creazione)",
   ["%s+ ahead"] = "%s+ davanti",
   ["%s+, %d prices read"] = "%s+, %d prezzi letti",
-  [", %d hidden: hard to resell or under your min profit"] = ", %d nascosti: difficili da rivendere o sotto il tuo profitto minimo",
   ["..."] = "...",
   ["1 lot, %s asked"] = "1 lotto, richiesti %s",
   ["24h trend"] = "Andamento 24h",
@@ -649,6 +647,7 @@ GC.Locales.itIT = {
   ["craft it yourself"] = "crealo tu",
   ["craft it · %s each"] = "crealo · %s l'uno",
   ["craft it: %s = %s each"] = "crealo: %s = %s l'uno",
+  ["deals %s · items %s · filtered %s"] = "occasioni %s · oggetti %s · scartate %s",
   ["done"] = "fatto",
   ["from %s"] = "di %s",
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
@@ -721,8 +720,6 @@ GC.Locales.itIT = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Costa %s. Con il tuo limite per acquisto del %d%% ti servono %s su questo personaggio.",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "scansione completa già in corso",
-  ["full scan complete: %d deal%s from %d item group%s%s"] =
-    "scansione completa terminata: %d occasion%s da %d grupp%s di oggetti%s",
   ["full scan interrupted -- confirm your purchase"] =
     "scansione completa interrotta -- conferma il tuo acquisto",
   ["full scan stalled -- press Full Scan to retry"] =
@@ -858,11 +855,8 @@ GC.Locales.itIT = {
     "eliminati %d registri di vendita duplicati lasciati da un errore nella lettura della posta",
   ["sale name ambiguous"] = "nome della vendita ambiguo",
   ["sale proceeds pending"] = "ricavo della vendita in attesa",
-  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
-    "scansione completata: %d affare%s da %d oggetto%s tra materiali, consumabili, gemme, incantesimi%s",
   ["scanned %d listings over %d passes"] = "scansionate %d vendite in %d passaggi",
   ["scanning auction house..."] = "scansione della casa d'aste...",
-  ["scanning… %d results · %d deals%s"] = "scansione… %d risultati · %d occasioni%s",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "vende %s/giorno",

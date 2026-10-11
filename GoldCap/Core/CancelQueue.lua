@@ -19,8 +19,9 @@ local _, GC = ...
 --     competitive: cancelling it burns a deposit for nothing, so it is never queued, no matter
 --     what the advice says about the position as a whole.
 -- At click time nothing from an entry is trusted anyway: the control hands the click to
--- UI/SellFrame.lua's onRepostClick, whose pin validation re-derives the plan from live owned
--- lots and a fresh quote, with its own two-click arm and its own timeout. Copy, don't compute.
+-- UI/Sell/Dock.lua's onRepostClick, whose pin validation (GC.SellPost.PrepareCancel) re-derives
+-- the plan from live owned lots and a fresh quote, with its own two-click arm and its own
+-- timeout. Copy, don't compute.
 GC.CancelQueue = {}
 
 local MAX_EXACT = 9007199254740991

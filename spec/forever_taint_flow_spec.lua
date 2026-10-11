@@ -241,6 +241,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
   local function loadClient(retail)
     model = newModel()
     local frames = {}
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       frames[#frames + 1] = f
@@ -333,7 +334,7 @@ describe("A tainted auction house ticker never reaches a purchase click", functi
   local function loadForever() return loadClient(false) end
 
   after_each(function()
-    for _, name in ipairs({ "CreateFrame", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
+    for _, name in ipairs({ "CreateFrame", "CreateColor", "GoldCapSniperFrame", "GoldCapAuctionHouseDock",
       "UISpecialFrames", "SlashCmdList", "C_AddOns", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2",
       "hooksecurefunc", "GetTime", "GetMoney", "PlaySound", "SOUNDKIT", "C_Timer", "C_CurrencyInfo",
       "ITEM_QUALITY_COLORS", "Item", "GoldCapDB", "GetBuildInfo", "C_AuctionHouse" }) do

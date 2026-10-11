@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- Fix round (C1/I1 on the toolbar rework): `status` is a shared cross-view channel --
--- SellFrame.lua's setStatus routes ~40 user-facing messages through it -- and must survive
+-- UI/Sell/Dock.lua's setStatus routes ~40 user-facing messages through it -- and must survive
 -- setView's Deals-only chrome toggle, while `sessionText` must never be left showing a stale
 -- or zero-buy figure. Self-contained per house style; reaches setView/refreshSessionText the
 -- same debug.getupvalue way spec/auto_verify_spec.lua and spec/sniper_pin_feedback_spec.lua
@@ -34,6 +34,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     function w:IsShown() return self.shown end
     function w:SetActive(active) self.active = active end
     function w:SetText(text) self.text = text end
+    function w:GetText() return self.text end
     function w:SetTextColor(...) self.color = { ... } end
     return w
   end
@@ -81,7 +82,10 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     _G.GetCoinTextureString, _G.ITEM_QUALITY_COLORS = nil, nil
   end)
 
-  it("status stays shown after switching off Deals -- it is a shared cross-view channel, not deals-only chrome", function()
+  -- Seen in WoW: Forever (2026-10-09), once the window's glass stopped hiding it: on Sell the line
+  -- sat over MY LOTS. Sell says each message in its own dock, and still writes this line (Dock.lua's
+  -- setStatus), so it is kept to Deals, and a message Sell left in it is not shown on the board.
+  it("shows the status line on Deals only, without a message the Sell tab left in it", function()
     local GC = loadSniper()
     -- createFrame is a direct upvalue of OnAuctionHouseShow (it calls `frame = frame or
     -- createFrame()`); setView is a direct upvalue of createFrame (its rail buttons' OnClick
@@ -91,11 +95,9 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     local setView = upvalue(createFrame, "setView")
 
     local status = widget()
-    status.shown = true -- SellFrame.setStatus keeps writing through this while Sell is showing
+    status.shown = true
     local fakeFrame = {
       scroll = widget(), headerRow = widget(),
-      -- Deals-only widgets ONLY -- status is deliberately absent, matching the real
-      -- f.dealsChrome built in createFrame after the C1 fix.
       dealsChrome = { widget(), widget(), widget(), widget(), widget() },
       dealsTab = widget(), sellTab = widget(), soldTab = widget(), buyTab = widget(),
       status = status,
@@ -103,8 +105,18 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     set(setView, "frame", fakeFrame)
 
     setView("sell")
+    assert.is_false(status.shown)
 
+    status:SetText("Refreshing listings…")
+    GC.Sell._lastStatus = "Refreshing listings…"
+    setView("deals")
     assert.is_true(status.shown)
+    assert.equal("", status.text)
+
+    status:SetText("scanning auction house...")
+    setView("sell")
+    setView("deals")
+    assert.equal("scanning auction house...", status.text)
   end)
 
   it("refreshSessionText hides the session block when the session has zero buys", function()
@@ -267,6 +279,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
+      SetGradient = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
       SetWidth = function() end,
@@ -303,6 +316,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
       SetFont = function() end,
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
+      SetPushedTexture = function() end,
       SetFrameStrata = function() end,
       -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
       -- HIGH + toplevel while floating, the host's strata while docked.
@@ -352,6 +366,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
   end
 
   local function buildFrame()
+    _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then
@@ -395,7 +410,7 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
   end
 
   local function teardown()
-    _G.CreateFrame = nil
+    _G.CreateFrame, _G.CreateColor = nil, nil
     _G.GoldCapSniperFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil
@@ -440,6 +455,29 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
   -- 0.9.2's board switch: two chips at the top of the deals board, built exactly like the Sell
   -- tab's own deck switch and carried in f.dealsChrome, so they leave with the rest of the
   -- Deals-only chrome rather than sitting over the Sell tab meaning nothing.
+  -- The real window: setView hides the Sold tab on every switch, and Sold.Hide used to show the
+  -- line again after setView had hidden it, so Sell came up with it over MY LOTS.
+  it("keeps the status line off every tab but Deals, and writes it again when Deals comes back", function()
+    local frame = buildFrame()
+    local status = frame.status
+    status.shown, status.text, status.writes = true, "scanning auction house...", {}
+    status.Show = function(self) self.shown = true end
+    status.Hide = function(self) self.shown = false end
+    status.SetText = function(self, text) self.text = text; self.writes[#self.writes + 1] = text end
+    status.GetText = function(self) return self.text end
+
+    for _, tab in ipairs({ "sellTab", "buyTab", "sellTab" }) do
+      frame[tab].scripts.OnClick()
+      assert.is_false(status.shown, tab)
+    end
+    -- A Deals scan writes the line behind the other tabs too.
+    status:SetText("scanning auction house...")
+    status.writes = {}
+    frame.dealsTab.scripts.OnClick()
+    assert.is_true(status.shown)
+    assert.same({ "", "scanning auction house..." }, status.writes)
+  end)
+
   it("hides the board chips with the rest of the Deals chrome, and brings them back", function()
     local frame = buildFrame()
     assert.is_table(frame.boardChips)

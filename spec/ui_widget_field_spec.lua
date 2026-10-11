@@ -1,4 +1,4 @@
-require("spec.spec_helper")
+local helper = require("spec.spec_helper")
 
 -- busted runs headless, with no WoW globals, so every spec builds its own widget doubles. Those
 -- doubles are repeatedly RICHER than the real widget, and each time that happens a green test
@@ -15,12 +15,11 @@ require("spec.spec_helper")
 -- the next one: production code may not read a field that only the doubles define.
 --
 -- Comments are stripped before matching, so the explanations above (and the one at the call site
--- in UI/SellFrame.lua) do not trip it. Stripping is a plain `--` to end-of-line cut, which can
+-- in UI/Sell/Dock.lua) do not trip it. Stripping is a plain `--` to end-of-line cut, which can
 -- also truncate a string literal containing `--`; that can only ever cause this spec to scan
 -- LESS text, never to invent a hit, so it is safe in the direction that matters.
 describe("widget fields the real client actually has", function()
   local SOURCES = {
-    "GoldCap/UI/SellFrame.lua",
     "GoldCap/UI/SoldFrame.lua",
     "GoldCap/UI/SniperFrame.lua",
     "GoldCap/UI/SettingsFrame.lua",
@@ -39,7 +38,9 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/BuyAddBox.lua",
     "GoldCap/UI/BuyVendorPanel.lua",
   }
+  for _, path in ipairs(helper.SELL_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
 
+  for _, path in ipairs(helper.SELL_UI_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
   -- Every field the widget doubles in spec/sell_widget_behavior_spec.lua and friends invent for
   -- their own bookkeeping. A real Frame/FontString/Button exposes none of them; each has a
   -- method that answers the same question, named beside it here so a failure says what to use.

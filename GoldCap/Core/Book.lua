@@ -95,7 +95,7 @@ end
 --
 -- `levels` itself is already censored before it reaches here: both callers build it via a
 -- client read capped at LIM.MAX_BOOK_LEVELS = 100 (driver.commodityBook in SniperFrame.lua,
--- boundedLevels in SellFrame.lua), because that is all the API hands back in one page. On a
+-- boundedLevels in Services/Sell/Quotes.lua), because that is all the API hands back in one page. On a
 -- book deeper than that, this function only ever sees the cheapest 100 rows -- so `listings`
 -- saturates at 100 rather than reporting the book's real depth, and `totalQty` is a floor on
 -- the shelf (the sum of what was readable), not the true total. A phase-2 anchor consuming

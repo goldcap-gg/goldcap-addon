@@ -51,6 +51,7 @@ describe("SoldFrame", function()
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
     function r:RegisterForClicks() end
+    function r:SetPushedTexture(t) self.pushedTexture = t end
     function r:Enable() end
     function r:Disable() end
     function r:SetScrollChild() end
@@ -794,19 +795,16 @@ describe("SoldFrame", function()
     end)
   end)
 
-  it("hides the window's shared status line while it is up, and hands it back drawn", function()
+  -- The window's status line belongs to the Sniper's setView (Deals only). Handing it back shown
+  -- on the way out put it over the Sell tab's MY LOTS (seen 2026-10-09).
+  it("leaves the window's status line to the window", function()
     local status = region("FontString", host)
-    status:SetText("scanning auction house...")
+    status:Hide()
     host.status = status
     GC.Sold.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -36, bottom = 12, rowWidth = 600, rowHeight = 32 })
     show()
-    assert.is_false(status:IsShown())
-    local writes = {}
-    local orig = status.SetText
-    status.SetText = function(self, text) writes[#writes + 1] = text; return orig(self, text) end
     GC.Sold.Hide()
-    assert.is_true(status:IsShown())
-    assert.same({ "", "scanning auction house..." }, writes)
+    assert.is_false(status:IsShown())
   end)
 
   describe("the headings", function()

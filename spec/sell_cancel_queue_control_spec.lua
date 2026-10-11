@@ -42,24 +42,6 @@ describe("Sell tab, the cancel queue control", function()
   end
 
   local now
-  local function upvalue(fn, wanted)
-    for i = 1, math.huge do
-      local n, val = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then return val end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
-  local function set(fn, wanted, value)
-    for i = 1, math.huge do
-      local n = debug.getupvalue(fn, i)
-      if not n then break end
-      if n == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- One live lot: 400 Sanguithorn Tea listed at 2g73s against a market that has moved to
   -- 1g98s -- the undercut-leftover shape the queue exists for. The paid basis (1g/unit,
   -- recorded below) sits far under the relist price, so RepostAdvice says "repost".
@@ -114,7 +96,7 @@ describe("Sell tab, the cancel queue control", function()
     helper.loadModule("Core/PostQueue.lua", GC)
     helper.loadModule("Core/CancelQueue.lua", GC)
     helper.loadModule("UI/SellViewModel.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
     GC.Acquisitions.Init({})
     -- The cost basis that makes coverage COMPLETE and the repost advice computable: 400 units
     -- at 1g each, well under the 1g98s relist price.
@@ -127,16 +109,12 @@ describe("Sell tab, the cancel queue control", function()
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
-    render = upvalue(GC.Sell.Attach, "renderRows")
-    container = upvalue(render, "container")
+    render = GC.SellUI.List.RenderRows
+    container = GC.SellUI.container
     -- The cancel queue is the LISTED deck's bulk action and shares its footer slot with the
     -- post queue's, so it is hidden on the post deck the tab opens on. Every test in this file
     -- is about that control, which means the listed deck is where they all belong.
-    for i = 1, math.huge do
-      local name = debug.getupvalue(render, i)
-      if not name then break end
-      if name == "filterMode" then debug.setupvalue(render, i, "listed"); break end
-    end
+    GC.SellState.filterMode = "listed"
     container:Show()
     GC.Sell.OnOwnedAuctions() -- what stamps the module-local ownedLots from GetOwnedAuctions
   end)
@@ -147,15 +125,15 @@ describe("Sell tab, the cancel queue control", function()
   end)
 
   local function compose()
-    upvalue(GC.Sell.SellableCount, "composePositions")()
+    GC.SellCompose.Positions()
   end
 
   local function quotes()
-    return upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    return GC.SellState.quotes
   end
 
   local function armedLotRow()
-    for _, row in ipairs(upvalue(render, "rows")) do
+    for _, row in ipairs(GC.SellUI.rows) do
       if row.kind == "lot" and row.lot and row.lot.auctionID == 77 then return row end
     end
     return nil
@@ -231,7 +209,7 @@ describe("Sell tab, the cancel queue control", function()
 
     -- The list is now the cancel queue: head position at row 1, force-expanded so the head's
     -- own lot row (the thing onRepostClick pins to) is rendered further down.
-    local rows = upvalue(render, "rows")
+    local rows = GC.SellUI.rows
     assert.equal("position", rows[1].kind)
     assert.equal("commodity:23427", rows[1].position.positionKey)
     local lotRow = armedLotRow()
@@ -282,7 +260,7 @@ describe("Sell tab, the cancel queue control", function()
     end
 
     local function lotShown()
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown == true and (row.kind == "lot" or row.kind == "position") then return true end
       end
       return false
@@ -309,7 +287,7 @@ describe("Sell tab, the cancel queue control", function()
       local asked = 0
       _G.C_AuctionHouse.QueryOwnedAuctions = function() asked = asked + 1 end
       GC.Sniper = { IsAHOpen = function() return true end, IsBusy = function() return false end }
-      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", { isReady = function() return true end })
+      GC.SellQuotes.driver = { isReady = function() return true end }
       cancelHead()
       GC.Sell.Tick(); GC.Sell.Tick()
       assert.equal(1, asked)
@@ -340,14 +318,14 @@ describe("Sell tab, the cancel queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose(); render()
       local action
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then action = row.action end
       end
       action.scripts.OnClick(action)
       assert.equal("Cancel lot?", action.label)
       assert.is_false(action.enabled) -- until the arm's delay has passed, like the lot's own
       armedLotRow().repostReady = true
-      upvalue(GC.Sell.Attach, "paintCancelButton")()
+      GC.SellUI.Dock.PaintCancelButton()
       assert.is_true(action.enabled)
       action.scripts.OnClick(action)
       assert.equal(1, cancelCalls)
@@ -366,13 +344,13 @@ describe("Sell tab, the cancel queue control", function()
       local lotRow = armedLotRow()
       assert.equal("armed", lotRow.repostStage)
       local position
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.shown and row.kind == "position" then position = row end
       end
       position.scripts.OnClick(position) -- the open position's own row: shut it
       assert.is_nil(lotRow.repostStage)
       assert.equal(0, cancelCalls)
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         assert.is_false(row.shown == true and row.kind == "lot")
       end
     end)
@@ -384,7 +362,7 @@ describe("Sell tab, the cancel queue control", function()
   describe("the deck as designed", function()
     local function shownRows()
       local out = {}
-      for _, row in ipairs(upvalue(render, "rows")) do
+      for _, row in ipairs(GC.SellUI.rows) do
         if row.IsShown and row:IsShown() then out[#out + 1] = row end
       end
       return out

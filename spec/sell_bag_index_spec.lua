@@ -38,7 +38,7 @@ describe("Sell tab bag snapshot", function()
     GC = { Sell = {}, Theme = { color = {}, pad = {} } }
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Acquisitions.lua", GC)
-    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadSell(GC)
   end)
 
   after_each(function()

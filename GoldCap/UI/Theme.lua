@@ -3,33 +3,29 @@ local _, GC = ...
 GC.Theme = GC.Theme or {}
 local T = GC.Theme
 
+-- The names every window reads, drawn from UI/Kit/Tokens.lua. Each keeps its meaning: `red` and
+-- `green` are what TEXT wears (a loss, a profit), `redFill` is what a BUTTON is filled with,
+-- `cost` is a price paid, `hover` is the gold wash a row wears under the cursor, `watch` is a
+-- state that persists while you look elsewhere (the player's own lots) and so has its own colour.
+local K = GC.Kit.Tokens.color
+local function rgb(color) return { color[1], color[2], color[3] } end
 T.color = {
-  bg      = { 0.051, 0.055, 0.071 },
-  panel   = { 0.078, 0.086, 0.110 },
-  panelHi = { 0.102, 0.114, 0.141 },
-  border  = { 1, 1, 1, 0.06 },
-  gold    = { 0.831, 0.643, 0.216 },
-  goldHi  = { 0.910, 0.757, 0.353 },
-  fg      = { 0.92, 0.91, 0.89 },
-  fgMuted = { 0.72, 0.71, 0.69 },
-  fgDim   = { 0.55, 0.54, 0.52 },
-  -- The design's pairs, like gold/goldHi: `red` and `green` are what TEXT wears (a loss, a
-  -- profit), lifted so they read on a panel this dark -- a loss in the fill red was a murky
-  -- brick, and a profit in pure (0.25, 0.85, 0.25) green was the one neon thing on the screen.
-  -- `redFill` is what a BUTTON is filled with (danger below), under near-black lettering.
-  red     = { 0.941, 0.404, 0.420 },
-  redFill = { 0.898, 0.283, 0.302 },
-  green   = { 0.373, 0.827, 0.553 },
-  -- What a unit cost: a muted gold, so a price paid never competes with a price asked.
-  cost    = { 0.788, 0.663, 0.341 },
-  zebra   = { 1, 1, 1, 0.04 },
-  -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
-  -- reads as "grayer", while a gold wash reads as "this is the row you are on".
-  hover   = { 0.831, 0.643, 0.216, 0.16 },
-  -- "The watch loop is polling this row." Its own colour on purpose: gold already means the
-  -- cursor is here, and green and red already mean profit and loss. A state that persists
-  -- while you look elsewhere cannot borrow a colour that means something else.
-  watch   = { 0.35, 0.72, 0.90 },
+  bg      = rgb(K.windowBottom),
+  panel   = rgb(K.windowTop),
+  panelHi = rgb(K.raised),
+  border  = K.glassBorder,
+  gold    = rgb(K.gold),
+  goldHi  = rgb(K.goldText),
+  fg      = rgb(K.text1),
+  fgMuted = rgb(K.text2),
+  fgDim   = rgb(K.text3),
+  red     = rgb(K.loss),
+  redFill = rgb(K.lossFill),
+  green   = rgb(K.profit),
+  cost    = rgb(K.cost),
+  zebra   = { 1, 1, 1, 0.035 },
+  hover   = { K.gold[1], K.gold[2], K.gold[3], 0.16 },
+  watch   = rgb(K.yours),
 }
 
 T.tier = {
@@ -42,327 +38,12 @@ T.tier = {
 T.pad = { xs = 4, s = 8, m = 12, l = 16 }
 T.ROW_H = 32
 
-T.FONT_MONO = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Regular.ttf"
-T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
-
--- The bundled monospace face covers Latin, Greek and all of Cyrillic (verified from its cmap,
--- so Russian and Ukrainian need nothing here) and no CJK at all. On Korean and both Chinese
--- locales anything drawn with it would be empty boxes, so those locales draw in one of
--- Blizzard's own faces for the script instead -- see CJK_FACES below for which, and for why
--- "the client's own font" is NOT the same thing.
---
--- This covers T.Num too, not just buttons and chips. T.Num draws the column headers and band
--- labels as well as the figures, so leaving it on the bundled face would render those headers
--- as empty boxes on exactly the locales this batch exists for. The trade is real and taken
--- deliberately: on CJK the digits stop being monospaced, so number columns line up by their
--- RIGHT anchor rather than by character width. Boxes would be worse.
---
--- T.Label already does the equivalent by inheriting GameFontHighlightSmall; this is the same
--- idea for the places that ask for the mono face by name.
-local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
-
--- Locales the CLIENT's own face can only draw when the client itself runs them. A client
--- font always covers Latin, plus exactly the script of the locale it shipped for -- so an
--- English client's FRIZQT__.TTF draws German and Spanish, and nothing else here. Which is
--- not the same as the client having no face for those scripts at all: see CJK_FACES.
-local NON_LATIN_LOCALES = { ruRU = true, ukUA = true, koKR = true, zhCN = true, zhTW = true }
-
-T.FONT_UI = T.FONT_MONO
-T.FONT_UI_BOLD = T.FONT_MONO_BOLD
-
--- The face T.Label draws with, or nil to keep the one it inherits from
--- GameFontHighlightSmall. Nil is the normal answer and the one that preserves the kit's
--- look: prose and item names in the game's own face, figures and headers in the mono.
---
--- It stops being the right answer the moment the addon speaks a language the client does
--- not. That is not an edge case -- it is what the language picker is FOR (there is no
--- Ukrainian client at all), and it shipped broken: on an English client, choosing Russian
--- turned every Label in the addon into empty boxes while the mono-faced numbers beside
--- them read fine, because FRIZQT__.TTF has no Cyrillic. Measured, not assumed.
-T.FONT_LABEL = nil
-
-local function clientLocale()
-  local ok, code = pcall(function() return GetLocale and GetLocale() end)
-  return ok and type(code) == "string" and code ~= "" and code or nil
-end
-
--- Blizzard's locale faces live in the CLIENT's own data, not in the locale install -- probed
--- in-game on an enUS-only install 2026-08-28: Fonts\ARKai_T.ttf, Fonts\ARHei.ttf,
--- Fonts\2002.TTF, Fonts\2002B.TTF and Fonts\bKAI00M.ttf all load; bLEI00D, bHEI01B,
--- bHEI00M and ARKai_C do not. Reading "the client's own face" instead (GameFontNormal) hands
--- back Fonts\FRIZQT__.TTF there, which has no CJK at all -- so the whole interface drew empty
--- boxes while the language picker beside it drew 한국어 and 简体中文 perfectly, and the
--- "your game client has no font for this language" warning printed in flawless Korean.
--- Blizzard's own font OBJECTS reach these faces; our SetFont(path) pinned the latin one.
---
--- Ordered best-first per locale and PROBED, never assumed: an install missing one has to fall
--- through to the next face of the SAME script before borrowing another's, and an install
--- missing all of them keeps the old answer rather than blanking the kit. The regular/bold
--- split mirrors Blizzard's own roman->CJK mapping, so bold stays a real weight where the
--- script has one instead of collapsing into the regular face.
-local CJK_FACES = {
-  koKR = { regular = { "2002.TTF" }, bold = { "2002B.TTF", "2002.TTF" } },
-  zhCN = { regular = { "ARKai_T.ttf", "ARHei.ttf" }, bold = { "ARHei.ttf", "ARKai_T.ttf" } },
-  zhTW = {
-    regular = { "bLEI00D.ttf", "bKAI00M.ttf", "ARKai_T.ttf" },
-    bold = { "bHEI01B.ttf", "bKAI00M.ttf", "ARHei.ttf" },
-  },
-}
-
--- One scratch FontString, built once and never shown, purely to ask the engine whether a face
--- loads: SetFont returns false for a file this client does not have. pcall throughout because
--- this runs at ADDON_LOADED and must degrade to "no face found" rather than error -- and
--- because only an explicit `true` counts, a client whose SetFont returns nothing leaves the
--- previous behaviour exactly as it was instead of losing a face that already worked.
-local probeFontString, faceCache = nil, {}
-local function faceLoads(path)
-  if not probeFontString then
-    local ok, fs = pcall(function()
-      return _G.UIParent and _G.UIParent:CreateFontString(nil, "OVERLAY")
-    end)
-    if not ok or not fs then return false end
-    probeFontString = fs
-  end
-  local cached = faceCache[path]
-  if cached ~= nil then return cached end
-  local ok, valid = pcall(probeFontString.SetFont, probeFontString, path, 12, "")
-  local loads = (ok and valid == true) and true or false
-  faceCache[path] = loads
-  return loads
-end
-
---- First face in `list` this client actually has, or nil.
-local function firstFace(list)
-  if not list then return nil end
-  for _, file in ipairs(list) do
-    local path = "Fonts\\" .. file
-    if faceLoads(path) then return path end
-  end
-  return nil
-end
-
---- False only when NOTHING in the client can draw `code`. Cyrillic is always drawable (the
--- bundled face covers it); CJK is drawable exactly when one of Blizzard's own faces for that
--- script is present. Derived from the same probe RefreshFonts uses, so the picker can no
--- longer warn that a client cannot draw a language while the menu item under the cursor is
--- drawing it.
-function T.LocaleIsDrawable(code)
-  if not NON_LATIN_LOCALES[code] then return true end
-  if code == clientLocale() then return true end
-  if not CJK_LOCALES[code] then return true end
-  local faces = CJK_FACES[code]
-  return firstFace(faces and faces.regular) ~= nil
-end
-
-function T.RefreshFonts(code)
-  -- Latin needs nothing; a script the client shipped for needs nothing. Cyrillic comes from
-  -- the bundled face, which covers it. CJK the bundled face cannot help with at all, so Label
-  -- follows whatever FONT_UI settles on below -- one script, one face, rather than a second
-  -- answer that would only be a second guess.
-  --
-  -- Spelled as an if, not `cond and nil or T.FONT_MONO`: that idiom cannot yield nil in Lua,
-  -- so it silently forced the mono face on every locale.
-  if not NON_LATIN_LOCALES[code] or code == clientLocale() then
-    T.FONT_LABEL = nil
-  else
-    T.FONT_LABEL = T.FONT_MONO
-  end
-
-  if not CJK_LOCALES[code] then
-    T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
-    return T.FONT_UI
-  end
-  -- The face for the SCRIPT, taken from the client's own data (see CJK_FACES). This is the
-  -- answer whenever the client has it, including on a client already running that language --
-  -- there it resolves to the same file GameFontNormal would have named.
-  local faces = CJK_FACES[code]
-  local regular = firstFace(faces and faces.regular)
-  if regular then
-    T.FONT_UI = regular
-    T.FONT_UI_BOLD = firstFace(faces.bold) or regular
-    T.FONT_LABEL = T.FONT_UI
-    return T.FONT_UI
-  end
-  -- Nothing for that script in this install. GameFontNormal is one of the client's own Font
-  -- objects, so its path is whatever face the running client uses for its locale -- right on a
-  -- CJK client, and the least-wrong latin face anywhere else. pcall because a Font object is
-  -- not guaranteed to be there at every point in load order, and an unreadable one must
-  -- degrade to a face that at least draws Latin rather than blanking the interface.
-  local ok, path = pcall(function()
-    return _G.GameFontNormal and _G.GameFontNormal:GetFont()
-  end)
-  if ok and type(path) == "string" and path ~= "" then
-    T.FONT_UI, T.FONT_UI_BOLD = path, path
-  else
-    T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
-  end
-  -- CJK: the bundled face has no glyphs at all, so Label draws in whatever FONT_UI just
-  -- settled on. Set explicitly rather than left nil, because the inherited
-  -- GameFontHighlightSmall is not necessarily the same face this just chose.
-  T.FONT_LABEL = T.FONT_UI
-  return T.FONT_UI
-end
-
-local scale, hooks = 1.0, {}
-
--- Widget-bound re-fonting (Chip/Num fontstrings, created afresh on every row/cell) is
--- tracked as DATA in a weak-KEYED table, never as a closure. Lua 5.1 (WoW's runtime) has
--- no ephemeron tables: a weak-keyed table only collects an entry once NOTHING reachable
--- still points at the key, and that includes the entry's own VALUE. A closure stored as
--- the value captures the FontString (its key) as an upvalue -- e.g. `function() fs:SetFont(...)
--- end` -- so the value keeps its own key alive forever and the entry never collects. The
--- fix is to store a plain data table `{ path, size }` that holds NO reference back to the
--- FontString (or any parent frame): once nothing else references the FontString, the
--- weak-keyed entry is free to collect on the next GC cycle. SetScale does the SetFont
--- call itself, in its own scope, using the stored data.
-local widgetFonts = setmetatable({}, { __mode = "k" })
-
-function T.Scale()
-  return scale
-end
-
-function T.OnRescale(fn)
-  hooks[#hooks + 1] = fn
-end
-
-local function applyFont(fs, info)
-  if not info.path then return end
-  -- Flags come from the widget, not from "": a Label inherits its outline from
-  -- GameFontHighlightSmall, and passing "" here used to strip it off every label the first
-  -- time the font-scale slider moved.
-  pcall(fs.SetFont, fs, info.path, info.size * scale, info.flags or "")
-end
-
---- Moves ONE already-built widget onto the face in force now, and pins it there (a later
--- rescale keeps it). Deliberately not a wholesale pass over every widget: the text on screen
--- is still written in the language it was built in, and moving all of it onto the new script's
--- face is actively worse -- switching from Ukrainian to Korean drew the still-Ukrainian
--- interface in Fonts\2002.TTF, which has Cyrillic but no і, є or ї, so half the words came
--- back with boxes punched through the middle of them. A face has to match the text it draws,
--- and the text only changes on the /reload the picker asks for.
---
--- The exception is a widget whose text is rewritten in the new language right there and then.
--- That is the Settings language button, and it is the one that matters most: picking Korean
--- wrote Hangul into a FontString still pinned to the bundled latin mono, so the control that
--- had just been used read as three empty diamonds.
-function T.RefontWidget(fs)
-  local info = fs and widgetFonts[fs]
-  if not info then return end
-  local role = info.role
-  local path
-  if role == "mono" then path = T.FONT_MONO_BOLD       -- the brand "G": latin, always
-  elseif role == "uiBold" then path = T.FONT_UI_BOLD
-  elseif role == "label" then path = T.FONT_LABEL or info.inherited
-  else path = T.FONT_UI end
-  if not path then return end
-  info.path = path
-  applyFont(fs, info)
-end
-
-function T.SetScale(s)
-  scale = math.max(0.9, math.min(1.3, s or 1.0))
-  if GC.db and GC.db.settings and GC.db.settings.sniper then
-    GC.db.settings.sniper.fontScale = scale
-  end
-  -- Fonts first: a hook lays its tab out again and measures its strings, which must already be
-  -- at the new size -- measured at the old one, every fitted column came out too narrow.
-  for fs, info in pairs(widgetFonts) do
-    applyFont(fs, info)
-  end
-  for _, fn in ipairs(hooks) do
-    fn(scale)
-  end
-end
-
-local function solid(parent, layer, c)
-  local tx = parent:CreateTexture(nil, layer)
-  tx:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-  return tx
-end
-
-local function edgeBorder(f, c)
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local e = solid(f, "BORDER", c)
-    if side == "TOP" or side == "BOTTOM" then
-      e:SetPoint(side .. "LEFT")
-      e:SetPoint(side .. "RIGHT")
-      e:SetHeight(1)
-    else
-      e:SetPoint("TOP" .. side)
-      e:SetPoint("BOTTOM" .. side)
-      e:SetWidth(1)
-    end
-  end
-end
-
--- Panel: flat dark texture + 1px border.
-function T.Panel(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f.bg = solid(f, "BACKGROUND", T.color.panel)
-  f.bg:SetAllPoints()
-  edgeBorder(f, T.color.border)
-  return f
-end
-
-T.MEDIA = "Interface\\AddOns\\GoldCap\\Media\\"
+T.MEDIA = GC.Kit.MEDIA
 T.RAIL_W = 76
-
--- Rounded chrome comes from ONE white 64px rounded-rect PNG stretched with
--- SetTextureSliceMargins (nine-slice on a single texture, 10.2.0+ -- wiki:
--- API_TextureBase_SetTextureSliceMargins) and recolored via SetVertexColor.
--- White art + vertex color means one file serves every tint; regenerate the
--- PNGs with the project's gen_art.py, never edit them by hand. Margins are 24
--- of the 64px file so the 16px corners survive any widget size.
-local CARD_SLICE = 24
--- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8), used
--- for chrome like the 32px rail logo. Margins must stay below half the
--- smallest widget edge they're applied to, or nine-slice corners overlap and
--- notch -- which is also why the 14px badge below gets its own BADGE_SLICE
--- rather than reusing this one (12 is not below half of 14).
-local PLAQUE_SLICE = 12
--- badge.png (16px, radius 6): the rail-button badge is only 14px tall, so
--- even PLAQUE_SLICE (12) would exceed half its smallest edge (7) and notch
--- it. 6 < 14/2 satisfies the margin invariant above.
-local BADGE_SLICE = 6
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
 local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
-
-local function slicedTexture(parent, layer, file, c, margin)
-  local m = margin or CARD_SLICE
-  local tx = parent:CreateTexture(nil, layer)
-  tx:SetTexture(file)
-  tx:SetTextureSliceMargins(m, m, m, m)
-  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  return tx
-end
-
--- SlicedTexture: public wrapper around slicedTexture (default margin CARD_SLICE).
-function T.SlicedTexture(parent, layer, file, c, margin)
-  return slicedTexture(parent, layer, file, c, margin)
-end
-
--- Card: rounded panel (fill + 2px ring). The rounded sibling of T.Panel; use
--- it for chrome that should read as a surface, keep T.Panel for flat fills.
--- `small`: use plaque.png/plaque_ring.png (radius 8, PLAQUE_SLICE margins)
--- instead of card.png/ring.png (radius 16, CARD_SLICE margins) -- for chrome
--- small enough that the 24px card margins would overlap and notch.
-function T.Card(parent, fill, border, small)
-  local f = CreateFrame("Frame", nil, parent)
-  local bgFile = small and (T.MEDIA .. "plaque.png") or (T.MEDIA .. "card.png")
-  local ringFile = small and (T.MEDIA .. "plaque_ring.png") or (T.MEDIA .. "ring.png")
-  local margin = small and PLAQUE_SLICE or nil
-  f.bg = slicedTexture(f, "BACKGROUND", bgFile, fill or T.color.panel, margin)
-  f.bg:SetAllPoints()
-  f.ring = slicedTexture(f, "BORDER", ringFile, border or T.color.border, margin)
-  f.ring:SetAllPoints()
-  function f:SetTint(fillC, borderC)
-    if fillC then f.bg:SetVertexColor(fillC[1], fillC[2], fillC[3], fillC[4] or 1) end
-    if borderC then f.ring:SetVertexColor(borderC[1], borderC[2], borderC[3], borderC[4] or 1) end
-  end
-  return f
-end
 
 -- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
 -- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
@@ -395,30 +76,17 @@ function T.QuietScrollBar(scroll)
   end
 end
 
--- Glow: additive halo hung `inset` px outside the parent's own rect. ADD
--- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
-function T.Glow(parent, c, inset)
-  local pad = inset or 14
-  local tx = parent:CreateTexture(nil, "BACKGROUND")
-  tx:SetTexture(T.MEDIA .. "glow.png")
-  tx:SetBlendMode("ADD")
-  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  tx:SetPoint("TOPLEFT", -pad, pad)
-  tx:SetPoint("BOTTOMRIGHT", pad, -pad)
-  return tx
-end
-
 -- Rail: the window's primary navigation. Big targets on purpose -- the old
 -- 50x18 ghost tabs were the main menu and read as decoration. Active state
 -- reuses setTabActive's functional contract: the current view's button is
 -- Disable()d (not clickable), visuals ride on top of that.
 local RAIL_BTN_W, RAIL_BTN_H = 60, 54
-local RAIL_FILL = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.13 }
-local RAIL_RING = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.40 }
-local RAIL_GLOW = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.14 }
-local BADGE_TEXT = { 0.05, 0.05, 0.06 }
+local RAIL_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local RAIL_RING = { K.gold[1], K.gold[2], K.gold[3], 0.38 }
+local RAIL_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.12 }
+local BADGE_TEXT = K.onGold
 
-function T.RailButton(parent, iconFile, labelText)
+function T.RailButton(parent, iconName, labelText)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(RAIL_BTN_W, RAIL_BTN_H)
   b:RegisterForClicks("LeftButtonUp")
@@ -426,26 +94,24 @@ function T.RailButton(parent, iconFile, labelText)
   b:EnableMouse(true)
 
   b.glow = T.Glow(b, RAIL_GLOW, 10)
-  b.bg = slicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
+  b.bg = T.SlicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
   b.bg:SetAllPoints()
-  b.ring = slicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
+  b.ring = T.SlicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
   b.ring:SetAllPoints()
 
   b.icon = b:CreateTexture(nil, "ARTWORK")
-  b.icon:SetTexture(iconFile)
+  T.SetIcon(b.icon, iconName)
   b.icon:SetSize(20, 20)
   b.icon:SetPoint("TOP", 0, -8)
 
-  b.text = b:CreateFontString(nil, "OVERLAY")
-  b.text:SetFont(T.FONT_UI_BOLD, 8 * T.Scale(), "")
+  b.text = T.Heading(b, 9.5)
   b.text:SetPoint("BOTTOM", 0, 7)
   b.text:SetText(labelText)
-  widgetFonts[b.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 8 }
 
   -- The same rounded card as the active fill, not a flat colour: a SetColorTexture wash filled
   -- the button's whole square, so hovering a rail button drew a square around the rounded
   -- plate the active one wears (owner, Forever beta 2026-10-01).
-  b.highlightTexture = slicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
+  b.highlightTexture = T.SlicedTexture(b, "HIGHLIGHT", T.MEDIA .. "card.png", HOVER_WASH)
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
 
@@ -459,15 +125,13 @@ function T.RailButton(parent, iconFile, labelText)
 
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
-  -- badge.png/BADGE_SLICE, not card.png/CARD_SLICE or plaque.png/PLAQUE_SLICE: the badge is
-  -- 14px tall and both of those margins exceed half that (see BADGE_SLICE's own comment).
-  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, BADGE_SLICE)
+  -- badge.png/T.SLICE.badge, not card.png/T.SLICE.card or plaque.png/T.SLICE.plaque: the badge is
+  -- 14px tall and both of those margins exceed half that (see T.SLICE.badge's own comment).
+  b.badge.bg = T.SlicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, T.SLICE.badge)
   b.badge.bg:SetAllPoints()
-  b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
-  b.badge.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
+  b.badge.text = T.Heading(b.badge, 9.5)
   b.badge.text:SetPoint("CENTER")
   b.badge.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[b.badge.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 }
   b.badge:Hide()
 
   function b:SetBadge(count)
@@ -503,13 +167,13 @@ end
 function T.Rail(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetWidth(T.RAIL_W)
-  -- card_left.png: left corners rounded to match the window card's own radius 16, right edge
+  -- card_left.png: left corners rounded to match the window card's own radius 12, right edge
   -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
   -- corners past the window's rounded top-left/bottom-left arcs.
-  local bg = slicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
+  local bg = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { 0, 0, 0, 0.22 })
   bg:SetAllPoints()
   local edge = frame:CreateTexture(nil, "BORDER")
-  edge:SetColorTexture(T.color.border[1], T.color.border[2], T.color.border[3], T.color.border[4])
+  edge:SetColorTexture(K.hairline[1], K.hairline[2], K.hairline[3], K.hairline[4])
   edge:SetPoint("TOPRIGHT")
   edge:SetPoint("BOTTOMRIGHT")
   edge:SetWidth(1)
@@ -526,18 +190,20 @@ function T.Rail(parent)
   logo.mark = logo:CreateTexture(nil, "ARTWORK")
   logo.mark:SetTexture(T.MEDIA .. "GoldCap")
   logo.mark:SetAllPoints()
+  -- A soft gold glow behind the mark, the window's one warm light.
+  logo.glow = T.Glow(logo, { K.gold[1], K.gold[2], K.gold[3], 0.22 }, 10)
   local LOGO_GAP = 14
 
   local buttons = {}
   local order = {
-    { key = "deals", icon = "icon_deals.png", label = "DEALS" },
-    { key = "sell", icon = "icon_sell.png", label = "SELL" },
-    { key = "sold", icon = "icon_sold.png", label = "SOLD" },
-    { key = "buy", icon = "icon_buy.png", label = "BUY" },
+    { key = "deals", icon = "deals", label = "DEALS" },
+    { key = "sell", icon = "sell", label = "SELL" },
+    { key = "sold", icon = "sold", label = "SOLD" },
+    { key = "buy", icon = "buy", label = "BUY" },
   }
   local prev = logo
   for i, item in ipairs(order) do
-    local b = T.RailButton(frame, T.MEDIA .. item.icon, item.label)
+    local b = T.RailButton(frame, item.icon, item.label)
     b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -LOGO_GAP or -T.pad.s)
     buttons[item.key] = b
     prev = b
@@ -545,15 +211,14 @@ function T.Rail(parent)
 
   -- "badge" rounded (margin 6, no ring -- see ROUNDED_BUTTON's own comment): 28px is the same
   -- size class as T.RailButton's own badge, and SetVariant("active") below (SettingsFrame.lua)
-  -- needs a rounded fill to switch, not the square edgeBorder look a bare "ghost" button has.
+  -- needs a rounded fill to switch, not the square T.EdgeBorder look a bare "ghost" button has.
   local gear = T.Button(frame, "ghost", "badge")
   gear:SetSize(28, 28)
   gear:SetPoint("BOTTOM", 0, 14)
   gear.icon = gear:CreateTexture(nil, "ARTWORK")
-  gear.icon:SetTexture(T.MEDIA .. "icon_gear.png")
+  T.SetIcon(gear.icon, "gear", T.color.fgDim)
   gear.icon:SetSize(17, 17)
   gear.icon:SetPoint("CENTER")
-  gear.icon:SetVertexColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], 1)
 
   -- Docked into the Auction House the host's portrait overhangs the rail's top-left corner;
   -- SetDocked pushes the logo (and the nav chain anchored to it) below it. The gear is
@@ -564,416 +229,6 @@ function T.Rail(parent)
   end
 
   return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
-end
-
--- Chip: a tinted pill, not the old solid plaque + underline. Nine-slice invariant (see
--- PLAQUE_SLICE/BADGE_SLICE's own comments above): margins must stay BELOW half the smallest
--- widget edge, or the sliced corners overlap and notch. This pill is 20px tall -- PLAQUE_SLICE
--- (12) is not below half of a 24px pill (12), so plaque.png was ruled out; BADGE_SLICE (6) IS
--- below half of 20 (10), so this uses badge.png at height 20, with no separate ring texture
--- (badge.png has none -- unlike T.Card's card.png/plaque.png, which pair with ring.png/
--- plaque_ring.png).
--- Grepped every spec and every UI source before removing the old `f.underline` texture: nothing
--- reads `.underline` off a chip (SoldFrame.lua's own header-underline is an unrelated feature
--- with its own texture), so it is dropped outright rather than kept as a hidden stand-in.
-function T.Chip(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f:SetHeight(20)
-
-  -- File texture, recolored via SetVertexColor only (never SetColorTexture, which would strip
-  -- the art) -- same rule T.Card:SetTint and Theme.Button's rounded bg follow.
-  f.bg = slicedTexture(f, "BACKGROUND", T.MEDIA .. "badge.png", T.color.panel, BADGE_SLICE)
-  f.bg:SetAllPoints()
-
-  f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
-  f.text:SetJustifyH("CENTER")
-  -- Bounded to the pill's own width (a bare CENTER point has no width limit at all) and
-  -- non-wrapping, so a long label (e.g. "SUSPECT") truncates inside the pill instead of
-  -- overflowing into whatever sits to its right.
-  f.text:SetPoint("LEFT", 4, 0)
-  f.text:SetPoint("RIGHT", -4, 0)
-  f.text:SetWordWrap(false)
-
-  widgetFonts[f.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 }
-
-  function f:SetLabel(text, colorTable)
-    f.text:SetText(text)
-    local c = colorTable or T.color.fg
-    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-    -- Fill at low alpha over the dark panel underneath -- a pill reads as a tinted surface,
-    -- not a solid block of the tier color. No ring layer to tint alongside it (see above).
-    f.bg:SetVertexColor(c[1], c[2], c[3], 0.12)
-  end
-
-  return f
-end
-
--- TierMark: a 6x6 color dot + mono label, a plainer stand-in for T.Chip's tinted badge pill
--- (see T.Chip's own comment above) everywhere a tier marker sits inline in a row rather than
--- boxed on its own. `:SetLabel(text, colorTable)` is the exact call signature SniperFrame's
--- row-stamping line already uses on T.Chip, so swapping the widget that builds `row.tierChip`
--- does not touch that call site.
-function T.TierMark(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  f:SetHeight(10)
-
-  f.dot = solid(f, "ARTWORK", T.color.fgDim)
-  f.dot:SetSize(6, 6)
-  f.dot:SetPoint("LEFT")
-
-  f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_UI_BOLD, 10 * T.Scale(), "")
-  f.text:SetJustifyH("LEFT")
-  -- Bounded to the mark's own width and non-wrapping, exactly as T.Chip's label is (see its
-  -- comment): a bare LEFT point has no width limit at all, so a label longer than the cell
-  -- paints straight across whatever sits to its right instead of clipping. The Sniper board's
-  -- verdict cell is what found this -- a refusal sentence in that column ran over the discount
-  -- and price figures beside it.
-  f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
-  f.text:SetPoint("RIGHT")
-  f.text:SetWordWrap(false)
-  widgetFonts[f.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 10 }
-
-  function f:SetLabel(text, colorTable)
-    f.text:SetText(text)
-    local c = colorTable or T.color.fg
-    f.dot:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-  end
-
-  return f
-end
-
--- Num: mono font, size*Scale(), RIGHT-justified. Re-fonts on rescale.
-function T.Num(parent, size, bold)
-  local fs = parent:CreateFontString(nil, "OVERLAY")
-  local font = bold and T.FONT_UI_BOLD or T.FONT_UI
-  fs:SetFont(font, size * T.Scale(), "")
-  fs:SetJustifyH("RIGHT")
-  widgetFonts[fs] = { role = bold and "uiBold" or "ui", path = font, size = size }
-  return fs
-end
-
--- A FontString made from one of Blizzard's font objects draws in the CLIENT's face, which lacks
--- glyphs the bundled one has (GC.Util.ClientText says which, and how that was read). This gives
--- such a FontString a SetText that respells them, so no caller has to remember to; it returns
--- the FontString, so it wraps the CreateFontString call itself. A Theme widget that moves it
--- onto GoldCap's own face (a rounded Button sets T.FONT_UI and says so in widgetFonts) draws its
--- text as written: that face has every glyph but ↳, which GoldCap no longer writes.
-function T.ClientFont(fs)
-  if fs.gcClientFont then return fs end
-  fs.gcClientFont = true
-  local setText = fs.SetText
-  fs.SetText = function(self, text, ...)
-    local info = widgetFonts[self]
-    if not info or info.role == "label" then text = GC.Util.ClientText(text) end
-    return setText(self, text, ...)
-  end
-  return fs
-end
-
--- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified,
--- and therefore a ClientFont (above): what it is given is drawn through GC.Util.ClientText.
--- Final fix wave (item 3): applies size*T.Scale() at creation (was a bare `size`, so a Label
--- never actually respected the current scale on first render) AND registers in widgetFonts
--- (same data-valued-weak-table idiom T.Num already uses -- see that table's own comment for
--- why the value must never close over `fs`), so SetScale's re-font pass now reaches every
--- Label too, not just Num/Chip fontstrings.
---
--- Deliberately NOT extended to ROW_H (Theme.ROW_H, 32px) or the dialog's own pixel budgets --
--- those stay fixed regardless of T.Scale(). At 1.3x a Label's text can get visually tight
--- against an unscaled row/dialog height; that's an accepted tradeoff here (the in-game
--- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also
--- scaling layout geometry.
-function T.Label(parent, size)
-  local fs = T.ClientFont(parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
-  local inherited, _, flags = fs:GetFont()
-  -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
-  -- language -- see its declaration. Normally nil, and the inherited face stands.
-  local fontPath = T.FONT_LABEL or inherited
-  if fontPath then
-    fs:SetFont(fontPath, size * T.Scale(), flags)
-    -- Both faces are kept: `path` is what this label draws in now, `inherited` is what it
-    -- goes back to if T.RefontWidget ever moves it and the override has since been dropped.
-    widgetFonts[fs] = { role = "label", path = fontPath, inherited = inherited, size = size,
-      flags = flags }
-  end
-  fs:SetJustifyH("LEFT")
-  return fs
-end
-
--- `primary` is dark-on-gold, which is only legible while the gold fill is actually painted.
--- That is fine for a button built primary and left that way (the dialog's Buy/Confirm), but it
--- is a trap for a control that toggles: the Auto button was showing near-black text on a fill
--- that had not gone gold, leaving the label all but invisible. `active` states the same "this
--- is on" with gold TEXT over a faint gold tint, so the label survives no matter what the fill
--- is doing -- there is no state in which it becomes unreadable.
-local BUTTON_VARIANTS = {
-  primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
-  active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
-  ghost   = { bg = nil, text = T.color.fg },
-  danger  = { bg = T.color.redFill, text = { 0.102, 0.024, 0.024 } },
-  -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
-  -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
-  warn    = { bg = { T.tier.SUSPECT[1], T.tier.SUSPECT[2], T.tier.SUSPECT[3], 0.16 }, text = T.tier.SUSPECT },
-}
-
--- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
--- picks plaque over card -- badge is one size class down again (BADGE_SLICE, no ring: see
--- BADGE_SLICE's own comment, the same 16px art is too small for a second nine-slice ring
--- on top of its fill without the two notching each other).
-local ROUNDED_BUTTON = {
-  plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = PLAQUE_SLICE },
-  -- `askedRing`: badge_ring.png, a 1px outline on badge.png's own radius. Not drawn unless the
-  -- caller asks (b:SetRing below) -- a badge button is a row control, and a list of outlined
-  -- ones is a grid of boxes.
-  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, askedRing = T.MEDIA .. "badge_ring.png", margin = BADGE_SLICE },
-}
-
--- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
--- Rounded mode drops edgeBorder entirely, and "badge" rounded buttons get no ring either (too
--- small for the ring art -- ROUNDED_BUTTON's own comment), so a rounded ghost painted with the
--- same alpha-0 fill has zero at-rest boundary: the row Buy button's "Check" state was bare
--- text. A faint white fill gives rounded ghost the affordance square ghost got from its border.
-local ROUNDED_GHOST_FILL = { 1, 1, 1, 0.07 }
-
--- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
--- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,
--- edgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
--- that art (ROUNDED_BUTTON above) and drop the square edgeBorder -- "plaque" gets a sliced
--- plaque_ring.png ring in its place, "badge" gets none (too small for the ring art, same as
--- T.RailButton's own badge).
-function T.Button(parent, variant, rounded)
-  local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
-  local roundedSpec = rounded and ROUNDED_BUTTON[rounded]
-  -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
-  -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
-  -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
-  -- by Show/Hide -- and that swap is what made it flicker, miss hovers, and reappear painted in
-  -- a stale state under a stationary cursor.
-  local b = CreateFrame("Button", nil, parent)
-  local base
-  -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
-  -- (row Buy, dialog primary/Confirm) must never let a right- or middle-click reach
-  -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
-  -- may fire.
-  b:RegisterForClicks("LeftButtonUp")
-  -- Required, not decorative: the HIGHLIGHT layer below is shown and hidden by the engine only
-  -- on a mouse-enabled frame ("Setting Frame:EnableMouse() causes HIGHLIGHT to show/hide as the
-  -- cursor hovers the Frame" -- warcraft.wiki.gg/wiki/Layer). Without it the hover silently
-  -- never appears.
-  b:EnableMouse(true)
-  -- `b.roundedMargin` records which mode built this button so SetVariant/OnEnable below can
-  -- branch on it later -- a rounded bg is a textured region (SetVertexColor tints it),
-  -- SetColorTexture on that same region would strip the texture file and leave a flat fill.
-  b.roundedMargin = roundedSpec and roundedSpec.margin or nil
-  if roundedSpec then
-    b.bg = slicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
-    b.bg:SetAllPoints()
-  else
-    b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
-    b.bg:SetAllPoints()
-  end
-
-  -- Hover is a HIGHLIGHT-layer texture, not an OnEnter/OnLeave repaint. The engine draws that
-  -- layer for exactly as long as the cursor is over the button and stops on its own, the same
-  -- way UIPanelButtonTemplate works -- so a hover cannot be missed, cannot stick, and cannot
-  -- survive the frame being hidden under a stationary cursor. Painting it by hand is what made
-  -- these buttons feel broken: OnLeave is not delivered reliably when a frame is hidden or
-  -- swapped, leaving a button stuck in the hovered fill or repainted for a state it had left.
-  --
-  -- One additive gold wash for every variant, rather than a per-variant colour: additive keeps
-  -- it readable over a gold fill and over bare panel alike, and "the cursor is here" should
-  -- look like one thing everywhere in this UI.
-  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
-  b.highlightTexture:SetAllPoints()
-  b.highlightTexture:SetBlendMode("ADD")
-  if roundedSpec then
-    -- A sliced ADD texture reads fine here -- the wash never needs a flat edge, only the
-    -- rounded corners not to draw square outside the art.
-    b.highlightTexture:SetTexture(roundedSpec.bg)
-    b.highlightTexture:SetTextureSliceMargins(roundedSpec.margin, roundedSpec.margin, roundedSpec.margin, roundedSpec.margin)
-    b.highlightTexture:SetVertexColor(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
-  else
-    b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
-  end
-
-  if roundedSpec then
-    if roundedSpec.ring then
-      b.ring = slicedTexture(b, "BORDER", roundedSpec.ring, T.color.border, roundedSpec.margin)
-      b.ring:SetAllPoints()
-    end
-  else
-    -- The border is drawn for every variant, at the variant's own strength: a ghost button
-    -- needs it to have an edge at all, and a filled one keeps its shape while the fill is
-    -- dimmed by OnDisable. Drawing it only for ghost meant a button that changed variant lost
-    -- its outline.
-    edgeBorder(b, T.color.border)
-  end
-
-  b.text = T.Label(b, 12)
-  b.text:SetJustifyH("CENTER")
-  b.text:ClearAllPoints()
-  -- Bounded LEFT-to-RIGHT rather than pinned at CENTER. A CENTER-anchored FontString has no
-  -- width of its own: it grows in both directions until the whole label fits, straight over
-  -- whatever sits beside the button. English never showed it -- every label here is short --
-  -- but the longer translations do, most visibly the Sell tab's "Set cost" in its 88px action
-  -- column, which painted across the price column to its left. Word wrap off and one line mean
-  -- the engine truncates within these bounds instead, so an over-long translation degrades to a
-  -- clipped label inside its own button rather than damaging the row around it. SetMaxLines is
-  -- not redundant with SetWordWrap: a label that still wraps in a ~22px button draws NOTHING at
-  -- all, which is the worse of the two failures.
-  -- Zero inset, deliberately. Callers already size these buttons to their longest ENGLISH
-  -- label down to the pixel -- row.action's 86 is "the largest width that still leaves >=2px
-  -- clearance" for "Cancel lot?" at 85.8px -- so any inset here would clip a label that fits
-  -- today. Bounding at exactly the button's own edges takes nothing away from what already
-  -- fits and only bites on the labels that are painting outside the button anyway.
-  b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
-  b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
-  b.text:SetWordWrap(false)
-  b.text:SetMaxLines(1)
-  if roundedSpec then
-    b.text:SetFont(T.FONT_UI, 10 * T.Scale(), "")
-    widgetFonts[b.text] = { role = "ui", path = T.FONT_UI, size = 10 }
-  end
-
-  -- `b.label` is the contract every caller and every spec test double already assumed --
-  -- ACTION_HELP's tooltip lookup in UI/SellFrame.lua reads `self.label`, and every fake
-  -- button in the test suite implements SetLabel by writing exactly this field. The real
-  -- widget never did, so anything reading `.label` off a REAL button got nil forever; the
-  -- fakes just made every test that depended on it look green. Set both: the FontString for
-  -- what is drawn, `.label` for what callers read back.
-  function b:SetLabel(text)
-    b.label = text
-    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
-    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
-    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
-    -- string either way; only the drawn FontString text is transformed.
-    b.text:SetText(b.uppercase and text:upper() or text)
-  end
-
-  -- Draws the label upper-case without touching `.label` -- theme_button_contract_spec pins
-  -- `btn.label == "Post"` even with uppercase on, since ACTION_HELP-style lookups and pooled-row
-  -- rebinding both read `.label` as the exact string the caller passed. Re-invokes SetLabel so
-  -- toggling this AFTER a label is already drawn re-renders it immediately, and calling it
-  -- before any label exists is a harmless no-op that only takes effect on the next SetLabel.
-  function b:SetUppercase(on)
-    b.uppercase = on and true or nil
-    if b.label then b:SetLabel(b.label) end
-  end
-
-  -- Switches a live button between variants. One control with two looks, rather than two
-  -- controls taking turns being hidden.
-  function b:SetVariant(name)
-    spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
-    -- Rounded ghost (spec.bg == nil) falls back to ROUNDED_GHOST_FILL, not alpha-0 -- see that
-    -- constant's own comment. `base` feeds OnEnable's restore below too, so that path inherits
-    -- this fix for free -- it just repaints whatever `base` SetVariant last computed.
-    base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 })
-    -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
-    -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
-    -- instead, the same way T.Card:SetTint does.
-    if b.roundedMargin then
-      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
-    else
-      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
-    end
-    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-  end
-  b:SetVariant(variant)
-
-  -- An outline for the one badge button that should stand out of its list (the Sell row's
-  -- Post). nil takes it off again: rows are pooled, and the next kind to take the row must not
-  -- inherit it. Built on first use and kept, so a render does not mint a texture per call.
-  function b:SetRing(c)
-    if not c then
-      if b.ring then b.ring:Hide() end
-      return
-    end
-    if not b.ring then
-      local file = roundedSpec and (roundedSpec.ring or roundedSpec.askedRing)
-      if not file then return end
-      b.ring = slicedTexture(b, "BORDER", file, c, roundedSpec.margin)
-      b.ring:SetAllPoints()
-      b.ringAsked = true
-    end
-    b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-    b.ring:Show()
-  end
-
-  -- "A request of yours is out": the client's own spinner turning inside the button, left of
-  -- the label. The owner pressed the Sell tab's Post and could not tell a post on its way from a
-  -- dead button -- a dimmed label says "not now", not "working". The ring is Blizzard_SharedXML's
-  -- SpinnerTemplate, the one its dialogs turn while a request is out (SpinnerMixin plays it on
-  -- show and stops it on hide), so nothing here draws or drives an animation. A child frame, so
-  -- OnDisable's dimming does not touch it: the one thing still moving on a disabled button is
-  -- the thing saying why it is disabled. Built on first use -- a list of pooled rows would
-  -- otherwise mint one per row -- and a client without the template keeps the label alone.
-  -- The label is re-bounded to start after the ring: 2px in, 12px wide, 1px gap (the budgets in
-  -- spec/button_label_width_spec.lua are that width less), and gets the whole button back after.
-  -- A no-op when nothing changes: the Sell dock repaints its POST on every status line.
-  function b:SetBusy(on)
-    on = on and true or false
-    if b.busy == on then return end
-    b.busy = on
-    if on and b.spinner == nil then
-      local ok, spinner = pcall(CreateFrame, "Frame", nil, b, "SpinnerTemplate")
-      b.spinner = ok and spinner or false -- false: asked once, and the client had none
-      if b.spinner then
-        b.spinner:SetSize(12, 12)
-        b.spinner:SetPoint("LEFT", b, "LEFT", 2, 0)
-        -- A frame made from Lua starts SHOWN, and SpinnerMixin plays the ring only from OnShow,
-        -- which fires on a hidden-to-shown change. Hidden here, so the Show below is one: left
-        -- shown, every button's first post sat beside a ring that did not turn (review I1).
-        -- Blizzard never makes this template from Lua; its XML uses start hidden.
-        b.spinner:Hide()
-      end
-    end
-    if not b.spinner then return end
-    b.text:ClearAllPoints()
-    if on then
-      b.spinner:Show()
-      b.text:SetPoint("LEFT", b.spinner, "RIGHT", 1, 0)
-    else
-      b.spinner:Hide()
-      b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
-    end
-    b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
-  end
-
-  -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
-  -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
-  -- button looking exactly as live/clickable as ever. Dims the background and switches text
-  -- to fgDim; OnEnable restores the variant's own colors. Purely visual -- every call site's
-  -- Enable()/Disable() logic is unchanged, and a caller that sets a custom text color right
-  -- after Enable() (e.g. the red "Buy anyway" requote state) still wins, since that call
-  -- happens synchronously afterward in the same Lua step, before the next render.
-  b:SetScript("OnDisable", function()
-    b.bg:SetAlpha(0.45)
-    -- Only a ring SetRing drew: a plaque's own border keeps the button's shape while it is dim.
-    if b.ringAsked then b.ring:SetAlpha(0.45) end
-    b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
-    -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
-    -- can still raise a tooltip), so the wash is hidden here instead of guarded in a script --
-    -- hidden, not SetAlpha(0): see T.RailButton for how SetAlpha(1) turned the wash solid.
-    b.highlightTexture:Hide()
-  end)
-  b:SetScript("OnEnable", function()
-    b.bg:SetAlpha(1)
-    if b.ringAsked then b.ring:SetAlpha(1) end
-    -- Same rounded-vs-square branch as SetVariant above: SetColorTexture on a textured
-    -- rounded bg would erase the texture file the re-enable path is meant to restore.
-    if b.roundedMargin then
-      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
-    else
-      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
-    end
-    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-    b.highlightTexture:Show()
-  end)
-
-  return b
 end
 
 -- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer
@@ -994,14 +249,18 @@ function T.TitleBar(frame, titleText)
     frame:StopMovingOrSizing()
   end)
 
-  bar.title = T.Label(bar, 13)
+  bar.title = T.Heading(bar, 14)
   bar.title:SetPoint("LEFT", bar, "LEFT", T.pad.m, 0)
   bar.title:SetText(titleText or "")
+  bar.title:SetTextColor(K.text1[1], K.text1[2], K.text1[3], 1)
 
   local close = T.Button(bar, "ghost")
   close:SetSize(20, 20)
   close:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -T.pad.s, -T.pad.xs)
-  close:SetLabel("X")
+  close.icon = close:CreateTexture(nil, "ARTWORK")
+  close.icon:SetSize(12, 12)
+  close.icon:SetPoint("CENTER")
+  T.SetIcon(close.icon, "close", K.text3)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)

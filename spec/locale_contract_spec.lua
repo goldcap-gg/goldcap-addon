@@ -92,7 +92,7 @@ describe("locale contract", function()
       end
       listing:close()
     end
-    scan("Core"); scan("UI"); scan("Data")
+    scan("Core"); scan("Services"); scan("UI"); scan("Data")
 
     for key, path in pairs(asked) do
       assert.is_not_nil(GC.Locales.enUS[key],
@@ -114,6 +114,10 @@ describe("locale contract", function()
       -- A widget factory: every SetText takes its text from the caller, already translated
       -- there. Its only literal is the brand, "GoldCap".
       ["GoldCap/UI/Theme.lua"] = true,
+      -- Theme.Button, moved out of Theme.lua: the same widget factory, the label comes from the caller.
+      ["GoldCap/UI/Kit/Button.lua"] = true,
+      -- Theme.Chip and Theme.TierMark, moved out of Theme.lua: the same widget factories, the label comes from the caller.
+      ["GoldCap/UI/Kit/Chip.lua"] = true,
       -- Its one SetText is the brand name on the auction house tab.
       ["GoldCap/UI/AuctionHouseTab.lua"] = true,
       -- /gc forever: a diagnostic self-check meant to be pasted into a bug report, plain
@@ -127,7 +131,7 @@ describe("locale contract", function()
     }
     local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
 
-    local listing = io.popen('find GoldCap/Core GoldCap/UI -name "*.lua"')
+    local listing = io.popen('find GoldCap/Core GoldCap/Services GoldCap/UI -name "*.lua"')
     local checked = 0
     for path in listing:lines() do
       local file = assert(io.open(path))

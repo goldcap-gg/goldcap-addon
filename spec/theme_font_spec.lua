@@ -1,10 +1,9 @@
 local helper = require("spec.spec_helper")
 
--- Measured from the shipped font's cmap on 2026-08-27, not assumed: JetBrains Mono covers
--- Latin, Greek and the whole Cyrillic range (including і, ї, ґ) and NO CJK. So Russian and
--- Ukrainian draw in our own kit, while Korean and both Chinese locales would render empty
--- boxes anywhere we set that face -- they draw in one of Blizzard's own faces for the script
--- instead (see the CJK faces block at the bottom of this file).
+-- Measured from the shipped files by docs/addon/tools/fonts.py (wow-auction): the Fira faces cover
+-- Latin, Latin Extended and all of Cyrillic (і, ї, є, ґ included) and NO CJK. Korean and both
+-- Chinese locales draw in one of Blizzard's own faces for the script instead (the CJK faces block
+-- at the bottom of this file).
 describe("Theme fonts per locale", function()
   local GC
 
@@ -21,7 +20,7 @@ describe("Theme fonts per locale", function()
   it("keeps the bundled mono face for latin and cyrillic", function()
     for _, code in ipairs({ "enUS", "deDE", "ruRU", "ukUA" }) do
       GC.Theme.RefreshFonts(code)
-      assert.matches("JetBrainsMono", GC.Theme.FONT_UI)
+      assert.matches("FiraMono", GC.Theme.FONT_UI)
     end
   end)
 
@@ -37,43 +36,48 @@ describe("Theme fonts per locale", function()
   -- the deliberate trade against headers rendering as empty boxes.
   it("keeps the bundled face available for the brand mark", function()
     GC.Theme.RefreshFonts("koKR")
-    assert.matches("JetBrainsMono", GC.Theme.FONT_MONO)
+    assert.matches("FiraMono", GC.Theme.FONT_MONO)
     assert.is_not.equal(GC.Theme.FONT_MONO, GC.Theme.FONT_UI)
   end)
 
   it("falls back to the bundled face when the client font is unreadable", function()
     _G.GameFontNormal = nil
     GC.Theme.RefreshFonts("koKR")
-    assert.matches("JetBrainsMono", GC.Theme.FONT_UI)
+    assert.matches("FiraMono", GC.Theme.FONT_UI)
   end)
 
-  -- T.Label inherits GameFontHighlightSmall, i.e. the CLIENT's own face, on the assumption
-  -- that a client can draw whatever language is on screen. That holds only while the addon
-  -- speaks the client's language -- and the whole point of the picker is that it need not.
-  -- An English client cannot draw Cyrillic, so picking Russian turned every Label in the
-  -- addon into empty boxes (reported in-game 2026-08-28) while the mono-faced numbers and
-  -- headers beside them read perfectly.
-  --
-  -- FONT_LABEL is nil for "keep the inherited face" and a path for "override it".
+  -- T.Label draws in GoldCap's own Fira, which has Latin and Cyrillic, so a label reads whatever
+  -- the client speaks. The exception is a Korean or Chinese client speaking a Latin language in
+  -- the addon: item names arrive in the client's script, which only the client's own face draws,
+  -- so the label keeps the inherited face there (FONT_LABEL nil).
   describe("label face", function()
-    it("keeps the client's own face when the client speaks that language", function()
-      _G.GetLocale = function() return "ruRU" end
-      GC.Theme.RefreshFonts("ruRU")
-      assert.is_nil(GC.Theme.FONT_LABEL)
-    end)
+    local savedGetLocale
 
-    it("keeps the client's own face for latin, which every client face draws", function()
-      _G.GetLocale = function() return "ruRU" end
-      GC.Theme.RefreshFonts("deDE")
-      assert.is_nil(GC.Theme.FONT_LABEL)
-    end)
+    before_each(function() savedGetLocale = _G.GetLocale end)
+    after_each(function() _G.GetLocale = savedGetLocale end)
 
-    it("overrides with the bundled face for cyrillic on a client that cannot draw it", function()
-      _G.GetLocale = function() return "enUS" end
-      for _, code in ipairs({ "ruRU", "ukUA" }) do
-        GC.Theme.RefreshFonts(code)
-        assert.matches("JetBrainsMono", GC.Theme.FONT_LABEL)
+    it("draws labels in Fira for latin and cyrillic on a latin or cyrillic client", function()
+      for _, client in ipairs({ "enUS", "ruRU", "deDE" }) do
+        _G.GetLocale = function() return client end
+        for _, code in ipairs({ "enUS", "deDE", "ruRU", "ukUA" }) do
+          GC.Theme.RefreshFonts(code)
+          assert.equal(GC.Theme.FONT_TEXT, GC.Theme.FONT_LABEL, client .. "/" .. code)
+        end
       end
+    end)
+
+    it("keeps the client's own face for a latin language on a Korean or Chinese client", function()
+      for _, client in ipairs({ "koKR", "zhCN", "zhTW" }) do
+        _G.GetLocale = function() return client end
+        GC.Theme.RefreshFonts("enUS")
+        assert.is_nil(GC.Theme.FONT_LABEL, client)
+      end
+    end)
+
+    it("draws cyrillic in Fira even on a Chinese client, whose face has none", function()
+      _G.GetLocale = function() return "zhCN" end
+      GC.Theme.RefreshFonts("ruRU")
+      assert.equal(GC.Theme.FONT_TEXT, GC.Theme.FONT_LABEL)
     end)
 
     -- One script, one face: FONT_UI's own CJK rule picks it (see the CJK faces block below),
@@ -87,7 +91,90 @@ describe("Theme fonts per locale", function()
     it("survives a client that will not name its locale", function()
       _G.GetLocale = nil
       GC.Theme.RefreshFonts("ruRU")
-      assert.matches("JetBrainsMono", GC.Theme.FONT_LABEL)
+      assert.equal(GC.Theme.FONT_TEXT, GC.Theme.FONT_LABEL)
+    end)
+  end)
+
+  -- GoldCap text placed inside Blizzard's own frames (the quest window) keeps Blizzard's face
+  -- wherever the client draws the language: FONT_FOREIGN is nil there.
+  describe("foreign face", function()
+    local savedGetLocale, savedUIParent
+
+    before_each(function()
+      savedGetLocale, savedUIParent = _G.GetLocale, _G.UIParent
+    end)
+    after_each(function()
+      _G.GetLocale, _G.UIParent = savedGetLocale, savedUIParent
+    end)
+
+    local function on(client, code)
+      _G.GetLocale = function() return client end
+      GC.Theme.RefreshFonts(code)
+      return GC.Theme.FONT_FOREIGN
+    end
+
+    it("is nil for a latin language, and for the client's own language", function()
+      assert.is_nil(on("enUS", "deDE"))
+      assert.is_nil(on("ruRU", "ruRU"))
+    end)
+
+    it("is the bundled text face for Cyrillic on a client that cannot draw it", function()
+      assert.equal(GC.Theme.FONT_TEXT, on("enUS", "ruRU"))
+    end)
+
+    it("is the CJK face the interface settled on for a CJK language on another client", function()
+      _G.UIParent = {
+        CreateFontString = function()
+          return { SetFont = function(_, path) return path == "Fonts\\2002.TTF" end }
+        end,
+      }
+      assert.equal("Fonts\\2002.TTF", on("enUS", "koKR"))
+      assert.equal(GC.Theme.FONT_UI, GC.Theme.FONT_FOREIGN)
+    end)
+  end)
+
+  -- Headings, buttons and chips: Fira Sans Condensed in every language GoldCap draws itself,
+  -- the client's bold face for the script on Korean and Chinese.
+  describe("heading face", function()
+    it("is the condensed face for latin and cyrillic", function()
+      for _, code in ipairs({ "enUS", "deDE", "ruRU", "ukUA" }) do
+        GC.Theme.RefreshFonts(code)
+        assert.equal(GC.Theme.FONT_HEAD, GC.Theme.FONT_HEADING, code)
+      end
+    end)
+
+    it("follows FONT_UI_BOLD on CJK", function()
+      GC.Theme.RefreshFonts("zhCN")
+      assert.equal(GC.Theme.FONT_UI_BOLD, GC.Theme.FONT_HEADING)
+    end)
+  end)
+
+  describe("T.Heading", function()
+    local W = require("spec.support.wow_frames")
+    local restore
+
+    before_each(function() restore = W.install() end)
+    after_each(function()
+      GC.Theme.SetScale(1.0)
+      restore()
+    end)
+
+    -- The condensed face has no ▲ or ▼ (GC.Util.TriangleText respells them) but does have the
+    -- middle dot, which stays.
+    it("respells only the triangles on the bundled face", function()
+      GC.Theme.RefreshFonts("enUS")
+      local fs = GC.Theme.Heading(W.CreateFrame("Frame"), 12)
+      fs:SetText("▲4% · over usual → x")
+      assert.equal("+4% · over usual → x", W.state(fs).text)
+    end)
+
+    it("draws in the heading face at its size and follows the font-size slider", function()
+      GC.Theme.RefreshFonts("enUS")
+      local fs = GC.Theme.Heading(W.CreateFrame("Frame"), 14)
+      assert.equal(GC.Theme.FONT_HEAD, W.state(fs).font[1])
+      assert.equal(14, W.state(fs).font[2])
+      GC.Theme.SetScale(1.3)
+      assert.is_true(math.abs(W.state(fs).font[2] - 14 * 1.3) < 1e-9)
     end)
   end)
 
@@ -202,7 +289,7 @@ describe("Theme fonts per locale", function()
       GC.Theme.RefreshFonts("ukUA")
       local num = GC.Theme.Num(parent, 12)
       GC.Theme.RefreshFonts("koKR")
-      assert.matches("JetBrainsMono", num.font[1])
+      assert.matches("FiraMono", num.font[1])
     end)
 
     -- The one widget whose text IS rewritten in the new language the moment it is picked.
@@ -212,6 +299,17 @@ describe("Theme fonts per locale", function()
       GC.Theme.RefreshFonts("koKR")
       GC.Theme.RefontWidget(num)
       assert.equal("Fonts\\2002.TTF", num.font[1])
+    end)
+
+    -- The Settings language button is a heading; RefontWidget is its only way onto the CJK bold face.
+    it("moves a heading onto the CJK bold face, not the condensed one", function()
+      GC.Theme.RefreshFonts("ukUA")
+      local heading = GC.Theme.Heading(parent, 12)
+      assert.equal(GC.Theme.FONT_HEAD, heading.font[1])
+      GC.Theme.RefreshFonts("koKR")
+      GC.Theme.RefontWidget(heading)
+      assert.equal(GC.Theme.FONT_UI_BOLD, heading.font[1])
+      assert.is_not.equal(GC.Theme.FONT_HEAD, heading.font[1])
     end)
 
     it("keeps a re-fonted widget on its new face across a rescale", function()
