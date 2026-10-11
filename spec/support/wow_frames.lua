@@ -11,7 +11,7 @@
 -- A FontString with word wrap and a width answers GetHeight with its wrapped height, the way the
 -- client does for one whose height was never set (Blizzard's QuestInfo_ShowRewards measures its
 -- own ItemChooseText that way): CHAR_W pixels a character, LINE_H a line.
-local W = { CHAR_W = 6, LINE_H = 14 }
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {} }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -136,6 +136,14 @@ function W.CreateFrame(kind, _, parent)
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end
+  -- The client raises on an event name it does not know; a spec lists those in W.unknownEvents.
+  function f:RegisterEvent(event)
+    if W.unknownEvents[event] then error(("Attempt to register unknown event %q"):format(event), 2) end
+    s.events = s.events or {}
+    s.events[event] = true
+  end
+  function f:UnregisterEvent(event) if s.events then s.events[event] = nil end end
+  function f:IsEventRegistered(event) return s.events ~= nil and s.events[event] == true end
   function f:RegisterForDrag(...) s.drag = { ... } end
   function f:GetScript(name) return s.scripts[name] end
   function f:HookScript(name, fn) s.hooks = s.hooks or {}; s.hooks[name] = fn end
