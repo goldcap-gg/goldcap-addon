@@ -54,7 +54,6 @@ GC.Locales.enUS = {
   ["%s · %s under market"] = "%s · %s under market",
   ["%s · at market price"] = "%s · at market price",
   ["%s: %d unit%s without a cost"] = "%s: %d unit%s without a cost",
-  ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   ["%s+ ahead"] = "%s+ ahead",
   ["%s+, %d prices read"] = "%s+, %d prices read",
   ["1 lot, %s asked"] = "1 lot, %s asked",
@@ -213,7 +212,6 @@ GC.Locales.enUS = {
   ["Skip for now"] = "Skip for now",
   ["Skipped"] = "Skipped",
   ["Stat weights: %s"] = "Stat weights: %s",
-  ["TO BUY HERE"] = "TO BUY HERE",
   ["The cancel did not go through: the lot is still listed"] = "The cancel did not go through: the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
@@ -285,7 +283,6 @@ GC.Locales.enUS = {
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
   ["over your cap"] = "over your cap",
-  ["over your cap · %s"] = "over your cap · %s",
   ["Archive this run"] = "Archive this run",
   ["Archived"] = "Archived",
   ["Restore %s"] = "Restore %s",
@@ -1139,7 +1136,6 @@ GC.Locales.enUS = {
   ["plan updated on goldcap.gg · +%d -%d lines"] = "plan updated on goldcap.gg · +%d -%d lines",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ goldcap.gg market value, no live quote yet",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ needs price",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1269,4 +1265,15 @@ GC.Locales.enUS = {
   ["POST"] = "POST",
   ["SKIP"] = "SKIP",
   ["then %s"] = "then %s",
+  ["need %d"] = "need %d",
+  ["need %d · have %d"] = "need %d · have %d",
+  ["cap %s"] = "cap %s",
+  ["no cap"] = "no cap",
+  ["%s under your cap"] = "%s under your cap",
+  ["at your cap"] = "at your cap",
+  ["for %d"] = "for %d",
+  ["goes into %s"] = "goes into %s",
+  ["market price"] = "market price",
+  ["craft %d× (%d per craft)"] = "craft %d× (%d per craft)",
+  ["%s spent"] = "%s spent",
 }

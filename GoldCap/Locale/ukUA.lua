@@ -50,7 +50,6 @@ GC.Locales.ukUA = {
   ["%s · %s under market"] = "%s · на %s нижче ринку",
   ["%s · at market price"] = "%s · за ринковою ціною",
   ["%s: %d unit%s without a cost"] = "%s: %d одиниц%s без собівартості",
-  ["%s → craft %d× (%d per craft)"] = "%s → крафт %d× (по %d за крафт)",
   ["%s+ ahead"] = "%s+ попереду",
   ["%s+, %d prices read"] = "%s+, прочитано %d цін",
   ["1 lot, %s asked"] = "1 лот, просять %s",
@@ -201,7 +200,6 @@ GC.Locales.ukUA = {
   ["Skipped"] = "Пропущено",
   ["Split into reagents (craft %d×)"] = "Розкласти на реагенти (крафт %d×)",
   ["Stat weights: %s"] = "Ваги характеристик: %s",
-  ["TO BUY HERE"] = "ДО КУПІВЛІ ТУТ",
   ["The rest is skipped for now"] = "Решту поки пропущено",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "Цей клієнт не повідомляє характеристики предметів, тому GoldCap не може порівняти спорядження.",
@@ -644,7 +642,6 @@ GC.Locales.ukUA = {
   ["nothing at or under your cap of %s"] = "нічого за вашою стелею %s або дешевше",
   ["nothing on offer"] = "у продажу немає",
   ["over your cap"] = "вище стелі",
-  ["over your cap · %s"] = "вище стелі · %s",
   ["purchase failed. Try again"] = "купівля не вдалася. Спробуйте ще раз",
   ["right-click to skip or change the cap"] = "ПКМ: пропустити або змінити стелю",
   ["seen %s ago"] = "бачили %s тому",
@@ -1217,7 +1214,6 @@ GC.Locales.ukUA = {
   ["plan updated on goldcap.gg · +%d -%d lines"] = "план оновлено на goldcap.gg · рядків +%d -%d",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ ринкова вартість goldcap.gg, живого котирування ще немає",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ потрібна ціна",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1352,4 +1348,15 @@ GC.Locales.ukUA = {
   ["POST"] = "ВИСТАВИТИ",
   ["SKIP"] = "ПРОПУСТИТИ",
   ["then %s"] = "далі %s",
+  ["need %d"] = "треба %d",
+  ["need %d · have %d"] = "треба %d · є %d",
+  ["cap %s"] = "стеля %s",
+  ["no cap"] = "без стелі",
+  ["%s under your cap"] = "на %s нижче стелі",
+  ["at your cap"] = "рівно стеля",
+  ["for %d"] = "за %d шт.",
+  ["goes into %s"] = "для %s",
+  ["market price"] = "ринкова ціна",
+  ["craft %d× (%d per craft)"] = "крафт %d× (по %d за крафт)",
+  ["%s spent"] = "витрачено %s",
 }

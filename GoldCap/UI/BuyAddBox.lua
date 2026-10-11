@@ -27,8 +27,12 @@ local _, GC = ...
 GC.BuyAddBox = {}
 
 local AB = {
-  WELL_H = 22,
-  BUTTON_MIN_W = 72,
+  -- The well, the Sell tab's field at the toolbar's height: a gold plus at its left, the box, and
+  -- the button that does what Enter does inside its right end.
+  WELL_H = 36,
+  BUTTON_H = 28,
+  BUTTON_MIN_W = 64,
+  TEXT_LEFT = 34,
   GAP = 4,
   -- The items a name offers, best first. A match's least height; a long name wraps and grows it.
   MAX_MATCHES = 6,
@@ -239,10 +243,17 @@ local function paint(bar)
   local text = box:GetText() or ""
   local focused = box.HasFocus and box:HasFocus() or false
   if text ~= "" or focused then bar.hint:Hide() else bar.hint:Show() end
-  -- The button says what Enter does: a name searches, unless the arrow keys picked a match.
+  -- The well's edge: gold while it has the keyboard, the glass's own otherwise.
+  local gc = Theme.color.gold
+  if focused then bar.ring:SetVertexColor(gc[1], gc[2], gc[3], 0.6) else bar.ring:SetVertexColor(1, 1, 1, 0.14) end
+  -- The button says what Enter does: a name searches, unless the arrow keys picked a match. Gold
+  -- and lit when there are items to add, a gold outline for a search, quiet with nothing to do.
   local searching = bar.mode == "search" and (bar.selected or 0) == 0
   bar.button:SetLabel(searching and GC.L["Search"] or GC.L["Add"])
-  if bar.mode then bar.button:Enable() else bar.button:Disable() end
+  local variant = (bar.mode == "add" and #(bar.items or {}) > 0) and "primary" or (bar.mode and "active" or "ghost")
+  if bar.button.SetVariant then bar.button:SetVariant(variant) end
+  bar.button:Enable()
+  if not bar.mode then bar.button:Disable() end
 
   if bar.mode == "add" then
     local parts = {}
@@ -293,7 +304,10 @@ local function paint(bar)
   bar.note:SetText(note or "")
   if note then bar.note:Show() else bar.note:Hide() end
 
+  -- The recents, while there is no list on screen or the box is being filled: under a list, they
+  -- would push it down for something nobody is doing.
   local list = recents()
+  if not (focused or bar.collecting or not (GC.Buy.CurrentRun and GC.Buy.CurrentRun())) then list = {} end
   for i, entry in ipairs(list) do
     local chip = chipFor(bar, i)
     chip.recent = entry
@@ -324,14 +338,14 @@ function GC.BuyAddBox.Layout(bar, width)
   local Theme = GC.Theme
   width = math.max(0, width or 0)
   local frame = bar.frame
-  local y = -AB.GAP
+  local y = 0
   local labelW = measure(bar.button.text)
   bar.button:SetWidth(math.max(AB.BUTTON_MIN_W, labelW and math.ceil(labelW + 2 * Theme.pad.m) or 0))
   bar.button:ClearAllPoints()
-  bar.button:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, y)
+  bar.button:SetPoint("RIGHT", bar.well, "RIGHT", -4, 0)
   bar.well:ClearAllPoints()
   bar.well:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, y)
-  bar.well:SetPoint("RIGHT", bar.button, "LEFT", -Theme.pad.s, 0)
+  bar.well:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, y)
   y = y - AB.WELL_H
   local textW = math.max(0, width - 8)
   local function place(fs)
@@ -554,27 +568,34 @@ function GC.BuyAddBox.Create(parent)
   well:SetHeight(AB.WELL_H)
   local wc = Theme.color.bg or Theme.color.panel
   Theme.SlicedTexture(well, "BACKGROUND", Theme.MEDIA .. "plaque.png", { wc[1], wc[2], wc[3], 1 }, 12):SetAllPoints(well)
-  Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.12 }, 12):SetAllPoints(well)
+  local ring = Theme.SlicedTexture(well, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.14 }, 12)
+  ring:SetAllPoints(well)
+  local plus = well:CreateTexture(nil, "ARTWORK")
+  plus:SetSize(16, 16)
+  plus:SetPoint("LEFT", well, "LEFT", 10, 0)
+  if Theme.SetIcon then Theme.SetIcon(plus, "plus", Theme.color.goldHi or Theme.color.gold) end
+  local button = Theme.Button(well, "ghost", "plaque")
+  button:SetSize(AB.BUTTON_MIN_W, AB.BUTTON_H)
   local box = CreateFrame("EditBox", nil, well)
   box:SetAutoFocus(false)
-  box:SetPoint("TOPLEFT", 10, -2)
-  box:SetPoint("BOTTOMRIGHT", -8, 2)
+  box:SetPoint("TOPLEFT", well, "TOPLEFT", AB.TEXT_LEFT, -2)
+  box:SetPoint("BOTTOM", well, "BOTTOM", 0, 2)
+  box:SetPoint("RIGHT", button, "LEFT", -6, 0)
   -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
   if box.SetFont then
-    box:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    box:SetFont(Theme.FONT_UI, 12 * Theme.Scale(), "")
     box:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) box:SetFont(Theme.FONT_UI, 12 * scale, "") end)
   end
   -- Up and Down without Alt reach OnArrowPressed, as Blizzard's own completion lists use them.
   if box.SetAltArrowKeyMode then box:SetAltArrowKeyMode(false) end
-  local hint = Theme.Num(well, 10)
+  local hint = Theme.Label(well, 12)
   hint:SetJustifyH("LEFT")
-  hint:SetPoint("LEFT", well, "LEFT", 10, 0)
-  hint:SetPoint("RIGHT", well, "RIGHT", -8, 0)
+  hint:SetPoint("LEFT", well, "LEFT", AB.TEXT_LEFT, 0)
+  hint:SetPoint("RIGHT", button, "LEFT", -6, 0)
   hint:SetWordWrap(false)
   hint:SetText(GC.L["Item to add"])
   setColor(hint, Theme.color.fgDim)
-  local button = Theme.Button(frame, "ghost", "plaque")
-  button:SetSize(AB.BUTTON_MIN_W, AB.WELL_H)
   local collected = Theme.Num(frame, 10)
   collected:SetJustifyH("LEFT")
   collected:SetWordWrap(true)
@@ -595,7 +616,7 @@ function GC.BuyAddBox.Create(parent)
   clear:SetLabel(GC.L["Clear"])
   clear:Hide()
 
-  local bar = { frame = frame, well = well, box = box, hint = hint, button = button, collected = collected,
+  local bar = { frame = frame, well = well, ring = ring, box = box, hint = hint, button = button, collected = collected,
     note = note, recentCaption = recentCaption, clear = clear, matches = {}, chips = {}, found = {},
     selected = 0, h = AB.WELL_H + 2 * AB.GAP }
 

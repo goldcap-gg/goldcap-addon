@@ -51,7 +51,6 @@ GC.Locales.frFR = {
   ["%s · %s under market"] = "%s · %s sous le marché",
   ["%s · at market price"] = "%s · au prix du marché",
   ["%s: %d unit%s without a cost"] = "%s : %d unité%s sans prix d'achat",
-  ["%s → craft %d× (%d per craft)"] = "%s → fabriquer %d× (%d par fabrication)",
   ["%s+ ahead"] = "%s+ devant",
   ["%s+, %d prices read"] = "%s+, %d prix lus",
   ["..."] = "...",
@@ -211,7 +210,6 @@ GC.Locales.frFR = {
   ["Skipped"] = "Ignoré",
   ["Split into reagents (craft %d×)"] = "Diviser en composants (fabriquer %d×)",
   ["Stat weights: %s"] = "Pondérations : %s",
-  ["TO BUY HERE"] = "À ACHETER ICI",
   ["The rest is skipped for now"] = "Le reste est ignoré pour l'instant",
   ["This client does not report item stats, so GoldCap cannot compare gear."] =
     "Ce client ne fournit pas les caractéristiques des objets, GoldCap ne peut donc pas comparer l'équipement.",
@@ -655,7 +653,6 @@ GC.Locales.frFR = {
   ["nothing on offer"] = "rien en vente",
   ["on %s"] = "sur %s",
   ["over your cap"] = "au-dessus du plafond",
-  ["over your cap · %s"] = "au-dessus du plafond · %s",
   ["plan updated on goldcap.gg"] = "plan mis à jour sur goldcap.gg",
   ["price moved to %s"] = "le prix est passé à %s",
   ["purchase failed. Try again"] = "l'achat a échoué. Réessaie",
@@ -1147,7 +1144,6 @@ GC.Locales.frFR = {
     "plan mis à jour sur goldcap.gg · +%d -%d lignes",
   ["~ goldcap.gg market value, no live quote yet"] =
     "~ valeur de marché goldcap.gg, pas encore de cotation en direct",
-  ["• %s"] = "• %s",
   ["→ needs price"] = "→ prix requis",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
   ["Items the game has not loaded yet are left out: %d. Export again in a moment."] =
@@ -1284,4 +1280,15 @@ GC.Locales.frFR = {
   ["POST"] = "VENDRE",
   ["SKIP"] = "PASSER",
   ["then %s"] = "puis %s",
+  ["need %d"] = "besoin %d",
+  ["need %d · have %d"] = "besoin %d · possédé %d",
+  ["cap %s"] = "plafond %s",
+  ["no cap"] = "sans plafond",
+  ["%s under your cap"] = "%s sous ton plafond",
+  ["at your cap"] = "pile au plafond",
+  ["for %d"] = "pour %d",
+  ["goes into %s"] = "pour %s",
+  ["market price"] = "prix du marché",
+  ["craft %d× (%d per craft)"] = "fabriquer %d× (%d par fabrication)",
+  ["%s spent"] = "%s dépensé",
 }

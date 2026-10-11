@@ -353,19 +353,25 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
+--- The game's colour for `itemID`'s quality (ITEM_QUALITY_COLORS: r, g, b, hex), uncommon and
+-- better; nil for common and poor, whose colours are no brighter than the interface's own text,
+-- and when the client will not say.
+function T.QualityColor(itemID)
+  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
+  if not (api and itemID) then return nil end
+  local ok, quality = pcall(api, itemID)
+  if not (ok and type(quality) == "number" and quality >= 2) then return nil end
+  return _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality] or nil
+end
+
 --- `name` as a list shows an item: in its item quality's colour (uncommon and better -- the
 -- game's colour for common is pure white, brighter than anything else on these panels, so a
 -- common name stays in the interface's own foreground) with its reagent-tier pip AFTER it, so
 -- names start on one edge down a list. `name` unchanged when the client knows neither.
 function T.WithQuality(name, itemID, size)
   local label = tostring(name)
-  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
-  if api and itemID then
-    local ok, quality = pcall(api, itemID)
-    local colour = ok and type(quality) == "number" and quality >= 2
-      and _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
-    if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
-  end
+  local colour = T.QualityColor(itemID)
+  if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
   local markup = T.QualityMarkup(itemID, size)
   if markup == "" then return label end
   return label .. " " .. markup

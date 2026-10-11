@@ -344,9 +344,9 @@ describe("locale layer", function()
       "craft it for %s each", "craft it for %s each · %s here", "craft it yourself",
       "already in your bags and bank", "the cheapest is %s, your cap is %s",
       "nothing at or under your cap of %s", "RAISE CAP TO %s", "Skip",
-      "PRICE EACH", "over your cap · %s", "at a vendor · %s each", "at a vendor", "craft it · %s each",
+      "PRICE EACH", "%s under your cap", "at a vendor · %s each", "at a vendor", "craft it · %s each",
       "bought", "skipped for now",
-      "TO BUY HERE", "%d of %d done",
+      "%d of %d done", "no cap", "cap %s",
       "buy %d of %d", "buy %d of %d, have %d in bags and bank", "%d at %s", "you take %d",
       "over your cap", "seen %s ago", "cheapest seen %s", "Market", "%s each", "Your cap",
       "Alert target", "right-click to skip or change the cap",
@@ -371,9 +371,9 @@ describe("locale layer", function()
   it("says the BUY dock's words naturally in Russian and Ukrainian", function()
     local expected = {
       ruRU = { ["BUY %d"] = "КУПИТЬ %d", ["RAISE CAP TO %s"] = "ПОДНЯТЬ ДО %s", ["Skip"] = "Пропустить",
-               ["Your cap"] = "Ваш потолок", ["TO BUY HERE"] = "К ПОКУПКЕ ЗДЕСЬ" },
+               ["Your cap"] = "Ваш потолок", ["no cap"] = "без потолка" },
       ukUA = { ["BUY %d"] = "КУПИТИ %d", ["RAISE CAP TO %s"] = "ПІДНЯТИ ДО %s", ["Skip"] = "Пропустити",
-               ["Your cap"] = "Ваша стеля", ["TO BUY HERE"] = "ДО КУПІВЛІ ТУТ" },
+               ["Your cap"] = "Ваша стеля", ["no cap"] = "без стелі" },
     }
     for code, strings in pairs(expected) do
       local loc = helper.loadModule("Locale/Core.lua")

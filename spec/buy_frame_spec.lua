@@ -208,6 +208,9 @@ describe("BuyFrame", function()
     local host = region("Frame")
     GC.Buy.Attach(host, { panelLeft = 88, panelRightInset = 32, top = -100,
                           bottom = 34, rowWidth = 600, rowHeight = 28 })
+    -- BOUGHT folds under its heading by default; most of this file reads bought lines' rows, so it
+    -- starts unfolded here and the fold's own tests fold it.
+    GC.Buy._boughtOpen = true
     GC.Buy.Show()
   end)
 
@@ -218,17 +221,18 @@ describe("BuyFrame", function()
     _G.GetItemCount, _G.GoldCap_AppRuns = nil, nil
   end)
 
+  -- The rows on screen, less the groups' headings (TO BUY, BOUGHT...): lines and hints.
   local function shownRows()
     local out = {}
     for _, row in ipairs(rowsOf()) do
-      if row:IsShown() then out[#out + 1] = row end
+      if row:IsShown() and not row.sectionKey then out[#out + 1] = row end
     end
     return out
   end
 
   local function rowWithText(pattern)
     for _, row in ipairs(shownRows()) do
-      local text = (row.reagent:GetText() or "") .. (row.wide:GetText() or "")
+      local text = (row.reagent:GetText() or "") .. (row.wide:GetText() or "") .. (row.sub:GetText() or "")
       if text:find(pattern, 1, true) then return row end
     end
   end
@@ -267,6 +271,22 @@ describe("BuyFrame", function()
     for _, l in ipairs(lines) do if (l.text or ""):find(text, 1, true) then return l end end
   end
 
+  -- A group's heading on screen: "buy", "craft", "vendor" or "done".
+  local function sectionRow(key)
+    for _, row in ipairs(rowsOf()) do
+      if row:IsShown() and row.sectionKey == key then return row end
+    end
+  end
+
+  -- A row's text without its colour codes (the count after a name is lit in its own colour), and
+  -- the game's coins as letters: "~1|T...GoldIcon...|t 90|T...SilverIcon...|t" reads "~1g 90s".
+  local function plain(text)
+    return (tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      :gsub("|TInterface\\MoneyFrame\\UI%-GoldIcon[^|]*|t", "g")
+      :gsub("|TInterface\\MoneyFrame\\UI%-SilverIcon[^|]*|t", "s")
+      :gsub("|TInterface\\MoneyFrame\\UI%-CopperIcon[^|]*|t", "c"))
+  end
+
   local function shownTexts()
     local out = {}
     for _, row in ipairs(shownRows()) do
@@ -285,7 +305,7 @@ describe("BuyFrame", function()
     -- rather than offering a BUY 0 button.
     assert.equal("5", tostring(lineOfRow(bravo).have))
     assert.equal("0", tostring(lineOfRow(bravo).buy))
-    assert.equal("Alpha Herb ×10", alpha.reagent:GetText())
+    assert.equal("Alpha Herb ×10", plain(alpha.reagent:GetText()))
     assert.equal("bought", bravo.status:GetText())
     pick(bravo)
     assert.is_false(dock().buy:IsShown())
@@ -441,15 +461,15 @@ describe("BuyFrame", function()
     end
     GC.Buy._bidStranded[9001] = { itemID = 101, have = 0, at = time() }
     GC.Buy.RefreshIfShown()
-    assert.equal("Alpha Herb ×9", alpha().reagent:GetText())
+    assert.equal("Alpha Herb ×9", plain(alpha().reagent:GetText()))
     GC.Buy._bidStranded[9002] = { itemID = 101, have = 0, at = time() }
     GC.Buy.RefreshIfShown()
-    assert.equal("Alpha Herb ×8", alpha().reagent:GetText())
+    assert.equal("Alpha Herb ×8", plain(alpha().reagent:GetText()))
     -- another item's bid, or one the bags have since moved past, takes nothing off this line
     GC.Buy._bidStranded[9003] = { itemID = 103, have = 0, at = time() }
     GC.Buy._bidStranded[9004] = { itemID = 101, have = 7, at = time() }
     GC.Buy.RefreshIfShown()
-    assert.equal("Alpha Herb ×8", alpha().reagent:GetText())
+    assert.equal("Alpha Herb ×8", plain(alpha().reagent:GetText()))
     GC.Buy._bidStranded = {}
   end)
 
@@ -460,13 +480,13 @@ describe("BuyFrame", function()
     end
     assert.equal(4, #lineRows)
     -- 101 open, 103 open, 104 vendor, 102 done -- the bags already cover 102.
-    assert.equal("Alpha Herb ×10", lineRows[1].reagent:GetText())
-    assert.equal("Charlie Dust ×3", lineRows[2].reagent:GetText())
-    assert.equal("Delta Vial ×20", lineRows[3].reagent:GetText())
+    assert.equal("Alpha Herb ×10", plain(lineRows[1].reagent:GetText()))
+    assert.equal("Charlie Dust ×3", plain(lineRows[2].reagent:GetText()))
+    assert.equal("Delta Vial ×20", plain(lineRows[3].reagent:GetText()))
     assert.equal("at a vendor", lineRows[3].status:GetText())
-    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+    assert.same({ GC.Theme.color.fgMuted[1], GC.Theme.color.fgMuted[2], GC.Theme.color.fgMuted[3], 1 },
       lineRows[3].reagent.colorValue)
-    assert.equal("Bravo Ore ×5", lineRows[4].reagent:GetText())
+    assert.equal("Bravo Ore ×5", plain(lineRows[4].reagent:GetText()))
     assert.equal("bought", lineRows[4].status:GetText())
   end)
 
@@ -515,14 +535,17 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.equal("2 of 2 done", bandOf().done:GetText())
     assert.equal("Everything here is bought", dock().title:GetText())
-    assert.equal("-", bandOf().total:GetText())
+    -- Nothing left to buy: no TO BUY heading, and BOUGHT open under its own.
+    assert.is_nil(sectionRow("buy"))
+    assert.truthy(sectionRow("done"))
   end)
 
   it("draws the progress bar over the done share of the run", function()
     containerOf().width = 600
     GC.Buy.RefreshIfShown()
     assert.is_true(bandOf().fill:IsShown())
-    assert.equal(150, bandOf().fill.width) -- one of four done
+    -- One of four done, along the picker card's foot (its least width, 8px in at either end).
+    assert.equal((180 - 16) / 4, bandOf().fill.width)
   end)
 
   it("names the run on the picker and cycles to the next one, remembering the choice", function()
@@ -807,7 +830,6 @@ describe("BuyFrame", function()
     assert.is_false(bandOf().frame:IsShown())
     assert.is_false(bandOf().picker:IsShown())
     assert.equal("", bandOf().done:GetText())
-    assert.is_false(bandOf().totalCaption:IsShown())
     assert.is_false(dock():IsShown())
   end)
 
@@ -818,18 +840,21 @@ describe("BuyFrame", function()
     end
   end
 
-  -- The owner (BUY 2.0): one box, at the top -- not a row under the list.
-  it("puts the item box at the top of the tab, then the band, the headings and the rows", function()
+  -- The owner (BUY 2.0): one box, at the top -- not a row under the list. The toolbar: the picker
+  -- card at the left, the box in the rest of the row; the headings and the rows under the taller.
+  it("puts the picker and the item box at the top of the tab, then the headings and the rows", function()
     local add, band = GC.Buy._view.add, bandOf()
-    local y, anchor = yOf(add.frame, "TOPLEFT")
+    local y, anchor = yOf(band.frame, "TOPLEFT")
     assert.equal(containerOf(), anchor)
     assert.equal(0, y)
+    y, anchor = yOf(add.frame, "TOPLEFT")
+    assert.equal(containerOf(), anchor)
+    assert.equal(0, y)
+    assert.equal(180 + 8, add.frame.points[1].x) -- after the picker card's least width
     assert.is_true(add.h > 0)
-    assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
-    assert.equal(-(add.h + 2), (yOf(band.picker, "TOPLEFT")))
-    assert.equal(-(add.h + 4), (yOf(band.totalCaption, "TOPRIGHT")))
-    assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
-    assert.equal(-(add.h + band.h + 16 + 4), (yOf(band.scroll, "TOPLEFT")))
+    assert.equal(math.max(add.h, band.picker.height + 8), band.top)
+    assert.equal(-band.top, (yOf(band.header, "TOPLEFT")))
+    assert.equal(-(band.top + 16 + 4), (yOf(band.scroll, "TOPLEFT")))
     assert.is_true(add.frame:IsShown())
     -- No row holds a place for it any more: every row on screen is a line of the list.
     for _, row in ipairs(shownRows()) do assert.truthy(row.lineItemID) end
@@ -1128,8 +1153,8 @@ describe("BuyFrame", function()
       add.box:SetText("linen")
       add.box.scripts.OnTextChanged(add.box, true)
       assert.is_true(add.h > before)
-      assert.equal(-add.h, (yOf(band.frame, "TOPLEFT")))
-      assert.equal(-(add.h + band.h), (yOf(band.header, "TOPLEFT")))
+      assert.equal(add.h, band.top)
+      assert.equal(-add.h, (yOf(band.header, "TOPLEFT")))
     end)
 
     it("keeps the last searches and items as chips: an item's adds it again, a search's runs again", function()
@@ -1138,6 +1163,13 @@ describe("BuyFrame", function()
       enter("2589 x20")
       enter("wool")
       assert.same({ { s = "wool" }, { i = 2589, q = 20, n = "Linen Cloth" } }, GC.db.buyRecents)
+      -- Under a list they show while the box is being filled, and not otherwise.
+      assert.is_false(add.recentCaption:IsShown())
+      local function focus()
+        add.box:SetFocus()
+        add.box.scripts.OnEditFocusGained(add.box)
+      end
+      focus()
       assert.equal("“wool”", add.chips[1].label)
       assert.equal("Linen Cloth ×20", add.chips[2].label)
       assert.is_true(add.recentCaption:IsShown())
@@ -1145,6 +1177,7 @@ describe("BuyFrame", function()
       -- The item's chip adds it again, to the list the box adds to.
       add.chips[2].scripts.OnClick(add.chips[2])
       assert.equal(40, GC.Buy.CurrentRun():Lines()[1].need)
+      focus()
       assert.equal("Linen Cloth ×20", add.chips[1].label)
       -- The search's chip runs it again.
       add.chips[2].scripts.OnClick(add.chips[2])
@@ -1308,7 +1341,7 @@ describe("BuyFrame", function()
     assert.equal("1000c", alpha.cells.price:GetText())
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
       alpha.cells.price.colorValue)
-    assert.equal("~1g", alpha.cells.cost:GetText())
+    assert.equal("~1g", plain(alpha.cells.cost:GetText()))
     -- ...and the cheapest unit seen, in full colour, once there is one.
     GC.Buy.CurrentRun():SetFloor(101, 900, 2000)
     GC.Buy.RefreshIfShown()
@@ -1445,7 +1478,7 @@ describe("BuyFrame", function()
 
     local vendor = rowWithText("Bravo Ore")
     assert.truthy(vendor)
-    assert.equal("Bravo Ore ×4", vendor.reagent:GetText())  -- 5 already in bags, 4 left to buy
+    assert.equal("Bravo Ore ×4", plain(vendor.reagent:GetText()))  -- 5 already in bags, 4 left to buy
     assert.equal("at a vendor · 25c each", vendor.status:GetText())
     assert.is_false(vendor.cells.price:IsShown())
     assert.is_false(vendor.cells.cost:IsShown())
@@ -1466,7 +1499,7 @@ describe("BuyFrame", function()
     -- ...while the line the player is actually here to buy still prices.
     local alpha = rowWithText("Alpha Herb")
     assert.equal("1000c", alpha.cells.price:GetText())
-    assert.equal("~1g", alpha.cells.cost:GetText())
+    assert.equal("~1g", plain(alpha.cells.cost:GetText()))
   end)
 
   -- Finding 4: a vendor stop the bags already cover is `buy == 0` at a known price -- `buy * unit`
@@ -1550,22 +1583,24 @@ describe("BuyFrame", function()
   -- its heading and every cell it shows, as the client measures them; the one word a row says in
   -- place of the prices widens them until it fits.
   it("widens the price columns to their heading and to the longest word a row says", function()
-    textWidth = function(text) return #text * 10 end
-    GC.Buy.CurrentRun():SetFloor(101, 5000, 2000) -- Alpha Herb: "over your cap · 5000c"
+    textWidth = function(text) return #plain(text) * 10 end
     GC.Buy.RefreshIfShown()
     local header = bandOf().header
     assert.is_true(header.cells.price.width >= #"PRICE EACH" * 10)
-    local row = rowWithText("Alpha Herb")
+    local row = rowWithText("Delta Vial") -- "at a vendor"
     assert.is_true(row.status.width >= #row.status:GetText() * 10)
-    -- ...and the item column gets what is left, not what the prices already took.
-    assert.equal(600 - row.status.width - 8, row.reagent.width)
+    -- ...and the item column gets what is left, not what the prices already took: the card's
+    -- padding either side, the gap before the figures.
+    assert.equal(600 - 12 - row.status.width - 12 - 12, row.reagent.width)
   end)
 
   it("gives a name too long for its column a second line and a taller row", function()
     stringHeight = function(fs) return (fs.textValue or ""):find("Alpha", 1, true) and 26 or 12 end
     GC.Buy.RefreshIfShown()
-    assert.equal(36, rowWithText("Alpha Herb").height)
-    assert.equal(28, rowWithText("Charlie Dust").height)
+    -- The name above the card's middle, the line under it below: a 26px name makes it 2 * 27 tall
+    -- between the paddings and the gap; a one-line name keeps the card's least.
+    assert.equal(74, rowWithText("Alpha Herb").height)
+    assert.equal(56, rowWithText("Charlie Dust").height)
   end)
 
   -- Spec rule 3: the hour the site measured is UTC; the player reads realm time. The offset is
@@ -1665,8 +1700,10 @@ describe("BuyFrame", function()
     showCraftRun(true)
     local parent = rowWithText("craft 4×")
     assert.truthy(parent)
-    assert.equal("Alpha Herb ×20 → craft 4× (5 per craft)", parent.reagent:GetText())
-    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+    -- The line names what it makes; how many crafts of how many each is the line under its name.
+    assert.equal("Alpha Herb ×20", plain(parent.reagent:GetText()))
+    assert.equal("craft 4× (5 per craft)", plain(parent.sub:GetText()))
+    assert.same({ GC.Theme.color.fgMuted[1], GC.Theme.color.fgMuted[2], GC.Theme.color.fgMuted[3], 1 },
       parent.reagent.colorValue)
     -- Nothing here is bought at the auction house: one word says what one crafted unit costs in
     -- reagents at the recipe's prices -- two prices, never a promise of savings -- green because
@@ -1676,12 +1713,14 @@ describe("BuyFrame", function()
     assert.is_false(parent.cells.price:IsShown())
 
     local ore = rowWithText("Bravo Ore")
-    assert.equal("• Bravo Ore ×15", ore.reagent:GetText())
+    -- A reagent the split brought in says what it goes into, under its name.
+    assert.equal("Bravo Ore ×15", plain(ore.reagent:GetText()))
+    assert.truthy(plain(ore.sub:GetText()):find("goes into Alpha Herb", 1, true))
     assert.equal("20", tostring(lineOfRow(ore).need))
     assert.equal("15", tostring(lineOfRow(ore).buy))
     pick(ore)
     assert.equal("BUY 15", dock().buy.label)
-    assert.equal("• Charlie Dust ×20", rowWithText("Charlie Dust").reagent:GetText())
+    assert.equal("Charlie Dust ×20", plain(rowWithText("Charlie Dust").reagent:GetText()))
   end)
 
   -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
@@ -1992,8 +2031,10 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ alertRun() })
     GC.db.settings.sniper.buyRun = "a0000001"
     GC.Buy.Show()
-    assert.equal("Alpha Herb ×4 on Kazzak", rowWithText("Alpha Herb").reagent:GetText())
-    assert.equal("Bravo Ore ×2", rowWithText("Bravo Ore").reagent:GetText())
+    assert.equal("Alpha Herb ×4", plain(rowWithText("Alpha Herb").reagent:GetText()))
+    assert.truthy(plain(rowWithText("Alpha Herb").sub:GetText()):find("on Kazzak", 1, true))
+    assert.equal("Bravo Ore ×2", plain(rowWithText("Bravo Ore").reagent:GetText()))
+    assert.is_nil(plain(rowWithText("Bravo Ore").sub:GetText()):find("Kazzak", 1, true))
   end)
 
   it("bands an alert run as a group with hits, and caps its lines at the alert's target",
@@ -2101,7 +2142,7 @@ describe("BuyFrame", function()
     pick(made)
     assert.is_false(dock().buy:IsShown())
     assert.equal("craft it yourself", dock().sub:GetText())
-    assert.equal("~1g", bandOf().total:GetText()) -- 10 Alpha Herb at 1000c only
+    assert.equal("COST  ~1g", plain(sectionRow("buy").headRight:GetText())) -- 10 Alpha Herb at 1000c only
   end)
 
   -- BUY 2.0's rows: ITEM (with how many are left to buy), PRICE EACH and COST, or one word in
@@ -2109,12 +2150,12 @@ describe("BuyFrame", function()
   it("draws a ready line in three columns and a special one as a single word", function()
     GC.Buy.RefreshIfShown()
     local open = rowWithText("Alpha Herb")
-    assert.equal("Alpha Herb ×10", open.reagent:GetText())
+    assert.equal("Alpha Herb ×10", plain(open.reagent:GetText()))
     assert.is_true(open.cells.price:IsShown())
     assert.is_true(open.cells.cost:IsShown())
     assert.is_false(open.status:IsShown())
     local done = rowWithText("Bravo Ore") -- five in the bag cover its five
-    assert.equal("Bravo Ore ×5", done.reagent:GetText())
+    assert.equal("Bravo Ore ×5", plain(done.reagent:GetText()))
     assert.is_false(done.cells.price:IsShown())
     assert.equal("bought", done.status:GetText())
   end)
@@ -2122,7 +2163,14 @@ describe("BuyFrame", function()
   it("says over your cap with the cheapest price when NOW is above the cap", function()
     GC.Buy.CurrentRun():SetFloor(101, 5000, 2000)
     GC.Buy.RefreshIfShown()
-    assert.equal("over your cap · 5000c", rowWithText("Alpha Herb").status:GetText())
+    -- In red where the price goes, with what that is under it; nothing to spend.
+    local row = rowWithText("Alpha Herb")
+    assert.equal("5000c", row.cells.price:GetText())
+    assert.same({ 1, 0, 0, 1 }, row.cells.price.colorValue)
+    assert.equal("over your cap", row.notes.price:GetText())
+    assert.equal("-", row.cells.cost:GetText())
+    assert.equal("for 10", row.notes.cost:GetText())
+    assert.is_false(row.status:IsShown())
   end)
 
   it("says skipped for now and dims a skipped line", function()
@@ -2143,13 +2191,13 @@ describe("BuyFrame", function()
     assert.equal("at a vendor", rowWithText("Bravo Ore").status:GetText())
   end)
 
-  -- BUY 2.0's band: the list, how much of it is done, and what is left to buy here.
+  -- The TO BUY heading: how many lines are left to buy here, and what the ready ones cost.
   it("totals what is ready to buy here, marked as an estimate while anything is one", function()
     GC.Buy.RefreshIfShown()
     -- 101 Alpha Herb: 10 at mv 1000; 102 Bravo Ore: covered by the bag; 103 Charlie Dust: 3 at mv
     -- 3000; 104 Delta Vial: a vendor line. Ready: 101 and 103, nothing quoted yet.
-    assert.equal("TO BUY HERE", bandOf().totalCaption:GetText())
-    assert.equal("~1g90s", bandOf().total:GetText())
+    assert.equal("TO BUY  2", plain(sectionRow("buy").head:GetText()))
+    assert.equal("COST  ~1g 90s", plain(sectionRow("buy").headRight:GetText()))
     assert.equal("1 of 4 done", bandOf().done:GetText())
   end)
 
@@ -2200,7 +2248,7 @@ describe("BuyFrame", function()
     for _, row in ipairs(shownRows()) do assert.is_truthy((row.status:GetText() or ""):find("at a vendor", 1, true)) end
     assert.equal("At a vendor ▼", bandOf().tools.filter.label)
     GC.Buy._SetFilter("done")
-    assert.equal("Bravo Ore ×2", shownRows()[1].reagent:GetText())
+    assert.equal("Bravo Ore ×2", plain(shownRows()[1].reagent:GetText()))
   end)
 
   it("offers every filter from its menu, the one in use marked", function()
@@ -2290,7 +2338,7 @@ describe("BuyFrame", function()
       lists.footer:GetText())
     -- The rest of the tab starts after the column.
     assert.equal(196 + 12, GC.Buy._leftInset)
-    assert.equal(1040 - 208, GC.Buy._view.band.fill.width * 4) -- one of four done, across what is left
+    assert.equal((180 - 16) / 4, GC.Buy._view.band.fill.width) -- one of four done, along the picker card
   end)
 
   it("picks a list from the column", function()
