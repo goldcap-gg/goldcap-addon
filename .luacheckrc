@@ -56,6 +56,7 @@ read_globals = {
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
+  "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT", "AUCTION_OUTBID_MAIL_SUBJECT",
   -- The tooltip's counts: grouped in thousands with the player's locale's separator.
   "BreakUpLargeNumbers",
   -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is

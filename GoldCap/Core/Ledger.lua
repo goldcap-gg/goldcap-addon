@@ -429,8 +429,34 @@ local function commitOccurrencePlan(plan, context, complete)
   end
 end
 
-local function readInboxMail(api, index, context, now)
-  local headerOk, _, _, sender, _, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)
+-- The auction mails that never carry an invoice: an expired, a cancelled and an outbid lot. Mail
+-- probe, retail 2026-10-11: GetInboxInvoiceInfo answers nil for them on every read, from delivery
+-- until the last attachment is taken, so a pass that held a nil invoice as "not loaded yet" stayed
+-- incomplete for as long as one sat in the inbox, and a sale collected beside it was never
+-- retired. Only the subject tells them from a sale mail still loading, which reads "Retrieving
+-- data" until its subject and invoice arrive together. The formats are the client's own (Init
+-- passes AUCTION_EXPIRED_MAIL_SUBJECT and its siblings), so the match holds in every language
+-- wherever the item name sits; the text around the name must run to three characters at least,
+-- so a bare "%s" can never claim every mail.
+local function escapePattern(text)
+  return (text:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+end
+
+local function noInvoicePatterns(formats)
+  local patterns = {}
+  if type(formats) ~= "table" then return patterns end
+  for _, format in pairs(formats) do
+    local head, tail
+    if type(format) == "string" then head, tail = format:match("^(.-)%%%d*%$?s(.*)$") end
+    if head and #head + #tail >= 3 then
+      patterns[#patterns + 1] = "^" .. escapePattern(head) .. ".+" .. escapePattern(tail)
+    end
+  end
+  return patterns
+end
+
+local function readInboxMail(api, index, context, now, noInvoice)
+  local headerOk, _, _, sender, subject, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)
   if not headerOk then return nil, "incomplete" end
   local invoiceOk, invoiceType, itemName, _, bid, buyout, deposit, consignment,
     moneyDelay, _, _, itemCount = pcall(api.GetInboxInvoiceInfo, index)
@@ -438,9 +464,16 @@ local function readInboxMail(api, index, context, now)
   local isSale = invoiceType == "seller" or invoiceType == "seller_temp_invoice"
   local isBuy = invoiceType == "buyer"
   if not isSale and not isBuy then
-    -- canReply is the locale-independent ordinary-mail signal. Anything else
-    -- is unreadable rather than positively non-AH and cannot retire evidence.
-    return nil, canReply == true and "ignored" or "incomplete"
+    -- canReply is the locale-independent ordinary-mail signal, and a lapsed auction's subject
+    -- is the other positive answer. Anything else is unreadable rather than positively without
+    -- an invoice, and cannot retire evidence.
+    if canReply == true then return nil, "ignored" end
+    if type(subject) == "string" then
+      for _, pattern in ipairs(noInvoice or {}) do
+        if subject:find(pattern) then return nil, "ignored" end
+      end
+    end
+    return nil, "incomplete"
   end
 
   local fields = { sender = sender, itemName = itemName, count = itemCount or 1,
@@ -476,17 +509,26 @@ local function readInboxMail(api, index, context, now)
   }
 end
 
+-- Whether this mailbox visit has shown any row yet. Mail probe, retail 2026-10-11:
+-- GetInboxNumItems() reads 0 at MAIL_SHOW on every visit and the rows arrive 0.2 to 0.3 s later,
+-- so an empty pass before the first row is the inbox not loaded yet, never an empty inbox. That
+-- pass used to retire every occurrence, and each mail left in the inbox was recorded again on
+-- the next visit: six sale mails left there on 2026-09-23 became 18 ledger rows. An empty pass
+-- after rows were seen is the player having emptied the inbox, and still retires them.
+local inboxRowsSeen = false
+
 -- Walks the inbox and records every auction invoice it can read.  Occurrence
 -- reconciliation deliberately waits until every row in the snapshot is known
 -- good; a partial read is informative only to the mailbox UI and cannot erase
--- durable presence state.
-function GC.Ledger.ScanInbox(api, context, now)
+-- durable presence state. `opening` is true for the pass MAIL_SHOW runs.
+function GC.Ledger.ScanInbox(api, context, now, opening)
   if not db or type(context) ~= "table"
       or type(context.char) ~= "string" or context.char == ""
       or type(context.region) ~= "string" or context.region == "" then return 0 end
   now = now or time()
-  local ok, count = pcall(api.GetInboxNumItems)
+  local ok, count, total = pcall(api.GetInboxNumItems)
   if not ok or not exactNonNegative(count) then return 0 end
+  if opening then inboxRowsSeen = false end
 
   -- An unreadable row no longer discards the whole pass. WoW streams mail data, so immediately
   -- after MAIL_SHOW some rows have neither header nor invoice loaded yet; on a busy mailbox at
@@ -499,8 +541,14 @@ function GC.Ledger.ScanInbox(api, context, now)
   -- that step, and only that step, still requires a complete snapshot. Recording an invoice we
   -- positively read is safe either way: it is evidence of presence, not of absence.
   local mails, complete = {}, true
+  if count == 0 and not inboxRowsSeen then complete = false end
+  if count > 0 then inboxRowsSeen = true end
+  -- The inbox shows at most 50 mails, and the second return counts them all: a mail past the
+  -- shown ones is out of view, not gone.
+  if exactNonNegative(total) and total > count then complete = false end
+  local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   for index = 1, count do
-    local mail, state = readInboxMail(api, index, context, now)
+    local mail, state = readInboxMail(api, index, context, now, noInvoice)
     if state == "incomplete" then complete = false end
     if mail then mail.index = index; mails[#mails + 1] = mail end
   end

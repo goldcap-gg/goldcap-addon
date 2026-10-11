@@ -941,7 +941,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GetInboxHeaderInfo = GetInboxHeaderInfo,
         GetInboxInvoiceInfo = GetInboxInvoiceInfo,
         GetInboxItem = GetInboxItem,
-      }, GC.Ledger.Context())
+        -- The client's own subjects for the auction mails that never carry an invoice; a
+        -- global this client lacks is simply absent, and its mails stay "not loaded yet".
+        noInvoiceSubjects = { AUCTION_EXPIRED_MAIL_SUBJECT, AUCTION_REMOVED_MAIL_SUBJECT,
+          AUCTION_OUTBID_MAIL_SUBJECT },
+      }, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
     end
     -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
     -- it. Only MAIL_SHOW (not the repeated MAIL_INBOX_UPDATE) -- Auto only needs to know mail

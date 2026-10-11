@@ -7,6 +7,9 @@
 - Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the
   auction house, the board says so, SCAN lights up and the status line counts the answers.
   SCAN on this board checks them all again instead of scanning commodities.
+- Sold and the profit totals: an auction mail you leave in the mailbox is no longer recorded
+  again each time you open it, and a second identical sale is no longer missed while an expired
+  or cancelled auction mail sits in the mailbox.
 - WoW: Forever: a full scan reads the rest of the auction house when it arrives in a second
   part while the scan is still busy with the first, instead of saving only the first part.
 - WoW: Forever: a character no longer picks up goldcap.gg prices of the other faction on the
