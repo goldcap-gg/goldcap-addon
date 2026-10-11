@@ -105,12 +105,17 @@ function GC.Sell.Reset()
   -- outliving the visit it was pinned to.
   for key in pairs(S.bagLocationCache) do S.bagLocationCache[key] = nil end
   -- Nothing is answered once the auction house has closed: every post that went out and was never
-  -- answered -- the late ones and the one on the wire -- drops the price typed for it
+  -- answered -- the late ones and the one on the wire -- drops the price and quantity typed for it
   -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.
   for _, late in ipairs(GC.Sell._lateAnswers) do GC.Sell._SpendPrice(late.pin) end
   if S.postingPin and S.postingPin.sent then GC.Sell._SpendPrice(S.postingPin) end
   GC.Sell._lateAnswers = {}
   GC.Sell._owedUntil = nil
+  -- A new visit starts the selling list again: the dock walks all of it once more.
+  for key in pairs(S.postedThisVisit) do S.postedThisVisit[key] = nil end
+  for key in pairs(S.postedOut) do S.postedOut[key] = nil end
+  for key in pairs(S.passedThisVisit) do S.passedThisVisit[key] = nil end
+  S.queueDone, S.dockKey = {}, nil
   GC.QuoteCache.Clear(S.quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --

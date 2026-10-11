@@ -161,20 +161,25 @@ function GC.Sell._Certain()
   return #GC.Sell._LiveLate() == 0 and time() > (GC.Sell._owedUntil or 0)
 end
 
--- The one rule for a typed price (the price column's own choice, priceOverrides): it was chosen
--- for ONE listing, against a book that will move. The post that carried it spends it when a
--- creation is credited to that post, and it is dropped when the auction house closes over a post
--- that went out and was never answered -- carried into the next visit after an outcome nobody
--- saw, it would price that listing at a number chosen for a market that is gone. Only then: a
--- post whose minute ran out unanswered keeps it, on the row, for the retry, as a refused one
--- does. Dropping it there, behind the row, left the row showing it while the next Post sent
--- GoldCap's price (review sell-fix4 I1); at a close the next visit composes before anything can
--- be pressed. Only the price that post carried: one the player has typed since is their next
--- choice and stays. Nothing ever puts a spent price back.
+-- The one rule for a typed price (the price column's own choice, priceOverrides), and for a
+-- typed quantity (quantityOverrides) with it: each was chosen for ONE listing, against a book
+-- that will move, and five of ten is a choice about this post, not about the next five. The
+-- post that carried them spends them when a creation is credited to that post, and they are
+-- dropped when the auction house closes over a post that went out and was never answered --
+-- carried into the next visit after an outcome nobody saw, they would shape that listing with
+-- numbers chosen for a market that is gone. Only then: a post whose minute ran out unanswered
+-- keeps them, on the row, for the retry, as a refused one does. Dropping them there, behind the
+-- row, left the row showing a price while the next Post sent GoldCap's (review sell-fix4 I1);
+-- at a close the next visit composes before anything can be pressed. Only what that post
+-- carried: a number the player has typed since is their next choice and stays. Nothing ever
+-- puts a spent one back.
 function GC.Sell._SpendPrice(pin)
   local key = type(pin) == "table" and pin.positionKey or nil
   if type(key) == "string" and pin.override ~= nil and pin.override == S.priceOverrides[key] then
     S.priceOverrides[key] = nil
+  end
+  if type(key) == "string" and pin.overrideQuantity ~= nil and pin.overrideQuantity == S.quantityOverrides[key] then
+    S.quantityOverrides[key] = nil
   end
 end
 
@@ -223,14 +228,18 @@ local function schedulePostTimeout(row)
       -- A post that was sent can still go up after this; keep listening for it.
       local sent = S.postingPin and S.postingPin.sent
       GC.Sell._AwaitLate(S.postingPin)
+      -- Held while it may still go up (Compose's awaiting_answer): the dock moves on meanwhile,
+      -- whether the item came to it by the walk or by a click on its row.
+      if sent then View.moveOn(S.postingPin.positionKey) end
+      if sent and S.dockKey == S.postingPin.positionKey then S.dockKey = nil end
       Post.DisarmPost()
       -- Said by what is actually true. A Confirm nobody pressed asked the auction house nothing:
       -- the player's confirmation lapsed. A post that went out is still listened for and the
       -- item held meanwhile, so "try again" there would be contradicted by the very next press
       -- (review I3). Only a post that never left -- its call raised -- is free to try again.
       View.notePost(stage == "confirm" and GC.L["Post confirmation expired"]
-        or sent and GC.L["No answer yet -- listening for a minute"]
-        or GC.L["The auction house did not answer -- try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+        or sent and GC.L["No answer yet, listening for a minute"]
+        or GC.L["The auction house did not answer. Try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
     end
   end)
 end
@@ -257,7 +266,7 @@ function Post.PreparePost(row)
   -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
   if row.postStage ~= "confirm" and row.position
       and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
-    View.notePost(GC.L["Last post may still go up -- wait a minute"], "fg",
+    View.notePost(GC.L["Last post may still go up. Wait a minute"], "fg",
       GC.Sell.POST_NOTE_SECONDS.failed)
     return
   end
@@ -271,7 +280,7 @@ function Post.PreparePost(row)
     -- button says it too. The next render restores the label once the price
     -- lands, which is one query away now rather than a whole pass.
     if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
-    View.status(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
+    View.status(GC.L["Fetching a fresh price for this item. Press Post again in a moment"])
     Walk.RefreshFor(position); return
   end
   if S.postingRow == row and row.postStage ~= "confirm" then return end
@@ -284,7 +293,13 @@ function Post.PreparePost(row)
     local confirmAvailable = pin and C_AuctionHouse
       and ((pin.isCommodity and C_AuctionHouse.ConfirmPostCommodity)
         or (not pin.isCommodity and C_AuctionHouse.ConfirmPostItem))
-    if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
+    -- The price and the number the seller sees now are the ones the Confirm must send: one
+    -- changed since the post was armed lets it go (the dock's boxes and the panel's chips do that
+    -- themselves; this is the press's own check -- review).
+    local chosenKey = overrideKey(position)
+    local sameChoice = pin and chosenKey and pin.override == S.priceOverrides[chosenKey]
+      and pin.overrideQuantity == S.quantityOverrides[chosenKey]
+    if not sameChoice or not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
         or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
         or not exact(pin.quantity) or pin.quantity <= 0 or not exact(pin.unitPrice) or pin.unitPrice <= 0
@@ -324,8 +339,9 @@ function Post.PreparePost(row)
   -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
+  local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
   local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true },
-    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil })
+    { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
   if not plan then
     View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
     return
@@ -382,7 +398,7 @@ function Post.PreparePost(row)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil }
+    duration = duration, override = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty }
   -- Plain field write only, before the call: row.postStage = "posting" is what the re-entrancy
   -- guard at the top of this function reads. The busy look -- Disable() (runs GoldCap's own
   -- OnDisable script), SetLabel() (GoldCap Lua, not a widget call) and SetBusy() (lazily creates
@@ -436,7 +452,7 @@ function Post.PrepareCancel(row, auctionID)
     if S.repostingRow == row then Post.DisarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
     -- a dead button. Say what is happening; the click that follows is the one that arms.
-    View.status(GC.L["Fetching a fresh price for this lot — press Repost again in a moment"])
+    View.status(GC.L["Fetching a fresh price for this lot. Press Repost again in a moment"])
     Walk.RefreshFor(position); return
   end
   if row.repostStage == "armed" then
@@ -520,7 +536,7 @@ function Post.PrepareCancel(row, auctionID)
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
   row.repostStage, row.repostReady = "armed", false
   row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
-  View.status(GC.L["Cancel this lot and lose its deposit — click again to confirm"])
+  View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])
   repostArmToken = repostArmToken + 1
   local token = repostArmToken
   if C_Timer and C_Timer.After then
@@ -612,8 +628,8 @@ function Post.Remove(row)
   row.removeStage = "armed"
   row.action.helpKey = "Remove?"; row.action:SetLabel(GC.L["Remove?"])
   View.status(#ids > 1
-    and GC.L["Removes every entered-by-hand purchase in this run -- click again to confirm"]
-    or GC.L["Removes this entered-by-hand purchase -- click again to confirm"])
+    and GC.L["Removes every entered-by-hand purchase in this run. Click again to confirm"]
+    or GC.L["Removes this entered-by-hand purchase. Click again to confirm"])
   removeArmToken = removeArmToken + 1
   local token = removeArmToken
   if C_Timer and C_Timer.After then
@@ -769,6 +785,26 @@ function GC.Sell.OnAuctionCreated(auctionID)
     and pin or nil
   local owner = GC.Sell._CreationOwner(named, wire, info)
   if not owner then return end
+  -- Posted is done for this visit, and the dock moves on to the next item (GC.Sell._HoldDoneInQueue):
+  -- a post of a number the player typed, or of everything the item had in the bags -- that one
+  -- would otherwise stand in the dock again until the bags caught up. A normal item with another
+  -- stack still in the bags is not done: one post lists one stack, and POST lists the next.
+  local whole = type(owner.position) == "table" and exact(owner.quantity)
+    and owner.quantity >= (owner.position.bagQty or 0)
+  if type(owner.positionKey) == "string" and (owner.overrideQuantity or whole) then
+    S.postedThisVisit[owner.positionKey] = true
+    View.moveOn(owner.positionKey) -- the item after it, and its panel if this one's was open
+    if S.dockKey == owner.positionKey then S.dockKey = nil end
+  end
+  -- All of it went up: its row goes now, not when the bags next catch up (owner, 2026-10-11).
+  -- Only when it is certainly this post's -- the client named the item, or it is the post on the
+  -- wire with no late answer open -- never on the order rule's guess: a guessed item may well
+  -- still be in the bags, and its row is how it gets posted.
+  local certain = named ~= nil or (owner == wire and wire.clean)
+  if whole and certain and type(owner.positionKey) == "string" then
+    S.postedOut[owner.positionKey] = owner.position.bagQty or 0
+    View.leave(owner.positionKey)
+  end
   GC.Sell._SpendPrice(owner)
   if owner ~= wire then
     -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers): the dock said the

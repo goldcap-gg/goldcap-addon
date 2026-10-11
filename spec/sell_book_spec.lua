@@ -291,6 +291,19 @@ describe("Sell order book", function()
       assert.is_true(slow.clearsHours > slow.hoursToReach)
     end)
 
+    -- How many the next Post lists, when the seller typed fewer than the stack: the clearing
+    -- time is for those units, not the whole stack.
+    it("times your own clearing over the number the caller says the next Post lists", function()
+      local p = position({ soldPerDay = 9867, bagQty = 30000, postableQty = 30000,
+        levels = { { unitPrice = 1000, quantity = 2321 }, { unitPrice = 1200, quantity = 42000 } },
+        postRecommendation = { unit = 1100 } })
+      local all = GC.SellViewModel.Expansion(p).book
+      local few = GC.SellViewModel.Expansion(p, 300).book
+      assert.equal(6, math.floor(few.clearsHours + 0.5))
+      assert.is_true(all.clearsHours > few.clearsHours)
+      assert.equal(all.hoursToReach, few.hoursToReach)
+    end)
+
     -- Your own older lots at or under the price sell before the new post: the times count them
     -- in the queue, though the marker's "N ahead" -- what competes with you -- does not. And
     -- "yours ×N" is every unit of yours the book read, not only the levels drawn (final review M6).

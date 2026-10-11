@@ -157,7 +157,7 @@ describe("Data.AdoptAppData", function()
   end)
 
   it("describes each error code in a sentence a player can act on", function()
-    assert.is_truthy(GC.Data.DescribeImportError("bad_region"):find("update", 1, true))
+    assert.is_truthy(GC.Data.DescribeImportError("bad_region"):find("Update the addon", 1, true))
     assert.is_string(GC.Data.DescribeImportError("no_items"))
     assert.is_string(GC.Data.DescribeImportError("something-new"))
     -- The parser's two newer refusals need sentences too, or they print as bare codes.

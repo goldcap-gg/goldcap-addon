@@ -26,7 +26,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
-    function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetJustifyH() end function v:SetWordWrap(on) self.wordWrap = on end function v:SetTextColor(...) self.color = { ... } end
     function v:SetMaxLines(n) self.maxLines = n end
     function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
@@ -139,6 +139,13 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     render()
   end
 
+  -- The item goes in the dock (what a click on its row does, UI/Sell/Row.lua) and the dock's POST
+  -- is pressed: the one place the posting deck posts from.
+  local function postFromDock(row)
+    GC.SellState.dockKey = row.position.positionKey
+    container.queueButton.scripts.OnClick(container.queueButton)
+  end
+
   local function positions()
     return GC.SellState.positions
   end
@@ -213,7 +220,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.QuoteCache.Set(quotes, "item:82800:25:0:1234", 90000, 1000)
     compose()
     for _, row in ipairs(GC.SellUI.rows) do
-      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+      if row:IsShown() and row.kind == "position" then postFromDock(row) end
     end
     assert.equal(1, #posted)
     GC.Sell.OnAuctionCreated(880)
@@ -328,13 +335,15 @@ describe("Sell tab, every tradeable bag item gets a row", function()
       if row:IsShown() and row.kind == "waitItem" then item = row end
     end
     assert.is_truthy(head, "no heading for the stock the tab cannot key yet")
-    assert.matches("WAITING FOR THE AUCTION HOUSE 1", head.sectionLabel.text, 1, true)
-    -- The heading's aside is in the heading's own hint cell, one line to the row's right edge --
-    -- as long as the rest of the heading, it ran on past the list and was cut mid-word (M1).
+    assert.matches("WAITING FOR THE AUCTION HOUSE 1", helper.plain(head.sectionLabel.text), 1, true)
+    -- The heading's aside is in the heading's own hint cell, to the row's right edge -- as long as
+    -- the rest of the heading, it ran on past the list and was cut mid-word (M1). It wraps there
+    -- rather than ending in "…", and the heading grows with it (owner's rule).
     assert.is_nil(head.sectionLabel.text:find("open the auction house", 1, true))
     assert.matches("open the auction house once", head.sectionHint.text, 1, true)
     assert.is_true(head.sectionHint.shown)
-    assert.equal(1, head.sectionHint.maxLines)
+    assert.is_true(head.sectionHint.wordWrap)
+    assert.is_nil(head.sectionHint.maxLines)
     assert.is_truthy(item)
     assert.matches("Jeb's Underwear ×1", item.sectionLabel.text, 1, true)
     assert.is_nil(positionOf("item:333:100:7:0"))
@@ -428,7 +437,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     local function press(positionKey)
       for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
-          row.action.scripts.OnClick(row.action)
+          postFromDock(row)
           return row
         end
       end
@@ -470,7 +479,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     local function press(positionKey)
       for _, row in ipairs(GC.SellUI.rows) do
         if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
-          row.action.scripts.OnClick(row.action)
+          postFromDock(row)
           return row
         end
       end
@@ -501,7 +510,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
     compose()
     for _, row in ipairs(GC.SellUI.rows) do
-      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+      if row:IsShown() and row.kind == "position" then postFromDock(row) end
     end
     assert.equal(1, #posted)
     for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end

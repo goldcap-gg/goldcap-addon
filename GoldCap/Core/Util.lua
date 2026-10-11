@@ -54,6 +54,23 @@ local ICON = {
   s = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
   c = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
 }
+-- The same three coins, for a caller that lays an amount out itself (the Sell tab's figures).
+GC.Util.COIN = ICON
+
+-- A whole number grouped in thousands with the player's own separator: "98,470", and "98.470" in
+-- a German client. The client's BreakUpLargeNumbers (both games) where it exists, a plain comma
+-- grouping where it does not, which is the spec suite.
+function GC.Util.Grouped(n)
+  n = math.floor(n + 0.5)
+  local fn = _G.BreakUpLargeNumbers
+  if type(fn) == "function" then
+    local ok, text = pcall(fn, n)
+    if ok and text ~= nil then return tostring(text) end
+  end
+  local text, found = GC.Util.IntText(n), 1
+  while found > 0 do text, found = text:gsub("^(-?%d+)(%d%d%d)", "%1,%2") end
+  return text
+end
 
 local function coinTextFallback(copper)
   -- Round first, sign the ROUNDED magnitude: a value that rounds to zero (e.g. -0.4) prints
@@ -411,6 +428,20 @@ end
 
 -- The Sold tab's tooltips were written against this name; one implementation, two names.
 GC.Util.TooltipText = GC.Util.ClientText
+
+--- `text` in capitals in every language the addon ships with a cased alphabet: Lua's string.upper
+-- is byte-wise and leaves everything past ASCII as it was, so a capitalised button read "POST" in
+-- English and "Выставить" in Russian (owner, 2026-10-09: Russian and Ukrainian in capitals too).
+-- UTF-8 by its two-byte pairs: Latin-1's accented letters (é -> É), the Cyrillic of ruRU and ukUA
+-- (а-я, ё, є, і, ї, ў) and ґ. CJK has no case and passes through.
+function GC.Util.Upper(text)
+  return (text:upper()
+    :gsub("\195([\160-\182\184-\190])", function(c) return "\195" .. string.char(c:byte() - 32) end) -- not ÷
+    :gsub("\208([\176-\191])", function(c) return "\208" .. string.char(c:byte() - 32) end)
+    :gsub("\209([\128-\143])", function(c) return "\208" .. string.char(c:byte() + 32) end)
+    :gsub("\209([\144-\159])", function(c) return "\208" .. string.char(c:byte() - 16) end)
+    :gsub("\210\145", "\210\144"))
+end
 
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
 -- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and

@@ -148,4 +148,74 @@ describe("kit surfaces", function()
   it("fails loudly on an icon the atlas does not have", function()
     assert.has_error(function() GC.Theme.IconCoords("no-such-icon") end)
   end)
+
+  -- A panel that slides in and out by its anchor and its alpha, a frame at a time: the coins in
+  -- its text stayed put under an animation group's Translation (owner, 2026-10-11).
+  describe("the slider", function()
+    local parent, frame, slider, placed
+
+    before_each(function()
+      parent = W.CreateFrame("Frame")
+      frame = W.CreateFrame("Frame", nil, parent)
+      frame:Hide()
+      function frame:SetAlpha(a) W.state(self).alpha = a end
+      placed = {}
+      slider = GC.Theme.Slide(frame, function(dx) placed[#placed + 1] = dx end)
+    end)
+
+    local function driver() return W.state(frame).children[1] end
+    local function tick(seconds) W.state(driver()).scripts.OnUpdate(driver(), seconds) end
+    local function moving() return W.state(driver()).scripts.OnUpdate ~= nil end
+    local function near(want, got) assert.is_true(math.abs(want - got) < 1e-9, ("%s ~= %s"):format(want, got)) end
+
+    it("comes in from 24px right and clear, and stops at home", function()
+      slider:Open()
+      assert.is_true(frame:IsShown())
+      assert.equal(24, placed[#placed])
+      assert.equal(0, W.state(frame).alpha)
+      tick(0.075) -- half way, by time
+      near(6, placed[#placed]) -- the offset goes as the square: most of the way already
+      near(0.5, W.state(frame).alpha)
+      tick(0.1)
+      assert.equal(0, placed[#placed])
+      assert.equal(1, W.state(frame).alpha)
+      assert.is_false(moving())
+    end)
+
+    it("goes out, once however often it is asked, and hides itself back home", function()
+      slider:Open(); tick(1)
+      slider:Shut()
+      assert.is_true(slider:Leaving())
+      tick(0.06)
+      near(6, placed[#placed])
+      slider:Shut() -- a repaint on the way out
+      near(6, placed[#placed])
+      tick(0.06)
+      assert.is_false(frame:IsShown())
+      assert.equal(0, placed[#placed])
+      assert.equal(1, W.state(frame).alpha)
+      assert.is_false(slider:Leaving())
+      assert.is_false(moving())
+    end)
+
+    it("turns back from where it is when opened on its way out", function()
+      slider:Open(); tick(1)
+      slider:Shut(); tick(0.06)
+      slider:Open()
+      assert.is_false(slider:Leaving())
+      near(6, placed[#placed])
+      tick(1)
+      assert.is_true(frame:IsShown())
+      assert.equal(0, placed[#placed])
+    end)
+
+    it("simply goes when the client is not drawing it", function()
+      slider:Open(); tick(1)
+      parent:Hide()
+      slider:Shut()
+      assert.is_false(frame:IsShown())
+      assert.is_false(moving())
+      assert.equal(0, placed[#placed])
+    end)
+  end)
 end)

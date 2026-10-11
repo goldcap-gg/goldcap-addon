@@ -117,7 +117,7 @@ local function createDialog()
     -- because this file loads before UI/SniperFrame.lua and specs load it on its own.
     if GC.Sniper and GC.Sniper._RebuildKeyTargets then GC.Sniper._RebuildKeyTargets() end
     local st = GC.Data.GetStatus()
-    GC.Print(GC.L["imported %d items for %s (%s) — prices are live now."]
+    GC.Print(GC.L["imported %d items for %s (%s). Prices are live now."]
       :format(st.importedCount, st.importedRealm, parsed.region))
     f.edit:SetText("")
     f:Hide()
@@ -134,13 +134,13 @@ function GC.UI.ShowImportDialog(opts)
   dialog.lists, dialog.into = opts.lists == true, opts.into
   local into = opts.into and GC.AppRuns and GC.AppRuns.Get(opts.into) or nil
   if opts.lists then
-    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import a list"]))
+    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap: Import a list"]))
     dialog.hint:SetText(into
       and (GC.L["Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s."])
         :format(GC.AppRuns.Label(into))
       or GC.L["Paste a list from goldcap.gg, TSM or Auctionator and press Import."])
   else
-    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap — Import realm prices"]))
+    dialog.TitleText:SetText(GC.Util.ClientText(GC.L["GoldCap: Import realm prices"]))
     dialog.hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
   end
   setStatus(dialog, "")
@@ -164,11 +164,11 @@ GC.slashHandlers.import = function() GC.UI.ShowImportDialog() end
 -- is read -- file scope runs before ApplyLocale picks the language. The table closes with a brace on
 -- its own line, where the locale contract spec stops reading.
 local PAYLOAD_REFUSALS = {
-  empty = "the Companion wrote an empty copy -- let it sync, then /reload",
-  no_items = "the Companion wrote it with no prices -- let it sync, then /reload",
-  bad_header = "it is in a format this build of GoldCap cannot read -- update the addon",
-  bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
-  too_long = "it is larger than this build of GoldCap can read -- update the addon",
+  empty = "the Companion wrote an empty copy. Let it sync, then /reload",
+  no_items = "the Companion wrote it with no prices. Let it sync, then /reload",
+  bad_header = "it is in a format this build of GoldCap cannot read. Update the addon",
+  bad_region = "it is for a region this build of GoldCap does not know. Update the addon",
+  too_long = "it is larger than this build of GoldCap can read. Update the addon",
 }
 
 -- How old a whole-market payload's date is, for a status line: never negative (a payload may be
@@ -191,7 +191,7 @@ GC.slashHandlers.status = function()
   -- and the origin around each other -- Lua 5.1 has no positional specifiers, so the ORDER of
   -- %d %s %s %s is fixed even where the words around them are not.
   local originLabel = st.importedOrigin == "app" and GC.L["auto-synced"] or GC.L["manual import"]
-  GC.Print(GC.L["region %s — bundled: %d items (%s), imported: %s"]:format(
+  GC.Print(GC.L["region %s · bundled: %d items (%s), imported: %s"]:format(
     st.region,
     st.bundledCount,
     st.bundledTs and st.bundledTs > 0 and GC.Util.FormatAge(now - st.bundledTs) or GC.L["none"],
@@ -219,10 +219,10 @@ GC.slashHandlers.status = function()
       elseif idle.reason == "other_region" then
         why = GC.L["it is for another region than the prices loaded"]
       elseif idle.reason == "set_aside" then
-        why = GC.L["it was set aside when other prices were loaded this session -- /reload to use it again"]
+        why = GC.L["it was set aside when other prices were loaded this session. /reload to use it again"]
       elseif idle.reason == "bad_ts" then
         -- The date is what is wrong, so it is not shown: 0, far ahead of the clock, or inf.
-        why = GC.L["its date cannot be right -- check this computer's clock"]
+        why = GC.L["its date cannot be right. Check this computer's clock"]
       elseif PAYLOAD_REFUSALS[idle.reason] then
         why = GC.L[PAYLOAD_REFUSALS[idle.reason]]
       else

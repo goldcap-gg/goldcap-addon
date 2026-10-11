@@ -207,7 +207,7 @@ describe("Sniper row repaint skip", function()
     local d = deal(7)
 
     ctx.setRowDeal(row, d)
-    assert.equal("—", row.tierChip.label)
+    assert.equal("-", row.tierChip.label)
     local afterFirst = calls.n
 
     ctx.GC.Sniper._pendingRows = { [7] = true }
@@ -257,7 +257,7 @@ describe("Sniper row repaint skip", function()
     ctx.setRowDeal(row, refolded)
 
     assert.equal(276100, row.deal.unitPrice) -- the row itself carries the new floor
-    assert.equal("—", row.tierChip.label)    -- and no longer advertises the old SAFE verdict
+    assert.equal("-", row.tierChip.label)    -- and no longer advertises the old SAFE verdict
   end)
 
   it("repaints when the item is pinned or unpinned, even though the deal itself did not change", function()
@@ -313,7 +313,7 @@ describe("Sniper row repaint skip", function()
     local d = deal(7)
 
     ctx.setRowDeal(row, d)
-    assert.equal("—", row.trendText.text)
+    assert.equal("-", row.trendText.text)
     local afterFirst = calls.n
 
     ctx.setTrend(-12)
@@ -388,10 +388,10 @@ describe("Sniper row repaint skip", function()
       tier = "WATCH", action = "Check", priceUnknown = true,
     }))
 
-    assert.equal("—", row.discountText.text)
-    assert.equal("—", row.profitText.text)
-    assert.equal("—", row.unitText.text)
-    assert.equal("—", row.priceText.text)
+    assert.equal("-", row.discountText.text)
+    assert.equal("-", row.profitText.text)
+    assert.equal("-", row.unitText.text)
+    assert.equal("-", row.priceText.text)
     assert.is_false(row.buy.shown)
     local watchingSuffix = "· watching|r"
     assert.equal(watchingSuffix, row.nameText.text:sub(-#watchingSuffix))
@@ -407,10 +407,10 @@ describe("Sniper row repaint skip", function()
       tier = "WATCH", action = "Check", priceUnknown = false,
     }))
 
-    assert.equal("—", row.discountText.text)
-    assert.equal("—", row.profitText.text)
+    assert.equal("-", row.discountText.text)
+    assert.equal("-", row.profitText.text)
     assert.equal("500c", row.unitText.text)   -- the one real number: what it costs right now
-    assert.equal("—", row.priceText.text)     -- never unitPrice * qty duplicated as a fake total
+    assert.equal("-", row.priceText.text)     -- never unitPrice * qty duplicated as a fake total
   end)
 
   it("resolves an itemID's name/icon once and reuses it across a genuine repaint", function()

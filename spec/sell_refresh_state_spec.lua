@@ -232,7 +232,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions() -- enters pricing and immediately starves on the busy slot
-    assert.equal("Checking prices — waiting for the Auction House…", status[#status])
+    assert.equal("Checking prices: waiting for the Auction House…", status[#status])
     assert.equal(100, refreshState(GC).progressAt) -- markProgress ran: the watchdog will not fire
     assert.same({}, sent.keys)
 
@@ -258,7 +258,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions()
-    assert.equal("Checking prices — waiting for the Auction House…", status[#status])
+    assert.equal("Checking prices: waiting for the Auction House…", status[#status])
     assert.is_true(refreshState(GC).waitingNoted)
 
     ready = true
@@ -273,7 +273,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.OnOwnedAuctions()
     local notices = 0
     for _, text in ipairs(status) do
-      if text == "Checking prices — waiting for the Auction House…" then
+      if text == "Checking prices: waiting for the Auction House…" then
         notices = notices + 1
       end
     end
@@ -437,7 +437,7 @@ describe("Sell refresh state fence", function()
   end)
 
   -- Unresolved positions were excluded from pricing wholesale, which left every tiered
-  -- reagent caught in identity repair (Progenium Ore, Bismuth...) at "—" forever -- reading
+  -- reagent caught in identity repair (Progenium Ore, Bismuth...) at "-" forever -- reading
   -- as the walk being broken. Identity questions are about COST; a commodity's market price
   -- is exact for its itemID no matter whose stock it is. Variant ITEMS stay excluded: a
   -- basic-key quote can be a different variant's price, and a wrong number is worse than none.

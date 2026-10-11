@@ -1385,7 +1385,7 @@ local function setRowDeal(row, deal)
   -- A watched row's figures are estimates off the last price seen, never a verdict, so they
   -- keep the row's dim look (fgMuted); a dash is only for what is genuinely unknown.
   if deal.pinPlaceholder and not deal.marketKnown then
-    row.discountText:SetText("—")
+    row.discountText:SetText("-")
     row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   elseif deal.pinPlaceholder then
     row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
@@ -1400,9 +1400,9 @@ local function setRowDeal(row, deal)
   -- GC.Util.FormatMoney would print a literal 0-copper price nothing polled, so it gets the same
   -- dimmed em-dash the trend column below already uses for its own unknown state.
   if deal.priceUnknown then
-    row.unitText:SetText("—")
+    row.unitText:SetText("-")
     row.unitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-    row.priceText:SetText("—")
+    row.priceText:SetText("-")
     row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   elseif deal.pinPlaceholder then
     -- A real price WAS observed for this pin (lastSeenPrice), but a placeholder's qty is
@@ -1416,7 +1416,7 @@ local function setRowDeal(row, deal)
       row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty))
       row.priceText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
     else
-      row.priceText:SetText("—")
+      row.priceText:SetText("-")
       row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
   else
@@ -1437,7 +1437,7 @@ local function setRowDeal(row, deal)
   -- deal.estProfit for a cap deal (buildCapDeal sets both from the same number), so this is the
   -- one case that needs its own branch rather than a field swap.
   if (deal.pinPlaceholder and not deal.marketKnown) or (deal.cap and deal.mv == nil) then
-    row.profitText:SetText("—")
+    row.profitText:SetText("-")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   elseif deal.pinPlaceholder then
     row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
@@ -1461,7 +1461,7 @@ local function setRowDeal(row, deal)
     local tc = trend < 0 and Theme.color.red or Theme.color.green
     row.trendText:SetTextColor(tc[1], tc[2], tc[3])
   else
-    row.trendText:SetText("—")
+    row.trendText:SetText("-")
     row.trendText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   end
 
@@ -1801,7 +1801,7 @@ local function refreshStaleText()
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    text = GC.L["no prices yet: /goldcap companion or /goldcap import"]
     color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
@@ -1810,7 +1810,7 @@ local function refreshStaleText()
       text = (GC.L["auto-synced %dh ago"]):format(math.floor(age / 3600))
       color, shown = Theme.tier.SUSPECT, true
     else
-      text = GC.L["auto-synced data stale -- /goldcap import"]
+      text = GC.L["auto-synced data stale: /goldcap import"]
       color, shown = Theme.color.red, true
     end
   else -- manual
@@ -1818,13 +1818,13 @@ local function refreshStaleText()
       -- Fresh manual data used to hide the banner entirely; it now stays up, dim, as the
       -- nudge toward the Companion -- the whole point is that "fresh" here still means
       -- "will go stale on its own", unlike auto-synced data.
-      text = GC.L["manual import -- Companion keeps this fresh: /goldcap companion"]
+      text = GC.L["manual import. Companion keeps this fresh: /goldcap companion"]
       color, shown = Theme.color.fgDim, true
     elseif age < LIM.STALE_RED_SECONDS then
       text = (GC.L["import %dh old"]):format(math.floor(age / 3600))
       color, shown = Theme.tier.SUSPECT, true
     else
-      text = GC.L["import stale -- /goldcap import or /goldcap companion"]
+      text = GC.L["import stale: /goldcap import or /goldcap companion"]
       color, shown = Theme.color.red, true
     end
   end
@@ -2017,7 +2017,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
     end
     if not watching then
       text = GC.L["Nothing to watch on this board yet."] .. "\n"
-        .. GC.L["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."]
+        .. GC.L["Gear, pets and recipes need an import that carries the region's prices for them. Paste a fresh string from goldcap.gg."]
     else
       text = GC.L["No gear, pets or recipes under their region price right now."] .. "\n"
         .. GC.L["GoldCap keeps checking them while this board is open."]
@@ -2033,7 +2033,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
       text = GC.L["The Companion is syncing, but this addon could not read what it wrote:"] .. "\n"
         .. GC.Data.DescribeImportError(appErr.reason) .. "."
     else
-      text = GC.L["No deals to show -- and no realm prices yet."] .. "\n"
+      text = GC.L["No deals to show, and no realm prices yet."] .. "\n"
         .. GC.L["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] .. "\n"
         .. GC.L["or paste a string from goldcap.gg with /goldcap import."]
     end
@@ -2045,7 +2045,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
       parts[#parts + 1] = GC.L["%d filtered out: hard to resell, or under your Min profit per buy"]:format(screened)
     end
     if refusedCount > 0 then
-      parts[#parts + 1] = (GC.L["%d refused by live checks -- press \"HIDDEN %d\" above to review them"]):format(
+      parts[#parts + 1] = (GC.L["%d refused by live checks. Press \"HIDDEN %d\" above to review them"]):format(
         refusedCount, refusedCount)
     end
     text = GC.L["No deals passed the safety checks right now."] .. "\n" .. table.concat(parts, "\n")
@@ -2065,7 +2065,7 @@ local function maybeWarnStale()
   if age and age < LIM.STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
   staleWarnedThisSession = true
   if age then
-    local msg = (GC.L["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."]):format(math.floor(age / 3600))
+    local msg = (GC.L["your import is %d hours old and prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."]):format(math.floor(age / 3600))
     -- Only for a manual paste: app-synced data is already the Companion's own output, so
     -- telling the player to go get the Companion would be nonsensical there.
     if GC.Data.OriginState() == "manual" then
@@ -2075,7 +2075,7 @@ local function maybeWarnStale()
   elseif not isForever() then
     -- goldcap.gg has no Forever prices yet, so this line has nothing true to say there -- the
     -- header banner and the Deals empty state already say why, in Forever's own terms.
-    GC.Print(GC.L["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."])
+    GC.Print(GC.L["you haven't imported realm prices yet. Install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."])
   end
 end
 
@@ -2135,9 +2135,9 @@ end
 -- What the buy window says once a Forever row's Check armed Buy.
 function GC.Sniper._ForeverArmText(decision)
   if decision and decision.forever == "market" then
-    return GC.L["far under the market, resale speed unknown -- click Buy to purchase"]
+    return GC.L["far under the market, resale speed unknown. Click Buy to purchase"]
   end
-  return GC.L["under the vendor price -- click Buy to purchase"]
+  return GC.L["under the vendor price. Click Buy to purchase"]
 end
 
 -- How many units of one commodity price level belong to the player. A commodity result is a
@@ -2986,7 +2986,7 @@ local function announcePin(itemID, watching)
   -- Held for a few seconds: without the hold, the next scan page / poll status overwrote this
   -- within a frame or two, and the right-click read as having done nothing at all.
   setStatus(watching
-    and (GC.L["watching %s closely -- re-checked every few seconds"]):format(name)
+    and (GC.L["watching %s closely, re-checked every few seconds"]):format(name)
     or (GC.L["stopped watching %s"]):format(name), 4)
 end
 
@@ -3066,9 +3066,9 @@ local function armScanWatchdog(token)
         -- "press Full Scan" line with "AUTO · SCANNING" anyway. Pick the text off the
         -- machine's OWN state (read before feeding scanFinished moves it along).
         if autoScan and autoScan:State() ~= "OFF" then
-          frame.status:SetText(GC.L["full scan stalled -- retrying shortly"])
+          frame.status:SetText(GC.L["full scan stalled, retrying shortly"])
         else
-          frame.status:SetText(GC.L["full scan stalled -- press Full Scan to retry"])
+          frame.status:SetText(GC.L["full scan stalled. Press Full Scan to retry"])
         end
       end
       -- Sniper v3 §3: without this, a stalled Auto-driven scan would leave the machine
@@ -3585,7 +3585,7 @@ local function abortFullScan()
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
     if not (autoScan and autoScan:State() ~= "OFF") then
       -- The Scan button named by its own label, in the player's language (fix round 1, nit 2).
-      setStatus(GC.L["full scan stopped -- press %s to run it again"]:format(GC.L["SCAN"]))
+      setStatus(GC.L["full scan stopped. Press %s to run it again"]:format(GC.L["SCAN"]))
     end
   end
   GC.Sniper._bookPass:Abort()
@@ -4129,6 +4129,7 @@ local function setDialogHeader(deal, decision)
   local quantity = decision and decision.quantity or nil
   local suffix = quantity and quantity > 0 and ("  x%d"):format(quantity) or ""
   dialog.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. suffix)
+  if dialog.fitHeader then dialog.fitHeader() end
   dialog.icon:SetTexture(nil)
 
   local item = Item:CreateFromItemID(deal.itemID)
@@ -4139,11 +4140,12 @@ local function setDialogHeader(deal, decision)
     local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
     local label = item:GetItemName() or ("item " .. deal.itemID)
     dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. suffix)
+    if dialog.fitHeader then dialog.fitHeader() end
   end)
 end
 
 local function displayDecisionAmount(value)
-  return value and GC.Util.FormatMoney(value) or "—"
+  return value and GC.Util.FormatMoney(value) or "-"
 end
 
 -- DG (dialog geometry): relocated here from down by createDialog (F4, whole-branch review) --
@@ -4181,9 +4183,9 @@ DG.CANCEL_H = 22 -- Task 2 restyle (was 20)
 -- Header is just top margin + icon + gap: the item, and nothing that competes with it.
 -- 12 + 32 + 8 = 52
 DG.HEADER_H = Theme.pad.m + DG.ICON + Theme.pad.s
--- The "ESC" hint's own column, and what is left for the item's name beside it. The name gets
--- ONE anchor and this width rather than a LEFT/RIGHT pair -- see its own comment in
--- createDialog for why that pair is a trap here.
+-- The X's own column (it was an "ESC" hint), and what is left for the item's name beside it. The
+-- name gets ONE anchor and this width rather than a LEFT/RIGHT pair, so it wraps down rather
+-- than running under the X.
 DG.HEADER_ESC_W = 30
 -- 320 - 12 - 32 - 8 - 30 - 8 - 12 = 218
 DG.HEADER_NAME_W = DG.WIDTH - Theme.pad.m - DG.ICON - Theme.pad.s
@@ -4364,7 +4366,7 @@ local function drawVerdict(deal, decision, market)
   end
 
   -- THE FIGURE. It changes unit rather than going blank: a refusal about the VALUE has no
-  -- honest number at all, and printing "—" in a 28px slot reads as a value that failed to
+  -- honest number at all, and printing "-" in a 28px slot reads as a value that failed to
   -- load rather than as a refusal to invent one.
   -- Each branch formats its OWN caption rather than collecting args for a shared
   -- `caption:format(unpack(args))`: `unpack` is a global in the game's Lua 5.1 and gone in the
@@ -4398,7 +4400,7 @@ local function drawVerdict(deal, decision, market)
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
     caption = (GC.L[CV.HERO_CAPTION.days]):format(quantity,
-      GC.Util.FormatCount(market.soldPerDay) or "—", displayDecisionAmount(decision.entryTotal))
+      GC.Util.FormatCount(market.soldPerDay) or "-", displayDecisionAmount(decision.entryTotal))
   elseif hero.kind == "units" then
     figure = (GC.L["%d units"]):format(hero.quantity)
     figureColor = Theme.color.gold
@@ -4492,7 +4494,7 @@ local function drawVerdict(deal, decision, market)
         elseif fact.id == "confidence" then
           value = GC.L[CV.CONFIDENCE_WORD[CV.ConfidenceBand(fact.count) or ""] or ""]
         else
-          value = GC.Util.FormatCount(fact.count) or "—"
+          value = GC.Util.FormatCount(fact.count) or "-"
         end
 
         slot.label:SetText(GC.L[CV.FACT_LABEL[fact.id] or fact.id])
@@ -4601,10 +4603,10 @@ local function stampDialogFromDecision(deal, decision)
   -- "3384s" in a 64px column: a trailing .0 on a figure whose last five digits carry no
   -- decision, a tenth of a percent nobody acts on, and an age in seconds. See
   -- GC.Util.FormatCount / FormatElapsed for why each rounds the way it does.
-  dialog.soldText:SetText(market.soldPerDay and GC.Util.FormatCount(market.soldPerDay) or "—")
+  dialog.soldText:SetText(market.soldPerDay and GC.Util.FormatCount(market.soldPerDay) or "-")
   dialog.sellThroughText:SetText(market.sellThroughBps
-    and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "—")
-  dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "—")
+    and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "-")
+  dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "-")
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
   else
@@ -4837,11 +4839,11 @@ local function settleDetachedConfirmed(pending, terminal)
         or GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID))
       return
     end
-    reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
+    reportDetachedCommodity(pending, GC.L["purchase total unavailable. Check your mail"])
     return
   end
   if terminal == "unavailable" then
-    reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
+    reportDetachedCommodity(pending, GC.L["purchase total unavailable. Check your mail"])
   else
     reportDetachedCommodity(pending, closed and GC.L["confirmed commodity purchase failed after AH close"]
       or GC.L["commodity purchase failed"])
@@ -4912,9 +4914,9 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         activeItemID[deal.itemID] = true
         if dialog and dialog.row == row then
           dialog.primaryBtn:Disable()
-          setDialogStatus(GC.L["purchase total unavailable — inspect mailbox"], 1, 0.3, 0.3)
+          setDialogStatus(GC.L["purchase total unavailable. Check your mail"], 1, 0.3, 0.3)
         end
-        if frame then frame.status:SetText(GC.L["purchase total unavailable — inspect mailbox"]) end
+        if frame then frame.status:SetText(GC.L["purchase total unavailable. Check your mail"]) end
         refreshRows()
         if settled then GC.Sniper._HandOffSettled() end
         return
@@ -5105,7 +5107,7 @@ function GC.Sniper._RetireStall(pending, stall)
     return
   end
   -- A Start the server never answered is not a quote that expired (fix round 4, n3).
-  local text = pending.priceReceived and GC.L["quote expired -- Refresh to re-check the price"]
+  local text = pending.priceReceived and GC.L["quote expired. Refresh to re-check the price"]
     or GC.L["no answer from the auction house"]
   if dialog and dialog.row == row then
     if not pending.cancelRequested then
@@ -5161,7 +5163,7 @@ function GC.Sniper._TickConfirmCountdown()
     return
   end
   pending.countdownShown = left
-  setDialogStatus((GC.L["quote expires in %d s -- click Confirm to buy"]):format(left), 1, 0.82, 0)
+  setDialogStatus((GC.L["quote expires in %d s. Click Confirm to buy"]):format(left), 1, 0.82, 0)
 end
 
 -- The other half (review M1): Confirm finds the shared slot is not this window's. However it
@@ -5174,14 +5176,14 @@ function GC.Sniper._LostSlot(row, pending)
   if commodityPurchase == pending then commodityPurchase = nil end
   if not (dialog and dialog.row == row) then
     -- No window on it: the row goes back to the board, still without a Cancel.
-    resolvePurchase(row, false, GC.L["another purchase took over -- nothing was confirmed"])
+    resolvePurchase(row, false, GC.L["another purchase took over: nothing was confirmed"])
     return
   end
   row.purchaseDeal = nil
   row.quoteSnapshot = nil
   hideRequoteBanner()
-  GC.Sniper._ExpireArm(row, GC.L["another purchase took over -- nothing was confirmed"], 1, 0.3, 0.3)
-  if frame then frame.status:SetText(GC.L["another purchase took over -- nothing was confirmed"]) end
+  GC.Sniper._ExpireArm(row, GC.L["another purchase took over: nothing was confirmed"], 1, 0.3, 0.3)
+  if frame then frame.status:SetText(GC.L["another purchase took over: nothing was confirmed"]) end
 end
 
 -- Follow-up P1: a confirmed purchase has just settled -- succeeded, failed, answered unavailable,
@@ -5203,8 +5205,8 @@ function GC.Sniper._HandOffSettled()
   if not (row and row.purchaseStage == "ready") then return end
   -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
   -- SetUppercase is `text:upper()`), in the player's language (fix round 1, nit 2).
-  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- %s to re-check the price"]
-    :format(GC.L["Refresh"]:upper()), 1, 0.82, 0)
+  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled. %s to re-check the price"]
+    :format(GC.Util.Upper(GC.L["Refresh"])), 1, 0.82, 0)
 end
 
 -- Fix round 1 (minor 2): a window armed while a confirmed purchase is still owed its answer says
@@ -5271,7 +5273,7 @@ local function scheduleArmTimeout(row, deal, decision)
       -- setDialogStatus's own comment for why this file hardcodes rather than reads the live
       -- table). The Kit's status color rule is green on armReady's own Buy confirmation, red on
       -- refusal OR expiry, fgDim (setDialogStatus's own default) everywhere else.
-      GC.Sniper._ExpireArm(row, GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
+      GC.Sniper._ExpireArm(row, GC.L["quote expired. Refresh to re-check the price"], 0.898, 0.283, 0.302)
     end
   end)
 end
@@ -5325,7 +5327,7 @@ local function armReady(row, deal, decision, levels, hold)
     -- The dialog's OWN status must flip here -- the requery path otherwise leaves its
     -- "checking live price..." text up even though the button just enabled, and the player
     -- reads the stale text right up until the quote expires.
-    setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)
+    setDialogStatus(GC.L["price confirmed. Click Buy to purchase"], 0.25, 0.85, 0.25)
   end
   scheduleArmTimeout(row, deal, decision)
   if updateBuyAffordance then updateBuyAffordance() end
@@ -5456,7 +5458,7 @@ function GC.Sniper._CapMiss(deal, decision)
   local level = candidate.itemLevel or 0
   local parts = {}
   if unit > cap.c then
-    parts[#parts + 1] = (GC.L["Above your price -- quoted %s, your price %s"]):format(
+    parts[#parts + 1] = (GC.L["Above your price: quoted %s, your price %s"]):format(
       GC.Util.FormatMoney(unit), GC.Util.FormatMoney(cap.c))
   end
   if (cap.l or 0) > 0 and level < cap.l then
@@ -5668,9 +5670,9 @@ local function applyRequeryResult(row, itemID, live)
       -- armReady, whose affordance check has the last word on both lines: a Buy held behind a
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
-        frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
+        frame.status:SetText(decision.cap and GC.L["at or under your price. Click Buy to purchase"]
           or decision.ceiling and GC.Sniper._ForeverArmText(decision)
-          or GC.L["live safety confirmed -- click Buy to purchase"])
+          or GC.L["live safety confirmed. Click Buy to purchase"])
       end
       armReady(row, deal, decision, live.levels, hold)
     elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
@@ -5696,7 +5698,7 @@ local function applyRequeryResult(row, itemID, live)
       -- Forever per-buy wallet limit (GC.ForeverDeals.BuyLimits).
       local ceilingLot = decision.ceiling ~= nil
       local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
-      local label = (capLot or ceilingLot) and "Buy" or GC.L["BUY — unverified"]
+      local label = (capLot or ceilingLot) and "Buy" or GC.L["BUY (unverified)"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -5713,7 +5715,7 @@ local function applyRequeryResult(row, itemID, live)
         setDialogHeader(deal, decision)
         stampDialogFromDecision(deal, decision)
         -- Affordability, checked here rather than through updateBuyAffordance: that helper
-        -- ends by writing "price confirmed -- click Buy to purchase" in green, which is a
+        -- ends by writing "price confirmed. Click Buy to purchase" in green, which is a
         -- promise this path is not allowed to make. Final review m2: and, at the player's own
         -- price, their own per-buy wallet limit -- the one a commodity at it already keeps to
         -- (GC.Caps.DecideCommodity).
@@ -5723,7 +5725,7 @@ local function applyRequeryResult(row, itemID, live)
           or nil
         if total > GetMoney() then
           dialog.primaryBtn:Disable()
-          setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
+          setDialogStatus((GC.L["not enough gold: total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
         elseif (capLot or ceilingLot) and not (limits and total <= limits.budget) then
           dialog.primaryBtn:Disable()
@@ -5739,18 +5741,18 @@ local function applyRequeryResult(row, itemID, live)
             setDialogStatus(capMiss, 1, 0.3, 0.3)
           elseif hold then
             armLoudConfirm(row, label, true)
-            setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+            setDialogStatus(capLot and GC.L["at or under your price. Click Buy to purchase"]
               or ceilingLot and GC.Sniper._ForeverArmText(decision)
-              or GC.L["price checked, sale speed unknown -- this one is your call"])
+              or GC.L["price checked, sale speed unknown. This one is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
+            setDialogStatus(GC.L["at or under your price. Click Buy to purchase"], 0.25, 0.85, 0.25)
           elseif ceilingLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+            setDialogStatus(GC.L["price checked, sale speed unknown. This one is your call"], 1, 0.82, 0)
           end
           -- Last word on a bid that would be lit, now or after its hold: it waits over a confirmed
           -- commodity purchase still owed its answer (the Buy gate, review M2), and says so now
@@ -5778,9 +5780,9 @@ local function applyRequeryResult(row, itemID, live)
       local note
       if covered then
         needs = nil
-        note = GC.L["you have enough gold for this now -- Check again"]
+        note = GC.L["you have enough gold for this now. Check again"]
       elseif needs then
-        note = (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
+        note = (GC.L["not enough gold on this character: you need %s"]):format(GC.Util.FormatGoldCeil(needs))
       else
         note = GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required")
       end
@@ -5791,7 +5793,7 @@ local function applyRequeryResult(row, itemID, live)
       end
     end
   else
-    showGoneState(row, GC.L["listing gone -- already bought out or price changed"])
+    showGoneState(row, GC.L["listing gone: already bought out or price changed"])
     -- Caps fixes 4a, round 2, the safety net: a capped item's ratchets let go of it, so the next
     -- cap round (or book pass) reports it again even at the price it showed. A Check that came
     -- back empty for a reason of the client's own -- a search that met an unanswered keys batch --
@@ -5843,7 +5845,7 @@ local function scheduleBuyTimeout(row, deal, token)
           and commodityPurchase.token == token))
         and dialog and dialog.row == row then
       dialog.primaryBtn:Disable()
-      setDialogStatus(GC.L["no purchase confirmation received -- Cancel and retry"])
+      setDialogStatus(GC.L["no purchase confirmation received. Cancel and retry"])
     end
   end)
 end
@@ -6181,7 +6183,7 @@ stampVerdict = function(deal, data, manual)
   local unverified = (decision and decision.candidate and decision.status == "WATCH") and true or nil
   local status, reason
   if not data then
-    status, reason = "Gone", GC.L["listing gone -- bought out or repriced"]
+    status, reason = "Gone", GC.L["listing gone: bought out or repriced"]
   else
     status = decision and decision.status or "WATCH"
     local token = decision and decision.reasons and decision.reasons[1]
@@ -6214,7 +6216,7 @@ stampVerdict = function(deal, data, manual)
   -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
   if not manual and not buyable and not unverified and not (decision and decision.needsGold)
       and not isPinned(deal.itemID) and refusedCount > 0 then
-    setStatus((GC.L["%d hidden -- the live check refused them"]):format(refusedCount), 4)
+    setStatus((GC.L["%d hidden: the live check refused them"]):format(refusedCount), 4)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
@@ -7466,7 +7468,7 @@ end
 -- their own terminal event or GC.Sniper._ReleaseStrandedConfirmed, and the row they own is
 -- released by the NEXT window once that has happened.
 function GC.Sniper._ReleaseQuietZone()
-  local note = GC.L["no answer from the auction house"] .. GC.L[" — Check again"]
+  local note = GC.L["no answer from the auction house"] .. GC.L[". Check again"]
   for i = 1, #rows do
     local row = rows[i]
     local stage = row.purchaseStage
@@ -7780,7 +7782,7 @@ function GC.Sniper._DropRequotedConfirm(pending)
   -- A row the same row's new Check has taken over is that Check's, and is not touched.
   if holdsRow then resolvePurchase(row, false) end
   reportDetachedCommodity({ token = pending.token, itemID = pending.itemID, deal = deal },
-    GC.L["price changed after you closed the buy window -- nothing was bought"])
+    GC.L["price changed after you closed the buy window: nothing was bought"])
   GC.Sniper._HandOffSettled()
 end
 
@@ -7990,13 +7992,13 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       if refreshQtyRow then refreshQtyRow() end -- "confirm" is not "ready" -- box/quick-fill stay greyed out
     end
     if affordable then
-      setDialogStatus((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
+      setDialogStatus((GC.L["quote %s. Click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       if frame then
-        frame.status:SetText((GC.L["quote %s -- click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
+        frame.status:SetText((GC.L["quote %s. Click Confirm to buy"]):format(GC.Util.CoinText(totalPrice)))
       end
     else
-      setDialogStatus(GC.L["not enough gold for this quote -- Cancel"], 1, 0.3, 0.3)
-      if frame then frame.status:SetText(GC.L["not enough gold for this quote -- Cancel"]) end
+      setDialogStatus(GC.L["not enough gold for this quote. Cancel"], 1, 0.3, 0.3)
+      if frame then frame.status:SetText(GC.L["not enough gold for this quote. Cancel"]) end
     end
     return
   end
@@ -8018,10 +8020,10 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- claims to break. It says what is actually known: some of it may be.
   local loudHead
   if capBreach and unitPrice > deal.cap then
-    loudHead = (GC.L["Above your price -- quoted %s, your price %s"]):format(
+    loudHead = (GC.L["Above your price: quoted %s, your price %s"]):format(
       GC.Util.FormatMoney(unitPrice), GC.Util.FormatMoney(deal.cap))
   elseif capBreach then
-    loudHead = GC.L["The price moved -- part of this quote may be above your price"]
+    loudHead = GC.L["The price moved: part of this quote may be above your price"]
   else
     loudHead = (GC.L["PRICE ROSE %.1fx"]):format(ratio)
   end
@@ -8055,8 +8057,8 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if not affordable then
     -- The rise itself is already on the banner and in the stamped figures; what the player
     -- needs from the status line is why the button is dead.
-    setDialogStatus(GC.L["not enough gold for this quote -- Cancel"], 1, 0.3, 0.3)
-    if frame then frame.status:SetText(GC.L["not enough gold for this quote -- Cancel"]) end
+    setDialogStatus(GC.L["not enough gold for this quote. Cancel"], 1, 0.3, 0.3)
+    if frame then frame.status:SetText(GC.L["not enough gold for this quote. Cancel"]) end
     return
   end
   setDialogStatus(detail, 1, 0.3, 0.3)
@@ -8064,7 +8066,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- exactly what the banner says (M2).
   if frame then
     frame.status:SetText(capBreach and loudHead
-      or (GC.L["price rose %.1fx — still safe, confirm"]):format(ratio))
+      or (GC.L["price rose %.1fx, still safe. Confirm"]):format(ratio))
   end
 end
 
@@ -8097,7 +8099,7 @@ function GC.Sniper.OnCommodityPriceUnavailable()
   if pending.confirmed then
     commodityPurchase = nil
     if confirmedAttemptOwnsRow(pending) then
-      resolvePurchase(pending.row, true, GC.L["purchase total unavailable — inspect mailbox"], nil, pending.deal)
+      resolvePurchase(pending.row, true, GC.L["purchase total unavailable. Check your mail"], nil, pending.deal)
     else
       settleDetachedConfirmed(pending, "unavailable")
     end
@@ -8128,8 +8130,8 @@ function GC.Sniper.OnCommodityPriceUnavailable()
     hideRequoteBanner()
     setPrimaryLabel("Buy")
   end
-  setDialogStatus(GC.L["not enough units left for that quantity -- re-checking what remains..."], 1, 0.82, 0)
-  if frame then frame.status:SetText(GC.L["not enough units left for that quantity -- re-checking what remains..."]) end
+  setDialogStatus(GC.L["not enough units left for that quantity, re-checking what remains..."], 1, 0.82, 0)
+  if frame then frame.status:SetText(GC.L["not enough units left for that quantity, re-checking what remains..."]) end
   startRequery(row, (row.deal and row.deal.itemID == deal.itemID) and row.deal or deal)
   refreshRows()
 end
@@ -8183,12 +8185,12 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
   local quote = pending.quote
   if not deal or not quote or quote.token ~= pending.token or quote.itemID ~= pending.itemID
       or not quote.decision or quote.decision.status ~= "SAFE" then
-    resolvePurchase(row, true, GC.L["purchase total unavailable — inspect mailbox"])
+    resolvePurchase(row, true, GC.L["purchase total unavailable. Check your mail"])
     return
   end
   local purchase = purchaseFacts(deal, quote)
   resolvePurchase(row, true, purchase and (GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID)
-    or GC.L["purchase total unavailable — inspect mailbox"], purchase, deal)
+    or GC.L["purchase total unavailable. Check your mail"], purchase, deal)
 end
 
 function GC.Sniper.OnCommodityPurchaseFailed()
@@ -8282,7 +8284,7 @@ function GC.Sniper.OnAuctionHouseError(errorCode)
   -- Every live Check waiting on a search result, retired exactly as its own timeout retires
   -- it: a search that was actually sent still has to drain before a new authoritative Check
   -- can exist, and the row goes back to a button the player can press again.
-  local note = GC.L["auction house error"] .. GC.L[" — Check again"]
+  local note = GC.L["auction house error"] .. GC.L[". Check again"]
   for itemID, attempt in pairs(awaitingRequery) do
     awaitingRequery[itemID] = nil
     awaitingKeyInfo[itemID] = nil
@@ -8345,7 +8347,7 @@ function GC.Sniper._ReleaseStrandedConfirmed(pending)
   if dialog and dialog.row == row then
     dialog.primaryBtn:Disable()
     dialog.cancelBtn:Enable()
-    setDialogStatus(GC.L["purchase total unavailable — inspect mailbox"], 1, 0.3, 0.3)
+    setDialogStatus(GC.L["purchase total unavailable. Check your mail"], 1, 0.3, 0.3)
   end
   refreshRows()
 end
@@ -8404,7 +8406,7 @@ function GC.Sniper.NotifyDialogOpened()
   local wasScanning = GC.Sniper._bookPass:IsPaging()
   abortFullScan()
   if wasScanning and frame then
-    frame.status:SetText(GC.L["full scan interrupted -- confirm your purchase"])
+    frame.status:SetText(GC.L["full scan interrupted. Confirm your purchase"])
   end
   feedAuto("pause:dialog") -- if THIS was an Auto-driven scan, cancelFullScan's own status wins below
 end
@@ -8421,6 +8423,9 @@ end
 -- after it, in the same click -- WoW: Forever only needs the call not to share an execution
 -- with what these reads may have picked up.
 local function planDialogPrimaryClick()
+  -- Shut by the player and on its way out (createDialog's d.close): nothing on it is asked of the
+  -- server any more.
+  if dialog.slider and dialog.slider:Leaving() then return end
   local row = dialog.row
   if not row then return end
   local stage = row.purchaseStage
@@ -8476,7 +8481,7 @@ local function planDialogPrimaryClick()
         if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
         if not (dialog and dialog.row == row) then return end
         dialog.cancelBtn:Enable()
-        setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
+        setDialogStatus(GC.L["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
       end)
       -- Far beyond any real server round trip, so a genuine terminal event always lands first --
       -- see GC.Sniper._ReleaseStrandedConfirmed and LIM.STRANDED_RELEASE_SECONDS.
@@ -8575,7 +8580,7 @@ local function planDialogPrimaryClick()
       -- left a lit Buy that did nothing (in game 2026-09-23); the Check's answer is the proof
       -- that retires the tombstone (GC.Sniper._RetireFencedTombstone) and re-arms Buy.
       dialog.primaryBtn:Disable()
-      setDialogStatus(GC.L["the last attempt is still settling -- checking the price again..."], 1, 0.82, 0)
+      setDialogStatus(GC.L["the last attempt is still settling, checking the price again..."], 1, 0.82, 0)
       startRequery(row, deal)
       return
     end
@@ -8814,14 +8819,14 @@ updateBuyAffordance = function()
   if not total then GC.Sniper._HoldWhileOwed(row) return end
   if total > GetMoney() then
     dialog.primaryBtn:Disable()
-    setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
+    setDialogStatus((GC.L["not enough gold: total %s, you have %s"])
       :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
   elseif not GC.Sniper._HoldWhileOwed(row) then
     -- A Buy that would be lit waits while a confirmed purchase is still owed its answer (fix
     -- round 1, GC.Sniper._HoldWhileOwed); one the gold refuses anyway says so instead (round 2).
     -- Not inside a hold (armLoudConfirm): its own timer comes back here when it is over.
     if dialog.armHold ~= requoteArmToken then dialog.primaryBtn:Enable() end
-    setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)
+    setDialogStatus(GC.L["price confirmed. Click Buy to purchase"], 0.25, 0.85, 0.25)
   end
 end
 
@@ -9047,23 +9052,43 @@ local function createDialog()
   -- running as harmless no-ops and the bottom-anchored controls/banner block just sits
   -- at the drawer's foot with the middle stretching.
   d:SetWidth(DG.WIDTH)
-  d:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -CH.TITLEBAR)
-  d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-  -- Sheet chrome: right corners must match the window card's radius; the drawer's
-  -- top-left/bottom-left corners are square against the content area.
+  -- Inside the window's right gutter, where the Sell tab's item panel stands (owner, 2026-10-11:
+  -- the two panels read as two different products), and still from under the title bar to the
+  -- foot: docked, the drawer has no height to spare. `dx` px right of that while it slides in
+  -- (Theme.Slide, below).
+  d.place = function(dx)
+    d:ClearAllPoints()
+    d:SetPoint("TOPRIGHT", frame, "TOPRIGHT", (dx or 0) - WIN.CONTENT_RIGHT_GUTTER, -CH.TITLEBAR)
+    d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", (dx or 0) - WIN.CONTENT_RIGHT_GUTTER, 0)
+  end
+  d.place(0)
+  -- The Sell item panel's own card (UI/Sell/Inspector.lua): the panel colour, rounded, with a
+  -- faint ring. It was the window's darker ground with a hairline down its left edge, and read
+  -- as a black sheet beside the Sell tab's (owner, 2026-10-11).
   -- Opaque by design (alpha 1, not 0.97): at 0.97 the Deals rows underneath ghosted through
   -- just enough to read as a rendering bug in the first in-game pass. The panel now also
   -- shifts the list out from behind it on wide windows (applyPanelInset, createFrame) --
   -- opacity is what keeps the narrower/docked case, which still overlays, honest instead.
-  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card_right.png",
-    { Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 1 })
+  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card.png",
+    { Theme.color.panel[1], Theme.color.panel[2], Theme.color.panel[3], 1 }, 24)
   d.sheet:SetAllPoints()
-  d.edge = d:CreateTexture(nil, "BORDER")
-  d.edge:SetColorTexture(Theme.color.border[1], Theme.color.border[2], Theme.color.border[3], Theme.color.border[4])
-  d.edge:SetPoint("TOPLEFT")
-  d.edge:SetPoint("BOTTOMLEFT")
-  d.edge:SetWidth(1)
+  d.ring = Theme.SlicedTexture(d, "BORDER", Theme.MEDIA .. "ring.png",
+    { 1, 1, 1, (Theme.color.border[4] or 0.06) * 2 }, 24)
+  d.ring:SetAllPoints()
   d:EnableMouse(true)
+  -- In from the right as it opens, as the Sell item panel does. It goes at once: its hide is what
+  -- gives a Check up (OnHide, below), and that is not put off for an animation.
+  if Theme.Slide then d.slider = Theme.Slide(d, d.place) end
+  -- The player's own close (Escape, the X, CANCEL): out the way it came, as the Sell item panel
+  -- goes (owner, 2026-10-11), and given up as a Check once it is out of sight, by the OnHide
+  -- below, 0.12 s on; its BUY answers nothing meanwhile (planDialogPrimaryClick). A purchase open
+  -- on the server goes at once: its cancel is not put off for an animation. Every other close (a
+  -- purchase that resolved, another row's Buy, a tab or the window going) is a Hide, at once.
+  d.close = function()
+    local pending = commodityPurchase
+    local open = pending ~= nil and d.row ~= nil and pending.row == d.row
+    if d.slider and not open then d.slider:Shut() else d:Hide() end
+  end
 
   -- Task 2 restyle: the old mono "CONFIRM PURCHASE" kicker (d.title) is gone from the top of
   -- the header -- that text now lives in d.subtitle, under the item name, where it reads as a
@@ -9085,27 +9110,39 @@ local function createDialog()
   -- gets you out. "CONFIRM PURCHASE" (a document title above the thing it titled) and the tier
   -- chip both left: the chip is the imported snapshot's opinion, which belongs beside the
   -- verdict that disagrees with it, not level with the item's own name.
-  local subtitle = Theme.Num(d, 9)
-  subtitle:SetJustifyH("RIGHT")
-  subtitle:SetWidth(DG.HEADER_ESC_W)
-  subtitle:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 10))
-  subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  -- Not wrapped: "ESC" is the key cap the client itself prints, and a translated key name
-  -- names a key the player's keyboard does not have.
-  subtitle:SetText("ESC")
-  d.subtitle = subtitle
+  -- Shut from its own X, as the Sell item panel is (owner, 2026-10-11: "ESC" printed where the
+  -- other panel has a button), and from Escape (the OnKeyDown at the end): one Hide either way,
+  -- whose OnHide gives a Check up and keeps a sent purchase the server's.
+  local closeBtn = Theme.Button(d, "ghost", "badge")
+  closeBtn:SetSize(22, 20)
+  closeBtn:SetPoint("TOPRIGHT", -(Theme.pad.s + 2), -(Theme.pad.m + DG.ICON / 2 - 10))
+  closeBtn:SetLabel("X")
+  closeBtn:SetScript("OnClick", function() d.close() end)
+  d.closeBtn = closeBtn
 
-  local nameText = Theme.Label(d, 13)
-  -- ONE anchor plus an explicit width, deliberately -- not LEFT + RIGHT. Both of those are
-  -- centre-Y constraints, and here they would disagree (the icon's centre against the ESC
-  -- hint's), which is the exact trap the qtyLotText comment further down already records.
-  -- Centred on the icon: with the old "CONFIRM PURCHASE" caption gone there is nothing under
-  -- the name to balance a top-flush anchor against.
-  nameText:SetPoint("LEFT", icon, "RIGHT", Theme.pad.s, 0)
+  -- The name as the Sell item panel sets it: 15, and wrapped rather than cut with "…" (the
+  -- owner's rule). DG.HEADER_NAME_W keeps it clear of the X.
+  local nameText = Theme.Label(d, 15)
   nameText:SetWidth(DG.HEADER_NAME_W)
-  nameText:SetWordWrap(false)
-  nameText:SetMaxLines(1)
+  nameText:SetJustifyH("LEFT")
+  nameText:SetWordWrap(true)
   d.nameText = nameText
+  -- The head as tall as the name it holds and never shorter than the icon's room, the name
+  -- centred on the icon while it fits beside it. setDialogHeader runs this after every name it
+  -- sets, the late one from the item cache too; a head that changes height restacks the blocks.
+  d.headerH = DG.HEADER_H
+  d.fitHeader = function()
+    nameText:SetText(nameText:GetText() or "") -- laid out at its width before it is measured
+    local h = nameText:GetStringHeight() or 0
+    nameText:ClearAllPoints()
+    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, -math.max(0, math.floor((DG.ICON - h) / 2)))
+    local headerH = math.max(DG.HEADER_H, math.ceil(Theme.pad.m + h + Theme.pad.s))
+    if headerH ~= d.headerH then
+      d.headerH = headerH
+      if d.layoutBlocks then d.layoutBlocks() end
+    end
+  end
+  d.fitHeader()
 
   -- Hover tooltip over the icon + name, same as a row (see createRow) -- Texture and
   -- FontString objects can't take mouse scripts themselves, so this is an invisible Frame
@@ -9470,12 +9507,14 @@ local function createDialog()
   local function layoutBlocks(shape)
     shape = shape or d.blockShape or {}
     d.blockShape = shape
-    local y = -DG.HEADER_H
+    local y = -d.headerH
+    -- A pixel in from each side: the hero's wash runs edge to edge, and over the card's ring it
+    -- would cut the ring away down the band's height.
     local function place(block, height, shown)
       if not shown then block:Hide() return end
       block:ClearAllPoints()
-      block:SetPoint("TOPLEFT", d, "TOPLEFT", 0, y)
-      block:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, y)
+      block:SetPoint("TOPLEFT", d, "TOPLEFT", 1, y)
+      block:SetPoint("TOPRIGHT", d, "TOPRIGHT", -1, y)
       block:SetHeight(height)
       block:Show()
       y = y - height
@@ -9506,7 +9545,7 @@ local function createDialog()
     d.evidenceTop = y - Theme.pad.xs
     d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
 
-    local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
+    local above = d.headerH + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
       + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
     local openBefore = d.fixedHeightOpen
     d.fixedHeightClosed = above + DG.FACTS_H
@@ -9720,7 +9759,7 @@ local function createDialog()
         if pending and pending.row == row then pending.cancelRequested = true end
       end
     end
-    dialog:Hide() -- OnHide below does the actual local-state reset
+    dialog.close() -- OnHide below does the actual local-state reset
   end)
   d.cancelBtn = cancelBtn
 
@@ -9744,6 +9783,8 @@ local function createDialog()
   -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
   -- Esc can never discard the token/final quote while a terminal event is still possible.
   d:SetScript("OnHide", function()
+    -- Hidden mid-slide, it is put back home and opaque for the next open.
+    if d.slider then d.slider:Settle() end
     -- Panel-inset reset comes first and unconditionally, same reasoning as
     -- GC.Sniper.NotifyDialogClosed() right below it: the deals list must snap back to the
     -- plain gutter anchor whenever the sheet stops covering it, regardless of why it closed.
@@ -9803,9 +9844,10 @@ local function createDialog()
   -- focus its own OnEscapePressed fires first and only clears focus.
   d:EnableKeyboard(true)
   d:SetScript("OnKeyDown", function(self, key)
-    if key == "ESCAPE" then
+    -- On its way out it is shut already: the next Escape is the window's, as on the Sell panel.
+    if key == "ESCAPE" and not (d.slider and d.slider:Leaving()) then
       self:SetPropagateKeyboardInput(false)
-      self:Hide()
+      d.close()
     else
       self:SetPropagateKeyboardInput(true)
     end
@@ -9866,7 +9908,7 @@ local function openDialog(row, deal)
   local discovery = { status = deal.status or "WATCH", reasons = { deal.reason or "live_verification_required" } }
   setDialogHeader(deal, discovery)
   stampDialogFromDecision(deal, discovery)
-  dialog:Show()
+  if dialog.slider then dialog.slider:Open() else dialog:Show() end
   -- Follow-up 2: a quiet close is the window's own, not the next one's. A long Reason that stopped
   -- the transcript fitting closed it for that window (layoutBlocks' fit guard) and kept the saved
   -- preference -- but left the flag every later layout reads shut, so the next window opened with
@@ -9904,7 +9946,7 @@ local function openDialog(row, deal)
       dialog.verdictLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     if dialog.verdictAmount then
-      dialog.verdictAmount:SetText("—")
+      dialog.verdictAmount:SetText("-")
       -- Item 3 (addon polish batch): the dialog is a session-long singleton, and the refusal
       -- branch above only Hides this widget -- it never resets its color, since a real refusal
       -- has nothing to show at all. Without this, a dash left over from an earlier buyable
@@ -9936,7 +9978,8 @@ local function onBuyClick(row)
   if not deal then return end
 
   if dialog and dialog.row == row then
-    dialog:Show() -- already this row's dialog (e.g. it got buried); nothing else to do
+    -- Already this row's dialog (e.g. it got buried); nothing else to do.
+    if dialog.slider then dialog.slider:Open() else dialog:Show() end
     return
   end
 
@@ -10396,13 +10439,13 @@ createRow = function(parent, index)
     elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live -- safe to buy"]), 0.25, 0.85, 0.25)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["GoldCap: checked live, safe to buy"]), 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
-        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: checked live. A deal, but you need %s on this character"])
           :format(GC.Util.FormatGoldCeil(verdict.needsGold))), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
-        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
+        GameTooltip:AddLine(GC.Util.ClientText((GC.L["GoldCap: %s. %s"]):format(verdict.status or "refused",
           GC.BoardRows.Reason(verdict) or GC.L["live verification required"])), 1, 0.82, 0)
       end
     elseif not self.deal.pinPlaceholder then
@@ -10425,7 +10468,7 @@ createRow = function(parent, index)
     -- the player can see what the discount is a discount FROM.
     local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
     if realmValue then
-      GameTooltip:AddLine(GC.Util.ClientText((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
+      GameTooltip:AddLine(GC.Util.ClientText((GC.L["realm item, sale speed unverified · region reference %s (ilvl %d)"])
         :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0)),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
@@ -10439,7 +10482,7 @@ createRow = function(parent, index)
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
     if self.deal.pinPlaceholder then
-      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching — pinned, but not a deal right now"]),
+      GameTooltip:AddLine(GC.Util.ClientText(GC.L["Watching: pinned, but not a deal right now"]),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       local watchNote = GC.Sniper._WatchNote(self.deal)
       if watchNote then
@@ -10622,6 +10665,10 @@ local function setView(v)
     abortFullScan()
   end
   local isDeals = (v == "deals")
+  -- The purchase sheet is the Deals board's: left open, it lay over the Sell tab (owner,
+  -- 2026-10-11). Hidden the way the window's own hide does it: its OnHide gives a Check up as
+  -- Escape does, and keeps a sent purchase the server's.
+  if not isDeals and dialog then dialog:Hide() end
   if isDeals then
     frame.scroll:Show()
     frame.headerRow:Show()
@@ -10738,9 +10785,9 @@ local function createHeaderRow(f)
     tier = {
       GC.L["Verdict"],
       GC.L["SAFE = the live check approved this buy, at the profit shown"],
-      GC.L["WATCH = the live check refused it -- hover the row for the reason"],
+      GC.L["WATCH = the live check refused it. Hover the row for the reason"],
       GC.L["… = a live check is queued for this row"],
-      GC.L["— = nothing is checking this row right now"],
+      GC.L["- = nothing is checking this row right now"],
     },
     disc = { GC.L["Discount"], GC.L["Discount vs market value from your GoldCap import"] },
     unit = { GC.L["Unit price"], GC.L["Per-unit price of this auction"] },
@@ -10757,7 +10804,7 @@ local function createHeaderRow(f)
     -- moved, not because the number here was inflated on purpose.
     profit = { GC.L["Profit"],
       GC.L["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."],
-      GC.L["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."],
+      GC.L["Check re-derives it against the live order book before any gold moves, and can still land lower (or refuse) if the market has moved since your last import."],
       GC.L["Sort by it to decide what to Check first, not to decide what to buy."] },
   }
 
@@ -11107,7 +11154,7 @@ local function createFrame()
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
     isForever() and GC.L["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."]
-      or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."])
+      or GC.L["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."])
   f.fullScanBtn = fullScanBtn
 
   -- Divider + session block sit further left of Scan, between it and the status line -- the
@@ -11212,7 +11259,7 @@ local function createFrame()
   setPlainTooltip(f.boardChips.commodities,
     GC.L["Commodities: reagents, consumables, gems and enchants the scan found under their region price. These are the rows a live check can approve for buying."])
   setPlainTooltip(f.boardChips.items,
-    GC.L["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."])
+    GC.L["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE. The buy is your call, and GoldCap only checks them while this board is open."])
   GC.Sniper._PaintBoardChips(f)
   -- The line that says the character cannot pay for anything on the board (see
   -- GC.Sniper._PaintGoldLine), in the room the two chips leave in their row: at the top of the
@@ -11809,7 +11856,7 @@ function GC.Sniper.OnAuctionHouseShow()
   updateSellTabLabel()
   if frame.status then
     if mode == "fullscan" and #scanDeals > 0 then
-      frame.status:SetText((GC.L["%d deals from your last scan -- Full Scan to refresh"]):format(#scanDeals))
+      frame.status:SetText((GC.L["%d deals from your last scan. Full Scan to refresh"]):format(#scanDeals))
     else
       frame.status:SetText(GC.L["Press Full Scan to find deals."])
     end

@@ -26,6 +26,21 @@ describe("Util", function()
   -- Depth for the tooltip: how long the shelf lasts at the rate the market is clearing it.
   -- Both numbers ride the import string's verification token, so either can be absent and
   -- neither may be trusted to be sane.
+  -- Capitals in every cased language the addon ships (owner, 2026-10-09).
+  describe("Upper", function()
+    it("capitalises ASCII, Latin-1's accents and Cyrillic, and leaves the rest as written", function()
+      assert.equal("POST", GC.Util.Upper("Post"))
+      assert.equal("DÉFINIR LE COÛT", GC.Util.Upper("Définir le coût"))
+      assert.equal("VERKAUFEN · ÜBERSPRINGEN", GC.Util.Upper("Verkaufen · überspringen"))
+      assert.equal("ВЫСТАВИТЬ", GC.Util.Upper("Выставить"))
+      assert.equal("ЁЖИК ЯРМАРКА", GC.Util.Upper("ёжик ярмарка"))
+      assert.equal("ЇЖАК ЄДНІСТЬ ҐАНОК", GC.Util.Upper("їжак єдність ґанок"))
+      assert.equal("3 ÷ 4", GC.Util.Upper("3 ÷ 4"))
+      assert.equal("上架", GC.Util.Upper("上架"))
+      assert.equal("게시", GC.Util.Upper("게시"))
+    end)
+  end)
+
   describe("TooltipText", function()
     it("joins with a comma where GoldCap's own frames use the middle dot", function()
       assert.equal("9c, 547 listed, just now", GC.Util.TooltipText("9c · 547 listed · just now"))

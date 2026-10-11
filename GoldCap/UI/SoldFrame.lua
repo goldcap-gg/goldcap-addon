@@ -14,7 +14,7 @@ local _, GC = ...
 --     both labelled sections for a reload (accepted); it can never hide one.
 --   * Local profit only on an EXACT evidence-key join to GC.Acquisitions.GetRealized(), and the
 --     stock's sources only through the same key (GC.Acquisitions.SourcesIndex). Everything else
---     says "—", never an invented number. Pro gating happened server-side: a free summary
+--     says "-", never an invented number. Pro gating happened server-side: a free summary
 --     carries no basis, and its rows show no profit at all.
 --   * WoW: Forever has no goldcap.gg sales. Its local sales are the whole list, grouped by day,
 --     and a snapshot is never read there.
@@ -399,7 +399,7 @@ local function paintProfit(tile, m)
   if t.known > 0 then
     putValue(tile, signed(t.profit), t.profit >= 0 and Theme.color.green or Theme.color.red)
   else
-    putValue(tile, "—", COLOR.faint)
+    putValue(tile, "-", COLOR.faint)
   end
   if t.count > 0 then put(tile.sub, GC.L["cost known for %d of %d"]:format(t.known, t.count)) end
 end
@@ -441,7 +441,7 @@ local function paintBest(tile, m)
   put(tile.label, GC.L["BEST SALE"])
   local best = m.best
   if not best then
-    put(tile.small, "—")
+    put(tile.small, "-")
     setColor(tile.small, COLOR.faint)
     put(tile.sub, GC.L["no sale with a known profit yet"])
     return
@@ -600,7 +600,7 @@ local function profitText(r)
   -- A free account is told nothing about profit: an empty cell, not a dash that implies a
   -- cost was looked for.
   if r.noBasis then return "", COLOR.faint end
-  return "—", COLOR.faint
+  return "-", COLOR.faint
 end
 
 local function clearRow(row)

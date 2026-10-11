@@ -1,6 +1,7 @@
--- The inspector: the side panel a position opens into. The price control (the box and its five
--- fills), what that price fetches, GoldCap's advice and the panel's own Post; the panel's other
--- lines (a heading, a live lot, the bag line); the panel frame. THE BOOK beside the price is
+-- The inspector: the side panel a position opens into. The price the dock posts the item at, the
+-- five fills for it and GoldCap's advice; the panel's other lines (a heading, a live lot, the bag
+-- line); the panel frame. The price is typed, and the item posted, in the dock (UI/Sell/
+-- PostPanel.lua): one place to post from (owner, 2026-10-10). THE BOOK beside the price is
 -- UI/Sell/Book.lua's, and a purchase line UI/Sell/CostDialog.lua's. Moved from UI/SellFrame.lua
 -- as it was.
 local _, GC = ...
@@ -10,18 +11,18 @@ local S = GC.SellState
 local Bags, Post = GC.SellBags, GC.SellPost
 local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
   GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
+local postQuantity = GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Inspector = UI.Inspector
-local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
+local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, formatCell = UI.fmt.setColor, UI.fmt.cell
-local copperToPriceText, priceBoxCopper = UI.fmt.priceText, UI.fmt.priceBoxCopper
 
 -- The book's own four columns, mirroring the design: price, depth at that price, a bar for
 -- that depth, and the units queued in front of it. Fixed, and deliberately independent of
 -- shownColumns -- a book row shows the same four things at every window width.
--- The price control's own widths. Laid out by layoutDrawer now, independently of the shedding
--- column set: the panel shows the same things at every width.
-local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 56
+-- The chips' own width. Laid out by layoutDrawer, independently of the shedding column set: the
+-- panel shows the same things at every width.
+local PRICE_CHIP_W = 56
 -- The chips, by slot. Two parallel tables rather than one of {id, label} pairs: the contract
 -- scanner reads every literal inside an @localised-keys table, and an id sitting in the same
 -- table would be collected as a translatable string nobody ever shows.
@@ -99,25 +100,19 @@ local function layoutDrawer(row)
   local left, right = INSP.PAD, -INSP.PAD
   local postable = type(row.position) == "table" and (row.position.bagQty or 0) > 0
 
-  -- ---- the price section: label and box on the left, what the price fetches on the right
+  -- ---- the price section: the price the dock posts at, whose it is, and the fills for it
   row.drawerPriceHead:ClearAllPoints()
   row.drawerPriceHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HEAD_Y)
-  row.priceBoxBg:ClearAllPoints()
-  row.priceBoxBg:SetSize(DR.BOX_W, DR.BOX_H)
-  row.priceBoxBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOX_Y)
-  row.priceBox:ClearAllPoints()
-  row.priceBox:SetPoint("TOPLEFT", row.priceBoxBg, "TOPLEFT", 10, -2)
-  row.priceBox:SetPoint("BOTTOMRIGHT", row.priceBoxBg, "BOTTOMRIGHT", -6, 2)
-  row.priceNetHead:ClearAllPoints()
-  row.priceNetHead:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.HEAD_Y)
-  row.priceNet:ClearAllPoints()
-  row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 2)
-  row.priceNetNote:ClearAllPoints()
-  row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 22)
+  row.priceFigure:ClearAllPoints()
+  row.priceFigure:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.PRICE_Y)
+  row.priceFigure:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.BOX_Y)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.PRICE_Y)
   row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
-  row.priceNote:SetWordWrap(false)
+  -- Wraps rather than cuts: "under GoldCap's own floor of ..." has to be read whole in every
+  -- language.
+  row.priceNote:SetWordWrap(true)
+  row.priceNote:SetMaxLines(2)
 
   -- One strip, five equal segments: a switch with a position, not five loose buttons.
   row.chipsBg:ClearAllPoints()
@@ -138,31 +133,34 @@ local function layoutDrawer(row)
   -- HERE because WHAT TO DO is not a column on either deck.
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.BOX_Y - 18))
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.PRICE_Y - 18))
   row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.subItem:SetWordWrap(true)
   row.subItem:SetMaxLines(2)
   if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
   row.subItem:SetText(row.subItem:GetText() or "") -- measured again now that it wraps
 
-  -- With nothing to say about the price, Post and the book move up into the paragraph's room
-  -- (one slot of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
+  -- With nothing to say about the price, the book moves up into the paragraph's room (one slot
+  -- of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
   local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (UI.rowHeight or 32) or 0
-  -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
-  row.cells.action:ClearAllPoints()
-  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y + rise)
-  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y + rise)
-  row.cells.action:SetHeight(DR.POST_H)
 
   -- ---- the book section, under a rule across the panel
   local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
   UI.Book.Layout(row, top)
 end
 
+-- A panel line as tall as its words, with air above and below (row.fitHeight, read by
+-- List.RenderRows); never shorter than its slot. Only words on show: a heading keeps the last
+-- kind's sentence in its hidden line.
+local function fitWords(row, words)
+  local h = words:IsShown() and words.GetStringHeight and words:GetStringHeight()
+  if h then row.fitHeight = math.max(row.fitHeight or 0, math.ceil(h + 12)) end
+end
+
 -- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
 -- apply at this width: a line is its sentence, with its one button -- or, for a purchase, its
--- unit cost -- at the right edge. Two lines allowed, because "x50 . 3 purchases . bought 29 Aug
--- . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
+-- unit cost -- at the right edge. As many lines as it takes, because "x50 . 3 purchases .
+-- bought 29 Aug . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
 local function layoutDetailRow(row)
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:Hide() end
   local edge, edgePoint, inset = row, "RIGHT", -INSP.PAD
@@ -176,22 +174,28 @@ local function layoutDetailRow(row)
     -- Quantity, unit cost, source-and-date, evidence -- or, for a hand-entered cost, the button
     -- that takes it back, where the evidence word would only say "manual" a second time.
     row.subItem:ClearAllPoints()
-    row.subItem:SetWidth(44)
+    row.subItem:SetWidth(50) -- "×99999"
     row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
     row.subItem:SetWordWrap(false)
     row.subItem:SetMaxLines(1)
     row.cells.cost:ClearAllPoints()
-    row.cells.cost:SetWidth(76)
+    row.cells.cost:SetWidth(88) -- "999[g] 99[s]" in the game's coins
     row.cells.cost:SetPoint("LEFT", row.subItem, "RIGHT", 2, 0)
     row.cells.cost:Show()
     row.sectionHint:ClearAllPoints()
     row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
     if row.action:IsShown() then row.sectionHint:Hide() end
     row.itemStock:ClearAllPoints()
+    -- Where it came from and when, wrapped rather than cut ("Casa de subastas, 28 ago" beside
+    -- Remove), the row growing to hold it (fitWords, below).
+    row.itemStock:SetWordWrap(true)
+    row.itemStock:SetMaxLines(0)
     row.itemStock:SetPoint("LEFT", row.cells.cost, "RIGHT", 10, 0)
     if row.action:IsShown() then row.itemStock:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
     else row.itemStock:SetPoint("RIGHT", row.sectionHint, "LEFT", -8, 0) end
     row.itemStock:Show()
+    row.itemStock:SetText(row.itemStock:GetText() or "") -- laid out at its width before it is measured
+    fitWords(row, row.itemStock)
   else
     -- Every other line is one sentence, allowed a second line when the panel is narrower than
     -- it, with air between the two.
@@ -200,9 +204,11 @@ local function layoutDetailRow(row)
     row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
     row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
     row.subItem:SetWordWrap(true)
-    row.subItem:SetMaxLines(2)
+    -- As many lines as it takes: at two, the bag line was cut in Portuguese, Italian and Spanish.
+    row.subItem:SetMaxLines(0)
     if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
     row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
+    fitWords(row, row.subItem)
   end
   row.sectionLabel:ClearAllPoints()
   row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, -4)
@@ -224,39 +230,19 @@ end
 
 Inspector.LayoutDetailRow = layoutDetailRow
 
--- The price control on every pooled row: createRow (UI/Sell/Row.lua) calls this. Only
--- the panel's head shows it (INSP.paintHead); every other kind puts it away (Inspector.PutAway).
+-- The price section on every pooled row: createRow (UI/Sell/Row.lua) calls this. Only the panel's
+-- head shows it (INSP.paintHead); every other kind puts it away (Inspector.PutAway).
 function Inspector.Decorate(row)
-  -- The price control. The one number on this screen that spends real gold was, until now, the
-  -- one number a seller could not see the workings of or change: GoldCap picked it and Post
-  -- sent it. The box is prefilled with exactly what Post would list at, in gold, and emptying
-  -- it hands the decision back to GoldCap rather than leaving nothing behind.
-  -- The kit's own surface rather than InputBoxTemplate's stone border, and a figure big enough
-  -- to be the first thing read in the panel: a dark rounded well, a ring that says whose price
-  -- it is (see INSP.paintHead), bold mono inside. The EditBox itself is bare and sits in it.
-  row.priceBoxBg = CreateFrame("Frame", nil, row)
-  -- The window's own ground colour, a step darker than the panel it is set into. Several of
-  -- this suite's theme doubles carry no `bg`, hence the fallback.
+  -- The price the dock posts this item at, big enough to be the first thing read in the panel.
+  -- Read-only here: it is typed in the dock beside POST, the one place it posts from, and the
+  -- chips under it fill the same price.
+  row.priceFigure = Theme.Num(row, 14, true)
+  row.priceFigure:SetJustifyH("LEFT"); row.priceFigure:SetWordWrap(false)
+  row.priceFigure:Hide()
+  -- The strip the five price chips sit in, and the rule over the book section. The window's own
+  -- ground colour, a step darker than the panel; several of this suite's theme doubles carry no
+  -- `bg`, hence the fallback.
   local wellc = Theme.color.bg or Theme.color.panel
-  local well = Theme.SlicedTexture(row.priceBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
-    { wellc[1], wellc[2], wellc[3], 1 }, 12)
-  well:SetAllPoints(row.priceBoxBg)
-  row.priceBoxRing = Theme.SlicedTexture(row.priceBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
-    { 1, 1, 1, 0.14 }, 12)
-  row.priceBoxRing:SetAllPoints(row.priceBoxBg)
-  row.priceBoxBg:Hide()
-  row.priceBox = CreateFrame("EditBox", nil, row.priceBoxBg)
-  row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
-  row.priceBox:SetAutoFocus(false)
-  -- Guarded for busted, whose frame doubles were never taught an EditBox's font API. In the
-  -- client a bare EditBox with no font does not draw its text at all, so this is not optional.
-  if row.priceBox.SetFont then
-    row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * Theme.Scale(), "")
-    row.priceBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
-    Theme.OnRescale(function(scale) row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * scale, "") end)
-  end
-  row.priceBox:Hide()
-  -- The strip the five price chips sit in, and the rule over the book section.
   row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
     { wellc[1], wellc[2], wellc[3], 1 }, 12)
   row.chipsBg:Hide()
@@ -269,111 +255,25 @@ function Inspector.Decorate(row)
     row.headRules[i] = rule
   end
 
-  -- What that price fetches, beside the box it is typed into: the same YOU GET and margin the
-  -- row carries, moving with every keystroke, plus what is left once the auction house has
-  -- taken its cut. They were on the row only -- which, as a sheet, the panel covers.
-  row.priceNetHead = Theme.Num(row, 9)
-  row.priceNet = Theme.Num(row, 14, true)
-  row.priceNetNote = Theme.Num(row, 9)
-  for _, line in ipairs({ row.priceNetHead, row.priceNet, row.priceNetNote }) do
-    line:SetJustifyH("RIGHT"); line:SetWordWrap(false); line:Hide()
-  end
-
   row.priceNote = Theme.Num(row, 10)
   row.priceNote:SetJustifyH("LEFT")
   row.priceNote:SetWordWrap(false)
   row.priceNote:Hide()
 
-  -- Four one-click fills, each from a number already on the screen. They exist beside the box,
-  -- not instead of it: the box is what the owner asked for, and these are what stop the common
-  -- cases from needing arithmetic.
-  -- Reads the box and records (or clears) the seller's choice. Emptying it is a real answer,
-  -- not a failure to type one: it hands the decision back to GoldCap rather than leaving the
-  -- position with no price at all.
-  -- Re-entrant by construction: ClearFocus below raises OnEditFocusLost, which is bound to
-  -- this same function. One extra pass would be harmless, but a loop inside the client is
-  -- not the kind of thing to leave to luck on a path that spends gold. The same flag is what
-  -- renderRows raises when it has to take the box away from a row it just rebound.
-  local function commitPrice(box)
-    if row.priceCommitting then return end
-    local key = overrideKey(row.position)
-    -- Rows are POOLED: a refresh between the click into the box and this commit can rebind
-    -- this very row to a different position. `priceEditingKey` is the position the typing
-    -- started on, and a price typed for one item must never land on another.
-    if not key or key ~= row.priceEditingKey then
-      row.priceEditingKey = nil
-      return
-    end
-    local text = box:GetText() or ""
-    if text:match("^%s*$") then
-      S.priceOverrides[key] = nil
-    else
-      local copper = priceBoxCopper(box)
-      if not copper then
-        UI.Dock.SetStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
-        return
-      end
-      S.priceOverrides[key] = copper
-    end
-    row.priceEditingKey = nil
-    row.priceCommitting = true
-    box:ClearFocus()
-    row.priceCommitting = false
-    UI.List.RenderRows()
-  end
-  -- Remembers which position the typing belongs to, for the pooled-row check above.
-  row.priceBox:SetScript("OnEditFocusGained", function()
-    row.priceEditingKey = overrideKey(row.position)
-  end)
-  -- Live while typing. Everything this number DRIVES -- what the stack fetches, the margin,
-  -- the note under the box and where the gold marker sits in the book -- used to sit still
-  -- until Enter or until the box lost focus, so the seller was typing into a screen that did
-  -- not answer (reported in game). Each keystroke that reads as a price now re-renders.
-  --
-  -- The write to priceOverrides is what makes the rest of the screen move, and it is safe to
-  -- make it here: OnEscapePressed already discards by re-rendering from the committed state,
-  -- and clearing the box still means "hand the decision back to GoldCap", exactly as commit
-  -- does. What this must NOT do is fight the typist -- renderRows leaves a focused box alone
-  -- (see the drawer branch's own guard), so the text itself is never restamped.
-  row.priceBox:SetScript("OnTextChanged", function(box, byUser)
-    -- Only the player's own typing. A SetText from a render fires this too, and reacting to
-    -- that would re-enter the render that caused it.
-    if not byUser or row.priceCommitting then return end
-    local key = overrideKey(row.position)
-    if not key or key ~= row.priceEditingKey then return end
-    local text = box:GetText() or ""
-    if text:match("^%s*$") then
-      S.priceOverrides[key] = nil
-    else
-      local copper = priceBoxCopper(box)
-      -- Half-typed text ("39." between two keystrokes) parses to nothing. Keep the last price
-      -- that did read as one and leave the box alone rather than snapping it back.
-      if not copper then return end
-      S.priceOverrides[key] = copper
-    end
-    UI.List.RenderRows()
-  end)
-  row.priceBox:SetScript("OnEnterPressed", commitPrice)
-  -- Committing on focus loss as well: a price typed and then clicked away from is still a
-  -- price the seller typed, and the alternative is a box that silently reverts.
-  row.priceBox:SetScript("OnEditFocusLost", commitPrice)
-  row.priceBox:SetScript("OnEscapePressed", function(box)
-    row.priceEditingKey = nil
-    row.priceCommitting = true
-    box:ClearFocus()
-    row.priceCommitting = false
-    UI.List.RenderRows() -- puts the committed price back, discarding whatever was half-typed
-  end)
-
+  -- Five one-click fills, each from a number already on the screen, so the common cases need no
+  -- arithmetic. Each writes the price the dock posts at; GOLDCAP gives it back to GoldCap.
   row.priceChips = {}
   for slot = 1, #PRICE_CHIP_LABELS do
     local chip = Theme.Button(row, "ghost", "badge")
-    chip:SetSize(PRICE_CHIP_W, PRICE_BOX_H)
+    chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
     chip:SetScript("OnClick", function(self)
       local key = overrideKey(row.position)
       if not key or not (self.priceSource or self.handsBack) then return end
       -- handsBack is the GOLDCAP chip: no price of its own, it gives the decision back.
-      S.priceOverrides[key] = not self.handsBack and self.priceSource or nil
+      local price = not self.handsBack and self.priceSource or nil
+      -- A Confirm armed with the old price is let go: it would send that one (review).
+      if S.priceOverrides[key] ~= price then Post.WalkAway() end
+      S.priceOverrides[key] = price
       UI.List.RenderRows()
     end)
     chip:Hide()
@@ -396,25 +296,12 @@ function INSP.paintHead(row, p, d)
   row.drawerPriceHead:SetText(GC.L["YOUR PRICE"]); row.drawerPriceHead:Show()
   setColor(row.drawerPriceHead, chosen and Theme.color.gold or Theme.color.fgDim)
   if postable then
-    local box = row.priceBox
-    local focused = box.HasFocus and box:HasFocus() or false
-    -- Someone typing into this box, on this same position, owns it -- see the price row's
-    -- own note: a render that stamped it unconditionally wiped half-typed prices.
-    if not (focused and row.priceEditingKey == overrideKey(p)) then
-      if focused then
-        row.priceEditingKey = nil
-        row.priceCommitting = true
-        box:ClearFocus()
-        row.priceCommitting = false
-      end
-      box:SetText(unit and copperToPriceText(unit) or "")
-    end
-    box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
-    -- The ring says whose price this is before a word is read: red under cost or under the
-    -- floor, gold once it is the seller's own, the panel's quiet edge while it is GoldCap's.
-    local ring = (risk.belowCost or risk.belowFloor) and Theme.color.red or chosen and Theme.color.gold or nil
-    if ring then row.priceBoxRing:SetVertexColor(ring[1], ring[2], ring[3], 0.7)
-    else row.priceBoxRing:SetVertexColor(1, 1, 1, 0.14) end
+    -- The price the dock posts at (UI/Sell/PostPanel.lua), with whose it is and how many go, or
+    -- what is wrong with it in red -- the dock's own box says the same.
+    row.priceFigure:SetText(unit and formatCell(unit) or "")
+    setColor(row.priceFigure, (risk.belowCost or risk.belowFloor) and Theme.color.red
+      or chosen and Theme.color.gold or Theme.color.fg)
+    row.priceFigure:Show(); row.chipsBg:Show()
     if risk.belowCost then
       row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
       setColor(row.priceNote, Theme.color.red)
@@ -422,34 +309,16 @@ function INSP.paintHead(row, p, d)
       row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
       setColor(row.priceNote, Theme.color.red)
     elseif unit then
-      -- The quantity this note prices is the one a click lists, not the one in the bags --
-      -- the same rule YOU GET follows above, and for the same reason.
-      -- Whose price, and over how many. What it comes to is YOU GET, beside the box.
-      local postQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
-      row.priceNote:SetText(("%s · ×%d"):format(chosen and GC.L["yours"] or GC.L["GoldCap's"], postQty))
+      -- Whose price, and over how many -- the number the dock's POST lists, not the one in the
+      -- bags.
+      local whose = chosen and GC.L["yours"] or GC.L["GoldCap's"]
+      row.priceNote:SetText(("%s · ×%d"):format(whose, (postQuantity(p))))
       setColor(row.priceNote, Theme.color.fgDim)
     else
       row.priceNote:SetText(GC.L["no live price yet"])
       setColor(row.priceNote, Theme.color.fgDim)
     end
     row.priceNote:Show()
-    -- YOU GET and the margin, by the row's own arithmetic (what one click lists, at this price,
-    -- against what a unit cost), so the panel and the row under it can never disagree. The
-    -- third line is the one figure the row has no room for: what is left after the cut.
-    local listQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
-    local gross = unit and safeMultiply(unit, listQty) or nil
-    row.priceNetHead:SetText(GC.L["YOU GET"]); setColor(row.priceNetHead, Theme.color.fgDim)
-    row.priceNet:SetText(gross and formatCell(gross) or "—")
-    setColor(row.priceNet, gross and Theme.color.fg or Theme.color.fgDim)
-    local paid = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil
-    local netNote = gross and (GC.L["%s after the AH cut"]):format(formatCell(math.floor(gross * 0.95))) or ""
-    if unit and paid then
-      local pct = math.floor(((unit - paid) / paid) * 100 + 0.5)
-      netNote = GC.Sell._InlineColor(pct >= 0 and Theme.color.green or Theme.color.red, (pct >= 0 and "+" or "") .. pct .. "%")
-        .. "  " .. netNote
-    end
-    row.priceNetNote:SetText(netNote); setColor(row.priceNetNote, Theme.color.fgDim)
-    row.priceNetHead:Show(); row.priceNet:Show(); row.priceNetNote:Show()
     -- UNDERCUT is a rung BELOW the cheapest competing ask, one step of the auction house's own
     -- grid (GC.Flips.PriceStep() -- 1 copper where the client takes copper, a silver
     -- otherwise), and a step under an ask of a step or less is zero or negative. Zero is
@@ -486,10 +355,8 @@ function INSP.paintHead(row, p, d)
       chip:Show()
     end
   else
-    -- Nothing in the bags: there is no price to set, and an editable box that cannot post
-    -- is an invitation to a click that does nothing. Say why instead.
-    row.priceBox:Hide(); row.priceBoxBg:Hide(); row.chipsBg:Hide()
-    row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+    -- Nothing in the bags: there is no price to set. Say why instead.
+    row.priceFigure:Hide(); row.chipsBg:Hide()
     for _, chip in ipairs(row.priceChips) do chip:Hide() end
     row.priceNote:SetText(GC.L["nothing in your bags to price"])
     setColor(row.priceNote, Theme.color.fgDim)
@@ -526,20 +393,8 @@ function INSP.paintHead(row, p, d)
   setColor(row.subItem, Theme.color.fgMuted)
   row.subItem:Show()
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
-  -- Post, beside the price it posts at. As a sheet the panel lies over the right side of
-  -- the list -- over the open row's own button -- so without this the one position a
-  -- seller had just priced was the one they could not post. It is the row's Post, through
-  -- the same onPostClick and the same pin; two buttons for one position cannot both arm
-  -- (onPostClick refuses a second row while one is pending).
-  if postable then
-    UI.Row.ShowRowAction(row, "Post", function() UI.Dock.OnPostClick(row) end)
-    row.action:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD, DR.POST_H)
-    if row.action.SetVariant then row.action:SetVariant("primary") end
-    -- Solid gold already; the outline is the list row's, and this pooled button may have been one.
-    if row.action.SetRing then row.action:SetRing(nil) end
-  else
-    row.action:Hide()
-  end
+  -- Nothing to press in the head: the item posts from the dock.
+  row.action:Hide()
 end
 
 -- The panel's other lines: a heading (YOUR LOTS, ON THE AUCTION HOUSE, WHAT YOU PAID), a live lot
@@ -616,11 +471,14 @@ function Inspector.PaintPanelRow(row, entry, bagSnapshot)
     GC.Sell._CacheBagLocation(p, bagState)
     local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
     setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
-    if postable > 0 and postable < inBags then
+    -- With a number typed into HOW MANY, the head says how many Post lists; "the largest stack"
+    -- beside it would be a second, different answer.
+    local _, _, typed = postQuantity(p)
+    if postable > 0 and postable < inBags and not typed then
       row.subItem:SetText((GC.L["×%d in your bags · Post lists %d of them, the largest stack"]):format(
         inBags, postable))
     elseif postable > 0 then
-      row.subItem:SetText((GC.L["×%d in your bags, ready to list"]):format(postable))
+      row.subItem:SetText((GC.L["×%d in your bags, ready to list"]):format(typed and inBags or postable))
     else
       row.subItem:SetText((GC.L["×%d in your bags · no stack GoldCap can identify exactly"]):format(inBags))
     end
@@ -659,13 +517,12 @@ function Inspector.PaintPanelRow(row, entry, bagSnapshot)
   end
 end
 
--- The price control and what it fetches, put away by whatever kind takes the head's pooled row
--- next (renderRows' put-away).
+-- The price section, put away by whatever kind takes the head's pooled row next (renderRows'
+-- put-away).
 function Inspector.PutAway(row)
-  row.priceBox:Hide(); row.priceBoxBg:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
+  row.priceFigure:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
   row.headRules[1]:Hide()
   for _, chip in ipairs(row.priceChips) do chip:Hide() end
-  row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
 end
 
 -- The panel frame and its scrolling content: built once, by Attach.
@@ -682,15 +539,14 @@ function Inspector.Build()
   -- are the SAME pooled rows renderRows has always made -- re-parented, not rebuilt -- so every
   -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
   local inspector = CreateFrame("Frame", nil, container)
-  inspector:SetPoint("TOPRIGHT", 0, -34)
-  inspector:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
+  container.inspector = inspector
+  Inspector.Place(0)
   inspector:SetWidth(INSP.W)
   -- Above the list it may be lying over, and swallowing its own mouse: a click on the panel's
   -- background must not land on whichever row sits behind it.
   inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
   inspector:EnableMouse(true)
   inspector:Hide()
-  container.inspector = inspector
   local ipc = Theme.color.panel
   local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
     { ipc[1], ipc[2], ipc[3], 1 }, 24)
@@ -706,34 +562,94 @@ function Inspector.Build()
   -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
   -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
   if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+  -- The name and the stock line wrap, and the head grows to hold them (PaintInspector): a name
+  -- cut with "…" is the one thing the panel exists to say (owner's rule).
   inspector.name = Theme.Label(inspector, 15)
-  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(false)
+  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(true)
   inspector.stock = Theme.Num(inspector, 10)
-  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(false)
+  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(true)
   setColor(inspector.stock, Theme.color.fgMuted)
+  -- Shuts the panel, from its X and from Escape.
+  local function shut()
+    Post.WalkAway()
+    for key in pairs(UI.expanded) do
+      UI.expanded[key] = nil
+      -- Shut, the item leaves the dock as it does when its row is clicked again (UI/Sell/Row.lua).
+      if S.dockKey == key then S.dockKey = nil end
+    end
+    UI.List.RenderRows()
+  end
   local closeInspector = Theme.Button(inspector, "ghost", "badge")
   closeInspector:SetSize(22, 20)
   closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
   closeInspector:SetLabel("X")
-  closeInspector:SetScript("OnClick", function()
-    Post.WalkAway()
-    for key in pairs(UI.expanded) do UI.expanded[key] = nil end
-    UI.List.RenderRows()
-  end)
+  closeInspector:SetScript("OnClick", shut)
   inspector.close = closeInspector
+
+  -- Escape shuts the panel, never the whole window: the window's own Escape (UISpecialFrames,
+  -- UI/SniperFrame.lua) is what the next press reaches (the 3C design, 2026-10-10). This frame
+  -- gets EVERY key while it is up, so only Escape is kept from going on, per keystroke, and the
+  -- keys go on again a frame later, the panel being gone by then (it never sees the release).
+  -- In combat it stands down: SetPropagateKeyboardInput is restricted there (the BUY tab's
+  -- Enter, UI/BuyFrame.lua, says the same).
+  if inspector.EnableKeyboard then inspector:EnableKeyboard(true) end
+  local function passKeys(on)
+    if inspector.SetPropagateKeyboardInput and not (InCombatLockdown and InCombatLockdown()) then
+      inspector:SetPropagateKeyboardInput(on)
+    end
+  end
+  inspector:SetScript("OnKeyDown", function(_, key)
+    if InCombatLockdown and InCombatLockdown() then return end
+    -- On its way out the panel is already shut: the next Escape is the window's.
+    if key ~= "ESCAPE" or (inspector.slider and inspector.slider:Leaving()) then passKeys(true) return end
+    passKeys(false)
+    shut()
+    if C_Timer and C_Timer.After then C_Timer.After(0, function() passKeys(true) end) end
+  end)
+
+  -- Out from the right as it opens and back as it shuts (the 3C design; owner, 2026-10-11): the
+  -- row's own panel coming out beside it rather than a sheet dropped over the list. The kit's
+  -- slider moves it by its anchor (Inspector.Place); spec themes without one show and hide it.
+  if Theme.Slide then inspector.slider = Theme.Slide(inspector, Inspector.Place) end
   local headRule = inspector:CreateTexture(nil, "ARTWORK")
   headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
   headRule:SetHeight(1)
-  headRule:SetPoint("TOPLEFT", INSP.PAD, -INSP.HEAD_H + 2)
-  headRule:SetPoint("TOPRIGHT", -INSP.PAD, -INSP.HEAD_H + 2)
+  inspector.headRule = headRule
 
   local detailScroll = CreateFrame("ScrollFrame", nil, inspector, "UIPanelScrollFrameTemplate")
   if Theme.QuietScrollBar then Theme.QuietScrollBar(detailScroll) end -- no Blizzard arrows beside a kit panel
-  detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
-  detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
+  inspector.detailScroll = detailScroll
+  Inspector.PlaceHead(INSP.HEAD_H)
   UI.detailContent = CreateFrame("Frame", nil, detailScroll)
   UI.detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, UI.rowHeight)
   detailScroll:SetScrollChild(UI.detailContent)
+end
+
+-- Where the panel lives: down the container's right side, from under the toolbar to the dock's top
+-- edge, `dx` px right of that while it slides (the kit's slider). Dock.SetHeight re-places it as the
+-- dock grows, at whatever offset the slide has reached.
+function Inspector.Place(dx)
+  local container = UI.container
+  local inspector = container and container.inspector
+  if not inspector then return end
+  if dx then inspector.dx = dx end
+  local x = inspector.dx or 0
+  inspector:ClearAllPoints()
+  inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", x, -34)
+  inspector:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", x, UI.Dock.Height() + 6)
+end
+
+-- The rule under the panel's head and the scrolling body below it, `height` down from the top.
+function Inspector.PlaceHead(height)
+  local inspector = UI.container and UI.container.inspector
+  if not (inspector and inspector.headRule) or inspector.headHeight == height then return end
+  inspector.headHeight = height
+  inspector.headRule:ClearAllPoints()
+  inspector.headRule:SetPoint("TOPLEFT", inspector, "TOPLEFT", INSP.PAD, -height + 2)
+  inspector.headRule:SetPoint("TOPRIGHT", inspector, "TOPRIGHT", -INSP.PAD, -height + 2)
+  inspector.detailScroll:ClearAllPoints()
+  inspector.detailScroll:SetPoint("TOPLEFT", inspector, "TOPLEFT", 4, -height)
+  inspector.detailScroll:SetPoint("BOTTOMRIGHT", inspector, "BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
 end
 
 -- The panel's head: which item this is, and where its stock is. Read off the position at
@@ -741,7 +657,11 @@ end
 function Inspector.PaintInspector(position)
   local inspector = UI.container and UI.container.inspector
   if not inspector then return end
-  if not position then inspector:Hide(); return end
+  if not position then
+    -- Out the way it came, once: a repaint on the way out does not start it over.
+    if inspector.slider then inspector.slider:Shut() else inspector:Hide() end
+    return
+  end
   local icon
   if position.itemID and C_Item and C_Item.GetItemIconByID then
     local ok, texture = pcall(C_Item.GetItemIconByID, position.itemID)
@@ -749,17 +669,28 @@ function Inspector.PaintInspector(position)
   end
   if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
   local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
+  -- Top points only, so a wrapped name pushes its stock line down rather than over it.
+  local right = -(INSP.PAD + 2 + 22 + 6) -- clear of the close button
   inspector.name:ClearAllPoints()
   inspector.name:SetPoint("TOPLEFT", left, -12)
-  inspector.name:SetPoint("RIGHT", inspector.close, "LEFT", -6, 0)
+  inspector.name:SetPoint("TOPRIGHT", right, -12)
   inspector.stock:ClearAllPoints()
-  inspector.stock:SetPoint("TOPLEFT", left, -33)
-  inspector.stock:SetPoint("RIGHT", inspector.close, "LEFT", -6, 0)
+  inspector.stock:SetPoint("TOPLEFT", inspector.name, "BOTTOMLEFT", 0, -4)
+  inspector.stock:SetPoint("TOPRIGHT", inspector.name, "BOTTOMRIGHT", 0, -4)
   local name = position.itemName or GC.L["Item"]
   inspector.name:SetText(Theme.WithQuality and Theme.WithQuality(name, position.itemID) or name)
   local parts = {}
   if (position.bagQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d in bags"]):format(position.bagQty) end
   if (position.listedQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d listed"]):format(position.listedQty) end
   inspector.stock:SetText(#parts > 0 and table.concat(parts, " · ") or GC.SellViewModel.SourceText(position))
-  inspector:Show()
+  -- The head as tall as what it says, never shorter than the icon's own room.
+  local head = INSP.HEAD_H
+  if inspector.name.GetStringHeight then
+    head = math.max(head, math.ceil(12 + (inspector.name:GetStringHeight() or 0) + 4
+      + (inspector.stock:GetStringHeight() or 0) + 10))
+  end
+  Inspector.PlaceHead(head)
+  -- Out from the right only as it opens, never on a repaint of a panel already up. One on its
+  -- way out is called back: it would hide itself under the item just opened.
+  if inspector.slider then inspector.slider:Open() else inspector:Show() end
 end

@@ -427,7 +427,10 @@ local function hash8(str)
   for i = 1, #str do
     h = (h * 33 + str:byte(i)) % 4294967296
   end
-  return ("%08x"):format(h)
+  -- In two 16-bit halves: WoW's string.format stores a %x argument as a 32-bit signed integer and
+  -- raises on anything from 2^31 up -- half of all hashes, so half of the site's code-less strings
+  -- failed to import (review). Same eight digits as "%08x" of the whole would give.
+  return ("%04x%04x"):format(math.floor(h / 65536), h % 65536)
 end
 
 local function decodeURIComponent(s)

@@ -125,6 +125,9 @@ local function evaluate(position, opts)
   -- whole bag pool is one postable quantity. Falls back to bagQty when nothing set the field,
   -- which is exactly the old behaviour.
   local postable = positive(position.postableQty) and position.postableQty or position.bagQty
+  -- ...and on fewer, when the seller asked one Post for fewer (the Sell tab's "how many").
+  local chosen = opts and opts.quantities and opts.quantities[position.positionKey]
+  if positive(chosen) and chosen < postable then postable = chosen end
   local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"
@@ -147,7 +150,25 @@ local function skipLess(left, right)
   return (left.positionKey or "") < (right.positionKey or "")
 end
 
---- GC.PostQueue.Build(positions, opts) -> entries, skipped
+--- GC.PostQueue.Selling(position, marks) -> boolean
+--
+-- The selling list (owner, 2026-10-09): is this position one the player sells through POST and
+-- the post-next key? `marks` is the player's own choice per positionKey, true or false, kept
+-- across sessions (GC.db.sellMarks); a choice, either way, wins. With none, what the Deals board
+-- bought and is still held (an active batch of source "goldcap", SellPositions' `sources`) is
+-- selling: it was bought to be sold again. Nothing else is: the BUY tab's runs are shopping lists
+-- (what a craft still needs), and a merchant sells reagents as readily as anything. Per position,
+-- not per item: every caged pet is item 82800.
+function GC.PostQueue.Selling(position, marks)
+  local key, choice = position.positionKey, nil
+  -- Not `a and b and marks[key] or nil`: a choice of false would read as no choice at all.
+  if type(marks) == "table" and type(key) == "string" then choice = marks[key] end
+  if choice ~= nil then return choice == true end
+  local sources = position.sources
+  return type(sources) == "table" and type(sources.goldcap) == "number" and sources.goldcap > 0
+end
+
+--- GC.PostQueue.Build(positions, opts) -> entries, skipped, notSelling
 --
 -- `positions` is GC.SellPositions.Build's own return array -- every field this function reads
 -- (`bagQty`, `postRecommendation`, `freshMarketUnit`, `unresolved`, `invalid`, ...) is set by
@@ -159,15 +180,24 @@ end
 -- other position that fails to qualify gets a `skipped` entry -- a silently short queue is the
 -- same lie as a silently short deals list.
 --
--- `opts` is nil on retail (the queue is built exactly as before). In WoW: Forever, the Sell tab
--- passes `GC.Sell._QueueOpts()`: `{ vendorUnit = function(itemID) ... }`, read by `evaluate`'s
+-- `opts` comes from the Sell tab (`GC.Sell._QueueOpts()`); without it the queue is built from
+-- every position, as before the selling list. `opts.marks`, when present, is the player's
+-- selling list (see Selling above): a position it leaves out is in neither list -- it is not held
+-- back, the player chose -- but in `notSelling`, shaped like a `skipped` entry, its `reason` the
+-- one it would have been held back for (nil when it could be posted). Its row still has its own
+-- Post, so its row still says what is wrong with it; the dock reads the count.
+-- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
 -- `below_vendor` case above.
 function GC.PostQueue.Build(positions, opts)
-  local entries, skipped = {}, {}
+  local entries, skipped, notSelling = {}, {}, {}
+  local marks = opts and opts.marks
   for _, position in ipairs(positions or {}) do
     if type(position) == "table" and positive(position.bagQty) then
       local reason, unit, value, postable = evaluate(position, opts)
-      if reason then
+      if type(marks) == "table" and not GC.PostQueue.Selling(position, marks) then
+        notSelling[#notSelling + 1] = { positionKey = position.positionKey, itemID = position.itemID,
+          itemName = position.itemName, reason = reason }
+      elseif reason then
         skipped[#skipped + 1] = { positionKey = position.positionKey, itemID = position.itemID,
           itemName = position.itemName, reason = reason }
       else
@@ -181,7 +211,8 @@ function GC.PostQueue.Build(positions, opts)
   end
   table.sort(entries, entryLess)
   table.sort(skipped, skipLess)
-  return entries, skipped
+  table.sort(notSelling, skipLess)
+  return entries, skipped, notSelling
 end
 
 --- GC.PostQueue.Without(entries, positionKey) -> a NEW array holding every entry except the one

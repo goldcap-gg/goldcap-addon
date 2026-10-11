@@ -60,7 +60,7 @@ describe("Sniper stale-import chat warning (companion nudge)", function()
     local GC = loadSniper()
     origin = "none"
     warn(GC)
-    assert.equal("you haven't imported realm prices yet -- install GoldCap Companion "
+    assert.equal("you haven't imported realm prices yet. Install GoldCap Companion "
       .. "(/goldcap companion) or paste a string from goldcap.gg (/goldcap import).", printed)
   end)
 

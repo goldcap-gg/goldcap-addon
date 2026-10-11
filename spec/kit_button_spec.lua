@@ -46,6 +46,19 @@ describe("kit button", function()
     assert.equal("Post", W.state(b.text).text)
   end)
 
+  -- The Sell dock's POST and SKIP (owner, 2026-10-10): as wide as their words, one width through
+  -- every word the button takes, the spinner's room on the busy one.
+  it("fits the widest of its labels, the spinner's room on the busy one, never under its least", function()
+    local b = button("primary", "plaque")
+    b.text.GetUnboundedStringWidth = function() return #W.state(b.text).text * 7 end
+    b:SetLabel("POST")
+    b:FitLabels({ "POST", "POSTING…", "CONFIRM" }, 40, "POSTING…")
+    assert.equal(10 * 7 + 15 + 24, b:GetWidth()) -- "POSTING…" is ten bytes, the ring, 12 a side
+    assert.equal("POST", W.state(b.text).text) -- the label it carries is drawn again
+    b:FitLabels({ "OK" }, 72)
+    assert.equal(72, b:GetWidth())
+  end)
+
   it("glows only while primary and enabled", function()
     local b = button("primary", "plaque")
     assert.is_true(W.state(b.glow).shown)
@@ -59,6 +72,31 @@ describe("kit button", function()
 
   it("builds no glow for a button that is never primary", function()
     assert.is_nil(button("ghost", "badge").glow)
+  end)
+
+  -- The Sell tab glows in one place, its dock's POST and CANCEL n (owner, 2026-10-09).
+  it("glows red as danger only when asked, and not at all when told not to", function()
+    local b = button("primary", "plaque")
+    b:SetGlow(true)
+    b:SetVariant("danger")
+    assert.is_true(W.state(b.glow).shown)
+    assert.same({ GC.Kit.Tokens.color.loss[1], GC.Kit.Tokens.color.loss[2], GC.Kit.Tokens.color.loss[3], 0.35 },
+      W.state(b.glow).vertex)
+    b:SetVariant("primary")
+    assert.same({ GC.Kit.Tokens.color.gold[1], GC.Kit.Tokens.color.gold[2], GC.Kit.Tokens.color.gold[3], 0.35 },
+      W.state(b.glow).vertex)
+    local plain = button("danger", "plaque")
+    assert.is_nil(plain.glow)
+    local quiet = button("primary", "badge")
+    quiet:SetGlow(false)
+    assert.is_false(W.state(quiet.glow).shown)
+  end)
+
+  it("draws the bare half of a segmented switch with no ring, and gives it back when it is on", function()
+    local b = button("segment", "plaque")
+    assert.is_false(W.state(b.ring).shown)
+    b:SetVariant("active")
+    assert.is_true(W.state(b.ring).shown)
   end)
 
   it("draws a middle dot and an arrow in a label as written: the Fira faces have them", function()

@@ -30,7 +30,7 @@ describe("Caps.DecideRealm", function()
 
   -- Caps fixes 2b: the buy dialog and the check panel read `entryTotal`/`entryUnitDisplay` off
   -- a decision to show UNIT and TOTAL, exactly as they do for GC.SniperDecision.EvaluateRealm's
-  -- own result. Without them a realm cap showed "—" for both and "Can't price this" over a lot
+  -- own result. Without them a realm cap showed "-" for both and "Can't price this" over a lot
   -- whose price is known to the copper -- and the button then paid that buyout with no sum on
   -- screen. For an item auction the lot's buyout IS what PlaceBid pays.
   it("says what the chosen lot costs: its whole buyout, per unit, and the player's own price", function()

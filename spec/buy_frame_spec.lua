@@ -515,7 +515,7 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.equal("2 of 2 done", bandOf().done:GetText())
     assert.equal("Everything here is bought", dock().title:GetText())
-    assert.equal("—", bandOf().total:GetText())
+    assert.equal("-", bandOf().total:GetText())
   end)
 
   it("draws the progress bar over the done share of the run", function()
@@ -598,7 +598,7 @@ describe("BuyFrame", function()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
     assert.same({ "Runs", "• Flask run, 4 lines, goldcap.gg", "Cap: 130%", "Add to favourites", "Export",
-      "Archive this run", "From goldcap.gg — rename or remove it there", "Copy vendor list", "New list",
+      "Archive this run", "From goldcap.gg: rename or remove it there", "Copy vendor list", "New list",
       "Import a list…" }, entries)
   end)
 
@@ -951,7 +951,7 @@ describe("BuyFrame", function()
       inserted(WOOL)
       inserted(SILK)
       assert.equal(LINEN .. ", " .. WOOL .. ", " .. SILK, add.box:GetText())
-      assert.equal("Items to add: 3 — Linen Cloth, Wool Cloth, Silk Cloth", add.collected:GetText())
+      assert.equal("Items to add: 3 (Linen Cloth, Wool Cloth, Silk Cloth)", add.collected:GetText())
       assert.equal("Add", add.button.label)
       add.box.scripts.OnEnterPressed(add.box)
       NAMES[4306] = nil
@@ -969,7 +969,7 @@ describe("BuyFrame", function()
       local add = GC.Buy._view.add
       add.box:SetText("2589 x2, 2592 3; 999999")
       add.box.scripts.OnTextChanged(add.box, true)
-      assert.equal("Items to add: 1 — Linen Cloth ×2\nCould not read: 2592 3, 999999.", add.collected:GetText())
+      assert.equal("Items to add: 1 (Linen Cloth ×2)\nCould not read: 2592 3, 999999.", add.collected:GetText())
       add.box.scripts.OnEnterPressed(add.box)
       assert.equal("Added 2× Linen Cloth to a new list, List 1. Could not read: 2592 3, 999999.", add.note:GetText())
       assert.equal(1, #GC.Buy.CurrentRun():Lines())
@@ -1323,8 +1323,8 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ run({ lines = { { i = 105, q = 2 } } }) })
     GC.Buy.SelectRun("run-1"); GC.Buy.RefreshIfShown()
     local row = rowWithText("#105")
-    assert.equal("—", row.cells.price:GetText())
-    assert.equal("—", row.cells.cost:GetText())
+    assert.equal("-", row.cells.price:GetText())
+    assert.equal("-", row.cells.cost:GetText())
   end)
 
   -- WoW: Forever prices an item from the player's own last scan when nothing else knows it. One
@@ -1347,7 +1347,7 @@ describe("BuyFrame", function()
       withValue({ mv = 500, source = "scan", ts = 1 })
       assert.is_nil(lineOf(101).usual)
       assert.is_nil(lineOf(101).cap)
-      assert.equal("—", rowWithText("Alpha Herb").cells.price:GetText())
+      assert.equal("-", rowWithText("Alpha Herb").cells.price:GetText())
     end)
 
     it("uses the community price when the player's own scan is the fresher look", function()
@@ -2029,7 +2029,7 @@ describe("BuyFrame", function()
     local menuTexts = menuEntries()
     assert.same({ "Runs", "   Flask run, 4 lines, goldcap.gg",
                   "divider", "Alerts", "• Cheap ore, 2 lines, goldcap.gg",
-                  "divider", "cap: alert target", "Export", "From goldcap.gg — manage it there",
+                  "divider", "cap: alert target", "Export", "From goldcap.gg: manage it there",
                   "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
@@ -2043,7 +2043,7 @@ describe("BuyFrame", function()
     assert.equal("1 of 4 done · from Acromion", bandOf().done:GetText())
     local menuTexts = menuEntries()
     assert.same({ "Runs", "• Guild flasks, 4 lines, from Acromion",
-                  "divider", "Add to favourites", "Export", "From goldcap.gg — manage it there",
+                  "divider", "Add to favourites", "Export", "From goldcap.gg: manage it there",
                   "Copy vendor list", "divider", "New list", "Import a list…" }, menuTexts)
   end)
 
@@ -2393,7 +2393,7 @@ describe("BuyFrame", function()
     it("opens a goldcap.gg list's menu on a right click, with no rename and no delete", function()
       local said = rightClick(1)
       assert.same({ "Flask run", "Add to favourites", "Export", "Archive this run",
-        "From goldcap.gg — rename or remove it there" }, said)
+        "From goldcap.gg: rename or remove it there" }, said)
       -- A right click picks nothing.
       assert.equal("run-1", GC.Buy.CurrentRun():Code())
     end)

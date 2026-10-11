@@ -240,7 +240,7 @@ describe("SoldFrame", function()
       end
       show()
       assert.equal("+28c", saleRow("Matched").cells.profit:GetText())    -- 40 gross - 12 cut
-      assert.equal("—", saleRow("Unmatched").cells.profit:GetText())
+      assert.equal("-", saleRow("Unmatched").cells.profit:GetText())
       assert.truthy(same(saleRow("Matched").cells.profit.colorValue, GC.Theme.color.green))
     end)
 
@@ -257,7 +257,7 @@ describe("SoldFrame", function()
       assert.equal("+45c", saleRow("Full").cells.profit:GetText())
       assert.equal("-12c  |cff9d9d9d1/4|r", saleRow("Part").cells.profit:GetText())
       assert.truthy(same(saleRow("Part").cells.profit.colorValue, GC.Theme.color.red))
-      assert.equal("—", saleRow("None").cells.profit:GetText())
+      assert.equal("-", saleRow("None").cells.profit:GetText())
       assert.equal("", saleRow("Free").cells.profit:GetText())
     end)
 
@@ -325,7 +325,7 @@ describe("SoldFrame", function()
     it("dash the profit when no cost is known", function()
       GC.Ledger.GetEntries = function() return { sale() } end
       show()
-      assert.equal("—", view().tiles[2].value:GetText())
+      assert.equal("-", view().tiles[2].value:GetText())
       assert.equal("cost known for 0 of 1", view().tiles[2].sub:GetText())
     end)
 

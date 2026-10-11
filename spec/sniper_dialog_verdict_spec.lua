@@ -267,7 +267,7 @@ describe("Sniper buy dialog verdict block", function()
 
   -- The owner's own screenshot: a HOT lot at -81%, refused because the value cannot be trusted.
   -- Printing "-1,240g" there would invent precision out of the very number being refused, and a
-  -- bare "—" would read as a value that failed to load. The words go in the figure's slot, at
+  -- bare "-" would read as a value that failed to load. The words go in the figure's slot, at
   -- the figure's weight.
   it("says it cannot price the lot instead of inventing a figure it has just refused", function()
     local _, stamp = load()
@@ -333,7 +333,7 @@ describe("Sniper buy dialog verdict block", function()
 
     openDialog({}, { itemID = 43 })
 
-    assert.equal("—", d.verdictAmount.text)
+    assert.equal("-", d.verdictAmount.text)
     assert.is_true(d.verdictAmount.shown)
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
       d.verdictAmount.colors[#d.verdictAmount.colors])
@@ -341,7 +341,7 @@ describe("Sniper buy dialog verdict block", function()
   end)
 
   -- Caps fixes 2b. A cap decision reached this panel with no entryTotal, so UNIT and TOTAL
-  -- read "—" on a buy about to spend real gold; a commodity cap then led with its saving under
+  -- read "-" on a buy about to spend real gold; a commodity cap then led with its saving under
   -- the cap as a green "+" over the "worst case, selling all back" caption, and a realm cap said
   -- "Can't price this" over a lot priced to the copper. The panel now says what the player
   -- pays, per unit and in total, beside the price they set -- and invents no profit.
@@ -386,7 +386,7 @@ describe("Sniper buy dialog verdict block", function()
     assert.equal(GC.Util.FormatMoney(1450000), d.verdictAmount.text) -- no "+", no saving-as-profit
     assert.is_true(d.verdictAmount.shown)
     assert.is_false(d.heroText.shown)
-    assert.equal("—", d.profitText.text)
+    assert.equal("-", d.profitText.text)
     local labels = factLabels(d)
     assert.equal("You pay", labels[1])
     assert.equal("Your price", labels[2])

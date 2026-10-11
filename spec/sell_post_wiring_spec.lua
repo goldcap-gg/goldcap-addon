@@ -157,21 +157,21 @@ describe("a price the seller chose reaches the post intact", function()
     local text = helper.sellSource()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
-    -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
-    -- the chip click, and GC.Sell._SpendPrice -- the one rule that spends a typed price when its
-    -- post's creation is credited, or drops it when that post's late window closes unanswered.
-    -- Nothing puts a spent price back.
-    assert.equal(6, writes)
+    -- The dock's price box (UI/Sell/PostPanel.lua applyPrice -- on a keystroke, on Enter, on focus
+    -- loss -- and Escape putting back what was there, through bind's S[store]), the panel's chip
+    -- click, and GC.Sell._SpendPrice -- the one rule that spends a typed price when its post's
+    -- creation is credited, or drops it when that post's late window closes unanswered. Nothing
+    -- puts a spent price back.
+    assert.equal(3, writes)
   end)
 
-  -- The live-preview handler is the newest way into that table and the easiest to get wrong:
-  -- without the byUser guard, the SetText a render performs would re-enter the render that
-  -- performed it, and without the pooled-row key check a price typed for one item could land
-  -- on whichever position the row was rebound to.
-  it("guards the live price preview on real typing and on the row's own position", function()
+  -- The live-preview handler is the easiest way into that table to get wrong: without the byUser
+  -- guard, the SetText a paint performs would re-enter the render that performed it, and without
+  -- the key check a price typed for one item could land on the next one the dock moved to.
+  it("guards the live price preview on real typing and on the dock's own item", function()
     local text = source()
-    local handler = assert(text:match('OnTextChanged", function%(box, byUser%)(.-)\n  end%)'))
-    assert.is_truthy(handler:find("if not byUser or row.priceCommitting then return end", 1, true))
-    assert.is_truthy(handler:find("key ~= row.priceEditingKey", 1, true))
+    local handler = assert(text:match('OnTextChanged", function%(self, byUser%)(.-)\n  end%)'))
+    assert.is_truthy(handler:find("if not byUser or self.committing then return end", 1, true))
+    assert.is_truthy(handler:find("self.editingKey ~= PostPanel.key", 1, true))
   end)
 end)

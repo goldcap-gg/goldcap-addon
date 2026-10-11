@@ -129,6 +129,7 @@ UI/Sell/List.lua
 UI/Sell/CostDialog.lua
 UI/Sell/Toolbar.lua
 UI/Sell/Dock.lua
+UI/Sell/PostPanel.lua
 UI/SoldFrame.lua
 UI/ForeverUpgradesFrame.lua
 UI/BuyCapEditor.lua

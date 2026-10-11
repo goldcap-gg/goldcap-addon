@@ -1042,7 +1042,7 @@ describe("Sell positions", function()
     assert.equal("NO_COST", p.status)
   end)
 
-  it("scopes positions and summaries to exactly one character and region", function()
+  it("scopes positions to exactly one character and region", function()
     local legacy = batch("acq:legacy", "manual", 1, 1, 3)
     legacy.character, legacy.region = nil, nil
     local acquisitions = {
@@ -1056,79 +1056,45 @@ describe("Sell positions", function()
     assert.equal(90, p.profit)
     local repost = GC.SellPositions.BuildRepostPlan(p, 1, 150)
     assert.equal(100, repost.cost)
-    local summary = GC.SellPositions.Summary({ p })
-    assert.equal(100, summary.invested)
-    assert.equal(90, summary.profit)
   end)
 
-  it("[FINAL I3] retains independently known partial cost, listed value AND profit in mixed summaries", function()
-    local complete = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
-      ownedLots = { lot("commodity:42", 1, 200, 1) } })[1]
-    local incomplete = { coverage = "PARTIAL", knownQty = 1, exposureQty = 2,
-      knownCost = 10, listedValue = 50, profit = nil, projectedNet = nil }
-    local summary = GC.SellPositions.Summary({ complete, incomplete })
-    assert.equal(110, summary.invested)
-    assert.equal(250, summary.listedValue)
-    -- `projected`/the top-level all-or-nothing total still null out the moment one position is
-    -- incomplete -- that stays unchanged. `profit` does not: the "complete" position individually
-    -- clears both gates (COMPLETE coverage, a priced projection), so it counts on its own, exactly
-    -- the fix this task exists to make -- one PARTIAL position no longer nulls a total that had a
-    -- perfectly good, individually-known profit sitting right next to it.
-    assert.is_nil(summary.projected)
-    assert.equal(90, summary.profit)
-    assert.equal(1, summary.countedCount)
-    assert.equal(1, summary.excludedNoCost)
-    assert.equal(0, summary.excludedNoPrice)
-  end)
+  -- The dock's two totals (owner, 2026-10-10): what a set of listings brings in once the
+  -- auction house has taken its 5%, and what that leaves after what the stock cost -- the second
+  -- only while the cost of all of it is known.
+  describe("Proceeds", function()
+    local function line(qty, unit, position) return { qty = qty, unit = unit, position = position } end
+    local paid = { coverage = "COMPLETE", knownQty = 10, knownCost = 1000 } -- 100 a unit
 
-  it("keeps known investment while leaving an unquoted complete position's projection unknown", function()
-    local p = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) } })[1]
-    local summary = GC.SellPositions.Summary({ p })
-    assert.equal(100, summary.invested)
-    assert.is_nil(summary.projected)
-    assert.is_nil(summary.profit)
-  end)
+    it("adds up what each line brings in after the 5% cut, a line at a time", function()
+      -- 2 x 1000 = 2000 -> 1900; 1 x 501 = 501 -> 475.95, floored per line
+      assert.equal(1900 + 475, GC.SellPositions.Proceeds({ line(2, 1000, paid), line(1, 501, paid) }))
+    end)
 
-  it("keeps a complete losing position's signed profit in the summary", function()
-    local p = build({ acquisitions = { batch("acq:1", "goldcap", 1, 200, 1) },
-      ownedLots = { lot("commodity:42", 1, 100, 1) } })[1]
-    local summary = GC.SellPositions.Summary({ p })
-    assert.equal(200, summary.invested)
-    assert.equal(95, summary.projected)
-    assert.equal(-105, summary.profit)
-  end)
+    it("takes what the stock cost from it, a loss as well as a gain", function()
+      assert.equal(1900 - 200, select(2, GC.SellPositions.Proceeds({ line(2, 1000, paid) })))
+      assert.equal(47 - 100, select(2, GC.SellPositions.Proceeds({ line(1, 50, paid) })))
+    end)
 
-  it("sums multiple complete positions including losses into a signed exact profit", function()
-    local summary = GC.SellPositions.Summary({
-      { coverage = "COMPLETE", knownCost = 200, listedValue = 0, projectedNet = 95, profit = -105 },
-      { coverage = "COMPLETE", knownCost = 30, listedValue = 0, projectedNet = 95, profit = 65 },
-    })
-    assert.same({ invested = 230, listedValue = 0, projected = 190, profit = -40,
-      countedCount = 2, excludedNoCost = 0, excludedNoPrice = 0 }, summary)
-  end)
+    it("leaves the profit out when the cost of any line is not fully known", function()
+      local partial = { coverage = "PARTIAL", knownQty = 1, knownCost = 10, exposureQty = 2 }
+      local proceeds, profit = GC.SellPositions.Proceeds({ line(2, 1000, paid), line(1, 1000, partial) })
+      assert.equal(2850, proceeds)
+      assert.is_nil(profit)
+      assert.is_nil(select(2, GC.SellPositions.Proceeds({ line(1, 1000, nil) })))
+    end)
 
-  it("sums only the positions that individually clear both gates, reporting the rest as exclusions", function()
-    local summary = GC.SellPositions.Summary({
-      { coverage = "COMPLETE", knownCost = 200, listedValue = 0, projectedNet = 295 },
-      { coverage = "PARTIAL", knownCost = 10, listedValue = 50, projectedNet = nil },
-      { coverage = "COMPLETE", knownCost = 40, listedValue = 0, projectedNet = nil },
-    })
-    assert.equal(95, summary.profit)
-    assert.equal(1, summary.countedCount)
-    assert.equal(1, summary.excludedNoCost)
-    assert.equal(1, summary.excludedNoPrice)
-  end)
+    it("is nil for nothing to add up, never a zero that reads as a result", function()
+      assert.is_nil(GC.SellPositions.Proceeds({}))
+      assert.is_nil(GC.SellPositions.Proceeds(nil))
+    end)
 
-  it("reports profit as nil only when nothing on the list individually clears both gates", function()
-    local summary = GC.SellPositions.Summary({
-      { coverage = "PARTIAL", knownCost = 10, listedValue = 50, projectedNet = nil },
-      { coverage = "UNKNOWN", knownCost = 0, listedValue = 0, projectedNet = nil },
-      { coverage = "COMPLETE", knownCost = 40, listedValue = 0, projectedNet = nil },
-    })
-    assert.is_nil(summary.profit)
-    assert.equal(0, summary.countedCount)
-    assert.equal(2, summary.excludedNoCost)
-    assert.equal(1, summary.excludedNoPrice)
+    it("fails closed when a total would overflow exact accounting", function()
+      local max = 9007199254740991
+      local proceeds, profit = GC.SellPositions.Proceeds({ line(max, 2, paid) })
+      assert.is_nil(proceeds)
+      assert.is_nil(profit)
+      assert.is_nil(GC.SellPositions.Proceeds({ line(1, max, paid), line(1, max, paid) }))
+    end)
   end)
 
   it("fails closed when batch tracked and source quantities overflow exact accounting", function()
@@ -1155,16 +1121,6 @@ describe("Sell positions", function()
     assert.is_nil(GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 1 }, 1))
   end)
 
-  it("returns an unknown summary when complete cost aggregation would overflow", function()
-    local max = 9007199254740991
-    local summary = GC.SellPositions.Summary({
-      { coverage = "COMPLETE", knownCost = max, listedValue = max, projectedNet = max },
-      { coverage = "COMPLETE", knownCost = 1, listedValue = 1, projectedNet = 1 },
-    })
-    assert.same({ invested = nil, listedValue = nil, projected = nil, profit = nil,
-      countedCount = 2, excludedNoCost = 0, excludedNoPrice = 0 }, summary)
-  end)
-
   it("normalizes missing lot timestamps for stable FIFO sorting without mutating input", function()
     local undated = lot("commodity:42", 1, 100, 2, nil)
     undated.firstSeenAt = nil
@@ -1185,6 +1141,18 @@ describe("Sell positions", function()
     assert.equal(1, plan.quantity)
     assert.equal(200, plan.cost)
     assert.equal("acq:2", plan.allocations[1].batchID)
+  end)
+
+  -- How many (owner, 2026-10-10): the seller's number lists fewer, never more than is here.
+  it("lists the quantity the seller asked for, and never more than the bags hold", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    local function quantity(asked)
+      return GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 300, { overrideQuantity = asked }).quantity
+    end
+    assert.equal(2, quantity(2))
+    assert.equal(5, quantity(9))
+    assert.equal(5, quantity(0))
+    assert.equal(5, quantity(nil))
   end)
 
   -- F5 queue-at-exit: the plan must list at the same number the recommendation displayed --

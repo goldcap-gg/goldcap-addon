@@ -361,7 +361,7 @@ describe("Watch loop", function()
   end)
 
   -- In game 2026-09-23: rows the owner pinned showed UNIT and nothing else -- DISC, PRICE and
-  -- PROFIT were "—" on items the addon had a market value for. They are figured the way every
+  -- PROFIT were "-" on items the addon had a market value for. They are figured the way every
   -- other row is (Core/DealMath.lua), off the price and quantity the watch loop last saw, and
   -- stay dim: nothing here is verified until a live Check.
   it("figures a watched row off the market it knows, the way every other row is", function()
@@ -396,8 +396,8 @@ describe("Watch loop", function()
     local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
     refreshRows()
     local row = upvalue(refreshRows, "rows")[1]
-    assert.equal("—", row.discountText.text)
-    assert.equal("—", row.profitText.text)
+    assert.equal("-", row.discountText.text)
+    assert.equal("-", row.profitText.text)
     assert.equal(GC.Util.FormatMoney(300), row.priceText.text) -- price and quantity are still known
     assert.is_nil(GC.Sniper._WatchNote(row.deal))
   end)
@@ -414,8 +414,8 @@ describe("Watch loop", function()
     assert.equal(1, #rows)
     assert.equal(42, rows[1].deal.itemID)
     assert.is_true(rows[1].deal.pinPlaceholder)
-    assert.equal("—", rows[1].unitText.text)
-    assert.equal("—", rows[1].priceText.text)
+    assert.equal("-", rows[1].unitText.text)
+    assert.equal("-", rows[1].priceText.text)
   end)
 
   -- Sniper phase 2: a realm item the region has no reference price for is not a deal and never
@@ -436,7 +436,7 @@ describe("Watch loop", function()
     assert.equal(1, #rows)
     assert.equal(42, rows[1].deal.itemID)
     assert.is_true(rows[1].deal.pinPlaceholder)
-    assert.equal("—", rows[1].discountText.text) -- no percentage against a two-listing median
+    assert.equal("-", rows[1].discountText.text) -- no percentage against a two-listing median
   end)
 
   it("renders a real price once a placeholder pin has an observation", function()
@@ -449,7 +449,7 @@ describe("Watch loop", function()
     refreshRows()
     local rows = upvalue(refreshRows, "rows")
     assert.equal(1, #rows)
-    assert.are_not.equal("—", rows[1].unitText.text)
+    assert.are_not.equal("-", rows[1].unitText.text)
   end)
 
   it("falls back to the item result when a watched item has no commodity result", function()

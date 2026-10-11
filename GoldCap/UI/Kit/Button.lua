@@ -14,6 +14,7 @@ local PRESSED = { 0, 0, 0, 0.28 }
 -- A disabled button draws its fill and ring at this share of their own alpha.
 local DIM = 0.45
 local PRIMARY_GLOW = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
+local DANGER_GLOW = { K.loss[1], K.loss[2], K.loss[3], 0.35 }
 
 -- A trailing ▼ or ▲ on a label ("SHOW DETAILS ▼", a picker's "All ▼"): drawn as the atlas caret at
 -- the right edge, because the condensed face has neither triangle (docs/addon/tools/fonts.py).
@@ -38,6 +39,9 @@ local BUTTON_VARIANTS = {
   -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
   -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
   warn    = { bg = { K.warn[1], K.warn[2], K.warn[3], 0.16 }, text = K.warn },
+  -- The half of a segmented switch that is not on: bare text in the track the switch draws, no
+  -- fill and no ring of its own (the Sell tab's TO POST / MY LOTS). Its other half is `active`.
+  segment = { bg = { 1, 1, 1, 0 }, text = K.text3, bare = true },
 }
 
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
@@ -130,14 +134,26 @@ function T.Button(parent, variant, rounded)
   b.pressedTexture:SetAllPoints()
   b:SetPushedTexture(b.pressedTexture)
 
-  -- A soft gold halo under the primary action, only while it is primary and live: a dim button
-  -- with a bright glow reads as clickable. Built on first need.
+  -- A soft halo under the main action, only while it is live: a dim button with a bright glow
+  -- reads as clickable. A primary button wears it in gold unless told not to; a danger one, in
+  -- red, only when asked: b:SetGlow(true) or (false), nil for the variant's own say (the Sell
+  -- dock's POST and CANCEL are the only ones on that tab, the owner's call of 2026-10-09).
+  -- Built on first need.
+  local glowAsked
   local function paintGlow()
-    local want = spec == BUTTON_VARIANTS.primary and not b.dimmed
+    local danger = spec == BUTTON_VARIANTS.danger
+    local glows = spec == BUTTON_VARIANTS.primary or (danger and glowAsked == true)
+    local want = glows and glowAsked ~= false and not b.dimmed
     if want and not b.glow then b.glow = T.Glow(b, PRIMARY_GLOW, 12) end
     if b.glow then
+      local c = danger and DANGER_GLOW or PRIMARY_GLOW
+      b.glow:SetVertexColor(c[1], c[2], c[3], c[4])
       if want then b.glow:Show() else b.glow:Hide() end
     end
+  end
+  function b:SetGlow(on)
+    glowAsked = on
+    paintGlow()
   end
 
   if roundedSpec then
@@ -200,11 +216,10 @@ function T.Button(parent, variant, rounded)
       b.caret:Hide()
     end
     b.text:SetPoint("RIGHT", b, "RIGHT", caret and -16 or 0, 0)
-    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
-    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
-    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
-    -- string either way; only the drawn FontString text is transformed.
-    b.text:SetText(b.uppercase and shown:upper() or shown)
+    -- In capitals in every cased language (GC.Util.Upper: Lua's own upper stops at ASCII, and a
+    -- Russian label stayed as written). b.label above stays the caller's exact SOURCE string
+    -- either way; only the drawn FontString text is transformed.
+    b.text:SetText(b.uppercase and GC.Util.Upper(shown) or shown)
   end
 
   -- Draws the label upper-case without touching `.label` -- theme_button_contract_spec pins
@@ -215,6 +230,23 @@ function T.Button(parent, variant, rounded)
   function b:SetUppercase(on)
     b.uppercase = on and true or nil
     if b.label then b:SetLabel(b.label) end
+  end
+
+  -- As wide as the widest of `labels` (display text) in the player's language, and never under
+  -- `minW`: a button whose words change (POST, POSTING…, CONFIRM) keeps one width through them.
+  -- `busy` is the label drawn beside the spinner (SetBusy below), whose ring takes 15px of the
+  -- face. Measured by the client; where the face cannot be measured the width stays as it was.
+  function b:FitLabels(labels, minW, busy)
+    local fs = b.text
+    if not (fs and fs.GetUnboundedStringWidth) then return end
+    local widest = 0
+    for _, label in ipairs(labels) do
+      fs:SetText(b.uppercase and GC.Util.Upper(label) or label)
+      widest = math.max(widest, (fs:GetUnboundedStringWidth() or 0) + (label == busy and 15 or 0))
+    end
+    fs:SetText("")
+    if b.label then b:SetLabel(b.label) end
+    b:SetWidth(math.max(minW or 0, math.ceil(widest) + 2 * T.pad.m))
   end
 
   -- The fill in its variant's colour, dimmed to 0.45 of its own alpha while disabled. Dimmed by
@@ -244,6 +276,9 @@ function T.Button(parent, variant, rounded)
     paintFill()
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     if b.caret then b.caret:SetVertexColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1) end
+    if b.ring and not b.ringAsked then
+      if spec.bare then b.ring:Hide() else b.ring:Show() end
+    end
     paintGlow()
   end
   b:SetVariant(variant)

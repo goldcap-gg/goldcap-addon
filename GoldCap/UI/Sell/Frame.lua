@@ -44,7 +44,7 @@ GC.SellUI = {
   -- mutually-exclusive chips this replaced could not express -- so both can be on at once.
   chips = { ready = false, nocost = false },
   -- One per part of the view, each filled by its own file under UI/Sell/.
-  Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, CostDialog = {},
+  Toolbar = {}, List = {}, Row = {}, Inspector = {}, Book = {}, Dock = {}, PostPanel = {}, CostDialog = {},
 }
 local UI = GC.SellUI
 
@@ -93,18 +93,31 @@ UI.INSP = { W = 340, GAP = 28, HEAD_H = 58, SCROLL_GUTTER = 26, PAD = 8, DOCK_MI
 
 -- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
 -- where a seller stops caring which level exactly -- past that the words beside them carry it.
--- H is a POSITION row's height in the list -- taller than the list's 32px pitch, which every
--- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
--- room. LIFT is how far each of the two lines sits from the row's centre.
-UI.ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
+-- H is a POSITION row's pitch in the list -- taller than the list's 32px pitch, which every
+-- other kind keeps: a glass card of H - GAP (52) with GAP between two cards, the design's
+-- (owner, 2026-10-09 and again 10-10). A name or a stock line too long for its box wraps, and the
+-- card grows to hold it, PAD above and below the pair: nothing on a row is cut short with "…".
+-- LIFT is how far each figure and its second line sit from the row's centre.
+UI.ROW = { MARKS = 5, H = 56, GAP = 4, PAD = 8, LIFT = 10, ICON = 30, BUTTON_H = 24, BUTTON_GAP = 14 }
 -- The five marks and the gaps layoutCells chains them with (5px to the words, 2px between).
 UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
+-- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
+UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 
--- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
--- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
--- seller is here for -- at the default 720px window all three would leave the line beside the
--- bulk action no room to name the item it is about to post.
-UI.DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
+-- The dock along the bottom of the tab (owner, 2026-10-10: post from here, not from every row).
+-- One row H tall (owner, same day: two tiers and a tier for the item over them were crooked and
+-- took the list's room, worst in the auction house). On the posting deck, right to left from POST:
+-- SKIP, what the post fetches, the price and how many, centred on CTRL_Y; left of them the item's
+-- icon and name, with its stock line under the name, or the player's own post's news in its
+-- place. A name too long for its room wraps and the dock grows to hold it. On MY LOTS, CANCEL n at
+-- the left with the lot it cancels next and the status line beside it, the totals at the right,
+-- all on MID_Y. Both measured up from the dock's bottom edge. POST and SKIP are as wide as their
+-- words in the player's language (Theme.Button's FitLabels), never under POST_W and SKIP_W.
+-- NARROW is the content width under which the ledger keeps only PROCEEDS; under WIDE the posting
+-- row drops YOU GET, which the row already says.
+UI.DOCK = { H = 56, PAD = 8, NARROW = 700, WIDE = 860, CTRL_Y = 22, MID_Y = 28, GAP = 14,
+  BUTTON_H = 28, BOX_H = 24, ICON = 30, POST_W = 72, SKIP_W = 56, PRICE_W = 96, QTY_W = 56,
+  MAX_W = 48, NET_W = 96 }
 
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
 -- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
@@ -114,25 +127,24 @@ UI.DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 -- It lives in the side panel now (see INSP), one column: the price you are about to list at,
 -- then the book that price lands in, all eight levels the view model hands over.
 UI.DR = {
-  SLOTS = 14,              -- 14 * ROW_H(32) = 448px: a position with stock to price
-  SLOTS_BARE = 11,         -- no stock in the bags: no price control, the book moves up
+  SLOTS = 13,              -- 13 * ROW_H(32) = 416px: a position with stock to price
+  SLOTS_BARE = 11,         -- no stock in the bags: no price section, the book moves up
   LINE_H = 20,             -- one book level
   LINES = 8,               -- SellViewModel's own BOOK_ROWS
-  BOX_W = 112, BOX_H = 34, -- the price box: the one figure on this tab that spends gold
-  HEAD_Y = -10,            -- "YOUR PRICE" / "YOU GET"
-  BOX_Y = -26,             -- the price box, and what it fetches beside it
-  NOTE_Y = -68,            -- whose price it is, or what is wrong with it
-  CHIPS_Y = -88,           -- the five one-click fills, one segmented strip
+  HEAD_Y = -10,            -- "YOUR PRICE"
+  PRICE_Y = -26,           -- the price the dock posts at
+  NOTE_Y = -48,            -- whose price it is and how many go, or what is wrong with it
+  CHIPS_Y = -66,           -- the five one-click fills, one segmented strip
   CHIP_H = 22,
-  REC_Y = -120,            -- what GoldCap would do and why, two lines of it
-  POST_Y = -156,           -- Post, the panel's own
-  POST_H = 24,
-  BOOK_Y = -192,           -- where the book section starts when there is a price control
+  REC_Y = -98,             -- what GoldCap would do and why, two lines of it
+  BOOK_Y = -134,           -- where the book section starts when there is a price section
   BOOK_Y_BARE = -84,       -- ...and when there is not
-  BAR_MAX = 160,
+  BAR_MAX = 140,           -- what the bar keeps of the panel once PRICE_W and UNITS_W are out
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
-  PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
+  -- PRICE_W holds "2,147,483[g]" in mono-11 with its coin (~94px): a level's price in the game's
+  -- coins, cut short, would cut the coin's escape mid-way.
+  PRICE_W = 96, UNITS_W = 40, TAG_W = 40,
   -- "wall", at the start of its own level's bar: the bar starts after it. Measured where the client
   -- can (UI/Sell/Book.lua's paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
   -- Theme.Scale() 1.3 with air -- 28 cut it to "ст…" (final review I2).
@@ -150,24 +162,29 @@ function fmt.setColor(fontString, color)
   if fontString and color then fontString:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
 end
 
--- Gold-carrying amounts render as plain text ("65g24s"), not GetCoinTextureString's coin
--- icons: the icon escapes are wide, and a truncated FontString cuts them MID-ESCAPE, which
--- painted lot labels as "bought 17 Aug at 1|..." in game. Sub-gold amounts keep the icons,
--- where they fit. Mirrors the Deals board's formatColumnAmount rule.
+-- Money as the game writes it, in its own coins, gold grouped in thousands (owner, 2026-10-09):
+-- "2,450[g] 50[s]". From a thousand gold up the silver is dropped, the way the Deals board drops it
+-- past a hundred: it is noise there, and the column it would widen is YOU GET. Copper only under a
+-- gold, where it is most of the figure. These were plain text ("65g24s") for as long as a cell
+-- could be cut short: a FontString cuts an icon escape MID-ESCAPE, which painted lot labels as
+-- "bought 17 Aug at 1|..." in game. Nothing in the Sell view is cut any more (the owner's rule):
+-- every fixed box an amount lands in is sized for the widest one it can get (DR.PRICE_W, DOCK.NET_W,
+-- a purchase's cost in UI/Sell/Inspector.lua); the list's money columns already hold theirs.
 --
 -- A GC.Sell field, not a top-level local: paint-only (every call site is inside render or
 -- drawer/summary paint code, never a click's pre-call body; final review "Headroom").
--- `gold` goes through GC.Util.IntText, not %d: WoW's own string.format raises "integer
--- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
--- it is bounded 0-99 by the mod above.
+-- `silver` stays on %d: it is bounded 0-99 by the mod above. Gold goes through GC.Util.Grouped,
+-- never %d: WoW's own string.format raises "integer overflow" past +-2^31 copper (about 214,748g).
 function GC.Sell._FormatAmount(amount)
   if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. GC.Sell._FormatAmount(-amount) end
   if amount >= 10000 then
+    local COIN = GC.Util.COIN
     local gold = math.floor(amount / 10000)
     local silver = math.floor((amount % 10000) / 100)
-    if silver == 0 then return GC.Util.IntText(gold) .. "g" end
-    return GC.Util.IntText(gold) .. ("g%02ds"):format(silver)
+    local text = GC.Util.Grouped(gold) .. COIN.g
+    if silver == 0 or gold >= 1000 then return text end
+    return text .. (" %d"):format(silver) .. COIN.s
   end
   return GC.Util.CoinText(amount)
 end
@@ -196,6 +213,22 @@ fmt.MONEY_HEX = "|cffc9a957"
 function GC.Sell._InlineColor(color, text)
   return ("|cff%02x%02x%02x%s|r"):format(
     math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
+end
+
+-- A heading with its count in gold (owner, 2026-10-09): "UNDERCUT 2", the 2 lit. `format` is the
+-- translated heading; its own "%d" takes the number already coloured, so no locale needs a key of
+-- its own for it.
+function fmt.count(format, count)
+  local gold = GC.Theme.color.goldHi or GC.Theme.color.gold
+  return (format:gsub("%%d", GC.Sell._InlineColor(gold, tostring(count)), 1))
+end
+
+-- What a price makes over what one cost, as the row's line under YOU GET and the dock's YOU GET
+-- both say it: "+43%" and green, "-20%" and red. Nil when either is not a figure.
+function fmt.margin(unit, paidUnit)
+  if not (unit and paidUnit and paidUnit > 0) then return nil end
+  local pct = math.floor(((unit - paidUnit) / paidUnit) * 100 + 0.5)
+  return (pct >= 0 and "+" or "") .. pct .. "%", pct >= 0 and GC.Theme.color.green or GC.Theme.color.red
 end
 
 local exact = GC.SellUtil.exact
@@ -239,7 +272,7 @@ local function copperToGoldText(copper)
   return text
 end
 
--- YOUR PRICE only (row.priceBox, in UI/Sell/Inspector.lua) -- everything above (the Set-Cost
+-- YOUR PRICE only (the dock's price box, in UI/Sell/PostPanel.lua) -- everything above (the Set-Cost
 -- dialog's Unit/Total fields) stays gold-decimal unconditionally, on retail and on WoW: Forever alike, because a
 -- purchase cost is always gold-denominated regardless of what the auction house can post.
 --
@@ -420,17 +453,17 @@ GC.slashHandlers.sellstate = function()
       local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
-        why = GC.L["identity unresolved (variant item -- not priced by design)"]
+        why = GC.L["identity unresolved (variant item, not priced by design)"]
       elseif not (inBags or listed) then
-        why = GC.L["no stock in bags or listed -- nothing to price for"]
+        why = GC.L["no stock in bags or listed, nothing to price for"]
       elseif resting and Walk.RestedEmptyFresh(position.quoteKey or position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       elseif resting then
         -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk
         -- read as a quiet auction house.
-        why = (GC.L["no answer %ds ago -- resting"]):format(time() - restingAt)
+        why = (GC.L["no answer %ds ago, resting"]):format(time() - restingAt)
       else
-        why = GC.L["due -- will be asked next pass"]
+        why = GC.L["due, will be asked next pass"]
       end
       shown = shown + 1
       -- A variant by its exact key: two item levels of one piece read as one line by item ID.

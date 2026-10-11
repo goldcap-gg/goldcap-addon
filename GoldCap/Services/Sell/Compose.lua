@@ -115,18 +115,7 @@ function Compose.Positions(skipPaint)
     if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
   end
   sellableCount = sellable
-  -- Rebuilt from THESE positions, every time -- never kept as a separate stateful list. See
-  -- State.lua's queueEntries/queueSkipped declaration for why. Guarded for GC.PostQueue
-  -- being absent: every real load carries Core/PostQueue.lua (GoldCap.toc), but a handful of
-  -- older fixtures in this spec suite load the Sell view (helper.loadSell) without it, and a missing queue
-  -- module must degrade to "nothing queued," never a crash.
-  if GC.PostQueue and GC.PostQueue.Build then
-    S.queueEntries, S.queueSkipped = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
-  else
-    S.queueEntries, S.queueSkipped = {}, {}
-  end
-  GC.Sell._HoldLateInQueue()
-  View.paintQueue()
+  Compose.Queue()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
     S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions)
@@ -141,6 +130,95 @@ function Compose.Positions(skipPaint)
   -- own two buttons. So it sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is
   -- what made a fixed bag-stock bug look like it was still broken, twice, to two different readers.
   if not skipPaint then View.paintDeck() end
+end
+
+-- The posting queue, rebuilt from THESE positions every time -- never kept as a separate stateful
+-- list (see State.lua's queueEntries/queueSkipped declaration for why) -- and from the player's
+-- selling list. Its own function so a click on a row's selling mark can rebuild it without a
+-- whole compose (a six-bag scan and every purchase record): a mark changes which positions are
+-- queued, not the positions. Guarded for GC.PostQueue being absent: every real load carries
+-- Core/PostQueue.lua (GoldCap.toc), but a handful of older fixtures in this spec suite load the
+-- Sell view (helper.loadSell) without it, and a missing queue module must degrade to "nothing
+-- queued," never a crash.
+function Compose.Queue()
+  if GC.PostQueue and GC.PostQueue.Build then
+    S.queueEntries, S.queueSkipped, S.notSelling = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())
+  else
+    S.queueEntries, S.queueSkipped, S.notSelling = {}, {}, {}
+  end
+  GC.Sell._HoldLateInQueue()
+  GC.Sell._HoldDoneInQueue()
+  View.paintQueue()
+end
+
+-- The dock walks the selling list once a visit (owner, 2026-10-10): an item posted this visit,
+-- or passed over with SKIP, leaves the queue for the rest of it. Left in, a part-posted item went
+-- straight back to the head with what was left (one water of six posted, then POST offered the
+-- other five, and the linen marked beside it waited behind them). A click on its row still puts
+-- it in the dock, and the next visit starts the list again (GC.Sell.Reset). Into S.queueDone,
+-- not queueSkipped: nothing holds these back now, and the footer's held-back count says so. An
+-- item the queue held back leaves it the same way: the walk stops at those too (UI.Dock.Current).
+-- Not one waiting for its last post's answer, which stays held until the answer comes.
+function GC.Sell._HoldDoneInQueue()
+  S.queueDone = {}
+  if next(S.postedThisVisit) == nil and next(S.passedThisVisit) == nil then return end
+  local function sift(list, keep)
+    local kept = {}
+    for _, entry in ipairs(list) do
+      local key = entry.positionKey
+      if keep(entry) or not (S.postedThisVisit[key] or S.passedThisVisit[key]) then
+        kept[#kept + 1] = entry
+      else
+        S.queueDone[#S.queueDone + 1] = { positionKey = key, itemID = entry.itemID, itemName = entry.itemName,
+          reason = S.postedThisVisit[key] and "posted_this_visit" or "skipped_this_visit" }
+      end
+    end
+    return kept
+  end
+  S.queueEntries = sift(S.queueEntries, function() return false end)
+  S.queueSkipped = sift(S.queueSkipped, function(skip) return skip.reason == "awaiting_answer" end)
+end
+
+-- SKIP: the dock's item is passed over for this visit, and the dock moves on.
+function GC.Sell.PassDockItem(positionKey)
+  if type(positionKey) ~= "string" then return end
+  S.passedThisVisit[positionKey] = true
+  View.moveOn(positionKey)
+  if S.dockKey == positionKey then S.dockKey = nil end
+  Compose.Queue()
+end
+
+-- Off POST's walk for this visit, posted or passed over: the row's mark goes out (Row.paintMark).
+function GC.Sell.DoneThisVisit(positionKey)
+  return S.postedThisVisit[positionKey] == true or S.passedThisVisit[positionKey] == true
+end
+
+-- The player's click on that mark: back on the walk for the rest of the visit.
+function GC.Sell.BackOnWalk(positionKey)
+  if type(positionKey) ~= "string" then return end
+  S.postedThisVisit[positionKey], S.passedThisVisit[positionKey] = nil, nil
+  Compose.Queue()
+  View.render()
+end
+
+--- The player's click on a row's selling mark (UI/Sell/Row.lua): kept for the position in the saved
+-- data, for every character, then the queue rebuilt and the list drawn again. Its own click,
+-- never on the way to a post.
+function GC.Sell.SetSelling(positionKey, selling)
+  if type(positionKey) ~= "string" or positionKey == "" or type(GC.db) ~= "table" then return end
+  GC.db.sellMarks = GC.db.sellMarks or {}
+  GC.db.sellMarks[positionKey] = selling == true
+  -- Marked, it is on POST's walk now, whatever this visit already did with it (GC.Sell.BackOnWalk).
+  if selling == true then S.postedThisVisit[positionKey], S.passedThisVisit[positionKey] = nil, nil end
+  Compose.Queue()
+  View.render()
+end
+
+--- Is this position on the player's selling list (Core/PostQueue.lua's Selling, over the saved
+-- marks)? For the row's mark and the list's two sections. Asked once a row on every render, so
+-- it reads the marks straight from the saved data rather than building _QueueOpts each time.
+function GC.Sell.IsSelling(position)
+  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil)
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

@@ -8,8 +8,8 @@ local _, GC = ...
 local Theme = GC.Theme
 local S = GC.SellState
 local Walk, Post = GC.SellWalk, GC.SellPost
-local exact, safeMultiply, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
-  GC.SellUtil.effectivePostUnit
+local exact, safeMultiply, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
+  GC.SellUtil.effectivePostUnit, GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Row = UI.Row
 local COLUMNS, ROW = UI.COLUMNS, UI.ROW
@@ -26,6 +26,8 @@ local ROW_TAG_TEXT = {
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
   below_vendor = "vendor pays more",
+  posted_this_visit = "posted",
+  skipped_this_visit = "skipped",
 }
 
 local rowTag
@@ -60,6 +62,44 @@ rowTag = function(position, reason, notOnHand)
   return "  " .. GC.Sell._InlineColor(color, tag)
 end
 end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 allows 200)
+
+-- The selling mark's tooltip (Row.CreateRow): what the mark means for this row, why it is marked
+-- when the player never chose (Deals bought it), and that a click changes it.
+function ROW.markTooltip(owner, row)
+  if not GameTooltip then return end
+  local selling, position = row.markSelling == true, row.position
+  GameTooltip:SetOwner(owner, Theme.TooltipAnchor(owner))
+  if row.markDone then
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Done for this visit"]), 1, 0.82, 0)
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["POST passes it by until you close the auction house. Click to have POST list it again."]),
+      0.85, 0.85, 0.85, true)
+    GameTooltip:Show()
+    return
+  end
+  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["Selling"] or GC.L["Not selling"]), 1, 0.82, 0)
+  GameTooltip:AddLine(GC.Util.ClientText(selling and GC.L["POST lists it, and so does the key for posting the next item."]
+    or GC.L["POST passes it by. Click the item to post it from the bar below."]), 0.85, 0.85, 0.85, true)
+  local marks = GC.Sell._QueueOpts().marks
+  if selling and position and type(marks) == "table" and marks[position.positionKey] == nil then
+    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Marked for you: you bought it on DEALS."]), 0.85, 0.85, 0.85, true)
+  end
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Click to change."]), 0.6, 0.6, 0.6)
+  GameTooltip:Show()
+end
+
+-- The selling mark's look: a gold coin in a gold ring when POST lists the row, an empty dim ring
+-- when POST passes it by. `done`: an item of the list that SKIP or a post took off POST's walk
+-- for this visit (GC.Sell.DoneThisVisit) wears the empty ring too, until the auction house is
+-- closed (owner, 2026-10-10: after SKIP the mark stayed lit and nothing looked changed).
+function ROW.paintMark(row, selling, done)
+  row.markSelling, row.markDone = selling, (selling and done) or nil
+  local lit = selling and not done
+  local ring = lit and Theme.color.gold or Theme.color.fgDim
+  row.mark.ring:SetVertexColor(ring[1], ring[2], ring[3], lit and 0.9 or 0.6)
+  local coin = Theme.color.gold
+  row.mark.coin:SetVertexColor(coin[1], coin[2], coin[3], 1)
+  if lit then row.mark.coin:Show() else row.mark.coin:Hide() end
+end
 
 -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
 -- posting deck keeps its plain count beside the bags'.
@@ -110,10 +150,10 @@ local ACTION_HELP = {
   ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
   -- Two short paragraphs each, never more (sell_action_help_spec locks the length): the
   -- tooltip opens beside a button inside the list, so every extra line is a row it covers.
-  ["Post"] = { "Post", { "Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
-  ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
+  ["Post"] = { "Post", { "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
+  ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction. It does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
-  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
+  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost, never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
   ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
 }
 Row.ACTION_HELP = ACTION_HELP
@@ -127,21 +167,30 @@ local function createRow(parent)
   -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
   -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
   -- rows are scannable by shape rather than by reading every name.
-  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 15 = half of
-  -- the 30px effective fill (Theme.ROW_H 32 minus 2px); right inset is 2, NOT Deals' 26 -- this
-  -- container is already inset by CONTENT_RIGHT_GUTTER (see GC.Sell.Attach in UI/Sell/Frame.lua) and the
-  -- scrollbar hangs outside in that gutter.
+  -- Sliced rounded fills (batch-2 pattern). Insets: half of ROW.GAP top and bottom, so two
+  -- positions' cards stand ROW.GAP apart (margin 12 <= 14, half of the 28px fill of the list's
+  -- shortest row); right inset is 2, NOT Deals' 26 -- this container is already inset by
+  -- CONTENT_RIGHT_GUTTER (see GC.Sell.Attach in UI/Sell/Frame.lua) and the scrollbar hangs outside
+  -- in that gutter. On a position the fill is its glass card (Row.Style), every row alike: the
+  -- cards are what separates one item from the next now, not alternate shading.
+  local inset = ROW.GAP / 2
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
   row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
   row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
-  row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.zebra:SetPoint("TOPLEFT", 2, -inset); row.zebra:SetPoint("BOTTOMRIGHT", -2, inset)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- The card's edge: the glass border (Theme.color.border) every panel in the kit wears.
+  local gb = Theme.color.border
+  row.cardRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { gb[1], gb[2], gb[3], gb[4] or 0.075 }, 12)
+  row.cardRing:SetPoint("TOPLEFT", 2, -inset); row.cardRing:SetPoint("BOTTOMRIGHT", -2, inset)
+  row.cardRing:Hide()
   -- The open position's outline, over the same rect as its fill: gold at the design's 38%.
   -- Built through the kit's own sliced texture so a spec's Theme double serves it too.
   row.selectRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
     { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
-  row.selectRing:SetPoint("TOPLEFT", 2, -1); row.selectRing:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.selectRing:SetPoint("TOPLEFT", 2, -inset); row.selectRing:SetPoint("BOTTOMRIGHT", -2, inset)
   row.selectRing:Hide()
   -- The "well": a sunken fill an expanded position's children sit in instead of the list's
   -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
@@ -158,7 +207,7 @@ local function createRow(parent)
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
   row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
   row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
-  row.highlight:SetPoint("TOPLEFT", 2, -1); row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.highlight:SetPoint("TOPLEFT", 2, -inset); row.highlight:SetPoint("BOTTOMRIGHT", -2, inset)
   local hc = Theme.color.hover
   row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight:Hide()
@@ -182,6 +231,46 @@ local function createRow(parent)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
+  -- The selling mark, before the icon on the posting deck (Row.Style shows it): a gold coin in a
+  -- ring when POST and the post-next key list this item, an empty ring when only the row's own
+  -- Post does. A click is the player's choice for the position, kept across sessions
+  -- (GC.Sell.SetSelling) -- a click of its own, never on the way to a post. A button of its own,
+  -- so the row's item tooltip stays the row's.
+  row.mark = CreateFrame("Button", nil, row)
+  row.mark:SetSize(ROW.MARK, ROW.MARK)
+  row.mark:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.mark.ring = row.mark:CreateTexture(nil, "ARTWORK")
+  row.mark.ring:SetTexture(Theme.MEDIA .. "badge_ring.png")
+  row.mark.ring:SetSize(12, 12)
+  row.mark.ring:SetPoint("CENTER")
+  row.mark.coin = row.mark:CreateTexture(nil, "OVERLAY")
+  row.mark.coin:SetTexture(Theme.MEDIA .. "badge.png")
+  row.mark.coin:SetSize(8, 8)
+  row.mark.coin:SetPoint("CENTER")
+  row.mark:SetScript("OnClick", function(self)
+    local position = row.position
+    if not (position and type(position.positionKey) == "string") then return end
+    Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no", as a row's does
+    local key = position.positionKey
+    local selling = GC.Sell.IsSelling(position)
+    if selling and GC.Sell.DoneThisVisit(key) then
+      -- The empty ring of an item done for this visit: back on POST's walk, the saved mark as it was.
+      GC.Sell.BackOnWalk(key)
+    else
+      selling = not selling
+      GC.Sell.SetSelling(key, selling)
+    end
+    -- Painted here too: a post already on the wire holds every render back until it is answered.
+    -- Only while this pooled row still shows the item clicked: a render that ran has put the next
+    -- item on it, painted from the saved marks (owner, 2026-10-10: the item below the one taken
+    -- off the list lost its coin until the list was drawn again).
+    if row.position and row.position.positionKey == key then ROW.paintMark(row, selling, false) end
+    -- The tooltip still up is about the row under the pointer, which may be another item now.
+    if GameTooltip and GameTooltip:GetOwner() == self then ROW.markTooltip(self, row) end
+  end)
+  row.mark:SetScript("OnEnter", function(self) ROW.markTooltip(self, row) end)
+  row.mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  row.mark:Hide()
   row:SetScript("OnEnter", function(self)
     self.goldcapVariant = nil
     -- The list's rows are what a hover picks between; a wash over the panel's twelve-slot
@@ -209,14 +298,14 @@ local function createRow(parent)
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
       if self.marketFallback then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value — no live quote yet"]), 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value, no live quote yet"]), 0.85, 0.85, 0.85, true)
       end
       if self.notOnHand then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"]),
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand: the stock is in the mail, the bank, or on another character"]),
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
-    elseif GameTooltip and (self.kind == "group" or self.kind == "batch")
+    elseif GameTooltip and (self.kind == "group" or self.kind == "batch" or self.kind == "section")
         and self.groupHint and self.groupHint ~= "" then
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       -- A fact a line. The sentence is a run of facts joined by one separator, and wrapped as
@@ -253,11 +342,12 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
+  -- A name too long for its box wraps and the card grows to hold it (UI.List.LayoutCells measures
+  -- the pair): cut with "…" it was the one cell a seller could not read in full (owner's rule).
+  row.cells.item:SetWordWrap(true)
   -- The stock line ("×246 in bags · ×11 listed") used to ride in cells.item as a second line
-  -- behind a "\n". cells.item is SetWordWrap(false) like every other cell, which renders ONE
-  -- line and marks the rest with an ellipsis -- so the second line was never drawn at all and
-  -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
-  -- own anchor (UI.List.LayoutCells splits the flex box in half vertically for the pair).
+  -- behind a "\n", and was never drawn. Its own FontString now, hung under the name, and it wraps
+  -- the same way: a held-back tag at its end is the line's most important word.
   row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
   -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
@@ -265,7 +355,7 @@ local function createRow(parent)
   -- compete with the name and the cost compete with nothing.
   row.itemStock:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   row.itemStock:SetJustifyH("LEFT")
-  row.itemStock:SetWordWrap(false)
+  row.itemStock:SetWordWrap(true)
   row.itemStock:Hide()
 
   -- The second line of the two figures, the same split the name and its stock line already
@@ -366,10 +456,16 @@ local function createRow(parent)
       UI.List.RenderRows()
     elseif self.kind == "position" and type(self.position.positionKey) == "string" then
       Post.WalkAway() -- an armed post or cancel is a question; this click answers it "no"
+      local key = self.position.positionKey
       -- One open position at a time. Two open panels are two hundred pixels of detail each,
       -- and the second one pushed the first -- the one being compared against -- off screen.
-      local key = self.position.positionKey
       local wasOpen = UI.expanded[key]
+      -- On the posting deck the item a click opens goes in the dock, the one place it posts from,
+      -- whether or not it is on the selling list (UI/Sell/PostPanel.lua). Shut again, the dock
+      -- goes back to the list: a look at an item's book does not take POST over (review).
+      if S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue" and (self.position.bagQty or 0) > 0 then
+        if not wasOpen then S.dockKey = key elseif S.dockKey == key then S.dockKey = nil end
+      end
       for other in pairs(UI.expanded) do UI.expanded[other] = nil end
       UI.expanded[key] = not wasOpen or nil
       UI.List.RenderRows()
@@ -461,9 +557,9 @@ function Row.PaintPosition(row, entry, ctx)
   if p.coverage == "COMPLETE" and exact(p.knownCost) and exact(p.knownQty) and p.knownQty > 0 then
     unitCost = math.floor(p.knownCost / p.knownQty)
   end
-  row.cells.cost:SetText(unitCost and formatCell(unitCost) or "—")
+  row.cells.cost:SetText(unitCost and formatCell(unitCost) or "-")
   row.cells.listed:SetText(formatCell(p.listedValue))
-  -- "none" ~= "—": the first is an answer ("the AH has zero listings right now",
+  -- "none" ~= "-": the first is an answer ("the AH has zero listings right now",
   -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
   -- honestly-unlisted items read as the pricing walk being slow or stuck.
   --
@@ -471,7 +567,7 @@ function Row.PaintPosition(row, entry, ctx)
   -- one), but the item was imported from goldcap.gg with a market value -- the same
   -- number Deals shows. That value is not live, so it never overrides an actual AH
   -- answer (an empty one included -- the AH answered "none", which outranks a guess from
-  -- the last import), but showing it beats a "—" that reads as "the addon hasn't checked
+  -- the last import), but showing it beats a "-" that reads as "the addon hasn't checked
   -- yet" for as long as the pricing walk takes to reach this row.
   -- Item 5 (addon polish batch): a bare `emptyAnswers[p.itemID]` presence check made a
   -- ONE-OFF empty AH answer hide the fallback forever -- only a manual Refresh (which
@@ -506,7 +602,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- "~", not "≈": on Korean this cell draws in the client's 2002.TTF, which has no U+2248.
     marketText = "~" .. formatCell(p.marketValue)
   else
-    marketText = emptyKnown and "none" or "—"
+    marketText = emptyKnown and "none" or "-"
   end
   if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
     marketText = marketText .. (GC.L[" · stale %ds"]):format(p.quoteAge)
@@ -568,7 +664,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- 18g against a 92g market. This is the one thing on the row that has
     -- to be read before anything else, so it takes the column and the
     -- alarm colour, and the advice moves aside for it.
-    row.cells.status:SetText((GC.L["Listed at %s — far below market. Repost."]):format(
+    row.cells.status:SetText((GC.L["Listed at %s, far below market. Repost."]):format(
       formatCell(p.underpricedUnit)))
     setColor(row.cells.status, Theme.color.red)
   elseif p.recommendation then
@@ -593,7 +689,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- Nothing in the bags AND nothing listed: the stock this row tracks is in the
     -- mail, the bank, or on another character. Cost coverage is a real question too,
     -- but "where is my ore?" is the one the player is actually asking here.
-    row.cells.status:SetText(GC.L["Not in your bags or listed — mail or bank?"])
+    row.cells.status:SetText(GC.L["Not in your bags or listed. Mail or bank?"])
     setColor(row.cells.status, Theme.color.fgDim)
   elseif p.coverage ~= "COMPLETE" then
     row.cells.status:SetText((GC.L["Cost unknown for %d of %d"]):format(
@@ -617,22 +713,22 @@ function Row.PaintPosition(row, entry, ctx)
   -- YOU GET answers "what does this row fetch if I click Post", so on the post deck it is
   -- counted over what one click LISTS -- the largest stack for a normal item, the whole
   -- pool for a commodity (position.postableQty, see Core/SellPositions). Counting the bag
-  -- sum quoted a figure four fifths of which stayed in the bags.
-  local postableQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or bagQty
-  local grossQty = onListedDeck and listedQty or postableQty
+  -- sum quoted a figure four fifths of which stayed in the bags. Fewer, when the seller asked
+  -- one Post for fewer (the panel's "how many").
+  local grossQty = onListedDeck and listedQty or postQuantity(p)
   local gross = rowUnit and safeMultiply(rowUnit, grossQty) or nil
-  row.cells.gross:SetText(gross and formatCell(gross) or "—")
+  row.cells.gross:SetText(gross and formatCell(gross) or "-")
   setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)
-  row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "—")
+  row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "-")
   -- A lot the cancel queue calls urgent is priced far under the market: that figure is
   -- the problem, and it is the one on this row that goes red.
   local queuedLot = onListed and ROW.queuedLot(p) or nil
   setColor(row.cells.price, (queuedLot and queuedLot.urgent and Theme.color.red)
     or (rowUnit and Theme.color.fg) or Theme.color.fgDim)
-  if rowUnit and paidUnit and paidUnit > 0 then
-    local pct = math.floor(((rowUnit - paidUnit) / paidUnit) * 100 + 0.5)
-    row.grossNote:SetText((pct >= 0 and "+" or "") .. pct .. "%")
-    setColor(row.grossNote, pct >= 0 and Theme.color.green or Theme.color.red)
+  local margin, marginTone = UI.fmt.margin(rowUnit, paidUnit)
+  if margin then
+    row.grossNote:SetText(margin)
+    setColor(row.grossNote, marginTone)
   else
     -- Nothing is "no price yet"; the words are "no receipt, so the margin is not a number
     -- anybody can know". Conflating them is what made Unknown read as broken.
@@ -670,12 +766,10 @@ function Row.PaintPosition(row, entry, ctx)
     setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
       and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
   end
-  -- Post is the point of this screen, so it lives on the row itself. It
-  -- used to be reachable only by expanding the position and finding a
-  -- sub-row, and only for stock GoldCap had a receipt for -- which is why
-  -- the honest answer to "what can I list" was "go use the Blizzard tab".
-  -- Set cost is bookkeeping and stays available whenever there is no
-  -- stock to act on; the expansion carries it in either case.
+  -- Stock in the bags posts from the row's own Post or from the dock's POST, the same click
+  -- (UI.Dock.OnPostClick) at the same price and number (owner, 2026-10-10: keep the row's, "it is
+  -- handy"). Set cost is bookkeeping and stays available whenever there is no stock to act on;
+  -- the expansion carries it in either case.
   if onListed and ROW.queuedLot(p) then
     -- MY LOTS' own control, on the rows worth cancelling and no others. It cancels nothing
     -- itself: ROW.armLot opens the position and hands the click to the lot's own button.
@@ -703,6 +797,7 @@ function Row.PaintHeading(row, entry)
     row.action:Hide()
   elseif entry.kind == "section" then
     row.sectionLabel:SetText(ROW.sectionText(entry.section))
+    row.groupHint = entry.section.id == "selling" and UI.Dock.HeldBackHint() or nil -- the hover's facts
     row.action:Hide()
   else
     local title, aside = ROW.waitText(entry)
@@ -712,28 +807,29 @@ function Row.PaintHeading(row, entry)
   end
 end
 
--- How a row looks for its kind this render, after its cells are filled: banding, the open
+-- How a row looks for its kind this render, after its cells are filled: a position's card, the open
 -- position's ring, the surface's fill, what it puts away of the last kind's widgets, which of the
 -- three name widgets shows, the icon, and the layout (the list's columns, or the panel's).
-function Row.Style(row, entry, listIndex)
+function Row.Style(row, entry)
   local p = entry.position
-  -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
+  -- The card, hierarchy and the icon are decided here, after the cells are filled, because
   -- only `entry.kind` distinguishes a position from one of its expanded children. Exactly
   -- one of row.cells.item / row.subItem / row.sectionLabel is shown per row -- the other
   -- two are hidden here rather than merely left un-set, since rows are pooled and rebound
   -- to a different kind on every render (a "batch" this pass can be a "position" the next).
   local zc2 = Theme.color.zebra
-  -- An OPEN position and the panel under it are one block, so the row wears the same gold
-  -- the panel's left rail does instead of its turn in the white zebra. Without it the pair
-  -- read as two unrelated rows that happened to land next to each other.
-  if entry.kind == "position" and UI.expanded[p.positionKey] then
+  -- An OPEN position and the panel beside it are one block, so its card wears the gold the
+  -- panel's own rail does in place of the glass. Without it the pair read as two unrelated things.
+  local open = entry.kind == "position" and UI.expanded[p.positionKey]
+  if open then
     local gc3 = Theme.color.gold
     row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
     row.selectRing:Show()
   else
-    row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (listIndex % 2 == 1) and (zc2[4] or 0.04) or 0)
+    row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], zc2[4] or 0.035)
     row.selectRing:Hide()
   end
+  if entry.kind == "position" and not open and not entry.panel then row.cardRing:Show() else row.cardRing:Hide() end
   -- The drawer is a SURFACE, not a shaded row: at the well's usual half alpha the window
   -- behind it (and, docked, the auction house's own art at the edges) mixed straight
   -- through and left the panel looking washed out rather than the flat panel colour the
@@ -750,25 +846,22 @@ function Row.Style(row, entry, listIndex)
   -- widgets have to be put away by whatever kind takes the row next.
   if entry.kind ~= "price" and entry.kind ~= "drawer" then
     UI.Inspector.PutAway(row)
-    -- The head dresses the pooled action button as the panel's own Post; every other kind
-    -- gets the row button back.
+    -- Every kind but the head gets the row button back.
     -- ...at the row's own height for a position, where it is the control the row exists for.
     row.action:SetSize(86, entry.kind == "position" and ROW.BUTTON_H or 18)
     if row.action.SetVariant then row.action:SetVariant("ghost") end
-    -- Gold lettering on the row's Post, the way the design drew it: the fill stays the
-    -- quiet ghost, so a list of ten does not become ten gold bars.
-    -- Red for the one that cancels, on the row and on the panel's lots alike.
+    -- A position's button and a cancel's: capitals in gold (red for the one that cancels) on the
+    -- ghost's glass, with no outline, the lettering of the dock's SKIP and the deck switch (owner,
+    -- 2026-10-10: the outlined "Post" read as a box of its own beside every price). The fill stays
+    -- the quiet ghost, so a list of ten does not become ten gold bars.
     local cancels = row.action.helpKey == "Cancel lot"
-    if (entry.kind == "position" or cancels) and row.action.text and row.action.text.SetTextColor then
+    local lettered = entry.kind == "position" or cancels
+    if row.action.SetUppercase then row.action:SetUppercase(lettered) end
+    if lettered and row.action.text and row.action.text.SetTextColor then
       local lettering = cancels and Theme.color.red or Theme.color.goldHi or Theme.color.gold
       row.action.text:SetTextColor(lettering[1], lettering[2], lettering[3], 1)
     end
-    -- ...and a thin outline with it, on a position or a cancel alone: the pooled button is
-    -- every other kind's too, and theirs stay bare.
-    if row.action.SetRing then
-      local ring = cancels and Theme.color.red or Theme.color.gold
-      row.action:SetRing((entry.kind == "position" or cancels) and { ring[1], ring[2], ring[3], cancels and 0.5 or 0.45 } or nil)
-    end
+    if row.action.SetRing then row.action:SetRing(nil) end
   end
   if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
   -- Same rule, and the drawer has the most to put away: five book lines and four headings.
@@ -776,6 +869,11 @@ function Row.Style(row, entry, listIndex)
   -- on top of whatever line it becomes next.
   if entry.kind ~= "drawer" then
     UI.Book.PutAway(row)
+  end
+  -- The selling mark is a position's on the posting deck alone (renderRows sets entry.selling).
+  if entry.kind ~= "position" or entry.selling == nil then
+    row.markSelling = nil
+    row.mark:Hide()
   end
   -- The second lines belong to a position alone; a pooled row that was one last render
   -- must not keep its queue marks under a lot or a batch.
@@ -787,7 +885,7 @@ function Row.Style(row, entry, listIndex)
   end
   if entry.kind == "position" then
     row.spine:Hide()
-    row.divider:Show()
+    row.divider:Hide() -- a card has its own edge
     row.zebra:Show()
     row.well:Hide()
     row.cells.item:Show()
@@ -803,7 +901,16 @@ function Row.Style(row, entry, listIndex)
     -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
     -- unconditional 26 left the name floating in a blank gap for a row with no
     -- resolvable icon.
-    row.itemInset = icon and (ROW.ICON + 10) or 0
+    -- The selling mark, where the deck has marks: every row's icon and name make room for one,
+    -- so the names line up under ITEM whether this row has a mark to draw or not.
+    local markW = entry.markRoom and ROW.MARK_W or 0
+    if entry.selling ~= nil then
+      ROW.paintMark(row, entry.selling, entry.done)
+      row.mark:Show()
+    end
+    row.icon:ClearAllPoints()
+    row.icon:SetPoint("LEFT", row, "LEFT", 4 + markW, 0)
+    row.itemInset = (icon and (ROW.ICON + 10) or 0) + markW
     if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
   elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
       or entry.kind == "waitItem" then
@@ -823,16 +930,19 @@ function Row.Style(row, entry, listIndex)
     setColor(row.sectionLabel, fgc)
     -- An item waiting for its key is a line under that heading, not a heading of its own.
     if entry.kind == "waitItem" then row.sectionRule:Hide() end
-    -- The waiting heading's aside, one line from its title to the list's edge, where the
-    -- rule would run.
+    -- The waiting heading's aside, from its title to the list's edge, where the rule would run.
+    -- It wraps, and the heading grows to hold it (row.fitHeight, read by List.RenderRows): "open
+    -- the auction house once so GoldCap can tell how these sell" is wider than that in English.
     if entry.kind == "waitHead" then
       row.sectionRule:Hide()
       row.sectionHint:ClearAllPoints()
       row.sectionHint:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.m, 0)
       row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
-      row.sectionHint:SetWordWrap(false)
-      row.sectionHint:SetMaxLines(1)
+      row.sectionHint:SetWordWrap(true) -- and no line limit: nothing else on a row sets one on it
       row.sectionHint:Show()
+      row.sectionHint:SetText(row.sectionHint:GetText() or "") -- laid out at this width (Book.Layout)
+      local h = row.sectionHint.GetStringHeight and row.sectionHint:GetStringHeight()
+      if h then row.fitHeight = math.ceil(h + 2 * ROW.PAD) end
     end
   else
     row.itemInset = 34

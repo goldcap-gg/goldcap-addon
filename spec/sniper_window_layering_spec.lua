@@ -38,6 +38,7 @@ describe("Sniper window layering", function()
       Show = function(self) self.shown = true end,
       Hide = function(self) self.shown = false end,
       IsShown = function(self) return self.shown == true end,
+      IsVisible = function(self) return self.shown == true end,
       SetText = function() end,
       SetTexture = function() end,
       SetTexCoord = function() end,
@@ -296,8 +297,25 @@ describe("Sniper window layering", function()
     -- of a check also shut the whole GoldCap window behind it and, docked, handed the auction
     -- house back to Blizzard's own tab. It captures the key itself now, the same way the
     -- settings overlay does.
+    -- Every frame built with the parent it was given, so a test can find the slider's own driver
+    -- under the sheet and run its steps (spec/kit_surface_spec.lua drives one frame by frame).
+    local function driverUnder()
+      local made, real = {}, _G.CreateFrame
+      _G.CreateFrame = function(kind, name, parent, ...)
+        local f = real(kind, name, parent, ...)
+        made[#made + 1] = { frame = f, parent = parent }
+        return f
+      end
+      return function(parent)
+        for _, m in ipairs(made) do
+          if m.parent == parent and m.frame.scripts and m.frame.scripts.OnUpdate then return m.frame end
+        end
+      end
+    end
+
     it("takes Escape for itself instead of closing the window behind it", function()
       local frame, GC = buildFrame()
+      local moving = driverUnder()
       local drawer = drawerOf(GC)
       for _, name in ipairs(_G.UISpecialFrames) do
         assert.not_equal("GoldCapSniperConfirm", name)
@@ -307,15 +325,74 @@ describe("Sniper window layering", function()
       drawer:Show()
       frame:Show()
       drawer.scripts.OnKeyDown(drawer, "ESCAPE")
+      assert.is_false(drawer.propagate) -- the game never sees that keypress
 
+      -- Out the way it came (owner, 2026-10-11), and gone at the end of it.
+      assert.is_true(drawer.slider:Leaving())
+      drawer.scripts.OnKeyDown(drawer, "ESCAPE")
+      assert.is_true(drawer.propagate) -- shut already: this Escape is the window's
+      local driver = moving(drawer)
+      driver.scripts.OnUpdate(driver, 1)
       assert.is_false(drawer:IsShown())
       assert.is_true(frame:IsShown()) -- the window it covers stays exactly where it was
-      assert.is_false(drawer.propagate) -- and the game never sees that keypress
 
       -- Every other key still reaches whatever would normally receive it -- movement, action
       -- bars, Enter-to-chat. EnableKeyboard(true) delivers them all here, not just Escape.
       drawer.scripts.OnKeyDown(drawer, "W")
       assert.is_true(drawer.propagate)
+    end)
+
+    -- The sheet is the Deals board's. Left open across a rail click it lay over the Sell tab
+    -- (owner, 2026-10-11), and coming back to Deals must not bring it back on its own.
+    it("closes when the player leaves Deals for another tab", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      frame:Show()
+      drawer:Show()
+      GC.Sniper.ShowView("sell")
+      assert.is_false(drawer:IsShown())
+      GC.Sniper.ShowView("deals")
+      assert.is_false(drawer:IsShown())
+    end)
+
+    -- The Sell item panel's look (owner, 2026-10-11): an X where "ESC" was printed, which shuts
+    -- it the way Escape does.
+    it("shuts from its own X, as Escape does", function()
+      local frame, GC = buildFrame()
+      local moving = driverUnder()
+      local drawer = drawerOf(GC)
+      frame:Show()
+      drawer:Show()
+      drawer.closeBtn.scripts.OnClick(drawer.closeBtn)
+      assert.is_true(drawer.slider:Leaving())
+      local driver = moving(drawer)
+      driver.scripts.OnUpdate(driver, 1)
+      assert.is_false(drawer:IsShown())
+      assert.is_true(frame:IsShown())
+    end)
+
+    -- On its way out the sheet is shut: its BUY must not start a purchase in those 0.12 s. The
+    -- plan's first word is that, before anything it reads of the row.
+    it("answers nothing from its BUY while it slides out", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local text = f:read("*a")
+      f:close()
+      local at = assert(text:find("local function planDialogPrimaryClick()", 1, true))
+      local guard = assert(text:find("if dialog.slider and dialog.slider:Leaving() then return end", at, true))
+      local firstRead = assert(text:find("local row = dialog.row", at, true))
+      assert.is_true(guard < firstRead)
+    end)
+
+    -- A long name wraps rather than ending in "…", and the head grows to hold it.
+    it("grows its head for a name that wraps, and gives the room back for a short one", function()
+      local _, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      drawer.nameText.GetStringHeight = function() return 40 end
+      drawer.fitHeader()
+      assert.equal(12 + 40 + 8, drawer.headerH)
+      drawer.nameText.GetStringHeight = function() return 18 end
+      drawer.fitHeader()
+      assert.equal(12 + 32 + 8, drawer.headerH)
     end)
   end)
 

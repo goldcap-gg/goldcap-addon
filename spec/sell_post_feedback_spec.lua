@@ -11,6 +11,7 @@ local helper = require("spec.spec_helper")
 -- uses: bags -> positions -> the row and the dock -> onPostClick -> the events that answer it.
 describe("Sell tab, a Post says what it is doing", function()
   local GC, root, render, container, timers, posts, postReturn, onPost, bags, postedSlots, auctions, sentUnits
+  local sentQty
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -70,7 +71,7 @@ describe("Sell tab, a Post says what it is doing", function()
 
   before_each(function()
     timers, posts, postReturn, onPost, bags, postedSlots, auctions = {}, 0, false, nil, BAGS, {}, {}
-    sentUnits = {}
+    sentUnits, sentQty = {}, {}
     _G.time = function() return 1000 end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
@@ -83,10 +84,11 @@ describe("Sell tab, a Post says what it is doing", function()
     _G.C_AuctionHouse = {
       MakeItemKey = function(itemID) return { itemID = itemID } end,
       GetItemKeyInfo = function() return { isCommodity = true } end,
-      PostCommodity = function(location, _, _, unitPrice)
+      PostCommodity = function(location, _, quantity, unitPrice)
         posts = posts + 1
         postedSlots[#postedSlots + 1] = location.slot
         sentUnits[#sentUnits + 1] = unitPrice
+        sentQty[#sentQty + 1] = quantity
         if onPost then onPost() end
         return postReturn
       end,
@@ -168,9 +170,12 @@ describe("Sell tab, a Post says what it is doing", function()
 
   local function oreRow() return rowOf(23427) end
 
+  -- The item goes in the dock (what a click on its row does, UI/Sell/Row.lua, short of opening
+  -- its panel) and the dock's POST is pressed: the one place the posting deck posts from.
   local function pressRowPost(itemID)
     local row = rowOf(itemID or 23427)
-    row.action.scripts.OnClick(row.action)
+    GC.SellState.dockKey = row.position.positionKey
+    container.queueButton.scripts.OnClick(container.queueButton)
     return row
   end
 
@@ -252,7 +257,9 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.same(GREEN, { unpack(container.dockStatus.color, 1, 3) })
       assert.is_false(row.action.busy)
       assert.is_false(container.queueButton.busy)
-      assert.equal("POST 1", container.queueButton.label)
+      -- All of it went up: the dock moves on, and there is nothing after it.
+      assert.equal("POST", container.queueButton.label)
+      assert.equal("Nothing queued to post", container.queueLabel.text)
       -- The refresh that follows every post does not talk over it...
       walkSays("Checking prices…")
       assert.matches("^Posted", container.dockStatus.text)
@@ -260,6 +267,94 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal(1, fire(1.5))
       assert.equal("Checking prices…", container.dockStatus.text)
       assert.same(MUTED, { unpack(container.dockStatus.color, 1, 3) })
+    end)
+
+    -- Posted from its open panel, the item's panel goes on with the dock to the next item rather
+    -- than shut (owner, 2026-10-11).
+    it("takes an open panel on to the next item with the dock", function()
+      bags = TWO_ITEMS
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+      GC.SellCompose.Positions()
+      render()
+      local ore = rowOf(23427)
+      ore.scripts.OnClick(ore)
+      assert.is_true(GC.SellUI.expanded["commodity:23427"])
+      container.queueButton.scripts.OnClick(container.queueButton)
+      GC.Sell.OnAuctionCreated()
+      assert.is_nil(GC.SellUI.expanded["commodity:23427"])
+      assert.is_true(GC.SellUI.expanded["commodity:210796"])
+      assert.equal("commodity:210796", GC.SellState.dockKey)
+      assert.matches("Mycobloom", container.queueLabel.text, 1, true)
+      assert.equal("Mycobloom", container.inspector.name.text)
+    end)
+
+    -- Posted whole, the row goes at once, not when the bags next catch up (owner, 2026-10-11),
+    -- and comes back only for stock the bags count afresh.
+    local function oreShown()
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
+      end
+    end
+
+    it("takes a row posted whole off the deck at once, until the bags count something else", function()
+      ready()
+      pressRowPost()
+      GC.Sell.OnAuctionCreated()
+      assert.is_nil(oreShown())
+      render()
+      assert.is_nil(oreShown()) -- the bags still count the 246 that went up
+      GC.SellUI.Toolbar.PaintDeckSwitch()
+      -- ...and the count lets it go
+      assert.matches("^TO POST |c%x%x%x%x%x%x%x%x0|r$", container.deckButtons.post.label)
+      bags = { [0] = { { itemID = 23427, stackCount = 30, itemName = "Eternium Ore" } } }
+      GC.Sell.OnBagsChanged()
+      GC.SellCompose.Positions()
+      render()
+      assert.is_truthy(oreShown())
+    end)
+
+    -- On screen it fades where it stands, then the rows under it close up over its gap.
+    it("fades the row out on screen, then closes the list up over it", function()
+      bags = TWO_ITEMS
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+      GC.SellCompose.Positions()
+      render()
+      container.IsVisible = function() return true end
+      for _, row in ipairs(GC.SellUI.rows) do
+        row.GetHeight = function() return 56 end
+        row.SetAlpha = function(self, a) self.alpha = a end
+        -- This file's frames drop their anchors; these rows keep them, to be read back.
+        row.ClearAllPoints = function(self) self.points = {} end
+        row.SetPoint = function(self, point, _, _, x, y) self.points[#self.points + 1] = { point = point, x = x, y = y } end
+      end
+      render()
+      pressRowPost(23427)
+      GC.Sell.OnAuctionCreated()
+      local ore = assert(oreShown()) -- still there, on its way
+      local gapY = ore.placedY
+      local driver = GC.SellUI.List.leaveDriver
+      driver.scripts.OnUpdate(driver, 0.075)
+      assert.equal(0.5, ore.alpha)
+      driver.scripts.OnUpdate(driver, 0.1) -- faded: out, and the rows under it start where they stood
+      assert.is_nil(oreShown())
+      local moved = 0
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and not row.inPanel and row.placedY and row.placedY >= gapY then
+          assert.equal(-(row.placedY + 56), row.points[#row.points].y)
+          moved = moved + 1
+        end
+      end
+      assert.is_true(moved > 0)
+      driver.scripts.OnUpdate(driver, 1)
+      for _, row in ipairs(GC.SellUI.rows) do
+        if row:IsShown() and not row.inPanel and row.placedY then
+          assert.equal(-row.placedY, row.points[#row.points].y)
+          assert.equal(1, row.alpha or 1)
+        end
+      end
+      assert.is_nil(driver.scripts.OnUpdate)
     end)
   end)
 
@@ -319,7 +414,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet, listening for a minute", container.dockStatus.text)
       assert.same(RED, { unpack(container.dockStatus.color, 1, 3) })
       assert.equal("Post", row.action.label)
       assert.is_true(row.action.enabled)
@@ -503,7 +598,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet, listening for a minute", container.dockStatus.text)
       _G.time = function() return 1030 end
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
@@ -527,7 +622,7 @@ describe("Sell tab, a Post says what it is doing", function()
       -- still be taking it.
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
       assert.equal(0, #recorded) -- a guess: the owned list records it
@@ -547,21 +642,23 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.PurchaseSlot = nil
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     it("holds another Post of the same item while its last post may still be answered", function()
       ready()
       pressRowPost()
       fire(8)
-      pressRowPost()
-      assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
-      -- The dock's POST does not offer it either: held back, with the reason in words.
-      assert.equal("NOTHING TO POST", container.queueButton.label)
-      assert.matches("1", container.queueHeldBack.text, 1, true)
+      -- The dock does not offer it by itself: held back, with the reason in words.
+      assert.is_false(container.queueButton.enabled)
+      assert.equal("Nothing queued to post", container.queueLabel.text)
+      assert.matches("1 held back", GC.SellUI.Dock.SellingAside(), 1, true)
       root.GoldCapPostNext()
       assert.equal(1, posts)
+      -- Put back in the dock by a click on its row, a press is still refused while it may go up.
+      pressRowPost()
+      assert.equal(1, posts)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     it("goes on posting every other item meanwhile, from the dock's POST as from a row", function()
@@ -623,7 +720,7 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.matches("Posted · Eternium Ore ×246", container.dockStatus.text, 1, true)
       assert.equal("posting", myco.postStage)
       assert.is_true(myco.action.busy)
-      myco.action.scripts.OnClick(myco.action)
+      pressRowPost(210796)
       assert.equal(2, posts) -- never a second post of Mycobloom's pool
       GC.Sell.OnAuctionCreated(602)
       assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true)
@@ -747,7 +844,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
       assert.equal("posting", myco.postStage)
       assert.is_true(myco.action.busy)
-      myco.action.scripts.OnClick(myco.action)
+      pressRowPost(210796)
       assert.equal(2, posts) -- never a second post of Mycobloom's pool
       GC.Sell.OnAuctionCreated(605)
       assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true) -- never the ore
@@ -800,7 +897,7 @@ describe("Sell tab, a Post says what it is doing", function()
       local myco = pressRowPost(210796)
       assert.equal("confirm", myco.postStage)
       _G.C_AuctionHouse.ConfirmPostCommodity = function() GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughMoney) end
-      myco.action.scripts.OnClick(myco.action)
+      pressRowPost(210796)
       assert.is_nil(myco.postStage)
       assert.equal("You don't have enough money.", container.dockStatus.text)
       fire(8)
@@ -831,7 +928,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.SellState.refresh.phase = "idle"
       pressRowPost()
       assert.equal(1, posts) -- held: that post may still go up
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     -- The Sniper's own "busy" -- a pass paging, a purchase out -- counts too. A page still out
@@ -1039,7 +1136,7 @@ describe("Sell tab, a Post says what it is doing", function()
         fire(8)
         postReturn = true
         local myco = pressRowPost(210796)
-        myco.action.scripts.OnClick(myco.action) -- Confirm
+        pressRowPost(210796) -- Confirm
         auctions[907] = 210796
         GC.Sell.OnAuctionCreated(907) -- named: Mycobloom's own, but not certain
         assert.is_nil(myco.postStage)
@@ -1179,6 +1276,109 @@ describe("Sell tab, a Post says what it is doing", function()
         assert.equal("posting", row.postStage)
       end)
 
+      -- How many (owner, 2026-10-10): the number the seller typed is what the post call sends,
+      -- and it lives exactly as long as a typed price does.
+      describe("a typed quantity", function()
+        local function chosen() return GC.SellState.quantityOverrides end
+
+        it("is what the post call sends, and is spent when the post is credited", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          assert.equal(100, sentQty[1])
+          assert.equal(100, chosen()["commodity:23427"]) -- the post may still be refused
+          GC.Sell.OnAuctionCreated(700)
+          assert.is_nil(chosen()["commodity:23427"])
+          assert.equal(100, activityFor("commodity:23427").lastPostedQty)
+        end)
+
+        it("stays for the retry when the post is refused", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
+          assert.equal(100, chosen()["commodity:23427"])
+          pressRowPost()
+          assert.equal(100, sentQty[2])
+        end)
+
+        it("is dropped when the auction house closes over a post that went out unanswered", function()
+          ready()
+          chosen()["commodity:23427"] = 100
+          pressRowPost()
+          GC.Sell.Reset()
+          assert.is_nil(chosen()["commodity:23427"])
+        end)
+
+        -- The owner's run (2026-10-10): one water of six and one linen of sixteen, POST twice. After
+        -- the water went up, POST offered the other five, and the linen waited behind them.
+        it("leaves an item posted from a typed number out of POST for the rest of the visit", function()
+          bags = TWO_ITEMS
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          render()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+          chosen()["commodity:23427"] = 1
+          pressRowPost(23427)
+          GC.Sell.OnAuctionCreated(700)
+          GC.SellCompose.Positions() -- the bags still hold the rest of the ore
+          assert.equal(1, #GC.SellState.queueEntries)
+          assert.equal(210796, GC.SellState.queueEntries[1].itemID)
+          -- Done, not held back: the footer's held-back count does not count it.
+          local done
+          for _, entry in ipairs(GC.SellState.queueDone) do
+            if entry.positionKey == "commodity:23427" then done = entry.reason end
+          end
+          assert.equal("posted_this_visit", done)
+          assert.equal(0, #GC.SellState.queueSkipped)
+          -- The next visit starts the list again.
+          GC.Sell.Reset()
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+        end)
+
+        -- A normal item lists one stack a post (PostItem pins one ItemLocation); what is left of
+        -- it is POST's to list next, as before. The pin is narrowed here to one of the ore's two
+        -- stacks, as BuildPostPlan pins a normal item.
+        it("keeps a normal item in POST while another of its stacks is in the bags", function()
+          bags = TWO_ITEMS
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          render()
+          pressRowPost(23427)
+          GC.SellState.postingPin.quantity = 200
+          GC.Sell.OnAuctionCreated(700)
+          GC.SellCompose.Positions()
+          assert.equal(23427, GC.SellState.queueEntries[1].itemID)
+        end)
+
+        -- ...but a post of everything the item had is done for the visit: the bags have not caught
+        -- up yet, and the dock must not offer the same stack again meanwhile.
+        it("moves the dock on after a post of everything the item had", function()
+          bags = TWO_ITEMS
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+          GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+          GC.SellCompose.Positions()
+          render()
+          pressRowPost(23427)
+          GC.Sell.OnAuctionCreated(700)
+          GC.SellCompose.Positions()
+          render()
+          assert.equal(210796, GC.SellState.queueEntries[1].itemID)
+          assert.equal("Mycobloom", container.queueLabel.text)
+        end)
+
+        it("sends all of it when nothing was typed", function()
+          ready()
+          pressRowPost()
+          assert.equal(246, sentQty[1])
+        end)
+      end)
+
       -- One rule for a typed price: spent by the credit, dropped when the window closes
       -- unanswered or the auction house closes over it, never put back.
       describe("a typed price", function()
@@ -1211,7 +1411,9 @@ describe("Sell tab, a Post says what it is doing", function()
         -- The price on the row is the price that goes out: whatever the row says when Post is
         -- pressed is the unit the post call is given.
         local function shownCopper(row)
-          local gold, silver = row.cells.price.text:match("^(%d+)g(%d*)s?$")
+          -- The figure in the Sell view's coins: "1[gold] 90[silver]", gold grouped in thousands.
+          local gold, silver = row.cells.price.text:match("^([%d,]+)|T[^|]*GoldIcon[^|]*|t ?(%d*)")
+          gold = gold and gold:gsub(",", "")
           return gold and (tonumber(gold) * 10000 + (tonumber(silver) or 0) * 100) or nil
         end
 
@@ -1341,7 +1543,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     -- S9b: a plain Confirm, then its creation -- booked, and the row freed.
@@ -1351,7 +1553,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal("confirm", row.postStage)
-      row.action.scripts.OnClick(row.action)
+      pressRowPost()
       assert.equal("confirming", row.postStage)
       GC.Sell.OnAuctionCreated(710)
       assert.is_nil(row.postStage)
@@ -1391,7 +1593,7 @@ describe("Sell tab, a Post says what it is doing", function()
     assert.equal("Post", row.action.label)
     assert.is_false(row.action.busy)
     assert.is_false(container.queueButton.busy)
-    assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+    assert.equal("The auction house did not answer. Try again", container.dockStatus.text)
   end)
 
   -- The note's clock can run out after the player has gone to another tab. The toolbar line is
@@ -1446,6 +1648,6 @@ describe("Sell tab, a Post says what it is doing", function()
     -- The watchdog is armed before the call (see above); the answer already let it go.
     fire(8)
     assert.is_nil(row.postStage)
-    assert.not_equal("The auction house did not answer -- try again", container.dockStatus.text)
+    assert.not_equal("The auction house did not answer. Try again", container.dockStatus.text)
   end)
 end)

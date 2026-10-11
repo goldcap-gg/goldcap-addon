@@ -455,9 +455,9 @@ local function notify(kind, a, b)
   elseif kind == "closed" then
     GC.Print(GC.L["Open the Auction House first."])
   elseif kind == "cooldown" then
-    GC.Print(GC.L["The full scan is cooling down (%d min left) -- scanning by browsing instead"]:format(a))
+    GC.Print(GC.L["The full scan is cooling down (%d min left). Scanning by browsing instead"]:format(a))
   elseif kind == "noanswer" then
-    GC.Print(GC.L["The auction house did not answer the full scan -- scanning by browsing instead"])
+    GC.Print(GC.L["The auction house did not answer the full scan. Scanning by browsing instead"])
   elseif kind == "progress" then
     if GC.Sniper and GC.Sniper.SetScanStatus then
       GC.Sniper.SetScanStatus(GC.L["reading the auction house: %s of %s lots"]:format(count(a), count(b)))
@@ -766,9 +766,9 @@ function GC.ForeverScan.SayImpact()
   if best.updated == 0 then return false end
   local market = marketLabel(best)
   if best.first then
-    GC.Print(GC.L["You opened %s -- its first %s prices are yours."]:format(market, count(best.updated)))
+    GC.Print(GC.L["You opened %s: its first %s prices are yours."]:format(market, count(best.updated)))
   elseif best.onlyYours > 0 then
-    GC.Print(GC.L["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."]
+    GC.Print(GC.L["Your scan updated %s prices on %s. %s of them nobody else had in the last 24 hours."]
       :format(count(best.updated), market, count(best.onlyYours)))
   else
     GC.Print(GC.L["Your scan updated %s prices on %s."]:format(count(best.updated), market))

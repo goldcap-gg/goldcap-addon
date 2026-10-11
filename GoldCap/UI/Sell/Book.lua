@@ -73,7 +73,7 @@ local function paintLadder(row, book)
       elseif entry.mine then colour, tint, wash = Theme.color.watch, Theme.color.watch, Theme.color.watch end
       if entry.wall then tint = Theme.color.red end
       line.price:SetText(formatCell(entry.unit)); setColor(line.price, colour)
-      line.qty:SetText(GC.Util.FormatCount(entry.units) or "—")
+      line.qty:SetText(GC.Util.FormatCount(entry.units) or "-")
       setColor(line.qty, entry.wall and Theme.color.red or Theme.color.fgDim)
       -- A wall says so in a word at the start of its own bar, which then starts after it. A
       -- column for the word on every level held the bars and the figures off an edge of the
@@ -132,7 +132,7 @@ local function wallWords(book)
     return GC.Util.FormatCount(wall.units) or tostring(wall.units), formatCell(wall.unit)
   end
   if book.commodity and book.wallBelow then
-    words[#words + 1] = (GC.L["wall %s at %s -- price under it to sell first"]):format(amount(book.wallBelow))
+    words[#words + 1] = (GC.L["wall %s at %s: price under it to sell first"]):format(amount(book.wallBelow))
   end
   if book.commodity and book.wallAbove then
     words[#words + 1] = (GC.L["wall %s at %s above you"]):format(amount(book.wallAbove))
@@ -219,13 +219,31 @@ function Book.Layout(row, top)
   row.headRules[1]:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, top)
   row.drawerBookHead:ClearAllPoints()
   row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 12)
+  -- The price to beat sits beside the heading while it fits there, and otherwise on a line of its
+  -- own under it, wrapped, the book moving down to make room: beside it, it read "cheapest not
+  -- yours 2..." in French, Spanish, German and Italian. The panel's line is its 340 less the
+  -- scroll gutter and the edges.
+  local room = INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD
+  local hintW = row.drawerHint:IsShown() and row.drawerHint.GetUnboundedStringWidth
+    and row.drawerHint:GetUnboundedStringWidth() or 0
+  local headW = row.drawerBookHead.GetUnboundedStringWidth and row.drawerBookHead:GetUnboundedStringWidth() or 0
+  local drop = 0
   row.drawerHint:ClearAllPoints()
-  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
-  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
-  row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerHint:SetWordWrap(false)
+  if headW + 8 + hintW > room then
+    row.drawerHint:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 30)
+    row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 30)
+    row.drawerHint:SetJustifyH("LEFT")
+    row.drawerHint:SetWordWrap(true)
+    row.drawerHint:SetText(row.drawerHint:GetText() or "") -- laid out at its new width
+    drop = math.ceil((row.drawerHint.GetStringHeight and row.drawerHint:GetStringHeight() or 12) + 6)
+  else
+    row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
+    row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
+    row.drawerHint:SetJustifyH("RIGHT")
+    row.drawerHint:SetWordWrap(false)
+  end
 
-  local body = top - 32
+  local body = top - 32 - drop
   for i = 1, DR.LINES do
     local line = row.bookLines[i]
     local y = body - (i - 1) * DR.LINE_H
@@ -288,12 +306,17 @@ function Book.Layout(row, top)
   row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
-  row.drawerFacts:SetMaxLines(2)
+  -- As many lines as it takes, and the head grows to hold them (row.fitHeight, read by
+  -- List.RenderRows): cut at two, the line ended "97..." and the client drew the coins of the
+  -- cut text in the wrong places, one over the line and the rest not at all (owner, 2026-10-11).
+  row.drawerFacts:SetMaxLines(0)
   if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3) end
   -- A FontString sizes itself when its text is SET, and renderRows sets these before this
   -- runs: on a pooled row that was a one-line kind a moment ago, two lines of facts got one
   -- line's height and the rest was not drawn until the next render (seen in game).
   row.drawerFacts:SetText(row.drawerFacts:GetText() or "")
+  local h = row.drawerFacts.GetStringHeight and row.drawerFacts:GetStringHeight()
+  if h then row.fitHeight = math.max(row.fitHeight or 0, math.ceil(36 - foot + h + 16)) end
 end
 
 -- THE BOOK's half of the panel's head: the heading, the eight levels, and the lines under them.
@@ -395,7 +418,7 @@ function Book.Paint(row, p, d)
   for _, words in ipairs(book and wallWords(book) or {}) do facts[#facts + 1] = words end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-    or (quote and "" or (notPriced and GC.L["not priced — nothing on hand to sell"] or GC.L["no live quote yet — pricing…"])))
+    or (quote and "" or (notPriced and GC.L["not priced: nothing on hand to sell"] or GC.L["no live quote yet, pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
   -- The words already say whether this is the last live price or a fresh one, so the color

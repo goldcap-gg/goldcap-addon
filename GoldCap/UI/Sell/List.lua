@@ -11,25 +11,36 @@ local Bags, Walk = GC.SellBags, GC.SellWalk
 local exact, itemName = GC.SellUtil.exact, GC.SellUtil.itemName
 local UI = GC.SellUI
 local List = UI.List
-local COLUMNS, ROW, DR, INSP, DOCK = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP, UI.DOCK
+local COLUMNS, ROW, DR, INSP = UI.COLUMNS, UI.ROW, UI.DR, UI.INSP
 local setColor, DIM_HEX = UI.fmt.setColor, UI.fmt.DIM_HEX
 local renderGeneration = 0
 
--- Three different emptinesses needing three different next moves, where the old copy had one
--- sentence ("No items match this filter") that answered none of them: a deck that is genuinely
--- empty, a chip that emptied it, or the OTHER deck holding everything. Read live from the deck
--- and chip state rather than passed in, so it can never disagree with what the switch is
--- painting.
+-- Why the deck is empty, in the five ways the owner approved (3C mockup, 2026-10-10): the icon
+-- for its tile, a title, and a line saying what to do about it. Each reason needs a different next
+-- move: a deck that is genuinely empty, a chip or a search that emptied it, the other deck holding
+-- everything. Read live from the deck and chip state rather than passed in, so it can never
+-- disagree with what the switch is painting.
 -- A GC.Sell field, not a top-level local: paint-only, same reason as _FormatAmount
 -- (UI/Sell/Frame.lua) (final review "Headroom").
-function GC.Sell._EmptyDeckText()
-  if UI.chips.search then return GC.L["Nothing on this deck matches that search"] end
-  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
-    return GC.L["No live auctions on this character"]
+function GC.Sell._EmptyDeck()
+  if UI.chips.search then
+    return "search", GC.L["No match"],
+      GC.L["Nothing on this deck matches that search. Clear the box to see everything."]
   end
-  if UI.chips.ready then return GC.L["Nothing is priced yet - the Auction House is still answering"] end
-  if UI.chips.nocost then return GC.L["Every position in your bags already has a cost on record"] end
-  return GC.L["Nothing in your bags to list"]
+  if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
+    return "sell", GC.L["No auctions up"],
+      GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
+  end
+  if UI.chips.ready then
+    return "clock", GC.L["Still pricing"],
+      GC.L["The auction house is still answering. Items show up here as their prices arrive."]
+  end
+  if UI.chips.nocost then
+    return "check", GC.L["Every cost is known"],
+      GC.L["Every item in your bags already has what you paid on record. Turn off NO COST to see them all."]
+  end
+  return "bag", GC.L["Nothing to sell"],
+    GC.L["Nothing in your bags to list. Buy on the Deals tab or pick up your mail: anything you can sell shows up here with a price ready."]
 end
 
 local function currentPosition(positionKey)
@@ -37,6 +48,88 @@ local function currentPosition(positionKey)
     if position.positionKey == positionKey then return position end
   end
   return nil
+end
+
+-- A row posted whole goes (owner, 2026-10-11: it stayed on as "posted" until the bags caught up,
+-- unmarked, moving, and then went with a jump). It fades where it stands, then the rows under it
+-- close up over its gap, in a third of a second, by their anchors (UI.List.Leave starts it), and
+-- it stays off the posting deck for as long as the bags still count what went up.
+do
+  local FADE, CLOSE = 0.15, 0.18
+  local leaving -- { key, t, gone, gapY, gapH }
+  local function rowOf(key)
+    for _, row in ipairs(UI.rows or {}) do
+      if row:IsShown() and row.kind == "position" and not row.inPanel and row.position
+          and row.position.positionKey == key then return row end
+    end
+  end
+  -- A list row `extra` px below the place renderRows gave it.
+  local function anchor(row, extra)
+    local y = -(row.placedY + extra)
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", row.surface, "TOPLEFT", 0, y)
+    row:SetPoint("TOPRIGHT", row.surface, "TOPRIGHT", 0, y)
+  end
+  local function shift(extra)
+    for _, row in ipairs(UI.rows or {}) do
+      if row:IsShown() and not row.inPanel and row.placedY and row.surface and row.placedY >= leaving.gapY then
+        anchor(row, extra)
+      end
+    end
+  end
+  local function finish()
+    List.leaveDriver:SetScript("OnUpdate", nil)
+    local was = leaving
+    if was.gone and was.gapY then shift(0) end
+    leaving = nil
+    if not was.gone then List.RenderRows() end
+  end
+  local function step(_, elapsed)
+    leaving.t = leaving.t + (elapsed or 0)
+    if not leaving.gone then
+      local row = rowOf(leaving.key)
+      if row and leaving.t < FADE then
+        if row.SetAlpha then row:SetAlpha(1 - leaving.t / FADE) end
+        return
+      end
+      -- Faded: out of the list, and the rows under it start where they stood.
+      leaving.gone, leaving.t = true, 0
+      leaving.gapY, leaving.gapH = row and row.placedY, row and row:GetHeight()
+      List.RenderRows()
+      if not (leaving.gapY and leaving.gapH) then finish() return end
+    end
+    local p = math.min(1, leaving.t / CLOSE)
+    shift(leaving.gapH * (1 - p) * (1 - p)) -- quick at first, settling at the end
+    if p >= 1 then finish() end
+  end
+
+  -- Starts the row's going. Nothing to watch -- the tab not on screen, the row not drawn -- and it
+  -- simply goes with the next render.
+  function List.Leave(key)
+    if leaving then finish() end
+    local container = UI.container
+    if not (List.leaveDriver and container and container.IsVisible and container:IsVisible()
+        and rowOf(key)) then return end
+    leaving = { key = key, t = 0 }
+    List.leaveDriver:SetScript("OnUpdate", step)
+  end
+
+  -- The posting deck less what went up whole, the row still fading kept on until it has.
+  function List.DropPostedOut(filtered)
+    for key, qty in pairs(S.postedOut) do
+      local position = currentPosition(key)
+      if not position or (position.bagQty or 0) ~= qty then S.postedOut[key] = nil end
+    end
+    if next(S.postedOut) == nil then return filtered end
+    local kept = {}
+    for _, position in ipairs(filtered) do
+      local key = position.positionKey
+      if not (key and S.postedOut[key]) or (leaving and leaving.key == key and not leaving.gone) then
+        kept[#kept + 1] = position
+      end
+    end
+    return kept
+  end
 end
 
 -- The item name is the one column that must stay readable: every other cell is a number that
@@ -160,10 +253,12 @@ end
 -- @localised-keys
 ROW.SECTION_TITLES = {
   undercut = "UNDERCUT %d", low = "PRICED TOO LOW %d", hold = "HOLDING %d",
+  selling = "SELLING %d", notSelling = "NOT SELLING %d",
 }
 -- @localised-keys
 ROW.SECTION_HINTS = {
   undercut = "worth cancelling", hold = "leave these alone",
+  selling = "POST lists these", notSelling = "click one to post it",
 }
 -- The deck in section order, and which section each position fell into.
 function ROW.bySection(filtered)
@@ -177,10 +272,41 @@ function ROW.bySection(filtered)
   return ordered, sectionOf
 end
 
+-- TO POST, once the player keeps a selling list (GC.Sell.IsSelling): what POST lists, then what
+-- only its own row's Post does, each in the order it came. Stock not on hand belongs to neither:
+-- it keeps its place at the end, where renderRows folds it.
+function ROW.bySelling(filtered)
+  local selling = { id = "selling", positions = {} }
+  local notSelling = { id = "notSelling", positions = {} }
+  local away = {}
+  for _, position in ipairs(filtered) do
+    if not position.unresolved and (position.bagQty or 0) == 0 and (position.listedQty or 0) == 0 then
+      away[#away + 1] = position
+    else
+      -- A row whose identity is not settled is never POST's to list, whatever was bought.
+      local listable = not position.unresolved and type(position.positionKey) == "string"
+      local section = listable and GC.Sell.IsSelling(position) and selling or notSelling
+      section.positions[#section.positions + 1] = position
+    end
+  end
+  local ordered, sectionOf = {}, {}
+  for _, section in ipairs({ selling, notSelling }) do
+    for _, position in ipairs(section.positions) do
+      ordered[#ordered + 1] = position
+      sectionOf[position] = section
+    end
+  end
+  for _, position in ipairs(away) do ordered[#ordered + 1] = position end
+  return ordered, sectionOf
+end
+
 function ROW.sectionText(section)
   local hint = ROW.SECTION_HINTS[section.id]
-  return (GC.L[ROW.SECTION_TITLES[section.id]]):format(#section.positions)
+  local text = UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
     .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
+  -- SELLING carries the posting deck's totals: the dock is one row there (owner, 2026-10-10).
+  local aside = section.id == "selling" and UI.Dock.SellingAside() or ""
+  return aside ~= "" and (text .. "  ·  " .. aside) or text
 end
 
 -- The TO POST deck's last section: stock in the bags the tab cannot key yet (the client has
@@ -208,7 +334,7 @@ end
 function ROW.waitText(entry)
   if entry.kind == "waitHead" then
     local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
-    return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count),
+    return UI.fmt.count(GC.L["WAITING FOR THE AUCTION HOUSE %d"], entry.count),
       open and GC.L["the auction house has not sent details for these yet"]
         or GC.L["open the auction house once so GoldCap can tell how these sell"]
   end
@@ -273,6 +399,33 @@ List.PaintHeaderText = paintHeaderText
 -- Which figure carries a second line, and the row field that line lives in.
 ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
 
+-- How tall a position's name and stock line stand together at the width their anchors give them,
+-- both wrapped (Row.CreateRow): what the card has to hold. nil where the client cannot say.
+local function blockHeight(row)
+  local name, stock = row.cells.item, row.itemStock
+  if not (name.GetStringHeight and stock.GetStringHeight) then return nil end
+  -- A FontString lays its lines out when its text is SET (UI/Sell/Book.lua's Book.Layout, seen in
+  -- game): set again at the width just anchored, or a pooled row measures its last item's lines.
+  name:SetText(name:GetText() or ""); stock:SetText(stock:GetText() or "")
+  local h = name:GetStringHeight() or 0
+  if (stock:GetText() or "") ~= "" then h = h + 2 + (stock:GetStringHeight() or 0) end
+  return h > 0 and h or nil
+end
+
+-- A position's name over its stock line, the pair centred on the row with `top` the name's top
+-- edge above the row's middle. Top points only: a LEFT or RIGHT point pins a FontString's middle,
+-- and with it the height of one line, so a wrapped name would spill over its stock line.
+local function placeName(row, right, rightLift, top)
+  local cell, inset = row.cells.item, row.itemInset or 2
+  cell:ClearAllPoints()
+  cell:SetPoint("TOPLEFT", row, "LEFT", inset, top)
+  cell:SetPoint("TOPRIGHT", right, "LEFT", -4, top - rightLift)
+  row.itemStock:ClearAllPoints()
+  row.itemStock:SetWordWrap(true) -- a pooled row that was a purchase in the panel held it to one line
+  row.itemStock:SetPoint("TOPLEFT", cell, "BOTTOMLEFT", 0, -2)
+  row.itemStock:SetPoint("TOPRIGHT", cell, "BOTTOMRIGHT", 0, -2)
+end
+
 local function layoutCells(row)
   local right = row
   -- How far `right` itself sits above the row's centre. Every cell anchors to its neighbour,
@@ -295,13 +448,22 @@ local function layoutCells(row)
       -- header row and every sub-row keep the whole box, centred, because they carry one line.
       -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
-      local nameY = row.itemStock and ROW.LIFT or 0
-      cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
-      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
-      if row.itemStock then
-        row.itemStock:ClearAllPoints()
-        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
-        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
+      if row.kind == "position" and row.itemStock then
+        -- Laid out once to be measured at its real width, then again centred on what it measured;
+        -- the card grows to hold it (row.fitHeight, read by List.RenderRows).
+        placeName(row, right, rightLift, ROW.LIFT)
+        local block = blockHeight(row)
+        if block then placeName(row, right, rightLift, block / 2) end
+        row.fitHeight = block and math.ceil(block + 2 * ROW.PAD + ROW.GAP) or nil
+      else
+        local nameY = row.itemStock and ROW.LIFT or 0
+        cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
+        cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
+        if row.itemStock then
+          row.itemStock:ClearAllPoints()
+          row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
+          row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
+        end
       end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
@@ -329,8 +491,10 @@ local function layoutCells(row)
       local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
       local lift = second and ROW.LIFT or 0
       -- The figure beside the button stands clear of it: at the usual 2px the row's total ran
-      -- into the button's own edge.
-      local gap = right == row and 0 or right == row.cells.action and -ROW.BUTTON_GAP or -2
+      -- into the button's own edge. The button stands clear of the card's right edge in turn: at 0
+      -- it sat against the card's ring (owner, 2026-10-10).
+      local edge = column.key == "action" and -(ROW.PAD + ROW.GAP / 2) or 0
+      local gap = right == row and edge or right == row.cells.action and -ROW.BUTTON_GAP or -2
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", gap, lift - rightLift)
       if second then
         second:ClearAllPoints()
@@ -390,13 +554,13 @@ end
 -- language. The table has to close with a `}` on its own line: that is where the
 -- contract spec's scanner stops.
 local HEADER_HELP = {
-  cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price." } },
+  cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet. It will never guess one from the market price." } },
   listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
   market = { "Market per unit", {
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
-    "It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
+    "It is what you must beat to sell quickly, not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
     "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
-  profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
+  profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete. Fill it in with Set cost." } },
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
 List.HEADER_HELP = HEADER_HELP
@@ -435,29 +599,24 @@ local function renderRows()
   -- The two decks carry DIFFERENT column sets, so the heading row has to be re-laid out when
   -- the deck changes -- rows are laid out on every render (below) but the header is built once.
   -- Done here rather than in the deck buttons' own handler because filterMode also moves
-  -- underneath us: onCancelQueueClick (UI/Sell/Dock.lua) sets "cancelqueue", which is the listed deck, and
-  -- onQueueClick sets "queue", which is the post one. Every path that can change the deck ends
-  -- up here, so this is the one place that cannot be forgotten.
+  -- underneath us: onCancelQueueClick (UI/Sell/Dock.lua) sets "cancelqueue", which is the listed
+  -- deck. Every path that can change the deck ends up here, so this is the one place that
+  -- cannot be forgotten.
   local headerDeck = (S.filterMode == "listed" or S.filterMode == "cancelqueue") and "listed" or "post"
-  if UI.container and UI.container.header and UI.container.headerDeck ~= headerDeck then
+  -- The player's selling list (GC.Sell._QueueOpts): nil until the saved data is loaded, and then
+  -- the posting deck marks every row and splits in two.
+  local sellingList = headerDeck == "post" and GC.Sell._QueueOpts().marks ~= nil
+  -- ITEM stands over the names, which the selling mark moves right on the posting deck.
+  local headerInset = ROW.ICON + 10 + (sellingList and ROW.MARK_W or 0)
+  local header = UI.container and UI.container.header
+  if header and (UI.container.headerDeck ~= headerDeck or header.itemInset ~= headerInset) then
     UI.container.headerDeck = headerDeck
-    paintHeaderText(UI.container.header, headerDeck)
-    layoutCells(UI.container.header)
+    header.itemInset = headerInset
+    paintHeaderText(header, headerDeck)
+    layoutCells(header)
   end
   local filtered
-  if S.filterMode == "queue" then
-    -- The queue's own order, head first -- deliberately NOT SellViewModel.Order, which ranks
-    -- by a different question ("what could I act on, roughly") than GC.PostQueue.Build's "what
-    -- is most valuable to post right now, in a stable order." See PostQueue.lua's own
-    -- entryLess. Every entry maps back to its live position object -- the queue itself carries
-    -- only display figures, never a second copy of the position -- so the row this produces is
-    -- the exact same row a normal filter chip would have rendered for that position.
-    filtered = {}
-    for _, entry in ipairs(S.queueEntries) do
-      local position = currentPosition(entry.positionKey)
-      if position then filtered[#filtered + 1] = position end
-    end
-  elseif S.filterMode == "cancelqueue" then
+  if S.filterMode == "cancelqueue" then
     -- The cancel queue's own order, head first -- one row per position however many of its
     -- lots are queued; the queued lots themselves render through the position's expansion,
     -- which is where the Repost/Cancel action a click needs actually lives.
@@ -479,12 +638,14 @@ local function renderRows()
     -- for a list already on screen: the pricing walk answers one item at a time, and every
     -- answer re-ranked a row out from under the cursor.
     filtered = GC.SellViewModel.Settle(filtered, S.rowPlaces)
+    if S.filterMode == "post" then filtered = List.DropPostedOut(filtered) end
   end
   -- MY LOTS reads in three sections (SellViewModel.LotSections); the queue's own focus state
   -- keeps the queue's order, which is the point of it.
   local sectionOf
-  if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered) end
-  UI.Dock.UpdateSummary(filtered)
+  if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered)
+  elseif S.filterMode == "post" and sellingList then filtered, sectionOf = ROW.bySelling(filtered) end
+  UI.Dock.UpdateSummary(headerDeck)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter
   -- can never disagree about what was left out.
@@ -492,6 +653,17 @@ local function renderRows()
   local onListed = S.filterMode == "listed" or S.filterMode == "cancelqueue"
   for _, skip in ipairs(onListed and S.cancelSkipped or S.queueSkipped) do
     if type(skip.positionKey) == "string" then heldBackReason[skip.positionKey] = skip.reason end
+  end
+  -- An unmarked row is not held back, but a click still puts it in the dock, so it still says why
+  -- it would not go up (Core/PostQueue.lua's Build keeps the reason).
+  if not onListed then
+    for _, rest in ipairs(S.notSelling or {}) do
+      if type(rest.positionKey) == "string" and rest.reason then heldBackReason[rest.positionKey] = rest.reason end
+    end
+  end
+  -- Posted or passed over this visit (GC.Sell._HoldDoneInQueue): the row says which.
+  if not onListed then
+    for _, done in ipairs(S.queueDone or {}) do heldBackReason[done.positionKey] = done.reason end
   end
   -- What every position row reads for this render (Row.PaintPosition).
   local ctx = { onListed = onListed, heldBackReason = heldBackReason }
@@ -505,7 +677,15 @@ local function renderRows()
   -- chip can take the row away, and a panel describing a row that is not there shuts.
   local openPosition
   local function pushPosition(position)
-    entries[#entries + 1] = { kind = "position", position = position }
+    -- `selling` is the row's selling mark, true or false; nil where there is none to draw.
+    -- `markRoom`: the deck has marks, so every row's name starts after one, drawn or not.
+    local selling, done
+    if sellingList and not position.unresolved and type(position.positionKey) == "string" then
+      selling = GC.Sell.IsSelling(position)
+      done = selling and GC.Sell.DoneThisVisit(position.positionKey)
+    end
+    entries[#entries + 1] = { kind = "position", position = position, selling = selling, done = done,
+      markRoom = sellingList }
     -- Cached here for every position this render pushes, not only an expanded one: the row's own
     -- Post button (Row.PaintPosition in UI/Sell/Row.lua, "bagQty > 0 and not onListed") is live
     -- whether or not the drawer is open, and onPostClick never builds an ItemLocation itself --
@@ -516,7 +696,7 @@ local function renderRows()
     if UI.expanded[position.positionKey] and not openPosition then
       openPosition = position
       local first = #entries + 1
-      local detail = GC.SellViewModel.Expansion(position)
+      local detail = GC.SellViewModel.Expansion(position, (GC.SellUtil.postQuantity(position)))
       -- ONE panel where this used to spend eleven separate 32px rows: the facts line, the
       -- price control, the book heading and eight levels. Opening a position buried the list
       -- it was opened from -- 25 rows of expansion inside a 430px scroll area -- which is the
@@ -596,16 +776,18 @@ local function renderRows()
     end
   end
   if S.filterMode == "post" then ROW.pushWaiting(entries) end
+  local empty = UI.container.empty
   if #entries == 0 then
-    -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
-    -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
-    -- Say which of the three reasons it is, because they need different next moves: a deck
-    -- that is genuinely empty, versus a chip that emptied it, versus the other deck holding
-    -- everything. "No items match this filter" answered none of them.
-    UI.container.emptyText:SetText(GC.Sell._EmptyDeckText())
-    UI.container.emptyText:Show()
+    local icon, title, line = GC.Sell._EmptyDeck()
+    if Theme.SetIcon then Theme.SetIcon(empty.icon, icon, Theme.color.gold) end
+    -- The line no wider than a comfortable read, and never wider than the list leaves it.
+    local width = math.min(340, math.max(160, (UI.rowWidth or 340) - 72))
+    empty.title:SetWidth(width); empty.line:SetWidth(width)
+    empty.title:SetText(GC.Util.Upper(title))
+    empty.line:SetText(line)
+    empty:Show()
   else
-    UI.container.emptyText:Hide()
+    empty:Hide()
   end
   for i = #UI.rows + 1, #entries do UI.rows[i] = UI.Row.CreateRow(UI.content) end
   -- Known before any row is laid out: a docked panel takes its width out of the list's, and
@@ -613,7 +795,7 @@ local function renderRows()
   INSP.sync(openPosition ~= nil)
   -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
   -- render, so both are rebuilt from scratch each time rather than remembered.
-  local placedHeight, detailHeight, listIndex = 0, 0, 0
+  local placedHeight, detailHeight = 0, 0
   for i, row in ipairs(UI.rows) do
     local entry = entries[i]
     if not entry then row.renderEntryID = nil; row:Hide()
@@ -635,11 +817,13 @@ local function renderRows()
       local offset = entry.panel and detailHeight or placedHeight
       row:Show(); row:ClearAllPoints()
       row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
-      -- A position in the list is ROW.H tall; everything else keeps the slot pitch.
-      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * UI.rowHeight
-      row:SetHeight(height)
-      if entry.panel then detailHeight = detailHeight + height
-      else placedHeight = placedHeight + height; listIndex = listIndex + 1 end
+      -- Where it was placed, for a closing gap to move it from (List.Leave), and opaque: a pooled
+      -- row may have been the one fading.
+      row.placedY = offset
+      if row.SetAlpha then row:SetAlpha(1) end
+      -- A position in the list is a card at least ROW.H tall; everything else keeps the slot pitch.
+      local card = entry.kind == "position" and not entry.panel
+      row:SetHeight(card and ROW.H or slots * UI.rowHeight)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (Row.CreateRow) to decide whether to add a tooltip line about the
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
@@ -666,7 +850,13 @@ local function renderRows()
       else
         UI.Inspector.PaintPanelRow(row, entry, bagSnapshot)
       end
-      UI.Row.Style(row, entry, listIndex)
+      row.fitHeight = nil
+      UI.Row.Style(row, entry)
+      -- Taller when its words wrap: Row.Style measured them (a card's name and stock line, the
+      -- waiting heading's aside).
+      local height = math.max(card and ROW.H or slots * UI.rowHeight, row.fitHeight or 0)
+      row:SetHeight(height)
+      if entry.panel then detailHeight = detailHeight + height else placedHeight = placedHeight + height end
     end
   end
   UI.Inspector.PaintInspector(openPosition)
@@ -676,6 +866,9 @@ local function renderRows()
   if UI.detailContent then UI.detailContent:SetHeight(math.max(UI.rowHeight, detailHeight)) end
   Walk.ScheduleExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
+  -- The dock's item is read off the rows just placed (UI.Dock.Current), so the dock is painted
+  -- after every render that placed them.
+  UI.Dock.PaintQueueButton()
 end
 List.RenderRows = renderRows
 
@@ -683,6 +876,7 @@ GC.SellView.render = function(...) return UI.List.RenderRows(...) end
 
 function List.Build()
   local container = UI.container
+  List.leaveDriver = CreateFrame("Frame", nil, container) -- runs a posted row's going (List.Leave)
   local header = CreateFrame("Frame", nil, container)
   -- Kept on the container so renderRows can re-lay it out when the deck changes; see its own
   -- comment for why that cannot live in the deck buttons' click handler.
@@ -730,19 +924,33 @@ function List.Build()
   -- Stops above the footer instead of running to the container's own bottom edge: the bulk
   -- action and the ledger line live there now, and a list that scrolled under them would put
   -- rows behind a control that can spend gold.
-  scroll:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
-  -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
-  -- `scroll` (not `content`), living where the rows would be, never scrolling.
-  local emptyText = Theme.Label(scroll, 12)
-  emptyText:SetPoint("TOP", scroll, "TOP", 0, -UI.rowHeight * 2)
-  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
-  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
-  emptyText:SetJustifyH("CENTER")
-  emptyText:SetWordWrap(true)
-  emptyText:SetSpacing(4)
-  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  emptyText:Hide()
-  container.emptyText = emptyText
+  scroll:SetPoint("BOTTOMRIGHT", 0, UI.Dock.Height() + 6)
+  -- The empty deck (GC.Sell._EmptyDeck): a gold tile with the reason's icon, the reason in
+  -- capitals under it, and the line saying what to do, in the middle of where the rows would be.
+  -- Parented to `scroll` (not `content`), so it never scrolls.
+  local empty = CreateFrame("Frame", nil, scroll)
+  empty:SetSize(64, 64)
+  empty:SetPoint("BOTTOM", scroll, "CENTER", 0, 10)
+  local gc = Theme.color.gold
+  Theme.SlicedTexture(empty, "BACKGROUND", Theme.MEDIA .. "plaque.png", { gc[1], gc[2], gc[3], 0.08 }, 12)
+    :SetAllPoints(empty)
+  Theme.SlicedTexture(empty, "BORDER", Theme.MEDIA .. "plaque_ring.png", { gc[1], gc[2], gc[3], 0.3 }, 12)
+    :SetAllPoints(empty)
+  if Theme.Glow then Theme.Glow(empty, { gc[1], gc[2], gc[3], 0.12 }, 16) end
+  empty.icon = empty:CreateTexture(nil, "ARTWORK")
+  empty.icon:SetSize(30, 30)
+  empty.icon:SetPoint("CENTER", empty, "CENTER", 0, 0)
+  empty.title = (Theme.Heading or Theme.Label)(empty, 15)
+  empty.title:SetPoint("TOP", empty, "BOTTOM", 0, -14)
+  empty.title:SetJustifyH("CENTER"); empty.title:SetWordWrap(true)
+  setColor(empty.title, Theme.color.fg)
+  empty.line = Theme.Label(empty, 12)
+  empty.line:SetPoint("TOP", empty.title, "BOTTOM", 0, -8)
+  empty.line:SetJustifyH("CENTER"); empty.line:SetWordWrap(true)
+  empty.line:SetSpacing(3)
+  setColor(empty.line, Theme.color.fgDim)
+  empty:Hide()
+  container.empty = empty
   UI.content = CreateFrame("Frame", nil, scroll); UI.content:SetSize(UI.rowWidth, UI.rowHeight); scroll:SetScrollChild(UI.content)
 end
 
@@ -757,7 +965,8 @@ function List.ApplyListGeometry()
   header:ClearAllPoints()
   header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
+  scroll:SetPoint("TOPLEFT", 0, -52)
+  scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -inset, UI.Dock.Height() + 6)
   UI.content:SetWidth(INSP.listWidth())
   layoutCells(header)
 end

@@ -130,8 +130,12 @@ describe("Sell tab, bags to Post", function()
     -- 200 + 46, added across both stacks.
     assert.equal(246, row.position.bagQty)
     assert.match("×246 in bags", row.itemStock.text)
-    assert.equal("Post", row.action.label)
+    -- Its own Post, beside its price; a click on the row puts it in the dock as well.
     assert.is_true(row.action.shown)
+    assert.equal("Post", row.action.label)
+    row.scripts.OnClick(row)
+    assert.equal("Eternium Ore", GC.SellUI.container.queueLabel.text)
+    assert.is_true(GC.SellUI.container.queueButton.enabled)
   end)
 
   it("counts only what the auction house would accept", function()
@@ -155,7 +159,7 @@ describe("Sell tab, bags to Post", function()
     compose()
     local row = positionRow()
     assert.equal("COMPLETE", row.position.coverage)
-    assert.equal("×246 in bags · paid |cffc9a95798g56s|r each", row.itemStock.text)
+    assert.equal("×246 in bags · paid |cffc9a957" .. helper.money("98g56s") .. "|r each", row.itemStock.text)
   end)
 
   -- SellPositions.Build cannot reach SavedVariables and must not, so the commodity-versus-item
@@ -181,8 +185,8 @@ describe("Sell tab, bags to Post", function()
   it("keeps the deck counts in step with the list it is counting", function()
     compose()
     local container = GC.SellUI.container
-    assert.equal("TO POST 1", container.deckButtons.post.label)
-    assert.equal("MY LOTS 0", container.deckButtons.listed.label)
+    assert.equal("TO POST 1", helper.plain(container.deckButtons.post.label))
+    assert.equal("MY LOTS 0", helper.plain(container.deckButtons.listed.label))
   end)
 
   -- Regression from a live client: `hasNoValue` means the VENDOR will not buy the item, which
@@ -231,7 +235,7 @@ describe("Sell tab, bags to Post", function()
   it("reports the cost as unknown rather than inventing one", function()
     compose()
     local row = positionRow()
-    assert.equal("—", row.cells.cost.text)
+    assert.equal("-", row.cells.cost.text)
     assert.equal("Unknown", row.cells.profit.text)
   end)
 

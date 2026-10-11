@@ -154,7 +154,7 @@ describe("Tooltip.BuildLines", function()
     local lines = GC.Tooltip.BuildLines({ mv = 1000, ts = 0, source = "bundled" }, 3600,
       { region = "eu", origin = "none" })
     assert.equal("hint", lines[#lines].kind)
-    assert.equal("Companion keeps prices fresh — /goldcap companion", lines[#lines].text)
+    assert.equal("Companion keeps prices fresh: /goldcap companion", lines[#lines].text)
   end)
 
   it("nudges when a manual import has gone stale", function()

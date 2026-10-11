@@ -749,7 +749,7 @@ local function build(sniperFrame)
   -- dumpTrendPct, spikeTrendPct and wallAbsorbHours are never built at all in Forever.
   if brakes then
     fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },
-      GC.L["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."])
+      GC.L["Refuse a buy when the price fell more than this in the last 24 hours: it may keep falling."])
     -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
     -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
     -- the box can never store a value the engine would then silently re-clamp.
@@ -964,7 +964,7 @@ local function build(sniperFrame)
           -- on our side can change that -- an English client has no Hangul anywhere in it.
           -- Say so here rather than let the player read a wall of squares as a broken addon.
           if GC.Theme and GC.Theme.LocaleIsDrawable and not GC.Theme.LocaleIsDrawable(code) then
-            GC.Print(GC.L["your game client has no font for this language — the text will show as empty boxes"])
+            GC.Print(GC.L["your game client has no font for this language, so the text will show as empty boxes"])
           end
         end
       end,

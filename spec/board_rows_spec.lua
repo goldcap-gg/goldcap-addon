@@ -93,7 +93,7 @@ describe("BoardRows", function()
     end)
 
     it("reads a dash when nothing is checking it", function()
-      assert.equal("—", GC.BoardRows.Label(nil, false))
+      assert.equal("-", GC.BoardRows.Label(nil, false))
     end)
   end)
 

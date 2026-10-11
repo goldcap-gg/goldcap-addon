@@ -268,39 +268,6 @@ function GC.SellViewModel.ProfitText(position)
   return position.profit
 end
 
-function GC.SellViewModel.SummaryText(summary)
-  summary = summary or {}
-  local partial = summary.partialCount or 0
-  local unknown = summary.unknownCount or 0
-  local profit = summary.profit
-  local profitDetail
-  local isPartial = false
-  if profit == nil then
-    local suffix = {}
-    if partial > 0 then suffix[#suffix + 1] = (GC.L["%d partial"]):format(partial) end
-    if unknown > 0 then suffix[#suffix + 1] = (GC.L["%d missing"]):format(unknown) end
-    profit = GC.L["Unknown"] .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
-  else
-    -- The number is a real total now (SellPositions.Summary sums only the positions that
-    -- individually clear both gates), but it is still a partial one whenever something got
-    -- left out -- say so here, the same way the "Unknown · N partial · M missing" string above
-    -- carries its own detail, so the stat card's tooltip can show it without a second query.
-    local n = summary.countedCount or 0
-    local parts = { (GC.L["over %d position%s"]):format(n, n == 1 and "" or "s") }
-    local noCost = summary.excludedNoCost or 0
-    local noPrice = summary.excludedNoPrice or 0
-    if noCost > 0 then parts[#parts + 1] = (GC.L["%d without cost"]):format(noCost) end
-    if noPrice > 0 then parts[#parts + 1] = (GC.L["%d without a price"]):format(noPrice) end
-    profitDetail = table.concat(parts, " · ")
-    -- Item 2 (addon polish batch): a partial total painted with full confidence contradicts the
-    -- comment above this one -- the number itself must carry a marker, not just the tooltip a
-    -- player might never hover.
-    isPartial = noCost > 0 or noPrice > 0
-  end
-  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit,
-    profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
-end
-
 -- How many lines THE BOOK draws: the panel has room for eight and never scrolls (DR.LINES in
 -- UI/Sell/Frame.lua). Levels beyond them are still counted in the totals, so the header never claims
 -- the book is smaller than it is.
@@ -388,7 +355,7 @@ end
 -- would land in the queue. `ownerQty` is what makes the first one answerable -- the commodity
 -- API aggregates a whole price point into one row, so the player's own units have to be
 -- subtracted rather than the level skipped (see CheapestCompetingUnit for the same reasoning).
-local function book(position)
+local function book(position, postQty)
   local levels = type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 then return nil end
 
@@ -454,7 +421,9 @@ local function book(position)
     -- player's own units clearing after it. Both through GC.Flips.SellOutlook -- the same
     -- sells/day and the same trend rule -- so "clears in" can never read shorter than
     -- "to reach you" (review I1: it said ~1h beside ~6h, from a figure that left the queue out).
-    local postable = type(position.postableQty) == "number" and position.postableQty > 0 and position.postableQty
+    -- What the next Post lists: the caller's number when it has one (the Sell tab's HOW MANY).
+    local postable = type(postQty) == "number" and postQty > 0 and postQty
+      or type(position.postableQty) == "number" and position.postableQty > 0 and position.postableQty
       or type(position.bagQty) == "number" and position.bagQty > 0 and position.bagQty or 0
     local function hours(queued)
       local outlook = GC.Flips and GC.Flips.SellOutlook
@@ -534,7 +503,9 @@ function GC.SellViewModel.Standing(position, unit, joining)
   return { ahead = ahead, slot = slot or seen + 1 }
 end
 
-function GC.SellViewModel.Expansion(position)
+-- `postQty`: how many units the next Post lists, when the caller knows better than the position
+-- (a number the seller typed). Optional; the position's own postable quantity otherwise.
+function GC.SellViewModel.Expansion(position, postQty)
   position = position or {}
   local marketFresh = position.displayMarketUnit ~= nil and position.freshMarketUnit ~= nil
   local marketStale = position.displayMarketUnit ~= nil and not marketFresh
@@ -658,6 +629,6 @@ function GC.SellViewModel.Expansion(position)
     pendingAcquisitions = copy(position.pendingAcquisitions),
     sellerEvidence = copy(position.sellerEvidence), facts = position.facts,
     factsText = #facts > 0 and table.concat(facts, " · ") or nil,
-    book = book(position),
+    book = book(position, postQty),
   }
 end

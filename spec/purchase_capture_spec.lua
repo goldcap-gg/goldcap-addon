@@ -108,15 +108,41 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(1, #GC.Acquisitions.GetPending())
   end)
 
-  it("freezes the exact pre-confirm commodity total", function()
+  it("books the exact confirmed commodity total", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(301, GC.Acquisitions.GetAll()[1].originalTotal)
+  end)
+
+  -- A price update after Confirm is the server re-quoting; Blizzard's dialog asks for Buy Now
+  -- again, and the purchase that follows pays the new total (review: it was booked at the old one,
+  -- and the mail at the new one booked the units a second time).
+  it("books a commodity confirmed again after a re-quote at the new total", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(200, 601)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(601, GC.Acquisitions.GetAll()[1].originalTotal)
+  end)
+
+  it("keeps a re-quoted commodity that was not confirmed again as pending evidence", function()
     fire("StartCommoditiesPurchase", 42, 3)
     GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
     fire("ConfirmCommoditiesPurchase", 42, 3)
     GC.PurchaseCapture.OnCommodityPriceUpdated(200, 601)
     GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
 
-    assert.equal(0, #GC.Acquisitions.GetPending())
-    assert.equal(301, GC.Acquisitions.GetAll()[1].originalTotal)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
   end)
 
   it("keeps a confirmed unavailable commodity as one pending observation", function()

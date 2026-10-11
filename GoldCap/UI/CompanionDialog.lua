@@ -34,7 +34,7 @@ local function createDialog()
   why:SetWidth(396)
   why:SetJustifyH("LEFT")
   why:SetWordWrap(true)
-  why:SetText("\226\128\162 " .. GC.L["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."]
+  why:SetText("\226\128\162 " .. GC.L["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."]
     .. "\n\226\128\162 " .. GC.L["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."]
     .. "\n\226\128\162 " .. GC.L["Free, sits in the tray, nothing to set up in game."])
   f.why = why

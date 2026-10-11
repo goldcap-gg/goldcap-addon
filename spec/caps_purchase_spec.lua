@@ -338,7 +338,7 @@ describe("Live price caps -- buying at the player's own price", function()
       applyRequeryResult(row, 42, live)
 
       assert.equal("ready", row.purchaseStage)
-      assert.equal("at or under your price -- click Buy to purchase", lines[1])
+      assert.equal("at or under your price. Click Buy to purchase", lines[1])
     end)
 
     -- A cap decision carries no stressProfit -- nothing measured a resale -- and a successful
@@ -561,7 +561,7 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_truthy(GC.Acquisitions.GetAll()[1].positionKey:find("615", 1, true))
     end)
 
-    -- Review fix: the panel said "At your price" over a button reading "BUY — unverified" and a
+    -- Review fix: the panel said "At your price" over a button reading "BUY (unverified)" and a
     -- status line about unmeasured sale speed -- the words for a lot judged against a region
     -- reference, not for the player's own price.
     it("is offered as a buy at the player's own price, not an unverified one", function()
@@ -578,7 +578,7 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal("ready", row.purchaseStage)
       assert.equal("Buy", d.label)
       assert.is_true(d.enabled)
-      assert.equal("at or under your price -- click Buy to purchase", d.written[#d.written])
+      assert.equal("at or under your price. Click Buy to purchase", d.written[#d.written])
     end)
 
     -- Caps fixes 5g: the diagnostic Status row read WATCH -- the shape a realm purchase is carried
@@ -637,7 +637,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
   -- Final review M1. A Check on a YOUR PRICE row that finds nothing at the player's price -- the
   -- lot was bought between the ring and the click -- falls through to the region verdict, and
-  -- that armed "BUY — unverified" on whatever lot sat under the region reference: above the
+  -- that armed "BUY (unverified)" on whatever lot sat under the region reference: above the
   -- player's price, or below their item level, with nothing on screen to say so and nothing
   -- between that and PlaceBid on the next click. The window says what the player's price says
   -- about the lot, and holds Buy the way a loud requote holds Confirm.
@@ -674,7 +674,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
       assert.equal("ready", row.purchaseStage)
       assert.is_false(d.enabled)
-      assert.equal(("Above your price -- quoted %s, your price %s"):format(
+      assert.equal(("Above your price: quoted %s, your price %s"):format(
         GC.Util.FormatMoney(1200000), GC.Util.FormatMoney(1000000)), d.written[#d.written])
       holdEnds(1.5)
       assert.is_true(d.enabled)
@@ -703,7 +703,7 @@ describe("Live price caps -- buying at the player's own price", function()
       local GC = loadSniper()
       local _, d = checked(GC, { auctionID = 10, buyout = 6000000, quantity = 5, itemLevel = 615 })
 
-      assert.equal(("Above your price -- quoted %s, your price %s"):format(
+      assert.equal(("Above your price: quoted %s, your price %s"):format(
         GC.Util.FormatMoney(1200000), GC.Util.FormatMoney(1000000)), d.written[#d.written])
     end)
 
@@ -984,7 +984,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
       getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, capDeal)
 
-      assert.equal("—", row.profitText.text)
+      assert.equal("-", row.profitText.text)
     end)
 
     it("sorts by that same total", function()
@@ -1398,7 +1398,7 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("expired", row.purchaseStage)
         assert.is_true(d.enabled)
         assert.equal(GC.L["Refresh"], d.label)
-        assert.equal(GC.L["previous commodity purchase settled -- %s to re-check the price"]
+        assert.equal(GC.L["previous commodity purchase settled. %s to re-check the price"]
           :format(GC.L["Refresh"]:upper()), d.written[#d.written])
         local before = sends
         click() -- Refresh
@@ -2136,7 +2136,7 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.equal(0, cancels)
             assert.equal("buy", GC.PurchaseSlot.Owner())
             assert.equal("expired", row.purchaseStage)
-            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+            assert.equal(GC.L["another purchase took over: nothing was confirmed"], d.written[#d.written])
           end)
 
           -- Fix round 4 (m2): Blizzard's own buy dialog shows the seconds a quote has left once ten
@@ -2155,7 +2155,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
             clock = 113
             GC.Sniper._TickConfirmCountdown()
-            local nine = GC.L["quote expires in %d s -- click Confirm to buy"]:format(9)
+            local nine = GC.L["quote expires in %d s. Click Confirm to buy"]:format(9)
             assert.equal(nine, d.written[#d.written])
             local count = #d.written
             clock = 113.5
@@ -2163,7 +2163,7 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.equal(count, #d.written) -- written once a second, not four times
             clock = 117.2
             GC.Sniper._TickConfirmCountdown()
-            assert.equal(GC.L["quote expires in %d s -- click Confirm to buy"]:format(5), d.written[#d.written])
+            assert.equal(GC.L["quote expires in %d s. Click Confirm to buy"]:format(5), d.written[#d.written])
           end)
 
           it("waits at Confirm no longer than the server's own quote lasts", function()
@@ -2282,7 +2282,7 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.equal("buy", GC.PurchaseSlot.Owner())
             assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
             assert.equal("expired", row.purchaseStage)
-            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+            assert.equal(GC.L["another purchase took over: nothing was confirmed"], d.written[#d.written])
           end)
 
           it("lets a row no window shows go back to the board, without a Cancel, when its slot is taken", function()
@@ -2342,7 +2342,7 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
             assert.is_false(GC.Sniper.HasStrandedConfirmed())
             assert.equal("expired", row.purchaseStage)
-            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+            assert.equal(GC.L["another purchase took over: nothing was confirmed"], d.written[#d.written])
           end)
         end)
 
@@ -2366,7 +2366,7 @@ describe("Live price caps -- buying at the player's own price", function()
       -- reopened the attempt stayed "confirmed" until the stranded release reported a purchase
       -- that never happened. It is cancelled now, and whoever waited on it is handed Refresh.
       describe("when the server re-quotes a purchase whose window was closed", function()
-        local DROPPED = "price changed after you closed the buy window -- nothing was bought"
+        local DROPPED = "price changed after you closed the buy window: nothing was bought"
 
         it("cancels it and hands the next window Refresh", function()
           local GC, first, _, d, click, abort = armed()
@@ -2444,7 +2444,7 @@ describe("Live price caps -- buying at the player's own price", function()
       end)
 
       -- Fix round 1, minor 2: a window armed over a confirmed purchase still owed its answer said
-      -- "price confirmed -- click Buy to purchase" on a lit, green Buy -- which the owner reads as
+      -- "price confirmed. Click Buy to purchase" on a lit, green Buy -- which the owner reads as
       -- ready -- and only the click turned it dark. It waits from the moment it arms.
       describe("a window armed while that purchase is still owed", function()
         local function owed(GC)

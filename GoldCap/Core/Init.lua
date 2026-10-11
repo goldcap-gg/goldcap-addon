@@ -46,6 +46,10 @@ GC.DEFAULTS = {
   -- the way back in. Same
   -- empty-table ApplyDefaults contract as `flips` above.
   sellQuotes = {},
+  -- positionKey -> true/false: the player's selling list, what the Sell tab's POST and the
+  -- post-next key list (Core/PostQueue.lua's Selling). Account-wide: an item sold on one character
+  -- is sold on all of them. Same empty-table ApplyDefaults contract as `flips` above.
+  sellMarks = {},
   -- Live observations: bounded facts about the book the client just saw, for the companion
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.
@@ -457,7 +461,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Said AFTER the language is settled, so the one line explaining a lost feature is not
     -- the only English sentence in an otherwise translated addon.
     if not acquisitionsInitialized and GC.Print then
-      GC.Print(GC.L["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"])
+      GC.Print(GC.L["your saved purchase records are damaged. Cost tracking is off, the rest of GoldCap is running"])
     end
     -- Anything resolved through GC.L at FILE scope would have captured the English
     -- fallback, since every file loads before the line above picks a language. The
@@ -1051,7 +1055,7 @@ function GC.OnSlash(msg)
   if handler then
     handler(rest)
   else
-    GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
+    GC.Print("v" .. GC.version .. GC.L[" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
   end
 end
 
@@ -1167,7 +1171,7 @@ GC.slashHandlers.ledger = function()
       end
     end
   end
-  GC.Print((GC.L["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"])
+  GC.Print((GC.L["last 24h: %d sales, %s gross, %s AH cut, %d buys, %s spent"])
     :format(sales, GC.Util.CoinText(gross), GC.Util.CoinText(cut),
       buys, GC.Util.CoinText(spent)))
 end
@@ -1190,7 +1194,7 @@ GC.slashHandlers.sales = function()
   end
   table.sort(sales, function(left, right) return (left.at or 0) > (right.at or 0) end)
   if #sales == 0 then
-    GC.Print(GC.L["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"])
+    GC.Print(GC.L["no sales recorded yet. Open your mailbox with GoldCap loaded and they will be read from the invoices"])
     return
   end
   GC.Print(GC.L["recent sales (newest first):"])
