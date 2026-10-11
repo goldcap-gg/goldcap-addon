@@ -142,19 +142,19 @@ end
 -- language. The table has to close with a `}` on its own line: that is where the
 -- contract spec's scanner stops.
 local QUEUE_SKIP_TEXT = {
-  no_fresh_price = "needs a fresh price -- press Refresh",
+  no_fresh_price = "needs a fresh price. Press Refresh",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
   -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
   -- it after the AH's cut.
-  below_vendor = "a vendor pays more -- sell it there",
+  below_vendor = "a vendor pays more: sell it there",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
-  advised_hold = "relisting now would lock in a loss or a stall -- hold",
+  advised_hold = "relisting now would lock in a loss or a stall. Hold",
   -- Held by this tab, not by the queue module: the item's last post may still go up
   -- (GC.Sell._lateAnswers).
-  awaiting_answer = "Last post may still go up -- wait a minute",
-  no_advice = "cost basis incomplete -- set costs to get repost advice",
+  awaiting_answer = "Last post may still go up. Wait a minute",
+  no_advice = "cost basis incomplete. Set costs to get repost advice",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.
@@ -456,7 +456,7 @@ function ROW.armLot(entry)
       return
     end
   end
-  setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
+  setStatus(GC.L["Could not find the queue's next lot to cancel. Try again"])
 end
 
 -- What the totals add up, by deck. On the posting deck, what POST lists -- the queue, whatever
@@ -783,7 +783,7 @@ function Dock.Build(f)
       GameTooltip:AddLine(GC.Util.ClientText(GC.L["Nothing is being held back."]), 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(S.cancelSkipped) do
-        GameTooltip:AddLine(GC.Util.ClientText(("%s — %s"):format(skip.itemName or GC.L["Item"],
+        GameTooltip:AddLine(GC.Util.ClientText(("%s: %s"):format(skip.itemName or GC.L["Item"],
           (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
             or GC.L["not ready to cancel"]))), 0.85, 0.85, 0.85, true)
       end

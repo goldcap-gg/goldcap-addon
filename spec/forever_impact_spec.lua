@@ -67,13 +67,13 @@ describe("the scan impact line", function()
     it("says the first scan on a market opened it", function()
       GC.ForeverScan.AdoptImpact({ entry(200, { updated = 2210, onlyYours = 2210, first = true, faction = "Horde" }) })
       assert.is_true(GC.ForeverScan.SayImpact())
-      assert.same({ "You opened Classic Beta PvE 2 · Horde -- its first 2,210 prices are yours." }, printed)
+      assert.same({ "You opened Classic Beta PvE 2 · Horde: its first 2,210 prices are yours." }, printed)
     end)
 
     it("says how many prices it updated and how many nobody else had", function()
       GC.ForeverScan.AdoptImpact({ entry(200) })
       GC.ForeverScan.SayImpact()
-      assert.same({ "Your scan updated 412 prices on Classic Beta PvE 2 · Alliance -- 38 of them nobody else had in the last 24 hours." },
+      assert.same({ "Your scan updated 412 prices on Classic Beta PvE 2 · Alliance. 38 of them nobody else had in the last 24 hours." },
         printed)
     end)
 
@@ -86,7 +86,7 @@ describe("the scan impact line", function()
     it("names the market by its realm alone when the Companion sent no faction", function()
       GC.ForeverScan.AdoptImpact({ entry(200, { faction = NONE }) })
       GC.ForeverScan.SayImpact()
-      assert.same({ "Your scan updated 412 prices on Classic Beta PvE 2 -- 38 of them nobody else had in the last 24 hours." },
+      assert.same({ "Your scan updated 412 prices on Classic Beta PvE 2. 38 of them nobody else had in the last 24 hours." },
         printed)
     end)
 
@@ -101,7 +101,7 @@ describe("the scan impact line", function()
       _G.FACTION_ALLIANCE, _G.FACTION_HORDE = "Allianz", "Horde"
       GC.ForeverScan.AdoptImpact({ entry(200, { realm = "Odd|Realm" }) })
       GC.ForeverScan.SayImpact()
-      assert.equal("Your scan updated 412 prices on Odd||Realm · Allianz -- 38 of them nobody else had in the last 24 hours.",
+      assert.equal("Your scan updated 412 prices on Odd||Realm · Allianz. 38 of them nobody else had in the last 24 hours.",
         printed[1])
     end)
 

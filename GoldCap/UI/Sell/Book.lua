@@ -73,7 +73,7 @@ local function paintLadder(row, book)
       elseif entry.mine then colour, tint, wash = Theme.color.watch, Theme.color.watch, Theme.color.watch end
       if entry.wall then tint = Theme.color.red end
       line.price:SetText(formatCell(entry.unit)); setColor(line.price, colour)
-      line.qty:SetText(GC.Util.FormatCount(entry.units) or "—")
+      line.qty:SetText(GC.Util.FormatCount(entry.units) or "-")
       setColor(line.qty, entry.wall and Theme.color.red or Theme.color.fgDim)
       -- A wall says so in a word at the start of its own bar, which then starts after it. A
       -- column for the word on every level held the bars and the figures off an edge of the
@@ -418,7 +418,7 @@ function Book.Paint(row, p, d)
   for _, words in ipairs(book and wallWords(book) or {}) do facts[#facts + 1] = words end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-    or (quote and "" or (notPriced and GC.L["not priced — nothing on hand to sell"] or GC.L["no live quote yet — pricing…"])))
+    or (quote and "" or (notPriced and GC.L["not priced: nothing on hand to sell"] or GC.L["no live quote yet, pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
   -- The words already say whether this is the last live price or a fresh one, so the color

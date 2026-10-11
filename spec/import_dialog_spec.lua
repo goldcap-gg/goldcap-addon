@@ -305,14 +305,14 @@ describe("ImportDialog", function()
     -- of it is formatted as an age.
     it("points at the clock for a date that cannot be right, whatever the date", function()
       for _, ts in ipairs({ 0, time() + 86400 * 365, math.huge }) do
-        assert.equal("whole-market data not in use: its date cannot be right -- check this computer's clock",
+        assert.equal("whole-market data not in use: its date cannot be right. Check this computer's clock",
           reasonLine({ reason = "bad_ts", ts = ts }))
       end
     end)
 
     it("says it was set aside this session, and how to get it back", function()
       assert.equal("whole-market data not in use: it was set aside when other prices were loaded this session"
-        .. " -- /reload to use it again", reasonLine({ reason = "set_aside", ts = time() - 600 }))
+        .. ". /reload to use it again", reasonLine({ reason = "set_aside", ts = time() - 600 }))
     end)
 
     -- Final review M6: the manual import's sentences answer a player who pasted something ("that
@@ -322,11 +322,11 @@ describe("ImportDialog", function()
       local expected = {
         -- The addon reads the Companion's file only at load: after the next sync, only a /reload
         -- brings the new one in (final re-review N1).
-        empty = "the Companion wrote an empty copy -- let it sync, then /reload",
-        no_items = "the Companion wrote it with no prices -- let it sync, then /reload",
-        bad_header = "it is in a format this build of GoldCap cannot read -- update the addon",
-        bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
-        too_long = "it is larger than this build of GoldCap can read -- update the addon",
+        empty = "the Companion wrote an empty copy. Let it sync, then /reload",
+        no_items = "the Companion wrote it with no prices. Let it sync, then /reload",
+        bad_header = "it is in a format this build of GoldCap cannot read. Update the addon",
+        bad_region = "it is for a region this build of GoldCap does not know. Update the addon",
+        too_long = "it is larger than this build of GoldCap can read. Update the addon",
       }
       for reason, sentence in pairs(expected) do
         assert.equal("whole-market data not in use: " .. sentence, reasonLine({ reason = reason }))

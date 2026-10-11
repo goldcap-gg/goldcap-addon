@@ -414,7 +414,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet, listening for a minute", container.dockStatus.text)
       assert.same(RED, { unpack(container.dockStatus.color, 1, 3) })
       assert.equal("Post", row.action.label)
       assert.is_true(row.action.enabled)
@@ -598,7 +598,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet, listening for a minute", container.dockStatus.text)
       _G.time = function() return 1030 end
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
@@ -622,7 +622,7 @@ describe("Sell tab, a Post says what it is doing", function()
       -- still be taking it.
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
       assert.equal(0, #recorded) -- a guess: the owned list records it
@@ -642,7 +642,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.PurchaseSlot = nil
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     it("holds another Post of the same item while its last post may still be answered", function()
@@ -658,7 +658,7 @@ describe("Sell tab, a Post says what it is doing", function()
       -- Put back in the dock by a click on its row, a press is still refused while it may go up.
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     it("goes on posting every other item meanwhile, from the dock's POST as from a row", function()
@@ -928,7 +928,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.SellState.refresh.phase = "idle"
       pressRowPost()
       assert.equal(1, posts) -- held: that post may still go up
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     -- The Sniper's own "busy" -- a pass paging, a purchase out -- counts too. A page still out
@@ -1543,7 +1543,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up. Wait a minute", container.dockStatus.text)
     end)
 
     -- S9b: a plain Confirm, then its creation -- booked, and the row freed.
@@ -1593,7 +1593,7 @@ describe("Sell tab, a Post says what it is doing", function()
     assert.equal("Post", row.action.label)
     assert.is_false(row.action.busy)
     assert.is_false(container.queueButton.busy)
-    assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+    assert.equal("The auction house did not answer. Try again", container.dockStatus.text)
   end)
 
   -- The note's clock can run out after the player has gone to another tab. The toolbar line is
@@ -1648,6 +1648,6 @@ describe("Sell tab, a Post says what it is doing", function()
     -- The watchdog is armed before the call (see above); the answer already let it go.
     fire(8)
     assert.is_nil(row.postStage)
-    assert.not_equal("The auction house did not answer -- try again", container.dockStatus.text)
+    assert.not_equal("The auction house did not answer. Try again", container.dockStatus.text)
   end)
 end)

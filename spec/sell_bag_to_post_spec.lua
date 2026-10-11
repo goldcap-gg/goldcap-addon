@@ -235,7 +235,7 @@ describe("Sell tab, bags to Post", function()
   it("reports the cost as unknown rather than inventing one", function()
     compose()
     local row = positionRow()
-    assert.equal("—", row.cells.cost.text)
+    assert.equal("-", row.cells.cost.text)
     assert.equal("Unknown", row.cells.profit.text)
   end)
 

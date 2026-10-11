@@ -1140,7 +1140,7 @@ describe("Deals background verification", function()
     local to = assert(text:find("if self.deal.pinPlaceholder then", from, true))
     local branch = text:sub(from, to)
 
-    assert.is_truthy(branch:find("GoldCap: checked live -- safe to buy", 1, true))
+    assert.is_truthy(branch:find("GoldCap: checked live, safe to buy", 1, true))
     -- The third state, the one that used to render as silence.
     assert.is_truthy(branch:find("not checked against the live auction house yet", 1, true))
     -- A pin that is not currently a deal has nothing to check, so it must not be told it is
@@ -1273,7 +1273,7 @@ describe("Deals background verification", function()
       assert.equal("Buy", primary.label)
       assert.is_false(primary.enabled)
       -- 5,322g 46s 80c: rounded up, the same figure the board's cell and the tooltip show.
-      assert.equal("not enough gold on this character -- you need 5323g", status.text)
+      assert.equal("not enough gold on this character: you need 5323g", status.text)
       local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
       local src = file:read("*a")
       file:close()
@@ -1445,7 +1445,7 @@ describe("Deals background verification", function()
         assert.equal("Check", primary.label)
         assert.is_true(primary.enabled)
         -- Not the wallet-limit refusal the answer carried: the gold is there now.
-        assert.equal("you have enough gold for this now -- Check again", status.text)
+        assert.equal("you have enough gold for this now. Check again", status.text)
       end)
 
       -- Looting in a raid fires PLAYER_MONEY over and over; a window nobody is looking at does not

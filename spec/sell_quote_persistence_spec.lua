@@ -155,7 +155,7 @@ describe("Sell quote persistence across a reload", function()
   describe("Reset", function()
     -- Reset's only caller is the auction house CLOSING, which is the live session ending and
     -- not the player asking to forget anything. Wiping the store there re-priced every position
-    -- from a dash on the next visit -- the tab spent its first half-minute saying "—" about
+    -- from a dash on the next visit -- the tab spent its first half-minute saying "-" about
     -- prices it had known thirty seconds before ("ЦІНИ 4/17" on a list of seventeen, in game).
     it("keeps the persisted store when the auction house session ends", function()
       local now = { value = 100000 }

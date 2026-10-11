@@ -427,7 +427,7 @@ describe("Ledger event wiring", function()
     -- The rest of the addon came up, and the player was told which part did not.
     assert.equal(database, GC.db)
     assert.is_string(said)
-    assert.truthy(said:find("cost tracking is off"))
+    assert.truthy(said:find("Cost tracking is off"))
     -- The damaged store itself is left exactly as found -- never migrated, never repaired,
     -- never half-rewritten by the very code that could not read it.
     assert.equal(originalAcquisitions, database.acquisitions)

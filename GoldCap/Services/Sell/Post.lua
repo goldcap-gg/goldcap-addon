@@ -238,8 +238,8 @@ local function schedulePostTimeout(row)
       -- item held meanwhile, so "try again" there would be contradicted by the very next press
       -- (review I3). Only a post that never left -- its call raised -- is free to try again.
       View.notePost(stage == "confirm" and GC.L["Post confirmation expired"]
-        or sent and GC.L["No answer yet -- listening for a minute"]
-        or GC.L["The auction house did not answer -- try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+        or sent and GC.L["No answer yet, listening for a minute"]
+        or GC.L["The auction house did not answer. Try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
     end
   end)
 end
@@ -266,7 +266,7 @@ function Post.PreparePost(row)
   -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
   if row.postStage ~= "confirm" and row.position
       and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
-    View.notePost(GC.L["Last post may still go up -- wait a minute"], "fg",
+    View.notePost(GC.L["Last post may still go up. Wait a minute"], "fg",
       GC.Sell.POST_NOTE_SECONDS.failed)
     return
   end
@@ -280,7 +280,7 @@ function Post.PreparePost(row)
     -- button says it too. The next render restores the label once the price
     -- lands, which is one query away now rather than a whole pass.
     if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
-    View.status(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
+    View.status(GC.L["Fetching a fresh price for this item. Press Post again in a moment"])
     Walk.RefreshFor(position); return
   end
   if S.postingRow == row and row.postStage ~= "confirm" then return end
@@ -452,7 +452,7 @@ function Post.PrepareCancel(row, auctionID)
     if S.repostingRow == row then Post.DisarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
     -- a dead button. Say what is happening; the click that follows is the one that arms.
-    View.status(GC.L["Fetching a fresh price for this lot — press Repost again in a moment"])
+    View.status(GC.L["Fetching a fresh price for this lot. Press Repost again in a moment"])
     Walk.RefreshFor(position); return
   end
   if row.repostStage == "armed" then
@@ -536,7 +536,7 @@ function Post.PrepareCancel(row, auctionID)
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
   row.repostStage, row.repostReady = "armed", false
   row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
-  View.status(GC.L["Cancel this lot and lose its deposit — click again to confirm"])
+  View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])
   repostArmToken = repostArmToken + 1
   local token = repostArmToken
   if C_Timer and C_Timer.After then
@@ -628,8 +628,8 @@ function Post.Remove(row)
   row.removeStage = "armed"
   row.action.helpKey = "Remove?"; row.action:SetLabel(GC.L["Remove?"])
   View.status(#ids > 1
-    and GC.L["Removes every entered-by-hand purchase in this run -- click again to confirm"]
-    or GC.L["Removes this entered-by-hand purchase -- click again to confirm"])
+    and GC.L["Removes every entered-by-hand purchase in this run. Click again to confirm"]
+    or GC.L["Removes this entered-by-hand purchase. Click again to confirm"])
   removeArmToken = removeArmToken + 1
   local token = removeArmToken
   if C_Timer and C_Timer.After then

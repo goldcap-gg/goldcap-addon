@@ -86,9 +86,9 @@ GC.CheckVerdict.HERO_CAPTION = {
   gold_up = "worst case, selling all %d back into the price standing there now",
   gold_down = "if you buy all %d and sell them back at the price standing there now",
   days = "to clear %d units at %s sold a day, with %s tied up the whole time",
-  units = "is what this market absorbs — past that you are buying stock you will sit on",
+  units = "is what this market absorbs. Past that you are buying stock you will sit on",
   unpriceable = "any figure here would be invented out of the very number being refused",
-  reference = "against the region's own price for this item, after the 5% cut — if it sells",
+  reference = "against the region's own price for this item, after the 5% cut, if it sells",
   cap = "a unit, at or under your price of %s",
   -- WoW: Forever. What a vendor pays is exact, so the profit is sure; a resale at the scan's AH
   -- value is not, and how fast it would sell is not known at all.

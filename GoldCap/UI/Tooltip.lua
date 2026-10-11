@@ -218,7 +218,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
   -- allowlisted so a caller that does not know the origin nudges nobody.
   if not scan and (opts.origin == "none" or opts.origin == "manual")
       and (v.source == "bundled" or age >= STALE_RED_SECONDS) then
-    lines[#lines + 1] = { kind = "hint", text = GC.L["Companion keeps prices fresh — /goldcap companion"] }
+    lines[#lines + 1] = { kind = "hint", text = GC.L["Companion keeps prices fresh: /goldcap companion"] }
   end
   return lines
 end

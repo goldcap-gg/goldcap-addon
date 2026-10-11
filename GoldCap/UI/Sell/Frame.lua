@@ -453,17 +453,17 @@ GC.slashHandlers.sellstate = function()
       local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
-        why = GC.L["identity unresolved (variant item -- not priced by design)"]
+        why = GC.L["identity unresolved (variant item, not priced by design)"]
       elseif not (inBags or listed) then
-        why = GC.L["no stock in bags or listed -- nothing to price for"]
+        why = GC.L["no stock in bags or listed, nothing to price for"]
       elseif resting and Walk.RestedEmptyFresh(position.quoteKey or position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       elseif resting then
         -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk
         -- read as a quiet auction house.
-        why = (GC.L["no answer %ds ago -- resting"]):format(time() - restingAt)
+        why = (GC.L["no answer %ds ago, resting"]):format(time() - restingAt)
       else
-        why = GC.L["due -- will be asked next pass"]
+        why = GC.L["due, will be asked next pass"]
       end
       shown = shown + 1
       -- A variant by its exact key: two item levels of one piece read as one line by item ID.

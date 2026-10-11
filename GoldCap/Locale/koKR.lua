@@ -15,19 +15,19 @@ GC.Locales.koKR = {
   [" · below cost"] = " · 원가 미만",
   [" · identity unresolved"] = " · 대상 미확정",
   [" · stale %ds"] = " · %d초 지남",
-  [" — Check again"] = " — 다시 확인하세요",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
-    " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
+  [". Check again"] = ". 다시 확인하세요",
+  [" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " · 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
   ["%d (whole lot)"] = "%d (전체 물량)",
   ["%d ahead of you"] = "내 앞에 %d개",
   ["%d at %s"] = "%d개 %s",
   ["%d caps · %s"] = "가격 상한 %d개 · %s",
   ["%d days"] = "%d일",
-  ["%d deals from your last scan -- Full Scan to refresh"] =
-    "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
+  ["%d deals from your last scan. Full Scan to refresh"] =
+    "지난 검색의 거래 %d건. 갱신하려면 Full Scan",
   ["%d filtered out: hard to resell, or under your Min profit per buy"] = "재판매가 어렵거나 1회 구매 최소 수익 미만이라 %d건 제외",
   ["%d held back"] = "%d건 보류",
-  ["%d hidden -- the live check refused them"] = "%d개 숨김 -- 실시간 확인에서 거부됨",
+  ["%d hidden: the live check refused them"] = "%d개 숨김. 실시간 확인에서 거부됨",
   ["%d hits"] = "%d건 발견",
   ["%d in %d lots"] = "%d개 · 물량 %d건",
   ["%d in 1 lot"] = "%d개 · 물량 1건",
@@ -37,8 +37,8 @@ GC.Locales.koKR = {
   ["%d of %d at or under your cap"] = "%d/%d개가 상한 이하",
   ["%d of %d done"] = "%d/%d 완료",
   ["%d prices in one request · books still loading"] = "요청 한 번으로 시세 %d개 · 호가창 불러오는 중",
-  ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
-    "실시간 확인에서 %d건 거부 -- 위의 \"HIDDEN %d\"를 눌러 확인하세요",
+  ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
+    "실시간 확인에서 %d건 거부. 위의 \"HIDDEN %d\"를 눌러 확인하세요",
   ["%d units"] = "%d개",
   ["%d units · %d prices"] = "%d개 · 가격 %d단",
   ["%d · %d/%d covered"] = "%d · %d/%d 확인됨",
@@ -52,15 +52,15 @@ GC.Locales.koKR = {
   ["%s units in %d prices"] = "%s개 · 가격대 %d개",
   ["%s · %s under market"] = "%s · 시세보다 %s 저렴",
   ["%s · at market price"] = "%s · 시세와 같음",
-  ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
+  ["%s: %d unit%s without a cost"] = "%s: 원가 없는 %d개%s",
   ["%s → craft %d× (%d per craft)"] = "%s → %d회 제작 (제작당 %d개)",
   ["%s+ ahead"] = "앞에 %s+",
   ["%s+, %d prices read"] = "%s+, 가격 %d개 읽음",
   ["..."] = "...",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
-  ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
-    "대시(—)는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
+  ["A dash means GoldCap does not know the cost of every unit yet. It will never guess one from the market price."] =
+    "대시는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "약속이 아니라 실마리입니다: 가져온 시세의 95%로 재판매할 때, Check가 승인할 수량 기준입니다.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
@@ -74,7 +74,7 @@ GC.Locales.koKR = {
   ["AVOID"] = "회피",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "24시간 동안 이 상승폭을 넘으면 시세를 급등으로 간주해 낮춰서 반영합니다.",
-  ["Above your price -- quoted %s, your price %s"] = "설정 가격 초과 -- 견적 %s, 내 가격 %s",
+  ["Above your price: quoted %s, your price %s"] = "설정 가격 초과. 견적 %s, 내 가격 %s",
   ["Alert target"] = "알림 목표가",
   ["Alerts"] = "알림",
   ["All"] = "전체",
@@ -85,7 +85,7 @@ GC.Locales.koKR = {
   ["At your pace you reach it at level %d."] = "지금 속도라면 %d레벨에 모읍니다.",
   ["At your pace you will be %s short at level 40."] = "지금 속도라면 40레벨에 %s 부족합니다.",
   ["At your price"] = "내 가격 도달",
-  ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
+  ["Auction House did not answer. Press Refresh"] = "경매장이 응답하지 않았습니다. Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -94,7 +94,7 @@ GC.Locales.koKR = {
   ["BOOKS %d/%d"] = "호가창 %d/%d",
   ["BRAKES"] = "브레이크",
   ["BUY %d"] = "%d개 구매",
-  ["BUY — unverified"] = "구매 — 미검증",
+  ["BUY (unverified)"] = "구매 (미검증)",
   ["Background check"] = "백그라운드 확인",
   ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
     "블리자드가 아직 탈것 비용을 발표하지 않았습니다. /gc mount 뒤에 예상 비용을 입력하세요.",
@@ -120,12 +120,12 @@ GC.Locales.koKR = {
   ["Cancel"] = "취소",
   ["Cancel lot"] = "물량 취소",
   ["Cancel lot?"] = "물량 취소?",
-  ["Cancel this lot and lose its deposit — click again to confirm"] =
-    "이 물량을 취소하고 등록비를 잃습니다 — 다시 클릭하면 확정됩니다",
+  ["Cancel this lot and lose its deposit. Click again to confirm"] =
+    "이 물량을 취소하고 등록비를 잃습니다. 다시 클릭하면 확정됩니다",
   ["Cancel timed out"] = "취소 시간이 초과되었습니다",
   ["Cancelling lot…"] = "물량 취소 중…",
-  ["Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive."] =
-    "진행 중인 이 경매를 취소합니다 — 다시 등록하지는 않습니다. 등록비는 돌려받지 못하고 물품은 우편으로 돌아옵니다; 도착하면 이 줄에서 다시 등록하세요.",
+  ["Cancels this live auction. It does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive."] =
+    "진행 중인 이 경매를 취소합니다. 다시 등록하지는 않습니다. 등록비는 돌려받지 못하고 물품은 우편으로 돌아옵니다; 도착하면 이 줄에서 다시 등록하세요.",
   ["Cannot post this position"] = "이 항목은 등록할 수 없습니다",
   ["Cannot remove this entry"] = "이 기록은 삭제할 수 없습니다",
   ["Cannot repost this lot"] = "이 물량은 다시 등록할 수 없습니다",
@@ -136,12 +136,12 @@ GC.Locales.koKR = {
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "더 싼 매물이 남아 있지만, 이 아이템의 속도라면 몇 시간 안에 소진됩니다.",
   ["Check"] = "확인",
-  ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
+  ["Check re-derives it against the live order book before any gold moves, and can still land lower (or refuse) if the market has moved since your last import."] =
     "Check는 골드가 움직이기 전에 실시간 호가로 다시 계산하며, 마지막 가져오기 이후 시장이 바뀌었다면 더 낮게 나오거나 거부할 수 있습니다.",
   ["Checked against the live order book a moment ago."] = "방금 실시간 호가창과 대조했습니다.",
   ["Checked: %d of the top %d on screen"] = "확인: %d개 (화면 상위 %d개 중)",
   ["Checking prices…"] = "가격 확인 중…",
-  ["Checking prices — waiting for the Auction House…"] = "가격 확인 중 — 경매장을 기다리는 중…",
+  ["Checking prices: waiting for the Auction House…"] = "가격 확인 중: 경매장을 기다리는 중…",
   ["Checking this item's price…"] = "이 아이템의 가격을 확인하는 중…",
   ["Checking..."] = "확인 중...",
   ["Clear to buy"] = "구매해도 좋음",
@@ -151,8 +151,8 @@ GC.Locales.koKR = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "한 번 더 누르면 직접 입력한 이 매입가가 영구히 삭제됩니다.",
   ["Close"] = "닫기",
-  ["Companion keeps prices fresh — /goldcap companion"] =
-    "Companion이 시세를 자동으로 갱신합니다 — /goldcap companion",
+  ["Companion keeps prices fresh: /goldcap companion"] =
+    "Companion이 시세를 자동으로 갱신합니다. /goldcap companion",
   ["Companion sync rejected:"] = "Companion 동기화가 거부됨:",
   ["Confirm"] = "확인",
   ["Confirm the cancel"] = "취소 확인",
@@ -165,7 +165,7 @@ GC.Locales.koKR = {
   ["Could not read that amount. Type it like 12g 50s."] = "금액을 읽을 수 없습니다. 12g 50s처럼 입력하세요.",
   ["Don't skip"] = "건너뛰지 않기",
   ["Everything here is bought"] = "여기서는 모두 구매함",
-  ["From goldcap.gg — manage it there"] = "goldcap.gg 목록 — 거기서 관리하세요",
+  ["From goldcap.gg: manage it there"] = "goldcap.gg 목록: 거기서 관리하세요",
   ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
     "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
   ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
@@ -210,16 +210,16 @@ GC.Locales.koKR = {
     "이 클라이언트는 아이템 능력치를 알려주지 않아 GoldCap이 장비를 비교할 수 없습니다.",
   ["This lot holds more units than your Max units per buy."] =
     "이 묶음은 '1회 구매 최대 수량'보다 많습니다.",
-  ["Could not find the queue's next lot to cancel — try again"] =
-    "취소 대기열의 다음 물량을 찾지 못했습니다 — 다시 시도하세요",
+  ["Could not find the queue's next lot to cancel. Try again"] =
+    "취소 대기열의 다음 물량을 찾지 못했습니다. 다시 시도하세요",
   ["DEFAULTS"] = "기본값",
   ["DISC"] = "할인",
   ["DISPLAY"] = "표시",
   ["DONE"] = "완료",
   ["Default listing length for the Sell tab."] = "매도 탭의 기본 등록 기간입니다.",
   ["Default: %s"] = "기본값: %s",
-  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
-    "매입가 입력에 직접 적은 값만 삭제합니다 — GoldCap이 스스로 잡았거나 우편과 대조한 구매는 지우지 않습니다.",
+  ["Deletes a hand-entered cost you typed into Set cost, never a purchase GoldCap itself captured or matched to your mail."] =
+    "매입가 입력에 직접 적은 값만 삭제합니다. GoldCap이 스스로 잡았거나 우편과 대조한 구매는 지우지 않습니다.",
   ["Discount"] = "할인",
   ["Discount vs market value from your GoldCap import"] = "GoldCap 가져오기의 시세 대비 할인율",
   ["Dump-trend cap %"] = "하락 추세 상한 %",
@@ -231,10 +231,10 @@ GC.Locales.koKR = {
   ["Entry total"] = "진입 총액",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "나머지는 모두 통과했습니다. 이 캐릭터에 골드가 더 있으면 살 만한 매물입니다.",
   ["FIFO allocations"] = "선입선출 배분",
-  ["Fetching a fresh price for this item — press Post again in a moment"] =
-    "이 아이템의 최신 가격을 가져오는 중 — 잠시 후 Post를 다시 누르세요",
-  ["Fetching a fresh price for this lot — press Repost again in a moment"] =
-    "이 물량의 최신 가격을 가져오는 중 — 잠시 후 Repost를 다시 누르세요",
+  ["Fetching a fresh price for this item. Press Post again in a moment"] =
+    "이 아이템의 최신 가격을 가져오는 중. 잠시 후 Post를 다시 누르세요",
+  ["Fetching a fresh price for this lot. Press Repost again in a moment"] =
+    "이 물량의 최신 가격을 가져오는 중. 잠시 후 Repost를 다시 누르세요",
   ["Finish the pending post first"] = "진행 중인 등록을 먼저 끝내세요",
   ["Finish the pending post or repost first"] = "진행 중인 등록 또는 재등록을 먼저 끝내세요",
   ["Font scale"] = "글꼴 크기",
@@ -250,13 +250,13 @@ GC.Locales.koKR = {
   ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
     "GoldCap이 다시 확인하는 상위 %d 줄을 실시간 경매장과 대조합니다. 주기는 약 %d초입니다. 거부된 줄은 숨겨집니다. 구매는 언제나 직접 누르는 클릭입니다.",
   ["GoldCap value"] = "GoldCap 시세",
-  ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
+  ["GoldCap: Import realm prices"] = "GoldCap: 서버 시세 가져오기",
   ["GoldCap's"] = "GoldCap 가격",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "이 아이템에 대한 GoldCap의 제안과, 그때 쓸 가격.",
-  ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
-  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: 실시간 확인 완료 -- 좋은 매물이지만 이 캐릭터에 %s 필요",
-  ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
+  ["GoldCap: %s. %s"] = "GoldCap: %s. %s",
+  ["GoldCap: checked live. A deal, but you need %s on this character"] = "GoldCap: 실시간 확인 완료. 좋은 매물이지만 이 캐릭터에 %s 필요",
+  ["GoldCap: checked live, safe to buy"] = "GoldCap: 실시간 확인 완료. 구매해도 안전합니다",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: 아직 실시간 경매장에서 확인하지 않음",
   ["Gone"] = "사라짐",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
@@ -274,25 +274,25 @@ GC.Locales.koKR = {
   ["Import from goldcap.gg to arm the sniper"] = "goldcap.gg에서 가져와 스나이퍼를 활성화하세요",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "무료 GoldCap Companion을 설치하면 시세가 자동으로 갱신됩니다 (/goldcap companion),",
-  ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
+  ["It is what you must beat to sell quickly, not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "이것은 빨리 팔려면 이겨야 할 가격이지, 아이템의 가치가 아닙니다. 급한 판매자 한 명이 가치보다 훨씬 낮게 내놓을 수 있으며 GoldCap은 그 아래로 따라가지 않습니다. 실제 등록 가격은 WHAT TO DO를 보세요.",
   ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
     "시세로 매입가를 지어내지 않으므로, 입력하기 전까지 수익은 알 수 없음으로 남습니다.",
   ["Item"] = "아이템",
   ["Item %d"] = "아이템 %d",
-  ["Item level %d, below the %d your price is for"] = "아이템 레벨 %d -- 내 가격의 기준 %d보다 낮음",
-  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
-    "아이템: 장비, 펫, 제작법을 가져온 지역 기준가와 비교해 가격을 매깁니다. 판매 속도는 절대 측정되지 않으므로 안전 판정을 받는 일이 없습니다 -- 구매는 당신 몫이며, GoldCap은 이 목록이 열려 있는 동안만 확인합니다.",
+  ["Item level %d, below the %d your price is for"] = "아이템 레벨 %d. 내 가격의 기준 %d보다 낮음",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE. The buy is your call, and GoldCap only checks them while this board is open."] =
+    "아이템: 장비, 펫, 제작법을 가져온 지역 기준가와 비교해 가격을 매깁니다. 판매 속도는 절대 측정되지 않으므로 안전 판정을 받는 일이 없습니다. 구매는 당신 몫이며, GoldCap은 이 목록이 열려 있는 동안만 확인합니다.",
   ["LISTED"] = "등록됨",
   ["Language"] = "언어",
   ["Language changed. Type /reload to apply it everywhere."] =
     "언어를 바꿨습니다. 모든 곳에 적용하려면 /reload를 입력하세요.",
-  ["Last post may still go up -- wait a minute"] = "아직 등록될 수 있습니다 -- 1분 기다리세요",
+  ["Last post may still go up. Wait a minute"] = "아직 등록될 수 있습니다. 1분 기다리세요",
   ["Level 40 reached: %s to go."] = "40레벨 도달: %s 부족합니다.",
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed"] = "등록 수량",
-  ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
+  ["Listed at %s, far below market. Repost."] = "%s에 등록됨. 시세보다 훨씬 낮습니다. 다시 등록하세요.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "goldcap.gg에서 정한 내 가격 이하로 등록되어 있습니다. 되팔 수 있을지는 직접 판단하세요.",
   ["Listed value"] = "등록 금액",
@@ -327,23 +327,23 @@ GC.Locales.koKR = {
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
   ["Needs gold"] = "골드 필요",
   ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
-  ["No answer yet -- listening for a minute"] = "아직 응답 없음 -- 1분 더 기다립니다",
+  ["No answer yet, listening for a minute"] = "아직 응답 없음. 1분 더 기다립니다",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
-  ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
+  ["No deals to show, and no realm prices yet."] = "표시할 거래가 없습니다. 서버 시세도 아직 없습니다.",
   ["No deals yet."] = "아직 거래가 없습니다.",
   ["No exact auction key"] = "정확한 경매 키가 없습니다",
   ["No exact bag stack"] = "정확한 가방 묶음이 없습니다",
   ["No exact bag variant"] = "정확한 가방 변형이 없습니다",
   ["No live listings came back for this item."] = "이 아이템의 실시간 매물이 하나도 오지 않았습니다.",
-  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
-    "이 아이템의 지역 기준가가 아직 없습니다 — goldcap.gg에 기준가가 올라오면 다시 가져오세요.",
+  ["No region reference for this item yet. Import again once goldcap.gg publishes one."] =
+    "이 아이템의 지역 기준가가 아직 없습니다. goldcap.gg에 기준가가 올라오면 다시 가져오세요.",
   ["No safe resale price could be worked out."] = "안전한 재판매 가격을 산출할 수 없었습니다.",
   ["No sales data for this item."] = "이 아이템의 판매 데이터가 없습니다.",
   ["Not enough gold on this character to buy what GoldCap finds"] = "이 캐릭터의 골드로는 GoldCap이 찾은 매물을 살 수 없음",
   ["Not enough units on the Auction House to fill that quantity."] = "경매장에 그 수량을 채울 만큼의 물량이 없습니다.",
-  ["Not in your bags or listed — mail or bank?"] = "가방에도 없고 등록도 안 됨 — 우편함이나 은행인가요?",
-  ["Not on hand — the stock is in the mail, the bank, or on another character"] =
-    "보유 중이 아님 — 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
+  ["Not in your bags or listed. Mail or bank?"] = "가방에도 없고 등록도 안 됨. 우편함이나 은행인가요?",
+  ["Not on hand: the stock is in the mail, the bank, or on another character"] =
+    "보유 중이 아님. 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
   ["Not worth the deposit on the AH"] = "경매장 등록비만큼의 가치가 없습니다",
   ["Nothing is being held back."] = "보류된 것이 없습니다.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
@@ -370,8 +370,8 @@ GC.Locales.koKR = {
   ["Nothing queued to post"] = "등록 대기열이 비었습니다",
   ["Nothing to remove"] = "삭제할 것이 없습니다",
   ["ON THE AUCTION HOUSE"] = "경매장에 올린 것",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
-    "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 약 붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."] =
+    "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 붐비는 서버에서 약 15~60초입니다. 대기시간 없음: 언제든 다시 검색하세요.",
   ["Open the Auction House first."] = "먼저 경매장을 여세요.",
   ["Open the Auction House to begin scanning."] = "검색을 시작하려면 경매장을 여세요.",
   ["Open the deals board. /gc for commands."] = "거래 목록을 엽니다. 명령어는 /gc.",
@@ -426,8 +426,8 @@ GC.Locales.koKR = {
   ["Refresh"] = "새로고침",
   ["Refresh waiting for prior result"] = "이전 결과를 기다리는 중입니다",
   ["Refreshing listings…"] = "등록 목록 갱신 중…",
-  ["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."] =
-    "최근 24시간 동안 가격이 이보다 더 떨어졌으면 구매를 거부합니다 — 계속 떨어질 수 있습니다.",
+  ["Refuse a buy when the price fell more than this in the last 24 hours: it may keep falling."] =
+    "최근 24시간 동안 가격이 이보다 더 떨어졌으면 구매를 거부합니다. 계속 떨어질 수 있습니다.",
   ["Refused so far: %d"] = "지금까지 거부: %d건",
   ["Removal confirmation expired"] = "삭제 확인이 만료되었습니다",
   ["Remove"] = "삭제",
@@ -435,10 +435,10 @@ GC.Locales.koKR = {
   ["Remove?"] = "삭제할까요?",
   ["Removed"] = "삭제됨",
   ["Removed %d entries"] = "%d개 항목 삭제됨",
-  ["Removes every entered-by-hand purchase in this run -- click again to confirm"] =
-    "이 묶음에서 직접 입력한 구매를 모두 삭제합니다 -- 다시 클릭하면 확정됩니다",
-  ["Removes this entered-by-hand purchase -- click again to confirm"] =
-    "직접 입력한 이 구매를 삭제합니다 -- 다시 클릭하면 확정됩니다",
+  ["Removes every entered-by-hand purchase in this run. Click again to confirm"] =
+    "이 묶음에서 직접 입력한 구매를 모두 삭제합니다. 다시 클릭하면 확정됩니다",
+  ["Removes this entered-by-hand purchase. Click again to confirm"] =
+    "직접 입력한 이 구매를 삭제합니다. 다시 클릭하면 확정됩니다",
   ["Repost confirmation expired"] = "재등록 확인이 만료되었습니다",
   ["Right-click to stop watching this item"] = "이 아이템 주시를 멈추려면 우클릭",
   ["Right-click to watch this item closely"] = "이 아이템을 자세히 주시하려면 우클릭",
@@ -459,7 +459,7 @@ GC.Locales.koKR = {
     "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",
   ["Sellers"] = "판매자",
-  ["Sells too rarely -- you would be holding it for a long time."] = "너무 드물게 팔립니다 — 오래 들고 있게 됩니다.",
+  ["Sells too rarely: you would be holding it for a long time."] = "너무 드물게 팔립니다. 오래 들고 있게 됩니다.",
   ["Set cost"] = "원가 입력",
   ["Settings"] = "설정",
   ["Skip a buy unless it clears at least this much after the AH cut."] =
@@ -487,12 +487,12 @@ GC.Locales.koKR = {
     "경매장이 등록비를 알려주지 않아 비용을 알 수 없습니다.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion은 동기화 중이지만, 이 애드온이 기록된 내용을 읽지 못했습니다:",
-  ["The auction house did not answer -- try again"] = "경매장이 응답하지 않았습니다 -- 다시 시도하세요",
+  ["The auction house did not answer. Try again"] = "경매장이 응답하지 않았습니다. 다시 시도하세요",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "목록은 가져온 스냅숏으로 등급을 매겼습니다. 실시간 호가창은 이를 뒷받침하지 않습니다.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "버튼은 잠시 뒤에야 눌립니다. 실수로 두 번 클릭해도 실행되지 않습니다.",
-  ["The cancel did not go through — the lot is still listed"] = "취소가 처리되지 않았습니다 — 물량이 아직 등록되어 있습니다",
+  ["The cancel did not go through: the lot is still listed"] = "취소가 처리되지 않았습니다. 물량이 아직 등록되어 있습니다",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "가장 싼 매물이 더 이상 기준 가격보다 충분히 낮지 않습니다.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
@@ -503,16 +503,16 @@ GC.Locales.koKR = {
   ["The market value is an estimate, not a measurement."] = "시세는 측정값이 아니라 추정값입니다.",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "한 번의 구매로 살 수 있는 최대 수량입니다. 아이템이 팔리는 속도에 따라 더 적어질 수 있습니다.",
-  ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
-    "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요 — 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
+  ["The price data is over three hours old. Sync the Companion, then /reload. The addon only reads its data when the UI loads."] =
+    "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요. 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
     "가격은 확인했습니다. 얼마나 빨리 팔리는지는 어디에서도 측정되지 않으니 직접 판단하세요.",
   ["The price is falling; buying into it is how you get stuck."] =
     "가격이 내려가는 중입니다. 여기서 사면 물리기 딱 좋습니다.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "가격은 마지막으로 받아온 값으로, 최대 45초 전의 것입니다. 확인하기 전에 값이 바뀌면 옛 가격으로 보내지 않고 등록을 포기합니다.",
-  ["The price moved -- part of this quote may be above your price"] =
-    "가격이 바뀌었습니다 -- 이 견적의 일부가 내 가격보다 비쌀 수 있습니다",
+  ["The price moved: part of this quote may be above your price"] =
+    "가격이 바뀌었습니다. 이 견적의 일부가 내 가격보다 비쌀 수 있습니다",
   ["The price moved and the trade is no longer safe."] = "가격이 움직여 더 이상 안전한 거래가 아닙니다.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "5% 수수료와 등록비를 내고 나면 설정한 최소 수익에 미치지 못합니다.",
@@ -534,15 +534,15 @@ GC.Locales.koKR = {
   ["Unit price"] = "단가",
   ["Unknown"] = "알 수 없음",
   ["Unknown item"] = "알 수 없는 아이템",
-  ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
-    "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
+  ["Unknown means the cost side is incomplete. Fill it in with Set cost."] =
+    "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다. 매입가 입력으로 채우세요.",
   ["VERDICT"] = "판정",
   ["Verdict"] = "판정",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "경매장 대기 중 %d",
   ["WATCH"] = "관찰",
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
-  ["WATCH = the live check refused it -- hover the row for the reason"] =
-    "관찰 = 실시간 확인이 거절했습니다 -- 줄에 마우스를 올리면 이유가 나옵니다",
+  ["WATCH = the live check refused it. Hover the row for the reason"] =
+    "관찰 = 실시간 확인이 거절했습니다. 줄에 마우스를 올리면 이유가 나옵니다",
   ["WHAT COUNTS AS A DEAL"] = "거래로 인정되는 조건",
   ["WHAT TO DO"] = "할 일",
   ["WHAT YOU PAID"] = "내가 지불한 값",
@@ -553,7 +553,7 @@ GC.Locales.koKR = {
   ["Waiting for the purchase to finish…"] = "구매가 끝나기를 기다리는 중…",
   ["Wall absorb window (hours)"] = "물량 흡수 기간 (시간)",
   ["Watching closely: %d item%s"] = "자세히 주시 중: 아이템 %d개%s",
-  ["Watching — pinned, but not a deal right now"] = "주시 중 — 고정했지만 지금은 거래가 아닙니다",
+  ["Watching: pinned, but not a deal right now"] = "주시 중: 고정했지만 지금은 거래가 아닙니다",
   ["What one of these actually cost you, averaged over the purchases still on hand."] =
     "아직 보유 중인 매입 건들을 평균해서, 한 개가 실제로 얼마였는지.",
   ["What to do"] = "무엇을 할지",
@@ -566,8 +566,8 @@ GC.Locales.koKR = {
   ["Window position & size"] = "창 위치와 크기",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "있으면 서버 시세가 자동으로 갱신되고, 판매 기록과 수익이 goldcap.gg에 쌓입니다.",
-  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
-    "없으면 GoldCap은 릴리스 시점의 시세 스냅샷으로 돌아갑니다 — 오래된 시세로 거래를 찾게 됩니다.",
+  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
+    "없으면 GoldCap은 릴리스 시점의 시세 스냅샷으로 돌아갑니다. 오래된 시세로 거래를 찾게 됩니다.",
   ["Won't buy"] = "사지 않음",
   ["Worst case back"] = "최악의 경우 회수",
   ["YOUR LOTS"] = "내 물량",
@@ -613,7 +613,7 @@ GC.Locales.koKR = {
   ["from %s"] = "%s의 목록",
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",
   ["includes %d for crafting %s"] = "%d개는 %s 제작용",
-  ["no answer — check your mail"] = "응답 없음 — 우편함을 확인하세요",
+  ["no answer. Check your mail"] = "응답 없음. 우편함을 확인하세요",
   ["nothing at or under your cap of %s"] = "상한 %s 이하 매물 없음",
   ["nothing on offer"] = "매물 없음",
   ["on %s"] = "%s 서버",
@@ -621,7 +621,7 @@ GC.Locales.koKR = {
   ["over your cap · %s"] = "상한 초과 · %s",
   ["plan updated on goldcap.gg"] = "goldcap.gg에서 계획이 갱신됨",
   ["price moved to %s"] = "가격이 %s(으)로 바뀜",
-  ["purchase failed — try again"] = "구매 실패 — 다시 시도하세요",
+  ["purchase failed. Try again"] = "구매 실패. 다시 시도하세요",
   ["right-click to skip or change the cap"] = "우클릭: 건너뛰기 또는 상한 변경",
   ["seen %s ago"] = "%s 전에 확인",
   ["skipped for now"] = "잠시 건너뜀",
@@ -637,17 +637,17 @@ GC.Locales.koKR = {
     "최저가보다 높게, 저가 구간 안 · 앞에 %s개",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "최저가보다 높게, 하루 도달 범위 안 · 앞에 %s개",
-  ["against the region's own price for this item, after the 5% cut — if it sells"] =
-    "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
+  ["against the region's own price for this item, after the 5% cut, if it sells"] =
+    "이 아이템의 지역 기준가 대비, 수수료 5% 제외, 팔린다면",
   ["age %ss"] = "%s초 전",
-  ["another purchase took over -- nothing was confirmed"] = "다른 구매가 대신 진행 중입니다 -- 아무것도 확정하지 않았습니다",
+  ["another purchase took over: nothing was confirmed"] = "다른 구매가 대신 진행 중입니다. 아무것도 확정하지 않았습니다",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
-  ["at or under your price -- click Buy to purchase"] = "내 가격 이하 -- Buy를 눌러 구매하세요",
+  ["at or under your price. Click Buy to purchase"] = "내 가격 이하. Buy를 눌러 구매하세요",
   ["auto off"] = "자동 꺼짐",
   ["auto-synced %dh ago"] = "%d시간 전 자동 동기화",
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
-  ["auto-synced data stale -- /goldcap import"] = "자동 동기화 자료가 오래됨 -- /goldcap import",
+  ["auto-synced data stale: /goldcap import"] = "자동 동기화 자료가 오래됨. /goldcap import",
   ["auto: paused"] = "자동: 일시중지",
   ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",
@@ -663,10 +663,10 @@ GC.Locales.koKR = {
   ["confirmed commodity purchase failed after AH close"] =
     "경매장 종료 후 확정된 상품 구매가 실패했습니다",
   ["confirming purchase..."] = "구매 확정 중...",
-  ["cost basis incomplete -- set costs to get repost advice"] =
-    "원가 정보가 불완전합니다 -- 재등록 조언을 받으려면 원가를 입력하세요",
+  ["cost basis incomplete. Set costs to get repost advice"] =
+    "원가 정보가 불완전합니다. 재등록 조언을 받으려면 원가를 입력하세요",
   ["crafted %s"] = "제작 %s",
-  ["due -- will be asked next pass"] = "차례 -- 다음 순회에 조회합니다",
+  ["due, will be asked next pass"] = "차례, 다음 순회에 조회합니다",
   ["fair"] = "보통",
   ["far below market"] = "시세보다 훨씬 낮음",
   ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",
@@ -674,83 +674,83 @@ GC.Locales.koKR = {
   ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "가격은 %s입니다. 1회 구매 한도 %d%% 기준으로 이 캐릭터에 %s 이상 있어야 합니다.",
   ["fresh"] = "최신",
   ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
-  ["full scan interrupted -- confirm your purchase"] = "전체 검색이 중단됨 -- 구매를 확정하세요",
-  ["full scan stalled -- press Full Scan to retry"] =
-    "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
-  ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
-  ["full scan stopped -- press %s to run it again"] = "전체 검색이 중단됐습니다 -- %s 버튼을 눌러 다시 실행하세요",
+  ["full scan interrupted. Confirm your purchase"] = "전체 검색이 중단됨. 구매를 확정하세요",
+  ["full scan stalled. Press Full Scan to retry"] =
+    "전체 검색이 멈췄습니다. Full Scan을 눌러 다시 시도하세요",
+  ["full scan stalled, retrying shortly"] = "전체 검색이 멈췄습니다. 곧 다시 시도합니다",
+  ["full scan stopped. Press %s to run it again"] = "전체 검색이 중단됐습니다. %s 버튼을 눌러 다시 실행하세요",
   ["gone / price changed"] = "사라짐 / 가격 변경",
   ["goldcap.gg prices for WoW: Forever are not out yet."] =
     "WoW: Forever용 goldcap.gg 가격은 아직 제공되지 않습니다.",
   ["strong"] = "높음",
   ["hold"] = "보류",
-  ["identity unresolved (variant item -- not priced by design)"] =
-    "식별 실패 (변형 아이템 -- 의도적으로 가격을 매기지 않음)",
+  ["identity unresolved (variant item, not priced by design)"] =
+    "식별 실패 (변형 아이템, 의도적으로 가격을 매기지 않음)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "%d개를 모두 사서 지금 걸려 있는 가격에 되판다면",
   ["ilvl %d"] = "아이템 레벨 %d",
   ["import %dh old"] = "가져오기 %d시간 경과",
-  ["import stale -- /goldcap import or /goldcap companion"] =
-    "가져온 자료가 오래됨 -- /goldcap import 또는 /goldcap companion",
-  ["imported %d items for %s (%s) — prices are live now."] =
-    "아이템 %d개를 가져왔습니다 · %s (%s) — 이제 시세가 반영됩니다.",
+  ["import stale: /goldcap import or /goldcap companion"] =
+    "가져온 자료가 오래됨. /goldcap import 또는 /goldcap companion",
+  ["imported %d items for %s (%s). Prices are live now."] =
+    "아이템 %d개를 가져왔습니다 · %s (%s). 이제 시세가 반영됩니다.",
   ["in the mail"] = "우편함에 있음",
   ["in the mail, the bank or on another character"] = "우편함, 은행 또는 다른 캐릭터에 있음",
-  ["is what this market absorbs — past that you are buying stock you will sit on"] =
-    "가 이 시장이 소화하는 양입니다 — 그 이상은 떠안게 될 재고입니다",
+  ["is what this market absorbs. Past that you are buying stock you will sit on"] =
+    "가 이 시장이 소화하는 양입니다. 그 이상은 떠안게 될 재고입니다",
   ["item %d"] = "아이템 %d",
   ["item %d: %s"] = "아이템 %d: %s",
   ["item level %d+"] = "아이템 레벨 %d+",
   ["item variant unresolved"] = "아이템 변형 미확정",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
-  ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
-    "최근 24시간 — 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
+  ["last 24h: %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
+    "최근 24시간: 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
   ["last live price %s ago"] = "마지막 실시간 가격, %s 전",
   ["leave these alone"] = "그대로 두세요",
   ["level %d"] = "레벨 %d",
-  ["listing gone -- already bought out or price changed"] =
-    "등록이 사라짐 -- 이미 팔렸거나 가격이 바뀌었습니다",
-  ["listing gone -- bought out or repriced"] = "매물이 사라졌습니다 — 팔렸거나 가격이 바뀜",
-  ["live safety confirmed -- click Buy to purchase"] = "실시간 안전 확인 완료 -- Buy를 눌러 구매하세요",
+  ["listing gone: already bought out or price changed"] =
+    "등록이 사라짐. 이미 팔렸거나 가격이 바뀌었습니다",
+  ["listing gone: bought out or repriced"] = "매물이 사라졌습니다. 팔렸거나 가격이 바뀜",
+  ["live safety confirmed. Click Buy to purchase"] = "실시간 안전 확인 완료. Buy를 눌러 구매하세요",
   ["live verification required"] = "실시간 확인이 필요합니다",
   ["the cheapest is %s, your cap is %s"] = "최저가 %s, 내 상한 %s",
-  ["the run changed — start again"] = "목록이 바뀜 — 다시 시작하세요",
-  ["took too long — try again"] = "시간 초과 — 다시 시도하세요",
+  ["the run changed. Start again"] = "목록이 바뀜. 다시 시작하세요",
+  ["took too long. Try again"] = "시간 초과. 다시 시도하세요",
   ["usually cheapest around %s · %d%%"] = "보통 %s 무렵 가장 저렴 · %d%%",
   ["vendor"] = "상인",
   ["vs %s at the auction house · right-click to buy it whole"] = "경매장 %s 대비 · 우클릭하면 통째로 구매",
   ["vs %s at the auction house · right-click to split"] = "경매장 %s 대비 · 우클릭하면 재료로 나누기",
   ["weak"] = "낮음",
-  ["manual import -- Companion keeps this fresh: /goldcap companion"] =
-    "수동 가져오기 -- Companion이 자동 갱신합니다: /goldcap companion",
+  ["manual import. Companion keeps this fresh: /goldcap companion"] =
+    "수동 가져오기. Companion이 자동 갱신합니다: /goldcap companion",
   ["market %s"] = "시세 %s",
   ["needs %s"] = "%s 필요",
-  ["needs a fresh price -- press Refresh"] = "최신 가격이 필요합니다 -- Refresh를 누르세요",
-  ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
-    "서버 확인이 없습니다 -- 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
+  ["needs a fresh price. Press Refresh"] = "최신 가격이 필요합니다. Refresh를 누르세요",
+  ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
+    "서버 확인이 없습니다. 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
   ["no cost"] = "원가 없음",
   ["no cost for %d"] = "%d개 원가 없음",
   ["no live price yet"] = "아직 실시간 가격 없음",
   ["no live price"] = "실시간 가격 없음",
-  ["no live quote yet — pricing…"] = "아직 실시간 시세가 없습니다 — 가격 확인 중…",
+  ["no live quote yet, pricing…"] = "아직 실시간 시세가 없습니다. 가격 확인 중…",
   ["no market figure for caged pets"] = "우리에 든 애완동물은 시장 수치 없음",
   ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
-  ["no prices yet -- /goldcap companion or /goldcap import"] =
-    "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
-  ["no purchase confirmation received -- Cancel and retry"] =
-    "구매 확인을 받지 못했습니다 -- Cancel 후 다시 시도하세요",
-  ["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"] =
-    "기록된 판매가 없습니다 — GoldCap을 켠 채 우편함을 열면 청구서에서 읽어옵니다",
-  ["no stock in bags or listed -- nothing to price for"] =
-    "가방에도 없고 등록도 없습니다 -- 가격을 매길 대상이 없습니다",
+  ["no prices yet: /goldcap companion or /goldcap import"] =
+    "아직 시세가 없습니다. /goldcap companion 또는 /goldcap import",
+  ["no purchase confirmation received. Cancel and retry"] =
+    "구매 확인을 받지 못했습니다. Cancel 후 다시 시도하세요",
+  ["no sales recorded yet. Open your mailbox with GoldCap loaded and they will be read from the invoices"] =
+    "기록된 판매가 없습니다. GoldCap을 켠 채 우편함을 열면 청구서에서 읽어옵니다",
+  ["no stock in bags or listed, nothing to price for"] =
+    "가방에도 없고 등록도 없습니다. 가격을 매길 대상이 없습니다",
   ["none"] = "없음",
-  ["not enough gold -- total %s, you have %s"] = "골드가 부족합니다 -- 총 %s, 보유 %s",
-  ["not enough gold for this quote -- Cancel"] = "이 가격에 필요한 골드가 부족합니다 -- Cancel",
-  ["not enough gold on this character -- you need %s"] = "이 캐릭터의 골드가 부족합니다 -- %s 필요",
-  ["not enough units left for that quantity -- re-checking what remains..."] =
-    "해당 수량만큼 남아 있지 않습니다 -- 남은 물량을 다시 확인하는 중...",
-  ["not priced — nothing on hand to sell"] = "가격 없음 — 판매할 물건이 없습니다",
+  ["not enough gold: total %s, you have %s"] = "골드가 부족합니다. 총 %s, 보유 %s",
+  ["not enough gold for this quote. Cancel"] = "이 가격에 필요한 골드가 부족합니다. Cancel",
+  ["not enough gold on this character: you need %s"] = "이 캐릭터의 골드가 부족합니다. %s 필요",
+  ["not enough units left for that quantity, re-checking what remains..."] =
+    "해당 수량만큼 남아 있지 않습니다. 남은 물량을 다시 확인하는 중...",
+  ["not priced: nothing on hand to sell"] = "가격 없음: 판매할 물건이 없습니다",
   ["not ready to cancel"] = "취소할 준비가 되지 않았습니다",
   ["not ready to post"] = "등록할 준비가 되지 않았습니다",
   ["nothing listed"] = "등록된 것이 없습니다",
@@ -764,37 +764,37 @@ GC.Locales.koKR = {
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["paid sale unresolved"] = "정산된 판매 미확정",
   ["placing bid..."] = "입찰 중...",
-  ["previous commodity purchase settled -- %s to re-check the price"] =
-    "이전 상품 구매가 끝남 -- %s 버튼으로 가격을 다시 확인하세요",
-  ["price changed after you closed the buy window -- nothing was bought"] =
-    "구매 창을 닫은 뒤 가격이 바뀌었습니다 -- 아무것도 구매하지 않았습니다",
-  ["price checked, sale speed unknown -- this one is your call"] =
-    "가격은 확인했지만 판매 속도는 알 수 없습니다 -- 판단은 당신 몫입니다",
-  ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
-  ["price rose %.1fx — still safe, confirm"] = "가격이 %.1f배 올랐습니다 — 여전히 안전합니다, 확정하세요",
+  ["previous commodity purchase settled. %s to re-check the price"] =
+    "이전 상품 구매가 끝남. %s 버튼으로 가격을 다시 확인하세요",
+  ["price changed after you closed the buy window: nothing was bought"] =
+    "구매 창을 닫은 뒤 가격이 바뀌었습니다. 아무것도 구매하지 않았습니다",
+  ["price checked, sale speed unknown. This one is your call"] =
+    "가격은 확인했지만 판매 속도는 알 수 없습니다. 판단은 당신 몫입니다",
+  ["price confirmed. Click Buy to purchase"] = "가격 확인됨. Buy를 눌러 구매하세요",
+  ["price rose %.1fx, still safe. Confirm"] = "가격이 %.1f배 올랐습니다. 여전히 안전합니다, 확정하세요",
   ["price stands %d of %d"] = "가격 순위 %d / %d",
-  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
-    "불러온 시세는 %s(%s)인데 접속 지역은 %s입니다 — 모든 할인율과 수익이 다른 시장 기준으로 계산됩니다",
+  ["prices loaded are %s (%s) but you are playing in %s, so every discount and profit figure is measured against another market"] =
+    "불러온 시세는 %s(%s)인데 접속 지역은 %s입니다. 모든 할인율과 수익이 다른 시장 기준으로 계산됩니다",
   ["purchase canceled"] = "구매를 취소했습니다",
   ["purchase complete"] = "구매 완료",
   ["purchase identity unresolved"] = "구매 대상 미확정",
   ["purchase pending exact cost"] = "정확한 원가를 기다리는 구매",
-  ["purchase total unavailable — inspect mailbox"] = "구매 총액을 알 수 없습니다 — 우편함을 확인하세요",
-  ["quote %s -- click Confirm to buy"] = "시세 %s -- Confirm을 눌러 구매하세요",
+  ["purchase total unavailable. Check your mail"] = "구매 총액을 알 수 없습니다. 우편함을 확인하세요",
+  ["quote %s. Click Confirm to buy"] = "시세 %s. Confirm을 눌러 구매하세요",
   ["quote %ss ago"] = "시세 %s초 전",
-  ["quote expired -- Refresh to re-check the price"] =
-    "시세가 만료됨 -- Refresh로 가격을 다시 확인하세요",
-  ["quote expires in %d s -- click Confirm to buy"] = "시세가 %d초 후 만료됨 -- Confirm을 눌러 구매하세요",
+  ["quote expired. Refresh to re-check the price"] =
+    "시세가 만료됨. Refresh로 가격을 다시 확인하세요",
+  ["quote expires in %d s. Click Confirm to buy"] = "시세가 %d초 후 만료됨. Confirm을 눌러 구매하세요",
   ["re-checking what remains at a safe price..."] = "안전한 가격에 남은 물량을 다시 확인하는 중...",
-  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
-    "서버 아이템 — 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",
+  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
+    "서버 아이템, 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",
   ["recent sales (newest first):"] = "최근 판매 (최신순):",
-  ["region %s — bundled: %d items (%s), imported: %s"] =
-    "지역 %s — 내장: 아이템 %d개 (%s), 가져옴: %s",
+  ["region %s · bundled: %d items (%s), imported: %s"] =
+    "지역 %s · 내장: 아이템 %d개 (%s), 가져옴: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "장부 %d줄의 지역을 바로잡고, 판매 %d건을 재고와 다시 연결했습니다",
-  ["relisting now would lock in a loss or a stall -- hold"] =
-    "지금 재등록하면 손실이나 정체가 확정됩니다 -- 보류하세요",
+  ["relisting now would lock in a loss or a stall. Hold"] =
+    "지금 재등록하면 손실이나 정체가 확정됩니다. 보류하세요",
   ["removed %d duplicate purchase records left by a mail-scan bug"] =
     "우편 검사 오류로 남은 중복 구매 기록 %d건을 삭제했습니다",
   ["removed %d duplicate sale records left by a mail-scan bug"] =
@@ -813,8 +813,8 @@ GC.Locales.koKR = {
   ["stack not identified"] = "묶음 식별 불가",
   ["starting full scan..."] = "전체 검색을 시작합니다...",
   ["stopped watching %s"] = "%s 주시를 멈췄습니다",
-  ["the Companion wrote prices this addon could not read --"] =
-    "Companion이 기록한 시세를 이 애드온이 읽지 못했습니다 --",
+  ["the Companion wrote prices this addon could not read:"] =
+    "Companion이 기록한 시세를 이 애드온이 읽지 못했습니다:",
   ["the auction house has not sent details for these yet"] = "경매장이 아직 이 아이템들의 정보를 보내지 않았습니다",
   ["the import failed (%s)"] = "가져오기에 실패했습니다 (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
@@ -830,20 +830,20 @@ GC.Locales.koKR = {
   ["wall"] = "벽",
   ["wall %s at %s: price under it to sell first"] = "%s개 벽 (%s): 그보다 낮게 올려야 먼저 팔립니다",
   ["wall %s at %s above you"] = "%s개 벽 (%s): 내 가격보다 위",
-  ["watching %s closely -- re-checked every few seconds"] =
-    "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
+  ["watching %s closely, re-checked every few seconds"] =
+    "%s을(를) 자세히 주시 중. 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =
     "최악의 경우, %d개를 지금 걸려 있는 가격에 모두 되판다면",
   ["worth cancelling"] = "취소할 만함",
   ["would sell at a loss"] = "손해를 보고 팔게 됩니다",
-  ["you have enough gold for this now -- Check again"] = "이제 골드가 충분합니다 -- Check를 눌러 다시 확인하세요",
-  ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
-    "아직 서버 시세를 가져오지 않았습니다 -- GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",
+  ["you have enough gold for this now. Check again"] = "이제 골드가 충분합니다. Check를 눌러 다시 확인하세요",
+  ["you haven't imported realm prices yet. Install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
+    "아직 서버 시세를 가져오지 않았습니다. GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",
   ["you take %d"] = "%d개 가져감",
-  ["your game client has no font for this language — the text will show as empty boxes"] =
-    "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
-  ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
-    "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["your game client has no font for this language, so the text will show as empty boxes"] =
+    "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다. 글자가 빈 네모로 보입니다",
+  ["your import is %d hours old and prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
+    "가져온 자료가 %d시간 지났습니다. 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
   ["your price is above every level shown"] = "내 가격이 표시된 모든 단계보다 높음",
   ["your scan, %s ago"] = "내 검색, %s 전",
   ["yours"] = "내 가격",
@@ -860,11 +860,11 @@ GC.Locales.koKR = {
   ["×%d listed at %s each"] = "×%d, 개당 %s에 등록됨",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 구매 %s · %s · %s",
   ["×%d%s · made %s · %s"] = "×%d%s · 제작 %s · %s",
-  ["— = nothing is checking this row right now"] = "— = 지금 이 줄을 확인하는 것은 없습니다",
+  ["- = nothing is checking this row right now"] = "- = 지금 이 줄을 확인하는 것은 없습니다",
   ["… = a live check is queued for this row"] = "… = 이 줄의 실시간 확인이 대기 중입니다",
-  ["no answer %ds ago -- resting"] = "%d초 전 응답 없음 -- 대기 중",
-  ["the last attempt is still settling -- checking the price again..."] =
-    "이전 시도가 아직 정리되는 중 -- 가격을 다시 확인하는 중...",
+  ["no answer %ds ago, resting"] = "%d초 전 응답 없음. 대기 중",
+  ["the last attempt is still settling, checking the price again..."] =
+    "이전 시도가 아직 정리되는 중. 가격을 다시 확인하는 중...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "goldcap.gg에서 정한 내 가격 이하로 등록됨 (그룹: %s)",
   ["AUTO · PAUSED: BUY WINDOW"] = "자동 · 일시중지: 구매 창",
@@ -897,32 +897,30 @@ GC.Locales.koKR = {
   ["whole-market data not in use: %s"] = "지역 전체 시세 사용 안 함: %s",
   ["it is %s old, and the prices you imported are newer"] = "%s 지난 자료이며, 가져온 시세가 더 최신입니다",
   ["it is for another region than the prices loaded"] = "불러온 시세와 다른 지역의 자료입니다",
-  ["its date cannot be right -- check this computer's clock"] = "날짜가 올바를 수 없습니다 -- 이 컴퓨터의 시계를 확인하세요",
-  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
-    "이번 세션에서 다른 시세를 불러오면서 보류되었습니다 -- 다시 쓰려면 /reload",
+  ["its date cannot be right. Check this computer's clock"] = "날짜가 올바를 수 없습니다. 이 컴퓨터의 시계를 확인하세요",
+  ["it was set aside when other prices were loaded this session. /reload to use it again"] =
+    "이번 세션에서 다른 시세를 불러오면서 보류되었습니다. 다시 쓰려면 /reload",
   ["On the AH now"] = "지금 경매장",
   ["%s listed · %d min ago"] = "%s개 등록 · %d분 전",
   ["%s listed · just now"] = "%s개 등록 · 방금",
   ["it could not be read (%s)"] = "읽을 수 없었습니다 (%s)",
-  ["it is for a region this build of GoldCap does not know -- update the addon"] =
-    "이 버전의 GoldCap이 지원하지 않는 지역의 자료입니다 -- 애드온을 업데이트하세요",
-  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
-    "이 버전의 GoldCap이 읽을 수 없는 형식입니다 -- 애드온을 업데이트하세요",
-  ["it is larger than this build of GoldCap can read -- update the addon"] =
-    "이 버전의 GoldCap이 읽을 수 있는 크기보다 큽니다 -- 애드온을 업데이트하세요",
-  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
-    "Companion이 빈 자료를 기록했습니다 -- 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
-  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
-    "Companion이 시세 없는 자료를 기록했습니다 -- 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
+  ["it is for a region this build of GoldCap does not know. Update the addon"] =
+    "이 버전의 GoldCap이 지원하지 않는 지역의 자료입니다. 애드온을 업데이트하세요",
+  ["it is in a format this build of GoldCap cannot read. Update the addon"] =
+    "이 버전의 GoldCap이 읽을 수 없는 형식입니다. 애드온을 업데이트하세요",
+  ["it is larger than this build of GoldCap can read. Update the addon"] =
+    "이 버전의 GoldCap이 읽을 수 있는 크기보다 큽니다. 애드온을 업데이트하세요",
+  ["the Companion wrote an empty copy. Let it sync, then /reload"] =
+    "Companion이 빈 자료를 기록했습니다. 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
+  ["the Companion wrote it with no prices. Let it sync, then /reload"] =
+    "Companion이 시세 없는 자료를 기록했습니다. 다시 동기화될 때까지 기다린 뒤 /reload 하세요",
   ["Scanning the auction house…"] = "경매장을 검색하는 중…",
-  ["%s lots scanned -- shared on your next /reload"] = "%s개 경매 항목 검색됨 -- 다음 /reload 때 공유됩니다",
   ["%s lots scanned and saved"] = "%s개 경매 항목 검색되어 저장됨",
-  ["%s items scanned -- shared on your next /reload"] = "%s개 아이템 검색됨 -- 다음 /reload 때 공유됩니다",
   ["%s items scanned and saved"] = "%s개 아이템 검색되어 저장됨",
-  ["The full scan is cooling down (%d min left) -- scanning by browsing instead"] =
-    "전체 검색이 쿨다운 중입니다 (%d분 남음) -- 대신 둘러보기로 검색합니다",
-  ["The auction house did not answer the full scan -- scanning by browsing instead"] =
-    "경매장이 전체 검색에 응답하지 않았습니다 -- 대신 둘러보기로 검색합니다",
+  ["The full scan is cooling down (%d min left). Scanning by browsing instead"] =
+    "전체 검색이 쿨다운 중입니다 (%d분 남음). 대신 둘러보기로 검색합니다",
+  ["The auction house did not answer the full scan. Scanning by browsing instead"] =
+    "경매장이 전체 검색에 응답하지 않았습니다. 대신 둘러보기로 검색합니다",
   ["reading the auction house: %s of %s lots"] = "경매장 읽는 중: %s / %s 경매 항목",
   ["The scan found nothing to save"] = "저장할 검색 결과가 없습니다",
   ["Scans the whole auction house for prices: a full list at most once every 15 minutes, browsing in between. GoldCap also scans when you open the auction house."] =
@@ -935,8 +933,8 @@ GC.Locales.koKR = {
     "매도 탭의 등록 버튼은 상인이 주는 값보다 비싼 모든 것을 나열하며, 클릭 한 번에 하나씩 등록합니다.",
   ["Your bags: %s at a vendor. Scan the auction house to see what they would fetch there."] =
     "가방: 상인에게 %s. 경매장을 검색하면 그곳에서 받을 수 있는 값을 알 수 있습니다.",
-  ["a vendor pays more -- sell it there"] =
-    "상인이 더 쳐줍니다 -- 거기서 파세요",
+  ["a vendor pays more: sell it there"] =
+    "상인이 더 쳐줍니다: 거기서 파세요",
   ["vendor pays more"] =
     "상인이 더 쳐줌",
   ["Below vendor"] =
@@ -950,11 +948,11 @@ GC.Locales.koKR = {
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =
-    "%s 이하로 구매: 경매장 시세(등록된 물량 중 가장 싼 10분의 1이 요구하는 가격)는 %s입니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 5%% 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다.",
-  ["under the vendor price -- click Buy to purchase"] =
-    "상인가 미만 -- Buy를 눌러 구매하세요",
-  ["far under the market, resale speed unknown -- click Buy to purchase"] =
-    "시세보다 훨씬 낮음, 재판매 속도는 알 수 없음 -- Buy를 눌러 구매하세요",
+    "%s 이하로 구매: 경매장 시세(등록된 물량 중 가장 싼 10분의 1이 요구하는 가격)는 %s입니다. 재판매 속도를 알 수 없어 상인 거래보다 위험합니다. 이 구매로 수수료와 등록비를 제한 뒤 약 %s의 이익이 납니다(수수료 5%%).",
+  ["under the vendor price. Click Buy to purchase"] =
+    "상인가 미만. Buy를 눌러 구매하세요",
+  ["far under the market, resale speed unknown. Click Buy to purchase"] =
+    "시세보다 훨씬 낮음, 재판매 속도는 알 수 없음. Buy를 눌러 구매하세요",
   ["No deals in your last scan."] =
     "최근 스캔에 거래가 없습니다.",
   ["Deals appear as soon as the scan finds them."] =
@@ -980,10 +978,10 @@ GC.Locales.koKR = {
   ["Shared with goldcap.gg on your next /reload"] = "다음 /reload 때 goldcap.gg와 공유됩니다",
   ["Your scans stay on this computer. The GoldCap Companion shares them with goldcap.gg and brings everyone's prices back."] = "검색 결과는 이 컴퓨터에만 저장됩니다. GoldCap Companion이 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
   ["The GoldCap Companion shares your scans with goldcap.gg after each /reload and brings everyone's prices back."] = "GoldCap Companion이 /reload할 때마다 검색 결과를 goldcap.gg와 공유하고 모두의 시세를 가져옵니다.",
-  ["You opened %s -- its first %s prices are yours."] =
-    "%s 경매장을 처음 열었습니다 -- 처음 %s개의 시세는 당신 몫입니다.",
-  ["Your scan updated %s prices on %s -- %s of them nobody else had in the last 24 hours."] =
-    "이번 검색으로 시세 %s개를 %s에서 갱신했습니다 -- 그중 %s개는 최근 24시간 동안 다른 누구도 갖고 있지 않았습니다.",
+  ["You opened %s: its first %s prices are yours."] =
+    "%s 경매장을 처음 열었습니다. 처음 %s개의 시세는 당신 몫입니다.",
+  ["Your scan updated %s prices on %s. %s of them nobody else had in the last 24 hours."] =
+    "이번 검색으로 시세 %s개를 %s에서 갱신했습니다. 그중 %s개는 최근 24시간 동안 다른 누구도 갖고 있지 않았습니다.",
   ["Your scan updated %s prices on %s."] =
     "이번 검색으로 시세 %s개를 %s에서 갱신했습니다.",
   -- Sold tab: tiles, period chips, search, day groups and the sale tooltip.
@@ -1070,7 +1068,7 @@ GC.Locales.koKR = {
   ["%s · %d lots"] = "%s · %d개 경매",
   ["%s · 1 lot"] = "%s · 경매 1개",
   ["%s · over your cap"] = "%s · 상한 초과",
-  ["no cap for this item — right-click the line to set one"] = "이 아이템은 상한이 없습니다 — 줄을 우클릭해 설정하세요",
+  ["no cap for this item. Right-click the line to set one"] = "이 아이템은 상한이 없습니다. 줄을 우클릭해 설정하세요",
   -- BUY 2.0 week 2: the vendor panel beside the merchant (UI/BuyVendorPanel.lua).
   ["BUY %d · %s"] = "%d개 구매 · %s",
   ["BUY · %s"] = "구매 · %s",
@@ -1086,7 +1084,7 @@ GC.Locales.koKR = {
   ["HIDE DETAILS ▲"] = "세부 정보 숨기기 ▲",
   ["SHOW DETAILS ▼"] = "세부 정보 보기 ▼",
   ["plan updated on goldcap.gg · +%d -%d lines"] = "goldcap.gg에서 계획이 갱신됨 · 줄 +%d -%d",
-  ["~ goldcap.gg market value — no live quote yet"] = "~ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
+  ["~ goldcap.gg market value, no live quote yet"] = "~ goldcap.gg 시세, 아직 실시간 시세가 없습니다",
   ["• %s"] = "• %s",
   ["→ needs price"] = "→ 가격 필요",
   -- BUY 2.0: lists made in the game -- New, Import, Export, Rename, favourites, order, Delete
@@ -1104,8 +1102,8 @@ GC.Locales.koKR = {
   ["Delete %s? This cannot be undone."] = "%s 목록을 삭제할까요? 되돌릴 수 없습니다.",
   ["Delete this list…"] = "이 목록 삭제…",
   ["Export"] = "내보내기",
-  ["From goldcap.gg — rename or remove it there"] = "goldcap.gg 목록 — 이름 변경과 삭제는 거기서 하세요",
-  ["GoldCap — Import a list"] = "GoldCap — 목록 가져오기",
+  ["From goldcap.gg: rename or remove it there"] = "goldcap.gg 목록: 이름 변경과 삭제는 거기서 하세요",
+  ["GoldCap: Import a list"] = "GoldCap: 목록 가져오기",
   ["Import a list…"] = "목록 가져오기…",
   ["Import into this list…"] = "이 목록으로 가져오기…",
   ["Imported %s with %d items."] = "%s 목록을 가져왔습니다. 아이템 %d개.",
@@ -1148,7 +1146,7 @@ GC.Locales.koKR = {
   ["Added %d items to a new list, %s."] = "아이템 %d개를 새 목록 %s에 추가했습니다.",
   ["Clear"] = "지우기",
   ["Could not read: %s."] = "읽을 수 없음: %s.",
-  ["Items to add: %d — %s"] = "추가할 아이템: %d개 — %s",
+  ["Items to add: %d (%s)"] = "추가할 아이템: %d개 (%s)",
   ["Recent:"] = "최근:",
   ["Shift-click items, type a name, or an item id with x and a count: 2589 x20."] =
     "아이템을 Shift+클릭하거나, 이름을 입력하거나, 아이템 ID와 x, 수량을 입력하세요: 2589 x20.",

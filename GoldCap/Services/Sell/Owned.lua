@@ -132,7 +132,7 @@ function GC.Sell.OnOwnedAuctions()
       if not lot then live[#live + 1] = auction end
     end
     auctions = live
-    if returned then View.status(GC.L["The cancel did not go through — the lot is still listed"]) end
+    if returned then View.status(GC.L["The cancel did not go through: the lot is still listed"]) end
   end
   S.ownedLots = GC.SellPositions.NormalizeOwnedLots(Owned.Classify(auctions), time())
   local scope = context()

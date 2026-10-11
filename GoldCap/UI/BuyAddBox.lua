@@ -249,7 +249,7 @@ local function paint(bar)
     for _, item in ipairs(bar.items or {}) do
       parts[#parts + 1] = item.qty > 1 and ("%s ×%d"):format(nameOf(item), item.qty) or nameOf(item)
     end
-    local line = #parts > 0 and (GC.L["Items to add: %d — %s"]):format(#parts, table.concat(parts, ", ")) or ""
+    local line = #parts > 0 and (GC.L["Items to add: %d (%s)"]):format(#parts, table.concat(parts, ", ")) or ""
     if #(bar.missed or {}) > 0 then
       local missed = (GC.L["Could not read: %s."]):format(table.concat(bar.missed, ", "))
       line = line ~= "" and (line .. "\n" .. missed) or missed

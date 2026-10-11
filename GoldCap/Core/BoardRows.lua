@@ -75,7 +75,7 @@ function GC.BoardRows.Label(verdict, pending)
   elseif bucket == "PENDING" then
     return "…"
   end
-  return "—"
+  return "-"
 end
 
 -- The refusal in words, for the surfaces that can hold a sentence. nil whenever there is

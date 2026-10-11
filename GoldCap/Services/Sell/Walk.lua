@@ -313,7 +313,7 @@ function Walk.ArmWatchdog()
     if time() - (S.refresh.progressAt or 0) >= PHASE_WATCHDOG_SECONDS then
       Walk.Abandon()
       S.refresh.phase = "error"
-      View.status(GC.L["Auction House did not answer — press Refresh"])
+      View.status(GC.L["Auction House did not answer. Press Refresh"])
       scheduleNextWalk()
       return
     end
@@ -431,7 +431,7 @@ function Walk.Advance()
       -- Its own words, not the posting line's: this is the walk pricing rows in the
       -- background, and "Waiting for the Auction House…" beside a queue with nothing posting
       -- read as though a post the player never made was stuck (2026-09-26).
-      View.status(GC.L["Checking prices — waiting for the Auction House…"])
+      View.status(GC.L["Checking prices: waiting for the Auction House…"])
     end
     retryLater()
     return

@@ -1593,7 +1593,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(0, flipCalls)
     assert.equal(0, ledgerCalls)
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityDraining"))
-    assert.equal("purchase total unavailable — inspect mailbox", GC.Sniper.detachedCommodityStatus[42].note)
+    assert.equal("purchase total unavailable. Check your mail", GC.Sniper.detachedCommodityStatus[42].note)
 
     setUpvalue(GC.Sniper.OnCommodityPurchaseFailed, "commodityDraining", old)
     GC.Sniper.OnCommodityPurchaseFailed()
@@ -1682,7 +1682,7 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(row.decisionSnapshot)
     assert.is_nil(row.armedLevels)
     assert.are_not.equal(nil, row.deal) -- the row itself is not "Gone"
-    assert.equal("not enough units left for that quantity -- re-checking what remains...", statuses[#statuses])
+    assert.equal("not enough units left for that quantity, re-checking what remains...", statuses[#statuses])
 
     _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
   end)
@@ -2566,7 +2566,7 @@ describe("Sniper purchase wiring", function()
     GC.Sniper._ReleaseStrandedConfirmed(stranded)
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
     assert.equal(1, #printed)
-    assert.is_truthy(printed[1]:find("inspect mailbox", 1, true))
+    assert.is_truthy(printed[1]:find("Check your mail", 1, true))
 
     -- ...and the live owned slot alike.
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", stranded)
@@ -3177,7 +3177,7 @@ describe("Sniper purchase wiring", function()
 
       assert.equal("frozen", row.purchaseStage)
       assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
-      assert.is_truthy(printed[1]:find("inspect mailbox", 1, true))
+      assert.is_truthy(printed[1]:find("Check your mail", 1, true))
       -- "frozen" is not a quiet stage, so nothing is holding the board hostage either.
       assert.is_false(GC.Sniper._QuietZoneOpen())
 
@@ -3252,8 +3252,8 @@ describe("Sniper purchase wiring", function()
       GC.Sniper.OnCommodityPurchaseSucceeded()
 
       assert.equal(0, recorded.ledger)
-      assert.is_truthy(printed[1] and printed[1]:find("inspect mailbox", 1, true))
-      assert.equal("purchase total unavailable — inspect mailbox",
+      assert.is_truthy(printed[1] and printed[1]:find("Check your mail", 1, true))
+      assert.equal("purchase total unavailable. Check your mail",
         GC.Sniper.detachedCommodityStatus[42].note)
     end)
 
@@ -3329,7 +3329,7 @@ describe("Sniper purchase wiring", function()
       GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
       assert.equal("requote", row.purchaseStage)
       assert.is_false(dialog.enabled)
-      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+      assert.equal("not enough gold for this quote. Cancel", dialog.written[#dialog.written])
 
       -- And the loud tier, whose countdown must not arm at all.
       row.purchaseStage, row.quoteSnapshot = "buying", nil
@@ -3362,12 +3362,12 @@ describe("Sniper purchase wiring", function()
       GC.Sniper.OnCommodityPriceUpdated(1000, 1000) -- quoted at 100 s, 20 s to run
       assert.equal("confirm", row.purchaseStage)
       assert.is_false(dialog.enabled)
-      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+      assert.equal("not enough gold for this quote. Cancel", dialog.written[#dialog.written])
 
       _G.GetTime = function() return 111 end -- nine seconds left
       GC.Sniper._TickConfirmCountdown()
 
-      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+      assert.equal("not enough gold for this quote. Cancel", dialog.written[#dialog.written])
     end)
 
     -- Task 7: a cap is the player's own price, not a market read. A quote that breaks it must

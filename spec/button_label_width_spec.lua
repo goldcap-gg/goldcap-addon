@@ -196,7 +196,7 @@ describe("row button labels fit the button", function()
     it(("keeps the %s late-answer notes on the dock's line"):format(code), function()
       local GC = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", GC)
-      for _, key in ipairs({ "No answer yet -- listening for a minute", "Last post may still go up -- wait a minute" }) do
+      for _, key in ipairs({ "No answer yet, listening for a minute", "Last post may still go up. Wait a minute" }) do
         local label = assert(GC.Locales[code][key], code .. " is missing " .. key)
         assert.is_true(displayWidth(label) <= holds(254, 9, 1.0), ("%s: %q is %d wide"):format(
           code, label, displayWidth(label)))

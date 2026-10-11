@@ -219,7 +219,7 @@ describe("Sell tab, the posting queue control", function()
     assert.equal(0, #GC.SellState.queueEntries)
     local first = container.queueLabel.text
     assert.is_true(first == "Eternium Ore" or first == "Widget")
-    assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+    assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
     -- POST asks for the price, as the row's Post does.
     assert.is_true(button.enabled)
@@ -227,7 +227,7 @@ describe("Sell tab, the posting queue control", function()
     local second = container.queueLabel.text
     assert.is_true(second == "Eternium Ore" or second == "Widget")
     assert.is_not.equal(first, second)
-    assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+    assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
     container.skipButton.scripts.OnClick(container.skipButton)
     assert.is_false(button.enabled)
     assert.equal("POST", button.label)
@@ -483,7 +483,7 @@ describe("Sell tab, the posting queue control", function()
     end
     ore.scripts.OnClick(ore)
     assert.equal("Eternium Ore", container.queueLabel.text)
-    assert.equal("a vendor pays more -- sell it there", container.dockSub.text)
+    assert.equal("a vendor pays more: sell it there", container.dockSub.text)
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
   end)
 
@@ -525,7 +525,7 @@ describe("Sell tab, the posting queue control", function()
     render()
     -- The dock stops at it all the same, and says why in red.
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
-    assert.matches("a vendor pays more -- sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
+    assert.matches("a vendor pays more: sell it there", GC.SellUI.Dock.HeldBackHint(), 1, true)
   end)
 
   -- The tests above run with no GC.Game at all, which is retail: one press posts, exactly as
@@ -685,7 +685,7 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       ready()
       assert.equal("Widget", container.queueLabel.text)
-      assert.equal("needs a fresh price -- press Refresh", container.dockSub.text)
+      assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
     end)
 
     -- ...nor once the walk has been down the list.

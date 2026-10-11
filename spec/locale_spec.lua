@@ -65,8 +65,8 @@ describe("locale layer", function()
     local fr = helper.loadModule("Locale/Core.lua")
     helper.loadModule("Locale/frFR.lua", fr)
     local translations = fr.Locales.frFR
-    for _, key in ipairs({ "The auction house did not answer -- try again",
-        "Last post may still go up -- wait a minute", "No answer yet -- listening for a minute",
+    for _, key in ipairs({ "The auction house did not answer. Try again",
+        "Last post may still go up. Wait a minute", "No answer yet, listening for a minute",
         "%d ahead of you", "Click Confirm to post" }) do
       local text = assert(translations[key], "frFR is missing " .. key)
       assert.is_nil(text:find("vous", 1, true), text)
@@ -126,8 +126,8 @@ describe("locale layer", function()
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", loc)
-      for _, key in ipairs({ "the Companion wrote an empty copy -- let it sync, then /reload",
-          "the Companion wrote it with no prices -- let it sync, then /reload" }) do
+      for _, key in ipairs({ "the Companion wrote an empty copy. Let it sync, then /reload",
+          "the Companion wrote it with no prices. Let it sync, then /reload" }) do
         local text = assert(loc.Locales[code][key], code .. " is missing " .. key)
         assert.is_truthy(text:find("/reload", 1, true), code .. ": " .. text)
       end
@@ -202,10 +202,10 @@ describe("locale layer", function()
       "GoldCap looks for items listed cheaper than they are worth. SCAN looks again.",
       "No scan of this auction house yet.",
       "GoldCap scans when you open the auction house; SCAN on this board scans again.",
-      "under the vendor price -- click Buy to purchase",
-      "far under the market, resale speed unknown -- click Buy to purchase",
+      "under the vendor price. Click Buy to purchase",
+      "far under the market, resale speed unknown. Click Buy to purchase",
       "AH value",
-      "no live price", "NO LIVE PRICE YET", "Checking prices — waiting for the Auction House…",
+      "no live price", "NO LIVE PRICE YET", "Checking prices: waiting for the Auction House…",
       "last live price %s ago",
       "Press Buy again to buy this quantity",
       "%ds", "%dm", "%dh", "%dd",
@@ -307,7 +307,7 @@ describe("locale layer", function()
   it("carries the BUY 2.0 week 2 keys in all twelve languages", function()
     local keys = {
       "BUY ONE · %s", "set a cap first", "not enough gold", "%s · %d lots", "%s · 1 lot",
-      "%s · over your cap", "no cap for this item — right-click the line to set one",
+      "%s · over your cap", "no cap for this item. Right-click the line to set one",
       "BUY · %s", "BUY %d · %s",
       "Make a list once, buy it here at or under your price.", "Item to add",
       "or plan a whole profession on goldcap.gg",
@@ -318,7 +318,7 @@ describe("locale layer", function()
       "Copy as a TSM item list", "Delete this list…", "Delete %s? This cannot be undone.",
       "Added %d× %s to %s.", "Added %d× %s to a new list, %s.",
       "Lists come from goldcap.gg through the companion, or make one here with + New.",
-      "GoldCap — Import a list", "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
+      "GoldCap: Import a list", "Paste a list from goldcap.gg, TSM or Auctionator and press Import.",
       "Paste a list from goldcap.gg, TSM or Auctionator and press Import. Its items are added to %s.",
       "Vendor list", "The run's vendor reagents. Press Ctrl+C to copy the list.",
     }

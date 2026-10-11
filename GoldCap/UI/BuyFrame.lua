@@ -39,7 +39,7 @@ local bagStock = {}
 local BUY_BAGS = { 0, 1, 2, 3, 4, 5 }
 
 -- Not a translatable string: a glyph standing in for a number nobody has measured yet.
-local EM_DASH = "—"
+local DASH = "-"
 
 local BD = {
   -- The band above the table: the list picker, how much of it is done, what is left to buy here
@@ -189,7 +189,7 @@ end
 -- overflow attempting to store N" past +-2^31 copper (about 214,748g). `silver` stays on %d:
 -- it is bounded 0-99 by the mod above.
 local function formatAmount(amount)
-  if amount == nil then return EM_DASH end
+  if amount == nil then return DASH end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
@@ -1077,7 +1077,7 @@ local function actionLabel(line)
   -- server for THIS item and nothing came back, so the units may already be paid for. Retail
   -- auction house purchases are DELIVERED AS MAIL (Core/Ledger.lua reads them as "Auction won"
   -- invoices), so the mailbox, not the bags, is where the player finds out whether it happened.
-  if strandedFor(line) then return GC.L["no answer — check your mail"], false end
+  if strandedFor(line) then return GC.L["no answer. Check your mail"], false end
   -- A quote held back for an unanswered keys batch (quote): the ask is taken and will go the moment
   -- the batch is gone. Said like a question already on the wire, not as a resting "BUY n" whose
   -- click could do nothing yet (caps fixes 5i) -- for a line with no fresh quote only: one that has
@@ -1143,15 +1143,15 @@ local function actionLabel(line)
   if stage == "requote" then
     return (GC.L["price moved to %s"]):format(formatAmount(attempt.movedTotal)), true
   end
-  if stage == "expired" then return GC.L["took too long — try again"], true end
+  if stage == "expired" then return GC.L["took too long. Try again"], true end
   -- Confirm reached the server and nothing came back. Not offered as a retry: the units may
   -- already be paid for, and the mailbox is where the answer is -- an auction house purchase is
   -- delivered as "Auction won" mail, so the bag re-count only settles it once that mail is taken.
   -- A gear line with more to buy than its unanswered bids could cover (strandedFor said nothing
   -- above) goes on: the next press reads its lots again.
   if stage == "unknown" and attempt.lots and attempt.auctionID then return resting, true end
-  if stage == "unknown" then return GC.L["no answer — check your mail"], false end
-  if stage == "failed" then return GC.L["purchase failed — try again"], true end
+  if stage == "unknown" then return GC.L["no answer. Check your mail"], false end
+  if stage == "failed" then return GC.L["purchase failed. Try again"], true end
   return resting, true
 end
 
@@ -1643,7 +1643,7 @@ local function dropStrandedOnFailure()
   if not (attempt and attempt.stage == "unknown" and attempt.itemID == itemID) then return false end
   GC.Buy._stranded[itemID] = nil
   attempt.stage = "failed"
-  logAttempt(lineFor(itemID), GC.L["purchase failed — try again"], itemID)
+  logAttempt(lineFor(itemID), GC.L["purchase failed. Try again"], itemID)
   GC.Buy.RefreshIfShown()
   return true
 end
@@ -2034,7 +2034,7 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
     cancelStartedPurchase()
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     -- Logged BEFORE the attempt is cleared, so `/gc buy` can still name the item it was about.
-    logAttempt(nil, GC.L["the run changed — start again"], attempt.itemID)
+    logAttempt(nil, GC.L["the run changed. Start again"], attempt.itemID)
     GC.Buy._attempt = nil
     GC.Buy.RefreshIfShown()
     return true
@@ -2603,7 +2603,7 @@ end
 local STATUS_WORD = {
   done = "bought",
   skipped = "skipped for now",
-  stranded = "no answer — check your mail",
+  stranded = "no answer. Check your mail",
   vendor = "at a vendor",
   craft = "craft",
 }
@@ -2666,7 +2666,7 @@ local function paintLine(row, line)
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     local cost, estimated = GC.BuyView.CostOf(line,
       (quotedTotal and quotedTotal > 0) and { qty = offered(line), total = quotedTotal } or recentQuote(line))
-    row.cells.cost:SetText(cost and ((estimated and "~" or "") .. formatAmount(cost)) or EM_DASH)
+    row.cells.cost:SetText(cost and ((estimated and "~" or "") .. formatAmount(cost)) or DASH)
     setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
       and Theme.color.goldHi or (estimated and Theme.color.fgDim or Theme.color.fg))
     return
@@ -2968,7 +2968,7 @@ local function showLineTooltip(row)
           gold[1], gold[2], gold[3], gold[1], gold[2], gold[3])
       elseif why == "nocap" or why == "wallet" then
         local sc = Theme.tier.SUSPECT
-        GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item — right-click the line to set one"]
+        GameTooltip:AddLine(tip(why == "nocap" and GC.L["no cap for this item. Right-click the line to set one"]
           or GC.L["not enough gold"]), sc[1], sc[2], sc[3], true)
       elseif why == "none" then
         GameTooltip:AddLine(tip(GC.L["nothing on offer"]), dim[1], dim[2], dim[3])
@@ -3737,7 +3737,7 @@ local function paintBand()
       end
     end
     band.totalCaption:Show()
-    band.total:SetText(ready > 0 and ((estimated and "~" or "") .. formatAmount(sum)) or EM_DASH)
+    band.total:SetText(ready > 0 and ((estimated and "~" or "") .. formatAmount(sum)) or DASH)
     local width = ((container and container:GetWidth()) or 0) - (GC.Buy._leftInset or 0)
     if totalCount > 0 and doneCount > 0 and width > 0 then
       band.fill:SetWidth(math.max(1, width * doneCount / totalCount))
@@ -3848,7 +3848,7 @@ local DOCK_SUB = {
   craft = "craft it for %s each",
   craft_vs = "craft it for %s each · %s here",
   craft_only = "craft it yourself",
-  nocap = "no cap for this item — right-click the line to set one",
+  nocap = "no cap for this item. Right-click the line to set one",
 }
 
 -- Which arguments of each sub-line are money (formatted), in order; the rest are counts.
@@ -4291,7 +4291,7 @@ function GC.Buy.OnAuctionHouseError(code)
   else
     strandBid(attempt, line)
   end
-  logAttempt(line, attempt.errorText or GC.L["purchase failed — try again"])
+  logAttempt(line, attempt.errorText or GC.L["purchase failed. Try again"])
   GC.Buy.RefreshIfShown()
   return true
 end

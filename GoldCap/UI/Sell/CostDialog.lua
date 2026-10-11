@@ -107,7 +107,7 @@ local function openCostDialog(position)
   -- Which item, and how many of its units have no cost -- the two facts a player needs
   -- before touching any of the numbers below. The dialog used to be anonymous: nothing on
   -- it said which of several open positions it belonged to.
-  dialog.header:SetText((GC.L["%s — %d unit%s without a cost"]):format(
+  dialog.header:SetText((GC.L["%s: %d unit%s without a cost"]):format(
     position.itemName or GC.L["Item"], missing, missing == 1 and "" or "s"))
   -- Defaults to the full uncosted count, not "1" -- entering a cost for stock GoldCap never
   -- saw the player buy is the ordinary case this dialog exists for, and "1" made the player

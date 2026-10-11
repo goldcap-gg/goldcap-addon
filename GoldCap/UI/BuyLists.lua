@@ -368,7 +368,7 @@ function GC.BuyLists.FillActions(root, run)
     root:CreateButton(menuText(GC.L["Import into this list…"]), function() GC.BuyLists.Import(code) end)
   end
   if siteManaged then
-    root:CreateTitle(menuText(GC.L["From goldcap.gg — manage it there"]))
+    root:CreateTitle(menuText(GC.L["From goldcap.gg: manage it there"]))
     return
   end
   if not held(code) then
@@ -377,7 +377,7 @@ function GC.BuyLists.FillActions(root, run)
       root:CreateButton(menuText(GC.L["Delete this list…"]), function() GC.BuyLists.Delete(code) end)
     end
   end
-  if not own then root:CreateTitle(menuText(GC.L["From goldcap.gg — rename or remove it there"])) end
+  if not own then root:CreateTitle(menuText(GC.L["From goldcap.gg: rename or remove it there"])) end
 end
 
 --- A right-click on a list in the column: its name, then what can be done to it.

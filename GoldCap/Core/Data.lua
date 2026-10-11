@@ -94,7 +94,7 @@ function GC.Data.WarnRegionUnknown()
   if imported and type(imported.region) == "string" and imported.region ~= "" then return nil end
   warnedRegionUnknown = true
   if GC.Print then
-    GC.Print(GC.L["GoldCap could not tell which region you are playing in, so it is showing bundled US prices -- /goldcap import or /goldcap companion loads your own realm's"])
+    GC.Print(GC.L["GoldCap could not tell which region you are playing in, so it is showing bundled US prices. /goldcap import or /goldcap companion loads your own realm's"])
   end
   return true
 end
@@ -149,10 +149,10 @@ end
 -- these five sentences sat English in eleven languages. The table has to close with a `}`
 -- on its own line: that is where the spec's scanner stops.
 local IMPORT_ERRORS = {
-  bad_region = "this build of GoldCap does not know that region -- update the addon",
+  bad_region = "this build of GoldCap does not know that region. Update the addon",
   bad_header = "that does not look like a GoldCap import string",
   no_realm = "that string does not name a realm",
-  two_strings = "that looks like two import strings pasted together -- paste just one",
+  two_strings = "that looks like two import strings pasted together. Paste just one",
   too_long = "that string is too long to import",
   no_items = "that string carried no prices",
   empty = "there was nothing to import",
@@ -242,7 +242,7 @@ local warnedFor = nil
 function GC.Data.RegionMismatchText()
   local mismatch = GC.Data.RegionMismatch()
   if not mismatch then return nil end
-  return (GC.L["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"])
+  return (GC.L["prices loaded are %s (%s) but you are playing in %s, so every discount and profit figure is measured against another market"])
     :format(mismatch.imported:upper(), tostring(mismatch.realm or "?"), mismatch.client:upper())
 end
 
@@ -268,7 +268,7 @@ local function recordAppDataError(reason, writtenAt)
   if warnedAppDataError == token then return end
   warnedAppDataError = token
   if GC.Print then
-    GC.Print(GC.L["the Companion wrote prices this addon could not read --"] .. " "
+    GC.Print(GC.L["the Companion wrote prices this addon could not read:"] .. " "
       .. GC.Data.DescribeImportError(reason))
   end
 end

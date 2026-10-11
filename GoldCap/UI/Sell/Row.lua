@@ -151,9 +151,9 @@ local ACTION_HELP = {
   -- Two short paragraphs each, never more (sell_action_help_spec locks the length): the
   -- tooltip opens beside a button inside the list, so every extra line is a row it covers.
   ["Post"] = { "Post", { "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
-  ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
+  ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction. It does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
-  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
+  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost, never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
   ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
 }
 Row.ACTION_HELP = ACTION_HELP
@@ -298,10 +298,10 @@ local function createRow(parent)
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
       if self.marketFallback then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value — no live quote yet"]), 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["~ goldcap.gg market value, no live quote yet"]), 0.85, 0.85, 0.85, true)
       end
       if self.notOnHand then
-        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"]),
+        GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand: the stock is in the mail, the bank, or on another character"]),
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
@@ -557,9 +557,9 @@ function Row.PaintPosition(row, entry, ctx)
   if p.coverage == "COMPLETE" and exact(p.knownCost) and exact(p.knownQty) and p.knownQty > 0 then
     unitCost = math.floor(p.knownCost / p.knownQty)
   end
-  row.cells.cost:SetText(unitCost and formatCell(unitCost) or "—")
+  row.cells.cost:SetText(unitCost and formatCell(unitCost) or "-")
   row.cells.listed:SetText(formatCell(p.listedValue))
-  -- "none" ~= "—": the first is an answer ("the AH has zero listings right now",
+  -- "none" ~= "-": the first is an answer ("the AH has zero listings right now",
   -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
   -- honestly-unlisted items read as the pricing walk being slow or stuck.
   --
@@ -567,7 +567,7 @@ function Row.PaintPosition(row, entry, ctx)
   -- one), but the item was imported from goldcap.gg with a market value -- the same
   -- number Deals shows. That value is not live, so it never overrides an actual AH
   -- answer (an empty one included -- the AH answered "none", which outranks a guess from
-  -- the last import), but showing it beats a "—" that reads as "the addon hasn't checked
+  -- the last import), but showing it beats a "-" that reads as "the addon hasn't checked
   -- yet" for as long as the pricing walk takes to reach this row.
   -- Item 5 (addon polish batch): a bare `emptyAnswers[p.itemID]` presence check made a
   -- ONE-OFF empty AH answer hide the fallback forever -- only a manual Refresh (which
@@ -602,7 +602,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- "~", not "≈": on Korean this cell draws in the client's 2002.TTF, which has no U+2248.
     marketText = "~" .. formatCell(p.marketValue)
   else
-    marketText = emptyKnown and "none" or "—"
+    marketText = emptyKnown and "none" or "-"
   end
   if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
     marketText = marketText .. (GC.L[" · stale %ds"]):format(p.quoteAge)
@@ -664,7 +664,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- 18g against a 92g market. This is the one thing on the row that has
     -- to be read before anything else, so it takes the column and the
     -- alarm colour, and the advice moves aside for it.
-    row.cells.status:SetText((GC.L["Listed at %s — far below market. Repost."]):format(
+    row.cells.status:SetText((GC.L["Listed at %s, far below market. Repost."]):format(
       formatCell(p.underpricedUnit)))
     setColor(row.cells.status, Theme.color.red)
   elseif p.recommendation then
@@ -689,7 +689,7 @@ function Row.PaintPosition(row, entry, ctx)
     -- Nothing in the bags AND nothing listed: the stock this row tracks is in the
     -- mail, the bank, or on another character. Cost coverage is a real question too,
     -- but "where is my ore?" is the one the player is actually asking here.
-    row.cells.status:SetText(GC.L["Not in your bags or listed — mail or bank?"])
+    row.cells.status:SetText(GC.L["Not in your bags or listed. Mail or bank?"])
     setColor(row.cells.status, Theme.color.fgDim)
   elseif p.coverage ~= "COMPLETE" then
     row.cells.status:SetText((GC.L["Cost unknown for %d of %d"]):format(
@@ -717,9 +717,9 @@ function Row.PaintPosition(row, entry, ctx)
   -- one Post for fewer (the panel's "how many").
   local grossQty = onListedDeck and listedQty or postQuantity(p)
   local gross = rowUnit and safeMultiply(rowUnit, grossQty) or nil
-  row.cells.gross:SetText(gross and formatCell(gross) or "—")
+  row.cells.gross:SetText(gross and formatCell(gross) or "-")
   setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)
-  row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "—")
+  row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "-")
   -- A lot the cancel queue calls urgent is priced far under the market: that figure is
   -- the problem, and it is the one on this row that goes red.
   local queuedLot = onListed and ROW.queuedLot(p) or nil

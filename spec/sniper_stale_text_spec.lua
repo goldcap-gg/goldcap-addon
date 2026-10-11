@@ -107,7 +107,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
     refresh(GC)
     -- Short enough to fit the non-wrapping, right-justified banner at the window's
     -- RESIZE_MIN_WIDTH (640): the old, longer wording risked overlapping the title.
-    assert.equal("no prices yet -- /goldcap companion or /goldcap import",
+    assert.equal("no prices yet: /goldcap companion or /goldcap import",
       staleFrame.staleText.text)
     assert.same({ 1, 0, 0 }, staleFrame.staleText.colors)
     assert.is_true(staleFrame.staleText.shown)
@@ -164,7 +164,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
     origin = "manual"
     GC.db.imported = { ts = 1000000 } -- age 0: fresh
     refresh(GC)
-    assert.equal("manual import -- Companion keeps this fresh: /goldcap companion", staleFrame.staleText.text)
+    assert.equal("manual import. Companion keeps this fresh: /goldcap companion", staleFrame.staleText.text)
     assert.is_true(staleFrame.staleText.shown)
     assert.is_true(staleFrame.staleHit.mouseEnabled)
   end)
@@ -183,7 +183,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
     origin = "manual"
     GC.db.imported = { ts = 1000000 - 25 * 3600 } -- 25h old: red band
     refresh(GC)
-    assert.equal("import stale -- /goldcap import or /goldcap companion", staleFrame.staleText.text)
+    assert.equal("import stale: /goldcap import or /goldcap companion", staleFrame.staleText.text)
     assert.is_true(staleFrame.staleHit.mouseEnabled)
   end)
 
@@ -192,7 +192,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
     origin = "app"
     GC.db.imported = { ts = 1000000 - 25 * 3600, origin = "app" }
     refresh(GC)
-    assert.equal("auto-synced data stale -- /goldcap import", staleFrame.staleText.text)
+    assert.equal("auto-synced data stale: /goldcap import", staleFrame.staleText.text)
     assert.is_false(staleFrame.staleHit.mouseEnabled)
   end)
 
@@ -202,7 +202,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
     -- that should never happen given OriginState's own contract, but must not raise "compare
     -- nil with number" if it ever does.
     refresh(GC)
-    assert.equal("no prices yet -- /goldcap companion or /goldcap import", staleFrame.staleText.text)
+    assert.equal("no prices yet: /goldcap companion or /goldcap import", staleFrame.staleText.text)
     assert.is_true(staleFrame.staleHit.mouseEnabled)
   end)
 
@@ -270,7 +270,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
       withDate(function()
         refresh(GC)
         -- The origin banner alone, with nothing appended to push it over the title.
-        assert.equal("no prices yet -- /goldcap companion or /goldcap import",
+        assert.equal("no prices yet: /goldcap companion or /goldcap import",
           staleFrame.staleText.text)
       end)
     end)
@@ -281,7 +281,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
       adopt(GC, 3, 1699999000)
       withDate(function()
         refresh(GC)
-        assert.equal("no prices yet -- /goldcap companion or /goldcap import  3 caps · T1699999000",
+        assert.equal("no prices yet: /goldcap companion or /goldcap import  3 caps · T1699999000",
           staleFrame.staleText.text)
       end)
     end)

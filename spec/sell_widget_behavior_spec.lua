@@ -208,7 +208,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
         bagQty = 0, listedQty = 0, sources = {} },
     })
-    assert.equal("Not in your bags or listed — mail or bank?", rows[1].cells.status.text)
+    assert.equal("Not in your bags or listed. Mail or bank?", rows[1].cells.status.text)
   end)
 
   -- Same shape, checking the ITEM cell and the row's own tooltip rather than STATUS: the row is
@@ -327,7 +327,7 @@ describe("Sell widget geometry and manual cost", function()
     _G.GameTooltip = nil
   end)
 
-  -- "—" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
+  -- "-" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
   -- already answered "nothing is listed". The remembered empty answer paints as "none".
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
     local GC = load(620, { calls = {} })
@@ -341,7 +341,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Nothing listed on the AH right now", rows[1].cells.status.text)
   end)
 
-  -- Below "none" and "—" sits a third case: no live quote yet at all, but the position carries
+  -- Below "none" and "-" sits a third case: no live quote yet at all, but the position carries
   -- the imported goldcap.gg market value (the same number Deals shows). It stands in, dim and
   -- "~"-prefixed so it never impersonates a live number, until a real quote lands.
   it("falls back to the imported market value, dim and '~'-prefixed, with no live quote yet", function()
@@ -614,7 +614,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
           bagQty = 0, listedQty = 0, sources = {} },
       })
-      assert.equal("not priced — nothing on hand to sell", rows[2].drawerFacts.text)
+      assert.equal("not priced: nothing on hand to sell", rows[2].drawerFacts.text)
       assert.same({ .5, .5, .5, 1 }, rows[2].drawerFacts.color)
     end)
 
@@ -626,7 +626,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
           bagQty = 3, listedQty = 0, sources = {} },
       })
-      assert.equal("no live quote yet — pricing…", rows[2].drawerFacts.text)
+      assert.equal("no live quote yet, pricing…", rows[2].drawerFacts.text)
       assert.same({ .5, .5, .5, 1 }, rows[2].drawerFacts.color)
     end)
   end)
@@ -1600,8 +1600,8 @@ describe("Sell widget geometry and manual cost", function()
 
     it("says the empty foot in the panel's language", function()
       local GC = load(620, { calls = {} })
-      local german = { ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
-        ["no live quote yet — pricing…"] = "noch kein Live-Kurs — Preis wird ermittelt…" }
+      local german = { ["not priced: nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
+        ["no live quote yet, pricing…"] = "noch kein Live-Kurs — Preis wird ermittelt…" }
       GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
       GC.SellUI.expanded = { ["commodity:42"] = true }
       local empty = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
