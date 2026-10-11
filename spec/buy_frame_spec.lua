@@ -1174,18 +1174,22 @@ describe("BuyFrame", function()
       assert.equal(4306, GC.Buy.CurrentRun():Lines()[1].itemID)
     end)
 
-    it("moves the list down as the box grows, so nothing sits under it", function()
+    -- With a list on screen the box's matches lie over it, on a panel of their own, rather than
+    -- moving it down on every keystroke; with none they push the first-time state down.
+    it("lays the box's matches over the list, which stays where it is", function()
       GC.db.itemNames = { [2589] = { n = "Linen Cloth" } }
       GC.db.runs["run-1"] = run()
       GC.Buy.SelectRun("run-1")
       GC.Buy.RefreshIfShown()
       local add, band = GC.Buy._view.add, bandOf()
-      local before = add.h
+      local before, top = add.h, band.top
+      assert.is_false(add.pop:IsShown())
       add.box:SetText("linen")
       add.box.scripts.OnTextChanged(add.box, true)
       assert.is_true(add.h > before)
-      assert.equal(add.h, band.top)
-      assert.equal(-add.h, (yOf(band.header, "TOPLEFT")))
+      assert.is_true(add.pop:IsShown())
+      assert.equal(top, band.top)
+      assert.equal(-top, (yOf(band.header, "TOPLEFT")))
     end)
 
     it("keeps the last searches and items as chips: an item's adds it again, a search's runs again", function()

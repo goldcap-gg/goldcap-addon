@@ -36,6 +36,11 @@ local AB = {
   GAP = 4,
   -- The items a name offers, best first. A match's least height; a long name wraps and grows it.
   MAX_MATCHES = 6,
+  -- The drop's panel: DROP_GAP under the well, its contents DROP_PAD in from its edges.
+  DROP_GAP = 4,
+  DROP_PAD = 10,
+  -- How long what an add did stays said.
+  SAID_SECONDS = 5,
   MATCH_H = 20,
   CHIP_H = 18,
   CHIP_MIN_W = 24,
@@ -166,7 +171,7 @@ local function matchRow(bar, i)
   local row = bar.matches[i]
   if row then return row end
   local Theme = GC.Theme
-  row = CreateFrame("Button", nil, bar.frame)
+  row = CreateFrame("Button", nil, bar.pop)
   row:SetHeight(AB.MATCH_H)
   row:RegisterForClicks("LeftButtonUp")
   -- Hover is the engine's HIGHLIGHT layer on a mouse-enabled frame (the BUY rows' own), the arrow
@@ -202,7 +207,7 @@ end
 local function chipFor(bar, i)
   local chip = bar.chips[i]
   if chip then return chip end
-  chip = GC.Theme.Button(bar.frame, "ghost", "badge")
+  chip = GC.Theme.Button(bar.pop, "ghost", "badge")
   chip:SetHeight(AB.CHIP_H)
   chip:SetScript("OnClick", function(self) GC.BuyAddBox.UseRecent(bar, self.recent) end)
   bar.chips[i] = chip
@@ -242,6 +247,9 @@ local function paint(bar)
   local box = bar.box
   local text = box:GetText() or ""
   local focused = box.HasFocus and box:HasFocus() or false
+  -- With a list on screen the drop lies over it (UI/BuyFrame.lua's layoutBand), so what is not news
+  -- -- the hint under the well, the recents -- shows only while the box has the keyboard.
+  local listed = (GC.Buy.CurrentRun and GC.Buy.CurrentRun()) ~= nil
   if text ~= "" or focused then bar.hint:Hide() else bar.hint:Show() end
   -- The well's edge: gold while it has the keyboard, the glass's own otherwise.
   local gc = Theme.color.gold
@@ -298,7 +306,7 @@ local function paint(bar)
     -- above, if any). With it open, Enter searches what is on sale (UI/BuySearch.lua) and says so
     -- there.
     note = GC.L["Open the auction house to search what's on sale."]
-  elseif not bar.mode and (focused or bar.collecting or not (GC.Buy.CurrentRun and GC.Buy.CurrentRun())) then
+  elseif not bar.mode and (focused or not listed) then
     note = GC.L["Shift-click items, type a name, or an item id with x and a count: 2589 x20."]
   end
   bar.note:SetText(note or "")
@@ -307,7 +315,7 @@ local function paint(bar)
   -- The recents, while there is no list on screen or the box is being filled: under a list, they
   -- would push it down for something nobody is doing.
   local list = recents()
-  if not (focused or bar.collecting or not (GC.Buy.CurrentRun and GC.Buy.CurrentRun())) then list = {} end
+  if listed and not focused then list = {} end
   for i, entry in ipairs(list) do
     local chip = chipFor(bar, i)
     chip.recent = entry
@@ -346,12 +354,14 @@ function GC.BuyAddBox.Layout(bar, width)
   bar.well:ClearAllPoints()
   bar.well:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, y)
   bar.well:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, y)
-  y = y - AB.WELL_H
-  local textW = math.max(0, width - 8)
+  y = y - AB.WELL_H - AB.DROP_GAP
+  local dropTop = y
+  local pad = AB.DROP_PAD
+  local textW = math.max(0, width - 2 * pad)
   local function place(fs)
     fs:ClearAllPoints()
-    fs:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, y - AB.GAP)
-    fs:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+    fs:SetPoint("TOPLEFT", frame, "TOPLEFT", pad, y - AB.GAP)
+    fs:SetPoint("RIGHT", frame, "RIGHT", -pad, 0)
     if textW > 0 then fs:SetWidth(textW) end
     y = y - AB.GAP - math.ceil(fs:GetStringHeight() or 12)
   end
@@ -364,18 +374,19 @@ function GC.BuyAddBox.Layout(bar, width)
       row:SetHeight(h)
       local top = y - (first and AB.GAP or 0)
       row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, top)
-      row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, top)
+      row:SetPoint("TOPLEFT", frame, "TOPLEFT", pad - 4, top)
+      row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(pad - 4), top)
       y, first = top - h, false
     end
   end
   if bar.note:IsShown() then place(bar.note) end
   if bar.recentCaption:IsShown() then
     y = y - AB.GAP
-    local x, lineH = 0, AB.CHIP_H
+    local x, lineH = pad, AB.CHIP_H
+    local room = width - pad
     local function flow(region, w, h)
-      if x > 0 and width > 0 and x + w > width then
-        y, x, lineH = y - lineH - AB.GAP, 0, AB.CHIP_H
+      if x > pad and width > 0 and x + w > room then
+        y, x, lineH = y - lineH - AB.GAP, pad, AB.CHIP_H
       end
       region:ClearAllPoints()
       region:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
@@ -385,14 +396,29 @@ function GC.BuyAddBox.Layout(bar, width)
     bar.recentCaption:SetSize(captionW, AB.CHIP_H)
     flow(bar.recentCaption, captionW, AB.CHIP_H)
     for _, chip in ipairs(bar.chips) do
-      if chip:IsShown() then flow(chip, fitChip(chip, width)) end
+      if chip:IsShown() then flow(chip, fitChip(chip, textW)) end
     end
-    flow(bar.clear, fitChip(bar.clear, width))
+    flow(bar.clear, fitChip(bar.clear, textW))
     y = y - lineH
+  end
+  -- The drop's panel behind whatever is under the well; none when nothing is.
+  local pop = bar.pop
+  if y < dropTop then
+    y = y - AB.DROP_PAD + AB.GAP
+    pop:ClearAllPoints()
+    pop:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, dropTop)
+    pop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, dropTop)
+    pop:SetHeight(math.ceil(dropTop - y))
+    pop:Show()
+  else
+    y = -AB.WELL_H
+    pop:Hide()
   end
   local h = math.ceil(-y + AB.GAP + 2)
   frame:SetHeight(h)
   bar.h = h
+  -- What the toolbar keeps for the box when its drop lies over the list: the well alone.
+  bar.wellH = AB.WELL_H + AB.GAP + 2
   return h
 end
 
@@ -426,6 +452,16 @@ function GC.BuyAddBox.AddItems(bar, items, missed)
   end
   if #missed > 0 then said = said .. " " .. (GC.L["Could not read: %s."]):format(table.concat(missed, ", ")) end
   bar.feedback = said
+  -- Said over the list for a moment, then out of its way.
+  if C_Timer and C_Timer.After then
+    C_Timer.After(AB.SAID_SECONDS, function()
+      if bar.feedback == said then
+        bar.feedback = nil
+        paint(bar)
+        relayout()
+      end
+    end)
+  end
   stop(bar)
   bar.box:SetText("")
   bar.box:ClearFocus()
@@ -563,6 +599,9 @@ end
 function GC.BuyAddBox.Create(parent)
   local Theme = GC.Theme
   local frame = CreateFrame("Frame", nil, parent)
+  -- Above the rest of the tab, before anything is made on it: the drop lies over the list's rows,
+  -- which sit deeper in the tab's frames (the scroll's content).
+  if frame.SetFrameLevel and parent.GetFrameLevel then frame:SetFrameLevel((parent:GetFrameLevel() or 0) + 20) end
   frame:SetHeight(AB.WELL_H + 2 * AB.GAP)
   local well = CreateFrame("Frame", nil, frame)
   well:SetHeight(AB.WELL_H)
@@ -596,27 +635,39 @@ function GC.BuyAddBox.Create(parent)
   hint:SetWordWrap(false)
   hint:SetText(GC.L["Item to add"])
   setColor(hint, Theme.color.fgDim)
-  local collected = Theme.Num(frame, 10)
+  -- The drop under the well -- what Enter will add, the matches, the note, the recents -- on a panel
+  -- of its own, the kit's popup, which takes the mouse: with a list on screen it lies over the rows
+  -- (UI/BuyFrame.lua's layoutBand), and a click on it must never reach a row under it.
+  local pop = CreateFrame("Frame", nil, frame)
+  pop:EnableMouse(true)
+  local K = GC.Kit and GC.Kit.Tokens and GC.Kit.Tokens.color
+  local pc = (K and K.popup) or Theme.color.panel
+  Theme.SlicedTexture(pop, "BACKGROUND", Theme.MEDIA .. "plaque.png", { pc[1], pc[2], pc[3], pc[4] or 0.98 }, 12)
+    :SetAllPoints(pop)
+  Theme.SlicedTexture(pop, "BORDER", Theme.MEDIA .. "plaque_ring.png", { 1, 1, 1, 0.09 }, 12):SetAllPoints(pop)
+  if Theme.Shadow then Theme.Shadow(pop, 12, 0.5) end
+  pop:Hide()
+  local collected = Theme.Num(pop, 10)
   collected:SetJustifyH("LEFT")
   collected:SetWordWrap(true)
   collected:Hide()
-  local note = Theme.Num(frame, 10)
+  local note = Theme.Num(pop, 10)
   note:SetJustifyH("LEFT")
   note:SetWordWrap(true)
   setColor(note, Theme.color.fgDim)
   note:Hide()
-  local recentCaption = Theme.Num(frame, 9)
+  local recentCaption = Theme.Num(pop, 9)
   recentCaption:SetJustifyH("LEFT")
   recentCaption:SetWordWrap(false)
   recentCaption:SetText(GC.L["Recent:"])
   setColor(recentCaption, Theme.color.fgDim)
   recentCaption:Hide()
-  local clear = Theme.Button(frame, "ghost", "badge")
+  local clear = Theme.Button(pop, "ghost", "badge")
   clear:SetHeight(AB.CHIP_H)
   clear:SetLabel(GC.L["Clear"])
   clear:Hide()
 
-  local bar = { frame = frame, well = well, ring = ring, box = box, hint = hint, button = button, collected = collected,
+  local bar = { frame = frame, pop = pop, well = well, ring = ring, box = box, hint = hint, button = button, collected = collected,
     note = note, recentCaption = recentCaption, clear = clear, matches = {}, chips = {}, found = {},
     selected = 0, h = AB.WELL_H + 2 * AB.GAP }
 

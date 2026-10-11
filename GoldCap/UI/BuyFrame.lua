@@ -4165,6 +4165,9 @@ local function layoutBand()
     add.frame:SetPoint("TOPLEFT", container, "TOPLEFT", left, 0)
     add.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
     addH = GC.BuyAddBox.Layout(add, math.max(0, width - (left - inset)))
+    -- With a list on screen the box's drop (its matches, its note) lies over the rows rather than
+    -- pushing them down on every keystroke: the toolbar keeps the well's height alone.
+    if current and add.wellH then addH = add.wellH end
   end
   band.top = math.max(addH, shown and (pickerH + Theme.pad.s) or 0)
   band.h = 0
