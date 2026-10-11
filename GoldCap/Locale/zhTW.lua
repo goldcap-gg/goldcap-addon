@@ -1198,4 +1198,8 @@ GC.Locales.zhTW = {
   ["Add to %s"] = "加入「%s」",
   ["Add to a new list"] = "加入新清單",
   ["Add %d to a list"] = "將 %d 個加入清單",
+  ["Checking %d gear, pets and recipes…"] = "正在檢查裝備、寵物和配方（%d）…",
+  ["Deals appear here as the auction house answers."] = "拍賣場一有回應，交易就會顯示在這裡。",
+  ["checking items %d of %d"] = "正在檢查物品 %d / %d",
+  ["deals %s · watching %d items"] = "交易 %s · 正在關注 %d 件物品",
 }

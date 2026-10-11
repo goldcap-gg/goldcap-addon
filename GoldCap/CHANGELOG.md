@@ -4,6 +4,9 @@
 
 - Deals no longer cuts a long item name with "…": in a narrow window or a long language the name
   wraps and its row grows to hold it. Rows keep still while your cursor is on one.
+- Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the
+  auction house, the board says so, SCAN lights up and the status line counts the answers.
+  SCAN on this board checks them all again instead of scanning commodities.
 - WoW: Forever: a full scan reads the rest of the auction house when it arrives in a second
   part while the scan is still busy with the first, instead of saving only the first part.
 - WoW: Forever: a character no longer picks up goldcap.gg prices of the other faction on the

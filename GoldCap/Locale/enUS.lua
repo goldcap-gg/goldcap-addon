@@ -1277,4 +1277,8 @@ GC.Locales.enUS = {
   ["Add to %s"] = "Add to %s",
   ["Add to a new list"] = "Add to a new list",
   ["Add %d to a list"] = "Add %d to a list",
+  ["Checking %d gear, pets and recipes…"] = "Checking %d gear, pets and recipes…",
+  ["Deals appear here as the auction house answers."] = "Deals appear here as the auction house answers.",
+  ["checking items %d of %d"] = "checking items %d of %d",
+  ["deals %s · watching %d items"] = "deals %s · watching %d items",
 }

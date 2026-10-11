@@ -1288,4 +1288,8 @@ GC.Locales.ptBR = {
   ["Add to %s"] = "Adicionar a %s",
   ["Add to a new list"] = "Adicionar a uma nova lista",
   ["Add %d to a list"] = "Adicionar %d a uma lista",
+  ["Checking %d gear, pets and recipes…"] = "Verificando equipamentos, mascotes e receitas (%d)…",
+  ["Deals appear here as the auction house answers."] = "As ofertas aparecem aqui conforme a casa de leilões responde.",
+  ["checking items %d of %d"] = "verificando itens %d de %d",
+  ["deals %s · watching %d items"] = "oportunidades %s · vigiando %d itens",
 }

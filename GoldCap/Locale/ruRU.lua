@@ -1359,4 +1359,8 @@ GC.Locales.ruRU = {
   ["Add to %s"] = "В список «%s»",
   ["Add to a new list"] = "В новый список",
   ["Add %d to a list"] = "Добавить %d в список",
+  ["Checking %d gear, pets and recipes…"] = "Проверяем снаряжение, питомцев и рецепты (%d)…",
+  ["Deals appear here as the auction house answers."] = "Сделки появятся здесь по мере ответов аукциона.",
+  ["checking items %d of %d"] = "проверка предметов: %d из %d",
+  ["deals %s · watching %d items"] = "сделки %s · отслеживается предметов: %d",
 }

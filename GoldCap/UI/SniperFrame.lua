@@ -1770,6 +1770,7 @@ function GC.Sniper._SetBoard(id)
   -- resumes it. A manual pass still in flight is aborted by the pause itself.
   if feedAuto then feedAuto(board == "items" and "pause:items" or "resume:items") end
   if board == "items" and GC.Sniper._TrySendKeysBatch then GC.Sniper._TrySendKeysBatch() end
+  GC.Sniper._PaintBoardReadout()
 end
 
 -- Read fresh, the same shape as every other GC.Game.IsForever gate in this addon (see
@@ -1778,6 +1779,67 @@ end
 -- import -- an import that can never succeed there -- say why instead.
 local function isForever()
   return GC.Game and GC.Game.IsForever(GC.Game.Passport())
+end
+
+-- The Items board's look at its whole set that the player is waiting on (owner, retail 2026-10-11:
+-- twenty seconds of an empty board with nothing saying a check was running, SCAN reading idle and
+-- the status line showing the Commodities pass's numbers). The close wipes the board's store, so
+-- the first round of every visit to the auction house is one; so is a round the player asks for
+-- with SCAN on this board. The rounds after it run quietly for as long as the board is open: were
+-- they announced, SCAN would light every few seconds and say nothing. Retail only: on WoW: Forever
+-- this board is the player's own scan's. Returns the size of the set and how much of it has
+-- answered this round, or nil.
+function GC.Sniper._ItemsChecking()
+  if view ~= "deals" or not ahOpen or GC.Sniper._Board() ~= "items" or isForever() then return nil end
+  local total = GC.Sniper._keyPoll:Count()
+  if total == 0 or (GC.Sniper._itemsLooked and not GC.Sniper._itemsAsked) then return nil end
+  return total, math.min(total, GC.Sniper._keysFoldedThisCycle or 0)
+end
+
+-- The status line on the Items board says this board's own numbers: how much of the set has
+-- answered while a look runs, then its deals and the size of the set it keeps watching -- the same
+-- two numbers in the same places until something changes. nil where the board has none.
+function GC.Sniper._ItemsReadout()
+  if GC.Sniper._Board() ~= "items" or isForever() then return nil end
+  local total, answered = GC.Sniper._ItemsChecking()
+  if total then return (GC.L["checking items %d of %d"]):format(answered, total) end
+  local watching = GC.Sniper._keyPoll:Count()
+  if watching == 0 then return nil end
+  local count = GC.Sniper._RealmCount()
+  local found = count > 0 and ("|cfff7cf5a%d|r"):format(count) or "0" -- goldText, as the pass's readout
+  return (GC.L["deals %s · watching %d items"]):format(found, watching)
+end
+
+-- Puts the board on screen's readout on the status line: the Items board's own, or the last
+-- Commodities pass's. Written on the edges that change it (a board switch, an answer, a SCAN
+-- press), never off the ticker, which would wipe every one-shot line within a quarter second.
+-- WoW: Forever's line is its scan's, on both boards, and is left alone.
+function GC.Sniper._PaintBoardReadout()
+  if view ~= "deals" or isForever() then return end
+  if GC.Sniper._Board() == "items" then
+    setStatus(GC.Sniper._ItemsReadout() or "")
+  else
+    setStatus(GC.Sniper._readout or "")
+  end
+end
+
+-- SCAN on the Items board: this board's whole set again, now. A round already out is joined --
+-- SCAN lights for it and nothing more is sent; otherwise a fresh one starts at once, inside the
+-- breather the board's own loop keeps between rounds (see _TrySendKeysBatch).
+function GC.Sniper._LookAtItemsAgain()
+  local poll = GC.Sniper._keyPoll
+  if poll:Count() == 0 then return end
+  GC.Sniper._itemsAsked = true
+  local roundOut = poll:HasPending() or (GC.Sniper._keysAwaiting ~= nil and GC.Sniper._keysOwner == "sniper")
+  if not roundOut then GC.Sniper._keysCycleDoneAt = nil end
+  GC.Sniper._TrySendKeysBatch()
+  GC.Sniper._PaintBoardReadout()
+end
+
+-- The close forgets the visit's look along with the store it filled (OnAuctionHouseClosed).
+function GC.Sniper._ForgetItemsVisit()
+  GC.Sniper._itemsLooked, GC.Sniper._itemsAsked = nil, nil
+  GC.Sniper._keysFoldedThisCycle = 0
 end
 
 -- B: import staleness, in seconds since GC.db.imported.ts (nil = never imported this realm).
@@ -2068,6 +2130,11 @@ function GC.Sniper._UpdateEmptyState(shownCount)
     if not watching then
       text = GC.L["Nothing to watch on this board yet."] .. "\n"
         .. GC.L["Gear, pets and recipes need an import that carries the region's prices for them. Paste a fresh string from goldcap.gg."]
+    elseif GC.Sniper._ItemsChecking() then
+      -- Not "nothing cheap" before a single answer has come back: that is a verdict on a look
+      -- still running.
+      text = (GC.L["Checking %d gear, pets and recipes…"]):format(GC.Sniper._keyPoll:Count()) .. "\n"
+        .. GC.L["Deals appear here as the auction house answers."]
     else
       text = GC.L["No gear, pets or recipes under their region price right now."] .. "\n"
         .. GC.L["GoldCap keeps checking them while this board is open."]
@@ -3711,6 +3778,7 @@ local function startFullScan(kindOverride)
   -- yet when that line is written.
   GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
   GC.Sniper._keysThisCycle = 0
+  GC.Sniper._keysFoldedThisCycle = 0
   GC.Sniper._keyPoll:BeginCycle()
   local kind = kindOverride or (GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes")
   GC.Sniper._bookPass:Start(kind)
@@ -3964,6 +4032,8 @@ refreshScanButton = function(targetFrame)
   local state = autoScan and autoScan:State() or "OFF"
   local autoSays = state ~= "OFF" and autoButtonText(state, autoScan:PauseReasons()) == GC.L["AUTO · SCANNING"]
   local busy = active and (GC.Sniper._scanPressed or not autoSays)
+  -- ...and for the Items board's look the player is waiting on (GC.Sniper._ItemsChecking).
+  if not busy and GC.Sniper._ItemsChecking() then busy = true end
   sizeScanButton(f.fullScanBtn)
   -- Stamped every time, for the reason refreshAutoButton gives.
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -4019,6 +4089,15 @@ local function onFullScanClick()
     if GC.Sniper.ScanActive() or GC.ForeverScan.Request("button") == "busy" then
       frame.status:SetText(GC.L["full scan already in progress"])
     end
+    refreshScanButton()
+    return
+  end
+
+  -- The Items board: SCAN looks at this board's whole set again. It used to start a Commodities
+  -- pass here, which filled the other board, held this one's checks back until it ended, and lit
+  -- SCANNING over a board that did not move (owner, retail 2026-10-11).
+  if GC.Sniper._Board() == "items" then
+    GC.Sniper._LookAtItemsAgain()
     refreshScanButton()
     return
   end
@@ -6852,10 +6931,15 @@ function GC.Sniper._FoldKeysBatch()
     GC.Sniper._capPoll:Fold(browsed, GC.Sniper._keysBatch)
     return true
   end
-  GC.Sniper._keyPoll:Fold(browsed, GC.Sniper._keysBatch)
   -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
-  -- the next one after a breather (see _TrySendKeysBatch).
-  if not GC.Sniper._keyPoll:HasPending() then GC.Sniper._keysCycleDoneAt = time() end
+  -- the next one after a breather (see _TrySendKeysBatch). Asked before the fold, which renders
+  -- the board: what the empty board says depends on whether this was the look's last answer.
+  local roundDone = not GC.Sniper._keyPoll:HasPending()
+  if roundDone then GC.Sniper._itemsLooked, GC.Sniper._itemsAsked = true, nil end
+  GC.Sniper._keysFoldedThisCycle = (GC.Sniper._keysFoldedThisCycle or 0) + #(GC.Sniper._keysBatch or {})
+  GC.Sniper._keyPoll:Fold(browsed, GC.Sniper._keysBatch)
+  if roundDone then GC.Sniper._keysCycleDoneAt = time() end
+  if GC.Sniper._Board() == "items" then GC.Sniper._PaintBoardReadout() end
   return true
 end
 
@@ -7132,6 +7216,7 @@ function GC.Sniper._TrySendKeysBatch(playerBusy)
       and (time() - (GC.Sniper._keysCycleDoneAt or 0)) >= LIM.KEYS_CYCLE_BREATHER_SECONDS then
     GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
     GC.Sniper._keysThisCycle = 0
+    GC.Sniper._keysFoldedThisCycle = 0
     poll:BeginCycle()
     trace("keys: new cycle (Items board)")
   end
@@ -11553,7 +11638,10 @@ local function createFrame()
   -- Sniper window again, even if Blizzard's own search box never fired OnEditFocusLost.
   f:SetScript("OnShow", function()
     feedAuto("tabShown")
-    if GC.Sniper._Board() == "items" then feedAuto("pause:items") end -- the remembered board, see _SetBoard
+    if GC.Sniper._Board() == "items" then -- the remembered board, see _SetBoard
+      feedAuto("pause:items")
+      GC.Sniper._PaintBoardReadout()
+    end
     feedAuto("resume:search")
     updateHeaderSortIndicators() -- heading labels can come back blank after a hide, see its comment
     if view == "deals" then f.restampRows() end -- and so can the row cells under them
@@ -12085,6 +12173,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._keysOwner = nil
   GC.Sniper._keysThisCycle = 0
   GC.Sniper._keysLastCycle = 0
+  GC.Sniper._ForgetItemsVisit()
   for itemID in pairs(GC.Sniper._realmDeals) do GC.Sniper._realmDeals[itemID] = nil end
   -- The Items chip carries that store's own count, and clearDeals above rendered before this
   -- wipe -- without this the chip would still be claiming rows until the next visit's first

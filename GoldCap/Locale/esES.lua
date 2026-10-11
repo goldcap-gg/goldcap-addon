@@ -1293,4 +1293,8 @@ GC.Locales.esES = {
   ["Add to %s"] = "Añadir a %s",
   ["Add to a new list"] = "Añadir a una lista nueva",
   ["Add %d to a list"] = "Añadir %d a una lista",
+  ["Checking %d gear, pets and recipes…"] = "Comprobando equipo, mascotas y recetas (%d)…",
+  ["Deals appear here as the auction house answers."] = "Las ofertas aparecen aquí a medida que responde la casa de subastas.",
+  ["checking items %d of %d"] = "comprobando objetos %d de %d",
+  ["deals %s · watching %d items"] = "oportunidades %s · vigilando %d objetos",
 }

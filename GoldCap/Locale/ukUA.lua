@@ -1360,4 +1360,8 @@ GC.Locales.ukUA = {
   ["Add to %s"] = "До списку «%s»",
   ["Add to a new list"] = "До нового списку",
   ["Add %d to a list"] = "Додати %d до списку",
+  ["Checking %d gear, pets and recipes…"] = "Перевіряємо спорядження, вихованців і рецепти (%d)…",
+  ["Deals appear here as the auction house answers."] = "Угоди з’являться тут у міру відповідей аукціону.",
+  ["checking items %d of %d"] = "перевірка предметів: %d з %d",
+  ["deals %s · watching %d items"] = "угоди %s · відстежується предметів: %d",
 }

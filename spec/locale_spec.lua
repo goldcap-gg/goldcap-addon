@@ -367,6 +367,24 @@ describe("locale layer", function()
     end
   end)
 
+  -- The Items board's look at its set (owner, retail 2026-10-11): the empty board, the status line.
+  it("carries the Items board's checking words in all twelve languages", function()
+    local keys = {
+      "Checking %d gear, pets and recipes…",
+      "Deals appear here as the auction house answers.",
+      "checking items %d of %d",
+      "deals %s · watching %d items",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local f = assert(io.open("GoldCap/Locale/" .. code .. ".lua"))
+      local text = f:read("*a")
+      f:close()
+      for _, key in ipairs(keys) do
+        assert.is_truthy(text:find('["' .. key .. '"]', 1, true), code .. " lacks: " .. key)
+      end
+    end
+  end)
+
   -- The owner plays in Russian: the words the dock and the rows say most, pinned as they read.
   it("says the BUY dock's words naturally in Russian and Ukrainian", function()
     local expected = {

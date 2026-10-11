@@ -1225,4 +1225,8 @@ GC.Locales.koKR = {
   ["Add to %s"] = "%s에 추가",
   ["Add to a new list"] = "새 목록에 추가",
   ["Add %d to a list"] = "목록에 %d개 추가",
+  ["Checking %d gear, pets and recipes…"] = "장비, 애완동물, 제조법 확인 중 (%d)…",
+  ["Deals appear here as the auction house answers."] = "경매장이 응답하는 대로 여기에 거래가 표시됩니다.",
+  ["checking items %d of %d"] = "아이템 확인 중 %d / %d",
+  ["deals %s · watching %d items"] = "거래 %s · 아이템 %d개 감시 중",
 }

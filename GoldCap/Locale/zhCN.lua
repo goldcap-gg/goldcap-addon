@@ -1197,4 +1197,8 @@ GC.Locales.zhCN = {
   ["Add to %s"] = "加入“%s”",
   ["Add to a new list"] = "加入新清单",
   ["Add %d to a list"] = "将 %d 个加入清单",
+  ["Checking %d gear, pets and recipes…"] = "正在检查装备、宠物和配方（%d）…",
+  ["Deals appear here as the auction house answers."] = "拍卖行一有回应，交易就会显示在这里。",
+  ["checking items %d of %d"] = "正在检查物品 %d / %d",
+  ["deals %s · watching %d items"] = "交易 %s · 正在关注 %d 件物品",
 }

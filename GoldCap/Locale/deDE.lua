@@ -1291,4 +1291,8 @@ GC.Locales.deDE = {
   ["Add to %s"] = "Zu %s hinzufügen",
   ["Add to a new list"] = "Zu einer neuen Liste hinzufügen",
   ["Add %d to a list"] = "%d zu einer Liste hinzufügen",
+  ["Checking %d gear, pets and recipes…"] = "Prüfe Ausrüstung, Haustiere und Rezepte (%d)…",
+  ["Deals appear here as the auction house answers."] = "Angebote erscheinen hier, sobald das Auktionshaus antwortet.",
+  ["checking items %d of %d"] = "prüfe Gegenstände %d von %d",
+  ["deals %s · watching %d items"] = "Angebote %s · beobachte %d Gegenstände",
 }

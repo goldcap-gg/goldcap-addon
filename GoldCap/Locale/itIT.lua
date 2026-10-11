@@ -1290,4 +1290,8 @@ GC.Locales.itIT = {
   ["Add to %s"] = "Aggiungi a %s",
   ["Add to a new list"] = "Aggiungi a una nuova lista",
   ["Add %d to a list"] = "Aggiungi %d a una lista",
+  ["Checking %d gear, pets and recipes…"] = "Controllo di equipaggiamento, mascotte e ricette (%d)…",
+  ["Deals appear here as the auction house answers."] = "Le occasioni compaiono qui man mano che la casa d'aste risponde.",
+  ["checking items %d of %d"] = "controllo oggetti %d di %d",
+  ["deals %s · watching %d items"] = "occasioni %s · %d oggetti osservati",
 }

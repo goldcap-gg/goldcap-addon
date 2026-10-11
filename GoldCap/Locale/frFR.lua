@@ -1292,4 +1292,8 @@ GC.Locales.frFR = {
   ["Add to %s"] = "Ajouter à %s",
   ["Add to a new list"] = "Ajouter à une nouvelle liste",
   ["Add %d to a list"] = "Ajouter %d à une liste",
+  ["Checking %d gear, pets and recipes…"] = "Vérification de l'équipement, des mascottes et des recettes (%d)…",
+  ["Deals appear here as the auction house answers."] = "Les bonnes affaires s'affichent ici à mesure que l'hôtel des ventes répond.",
+  ["checking items %d of %d"] = "vérification des objets %d sur %d",
+  ["deals %s · watching %d items"] = "affaires %s · %d objets surveillés",
 }
