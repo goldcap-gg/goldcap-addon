@@ -341,6 +341,18 @@ function GC.ForeverScan.New(driver)
 
   function obj:OnReplicateUpdate()
     if state == "waiting" then beginRead(); return end
+    -- A later stage of the dump this scan is reading or browsing after: the client hands a dump
+    -- over in stages, each with its own event (2048 rows, then the rest). It is read from the
+    -- start, in place of the stage the scan has; the browse pass that stage started goes on, and
+    -- its end is still this scan's. A repeat for the stage it has (item data landing) changes
+    -- nothing: the count is the same.
+    if (state == "reading" or state == "browsing") and acc and acc.replicated and ahOpen then
+      if (driver.numRows() or 0) > (acc.dumpRows or 0) then
+        acc = GC.ForeverFold.New()
+        beginRead()
+      end
+      return
+    end
     if state ~= "idle" or not ahOpen then return end
     -- Somebody else's full scan (another addon, /gc forever): the account's throttle is spent
     -- either way, so the dump is folded rather than asked for again.
