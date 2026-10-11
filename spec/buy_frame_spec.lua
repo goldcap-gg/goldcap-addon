@@ -1184,12 +1184,17 @@ describe("BuyFrame", function()
       local add, band = GC.Buy._view.add, bandOf()
       local before, top = add.h, band.top
       assert.is_false(add.pop:IsShown())
+      add.box:SetFocus() -- the player is typing in it
       add.box:SetText("linen")
       add.box.scripts.OnTextChanged(add.box, true)
       assert.is_true(add.h > before)
       assert.is_true(add.pop:IsShown())
       assert.equal(top, band.top)
       assert.equal(-top, (yOf(band.header, "TOPLEFT")))
+      -- Once the box lets go of the keyboard the matches stop covering the cards under them.
+      add.box:ClearFocus()
+      add.box.scripts.OnEditFocusLost(add.box)
+      assert.is_false(add.pop:IsShown())
     end)
 
     it("keeps the last searches and items as chips: an item's adds it again, a search's runs again", function()

@@ -2931,18 +2931,22 @@ local function fitColumns(count)
 end
 
 -- A row's figures at their fitted widths, right to left from BD.CELL_RIGHT, each above the card's
--- middle with its line under it (alone on the middle when that line is empty); the status word
+-- middle with its line under it (both on the middle when neither has one); the status word
 -- across the two price columns; the name above the middle and the line under it below, in a width
 -- that leaves the figures their room, so a long name wraps rather than running under them and
 -- heightFor can ask how tall it came out. A heading: its name at the left, its sum at the right.
 layoutRow = function(row)
   local right = BD.CELL_RIGHT
+  -- One line for both figures: above the middle when either has a line under it.
+  local alone = true
+  for _, note in pairs(row.notes) do
+    if (note:GetText() or "") ~= "" then alone = false end
+  end
   for i = #COLUMNS, 1, -1 do
     local col = COLUMNS[i]
     if not col.flex then
       local w = columnWidth(col)
       local cell, note = row.cells[col.key], row.notes[col.key]
-      local alone = (note:GetText() or "") == ""
       cell:ClearAllPoints()
       cell:SetWidth(w)
       cell:SetPoint(alone and "RIGHT" or "BOTTOMRIGHT", row, "RIGHT", -right, alone and 0 or 1)
@@ -2957,9 +2961,9 @@ layoutRow = function(row)
   row.status:SetPoint("RIGHT", row, "RIGHT", -BD.CELL_RIGHT, 0)
   row.status:SetWidth(area)
   local left = row.textLeft or BD.CELL_RIGHT
-  local alone = (row.sub:GetText() or "") == ""
+  local single = (row.sub:GetText() or "") == ""
   row.reagent:ClearAllPoints()
-  row.reagent:SetPoint(alone and "LEFT" or "BOTTOMLEFT", row, "LEFT", left, alone and 0 or 1)
+  row.reagent:SetPoint(single and "LEFT" or "BOTTOMLEFT", row, "LEFT", left, single and 0 or 1)
   row.sub:ClearAllPoints()
   row.sub:SetPoint("TOPLEFT", row, "LEFT", left, -2)
   local width = geometry and geometry.rowWidth or 0
@@ -3689,7 +3693,7 @@ local function createDock(parent)
   -- YOUR CAP: a well with the cap in it; a click opens the cap box on it (UI/BuyCapEditor.lua), the
   -- row menu's "Change the cap". Never a purchase.
   dock.cap = CreateFrame("Button", nil, dock)
-  dock.cap:SetSize(BD.DOCK_CAP_W, 24)
+  dock.cap:SetSize(BD.DOCK_CAP_W, 26) -- over twice the plaque art's 12px slice
   dock.cap:EnableMouse(true)
   dock.cap:RegisterForClicks("LeftButtonUp")
   local wc = Theme.color.bg or Theme.color.panel
@@ -4164,7 +4168,11 @@ local function layoutBand()
     add.frame:ClearAllPoints()
     add.frame:SetPoint("TOPLEFT", container, "TOPLEFT", left, 0)
     add.frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
-    addH = GC.BuyAddBox.Layout(add, math.max(0, width - (left - inset)))
+    -- The drop reaches no further than the dock's top: over BUY it would take the button's clicks.
+    local dock = band.dock
+    local room = (container and container.GetHeight and container:GetHeight() or 0)
+      - ((dock and dock:IsShown()) and (dock.h or BD.DOCK_H) + Theme.pad.s or 0)
+    addH = GC.BuyAddBox.Layout(add, math.max(0, width - (left - inset)), room > 0 and room or nil)
     -- With a list on screen the box's drop (its matches, its note) lies over the rows rather than
     -- pushing them down on every keystroke: the toolbar keeps the well's height alone.
     if current and add.wellH then addH = add.wellH end
@@ -4438,7 +4446,11 @@ local function paintDock()
   local width = geometry and geometry.rowWidth or 0
   local priced = line ~= nil and not (line.vendor or line.kind == "craft" or line.done)
   if priced and width >= BD.DOCK_CAP_MIN then
+    -- One-line strings come back from a hidden tab undrawn unless cleared first (docs/addon/AGENTS.md,
+    -- "Text"): each is emptied before it is set.
+    dock.capHead:SetText("")
     dock.capHead:SetText(GC.Util.Upper(GC.L["Your cap"]))
+    dock.cap.value:SetText("")
     dock.cap.value:SetText(line.cap and formatAmount(line.cap) or GC.L["no cap"])
     setColor(dock.cap.value, line.cap and Theme.color.fg or Theme.tier.SUSPECT)
     dock.cap:Show()
@@ -4459,7 +4471,9 @@ local function paintDock()
     setColor(dock.cost, confirming and Theme.color.goldHi or (estimated and Theme.color.fgDim or Theme.color.fg))
   end
   if spend then
+    dock.costHead:SetText("")
     dock.costHead:SetText(GC.L["COST"])
+    dock.cost:SetText("")
     dock.cost:SetText(spend)
     dock.cost:Show()
     dock.costHead:Show()

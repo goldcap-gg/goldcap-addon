@@ -264,6 +264,7 @@ describe("BUY search", function()
   describe("without the auction house", function()
     it("leaves the box to the items GoldCap knows and says to open the auction house", function()
       GC.Sniper.IsAHOpen = function() return false end
+      view().add.box:SetFocus() -- the player is typing in it
       enter("linen")
       assert.same({}, browseSent)
       assert.is_false(GC.BuySearch.Shown())

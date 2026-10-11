@@ -41,7 +41,7 @@ local AB = {
   DROP_PAD = 10,
   -- How long what an add did stays said.
   SAID_SECONDS = 5,
-  MATCH_H = 20,
+  MATCH_H = 26,
   CHIP_H = 18,
   CHIP_MIN_W = 24,
   -- A name is looked up as it is typed from two bytes on: one Latin letter offers too much to
@@ -247,9 +247,11 @@ local function paint(bar)
   local box = bar.box
   local text = box:GetText() or ""
   local focused = box.HasFocus and box:HasFocus() or false
-  -- With a list on screen the drop lies over it (UI/BuyFrame.lua's layoutBand), so what is not news
-  -- -- the hint under the well, the recents -- shows only while the box has the keyboard.
+  -- With a list on screen the drop lies over it (UI/BuyFrame.lua's layoutBand) and takes the mouse
+  -- from the cards under it, so once the box lets go of the keyboard it keeps only what is news:
+  -- what an add just did, and the items a shift-click is still collecting.
   local listed = (GC.Buy.CurrentRun and GC.Buy.CurrentRun()) ~= nil
+  local quiet = listed and not focused
   if text ~= "" or focused then bar.hint:Hide() else bar.hint:Show() end
   -- The well's edge: gold while it has the keyboard, the glass's own otherwise.
   local gc = Theme.color.gold
@@ -263,7 +265,7 @@ local function paint(bar)
   bar.button:Enable()
   if not bar.mode then bar.button:Disable() end
 
-  if bar.mode == "add" then
+  if bar.mode == "add" and not (quiet and not bar.collecting) then
     local parts = {}
     for _, item in ipairs(bar.items or {}) do
       parts[#parts + 1] = item.qty > 1 and ("%s ×%d"):format(nameOf(item), item.qty) or nameOf(item)
@@ -281,7 +283,7 @@ local function paint(bar)
     bar.collected:Hide()
   end
 
-  local found = bar.found or {}
+  local found = (not quiet) and bar.found or {}
   for i, entry in ipairs(found) do
     local row = matchRow(bar, i)
     row.index, row.itemID = i, entry.itemID
@@ -300,22 +302,21 @@ local function paint(bar)
   local note
   if bar.feedback then
     note = bar.feedback
-  elseif bar.mode == "search" and not ahOpen()
+  elseif not quiet and bar.mode == "search" and not ahOpen()
       and (bar.searched or #GC.NameMatch.Fold(bar.query) >= AB.MIN_QUERY_BYTES) then
     -- Without the auction house a name is looked for only among the items GoldCap knows (the rows
     -- above, if any). With it open, Enter searches what is on sale (UI/BuySearch.lua) and says so
     -- there.
     note = GC.L["Open the auction house to search what's on sale."]
-  elseif not bar.mode and (focused or not listed) then
+  elseif not quiet and not bar.mode then
     note = GC.L["Shift-click items, type a name, or an item id with x and a count: 2589 x20."]
   end
   bar.note:SetText(note or "")
   if note then bar.note:Show() else bar.note:Hide() end
 
-  -- The recents, while there is no list on screen or the box is being filled: under a list, they
-  -- would push it down for something nobody is doing.
+  -- The recents, while there is no list on screen or the box has the keyboard.
   local list = recents()
-  if listed and not focused then list = {} end
+  if quiet then list = {} end
   for i, entry in ipairs(list) do
     local chip = chipFor(bar, i)
     chip.recent = entry
@@ -341,8 +342,10 @@ end
 
 --- The bar's geometry at `width` (the tab's right-hand pane): the well and its button, then -- each
 --- wrapping, never cut -- what Enter will add, the matches, the note, and the recent chips, which
---- flow onto as many rows as they need. Returns its height.
-function GC.BuyAddBox.Layout(bar, width)
+--- flow onto as many rows as they need. `room`, when given, is how far down the drop may reach (the
+--- dock's top): a match, the note or the recents that would go past it is left out. Returns its
+--- height.
+function GC.BuyAddBox.Layout(bar, width, room)
   local Theme = GC.Theme
   width = math.max(0, width or 0)
   local frame = bar.frame
@@ -373,19 +376,27 @@ function GC.BuyAddBox.Layout(bar, width)
       local h = math.max(AB.MATCH_H, math.ceil((row.text:GetStringHeight() or 12) + 6))
       row:SetHeight(h)
       local top = y - (first and AB.GAP or 0)
-      row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame, "TOPLEFT", pad - 4, top)
-      row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(pad - 4), top)
-      y, first = top - h, false
+      if room and h - top + AB.DROP_PAD > room then
+        row:Hide()
+      else
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", frame, "TOPLEFT", pad - 4, top)
+        row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(pad - 4), top)
+        y, first = top - h, false
+      end
     end
   end
-  if bar.note:IsShown() then place(bar.note) end
+  if bar.note:IsShown() then
+    local need = AB.GAP + math.ceil(bar.note:GetStringHeight() or 12)
+    if room and need - y + AB.DROP_PAD > room then bar.note:Hide() else place(bar.note) end
+  end
+  local beforeRecents = y
   if bar.recentCaption:IsShown() then
     y = y - AB.GAP
     local x, lineH = pad, AB.CHIP_H
-    local room = width - pad
+    local rowEnd = width - pad
     local function flow(region, w, h)
-      if x > pad and width > 0 and x + w > room then
+      if x > pad and width > 0 and x + w > rowEnd then
         y, x, lineH = y - lineH - AB.GAP, pad, AB.CHIP_H
       end
       region:ClearAllPoints()
@@ -400,6 +411,13 @@ function GC.BuyAddBox.Layout(bar, width)
     end
     flow(bar.clear, fitChip(bar.clear, textW))
     y = y - lineH
+    -- No room for them over the list: none at all, rather than chips standing over the dock.
+    if room and -y + AB.DROP_PAD > room then
+      bar.recentCaption:Hide()
+      bar.clear:Hide()
+      for _, chip in ipairs(bar.chips) do chip:Hide() end
+      y = beforeRecents
+    end
   end
   -- The drop's panel behind whatever is under the well; none when nothing is.
   local pop = bar.pop
@@ -424,11 +442,25 @@ end
 
 --- Puts items onto the list Enter adds to (see the header) and says what it did, naming what could
 --- not be read. `items` are { itemID, qty }. Returns true when anything was added.
+-- What the box did, said under the well for a moment and then out of the list's way.
+local function say(bar, text)
+  bar.feedback = text
+  if C_Timer and C_Timer.After then
+    C_Timer.After(AB.SAID_SECONDS, function()
+      if bar.feedback == text then
+        bar.feedback = nil
+        paint(bar)
+        relayout()
+      end
+    end)
+  end
+end
+
 function GC.BuyAddBox.AddItems(bar, items, missed)
   missed = missed or {}
   if #items == 0 then
-    bar.feedback = #missed > 1 and (GC.L["Could not read: %s."]):format(table.concat(missed, ", "))
-      or GC.L["Could not find that item. Shift-click it, or type its item id."]
+    say(bar, #missed > 1 and (GC.L["Could not read: %s."]):format(table.concat(missed, ", "))
+      or GC.L["Could not find that item. Shift-click it, or type its item id."])
     paint(bar)
     relayout()
     return false
@@ -451,17 +483,7 @@ function GC.BuyAddBox.AddItems(bar, items, missed)
     said = (made and GC.L["Added %d items to a new list, %s."] or GC.L["Added %d items to %s."]):format(#items, label)
   end
   if #missed > 0 then said = said .. " " .. (GC.L["Could not read: %s."]):format(table.concat(missed, ", ")) end
-  bar.feedback = said
-  -- Said over the list for a moment, then out of its way.
-  if C_Timer and C_Timer.After then
-    C_Timer.After(AB.SAID_SECONDS, function()
-      if bar.feedback == said then
-        bar.feedback = nil
-        paint(bar)
-        relayout()
-      end
-    end)
-  end
+  say(bar, said)
   stop(bar)
   bar.box:SetText("")
   bar.box:ClearFocus()
@@ -632,7 +654,8 @@ function GC.BuyAddBox.Create(parent)
   hint:SetJustifyH("LEFT")
   hint:SetPoint("LEFT", well, "LEFT", AB.TEXT_LEFT, 0)
   hint:SetPoint("RIGHT", button, "LEFT", -6, 0)
-  hint:SetWordWrap(false)
+  -- Two lines where the well is narrow (a list's picker beside it) and the words long: never cut.
+  hint:SetWordWrap(true)
   hint:SetText(GC.L["Item to add"])
   setColor(hint, Theme.color.fgDim)
   -- The drop under the well -- what Enter will add, the matches, the note, the recents -- on a panel
