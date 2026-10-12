@@ -11,7 +11,9 @@ describe("Key poll wiring", function()
     return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity or 3 }
   end
 
-  local function loadSniper()
+  -- `before(GC)` (optional) runs just before UI/SniperFrame.lua loads: a module the window
+  -- subscribes to at load (Core/Collection.lua's OnChange) has to be there first, as in the TOC.
+  local function loadSniper(before)
     _G.GetTime = function() return 100 end
     _G.time = function() return 1000 end
     _G.GetMoney = function() return 10 * 1000 * 10000 end
@@ -65,6 +67,7 @@ describe("Key poll wiring", function()
     GC.Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end }
     GC.Print = function() end
     GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    if before then before(GC) end
     helper.loadModule("UI/SniperFrame.lua", GC)
     GC.Sniper._liveTracksScanDeals = true -- so _CurrentLiveDeal reads the scanned board
     return GC
@@ -361,5 +364,246 @@ describe("Key poll wiring", function()
     assert.equal("commodities", GC.Sniper._Board())
     GC.db.settings.sniper.board = "items"
     assert.equal("items", GC.Sniper._Board())
+  end)
+  -- The Items board split (Core/ItemsBoard.lua): the rare finds the region payload names are asked
+  -- about after everything else, admitted by being rare finds rather than by a realm value; what
+  -- this realm asks for one is only ever a Rare finds row -- never a hit, a drill or a flip row.
+  describe("rare finds", function()
+    -- A rare find as GC.Data.RareFacts hands it out: six realms, cheapest 3,150g.
+    local function rareFacts()
+      return { sales30d = 2, lastSaleCopper = 25000000, lastSoldAgeHours = 31, realms = 6,
+        floorMin = 31500000, floorP10 = 900000000, floorP25 = 1389993400 }
+    end
+
+    -- The data layer's split, as Core/Data.lua answers it (spec/data_spec.lua pins that side):
+    -- `rares` itemID -> facts, `rank` the ids in the site's order, `flips` itemID -> F facts.
+    local function split(GC, rares, rank, flips)
+      flips = flips or {}
+      GC.Data.IsRareFind = function(id) return rares[id] ~= nil end
+      GC.Data.RareFacts = function(id) return rares[id] end
+      GC.Data.HasRareFinds = function() return next(rares) ~= nil end
+      GC.Data.RareIds = function() return rank end
+      GC.Data.RareBefore = function(a, b)
+        local at, bt = 0, 0
+        for i, id in ipairs(rank) do
+          if id == a then at = i end
+          if id == b then bt = i end
+        end
+        return at < bt
+      end
+      GC.Data.FlipFacts = function(id) return flips[id] end
+    end
+
+    local function load(before)
+      local GC = loadSniper(before)
+      if not GC.Util then helper.loadModule("Core/Util.lua", GC) end
+      helper.loadModule("Core/ItemsBoard.lua", GC)
+      return GC
+    end
+
+    -- A flip row as the board keeps it.
+    local function deal(itemID) return { itemID = itemID, unitPrice = 100, qty = 1, profit = 10 } end
+
+    local function shape(list)
+      local out = {}
+      for i, e in ipairs(list) do
+        if e.kind == "header" then out[i] = e.section .. ":" .. e.count
+        elseif e.kind == "empty" then out[i] = e.text
+        else out[i] = e.itemID end
+      end
+      return out
+    end
+
+    describe("the poll set", function()
+      it("asks about them after the rest, with no realm value of their own", function()
+        local GC = load()
+        values[10] = realmValue()
+        targetIds = { 10 }
+        split(GC, { [7935] = rareFacts(), [8350] = rareFacts() }, { 8350, 7935 })
+
+        GC.Sniper._RebuildKeyTargets()
+        assert.equal(3, GC.Sniper._keyPoll:Count())
+        assert.same({ 10, 7935, 8350 }, GC.Sniper._keyPoll:NextBatch())
+
+        local none = function() return false end
+        assert.same({ 20, 30, 50, 40 }, GC.Sniper._KeyTargetIds({ 20 }, {}, { 30 }, none,
+          function(id) return id == 20 or id == 30 end, { 50, 40 }))
+      end)
+
+      it("asks about the best-ranked RARE_POLL_CAP of them, commodities left out", function()
+        local GC = load()
+        local rank = {}
+        for i = 1, 250 do rank[i] = 1000 + i end
+        local commodity = function(id) return id == 1001 end
+        local ids = GC.Sniper._KeyTargetIds({}, {}, {}, commodity, function() return false end, rank)
+        assert.equal(200, #ids)
+        assert.equal(1002, ids[1])
+        assert.equal(1201, ids[200])
+        -- One already asked about as a T target counts among the 200, and is asked once.
+        ids = GC.Sniper._KeyTargetIds({}, {}, { 1002 }, commodity, function(id) return id == 1002 end, rank)
+        assert.equal(200, #ids)
+        assert.equal(1002, ids[1])
+        assert.equal(1201, ids[200])
+      end)
+
+      it("leaves a round half way where it was when a rebuild changes nothing", function()
+        local GC = load()
+        local rares, rank = {}, {}
+        for i = 1, 150 do rares[2000 + i] = rareFacts(); rank[i] = 2000 + i end
+        split(GC, rares, rank)
+        GC.Sniper._RebuildKeyTargets()
+        assert.equal(100, #GC.Sniper._keyPoll:NextBatch())
+        GC.Sniper._RebuildKeyTargets()
+        assert.equal(50, #GC.Sniper._keyPoll:NextBatch())
+        assert.is_false(GC.Sniper._keyPoll:HasPending())
+      end)
+    end)
+
+    describe("an answer", function()
+      it("never makes a hit, a drill or a flip row of one, even with a T ask still loaded", function()
+        local GC = load()
+        values[7935] = realmValue({ ref = 2000000000 }) -- an old import's ask, outlived by the payload
+        split(GC, { [7935] = rareFacts() }, { 7935 })
+        GC.Sniper._RebuildKeyTargets()
+        GC.Sniper._keysBatch = { 7935 }
+
+        GC.Sniper._keyPoll:Fold({ browseRow(7935, 31500000, 1) })
+
+        assert.is_false(GC.Sniper._drillQueue:Has(7935))
+        assert.is_nil(GC.Sniper._realmDeals[7935])
+        assert.same({ unit = 31500000, qty = 1 }, GC.Sniper._rareSeen[7935])
+      end)
+
+      it("lets go of one the batch asked about and the answer did not name", function()
+        local GC = load()
+        split(GC, { [7935] = rareFacts() }, { 7935 })
+        GC.Sniper._rareSeen[7935] = { unit = 1, qty = 1 }
+        GC.Sniper._keysBatch = { 7935 }
+        GC.Sniper._keyPoll:Fold({})
+        assert.is_nil(GC.Sniper._rareSeen[7935])
+      end)
+
+      it("still puts a flip on the board and in the drill queue, as before", function()
+        local GC = load()
+        values[42] = realmValue()
+        targetIds = { 42 }
+        split(GC, { [7935] = rareFacts() }, { 7935 })
+        GC.Sniper._RebuildKeyTargets()
+        GC.Sniper._keyPoll:Fold({ browseRow(42, 120000, 2), browseRow(7935, 31500000, 1) })
+        assert.is_true(GC.Sniper._drillQueue:Has(42))
+        assert.is_table(GC.Sniper._realmDeals[42])
+        assert.is_nil(GC.Sniper._rareSeen[42])
+      end)
+    end)
+
+    describe("the board", function()
+      it("draws Flips and Rare finds, a rare find at or under p25 only", function()
+        local GC = load()
+        split(GC, { [7935] = rareFacts(), [8350] = rareFacts() }, { 7935, 8350 })
+        GC.Sniper._rareSeen[7935] = { unit = 31500000, qty = 1 }
+        GC.Sniper._rareSeen[8350] = { unit = 1389993401, qty = 1 } -- above a quarter of the realms
+        assert.same({ "flips:1", 10, "rares:1", 7935 }, shape(GC.Sniper._ItemsDisplay({ deal(10) })))
+        assert.equal("min", GC.Sniper._ItemsDisplay({})[4].standing)
+      end)
+
+      it("looks as it did before the site switched, apart from the Flips header", function()
+        local GC = load()
+        split(GC, {}, {})
+        assert.same({ "flips:1", 10 }, shape(GC.Sniper._ItemsDisplay({ deal(10) })))
+        local empty = {}
+        assert.equal(empty, GC.Sniper._ItemsDisplay(empty)) -- the board's own empty state explains it
+      end)
+
+      it("leaves the Commodities board alone", function()
+        local GC = load()
+        split(GC, { [7935] = rareFacts() }, { 7935 })
+        GC.Sniper._rareSeen[7935] = { unit = 31500000, qty = 1 }
+        GC.db.settings.sniper.board = "commodities"
+        local list = { deal(10) }
+        assert.equal(list, GC.Sniper._ItemsDisplay(list))
+        assert.equal("", GC.Sniper._RowNotes(deal(10)))
+      end)
+
+      it("says how often a flip sells", function()
+        local GC = load()
+        split(GC, {}, {}, { [10] = { ref = 300000, sales7d = 6, realms = 3 } })
+        assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Sold 6 times in 7 days on 3 realms", 1, true))
+        assert.equal("", GC.Sniper._RowNotes(deal(11)))
+      end)
+
+      it("pins nothing and opens nothing from a header or a Rare finds row", function()
+        local GC = load()
+        GC.Sniper._RowPinEvent({ deal = { kind = "rare", itemID = 7935 } }, "down", "RightButton")
+        GC.Sniper._RowPinEvent({ deal = { kind = "header", section = "rares", count = 1 } }, "up", "RightButton")
+        assert.same({}, GC.db.settings.sniper.watchPins)
+      end)
+    end)
+
+    describe("collection marks and Only what I lack", function()
+      local Client = require("spec.support.collection_client")
+      local client
+
+      -- 7935 a plate chest nobody has; 7936 a plate chest sharing its look, which the account has
+      -- through 7935's twin; 2553 a recipe this character does not know; 2589 a trade good; 1973
+      -- a toy the account owns.
+      local function world()
+        return {
+          items = {
+            [7935] = { classID = 4, subclassID = 4, equipLoc = "INVTYPE_CHEST", appearanceID = 100, sourceID = 1001 },
+            [7936] = { classID = 4, subclassID = 4, equipLoc = "INVTYPE_CHEST", appearanceID = 200, sourceID = 2001 },
+            [7937] = { classID = 4, subclassID = 4, equipLoc = "INVTYPE_CHEST", appearanceID = 200, sourceID = 2002 },
+            [2553] = { classID = 9, subclassID = 6, tooltip = { "Recipe: Elixir of Minor Agility" } },
+            [2589] = { classID = 7, subclassID = 5, equipLoc = "" },
+            [1973] = { classID = 15, subclassID = 4, toy = true },
+          },
+          sources = { [1001] = 7935, [2001] = 7936, [2002] = 7937 },
+          appearances = { [100] = { 1001 }, [200] = { 2001, 2002 } },
+          owned = { sources = { [2002] = true }, tabards = {}, toys = { [1973] = true } },
+        }
+      end
+
+      local function loadMarked()
+        return load(function(GC)
+          helper.loadModule("Core/Collection.lua", GC)
+          client = Client.new(world())
+          GC.Collection.SetClient(client)
+        end)
+      end
+
+      it("marks what the account lacks, an appearance it has elsewhere, and nothing else", function()
+        local GC = loadMarked()
+        split(GC, {}, {})
+        assert.truthy(GC.Sniper._RowNotes(deal(7935)):find("Not collected", 1, true))
+        assert.truthy(GC.Sniper._RowNotes(deal(2553)):find("Not known by this character", 1, true))
+        assert.truthy(GC.Sniper._RowNotes(deal(7936)):find("Appearance known", 1, true))
+        assert.equal("", GC.Sniper._RowNotes(deal(2589)))
+        assert.equal("", GC.Sniper._RowNotes(deal(1973)))
+      end)
+
+      it("keeps only what the account lacks while the toggle is on, in both sections", function()
+        local GC = loadMarked()
+        split(GC, { [2553] = rareFacts(), [1973] = rareFacts() }, { 2553, 1973 })
+        GC.Sniper._rareSeen[2553] = { unit = 31500000, qty = 1 }
+        GC.Sniper._rareSeen[1973] = { unit = 31500000, qty = 1 }
+        local flips = { deal(7935), deal(7936), deal(2589) }
+        assert.same({ "flips:3", 7935, 7936, 2589, "rares:2", 2553, 1973 }, shape(GC.Sniper._ItemsDisplay(flips)))
+
+        assert.is_false(GC.db.settings.sniper.onlyLack == true) -- off until the player turns it on
+        GC.Sniper._ToggleOnlyLack()
+        assert.is_true(GC.db.settings.sniper.onlyLack)
+        assert.same({ "flips:1", 7935, "rares:1", 2553 }, shape(GC.Sniper._ItemsDisplay(flips)))
+        GC.Sniper._ToggleOnlyLack()
+        assert.equal(7, #GC.Sniper._ItemsDisplay(flips))
+      end)
+
+      it("renders once for a burst of collection changes, not once per event", function()
+        local GC = loadMarked()
+        local queued = 0
+        _G.C_Timer.After = function() queued = queued + 1 end
+        for _ = 1, 25 do GC.Collection.Reset() end
+        assert.equal(1, queued)
+        assert.is_true(GC.Sniper._rowFitQueued)
+      end)
+    end)
   end)
 end)

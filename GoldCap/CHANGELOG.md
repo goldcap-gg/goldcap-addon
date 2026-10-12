@@ -2,6 +2,19 @@
 
 ## 0.21.0 (unreleased)
 
+- Deals, Items board: the board has two sections. Flips are items that sell, and each says how
+  many sold in the last 7 days and on how many realms. Once goldcap.gg has a week of realm sales,
+  a flip's price is what it actually sold for, not what realms ask for it, so an item nobody buys
+  at its asking price no longer shows as a big discount.
+- Deals, Items board: Rare finds are items many realms list and few buy. They carry no profit, no
+  discount and no BUY: each says how this realm's cheapest one compares with the other realms'
+  (the cheapest of them all, among the cheapest 10%, or cheaper than 3 in 4) and what sold in the
+  last 30 days, for how much and how long ago.
+- Deals, Items board: under an item's name, Not collected marks an appearance, pet, toy or mount
+  your account does not have yet, Not known by this character a recipe this character has not
+  learned, and Appearance known a piece whose look you already have from another item.
+- Deals, Items board: Only what I lack, at the top of the board, shows only the items marked Not
+  collected or Not known by this character. It stays as you left it.
 - Deals no longer cuts a long item name with "…": in a narrow window or a long language the name
   wraps and its row grows to hold it. Rows keep still while your cursor is on one.
 - Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the

@@ -290,6 +290,10 @@ LIM.CHECK_HOLD_SECONDS = 2
 -- answers faster. `/gc board` logs each cap batch's answer time (GC.Sniper._NoteCapBatch) so this
 -- can be tuned on evidence from the client.
 LIM.CAPS_BATCH_SIZE = 100
+-- How many rare finds (the region payload's U section) the Items board's realm poll asks about,
+-- the site's best-ranked first (GC.Data.RareIds). Two batches of a hundred more per round over
+-- the T targets, pins and watchlist: about 400 of those plus these.
+LIM.RARE_POLL_CAP = 200
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -1254,6 +1258,9 @@ local function setRowDeal(row, deal)
     row.leftPressed = nil
   end
   row.deal = deal
+  -- The Items board's own entries -- a section header, an empty section's line, a Rare finds row
+  -- (Core/ItemsBoard.lua) -- are not deals: nothing to check, buy or pin.
+  if deal.kind then return GC.Sniper._PaintBoardEntry(row, deal) end
   -- What the background Check found, if anything. Gold "Buy" is reserved for a row a live
   -- Check has actually approved; an unverified row is a plain ghost "Check", exactly the
   -- two-click flow it always was. Neither label changes what the click DOES: openDialog still
@@ -1262,6 +1269,8 @@ local function setRowDeal(row, deal)
   local pinned = isPinned(deal.itemID)
   local value = GC.Data.GetItemValue(deal.itemID)
   local trend = value and value.trend
+  -- The Items board's lines under the name: the collection mark, how often a flip sells.
+  local notes = GC.Sniper._RowNotes(deal)
 
   -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
   -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
@@ -1291,6 +1300,8 @@ local function setRowDeal(row, deal)
     tostring(verdict and verdict.needsGold),
     -- WoW: Forever: the kind and ceiling drive the chip and the name suffix.
     tostring(deal.forever), tostring(deal.ceiling),
+    -- A collection change (GC.Collection.OnChange) moves the mark with nothing else moving.
+    notes,
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1485,41 +1496,213 @@ local function setRowDeal(row, deal)
   -- row's tooltip names either way (GC.Sniper._CapNote).
   local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup)
     or GC.Sniper._ForeverSuffix(deal)
+  -- The notes are asked again at every stamp: the one after the item loads is the first whose
+  -- collection answer can be more than "unknown".
   local function stampName(named)
-    row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix }
+    row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix .. GC.Sniper._RowNotes(deal) }
     GC.Sniper._FitRowName(row)
   end
+  GC.Sniper._StampItem(row, deal, stampName)
+
+  row:Show()
+end
+
+-- The item cell's name and icon, for a board row: from the cache once the item has loaded, else a
+-- placeholder now and the real ones when the client has the item. `stamp(named)` writes the name.
+function GC.Sniper._StampItem(row, deal, stamp)
   local cached = nameIconCache[deal.itemID]
   if cached then
     row.icon:SetTexture(cached.icon)
-    stampName(cached.named)
-  else
-    stampName((GC.L["item %d"]):format(deal.itemID))
-    row.icon:SetTexture(nil)
-
-    local item = Item:CreateFromItemID(deal.itemID)
-    item:ContinueOnItemLoad(function()
-      if row.deal ~= deal then return end -- row was repurposed before the async load finished
-      local icon = item:GetItemIcon()
-      local quality = item:GetItemQuality()
-      local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
-      local label = item:GetItemName() or ("item " .. deal.itemID)
-      -- Reagent quality beside the name. Two tiers of the same reagent are
-      -- separate itemIDs and so already price separately -- this is identification,
-      -- not arithmetic, but on a list of ores and herbs it is the difference
-      -- between reading a row and guessing at it.
-      local named = (qc and qc:WrapTextInColorCode(label) or label)
-      if Theme.QualityMarkup then
-        local pip = Theme.QualityMarkup(deal.itemID, 12)
-        if pip ~= "" then named = named .. " " .. pip end -- after the name, as Theme.WithQuality
-      end
-      nameIconCache[deal.itemID] = { icon = icon, named = named }
-      row.icon:SetTexture(icon)
-      stampName(named)
-    end)
+    stamp(cached.named)
+    return
   end
+  stamp((GC.L["item %d"]):format(deal.itemID))
+  row.icon:SetTexture(nil)
 
+  local item = Item:CreateFromItemID(deal.itemID)
+  item:ContinueOnItemLoad(function()
+    if row.deal ~= deal then return end -- row was repurposed before the async load finished
+    local icon = item:GetItemIcon()
+    local quality = item:GetItemQuality()
+    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local label = item:GetItemName() or ("item " .. deal.itemID)
+    -- Reagent quality beside the name. Two tiers of the same reagent are
+    -- separate itemIDs and so already price separately -- this is identification,
+    -- not arithmetic, but on a list of ores and herbs it is the difference
+    -- between reading a row and guessing at it.
+    local named = (qc and qc:WrapTextInColorCode(label) or label)
+    if Theme.QualityMarkup then
+      local pip = Theme.QualityMarkup(deal.itemID, 12)
+      if pip ~= "" then named = named .. " " .. pip end -- after the name, as Theme.WithQuality
+    end
+    nameIconCache[deal.itemID] = { icon = icon, named = named }
+    row.icon:SetTexture(icon)
+    stamp(named)
+  end)
+end
+
+-- ---------------------------------------------------------------------------
+-- The Items board's two sections (Core/ItemsBoard.lua): Flips, the realm rows as they always
+-- were, and Rare finds, what the realm poll saw of the items the region payload names rare. Every
+-- seam is a GC.Sniper field: this chunk sits near its 200-local ceiling.
+-- ---------------------------------------------------------------------------
+
+-- Whether the board on screen is the Items board of realm rows, which the sections are drawn on:
+-- not the Commodities board, and not WoW: Forever's Items board, which is the player's own scan's.
+function GC.Sniper._RealmBoard()
+  if GC.Sniper._Board() ~= "items" then return false end
+  return not (GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled())
+end
+
+-- A caged pet is item 82800 whatever species is inside, so its collection state is the species':
+-- the one the realm poll saw cheapest (the book entry's variants go cheapest first).
+function GC.Sniper._SpeciesFor(itemID)
+  local function from(poll)
+    local entry = poll and poll:Book()[itemID]
+    local variant = entry and entry.variants and entry.variants[1]
+    local species = variant and variant.battlePetSpeciesID
+    return (species and species > 0) and species or nil
+  end
+  return from(GC.Sniper._keyPoll) or from(GC.Sniper._capPoll)
+end
+
+-- GC.Collection.State for a board row, plus the one thing the board owes it: an item the client
+-- has not loaded answers "unknown" and draws no mark, so it is asked to load, once a session, and
+-- the board renders again when it has. A row the filter hides has no row of its own to load it.
+GC.Sniper._markLoads = {}
+function GC.Sniper._MarkState(itemID)
+  if not (GC.Collection and GC.Collection.State and itemID) then return nil end
+  local state, kind = GC.Collection.State(itemID, GC.Sniper._SpeciesFor(itemID))
+  if state == "unknown" and not GC.Sniper._markLoads[itemID] and Item and Item.CreateFromItemID then
+    GC.Sniper._markLoads[itemID] = true
+    Item:CreateFromItemID(itemID):ContinueOnItemLoad(function() GC.Sniper._QueueRowFit() end)
+  end
+  return state, kind
+end
+
+-- The mark after an item's name: gold for what the account lacks, dim for an appearance it has
+-- through another item. "" for none.
+function GC.Sniper._MarkSuffix(itemID)
+  local state, kind = GC.Sniper._MarkState(itemID)
+  local text = GC.ItemsBoard.MarkText(state, kind)
+  if not text then return "" end
+  return ("  |cff%s%s|r"):format(state == "missing" and "f7cf5a" or "8c8a85", text)
+end
+
+-- What a flip row says under its name on the Items board: its mark, and how often it sells when
+-- the payload says (F section). "" anywhere else.
+function GC.Sniper._RowNotes(deal)
+  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
+  local notes = GC.Sniper._MarkSuffix(deal.itemID)
+  local sells = GC.Data.FlipFacts and GC.ItemsBoard.FlipText(GC.Data.FlipFacts(deal.itemID))
+  if sells then notes = notes .. ("\n|cff8c8a85%s|r"):format(sells) end
+  return notes
+end
+
+-- The Rare finds rows this realm's answers make right now, in board order, the board's header sort
+-- applied within them. `skip`: rows held on screen. Empty while the payload names no rare find.
+function GC.Sniper._RareRows(skip)
+  if not (GC.ItemsBoard and GC.Data and GC.Data.HasRareFinds and GC.Data.HasRareFinds()) then return {} end
+  return GC.ItemsBoard.RareRows(GC.Sniper._rareSeen, GC.Data.RareFacts,
+    { before = GC.Data.RareBefore, sort = sortOverride, skip = skip })
+end
+
+-- What refreshRows draws: `list` (renderList's deals) itself everywhere but the Items board of
+-- realm rows, where it is the sections. A row held on screen -- under the cursor, or under an open
+-- Check -- is left out of the lists (sortedDeals does the same for the deals) and counted in its
+-- section. "Only what I lack" keeps the rows whose item the account has not collected.
+function GC.Sniper._ItemsDisplay(list)
+  if not (GC.ItemsBoard and GC.Sniper._RealmBoard()) then return list end
+  local held, skip = { flips = 0, rares = 0 }, {}
+  for i = 1, #rows do
+    local row = rows[i]
+    local deal = row.deal
+    if deal and (row.purchaseStage or row == hoveredRow) and row:IsShown() then
+      if deal.kind == "rare" then
+        held.rares = held.rares + 1
+        skip[deal.itemID] = true
+      elseif not deal.kind then
+        held.flips = held.flips + 1
+      end
+    end
+  end
+  local keep = GC.Sniper._OnlyLack() and function(entry)
+    return entry.itemID ~= nil and (GC.Sniper._MarkState(entry.itemID)) == "missing"
+  end or nil
+  return GC.ItemsBoard.Sections(list, GC.Sniper._RareRows(skip), {
+    rares = GC.Data.HasRareFinds and GC.Data.HasRareFinds() or false,
+    keep = keep, cap = WIN.ROW_CAP, held = held })
+end
+
+function GC.Sniper._OnlyLack()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (cfg and cfg.onlyLack) and true or false
+end
+
+-- A section header, an empty section's line or a Rare finds row on a pooled board row. None of
+-- them is a deal: the action column stays empty (no Check, no Buy, so no click reaches the drill
+-- queue or a purchase), the verdict chip says nothing, and a rare row shows its price per unit and
+-- what was seen of it -- never a discount, a profit or a reference price.
+function GC.Sniper._PaintBoardEntry(row, entry)
+  local standing, sales, mark
+  if entry.kind == "rare" then
+    standing, sales = GC.ItemsBoard.RareLines(entry)
+    mark = GC.Sniper._MarkSuffix(entry.itemID)
+  end
+  local sig = table.concat({ "entry", entry.kind, tostring(entry.section), tostring(entry.count),
+    tostring(entry.text), tostring(entry.itemID), tostring(entry.unitPrice), tostring(standing),
+    tostring(sales), tostring(mark) }, "|")
+  if row._dealSig == sig and row:IsShown() then return end
+  row._dealSig = sig
+  -- Hidden and disabled both, as a pin placeholder's is: a column re-layout shows every fixed
+  -- cell again (layoutRow hides it back), and the row's own click acts only through this button.
+  row.buy:Hide()
+  row.buy:Disable()
+  row:SetAlpha(1)
+  row.pinBg:Hide()
+  if hoveredRow ~= row then row.rail:Hide() end
+  row.tierChip:SetLabel("", { 0, 0, 0, 0 })
+  for _, cell in ipairs({ row.discountText, row.unitText, row.priceText, row.profitText, row.trendText }) do
+    cell:SetText("")
+  end
+  if entry.kind == "rare" then
+    local fg = Theme.color.fg
+    row.unitText:SetText(GC.Util.FormatMoney(entry.unitPrice))
+    row.unitText:SetTextColor(fg[1], fg[2], fg[3])
+    local lines = ("\n|cff8c8a85%s\n%s|r"):format(standing, sales)
+    GC.Sniper._StampItem(row, entry, function(named)
+      row._nameParts = { named, "", GC.Sniper._MarkSuffix(entry.itemID) .. lines }
+      GC.Sniper._FitRowName(row)
+    end)
+  else
+    row.icon:SetTexture(nil)
+    local text
+    if entry.kind == "header" then
+      text = ("|cfff7cf5a%s|r  |cff8c8a85%d|r"):format(GC.ItemsBoard.SectionTitle(entry.section), entry.count or 0)
+    else
+      text = ("|cff8c8a85%s|r"):format(entry.text or "")
+    end
+    row._nameParts = { text, "", "" }
+    GC.Sniper._FitRowName(row)
+  end
   row:Show()
+end
+
+-- A Rare finds row's tooltip: the item's own, then what was seen of it. GoldCap's price block
+-- under the item stands aside for the row (`goldcapOwnLines`, set in OnEnter): a rare find has no
+-- price, and that block would print the asks' median as one.
+function GC.Sniper._RareTooltip(row)
+  local entry = row.deal
+  Theme.ItemTooltipOutside(row, frame)
+  GameTooltip:SetItemByID(entry.itemID)
+  local standing, sales = GC.ItemsBoard.RareLines(entry)
+  local dim = Theme.color.fgDim
+  GameTooltip:AddLine(" ")
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Rare find: seldom sold, so GoldCap puts no price on it"]),
+    Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], true)
+  GameTooltip:AddLine(GC.Util.ClientText(standing), 1, 1, 1, true)
+  GameTooltip:AddLine(GC.Util.ClientText(sales), dim[1], dim[2], dim[3], true)
+  GameTooltip:Show()
 end
 
 -- Forward-declared: createRow's real definition lives further down (it needs the row
@@ -1569,7 +1752,11 @@ end
 local function refreshRows()
   if not frame then return end
   local list = renderList()
-  local shown = math.min(#list, WIN.ROW_CAP)
+  -- The Items board draws its sections over the deals (GC.Sniper._ItemsDisplay): headers, Rare
+  -- finds rows, the collection filter. Each section holds its own cap, so the list is drawn whole.
+  -- Everything else that reads the board -- the gold line, the verify walk -- keeps the deals.
+  local display = GC.Sniper._ItemsDisplay(list)
+  local shown = display ~= list and #display or math.min(#list, WIN.ROW_CAP)
 
   for i = #rows + 1, shown do
     rows[i] = createRow(content, i)
@@ -1579,7 +1766,7 @@ local function refreshRows()
   for i = 1, #rows do
     local row = rows[i]
     if not row.purchaseStage and row ~= hoveredRow then
-      local deal = (li <= shown) and list[li] or nil
+      local deal = (li <= shown) and display[li] or nil
       if deal then
         setRowDeal(row, deal)
         li = li + 1
@@ -1674,6 +1861,14 @@ function GC.Sniper._QueueRowFit()
   end)
 end
 
+-- A collection changed (Core/Collection.lua): the Items board's marks and its "Only what I lack"
+-- filter read it, so the board renders again. Through the next-frame render above, never one per
+-- event: PET_JOURNAL_LIST_UPDATE and TRANSMOG_COLLECTION_UPDATED come in bursts of dozens, and
+-- every row's signature carries its mark, so the one render repaints exactly the rows that moved.
+if GC.Collection and GC.Collection.OnChange then
+  GC.Collection.OnChange(function() GC.Sniper._QueueRowFit() end)
+end
+
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
 -- active (▼ = descending, ▲ = ascending); every other header falls back to its plain base
 -- text. sortHeaders is populated once by the addHeader calls. Literal UTF-8 glyphs
@@ -1731,7 +1926,8 @@ function GC.Sniper._PaintBoardChips(target)
   local owner = target or frame
   local chips = owner and owner.boardChips
   if not chips then return end
-  local count = GC.Sniper._RealmCount()
+  -- The Items board holds its Rare finds rows too.
+  local count = GC.Sniper._RealmCount() + #GC.Sniper._RareRows()
   -- Two keys, not one with a conditional count: "ITEMS 0" is a promise of a number that is
   -- not there, and a chip reading "ITEMS" says the same thing without pretending to count.
   local labels = {
@@ -1745,6 +1941,36 @@ function GC.Sniper._PaintBoardChips(target)
     if text then chip:SetLabel(text) end
     chip:SetVariant(board == id and "active" or "ghost")
   end
+  -- "Only what I lack" is the Items board's (of realm rows) alone. The gold line beside the chips
+  -- ends where the toggle begins while it is up, and at the window's edge otherwise: anchored to
+  -- the hidden toggle it would lose the room the line needs to be drawn at all.
+  local lack = owner.lackToggle
+  if not lack then return end
+  local shown = GC.Sniper._RealmBoard()
+  if shown then lack:Show() else lack:Hide() end
+  lack:SetVariant(GC.Sniper._OnlyLack() and "active" or "ghost")
+  local line = owner.goldLine
+  if line and owner._goldLineToLack ~= shown then
+    owner._goldLineToLack = shown
+    line:ClearAllPoints()
+    line:SetPoint("LEFT", chips.items, "RIGHT", Theme.pad.m, 0)
+    if shown then
+      line:SetPoint("RIGHT", lack, "LEFT", -Theme.pad.m, 0)
+    else
+      line:SetPoint("RIGHT", owner, "RIGHT", -WIN.CONTENT_RIGHT_GUTTER, 0)
+    end
+  end
+end
+
+-- The "Only what I lack" toggle: the setting is a preference, kept like the board choice.
+function GC.Sniper._ToggleOnlyLack()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not cfg then return end
+  cfg.onlyLack = not cfg.onlyLack
+  trace("onlyLack: " .. tostring(cfg.onlyLack))
+  if frame and frame.scroll then frame.scroll:SetVerticalScroll(0) end
+  GC.Sniper._PaintBoardChips()
+  refreshRows()
 end
 
 -- The board switch itself. Persists the choice (it is a preference, not a session state --
@@ -3153,7 +3379,9 @@ end
 -- toggles and arms the latch, an up toggles only when no down armed it (and disarms it either
 -- way, so a down-then-up press over two different rows can never toggle the second row).
 function GC.Sniper._RowPinEvent(row, phase, button)
-  if button ~= "RightButton" or not row.deal then return end
+  -- An Items board header, empty line or Rare finds row pins nothing: a rare find has no realm
+  -- value, so its pin would land as a placeholder on the Commodities board.
+  if button ~= "RightButton" or not row.deal or row.deal.kind then return end
   if phase == "down" then
     GC.Sniper._pinPressLatch = true
     GC.Sniper._TogglePin(row.deal.itemID)
@@ -3440,7 +3668,13 @@ end
 -- (GC.Sniper._capPoll below), which runs on both Deals boards and the Sold tab -- this one runs on
 -- the Items board only, which is why half the caps slept at any moment. A capped item that is also
 -- on one of these lists stays here for its realm reference, and is asked about by both.
-function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealmValue)
+--
+-- `rares` (optional): the rare finds, in the site's rank order (GC.Data.RareIds). After the rest,
+-- the first LIM.RARE_POLL_CAP of them that are not commodities, each admitted by being a rare find
+-- rather than by a realm value -- a rare find has none, and the poll's trigger and hit stay
+-- realm-value only, so asking about one never makes a hit or a drill: its answer is only what the
+-- Rare finds section shows (GC.ItemsBoard.FoldSeen).
+function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealmValue, rares)
   local ids, seen = {}, {}
   local function add(itemID)
     if type(itemID) ~= "number" or seen[itemID] then return end
@@ -3452,6 +3686,17 @@ function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealm
   for _, itemID in ipairs(pins) do add(itemID) end
   for _, itemID in ipairs(watchlist) do add(itemID) end
   for _, itemID in ipairs(targets) do add(itemID) end
+  local taken = 0
+  for _, itemID in ipairs(rares or {}) do
+    if taken >= LIM.RARE_POLL_CAP then break end
+    if type(itemID) == "number" and not isCommodity(itemID) then
+      taken = taken + 1
+      if not seen[itemID] then
+        seen[itemID] = true
+        ids[#ids + 1] = itemID
+      end
+    end
+  end
   return ids
 end
 
@@ -3461,8 +3706,10 @@ end
 -- W section or nothing, never the top-N-by-value list it otherwise invents, which is not a
 -- watchlist and has no business being polled. A commodity the Sell tab has already classified is
 -- left out (the book pass sweeps those); an item nobody has classified is polled and answers for
--- itself. The cap poll's: every cap the player has, as GC.Caps.Targets() hands them over -- realm
--- or commodity, with or without any price of GoldCap's own (a cap IS the player's price).
+-- itself. Then the rare finds the region payload names (U section), up to LIM.RARE_POLL_CAP, for
+-- the board's Rare finds section. The cap poll's: every cap the player has, as GC.Caps.Targets()
+-- hands them over -- realm or commodity, with or without any price of GoldCap's own (a cap IS the
+-- player's price).
 --
 -- Called when the sets can actually have changed -- AH open, a pin toggle, a fresh import, a
 -- caps adoption -- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that
@@ -3474,7 +3721,8 @@ function GC.Sniper._RebuildKeyTargets()
     data.GetWatchlist and data.GetWatchlist(0) or {},
     data.TargetIds and data.TargetIds() or {},
     GC.Sniper._IsCommodityId,
-    function(id) return GC.Sniper._RealmValue(id) ~= nil end))
+    function(id) return GC.Sniper._RealmValue(id) ~= nil end,
+    data.RareIds and data.RareIds() or {}))
   GC.Sniper._capPoll:SetTargets(GC.Caps and GC.Caps.Targets() or {})
 end
 
@@ -3521,7 +3769,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- The realm reference's own trigger, and nothing else: a cap is the cap poll's to judge
   -- (GC.Sniper._capPoll below), at the cap's own item level. Judged here as well, on this poll's
   -- aggregate floor, a cap woke to every price of a variant below its level (caps fixes 4c).
+  -- A rare find has no price, so nothing it asks is ever a hit, even should a T reference for it
+  -- linger in an import older than the payload that named it rare.
   triggerFor = function(itemID)
+    if GC.Sniper._IsRareFind(itemID) then return nil end
     local value = GC.Sniper._RealmValue(itemID)
     return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
   end,
@@ -3545,7 +3796,8 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     for i = 1, #realmRows do
       local row = realmRows[i]
       local unitPrice = math.floor(row.buyoutStack / row.count)
-      local value = GC.Sniper._RealmValue(row.itemID)
+      -- A rare find is never a flip row (see triggerFor): its row is the Rare finds section's.
+      local value = not GC.Sniper._IsRareFind(row.itemID) and GC.Sniper._RealmValue(row.itemID) or nil
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
@@ -3586,6 +3838,11 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     -- it, and the commodity board's hundred rows are the commodity scan's again.
     local asked = GC.Sniper._keysBatch
     GC.Sniper._keysBatch = nil
+    -- What this realm's cheapest listing of each rare find asks, for the Rare finds section; an
+    -- asked one the answer is silent about has no listing left.
+    if GC.ItemsBoard then
+      GC.ItemsBoard.FoldSeen(GC.Sniper._rareSeen, results, asked, GC.Sniper._IsRareFind)
+    end
     if asked then
       -- This batch asked about these items by name, so its silence about one is an answer:
       -- sold out, or repriced back above the trigger. Either way it leaves the board with the
@@ -3620,6 +3877,18 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
 -- realm row -- see onRows above and applyFullScanResults). Capped at WIN.ROW_CAP by the same
 -- comparator the commodity board uses, in onRows.
 GC.Sniper._realmDeals = {}
+
+-- itemID -> { unit, qty }: the cheapest listing on this realm of each rare find the realm poll
+-- asked about, from its last answer (GC.ItemsBoard.FoldSeen in onRows above). Not rows: the Rare
+-- finds section is built from it at every render (GC.Sniper._RareRows), against the facts the
+-- payload holds then. Wiped with the Items store when the auction house closes.
+GC.Sniper._rareSeen = {}
+
+-- Whether the region payload names this item a rare find (Core/Data.lua's U section). Guarded:
+-- the specs that build this window bring a data layer of their own.
+function GC.Sniper._IsRareFind(itemID)
+  return (GC.Data and GC.Data.IsRareFind and GC.Data.IsRareFind(itemID)) and true or false
+end
 
 -- Caps fixes 4a: the player's caps, polled on their own. Realm-item caps used to ride the realm
 -- poll above, which runs on the Items board only, and commodity caps were seen only by Auto's book
@@ -10122,7 +10391,8 @@ end
 
 local function onBuyClick(row)
   local deal = row.deal
-  if not deal then return end
+  -- An Items board entry (a header, a Rare finds row) is never a purchase: no drill, no window.
+  if not deal or deal.kind then return end
 
   if dialog and dialog.row == row then
     -- Already this row's dialog (e.g. it got buried); nothing else to do.
@@ -10410,8 +10680,9 @@ end
 layoutRow = function(row)
   local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
   -- anchorColumns shows every fixed cell unconditionally; a watching row (pin placeholder) has
-  -- no action to take, so hide the Buy button back down after the fact.
-  if row.deal and row.deal.pinPlaceholder then row.buy:Hide() end
+  -- no action to take, so hide the Buy button back down after the fact. Nor has an Items board
+  -- section header, an empty section's line or a Rare finds row (GC.Sniper._PaintBoardEntry).
+  if row.deal and (row.deal.pinPlaceholder or row.deal.kind) then row.buy:Hide() end
   -- nameText is the one flexible widget, anchored on BOTH sides (icon's RIGHT, the first
   -- VISIBLE fixed column's LEFT via flexAnchor) so it soaks up whatever space is left over --
   -- this can never again drift out of sync with where the Buy button actually sits, since
@@ -10580,10 +10851,17 @@ createRow = function(parent, index)
     end
   end)
   row:SetScript("OnEnter", function(self)
+    -- A section header or an empty section's line is a label, not a row to point at: no wash,
+    -- no hold, no tooltip.
+    if self.deal and self.deal.kind and self.deal.kind ~= "rare" then return end
     self.highlight:Show()
     self.rail:Show()
     hoveredRow = self
+    -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
+    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
     if not self.deal then return end
+    if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self) end
     GC.Sniper._HoverPrewarm(self)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
@@ -11446,6 +11724,22 @@ local function createFrame()
   goldLine:Hide()
   f.goldLine = goldLine
 
+  -- "Only what I lack", at the row's right end: the Items board shows only the rows whose item
+  -- the account has not collected (GC.Sniper._ItemsDisplay). Parented to the ITEMS chip like the
+  -- gold line, so it leaves with the Deals chrome; GC.Sniper._PaintBoardChips shows it on the
+  -- Items board only and paints it on or off. As wide as its words in the player's language.
+  local lack = Theme.Button(f.boardChips.items, "ghost", "plaque")
+  lack:SetSize(150, CH.BTN_H)
+  lack:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, boardY)
+  lack:SetUppercase(true)
+  lack:SetLabel(GC.L["Only what I lack"])
+  lack:FitLabels({ GC.L["Only what I lack"] }, 96)
+  lack:SetScript("OnClick", function() GC.Sniper._ToggleOnlyLack() end)
+  setPlainTooltip(lack,
+    GC.L["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."])
+  f.lackToggle = lack
+  GC.Sniper._PaintBoardChips(f)
+
   -- Deals-only toolbar chrome: setView shows/hides these alongside the scroll/header
   -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
@@ -12175,6 +12469,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._keysLastCycle = 0
   GC.Sniper._ForgetItemsVisit()
   for itemID in pairs(GC.Sniper._realmDeals) do GC.Sniper._realmDeals[itemID] = nil end
+  for itemID in pairs(GC.Sniper._rareSeen) do GC.Sniper._rareSeen[itemID] = nil end
   -- The Items chip carries that store's own count, and clearDeals above rendered before this
   -- wipe -- without this the chip would still be claiming rows until the next visit's first
   -- render. (The window is going away either way; a control that lies while it is on screen

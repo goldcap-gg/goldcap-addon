@@ -133,6 +133,10 @@ GC.DEFAULTS = {
       -- GC.Sniper._SetBoard), which validates whatever it reads back -- anything but "items"
       -- is Commodities, so no migration is owed to a save written before this existed.
       board = "commodities",
+      -- The Items board's "Only what I lack" toggle (UI/SniperFrame.lua's
+      -- GC.Sniper._ToggleOnlyLack): only rows whose item the account has not collected, or a
+      -- recipe this character does not know. A preference like the board choice; off by default.
+      onlyLack = false,
       -- Items the owner has asked the watch loop to poll closely, in their own order. A
       -- standing instruction, so unlike the loop's own churn observations it survives the
       -- session. Same empty-table ApplyDefaults contract as `flips`.

@@ -385,6 +385,39 @@ describe("locale layer", function()
     end
   end)
 
+  -- The Items board in two sections, its collection marks and its filter (owner, 2026-10-12).
+  it("carries the Flips and Rare finds keys in all twelve languages, Russian as the owner reads it", function()
+    local keys = {
+      "Flips", "Rare finds", "No flips on this realm right now", "No rare finds on this realm right now",
+      "Nothing here you lack", "Only what I lack",
+      "Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know.",
+      "Not collected", "Not known by this character", "Appearance known",
+      "Cheapest of %d realms", "Among the cheapest 10%% of %d realms", "Cheaper than 3 in 4 of %d realms",
+      "Sold %d times in 30 days", "Sold once in 30 days", "last for %s %s",
+      "%d days ago", "1 day ago", "%d hours ago", "1 hour ago", "less than an hour ago",
+      "No sale seen in 30 days", "Sold %d times in 7 days on %d realms",
+      "Rare find: seldom sold, so GoldCap puts no price on it",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        -- Read whole in every language: never cut short, and no long dash anywhere.
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+    local ru = helper.loadModule("Locale/Core.lua")
+    helper.loadModule("Locale/ruRU.lua", ru)
+    assert.equal("Перепродажа", ru.Locales.ruRU["Flips"])
+    assert.equal("Редкости", ru.Locales.ruRU["Rare finds"])
+    assert.equal("Только то, чего нет", ru.Locales.ruRU["Only what I lack"])
+  end)
+
   -- The owner plays in Russian: the words the dock and the rows say most, pinned as they read.
   it("says the BUY dock's words naturally in Russian and Ukrainian", function()
     local expected = {
