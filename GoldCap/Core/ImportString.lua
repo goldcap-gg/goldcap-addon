@@ -136,6 +136,44 @@ local function readRefs(body, medians, listingsInto)
   return n
 end
 
+-- F (GCM1 only): a realm item that trades, `itemId=refCopper=sales7d=saleRealms7d`. refCopper is
+-- the median price per unit it SOLD for over the last 7 days across the region's realms (the
+-- site's realm sales tape), with the sales and realms behind it. All four positive. Anchored per
+-- token like M: a malformed token drops itself and is not counted.
+local function readFlips(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, ref, sales, realms = token:match("^(%d+)=(%d+)=(%d+)=(%d+)$")
+    id, ref, sales, realms = tonumber(id), tonumber(ref), tonumber(sales), tonumber(realms)
+    if id and id > 0 and ref > 0 and sales > 0 and realms > 0 then
+      into[id] = { ref = ref, sales7d = sales, realms = realms }
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- U (GCM1 only): a rare find, listed on many realms and rarely sold, which the site gives no price.
+-- `itemId=sales30d=lastSaleCopper=lastSoldAgeHours=realmsListed=floorMin=floorP10=floorP25`: the
+-- sales seen in 30 days, the last one's price per unit and its age in whole hours before the
+-- payload's ts (0 and 0 when there was none), then how many realms list it and the min, 10th and
+-- 25th percentile of those realms' cheapest listings. All whole; the id, the realm count and the
+-- three floors positive. Anchored per token like F.
+local function readRares(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local f = { token:match("^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$") }
+    for i = 1, #f do f[i] = tonumber(f[i]) end
+    local id = f[1]
+    if id and id > 0 and f[5] > 0 and f[6] > 0 and f[7] > 0 and f[8] > 0 then
+      into[id] = { sales30d = f[2], lastSaleCopper = f[3], lastSoldAgeHours = f[4], realmsListed = f[5],
+        floorMin = f[6], floorP10 = f[7], floorP25 = f[8] }
+      n = n + 1
+    end
+  end
+  return n
+end
+
 -- W (site watchlist) and N (item ids the site has no name for -- Blizzard's API 404s them;
 -- Core/ItemNames.lua resolves them from the client and the Companion reports the names back):
 -- plain id lists, in order.
@@ -247,6 +285,15 @@ function GC.ImportString.ParseRegion(str)
       readPrices(body, result.reach)
     elseif kind == "M" then
       result.counts.refs = result.counts.refs + readRefs(body, result.refs, result.refListings)
+    -- F and U only once the site's realm sales tape covers a week of the region. Until then a
+    -- payload carries neither, and its result has neither table nor count: it parses exactly as a
+    -- payload did before the sections existed.
+    elseif kind == "F" then
+      result.flips = result.flips or {}
+      result.counts.flips = (result.counts.flips or 0) + readFlips(body, result.flips)
+    elseif kind == "U" then
+      result.rares = result.rares or {}
+      result.counts.rares = (result.counts.rares or 0) + readRares(body, result.rares)
     end
   end
 

@@ -851,4 +851,114 @@ describe("Data", function()
       assert.equal(kb, GC.Data.GetStatus().payload.memoryKB)
     end)
   end)
+
+  -- Realm items split by what sells (the payload's F and U sections, once the site's realm sales
+  -- tape covers a week of the region). A flip is priced at what it sold for; a rare find gets no
+  -- price at all, only what was seen of it.
+  describe("flips and rare finds", function()
+    local TS = 1783598400
+    -- 201234: a flip with a T ask and an I median; 201235: a flip only F names; 7935, 8350, 9001,
+    -- 9002: rare finds -- two sold, two never; 7000 is named both, which the site never does.
+    local PAYLOAD = "GCM1;eu;" .. TS .. ";I:42=500;M:7935=480000=6,201235=777=4"
+      .. ";F:201234=300000=6=3,201235=50000=5=3,7000=1000=5=3"
+      .. ";U:7935=2=25000000=26=6=31500000=900000000=1389993400,8350=0=0=0=6=100000000=300000000=949002900"
+      .. ",9001=4=10000000=3=8=1000=2000=3000,9002=0=0=0=5=1000=2000=5000,7000=0=0=0=5=1=2=3"
+    local savedTime
+
+    before_each(function()
+      savedTime = _G.time
+      _G.time = function() return TS + 5 * 3600 + 59 end
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS,
+        items = { [201234] = { m = 900000 }, [7935] = { m = 3150 * 10000 } },
+        targets = { [201234] = { ref = 1290000, ilvl = 610 }, [8350] = { ref = 5000000, ilvl = 0 } },
+        watchlist = {} })
+      assert.is_truthy(GC.Data.AdoptRegionPayload(PAYLOAD))
+    end)
+
+    after_each(function() _G.time = savedTime end)
+
+    it("hands out a flip's sale price, sales and realms", function()
+      assert.same({ ref = 300000, sales7d = 6, realms = 3 }, GC.Data.FlipFacts(201234))
+      assert.is_nil(GC.Data.FlipFacts(7935))
+    end)
+
+    it("prices a flip at what it sold for, over T's ask, and at no item level", function()
+      local v = GC.Data.GetItemValue(201234)
+      assert.equal("import", v.source)
+      assert.equal("realm_item", v.kind)
+      assert.equal(900000, v.mv)
+      assert.equal(300000, v.ref)
+      assert.equal(0, v.refIlvl)
+    end)
+
+    it("gives a flip the import has no T or I entry for its reference", function()
+      local v = GC.Data.GetItemValue(201235)
+      assert.same({ ts = TS, source = "import", kind = "realm_item", ref = 50000, refIlvl = 0 }, v)
+    end)
+
+    it("leaves an item with no F entry exactly as before", function()
+      local v = GC.Data.GetItemValue(8350)
+      assert.equal(5000000, v.ref) -- T's, untouched
+      v = GC.Data.GetItemValue(7935)
+      assert.is_nil(v.ref) -- a realm median and no reference, as ever
+      assert.equal(3150 * 10000, v.mv)
+    end)
+
+    it("says which items are rare finds, and that the site has switched", function()
+      assert.is_true(GC.Data.HasRareFinds())
+      assert.is_true(GC.Data.IsRareFind(7935))
+      assert.is_true(GC.Data.IsRareFind(8350))
+      assert.is_false(GC.Data.IsRareFind(201234))
+      assert.is_false(GC.Data.IsRareFind(42))
+    end)
+
+    it("reads an item named both a flip and a rare find as a flip", function()
+      assert.is_false(GC.Data.IsRareFind(7000))
+      assert.is_nil(GC.Data.RareFacts(7000))
+      assert.equal(1000, GC.Data.FlipFacts(7000).ref)
+    end)
+
+    it("dates the last sale from now: the payload's age plus the hours the site counted", function()
+      -- The payload is 5 h 59 min old: five whole hours on top of the site's 26.
+      assert.same({ sales30d = 2, lastSaleCopper = 25000000, lastSoldAgeHours = 31, realms = 6,
+        floorMin = 31500000, floorP10 = 900000000, floorP25 = 1389993400 }, GC.Data.RareFacts(7935))
+      assert.equal(26, GC.Data.RareFacts(7935, TS).lastSoldAgeHours)
+      assert.equal(26, GC.Data.RareFacts(7935, TS - 7200).lastSoldAgeHours) -- a clock behind the site
+    end)
+
+    it("has no last sale for a rare find that never sold", function()
+      local f = GC.Data.RareFacts(8350)
+      assert.equal(0, f.sales30d)
+      assert.is_nil(f.lastSaleCopper)
+      assert.is_nil(f.lastSoldAgeHours)
+      assert.equal(949002900, f.floorP25)
+    end)
+
+    it("ranks rare finds the site's way: sold first, by gold moved, then by p25, then id", function()
+      -- 7935: 2 x 2500g = 5000g; 9001: 4 x 1000g = 4000g; never sold: 8350's p25 above 9002's.
+      assert.same({ 7935, 9001, 8350, 9002 }, GC.Data.RareIds())
+      assert.is_true(GC.Data.RareBefore(9001, 8350))
+      assert.is_false(GC.Data.RareBefore(9002, 8350))
+      assert.is_true(GC.Data.RareBefore(9002, 42)) -- a rare find ranks ahead of anything else
+      assert.is_true(GC.Data.RareBefore(41, 42))
+    end)
+
+    it("answers nothing once the payload stops answering", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = TS, items = { [1] = { m = 1 } }, watchlist = {} })
+      assert.is_false(GC.Data.HasRareFinds())
+      assert.is_false(GC.Data.IsRareFind(7935))
+      assert.is_nil(GC.Data.RareFacts(7935))
+      assert.is_nil(GC.Data.FlipFacts(201234))
+      assert.same({}, GC.Data.RareIds())
+    end)
+
+    it("answers nothing for a payload from before the site switched", function()
+      GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS .. ";I:42=500;M:7935=480000=6")
+      assert.is_false(GC.Data.HasRareFinds())
+      assert.is_nil(GC.Data.FlipFacts(201234))
+      assert.same({}, GC.Data.RareIds())
+      assert.equal(1290000, GC.Data.GetItemValue(201234).ref)
+      assert.equal(610, GC.Data.GetItemValue(201234).refIlvl)
+    end)
+  end)
 end)
