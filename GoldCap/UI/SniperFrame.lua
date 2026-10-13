@@ -890,6 +890,7 @@ local function clearHover()
   -- A watched row keeps its blue rail up even once unhovered -- see the matching comment in
   -- setRowDeal.
   if not (row.deal and isPinned(row.deal.itemID)) then row.rail:Hide() end
+  GC.Sniper._EndInspect(row)
   hoveredRow = nil
 end
 
@@ -1702,7 +1703,61 @@ function GC.Sniper._RareTooltip(row)
     Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], true)
   GameTooltip:AddLine(GC.Util.ClientText(standing), 1, 1, 1, true)
   GameTooltip:AddLine(GC.Util.ClientText(sales), dim[1], dim[2], dim[3], true)
+  GC.Sniper._TryOnHint(entry.itemID)
   GameTooltip:Show()
+end
+
+-- ---------------------------------------------------------------------------
+-- A row's item answers the client's own modified clicks, as the auction house's rows do: Ctrl
+-- held over it shows the magnifier, a ctrl-click tries it on in the Dressing Room (a caged pet
+-- shows its species, a mount its model), a shift-click links it in chat. The link is built the
+-- way Blizzard's browse rows build theirs (Blizzard_AuctionHouseBrowseResultsFrame.lua).
+-- ---------------------------------------------------------------------------
+
+-- A caged pet's battle pet link, else the item's own; nil until the client has loaded the item.
+function GC.Sniper._RowItemLink(itemID)
+  local species = GC.Sniper._SpeciesFor(itemID)
+  if species and C_AuctionHouse and C_AuctionHouse.MakeItemKey and C_AuctionHouse.GetItemKeyInfo then
+    local info = C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID, 0, 0, species))
+    if info and info.battlePetLink then return info.battlePetLink end
+  end
+  if not (C_Item and C_Item.GetItemInfo) then return nil end
+  local _, link = C_Item.GetItemInfo(itemID)
+  return link
+end
+
+-- A modified left click is the item's, never the row's Check or Buy: true when it was one.
+function GC.Sniper._RowItemClick(row)
+  if not (IsModifiedClick and (IsModifiedClick("DRESSUP") or IsModifiedClick("CHATLINK"))) then return false end
+  local itemID = row.deal and row.deal.itemID
+  local link = itemID and GC.Sniper._RowItemLink(itemID)
+  if link and type(HandleModifiedItemClick) == "function" then HandleModifiedItemClick(link) end
+  return true
+end
+
+-- The magnifier while the try-on modifier is held over an item row (the row's OnUpdate).
+function GC.Sniper._InspectCursor()
+  if IsModifiedClick and IsModifiedClick("DRESSUP") then ShowInspectCursor() else ResetCursor() end
+end
+
+function GC.Sniper._BeginInspect(row)
+  row.inspecting = true
+  row:SetScript("OnUpdate", GC.Sniper._InspectCursor)
+  GC.Sniper._InspectCursor()
+end
+
+-- Hands the cursor back once the row is no longer under it (OnLeave, or the window hiding).
+function GC.Sniper._EndInspect(row)
+  if not row.inspecting then return end
+  row.inspecting = nil
+  row:SetScript("OnUpdate", nil)
+  ResetCursor()
+end
+
+-- The tooltip line for an item the Dressing Room can put on the character.
+function GC.Sniper._TryOnHint(itemID)
+  if not (C_Item and C_Item.IsDressableItemByID and C_Item.IsDressableItemByID(itemID)) then return end
+  GameTooltip:AddLine(GC.Util.ClientText(GC.L["Ctrl-click to try it on"]), 0.7, 0.7, 0.7)
 end
 
 -- Forward-declared: createRow's real definition lives further down (it needs the row
@@ -10861,6 +10916,7 @@ createRow = function(parent, index)
     -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
     self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
     if not self.deal then return end
+    GC.Sniper._BeginInspect(self)
     if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self) end
     GC.Sniper._HoverPrewarm(self)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
@@ -10931,12 +10987,14 @@ createRow = function(parent, index)
         GameTooltip:AddLine(GC.Util.ClientText(watchNote), Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       end
     end
+    GC.Sniper._TryOnHint(self.deal.itemID)
     GameTooltip:AddLine(GC.Util.ClientText(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
       or GC.L["Right-click to watch this item closely"]), 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
+    GC.Sniper._EndInspect(self)
     if hoveredRow == self then
       clearHover()
       refreshRows()
@@ -10979,10 +11037,13 @@ createRow = function(parent, index)
   end)
   row:SetScript("OnMouseUp", function(self, button)
     -- A left click anywhere on the row is the row's action (the same handler as row.buy);
-    -- the button itself sits above the row and keeps its own click. Disabled = no action.
+    -- the button itself sits above the row and keeps its own click. Disabled = no action. A
+    -- ctrl- or shift-click is the item's own (try it on, link it), never the row's action.
     if button == "LeftButton" and self.leftPressed then
       self.leftPressed = nil
-      if self.buy and self.buy:IsShown() and self.buy:IsEnabled() then onBuyClick(self) end
+      if not GC.Sniper._RowItemClick(self) and self.buy and self.buy:IsShown() and self.buy:IsEnabled() then
+        onBuyClick(self)
+      end
     end
     GC.Sniper._RowPinEvent(self, "up", button)
   end)

@@ -731,6 +731,132 @@ describe("Row click wiring (whole-row left-click acts)", function()
 
     assert.same({}, calls)
   end)
+
+  -- The owner, 2026-10-13: a row's item should try on the way it does on the auction house's own
+  -- rows (ctrl-click, the magnifier while ctrl is held). Shift links it, as there.
+  describe("modified clicks are the item's", function()
+    local held, handed, cursor
+
+    local function clientFakes()
+      held, handed, cursor = {}, {}, {}
+      _G.IsModifiedClick = function(action) return held[action] == true end
+      _G.HandleModifiedItemClick = function(link) handed[#handed + 1] = link end
+      _G.ShowInspectCursor = function() cursor[#cursor + 1] = "inspect" end
+      _G.ResetCursor = function() cursor[#cursor + 1] = "reset" end
+      _G.C_Item = { GetItemInfo = function(id) return "Item " .. id, "|Hitem:" .. id .. "|h" end }
+    end
+
+    after_each(function()
+      _G.IsModifiedClick, _G.HandleModifiedItemClick = nil, nil
+      _G.ShowInspectCursor, _G.ResetCursor, _G.C_Item, _G.C_AuctionHouse = nil, nil, nil, nil
+    end)
+
+    local function click(ctx, row)
+      local checks = {}
+      setUpvalue(ctx.createRow, "onBuyClick", function(r) checks[#checks + 1] = r end)
+      row.scripts.OnMouseDown(row, "LeftButton")
+      row.scripts.OnMouseUp(row, "LeftButton")
+      return checks
+    end
+
+    it("a ctrl-click tries the item on and never checks the row", function()
+      local ctx = load()
+      clientFakes()
+      local row = buildRow(ctx)
+      held.DRESSUP = true
+
+      assert.same({}, click(ctx, row))
+      assert.same({ "|Hitem:99|h" }, handed)
+    end)
+
+    it("a shift-click links the item and never checks the row", function()
+      local ctx = load()
+      clientFakes()
+      local row = buildRow(ctx)
+      held.CHATLINK = true
+
+      assert.same({}, click(ctx, row))
+      assert.same({ "|Hitem:99|h" }, handed)
+    end)
+
+    it("a plain click still checks the row and hands the client nothing", function()
+      local ctx = load()
+      clientFakes()
+      local row = buildRow(ctx)
+
+      assert.same({ row }, click(ctx, row))
+      assert.same({}, handed)
+    end)
+
+    it("a ctrl-click on an item the client has not loaded does nothing, and still never checks", function()
+      local ctx = load()
+      clientFakes()
+      _G.C_Item = { GetItemInfo = function() return nil end }
+      local row = buildRow(ctx)
+      held.DRESSUP = true
+
+      assert.same({}, click(ctx, row))
+      assert.same({}, handed)
+    end)
+
+    it("a caged pet hands over its species' battle pet link", function()
+      local ctx = load()
+      clientFakes()
+      local asked
+      _G.C_AuctionHouse = {
+        MakeItemKey = function(itemID, ilvl, suffix, species)
+          return { itemID = itemID, itemLevel = ilvl, itemSuffix = suffix, battlePetSpeciesID = species }
+        end,
+        GetItemKeyInfo = function(key)
+          asked = key
+          return { battlePetLink = "|Hbattlepet:" .. key.battlePetSpeciesID .. "|h" }
+        end,
+      }
+      ctx.GC.Sniper._keyPoll = { Book = function()
+        return { [82800] = { variants = { { battlePetSpeciesID = 42 } } } }
+      end }
+      local row = buildRow(ctx)
+      row.deal = { itemID = 82800 }
+      held.DRESSUP = true
+
+      assert.same({}, click(ctx, row))
+      assert.same({ "|Hbattlepet:42|h" }, handed)
+      assert.same({ itemID = 82800, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 42 }, asked)
+      ctx.GC.Sniper._keyPoll = nil
+    end)
+
+    it("shows the magnifier only while ctrl is held over the row, and hands the cursor back on leave", function()
+      local ctx = load()
+      clientFakes()
+      local row = buildRow(ctx)
+
+      ctx.GC.Sniper._BeginInspect(row)
+      assert.same({ "reset" }, cursor)
+      held.DRESSUP = true
+      row.scripts.OnUpdate(row, 0.016)
+      assert.same({ "reset", "inspect" }, cursor)
+
+      row.scripts.OnLeave(row)
+      assert.is_nil(row.scripts.OnUpdate)
+      assert.same({ "reset", "inspect", "reset" }, cursor)
+      -- A second leave (the window hiding after it) has nothing left to hand back.
+      row.scripts.OnLeave(row)
+      assert.same({ "reset", "inspect", "reset" }, cursor)
+    end)
+
+    it("says ctrl-click tries it on only for an item the Dressing Room can show", function()
+      local ctx = load()
+      clientFakes()
+      local lines = {}
+      _G.GameTooltip = { AddLine = function(_, text) lines[#lines + 1] = text end }
+      _G.C_Item.IsDressableItemByID = function(id) return id == 7935 end
+
+      ctx.GC.Sniper._TryOnHint(7935)
+      ctx.GC.Sniper._TryOnHint(2553)
+
+      assert.same({ "Ctrl-click to try it on" }, lines)
+    end)
+  end)
 end)
 
 -- Item 1 (addon polish batch): OnEnter pins the hovered row into `hoveredRow` so refreshRows()
@@ -899,6 +1025,9 @@ describe("Sniper window OnHide clears the hover pin", function()
     -- setRowDeal/OnEnter don't check anything on it in this scenario -- any-method-is-a-no-op
     -- covers whichever of GameTooltip's methods either happens to reach.
     _G.GameTooltip = setmetatable({}, { __index = function() return function() end end })
+    -- OnEnter hands the cursor its magnifier while ctrl is held; nothing is held here.
+    _G.IsModifiedClick = function() return false end
+    _G.ShowInspectCursor, _G.ResetCursor = function() end, function() end
 
     local GC = {}
     local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
@@ -943,6 +1072,7 @@ describe("Sniper window OnHide clears the hover pin", function()
     _G.time = nil
     _G.Item = nil
     _G.GameTooltip = nil
+    _G.IsModifiedClick, _G.ShowInspectCursor, _G.ResetCursor = nil, nil, nil
   end
 
   after_each(teardown)

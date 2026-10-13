@@ -1372,6 +1372,7 @@ GC.Locales.ukUA = {
   ["Only what I lack"] = "Лише те, чого немає",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Показує лише те, чого ще немає в колекції вашого облікового запису: вигляди, вихованців, іграшки й транспорт, а також рецепти, яких не знає цей персонаж.",
+  ["Ctrl-click to try it on"] = "Ctrl+клік: приміряти",
   ["Not collected"] = "Немає в колекції",
   ["Not known by this character"] = "Цей персонаж не знає",
   ["Appearance known"] = "Вигляд уже зібрано",

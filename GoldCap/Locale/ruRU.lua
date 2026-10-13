@@ -1371,6 +1371,7 @@ GC.Locales.ruRU = {
   ["Only what I lack"] = "Только то, чего нет",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Показывает только то, чего ещё нет в коллекции вашей учётной записи: облики, питомцев, игрушки и транспорт, а также рецепты, которых не знает этот персонаж.",
+  ["Ctrl-click to try it on"] = "Ctrl+клик: примерить",
   ["Not collected"] = "Нет в коллекции",
   ["Not known by this character"] = "Этот персонаж не знает",
   ["Appearance known"] = "Облик уже собран",

@@ -15,6 +15,9 @@
   learned, and Appearance known a piece whose look you already have from another item.
 - Deals, Items board: Only what I lack, at the top of the board, shows only the items marked Not
   collected or Not known by this character. It stays as you left it.
+- Deals: ctrl-click a row to try the item on in the Dressing Room, as on the auction house's own
+  rows (hold ctrl over it for the magnifier). Shift-click links it in chat. Neither one checks or
+  buys the row.
 - Deals no longer cuts a long item name with "…": in a narrow window or a long language the name
   wraps and its row grows to hold it. Rows keep still while your cursor is on one.
 - Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the

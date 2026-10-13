@@ -1307,6 +1307,7 @@ GC.Locales.esMX = {
   ["Only what I lack"] = "Solo lo que me falta",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Muestra solo lo que tu cuenta aún no ha coleccionado: apariencias, mascotas, juguetes y monturas, y recetas que este personaje no conoce.",
+  ["Ctrl-click to try it on"] = "Ctrl+clic para probártelo",
   ["Not collected"] = "No coleccionado",
   ["Not known by this character"] = "Este personaje no lo conoce",
   ["Appearance known"] = "Apariencia conocida",

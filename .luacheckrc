@@ -19,6 +19,9 @@ read_globals = {
   "C_MerchantFrame", "MerchantFrame",
   -- BUY 2.0's item box: a shift-click reaches it through a post-hook on InsertLink.
   "ChatFrameUtil",
+  -- A board row's item answers the client's modified clicks (ctrl tries it on, shift links it)
+  -- and shows the magnifier while ctrl is held, as the auction house's own rows do.
+  "IsModifiedClick", "HandleModifiedItemClick", "ShowInspectCursor", "ResetCursor",
   -- Final review M3: GetCoinTextureString is absent in WoW: Forever and must never be called
   -- bare outside GC.Util.CoinText (GoldCap/Core/Util.lua) -- removed here so luacheck flags any
   -- reintroduced call as an undefined global, the same contract coin_text_spec.lua's grep pins.

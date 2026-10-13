@@ -1209,6 +1209,7 @@ GC.Locales.zhCN = {
   ["Only what I lack"] = "只看未收集",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "只显示你的账号尚未收集的物品：外观、宠物、玩具和坐骑，以及此角色尚未学会的配方。",
+  ["Ctrl-click to try it on"] = "Ctrl+点击试穿",
   ["Not collected"] = "未收集",
   ["Not known by this character"] = "此角色未学会",
   ["Appearance known"] = "外观已收集",

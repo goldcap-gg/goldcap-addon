@@ -1302,6 +1302,7 @@ GC.Locales.itIT = {
   ["Only what I lack"] = "Solo ciò che mi manca",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Mostra solo ciò che il tuo account non ha ancora collezionato: aspetti, mascotte, giocattoli e cavalcature, e ricette che questo personaggio non conosce.",
+  ["Ctrl-click to try it on"] = "Ctrl+clic per provarlo",
   ["Not collected"] = "Non collezionato",
   ["Not known by this character"] = "Non conosciuto da questo personaggio",
   ["Appearance known"] = "Aspetto conosciuto",

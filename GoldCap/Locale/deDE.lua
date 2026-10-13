@@ -1303,6 +1303,7 @@ GC.Locales.deDE = {
   ["Only what I lack"] = "Nur was mir fehlt",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Zeigt nur, was dein Account noch nicht gesammelt hat: Aussehen, Haustiere, Spielzeuge und Reittiere, und Rezepte, die dieser Charakter nicht kennt.",
+  ["Ctrl-click to try it on"] = "Strg-Klick zum Anprobieren",
   ["Not collected"] = "Nicht gesammelt",
   ["Not known by this character"] = "Diesem Charakter unbekannt",
   ["Appearance known"] = "Aussehen bekannt",

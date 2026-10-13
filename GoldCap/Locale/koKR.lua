@@ -1237,6 +1237,7 @@ GC.Locales.koKR = {
   ["Only what I lack"] = "미보유만",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "계정에서 아직 수집하지 않은 것만 표시합니다: 외형, 애완동물, 장난감, 탈것, 그리고 이 캐릭터가 모르는 제조법.",
+  ["Ctrl-click to try it on"] = "Ctrl+클릭으로 착용해 보기",
   ["Not collected"] = "미수집",
   ["Not known by this character"] = "이 캐릭터는 모름",
   ["Appearance known"] = "외형 보유",

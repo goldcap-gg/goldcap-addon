@@ -1289,6 +1289,7 @@ GC.Locales.enUS = {
   ["Only what I lack"] = "Only what I lack",
   ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
     "Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know.",
+  ["Ctrl-click to try it on"] = "Ctrl-click to try it on",
   ["Not collected"] = "Not collected",
   ["Not known by this character"] = "Not known by this character",
   ["Appearance known"] = "Appearance known",
