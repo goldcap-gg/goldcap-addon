@@ -7613,9 +7613,9 @@ function GC.Sniper._TickKeys()
     GC.Sniper._WriteOffKeys("player busy")
   end
   if GC.Sniper._drillQueue:Depth() > 0 and canDrillNow() then
-    -- Final review m7: a drill that could go now goes first, as the arbiter orders it -- sent
-    -- straight from here, a batch went ahead of it, and a batch out holds every drill back. The
-    -- arbiter reaches the caps' batch and the Items board's after the drills, as on a ready tick.
+    -- Final review m7: with a drill that could go now, the arbiter decides, as on a ready tick:
+    -- an Items round still asking goes first (its step 1c), else the drill, else the caps' batch
+    -- and the Items board's.
     GC.Sniper.OnThrottleReady()
   else
     if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
@@ -7691,6 +7691,18 @@ function GC.Sniper.OnThrottleReady()
   -- own Check, step 2 and the tail ask this for themselves.)
   local playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
     and GC.AuctionHouseTab.PlayerIsBusy()) and true or false
+
+  -- 1c. An Items round that still has batches to ask goes ahead of the drills it feeds (the owner,
+  -- 2026-10-11: "only after about twenty seconds did anything appear"). Measured 2026-10-13: a
+  -- round's first batch put 29 rows up, then 23 drills held its second batch 9.8 s and 35 more held
+  -- the third 15.4 s, so the board reached 100 rows at +33 s. Back to back the round takes about
+  -- 1.3 s. The caps keep their place ahead of the Items batch, every veto stays in
+  -- _TrySendKeysBatchFor, and the drills lose no throughput: their budget is per minute, and a
+  -- round is four messages. Between rounds (the breather) the drills have the slot as before.
+  if view == "deals" and GC.Sniper._Board() == "items" and GC.Sniper._keyPoll:HasPending() then
+    if GC.Sniper._TrySendCapBatch(playerBusy) then return end
+    if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+  end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),

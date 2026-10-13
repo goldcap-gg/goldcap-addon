@@ -15,6 +15,8 @@
   learned, and Appearance known a piece whose look you already have from another item.
 - Deals, Items board: Only what I lack, at the top of the board, shows only the items marked Not
   collected or Not known by this character. It stays as you left it.
+- Deals, Items board: fills much sooner after you open it. Its look at your realm's items no
+  longer waits behind the price checks of the rows it has already found.
 - Deals: ctrl-click a row to try the item on in the Dressing Room, as on the auction house's own
   rows (hold ctrl over it for the magnifier). Shift-click links it in chat. Neither one checks or
   buys the row.
