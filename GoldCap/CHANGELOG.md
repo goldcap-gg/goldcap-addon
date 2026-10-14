@@ -1,5 +1,9 @@
 # GoldCap
 
+## 0.20.1 (2026-10-14)
+
+- GoldCap is up to date for patch 12.1.5, so it loads without ticking "Load out of date AddOns".
+
 ## 0.20.0 (2026-10-11)
 
 - The BUY tab has the new look too. Each item on a list is a card with its icon framed in its

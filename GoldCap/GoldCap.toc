@@ -1,4 +1,4 @@
-## Interface: 120007, 120100
+## Interface: 120007, 120100, 120105
 ## Title: GoldCap
 ## Notes: Auction tooltips and market data powered by goldcap.gg
 ## Author: goldcap.gg
