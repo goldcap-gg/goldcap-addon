@@ -8,8 +8,8 @@ local _, GC = ...
 local Theme = GC.Theme
 local S = GC.SellState
 local Walk, Post = GC.SellWalk, GC.SellPost
-local exact, safeMultiply, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
-  GC.SellUtil.effectivePostUnit, GC.SellUtil.postQuantity
+local exact, effectivePostUnit, postQuantity = GC.SellUtil.exact, GC.SellUtil.effectivePostUnit,
+  GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local Row = UI.Row
 local COLUMNS, ROW = UI.COLUMNS, UI.ROW
@@ -715,10 +715,11 @@ function Row.PaintPosition(row, entry, ctx)
   -- pool for a commodity (position.postableQty, see Core/SellPositions). Counting the bag
   -- sum quoted a figure four fifths of which stayed in the bags. Fewer, when the seller asked
   -- one Post for fewer (the panel's "how many").
+  -- After the auction house's 5%, as the totals under the list add it up: what the mail brings.
   local grossQty = onListedDeck and listedQty or postQuantity(p)
-  local gross = rowUnit and safeMultiply(rowUnit, grossQty) or nil
-  row.cells.gross:SetText(gross and formatCell(gross) or "-")
-  setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)
+  local net = rowUnit and GC.SellPositions.Net(grossQty, rowUnit) or nil
+  row.cells.gross:SetText(net and formatCell(net) or "-")
+  setColor(row.cells.gross, net and Theme.color.fg or Theme.color.fgDim)
   row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "-")
   -- A lot the cancel queue calls urgent is priced far under the market: that figure is
   -- the problem, and it is the one on this row that goes red.

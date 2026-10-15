@@ -697,7 +697,7 @@ describe("Sell widget geometry and manual cost", function()
         assert.is_nil(d.qtyOf)
         assert.equal("MAX", d.qtyMax.label)
         assert.equal("active", d.qtyMax.variant)
-        assert.equal(helper.money("215g"), listRow(GC).cells.gross.text) -- 43g x 5
+        assert.equal(helper.money("204g25s"), listRow(GC).cells.gross.text) -- 43g x 5, less the 5% cut
       end)
 
       it("counts the seller's number in the dock, the panel and the row once they give one", function()
@@ -709,7 +709,7 @@ describe("Sell widget geometry and manual cost", function()
         local d = dock(GC)
         assert.equal("2", d.qtyBox.text)
         assert.equal("GoldCap's · ×2", row.priceNote.text)
-        assert.equal(helper.money("86g"), listRow(GC).cells.gross.text)
+        assert.equal(helper.money("81g70s"), listRow(GC).cells.gross.text) -- 43g x 2, less the cut
         assert.equal("ghost", d.qtyMax.variant)
         assert.equal(GC.Theme.color.gold[1], d.qtyHead.color[1])
       end)
@@ -724,7 +724,7 @@ describe("Sell widget geometry and manual cost", function()
         box.scripts.OnTextChanged(box, true)
         assert.equal(3, chosen(GC))
         assert.equal("3", box.text)
-        assert.equal(helper.money("129g"), listRow(GC).cells.gross.text)
+        assert.equal(helper.money("122g55s"), listRow(GC).cells.gross.text)
       end)
 
       it("builds the queue again once the number is settled, not on every keystroke", function()
@@ -1024,7 +1024,9 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("42.05", fill(2)) -- MATCH: the cheapest ask that is not yours
       assert.equal("42.04", fill(3)) -- UNDERCUT: one silver under it
       assert.equal("50", fill(4))    -- MARKET: the imported market value
-      assert.equal("40", fill(5))    -- COST: the break-even, 2000000 over 5 units
+      -- COST: the break-even, 2000000 over 5 units and over the 5% cut, up to the silver the
+      -- auction house takes. 40 even was what it cost, and listing there lost the cut.
+      assert.equal("42.11", fill(5))
 
       -- No cost basis, no COST chip: the alternative is a chip that fills a cost the addon
       -- does not have.
@@ -1032,6 +1034,9 @@ describe("Sell widget geometry and manual cost", function()
       local row2 = priceRow(bare, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0 })
       assert.is_false(row2.priceChips[5].enabled)
       assert.is_true(row2.priceChips[2].enabled)
+      -- Stock that cost nothing has no breakeven either: COST would fill a silver.
+      local free = load(700, { calls = {} })
+      assert.is_false(priceRow(free, { knownCost = 0 }).priceChips[5].enabled)
     end)
 
     -- Fix round 1: this arithmetic used a hardcoded 1-silver step, not GC.Flips.PriceStep() --
@@ -1102,7 +1107,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(position.cells.gross.text, dock(GC).netValue.text)
       assert.is_true(dock(GC).netValue.shown)
       -- And what the price makes over what one cost, as the row's line under YOU GET says it.
-      assert.equal("+8%", dock(GC).netNote.text) -- 43g over 40g paid
+      assert.equal(helper.money("204g25s"), dock(GC).netValue.text) -- 43g x 5, less the 5% cut
+      assert.equal("+2%", dock(GC).netNote.text) -- 43g less the cut, over 40g paid
       assert.equal(position.grossNote.text, dock(GC).netNote.text)
       assert.same(dock(GC).netNote.color, position.grossNote.color)
       local unknown = load(900, { calls = {} })
@@ -1131,6 +1137,17 @@ describe("Sell widget geometry and manual cost", function()
       local row = priceRow(GC, { postFloor = 450000, postRecommendation = { unit = 300000 } })
       assert.matches("below the " .. helper.money("40g") .. " you paid", row.priceNote.text, 1, true)
       assert.same({ 1, 0, 0, 1 }, row.priceNote.color)
+    end)
+
+    -- Over what it cost, under what it cost plus the auction house's 5%: still a loss, and the
+    -- line says by how much it has to rise, not that it is under what was paid.
+    it("names the breakeven when the price covers what was paid but not the cut", function()
+      local GC = load(900, { calls = {} })
+      local row = priceRow(GC, { postRecommendation = { unit = 410000 } }) -- paid 40g, breakeven 42g10s
+      assert.equal("below the " .. helper.money("42g10s") .. " breakeven", row.priceNote.text)
+      assert.same({ 1, 0, 0, 1 }, row.priceNote.color)
+      assert.equal(row.priceNote.text, dock(GC).dockSub.text)
+      assert.equal("-3%", dock(GC).netNote.text) -- 41g less the cut is 38g95s, under the 40g paid
     end)
 
     it("draws no price control for a position with nothing in the bags", function()
@@ -2950,7 +2967,7 @@ describe("Sell widget geometry and manual cost", function()
         postRecommendation = { unit = 10000 } },
     })
     assert.equal(helper.money("1g"), rows[1].cells.price.text)
-    assert.equal(helper.money("20g"), rows[1].cells.gross.text)
+    assert.equal(helper.money("19g"), rows[1].cells.gross.text) -- 20 at 1g, less the 5% cut
   end)
 
   -- "cancelqueue" is a transient FOCUS state, not a deck, and nothing ever cleared it: one press
@@ -3045,7 +3062,7 @@ describe("Sell widget geometry and manual cost", function()
     it("puts the margin under YOU GET, and names a missing receipt instead of a number", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock() })
-      assert.equal("+82%", rows[1].grossNote.text)
+      assert.equal("+72%", rows[1].grossNote.text) -- 18g15s less the 5% cut, over 10g paid
       assert.same({ 0, 1, 0, 1 }, rows[1].grossNote.color)
       rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
       assert.equal("no cost", rows[1].grossNote.text)

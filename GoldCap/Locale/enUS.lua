@@ -733,6 +733,7 @@ GC.Locales.enUS = {
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
   ["auto-synced data stale: /goldcap import"] = "auto-synced data stale: /goldcap import",
   ["auto: paused"] = "auto: paused",
+  ["below the %s breakeven"] = "below the %s breakeven",
   ["below the %s you paid"] = "below the %s you paid",
   ["big buy"] = "big buy",
   ["bought %d for %s"] = "bought %d for %s",

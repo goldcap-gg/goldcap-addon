@@ -674,6 +674,7 @@ GC.Locales.ukUA = {
   ["auto-synced data stale: /goldcap import"] =
     "автосинхронізовані дані застаріли: /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["below the %s breakeven"] = "нижче точки беззбитковості %s",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
   ["bought %d x item %d"] = "куплено %d x предмет %d",

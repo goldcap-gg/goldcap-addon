@@ -687,6 +687,7 @@ GC.Locales.ptBR = {
   ["auto-synced data stale: /goldcap import"] =
     "os dados sincronizados estão velhos: /goldcap import",
   ["auto: paused"] = "auto: pausado",
+  ["below the %s breakeven"] = "abaixo do ponto de equilíbrio de %s",
   ["below the %s you paid"] = "abaixo dos %s que você pagou",
   ["big buy"] = "compra grande",
   ["bought %d x item %d"] = "comprados %d x item %d",

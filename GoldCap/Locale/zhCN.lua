@@ -632,6 +632,7 @@ GC.Locales.zhCN = {
   ["auto-synced data for %s loaded (%s old)"] = "已加载 %s 的自动同步数据（已过 %s）",
   ["auto-synced data stale: /goldcap import"] = "自动同步的数据已过期：/goldcap import",
   ["auto: paused"] = "自动：已暂停",
+  ["below the %s breakeven"] = "低于保本价 %s",
   ["below the %s you paid"] = "低于你付出的 %s",
   ["big buy"] = "大额购买",
   ["bought %d x item %d"] = "已购买 %d 件 · 物品 %d",

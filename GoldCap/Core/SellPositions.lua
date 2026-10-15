@@ -896,18 +896,41 @@ end
 -- the flag the plan carries, or the screen and the post can disagree about the same number.
 --
 -- `paidUnit` is knownCost/knownQty and only exists on COMPLETE coverage: a partial basis is
--- not a break-even, and claiming one would invent a cost the addon does not have.
+-- not a break-even, and claiming one would invent a cost the addon does not have. "Under what it
+-- cost" is under `breakeven`, what it cost plus the auction house's 5% (GC.Flips.Breakeven): a
+-- price between the two loses money too, and the post queue already held such an item back while
+-- the box beside it stayed quiet.
 function GC.SellPositions.PriceRisk(position, unit)
   position = type(position) == "table" and position or {}
   if not positive(unit) then return { belowFloor = false, belowCost = false } end
   local paidUnit = position.coverage == "COMPLETE" and positive(position.knownQty)
     and math.floor((position.knownCost or 0) / position.knownQty) or nil
+  -- Stock that cost nothing has nothing to break even against, and no COST to fill.
+  local breakeven = positive(paidUnit) and GC.Flips.Breakeven(paidUnit) or nil
   return {
     paidUnit = paidUnit,
+    breakeven = breakeven,
     floor = positive(position.postFloor) and position.postFloor or nil,
     belowFloor = positive(position.postFloor) and unit < position.postFloor or false,
-    belowCost = paidUnit ~= nil and unit < paidUnit or false,
+    belowCost = breakeven ~= nil and unit < breakeven or false,
   }
+end
+
+--- What `quantity` units at `unit` copper each bring in once they sell and the auction house has
+-- taken its 5%: a row's YOU GET and the dock's, the figure Proceeds adds up a line at a time. nil
+-- for a figure that is not one, or a product past exact accounting.
+function GC.SellPositions.Net(quantity, unit)
+  return netFor(quantity, unit)
+end
+
+--- What selling at `unit` makes over `paidUnit` once the auction house has taken its 5%, in whole
+-- percent rounded down: 55 for 978g 99s asked on what cost 600g, -5 for a price that only matches
+-- the cost. Down, so a price a hair under the breakeven reads -1% beside its red warning, not +0%;
+-- in whole numbers, where unit * 0.95 put a sale at cost a float's hair under -5 and floored it to -6.
+-- nil without both.
+function GC.SellPositions.Margin(unit, paidUnit)
+  if not (positive(unit) and positive(paidUnit)) then return nil end
+  return math.floor((unit * 95 - paidUnit * 100) / paidUnit)
 end
 
 -- What Post will actually list, priced at the fresh quote.
