@@ -1072,10 +1072,14 @@ describe("Sell positions", function()
       assert.equal(0, GC.SellPositions.Margin(GC.Flips.Breakeven(6000000), 6000000))
     end)
 
-    -- Rounded down, never to the nearest: a price a hair under the breakeven loses money, and a
-    -- "+0%" beside the red "below the breakeven" would say it does not.
-    it("never rounds a loss up to break-even", function()
-      assert.equal(-1, GC.SellPositions.Margin(630000, 600000)) -- 598500 back on 600000 paid: -0.25%
+    -- To the nearest percent, and whether it is a loss at all said apart: a price a hair under the
+    -- breakeven rounds to 0 and still loses money, and "+0%" beside the red "below the breakeven"
+    -- would say it does not. Rounding down instead read 278g on 269g 99s paid as -3% (owner,
+    -- 2026-10-16); it is -2.2%.
+    it("rounds to the nearest percent and says a loss apart", function()
+      assert.same({ 0, true }, { GC.SellPositions.Margin(630000, 600000) }) -- -0.25%
+      assert.same({ -2, true }, { GC.SellPositions.Margin(2780000, 2699900) }) -- -2.18%
+      assert.same({ 0, false }, { GC.SellPositions.Margin(GC.Flips.Breakeven(6000000), 6000000) })
       assert.equal(55, GC.SellPositions.Margin(9789900, 6000000)) -- +55.007%
       -- And a whole percent is that percent, never a float's hair under it.
       assert.equal(-5, GC.SellPositions.Margin(1000001, 1000001))

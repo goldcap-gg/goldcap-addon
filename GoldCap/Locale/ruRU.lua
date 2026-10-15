@@ -293,7 +293,6 @@ GC.Locales.ruRU = {
     "Выставлено за %s, намного ниже рынка. Перевыставьте.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Выставлено по цене, заданной вами на goldcap.gg, или дешевле. Перепродастся ли, судить вам.",
-  ["Listed value"] = "Выставлено на сумму",
   ["Listings"] = "Лотов",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Выставляет этот предмет по цене из его строки: товар всем объёмом, обычный предмет одним стеком, или столько, сколько указано в СКОЛЬКО.",
@@ -580,8 +579,6 @@ GC.Locales.ruRU = {
   ["What to do"] = "Что делать",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "Сколько остаётся с одной штуки при продаже по рынку: цена продажи минус 5% комиссии аукциона минус ваша себестоимость.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "Во сколько складываются ваши активные лоты этого предмета по текущей цене.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Когда лот достигает цены, заданной вами на сайте, сканирование останавливается и открывается окно покупки.",
   ["Window position & size"] = "Позиция и размер окна",
@@ -594,6 +591,7 @@ GC.Locales.ruRU = {
   ["YOUR LOTS"] = "ВАШИ ЛОТЫ",
   ["YOUR PRICE"] = "ВАША ЦЕНА",
   ["You can pay for it now."] = "Вы уже можете оплатить.",
+  ["You get"] = "Получите",
   ["You paid"] = "Вы заплатили",
   ["You pay"] = "Вы платите",
   ["You would get"] = "Вы получите",
@@ -1112,7 +1110,6 @@ GC.Locales.ruRU = {
   ["ITEMS"] = "ПРЕДМЕТЫ",
   ["ITEMS %d"] = "ПРЕДМЕТЫ %d",
   ["LISTED AS"] = "ВЫСТАВЛЕНО",
-  ["LOT VALUE"] = "СУММА ЛОТА",
   ["MY LOTS %d"] = "МОИ ЛОТЫ %d",
   ["NEED"] = "НУЖНО",
   ["NO COST"] = "БЕЗ ЧЕКА",

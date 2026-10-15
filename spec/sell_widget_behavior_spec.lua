@@ -1708,6 +1708,8 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(listedHeader.cells.gross.shown)
     assert.equal("YOUR PRICE", listedHeader.cells.price.text)
     assert.equal("PRICE / UNIT", header.cells.price.text)
+    -- What the lots bring in, under the word the post deck uses for the same figure.
+    assert.equal("YOU GET", listedHeader.cells.listed.text)
   end)
 
   -- The complaint this answers, in the owner's words: "список постоянно прыгает, когда
@@ -3057,6 +3059,32 @@ describe("Sell widget geometry and manual cost", function()
       rows = topRows(GC, { lot }, "listed")
       local RED = GC.Theme.color.red
       assert.same({ RED[1], RED[2], RED[3], 1 }, rows[2].cells.price.color)
+    end)
+
+    -- Owner, 2026-10-15/16: two Frozen Spellthread bought at 600g, listed at 978g 99s, read 1,957 on
+    -- MY LOTS with the margin under it, and the 5% the mail never brings was in the 1,957.
+    it("says on MY LOTS what the lots bring in after the 5% cut, the figure the margin is of", function()
+      local GC = load(620, { calls = {} })
+      local lot = stock({ bagQty = 0, listedQty = 2, listedValue = 19579800, exposureQty = 2,
+        knownQty = 2, knownCost = 12000000,
+        ownedLots = { { auctionID = 1, quantity = 2, unitPrice = 9789900 } } })
+      local rows = topRows(GC, { lot }, "listed")
+      assert.equal(helper.money("1860g"), rows[2].cells.listed.text) -- 1,860g 08s, not 1,957g 98s
+      assert.equal("+55%", rows[2].grossNote.text)
+    end)
+
+    -- Owner, 2026-10-16: Arcanoweave Lining at 278g on 269g 99s paid read -3%, and is -2.2%.
+    it("rounds the margin to the nearest percent, and a loss under one percent still reads as one", function()
+      local GC = load(620, { calls = {} })
+      local function margin(unit, paid)
+        local rows = topRows(GC, { stock({ knownQty = 1, knownCost = paid, exposureQty = 1,
+          postRecommendation = { unit = unit } }) })
+        return rows[1].grossNote.text, rows[1].grossNote.color
+      end
+      assert.equal("-2%", (margin(2780000, 2699900)))
+      local text, color = margin(630000, 600000) -- 598500 back on 600000 paid: -0.25%
+      assert.equal("-0%", text)
+      assert.same({ 1, 0, 0, 1 }, color)
     end)
 
     it("puts the margin under YOU GET, and names a missing receipt instead of a number", function()

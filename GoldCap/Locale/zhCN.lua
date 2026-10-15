@@ -289,7 +289,6 @@ GC.Locales.zhCN = {
   ["Listed at %s, far below market. Repost."] = "以 %s 上架，远低于市场价。请重新上架。",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "挂单价不高于你在 goldcap.gg 设定的价格。能否转手卖出，要你自己判断。",
-  ["Listed value"] = "在售金额",
   ["Listings"] = "挂单数",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "按这一行的价格上架此物品：商品上架包里的全部数量，普通物品上架一组，或按“数量”里填写的数目。",
@@ -543,8 +542,6 @@ GC.Locales.zhCN = {
   ["What to do"] = "该做什么",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "若按市场价卖出，一件能净落多少：售价减去 5% 拍卖行抽成，再减去你的成本。",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "你这件物品在售拍卖按当前要价的合计金额。",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "当某个拍卖达到你在网站上设置的价格时，停止扫描并打开其购买窗口。",
   ["Window position & size"] = "窗口位置和大小",
@@ -557,6 +554,7 @@ GC.Locales.zhCN = {
   ["YOUR LOTS"] = "你的上架",
   ["YOUR PRICE"] = "你的价格",
   ["You can pay for it now."] = "你现在就付得起。",
+  ["You get"] = "到手",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
   ["You would get"] = "你会拿回",

@@ -30,8 +30,9 @@
   auction house, the board says so, SCAN lights up and the status line counts the answers.
   SCAN on this board checks them all again instead of scanning commodities.
 - Sell: YOU GET, and the margin under it, are what you get after the auction house's 5% cut, as
-  PROCEEDS under the list already was. Two items bought at 600g and listed at 978g 99s each read
-  1,860g and +55%, where they read 1,957g and +63%.
+  PROCEEDS under the list already was. On MY LOTS, LOT VALUE is YOU GET now and says the same. Two
+  items bought at 600g and listed at 978g 99s each read 1,860g and +55%, where they read 1,957g and
+  +63%.
 - Sell: a price over what you paid but under what you paid plus the 5% cut loses money too, so it
   turns red as well and says the breakeven to beat. COST fills in that breakeven, not what you
   paid.

@@ -286,7 +286,6 @@ GC.Locales.ukUA = {
     "Предмети: спорядження, вихованці та рецепти, оцінені за еталоном регіону з вашого імпорту. Швидкість продажу не вимірюється, тож вони ніколи не отримують статус БЕЗПЕЧНО. Купувати чи ні, вирішувати вам, а GoldCap перевіряє їх лише поки ця дошка відкрита.",
   ["LISTED"] = "ВИСТАВЛЕНО",
   ["LISTED AS"] = "ВИСТАВЛЕНО",
-  ["LOT VALUE"] = "СУМА ЛОТА",
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
@@ -299,7 +298,6 @@ GC.Locales.ukUA = {
     "Виставлено за %s, значно нижче ринку. Перевиставте.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше. Чи перепродасться, судити вам.",
-  ["Listed value"] = "Виставлено на суму",
   ["Listings"] = "Лотів",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Виставляє цей предмет за ціною з його рядка: товар усім обсягом, звичайний предмет одним стеком, або стільки, скільки вказано в СКІЛЬКИ.",
@@ -590,8 +588,6 @@ GC.Locales.ukUA = {
   ["What to do"] = "Що робити",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "Скільки лишається з однієї штуки при продажу за ринком: ціна продажу мінус 5% комісії аукціону мінус ваша собівартість.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "У скільки складаються ваші активні лоти цього предмета за поточною ціною.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Коли лот досягає ціни, яку ви встановили на сайті, сканування зупиняється і відкривається вікно купівлі.",
   ["Window position & size"] = "Позиція та розмір вікна",
@@ -605,6 +601,7 @@ GC.Locales.ukUA = {
   ["YOUR LOTS"] = "ВАШІ ЛОТИ",
   ["YOUR PRICE"] = "ВАША ЦІНА",
   ["You can pay for it now."] = "Ви вже можете заплатити.",
+  ["You get"] = "Отримаєш",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",

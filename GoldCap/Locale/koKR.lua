@@ -293,7 +293,6 @@ GC.Locales.koKR = {
   ["Listed at %s, far below market. Repost."] = "%s에 등록됨. 시세보다 훨씬 낮습니다. 다시 등록하세요.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "goldcap.gg에서 정한 내 가격 이하로 등록되어 있습니다. 되팔 수 있을지는 직접 판단하세요.",
-  ["Listed value"] = "등록 금액",
   ["Listings"] = "등록 수",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "이 아이템을 해당 줄의 가격으로 등록합니다: 상품은 가방 전체 수량을, 일반 아이템은 묶음 하나를, 또는 수량에 적은 개수를.",
@@ -557,8 +556,6 @@ GC.Locales.koKR = {
   ["What to do"] = "무엇을 할지",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "시세에 팔렸을 때 한 개로 남는 돈: 판매가에서 경매장 수수료 5%와 매입가를 뺀 값.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "이 아이템으로 올려둔 경매들의 현재 호가 합계.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "매물이 사이트에서 설정한 가격에 도달하면 검색을 멈추고 구매 창을 엽니다.",
   ["Window position & size"] = "창 위치와 크기",
@@ -571,6 +568,7 @@ GC.Locales.koKR = {
   ["YOUR LOTS"] = "내 물량",
   ["YOUR PRICE"] = "내 가격",
   ["You can pay for it now."] = "지금 바로 낼 수 있습니다.",
+  ["You get"] = "받는 금액",
   ["You paid"] = "구매가",
   ["You pay"] = "지불 금액",
   ["You would get"] = "받게 될 금액",

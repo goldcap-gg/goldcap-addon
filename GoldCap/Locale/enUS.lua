@@ -421,7 +421,6 @@ GC.Locales.enUS = {
     "Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE. The buy is your call, and GoldCap only checks them while this board is open.",
   ["LISTED"] = "LISTED",
   ["LISTED AS"] = "LISTED AS",
-  ["LOT VALUE"] = "LOT VALUE",
   ["Language"] = "Language",
   ["Language changed. Type /reload to apply it everywhere."] = "Language changed. Type /reload to apply it everywhere.",
   ["Last result: %ds ago"] = "Last result: %ds ago",
@@ -430,7 +429,6 @@ GC.Locales.enUS = {
   ["Listed at %s, far below market. Repost."] = "Listed at %s, far below market. Repost.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
-  ["Listed value"] = "Listed value",
   ["Listings"] = "Listings",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.",
@@ -682,8 +680,6 @@ GC.Locales.enUS = {
   ["What to do"] = "What to do",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "What your live auctions for this item add up to at their current asking price.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "When a listing meets a price you set on the site, stop scanning and open its buy window.",
   ["Window position & size"] = "Window position & size",
@@ -695,6 +691,7 @@ GC.Locales.enUS = {
   ["Worst case back"] = "Worst case back",
   ["YOU GET"] = "YOU GET",
   ["YOUR PRICE"] = "YOUR PRICE",
+  ["You get"] = "You get",
   ["You paid"] = "You paid",
   ["You pay"] = "You pay",
   ["You would get"] = "You would get",

@@ -558,7 +558,14 @@ function Row.PaintPosition(row, entry, ctx)
     unitCost = math.floor(p.knownCost / p.knownQty)
   end
   row.cells.cost:SetText(unitCost and formatCell(unitCost) or "-")
-  row.cells.listed:SetText(formatCell(p.listedValue))
+  -- What the lots bring in once they sell, after the auction house's 5%, lot by lot as PROCEEDS
+  -- under the list adds them up: MY LOTS' YOU GET. What they ask is the price beside it.
+  local lots = {}
+  for _, lot in ipairs(p.ownedLots or {}) do
+    lots[#lots + 1] = { qty = lot.quantity, unit = lot.unitPrice, position = p }
+  end
+  local proceeds = GC.SellPositions.Proceeds(lots)
+  row.cells.listed:SetText(proceeds and formatCell(proceeds) or "-")
   -- "none" ~= "-": the first is an answer ("the AH has zero listings right now",
   -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
   -- honestly-unlisted items read as the pricing walk being slow or stuck.

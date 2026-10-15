@@ -354,7 +354,7 @@ local HEADINGS_POST = {
 -- @localised-keys
 local HEADINGS_LISTED = {
   item = "LISTED AS", gross = "IN THE LOT", price = "YOUR PRICE",
-  cost = "COST / UNIT", listed = "LOT VALUE", market = "UNDER YOU",
+  cost = "COST / UNIT", listed = "YOU GET", market = "UNDER YOU",
   profit = "PROFIT / UNIT", status = "WHAT TO DO",
 }
 
@@ -555,7 +555,7 @@ end
 -- contract spec's scanner stops.
 local HEADER_HELP = {
   cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet. It will never guess one from the market price." } },
-  listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
+  listed = { "You get", { "What your lots bring in if they all sell, after the auction house's 5% cut." } },
   market = { "Market per unit", {
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
     "It is what you must beat to sell quickly, not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",

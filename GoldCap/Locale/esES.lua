@@ -307,7 +307,6 @@ GC.Locales.esES = {
     "Publicado a %s, muy por debajo del mercado. Vuelve a publicarlo.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Publicado a tu precio de goldcap.gg o por debajo. Si se revende o no, lo valoras tú.",
-  ["Listed value"] = "Valor publicado",
   ["Listings"] = "Publicaciones",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Publica este objeto al precio de su fila: toda la bolsa si es una mercancía, una pila si es un objeto normal, o el número de CANTIDAD.",
@@ -594,8 +593,6 @@ GC.Locales.esES = {
   ["What to do"] = "Qué hacer",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "Lo que te queda de una unidad si se vende al precio de mercado: precio de venta, menos el 5 % de comisión, menos tu coste.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "Lo que suman tus subastas activas de este objeto a su precio actual.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Cuando un lote alcanza un precio que fijaste en el sitio web, se detiene el escaneo y se abre su ventana de compra.",
   ["Window position & size"] = "Posición y tamaño de la ventana",
@@ -608,6 +605,7 @@ GC.Locales.esES = {
   ["YOUR LOTS"] = "TUS LOTES",
   ["YOUR PRICE"] = "TU PRECIO",
   ["You can pay for it now."] = "Ya puedes pagarlo.",
+  ["You get"] = "Recibes",
   ["You paid"] = "Pagaste",
   ["You pay"] = "Pagas",
   ["You would get"] = "Recibirías",

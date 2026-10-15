@@ -210,12 +210,13 @@ function fmt.count(format, count)
 end
 
 -- What a price makes over what one cost once the auction house has taken its 5%, as the row's
--- line under YOU GET and the dock's YOU GET both say it: "+43%" and green, "-20%" and red. Nil
--- when either is not a figure. GC.SellPositions.Margin's arithmetic: this only paints it.
+-- line under YOU GET and the dock's YOU GET both say it: "+43%" and green, "-20%" and red, and
+-- "-0%" in red for a loss under half a percent. Nil when either is not a figure.
+-- GC.SellPositions.Margin's arithmetic: this only paints it.
 function fmt.margin(unit, paidUnit)
-  local pct = GC.SellPositions.Margin(unit, paidUnit)
+  local pct, loss = GC.SellPositions.Margin(unit, paidUnit)
   if not pct then return nil end
-  return (pct >= 0 and "+" or "") .. pct .. "%", pct >= 0 and GC.Theme.color.green or GC.Theme.color.red
+  return (loss and "-" or "+") .. math.abs(pct) .. "%", loss and GC.Theme.color.red or GC.Theme.color.green
 end
 
 -- Why a price loses money, as the panel's line under the price and the dock's line under the item

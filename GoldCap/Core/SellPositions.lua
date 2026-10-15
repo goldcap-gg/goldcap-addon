@@ -923,14 +923,15 @@ function GC.SellPositions.Net(quantity, unit)
   return netFor(quantity, unit)
 end
 
---- What selling at `unit` makes over `paidUnit` once the auction house has taken its 5%, in whole
--- percent rounded down: 55 for 978g 99s asked on what cost 600g, -5 for a price that only matches
--- the cost. Down, so a price a hair under the breakeven reads -1% beside its red warning, not +0%;
--- in whole numbers, where unit * 0.95 put a sale at cost a float's hair under -5 and floored it to -6.
--- nil without both.
+--- pct, loss: what selling at `unit` makes over `paidUnit` once the auction house has taken its 5%,
+-- to the nearest whole percent (55 for 978g 99s asked on what cost 600g, -5 for a price that only
+-- matches the cost), and whether it loses money at all. The second is said apart because a price a
+-- hair under the breakeven rounds to 0 and still loses. In whole numbers: unit * 0.95 put a sale at
+-- cost a float's hair off -5. nil without both.
 function GC.SellPositions.Margin(unit, paidUnit)
   if not (positive(unit) and positive(paidUnit)) then return nil end
-  return math.floor((unit * 95 - paidUnit * 100) / paidUnit)
+  local over = unit * 95 - paidUnit * 100
+  return math.floor(over / paidUnit + 0.5), over < 0
 end
 
 -- What Post will actually list, priced at the fresh quote.

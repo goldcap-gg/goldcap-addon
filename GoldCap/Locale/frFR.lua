@@ -305,7 +305,6 @@ GC.Locales.frFR = {
     "En vente à %s, bien sous le marché. Remets en vente.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Mis en vente à ton prix fixé sur goldcap.gg ou en dessous. Sa revente, c'est à toi d'en juger.",
-  ["Listed value"] = "Valeur en vente",
   ["Listings"] = "Ventes",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Met cet objet en vente au prix de sa ligne : tout le sac pour une marchandise, une pile pour un objet normal, ou le nombre sous QUANTITÉ.",
@@ -593,8 +592,6 @@ GC.Locales.frFR = {
   ["What to do"] = "Que faire",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "Ce qui vous reste sur une unité si elle se vend au prix du marché : prix de vente, moins les 5 % de commission, moins votre coût.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "Ce que totalisent vos enchères en cours pour cet objet à leur prix actuel.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Quand une annonce atteint un prix que tu as défini sur le site, le scan s'arrête et sa fenêtre d'achat s'ouvre.",
   ["Window position & size"] = "Position et taille de la fenêtre",
@@ -607,6 +604,7 @@ GC.Locales.frFR = {
   ["YOUR LOTS"] = "VOS LOTS",
   ["YOUR PRICE"] = "TON PRIX",
   ["You can pay for it now."] = "Vous pouvez la payer dès maintenant.",
+  ["You get"] = "Tu reçois",
   ["You paid"] = "Payé",
   ["You pay"] = "Tu paies",
   ["You would get"] = "Tu recevrais",
