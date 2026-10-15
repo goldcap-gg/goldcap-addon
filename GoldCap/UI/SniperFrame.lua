@@ -3681,6 +3681,16 @@ function GC.Sniper._RealmValue(itemID)
     trend = value.trend, ref = value.ref, refIlvl = value.refIlvl }
 end
 
+-- Whether a realm row or drill for `itemID` at `unit` against `reference` is gear the Items board
+-- cannot price (GC.ItemsBoard.GearPastReach), by the client's own class for the item: an instant
+-- read that never waits on the server. Retail's question: the poll that asks it runs on goldcap.gg's
+-- imports, and WoW: Forever has none (UI/ImportDialog.lua).
+function GC.Sniper._GearPastReach(itemID, unit, reference)
+  if not (GC.ItemsBoard and C_Item and C_Item.GetItemInfoInstant) then return false end
+  local ok, _, _, _, equipLoc, _, classID, subclassID = pcall(C_Item.GetItemInfoInstant, itemID)
+  return ok and GC.ItemsBoard.GearPastReach(unit, reference, classID, subclassID, equipLoc) or false
+end
+
 -- Whether this item is a realm item the region has published no price for -- the state that
 -- keeps it off the board entirely (Core/DealMath.lua) and that only a pin can put in front of
 -- the player. Read by the row tooltip; the Check panel gets the same answer from
@@ -3833,9 +3843,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   end,
   -- Same queue, same currency as a book-pass hit: what the lot would clear after the auction
   -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it).
+  -- Gear the board leaves off (GC.Sniper._GearPastReach) is not worth a drill either.
   onHit = function(hit)
     local value = GC.Sniper._RealmValue(hit.itemID)
-    if not value then return end
+    if not value or GC.Sniper._GearPastReach(hit.itemID, hit.floor, value.mv) then return end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
       estProfit = math.floor(value.mv * 0.95) - hit.floor })
   end,
@@ -3851,8 +3862,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     for i = 1, #realmRows do
       local row = realmRows[i]
       local unitPrice = math.floor(row.buyoutStack / row.count)
-      -- A rare find is never a flip row (see triggerFor): its row is the Rare finds section's.
+      -- A rare find is never a flip row (see triggerFor): its row is the Rare finds section's. Nor
+      -- is gear too far under its reference to be the level the reference prices.
       local value = not GC.Sniper._IsRareFind(row.itemID) and GC.Sniper._RealmValue(row.itemID) or nil
+      if value and GC.Sniper._GearPastReach(row.itemID, unitPrice, value.mv) then value = nil end
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },

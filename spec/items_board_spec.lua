@@ -194,6 +194,34 @@ describe("ItemsBoard", function()
     end)
   end)
 
+  -- Enum.ItemClass: 2 weapon, 4 armor (subclass 5 cosmetic), 9 recipe, 15 miscellaneous, 17 battle pet.
+  describe("GearPastReach", function()
+    local REF = 1000000
+    it("is armor or a weapon listed more than 80% under the price it is measured against", function()
+      assert.is_true(GC.ItemsBoard.GearPastReach(199999, REF, 4, 2))  -- leather bracers, 80.0001% off
+      assert.is_true(GC.ItemsBoard.GearPastReach(1, REF, 2, 7))       -- a sword at 100% off
+      assert.is_true(GC.ItemsBoard.GearPastReach(50000, REF, 4, 0, "INVTYPE_FINGER")) -- a ring has levels
+      assert.is_false(GC.ItemsBoard.GearPastReach(200000, REF, 4, 2)) -- 80% exactly is still shown
+      assert.is_false(GC.ItemsBoard.GearPastReach(600000, REF, 2, 7))
+    end)
+
+    it("leaves alone what comes at one item level: cosmetics, recipes, pets, toys and mounts", function()
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 4, 5))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 4, 0, "INVTYPE_TABARD"))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 4, 0, "INVTYPE_BODY")) -- a shirt
+      assert.is_true(GC.ItemsBoard.GearPastReach(10000, REF, 4, 0, "INVTYPE_FINGER"))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 9, 1))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 17, 0))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, 15, 5))
+    end)
+
+    it("says nothing about an item whose class it was not told, or a price that is not one", function()
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, REF, nil, nil))
+      assert.is_false(GC.ItemsBoard.GearPastReach(nil, REF, 4, 2))
+      assert.is_false(GC.ItemsBoard.GearPastReach(10000, 0, 4, 2))
+    end)
+  end)
+
   describe("Sections", function()
     local function deal(itemID) return { itemID = itemID, unitPrice = 100, profit = 10 } end
     local function rareRow(itemID) return { kind = "rare", itemID = itemID, unitPrice = 5, standing = "min" } end

@@ -6,6 +6,10 @@
   many sold in the last 7 days and on how many realms. Once goldcap.gg has a week of realm sales,
   a flip's price is what it actually sold for, not what realms ask for it, so an item nobody buys
   at its asking price no longer shows as a big discount.
+- Deals, Items board: armor and weapons more than 80% under the price they are measured against no
+  longer show as flips. That price is one figure for every item level of the item, and a piece
+  that far under it is nearly always a lower level, not a bargain. Recipes, pets, toys and mounts
+  come at one level, so they stay.
 - Deals, Items board: Rare finds are items many realms list and few buy. They carry no profit, no
   discount and no BUY: each says how this realm's cheapest one compares with the other realms'
   (the cheapest of them all, among the cheapest 10%, or cheaper than 3 in 4) and what sold in the
@@ -25,6 +29,12 @@
 - Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the
   auction house, the board says so, SCAN lights up and the status line counts the answers.
   SCAN on this board checks them all again instead of scanning commodities.
+- Sell: YOU GET, and the margin under it, are what you get after the auction house's 5% cut, as
+  PROCEEDS under the list already was. Two items bought at 600g and listed at 978g 99s each read
+  1,860g and +55%, where they read 1,957g and +63%.
+- Sell: a price over what you paid but under what you paid plus the 5% cut loses money too, so it
+  turns red as well and says the breakeven to beat. COST fills in that breakeven, not what you
+  paid.
 - Sold and the profit totals: an auction mail you leave in the mailbox is no longer recorded
   again each time you open it, and a second identical sale is no longer missed while an expired
   or cancelled auction mail sits in the mailbox.

@@ -61,6 +61,29 @@ function GC.ItemsBoard.FlipText(flip)
   return (GC.L["Sold %d times in 7 days on %d realms"]):format(flip.sales7d, flip.realms or 0)
 end
 
+-- Armor and weapons come at many item levels under one item id, and a flip is measured against one
+-- price for all of them: the region's (T), and once goldcap.gg has switched, the median it sold for
+-- (F). Neither is the level of THIS realm's cheapest listing (ClickUp 869ffmwbk), so a piece far
+-- under it is nearly always a lower level, not a find: the board opened on an ilvl 19 Whirling
+-- Dervish Bindings at 100% off and +115k (owner, 2026-10-15). goldcap.gg drops every realm deal
+-- past the same 80% (DEAL_MAX_SAVINGS). A recipe, pet, toy or mount has one level, so a deep
+-- discount there can be real, and its tier says how deep.
+local CLASS_WEAPON, CLASS_ARMOR, ARMOR_COSMETIC = 2, 4, 5 -- Enum.ItemClass, Enum.ItemArmorSubclass
+-- Armor slots that come at one level: a shirt and a tabard.
+local ONE_LEVEL_SLOT = { INVTYPE_BODY = true, INVTYPE_TABARD = true }
+
+--- Whether a flip at `unit` against `reference` (copper) is gear the board cannot price: armor or a
+--- weapon more than 80% under, cosmetic armor, shirts and tabards aside. classID, subclassID and
+--- equipLoc are C_Item.GetItemInfoInstant's; an item whose class is unknown is left to the board.
+function GC.ItemsBoard.GearPastReach(unit, reference, classID, subclassID, equipLoc)
+  if type(unit) ~= "number" or type(reference) ~= "number" or reference <= 0 then return false end
+  local gear = classID == CLASS_WEAPON
+    or (classID == CLASS_ARMOR and subclassID ~= ARMOR_COSMETIC and not ONE_LEVEL_SLOT[equipLoc])
+  -- More than 80% under is under a fifth of it: whole numbers, so exactly 80% is never a float's
+  -- hair past it.
+  return gear and unit * 5 < reference
+end
+
 --- The collection mark for GC.Collection.State's answer, or nil for none. Only "missing" and
 --- "elsewhere" are marked: "collected", "unknown" and nil draw nothing.
 function GC.ItemsBoard.MarkText(state, kind)

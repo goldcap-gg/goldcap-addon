@@ -85,7 +85,7 @@ describe("Key poll wiring", function()
   after_each(function()
     _G.GetTime, _G.time, _G.GetMoney, _G.GetCoinTextureString = nil, os.time, nil, nil
     _G.ITEM_QUALITY_COLORS, _G.Item, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil, nil
-    _G.C_AuctionHouse, _G.Enum = nil, nil
+    _G.C_AuctionHouse, _G.Enum, _G.C_Item = nil, nil, nil
   end)
 
   describe("what a realm item is worth", function()
@@ -255,6 +255,30 @@ describe("Key poll wiring", function()
       assert.is_false(GC.Sniper._drillQueue:Has(42))
       assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
       assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
+    -- One item id, many item levels, one reference for all of them: armor or a weapon far under it
+    -- is a lower level, not a find (owner, 2026-10-15: the board opened on an ilvl 19 bracer at
+    -- 100% off). A recipe at the same discount is one item, and stays.
+    it("leaves armor and weapons more than 80% under the reference off the board and the drills", function()
+      local class = { [42] = 4, [43] = 9, [44] = 4 } -- bracers, a recipe, a tabard
+      local slot = { [42] = "INVTYPE_WRIST", [43] = "", [44] = "INVTYPE_TABARD" }
+      _G.C_Item = { GetItemInfoInstant = function(itemID)
+        return itemID, "", "", slot[itemID], 1, class[itemID], itemID == 44 and 0 or 2
+      end }
+      local GC = loadSniper()
+      helper.loadModule("Core/ItemsBoard.lua", GC)
+      values[42], values[43], values[44] = realmValue(), realmValue(), realmValue()
+      targetIds = { 42, 43, 44 }
+      GC.Sniper._RebuildKeyTargets()
+
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 30000, 2), browseRow(43, 30000, 2), browseRow(44, 30000, 2) })
+
+      assert.is_false(GC.Sniper._drillQueue:Has(42)) -- 85% under
+      assert.is_nil(GC.Sniper._realmDeals[42])
+      assert.is_true(GC.Sniper._drillQueue:Has(43))
+      assert.is_table(GC.Sniper._realmDeals[43])
+      assert.is_table(GC.Sniper._realmDeals[44])
     end)
 
     it("ignores an item with no reference at all", function()
