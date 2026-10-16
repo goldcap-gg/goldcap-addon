@@ -15,7 +15,7 @@ local _, GC = ...
 local Theme = GC.Theme
 local S = GC.SellState
 local Post = GC.SellPost
-local exact, safeMultiply, overrideKey = GC.SellUtil.exact, GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey
+local overrideKey = GC.SellUtil.overrideKey
 local effectivePostUnit, postQuantity = GC.SellUtil.effectivePostUnit, GC.SellUtil.postQuantity
 local UI = GC.SellUI
 local PostPanel, DOCK = UI.PostPanel, UI.DOCK
@@ -380,8 +380,9 @@ function PostPanel.Paint(row, nextRow, hint)
   local heldBack = UI.Dock.HeldBackText(p.positionKey)
   -- Under what it cost, under GoldCap's floor or held back is what the line says first, in red;
   -- otherwise what is in the bags and what POST goes to after this.
-  if risk.belowCost then
-    c.dockSub:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
+  local loss = UI.fmt.lossNote(risk, unit)
+  if loss then
+    c.dockSub:SetText(loss)
     setColor(c.dockSub, Theme.color.red)
   elseif risk.belowFloor then
     c.dockSub:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
@@ -427,9 +428,9 @@ function PostPanel.Paint(row, nextRow, hint)
   c.priceHead:Show(); c.priceBoxBg:Show()
 
   if PostPanel.wide then
-    local gross = unit and exact(qty) and safeMultiply(unit, qty) or nil
+    local net = unit and GC.SellPositions.Net(qty, unit) or nil
     c.netHead:SetText(GC.L["YOU GET"])
-    c.netValue:SetText(gross and formatCell(gross) or "")
+    c.netValue:SetText(net and formatCell(net) or "")
     setColor(c.netValue, Theme.color.fg)
     local margin, tone = UI.fmt.margin(unit, risk.paidUnit)
     c.netNote:SetText(margin or "")

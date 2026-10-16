@@ -146,6 +146,7 @@ describe("Deals boards: commodities and items", function()
       scroll = { SetVerticalScroll = function(_, value) api.scrolledTo = value end },
       emptyText = { SetText = function(_, text) api.emptyText = text end,
         Show = function() end, Hide = function() api.emptyText = nil end },
+      status = { SetText = function(_, text) api.status = text end },
     })
     api.setScanDeals = function(list) set(show, "scanDeals", list) end
     return api
@@ -306,10 +307,13 @@ describe("Deals boards: commodities and items", function()
       return api.emptyText
     end
 
+    -- Once the visit's first look has answered (spec/items_board_progress_spec.lua): before it,
+    -- the board says it is checking.
     it("tells the Items board why it is empty, in its own terms", function()
       local api = loadSniper()
       api.GC.Sniper._SetBoard("items")
       api.GC.Sniper._keyPoll:SetTargets({ 900, 901 })
+      api.GC.Sniper._itemsLooked = true
 
       local text = emptyText(api)
       assert.is_truthy(text:find("No gear, pets or recipes under their region price", 1, true))

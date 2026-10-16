@@ -302,6 +302,14 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.equal(106, r.breakeven) -- 100/0.95 = 105.26... -> ceil 106
     end)
 
+    -- The Sell tab's own warnings and its COST fill read the same figure (GC.SellPositions.PriceRisk).
+    it("Breakeven is the least a unit can sell for and still return what it cost after the cut", function()
+      assert.equal(106, GC.Flips.Breakeven(100))
+      assert.equal(100, GC.Flips.Breakeven(95)) -- exactly: no float rounding up past it
+      assert.equal(6315790, GC.Flips.Breakeven(6000000)) -- 600g bought, 631g 57s 90c to break even
+      assert.is_nil(GC.Flips.Breakeven(nil))
+    end)
+
     it("breakeven is nil when paidUnit is unknown (an orphan-shaped call)", function()
       local r = GC.Flips.RecommendPost(nil, 500, nil)
       assert.is_nil(r.breakeven)

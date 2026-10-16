@@ -844,7 +844,8 @@ describe("SniperDecision", function()
 
     it("is the player's own Max units per buy and wallet limit", function()
       local limits = GC.SniperDecision.BuyLimits(config, 10000000000)
-      assert.same({ maxQuantity = 200, budget = 500000000 }, limits)
+      -- And the share the budget is, for the panel that says what a buy needs.
+      assert.same({ maxQuantity = 200, budget = 500000000, share = 0.05 }, limits)
     end)
 
     it("uses the same bounds Evaluate clamps the two settings to", function()

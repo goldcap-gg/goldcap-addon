@@ -158,8 +158,6 @@ GC.Locales.itIT = {
   ["Confirm"] = "Conferma",
   ["Confirm the cancel"] = "Conferma l'annullamento",
   ["Confirm the removal"] = "Conferma la rimozione",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Copia il link (Ctrl+C) e aprilo in un browser:",
   ["Copy vendor list"] = "Copia la lista del mercante",
   ["Cost per unit"] = "Costo per unità",
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
@@ -245,12 +243,9 @@ GC.Locales.itIT = {
   ["Finish the pending post or repost first"] =
     "Completa prima la vendita o la rimessa in vendita in corso",
   ["Font scale"] = "Dimensione del carattere",
-  ["Free, sits in the tray, nothing to set up in game."] =
-    "Gratuito, sta nella barra di sistema, niente da configurare nel gioco.",
   ["Full pass over them: %.1fs"] = "Passaggio completo: %.1fs",
   ["Full pass over them: measuring..."] = "Passaggio completo: misurazione...",
   ["Gold tied up"] = "Oro immobilizzato",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap non riesce a stabilire quale pila della borsa sia questa",
@@ -305,7 +300,6 @@ GC.Locales.itIT = {
     "In vendita a %s, molto sotto mercato. Rimettilo in vendita.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "In vendita al prezzo che hai fissato su goldcap.gg o meno. Se si rivende, giudichi tu.",
-  ["Listed value"] = "Valore in vendita",
   ["Listings"] = "Vendite",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Mette in vendita questo oggetto al prezzo della sua riga: l'intera borsa per una merce, una pila per un oggetto normale, o il numero sotto QUANTITÀ.",
@@ -593,20 +587,15 @@ GC.Locales.itIT = {
   ["What to do"] = "Cosa fare",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "Quanto ti resta su un'unità se si vende al prezzo di mercato: prezzo di vendita, meno il 5 % di commissione, meno il tuo costo.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "Quanto fanno in totale le tue aste attive per questo oggetto al prezzo attuale.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Quando un'inserzione raggiunge un prezzo impostato sul sito, la scansione si ferma e si apre la sua finestra d'acquisto.",
   ["Window position & size"] = "Posizione e dimensione della finestra",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "Con lui i prezzi del tuo reame si aggiornano da soli e le tue vendite e il profitto arrivano su goldcap.gg.",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "Senza questo, GoldCap usa i prezzi fermi alla data di rilascio: le occasioni si cercano con prezzi vecchi.",
   ["Won't buy"] = "Non compro",
   ["Worst case back"] = "Rientro nel caso peggiore",
   ["YOUR LOTS"] = "I TUOI LOTTI",
   ["YOUR PRICE"] = "IL TUO PREZZO",
   ["You can pay for it now."] = "Puoi già pagarla.",
+  ["You get"] = "Ricevi",
   ["You paid"] = "Hai pagato",
   ["You pay"] = "Paghi",
   ["You would get"] = "Riceveresti",
@@ -687,6 +676,7 @@ GC.Locales.itIT = {
   ["auto-synced data stale: /goldcap import"] =
     "i dati sincronizzati sono scaduti: /goldcap import",
   ["auto: paused"] = "auto: in pausa",
+  ["below the %s breakeven"] = "sotto il pareggio di %s",
   ["below the %s you paid"] = "sotto i %s che hai pagato",
   ["big buy"] = "acquisto grosso",
   ["bought %d x item %d"] = "comprati %d x oggetto %d",
@@ -1290,4 +1280,99 @@ GC.Locales.itIT = {
   ["Add to %s"] = "Aggiungi a %s",
   ["Add to a new list"] = "Aggiungi a una nuova lista",
   ["Add %d to a list"] = "Aggiungi %d a una lista",
+  ["Checking %d gear, pets and recipes…"] = "Controllo di equipaggiamento, mascotte e ricette (%d)…",
+  ["Deals appear here as the auction house answers."] = "Le occasioni compaiono qui man mano che la casa d'aste risponde.",
+  ["checking items %d of %d"] = "controllo oggetti %d di %d",
+  ["deals %s · watching %d items"] = "occasioni %s · %d oggetti osservati",
+  ["Flips"] = "Rivendita",
+  ["Rare finds"] = "Rarità",
+  ["No flips on this realm right now"] = "Ora non c'è nulla da rivendere su questo reame",
+  ["No rare finds on this realm right now"] = "Ora non ci sono rarità su questo reame",
+  ["Nothing here you lack"] = "Qui non ti manca nulla",
+  ["Only what I lack"] = "Solo ciò che mi manca",
+  ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
+    "Mostra solo ciò che il tuo account non ha ancora collezionato: aspetti, mascotte, giocattoli e cavalcature, e ricette che questo personaggio non conosce.",
+  ["Ctrl-click to try it on"] = "Ctrl+clic per provarlo",
+  ["Not collected"] = "Non collezionato",
+  ["Not known by this character"] = "Non conosciuto da questo personaggio",
+  ["Appearance known"] = "Aspetto conosciuto",
+  ["Cheapest of %d realms"] = "Il più economico di %d reami",
+  ["Among the cheapest 10%% of %d realms"] = "Tra il 10%% più economico di %d reami",
+  ["Cheaper than 3 in 4 of %d realms"] = "Più economico di 3 reami su 4 (su %d)",
+  ["Sold %d times in 30 days"] = "Venduto %d volte in 30 giorni",
+  ["Sold once in 30 days"] = "Venduto una volta in 30 giorni",
+  ["last for %s %s"] = "l'ultima a %s %s",
+  ["%d days ago"] = "%d giorni fa",
+  ["1 day ago"] = "1 giorno fa",
+  ["%d hours ago"] = "%d ore fa",
+  ["1 hour ago"] = "1 ora fa",
+  ["less than an hour ago"] = "meno di un'ora fa",
+  ["No sale seen in 30 days"] = "Nessuna vendita vista in 30 giorni",
+  ["Sold %d times in 7 days on %d realms"] = "Venduto %d volte in 7 giorni su %d reami",
+  ["Rare find: seldom sold, so GoldCap puts no price on it"] =
+    "Rarità: si vende poco, quindi GoldCap non le dà un prezzo",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "Benvenuto in GoldCap",
+  ["Your GoldCap prices"] = "I tuoi prezzi GoldCap",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap mostra i suoi prezzi nel tooltip degli oggetti. Alla casa d'aste, la scheda GoldCap ha:",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "Trova gli oggetti in vendita sotto il prezzo a cui di solito si vendono e controlla ciascuno prima che tu compri.",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "Trova gli oggetti in vendita sotto il prezzo che paga un mercante, o molto sotto il loro prezzo abituale.",
+  ["Prices everything in your bags. POST lists it, one item per click."] =
+    "Dà un prezzo a tutto ciò che hai nelle borse. VENDI lo mette in vendita, un oggetto per clic.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Ciò che hai venduto e il profitto di ogni vendita di cui GoldCap conosce il prezzo d'acquisto.",
+  ["Shopping lists for crafting: buys each item up to the price you set."] =
+    "Liste della spesa per l'artigianato: compra ogni oggetto fino al prezzo che imposti.",
+  ["No prices for your region yet"] = "Ancora nessun prezzo per la tua regione",
+  ["Only the prices GoldCap came with, from %s ago"] = "Solo i prezzi inclusi in GoldCap, di %s fa",
+  ["Fresh prices from the Companion, %s ago"] = "Prezzi aggiornati da Companion, %s fa",
+  ["The Companion last sent prices %s ago"] = "Companion ha inviato prezzi l'ultima volta %s fa",
+  ["You pasted these prices %s ago"] = "Hai incollato questi prezzi %s fa",
+  ["The Companion's prices could not be read"] = "Non è stato possibile leggere i prezzi di Companion",
+  ["Everyone's prices are in, from %s ago"] = "Ci sono i prezzi di tutti i giocatori, di %s fa",
+  ["No prices from other players for this auction house yet"] =
+    "Ancora nessun prezzo di altri giocatori per questa casa d'aste",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Nessuno condivide una scansione di questa casa d'aste da %s",
+  ["Prices from your own scans only"] = "Prezzi solo dalle tue scansioni",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "Questi prezzi sono arrivati con GoldCap e cambiano solo quando GoldCap stesso si aggiorna. DEALS ha bisogno di prezzi aggiornati del tuo reame per trovare qualcosa, quindi fino ad allora non trova alcun affare.",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap non include prezzi per la tua regione, quindi DEALS non trova affari finché GoldCap Companion non li porta.",
+  ["New prices reach GoldCap every time you log in or type /reload."] =
+    "I nuovi prezzi arrivano a GoldCap a ogni accesso o con /reload.",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS e tutti i prezzi si basano su ciò che ha inviato per ultimo. Controlla che GoldCap Companion sia in esecuzione (la sua icona è accanto all'orologio), poi scrivi /reload.",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "Un testo incollato diventa vecchio in un giorno. GoldCap Companion recupera prezzi aggiornati per te ogni 30 minuti.",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "Con prezzi così vecchi, DEALS può mostrare affari che non ci sono più. GoldCap Companion recupera prezzi aggiornati per te ogni 30 minuti.",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap non è riuscito a leggere ciò che ha scritto Companion (%s). Aggiorna GoldCap e GoldCap Companion, poi scrivi /reload.",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "Le tue scansioni e quelle di tutti gli altri giocatori GoldCap vengono unite: per ogni oggetto vince il prezzo più recente.",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "Le tue scansioni funzionano ancora. Controlla che GoldCap Companion sia in esecuzione (la sua icona è accanto all'orologio), poi scrivi /reload.",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "Nel frattempo le tue scansioni funzionano. Se GoldCap Companion non è in esecuzione, avvialo e scrivi /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion è in esecuzione e porta ogni scansione di questa casa d'aste condivisa dai giocatori GoldCap, ma di recente non ne è arrivata nessuna. Le tue scansioni funzionano ancora.",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap conosce solo ciò che le tue scansioni di questa casa d'aste hanno trovato. Con GoldCap Companion ricevi anche le scansioni di tutti i giocatori GoldCap di qui: più oggetti con un prezzo e prezzi più recenti.",
+  ["Get GoldCap Companion"] = "Scarica GoldCap Companion",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "Una piccola app gratuita per Windows, macOS e Linux. Recupera i prezzi del tuo reame ogni 30 minuti, senza bisogno di un account. Il suo codice è aperto su GitHub.",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "Una piccola app gratuita per Windows, macOS e Linux. Ogni 30 minuti porta i prezzi che ogni giocatore GoldCap ha scansionato nella tua casa d'aste, senza bisogno di un account. Il suo codice è aperto su GitHub.",
+  ["1. Copy this link (%s) and open it in your browser:"] = "1. Copia questo link (%s) e aprilo nel browser:",
+  ["2. Install GoldCap Companion and start it."] = "2. Installa GoldCap Companion e avvialo.",
+  ["3. Back in the game, type /reload."] = "3. Tornato in gioco, scrivi /reload.",
+  ["Not installed on this computer? It is here:"] = "Non è installato su questo computer? Eccolo qui:",
+  ["The latest version is here:"] = "L'ultima versione è qui:",
+  ["/gc companion opens this window again."] = "/gc companion riapre questa finestra.",
+  ["Got it"] = "Ho capito",
+  ["Don't remind me"] = "Non ricordarmelo",
 }

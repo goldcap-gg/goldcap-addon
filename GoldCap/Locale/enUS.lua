@@ -328,8 +328,6 @@ GC.Locales.enUS = {
   ["Confirm"] = "Confirm",
   ["Confirm the cancel"] = "Confirm the cancel",
   ["Confirm the removal"] = "Confirm the removal",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Copy the link (Ctrl+C) and open it in a browser:",
   ["Copy vendor list"] = "Copy vendor list",
   ["Cost per unit"] = "Cost per unit",
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
@@ -362,15 +360,12 @@ GC.Locales.enUS = {
   ["Finish the pending post first"] = "Finish the pending post first",
   ["Finish the pending post or repost first"] = "Finish the pending post or repost first",
   ["Font scale"] = "Font scale",
-  ["Free, sits in the tray, nothing to set up in game."] =
-    "Free, sits in the tray, nothing to set up in game.",
   ["From goldcap.gg: manage it there"] = "From goldcap.gg: manage it there",
   ["Full pass over them: %.1fs"] = "Full pass over them: %.1fs",
   ["Full pass over them: measuring..."] = "Full pass over them: measuring...",
   ["Gear, pets and recipes need an import that carries the region's prices for them. Paste a fresh string from goldcap.gg."] =
     "Gear, pets and recipes need an import that carries the region's prices for them. Paste a fresh string from goldcap.gg.",
   ["Gold tied up"] = "Gold tied up",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap can't pin down which bag stack this is",
   ["GoldCap could not tell which region you are playing in, so it is showing bundled US prices. /goldcap import or /goldcap companion loads your own realm's"] =
@@ -421,7 +416,6 @@ GC.Locales.enUS = {
     "Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE. The buy is your call, and GoldCap only checks them while this board is open.",
   ["LISTED"] = "LISTED",
   ["LISTED AS"] = "LISTED AS",
-  ["LOT VALUE"] = "LOT VALUE",
   ["Language"] = "Language",
   ["Language changed. Type /reload to apply it everywhere."] = "Language changed. Type /reload to apply it everywhere.",
   ["Last result: %ds ago"] = "Last result: %ds ago",
@@ -430,7 +424,6 @@ GC.Locales.enUS = {
   ["Listed at %s, far below market. Repost."] = "Listed at %s, far below market. Repost.",
   ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
     "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
-  ["Listed value"] = "Listed value",
   ["Listings"] = "Listings",
   ["Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY."] =
     "Lists this item at the price on its row: the whole bag for a commodity, one stack for a regular item, or the number under HOW MANY.",
@@ -682,19 +675,14 @@ GC.Locales.enUS = {
   ["What to do"] = "What to do",
   ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
     "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.",
-  ["What your live auctions for this item add up to at their current asking price."] =
-    "What your live auctions for this item add up to at their current asking price.",
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "When a listing meets a price you set on the site, stop scanning and open its buy window.",
   ["Window position & size"] = "Window position & size",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg.",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices.",
   ["Won't buy"] = "Won't buy",
   ["Worst case back"] = "Worst case back",
   ["YOU GET"] = "YOU GET",
   ["YOUR PRICE"] = "YOUR PRICE",
+  ["You get"] = "You get",
   ["You paid"] = "You paid",
   ["You pay"] = "You pay",
   ["You would get"] = "You would get",
@@ -733,6 +721,7 @@ GC.Locales.enUS = {
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
   ["auto-synced data stale: /goldcap import"] = "auto-synced data stale: /goldcap import",
   ["auto: paused"] = "auto: paused",
+  ["below the %s breakeven"] = "below the %s breakeven",
   ["below the %s you paid"] = "below the %s you paid",
   ["big buy"] = "big buy",
   ["bought %d for %s"] = "bought %d for %s",
@@ -1277,4 +1266,100 @@ GC.Locales.enUS = {
   ["Add to %s"] = "Add to %s",
   ["Add to a new list"] = "Add to a new list",
   ["Add %d to a list"] = "Add %d to a list",
+  ["Checking %d gear, pets and recipes…"] = "Checking %d gear, pets and recipes…",
+  ["Deals appear here as the auction house answers."] = "Deals appear here as the auction house answers.",
+  ["checking items %d of %d"] = "checking items %d of %d",
+  ["deals %s · watching %d items"] = "deals %s · watching %d items",
+  ["Flips"] = "Flips",
+  ["Rare finds"] = "Rare finds",
+  ["No flips on this realm right now"] = "No flips on this realm right now",
+  ["No rare finds on this realm right now"] = "No rare finds on this realm right now",
+  ["Nothing here you lack"] = "Nothing here you lack",
+  ["Only what I lack"] = "Only what I lack",
+  ["Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know."] =
+    "Shows only what your account has not collected yet: appearances, pets, toys and mounts, and recipes this character does not know.",
+  ["Ctrl-click to try it on"] = "Ctrl-click to try it on",
+  ["Not collected"] = "Not collected",
+  ["Not known by this character"] = "Not known by this character",
+  ["Appearance known"] = "Appearance known",
+  ["Cheapest of %d realms"] = "Cheapest of %d realms",
+  ["Among the cheapest 10%% of %d realms"] = "Among the cheapest 10%% of %d realms",
+  ["Cheaper than 3 in 4 of %d realms"] = "Cheaper than 3 in 4 of %d realms",
+  ["Sold %d times in 30 days"] = "Sold %d times in 30 days",
+  ["Sold once in 30 days"] = "Sold once in 30 days",
+  ["last for %s %s"] = "last for %s %s",
+  ["%d days ago"] = "%d days ago",
+  ["1 day ago"] = "1 day ago",
+  ["%d hours ago"] = "%d hours ago",
+  ["1 hour ago"] = "1 hour ago",
+  ["less than an hour ago"] = "less than an hour ago",
+  ["No sale seen in 30 days"] = "No sale seen in 30 days",
+  ["Sold %d times in 7 days on %d realms"] = "Sold %d times in 7 days on %d realms",
+  ["Rare find: seldom sold, so GoldCap puts no price on it"] =
+    "Rare find: seldom sold, so GoldCap puts no price on it",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "Welcome to GoldCap",
+  ["Your GoldCap prices"] = "Your GoldCap prices",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "Finds items listed below what they usually sell for, and checks each one before you buy.",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "Finds items listed below what a vendor pays, or far below their usual price.",
+  ["Prices everything in your bags. POST lists it, one item per click."] =
+    "Prices everything in your bags. POST lists it, one item per click.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "What you sold, and the profit on each sale where GoldCap knows what you paid.",
+  ["Shopping lists for crafting: buys each item up to the price you set."] =
+    "Shopping lists for crafting: buys each item up to the price you set.",
+  ["No prices for your region yet"] = "No prices for your region yet",
+  ["Only the prices GoldCap came with, from %s ago"] = "Only the prices GoldCap came with, from %s ago",
+  ["Fresh prices from the Companion, %s ago"] = "Fresh prices from the Companion, %s ago",
+  ["The Companion last sent prices %s ago"] = "The Companion last sent prices %s ago",
+  ["You pasted these prices %s ago"] = "You pasted these prices %s ago",
+  ["The Companion's prices could not be read"] = "The Companion's prices could not be read",
+  ["Everyone's prices are in, from %s ago"] = "Everyone's prices are in, from %s ago",
+  ["No prices from other players for this auction house yet"] =
+    "No prices from other players for this auction house yet",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Nobody has shared a scan of this auction house for %s",
+  ["Prices from your own scans only"] = "Prices from your own scans only",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals.",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them.",
+  ["New prices reach GoldCap every time you log in or type /reload."] =
+    "New prices reach GoldCap every time you log in or type /reload.",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload.",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes.",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes.",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload.",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "Your own scans and every other GoldCap player's are combined: for each item, the newer price wins.",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload.",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work.",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices.",
+  ["Get GoldCap Companion"] = "Get GoldCap Companion",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub.",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub.",
+  ["1. Copy this link (%s) and open it in your browser:"] =
+    "1. Copy this link (%s) and open it in your browser:",
+  ["2. Install GoldCap Companion and start it."] = "2. Install GoldCap Companion and start it.",
+  ["3. Back in the game, type /reload."] = "3. Back in the game, type /reload.",
+  ["Not installed on this computer? It is here:"] = "Not installed on this computer? It is here:",
+  ["The latest version is here:"] = "The latest version is here:",
+  ["/gc companion opens this window again."] = "/gc companion opens this window again.",
+  ["Got it"] = "Got it",
+  ["Don't remind me"] = "Don't remind me",
 }

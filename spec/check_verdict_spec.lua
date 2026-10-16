@@ -487,6 +487,23 @@ describe("CheckVerdict", function()
       assert.equal(20, factById(v, "yourMinimum").copper)
     end)
 
+    -- A Forever buy the wallet limit alone refused (SniperDecision.EvaluateCeiling's
+    -- `needsGold`, owner report 2026-10-16): the retail gold answer, not the Forever figure,
+    -- and still only what the buy costs and brings back.
+    it("says a deal that needs gold needs gold, with the Forever share in the caption", function()
+      local needs = vendorPass()
+      needs.status, needs.buyable, needs.reasons = "AVOID", false, { "capital_limit" }
+      needs.quantity, needs.entryTotal, needs.stressProfit = 4, 32, 20
+      needs.needsGold, needs.walletShare = 64, 0.5
+      local v = GC.CheckVerdict.Build(needs, scanMarket, { forever = "vendor" })
+      assert.equal("gold", v.tone)
+      assert.is_false(v.actionable)
+      assert.same({ kind = "needs", copper = 64, cost = 32, share = 0.5 }, v.hero)
+      assert.equal(2, #v.facts)
+      assert.equal(32, factById(v, "youPay").copper)
+      assert.equal(52, factById(v, "youGet").copper)
+    end)
+
     it("leaves a row with no Forever kind to the retail tones", function()
       assert.equal("clear", GC.CheckVerdict.Build(vendorPass(), scanMarket).tone)
       assert.equal("unverified", GC.CheckVerdict.Build(vendorLot(), scanMarket, {}).tone)

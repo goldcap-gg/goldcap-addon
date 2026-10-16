@@ -354,6 +354,46 @@ describe("ForeverScan", function()
     assert.equal(saved, #notes)
   end)
 
+  -- The client hands the dump over in stages, each with its own REPLICATE_ITEM_LIST_UPDATE (owner,
+  -- 2026-09-30: 2048 rows, then 54139). A later stage that landed while the scan browsed after the
+  -- first one was dropped, and the scan saved the cut first stage alone.
+  it("reads a later stage of the dump that lands while it browses, in place of the first", function()
+    d.browseAnswer = "started"
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(2 * GC.ForeverScan.C.SUSPECT_CAP)
+    runRead(s)
+    assert.equal("browsing", s:State())
+    s:OnReplicateUpdate()                        -- the same stage again: nothing new
+    assert.equal("browsing", s:State())
+    rows = dump(5000)
+    d.browseAnswer = "running"                   -- the wide pass the first stage started still pages
+    s:OnReplicateUpdate()
+    assert.equal("reading", s:State())
+    runRead(s)
+    assert.equal("browsing", s:State())
+    s:OnBrowsePassDone({})
+    local fold = store.fold
+    assert.equal(5000, fold.rows)
+    assert.is_nil(fold.partial)
+    assert.equal(50, fold.itemCount)
+  end)
+
+  it("reads a later stage that lands while it is still reading the first", function()
+    d.browseAnswer = "running"
+    local s = GC.ForeverScan.New(driver())
+    s:OnAuctionHouseShow()
+    rows = dump(4096)
+    s:OnReplicateUpdate()                        -- reads the first frame's share and goes on later
+    assert.equal("reading", s:State())
+    rows = dump(5000)
+    s:OnReplicateUpdate()
+    runRead(s)
+    s:OnBrowsePassDone({})
+    assert.equal(5000, store.fold.rows)
+    assert.is_nil(store.fold.partial)
+  end)
+
   it("ignores a given-up browse pass it was not waiting for", function()
     local s = GC.ForeverScan.New(driver())
     s:OnBrowsePassAbandoned({ [2589] = { floor = 64, qty = 5814 } })

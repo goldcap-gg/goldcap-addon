@@ -496,23 +496,49 @@ end
 -- payload names one — faction must all match (plan 3d decision E11). A payload for another
 -- auction house is someone else's prices. Dated more than PAYLOAD_FUTURE_SLACK_SECONDS ahead of
 -- this machine's clock, it is refused like the region payload is.
+-- Whether the payload names another realm or faction than the one given: only what both name
+-- counts, so an unnamed side refuses nothing.
+local function otherHouse(parsed, realm, faction)
+  if type(realm) == "string" and parsed.realm ~= realm then return "realm" end
+  if parsed.faction and type(faction) == "string" and parsed.faction ~= faction then return "faction" end
+  return nil
+end
+
+-- Adopted before the client named this character's realm or faction (ADDON_LOADED can come first,
+-- night review 10.10): the check waits for them, and runs again on every read until both are named.
+local payloadUnsettled = false
+
 function GC.Data.AdoptForeverPayload(str, here)
-  foreverPayload = nil
+  foreverPayload, payloadUnsettled = nil, false
   local parsed, reason = GC.ImportString.ParseForever(str)
   if not parsed then return nil, reason end
   if parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "future" end
   here = here or {}
   if parsed.regionId ~= here.region then return nil, "region" end
-  if type(here.realm) == "string" and parsed.realm ~= here.realm then return nil, "realm" end
-  if parsed.faction and type(here.faction) == "string" and parsed.faction ~= here.faction then
-    return nil, "faction"
-  end
+  local other = otherHouse(parsed, here.realm, here.faction)
+  if other then return nil, other end
   foreverPayload = parsed
+  payloadUnsettled = type(here.realm) ~= "string" or type(here.faction) ~= "string"
   return parsed
 end
 
-function GC.Data.ForeverPayload()
+-- The adopted payload, once more checked against the house while the client has not named it all:
+-- one that turns out to be another realm's or faction's is dropped for the session.
+local function adoptedPayload()
+  if not (foreverPayload and payloadUnsettled) then return foreverPayload end
+  local F = GC.ForeverScan
+  if not (F and F.House) then return foreverPayload end
+  local realm, faction = F.House()
+  if otherHouse(foreverPayload, realm, faction) then
+    foreverPayload, payloadUnsettled = nil, false
+    return nil
+  end
+  if type(realm) == "string" and type(faction) == "string" then payloadUnsettled = false end
   return foreverPayload
+end
+
+function GC.Data.ForeverPayload()
+  return adoptedPayload()
 end
 
 -- A Companion paired with goldcap.gg writes this install's GoldCap_AppData and uploads its saved
@@ -578,7 +604,7 @@ end
 -- scanner count, which is all the tooltip needs to say whose it is. nil outside Forever.
 function GC.Data.ForeverValueFor(itemID)
   local own = GC.ForeverScan and GC.ForeverScan.ValueFor and GC.ForeverScan.ValueFor(itemID) or nil
-  local p = foreverPayload
+  local p = adoptedPayload()
   local c = p and p.items[itemID]
   if not c then return own end
   local at = p.ts - c.age * 60
@@ -593,7 +619,7 @@ end
 -- "fresher look wins" rule the tooltip follows). ForeverDeals measures against the lower of the two.
 -- A crowd answer says when the crowd saw it (`at`, epoch seconds): BUY's tooltip says how old it is.
 function GC.Data.ForeverReference(itemID, ownAt, ownValue, ownP50)
-  local p = foreverPayload
+  local p = adoptedPayload()
   local c = p and p.items[itemID]
   if c and c.ah then
     local at = p.ts - c.age * 60
@@ -630,6 +656,12 @@ function GC.Data.GetItemValue(itemID)
   -- reach, and independent of the I section -- the region can know a reference for an item
   -- this realm has no median for at all, which is the case the branch below exists for.
   local target = imp and imp.targets and imp.targets[itemID] or nil
+  -- A flip the payload names (F section) is priced at what it SOLD for over 7 days, which takes
+  -- the place of T's figure. The site switches T to the same sale median at the same moment, with
+  -- item level 0: a sale median is measured across every variant, so it names no level, and the
+  -- reference here names none either. Without an F entry, T answers exactly as before.
+  local flip = GC.Data.FlipFacts(itemID)
+  if flip then target = { ref = flip.ref, ilvl = 0 } end
   if e then
     -- Cheap-quarter line (import Q section) and reach24 (import R section): the Sell tab's
     -- ceilings for posting above the cheapest ask, R first. Import-path only -- bundled data
@@ -649,8 +681,9 @@ function GC.Data.GetItemValue(itemID)
   -- 3. No I entry, but the region named a reference: a realm item this realm has no median for.
   -- There is no mv to return and nothing pretends there is -- GC.Trigger.RealmReference takes
   -- whichever of the two exists, and everything that needs an mv (DealMath, the commodity
-  -- decision path) already refuses a value table without one.
-  if target then
+  -- decision path) already refuses a value table without one. Dated by the import, so only with
+  -- one loaded: an F entry with no import behind it falls through to the payload's M below.
+  if target and imp then
     return { ts = imp.ts, source = "import", kind = "realm_item",
       ref = target.ref, refIlvl = target.ilvl }
   end
@@ -677,6 +710,14 @@ function GC.Data.GetItemValue(itemID)
   -- (GC.Data.ForeverValueFor). Last on purpose, as before: any other source outranks it, and it
   -- answers nil everywhere but Forever.
   return GC.Data.ForeverValueFor(itemID)
+end
+
+-- When the bundled table for this region was built, nil without one (WoW: Forever) or with a 0
+-- stamp (a local build's empty region). GetStatus says the same, after counting every item.
+function GC.Data.BundledTs()
+  local ts = bundled and bundled.ts
+  if type(ts) ~= "number" or ts <= 0 then return nil end
+  return ts
 end
 
 function GC.Data.GetStatus()
@@ -720,6 +761,92 @@ function GC.Data.TargetIds()
   if not imp or not imp.targets then return ids end
   for id in pairs(imp.targets) do ids[#ids + 1] = id end
   table.sort(ids)
+  return ids
+end
+
+-- Realm items split by what sells (the payload's F and U sections, once the site's realm sales
+-- tape covers a week of the region; absent before, and then every answer below is nil, false or
+-- empty). Flips trade and are priced at their 7-day sale median; rare finds are listed widely and
+-- rarely sold, and get no price at all, only what was seen of them.
+
+local function flipEntry(itemID)
+  local p = activePayload()
+  return p and p.flips and p.flips[itemID] or nil
+end
+
+-- The payload's U entry, unless the same payload names the item a flip too: then it has a price,
+-- and a rare find is exactly what has none. The site never sends both.
+local function rareEntry(itemID)
+  local p = activePayload()
+  local entry = p and p.rares and p.rares[itemID]
+  if not entry or (p.flips and p.flips[itemID]) then return nil end
+  return entry
+end
+
+--- { ref, sales7d, realms } for a flip -- the copper per unit it sold for over 7 days, the sales
+-- behind that and how many realms they were on -- or nil. The payload's own table, shared: read it,
+-- never edit it.
+function GC.Data.FlipFacts(itemID)
+  return flipEntry(itemID)
+end
+
+function GC.Data.IsRareFind(itemID)
+  return rareEntry(itemID) ~= nil
+end
+
+--- Whether the payload carries any rare find at all: the site has switched for this region.
+function GC.Data.HasRareFinds()
+  local p = activePayload()
+  return (p and p.rares and next(p.rares) ~= nil) and true or false
+end
+
+--- What was seen of a rare find, or nil: { sales30d, lastSaleCopper, lastSoldAgeHours, realms,
+-- floorMin, floorP10, floorP25 }. The last sale's age is measured to `now` (time() when nil): the
+-- payload's own age plus the hours the site counted before it. An item with no sale in 30 days
+-- (or one whose last sale carries no price) has nil for both last-sale fields.
+function GC.Data.RareFacts(itemID, now)
+  local entry = rareEntry(itemID)
+  if not entry then return nil end
+  local facts = { sales30d = entry.sales30d, realms = entry.realmsListed,
+    floorMin = entry.floorMin, floorP10 = entry.floorP10, floorP25 = entry.floorP25 }
+  if entry.sales30d > 0 and entry.lastSaleCopper > 0 then
+    local p = activePayload()
+    local payloadHours = math.max(0, math.floor(((now or time()) - p.ts) / 3600))
+    facts.lastSaleCopper = entry.lastSaleCopper
+    facts.lastSoldAgeHours = entry.lastSoldAgeHours + payloadHours
+  end
+  return facts
+end
+
+-- The site's own rank for rare finds: any sale in 30 days first, then the gold those sales moved
+-- (sales x the last price), then what a quarter of the realms ask, then the id.
+local function rareBefore(a, ra, b, rb)
+  local soldA, soldB = ra.sales30d > 0, rb.sales30d > 0
+  if soldA ~= soldB then return soldA end
+  local va, vb = ra.sales30d * ra.lastSaleCopper, rb.sales30d * rb.lastSaleCopper
+  if va ~= vb then return va > vb end
+  if ra.floorP25 ~= rb.floorP25 then return ra.floorP25 > rb.floorP25 end
+  return a < b
+end
+
+--- Whether rare find `a` ranks ahead of `b`. An id that is not a rare find ranks after every one
+-- that is; two of those by id.
+function GC.Data.RareBefore(a, b)
+  local ra, rb = rareEntry(a), rareEntry(b)
+  if ra and rb then return rareBefore(a, ra, b, rb) end
+  if ra or rb then return ra ~= nil end
+  return a < b
+end
+
+--- Every rare find's id, in the site's rank order (RareBefore). Empty when there are none.
+function GC.Data.RareIds()
+  local p = activePayload()
+  local ids = {}
+  if not (p and p.rares) then return ids end
+  for id in pairs(p.rares) do
+    if rareEntry(id) then ids[#ids + 1] = id end
+  end
+  table.sort(ids, GC.Data.RareBefore)
   return ids
 end
 

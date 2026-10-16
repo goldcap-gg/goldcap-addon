@@ -1,5 +1,64 @@
 # GoldCap
 
+## 0.21.0 (2026-10-16)
+
+- A welcome window opens the first time you visit the auction house with GoldCap. It says what
+  DEALS, SELL, SOLD and BUY do, how old your prices are, and where they come from. Without GoldCap
+  Companion or a pasted string, retail prices are the ones GoldCap shipped with and change only
+  when GoldCap updates, and DEALS cannot find deals on them at all; the window gives the link and
+  three steps to set the Companion up. In WoW: Forever it says your prices come from your own scans, and what the
+  Companion adds: every GoldCap player's scans of your auction house.
+- If the Companion stops sending prices, or you are not using it, the window comes back at the
+  auction house at most every few days and says what to do. Don't remind me turns that off;
+  `/gc companion` opens it whenever you like. In WoW: Forever, when the Companion is running but
+  nobody has shared a scan of your auction house lately, the window says so when you open it and
+  does not come back by itself: there is nothing to fix.
+- Deals, Items board: the board has two sections. Flips are items that sell, and each says how
+  many sold in the last 7 days and on how many realms. Once goldcap.gg has a week of realm sales,
+  a flip's price is what it actually sold for, not what realms ask for it, so an item nobody buys
+  at its asking price no longer shows as a big discount.
+- Deals, Items board: armor and weapons more than 80% under the price they are measured against no
+  longer show as flips. That price is one figure for every item level of the item, and a piece
+  that far under it is nearly always a lower level, not a bargain. Recipes, pets, toys and mounts
+  come at one level, so they stay.
+- Deals, Items board: Rare finds are items many realms list and few buy. They carry no profit, no
+  discount and no BUY: each says how this realm's cheapest one compares with the other realms'
+  (the cheapest of them all, among the cheapest 10%, or cheaper than 3 in 4) and what sold in the
+  last 30 days, for how much and how long ago.
+- Deals, Items board: under an item's name, Not collected marks an appearance, pet, toy or mount
+  your account does not have yet, Not known by this character a recipe this character has not
+  learned, and Appearance known a piece whose look you already have from another item.
+- Deals, Items board: Only what I lack, at the top of the board, shows only the items marked Not
+  collected or Not known by this character. It stays as you left it.
+- Deals, Items board: fills much sooner after you open it. Its look at your realm's items no
+  longer waits behind the price checks of the rows it has already found.
+- Deals: ctrl-click a row to try the item on in the Dressing Room, as on the auction house's own
+  rows (hold ctrl over it for the magnifier). Shift-click links it in chat. Neither one checks or
+  buys the row.
+- Deals no longer cuts a long item name with "…": in a narrow window or a long language the name
+  wraps and its row grows to hold it. Rows keep still while your cursor is on one.
+- Deals, Items board: while GoldCap checks your gear, pets and recipes after you open the
+  auction house, the board says so, SCAN lights up and the status line counts the answers.
+  SCAN on this board checks them all again instead of scanning commodities.
+- Sell: YOU GET, and the margin under it, are what you get after the auction house's 5% cut, as
+  PROCEEDS under the list already was. On MY LOTS, LOT VALUE is YOU GET now and says the same. Two
+  items bought at 600g and listed at 978g 99s each read 1,860g and +55%, where they read 1,957g and
+  +63%.
+- Sell: a price over what you paid but under what you paid plus the 5% cut loses money too, so it
+  turns red as well and says the breakeven to beat. COST fills in that breakeven, not what you
+  paid.
+- Sold and the profit totals: an auction mail you leave in the mailbox is no longer recorded
+  again each time you open it, and a second identical sale is no longer missed while an expired
+  or cancelled auction mail sits in the mailbox.
+- WoW: Forever: a full scan reads the rest of the auction house when it arrives in a second
+  part while the scan is still busy with the first, instead of saving only the first part.
+- WoW: Forever: a character no longer picks up goldcap.gg prices of the other faction on the
+  same realm when the game names the faction late at login.
+- WoW: Forever: Road to 40 keeps counting past 214,748 gold.
+- WoW: Forever, Deals: a deal this character cannot pay for yet stays on the board and says how
+  much gold it needs, as on retail, instead of reading AVOID among the refused rows. Under 1 gold
+  that figure is in silver or copper, no longer rounded up to 1g.
+
 ## 0.20.1 (2026-10-14)
 
 - GoldCap is up to date for patch 12.1.5, so it loads without ticking "Load out of date AddOns".

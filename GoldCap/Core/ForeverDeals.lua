@@ -313,7 +313,8 @@ function GC.ForeverDeals.BuyLimits(config, walletCopper, kind)
   if kind == "vendor" then
     local share = type(config) == "table" and config.maxCapitalShare or nil
     if share == nil or share == C.RETAIL_DEFAULT_CAPITAL_SHARE then
-      return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * C.VENDOR_CAPITAL_SHARE) }
+      return { maxQuantity = limits.maxQuantity, budget = math.floor(walletCopper * C.VENDOR_CAPITAL_SHARE),
+        share = C.VENDOR_CAPITAL_SHARE }
     end
   end
   return limits

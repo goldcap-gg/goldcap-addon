@@ -482,6 +482,15 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   return nil, nil, cap, capBy
 end
 
+--- The least a unit can sell for and still return `paidUnit` once the auction house has taken its
+--- 5%, rounded up so it never understates a loss: the `breakeven` below, and the Sell tab's red
+--- and COST fill (GC.SellPositions.PriceRisk). In whole numbers, where paidUnit / 0.95 put 95's
+--- breakeven a copper over 100 or under it by the float's rounding. nil without a cost.
+function GC.Flips.Breakeven(paidUnit)
+  if type(paidUnit) ~= "number" then return nil end
+  return math.floor((paidUnit * 100 + 94) / 95)
+end
+
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
   local mode, candidate, overcutAhead, cap, capBy
@@ -591,7 +600,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
 
   -- Deliberately unnormalized -- breakeven is a displayed threshold to compare a price against,
   -- never itself posted, so there is nothing here for the grid to protect.
-  local breakeven = paidUnit and math.ceil(paidUnit / 0.95) or nil
+  local breakeven = GC.Flips.Breakeven(paidUnit)
 
   return {
     unit = candidate,

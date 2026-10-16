@@ -419,17 +419,17 @@ describe("ForeverDeals", function()
 
     it("gives a vendor row half the wallet when the player kept the shipped 5% share", function()
       local limits = D.BuyLimits(config(0.05), 10000, "vendor")
-      assert.same({ maxQuantity = 200, budget = 5000 }, limits)
+      assert.same({ maxQuantity = 200, budget = 5000, share = 0.50 }, limits)
     end)
 
     it("leaves a vendor row's budget alone once the player changed the share", function()
       local limits = D.BuyLimits(config(0.10), 10000, "vendor")
-      assert.same({ maxQuantity = 200, budget = 1000 }, limits)
+      assert.same({ maxQuantity = 200, budget = 1000, share = 0.10 }, limits)
     end)
 
     it("never widens a market row's share", function()
       local limits = D.BuyLimits(config(0.05), 10000, "market")
-      assert.same({ maxQuantity = 200, budget = 500 }, limits)
+      assert.same({ maxQuantity = 200, budget = 500, share = 0.05 }, limits)
     end)
 
     it("answers nothing when the wallet is bad, exactly like SniperDecision.BuyLimits", function()

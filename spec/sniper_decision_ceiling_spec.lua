@@ -55,6 +55,73 @@ describe("SniperDecision ceiling mode (WoW: Forever)", function()
       assert.same({ "capital_limit" }, d.reasons)
     end)
 
+    -- Owner report 2026-10-16: a low character's Below vendor row came back AVOID and went to
+    -- Hidden. A buy only the wallet limit refuses needs gold (Evaluate's `needsGold`), and the
+    -- caller's limitsFor says what any wallet would allow: here half of it, as Forever's vendor
+    -- rows get.
+    describe("a buy only the wallet limit refuses", function()
+      local function half(wallet)
+        return { maxQuantity = 200, budget = math.floor(wallet * 0.5), share = 0.5 }
+      end
+
+      it("names the least gold that buys, and that buy's figures", function()
+        local d = S.EvaluateCeiling(vendorInput({ limits = half(10), limitsFor = half }))
+        assert.equal("AVOID", d.status); assert.is_false(d.buyable)
+        assert.same({ "capital_limit" }, d.reasons)
+        -- Four at 8c make the 20c minimum: 32c, which half the wallet covers from 64c.
+        assert.equal(64, d.needsGold)
+        assert.equal(0.5, d.walletShare)
+        assert.equal(4, d.quantity); assert.equal(32, d.entryTotal); assert.equal(20, d.stressProfit)
+        assert.is_true(S.EvaluateCeiling(vendorInput({ limits = half(64) })).buyable)
+        assert.is_false(S.EvaluateCeiling(vendorInput({ limits = half(63) })).buyable)
+      end)
+
+      it("counts a buy the budget cut under the minimum as the wallet's, not the deal's", function()
+        -- Half of 48c is 24c: three at 8c, 15c, under the 20c minimum.
+        assert.same({ "profit_below_minimum" }, S.EvaluateCeiling(vendorInput({ limits = half(48) })).reasons)
+        local d = S.EvaluateCeiling(vendorInput({ limits = half(48), limitsFor = half }))
+        assert.same({ "capital_limit" }, d.reasons)
+        assert.equal(64, d.needsGold)
+      end)
+
+      it("lands on a wallet the buy passes at, whatever the share rounds to", function()
+        local function odd(wallet)
+          return { maxQuantity = 7, budget = math.floor(wallet * 0.13), share = 0.13 }
+        end
+        -- Seven units make 33c: five at 8c and two at 9c, 58c, which 13% of a wallet holds from 447c.
+        local d = S.EvaluateCeiling(vendorInput({ minimumProfit = 30, limits = odd(0), limitsFor = odd }))
+        assert.equal(447, d.needsGold)
+        assert.is_true(S.EvaluateCeiling(vendorInput({ minimumProfit = 30, limits = odd(d.needsGold) })).buyable)
+        assert.is_false(S.EvaluateCeiling(vendorInput({ minimumProfit = 30, limits = odd(d.needsGold - 1) })).buyable)
+      end)
+
+      it("leaves a deal no gold would make a buy as the refusal it is", function()
+        local d = S.EvaluateCeiling(vendorInput({ minimumProfit = 10000, limits = half(10), limitsFor = half }))
+        assert.same({ "capital_limit" }, d.reasons)
+        assert.is_nil(d.needsGold)
+        d = S.EvaluateCeiling(vendorInput({ minimumProfit = 10000, limits = half(1000), limitsFor = half }))
+        assert.same({ "profit_below_minimum" }, d.reasons)
+        assert.is_nil(d.needsGold)
+        d = S.EvaluateCeiling(vendorInput({ levels = { { unitPrice = 13, quantity = 100 } }, limitsFor = half }))
+        assert.same({ "price_rose" }, d.reasons)
+        assert.is_nil(d.needsGold)
+      end)
+
+      it("asks nothing of a typed quantity or a server quote", function()
+        local d = S.EvaluateCeiling(vendorInput({ limits = half(10), limitsFor = half, fixedQuantity = 4 }))
+        assert.same({ "book_exhausted" }, d.reasons)
+        assert.is_nil(d.needsGold)
+      end)
+
+      it("names nothing while SAFE purchases are rolled back", function()
+        S.SAFE_PURCHASES_ENABLED = false
+        local d = S.EvaluateCeiling(vendorInput({ limits = half(10), limitsFor = half }))
+        S.SAFE_PURCHASES_ENABLED = true
+        assert.same({ "capital_limit" }, d.reasons)
+        assert.is_nil(d.needsGold)
+      end)
+    end)
+
     it("holds a server quote to what those units cost on the book", function()
       assert.is_true(S.EvaluateCeiling(vendorInput({ fixedQuantity = 55, quotedTotal = 610 })).buyable)
       local d = S.EvaluateCeiling(vendorInput({ fixedQuantity = 55, quotedTotal = 611 }))

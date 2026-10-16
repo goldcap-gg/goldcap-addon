@@ -42,6 +42,7 @@ Locale/zhCN.lua
 Locale/zhTW.lua
 Core/ImportString.lua
 Core/Data.lua
+Core/Welcome.lua
 Core/ItemNames.lua
 Core/AppLedger.lua
 Core/Acquisitions.lua
@@ -74,6 +75,8 @@ Core/ForeverUpgrades.lua
 Core/ForeverLoot.lua
 Core/DrillQueue.lua
 Core/KeyPoll.lua
+Core/Collection.lua
+Core/ItemsBoard.lua
 Core/NameMatch.lua
 Core/BuyRun.lua
 Core/BuyView.lua
@@ -114,7 +117,7 @@ UI/Tooltip.lua
 UI/QuestRewardMark.lua
 UI/MerchantNote.lua
 UI/ImportDialog.lua
-UI/CompanionDialog.lua
+UI/WelcomeFrame.lua
 UI/VendorListDialog.lua
 UI/SniperFrame.lua
 UI/AuctionHouseTab.lua

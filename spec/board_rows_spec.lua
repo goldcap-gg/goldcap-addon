@@ -154,7 +154,7 @@ describe("BoardRows", function()
       assert.equal("needs 1235g", GC.BoardRows.Label(needs))
       assert.equal("needs 1330g", GC.BoardRows.Label({ needsGold = 13300000 }))
       assert.equal("needs 5g", GC.BoardRows.Label({ needsGold = 50000 }))
-      assert.equal("needs 1g", GC.BoardRows.Label({ needsGold = 1201 }))
+      assert.equal("needs 13s", GC.BoardRows.Label({ needsGold = 1201 }))
       assert.equal("needs 5323g", GC.BoardRows.Label({ needsGold = 53224680 }))
       assert.equal("needs 400k", GC.BoardRows.Label({ needsGold = 4000000000 }))
       assert.equal("needs 11k", GC.BoardRows.Label({ needsGold = 100000001 }))
@@ -226,9 +226,10 @@ describe("GC.Util.FormatGoldFloor", function()
 end)
 
 -- The gold a character must hold, wherever it is shown (the needs-gold cell, the check pane's
--- figure, caption and status line, the row tooltip): one figure, rounded UP to whole gold, so a
--- player holding exactly what it says is never refused by the wallet limit. The cell alone may
--- count it in thousands -- still rounded up -- to fit its eleven characters.
+-- figure, caption and status line, the row tooltip): one figure, rounded UP, so a player holding
+-- exactly what it says is never refused by the wallet limit. Whole gold from 1g; under it the
+-- silver, then the copper, for WoW: Forever's copper economy. The cell alone may count it in
+-- thousands -- still rounded up -- to fit its eleven characters.
 describe("GC.Util.FormatGoldCeil", function()
   local GC
 
@@ -240,7 +241,16 @@ describe("GC.Util.FormatGoldCeil", function()
     assert.equal("5323g", GC.Util.FormatGoldCeil(53224680)) -- 5,322g 46s 80c
     assert.equal("1330g", GC.Util.FormatGoldCeil(13300000))
     assert.equal("2g", GC.Util.FormatGoldCeil(10001))
-    assert.equal("1g", GC.Util.FormatGoldCeil(1))
+    assert.equal("1g", GC.Util.FormatGoldCeil(10000))
+    assert.equal("1g", GC.Util.FormatGoldCeil(9901)) -- 99s 1c
+  end)
+
+  it("under 1g rounds up to the silver, then to the copper", function()
+    assert.equal("99s", GC.Util.FormatGoldCeil(9900))
+    assert.equal("13s", GC.Util.FormatGoldCeil(1201))
+    assert.equal("1s", GC.Util.FormatGoldCeil(100))
+    assert.equal("99c", GC.Util.FormatGoldCeil(99))
+    assert.equal("1c", GC.Util.FormatGoldCeil(1))
   end)
 
   it("counts in thousands, still rounded up, only when asked for the short form", function()

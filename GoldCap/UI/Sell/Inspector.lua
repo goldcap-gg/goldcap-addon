@@ -302,8 +302,9 @@ function INSP.paintHead(row, p, d)
     setColor(row.priceFigure, (risk.belowCost or risk.belowFloor) and Theme.color.red
       or chosen and Theme.color.gold or Theme.color.fg)
     row.priceFigure:Show(); row.chipsBg:Show()
-    if risk.belowCost then
-      row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
+    local loss = UI.fmt.lossNote(risk, unit)
+    if loss then
+      row.priceNote:SetText(loss)
       setColor(row.priceNote, Theme.color.red)
     elseif risk.belowFloor then
       row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
@@ -332,7 +333,9 @@ function INSP.paintHead(row, p, d)
       match = competing,
       under = competing and competing > step and (competing - step) or nil,
       market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
-      cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
+      -- What it cost plus the auction house's 5%, on the silver the auction house takes: the
+      -- least that gets the gold back. What it cost alone lost the cut and lit the box red.
+      cost = risk.breakeven and GC.Flips.SilverUp(risk.breakeven) or nil,
     }
     local key = overrideKey(p)
     local typed = key and S.priceOverrides[key] or nil

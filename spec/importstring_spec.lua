@@ -308,6 +308,54 @@ describe("ImportString.ParseRegion", function()
     assert.equal(2, r.items[1].m)
   end)
 
+  -- Realm items split by what sells, once the site's realm sales tape covers a week of the region:
+  -- F the flips priced at what they sold for, U the rare finds with no price, only what was seen.
+  describe("F and U sections", function()
+    local EXAMPLE = "GCM1;eu;1783598400;I:42=500;M:201234=480000=6;F:201234=300000=6=3"
+      .. ";U:7935=2=25000000=26=6=31500000=900000000=1389993400,8350=0=0=0=6=100000000=300000000=949002900"
+
+    it("reads the flips and the rare finds after M, and counts them", function()
+      local r, err = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.is_nil(err)
+      assert.same({ ref = 300000, sales7d = 6, realms = 3 }, r.flips[201234])
+      assert.same({ sales30d = 2, lastSaleCopper = 25000000, lastSoldAgeHours = 26, realmsListed = 6,
+        floorMin = 31500000, floorP10 = 900000000, floorP25 = 1389993400 }, r.rares[7935])
+      assert.same({ sales30d = 0, lastSaleCopper = 0, lastSoldAgeHours = 0, realmsListed = 6,
+        floorMin = 100000000, floorP10 = 300000000, floorP25 = 949002900 }, r.rares[8350])
+      assert.same({ items = 1, facts = 0, refs = 1, flips = 1, rares = 2 }, r.counts)
+      -- M is untouched by either.
+      assert.equal(480000, r.refs[201234])
+    end)
+
+    it("drops a malformed flip or rare find, and counts only what it kept", function()
+      local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2"
+        -- zero price, zero sales, zero realms, a field short, a field too many, junk, a good one
+        .. ";F:10=0=6=3,11=300=0=3,12=300=6=0,13=300=6,14=300=6=3=1,15=a=6=3,16=300=6=3"
+        -- zero realms, zero floor min/p10/p25, a field short, a sign, a good never-sold one
+        .. ";U:20=0=0=0=0=1=2=3,21=0=0=0=5=0=2=3,22=0=0=0=5=1=0=3,23=0=0=0=5=1=2=0,"
+        .. "24=0=0=0=5=1=2,25=-1=0=0=5=1=2=3,26=0=0=0=5=1=2=3")
+      assert.same({ [16] = { ref = 300, sales7d = 6, realms = 3 } }, r.flips)
+      assert.same({ [26] = { sales30d = 0, lastSaleCopper = 0, lastSoldAgeHours = 0, realmsListed = 5,
+        floorMin = 1, floorP10 = 2, floorP25 = 3 } }, r.rares)
+      assert.equal(1, r.counts.flips)
+      assert.equal(1, r.counts.rares)
+    end)
+
+    it("parses a payload without them exactly as before", function()
+      local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2;M:5=20000=3")
+      assert.is_nil(r.flips)
+      assert.is_nil(r.rares)
+      assert.same({ items = 1, facts = 0, refs = 1 }, r.counts)
+    end)
+
+    it("is skipped by the import string's reader, which has never known them", function()
+      local r = GC.ImportString.Parse("GCS1;eu;silvermoon;1;I:1=2;F:3=4=5=6;U:7=0=0=0=5=1=2=3")
+      assert.equal(2, r.items[1].m)
+      assert.is_nil(r.flips)
+      assert.is_nil(r.rares)
+    end)
+  end)
+
   it("drops a malformed fact or reference and nothing else", function()
     local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2,3=4;V:1=2=3,3=1=1=1=1=1=1=1=1=0;M:5=6,7=8=9")
     assert.is_nil(r.verification[1])

@@ -209,12 +209,23 @@ function fmt.count(format, count)
   return (format:gsub("%%d", GC.Sell._InlineColor(gold, tostring(count)), 1))
 end
 
--- What a price makes over what one cost, as the row's line under YOU GET and the dock's YOU GET
--- both say it: "+43%" and green, "-20%" and red. Nil when either is not a figure.
+-- What a price makes over what one cost once the auction house has taken its 5%, as the row's
+-- line under YOU GET and the dock's YOU GET both say it: "+43%" and green, "-20%" and red, and
+-- "-0%" in red for a loss under half a percent. Nil when either is not a figure.
+-- GC.SellPositions.Margin's arithmetic: this only paints it.
 function fmt.margin(unit, paidUnit)
-  if not (unit and paidUnit and paidUnit > 0) then return nil end
-  local pct = math.floor(((unit - paidUnit) / paidUnit) * 100 + 0.5)
-  return (pct >= 0 and "+" or "") .. pct .. "%", pct >= 0 and GC.Theme.color.green or GC.Theme.color.red
+  local pct, loss = GC.SellPositions.Margin(unit, paidUnit)
+  if not pct then return nil end
+  return (loss and "-" or "+") .. math.abs(pct) .. "%", loss and GC.Theme.color.red or GC.Theme.color.green
+end
+
+-- Why a price loses money, as the panel's line under the price and the dock's line under the item
+-- both say it, from GC.SellPositions.PriceRisk: under what one cost, or over that and still under
+-- the breakeven the 5% cut puts above it. Nil when it does not.
+function fmt.lossNote(risk, unit)
+  if not risk.belowCost then return nil end
+  if unit < risk.paidUnit then return (GC.L["below the %s you paid"]):format(fmt.cell(risk.paidUnit)) end
+  return (GC.L["below the %s breakeven"]):format(fmt.cell(risk.breakeven))
 end
 
 local exact = GC.SellUtil.exact

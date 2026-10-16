@@ -331,6 +331,90 @@ describe("Ledger inbox scan", function()
     assert.equal(1, #GC.Acquisitions.GetAll())
   end)
 
+  -- Mail probe, retail 2026-10-11: GetInboxNumItems() reads 0 at MAIL_SHOW on every visit, and
+  -- the rows arrive 0.2 to 0.3 s later. That empty pass counted as a complete, empty inbox: it
+  -- retired every occurrence, so each mail still sitting in the inbox was recorded again on the
+  -- next read. Six sale mails left there on 2026-09-23 became 18 ledger rows.
+  it("never infers an empty inbox from the empty pass a mailbox opens with", function()
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000, true))
+    local generation = db.mailOccurrenceGeneration
+
+    -- Two hours later, the next visit: nothing has loaded yet, then the same mail does.
+    local later = 1000 + 7200
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({}), context, later, true))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ mail({ daysLeft = 30 - 7200 / 86400 }) }), context, later + 1))
+    assert.equal(1, #GC.Ledger.GetEntries())
+  end)
+
+  it("still retires a mail once the player has emptied the inbox in this visit", function()
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000, true))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({}), context, 1001))
+
+    -- An identical sale a minute later is a new sale, not the collected one.
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1060))
+    assert.equal(2, #GC.Ledger.GetEntries())
+  end)
+
+  -- The same probe: an expired, cancelled or outbid auction mail never gets an invoice, so it
+  -- read as "not loaded yet" on every pass and held the whole visit incomplete. A sale collected
+  -- beside it kept its occurrence, and an identical sale arriving within the hour matched that
+  -- stale occurrence and was never recorded (ClickUp 869ff7x2f). The subjects are the client's
+  -- own formats, so the rule holds in every language, wherever the item name sits in them.
+  local NO_INVOICE = { "Auction expired: %s", "Auction canceled: %s", "Outbid on %s" }
+  for _, case in ipairs({
+    { formats = NO_INVOICE, subject = "Auction expired: Mireslush Hide (4)" },
+    { formats = NO_INVOICE, subject = "Auction canceled: Mireslush Hide (2)" },
+    { formats = { "%s: auction lapsed" }, subject = "Mireslush Hide (4): auction lapsed" },
+  }) do
+    it("lets a collected sale go while '" .. case.subject .. "' stays in the inbox", function()
+      local function api(mails)
+        local a = apiFor(mails)
+        a.noInvoiceSubjects = case.formats
+        return a
+      end
+      local expired = mail({ subject = case.subject, item = { name = "Mireslush Hide", itemID = 210931 } })
+      expired.invoice = nil
+
+      assert.equal(1, GC.Ledger.ScanInbox(api({ expired, mail() }), context, 1000, true))
+      assert.equal(0, GC.Ledger.ScanInbox(api({ expired }), context, 1001))
+      assert.equal(1, GC.Ledger.ScanInbox(api({ expired, mail() }), context, 1060))
+      assert.equal(2, #GC.Ledger.GetEntries())
+    end)
+  end
+
+  for _, subject in ipairs({ "Retrieving data", "Your crafting order" }) do
+    it("still waits on '" .. subject .. "', which does not read as a lapsed auction", function()
+      local function api(mails)
+        local a = apiFor(mails)
+        -- A bare placeholder must never claim every mail.
+        a.noInvoiceSubjects = { "Auction expired: %s", "%s" }
+        return a
+      end
+      local waiting = mail({ subject = subject })
+      waiting.invoice = nil
+
+      assert.equal(1, GC.Ledger.ScanInbox(api({ waiting, mail() }), context, 1000, true))
+      assert.equal(0, GC.Ledger.ScanInbox(api({ waiting }), context, 1001))
+      assert.equal(0, GC.Ledger.ScanInbox(api({ waiting, mail() }), context, 1060))
+      assert.equal(1, #GC.Ledger.GetEntries())
+    end)
+  end
+
+  -- The inbox shows at most 50 mails; GetInboxNumItems' second return counts them all. A mail
+  -- past the shown ones is not absent, only out of view.
+  it("never infers absence while the client shows only part of a full inbox", function()
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000, true))
+    local generation = db.mailOccurrenceGeneration
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Mireslush Hide", itemID = 210931 } })
+    local partial = apiFor({ bought })
+    partial.GetInboxNumItems = function() return 1, 2 end
+
+    assert.equal(1, GC.Ledger.ScanInbox(partial, context, 1010))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+  end)
+
   -- WoW streams mail data: right after MAIL_SHOW some rows have no header or invoice loaded
   -- yet, and on a busy mailbox at least one is unreadable nearly every scan. Aborting the whole
   -- pass on that meant a readable sale sitting beside it was never recorded -- the owner's

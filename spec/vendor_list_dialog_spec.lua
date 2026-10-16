@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- The vendor list dialog: WoW has no clipboard API, so a copyable list is an EditBox holding the
--- text, focused and fully selected, the way UI/CompanionDialog.lua hands over the download link.
+-- text, focused and fully selected, the way UI/WelcomeFrame.lua hands over the download link.
 describe("VendorListDialog", function()
   local GC
 

@@ -1061,6 +1061,47 @@ describe("Sell positions", function()
   -- The dock's two totals (owner, 2026-10-10): what a set of listings brings in once the
   -- auction house has taken its 5%, and what that leaves after what the stock cost -- the second
   -- only while the cost of all of it is known.
+  -- What one row's YOU GET and its margin say. Owner, 2026-10-15: two Frozen Spellthread bought at
+  -- 600g, asked at 978g 99s each, read 1,957g and +63% -- the auction house's 5% left out, though
+  -- the totals under the list took it.
+  describe("Net and Margin", function()
+    it("is what a sale brings in after the 5% cut, and what that makes over the cost", function()
+      assert.equal(18600810, GC.SellPositions.Net(2, 9789900)) -- 1,860g 08s 10c, not 1,957g 98s
+      assert.equal(55, GC.SellPositions.Margin(9789900, 6000000))
+      assert.equal(-5, GC.SellPositions.Margin(6000000, 6000000)) -- at cost, the cut is the loss
+      assert.equal(0, GC.SellPositions.Margin(GC.Flips.Breakeven(6000000), 6000000))
+    end)
+
+    -- To the nearest percent, and whether it is a loss at all said apart: a price a hair under the
+    -- breakeven rounds to 0 and still loses money, and "+0%" beside the red "below the breakeven"
+    -- would say it does not. Rounding down instead read 278g on 269g 99s paid as -3% (owner,
+    -- 2026-10-16); it is -2.2%.
+    it("rounds to the nearest percent and says a loss apart", function()
+      assert.same({ 0, true }, { GC.SellPositions.Margin(630000, 600000) }) -- -0.25%
+      assert.same({ -2, true }, { GC.SellPositions.Margin(2780000, 2699900) }) -- -2.18%
+      assert.same({ 0, false }, { GC.SellPositions.Margin(GC.Flips.Breakeven(6000000), 6000000) })
+      assert.equal(55, GC.SellPositions.Margin(9789900, 6000000)) -- +55.007%
+      -- And a whole percent is that percent, never a float's hair under it.
+      assert.equal(-5, GC.SellPositions.Margin(1000001, 1000001))
+      assert.equal(29, GC.SellPositions.Margin(129, 95))
+    end)
+
+    it("is the figure Proceeds adds up, a line at a time", function()
+      local paid = { coverage = "COMPLETE", knownQty = 1, knownCost = 6000000 }
+      assert.equal(GC.SellPositions.Net(2, 9789900),
+        GC.SellPositions.Proceeds({ { qty = 2, unit = 9789900, position = paid } }))
+    end)
+
+    it("is nil without both figures, or past exact accounting", function()
+      assert.is_nil(GC.SellPositions.Net(nil, 100))
+      assert.is_nil(GC.SellPositions.Net(2, nil))
+      assert.is_nil(GC.SellPositions.Net(9007199254740991, 2))
+      assert.is_nil(GC.SellPositions.Margin(100, nil))
+      assert.is_nil(GC.SellPositions.Margin(nil, 100))
+      assert.is_nil(GC.SellPositions.Margin(100, 0))
+    end)
+  end)
+
   describe("Proceeds", function()
     local function line(qty, unit, position) return { qty = qty, unit = unit, position = position } end
     local paid = { coverage = "COMPLETE", knownQty = 10, knownCost = 1000 } -- 100 a unit
@@ -1469,6 +1510,28 @@ describe("a price the seller chose", function()
     assert.is_true(under.belowCost)
     local over = GC.SellPositions.BuildPostPlan(p, BAGS, QUOTE, { overrideUnit = 650000 })
     assert.is_false(over.belowCost)
+  end)
+
+  -- The auction house keeps 5% of a sale, so a price between what a unit cost and that cost over
+  -- 0.95 still loses money: the breakeven Core/Flips.lua's RecommendPost and the post queue
+  -- already held back to, and that the price control's red and its COST fill did not.
+  it("calls a price under the breakeven the 5% cut puts above the cost below cost", function()
+    local p = position({ coverage = "COMPLETE", knownQty = 10, knownCost = 6000000 }) -- 600000/unit
+    local risk = GC.SellPositions.PriceRisk(p, 620000)
+    assert.equal(600000, risk.paidUnit)
+    assert.equal(631579, risk.breakeven) -- 600000 / 0.95, rounded up
+    assert.is_true(risk.belowCost)
+    assert.is_false(GC.SellPositions.PriceRisk(p, 631579).belowCost)
+    assert.is_true(GC.SellPositions.BuildPostPlan(p, BAGS, QUOTE, { overrideUnit = 620000 }).belowCost)
+    assert.is_nil(GC.SellPositions.PriceRisk(position(), 620000).breakeven)
+  end)
+
+  -- Looted, farmed for free, or a cost under a copper a unit: nothing to break even against.
+  it("has no breakeven for stock that cost nothing", function()
+    local risk = GC.SellPositions.PriceRisk(position({ coverage = "COMPLETE", knownQty = 10, knownCost = 0 }), 620000)
+    assert.equal(0, risk.paidUnit)
+    assert.is_nil(risk.breakeven)
+    assert.is_false(risk.belowCost)
   end)
 
   it("cannot be talked into a nonsense price", function()

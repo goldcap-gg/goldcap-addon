@@ -497,12 +497,14 @@ describe("Search slot arbiter", function()
       assert.same({ "keys:100", "keys:100", "keys:50", "keys:100" }, sent)
     end)
 
-    it("lets a queued drill-down go first, and does not drop a hit only the key poll saw", function()
+    -- Measured 2026-10-13: drills sent ahead of every batch held an Items round's second batch
+    -- 9.8 s and its third 15.4 s, and the board took 33 s to fill. The round goes first now.
+    it("sends an Items round's batches ahead of a queued drill, then drills, and does not drop a hit only the key poll saw", function()
       local GC, watch = load()
       watch.hungry = false
       GC.Sniper._bookPass:Abort()
       fullResults = true
-      targets(GC, 1, 3)
+      targets(GC, 1, 150)
       -- The key poll has seen item 42 at 900; the book pass never has. The arbiter used to ask
       -- only the book pass whether a queued hit was still live, which dropped every realm hit
       -- before it could be drilled.
@@ -515,10 +517,35 @@ describe("Search slot arbiter", function()
       end)
 
       GC.Sniper.OnThrottleReady()
-      assert.same({ "drill" }, sent)
-      -- With the queue drained, the same slot's successor goes to the keys batch.
+      assert.same({ "keys:100" }, sent)
+      foldKeys(GC)
       GC.Sniper.OnThrottleReady()
-      assert.same({ "drill", "keys:3" }, sent)
+      assert.same({ "keys:100", "keys:50" }, sent)
+      -- The round is out: the queued hit, which only the key poll ever saw, is drilled next.
+      foldKeys(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100", "keys:50", "drill" }, sent)
+    end)
+
+    it("lets a queued drill go between Items rounds", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      targets(GC, 1, 3)
+      GC.Sniper.OnThrottleReady()
+      foldKeys(GC)
+      assert.same({ "keys:3" }, sent)
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 42 }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 42, floor = 900, estProfit = 1 })
+      set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+      set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+        sent[#sent + 1] = "drill"
+        return true
+      end)
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3", "drill" }, sent)
     end)
 
     -- Both replace the client's ONE browse buffer, and both answer on the same browse events.

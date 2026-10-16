@@ -324,6 +324,12 @@ function GC.CheckVerdict.Build(decision, market, context)
   elseif tone == "clear" then
     hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
       or { kind = "unpriceable" }
+  elseif tone == "gold" then
+    -- The gold the character must hold leads; what the buy costs and the per-buy share that
+    -- turns one into the other ride along, for the caption that says both. Ahead of the Forever
+    -- figure below: a Forever buy that needs gold carries that figure too (EvaluateCeiling).
+    hero = { kind = "needs", copper = decision.needsGold, cost = decision.entryTotal,
+      share = decision.walletShare }
   elseif forever and number(decision.stressProfit) and positive(decision.exitUnit) then
     -- A Forever answer, passed or refused on its minimum: what the buy makes, captioned by what
     -- it is measured against (a vendor's exact price, or the scan's AH value) -- never the "selling
@@ -332,11 +338,6 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- "sure profit" under a red REFUSED read as an endorsement.
     hero = { kind = "forever", forever = forever, copper = decision.stressProfit, ref = decision.exitUnit,
       refused = tone == "refuse" or nil, refSource = context.refSource }
-  elseif tone == "gold" then
-    -- The gold the character must hold leads; what the buy costs and the per-buy share that
-    -- turns one into the other ride along, for the caption that says both.
-    hero = { kind = "needs", copper = decision.needsGold, cost = decision.entryTotal,
-      share = decision.walletShare }
   elseif tone == "adjust" then
     hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }
       or { kind = "unpriceable" }
@@ -379,9 +380,10 @@ function GC.CheckVerdict.Build(decision, market, context)
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
       flat("yourPrice", "copper", decision.capUnit),
       flat("snapshotValue", "copper", market.marketValue, "muted"))
-  elseif tone == "vendor" or tone == "market" then
+  elseif tone == "vendor" or tone == "market" or (forever and tone == "gold") then
     -- What the buy costs and what comes back: the vendor's price for it, or its resale after
-    -- the cut and deposit. Nothing about a market the scan does not have.
+    -- the cut and deposit. Nothing about a market the scan does not have, the gold it needs
+    -- included.
     take(facts, pay, get)
   elseif tone == "unverified" then
     -- Two facts, because two are all a realm item honestly has: what this lot costs, and the

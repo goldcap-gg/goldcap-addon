@@ -11,7 +11,7 @@
 -- A FontString with word wrap and a width answers GetHeight with its wrapped height, the way the
 -- client does for one whose height was never set (Blizzard's QuestInfo_ShowRewards measures its
 -- own ItemChooseText that way): CHAR_W pixels a character, LINE_H a line.
-local W = { CHAR_W = 6, LINE_H = 14 }
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {} }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -136,6 +136,14 @@ function W.CreateFrame(kind, _, parent)
   function f:SetID(id) s.id = id end
   function f:GetID() return s.id or 0 end
   function f:SetScript(name, fn) s.scripts[name] = fn end
+  -- The client raises on an event name it does not know; a spec lists those in W.unknownEvents.
+  function f:RegisterEvent(event)
+    if W.unknownEvents[event] then error(("Attempt to register unknown event %q"):format(event), 2) end
+    s.events = s.events or {}
+    s.events[event] = true
+  end
+  function f:UnregisterEvent(event) if s.events then s.events[event] = nil end end
+  function f:IsEventRegistered(event) return s.events ~= nil and s.events[event] == true end
   function f:RegisterForDrag(...) s.drag = { ... } end
   function f:GetScript(name) return s.scripts[name] end
   function f:HookScript(name, fn) s.hooks = s.hooks or {}; s.hooks[name] = fn end
@@ -158,6 +166,45 @@ function W.CreateFrame(kind, _, parent)
     STATE[t].layer = layer
     STATE[t].sublevel = sublevel
     return t
+  end
+  -- A window's own placement: dragging, staying on screen, coming to the front.
+  function f:SetToplevel(v) s.toplevel = v and true or false end
+  function f:SetClampedToScreen(v) s.clamped = v and true or false end
+  function f:SetMovable(v) s.movable = v and true or false end
+  function f:IsMovable() return s.movable == true end
+  function f:StartMoving() s.moving = true end
+  function f:StopMovingOrSizing() s.moving = false end
+  function f:Raise() s.raised = (s.raised or 0) + 1 end
+  -- The keyboard: whether the frame takes keys, and whether a key it took goes on to the bindings.
+  -- The client starts a frame with neither.
+  function f:EnableKeyboard(v) s.keyboard = v and true or false end
+  function f:IsKeyboardEnabled() return s.keyboard == true end
+  function f:SetPropagateKeyboardInput(v) s.propagate = v and true or false end
+  function f:GetPropagateKeyboardInput() return s.propagate == true end
+  -- EditBox: text, focus and selection. SetText runs OnTextChanged with userInput false, as the
+  -- client does.
+  if s.kind == "EditBox" then
+    s.text, s.focus = "", false
+    function f:SetFontObject(font) s.fontObject = font end
+    function f:SetAutoFocus(v) s.autoFocus = v and true or false end
+    function f:SetText(text)
+      s.text = text
+      if s.scripts.OnTextChanged then s.scripts.OnTextChanged(f, false) end
+    end
+    function f:GetText() return s.text end
+    function f:SetCursorPosition(n) s.cursor = n end
+    function f:SetFocus()
+      if s.focus then return end
+      s.focus = true
+      if s.scripts.OnEditFocusGained then s.scripts.OnEditFocusGained(f) end
+    end
+    function f:ClearFocus()
+      if not s.focus then return end
+      s.focus, s.highlighted = false, false
+      if s.scripts.OnEditFocusLost then s.scripts.OnEditFocusLost(f) end
+    end
+    function f:HasFocus() return s.focus end
+    function f:HighlightText() s.highlighted = true end
   end
   -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
   -- change, as the client does.

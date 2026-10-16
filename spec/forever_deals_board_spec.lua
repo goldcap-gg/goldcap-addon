@@ -125,6 +125,7 @@ describe("WoW: Forever", function()
       scroll = { SetVerticalScroll = function(_, value) api.scrolledTo = value end },
       emptyText = { SetText = function(_, text) api.emptyText = text end,
         Show = function() end, Hide = function() api.emptyText = nil end },
+      status = { SetText = function(_, text) api.status = text end },
     })
     api.setScanDeals = function(list) set(show, "scanDeals", list) end
     return api

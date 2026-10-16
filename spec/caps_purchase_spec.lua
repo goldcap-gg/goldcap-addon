@@ -930,7 +930,7 @@ describe("Live price caps -- buying at the player's own price", function()
         local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
         local text = f:read("*a")
         f:close()
-        assert.is_truthy(text:find('row:SetScript("OnSizeChanged", function(self) GC.Sniper._FitRowName(self) end)', 1, true))
+        assert.is_truthy(text:find('row:SetScript("OnSizeChanged", function(self, width)\n    GC.Sniper._FitRowName(self)', 1, true))
         -- And the tooltip names the group for any cap row, with or without a fresh verdict: the
         -- note is its own branch, never gated on a cap verdict.
         local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))

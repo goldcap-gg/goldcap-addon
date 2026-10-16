@@ -65,6 +65,14 @@ describe("ForeverRoad", function()
     assert.equal(1800, c.played)
   end)
 
+  -- WoW's Lua formats %d through a 32-bit int: past 214,748g the sample came out wrong or raised.
+  it("keeps money past 2^31 copper in its samples, written whole", function()
+    local c = { played = 0, samples = {} }
+    R.Tick(c, 1000, 3000000000, 39.5)
+    assert.equal("0:3000000000:39.500", c.samples[1])
+    assert.truthy(c.samples[1]:match("^(%d+):(%-?%d+):([%d%.]+)$")) -- what Rate reads back
+  end)
+
   it("has no pace before MIN_RATE_SECONDS of play, and measures from inside the window only", function()
     local c = { played = 0, samples = {} }
     for k = 0, 10 do R.Tick(c, 1000 + 60 * k, 100 * k, 10) end   -- ten minutes
