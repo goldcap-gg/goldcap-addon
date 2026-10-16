@@ -45,13 +45,16 @@ local function paint(fs, c)
 end
 
 -- Places a wrapping FontString at (x, y) below the top of `parent`, `width` wide, and answers its
--- height. The text is set again after the width, so it is laid out at that width (Book.Layout's
--- lesson, seen in game: a FontString sizes itself when its text is set).
+-- height. A FontString lays its text out when the text is set (Book.Layout's lesson, seen in game),
+-- and setting the text it already holds does nothing ("Text"), so it is cleared, sized, then given
+-- its text back: measured at this width, on the first open as on every other.
 local function place(fs, parent, x, y, width)
+  local text = fs:GetText() or ""
+  fs:SetText("")
   fs:ClearAllPoints()
   fs:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
   fs:SetWidth(width)
-  fs:SetText(fs:GetText() or "")
+  fs:SetText(text)
   fs:Show()
   return math.ceil(fs:GetStringHeight() or 0)
 end
@@ -96,7 +99,12 @@ local function readStatus(now)
     input.origin = Data.OriginState and Data.OriginState() or "none"
     input.importedTs = GC.db and GC.db.imported and GC.db.imported.ts or nil
     input.bundledTs = Data.BundledTs and Data.BundledTs() or nil
-    input.appError = Data.AppDataError and Data.AppDataError() or nil
+    -- The save keeps a Companion error until a good write or a paste clears it, so a player who
+    -- has since removed the Companion would hear about it forever: it counts only while the
+    -- Companion's file is still there.
+    if type(_G.GoldCap_AppData) == "table" then
+      input.appError = Data.AppDataError and Data.AppDataError() or nil
+    end
   end
   return GC.Welcome.Prices(input)
 end
@@ -131,7 +139,9 @@ end
 
 local function bodyText(s)
   local k = s.kind
-  if k == "bundled" then
+  if k == "bundled" and not s.age then
+    return GC.L["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."]
+  elseif k == "bundled" then
     return GC.L["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."]
   elseif k == "app" then
     return GC.L["New prices reach GoldCap every time you log in or type /reload."]
@@ -285,8 +295,26 @@ local function build()
     close()
   end)
 
-  -- Escape closes it, the way it closes the game's own windows.
-  table.insert(UISpecialFrames, NAME)
+  -- Escape shuts this window and nothing else. Listed in UISpecialFrames it went out together
+  -- with the auction house on one press: Escape runs CloseAllWindows, which hides the UI panels
+  -- and the special frames in one pass. So the window keeps only Escape from going on, decided
+  -- per keystroke, and lets every other key through. In combat it stands down:
+  -- SetPropagateKeyboardInput is restricted there (UI/Sell/Inspector.lua, UI/BuyFrame.lua), and
+  -- open() left the keys going on.
+  f:SetScript("OnKeyDown", function(self, key)
+    if InCombatLockdown and InCombatLockdown() then return end
+    if key ~= "ESCAPE" then
+      self:SetPropagateKeyboardInput(true)
+      return
+    end
+    self:SetPropagateKeyboardInput(false)
+    close()
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0, function()
+        if not (InCombatLockdown and InCombatLockdown()) then self:SetPropagateKeyboardInput(true) end
+      end)
+    end
+  end)
   f:Hide()
   frame = f
   return f
@@ -309,7 +337,7 @@ local function layout(f, mode, status, quietOffered)
     or GC.Util.Upper(GC.L["Your GoldCap prices"]))
   local head = place(f.title, f, headX, y + 2, headW)
   if mode == "welcome" then
-    setText(f.sub, GC.L["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"])
+    setText(f.sub, GC.L["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"])
     head = head + 4 + place(f.sub, f, headX, y + 2 + head + 4, headW)
   else
     f.sub:Hide()
@@ -425,6 +453,11 @@ local function open(mode, byPlayer, status)
   -- "Don't remind me" belongs to a window that came back by itself: the welcome is the first word,
   -- and a player who asked for the window is not being reminded of anything.
   layout(f, mode, status, not byPlayer and mode == "prices" and status.tone ~= "good")
+  -- The keyboard, for Escape alone (OnKeyDown above), and only out of combat, where keys can be
+  -- let through: opened in a fight (/gc companion), the window takes no keys at all.
+  local calm = not (InCombatLockdown and InCombatLockdown())
+  f:EnableKeyboard(calm)
+  if calm then f:SetPropagateKeyboardInput(true) end
   f:Show()
   if f.Raise then f:Raise() end
   local edit = f.card.box.edit
@@ -441,8 +474,8 @@ end
 -- seen it, otherwise the prices.
 function GC.CompanionUI.Show()
   local w = GC.db and GC.db.welcome or nil
-  open((w and w.firstRun and not w.seen) and "welcome" or "prices", true)
-  if w then GC.Welcome.MarkOpened(w) end
+  local status = open((w and w.firstRun and not w.seen) and "welcome" or "prices", true)
+  if w then GC.Welcome.MarkOpened(w, status, time()) end
 end
 
 function GC.CompanionUI.Hide()
@@ -467,6 +500,6 @@ end
 
 GC.slashHandlers.companion = function() GC.CompanionUI.Show() end
 GC.slashHandlers.welcome = function()
-  open("welcome", true)
-  if GC.db and GC.db.welcome then GC.Welcome.MarkOpened(GC.db.welcome) end
+  local status = open("welcome", true)
+  if GC.db and GC.db.welcome then GC.Welcome.MarkOpened(GC.db.welcome, status, time()) end
 end

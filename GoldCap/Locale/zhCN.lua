@@ -1222,8 +1222,8 @@ GC.Locales.zhCN = {
   -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
   ["Welcome to GoldCap"] = "欢迎使用 GoldCap",
   ["Your GoldCap prices"] = "你的 GoldCap 价格",
-  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
-    "每件物品的鼠标提示都会显示价格。在拍卖行里，GoldCap 标签页提供：",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap 会在物品的鼠标提示中显示价格。在拍卖行里，GoldCap 标签页提供：",
   ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
     "找出挂价低于通常成交价的物品，并在你购买前逐一核对。",
   ["Finds items listed below what a vendor pays, or far below their usual price."] =
@@ -1241,6 +1241,8 @@ GC.Locales.zhCN = {
   ["Prices from your own scans only"] = "价格仅来自你自己的扫描",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "这些价格随 GoldCap 一起提供，只有 GoldCap 本身更新时才会改变。DEALS 需要你所在服务器的最新价格才能找到东西，在此之前它找不到任何优惠。",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap 没有附带你所在地区的价格，因此在 GoldCap Companion 带来价格之前，DEALS 找不到任何优惠。",
   ["New prices reach GoldCap every time you log in or type /reload."] = "每次你登录或输入 /reload，新价格就会送达 GoldCap。",
   ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
     "DEALS 和所有价格都以它上次发送的内容为准。请检查 GoldCap Companion 是否在运行（它的图标在时钟旁边），然后输入 /reload。",

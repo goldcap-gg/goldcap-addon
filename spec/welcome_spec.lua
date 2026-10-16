@@ -143,10 +143,17 @@ describe("Welcome", function()
       assert.equal(7 * DAY, C.REMIND_WARN_SECONDS)
     end)
 
-    it("leaves the reminder clock alone when the player opens it", function()
+    it("leaves a running reminder clock alone when the player opens it", function()
       local w = { firstRun = true, nextAt = 42 }
-      W.MarkOpened(w)
+      W.MarkOpened(w, { tone = "bad" }, NOW)
       assert.same({ seen = true, nextAt = 42 }, w)
+    end)
+
+    it("starts the clock when the player opens it first, so arriving at the auction house does not repeat it", function()
+      local w = { firstRun = true }
+      W.MarkOpened(w, { tone = "bad" }, NOW)
+      assert.same({ seen = true, nextAt = NOW + C.REMIND_BAD_SECONDS }, w)
+      assert.is_nil(W.Decide(w, { tone = "bad" }, NOW + 60))
     end)
 
     it("goes quiet for good on Don't remind me", function()

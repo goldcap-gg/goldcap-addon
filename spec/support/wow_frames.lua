@@ -175,6 +175,12 @@ function W.CreateFrame(kind, _, parent)
   function f:StartMoving() s.moving = true end
   function f:StopMovingOrSizing() s.moving = false end
   function f:Raise() s.raised = (s.raised or 0) + 1 end
+  -- The keyboard: whether the frame takes keys, and whether a key it took goes on to the bindings.
+  -- The client starts a frame with neither.
+  function f:EnableKeyboard(v) s.keyboard = v and true or false end
+  function f:IsKeyboardEnabled() return s.keyboard == true end
+  function f:SetPropagateKeyboardInput(v) s.propagate = v and true or false end
+  function f:GetPropagateKeyboardInput() return s.propagate == true end
   -- EditBox: text, focus and selection. SetText runs OnTextChanged with userInput false, as the
   -- client does.
   if s.kind == "EditBox" then

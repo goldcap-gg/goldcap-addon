@@ -1300,8 +1300,8 @@ GC.Locales.enUS = {
   -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
   ["Welcome to GoldCap"] = "Welcome to GoldCap",
   ["Your GoldCap prices"] = "Your GoldCap prices",
-  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
-    "Every item tooltip shows its price. At the auction house, the GoldCap tab has:",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:",
   ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
     "Finds items listed below what they usually sell for, and checks each one before you buy.",
   ["Finds items listed below what a vendor pays, or far below their usual price."] =
@@ -1322,6 +1322,8 @@ GC.Locales.enUS = {
   ["Prices from your own scans only"] = "Prices from your own scans only",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals.",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them.",
   ["New prices reach GoldCap every time you log in or type /reload."] =
     "New prices reach GoldCap every time you log in or type /reload.",
   ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =

@@ -1314,8 +1314,8 @@ GC.Locales.itIT = {
   -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
   ["Welcome to GoldCap"] = "Benvenuto in GoldCap",
   ["Your GoldCap prices"] = "I tuoi prezzi GoldCap",
-  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
-    "Ogni oggetto mostra il suo prezzo nel tooltip. Alla casa d'aste, la scheda GoldCap ha:",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap mostra i suoi prezzi nel tooltip degli oggetti. Alla casa d'aste, la scheda GoldCap ha:",
   ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
     "Trova gli oggetti in vendita sotto il prezzo a cui di solito si vendono e controlla ciascuno prima che tu compri.",
   ["Finds items listed below what a vendor pays, or far below their usual price."] =
@@ -1336,6 +1336,8 @@ GC.Locales.itIT = {
   ["Prices from your own scans only"] = "Prezzi solo dalle tue scansioni",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Questi prezzi sono arrivati con GoldCap e cambiano solo quando GoldCap stesso si aggiorna. DEALS ha bisogno di prezzi aggiornati del tuo reame per trovare qualcosa, quindi fino ad allora non trova alcun affare.",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap non include prezzi per la tua regione, quindi DEALS non trova affari finché GoldCap Companion non li porta.",
   ["New prices reach GoldCap every time you log in or type /reload."] =
     "I nuovi prezzi arrivano a GoldCap a ogni accesso o con /reload.",
   ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =

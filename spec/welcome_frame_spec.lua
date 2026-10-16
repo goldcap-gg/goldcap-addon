@@ -131,12 +131,27 @@ describe("welcome window", function()
   end)
 
   it("names the reason a Companion write could not be read, and points at the latest version", function()
-    client({ origin = "none", appError = { reason = "bad_header" } })
+    client({ origin = "none", appError = { reason = "bad_header" }, appData = {} })
     GC.WelcomeUI.MaybeShow()
     local f = window()
     assert.equal("The Companion's prices could not be read", text(f.card.status))
     assert.truthy(text(f.card.body):find("(reason bad_header)", 1, true))
     assert.equal("The latest version is here:", text(f.card.linkLabel))
+  end)
+
+  it("forgets a saved Companion error once the Companion's file is gone: the install steps instead", function()
+    client({ origin = "none", appError = { reason = "bad_header" }, bundledTs = NOW - DAY })
+    GC.WelcomeUI.MaybeShow()
+    assert.equal("Only the prices GoldCap came with, from 24h ago", text(window().card.status))
+    assert.is_true(shown(window().card.step1))
+  end)
+
+  it("says plainly when GoldCap came with no prices for the region at all", function()
+    client({ welcome = { firstRun = true } })
+    GC.WelcomeUI.MaybeShow()
+    assert.equal("No prices for your region yet", text(window().card.status))
+    assert.equal("GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them.",
+      text(window().card.body))
   end)
 
   it("speaks WoW: Forever's own case: own scans, and the Companion as everyone's scans", function()
@@ -158,7 +173,9 @@ describe("welcome window", function()
     assert.is_true(edit:HasFocus())
     assert.is_true(W.state(edit).highlighted)
     assert.is_true(GC.db.welcome.seen)
-    assert.is_nil(GC.db.welcome.nextAt) -- the reminder clock is not the player's doing
+    -- The clock starts now (a paste is "warn": a week), so arriving at the auction house next
+    -- does not open it again.
+    assert.equal(NOW + 7 * DAY, GC.db.welcome.nextAt)
     assert.is_false(shown(window().quiet))
   end)
 
@@ -187,7 +204,7 @@ describe("welcome window", function()
     assert.equal("1. Copy this link (Cmd+C) and open it in your browser:", text(window().card.step1))
   end)
 
-  it("grows to hold its text, and closes on Escape like the game's own windows", function()
+  it("grows to hold its text", function()
     client({ welcome = { firstRun = true }, bundledTs = NOW - DAY })
     GC.WelcomeUI.MaybeShow()
     local f = window()
@@ -198,11 +215,36 @@ describe("welcome window", function()
     f:Hide()
     GC.CompanionUI.Show() -- seen now: the prices alone
     assert.is_true(f:GetHeight() < welcomeH)
-    local listed = false
-    for _, name in ipairs(_G.UISpecialFrames) do
-      if name == "GoldCapWelcome" then listed = true end
-    end
-    assert.is_true(listed)
+  end)
+
+  -- Escape runs CloseAllWindows, which shuts UI panels and UISpecialFrames in one pass: listed
+  -- there, the window took the auction house down with it. It keeps Escape to itself instead,
+  -- and lets every other key go on to the player's bindings.
+  it("shuts on Escape without letting it reach the auction house, and lets other keys through", function()
+    client({ welcome = { firstRun = true } })
+    GC.WelcomeUI.MaybeShow()
+    local f = window()
+    for _, name in ipairs(_G.UISpecialFrames) do assert.not_equal("GoldCapWelcome", name) end
+    assert.is_true(f:IsKeyboardEnabled())
+    assert.is_true(f:GetPropagateKeyboardInput())
+    local onKey = W.state(f).scripts.OnKeyDown
+    onKey(f, "W")
+    assert.is_true(f:GetPropagateKeyboardInput())
+    assert.is_true(shown(f))
+    onKey(f, "ESCAPE")
+    assert.is_false(f:GetPropagateKeyboardInput())
+    assert.is_false(shown(f))
+  end)
+
+  it("stands down in combat: opened there it takes no keys, and a key in a fight changes nothing", function()
+    _G.InCombatLockdown = function() return true end
+    client({})
+    GC.CompanionUI.Show()
+    local f = window()
+    assert.is_false(f:IsKeyboardEnabled())
+    W.state(f).scripts.OnKeyDown(f, "ESCAPE")
+    assert.is_true(shown(f))
+    _G.InCombatLockdown = nil
   end)
 
   it("opens nothing before the save is loaded, and nothing on top of itself", function()

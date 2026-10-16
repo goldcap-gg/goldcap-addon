@@ -1251,8 +1251,8 @@ GC.Locales.koKR = {
   -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
   ["Welcome to GoldCap"] = "GoldCap에 오신 것을 환영합니다",
   ["Your GoldCap prices"] = "내 GoldCap 가격",
-  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
-    "모든 아이템의 툴팁에 가격이 표시됩니다. 경매장의 GoldCap 탭에는 다음이 있습니다.",
+  ["GoldCap puts its prices in item tooltips. At the auction house, the GoldCap tab has:"] =
+    "GoldCap은 아이템 툴팁에 가격을 표시합니다. 경매장의 GoldCap 탭에는 다음이 있습니다.",
   ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
     "평소 판매가보다 낮게 올라온 아이템을 찾고, 구매하기 전에 하나씩 확인합니다.",
   ["Finds items listed below what a vendor pays, or far below their usual price."] =
@@ -1272,6 +1272,8 @@ GC.Locales.koKR = {
   ["Prices from your own scans only"] = "내 스캔으로 얻은 가격만 있음",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "이 가격은 GoldCap에 포함된 것이며 GoldCap 자체가 업데이트될 때만 바뀝니다. DEALS는 무언가를 찾으려면 내 서버의 최신 가격이 필요하므로, 그때까지는 특가를 찾지 못합니다.",
+  ["GoldCap came with no prices for your region, so DEALS finds no deals until GoldCap Companion brings them."] =
+    "GoldCap에는 내 지역의 가격이 포함되어 있지 않으므로, GoldCap Companion이 가격을 가져올 때까지 DEALS는 특가를 찾지 못합니다.",
   ["New prices reach GoldCap every time you log in or type /reload."] =
     "새 가격은 접속할 때마다, 또는 /reload를 입력할 때 GoldCap에 반영됩니다.",
   ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =

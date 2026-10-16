@@ -96,20 +96,25 @@ function Welcome.Decide(w, status, now)
   return "prices"
 end
 
+local function interval(status)
+  return status and status.tone == "bad" and C.REMIND_BAD_SECONDS or C.REMIND_WARN_SECONDS
+end
+
 --- The window opened by itself: it has been seen, and comes back no sooner than the state's own
 -- interval.
 function Welcome.MarkShown(w, status, now)
   if type(w) ~= "table" then return end
   w.seen, w.firstRun = true, nil
-  local wait = status and status.tone == "bad" and C.REMIND_BAD_SECONDS or C.REMIND_WARN_SECONDS
-  w.nextAt = (now or 0) + wait
+  w.nextAt = (now or 0) + interval(status)
 end
 
---- The player opened it (/gc companion, the window's price line): seen, and the reminder clock is
--- left as it was.
-function Welcome.MarkOpened(w)
+--- The player opened it (/gc companion, the Deals window's price line): seen. A reminder clock
+-- already running is left alone; with none yet, one starts now, so a player who opened it before
+-- ever visiting the auction house is not shown it again on arrival.
+function Welcome.MarkOpened(w, status, now)
   if type(w) ~= "table" then return end
   w.seen, w.firstRun = true, nil
+  if w.nextAt == nil then w.nextAt = (now or 0) + interval(status) end
 end
 
 --- "Don't remind me": the window never opens by itself again. /gc companion still opens it.
