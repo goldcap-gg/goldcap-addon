@@ -55,6 +55,9 @@
 - WoW: Forever: a character no longer picks up goldcap.gg prices of the other faction on the
   same realm when the game names the faction late at login.
 - WoW: Forever: Road to 40 keeps counting past 214,748 gold.
+- WoW: Forever, Deals: a deal this character cannot pay for yet stays on the board and says how
+  much gold it needs, as on retail, instead of reading AVOID among the refused rows. Under 1 gold
+  that figure is in silver or copper, no longer rounded up to 1g.
 
 ## 0.20.1 (2026-10-14)
 

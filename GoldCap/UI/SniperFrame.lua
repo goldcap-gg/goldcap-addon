@@ -2513,9 +2513,11 @@ function GC.Sniper._DecideCeiling(itemID, levels, fixedQuantity, quotedTotal)
   if type(levels) ~= "table" then
     return { status = "WATCH", buyable = false, reasons = { "live_verification_required" } }
   end
+  local settings = GC.db.settings.sniper
   return GC.SniperDecision.EvaluateCeiling({
     ceilingUnit = ceiling.ceilingUnit, kind = ceiling.kind, exitUnit = ceiling.exitUnit,
-    levels = levels, limits = GC.ForeverDeals.BuyLimits(GC.db.settings.sniper, GetMoney(), ceiling.kind),
+    levels = levels, limits = GC.ForeverDeals.BuyLimits(settings, GetMoney(), ceiling.kind),
+    limitsFor = function(wallet) return GC.ForeverDeals.BuyLimits(settings, wallet, ceiling.kind) end,
     fixedQuantity = fixedQuantity, quotedTotal = quotedTotal,
     depositForQuantity = function(quantity) return depositFor(itemID, quantity) end,
     minimumProfit = ceiling.minimumProfit,

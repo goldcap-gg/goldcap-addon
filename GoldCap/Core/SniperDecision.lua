@@ -144,6 +144,7 @@ local function limitsFor(normalized, walletCopper)
   return {
     maxQuantity = normalized.maxQuantity,
     budget = math.floor(walletCopper * normalized.maxCapitalShare),
+    share = normalized.maxCapitalShare, -- the share of the wallet `budget` is, for a needs-gold caption
   }
 end
 
@@ -963,23 +964,10 @@ local function ceilingProfit(kind, exitUnit, quantity, entryTotal, deposit)
   return gross - safeCeilDiv(gross * 5, 100) - entryTotal - deposit
 end
 
-function GC.SniperDecision.EvaluateCeiling(input)
-  if type(input) ~= "table" or not CEILING_KINDS[input.kind]
-      or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
-      or not isInteger(input.exitUnit) or input.exitUnit <= 0
-      or type(input.levels) ~= "table" or type(input.limits) ~= "table"
-      or not isInteger(input.limits.maxQuantity) or input.limits.maxQuantity <= 0
-      or not isInteger(input.limits.budget)
-      or not isInteger(input.minimumProfit) then
-    return refusal("invalid_input")
-  end
-  local cap = { c = input.ceilingUnit, l = 0 }
-  local levels = {}
-  for i = 1, #input.levels do
-    local level = input.levels[i]
-    if positiveEntry(level, "unitPrice", "quantity") then levels[#levels + 1] = level end
-  end
-  local plan = GC.Caps.DecideCommodity(cap, levels, input.limits, input.fixedQuantity)
+-- One answer at one set of per-buy limits: EvaluateCeiling's own, and each one its needs-gold
+-- search below asks of itself.
+local function decideCeiling(input, cap, levels, limits)
+  local plan = GC.Caps.DecideCommodity(cap, levels, limits, input.fixedQuantity)
   if not plan then
     if input.fixedQuantity ~= nil then return refusal("book_exhausted") end
     local any = GC.Caps.DecideCommodity(cap, levels, { maxQuantity = 1, budget = math.huge })
@@ -1008,6 +996,66 @@ function GC.SniperDecision.EvaluateCeiling(input)
   if not GC.SniperDecision.SAFE_PURCHASES_ENABLED then
     out.computedStatus, out.status, out.buyable, out.reasons = "SAFE", "WATCH", false, { "shadow_validation" }
   end
+  return out
+end
+
+local function usableLimits(limits)
+  return type(limits) == "table" and isInteger(limits.maxQuantity) and limits.maxQuantity > 0
+    and isInteger(limits.budget)
+end
+
+function GC.SniperDecision.EvaluateCeiling(input)
+  if type(input) ~= "table" or not CEILING_KINDS[input.kind]
+      or not isInteger(input.ceilingUnit) or input.ceilingUnit <= 0
+      or not isInteger(input.exitUnit) or input.exitUnit <= 0
+      or type(input.levels) ~= "table" or not usableLimits(input.limits)
+      or not isInteger(input.minimumProfit) then
+    return refusal("invalid_input")
+  end
+  local cap = { c = input.ceilingUnit, l = 0 }
+  local levels = {}
+  for i = 1, #input.levels do
+    local level = input.levels[i]
+    if positiveEntry(level, "unitPrice", "quantity") then levels[#levels + 1] = level end
+  end
+  local out = decideCeiling(input, cap, levels, input.limits)
+
+  -- A buy the wallet limit ALONE refuses is a deal that needs gold, not a bad one: Evaluate's
+  -- `needsGold` (owner report 2026-09-24), which this mode never had, though WoW: Forever is
+  -- where characters start with no gold. Owner report 2026-10-16: a low character's Below
+  -- vendor bandages, 8c a unit under the vendor, came back AVOID and went to Hidden. No unit
+  -- inside the budget is capital_limit; too few inside it to clear the minimum is
+  -- profit_below_minimum. Either is the wallet's doing when the same buy with the gold is one,
+  -- and then the refusal says capital_limit, carries that buy's figures, and `needsGold` is the
+  -- least gold the character must HOLD for any buy here, with `walletShare` the share that
+  -- turns one into the other. Bisected through the caller's own `limitsFor` (a wallet to the
+  -- limits this row keeps to, GC.ForeverDeals.BuyLimits), never a second copy of the Forever
+  -- share, and only ever landing on a wallet the buy passes at. A typed quantity or a server
+  -- quote asks about one buy, not about the gold for one.
+  local reason = out.reasons[1]
+  if out.buyable or type(input.limitsFor) ~= "function"
+      or input.fixedQuantity ~= nil or input.quotedTotal ~= nil
+      or (reason ~= "capital_limit" and reason ~= "profit_below_minimum") then
+    return out
+  end
+  local function at(wallet)
+    local limits = input.limitsFor(wallet)
+    return usableLimits(limits) and decideCeiling(input, cap, levels, limits) or nil, limits
+  end
+  local plan, funded = at(MAX_EXACT)
+  if not (plan and plan.buyable) then return out end
+  local wallet, short = MAX_EXACT, 0
+  while wallet - short > 1 do
+    local mid = short + math.floor((wallet - short) / 2)
+    local answer = at(mid)
+    if answer and answer.buyable then wallet, plan = mid, answer else short = mid end
+  end
+  out = refusal("capital_limit")
+  for k, v in pairs(plan) do
+    if out[k] == nil then out[k] = v end
+  end
+  out.needsGold = wallet
+  out.walletShare = funded.share
   return out
 end
 

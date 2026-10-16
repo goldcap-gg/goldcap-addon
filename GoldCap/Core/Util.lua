@@ -163,7 +163,14 @@ end
 -- figure, caption and status line and the row tooltip all print the same figure through here.
 -- `short` is for the cell, whose eleven characters cannot hold six digits: from 10,000g it counts
 -- the same rounded-up gold in thousands, rounded up again, the way players write gold.
+-- Under 1g, rounded up to the silver, then to the copper, as FormatGoldFloor steps down: WoW:
+-- Forever's economy is copper, and "needs 1g" sent a character off for many times the few
+-- silver a buy needed.
 function GC.Util.FormatGoldCeil(copper, short)
+  if copper <= 9900 then
+    if copper >= 100 then return ("%ds"):format(math.ceil(copper / 100)) end
+    return ("%dc"):format(math.max(1, math.ceil(copper)))
+  end
   local gold = math.max(1, math.ceil(copper / 10000))
   if short and gold >= 10000 then return GC.Util.IntText(math.ceil(gold / 1000)) .. "k" end
   return GC.Util.IntText(gold) .. "g"
