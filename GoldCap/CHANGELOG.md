@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.21.0 (unreleased)
+## 0.21.0 (2026-10-16)
 
 - A welcome window opens the first time you visit the auction house with GoldCap. It says what
   DEALS, SELL, SOLD and BUY do, how old your prices are, and where they come from. Without GoldCap
