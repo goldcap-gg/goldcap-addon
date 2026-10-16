@@ -1319,6 +1319,8 @@ GC.Locales.enUS = {
   ["Everyone's prices are in, from %s ago"] = "Everyone's prices are in, from %s ago",
   ["No prices from other players for this auction house yet"] =
     "No prices from other players for this auction house yet",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Nobody has shared a scan of this auction house for %s",
   ["Prices from your own scans only"] = "Prices from your own scans only",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals.",
@@ -1340,6 +1342,8 @@ GC.Locales.enUS = {
     "Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices.",
   ["Get GoldCap Companion"] = "Get GoldCap Companion",

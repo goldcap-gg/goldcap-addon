@@ -39,22 +39,29 @@ end
 --   retail: origin ("none" | "manual" | "app", GC.Data.OriginState), importedTs, bundledTs,
 --           appError ({ reason }, GC.Data.AppDataError)
 --   forever: crowdTs (the Companion's payload for this auction house), companion (true when the
---            Companion has written GoldCap_AppData on this computer)
+--            Companion has written GoldCap_AppData on this computer), writtenAt (the Companion's
+--            own stamp on that file, GoldCap_AppData.writtenAt)
 -- Returns { kind, tone = "bad" | "warn" | "good", age = seconds | nil, cta = "install" | "run" |
 -- "update" | nil, reason = parser code | nil }. `cta` is what the window asks of the player:
--- install the Companion, start it again, or update both.
+-- install the Companion, start it again, or update both; nil when there is nothing to ask.
 function Welcome.Prices(input)
   local now = input.now
   if input.forever then
     local crowd = age(now, input.crowdTs)
     if crowd and crowd < C.STALE_SECONDS then
       return { kind = "crowd", tone = "good", age = crowd }
-    elseif crowd then
-      return { kind = "crowd_stale", tone = "warn", age = crowd, cta = "run" }
-    elseif input.companion then
-      return { kind = "crowd_missing", tone = "warn", cta = "run" }
     end
-    return { kind = "own", tone = "warn", cta = "install" }
+    if not input.companion then return { kind = "own", tone = "warn", cta = "install" } end
+    -- The payload is as old as the newest scan anyone shared from this auction house, so on a
+    -- quiet one it ages while the Companion runs fine. Whether the Companion runs is its own
+    -- stamp: it rewrites the file every 30 minutes, prices or none.
+    local wrote = age(now, input.writtenAt)
+    if wrote and wrote < C.STALE_SECONDS then
+      return { kind = "crowd_quiet", tone = "warn", age = crowd }
+    elseif wrote or crowd then
+      return { kind = "crowd_stale", tone = "warn", age = wrote or crowd, cta = "run" }
+    end
+    return { kind = "crowd_missing", tone = "warn", cta = "run" }
   end
 
   if input.appError then
@@ -84,14 +91,17 @@ end
 
 --- What to open on this auction house visit, if anything: "welcome" (the whole window, a new
 -- player's first visit), "prices" (the prices part alone) or nil. `w` is GoldCapDB.welcome.
+-- After the welcome, the window opens by itself only when it asks the player to do something
+-- (the status's cta): a quiet WoW: Forever auction house with the Companion running is for
+-- /gc companion to say, not a reason to open a window.
 function Welcome.Decide(w, status, now)
   if type(w) ~= "table" or type(status) ~= "table" then return nil end
   if not w.seen then
     if w.firstRun then return "welcome" end
-    if status.tone ~= "good" then return "prices" end
+    if status.cta then return "prices" end
     return nil
   end
-  if w.quiet or status.tone == "good" then return nil end
+  if w.quiet or not status.cta then return nil end
   if (now or 0) < (w.nextAt or 0) then return nil end
   return "prices"
 end

@@ -1238,6 +1238,8 @@ GC.Locales.zhCN = {
   ["The Companion's prices could not be read"] = "无法读取 Companion 的价格",
   ["Everyone's prices are in, from %s ago"] = "所有人的价格已到，来自 %s前",
   ["No prices from other players for this auction house yet"] = "这个拍卖行还没有其他玩家的价格",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "已有 %s没有人分享这个拍卖行的扫描了",
   ["Prices from your own scans only"] = "价格仅来自你自己的扫描",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "这些价格随 GoldCap 一起提供，只有 GoldCap 本身更新时才会改变。DEALS 需要你所在服务器的最新价格才能找到东西，在此之前它找不到任何优惠。",
@@ -1258,6 +1260,8 @@ GC.Locales.zhCN = {
     "你自己的扫描仍然有效。请检查 GoldCap Companion 是否在运行（它的图标在时钟旁边），然后输入 /reload。",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "这段时间你自己的扫描仍然有效。如果 GoldCap Companion 没有运行，请启动它并输入 /reload。",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion 正在运行，会带来 GoldCap 玩家分享的这个拍卖行的每一次扫描，但最近没有新的扫描。你自己的扫描仍然有效。",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap 只知道你自己扫描这个拍卖行时找到的内容。有了 GoldCap Companion，你还能获得这里所有 GoldCap 玩家的扫描：有价格的物品更多，价格也更新。",
   ["Get GoldCap Companion"] = "获取 GoldCap Companion",

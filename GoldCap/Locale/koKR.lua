@@ -1269,6 +1269,8 @@ GC.Locales.koKR = {
   ["The Companion's prices could not be read"] = "Companion의 가격을 읽을 수 없습니다",
   ["Everyone's prices are in, from %s ago"] = "모두의 가격이 반영됨, %s 전 기준",
   ["No prices from other players for this auction house yet"] = "이 경매장에는 아직 다른 플레이어의 가격이 없습니다",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "%s 동안 아무도 이 경매장의 스캔을 공유하지 않았습니다",
   ["Prices from your own scans only"] = "내 스캔으로 얻은 가격만 있음",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "이 가격은 GoldCap에 포함된 것이며 GoldCap 자체가 업데이트될 때만 바뀝니다. DEALS는 무언가를 찾으려면 내 서버의 최신 가격이 필요하므로, 그때까지는 특가를 찾지 못합니다.",
@@ -1290,6 +1292,8 @@ GC.Locales.koKR = {
     "내 스캔은 계속 작동합니다. GoldCap Companion이 실행 중인지 확인하고(아이콘이 시계 옆에 있습니다) /reload를 입력하세요.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "그동안 내 스캔은 작동합니다. GoldCap Companion이 실행 중이 아니면 실행한 뒤 /reload를 입력하세요.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion이 실행 중이며 GoldCap 플레이어가 공유하는 이 경매장의 스캔을 모두 가져오지만, 최근에는 들어온 스캔이 없습니다. 내 스캔은 계속 작동합니다.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap은 내가 이 경매장을 스캔해서 찾은 내용만 압니다. GoldCap Companion을 쓰면 이곳 모든 GoldCap 플레이어의 스캔도 받아 가격이 있는 아이템이 늘고 가격도 더 최신이 됩니다.",
   ["Get GoldCap Companion"] = "GoldCap Companion 받기",

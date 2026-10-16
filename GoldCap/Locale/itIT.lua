@@ -1333,6 +1333,8 @@ GC.Locales.itIT = {
   ["Everyone's prices are in, from %s ago"] = "Ci sono i prezzi di tutti i giocatori, di %s fa",
   ["No prices from other players for this auction house yet"] =
     "Ancora nessun prezzo di altri giocatori per questa casa d'aste",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Nessuno condivide una scansione di questa casa d'aste da %s",
   ["Prices from your own scans only"] = "Prezzi solo dalle tue scansioni",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Questi prezzi sono arrivati con GoldCap e cambiano solo quando GoldCap stesso si aggiorna. DEALS ha bisogno di prezzi aggiornati del tuo reame per trovare qualcosa, quindi fino ad allora non trova alcun affare.",
@@ -1354,6 +1356,8 @@ GC.Locales.itIT = {
     "Le tue scansioni funzionano ancora. Controlla che GoldCap Companion sia in esecuzione (la sua icona è accanto all'orologio), poi scrivi /reload.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Nel frattempo le tue scansioni funzionano. Se GoldCap Companion non è in esecuzione, avvialo e scrivi /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion è in esecuzione e porta ogni scansione di questa casa d'aste condivisa dai giocatori GoldCap, ma di recente non ne è arrivata nessuna. Le tue scansioni funzionano ancora.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap conosce solo ciò che le tue scansioni di questa casa d'aste hanno trovato. Con GoldCap Companion ricevi anche le scansioni di tutti i giocatori GoldCap di qui: più oggetti con un prezzo e prezzi più recenti.",
   ["Get GoldCap Companion"] = "Scarica GoldCap Companion",

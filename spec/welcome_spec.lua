@@ -64,13 +64,30 @@ describe("Welcome", function()
       assert.same({ kind = "crowd", tone = "good", age = 40 * 60 }, forever({ crowdTs = NOW - 40 * 60 }))
     end)
 
-    it("only warns when it is older: the player's own scans still price everything they saw", function()
-      assert.same({ kind = "crowd_stale", tone = "warn", age = 3 * DAY, cta = "run" },
-        forever({ crowdTs = NOW - 3 * DAY, companion = true }))
+    -- The payload is as old as the newest scan anyone shared here; the Companion's own stamp says
+    -- whether it still runs. 16.10: a running Companion, a quiet house and "check that GoldCap
+    -- Companion is running".
+    it("asks nothing of a player whose Companion runs while nobody scans this auction house", function()
+      assert.same({ kind = "crowd_quiet", tone = "warn", age = 41 * HOUR },
+        forever({ crowdTs = NOW - 41 * HOUR, companion = true, writtenAt = NOW - 5 * 60 }))
+      assert.same({ kind = "crowd_quiet", tone = "warn" },
+        forever({ companion = true, writtenAt = NOW - 5 * 60 }))
     end)
 
-    it("tells a Companion with nothing for this auction house apart from no Companion at all", function()
+    it("asks to start the Companion once its own stamp is a day old, aged from that stamp", function()
+      assert.same({ kind = "crowd_stale", tone = "warn", age = 2 * DAY, cta = "run" },
+        forever({ crowdTs = NOW - 3 * DAY, companion = true, writtenAt = NOW - 2 * DAY }))
+      assert.same({ kind = "crowd_stale", tone = "warn", age = C.STALE_SECONDS, cta = "run" },
+        forever({ companion = true, writtenAt = NOW - C.STALE_SECONDS }))
+    end)
+
+    it("goes by the payload's age when the file carries no stamp", function()
+      assert.same({ kind = "crowd_stale", tone = "warn", age = 3 * DAY, cta = "run" },
+        forever({ crowdTs = NOW - 3 * DAY, companion = true }))
       assert.same({ kind = "crowd_missing", tone = "warn", cta = "run" }, forever({ companion = true }))
+    end)
+
+    it("asks for the Companion when it has never written here", function()
       assert.same({ kind = "own", tone = "warn", cta = "install" }, forever({}))
     end)
 
@@ -100,8 +117,8 @@ describe("Welcome", function()
   end)
 
   describe("Decide", function()
-    local bad = { tone = "bad" }
-    local warn = { tone = "warn" }
+    local bad = { tone = "bad", cta = "run" }
+    local warn = { tone = "warn", cta = "install" }
     local good = { tone = "good" }
 
     it("opens the whole welcome on a new player's first visit, whatever the prices", function()
@@ -124,6 +141,13 @@ describe("Welcome", function()
     it("never comes back by itself for good prices or after Don't remind me", function()
       assert.is_nil(W.Decide({ seen = true, nextAt = 0 }, good, NOW))
       assert.is_nil(W.Decide({ seen = true, nextAt = 0, quiet = true }, bad, NOW))
+    end)
+
+    it("never opens by itself to say something the player can do nothing about", function()
+      local quietHouse = { kind = "crowd_quiet", tone = "warn" }
+      assert.is_nil(W.Decide({}, quietHouse, NOW))
+      assert.is_nil(W.Decide({ seen = true, nextAt = 0 }, quietHouse, NOW))
+      assert.equal("welcome", W.Decide({ firstRun = true }, quietHouse, NOW))
     end)
 
     it("answers nil for a missing record or status rather than erroring", function()

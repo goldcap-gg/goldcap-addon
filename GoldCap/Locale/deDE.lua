@@ -1334,6 +1334,8 @@ GC.Locales.deDE = {
   ["Everyone's prices are in, from %s ago"] = "Preise aller Spieler sind da, Stand vor %s",
   ["No prices from other players for this auction house yet"] =
     "Noch keine Preise anderer Spieler für dieses Auktionshaus",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Seit %s hat niemand einen Scan dieses Auktionshauses geteilt",
   ["Prices from your own scans only"] = "Preise nur aus deinen eigenen Scans",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Diese Preise kamen mit GoldCap und ändern sich nur, wenn GoldCap selbst aktualisiert wird. DEALS braucht frische Preise von deinem Realm, um etwas zu finden, bis dahin findet es keine Deals.",
@@ -1355,6 +1357,8 @@ GC.Locales.deDE = {
     "Deine eigenen Scans funktionieren weiter. Prüfe, ob GoldCap Companion läuft (sein Symbol sitzt neben der Uhr), und gib dann /reload ein.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Deine eigenen Scans funktionieren in der Zwischenzeit. Falls GoldCap Companion nicht läuft, starte ihn und gib /reload ein.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion läuft und bringt jeden Scan dieses Auktionshauses, den GoldCap-Spieler teilen, aber in letzter Zeit kam keiner. Deine eigenen Scans funktionieren weiterhin.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap kennt nur, was deine eigenen Scans dieses Auktionshauses gefunden haben. Mit GoldCap Companion bekommst du auch die Scans aller GoldCap-Spieler hier: mehr Gegenstände mit Preis und neuere Preise.",
   ["Get GoldCap Companion"] = "GoldCap Companion holen",

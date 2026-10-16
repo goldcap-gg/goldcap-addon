@@ -1336,6 +1336,8 @@ GC.Locales.frFR = {
   ["Everyone's prices are in, from %s ago"] = "Les prix de tous les joueurs sont là, vieux de %s",
   ["No prices from other players for this auction house yet"] =
     "Pas encore de prix d'autres joueurs pour cet hôtel des ventes",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Personne n'a partagé de scan de cet hôtel des ventes depuis %s",
   ["Prices from your own scans only"] = "Prix issus de tes propres scans uniquement",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Ces prix sont fournis avec GoldCap et ne changent que quand GoldCap lui-même est mis à jour. DEALS a besoin de prix récents de ton royaume pour trouver quelque chose, donc d'ici là il ne trouve aucune bonne affaire.",
@@ -1357,6 +1359,8 @@ GC.Locales.frFR = {
     "Tes propres scans fonctionnent toujours. Vérifie que GoldCap Companion est lancé (son icône se trouve à côté de l'horloge), puis tape /reload.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Tes propres scans fonctionnent en attendant. Si GoldCap Companion n'est pas lancé, démarre-le et tape /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion est lancé et apporte chaque scan de cet hôtel des ventes que partagent les joueurs GoldCap, mais aucun n'est arrivé récemment. Tes propres scans fonctionnent toujours.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap ne connaît que ce que tes propres scans de cet hôtel des ventes ont trouvé. Avec GoldCap Companion, tu reçois aussi les scans de tous les joueurs GoldCap d'ici : plus d'objets avec un prix, et des prix plus récents.",
   ["Get GoldCap Companion"] = "Obtenir GoldCap Companion",

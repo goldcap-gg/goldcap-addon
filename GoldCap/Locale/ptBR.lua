@@ -1331,6 +1331,8 @@ GC.Locales.ptBR = {
   ["Everyone's prices are in, from %s ago"] = "Os preços de todos os jogadores chegaram, de %s atrás",
   ["No prices from other players for this auction house yet"] =
     "Ainda não há preços de outros jogadores para esta casa de leilões",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Ninguém compartilha uma varredura desta casa de leilões há %s",
   ["Prices from your own scans only"] = "Preços só das suas próprias varreduras",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Estes preços vieram com o GoldCap e só mudam quando o próprio GoldCap é atualizado. O DEALS precisa de preços recentes do seu reino para achar algo, então até lá ele não encontra nenhuma oferta.",
@@ -1352,6 +1354,8 @@ GC.Locales.ptBR = {
     "Suas próprias varreduras continuam funcionando. Confira se o GoldCap Companion está em execução (o ícone fica ao lado do relógio) e digite /reload.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Enquanto isso, suas próprias varreduras funcionam. Se o GoldCap Companion não estiver em execução, abra-o e digite /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "O GoldCap Companion está em execução e traz cada varredura desta casa de leilões que os jogadores do GoldCap compartilham, mas nenhuma chegou recentemente. Suas próprias varreduras continuam funcionando.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "O GoldCap só conhece o que as suas próprias varreduras desta casa de leilões encontraram. Com o GoldCap Companion você também recebe as varreduras de todos os jogadores do GoldCap daqui: mais itens com preço e preços mais recentes.",
   ["Get GoldCap Companion"] = "Baixar o GoldCap Companion",

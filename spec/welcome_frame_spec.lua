@@ -166,6 +166,32 @@ describe("welcome window", function()
     assert.same({ K.warn[1], K.warn[2], K.warn[3], 1 }, W.state(f.card.status).color)
   end)
 
+  it("on WoW: Forever, tells a running Companion's quiet auction house from a stopped Companion", function()
+    -- 16.10, the owner's Forever client: the Companion wrote five minutes ago, the newest scan
+    -- anyone shared from this auction house is 41 hours old.
+    client({ forever = true, welcome = { seen = true, nextAt = 0 }, crowdTs = NOW - 41 * 3600,
+      appData = { writtenAt = NOW - 300 } })
+    GC.WelcomeUI.MaybeShow()
+    assert.is_nil(window())
+    GC.CompanionUI.Show()
+    local f = window()
+    assert.equal("Nobody has shared a scan of this auction house for 41h", text(f.card.status))
+    assert.truthy(text(f.card.body):find("GoldCap Companion is running", 1, true))
+    assert.is_false(shown(f.card.box))
+    assert.is_false(f.card.box.edit:HasFocus())
+    f:Hide()
+
+    -- The same house with the Companion silent for two days: start it again, and the link.
+    client({ forever = true, welcome = { seen = true, nextAt = 0 }, crowdTs = NOW - 3 * DAY,
+      appData = { writtenAt = NOW - 2 * DAY } })
+    GC.WelcomeUI.MaybeShow()
+    f = window()
+    assert.is_true(shown(f))
+    assert.equal("The Companion last sent prices 2d ago", text(f.card.status))
+    assert.truthy(text(f.card.body):find("Check that GoldCap Companion is running", 1, true))
+    assert.is_true(shown(f.card.box))
+  end)
+
   it("opens for the player on /gc companion with the link selected, ready to copy", function()
     client({ origin = "manual", importedTs = NOW - 7200 })
     GC.slashHandlers.companion()

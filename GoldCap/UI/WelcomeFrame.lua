@@ -94,7 +94,9 @@ local function readStatus(now)
   if input.forever then
     local payload = Data and Data.ForeverPayload and Data.ForeverPayload() or nil
     input.crowdTs = payload and payload.ts or nil
-    input.companion = type(_G.GoldCap_AppData) == "table"
+    local app = _G.GoldCap_AppData
+    input.companion = type(app) == "table"
+    input.writtenAt = input.companion and type(app.writtenAt) == "number" and app.writtenAt or nil
   elseif Data then
     input.origin = Data.OriginState and Data.OriginState() or "none"
     input.importedTs = GC.db and GC.db.imported and GC.db.imported.ts or nil
@@ -131,7 +133,9 @@ local function statusText(s)
     return GC.L["The Companion's prices could not be read"]
   elseif k == "crowd" then
     return GC.L["Everyone's prices are in, from %s ago"]:format(ago(s.age))
-  elseif k == "crowd_missing" then
+  elseif k == "crowd_quiet" and s.age then
+    return GC.L["Nobody has shared a scan of this auction house for %s"]:format(ago(s.age))
+  elseif k == "crowd_missing" or k == "crowd_quiet" then
     return GC.L["No prices from other players for this auction house yet"]
   end
   return GC.L["Prices from your own scans only"]
@@ -160,6 +164,8 @@ local function bodyText(s)
     return GC.L["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."]
   elseif k == "crowd_missing" then
     return GC.L["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."]
+  elseif k == "crowd_quiet" then
+    return GC.L["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."]
   end
   return GC.L["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."]
 end

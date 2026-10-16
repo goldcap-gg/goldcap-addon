@@ -1401,6 +1401,8 @@ GC.Locales.ruRU = {
   ["Everyone's prices are in, from %s ago"] = "Цены других игроков получены %s назад",
   ["No prices from other players for this auction house yet"] =
     "Цен от других игроков для этого аукциона пока нет",
+  ["Nobody has shared a scan of this auction house for %s"] =
+    "Никто не делился сканированием этого аукциона уже %s",
   ["Prices from your own scans only"] = "Цены только из ваших сканирований",
   ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
     "Эти цены пришли вместе с GoldCap и меняются, только когда обновляется сам GoldCap. Вкладке DEALS нужны свежие цены вашего мира, без них она не найдёт ни одной сделки.",
@@ -1422,6 +1424,8 @@ GC.Locales.ruRU = {
     "Ваши сканирования по-прежнему работают. Проверьте, что GoldCap Companion запущен (его значок рядом с часами), и введите /reload.",
   ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
     "Пока работают ваши сканирования. Если GoldCap Companion не запущен, запустите его и введите /reload.",
+  ["GoldCap Companion is running and brings every scan of this auction house that GoldCap players share, but none has come in lately. Your own scans still work."] =
+    "GoldCap Companion запущен и приносит каждое сканирование этого аукциона, которым делятся игроки GoldCap, но в последнее время новых не было. Ваши сканирования по-прежнему работают.",
   ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
     "GoldCap знает только то, что нашли ваши сканирования этого аукциона. С GoldCap Companion вы получаете и сканирования всех игроков GoldCap здесь: больше предметов с ценой и более свежие цены.",
   ["Get GoldCap Companion"] = "Установите GoldCap Companion",
