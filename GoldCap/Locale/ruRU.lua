@@ -1390,6 +1390,8 @@ GC.Locales.ruRU = {
     "Находит лоты дешевле, чем платит торговец, или намного дешевле обычной цены.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Оценивает всё в ваших сумках. ВЫСТАВИТЬ выставляет по одному предмету за клик.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Что вы продали, и прибыль с каждой продажи, где GoldCap знает, за сколько вы купили.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Списки покупок для ремесла: покупает каждый предмет не дороже заданной вами цены.",
   ["No prices for your region yet"] = "Для вашего региона цен пока нет",

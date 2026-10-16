@@ -67,7 +67,8 @@ describe("welcome window", function()
     assert.is_true(shown(f))
     assert.equal("DIALOG", W.state(f).strata)
     assert.equal("WELCOME TO GOLDCAP", text(f.title))
-    for i, name in ipairs({ "DEALS", "SELL", "BUY" }) do
+    -- Every tab, in the rail's order (owner 2026-10-16: "где sold?").
+    for i, name in ipairs({ "DEALS", "SELL", "SOLD", "BUY" }) do
       assert.equal(name, text(f.features[i].name))
       assert.is_true(shown(f.features[i].text))
     end

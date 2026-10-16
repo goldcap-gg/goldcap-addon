@@ -1327,6 +1327,8 @@ GC.Locales.esMX = {
     "Encuentra objetos publicados por debajo de lo que paga un vendedor, o muy por debajo de su precio habitual.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Pone precio a todo lo de tus bolsas. PUBLICAR lo publica, un objeto por clic.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Lo que vendiste y la ganancia de cada venta cuyo precio de compra conoce GoldCap.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Listas de compra para profesiones: compra cada objeto hasta el precio que fijes.",
   ["No prices for your region yet"] = "Aún no hay precios para tu región",

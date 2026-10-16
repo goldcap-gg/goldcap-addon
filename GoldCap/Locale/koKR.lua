@@ -1259,6 +1259,8 @@ GC.Locales.koKR = {
     "상인 판매가보다 낮게, 또는 평소 가격보다 훨씬 낮게 올라온 아이템을 찾습니다.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "가방에 있는 모든 아이템의 가격을 매깁니다. 등록을 누르면 클릭 한 번에 아이템 하나씩 등록합니다.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "판매한 아이템과, GoldCap이 구매 가격을 아는 판매마다의 수익을 보여 줍니다.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "제작용 쇼핑 목록: 정해 둔 가격까지 각 아이템을 구매합니다.",
   ["No prices for your region yet"] = "아직 내 지역의 가격이 없습니다",

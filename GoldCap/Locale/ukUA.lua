@@ -1391,6 +1391,8 @@ GC.Locales.ukUA = {
     "Знаходить лоти, дешевші, ніж платить торговець, або набагато дешевші за звичайну ціну.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Оцінює все у ваших сумках. ВИСТАВИТИ виставляє по одному предмету за клік.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Що ви продали, і прибуток з кожного продажу, де GoldCap знає, за скільки ви купили.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Списки покупок для ремесла: купує кожен предмет не дорожче за вказану вами ціну.",
   ["No prices for your region yet"] = "Для вашого регіону цін поки немає",

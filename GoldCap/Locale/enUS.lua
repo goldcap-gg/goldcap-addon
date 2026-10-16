@@ -1308,6 +1308,8 @@ GC.Locales.enUS = {
     "Finds items listed below what a vendor pays, or far below their usual price.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Prices everything in your bags. POST lists it, one item per click.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "What you sold, and the profit on each sale where GoldCap knows what you paid.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Shopping lists for crafting: buys each item up to the price you set.",
   ["No prices for your region yet"] = "No prices for your region yet",

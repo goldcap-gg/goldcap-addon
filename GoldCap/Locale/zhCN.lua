@@ -1229,6 +1229,7 @@ GC.Locales.zhCN = {
   ["Finds items listed below what a vendor pays, or far below their usual price."] =
     "找出挂价低于商人收购价、或远低于通常价格的物品。",
   ["Prices everything in your bags. POST lists it, one item per click."] = "为背包里的所有物品定价。点击 上架 即可上架，每次点击一件物品。",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] = "你卖出了什么，以及 GoldCap 知道买入价的每笔交易的利润。",
   ["Shopping lists for crafting: buys each item up to the price you set."] = "制作用的购物清单：每件物品买到你设定的价格为止。",
   ["No prices for your region yet"] = "还没有你所在区域的价格",
   ["Only the prices GoldCap came with, from %s ago"] = "只有 GoldCap 自带的价格，来自 %s前",

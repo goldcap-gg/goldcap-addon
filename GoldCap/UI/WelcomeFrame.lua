@@ -173,6 +173,7 @@ end
 local FEATURES = {
   { icon = "deals", name = "DEALS" },
   { icon = "sell", name = "SELL" },
+  { icon = "sold", name = "SOLD" },
   { icon = "buy", name = "BUY" },
 }
 
@@ -182,6 +183,8 @@ local function featureText(i, forever)
       or GC.L["Finds items listed below what they usually sell for, and checks each one before you buy."]
   elseif i == 2 then
     return GC.L["Prices everything in your bags. POST lists it, one item per click."]
+  elseif i == 3 then
+    return GC.L["What you sold, and the profit on each sale where GoldCap knows what you paid."]
   end
   return GC.L["Shopping lists for crafting: buys each item up to the price you set."]
 end

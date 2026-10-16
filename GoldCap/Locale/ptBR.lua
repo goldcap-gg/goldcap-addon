@@ -1320,6 +1320,8 @@ GC.Locales.ptBR = {
     "Encontra itens anunciados abaixo do que um vendedor paga, ou muito abaixo do preço habitual.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Dá preço a tudo que está nas suas bolsas. ANUNCIAR anuncia, um item por clique.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "O que você vendeu e o lucro de cada venda cujo preço de compra o GoldCap conhece.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Listas de compras para profissões: compra cada item até o preço que você definir.",
   ["No prices for your region yet"] = "Ainda não há preços para a sua região",

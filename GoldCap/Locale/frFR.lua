@@ -1325,6 +1325,8 @@ GC.Locales.frFR = {
     "Trouve les objets en vente sous le prix d'un marchand, ou bien sous leur prix habituel.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Estime tout ce qui est dans tes sacs. VENDRE le met en vente, un objet par clic.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Ce que tu as vendu, et le bénéfice de chaque vente dont GoldCap connaît le prix d'achat.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Listes de courses pour l'artisanat : achète chaque objet jusqu'au prix que tu fixes.",
   ["No prices for your region yet"] = "Pas encore de prix pour ta région",

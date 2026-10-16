@@ -3,7 +3,7 @@
 ## 0.21.0 (unreleased)
 
 - A welcome window opens the first time you visit the auction house with GoldCap. It says what
-  DEALS, SELL and BUY do, how old your prices are, and where they come from. Without GoldCap
+  DEALS, SELL, SOLD and BUY do, how old your prices are, and where they come from. Without GoldCap
   Companion or a pasted string, retail prices are the ones GoldCap shipped with and change only
   when GoldCap updates, and DEALS cannot find deals on them at all; the window gives the link and
   three steps to set the Companion up. In WoW: Forever it says your prices come from your own scans, and what the

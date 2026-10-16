@@ -1323,6 +1323,8 @@ GC.Locales.deDE = {
     "Findet Gegenstände, die unter dem Händlerpreis oder weit unter ihrem üblichen Preis angeboten werden.",
   ["Prices everything in your bags. POST lists it, one item per click."] =
     "Bewertet alles in deinen Taschen. EINSTELLEN stellt es ein, ein Gegenstand pro Klick.",
+  ["What you sold, and the profit on each sale where GoldCap knows what you paid."] =
+    "Was du verkauft hast, und der Gewinn bei jedem Verkauf, dessen Einkaufspreis GoldCap kennt.",
   ["Shopping lists for crafting: buys each item up to the price you set."] =
     "Einkaufslisten für Handwerk: kauft jeden Gegenstand bis zum Preis, den du festlegst.",
   ["No prices for your region yet"] = "Noch keine Preise für deine Region",
