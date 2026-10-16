@@ -156,7 +156,6 @@ GC.Locales.zhTW = {
   ["Confirm"] = "確認",
   ["Confirm the cancel"] = "確認取消",
   ["Confirm the removal"] = "確認刪除",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] = "複製連結（Ctrl+C）並在瀏覽器開啟：",
   ["Copy vendor list"] = "複製商人清單",
   ["Cost per unit"] = "每件成本",
   ["Cost unknown for %d of %d"] = "成本未知：%d 筆 / 共 %d 筆",
@@ -234,11 +233,9 @@ GC.Locales.zhTW = {
   ["Finish the pending post first"] = "請先完成進行中的上架",
   ["Finish the pending post or repost first"] = "請先完成進行中的上架或重新上架",
   ["Font scale"] = "字型縮放",
-  ["Free, sits in the tray, nothing to set up in game."] = "免費，常駐系統匣，遊戲內無需任何設定。",
   ["Full pass over them: %.1fs"] = "完整巡過一輪：%.1f 秒",
   ["Full pass over them: measuring..."] = "完整巡過一輪：測量中...",
   ["Gold tied up"] = "占用金幣",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap 無法確定這是背包中的哪一疊",
   ["GoldCap data age"] = "GoldCap 資料時效",
@@ -546,10 +543,6 @@ GC.Locales.zhTW = {
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "當某個拍賣達到你在網站上設定的價格時，停止掃描並開啟其購買視窗。",
   ["Window position & size"] = "視窗位置與大小",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "有了它，你所在伺服器的價格會自動更新，販售紀錄和利潤會同步到 goldcap.gg。",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "沒有它，GoldCap 只能用發布日期時的價格快照，用過時的價格找交易。",
   ["Won't buy"] = "不買",
   ["Worst case back"] = "最壞情況回款",
   ["YOUR LOTS"] = "你的上架",
@@ -1227,4 +1220,56 @@ GC.Locales.zhTW = {
   ["No sale seen in 30 days"] = "30 天內未見售出",
   ["Sold %d times in 7 days on %d realms"] = "7 天內售出 %d 次，%d 個伺服器",
   ["Rare find: seldom sold, so GoldCap puts no price on it"] = "稀有發現：很少售出，所以 GoldCap 不為它定價",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "歡迎使用 GoldCap",
+  ["Your GoldCap prices"] = "你的 GoldCap 價格",
+  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
+    "每件物品的滑鼠提示都會顯示價格。在拍賣場裡，GoldCap 分頁提供：",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "找出標價低於通常成交價的物品，並在你購買前逐一核對。",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "找出標價低於商人收購價、或遠低於通常價格的物品。",
+  ["Prices everything in your bags. POST lists it, one item per click."] = "為背包裡的所有物品定價。按 上架 即可上架，每次點擊一件物品。",
+  ["Shopping lists for crafting: buys each item up to the price you set."] = "製作用的購物清單：每件物品買到你設定的價格為止。",
+  ["No prices for your region yet"] = "還沒有你所在區域的價格",
+  ["Only the prices GoldCap came with, from %s ago"] = "只有 GoldCap 內建的價格，來自 %s前",
+  ["Fresh prices from the Companion, %s ago"] = "來自 Companion 的最新價格，%s前",
+  ["The Companion last sent prices %s ago"] = "Companion 上次傳送價格是在 %s前",
+  ["You pasted these prices %s ago"] = "你在 %s前貼上了這些價格",
+  ["The Companion's prices could not be read"] = "無法讀取 Companion 的價格",
+  ["Everyone's prices are in, from %s ago"] = "所有人的價格已到，來自 %s前",
+  ["No prices from other players for this auction house yet"] = "這個拍賣場還沒有其他玩家的價格",
+  ["Prices from your own scans only"] = "價格僅來自你自己的掃描",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "這些價格隨 GoldCap 一起提供，只有 GoldCap 本身更新時才會改變。DEALS 需要你所在伺服器的最新價格才能找到東西，在此之前它找不到任何優惠。",
+  ["New prices reach GoldCap every time you log in or type /reload."] = "每次你登入或輸入 /reload，新價格就會送達 GoldCap。",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS 和所有價格都以它上次傳送的內容為準。請檢查 GoldCap Companion 是否正在執行（它的圖示在時鐘旁邊），然後輸入 /reload。",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "貼上的字串一天內就會過時。GoldCap Companion 每 30 分鐘為你取得一次最新價格。",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "價格這麼舊時，DEALS 可能顯示已經不存在的優惠。GoldCap Companion 每 30 分鐘為你取得一次最新價格。",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap 無法讀取 Companion 寫入的內容（%s）。請更新 GoldCap 和 GoldCap Companion，然後輸入 /reload。",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "你自己的掃描和其他所有 GoldCap 玩家的掃描會合併：每件物品以較新的價格為準。",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "你自己的掃描仍然有效。請檢查 GoldCap Companion 是否正在執行（它的圖示在時鐘旁邊），然後輸入 /reload。",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "這段時間你自己的掃描仍然有效。如果 GoldCap Companion 沒有執行，請啟動它並輸入 /reload。",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap 只知道你自己掃描這個拍賣場時找到的內容。有了 GoldCap Companion，你還能取得這裡所有 GoldCap 玩家的掃描：有價格的物品更多，價格也更新。",
+  ["Get GoldCap Companion"] = "取得 GoldCap Companion",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "一個適用於 Windows、macOS 和 Linux 的免費小程式。它每 30 分鐘取得一次你所在伺服器的價格，無需帳號。它的程式碼在 GitHub 上公開。",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "一個適用於 Windows、macOS 和 Linux 的免費小程式。它每 30 分鐘帶來所有 GoldCap 玩家在你的拍賣場掃描到的價格，無需帳號。它的程式碼在 GitHub 上公開。",
+  ["1. Copy this link (%s) and open it in your browser:"] = "1. 複製這個連結（%s），在瀏覽器中開啟：",
+  ["2. Install GoldCap Companion and start it."] = "2. 安裝 GoldCap Companion 並啟動它。",
+  ["3. Back in the game, type /reload."] = "3. 回到遊戲後，輸入 /reload。",
+  ["Not installed on this computer? It is here:"] = "這台電腦上沒有安裝？在這裡：",
+  ["The latest version is here:"] = "最新版本在這裡：",
+  ["/gc companion opens this window again."] = "/gc companion 會再次開啟這個視窗。",
+  ["Got it"] = "知道了",
+  ["Don't remind me"] = "不再提醒",
 }

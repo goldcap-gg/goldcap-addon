@@ -150,8 +150,6 @@ GC.Locales.ukUA = {
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Скопіюйте посилання (Ctrl+C) і відкрийте його в браузері:",
   ["Copy vendor list"] = "Скопіювати список для торговця",
   ["Cost per unit"] = "Собівартість за штуку",
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
@@ -235,13 +233,10 @@ GC.Locales.ukUA = {
   ["Finish the pending post or repost first"] =
     "Спершу завершіть виставлення або перевиставлення, що триває",
   ["Font scale"] = "Масштаб шрифту",
-  ["Free, sits in the tray, nothing to set up in game."] =
-    "Безкоштовний, живе в треї, у грі нічого налаштовувати не треба.",
   ["Full pass over them: %.1fs"] = "Повний прохід по них: %.1fс",
   ["Full pass over them: measuring..."] = "Повний прохід по них: вимірюємо...",
   ["GOLDCAP"] = "GOLDCAP",
   ["Gold tied up"] = "Заморожено золота",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap не може точно визначити, який це стек у сумці",
@@ -591,10 +586,6 @@ GC.Locales.ukUA = {
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Коли лот досягає ціни, яку ви встановили на сайті, сканування зупиняється і відкривається вікно купівлі.",
   ["Window position & size"] = "Позиція та розмір вікна",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "З ним ціни вашого реалму оновлюються самі, а продажі та прибуток потрапляють на goldcap.gg.",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "Без нього GoldCap живе на зрізі цін з дати релізу, тому угоди шукаються за застарілими цінами.",
   ["Won't buy"] = "Не куплю",
   ["Worst case back"] = "Повернеться в найгіршому разі",
   ["YOU GET"] = "ОТРИМАЄШ",
@@ -1389,4 +1380,61 @@ GC.Locales.ukUA = {
   ["Sold %d times in 7 days on %d realms"] = "Продажів за 7 дн.: %d, на реалмах: %d",
   ["Rare find: seldom sold, so GoldCap puts no price on it"] =
     "Рідкість: продається рідко, тому GoldCap не називає їй ціну",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "Ласкаво просимо до GoldCap",
+  ["Your GoldCap prices"] = "Ваші ціни GoldCap",
+  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
+    "У підказці до будь-якого предмета є його ціна. На аукціоні у вкладці GoldCap:",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "Знаходить лоти, дешевші за звичайну ціну продажу, і перевіряє кожен перед купівлею.",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "Знаходить лоти, дешевші, ніж платить торговець, або набагато дешевші за звичайну ціну.",
+  ["Prices everything in your bags. POST lists it, one item per click."] =
+    "Оцінює все у ваших сумках. ВИСТАВИТИ виставляє по одному предмету за клік.",
+  ["Shopping lists for crafting: buys each item up to the price you set."] =
+    "Списки покупок для ремесла: купує кожен предмет не дорожче за вказану вами ціну.",
+  ["No prices for your region yet"] = "Для вашого регіону цін поки немає",
+  ["Only the prices GoldCap came with, from %s ago"] = "Лише вбудовані в GoldCap ціни, зібрані %s тому",
+  ["Fresh prices from the Companion, %s ago"] = "Свіжі ціни від Companion, %s тому",
+  ["The Companion last sent prices %s ago"] = "Companion востаннє надсилав ціни %s тому",
+  ["You pasted these prices %s ago"] = "Ви вставили ці ціни %s тому",
+  ["The Companion's prices could not be read"] = "Не вдалося прочитати ціни від Companion",
+  ["Everyone's prices are in, from %s ago"] = "Ціни інших гравців отримано %s тому",
+  ["No prices from other players for this auction house yet"] =
+    "Цін від інших гравців для цього аукціону поки немає",
+  ["Prices from your own scans only"] = "Ціни лише з ваших сканувань",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "Ці ціни прийшли разом із GoldCap і змінюються, лише коли оновлюється сам GoldCap. Вкладці DEALS потрібні свіжі ціни вашого світу, без них вона не знайде жодної угоди.",
+  ["New prices reach GoldCap every time you log in or type /reload."] =
+    "Нові ціни потрапляють у GoldCap під час кожного входу в гру або після /reload.",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS і всі ціни спираються на те, що він надіслав останнім. Перевірте, що GoldCap Companion запущено (його значок поруч із годинником), і введіть /reload.",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "Вставлений рядок застаріває за день. GoldCap Companion сам завантажує свіжі ціни кожні 30 хвилин.",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "З такими старими цінами DEALS може показувати угоди, яких уже немає. GoldCap Companion сам завантажує свіжі ціни кожні 30 хвилин.",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap не зміг прочитати те, що записав Companion (%s). Оновіть GoldCap і GoldCap Companion, потім введіть /reload.",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "Ваші сканування поєднуються зі скануваннями інших гравців GoldCap: для кожного предмета береться свіжіша ціна.",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "Ваші сканування й далі працюють. Перевірте, що GoldCap Companion запущено (його значок поруч із годинником), і введіть /reload.",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "Поки що працюють ваші сканування. Якщо GoldCap Companion не запущено, запустіть його й введіть /reload.",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap знає лише те, що знайшли ваші сканування цього аукціону. З GoldCap Companion ви отримуєте й сканування всіх гравців GoldCap тут: більше предметів із ціною та свіжіші ціни.",
+  ["Get GoldCap Companion"] = "Встановіть GoldCap Companion",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "Невелика безкоштовна програма для Windows, macOS і Linux. Завантажує ціни вашого світу кожні 30 хвилин, обліковий запис не потрібен. Її код відкритий на GitHub.",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "Невелика безкоштовна програма для Windows, macOS і Linux. Кожні 30 хвилин приносить ціни, які гравці GoldCap просканували на вашому аукціоні, обліковий запис не потрібен. Її код відкритий на GitHub.",
+  ["1. Copy this link (%s) and open it in your browser:"] =
+    "1. Скопіюйте посилання (%s) і відкрийте його в браузері:",
+  ["2. Install GoldCap Companion and start it."] = "2. Встановіть GoldCap Companion і запустіть його.",
+  ["3. Back in the game, type /reload."] = "3. Поверніться в гру та введіть /reload.",
+  ["Not installed on this computer? It is here:"] = "Не встановлено на цьому комп'ютері? Він тут:",
+  ["The latest version is here:"] = "Остання версія тут:",
+  ["/gc companion opens this window again."] = "/gc companion знову відкриє це вікно.",
+  ["Got it"] = "Зрозуміло",
+  ["Don't remind me"] = "Не нагадувати",
 }

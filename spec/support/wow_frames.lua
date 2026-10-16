@@ -167,6 +167,39 @@ function W.CreateFrame(kind, _, parent)
     STATE[t].sublevel = sublevel
     return t
   end
+  -- A window's own placement: dragging, staying on screen, coming to the front.
+  function f:SetToplevel(v) s.toplevel = v and true or false end
+  function f:SetClampedToScreen(v) s.clamped = v and true or false end
+  function f:SetMovable(v) s.movable = v and true or false end
+  function f:IsMovable() return s.movable == true end
+  function f:StartMoving() s.moving = true end
+  function f:StopMovingOrSizing() s.moving = false end
+  function f:Raise() s.raised = (s.raised or 0) + 1 end
+  -- EditBox: text, focus and selection. SetText runs OnTextChanged with userInput false, as the
+  -- client does.
+  if s.kind == "EditBox" then
+    s.text, s.focus = "", false
+    function f:SetFontObject(font) s.fontObject = font end
+    function f:SetAutoFocus(v) s.autoFocus = v and true or false end
+    function f:SetText(text)
+      s.text = text
+      if s.scripts.OnTextChanged then s.scripts.OnTextChanged(f, false) end
+    end
+    function f:GetText() return s.text end
+    function f:SetCursorPosition(n) s.cursor = n end
+    function f:SetFocus()
+      if s.focus then return end
+      s.focus = true
+      if s.scripts.OnEditFocusGained then s.scripts.OnEditFocusGained(f) end
+    end
+    function f:ClearFocus()
+      if not s.focus then return end
+      s.focus, s.highlighted = false, false
+      if s.scripts.OnEditFocusLost then s.scripts.OnEditFocusLost(f) end
+    end
+    function f:HasFocus() return s.focus end
+    function f:HighlightText() s.highlighted = true end
+  end
   -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
   -- change, as the client does.
   if s.kind == "Button" then

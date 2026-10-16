@@ -712,6 +712,14 @@ function GC.Data.GetItemValue(itemID)
   return GC.Data.ForeverValueFor(itemID)
 end
 
+-- When the bundled table for this region was built, nil without one (WoW: Forever) or with a 0
+-- stamp (a local build's empty region). GetStatus says the same, after counting every item.
+function GC.Data.BundledTs()
+  local ts = bundled and bundled.ts
+  if type(ts) ~= "number" or ts <= 0 then return nil end
+  return ts
+end
+
 function GC.Data.GetStatus()
   local imp = db and db.imported
   local p = activePayload()

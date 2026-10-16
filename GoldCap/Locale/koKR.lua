@@ -156,7 +156,6 @@ GC.Locales.koKR = {
   ["Confirm"] = "확인",
   ["Confirm the cancel"] = "취소 확인",
   ["Confirm the removal"] = "삭제 확인",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] = "링크를 복사(Ctrl+C)해 브라우저에서 여세요:",
   ["Copy vendor list"] = "상인 목록 복사",
   ["Cost per unit"] = "개당 매입가",
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
@@ -236,11 +235,9 @@ GC.Locales.koKR = {
   ["Finish the pending post first"] = "진행 중인 등록을 먼저 끝내세요",
   ["Finish the pending post or repost first"] = "진행 중인 등록 또는 재등록을 먼저 끝내세요",
   ["Font scale"] = "글꼴 크기",
-  ["Free, sits in the tray, nothing to set up in game."] = "무료이고 트레이에 상주하며, 게임 안에서 설정할 것이 없습니다.",
   ["Full pass over them: %.1fs"] = "전체 순회: %.1f초",
   ["Full pass over them: measuring..."] = "전체 순회: 측정 중...",
   ["Gold tied up"] = "묶이는 골드",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap이 가방의 어느 묶음인지 특정하지 못했습니다",
@@ -559,10 +556,6 @@ GC.Locales.koKR = {
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "매물이 사이트에서 설정한 가격에 도달하면 검색을 멈추고 구매 창을 엽니다.",
   ["Window position & size"] = "창 위치와 크기",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "있으면 서버 시세가 자동으로 갱신되고, 판매 기록과 수익이 goldcap.gg에 쌓입니다.",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "없으면 GoldCap은 릴리스 시점의 시세 스냅샷으로 돌아갑니다. 오래된 시세로 거래를 찾게 됩니다.",
   ["Won't buy"] = "사지 않음",
   ["Worst case back"] = "최악의 경우 회수",
   ["YOUR LOTS"] = "내 물량",
@@ -1255,4 +1248,59 @@ GC.Locales.koKR = {
   ["Sold %d times in 7 days on %d realms"] = "7일간 %d회 판매, 서버 %d개",
   ["Rare find: seldom sold, so GoldCap puts no price on it"] =
     "희귀 매물: 거의 팔리지 않아 GoldCap이 가격을 매기지 않습니다",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "GoldCap에 오신 것을 환영합니다",
+  ["Your GoldCap prices"] = "내 GoldCap 가격",
+  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
+    "모든 아이템의 툴팁에 가격이 표시됩니다. 경매장의 GoldCap 탭에는 다음이 있습니다.",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "평소 판매가보다 낮게 올라온 아이템을 찾고, 구매하기 전에 하나씩 확인합니다.",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "상인 판매가보다 낮게, 또는 평소 가격보다 훨씬 낮게 올라온 아이템을 찾습니다.",
+  ["Prices everything in your bags. POST lists it, one item per click."] =
+    "가방에 있는 모든 아이템의 가격을 매깁니다. 등록을 누르면 클릭 한 번에 아이템 하나씩 등록합니다.",
+  ["Shopping lists for crafting: buys each item up to the price you set."] =
+    "제작용 쇼핑 목록: 정해 둔 가격까지 각 아이템을 구매합니다.",
+  ["No prices for your region yet"] = "아직 내 지역의 가격이 없습니다",
+  ["Only the prices GoldCap came with, from %s ago"] = "GoldCap에 포함된 가격만 있음, %s 전 기준",
+  ["Fresh prices from the Companion, %s ago"] = "Companion의 최신 가격, %s 전",
+  ["The Companion last sent prices %s ago"] = "Companion이 마지막으로 가격을 보낸 때: %s 전",
+  ["You pasted these prices %s ago"] = "이 가격을 붙여넣은 때: %s 전",
+  ["The Companion's prices could not be read"] = "Companion의 가격을 읽을 수 없습니다",
+  ["Everyone's prices are in, from %s ago"] = "모두의 가격이 반영됨, %s 전 기준",
+  ["No prices from other players for this auction house yet"] = "이 경매장에는 아직 다른 플레이어의 가격이 없습니다",
+  ["Prices from your own scans only"] = "내 스캔으로 얻은 가격만 있음",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "이 가격은 GoldCap에 포함된 것이며 GoldCap 자체가 업데이트될 때만 바뀝니다. DEALS는 무언가를 찾으려면 내 서버의 최신 가격이 필요하므로, 그때까지는 특가를 찾지 못합니다.",
+  ["New prices reach GoldCap every time you log in or type /reload."] =
+    "새 가격은 접속할 때마다, 또는 /reload를 입력할 때 GoldCap에 반영됩니다.",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS와 모든 가격은 Companion이 마지막으로 보낸 내용을 따릅니다. GoldCap Companion이 실행 중인지 확인하고(아이콘이 시계 옆에 있습니다) /reload를 입력하세요.",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "붙여넣은 문자열은 하루 안에 오래됩니다. GoldCap Companion이 30분마다 최신 가격을 가져옵니다.",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "가격이 이렇게 오래되면 DEALS가 이미 없어진 특가를 보여 줄 수 있습니다. GoldCap Companion이 30분마다 최신 가격을 가져옵니다.",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap이 Companion이 기록한 내용을 읽지 못했습니다(%s). GoldCap과 GoldCap Companion을 업데이트한 뒤 /reload를 입력하세요.",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "내 스캔과 다른 모든 GoldCap 플레이어의 스캔이 합쳐집니다. 아이템마다 더 최신 가격이 적용됩니다.",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "내 스캔은 계속 작동합니다. GoldCap Companion이 실행 중인지 확인하고(아이콘이 시계 옆에 있습니다) /reload를 입력하세요.",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "그동안 내 스캔은 작동합니다. GoldCap Companion이 실행 중이 아니면 실행한 뒤 /reload를 입력하세요.",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap은 내가 이 경매장을 스캔해서 찾은 내용만 압니다. GoldCap Companion을 쓰면 이곳 모든 GoldCap 플레이어의 스캔도 받아 가격이 있는 아이템이 늘고 가격도 더 최신이 됩니다.",
+  ["Get GoldCap Companion"] = "GoldCap Companion 받기",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "Windows, macOS, Linux용 작은 무료 앱입니다. 30분마다 내 서버의 가격을 가져오며 계정이 필요 없습니다. 코드는 GitHub에 공개되어 있습니다.",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "Windows, macOS, Linux용 작은 무료 앱입니다. 30분마다 모든 GoldCap 플레이어가 내 경매장에서 스캔한 가격을 가져오며 계정이 필요 없습니다. 코드는 GitHub에 공개되어 있습니다.",
+  ["1. Copy this link (%s) and open it in your browser:"] = "1. 이 링크(%s)를 복사해 브라우저에서 여세요.",
+  ["2. Install GoldCap Companion and start it."] = "2. GoldCap Companion을 설치하고 실행하세요.",
+  ["3. Back in the game, type /reload."] = "3. 게임으로 돌아와 /reload를 입력하세요.",
+  ["Not installed on this computer? It is here:"] = "이 컴퓨터에 설치되어 있지 않나요? 여기 있습니다.",
+  ["The latest version is here:"] = "최신 버전은 여기 있습니다.",
+  ["/gc companion opens this window again."] = "/gc companion을 입력하면 이 창이 다시 열립니다.",
+  ["Got it"] = "확인",
+  ["Don't remind me"] = "다시 알리지 않기",
 }

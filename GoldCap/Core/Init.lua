@@ -428,6 +428,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
     if name ~= ADDON_NAME then return end
+    -- No save at all is a player who has just installed GoldCap: the welcome window greets them
+    -- on their first auction house visit (GC.Welcome.OnLoad, below).
+    local freshInstall = GoldCapDB == nil
     GoldCapDB = GoldCapDB or {}
     -- Damaged purchase records used to stop the load dead here: this returned with GC.db
     -- never published and the event unregistered, so nothing else in the addon existed --
@@ -452,6 +455,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     if damagedAcquisitions ~= nil then GoldCapDB.acquisitions = damagedAcquisitions end
     GC.db = GoldCapDB
+    if GC.Welcome then GC.Welcome.OnLoad(GoldCapDB, freshInstall) end
     -- Rewritten on every load, never merged: the file belongs to whichever client wrote it
     -- last, and that is the one the companion must be told about.
     if GC.Game then GoldCapDB.client = GC.Game.Passport() end
@@ -737,6 +741,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnAuctionHouseShow()
       -- WoW: Forever: scan on open when the server's throttle allows (Core/ForeverScan.lua).
       if GC.ForeverScan then GC.ForeverScan.OnAuctionHouseShow() end
+      -- The welcome window, when Core/Welcome.lua says this visit should open it. Last, and
+      -- guarded: a fault in a window of words must never cost the auction house its scan.
+      if GC.WelcomeUI and GC.WelcomeUI.MaybeShow then pcall(GC.WelcomeUI.MaybeShow) end
     elseif interactionType == Enum.PlayerInteractionType.Merchant then
       -- The note beside the vendor window: what in the bags fetches more on the auction house.
       if GC.MerchantNote then GC.MerchantNote.OnMerchantShow() end

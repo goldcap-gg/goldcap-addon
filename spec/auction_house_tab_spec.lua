@@ -815,11 +815,10 @@ describe("Auction House tab", function()
     assert.is_truthy(text:find("pcall(GC.AuctionHouseTab.NoteSearchFocus, false)", 1, true))
   end)
 
-  -- The one moment the addon introduces the Companion on its own: the player has just
-  -- opened GoldCap's own tab and there are no prices at all, so nothing on the board
-  -- works yet. Once ever per save -- the flag persists -- never again after that,
-  -- whatever the origin later becomes.
-  it("offers the Companion once ever when the tab first opens with no prices", function()
+  -- The Companion used to be offered here, once, on the first click of the tab. The welcome
+  -- window (UI/WelcomeFrame.lua) owns that now, on the auction house visit itself, so the tab
+  -- opens nothing but GoldCap.
+  it("opens no Companion dialog of its own when the tab is clicked", function()
     GC.db = {}
     GC.Data = { OriginState = function() return "none" end }
     local shows = 0
@@ -827,29 +826,8 @@ describe("Auction House tab", function()
     GC.AuctionHouseTab.Install()
     local tab = tabButton()
     tab.scripts.OnClick(tab)
-    assert.equal(1, shows)
-    assert.is_true(GC.db.companionIntroShown)
-
-    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
-    tab.scripts.OnClick(tab) -- the next visit stays quiet
-    assert.equal(1, shows)
-  end)
-
-  it("stays quiet when prices already exist, and does not trip over a missing db", function()
-    GC.db = {}
-    GC.Data = { OriginState = function() return "manual" end }
-    local shows = 0
-    GC.CompanionUI = { Show = function() shows = shows + 1 end }
-    GC.AuctionHouseTab.Install()
-    local tab = tabButton()
-    tab.scripts.OnClick(tab)
     assert.equal(0, shows)
-    assert.is_nil(GC.db.companionIntroShown) -- the one-shot is spent only when it fires
-
-    GC.db = nil -- a click before SavedVariables load must not error or burn the shot
-    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
-    tab.scripts.OnClick(tab)
-    assert.equal(0, shows)
+    assert.is_nil(GC.db.companionIntroShown)
   end)
 
 end)

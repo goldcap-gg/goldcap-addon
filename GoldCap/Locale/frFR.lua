@@ -157,8 +157,6 @@ GC.Locales.frFR = {
   ["Confirm"] = "Confirmer",
   ["Confirm the cancel"] = "Confirmer l'annulation",
   ["Confirm the removal"] = "Confirmer la suppression",
-  ["Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Copiez le lien (Ctrl+C) et ouvrez-le dans un navigateur :",
   ["Copy vendor list"] = "Copier la liste du marchand",
   ["Cost per unit"] = "Coût par unité",
   ["Cost unknown for %d of %d"] = "Prix d'achat inconnu pour %d sur %d",
@@ -245,12 +243,9 @@ GC.Locales.frFR = {
   ["Finish the pending post or repost first"] =
     "Termine d'abord la mise en vente ou la remise en vente en cours",
   ["Font scale"] = "Taille de police",
-  ["Free, sits in the tray, nothing to set up in game."] =
-    "Gratuit, il reste dans la zone de notification, rien à configurer en jeu.",
   ["Full pass over them: %.1fs"] = "Passage complet : %.1fs",
   ["Full pass over them: measuring..."] = "Passage complet : mesure en cours...",
   ["Gold tied up"] = "Or immobilisé",
-  ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap ne peut pas déterminer de quelle pile de sac il s'agit",
@@ -595,10 +590,6 @@ GC.Locales.frFR = {
   ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
     "Quand une annonce atteint un prix que tu as défini sur le site, le scan s'arrête et sa fenêtre d'achat s'ouvre.",
   ["Window position & size"] = "Position et taille de la fenêtre",
-  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
-    "Avec lui, les prix de votre royaume se mettent à jour tout seuls, et vos ventes et bénéfices arrivent sur goldcap.gg.",
-  ["Without it, GoldCap runs on a price snapshot from its release date, so deals get hunted with old prices."] =
-    "Sans lui, GoldCap tourne avec les prix figés à la date de sortie, et les affaires se cherchent avec de vieux prix.",
   ["Won't buy"] = "N'achètera pas",
   ["Worst case back"] = "Retour au pire",
   ["YOUR LOTS"] = "VOS LOTS",
@@ -1323,4 +1314,61 @@ GC.Locales.frFR = {
   ["Sold %d times in 7 days on %d realms"] = "Vendu %d fois en 7 jours sur %d royaumes",
   ["Rare find: seldom sold, so GoldCap puts no price on it"] =
     "Trouvaille rare : rarement vendue, donc GoldCap ne lui donne aucun prix",
+  -- The welcome window (UI/WelcomeFrame.lua): what GoldCap does, the state of the prices, GoldCap Companion.
+  ["Welcome to GoldCap"] = "Bienvenue sur GoldCap",
+  ["Your GoldCap prices"] = "Tes prix GoldCap",
+  ["Every item tooltip shows its price. At the auction house, the GoldCap tab has:"] =
+    "Chaque objet affiche son prix dans l'infobulle. À l'hôtel des ventes, l'onglet GoldCap propose :",
+  ["Finds items listed below what they usually sell for, and checks each one before you buy."] =
+    "Trouve les objets en vente sous leur prix habituel et vérifie chacun avant que tu achètes.",
+  ["Finds items listed below what a vendor pays, or far below their usual price."] =
+    "Trouve les objets en vente sous le prix d'un marchand, ou bien sous leur prix habituel.",
+  ["Prices everything in your bags. POST lists it, one item per click."] =
+    "Estime tout ce qui est dans tes sacs. VENDRE le met en vente, un objet par clic.",
+  ["Shopping lists for crafting: buys each item up to the price you set."] =
+    "Listes de courses pour l'artisanat : achète chaque objet jusqu'au prix que tu fixes.",
+  ["No prices for your region yet"] = "Pas encore de prix pour ta région",
+  ["Only the prices GoldCap came with, from %s ago"] = "Seulement les prix livrés avec GoldCap, vieux de %s",
+  ["Fresh prices from the Companion, %s ago"] = "Prix récents de Companion, il y a %s",
+  ["The Companion last sent prices %s ago"] = "Companion a envoyé des prix pour la dernière fois il y a %s",
+  ["You pasted these prices %s ago"] = "Tu as collé ces prix il y a %s",
+  ["The Companion's prices could not be read"] = "Les prix de Companion n'ont pas pu être lus",
+  ["Everyone's prices are in, from %s ago"] = "Les prix de tous les joueurs sont là, vieux de %s",
+  ["No prices from other players for this auction house yet"] =
+    "Pas encore de prix d'autres joueurs pour cet hôtel des ventes",
+  ["Prices from your own scans only"] = "Prix issus de tes propres scans uniquement",
+  ["These prices came with GoldCap and change only when GoldCap itself updates. DEALS needs fresh prices from your realm to find anything, so until then it finds no deals."] =
+    "Ces prix sont fournis avec GoldCap et ne changent que quand GoldCap lui-même est mis à jour. DEALS a besoin de prix récents de ton royaume pour trouver quelque chose, donc d'ici là il ne trouve aucune bonne affaire.",
+  ["New prices reach GoldCap every time you log in or type /reload."] =
+    "Les nouveaux prix arrivent dans GoldCap à chaque connexion ou avec /reload.",
+  ["DEALS and every price go by what it sent last. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "DEALS et tous les prix se basent sur ce qu'il a envoyé en dernier. Vérifie que GoldCap Companion est lancé (son icône se trouve à côté de l'horloge), puis tape /reload.",
+  ["A pasted string goes stale within a day. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "Un texte collé est périmé en moins d'un jour. GoldCap Companion récupère des prix récents pour toi toutes les 30 minutes.",
+  ["With prices this old, DEALS can show deals that are no longer there. GoldCap Companion fetches fresh prices for you every 30 minutes."] =
+    "Avec des prix aussi vieux, DEALS peut montrer des affaires qui n'existent plus. GoldCap Companion récupère des prix récents pour toi toutes les 30 minutes.",
+  ["GoldCap could not read what the Companion wrote (%s). Update GoldCap and GoldCap Companion, then type /reload."] =
+    "GoldCap n'a pas pu lire ce que Companion a écrit (%s). Mets à jour GoldCap et GoldCap Companion, puis tape /reload.",
+  ["Your own scans and every other GoldCap player's are combined: for each item, the newer price wins."] =
+    "Tes propres scans et ceux de tous les autres joueurs GoldCap sont combinés : pour chaque objet, le prix le plus récent l'emporte.",
+  ["Your own scans still work. Check that GoldCap Companion is running (its icon sits next to the clock), then type /reload."] =
+    "Tes propres scans fonctionnent toujours. Vérifie que GoldCap Companion est lancé (son icône se trouve à côté de l'horloge), puis tape /reload.",
+  ["Your own scans work meanwhile. If GoldCap Companion is not running, start it and type /reload."] =
+    "Tes propres scans fonctionnent en attendant. Si GoldCap Companion n'est pas lancé, démarre-le et tape /reload.",
+  ["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."] =
+    "GoldCap ne connaît que ce que tes propres scans de cet hôtel des ventes ont trouvé. Avec GoldCap Companion, tu reçois aussi les scans de tous les joueurs GoldCap d'ici : plus d'objets avec un prix, et des prix plus récents.",
+  ["Get GoldCap Companion"] = "Obtenir GoldCap Companion",
+  ["A small free app for Windows, macOS and Linux. It fetches your realm's prices every 30 minutes, with no account needed. Its code is open on GitHub."] =
+    "Une petite application gratuite pour Windows, macOS et Linux. Elle récupère les prix de ton royaume toutes les 30 minutes, sans compte. Son code est ouvert sur GitHub.",
+  ["A small free app for Windows, macOS and Linux. Every 30 minutes it brings the prices every GoldCap player scanned on your auction house, with no account needed. Its code is open on GitHub."] =
+    "Une petite application gratuite pour Windows, macOS et Linux. Toutes les 30 minutes, elle apporte les prix scannés par chaque joueur GoldCap dans ton hôtel des ventes, sans compte. Son code est ouvert sur GitHub.",
+  ["1. Copy this link (%s) and open it in your browser:"] =
+    "1. Copie ce lien (%s) et ouvre-le dans ton navigateur :",
+  ["2. Install GoldCap Companion and start it."] = "2. Installe GoldCap Companion et lance-le.",
+  ["3. Back in the game, type /reload."] = "3. De retour en jeu, tape /reload.",
+  ["Not installed on this computer? It is here:"] = "Pas installé sur cet ordinateur ? Il est ici :",
+  ["The latest version is here:"] = "La dernière version est ici :",
+  ["/gc companion opens this window again."] = "/gc companion rouvre cette fenêtre.",
+  ["Got it"] = "Compris",
+  ["Don't remind me"] = "Ne plus me rappeler",
 }

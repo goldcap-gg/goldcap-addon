@@ -2,6 +2,15 @@
 
 ## 0.21.0 (unreleased)
 
+- A welcome window opens the first time you visit the auction house with GoldCap. It says what
+  DEALS, SELL and BUY do, how old your prices are, and where they come from. Without GoldCap
+  Companion, retail prices are the ones GoldCap shipped with and change only when GoldCap updates,
+  and DEALS cannot find deals on them at all; the window gives the link and three steps to set
+  the Companion up. In WoW: Forever it says your prices come from your own scans, and what the
+  Companion adds: every GoldCap player's scans of your auction house.
+- If your prices go stale later, or the Companion stops sending them, the window comes back at the
+  auction house at most every few days and says what to do. Don't remind me turns that off;
+  `/gc companion` opens it whenever you like.
 - Deals, Items board: the board has two sections. Flips are items that sell, and each says how
   many sold in the last 7 days and on how many realms. Once goldcap.gg has a week of realm sales,
   a flip's price is what it actually sold for, not what realms ask for it, so an item nobody buys

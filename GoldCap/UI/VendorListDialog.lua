@@ -4,7 +4,7 @@ GC.UI = GC.UI or {}
 
 -- A run's vendor stops as one selectable block of text -- and, through ShowCopyText, a list
 -- exported for Auctionator or TSM (UI/BuyLists.lua). WoW gives an addon no way to put
--- anything on the clipboard, so the standard shape -- UI/CompanionDialog.lua's link box,
+-- anything on the clipboard, so the standard shape -- UI/WelcomeFrame.lua's link box,
 -- UI/ImportDialog.lua's paste box -- is an EditBox holding the text, focused and fully
 -- selected, so Ctrl+C is the only thing left to do. Read-only in spirit: typing into it puts
 -- the list straight back rather than letting the player wander off with half a shopping list.
