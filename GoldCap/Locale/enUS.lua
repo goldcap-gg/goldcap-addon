@@ -73,6 +73,11 @@ GC.Locales.enUS = {
   ["AUTO · PAUSED: BUY WINDOW"] = "AUTO · PAUSED: BUY WINDOW",
   ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · PAUSED: ITEMS BOARD",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSED: MAILBOX OPEN",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · PAUSED: OTHER TAB",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Scan starts when you leave that tab: click Buy or GoldCap",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSED: SELL TAB",
   ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · PAUSED: YOUR SEARCH",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",

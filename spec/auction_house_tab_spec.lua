@@ -525,6 +525,50 @@ describe("Auction House tab", function()
     end)
   end)
 
+  -- The tabs Auto stands down for (UI/SniperFrame.lua's GC.Sniper._SyncAside): they show the
+  -- answer to a search of their own, and a scan page replaces it.
+  describe("PlayerIsAside", function()
+    local modes
+    before_each(function()
+      modes = _G.AuctionHouseFrameDisplayMode
+      modes.Auctions, modes.WoWTokenSell = {}, {}
+      GC.AuctionHouseTab.Install()
+    end)
+
+    it("fails open before the auction house has chosen anything", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsAside())
+    end)
+
+    it("is false on Buy and on a buy page", function()
+      for _, mode in ipairs({ modes.Buy, modes.ItemBuy, modes.CommoditiesBuy }) do
+        ah:SetDisplayMode(mode)
+        assert.is_false(GC.AuctionHouseTab.PlayerIsAside())
+      end
+    end)
+
+    it("is true on Blizzard's Sell and Auctions", function()
+      for _, mode in ipairs({ modes.ItemSell, modes.CommoditiesSell, modes.WoWTokenSell, modes.Auctions }) do
+        ah:SetDisplayMode(mode)
+        assert.is_true(GC.AuctionHouseTab.PlayerIsAside())
+      end
+    end)
+
+    -- LibAHTab's SetSelected: SetDisplayMode({}), then the field cleared.
+    it("is true on another addon's tab, and false on ours", function()
+      ah:SetDisplayMode({})
+      ah.displayMode = nil
+      assert.is_true(GC.AuctionHouseTab.PlayerIsAside())
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsAside())
+    end)
+
+    it("fails open if Blizzard's own display-mode table ever goes missing", function()
+      ah:SetDisplayMode(modes.Auctions)
+      _G.AuctionHouseFrameDisplayMode = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsAside())
+    end)
+  end)
+
   -- The player's own browse results (a plain search like "Teebu") are theirs. The book pass
   -- and the key polls (SearchForItemKeys, both the Items board's and the BUY tab's floor
   -- refresh) all answer through the same GetBrowseResults() buffer Blizzard's Buy pane reads

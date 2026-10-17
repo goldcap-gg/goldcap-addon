@@ -919,6 +919,11 @@ GC.Locales.esES = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "En pausa mientras escribes en la búsqueda de la casa de subastas. Sigue unos segundos después de que la dejes.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · EN PAUSA: BUZÓN ABIERTO",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · EN PAUSA: OTRA PESTAÑA",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "En pausa mientras otra pestaña de la casa de subastas está abierta: Vender, Subastas o la de otro addon, como Selling de Auctionator. Un escaneo sustituiría lo que muestra esa pestaña. Pulsa Comprar o la pestaña GoldCap abajo en la casa de subastas y Auto sigue.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "El escaneo empieza al salir de esa pestaña: Comprar o GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "En pausa mientras el buzón está abierto. Ciérralo y Auto sigue.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · EN PAUSA: PESTAÑA VENDER",

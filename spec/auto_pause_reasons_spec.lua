@@ -82,6 +82,67 @@ describe("Auto says why it is not scanning", function()
     assert.equal("AUTO · WAITING: YOUR LIST", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
   end)
 
+  -- Reported 2026-10-17: a player posted through Auctionator's Selling tab, came back to Deals
+  -- in the floating window, and AUTO and SCAN did nothing until /reload. In game the same day
+  -- the button read "AUTO · WAITING FOR YOU" over that tab, and clicking GoldCap's own tab left
+  -- it "PAUSED: YOUR SEARCH". Auto stands down for another tab exactly as long as it is up, and
+  -- says which.
+  describe("another auction house tab", function()
+    local GC, feedAuto, autoScan, autoButtonText, aside
+    before_each(function()
+      GC, feedAuto, autoScan, autoButtonText = loadSniper()
+      aside = false
+      GC.AuctionHouseTab = { PlayerIsAside = function() return aside end, PlayerIsBusy = function() return false end }
+      feedAuto("toggleOn")
+    end)
+
+    it("pauses while it is up and names it, with what to do", function()
+      aside = true
+      GC.Sniper._SyncAside()
+      assert.equal("PAUSED", autoScan:State())
+      assert.equal("AUTO · PAUSED: OTHER TAB", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
+      assert.equal(GC.L["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."],
+        GC.Sniper._AutoHelp()[1])
+    end)
+
+    it("carries on once it is gone, whatever the player clicked to leave it", function()
+      aside = true
+      GC.Sniper._SyncAside()
+      aside = false
+      GC.Sniper._SyncAside()
+      assert.equal("WAITING", autoScan:State())
+      assert.same({}, autoScan:PauseReasons())
+    end)
+
+    it("pauses again after an AUTO toggle wiped the reason while the tab stayed up", function()
+      aside = true
+      GC.Sniper._SyncAside()
+      feedAuto("toggleOff")
+      feedAuto("toggleOn")
+      assert.is_nil(autoScan:PauseReasons().aside)
+      GC.Sniper._SyncAside()
+      assert.is_true(autoScan:PauseReasons().aside)
+    end)
+
+    it("leaves an Auto that is off alone", function()
+      feedAuto("toggleOff")
+      aside = true
+      GC.Sniper._SyncAside()
+      assert.equal("OFF", autoScan:State())
+    end)
+
+    it("is asked on every tick of Auto's clock and on every tab change", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local text = f:read("*a")
+      f:close()
+      local tick = assert(text:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()", 1, true))
+      local sync = assert(text:find("GC.Sniper._SyncAside()", tick, true))
+      assert.is_true(sync < assert(text:find("autoScan:Tick(GetTime())", tick, true)))
+      assert.is_truthy(text:find('hooksecurefunc, AuctionHouseFrame, "SetDisplayMode", function() GC.Sniper._SyncAside() end',
+        1, true))
+    end)
+  end)
+
   -- Review I1: Theme.Button bounds its label to the button, one line, no wrap -- so the client's
   -- GetStringWidth answers with the width it has already cut the label to, and a button sized
   -- off that never grew past "AUTO · PAUSED: MAILB...". The stub tells the two widths apart.

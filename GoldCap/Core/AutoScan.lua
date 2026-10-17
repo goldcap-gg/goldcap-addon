@@ -97,6 +97,10 @@ function GC.AutoScan.New(timers, actions)
     ["resume:dialog"] = function(now) removePause("dialog", now) end,
     ["pause:search"] = function() addPause("search") end,
     ["resume:search"] = function(now) removePause("search", now) end,
+    -- Another auction house tab is up: Blizzard's Sell or Auctions, or another addon's. Fed for
+    -- exactly as long as it is (UI/SniperFrame.lua's GC.Sniper._SyncAside).
+    ["pause:aside"] = function() addPause("aside") end,
+    ["resume:aside"] = function(now) removePause("aside", now) end,
     ["pause:mail"] = function() addPause("mail") end,
     ["resume:mail"] = function(now) removePause("mail", now) end,
     ["pause:sell"] = function() addPause("sell") end,

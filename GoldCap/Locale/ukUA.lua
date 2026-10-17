@@ -902,6 +902,11 @@ GC.Locales.ukUA = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Пауза, поки ви друкуєте в пошуку аукціону. Продовжить за кілька секунд після того, як ви з нього вийдете.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ВІДКРИТА ПОШТА",
+  ["AUTO · PAUSED: OTHER TAB"] = "АВТО · ПАУЗА: ІНША ВКЛАДКА",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Пауза, поки відкрита інша вкладка аукціону: Продаж, Аукціони або вкладка іншого аддона, наприклад Selling в Auctionator. Скан замінив би те, що вона показує. Натисніть Купити або вкладку GoldCap унизу аукціону, і Авто продовжить.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Скан почнеться, коли підете з вкладки: Купити або GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Пауза, поки відкрита поштова скринька. Закрийте її, і Авто продовжить.",
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖ",

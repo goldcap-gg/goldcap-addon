@@ -865,6 +865,11 @@ GC.Locales.koKR = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "경매장 검색창에 입력하는 동안 일시중지됩니다. 검색창을 벗어나고 몇 초 뒤에 이어집니다.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "자동 · 일시중지: 우편함 열림",
+  ["AUTO · PAUSED: OTHER TAB"] = "자동 · 일시중지: 다른 탭",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "경매장의 다른 탭이 열려 있는 동안 일시중지됩니다: 판매, 경매, 또는 Auctionator의 Selling 같은 다른 애드온의 탭. 검색하면 그 탭에 표시된 내용을 덮어씁니다. 경매장 아래쪽의 구매 탭이나 GoldCap 탭을 누르면 자동이 이어집니다.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "그 탭을 떠나면 검색이 시작됩니다: 구매 또는 GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "우편함이 열려 있는 동안 일시중지됩니다. 닫으면 자동이 이어집니다.",
   ["AUTO · PAUSED: SELL TAB"] = "자동 · 일시중지: 판매 탭",

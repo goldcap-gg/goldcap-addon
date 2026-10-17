@@ -888,6 +888,11 @@ GC.Locales.ruRU = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Пауза, пока вы печатаете в поиске аукциона. Продолжит через несколько секунд после того, как вы из него выйдете.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ОТКРЫТА ПОЧТА",
+  ["AUTO · PAUSED: OTHER TAB"] = "АВТО · ПАУЗА: ДРУГАЯ ВКЛАДКА",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Пауза, пока открыта другая вкладка аукциона: Продать, Аукционы или вкладка другого аддона, например Selling у Auctionator. Скан заменил бы то, что она показывает. Нажмите Купить или вкладку GoldCap внизу аукциона, и Авто продолжит.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Скан начнётся, когда уйдёте с вкладки: Купить или GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Пауза, пока открыт почтовый ящик. Закройте его, и Авто продолжит.",
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖА",

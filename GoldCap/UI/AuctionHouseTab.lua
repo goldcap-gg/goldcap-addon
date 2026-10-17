@@ -555,6 +555,20 @@ function GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
   return not (dock and dock:IsShown())
 end
 
+-- True while the auction house shows a tab that is not Buy and not ours: Blizzard's Sell or
+-- Auctions, or another addon's (PlayerIsUsingAnotherTab). Auto stands down for exactly as long as
+-- this holds (UI/SniperFrame.lua's GC.Sniper._SyncAside): those tabs show the answer to a search
+-- of their own, and a scan page replaces it. A buy page is not one: PlayerIsBuying holds the
+-- senders for the player's own, and a page our own search opened is nobody's. Fails open.
+function GC.AuctionHouseTab.PlayerIsAside()
+  if GC.AuctionHouseTab.PlayerIsUsingAnotherTab() then return true end
+  if not currentMode then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes then return false end
+  return currentMode == modes.ItemSell or currentMode == modes.CommoditiesSell
+    or currentMode == modes.WoWTokenSell or currentMode == modes.Auctions
+end
+
 -- True while Blizzard's own Buy/Browse pane -- the browse list itself, .Buy, distinct from the
 -- .ItemBuy/.CommoditiesBuy purchase form PlayerIsBuying reads -- is the visible panel and our
 -- own window is not. The player's own browse results are theirs: the book pass

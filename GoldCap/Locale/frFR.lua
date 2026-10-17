@@ -917,6 +917,11 @@ GC.Locales.frFR = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "En pause pendant que tu tapes dans la recherche de l'hôtel des ventes. Reprend quelques secondes après que tu l'as quittée.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · EN PAUSE : COURRIER OUVERT",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · EN PAUSE : AUTRE ONGLET",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "En pause tant qu'un autre onglet de l'hôtel des ventes est ouvert : Vendre, Enchères ou celui d'un autre addon, comme Selling d'Auctionator. Un scan remplacerait ce que cet onglet affiche. Clique sur Acheter ou sur l'onglet GoldCap en bas de l'hôtel des ventes et Auto reprend.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Le scan démarre quand tu quittes cet onglet : Acheter ou GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "En pause tant que la boîte aux lettres est ouverte. Ferme-la et Auto reprend.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · EN PAUSE : ONGLET VENTE",

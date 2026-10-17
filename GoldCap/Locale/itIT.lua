@@ -917,6 +917,11 @@ GC.Locales.itIT = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "In pausa mentre scrivi nella ricerca della casa d'aste. Riprende qualche secondo dopo che la lasci.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · IN PAUSA: POSTA APERTA",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · IN PAUSA: ALTRA SCHEDA",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "In pausa finché è aperta un'altra scheda della casa d'aste: Vendi, Aste o quella di un altro addon, come Selling di Auctionator. Una scansione sostituirebbe ciò che quella scheda mostra. Clicca Compra o la scheda GoldCap in fondo alla casa d'aste e Auto riprende.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "La scansione parte quando lasci la scheda: Compra o GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "In pausa finché la cassetta della posta è aperta. Chiudila e Auto riprende.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · IN PAUSA: SCHEDA VENDI",

@@ -918,6 +918,11 @@ GC.Locales.deDE = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Pausiert, während du im Suchfeld des Auktionshauses tippst. Läuft ein paar Sekunden, nachdem du es verlässt, weiter.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSIERT: POST OFFEN",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · PAUSIERT: ANDERER TAB",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Pausiert, solange ein anderer Tab im Auktionshaus offen ist: Verkaufen, Auktionen oder der Tab eines anderen Addons, etwa Selling von Auctionator. Ein Scan würde ersetzen, was dieser Tab zeigt. Klick unten im Auktionshaus auf Kaufen oder den GoldCap-Tab, dann läuft Auto weiter.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Scan startet, sobald du den Tab verlässt: Kaufen oder GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Pausiert, solange der Briefkasten offen ist. Schließ ihn, dann läuft Auto weiter.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSIERT: VERKAUFEN-TAB",

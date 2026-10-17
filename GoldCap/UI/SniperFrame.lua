@@ -4210,6 +4210,27 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
+-- Auto stands down while another auction house tab is up (GC.AuctionHouseTab.PlayerIsAside), for
+-- exactly as long as it is: asked on every tick of Auto's clock and on every tab change, never
+-- fed once and left to an event to lift. The tab change used to pause Auto as "your search"
+-- until the Buy tab or a fresh OnShow of this window lifted it, and neither comes when the
+-- window floats beside the auction house: a player who posted through Auctionator's Selling tab
+-- came back to Deals and found Auto and SCAN dead until /reload (reported 2026-10-17), and in
+-- game the same day clicking GoldCap's own tab left it paused too. Asked against the machine's
+-- own reasons, so a toggle that wiped them is set right on the next tick. A field, not a local:
+-- this chunk sits near its 200-local ceiling.
+function GC.Sniper._SyncAside()
+  if autoScan:State() == "OFF" then return end
+  local tab = GC.AuctionHouseTab
+  local aside = (tab and tab.PlayerIsAside and tab.PlayerIsAside()) and true or false
+  local paused = autoScan:PauseReasons().aside == true
+  if aside and not paused then
+    feedAuto("pause:aside")
+  elseif paused and not aside then
+    feedAuto("resume:aside")
+  end
+end
+
 -- What holds Auto, in plain words: the button's label, then the tooltip's sentence saying what
 -- the player can do about it. In game 2026-09-23 `/gc board` printed `reasons=[mail,buy]` while
 -- the button said little more than "AUTO", and the owner could not tell why nothing ran. `busy`
@@ -4230,6 +4251,8 @@ local AUTO_PAUSE_LABEL = {
     "Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on." },
   buy = { "AUTO · PAUSED: BUY TAB",
     "Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on." },
+  aside = { "AUTO · PAUSED: OTHER TAB",
+    "Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on." },
   busy = { "AUTO · WAITING FOR YOU",
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop." },
   browse = { "AUTO · WAITING: YOUR LIST",
@@ -4240,7 +4263,7 @@ local AUTO_PAUSE_LABEL = {
 -- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
 -- deliberately absent -- per spec they render as plain "AUTO", not a paused chip, since
 -- neither reflects something the player is actively DOING right now.
-local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
+local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "aside", "sell", "items", "buy" }
 
 -- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
 -- auction house a pass comes and goes every second, and the chip blinked with it (owner, WoW:
@@ -4467,7 +4490,15 @@ local function onFullScanClick()
     return
   end
 
-  frame.status:SetText(GC.L["starting full scan..."])
+  -- Another auction house tab is up and holds every sender (PlayerIsBusy): the pass is armed and
+  -- goes out the moment the player leaves it. "starting full scan..." under a tab that holds it
+  -- read as a button that does nothing (reported 2026-10-17, Auctionator's Selling tab).
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsAside and tab.PlayerIsAside() and tab.PlayerIsBusy and tab.PlayerIsBusy() then
+    frame.status:SetText(GC.L["Scan starts when you leave that tab: click Buy or GoldCap"])
+  else
+    frame.status:SetText(GC.L["starting full scan..."])
+  end
   startFullScan()
   refreshScanButton()
 end
@@ -12197,20 +12228,17 @@ local searchHooksInstalled = false
 -- Detection rule (documented here since Blizzard exposes no "are the live browse/search
 -- results the player's own" flag to just read):
 --   pause:search  -- fires the instant the player's own search box gains keyboard focus
---                    (about to type their own query), OR SetDisplayMode reports a mode OTHER
---                    than Buy/browse (switching to Sell/Auctions within Blizzard's OWN AH
---                    frame can itself re-issue a browse/search query we don't control).
---                    Either one means the live browse/search result state might stop being
---                    OUR scan's at any moment.
+--                    (about to type their own query): the live browse/search result state
+--                    might stop being OUR scan's at any moment.
 --   resume:search -- fires when the search box loses focus (AND our own Sniper window is
 --                    shown -- window-visible is the closest available proxy for "the
 --                    player's attention is back on the addon", since there's no API to ask
---                    "are the current results the player's search or ours"), OR when
---                    SetDisplayMode reports a return to the Buy/browse mode. Resuming is
+--                    "are the current results the player's search or ours"). Resuming is
 --                    deliberately conservative for the same reason a resume always re-issues
 --                    a FRESH browse query regardless of what's currently live (see
 --                    AutoScan.lua): the worst case of resuming "too early" is clobbering
 --                    results the player is still reading.
+-- A tab change is not a search: it is GC.Sniper._SyncAside's, asked again on every change.
 --
 -- (fix round 1, C2) `AuctionHouseFrame.SearchBar` may be a plain container Frame whose actual
 -- EditBox child is `.SearchBox` -- HookScript("OnEditFocusGained"/"OnEditFocusLost") on
@@ -12251,41 +12279,16 @@ local function installSearchHooks()
     end)
   end
 
-  -- (fix round 1, C3) SetDisplayMode alone previously only ever fed pause:search, with no
-  -- resume counterpart -- a single AH tab click would strand Auto in "paused: searching" for
-  -- the rest of the session.
+  -- A tab change answers at once rather than on the next tick: a Blizzard tab is known by the
+  -- time this runs. Another addon's tab (LibAHTab) clears the display mode only after
+  -- SetDisplayMode returns, so the tick a moment later is what sees it; the senders are held
+  -- from that same moment by PlayerIsBusy either way.
   --
-  -- (fix round 2) Enum.AuctionHouseDisplayMode does not exist on the live client -- confirmed
-  -- against Gethe/wow-ui-source, Interface/AddOns/Blizzard_AuctionHouseUI/Shared/
-  -- Blizzard_AuctionHouseFrame.lua, read verbatim: the mode identifiers are keys of the plain
-  -- Lua table AuctionHouseFrameDisplayMode (Buy/WoWTokenBuy/CommoditiesBuy/ItemBuy/
-  -- CommoditiesSell/ItemSell/WoWTokenSell/Auctions), never an Enum, so the old comparison
-  -- always fell through to the degraded branch below. Use the same verified global
-  -- GC.AuctionHouseTab.PlayerIsPosting/PlayerIsBuying already read, guarded the same way in
-  -- case some future client build renames or drops it.
-  local buyMode = _G.AuctionHouseFrameDisplayMode and _G.AuctionHouseFrameDisplayMode.Buy
+  -- It used to pause Auto as "your search" on any mode but Buy, lifted only by Buy or a fresh
+  -- OnShow of this window -- a pause no event lifts while the window floats beside another tab,
+  -- and a buy page our own search opened paused it as well.
   if AuctionHouseFrame.SetDisplayMode then
-    pcall(hooksecurefunc, AuctionHouseFrame, "SetDisplayMode", function(_, newDisplayMode)
-      if buyMode ~= nil then
-        if newDisplayMode == buyMode then
-          feedAuto("resume:search")
-        else
-          feedAuto("pause:search")
-        end
-        return
-      end
-      -- AuctionHouseFrameDisplayMode itself missing (a client shape this was never verified
-      -- against): can't tell Buy mode from any other, so pause immediately (a mode change
-      -- COULD be the player driving the AH's own search) and, if our window is up, resume
-      -- after a short defer -- long enough for the mode transition's own query to land first --
-      -- so one stray SetDisplayMode call can't strand Auto for the session.
-      feedAuto("pause:search")
-      if frame and frame:IsShown() then
-        C_Timer.After(0.5, function()
-          if frame and frame:IsShown() then feedAuto("resume:search") end
-        end)
-      end
-    end)
+    pcall(hooksecurefunc, AuctionHouseFrame, "SetDisplayMode", function() GC.Sniper._SyncAside() end)
   end
 end
 
@@ -12333,6 +12336,8 @@ function GC.Sniper.OnAuctionHouseShow()
   -- (refreshVerifyButton) and carrying it, through what the rest of the tick wrote, into a Buy
   -- click that was then blocked. Nothing written after a repaint can carry what a repaint read.
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
+    -- First, so a tab the player has just opened or left counts before the machine moves.
+    GC.Sniper._SyncAside()
     autoScan:Tick(GetTime())
     -- Background verification rides the same clock, for the same reason the toolbar buttons do
     -- (below): one place drives it, so it cannot be forgotten by a path that changes state.
@@ -12488,6 +12493,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- itself is gone. (fix round 1, C3: resume:mail added for symmetry with resume:search.)
   feedAuto("resume:search")
   feedAuto("resume:mail")
+  feedAuto("resume:aside")
 
   local session = GC.Sniper.session
   if session.buys > 0 then

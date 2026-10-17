@@ -9,6 +9,11 @@
   are ordered by the profit their check found.
 - Deals: a row nobody has checked yet shows its profit in grey. That figure is an estimate: the
   scan sees the cheapest price and how many are listed in all, not how many sit at that price.
+- Deals: after you used another auction house tab, such as Auctionator's Selling, Auto could stay
+  stopped even once you were back on Deals or on the GoldCap tab. It now pauses only while such a
+  tab is open, says AUTO · PAUSED: OTHER TAB, and carries on as soon as you click Buy or the
+  GoldCap tab. SCAN pressed while such a tab is open says it is waiting for it, instead of
+  seeming to do nothing.
 - Deals: a purchase names the item in the status line instead of its number, the session counter
   reads BUYS 1 rather than 1 BUYS, and a check that limits the buy to one says 1 unit.
 

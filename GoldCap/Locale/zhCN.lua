@@ -841,6 +841,10 @@ GC.Locales.zhCN = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "你在拍卖行搜索框里输入时暂停。离开搜索框几秒后继续。",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "自动 · 已暂停：邮箱已打开",
+  ["AUTO · PAUSED: OTHER TAB"] = "自动 · 已暂停：其他标签页",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "拍卖行的其他标签页打开时暂停：出售、拍卖，或其他插件的标签页，例如 Auctionator 的 Selling。扫描会替换那个标签页显示的内容。点击拍卖行底部的购买或 GoldCap 标签页，自动会继续。",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] = "离开那个标签页后扫描开始：点击购买或 GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] = "邮箱打开时暂停。关闭邮箱后，自动会继续。",
   ["AUTO · PAUSED: SELL TAB"] = "自动 · 已暂停：出售标签页",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =

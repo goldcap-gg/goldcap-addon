@@ -914,6 +914,11 @@ GC.Locales.ptBR = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Pausado enquanto você digita na busca da casa de leilões. Continua alguns segundos depois que você sai dela.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSADO: CORREIO ABERTO",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · PAUSADO: OUTRA ABA",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Pausado enquanto outra aba da casa de leilões está aberta: Vender, Leilões ou a de outro addon, como Selling do Auctionator. Uma varredura substituiria o que essa aba mostra. Clique em Comprar ou na aba GoldCap embaixo na casa de leilões e o Auto continua.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "A varredura começa quando você sai dessa aba: Comprar ou GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Pausado enquanto a caixa de correio está aberta. Feche-a e o Auto continua.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSADO: ABA VENDER",
