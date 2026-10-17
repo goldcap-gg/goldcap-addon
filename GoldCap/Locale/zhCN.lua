@@ -41,6 +41,7 @@ GC.Locales.zhCN = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "实时检查拒绝了 %d 笔。按上方的“HIDDEN %d”查看",
   ["%d units"] = "%d 件",
+  ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 个价位",
   ["%d · %d/%d covered"] = "%d · %d/%d 已覆盖",
   ["%d/%d covered"] = "%d/%d 已覆盖",
@@ -436,7 +437,7 @@ GC.Locales.zhCN = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "即时保存 · 按 ESC 或 DONE 关闭",
   ["SCAN"] = "扫描",
   ["SCANNING…"] = "扫描中…",
-  ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 笔购买",
+  ["SESSION %s%s · BUYS %d"] = "本次 %s%s · 购买 %d 笔",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
   ["Sales evidence"] = "销售可信度",
@@ -626,8 +627,9 @@ GC.Locales.zhCN = {
   ["below the %s breakeven"] = "低于保本价 %s",
   ["below the %s you paid"] = "低于你付出的 %s",
   ["big buy"] = "大额购买",
-  ["bought %d x item %d"] = "已购买 %d 件 · 物品 %d",
-  ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
+  ["bought %d"] = "已购买 %d 件",
+  ["bought %d x %s"] = "已购买 %d 件 · %s",
+  ["bought %d after AH close"] = "拍卖行关闭后购买 %d 件",
   ["buying commodity..."] = "正在购买商品...",
   ["cheapest not yours %s"] = "非你的最低价 %s",
   ["checking live price..."] = "正在检查实时价格...",
@@ -672,7 +674,7 @@ GC.Locales.zhCN = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "是这个市场能消化的量。再多就是压在手里的库存",
   ["item %d"] = "物品 %d",
-  ["item %d: %s"] = "物品 %d：%s",
+  ["%s: %s"] = "%s：%s",
   ["item level %d+"] = "物品等级 %d+",
   ["item variant unresolved"] = "物品变体未确定",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =

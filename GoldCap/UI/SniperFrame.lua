@@ -809,9 +809,11 @@ local SORT_VALUE = {
   tier = function(deal, pending) return GC.BoardRows.Rank(verdictFor(deal), pending) end,
   pct = function(deal) return deal.discount end,
   unit = function(deal) return deal.unitPrice end,
-  -- A cap row's total is what its decision's units cost (buildCapDeal's capTotal).
-  price = function(deal) return deal.capTotal or deal.unitPrice * deal.qty end,
-  profit = function(deal) return deal.profit end,
+  -- What the total and profit cells show (GC.BoardRows.Figures): a checked row's plan, else the
+  -- discovery estimate. A cap row's total is what its decision's units cost (buildCapDeal's
+  -- capTotal).
+  price = function(deal) local _, total = GC.BoardRows.Figures(deal, verdictFor(deal)); return total end,
+  profit = function(deal) local _, _, profit = GC.BoardRows.Figures(deal, verdictFor(deal)); return profit end,
 }
 
 -- Applies the header-click sort override (if any) on a COPY of `list` -- `list` here is
@@ -1091,13 +1093,15 @@ end
 -- caps it well below what the market actually holds -- see that file's own comment), not the
 -- lot size -- rendering it bare as "x200" reads as "that's all there is" when the board might
 -- really carry 1646. Whenever `avail` (the real total) is known and bigger than qty, show
--- both so the number in the suffix stops implying a scarcity that isn't real.
-local function qtySuffix(deal)
-  if deal.avail and deal.avail > deal.qty then
-    return ("|cff8c8a85 x%d of %d|r"):format(deal.qty, deal.avail)
+-- both so the number in the suffix stops implying a scarcity that isn't real. `qty` is the
+-- quantity the row shows (GC.BoardRows.Figures): a checked row's planned buy, else deal.qty.
+local function qtySuffix(deal, qty)
+  qty = qty or deal.qty
+  if deal.avail and deal.avail > qty then
+    return ("|cff8c8a85 x%d of %d|r"):format(qty, deal.avail)
   end
-  if deal.qty and deal.qty > 1 then
-    return ("|cff8c8a85 x%d|r"):format(deal.qty)
+  if qty and qty > 1 then
+    return ("|cff8c8a85 x%d|r"):format(qty)
   end
   return ""
 end
@@ -1272,6 +1276,11 @@ local function setRowDeal(row, deal)
   local trend = value and value.trend
   -- The Items board's lines under the name: the collection mark, how often a flip sells.
   local notes = GC.Sniper._RowNotes(deal)
+  -- What the quantity, total and profit cells say: a live Check's plan once there is one, else
+  -- discovery's estimate (GC.BoardRows.Figures). A watched placeholder is not a deal, and its
+  -- cells below keep their own rules.
+  local qty, total, profit = deal.qty, nil, deal.profit
+  if not deal.pinPlaceholder then qty, total, profit = GC.BoardRows.Figures(deal, verdict) end
 
   -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
   -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
@@ -1285,8 +1294,9 @@ local function setRowDeal(row, deal)
   -- otherwise a row that goes empty and comes back showing the exact same deal would stay
   -- invisible, `row:Show()` below being the one thing the skip must never skip.
   local sig = table.concat({
-    deal.itemID, deal.unitPrice, deal.qty, tostring(deal.avail),
-    (GC.Sniper._pendingRows or {})[deal.itemID] and 1 or 0, deal.profit, tostring(deal.discount),
+    deal.itemID, deal.unitPrice, qty, tostring(deal.avail), tostring(total),
+    (GC.Sniper._pendingRows or {})[deal.itemID] and 1 or 0, profit, tostring(deal.discount),
+    (verdict and verdict.unverified) and 1 or 0,
     deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
@@ -1435,8 +1445,9 @@ local function setRowDeal(row, deal)
   else
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    -- Total cost, not per-unit -- and for a cap row the real sum over the levels it buys.
-    row.priceText:SetText(GC.Util.FormatMoney(deal.capTotal or deal.unitPrice * deal.qty))
+    -- Total cost, not per-unit -- and for a cap row or a checked one the real sum over the levels
+    -- it buys, which the cheapest unit times the quantity is not.
+    row.priceText:SetText(GC.Util.FormatMoney(total))
     row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
 
@@ -1456,12 +1467,13 @@ local function setRowDeal(row, deal)
     row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
     row.profitText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   else
-    row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
-    if deal.profit >= 0 then
-      row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
-    else
-      row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-    end
+    -- Green or red only for a figure something live measured; discovery's estimate is muted and
+    -- a refused row's figure dim (GC.BoardRows.ProfitTone). The row tooltip says which.
+    row.profitText:SetText((profit > 0 and "+" or "") .. GC.Util.FormatMoney(profit))
+    local tone = GC.BoardRows.ProfitTone(deal, verdict)
+    local pc = tone == "estimate" and Theme.color.fgMuted or tone == "refused" and Theme.color.fgDim
+      or profit >= 0 and Theme.color.green or Theme.color.red
+    row.profitText:SetTextColor(pc[1], pc[2], pc[3])
   end
 
   -- Sniper v3 trend column: mirrors the dialog's own value.trend read (updateDialogAmounts)
@@ -1500,7 +1512,7 @@ local function setRowDeal(row, deal)
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
-    row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix .. GC.Sniper._RowNotes(deal) }
+    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix .. GC.Sniper._RowNotes(deal) }
     GC.Sniper._FitRowName(row)
   end
   GC.Sniper._StampItem(row, deal, stampName)
@@ -1724,6 +1736,15 @@ function GC.Sniper._RowItemLink(itemID)
   if not (C_Item and C_Item.GetItemInfo) then return nil end
   local _, link = C_Item.GetItemInfo(itemID)
   return link
+end
+
+-- The item's name for a status line, or "item <id>" while the client has not loaded it. A bought
+-- line used to read "bought 1 x item 192883" (in game 2026-10-17). A field, not a local: this
+-- chunk sits near its 200-local ceiling.
+function GC.Sniper._ItemLabel(itemID)
+  local name = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(itemID)
+  if type(name) == "string" and name ~= "" then return name end
+  return (GC.L["item %d"]):format(itemID)
 end
 
 -- A modified left click is the item's, never the row's Check or Buy: true when it was one.
@@ -4405,7 +4426,7 @@ refreshSessionText = function()
   local s = GC.Sniper.session
   if not s or s.buys == 0 then fs:Hide() return end
   local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
-  fs:SetText((GC.L["SESSION %s%s · %d BUYS"]):format(s.estProfit >= 0 and "+" or "",
+  fs:SetText((GC.L["SESSION %s%s · BUYS %d"]):format(s.estProfit >= 0 and "+" or "",
     GC.Util.FormatMoney(s.estProfit), s.buys))
   fs:SetTextColor(c[1], c[2], c[3])
   fs:Show()
@@ -4882,7 +4903,7 @@ local function drawVerdict(deal, decision, market)
     caption = (GC.L[CV.HERO_CAPTION.days]):format(quantity,
       GC.Util.FormatCount(market.soldPerDay) or "-", displayDecisionAmount(decision.entryTotal))
   elseif hero.kind == "units" then
-    figure = (GC.L["%d units"]):format(hero.quantity)
+    figure = hero.quantity == 1 and GC.L["1 unit"] or (GC.L["%d units"]):format(hero.quantity)
     figureColor = Theme.color.gold
     caption = GC.L[CV.HERO_CAPTION.units]
   elseif hero.kind == "cap" then
@@ -5295,7 +5316,7 @@ local function reportDetachedCommodity(pending, note)
     quote = pending.quote,
     note = note,
   }
-  local text = (GC.L["item %d: %s"]):format(itemID, note)
+  local text = (GC.L["%s: %s"]):format(GC.Sniper._ItemLabel(itemID), note)
   if frame then frame.status:SetText(text) end
   if GC.Print then GC.Print(text) end
 end
@@ -5315,8 +5336,8 @@ local function settleDetachedConfirmed(pending, terminal)
     local purchase = deal and purchaseFacts(deal, pending.quote)
     if purchase then
       recordPurchaseFacts(deal, purchase)
-      reportDetachedCommodity(pending, (closed and GC.L["bought %d x item %d after AH close"]
-        or GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID))
+      reportDetachedCommodity(pending, (closed and GC.L["bought %d after AH close"]
+        or GC.L["bought %d"]):format(purchase.quantity))
       return
     end
     reportDetachedCommodity(pending, GC.L["purchase total unavailable. Check your mail"])
@@ -6673,6 +6694,9 @@ stampVerdict = function(deal, data, manual)
     unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
     buyable = buyable, unverified = unverified, status = status, reason = reason,
     stressProfit = data and data.decision and data.decision.stressProfit,
+    -- The rest of the buy the check planned, so the row shows that buy and not discovery's
+    -- guess at it (GC.BoardRows.Figures): how many, and what they cost across the levels.
+    quantity = decision and decision.quantity, entryTotal = decision and decision.entryTotal,
     -- Live price caps, addon task 6: carried through so GC.BoardRows.Bucket/Label (read off
     -- THIS table, not off `decision` directly -- see verdictFor) can rank/label a cap row ahead
     -- of an ordinary SAFE/WATCH one. GC.Caps.DecideRealm/DecideCommodity both set it.
@@ -8687,7 +8711,8 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
     return
   end
   local purchase = purchaseFacts(deal, quote)
-  resolvePurchase(row, true, purchase and (GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID)
+  resolvePurchase(row, true, purchase and (GC.L["bought %d x %s"]):format(purchase.quantity,
+    GC.Sniper._ItemLabel(deal.itemID))
     or GC.L["purchase total unavailable. Check your mail"], purchase, deal)
 end
 

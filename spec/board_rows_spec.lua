@@ -126,6 +126,108 @@ describe("BoardRows", function()
       assert.is_false(GC.BoardRows.Compare(a, { buyable = true }, false, b, { buyable = true }, false))
       assert.is_true(GC.BoardRows.Compare(b, { buyable = true }, false, a, { buyable = true }, false))
     end)
+
+    -- The rows of one bucket read top to bottom by the profit they show: a checked row's is its
+    -- plan's, so a huge estimate behind a one-unit Check no longer sits above a better buy.
+    it("orders checked rows by the profit their Check planned, not discovery's estimate", function()
+      local thin = { estProfit = 192000000 }
+      local deep = { estProfit = 4000000 }
+      local thinCheck = { buyable = true, quantity = 1, entryTotal = 218400, stressProfit = 225800 }
+      local deepCheck = { buyable = true, quantity = 226, entryTotal = 4180000, stressProfit = 419000 }
+      assert.is_true(GC.BoardRows.Compare(deep, deepCheck, false, thin, thinCheck, false))
+      assert.is_false(GC.BoardRows.Compare(thin, thinCheck, false, deep, deepCheck, false))
+    end)
+  end)
+
+  -- In game 2026-10-17: Glossy Stone read x85 for +2584g, and its Check bought one for +22g58s.
+  describe("Figures", function()
+    local floor = { itemID = 1, unitPrice = 218400, qty = 85, avail = 3639,
+      profit = 25840000, estProfit = 19200000 }
+
+    it("shows discovery's stress estimate before any Check, not the market-value profit", function()
+      local qty, total, profit, checked = GC.BoardRows.Figures(floor, nil)
+      assert.equal(85, qty)
+      assert.equal(218400 * 85, total)
+      assert.equal(19200000, profit)
+      assert.is_false(checked)
+    end)
+
+    it("falls back to profit for a row that carries no estimate", function()
+      local _, _, profit = GC.BoardRows.Figures({ unitPrice = 10, qty = 2, profit = 7 }, nil)
+      assert.equal(7, profit)
+    end)
+
+    it("shows the Check's planned buy once there is one", function()
+      local qty, total, profit, checked = GC.BoardRows.Figures(floor,
+        { buyable = true, quantity = 1, entryTotal = 218400, stressProfit = 225800 })
+      assert.equal(1, qty)
+      assert.equal(218400, total)
+      assert.equal(225800, profit)
+      assert.is_true(checked)
+    end)
+
+    -- A commodity buy walks up the levels: 226 units from a 1g40s floor cost 418g, not 316g.
+    it("totals what the planned units cost across the levels, not the floor times the quantity", function()
+      local _, total = GC.BoardRows.Figures({ unitPrice = 14000, qty = 453, estProfit = 1 },
+        { buyable = true, quantity = 226, entryTotal = 4180000, stressProfit = 419000 })
+      assert.equal(4180000, total)
+    end)
+
+    it("shows a refusal's plan too, when the Check planned a buy and turned it down", function()
+      local qty, _, profit, checked = GC.BoardRows.Figures(floor,
+        { buyable = false, status = "AVOID", quantity = 3, entryTotal = 700000, stressProfit = 12000 })
+      assert.equal(3, qty)
+      assert.equal(12000, profit)
+      assert.is_true(checked)
+    end)
+
+    it("keeps the estimate when the Check planned nothing", function()
+      local qty, total, profit, checked = GC.BoardRows.Figures(floor,
+        { buyable = false, status = "AVOID", quantity = 0 })
+      assert.equal(85, qty)
+      assert.equal(218400 * 85, total)
+      assert.equal(19200000, profit)
+      assert.is_false(checked)
+    end)
+
+    -- A realm lot's check prices the lot against the region reference and plans no stress exit.
+    it("keeps the estimate for a verdict with no stress profit", function()
+      local _, _, profit, checked = GC.BoardRows.Figures(floor,
+        { unverified = true, status = "WATCH", quantity = 1, entryTotal = 218400 })
+      assert.equal(19200000, profit)
+      assert.is_false(checked)
+    end)
+
+    it("keeps a YOUR PRICE row's own figures, which its cap decision measured", function()
+      local cap = { unitPrice = 100, qty = 400, capTotal = 29000000, profit = 5000, estProfit = 5000, cap = 120 }
+      local qty, total, profit, checked = GC.BoardRows.Figures(cap,
+        { cap = true, buyable = true, quantity = 400, entryTotal = 29000000, stressProfit = 1 })
+      assert.equal(400, qty)
+      assert.equal(29000000, total)
+      assert.equal(5000, profit)
+      assert.is_false(checked)
+    end)
+  end)
+
+  describe("ProfitTone", function()
+    it("is an estimate until anything has looked at the row live", function()
+      assert.equal("estimate", GC.BoardRows.ProfitTone({ estProfit = 1 }, nil))
+    end)
+
+    it("is measured for a buy the check approved, one that needs gold, and a realm lot it found", function()
+      assert.equal("measured", GC.BoardRows.ProfitTone({}, { buyable = true }))
+      assert.equal("measured", GC.BoardRows.ProfitTone({}, { buyable = false, needsGold = 2000 }))
+      assert.equal("measured", GC.BoardRows.ProfitTone({}, { buyable = false, unverified = true }))
+    end)
+
+    it("is measured for a YOUR PRICE row, checked or not", function()
+      assert.equal("measured", GC.BoardRows.ProfitTone({ cap = 120 }, nil))
+      assert.equal("measured", GC.BoardRows.ProfitTone({}, { cap = true }))
+    end)
+
+    it("is refused for a row the live check turned down", function()
+      assert.equal("refused", GC.BoardRows.ProfitTone({}, { buyable = false, status = "AVOID" }))
+    end)
   end)
 
   describe("Rank", function()

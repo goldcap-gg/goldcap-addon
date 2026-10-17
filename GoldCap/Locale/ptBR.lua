@@ -39,6 +39,7 @@ GC.Locales.ptBR = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d recusadas pela verificação ao vivo. Clique em \"HIDDEN %d\" acima para vê-las",
   ["%d units"] = "%d unid.",
+  ["1 unit"] = "1 unid.",
   ["%d units · %d prices"] = "%d unidades · %d preços",
   ["%d · %d/%d covered"] = "%d · %d/%d cobertos",
   ["%d/%d covered"] = "%d/%d cobertos",
@@ -465,7 +466,7 @@ GC.Locales.ptBR = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVO NA HORA · ESC OU DONE PARA FECHAR",
   ["SCAN"] = "VARRER",
   ["SCANNING…"] = "VARRENDO…",
-  ["SESSION %s%s · %d BUYS"] = "SESSÃO %s%s · %d COMPRAS",
+  ["SESSION %s%s · BUYS %d"] = "SESSÃO %s%s · COMPRAS %d",
   ["Sales are costed from your oldest units first"] =
     "As vendas são custeadas a partir das suas unidades mais antigas",
   ["Search"] = "Buscar",
@@ -679,9 +680,9 @@ GC.Locales.ptBR = {
   ["below the %s breakeven"] = "abaixo do ponto de equilíbrio de %s",
   ["below the %s you paid"] = "abaixo dos %s que você pagou",
   ["big buy"] = "compra grande",
-  ["bought %d x item %d"] = "comprados %d x item %d",
-  ["bought %d x item %d after AH close"] =
-    "comprados %d x item %d depois que a casa de leilões fechou",
+  ["bought %d"] = "comprados %d",
+  ["bought %d x %s"] = "comprados %d x %s",
+  ["bought %d after AH close"] = "comprados %d depois que a casa de leilões fechou",
   ["buying commodity..."] = "comprando mercadoria...",
   ["cheapest not yours %s"] = "o mais barato que não é seu %s",
   ["checking live price..."] = "verificando o preço ao vivo...",
@@ -730,7 +731,7 @@ GC.Locales.ptBR = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "é o que este mercado absorve. Além disso você compra estoque que vai ficar parado",
   ["item %d"] = "item %d",
-  ["item %d: %s"] = "item %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "nível de item %d+",
   ["item variant unresolved"] = "variante do item não resolvida",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =

@@ -40,6 +40,7 @@ GC.Locales.koKR = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "실시간 확인에서 %d건 거부. 위의 \"HIDDEN %d\"를 눌러 확인하세요",
   ["%d units"] = "%d개",
+  ["1 unit"] = "1개",
   ["%d units · %d prices"] = "%d개 · 가격 %d단",
   ["%d · %d/%d covered"] = "%d · %d/%d 확인됨",
   ["%d/%d covered"] = "%d/%d 확인됨",
@@ -442,7 +443,7 @@ GC.Locales.koKR = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "즉시 저장됨 · ESC 또는 DONE으로 닫기",
   ["SCAN"] = "검색",
   ["SCANNING…"] = "검색 중…",
-  ["SESSION %s%s · %d BUYS"] = "세션 %s%s · 구매 %d건",
+  ["SESSION %s%s · BUYS %d"] = "세션 %s%s · 구매 %d건",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Search"] = "검색",
   ["Sales evidence"] = "판매 신뢰도",
@@ -640,8 +641,9 @@ GC.Locales.koKR = {
   ["below the %s breakeven"] = "손익분기점 %s보다 낮음",
   ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",
-  ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
-  ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
+  ["bought %d"] = "%d개 구매",
+  ["bought %d x %s"] = "%d개 구매 · %s",
+  ["bought %d after AH close"] = "경매장 종료 후 %d개 구매",
   ["buying commodity..."] = "상품 구매 중...",
   ["cheapest not yours %s"] = "내 것이 아닌 최저가 %s",
   ["checking live price..."] = "실시간 가격 확인 중...",
@@ -688,7 +690,7 @@ GC.Locales.koKR = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "가 이 시장이 소화하는 양입니다. 그 이상은 떠안게 될 재고입니다",
   ["item %d"] = "아이템 %d",
-  ["item %d: %s"] = "아이템 %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "아이템 레벨 %d+",
   ["item variant unresolved"] = "아이템 변형 미확정",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =

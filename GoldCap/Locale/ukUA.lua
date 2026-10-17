@@ -39,6 +39,7 @@ GC.Locales.ukUA = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою. Натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
   ["%d units"] = "%d шт.",
+  ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цін",
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
@@ -461,7 +462,7 @@ GC.Locales.ukUA = {
     "ЗБЕРІГАЄТЬСЯ ОДРАЗУ · ESC АБО DONE, ЩОБ ЗАКРИТИ",
   ["SCAN"] = "СКАН",
   ["SCANNING…"] = "СКАНУЄМО…",
-  ["SESSION %s%s · %d BUYS"] = "СЕСІЯ %s%s · %d КУПІВЕЛЬ",
+  ["SESSION %s%s · BUYS %d"] = "СЕСІЯ %s%s · КУПІВЛІ %d",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
@@ -665,8 +666,9 @@ GC.Locales.ukUA = {
   ["below the %s breakeven"] = "нижче точки беззбитковості %s",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
-  ["bought %d x item %d"] = "куплено %d x предмет %d",
-  ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
+  ["bought %d"] = "куплено %d",
+  ["bought %d x %s"] = "куплено %d x %s",
+  ["bought %d after AH close"] = "куплено %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
   ["checking live price..."] = "перевіряємо живу ціну...",
@@ -715,7 +717,7 @@ GC.Locales.ukUA = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "стільки цей ринок перетравлює. Понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
-  ["item %d: %s"] = "предмет %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "рів. предмета %d+",
   ["item variant unresolved"] = "варіант предмета не визначено",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =

@@ -1,5 +1,17 @@
 # GoldCap
 
+## 0.21.1 (unreleased)
+
+- Deals: once a row has been checked live, its quantity, total and profit come from that check:
+  how many it would buy, what those cost, and what selling them makes. Before, the row kept the
+  scan's estimate, which prices every unit at the cheapest listing, so a row could promise +2584g
+  for 85 units when only one was listed that cheap and the check bought it for +22g. Checked rows
+  are ordered by the profit their check found.
+- Deals: a row nobody has checked yet shows its profit in grey. That figure is an estimate: the
+  scan sees the cheapest price and how many are listed in all, not how many sit at that price.
+- Deals: a purchase names the item in the status line instead of its number, the session counter
+  reads BUYS 1 rather than 1 BUYS, and a check that limits the buy to one says 1 unit.
+
 ## 0.21.0 (2026-10-16)
 
 - A welcome window opens the first time you visit the auction house with GoldCap. It says what

@@ -38,6 +38,7 @@ GC.Locales.itIT = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d rifiutate dal controllo dal vivo. Premi \"HIDDEN %d\" sopra per vederle",
   ["%d units"] = "%d unità",
+  ["1 unit"] = "1 unità",
   ["%d units · %d prices"] = "%d unità · %d prezzi",
   ["%d · %d/%d covered"] = "%d · %d/%d coperti",
   ["%d/%d covered"] = "%d/%d coperti",
@@ -466,7 +467,7 @@ GC.Locales.itIT = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVATO SUBITO · ESC O DONE PER CHIUDERE",
   ["SCAN"] = "SCANSIONA",
   ["SCANNING…"] = "SCANSIONE…",
-  ["SESSION %s%s · %d BUYS"] = "SESSIONE %s%s · %d ACQUISTI",
+  ["SESSION %s%s · BUYS %d"] = "SESSIONE %s%s · ACQUISTI %d",
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Search"] = "Cerca",
@@ -679,9 +680,9 @@ GC.Locales.itIT = {
   ["below the %s breakeven"] = "sotto il pareggio di %s",
   ["below the %s you paid"] = "sotto i %s che hai pagato",
   ["big buy"] = "acquisto grosso",
-  ["bought %d x item %d"] = "comprati %d x oggetto %d",
-  ["bought %d x item %d after AH close"] =
-    "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
+  ["bought %d"] = "comprati %d",
+  ["bought %d x %s"] = "comprati %d x %s",
+  ["bought %d after AH close"] = "comprati %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
   ["cheapest not yours %s"] = "il più basso che non è tuo %s",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
@@ -731,7 +732,7 @@ GC.Locales.itIT = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "è quanto assorbe questo mercato. Oltre compri merce che ti resterà in mano",
   ["item %d"] = "oggetto %d",
-  ["item %d: %s"] = "oggetto %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "livello oggetto %d+",
   ["item variant unresolved"] = "variante dell'oggetto non risolta",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =

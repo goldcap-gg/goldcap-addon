@@ -38,6 +38,7 @@ GC.Locales.frFR = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d refusées par la vérification en direct. Cliquez sur « HIDDEN %d » au-dessus pour les voir",
   ["%d units"] = "%d unités",
+  ["1 unit"] = "1 unité",
   ["%d units · %d prices"] = "%d unités · %d prix",
   ["%d · %d/%d covered"] = "%d · %d/%d couverts",
   ["%d/%d covered"] = "%d/%d couverts",
@@ -465,7 +466,7 @@ GC.Locales.frFR = {
     "ENREGISTRÉ AUSSITÔT · ÉCHAP OU DONE POUR FERMER",
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCAN…",
-  ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d ACHATS",
+  ["SESSION %s%s · BUYS %d"] = "SESSION %s%s · ACHATS %d",
   ["Sales are costed from your oldest units first"] =
     "Les ventes sont imputées d'abord sur tes unités les plus anciennes",
   ["Search"] = "Rechercher",
@@ -679,9 +680,9 @@ GC.Locales.frFR = {
   ["below the %s breakeven"] = "sous le seuil de rentabilité de %s",
   ["below the %s you paid"] = "sous les %s que tu as payés",
   ["big buy"] = "gros achat",
-  ["bought %d x item %d"] = "acheté %d x objet %d",
-  ["bought %d x item %d after AH close"] =
-    "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
+  ["bought %d"] = "acheté %d",
+  ["bought %d x %s"] = "acheté %d x %s",
+  ["bought %d after AH close"] = "acheté %d après la fermeture de l'hôtel des ventes",
   ["buying commodity..."] = "achat de la marchandise...",
   ["cheapest not yours %s"] = "le moins cher qui n'est pas à toi %s",
   ["checking live price..."] = "vérification du prix en direct...",
@@ -731,7 +732,7 @@ GC.Locales.frFR = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "c'est ce que ce marché absorbe. Au-delà, tu achètes du stock qui te restera sur les bras",
   ["item %d"] = "objet %d",
-  ["item %d: %s"] = "objet %d : %s",
+  ["%s: %s"] = "%s : %s",
   ["item level %d+"] = "niveau d'objet %d+",
   ["item variant unresolved"] = "variante de l'objet non résolue",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
