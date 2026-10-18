@@ -356,6 +356,86 @@ describe("ImportString.ParseRegion", function()
     end)
   end)
 
+  -- Where a flip sells, from the site (wow-auction packages/tsm importString.ts): L the item level
+  -- a flip was priced at, C the region's realms and every name the client may print for them, S the
+  -- realms each flip sells on within a week, best net first, and K its fifth cheapest realm.
+  describe("L, C, S and K sections", function()
+    local EXAMPLE = "GCM1;eu;1783598400;I:42=500;F:201234=300000=6=3,201235=9000=4=2"
+      .. ";L:201234=639"
+      .. ";C:1084=Tarren Mill=tarrenmill|dentarg,1305=Kazzak=kazzak,1403=Гордунни=гордунни|gordunni"
+      .. ";S:201234=1403=420000=24=0,201234=1084=350000=8=1,201235=1305=12000=31=1"
+      .. ";K:201234=290000=24"
+
+    it("reads the level a flip was priced at", function()
+      local r = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.same({ [201234] = 639 }, r.flipLevels)
+    end)
+
+    it("reads each realm's name, and finds it by every key it ships", function()
+      local r = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.equal("Tarren Mill", r.realms[1084])
+      assert.equal("Гордунни", r.realms[1403])
+      assert.equal(1084, r.realmKeys.tarrenmill)
+      assert.equal(1084, r.realmKeys.dentarg)
+      assert.equal(1403, r.realmKeys["гордунни"])
+      assert.equal(1403, r.realmKeys.gordunni)
+      assert.equal(1305, r.realmKeys.kazzak)
+    end)
+
+    it("keeps each flip's realms in the order they came, best net first, with days in whole and tenths", function()
+      local r = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.same({
+        { realmId = 1403, list = 420000, days = 2.4, own = false },
+        { realmId = 1084, list = 350000, days = 0.8, own = true },
+      }, r.spots[201234])
+      assert.same({ { realmId = 1305, list = 12000, days = 3.1, own = true } }, r.spots[201235])
+    end)
+
+    it("reads the fifth cheapest realm and how many realms list the flip", function()
+      local r = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.same({ floor5th = 290000, realms = 24 }, r.cheap[201234])
+    end)
+
+    it("counts the realms and the flips it has a route for", function()
+      local r = GC.ImportString.ParseRegion(EXAMPLE)
+      assert.equal(3, r.counts.realms)
+      assert.equal(2, r.counts.routes)
+    end)
+
+    it("drops a malformed token and nothing else", function()
+      local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2"
+        -- zero level, a field short, a field too many, a good one
+        .. ";L:10=0,11,12=600=1,13=610"
+        -- zero id, no keys, an empty name, a good one
+        .. ";C:0=Zero=zero,2=Nokeys,3==three,4=Four=four"
+        -- zero list, zero days, own not 0 or 1, a field short, a good one
+        .. ";S:20=4=0=10=1,21=4=500=0=1,22=4=500=10=2,23=4=500=10,24=4=500=10=1"
+        -- zero floor, zero realms, a good one
+        .. ";K:30=0=9,31=5=0,32=5=9")
+      assert.same({ [13] = 610 }, r.flipLevels)
+      assert.same({ [4] = "Four" }, r.realms)
+      assert.same({ four = 4 }, r.realmKeys)
+      assert.same({ [24] = { { realmId = 4, list = 500, days = 1, own = true } } }, r.spots)
+      assert.same({ [32] = { floor5th = 5, realms = 9 } }, r.cheap)
+    end)
+
+    it("parses a payload without them exactly as before", function()
+      local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2;F:3=4=5=6")
+      assert.is_nil(r.flipLevels)
+      assert.is_nil(r.realms)
+      assert.is_nil(r.realmKeys)
+      assert.is_nil(r.spots)
+      assert.is_nil(r.cheap)
+      assert.same({ items = 1, facts = 0, refs = 0, flips = 1 }, r.counts)
+    end)
+
+    it("is skipped by the import string's reader", function()
+      local r = GC.ImportString.Parse("GCS1;eu;silvermoon;1;I:1=2;L:3=600;C:4=Four=four;S:3=4=5=6=1;K:3=4=5")
+      assert.equal(2, r.items[1].m)
+      assert.is_nil(r.spots)
+    end)
+  end)
+
   it("drops a malformed fact or reference and nothing else", function()
     local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2,3=4;V:1=2=3,3=1=1=1=1=1=1=1=1=0;M:5=6,7=8=9")
     assert.is_nil(r.verification[1])

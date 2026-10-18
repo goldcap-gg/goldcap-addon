@@ -174,6 +174,71 @@ local function readRares(body, into)
   return n
 end
 
+-- L (GCM1 only): the item level a flip was priced at, `itemId=ilvl`, only for the flips that name
+-- one (armor and weapons, priced at the level that sold most). A section of its own rather than a
+-- fifth F field: readFlips above is anchored at four, and a fifth would have dropped every flip in
+-- the builds already installed. Both positive.
+local function readLevels(body, into)
+  for token in body:gmatch("[^,]+") do
+    local id, ilvl = token:match("^(%d+)=(%d+)$")
+    id, ilvl = tonumber(id), tonumber(ilvl)
+    if id and id > 0 and ilvl > 0 then into[id] = ilvl end
+  end
+end
+
+-- C (GCM1 only): a connected realm of the region, `realmId=Display Name=key|key|...`: the name to
+-- show, then every name the client may print for any of its member realms, keyed the way
+-- GC.SellRoute.Key keys GetRealmName(). Two flat maps, id -> name and key -> id. A realm name holds
+-- none of , ; = | and the site refuses one that would.
+local function readRealms(body, names, keys)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, name, keyList = token:match("^(%d+)=([^=]+)=([^=]+)$")
+    id = tonumber(id)
+    if id and id > 0 then
+      names[id] = name
+      for key in keyList:gmatch("[^|]+") do keys[key] = id end
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- S (GCM1 only): a realm a flip sells on within a week, `itemId=realmId=listCopper=daysTenths=own`:
+-- what to list it at there, tenths of a day until it sells, and 1 when that realm's own sales
+-- priced it (else the region's price and the realm's appetite did). An item's tokens come best net
+-- first and stay in that order. All positive, own 0 or 1. Counts the items, not the tokens.
+local function readSpots(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, realm, list, tenths, own = token:match("^(%d+)=(%d+)=(%d+)=(%d+)=([01])$")
+    id, realm, list, tenths = tonumber(id), tonumber(realm), tonumber(list), tonumber(tenths)
+    if id and id > 0 and realm > 0 and list > 0 and tenths > 0 then
+      local spots = into[id]
+      if not spots then
+        spots = {}
+        into[id] = spots
+        n = n + 1
+      end
+      spots[#spots + 1] = { realmId = realm, list = list, days = tenths / 10, own = own == "1" }
+    end
+  end
+  return n
+end
+
+-- K (GCM1 only): a flip's fifth cheapest realm floor at its priced level, and over how many realms,
+-- `itemId=floor5thCopper=realmsListed`. A realm whose cheapest listing is at or under it is among
+-- the five cheapest to buy on. All positive.
+local function readCheap(body, into)
+  for token in body:gmatch("[^,]+") do
+    local id, floor5th, realms = token:match("^(%d+)=(%d+)=(%d+)$")
+    id, floor5th, realms = tonumber(id), tonumber(floor5th), tonumber(realms)
+    if id and id > 0 and floor5th > 0 and realms > 0 then
+      into[id] = { floor5th = floor5th, realms = realms }
+    end
+  end
+end
+
 -- W (site watchlist) and N (item ids the site has no name for -- Blizzard's API 404s them;
 -- Core/ItemNames.lua resolves them from the client and the Companion reports the names back):
 -- plain id lists, in order.
@@ -294,6 +359,20 @@ function GC.ImportString.ParseRegion(str)
     elseif kind == "U" then
       result.rares = result.rares or {}
       result.counts.rares = (result.counts.rares or 0) + readRares(body, result.rares)
+    -- L, C, S and K the same way: only once the site works out where each flip sells. A payload
+    -- without them has none of their tables or counts.
+    elseif kind == "L" then
+      result.flipLevels = result.flipLevels or {}
+      readLevels(body, result.flipLevels)
+    elseif kind == "C" then
+      result.realms, result.realmKeys = result.realms or {}, result.realmKeys or {}
+      result.counts.realms = (result.counts.realms or 0) + readRealms(body, result.realms, result.realmKeys)
+    elseif kind == "S" then
+      result.spots = result.spots or {}
+      result.counts.routes = (result.counts.routes or 0) + readSpots(body, result.spots)
+    elseif kind == "K" then
+      result.cheap = result.cheap or {}
+      readCheap(body, result.cheap)
     end
   end
 
