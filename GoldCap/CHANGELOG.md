@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.21.1 (unreleased)
+## 0.21.1 (2026-10-18)
 
 - Deals: once a row has been checked live, its quantity, total and profit come from that check:
   how many it would buy, what those cost, and what selling them makes. Before, the row kept the
