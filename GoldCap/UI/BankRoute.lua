@@ -8,7 +8,7 @@ local _, GC = ...
 -- outside GoldCap, or one whose best realm moved since, is placed right all the same.
 --
 -- Retail only (GoldCap.toc): WoW: Forever has no Warband Bank. One C_Container.UseContainerItem a
--- click, made by the player's own click (spec/bank_route_wiring_spec.lua) and only after checking
+-- click, made by the player's own click (spec/bank_route_spec.lua) and only after checking
 -- the bank is the window open and the slot still holds the item: the same call equips a piece of
 -- gear when no bank is open, which binds it, and sells it when a vendor is.
 GC.BankRoute = {}
