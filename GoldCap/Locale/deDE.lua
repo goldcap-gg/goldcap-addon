@@ -38,6 +38,7 @@ GC.Locales.deDE = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d von der Live-Prüfung abgelehnt. Oben auf \"HIDDEN %d\" klicken, um sie zu sehen",
   ["%d units"] = "%d Stück",
+  ["1 unit"] = "1 Stück",
   ["%d units · %d prices"] = "%d Stück · %d Preise",
   ["%d · %d/%d covered"] = "%d · %d/%d abgedeckt",
   ["%d/%d covered"] = "%d/%d abgedeckt",
@@ -466,7 +467,7 @@ GC.Locales.deDE = {
     "SOFORT GESPEICHERT · ESC ODER DONE ZUM SCHLIESSEN",
   ["SCAN"] = "SCAN",
   ["SCANNING…"] = "SCANNT…",
-  ["SESSION %s%s · %d BUYS"] = "SITZUNG %s%s · %d KÄUFE",
+  ["SESSION %s%s · BUYS %d"] = "SITZUNG %s%s · KÄUFE %d",
   ["Sales are costed from your oldest units first"] =
     "Verkäufe werden zuerst gegen deine ältesten Stück gerechnet",
   ["Search"] = "Suche",
@@ -681,9 +682,9 @@ GC.Locales.deDE = {
   ["below the %s breakeven"] = "unter dem Break-even von %s",
   ["below the %s you paid"] = "unter den %s, die du bezahlt hast",
   ["big buy"] = "großer Kauf",
-  ["bought %d x item %d"] = "%d x Gegenstand %d gekauft",
-  ["bought %d x item %d after AH close"] =
-    "%d x Gegenstand %d nach Schließen des Auktionshauses gekauft",
+  ["bought %d"] = "%d gekauft",
+  ["bought %d x %s"] = "%d x %s gekauft",
+  ["bought %d after AH close"] = "%d nach Schließen des Auktionshauses gekauft",
   ["buying commodity..."] = "Ware wird gekauft...",
   ["cheapest not yours %s"] = "günstigster fremder %s",
   ["checking live price..."] = "Live-Preis wird geprüft...",
@@ -733,7 +734,7 @@ GC.Locales.deDE = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "nimmt dieser Markt auf. Darüber hinaus kaufst du Ware, auf der du sitzen bleibst",
   ["item %d"] = "Gegenstand %d",
-  ["item %d: %s"] = "Gegenstand %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "Gegenstandsstufe %d+",
   ["item variant unresolved"] = "Gegenstandsvariante ungeklärt",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -917,6 +918,11 @@ GC.Locales.deDE = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Pausiert, während du im Suchfeld des Auktionshauses tippst. Läuft ein paar Sekunden, nachdem du es verlässt, weiter.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSIERT: POST OFFEN",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · PAUSIERT: ANDERER TAB",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Pausiert, solange ein anderer Tab im Auktionshaus offen ist: Verkaufen, Auktionen oder der Tab eines anderen Addons, etwa Selling von Auctionator. Ein Scan würde ersetzen, was dieser Tab zeigt. Klick unten im Auktionshaus auf Kaufen oder den GoldCap-Tab, dann läuft Auto weiter.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Scan startet, sobald du den Tab verlässt: Kaufen oder GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Pausiert, solange der Briefkasten offen ist. Schließ ihn, dann läuft Auto weiter.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSIERT: VERKAUFEN-TAB",

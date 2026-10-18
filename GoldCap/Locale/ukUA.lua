@@ -39,6 +39,7 @@ GC.Locales.ukUA = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою. Натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
   ["%d units"] = "%d шт.",
+  ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цін",
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
@@ -461,7 +462,7 @@ GC.Locales.ukUA = {
     "ЗБЕРІГАЄТЬСЯ ОДРАЗУ · ESC АБО DONE, ЩОБ ЗАКРИТИ",
   ["SCAN"] = "СКАН",
   ["SCANNING…"] = "СКАНУЄМО…",
-  ["SESSION %s%s · %d BUYS"] = "СЕСІЯ %s%s · %d КУПІВЕЛЬ",
+  ["SESSION %s%s · BUYS %d"] = "СЕСІЯ %s%s · КУПІВЛІ %d",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
@@ -665,8 +666,9 @@ GC.Locales.ukUA = {
   ["below the %s breakeven"] = "нижче точки беззбитковості %s",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
-  ["bought %d x item %d"] = "куплено %d x предмет %d",
-  ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
+  ["bought %d"] = "куплено %d",
+  ["bought %d x %s"] = "куплено %d x %s",
+  ["bought %d after AH close"] = "куплено %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
   ["checking live price..."] = "перевіряємо живу ціну...",
@@ -715,7 +717,7 @@ GC.Locales.ukUA = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "стільки цей ринок перетравлює. Понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
-  ["item %d: %s"] = "предмет %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "рів. предмета %d+",
   ["item variant unresolved"] = "варіант предмета не визначено",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -900,6 +902,11 @@ GC.Locales.ukUA = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Пауза, поки ви друкуєте в пошуку аукціону. Продовжить за кілька секунд після того, як ви з нього вийдете.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ВІДКРИТА ПОШТА",
+  ["AUTO · PAUSED: OTHER TAB"] = "АВТО · ПАУЗА: ІНША ВКЛАДКА",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Пауза, поки відкрита інша вкладка аукціону: Продаж, Аукціони або вкладка іншого аддона, наприклад Selling в Auctionator. Скан замінив би те, що вона показує. Натисніть Купити або вкладку GoldCap унизу аукціону, і Авто продовжить.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Скан почнеться, коли підете з вкладки: Купити або GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Пауза, поки відкрита поштова скринька. Закрийте її, і Авто продовжить.",
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖ",

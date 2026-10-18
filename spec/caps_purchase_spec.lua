@@ -1523,7 +1523,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
         GC.Sniper.OnCommodityPurchaseSucceeded()
 
-        assert.equal(GC.L["bought %d x item %d"]:format(QTY, 42), GC.Sniper.detachedCommodityStatus[42].note)
+        assert.equal(GC.L["bought %d"]:format(QTY), GC.Sniper.detachedCommodityStatus[42].note)
       end)
 
       it("still says after AH close for a purchase the auction house closed on", function()
@@ -1535,7 +1535,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
         GC.Sniper.OnCommodityPurchaseSucceeded()
 
-        assert.equal(GC.L["bought %d x item %d after AH close"]:format(QTY, 42),
+        assert.equal(GC.L["bought %d after AH close"]:format(QTY),
           GC.Sniper.detachedCommodityStatus[42].note)
       end)
 

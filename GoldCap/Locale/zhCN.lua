@@ -41,6 +41,7 @@ GC.Locales.zhCN = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "实时检查拒绝了 %d 笔。按上方的“HIDDEN %d”查看",
   ["%d units"] = "%d 件",
+  ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 个价位",
   ["%d · %d/%d covered"] = "%d · %d/%d 已覆盖",
   ["%d/%d covered"] = "%d/%d 已覆盖",
@@ -436,7 +437,7 @@ GC.Locales.zhCN = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "即时保存 · 按 ESC 或 DONE 关闭",
   ["SCAN"] = "扫描",
   ["SCANNING…"] = "扫描中…",
-  ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 笔购买",
+  ["SESSION %s%s · BUYS %d"] = "本次 %s%s · 购买 %d 笔",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
   ["Sales evidence"] = "销售可信度",
@@ -626,8 +627,9 @@ GC.Locales.zhCN = {
   ["below the %s breakeven"] = "低于保本价 %s",
   ["below the %s you paid"] = "低于你付出的 %s",
   ["big buy"] = "大额购买",
-  ["bought %d x item %d"] = "已购买 %d 件 · 物品 %d",
-  ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
+  ["bought %d"] = "已购买 %d 件",
+  ["bought %d x %s"] = "已购买 %d 件 · %s",
+  ["bought %d after AH close"] = "拍卖行关闭后购买 %d 件",
   ["buying commodity..."] = "正在购买商品...",
   ["cheapest not yours %s"] = "非你的最低价 %s",
   ["checking live price..."] = "正在检查实时价格...",
@@ -672,7 +674,7 @@ GC.Locales.zhCN = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "是这个市场能消化的量。再多就是压在手里的库存",
   ["item %d"] = "物品 %d",
-  ["item %d: %s"] = "物品 %d：%s",
+  ["%s: %s"] = "%s：%s",
   ["item level %d+"] = "物品等级 %d+",
   ["item variant unresolved"] = "物品变体未确定",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -839,6 +841,10 @@ GC.Locales.zhCN = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "你在拍卖行搜索框里输入时暂停。离开搜索框几秒后继续。",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "自动 · 已暂停：邮箱已打开",
+  ["AUTO · PAUSED: OTHER TAB"] = "自动 · 已暂停：其他标签页",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "拍卖行的其他标签页打开时暂停：出售、拍卖，或其他插件的标签页，例如 Auctionator 的 Selling。扫描会替换那个标签页显示的内容。点击拍卖行底部的购买或 GoldCap 标签页，自动会继续。",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] = "离开那个标签页后扫描开始：点击购买或 GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] = "邮箱打开时暂停。关闭邮箱后，自动会继续。",
   ["AUTO · PAUSED: SELL TAB"] = "自动 · 已暂停：出售标签页",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =

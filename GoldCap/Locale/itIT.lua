@@ -38,6 +38,7 @@ GC.Locales.itIT = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d rifiutate dal controllo dal vivo. Premi \"HIDDEN %d\" sopra per vederle",
   ["%d units"] = "%d unità",
+  ["1 unit"] = "1 unità",
   ["%d units · %d prices"] = "%d unità · %d prezzi",
   ["%d · %d/%d covered"] = "%d · %d/%d coperti",
   ["%d/%d covered"] = "%d/%d coperti",
@@ -466,7 +467,7 @@ GC.Locales.itIT = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVATO SUBITO · ESC O DONE PER CHIUDERE",
   ["SCAN"] = "SCANSIONA",
   ["SCANNING…"] = "SCANSIONE…",
-  ["SESSION %s%s · %d BUYS"] = "SESSIONE %s%s · %d ACQUISTI",
+  ["SESSION %s%s · BUYS %d"] = "SESSIONE %s%s · ACQUISTI %d",
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Search"] = "Cerca",
@@ -679,9 +680,9 @@ GC.Locales.itIT = {
   ["below the %s breakeven"] = "sotto il pareggio di %s",
   ["below the %s you paid"] = "sotto i %s che hai pagato",
   ["big buy"] = "acquisto grosso",
-  ["bought %d x item %d"] = "comprati %d x oggetto %d",
-  ["bought %d x item %d after AH close"] =
-    "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
+  ["bought %d"] = "comprati %d",
+  ["bought %d x %s"] = "comprati %d x %s",
+  ["bought %d after AH close"] = "comprati %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
   ["cheapest not yours %s"] = "il più basso che non è tuo %s",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
@@ -731,7 +732,7 @@ GC.Locales.itIT = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "è quanto assorbe questo mercato. Oltre compri merce che ti resterà in mano",
   ["item %d"] = "oggetto %d",
-  ["item %d: %s"] = "oggetto %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "livello oggetto %d+",
   ["item variant unresolved"] = "variante dell'oggetto non risolta",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -916,6 +917,11 @@ GC.Locales.itIT = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "In pausa mentre scrivi nella ricerca della casa d'aste. Riprende qualche secondo dopo che la lasci.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · IN PAUSA: POSTA APERTA",
+  ["AUTO · PAUSED: OTHER TAB"] = "AUTO · IN PAUSA: ALTRA SCHEDA",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "In pausa finché è aperta un'altra scheda della casa d'aste: Vendi, Aste o quella di un altro addon, come Selling di Auctionator. Una scansione sostituirebbe ciò che quella scheda mostra. Clicca Compra o la scheda GoldCap in fondo alla casa d'aste e Auto riprende.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "La scansione parte quando lasci la scheda: Compra o GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "In pausa finché la cassetta della posta è aperta. Chiudila e Auto riprende.",
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · IN PAUSA: SCHEDA VENDI",

@@ -42,6 +42,7 @@ GC.Locales.zhTW = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "即時檢查拒絕了 %d 筆。按上方的「HIDDEN %d」查看",
   ["%d units"] = "%d 件",
+  ["1 unit"] = "1 件",
   ["%d units · %d prices"] = "%d 件 · %d 個價位",
   ["%d · %d/%d covered"] = "%d · %d/%d 已涵蓋",
   ["%d/%d covered"] = "%d/%d 已涵蓋",
@@ -437,7 +438,7 @@ GC.Locales.zhTW = {
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "即時儲存 · 按 ESC 或 DONE 關閉",
   ["SCAN"] = "掃描",
   ["SCANNING…"] = "掃描中…",
-  ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 筆購買",
+  ["SESSION %s%s · BUYS %d"] = "本次 %s%s · 購買 %d 筆",
   ["Sales are costed from your oldest units first"] = "販售成本自最舊的存貨先扣",
   ["Search"] = "搜尋",
   ["Sales evidence"] = "銷售可信度",
@@ -627,8 +628,9 @@ GC.Locales.zhTW = {
   ["below the %s breakeven"] = "低於保本價 %s",
   ["below the %s you paid"] = "低於你付出的 %s",
   ["big buy"] = "大額購買",
-  ["bought %d x item %d"] = "已購買 %d 件 · 道具 %d",
-  ["bought %d x item %d after AH close"] = "拍賣場關閉後購買 %d 件 · 道具 %d",
+  ["bought %d"] = "已購買 %d 件",
+  ["bought %d x %s"] = "已購買 %d 件 · %s",
+  ["bought %d after AH close"] = "拍賣場關閉後購買 %d 件",
   ["buying commodity..."] = "正在購買商品...",
   ["cheapest not yours %s"] = "非你的最低價 %s",
   ["checking live price..."] = "正在檢查即時價格...",
@@ -673,7 +675,7 @@ GC.Locales.zhTW = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "是這個市場能消化的量。再多就是壓在手裡的庫存",
   ["item %d"] = "道具 %d",
-  ["item %d: %s"] = "道具 %d：%s",
+  ["%s: %s"] = "%s：%s",
   ["item level %d+"] = "物品等級 %d+",
   ["item variant unresolved"] = "物品變體未確定",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -840,6 +842,10 @@ GC.Locales.zhTW = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "你在拍賣場搜尋框輸入時暫停。離開搜尋框幾秒後繼續。",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "自動 · 已暫停：郵箱已開啟",
+  ["AUTO · PAUSED: OTHER TAB"] = "自動 · 已暫停：其他分頁",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "拍賣場的其他分頁開啟時暫停：出售、拍賣，或其他插件的分頁，例如 Auctionator 的 Selling。掃描會替換那個分頁顯示的內容。點擊拍賣場底部的購買或 GoldCap 分頁，自動會繼續。",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] = "離開那個分頁後掃描開始：點擊購買或 GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] = "郵箱開啟時暫停。關閉郵箱後，自動會繼續。",
   ["AUTO · PAUSED: SELL TAB"] = "自動 · 已暫停：出售分頁",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =

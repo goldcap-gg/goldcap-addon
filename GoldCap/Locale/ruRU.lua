@@ -35,6 +35,7 @@ GC.Locales.ruRU = {
   ["%d refused by live checks. Press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой. Нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
   ["%d units"] = "%d шт.",
+  ["1 unit"] = "1 шт.",
   ["%d units · %d prices"] = "%d шт. · %d цен",
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
   ["%d/%d covered"] = "%d/%d покрыто",
@@ -452,7 +453,7 @@ GC.Locales.ruRU = {
     "СОХРАНЯЕТСЯ СРАЗУ · ESC ИЛИ DONE, ЧТОБЫ ЗАКРЫТЬ",
   ["SCAN"] = "СКАН",
   ["SCANNING…"] = "СКАНИРУЕМ…",
-  ["SESSION %s%s · %d BUYS"] = "СЕССИЯ %s%s · %d ПОКУПОК",
+  ["SESSION %s%s · BUYS %d"] = "СЕССИЯ %s%s · ПОКУПКИ %d",
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Search"] = "Поиск",
@@ -655,8 +656,9 @@ GC.Locales.ruRU = {
   ["below the %s breakeven"] = "ниже точки безубыточности %s",
   ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
-  ["bought %d x item %d"] = "куплено %d x предмет %d",
-  ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
+  ["bought %d"] = "куплено %d",
+  ["bought %d x %s"] = "куплено %d x %s",
+  ["bought %d after AH close"] = "куплено %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
   ["cheapest not yours %s"] = "дешевле всех не ваш %s",
   ["checking live price..."] = "проверяем живую цену...",
@@ -705,7 +707,7 @@ GC.Locales.ruRU = {
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =
     "столько этот рынок переваривает. Сверх того вы покупаете товар, который зависнет",
   ["item %d"] = "предмет %d",
-  ["item %d: %s"] = "предмет %d: %s",
+  ["%s: %s"] = "%s: %s",
   ["item level %d+"] = "ур. предмета %d+",
   ["item variant unresolved"] = "вариант предмета не определён",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
@@ -886,6 +888,11 @@ GC.Locales.ruRU = {
   ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
     "Пауза, пока вы печатаете в поиске аукциона. Продолжит через несколько секунд после того, как вы из него выйдете.",
   ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ОТКРЫТА ПОЧТА",
+  ["AUTO · PAUSED: OTHER TAB"] = "АВТО · ПАУЗА: ДРУГАЯ ВКЛАДКА",
+  ["Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on."] =
+    "Пауза, пока открыта другая вкладка аукциона: Продать, Аукционы или вкладка другого аддона, например Selling у Auctionator. Скан заменил бы то, что она показывает. Нажмите Купить или вкладку GoldCap внизу аукциона, и Авто продолжит.",
+  ["Scan starts when you leave that tab: click Buy or GoldCap"] =
+    "Скан начнётся, когда уйдёте с вкладки: Купить или GoldCap",
   ["Paused while the mailbox is open. Close it and Auto carries on."] =
     "Пауза, пока открыт почтовый ящик. Закройте его, и Авто продолжит.",
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖА",

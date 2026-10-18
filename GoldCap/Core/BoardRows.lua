@@ -85,14 +85,48 @@ function GC.BoardRows.Reason(verdict)
   return verdict.reason
 end
 
--- Board sort order: CAP, SAFE, a deal that needs gold, WATCH, pending, then everything else, estProfit
--- descending within each bucket. Pins are partitioned ahead of this by the caller
--- (renderList), unchanged.
+local function isCount(v)
+  return type(v) == "number" and v == math.floor(v) and v > 0
+end
+
+-- What the row's quantity, total and profit cells show: qty, total, profit, and whether a live
+-- Check measured them. A browse result carries the cheapest price and the total count, never how
+-- many are listed at that price, so discovery's figures put every suggested unit at the floor.
+-- In game 2026-10-17 Glossy Stone read x85 for +2584g while its Check found one stone at the
+-- floor and bought it for +22g58s. Once a Check has walked the book, its plan is what the row
+-- says: what it would buy, what that costs, what selling it makes. A refusal that still planned
+-- a buy (a profit under the minimum) carries its plan too. Before that, estProfit: the
+-- stress-exit projection the board already sorted by, not the market-value one. A YOUR PRICE row
+-- keeps its own figures, which its cap decision took from the levels it buys.
+function GC.BoardRows.Figures(deal, verdict)
+  if verdict and not verdict.cap and isCount(verdict.quantity)
+      and isCount(verdict.entryTotal) and type(verdict.stressProfit) == "number" then
+    return verdict.quantity, verdict.entryTotal, verdict.stressProfit, true
+  end
+  local qty = deal.qty or 1
+  return qty, deal.capTotal or (deal.unitPrice or 0) * qty, deal.estProfit or deal.profit or 0, false
+end
+
+-- How the profit cell reads. "estimate" until anything has looked at the row live: muted, like a
+-- watched row's figures, which are estimates too. "refused" for a row the live check turned down,
+-- dimmer, the way the check panel shows a refused figure. "measured" for the rest, which the
+-- caller colours by sign: a buy the check approved, one only the wallet limit stopped, a realm lot
+-- it found, a YOUR PRICE row.
+function GC.BoardRows.ProfitTone(deal, verdict)
+  if deal and deal.cap then return "measured" end
+  if not verdict then return "estimate" end
+  if verdict.buyable or verdict.needsGold or verdict.unverified or verdict.cap then return "measured" end
+  return "refused"
+end
+
+-- Board sort order: CAP, SAFE, a deal that needs gold, WATCH, pending, then everything else, by
+-- the profit the row shows (Figures) descending within each bucket. Pins are partitioned ahead of
+-- this by the caller (renderList), unchanged.
 function GC.BoardRows.Compare(dealA, verdictA, pendingA, dealB, verdictB, pendingB)
   local ra = GC.BoardRows.Rank(verdictA, pendingA)
   local rb = GC.BoardRows.Rank(verdictB, pendingB)
   if ra ~= rb then return ra < rb end
-  local pa = dealA.estProfit or dealA.profit or 0
-  local pb = dealB.estProfit or dealB.profit or 0
+  local _, _, pa = GC.BoardRows.Figures(dealA, verdictA)
+  local _, _, pb = GC.BoardRows.Figures(dealB, verdictB)
   return pa > pb
 end

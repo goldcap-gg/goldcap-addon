@@ -106,15 +106,11 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     assert.equal(1, browseSent)
   end)
 
-  -- (fix round 2) Enum.AuctionHouseDisplayMode does not exist on the live client -- confirmed
-  -- against Gethe/wow-ui-source, Interface/AddOns/Blizzard_AuctionHouseUI/Shared/
-  -- Blizzard_AuctionHouseFrame.lua: the mode identifiers are keys of the plain Lua table
-  -- AuctionHouseFrameDisplayMode (Buy/WoWTokenBuy/CommoditiesBuy/ItemBuy/CommoditiesSell/
-  -- ItemSell/WoWTokenSell/Auctions), never an Enum -- so the old comparison always fell through
-  -- to the degraded "pause + blind 0.5s resume" branch. With the real table available, the hook
-  -- can tell Buy (the browse list, where background sniping is the product) from every other
-  -- mode outright, no timer needed.
-  it("the repaired mode hook pauses on any non-Buy mode and resumes on Buy, with no 0.5s timer", function()
+  -- The mode hook asks GC.Sniper._SyncAside on every tab change. It used to pause Auto as "your
+  -- search" on any mode but Buy, lifted only by Buy or a fresh OnShow of the window: a player
+  -- with the window floating beside Auctionator's Selling tab found Auto and SCAN dead until
+  -- /reload (reported 2026-10-17), and a buy page our own search opened paused it as well.
+  it("the mode hook pauses on Sell and Auctions until they are left, and not on a buy page", function()
     local GC = loadSniper()
     local show = GC.Sniper.OnAuctionHouseShow
     local feedAuto = upvalue(show, "feedAuto")
@@ -130,29 +126,36 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
         fn(...)
       end
     end
-    _G.AuctionHouseFrameDisplayMode = { Buy = {}, ItemBuy = {}, CommoditiesBuy = {} }
+    local modes = { Buy = {}, ItemBuy = {}, CommoditiesBuy = {}, ItemSell = {}, Auctions = {} }
+    _G.AuctionHouseFrameDisplayMode = modes
     local ah = {}
     ah.SetDisplayMode = function(self, mode)
       if self.displayMode == mode then return end
       self.displayMode = mode
     end
     _G.AuctionHouseFrame = ah
+    GC.AuctionHouseTab.PlayerIsAside = function()
+      return ah.displayMode == modes.ItemSell or ah.displayMode == modes.Auctions
+    end
 
     installSearchHooks()
     autoScan:Input("toggleOn", 1000)
     autoScan:Tick(1000)
     assert.equal("SCANNING", autoScan:State())
-    -- startFullScan arms its own scan watchdog via C_Timer.After -- unrelated to the mode hook.
-    -- Baseline AFTER that, so what's asserted below is the mode hook's own timer use, not this.
     local baseline = afterCalls
 
-    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
-    assert.equal("PAUSED", autoScan:State())
-    assert.equal(baseline, afterCalls) -- no degraded-fallback timer once the mode table resolves
+    ah:SetDisplayMode(modes.CommoditiesBuy)
+    assert.equal("SCANNING", autoScan:State()) -- PlayerIsBuying holds the senders for the player's own
 
-    ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+    ah:SetDisplayMode(modes.ItemSell)
+    assert.equal("PAUSED", autoScan:State())
+    assert.same({ aside = true }, autoScan:PauseReasons())
+    ah:SetDisplayMode(modes.Auctions)
+    assert.equal("PAUSED", autoScan:State())
+
+    ah:SetDisplayMode(modes.Buy)
     assert.equal("WAITING", autoScan:State()) -- resumed straight into the settle countdown
-    assert.equal(baseline, afterCalls)
+    assert.equal(baseline, afterCalls) -- and no timer of its own
   end)
 
   -- I1 (fix wave, sell honesty): AutoScan.lua's toggleOn wipes `reasons = {}` unconditionally,
