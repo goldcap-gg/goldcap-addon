@@ -165,7 +165,7 @@ describe("welcome window", function()
     local f = window()
     assert.equal("Finds items listed below what a vendor pays, or far below their usual price.",
       text(f.features[1].text))
-    assert.is_false(shown(f.features[5].text)) -- no Warband Bank in WoW: Forever
+    assert.is_false(shown(f.features[5].text)) -- no carry list in WoW: Forever
     assert.is_false(shown(f.features[5].name))
     assert.equal("Prices from your own scans only", text(f.card.status))
     assert.truthy(text(f.card.ctaSub):find("every GoldCap player scanned on your auction house", 1, true))
