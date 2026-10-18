@@ -170,11 +170,14 @@ local function bodyText(s)
   return GC.L["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."]
 end
 
+-- The tabs, then the carry list at a bank (UI/BankRoute.lua): retail only, as WoW: Forever has no
+-- Warband Bank.
 local FEATURES = {
   { icon = "deals", name = "DEALS" },
   { icon = "sell", name = "SELL" },
   { icon = "sold", name = "SOLD" },
   { icon = "buy", name = "BUY" },
+  { icon = "bag", name = "BANK", retailOnly = true },
 }
 
 local function featureText(i, forever)
@@ -185,6 +188,8 @@ local function featureText(i, forever)
     return GC.L["Prices everything in your bags. POST lists it, one item per click."]
   elseif i == 3 then
     return GC.L["What you sold, and the profit on each sale where GoldCap knows what you paid."]
+  elseif i == 5 then
+    return GC.L["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."]
   end
   return GC.L["Shopping lists for crafting: buys each item up to the price you set."]
 end
@@ -355,7 +360,7 @@ local function layout(f, mode, status, quietOffered)
 
   -- What GoldCap does: the welcome only.
   for i, row in ipairs(f.features) do
-    if mode == "welcome" then
+    if mode == "welcome" and not (forever and FEATURES[i].retailOnly) then
       setText(row.text, featureText(i, forever))
       row.icon:ClearAllPoints()
       row.icon:SetPoint("TOPLEFT", f, "TOPLEFT", G.PAD, -(y + 1))

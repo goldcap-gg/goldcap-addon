@@ -329,3 +329,30 @@ function P.OnBagsChanged()
   P._pending = nil
   P.Refresh()
 end
+
+--- The carry list in the chat, from anywhere: what in the bags to take to which realm. What sits in
+--- the Warband Bank can only be read at a bank, so that half waits for one.
+function P.PrintRoute()
+  if not GC.SellRoute.HereId() then
+    GC.Print(GC.L["Where each flip sells comes with the Companion's region data: nothing to go on yet."])
+    return
+  end
+  local plan = P.Plan()
+  local function say(rows, kind)
+    for _, row in ipairs(rows) do
+      local name = row.name or ("#" .. tostring(row.itemID))
+      if row.count > 1 then name = ("%s ×%d"):format(name, row.count) end
+      GC.Print((GC.L["%s: %s"]):format(name, whereText(kind, row.spot)))
+    end
+  end
+  if #plan.putIn == 0 and (not P._open or #plan.takeOut + #plan.stuck == 0) then
+    GC.Print(GC.L["Nothing in your bags sells notably better on another of your realms."])
+  end
+  say(plan.putIn, "in")
+  say(plan.takeOut, "out")
+  say(plan.stuck, "stuck")
+  if not P._open then GC.Print(GC.L["What to take out of the Warband Bank shows at a bank."]) end
+end
+
+GC.slashHandlers = GC.slashHandlers or {}
+GC.slashHandlers.route = function() P.PrintRoute() end

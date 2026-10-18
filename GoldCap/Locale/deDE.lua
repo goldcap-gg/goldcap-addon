@@ -1412,4 +1412,8 @@ GC.Locales.deDE = {
   ["GoldCap: carry between realms"] = "GoldCap: zwischen Realms tragen",
   ["Then log in a character on that realm and open a bank: GoldCap lists what to take out."] = "Dann logge einen Charakter auf diesem Realm ein und öffne eine Bank: GoldCap zeigt, was du entnehmen sollst.",
   ["Then list it from GoldCap's Sell tab at the auction house."] = "Dann stelle es im Auktionshaus über den Verkaufen-Reiter von GoldCap ein.",
+  ["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."] = "An einer Bank: welche Flips du für einen anderen deiner Realms in die Kriegsmeutenbank legst und welche du entnimmst und hier verkaufst. /gc route zeigt sie überall.",
+  ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Wo sich jeder Flip verkauft, kommt mit den Regionsdaten des Companion: noch nichts da.",
+  ["Nothing in your bags sells notably better on another of your realms."] = "Nichts in deinen Taschen verkauft sich auf einem anderen deiner Realms deutlich besser.",
+  ["What to take out of the Warband Bank shows at a bank."] = "Was du aus der Kriegsmeutenbank nehmen sollst, zeigt sich an einer Bank.",
 }

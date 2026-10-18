@@ -1313,4 +1313,8 @@ GC.Locales.zhTW = {
   ["GoldCap: carry between realms"] = "GoldCap：跨伺服器搬運",
   ["Then log in a character on that realm and open a bank: GoldCap lists what to take out."] = "然後用那個伺服器的角色登入並打開銀行：GoldCap 會列出要取出的物品。",
   ["Then list it from GoldCap's Sell tab at the auction house."] = "然後在拍賣場用 GoldCap 的出售頁上架。",
+  ["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."] = "在銀行：哪些轉賣物品要存入戰隊銀行帶去你的其他伺服器，哪些要取出在本伺服器出售。/gc route 隨時列出。",
+  ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "每件轉賣物品在哪賣隨 Companion 的地區資料而來：暫時還沒有。",
+  ["Nothing in your bags sells notably better on another of your realms."] = "背包裡沒有在你其他伺服器明顯賣得更好的東西。",
+  ["What to take out of the Warband Bank shows at a bank."] = "要從戰隊銀行取出什麼，在銀行裡顯示。",
 }

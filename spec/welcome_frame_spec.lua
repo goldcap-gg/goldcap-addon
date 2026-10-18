@@ -74,6 +74,10 @@ describe("welcome window", function()
     end
     assert.equal("Finds items listed below what they usually sell for, and checks each one before you buy.",
       text(f.features[1].text))
+    -- Then the Warband Bank's carry list, which lives at a bank, not on the rail.
+    assert.equal("BANK", text(f.features[5].name))
+    assert.equal("At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere.",
+      text(f.features[5].text))
     assert.equal("Only the prices GoldCap came with, from 12d ago", text(f.card.status))
     assert.truthy(text(f.card.body):find("it finds no deals", 1, true))
     -- The way to fresh prices, in three steps around the link.
@@ -161,6 +165,8 @@ describe("welcome window", function()
     local f = window()
     assert.equal("Finds items listed below what a vendor pays, or far below their usual price.",
       text(f.features[1].text))
+    assert.is_false(shown(f.features[5].text)) -- no Warband Bank in WoW: Forever
+    assert.is_false(shown(f.features[5].name))
     assert.equal("Prices from your own scans only", text(f.card.status))
     assert.truthy(text(f.card.ctaSub):find("every GoldCap player scanned on your auction house", 1, true))
     local K = GC.Kit.Tokens.color

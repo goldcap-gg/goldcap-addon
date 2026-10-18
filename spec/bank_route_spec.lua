@@ -207,6 +207,41 @@ describe("bank carry list", function()
     assert.is_true(panel()._frame == nil or not panel()._frame:IsShown())
   end)
 
+  describe("/gc route", function()
+    local printed
+    before_each(function()
+      printed = {}
+      GC.Print = function(text) printed[#printed + 1] = text end
+    end)
+
+    it("prints what in the bags to take to which realm, and that the Warband Bank's half waits for a bank", function()
+      GC.slashHandlers.route()
+      assert.same({
+        "Gem-Inlaid Velvet Cinch: for Kazzak: " .. GC.Util.FormatMoney(2200 * G) .. ", sells in about 2 days",
+        "What to take out of the Warband Bank shows at a bank.",
+      }, printed)
+    end)
+
+    it("prints the Warband Bank's half too at a bank", function()
+      panel().OnBankOpened()
+      GC.slashHandlers.route()
+      assert.equal("Recipe: Ornate Plate: here: " .. GC.Util.FormatMoney(900 * G) .. ", sells within a day", printed[2])
+      assert.equal(2, #printed)
+    end)
+
+    it("says when nothing needs carrying, and when there is nothing to go on", function()
+      bags[0] = {}
+      GC.slashHandlers.route()
+      assert.same({ "Nothing in your bags sells notably better on another of your realms.",
+        "What to take out of the Warband Bank shows at a bank." }, printed)
+      printed = {}
+      GC.Data.RealmIdByKey = function() return nil end
+      GC.SellRoute._here = nil
+      GC.slashHandlers.route()
+      assert.same({ "Where each flip sells comes with the Companion's region data: nothing to go on yet." }, printed)
+    end)
+  end)
+
   describe("wiring", function()
     local function read(path)
       local f = assert(io.open(path, "r"))

@@ -1480,4 +1480,8 @@ GC.Locales.ukUA = {
   ["GoldCap: carry between realms"] = "GoldCap: перевезення між реалмами",
   ["Then log in a character on that realm and open a bank: GoldCap lists what to take out."] = "Потім зайдіть персонажем на цей реалм і відкрийте банк: GoldCap покаже, що забрати.",
   ["Then list it from GoldCap's Sell tab at the auction house."] = "Потім виставте його на аукціоні через вкладку «Продаж» GoldCap.",
+  ["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."] = "У банку: які речі на перепродаж покласти в банк загону для іншого вашого реалму, а які забрати й продати тут. /gc route покаже список будь-де.",
+  ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Де що продається, надходить із даними регіону від Companion: поки даних немає.",
+  ["Nothing in your bags sells notably better on another of your realms."] = "У сумках немає нічого, що помітно дорожче продається на іншому вашому реалмі.",
+  ["What to take out of the Warband Bank shows at a bank."] = "Що забрати з банку загону, видно в банку.",
 }

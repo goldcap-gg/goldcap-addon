@@ -1346,4 +1346,8 @@ GC.Locales.koKR = {
   ["GoldCap: carry between realms"] = "GoldCap: 서버 간 옮기기",
   ["Then log in a character on that realm and open a bank: GoldCap lists what to take out."] = "그다음 그 서버의 캐릭터로 접속해 은행을 열면 GoldCap이 꺼낼 물건을 알려 줍니다.",
   ["Then list it from GoldCap's Sell tab at the auction house."] = "그다음 경매장에서 GoldCap 판매 탭으로 등록하세요.",
+  ["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."] = "은행에서: 다른 서버용으로 전투부대 은행에 넣을 되팔기 물건과 꺼내서 여기서 팔 물건을 알려 줍니다. /gc route로 어디서나 볼 수 있습니다.",
+  ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "되팔기 물건이 어디서 팔리는지는 Companion의 지역 데이터로 옵니다. 아직 없습니다.",
+  ["Nothing in your bags sells notably better on another of your realms."] = "가방에 다른 서버에서 훨씬 비싸게 팔리는 물건이 없습니다.",
+  ["What to take out of the Warband Bank shows at a bank."] = "전투부대 은행에서 꺼낼 물건은 은행에서 보입니다.",
 }

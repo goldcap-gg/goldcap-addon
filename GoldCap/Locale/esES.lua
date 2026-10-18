@@ -1414,4 +1414,8 @@ GC.Locales.esES = {
   ["GoldCap: carry between realms"] = "GoldCap: llevar entre reinos",
   ["Then log in a character on that realm and open a bank: GoldCap lists what to take out."] = "Luego entra con un personaje de ese reino y abre un banco: GoldCap te dice qué sacar.",
   ["Then list it from GoldCap's Sell tab at the auction house."] = "Luego publícalo desde la pestaña Vender de GoldCap en la casa de subastas.",
+  ["At a bank: which flips to put in the Warband Bank for another of your realms, and which to take out and sell here. /gc route lists them anywhere."] = "En un banco: qué reventas guardar en el banco de banda guerrera para otro de tus reinos y cuáles sacar y vender aquí. /gc route las muestra en cualquier lugar.",
+  ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dónde se vende cada reventa llega con los datos de región del Companion: aún no hay nada.",
+  ["Nothing in your bags sells notably better on another of your realms."] = "Nada de tus bolsas se vende bastante mejor en otro de tus reinos.",
+  ["What to take out of the Warband Bank shows at a bank."] = "Lo que hay que sacar del banco de banda guerrera se ve en un banco.",
 }
