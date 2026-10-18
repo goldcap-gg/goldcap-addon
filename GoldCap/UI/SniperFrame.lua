@@ -3864,6 +3864,14 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     local value = GC.Sniper._RealmValue(itemID)
     return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
   end,
+  -- At the reference's own item level (ClickUp 869fjdhnk): a flip goldcap.gg priced at the level
+  -- that sold most is judged, drilled and boarded (onRows below) by its cheapest lot at or above
+  -- that level, the same floor GC.SniperDecision.EvaluateRealm applies when it is checked. A
+  -- reference with no level (0) is judged on every variant, as before.
+  minIlvlFor = function(itemID)
+    local value = GC.Sniper._RealmValue(itemID)
+    return value and value.refIlvl or nil
+  end,
   -- Same queue, same currency as a book-pass hit: what the lot would clear after the auction
   -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it).
   -- Gear the board leaves off (GC.Sniper._GearPastReach) is not worth a drill either.
@@ -3880,6 +3888,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- realm item has none of the three by definition -- that screen is what a realm item is
   -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
   onRows = function(results)
+    results = GC.KeyPoll.AtLevel(results, GC.Sniper._keyPoll:Book(), function(itemID)
+      local value = GC.Sniper._RealmValue(itemID)
+      return value and value.refIlvl or nil
+    end)
     local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
     local fresh, qualified = {}, {}
     for i = 1, #realmRows do

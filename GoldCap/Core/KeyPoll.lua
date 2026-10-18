@@ -90,6 +90,33 @@ function GC.KeyPoll.FloorFor(entry, minIlvl)
   return best and best.floor or nil
 end
 
+--- The poll's rows as the board should price them (ClickUp 869fjdhnk): an item `minIlvlFor(itemID)`
+--- names a level for is drawn at its cheapest variant at or above that level, off the variants
+--- `book` (a poll's Book()) kept for it, and left out when none reaches it. Every other row is
+--- handed back as it came. A collapsed row is the cheapest variant of ANY level, so a flip priced at
+--- 639 was boarded at a 590's price. A new list; the rows the poll handed out are not touched.
+function GC.KeyPoll.AtLevel(rows, book, minIlvlFor)
+  local out = {}
+  for i = 1, #(rows or {}) do
+    local row = rows[i]
+    local itemID = row.itemKey and row.itemKey.itemID
+    local minIlvl = itemID and minIlvlFor(itemID)
+    local entry = book and itemID and book[itemID]
+    if type(minIlvl) == "number" and minIlvl > 0 and entry and entry.variants then
+      local best = cheapestVariant(entry, minIlvl)
+      if best then
+        local copy = {}
+        for k, v in pairs(row) do copy[k] = v end
+        copy.minPrice, copy.totalQuantity = best.floor, best.qty
+        out[#out + 1] = copy
+      end
+    else
+      out[#out + 1] = row
+    end
+  end
+  return out
+end
+
 function GC.KeyPoll.New(driver, opts)
   opts = opts or {}
   local maxBatch = opts.maxBatch or MAX_BATCH

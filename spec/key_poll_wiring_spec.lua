@@ -281,6 +281,35 @@ describe("Key poll wiring", function()
       assert.is_table(GC.Sniper._realmDeals[44])
     end)
 
+    -- ClickUp 869fjdhnk: a flip priced at a level (the payload's L) is boarded and drilled at its
+    -- cheapest lot at or above that level, never at a lower level's price.
+    it("boards and drills a flip priced at a level at its cheapest lot at or above it", function()
+      local GC = loadSniper()
+      values[42] = realmValue() -- reference 200000 at item level 623
+      targetIds = { 42 }
+      GC.Sniper._RebuildKeyTargets()
+      local function at(itemLevel, minPrice)
+        return { itemKey = { itemID = 42, itemLevel = itemLevel, itemSuffix = 0, battlePetSpeciesID = 0 },
+          minPrice = minPrice, totalQuantity = 1 }
+      end
+
+      GC.Sniper._keyPoll:Fold({ at(590, 30000), at(625, 120000) })
+
+      assert.equal(120000, GC.Sniper._drillQueue:Peek().floor)
+      assert.equal(120000, GC.Sniper._realmDeals[42].unitPrice)
+    end)
+
+    it("leaves a flip off the board while no lot reaches its level", function()
+      local GC = loadSniper()
+      values[42] = realmValue()
+      targetIds = { 42 }
+      GC.Sniper._RebuildKeyTargets()
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 42, itemLevel = 590, itemSuffix = 0, battlePetSpeciesID = 0 },
+        minPrice = 30000, totalQuantity = 1 } })
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
     it("ignores an item with no reference at all", function()
       local GC = loadSniper()
       values[42] = nil
