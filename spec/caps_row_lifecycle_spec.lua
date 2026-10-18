@@ -269,6 +269,22 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
     assert.equal(held, GC.Sniper._realmDeals[42])
   end)
 
+  -- A flip priced at a level boards only its lots at or above that level (GC.KeyPoll.AtLevel), but
+  -- that is the deal's filter, not the cap's: a cap of any level is the player's own price, and a
+  -- 610 under it holds it although the flip is priced at 639.
+  it("keeps an any-level cap row while a lot below the flip's priced level is under the cap", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 0)
+    values[42] = { ts = 1, source = "import", kind = "realm_item", ref = 150, refIlvl = 639 }
+    local held = capDeal(42, 80, 100)
+    GC.Sniper._realmDeals[42] = held
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ variantRow(42, 610, 90) })
+
+    assert.equal(held, GC.Sniper._realmDeals[42])
+  end)
+
   -- The other half of 3d: the keep-alive may not depend on which rows the ordinary path turned
   -- into realm rows. A capped item the import knows no region reference for is still answered
   -- for by the batch, and its own floor keeps its row.

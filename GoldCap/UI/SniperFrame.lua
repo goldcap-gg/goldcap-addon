@@ -3918,11 +3918,13 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- realm item has none of the three by definition -- that screen is what a realm item is
   -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
   onRows = function(results)
-    results = GC.KeyPoll.AtLevel(results, GC.Sniper._keyPoll:Book(), function(itemID)
+    -- The deal looks only at lots at or above the level its flip is priced at; what the batch
+    -- answered (caps, FoldSeen below) stays the whole answer.
+    local boardRows = GC.KeyPoll.AtLevel(results, GC.Sniper._keyPoll:Book(), function(itemID)
       local value = GC.Sniper._RealmValue(itemID)
       return value and value.refIlvl or nil
     end)
-    local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
+    local realmRows = GC.FullScan.RowsFromBrowse(boardRows, GC.Sniper._RealmValue, GC.db.settings.sniper)
     local fresh, qualified = {}, {}
     for i = 1, #realmRows do
       local row = realmRows[i]
