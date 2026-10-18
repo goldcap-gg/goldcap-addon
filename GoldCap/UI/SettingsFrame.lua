@@ -590,7 +590,7 @@ local function build(sniperFrame)
     return c
   end
 
-  -- Left column: WHAT COUNTS AS A DEAL above BRAKES, both spanning panel-left to
+  -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning panel-left to
   -- panel-CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
   -- moved out of the UI entirely (Core/DealMath.lua still reads their keys/defaults for row
   -- ordering; only the settings surface for them is gone) because nobody outside this codebase
@@ -601,15 +601,15 @@ local function build(sniperFrame)
   whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
   whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
-  -- Task S: BRAKES (dumpTrendPct/spikeTrendPct/wallAbsorbHours) never built at all in Forever --
+  -- Task S: RISK CHECKS (dumpTrendPct/spikeTrendPct/wallAbsorbHours) never built at all in Forever --
   -- every one of them feeds either SniperDecision.Evaluate's retail exit-price math or
   -- Flips.RecommendPost's queue-at-exit deflation, and both require a `sold`/`trend` figure
   -- (GC.Data.GetItemValue's `s`/`t` fields) that GC.ForeverScan.ValueFor never carries -- no
-  -- Forever code path can ever act on them. Nothing anchors off BRAKES' own position, so
+  -- Forever code path can ever act on them. Nothing anchors off RISK CHECKS' own position, so
   -- skipping it leaves no gap to reflow (whatCounts is simply the whole left column).
   local brakes
   if not isForeverClient() then
-    brakes = card(panel, GC.L["BRAKES"], 3, true)
+    brakes = card(panel, GC.L["RISK CHECKS"], 3, true)
     brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
     brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
   end
@@ -745,7 +745,7 @@ local function build(sniperFrame)
     { min = 1, max = GC.SniperDecision and GC.SniperDecision.MAX_QUANTITY_CEILING or 200 },
     GC.L["The most units one purchase may take. How fast the item sells can still make it fewer."])
 
-  -- Task S: the whole BRAKES card is retail-only (see its own `local brakes` comment above) --
+  -- Task S: the whole RISK CHECKS card is retail-only (see its own `local brakes` comment above) --
   -- dumpTrendPct, spikeTrendPct and wallAbsorbHours are never built at all in Forever.
   if brakes then
     fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },

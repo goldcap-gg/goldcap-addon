@@ -83,7 +83,6 @@ GC.Locales.ruRU = {
     "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, поищите на аукционе сами или проверьте почту. Клик переключает.",
   ["Avoid"] = "Избегать",
   ["BOOKS %d/%d"] = "СТАКАНЫ %d/%d",
-  ["BRAKES"] = "ТОРМОЗА",
   ["BUY (unverified)"] = "КУПИТЬ (без проверки)",
   ["Background check"] = "Фоновая проверка",
   ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
@@ -183,6 +182,7 @@ GC.Locales.ruRU = {
   ["PRICE EACH"] = "ЦЕНА ЗА ШТ.",
   ["Play a little longer for an estimate of your pace."] = "Поиграйте ещё немного, чтобы оценить ваш темп.",
   ["RAISE CAP TO %s"] = "ПОДНЯТЬ ДО %s",
+  ["RISK CHECKS"] = "ПРОВЕРКА РИСКА",
   ["ROAD TO 40"] = "ПУТЬ К 40 УРОВНЮ",
   ["Raise cap to %s"] = "Поднять потолок до %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =

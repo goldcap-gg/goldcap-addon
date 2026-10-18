@@ -91,7 +91,6 @@ GC.Locales.frFR = {
     "Auto : maintient Full Scan en continu et cède la place dès que vous achetez, cherchez vous-même à l'hôtel des ventes, ou regardez votre courrier. Cliquez pour basculer.",
   ["Avoid"] = "À éviter",
   ["BOOKS %d/%d"] = "CARNETS %d/%d",
-  ["BRAKES"] = "FREINS",
   ["BUY %d"] = "ACHETER %d",
   ["BUY (unverified)"] = "ACHETER (non vérifié)",
   ["Background check"] = "Vérification en arrière-plan",
@@ -195,6 +194,7 @@ GC.Locales.frFR = {
   ["Play a little longer for an estimate of your pace."] =
     "Jouez encore un peu pour une estimation de votre rythme.",
   ["RAISE CAP TO %s"] = "PLAFOND À %s",
+  ["RISK CHECKS"] = "CONTRÔLE DES RISQUES",
   ["ROAD TO 40"] = "EN ROUTE VERS LE NIVEAU 40",
   ["Raise cap to %s"] = "Monter le plafond à %s",
   ["Restore %s"] = "Restaurer %s",

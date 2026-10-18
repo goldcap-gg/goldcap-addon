@@ -87,7 +87,6 @@ GC.Locales.ukUA = {
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, пошукайте на аукціоні самі або перевірте пошту. Клік перемикає.",
   ["Avoid"] = "Уникати",
   ["BOOKS %d/%d"] = "СТАКАНИ %d/%d",
-  ["BRAKES"] = "ГАЛЬМА",
   ["BUY (unverified)"] = "КУПИТИ (без перевірки)",
   ["Background check"] = "Фонова перевірка",
   ["Blizzard has not published the riding cost yet. Type /gc mount and the cost you expect."] =
@@ -186,6 +185,7 @@ GC.Locales.ukUA = {
   ["PRICE EACH"] = "ЦІНА ЗА ШТ.",
   ["Play a little longer for an estimate of your pace."] = "Пограйте ще трохи, щоб оцінити ваш темп.",
   ["RAISE CAP TO %s"] = "ПІДНЯТИ ДО %s",
+  ["RISK CHECKS"] = "ПЕРЕВІРКА РИЗИКУ",
   ["ROAD TO 40"] = "ШЛЯХ ДО 40 РІВНЯ",
   ["Raise cap to %s"] = "Підняти стелю до %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =

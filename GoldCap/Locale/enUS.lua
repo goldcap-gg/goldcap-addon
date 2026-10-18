@@ -103,7 +103,6 @@ GC.Locales.enUS = {
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle.",
   ["Avoid"] = "Avoid",
   ["BOOKS %d/%d"] = "BOOKS %d/%d",
-  ["BRAKES"] = "BRAKES",
   ["BUY %d"] = "BUY %d",
   ["BUY (unverified)"] = "BUY (unverified)",
   ["Background check"] = "Background check",
@@ -203,6 +202,7 @@ GC.Locales.enUS = {
     "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
   ["Play a little longer for an estimate of your pace."] = "Play a little longer for an estimate of your pace.",
   ["RAISE CAP TO %s"] = "RAISE CAP TO %s",
+  ["RISK CHECKS"] = "RISK CHECKS",
   ["ROAD TO 40"] = "ROAD TO 40",
   ["Raise cap to %s"] = "Raise cap to %s",
   ["Road to 40 with GoldCap: %s of %s for my mount (%d%%)."] =

@@ -90,7 +90,6 @@ GC.Locales.deDE = {
     "Auto: lässt Full Scan durchgehend laufen und tritt sofort zurück, sobald du kaufst, durchsuche das Auktionshaus selbst oder sieh in deine Post. Klick zum Umschalten.",
   ["Avoid"] = "Meiden",
   ["BOOKS %d/%d"] = "BÜCHER %d/%d",
-  ["BRAKES"] = "BREMSEN",
   ["BUY %d"] = "KAUFEN %d",
   ["BUY (unverified)"] = "KAUFEN (ungeprüft)",
   ["Background check"] = "Hintergrundprüfung",
@@ -194,6 +193,7 @@ GC.Locales.deDE = {
   ["Play a little longer for an estimate of your pace."] =
     "Spiel noch etwas weiter, dann gibt es eine Schätzung deines Tempos.",
   ["RAISE CAP TO %s"] = "DECKEL AUF %s",
+  ["RISK CHECKS"] = "RISIKOPRÜFUNG",
   ["ROAD TO 40"] = "WEG ZU STUFE 40",
   ["Raise cap to %s"] = "Deckel auf %s anheben",
   ["Restore %s"] = "%s wiederherstellen",

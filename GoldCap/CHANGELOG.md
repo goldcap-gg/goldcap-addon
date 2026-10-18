@@ -19,6 +19,8 @@
   the auction house will not take. `/gc route` prints the list anywhere, and the welcome window
   mentions it.
 - All of this needs fresh prices from GoldCap Companion.
+- Settings: the BRAKES card is now called RISK CHECKS, a name that says what it does: it refuses a
+  buy right after a crash or a spike, or with a wall of listings under your resale price.
 
 ## 0.21.1 (2026-10-18)
 
