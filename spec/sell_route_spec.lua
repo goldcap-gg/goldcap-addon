@@ -58,12 +58,51 @@ describe("SellRoute", function()
         { char = "Alt-Tarren Mill", region = "eu", copper = 2 },
         { char = "Nameless", region = "eu", copper = 1 },
       }
-      assert.same({ [1084] = true, [1396] = true, [1305] = true }, GC.SellRoute.Mine(points, "eu", idByKey, 1305))
+      assert.same({ [1084] = "Tarren Mill", [1396] = "Azjol-Nerub", [1305] = true }, GC.SellRoute.Mine(points, "eu", idByKey, 1305))
+    end)
+
+    -- A connected realm is one market under several names, and the payload names it by one of them
+    -- (Tarren Mill shares 1084 with Dentarg, and C calls it "Dentarg"). The player knows it by the
+    -- realm their character stands on.
+    it("calls a realm what the account's characters on it call it, the most read one when two share a market", function()
+      local shared = { tarrenmill = 1084, dentarg = 1084, kazzak = 1305 }
+      local points = {
+        { char = "Alt-Dentarg", region = "eu", copper = 1 },
+        { char = "Main-Tarren Mill", region = "eu", copper = 1 },
+        { char = "Main-Tarren Mill", region = "eu", copper = 2 },
+      }
+      local mine = GC.SellRoute.Mine(points, "eu", function(key) return shared[key] end, 1084)
+      assert.same({ [1084] = "Tarren Mill" }, mine)
     end)
 
     it("is this realm alone with no readings, and nothing when this realm is unknown too", function()
       assert.same({ [1305] = true }, GC.SellRoute.Mine({}, "eu", idByKey, 1305))
       assert.same({}, GC.SellRoute.Mine(nil, "eu", idByKey, nil))
+    end)
+  end)
+
+  describe("RealmName", function()
+    -- The client's side: this realm is Kazzak, the account has a character on Tarren Mill, which
+    -- the payload names "Dentarg", the other realm of its market.
+    before_each(function()
+      _G.GetRealmName = function() return "Kazzak" end
+      local keys = { tarrenmill = 1084, dentarg = 1084, kazzak = 1305 }
+      local names = { [1084] = "Dentarg", [1305] = "Kazzak", [3391] = "Silvermoon" }
+      GC.Data = {
+        RealmIdByKey = function(key) return keys[key] end,
+        RealmName = function(id) return names[id] end,
+        ClientRegion = function() return "eu" end,
+      }
+      GC.Ledger = { GetGold = function() return { { char = "Main-Tarren Mill", region = "eu", copper = 1 } } end }
+    end)
+
+    after_each(function() _G.GetRealmName = nil end)
+
+    it("names one of the player's realms as their character's realm, and any other as the payload does", function()
+      assert.equal("Tarren Mill", GC.SellRoute.RealmName(1084))
+      assert.equal("Kazzak", GC.SellRoute.RealmName(1305))
+      assert.equal("Silvermoon", GC.SellRoute.RealmName(3391))
+      assert.is_nil(GC.SellRoute.RealmName(9999))
     end)
   end)
 

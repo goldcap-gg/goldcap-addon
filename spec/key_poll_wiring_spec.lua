@@ -614,6 +614,13 @@ describe("Key poll wiring", function()
           assert.truthy(notes:find("Sold 6 times in 7 days on 3 realms", 1, true))
         end)
 
+        it("calls one of the player's realms by their character's realm, not the payload's name for its market", function()
+          local GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
+            { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          GC.Data.RealmName = function(id) return ({ [1084] = "Tarren Mill", [1305] = "Kazzak-Market" })[id] end
+          assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Sell on Kazzak for ", 1, true))
+        end)
+
         it("says when this realm's lot is among the five cheapest", function()
           local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } }, { floor5th = 100, realms = 24 })
           local notes = GC.Sniper._RowNotes(deal(10)) -- the lot asks 100 copper

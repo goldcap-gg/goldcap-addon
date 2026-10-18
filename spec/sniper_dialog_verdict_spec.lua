@@ -507,6 +507,15 @@ describe("Sniper buy dialog verdict block", function()
       assert.is_false(d.factRows[3].leader.shown)
     end)
 
+    it("calls the realm to sell on by the player's character's realm, not the payload's name for its market", function()
+      local GC, stamp = loadRouted({ floor5th = 700000, realms = 24 })
+      GC.Data.RealmName = function(id) return ({ [1084] = "Tarren Mill", [1305] = "Kazzak-Market" })[id] end
+      local d = capDialog()
+      setUpvalue(stamp, "dialog", d)
+      stamp({ itemID = 42, isCommodity = false }, realmLot())
+      assert.equal("Kazzak · " .. GC.Util.FormatMoney(2200 * G) .. " · about 2 days", d.factRows[3].value.text)
+    end)
+
     it("leaves the cheap row out when this realm's lot is not among the five cheapest", function()
       local _, stamp = loadRouted({ floor5th = 700000, realms = 24 })
       local d = capDialog()

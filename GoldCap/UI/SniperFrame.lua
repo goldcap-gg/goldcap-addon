@@ -1615,7 +1615,7 @@ function GC.Sniper._RowNotes(deal)
     if GC.SellRoute.IsCheap(deal.unitPrice, cheap) then
       notes = notes .. ("\n|cfff7cf5a%s|r"):format(GC.SellRoute.CheapText(cheap))
     end
-    for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID), GC.Data.RealmName)) do
+    for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID), GC.SellRoute.RealmName)) do
       notes = notes .. ("\n|cffb8b5b0%s|r"):format(line)
     end
   end
@@ -1633,7 +1633,7 @@ function GC.Sniper._CheckRoute(itemID, decision)
   local function spot(s)
     if not s then return nil end
     if s == pick.here then return { here = true, copper = s.list, days = s.days } end
-    local name = GC.Data.RealmName(s.realmId)
+    local name = GC.SellRoute.RealmName(s.realmId)
     return name and { realm = name, copper = s.list, days = s.days } or nil
   end
   local cheap = GC.Data.CheapRealms(itemID)

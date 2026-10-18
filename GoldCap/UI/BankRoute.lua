@@ -227,7 +227,7 @@ local function whereText(kind, spot)
   if kind == "stuck" then return GC.L["Warbound until equipped: the auction house refuses it"] end
   local money, pace = GC.Util.FormatMoney(spot.list), GC.SellRoute.PaceText(spot.days)
   if kind == "out" then return (GC.L["here: %s, %s"]):format(money, pace) end
-  return (GC.L["for %s: %s, %s"]):format(GC.Data.RealmName(spot.realmId) or "?", money, pace)
+  return (GC.L["for %s: %s, %s"]):format(GC.SellRoute.RealmName(spot.realmId) or "?", money, pace)
 end
 
 local function paintRow(row, entry, kind)

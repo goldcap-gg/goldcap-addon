@@ -45,15 +45,21 @@ end
 
 --- The connected realms of `region` the account has a character on: every "Name-Realm" the gold
 --- readings (GC.Ledger.GetGold) carry for that region, through `idByKey` (GC.Data.RealmIdByKey),
---- and `hereId`. A set, realmId -> true. A realm the payload does not know is left out.
+--- and `hereId`. realmId -> the realm as the player's characters call it ("Tarren Mill", where the
+--- payload calls the market "Dentarg"; the most read one when two share a market), or true for this
+--- realm with no character reading. A realm the payload does not know is left out.
 function GC.SellRoute.Mine(points, region, idByKey, hereId)
-  local mine = {}
+  local mine, reads = {}, {}
   if hereId then mine[hereId] = true end
   for _, point in ipairs(points or {}) do
     local realm = type(point.char) == "string" and point.region == region and point.char:match("^[^-]+%-(.+)$")
     local key = realm and GC.SellRoute.Key(realm)
     local id = key and idByKey(key)
-    if id then mine[id] = true end
+    if id then
+      reads[realm] = (reads[realm] or 0) + 1
+      local held = mine[id]
+      if type(held) ~= "string" or reads[realm] > reads[held] then mine[id] = realm end
+    end
   end
   return mine
 end
@@ -169,7 +175,7 @@ end
 
 --- What to tell the player about a pick, a line each: where to sell it (Target), at what list price
 --- and how soon, then a realm with no character when it pays notably more. `nameOf(realmId)` names
---- a realm (GC.Data.RealmName); a realm it cannot name is not mentioned. Empty without a pick.
+--- a realm (GC.SellRoute.RealmName); a realm it cannot name is not mentioned. Empty without a pick.
 function GC.SellRoute.Lines(pick, nameOf)
   local lines = {}
   local target = GC.SellRoute.Target(pick)
@@ -239,6 +245,14 @@ function GC.SellRoute.MyRealms()
     GC.SellRoute._mine = GC.SellRoute.Mine(points, region, GC.Data.RealmIdByKey, GC.SellRoute.HereId())
   end
   return GC.SellRoute._mine
+end
+
+--- A realm's name for the player: one of theirs as their characters call it, any other as the
+--- payload names its market (GC.Data.RealmName). nil for a realm the payload does not know.
+function GC.SellRoute.RealmName(realmId)
+  local known = GC.SellRoute.MyRealms()[realmId]
+  if type(known) == "string" then return known end
+  return GC.Data.RealmName and GC.Data.RealmName(realmId) or nil
 end
 
 --- Pick's answer for an item from this character's seat, or nil.

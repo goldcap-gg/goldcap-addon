@@ -119,6 +119,12 @@ describe("bank carry list", function()
     _G.ItemLocation, _G.C_Container, _G.C_Item, _G.C_Bank, _G.C_Timer = nil, nil, nil, nil, nil
   end)
 
+  it("calls the realm to carry to by the player's character's realm, not the payload's name for its market", function()
+    GC.Data.RealmName = function(id) return ({ [1084] = "Tarren Mill", [1305] = "Kazzak-Market" })[id] end
+    panel().OnBankOpened()
+    assert.equal("for Kazzak: " .. GC.Util.FormatMoney(2200 * G) .. ", sells in about 2 days", rowFor("PUT IN").where:GetText())
+  end)
+
   it("lists what to put in for another realm and what to take out to sell here, with where and for how much", function()
     panel().OnBankOpened()
     assert.is_true(panel()._frame:IsShown())
