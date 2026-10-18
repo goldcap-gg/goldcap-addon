@@ -1033,7 +1033,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "BANKFRAME_CLOSED" then
     if GC.BankRoute then GC.BankRoute.OnBankClosed() end
   elseif event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
-    if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
+    if GC.BankRoute then GC.BankRoute.OnTabSlotsChanged() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.

@@ -4,7 +4,7 @@ local helper = require("spec.spec_helper")
 -- Tarren Mill (1084); the account has a character on Kazzak (1305). The bags, the Warband Bank and
 -- the payload are faked; Core/SellRoute.lua is the real one.
 describe("bank carry list", function()
-  local GC, bags, used, timers, wue, canUse
+  local GC, bags, used, timers, wue, canUse, reads, refused, tabs
   local G = 10000
   local ACCOUNT = 2
 
@@ -57,7 +57,7 @@ describe("bank carry list", function()
   local function press(row) row.button.scripts.OnClick(row.button) end
 
   before_each(function()
-    used, timers, wue, canUse = {}, {}, {}, true
+    used, timers, wue, canUse, tabs = {}, {}, {}, true, { 12 }
     -- 0: the backpack, with a flip that sells better on Kazzak (100) and one with no route (500);
     -- 12: the first Warband Bank tab, with a flip that sells best here (200).
     bags = {
@@ -71,9 +71,10 @@ describe("bank carry list", function()
     _G.MerchantFrame = region("Frame")
     _G.GetRealmName = function() return "Tarren Mill" end
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    reads, refused = 0, {}
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
-      GetContainerItemInfo = function(bag, slot) return bags[bag] and bags[bag][slot] or nil end,
+      GetContainerItemInfo = function(bag, slot) reads = reads + 1; return bags[bag] and bags[bag][slot] or nil end,
       UseContainerItem = function(...) used[#used + 1] = { n = select("#", ...), ... } end,
     }
     _G.C_Item = {
@@ -83,8 +84,8 @@ describe("bank carry list", function()
     }
     _G.C_Bank = {
       CanUseBank = function(t) return canUse and t == ACCOUNT end,
-      IsItemAllowedInBankType = function() return true end,
-      FetchPurchasedBankTabIDs = function(t) return t == ACCOUNT and { 12 } or {} end,
+      IsItemAllowedInBankType = function(_, loc) return not refused[loc.bag .. ":" .. loc.slot] end,
+      FetchPurchasedBankTabIDs = function(t) return t == ACCOUNT and tabs or {} end,
     }
     _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
     GC = helper.loadModule("Core/Util.lua")
@@ -206,6 +207,54 @@ describe("bank carry list", function()
     assert.is_false(stuck.button.visible)
   end)
 
+  it("leaves out a stack the Warband Bank refuses", function()
+    refused["0:1"] = true
+    panel().OnBankOpened()
+    assert.is_nil(rowFor("PUT IN"))
+    assert.is_truthy(rowFor("TAKE OUT"))
+  end)
+
+  -- A player with no route data never sees the list: they pay nothing for it at a bank either.
+  it("reads no bag at a bank without route data", function()
+    _G.GetRealmName = function() return "Nowhere" end
+    panel().OnBankOpened()
+    panel().OnBagsChanged()
+    assert.equal(0, reads)
+    assert.is_true(panel()._frame == nil or not panel()._frame:IsShown())
+  end)
+
+  -- A button that cannot work is not offered: a banker whose Warband Bank is out of reach, or an
+  -- account with no Warband Bank tab bought.
+  it("shows nothing when the Warband Bank cannot be used here, or has no tab", function()
+    canUse = false
+    panel().OnBankOpened()
+    assert.is_true(panel()._frame == nil or not panel()._frame:IsShown())
+    panel().OnBankClosed()
+    canUse, tabs = true, {}
+    panel().OnBankOpened()
+    assert.is_true(panel()._frame == nil or not panel()._frame:IsShown())
+  end)
+
+  -- Sorting the Warband Bank or depositing everything moves hundreds of slots, one event each.
+  it("repaints once after a run of Warband Bank slot changes, not once a slot", function()
+    panel().OnBankOpened()
+    reads = 0
+    local before = #timers
+    for _ = 1, 50 do panel().OnTabSlotsChanged() end
+    assert.equal(0, reads)
+    assert.equal(before + 1, #timers)
+    timers[#timers]()
+    assert.is_true(reads > 0 and reads < 10)
+    assert.is_truthy(rowFor("PUT IN"))
+  end)
+
+  it("opens for a piece Warbound until equipped only beside something to carry", function()
+    wue["0:1"] = true
+    bags[12] = {}
+    panel().OnBankOpened()
+    assert.is_true(panel()._frame == nil or not panel()._frame:IsShown())
+  end)
+
   it("leaves soulbound stacks out, and shows nothing with nothing to carry", function()
     bags[0][1] = info(100, "Gem-Inlaid Velvet Cinch", { isBound = true })
     bags[12] = {}
@@ -298,7 +347,7 @@ describe("bank carry list", function()
       for _, event in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
         assert.is_truthy(init:find('"' .. event .. '"', 1, true), event)
       end
-      for _, name in ipairs({ "OnBankOpened", "OnBankClosed", "OnBagsChanged" }) do
+      for _, name in ipairs({ "OnBankOpened", "OnBankClosed", "OnBagsChanged", "OnTabSlotsChanged" }) do
         assert.is_truthy(init:find("GC.BankRoute." .. name, 1, true), name)
       end
     end)

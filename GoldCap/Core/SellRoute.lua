@@ -120,7 +120,8 @@ end
 --- most valuable first:
 ---   putIn    in the bags, and it sells notably better on another of the player's realms (Target)
 ---   takeOut  in the Warband Bank, and it sells best here
----   stuck    Warbound until equipped: the auction house refuses it on every realm
+---   stuck    in the bags, Warbound until equipped: the auction house refuses it on every realm
+---            (one already in the Warband Bank is the player's to keep there, and is not listed)
 --- Gear under the level its price is for (a 610 of a flip priced at 639) is left where it is: the
 --- route's prices are not its prices.
 function GC.SellRoute.CarryPlan(bagItems, bankItems, opts)
@@ -145,7 +146,7 @@ function GC.SellRoute.CarryPlan(bagItems, bankItems, opts)
       local pick = (not level or (e.ilvl or 0) >= level) and opts.routeFor(e.itemID) or nil
       local target = GC.SellRoute.Target(pick)
       if pick and e.wue then
-        add(plan.stuck, "stuck", e, target)
+        if not inBank then add(plan.stuck, "stuck", e, target) end
       elseif target and not inBank and target.realmId ~= hereId then
         add(plan.putIn, "in", e, target)
       elseif target and inBank and target.realmId == hereId then

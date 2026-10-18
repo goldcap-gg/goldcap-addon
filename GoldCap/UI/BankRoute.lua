@@ -7,7 +7,8 @@ local _, GC = ...
 -- payload). Worked out from what is there, not from a list kept since the purchase: an item bought
 -- outside GoldCap, or one whose best realm moved since, is placed right all the same.
 --
--- Retail only (GoldCap.toc): WoW: Forever has no Warband Bank. One C_Container.UseContainerItem a
+-- Retail only (GoldCap.toc): goldcap.gg works out where flips sell for retail realms alone, so on
+-- WoW: Forever there is nothing to carry. One C_Container.UseContainerItem a
 -- click, made by the player's own click (spec/bank_route_spec.lua) and only after checking
 -- the bank is the window open and the slot still holds the item: the same call equips a piece of
 -- gear when no bank is open, which binds it, and sells it when a vendor is.
@@ -50,10 +51,18 @@ local function locationOf(bag, slot)
   return ItemLocation:CreateFromBagAndSlot(bag, slot)
 end
 
+-- A client call's answer, false kept as false (a refusal is an answer), nil when it errors.
 local function ask(fn, ...)
   if type(fn) ~= "function" then return nil end
   local ok, answer = pcall(fn, ...)
-  return ok and answer or nil
+  if not ok then return nil end
+  return answer
+end
+
+-- The Warband Bank has a tab to put things in: a deposit into none goes nowhere.
+local function hasTabs()
+  local tabs = ask(C_Bank.FetchPurchasedBankTabIDs, accountBank())
+  return type(tabs) == "table" and #tabs > 0
 end
 
 -- One stack as CarryPlan reads it, or nil: an empty slot, an item goldcap.gg has no route for, a
@@ -248,9 +257,11 @@ local function paintRow(row, entry, kind)
 end
 
 --- Reads the bags and the bank again and paints the list, or hides it when there is nothing to
---- carry.
+--- carry. Reads nothing without route data (no Companion, another region): that player never sees
+--- the list. Hidden too when its buttons could not work: the Warband Bank out of reach at this
+--- banker, or no tab bought.
 function P.Refresh()
-  if not P._open then
+  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow() and hasTabs()) then
     if frame then frame:Hide() end
     return
   end
@@ -265,7 +276,8 @@ function P.Refresh()
   if #plan.stuck > 0 then
     sections[#sections + 1] = { kind = "stuck", heading = GC.L["Can't be sold"], rows = plan.stuck }
   end
-  if #sections == 0 then
+  -- A piece that cannot be sold is told beside something to carry, never opens the list alone.
+  if #plan.putIn + #plan.takeOut == 0 then
     if frame then frame:Hide() end
     return
   end
@@ -322,12 +334,23 @@ function P.OnBankClosed()
   if frame then frame:Hide() end
 end
 
--- BAG_UPDATE_DELAYED and PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED: an item moved, by a press or by
--- the player's own hand.
+-- BAG_UPDATE_DELAYED: an item moved, by a press or by the player's own hand. Once a batch.
 function P.OnBagsChanged()
   if not P._open then return end
   P._pending = nil
   P.Refresh()
+end
+
+-- PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED comes once a slot: sorting the Warband Bank or depositing
+-- everything is hundreds of them. One repaint after the run.
+function P.OnTabSlotsChanged()
+  if not P._open or P._repaintQueued then return end
+  if not (C_Timer and C_Timer.After) then return P.OnBagsChanged() end
+  P._repaintQueued = true
+  C_Timer.After(0, function()
+    P._repaintQueued = nil
+    P.OnBagsChanged()
+  end)
 end
 
 --- The carry list in the chat, from anywhere: what in the bags to take to which realm. What sits in

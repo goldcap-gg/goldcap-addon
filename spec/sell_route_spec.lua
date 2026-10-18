@@ -222,11 +222,13 @@ describe("SellRoute", function()
       assert.same({ { bag = 0, slot = 2 } }, plan.putIn[1].locations)
     end)
 
-    it("moves nothing Warbound until equipped, and says it is stuck", function()
+    -- One in the bags is about to be carried and is told why it cannot sell; one the player already
+    -- put in the Warband Bank is theirs to keep there, and saying so on every visit is noise.
+    it("moves nothing Warbound until equipped, and says it is stuck only of one in the bags", function()
       local plan = GC.SellRoute.CarryPlan({ item(100, 0, 1, { wue = true }) }, { item(200, 12, 1, { wue = true }) }, opts())
       assert.same({}, plan.putIn)
       assert.same({}, plan.takeOut)
-      assert.equal(2, #plan.stuck)
+      assert.equal(1, #plan.stuck)
       assert.equal(100, plan.stuck[1].itemID)
     end)
 
