@@ -1602,13 +1602,23 @@ function GC.Sniper._MarkSuffix(itemID)
   return ("  |cff%s%s|r"):format(state == "missing" and "f7cf5a" or "8c8a85", text)
 end
 
--- What a flip row says under its name on the Items board: its mark, and how often it sells when
--- the payload says (F section). "" anywhere else.
+-- What a flip row says under its name on the Items board: its mark, how often it sells when the
+-- payload says (F section), in gold when this realm's lot is among the five cheapest realms to buy
+-- it on (K), and where to sell it (S, Core/SellRoute.lua). "" anywhere else.
 function GC.Sniper._RowNotes(deal)
   if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
   local notes = GC.Sniper._MarkSuffix(deal.itemID)
   local sells = GC.Data.FlipFacts and GC.ItemsBoard.FlipText(GC.Data.FlipFacts(deal.itemID))
   if sells then notes = notes .. ("\n|cff8c8a85%s|r"):format(sells) end
+  if GC.SellRoute then
+    local cheap = GC.Data.CheapRealms and GC.Data.CheapRealms(deal.itemID)
+    if GC.SellRoute.IsCheap(deal.unitPrice, cheap) then
+      notes = notes .. ("\n|cfff7cf5a%s|r"):format(GC.SellRoute.CheapText(cheap))
+    end
+    for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID), GC.Data.RealmName)) do
+      notes = notes .. ("\n|cffb8b5b0%s|r"):format(line)
+    end
+  end
   return notes
 end
 

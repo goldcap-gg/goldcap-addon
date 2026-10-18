@@ -1451,4 +1451,11 @@ GC.Locales.ruRU = {
   ["/gc companion opens this window again."] = "/gc companion снова откроет это окно.",
   ["Got it"] = "Понятно",
   ["Don't remind me"] = "Не напоминать",
+  ["sells within a day"] = "продаётся за день",
+  ["sells in about 1 day"] = "продаётся примерно за 1 день",
+  ["sells in about %d days"] = "продаётся примерно за %d дн.",
+  ["Sell here for %s, %s"] = "Продавайте здесь за %s, %s",
+  ["Sell on %s for %s, %s"] = "Продавайте на %s за %s, %s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "Дороже на %s, где у вас нет персонажа: %s, %s",
+  ["Among the 5 cheapest of %d realms"] = "В пятёрке самых дешёвых (реалмов: %d)",
 }

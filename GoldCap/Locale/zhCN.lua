@@ -1284,4 +1284,11 @@ GC.Locales.zhCN = {
   ["/gc companion opens this window again."] = "/gc companion 会再次打开这个窗口。",
   ["Got it"] = "知道了",
   ["Don't remind me"] = "不再提醒",
+  ["sells within a day"] = "一天内售出",
+  ["sells in about 1 day"] = "约 1 天售出",
+  ["sells in about %d days"] = "约 %d 天售出",
+  ["Sell here for %s, %s"] = "在本服以 %s 出售，%s",
+  ["Sell on %s for %s, %s"] = "在 %s 以 %s 出售，%s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "在你没有角色的 %s 卖得更贵：%s，%s",
+  ["Among the 5 cheapest of %d realms"] = "%d 个服务器中最便宜的 5 个之一",
 }

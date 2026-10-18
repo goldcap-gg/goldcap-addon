@@ -77,6 +77,7 @@ Core/DrillQueue.lua
 Core/KeyPoll.lua
 Core/Collection.lua
 Core/ItemsBoard.lua
+Core/SellRoute.lua
 Core/NameMatch.lua
 Core/BuyRun.lua
 Core/BuyView.lua

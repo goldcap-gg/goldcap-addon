@@ -1379,4 +1379,11 @@ GC.Locales.ptBR = {
   ["/gc companion opens this window again."] = "/gc companion abre esta janela de novo.",
   ["Got it"] = "Entendi",
   ["Don't remind me"] = "Não lembrar mais",
+  ["sells within a day"] = "vende em menos de um dia",
+  ["sells in about 1 day"] = "vende em cerca de 1 dia",
+  ["sells in about %d days"] = "vende em cerca de %d dias",
+  ["Sell here for %s, %s"] = "Venda aqui por %s, %s",
+  ["Sell on %s for %s, %s"] = "Venda em %s por %s, %s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "Paga mais em %s, onde você não tem personagem: %s, %s",
+  ["Among the 5 cheapest of %d realms"] = "Entre os 5 mais baratos de %d reinos",
 }

@@ -1452,4 +1452,11 @@ GC.Locales.ukUA = {
   ["/gc companion opens this window again."] = "/gc companion знову відкриє це вікно.",
   ["Got it"] = "Зрозуміло",
   ["Don't remind me"] = "Не нагадувати",
+  ["sells within a day"] = "продається за день",
+  ["sells in about 1 day"] = "продається приблизно за 1 день",
+  ["sells in about %d days"] = "продається приблизно за %d дн.",
+  ["Sell here for %s, %s"] = "Продавайте тут за %s, %s",
+  ["Sell on %s for %s, %s"] = "Продавайте на %s за %s, %s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "Дорожче на %s, де у вас немає персонажа: %s, %s",
+  ["Among the 5 cheapest of %d realms"] = "У п'ятірці найдешевших (реалмів: %d)",
 }

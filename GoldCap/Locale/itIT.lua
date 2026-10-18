@@ -1381,4 +1381,11 @@ GC.Locales.itIT = {
   ["/gc companion opens this window again."] = "/gc companion riapre questa finestra.",
   ["Got it"] = "Ho capito",
   ["Don't remind me"] = "Non ricordarmelo",
+  ["sells within a day"] = "si vende entro un giorno",
+  ["sells in about 1 day"] = "si vende in circa 1 giorno",
+  ["sells in about %d days"] = "si vende in circa %d giorni",
+  ["Sell here for %s, %s"] = "Vendilo qui a %s, %s",
+  ["Sell on %s for %s, %s"] = "Vendilo su %s a %s, %s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "Rende di più su %s, dove non hai personaggi: %s, %s",
+  ["Among the 5 cheapest of %d realms"] = "Tra i 5 più economici di %d reami",
 }

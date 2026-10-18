@@ -1318,4 +1318,11 @@ GC.Locales.koKR = {
   ["/gc companion opens this window again."] = "/gc companion을 입력하면 이 창이 다시 열립니다.",
   ["Got it"] = "확인",
   ["Don't remind me"] = "다시 알리지 않기",
+  ["sells within a day"] = "하루 안에 팔림",
+  ["sells in about 1 day"] = "약 1일 뒤 팔림",
+  ["sells in about %d days"] = "약 %d일 뒤 팔림",
+  ["Sell here for %s, %s"] = "여기서 %s에 판매, %s",
+  ["Sell on %s for %s, %s"] = "%s 서버에서 %s에 판매, %s",
+  ["Pays more on %s, where you have no character: %s, %s"] = "캐릭터가 없는 %s 서버에서 더 비쌈: %s, %s",
+  ["Among the 5 cheapest of %d realms"] = "%d개 서버 중 가장 싼 5곳",
 }

@@ -584,6 +584,59 @@ describe("Key poll wiring", function()
         assert.equal("", GC.Sniper._RowNotes(deal(11)))
       end)
 
+      -- Where a flip sells (the payload's C, S and K): this realm is Tarren Mill, the account has a
+      -- character on Kazzak, and Silvermoon is a realm it has none on.
+      describe("where a flip sells", function()
+        local G = 10000
+        local function loadRouted(spots, cheap)
+          _G.GetRealmName = function() return "Tarren Mill" end
+          local GC = load()
+          helper.loadModule("Core/SellRoute.lua", GC)
+          split(GC, {}, {}, { [10] = { ref = 300000, sales7d = 6, realms = 3 } })
+          local keys = { tarrenmill = 1084, kazzak = 1305, silvermoon = 3391 }
+          local names = { [1084] = "Tarren Mill", [1305] = "Kazzak", [3391] = "Silvermoon" }
+          GC.Data.RealmIdByKey = function(key) return keys[key] end
+          GC.Data.RealmName = function(id) return names[id] end
+          GC.Data.ClientRegion = function() return "eu" end
+          GC.Data.SellSpots = function(id) return id == 10 and spots or nil end
+          GC.Data.CheapRealms = function(id) return id == 10 and cheap or nil end
+          GC.Ledger = { GetGold = function() return { { char = "Alt-Kazzak", region = "eu", copper = 1 } } end }
+          return GC
+        end
+
+        after_each(function() _G.GetRealmName = nil end)
+
+        it("names the player's realm it sells best on, at what list price and how soon", function()
+          local GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
+            { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          local notes = GC.Sniper._RowNotes(deal(10))
+          assert.truthy(notes:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G) .. ", sells in about 2 days", 1, true))
+          assert.truthy(notes:find("Sold 6 times in 7 days on 3 realms", 1, true))
+        end)
+
+        it("says when this realm's lot is among the five cheapest", function()
+          local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } }, { floor5th = 100, realms = 24 })
+          local notes = GC.Sniper._RowNotes(deal(10)) -- the lot asks 100 copper
+          assert.truthy(notes:find("Among the 5 cheapest of 24 realms", 1, true))
+          assert.truthy(notes:find("Sell here for " .. GC.Util.FormatMoney(1900 * G), 1, true))
+          GC = loadRouted(nil, { floor5th = 99, realms = 24 })
+          assert.falsy(GC.Sniper._RowNotes(deal(10)):find("cheapest", 1, true))
+        end)
+
+        it("names a realm with no character on it only when it pays notably more", function()
+          local GC = loadRouted({ { realmId = 3391, list = 4000 * G, days = 3, own = false },
+            { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Pays more on Silvermoon, where you have no character", 1, true))
+        end)
+
+        it("says nothing about where to sell on a realm the payload does not know", function()
+          local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
+          _G.GetRealmName = function() return "Nowhere" end
+          GC.SellRoute._here = nil
+          assert.falsy(GC.Sniper._RowNotes(deal(10)):find("Sell", 1, true))
+        end)
+      end)
+
       it("pins nothing and opens nothing from a header or a Rare finds row", function()
         local GC = load()
         GC.Sniper._RowPinEvent({ deal = { kind = "rare", itemID = 7935 } }, "down", "RightButton")
