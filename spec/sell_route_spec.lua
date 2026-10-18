@@ -132,6 +132,79 @@ describe("SellRoute", function()
     end)
   end)
 
+  -- What to move through the Warband Bank at a bank on this realm (Tarren Mill, 1): put in what
+  -- sells better on another of the player's realms, take out what sells best here.
+  describe("CarryPlan", function()
+    local mine = { [1] = true, [2] = true }
+    -- 100: sells best on Kazzak (2); 200: best here; 300: a level 639 flip, best on Kazzak; 400: no
+    -- route at all.
+    local SPOTS = {
+      [100] = { spot(2, 2200, 2.4), spot(1, 1500, 1) },
+      [200] = { spot(1, 900, 0.5), spot(2, 880, 3) },
+      [300] = { spot(2, 5000, 4) },
+    }
+    local LEVELS = { [300] = 639 }
+    local function opts()
+      return {
+        hereId = 1,
+        routeFor = function(id) return GC.SellRoute.Pick(SPOTS[id], mine, 1) end,
+        levelFor = function(id) return LEVELS[id] end,
+      }
+    end
+    local function item(itemID, bag, slot, over)
+      local e = { itemID = itemID, bag = bag, slot = slot, count = 1, name = "Item " .. itemID, icon = itemID }
+      for k, v in pairs(over or {}) do e[k] = v end
+      return e
+    end
+
+    it("puts in what sells better on another of the player's realms, one row an item, every slot it sits in", function()
+      local plan = GC.SellRoute.CarryPlan({ item(100, 0, 1), item(100, 2, 5), item(200, 0, 2), item(400, 0, 3) }, {}, opts())
+      assert.equal(1, #plan.putIn)
+      local row = plan.putIn[1]
+      assert.equal(100, row.itemID)
+      assert.equal(2, row.count)
+      assert.same({ { bag = 0, slot = 1 }, { bag = 2, slot = 5 } }, row.locations)
+      assert.equal(2, row.spot.realmId)
+      assert.same({}, plan.takeOut)
+    end)
+
+    it("takes out what sells best here", function()
+      local plan = GC.SellRoute.CarryPlan({}, { item(200, 12, 4, { count = 3 }), item(100, 12, 5) }, opts())
+      assert.equal(1, #plan.takeOut)
+      assert.equal(200, plan.takeOut[1].itemID)
+      assert.equal(3, plan.takeOut[1].count)
+      assert.same({ { bag = 12, slot = 4 } }, plan.takeOut[1].locations)
+      assert.equal(1, plan.takeOut[1].spot.realmId)
+    end)
+
+    it("leaves gear under the level its price is for where it is", function()
+      local plan = GC.SellRoute.CarryPlan({ item(300, 0, 1, { ilvl = 610 }), item(300, 0, 2, { ilvl = 639 }) }, {}, opts())
+      assert.equal(1, #plan.putIn)
+      assert.same({ { bag = 0, slot = 2 } }, plan.putIn[1].locations)
+    end)
+
+    it("moves nothing Warbound until equipped, and says it is stuck", function()
+      local plan = GC.SellRoute.CarryPlan({ item(100, 0, 1, { wue = true }) }, { item(200, 12, 1, { wue = true }) }, opts())
+      assert.same({}, plan.putIn)
+      assert.same({}, plan.takeOut)
+      assert.equal(2, #plan.stuck)
+      assert.equal(100, plan.stuck[1].itemID)
+    end)
+
+    it("lists the most valuable first", function()
+      local plan = GC.SellRoute.CarryPlan({ item(100, 0, 1), item(300, 0, 2, { ilvl = 640 }) }, {}, opts())
+      assert.equal(300, plan.putIn[1].itemID)
+      assert.equal(100, plan.putIn[2].itemID)
+    end)
+
+    it("is empty off a realm the payload names", function()
+      local o = opts()
+      o.hereId = nil
+      local plan = GC.SellRoute.CarryPlan({ item(100, 0, 1) }, { item(200, 12, 1) }, o)
+      assert.same({ putIn = {}, takeOut = {}, stuck = {} }, plan)
+    end)
+  end)
+
   describe("IsCheap", function()
     it("is a price at or under the fifth cheapest realm, among ten realms or more", function()
       assert.is_true(GC.SellRoute.IsCheap(500, { floor5th = 500, realms = 10 }))

@@ -318,6 +318,12 @@ frame:RegisterEvent("BAG_UPDATE_DELAYED")
 for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED" }) do
   pcall(frame.RegisterEvent, frame, merchantEvent)
 end
+-- At a bank: what to carry between realms through the Warband Bank (UI/BankRoute.lua, retail only).
+-- A move into or out of a Warband Bank tab is PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED; one in the bags,
+-- BAG_UPDATE_DELAYED. Each in its own pcall, like the merchant events above.
+for _, bankEvent in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
+  pcall(frame.RegisterEvent, frame, bankEvent)
+end
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -1012,6 +1018,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
     -- A sale or a buyback at a vendor changes what the vendor note counts.
     if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
+    -- An item put into or taken out of the Warband Bank, by a press or by hand.
+    if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
@@ -1020,6 +1028,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
+  elseif event == "BANKFRAME_OPENED" then
+    if GC.BankRoute then GC.BankRoute.OnBankOpened() end
+  elseif event == "BANKFRAME_CLOSED" then
+    if GC.BankRoute then GC.BankRoute.OnBankClosed() end
+  elseif event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
+    if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.

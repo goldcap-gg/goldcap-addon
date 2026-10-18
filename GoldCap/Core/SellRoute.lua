@@ -106,6 +106,59 @@ function GC.SellRoute.IsCheap(unit, cheap)
     and unit <= cheap.floor5th
 end
 
+--- What to move through the Warband Bank at a bank on this realm, from what sits in the bags
+--- (`bagItems`) and in the Warband Bank's tabs (`bankItems`): one entry a stack,
+--- { itemID, bag, slot, count, name, icon, ilvl?, wue? }, `wue` for one Warbound until equipped.
+--- opts: hereId, routeFor(itemID) (ForItem), levelFor(itemID) (GC.Data.FlipLevel).
+--- Answers { putIn, takeOut, stuck }, a row an item, its stacks' slots in `locations`, the
+--- most valuable first:
+---   putIn    in the bags, and it sells notably better on another of the player's realms (Target)
+---   takeOut  in the Warband Bank, and it sells best here
+---   stuck    Warbound until equipped: the auction house refuses it on every realm
+--- Gear under the level its price is for (a 610 of a flip priced at 639) is left where it is: the
+--- route's prices are not its prices.
+function GC.SellRoute.CarryPlan(bagItems, bankItems, opts)
+  local plan = { putIn = {}, takeOut = {}, stuck = {} }
+  local hereId = opts.hereId
+  if not hereId then return plan end
+  local rows = {}
+  local function add(list, kind, e, spot)
+    local key = kind .. ":" .. e.itemID
+    local row = rows[key]
+    if not row then
+      row = { itemID = e.itemID, name = e.name, icon = e.icon, count = 0, locations = {}, spot = spot }
+      rows[key] = row
+      list[#list + 1] = row
+    end
+    row.count = row.count + (e.count or 1)
+    row.locations[#row.locations + 1] = { bag = e.bag, slot = e.slot }
+  end
+  local function walk(items, inBank)
+    for _, e in ipairs(items or {}) do
+      local level = opts.levelFor(e.itemID)
+      local pick = (not level or (e.ilvl or 0) >= level) and opts.routeFor(e.itemID) or nil
+      local target = GC.SellRoute.Target(pick)
+      if pick and e.wue then
+        add(plan.stuck, "stuck", e, target)
+      elseif target and not inBank and target.realmId ~= hereId then
+        add(plan.putIn, "in", e, target)
+      elseif target and inBank and target.realmId == hereId then
+        add(plan.takeOut, "out", e, target)
+      end
+    end
+  end
+  walk(bagItems, false)
+  walk(bankItems, true)
+  local function worth(row) return row.spot and row.spot.list * row.count or 0 end
+  for _, list in ipairs({ plan.putIn, plan.takeOut }) do
+    table.sort(list, function(a, b)
+      if worth(a) ~= worth(b) then return worth(a) > worth(b) end
+      return a.itemID < b.itemID
+    end)
+  end
+  return plan
+end
+
 --- How soon a sale is due, in the site's words (apps/web lib/items/whereToSell.ts's sellDays).
 function GC.SellRoute.PaceText(days)
   if days < 1 then return GC.L["sells within a day"] end
