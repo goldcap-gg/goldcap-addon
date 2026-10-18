@@ -183,5 +183,21 @@ describe("SellRoute", function()
     it("says when this realm is among the five cheapest", function()
       assert.equal("Among the 5 cheapest of 24 realms", GC.SellRoute.CheapText({ floor5th = 5, realms = 24 }))
     end)
+
+    -- The Check panel's route rows (Core/CheckVerdict.lua's sellOn, betterOn and cheapRealms), in
+    -- one line beside their label: the whole of it, then shorter for a cell it does not fit.
+    it("words a Check fact, shorter on each step down", function()
+      local fact = { id = "sellOn", realm = "Kazzak", copper = 2200 * G, days = 2.4 }
+      local money = GC.Util.FormatMoney(2200 * G)
+      assert.equal("Kazzak · " .. money .. " · about 2 days", GC.SellRoute.FactText(fact, 1))
+      assert.equal("Kazzak · " .. money, GC.SellRoute.FactText(fact, 2))
+      assert.equal("Kazzak", GC.SellRoute.FactText(fact, 3))
+      assert.is_nil(GC.SellRoute.FactText(fact, 4))
+      assert.equal("this realm · " .. GC.Util.FormatMoney(1900 * G) .. " · under a day",
+        GC.SellRoute.FactText({ id = "sellOn", here = true, copper = 1900 * G, days = 0.6 }, 1))
+      assert.equal("about 1 day", GC.SellRoute.FactText({ id = "betterOn", realm = "X", copper = 1, days = 1.2 }, 1):match("about 1 day"))
+      assert.equal("top 5 of 24", GC.SellRoute.FactText({ id = "cheapRealms", count = 24 }, 1))
+      assert.is_nil(GC.SellRoute.FactText({ id = "cheapRealms", count = 24 }, 2))
+    end)
   end)
 end)

@@ -1622,6 +1622,26 @@ function GC.Sniper._RowNotes(deal)
   return notes
 end
 
+-- Where the flip a Check is about sells, as GC.CheckVerdict.Build's context.route: the realm to sell
+-- it on among the player's (`here` for this one), a realm with no character that pays notably more,
+-- and how many realms list it when the lot the Check found here is among the five cheapest. nil
+-- when goldcap.gg has no route for the item or this realm is not one the payload names.
+function GC.Sniper._CheckRoute(itemID, decision)
+  if not (GC.SellRoute and itemID) then return nil end
+  local pick = GC.SellRoute.ForItem(itemID)
+  if not pick then return nil end
+  local function spot(s)
+    if not s then return nil end
+    if s == pick.here then return { here = true, copper = s.list, days = s.days } end
+    local name = GC.Data.RealmName(s.realmId)
+    return name and { realm = name, copper = s.list, days = s.days } or nil
+  end
+  local cheap = GC.Data.CheapRealms(itemID)
+  local unit = type(decision) == "table" and decision.entryUnitDisplay or nil
+  return { target = spot(GC.SellRoute.Target(pick)), suggest = spot(pick.suggest),
+    cheapRealms = GC.SellRoute.IsCheap(unit, cheap) and cheap.realms or nil }
+end
+
 -- The Rare finds rows this realm's answers make right now, in board order, the board's header sort
 -- applied within them. `skip`: rows held on screen. Empty while the payload names no rare find.
 function GC.Sniper._RareRows(skip)
@@ -4903,8 +4923,10 @@ end
 -- never fail because a cosmetic slot is missing.
 local function drawVerdict(deal, decision, market)
   local CV = GC.CheckVerdict
-  -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption.
-  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource })
+  -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption;
+  -- `route` is where the flip sells (GC.Sniper._CheckRoute), which only a realm lot shows.
+  local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource,
+    route = GC.Sniper._CheckRoute(deal.itemID, decision) })
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
@@ -5007,7 +5029,7 @@ local function drawVerdict(deal, decision, market)
   -- The sentence. On a refusal it is the reason the engine actually filed -- wrapped now, so
   -- it stops ending in the "…" the owner's screenshot caught.
   local sentence = tone == "refuse" and GC.SniperDecision.ReasonText(verdict.reason)
-    or GC.L[CV.TONE_SENTENCE[tone] or ""]
+    or GC.L[CV.TONE_SENTENCE[verdict.sentence or tone] or ""]
   dialog.verdictHead:SetText(sentence)
   if tone == "refuse" then
     dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
@@ -5037,8 +5059,12 @@ local function drawVerdict(deal, decision, market)
         elseif fact.tone == "good" then color = Theme.color.green
         elseif fact.tone == "muted" then color = Theme.color.fgDim end
 
+        -- Where a flip sells (Core/SellRoute.lua's FactText): words, not a figure.
+        local worded = fact.id == "sellOn" or fact.id == "betterOn" or fact.id == "cheapRealms"
         local value
-        if fact.copper then
+        if worded then
+          value = GC.SellRoute.FactText(fact, 1)
+        elseif fact.copper then
           -- A signed figure only where the sign is the point: "+184g" answers "and if it
           -- does clear?", while a signed "+622g" against what you PAY reads as a gain.
           local signed = fact.id == "ifItClears" or fact.id == "worstCaseBack"
@@ -5052,7 +5078,18 @@ local function drawVerdict(deal, decision, market)
         end
 
         slot.label:SetText(GC.L[CV.FACT_LABEL[fact.id] or fact.id])
+        -- A worded row takes the meter's room as well as the figure's column: a realm, a price and
+        -- a pace do not fit 90px. Stepped down a form at a time until it fits, since a cut word is
+        -- never drawn. The rows are reused, so every row sets its width.
+        slot.value:SetWidth(worded and (DG.FACT_METER_W + Theme.pad.s + DG.FACT_VALUE_W) or DG.FACT_VALUE_W)
         slot.value:SetText(value)
+        local form = 1
+        while worded and slot.value.IsTruncated and slot.value:IsTruncated() do
+          form = form + 1
+          local shorter = GC.SellRoute.FactText(fact, form)
+          if not shorter then break end
+          slot.value:SetText(shorter)
+        end
         slot.value:SetTextColor(color[1], color[2], color[3])
 
         if fact.meter then
@@ -5066,7 +5103,8 @@ local function drawVerdict(deal, decision, market)
           slot.meter:Show()
         else
           slot.meter:Hide()
-          slot.leader:Show()
+          -- A worded row runs where the leader line would.
+          if worded then slot.leader:Hide() else slot.leader:Show() end
         end
       end
     end

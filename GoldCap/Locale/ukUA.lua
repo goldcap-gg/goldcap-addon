@@ -1459,4 +1459,13 @@ GC.Locales.ukUA = {
   ["Sell on %s for %s, %s"] = "Продавайте на %s за %s, %s",
   ["Pays more on %s, where you have no character: %s, %s"] = "Дорожче на %s, де у вас немає персонажа: %s, %s",
   ["Among the 5 cheapest of %d realms"] = "У п'ятірці найдешевших (реалмів: %d)",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "Ціну звірено з тим, за скільки це продавалося в регіоні. Де продати найвигідніше, нижче.",
+  ["Sell on"] = "Продати на",
+  ["Cheapest realms"] = "Дешеві реалми",
+  ["Better on"] = "Дорожче на",
+  ["under a day"] = "менше дня",
+  ["about 1 day"] = "близько 1 дня",
+  ["about %d days"] = "близько %d дн.",
+  ["top 5 of %d"] = "топ-5 з %d",
+  ["this realm"] = "цей реалм",
 }

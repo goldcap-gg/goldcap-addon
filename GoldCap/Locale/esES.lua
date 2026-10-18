@@ -1393,4 +1393,13 @@ GC.Locales.esES = {
   ["Sell on %s for %s, %s"] = "Véndelo en %s por %s, %s",
   ["Pays more on %s, where you have no character: %s, %s"] = "Se paga más en %s, donde no tienes personaje: %s, %s",
   ["Among the 5 cheapest of %d realms"] = "Entre los 5 más baratos de %d reinos",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "El precio está comprobado con lo que se vendió en la región. Abajo, dónde se vende mejor.",
+  ["Sell on"] = "Vender en",
+  ["Cheapest realms"] = "Reinos baratos",
+  ["Better on"] = "Mejor en",
+  ["under a day"] = "menos de un día",
+  ["about 1 day"] = "1 día aprox.",
+  ["about %d days"] = "%d días aprox.",
+  ["top 5 of %d"] = "top 5 de %d",
+  ["this realm"] = "este reino",
 }

@@ -1376,4 +1376,13 @@ GC.Locales.enUS = {
   ["Sell on %s for %s, %s"] = "Sell on %s for %s, %s",
   ["Pays more on %s, where you have no character: %s, %s"] = "Pays more on %s, where you have no character: %s, %s",
   ["Among the 5 cheapest of %d realms"] = "Among the 5 cheapest of %d realms",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "The price is checked against what this sold for across the region. Where it sells best is below.",
+  ["Sell on"] = "Sell on",
+  ["Cheapest realms"] = "Cheapest realms",
+  ["Better on"] = "Better on",
+  ["under a day"] = "under a day",
+  ["about 1 day"] = "about 1 day",
+  ["about %d days"] = "about %d days",
+  ["top 5 of %d"] = "top 5 of %d",
+  ["this realm"] = "this realm",
 }

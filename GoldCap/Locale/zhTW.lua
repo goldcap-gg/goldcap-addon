@@ -1292,4 +1292,13 @@ GC.Locales.zhTW = {
   ["Sell on %s for %s, %s"] = "在 %s 以 %s 出售，%s",
   ["Pays more on %s, where you have no character: %s, %s"] = "在你沒有角色的 %s 賣得更貴：%s，%s",
   ["Among the 5 cheapest of %d realms"] = "%d 個伺服器中最便宜的 5 個之一",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "價格已與全地區的實際成交價核對。最好賣在哪裡見下方。",
+  ["Sell on"] = "出售伺服器",
+  ["Cheapest realms"] = "最便宜伺服器",
+  ["Better on"] = "更貴伺服器",
+  ["under a day"] = "不到一天",
+  ["about 1 day"] = "約 1 天",
+  ["about %d days"] = "約 %d 天",
+  ["top 5 of %d"] = "%d 個中前 5",
+  ["this realm"] = "本伺服器",
 }

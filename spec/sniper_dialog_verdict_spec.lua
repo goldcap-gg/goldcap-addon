@@ -462,6 +462,61 @@ describe("Sniper buy dialog verdict block", function()
     assert.is_true(limits.budget >= 2661234)
   end)
 
+  -- Where a flip sells (Core/SellRoute.lua): this realm is Tarren Mill, the account has a
+  -- character on Kazzak, and the Check of a realm lot fills its two free rows with where to sell
+  -- it and whether this realm is among the five cheapest to buy it on.
+  describe("a realm lot goldcap.gg has a route for", function()
+    local G = 10000
+    local function loadRouted(cheap)
+      _G.GetRealmName = function() return "Tarren Mill" end
+      local GC, stamp = load()
+      helper.loadModule("Core/SellRoute.lua", GC)
+      local keys = { tarrenmill = 1084, kazzak = 1305 }
+      local names = { [1084] = "Tarren Mill", [1305] = "Kazzak" }
+      GC.Data.RealmIdByKey = function(key) return keys[key] end
+      GC.Data.RealmName = function(id) return names[id] end
+      GC.Data.ClientRegion = function() return "eu" end
+      GC.Data.SellSpots = function() return { { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
+        { realmId = 1084, list = 1900 * G, days = 0.6, own = true } } end
+      GC.Data.CheapRealms = function() return cheap end
+      GC.Ledger = { GetGold = function() return { { char = "Alt-Kazzak", region = "eu", copper = 1 } } end }
+      return GC, stamp
+    end
+
+    local function realmLot()
+      return { status = "WATCH", buyable = false, reasons = { "realm_item_unverified" }, quantity = 1,
+        entryTotal = 750000, entryUnitDisplay = 750000, reference = 1000000, estProfit = 200000,
+        candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 } }
+    end
+
+    after_each(function() _G.GetRealmName = nil end)
+
+    it("names the realm to sell on, its price and pace, and this realm's place among the cheapest", function()
+      local GC, stamp = loadRouted({ floor5th = 800000, realms = 24 })
+      local d = capDialog()
+      setUpvalue(stamp, "dialog", d)
+      stamp({ itemID = 42, isCommodity = false }, realmLot())
+      local labels = factLabels(d)
+      assert.equal("Sell on", labels[3])
+      assert.equal("Kazzak · " .. GC.Util.FormatMoney(2200 * G) .. " · about 2 days", d.factRows[3].value.text)
+      assert.equal("Cheapest realms", labels[4])
+      assert.equal("top 5 of 24", d.factRows[4].value.text)
+      assert.equal(GC.CheckVerdict.TONE_SENTENCE.routed, d.verdictHead.text)
+      -- A worded row takes the meter's room too; a figure keeps its own column.
+      assert.is_true(d.factRows[3].value.width > d.factRows[1].value.width)
+      assert.is_false(d.factRows[3].leader.shown)
+    end)
+
+    it("leaves the cheap row out when this realm's lot is not among the five cheapest", function()
+      local _, stamp = loadRouted({ floor5th = 700000, realms = 24 })
+      local d = capDialog()
+      setUpvalue(stamp, "dialog", d)
+      stamp({ itemID = 42, isCommodity = false }, realmLot())
+      assert.equal("Sell on", factLabels(d)[3])
+      assert.equal("", factLabels(d)[4])
+    end)
+  end)
+
   -- Check panel v3 replaced the ENTRY AVG / STRESS EXIT plaques (two numbers the evidence grid
   -- already carried, in a slot that went blank on every SUSPECT deal) with four facts chosen to
   -- explain THIS verdict. A meter is drawn only where CheckVerdict handed one out -- a bar with

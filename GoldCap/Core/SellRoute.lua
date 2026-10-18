@@ -141,6 +141,28 @@ function GC.SellRoute.CheapText(cheap)
   return (GC.L["Among the 5 cheapest of %d realms"]):format(cheap.realms)
 end
 
+-- How soon, short, for a cell beside a label.
+local function shortPace(days)
+  if days < 1 then return GC.L["under a day"] end
+  local n = math.floor(days + 0.5)
+  if n == 1 then return GC.L["about 1 day"] end
+  return (GC.L["about %d days"]):format(n)
+end
+
+--- The value of a Check panel route row (Core/CheckVerdict.lua's sellOn, betterOn, cheapRealms), at
+--- `form` 1 whole ("Kazzak · 2,200g · about 2 days"), 2 without the pace, 3 the realm alone: the
+--- panel steps down until it fits its cell, since a cut word is never drawn. nil past the last form.
+function GC.SellRoute.FactText(fact, form)
+  if fact.id == "cheapRealms" then
+    return form == 1 and (GC.L["top 5 of %d"]):format(fact.count) or nil
+  end
+  local realm = fact.here and GC.L["this realm"] or fact.realm
+  if form == 1 then return ("%s · %s · %s"):format(realm, GC.Util.FormatMoney(fact.copper), shortPace(fact.days)) end
+  if form == 2 then return ("%s · %s"):format(realm, GC.Util.FormatMoney(fact.copper)) end
+  if form == 3 then return realm end
+  return nil
+end
+
 -- The client's side: this realm and the player's realms as the payload knows them, and the pick
 -- for an item. Both realms are worked out once a session: the payload is adopted at load and the
 -- realm never changes while the game runs. A realm the payload does not name (no C section, a

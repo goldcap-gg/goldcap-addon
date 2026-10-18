@@ -105,6 +105,9 @@ GC.CheckVerdict.TONE_SENTENCE = {
   adjust = "Capped by how fast this actually sells, not by your wallet.",
   clear = "Checked against the live order book a moment ago.",
   unverified = "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
+  -- An unverified realm lot goldcap.gg knows where it sells (Build's `sentence`): how fast it sells
+  -- IS measured then, from the region's sales, and the facts below say where.
+  routed = "The price is checked against what this sold for across the region. Where it sells best is below.",
   cap = "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
   gold = "Everything else checks out. With more gold on this character, this is a buy.",
   vendor = "Checked against the live auction house a moment ago.",
@@ -140,6 +143,11 @@ GC.CheckVerdict.FACT_LABEL = {
   worstCaseBack = "Worst case back",
   yourMinimum = "Your minimum",
   yourPrice = "Your price",
+  -- Where a flip sells (context.route): the realm to sell it on among the player's, whether this
+  -- realm is among the five cheapest to buy it on, and a realm with no character that pays more.
+  sellOn = "Sell on",
+  cheapRealms = "Cheapest realms",
+  betterOn = "Better on",
 }
 
 -- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
@@ -267,6 +275,28 @@ local function take(facts, ...)
   return facts
 end
 
+-- A realm spot as a fact: the realm (or `here`), what to list at there and how many days a sale
+-- takes. The panel words it.
+local function spotFact(id, spot, tone)
+  if type(spot) ~= "table" or not positive(spot.copper) or not number(spot.days) then return nil end
+  return { id = id, realm = spot.realm, here = spot.here, copper = spot.copper, days = spot.days, tone = tone }
+end
+
+-- Where a flip sells, as the two facts a realm lot has room for (context.route, from
+-- Core/SellRoute.lua by way of the panel's caller): the realm to sell it on, then that this realm
+-- is among the five cheapest to buy it on -- the buy's own question, so it goes first -- or else a
+-- realm with no character on it that pays notably more.
+local function routeFacts(route)
+  if type(route) ~= "table" then return nil, nil end
+  local second
+  if positive(route.cheapRealms) then
+    second = { id = "cheapRealms", count = route.cheapRealms, tone = "good" }
+  else
+    second = spotFact("betterOn", route.suggest, "muted")
+  end
+  return spotFact("sellOn", route.target, "plain"), second
+end
+
 --- Builds the panel's content from a decision and the market snapshot behind it.
 -- `context.tier` is the tier the DEALS BOARD showed, which comes from the imported
 -- snapshot rather than the live book -- the two can disagree, and when they do the player
@@ -388,9 +418,10 @@ function GC.CheckVerdict.Build(decision, market, context)
   elseif tone == "unverified" then
     -- Two facts, because two are all a realm item honestly has: what this lot costs, and the
     -- reference it is being compared with. No sellers, no sell-through, no velocity -- an
-    -- import carries none of them for a realm item, and a dash in a row is not a fact.
+    -- import carries none of them for a realm item, and a dash in a row is not a fact. Then,
+    -- when goldcap.gg knows, where it sells (routeFacts).
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
-      flat("snapshotValue", "copper", decision.reference, "muted"))
+      flat("snapshotValue", "copper", decision.reference, "muted"), routeFacts(context.route))
   elseif tone == "refuse" and (reason == "stress_profit_below_buffer" or reason == "profit_below_minimum") then
     -- The refusal is a comparison -- what came back against what the player asked for -- so
     -- the floor it fell short of is the third fact, ahead of anything about the market. A WoW:
@@ -406,6 +437,9 @@ function GC.CheckVerdict.Build(decision, market, context)
   return {
     tone = tone,
     reason = reason,
+    -- A TONE_SENTENCE key standing in for the tone's own, or nil: an unverified realm lot whose
+    -- route goldcap.gg knows is measured after all.
+    sentence = tone == "unverified" and type(context.route) == "table" and context.route.target and "routed" or nil,
     hero = hero,
     facts = facts,
     actionable = tone ~= "refuse" and tone ~= "gold",

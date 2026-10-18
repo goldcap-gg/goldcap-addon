@@ -1325,4 +1325,13 @@ GC.Locales.koKR = {
   ["Sell on %s for %s, %s"] = "%s 서버에서 %s에 판매, %s",
   ["Pays more on %s, where you have no character: %s, %s"] = "캐릭터가 없는 %s 서버에서 더 비쌈: %s, %s",
   ["Among the 5 cheapest of %d realms"] = "%d개 서버 중 가장 싼 5곳",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "가격은 지역 전체의 실제 판매가와 비교했습니다. 가장 잘 팔리는 서버는 아래에 있습니다.",
+  ["Sell on"] = "판매 서버",
+  ["Cheapest realms"] = "최저가 서버",
+  ["Better on"] = "더 비싼 서버",
+  ["under a day"] = "하루 이내",
+  ["about 1 day"] = "약 1일",
+  ["about %d days"] = "약 %d일",
+  ["top 5 of %d"] = "%d곳 중 상위 5",
+  ["this realm"] = "이 서버",
 }

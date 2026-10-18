@@ -1458,4 +1458,13 @@ GC.Locales.ruRU = {
   ["Sell on %s for %s, %s"] = "Продавайте на %s за %s, %s",
   ["Pays more on %s, where you have no character: %s, %s"] = "Дороже на %s, где у вас нет персонажа: %s, %s",
   ["Among the 5 cheapest of %d realms"] = "В пятёрке самых дешёвых (реалмов: %d)",
+  ["The price is checked against what this sold for across the region. Where it sells best is below."] = "Цена сверена с тем, за сколько это продавалось в регионе. Где продать выгоднее всего, ниже.",
+  ["Sell on"] = "Продать на",
+  ["Cheapest realms"] = "Дешёвые реалмы",
+  ["Better on"] = "Дороже на",
+  ["under a day"] = "меньше дня",
+  ["about 1 day"] = "около 1 дня",
+  ["about %d days"] = "около %d дн.",
+  ["top 5 of %d"] = "топ-5 из %d",
+  ["this realm"] = "этот реалм",
 }
