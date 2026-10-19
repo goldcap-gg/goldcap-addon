@@ -727,6 +727,7 @@ GC.Locales.koKR = {
   ["no live quote yet, pricing…"] = "아직 실시간 시세가 없습니다. 가격 확인 중…",
   ["no market figure for caged pets"] = "우리에 든 애완동물은 시장 수치 없음",
   ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
+  ["Makes %s"] = "%s 제작",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "아직 시세가 없습니다. /goldcap companion 또는 /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

@@ -769,6 +769,7 @@ GC.Locales.ptBR = {
   ["no live quote yet, pricing…"] = "ainda sem cotação ao vivo, precificando…",
   ["no market figure for caged pets"] = "sem dado de mercado para mascotes engaioladas",
   ["no market figure for this item level"] = "sem dado de mercado para este nível de item",
+  ["Makes %s"] = "Cria %s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "ainda sem preços: /goldcap companion ou /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

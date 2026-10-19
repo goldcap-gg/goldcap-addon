@@ -742,6 +742,7 @@ GC.Locales.ruRU = {
   ["no live quote yet, pricing…"] = "живой котировки пока нет, оцениваем цену…",
   ["no market figure for caged pets"] = "нет рыночных данных для питомцев в клетке",
   ["no market figure for this item level"] = "нет рыночных данных для этого уровня предмета",
+  ["Makes %s"] = "Создаёт %s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "цен пока нет: /goldcap companion или /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

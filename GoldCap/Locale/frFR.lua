@@ -770,6 +770,7 @@ GC.Locales.frFR = {
   ["no live quote yet, pricing…"] = "pas encore de cotation en direct, estimation du prix…",
   ["no market figure for caged pets"] = "pas de chiffre de marché pour les mascottes en cage",
   ["no market figure for this item level"] = "pas de chiffre de marché pour ce niveau d'objet",
+  ["Makes %s"] = "Fabrique %s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "pas encore de prix : /goldcap companion ou /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

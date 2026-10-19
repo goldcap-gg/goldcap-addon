@@ -770,6 +770,7 @@ GC.Locales.itIT = {
   ["no live quote yet, pricing…"] = "ancora nessuna quotazione dal vivo, calcolo del prezzo…",
   ["no market figure for caged pets"] = "nessun dato di mercato per le mascotte in gabbia",
   ["no market figure for this item level"] = "nessun dato di mercato per questo livello oggetto",
+  ["Makes %s"] = "Crea %s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "ancora nessun prezzo: /goldcap companion o /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

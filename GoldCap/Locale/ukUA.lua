@@ -752,6 +752,7 @@ GC.Locales.ukUA = {
   ["no live quote yet, pricing…"] = "живого котирування ще немає, оцінюємо ціну…",
   ["no market figure for caged pets"] = "немає ринкових даних для вихованців у клітці",
   ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
+  ["Makes %s"] = "Створює %s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "цін ще немає: /goldcap companion або /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

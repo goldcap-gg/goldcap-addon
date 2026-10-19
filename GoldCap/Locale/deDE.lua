@@ -772,6 +772,7 @@ GC.Locales.deDE = {
   ["no live quote yet, pricing…"] = "noch kein Live-Kurs, Preis wird ermittelt…",
   ["no market figure for caged pets"] = "keine Marktdaten für Haustiere im Käfig",
   ["no market figure for this item level"] = "keine Marktdaten für diese Gegenstandsstufe",
+  ["Makes %s"] = "Stellt %s her",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "noch keine Preise: /goldcap companion oder /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] =

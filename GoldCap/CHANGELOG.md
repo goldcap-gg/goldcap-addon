@@ -19,6 +19,9 @@
   the auction house will not take. `/gc route` prints the list anywhere, and the welcome window
   mentions it.
 - All of this needs fresh prices from GoldCap Companion.
+- Tooltips: on a recipe (a schematic, a pattern, a formula), GoldCap's lines start with "Makes" and
+  the item's name, so it is clear they are the price of what the recipe makes. When GoldCap has a
+  price for the recipe itself, that comes first.
 - Settings: the BRAKES card is now called RISK CHECKS, a name that says what it does: it refuses a
   buy right after a crash or a spike, or with a wall of listings under your resale price.
 

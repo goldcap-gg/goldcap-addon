@@ -710,6 +710,7 @@ GC.Locales.zhCN = {
   ["no live quote yet, pricing…"] = "尚无实时报价，正在定价…",
   ["no market figure for caged pets"] = "笼中宠物没有市场数据",
   ["no market figure for this item level"] = "此物品等级没有市场数据",
+  ["Makes %s"] = "制作：%s",
   ["no prices yet: /goldcap companion or /goldcap import"] =
     "还没有价格：/goldcap companion 或 /goldcap import",
   ["no purchase confirmation received. Cancel and retry"] = "未收到购买确认。点 Cancel 后重试",

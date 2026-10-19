@@ -154,6 +154,7 @@ GC.Locales.enUS = {
     "Loot counting is off. Type /gc loot clear to remove what was recorded.",
   ["Loot counting is on."] = "Loot counting is on.",
   ["Loot record cleared."] = "Loot record cleared.",
+  ["Makes %s"] = "Makes %s",
   ["Market"] = "Market",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
