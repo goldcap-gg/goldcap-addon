@@ -505,6 +505,23 @@ end
 
 -- `postQty`: how many units the next Post lists, when the caller knows better than the position
 -- (a number the seller typed). Optional; the position's own postable quantity otherwise.
+-- Enum.ItemClass Weapon and Armor: the items that come at several item levels.
+local GEAR_CLASS = { [2] = true, [4] = true }
+
+-- Whether a "level" position's item level tells it apart from other levels of the same item, as
+-- gear's does. The auction house files some other items under their one level too (Schematic:
+-- R0CKY-To-Go is item:278333:80), so their Sell key is a level key, yet there is no other level
+-- to tell them from: no "ilvl" beside the name, no "no market figure for this item level" note,
+-- and the row's tooltip shows GoldCap's figure as any bag slot's does. Their price still comes
+-- from their own book (Core/SellPositions), not from GoldCap's figure for a realm item, which
+-- can sit far above what one realm pays (ClickUp 869ffjv0h). An item the client cannot class
+-- yet counts as gear, as every level key did before.
+function GC.SellViewModel.LevelVariant(position)
+  if type(position) ~= "table" or position.variantKind ~= "level" then return false end
+  local classID = C_Item and C_Item.GetItemInfoInstant and select(6, C_Item.GetItemInfoInstant(position.itemID))
+  return classID == nil or GEAR_CLASS[classID] == true
+end
+
 function GC.SellViewModel.Expansion(position, postQty)
   position = position or {}
   local marketFresh = position.displayMarketUnit ~= nil and position.freshMarketUnit ~= nil
@@ -612,7 +629,7 @@ function GC.SellViewModel.Expansion(position, postQty)
   -- A variant's market data is not its own (Core/SellPositions: the site merges item levels and
   -- pet species), so there is none -- said, rather than left to look merely missing.
   if position.variantKind == "pet" then facts[#facts + 1] = GC.L["no market figure for caged pets"]
-  elseif position.variantKind == "level" then facts[#facts + 1] = GC.L["no market figure for this item level"] end
+  elseif GC.SellViewModel.LevelVariant(position) then facts[#facts + 1] = GC.L["no market figure for this item level"] end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end
   if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = GC.L["sale name ambiguous"] end

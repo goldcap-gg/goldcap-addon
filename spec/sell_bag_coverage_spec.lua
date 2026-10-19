@@ -573,6 +573,47 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.is_nil(row.goldcapVariant)
   end)
 
+  -- The auction house files a Midnight schematic under its one item level (item:278333:80), so its
+  -- Sell key is a level key like gear's. But a recipe comes at no other level: the row names none,
+  -- the panel has no "no market figure for this item level", and the hover shows GoldCap's block
+  -- as a bag slot's does (owner, 2026-10-19). Its price is still its own book's.
+  it("names no item level on a recipe, which comes at only one", function()
+    _G.C_Item.GetItemInfoInstant = function(id) if id == 222 then return 222, "", "", "", 0, 9, 1 end end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Schematic: Foo" })
+    slotKeys["0:1"] = key(222, 80)
+    compose()
+    local row
+    for _, candidate in ipairs(GC.SellUI.rows) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.is_nil(row.cells.item.text:find("ilvl", 1, true))
+    local p = positionOf("item:222:80:0:0")
+    assert.equal("level", p.variantKind) -- still priced from its own book
+    assert.is_nil((GC.SellViewModel.Expansion(p).factsText or ""):find("no market figure", 1, true))
+    _G.GameTooltip = { SetOwner = function() end, Show = function() end, AddLine = function() end,
+      SetBagItem = function() end, SetItemByID = function() end }
+    GC.Theme.ItemTooltipOutside = function() end
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    assert.is_nil(row.goldcapVariant)
+  end)
+
+  it("still names the item level on armor", function()
+    _G.C_Item.GetItemInfoInstant = function(id) if id == 222 then return 222, "", "", "", 0, 4, 1 end end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Foo Helm" })
+    slotKeys["0:1"] = key(222, 619)
+    compose()
+    local row
+    for _, candidate in ipairs(GC.SellUI.rows) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.matches("ilvl 619", row.cells.item.text, 1, true)
+    assert.matches("no market figure for this item level",
+      GC.SellViewModel.Expansion(positionOf("item:222:619:0:0")).factsText or "", 1, true)
+  end)
+
   -- Escape, the auction house closing, a tab switch by keybinding, a re-render after a post: the
   -- row goes with the cursor still on it, and OnLeave never comes. The next item tooltip -- a bag
   -- slot's -- is its own, and keeps GoldCap's value (review NI-B).

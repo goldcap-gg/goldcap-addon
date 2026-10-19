@@ -22,6 +22,8 @@
 - Tooltips: on a recipe (a schematic, a pattern, a formula), GoldCap's lines start with "Makes" and
   the item's name, so it is clear they are the price of what the recipe makes. When GoldCap has a
   price for the recipe itself, that comes first.
+- Sell: a recipe no longer shows an item level beside its name ("ilvl 80"), as if it were gear,
+  and its panel no longer says there is no market figure for its item level.
 - Settings: the BRAKES card is now called RISK CHECKS, a name that says what it does: it refuses a
   buy right after a crash or a spike, or with a wall of listings under your resale price.
 
