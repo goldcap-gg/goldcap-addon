@@ -1,5 +1,32 @@
 # GoldCap
 
+## 0.22.0 (2026-10-21)
+
+- Deals, Items board: each flip says which of your realms to sell it on, for how much and how soon
+  it should sell, worked out on goldcap.gg from what sold on each realm. Your realms are the ones
+  GoldCap has seen your characters on. A realm where you have no character is named only when it
+  pays clearly more, at least a quarter more and 500 gold more.
+- Deals, Items board: when this realm's cheapest listing of a flip is among the 5 cheapest of all
+  realms, the row says so in gold.
+- Deals: the Check of a realm item says where to sell it, for how much and how soon, and whether
+  this realm is among the 5 cheapest to buy it on.
+- Deals: armor and weapons are priced at the item level they sell at most, and the board and the
+  Check only look at listings at or above that level, so a lower level piece no longer looks like
+  a bargain.
+- At a bank: a GoldCap list beside the bank window shows the flips in your bags that sell better on
+  another of your realms (PUT IN moves one into the Warband Bank) and the ones in the Warband Bank
+  that sell best on this realm (TAKE OUT). A piece that is Warbound until equipped is listed as one
+  the auction house will not take. `/gc route` prints the list anywhere, and the welcome window
+  mentions it.
+- All of this needs fresh prices from GoldCap Companion.
+- Tooltips: on a recipe (a schematic, a pattern, a formula), GoldCap's lines start with "Makes" and
+  the item's name, so it is clear they are the price of what the recipe makes. When GoldCap has a
+  price for the recipe itself, that comes first.
+- Sell: a recipe no longer shows an item level beside its name ("ilvl 80"), as if it were gear,
+  and its panel no longer says there is no market figure for its item level.
+- Settings: the BRAKES card is now called RISK CHECKS, a name that says what it does: it refuses a
+  buy right after a crash or a spike, or with a wall of listings under your resale price.
+
 ## 0.21.1 (2026-10-18)
 
 - Deals: once a row has been checked live, its quantity, total and profit come from that check:

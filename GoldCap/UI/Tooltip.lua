@@ -223,6 +223,46 @@ function GC.Tooltip.BuildLines(v, now, opts)
   return lines
 end
 
+-- Enum.ItemClass.Recipe, the same on both games; a literal, as in Core/ForeverScan.lua's class checks.
+local CLASS_RECIPE = 9
+
+-- Draws GoldCap's lines for one item, under `heading` when there is one. Returns nothing; draws
+-- nothing when GoldCap has no figure for the item. `shown` is per tooltip: the Companion nudge,
+-- which is about the prices as a whole, is drawn once however many blocks there are.
+local function addBlock(tooltip, itemID, now, heading, shown)
+  -- WoW: Forever: the vendor price and a commodity's deposit, for the verdict line.
+  local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
+    and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
+      depositUnit = GC.ForeverValue.DepositUnit(itemID) } or nil
+  local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
+    unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
+      and GC.Acquisitions.UnitCostFor(itemID) or nil,
+    region = GC.Data.Region and GC.Data.Region() or nil,
+    origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
+    live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
+    forever = forever,
+  })
+  if not lines then return end
+  local tip = GC.Util.ClientText
+  if heading then tooltip:AddLine(tip(heading), 0.65, 0.82, 1) end
+  for _, ln in ipairs(lines) do
+    if ln.kind == "money" then
+      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+    elseif ln.kind == "live" then
+      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail),
+        0.65, 0.82, 1, 1, 1, 1)
+    elseif ln.kind == "hint" then
+      if not shown.hint then tooltip:AddLine(tip(ln.text), 0.55, 0.55, 0.55, true) end
+      shown.hint = true
+    elseif ln.kind == "verdict" then
+      local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
+      tooltip:AddLine(tip(ln.text), c[1], c[2], c[3])
+    else
+      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
+    end
+  end
+end
+
 local function onTooltip(tooltip, data)
   if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
   if not (GC.db and GC.db.settings and GC.db.settings.tooltip) then return end
@@ -259,34 +299,22 @@ local function onTooltip(tooltip, data)
     return
   end
   local now = time()
-  -- WoW: Forever: the vendor price and a commodity's deposit, for the verdict line.
-  local forever = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
-    and GC.ForeverValue and { vendorUnit = GC.ForeverValue.VendorUnit(itemID),
-      depositUnit = GC.ForeverValue.DepositUnit(itemID) } or nil
-  local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
-    unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
-      and GC.Acquisitions.UnitCostFor(itemID) or nil,
-    region = GC.Data.Region and GC.Data.Region() or nil,
-    origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
-    live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
-    forever = forever,
-  })
-  if not lines then return end
-  local tip = GC.Util.ClientText
-  for _, ln in ipairs(lines) do
-    if ln.kind == "money" then
-      tooltip:AddDoubleLine(tip(ln.label), GC.Util.CoinText(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
-    elseif ln.kind == "live" then
-      tooltip:AddDoubleLine(tip(ln.left), tip(GC.Util.CoinText(ln.copper) .. " · " .. ln.detail),
-        0.65, 0.82, 1, 1, 1, 1)
-    elseif ln.kind == "hint" then
-      tooltip:AddLine(tip(ln.text), 0.55, 0.55, 0.55, true)
-    elseif ln.kind == "verdict" then
-      local c = VERDICT_COLOR[ln.tone] or VERDICT_COLOR.dim
-      tooltip:AddLine(tip(ln.text), c[1], c[2], c[3])
-    else
-      tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
-    end
+  -- A recipe's tooltip (a schematic, a pattern, a formula) is the recipe's payload with the item it
+  -- makes as its hyperlink, and the game draws that item's own lines inside it: a probe on the
+  -- live client (2026-10-19) read id 278333, Schematic: R0CKY-To-Go, with the hyperlink
+  -- [R0CKY-To-Go]. The lookup above takes the hyperlink first, so GoldCap's lines under a recipe
+  -- were the crafted item's, unlabelled, beside the game's own price for the recipe. Now the
+  -- recipe's own figure comes first, if GoldCap has one, and the crafted item's block says whose
+  -- it is.
+  local recipeID = data and type(data.id) == "number" and data.id ~= itemID and data.id or nil
+  if recipeID and select(6, C_Item.GetItemInfoInstant(recipeID)) ~= CLASS_RECIPE then recipeID = nil end
+  local shown = {}
+  if recipeID then
+    addBlock(tooltip, recipeID, now, nil, shown)
+    local name = link and link:match("|h%[(.-)%]|h") or C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)
+    addBlock(tooltip, itemID, now, (GC.L["Makes %s"]):format(name or ("item " .. itemID)), shown)
+  else
+    addBlock(tooltip, itemID, now, nil, shown)
   end
 end
 

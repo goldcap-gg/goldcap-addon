@@ -399,6 +399,39 @@ describe("KeyPoll", function()
       assert.equal(50, hits[1].floor)
       assert.equal(50, poll:Book()[300].judged)
     end)
+
+    -- The rows the board is built from (ClickUp 869fjdhnk): a flip priced at a level is drawn at
+    -- its cheapest lot at or above that level, not at a lower level's price.
+    describe("AtLevel", function()
+      local function minIlvlFor(itemID) return minIlvls[itemID] end
+
+      it("draws an item with a level at its cheapest variant at or above it", function()
+        local poll = newPoll()
+        poll:Fold(variantsOf(300, 590, 40, 615, 150, 620, 170))
+        local rows = GC.KeyPoll.AtLevel(rowsEmitted[1], poll:Book(), minIlvlFor)
+        assert.equal(1, #rows)
+        assert.equal(300, rows[1].itemKey.itemID)
+        assert.equal(150, rows[1].minPrice)
+        assert.equal(1, rows[1].totalQuantity)
+        assert.equal(40, rowsEmitted[1][1].minPrice) -- the poll's own rows are left as they were
+      end)
+
+      it("drops an item no variant of which reaches its level", function()
+        local poll = newPoll()
+        poll:Fold(variantsOf(300, 590, 40))
+        assert.same({}, GC.KeyPoll.AtLevel(rowsEmitted[1], poll:Book(), minIlvlFor))
+      end)
+
+      it("keeps an item without a level, and one whose rows state no level, as they came", function()
+        local poll = newPoll()
+        minIlvls[301] = 610
+        poll:Fold({ row(7, 900, 3), row(301, 50, 2) })
+        local rows = GC.KeyPoll.AtLevel(rowsEmitted[1], poll:Book(), minIlvlFor)
+        assert.equal(rowsEmitted[1][1], rows[1])
+        assert.equal(50, rows[2].minPrice)
+        assert.equal(2, rows[2].totalQuantity)
+      end)
+    end)
   end)
 
   -- Which key the drill sends. Pure, and deliberately not a method on a poll: the arbiter reads

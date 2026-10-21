@@ -33,10 +33,14 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     end
   end)
 
-  it("loads the same files in the same order, minus retail's price snapshot", function()
+  -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
+  -- goldcap.gg works out where flips sell for retail realms alone.
+  local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true }
+
+  it("loads the same files in the same order, minus retail's price snapshot and the Warband Bank", function()
     local expected = {}
     for _, f in ipairs(retailF) do
-      if f ~= "Data/MarketData.lua" then expected[#expected + 1] = f end
+      if not RETAIL_ONLY[f] then expected[#expected + 1] = f end
     end
     assert.same(expected, foreverF)
   end)

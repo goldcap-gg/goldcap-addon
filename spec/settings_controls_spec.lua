@@ -380,19 +380,19 @@ describe("Settings controls", function()
       end)
 
     -- Task S (V2: widened to Post above the cheapest): only what a Forever code path actually
-    -- reads shows -- BRAKES (dumpTrendPct/spikeTrendPct/wallAbsorbHours, retail Evaluate-only),
+    -- reads shows -- RISK CHECKS (dumpTrendPct/spikeTrendPct/wallAbsorbHours, retail Evaluate-only),
     -- Min return per buy % (minimumRoi, same reader), capStopAndOpen (no Forever cap row ever
     -- exists, Core/Caps.lua) and Post above the cheapest (overcut: the candidate it needs comes
     -- from marketStats.p25/reach, and GC.ForeverScan.ValueFor never forwards a p25 or a reach
     -- figure, so the toggle has no effect there) are gone outright, not merely hidden behind
     -- something else -- and nothing they left behind leaves a gap: DISPLAY still follows
-    -- AUTOMATION & ALERTS with no card-shaped hole where BRAKES was.
-    it("hides BRAKES, Min return per buy %, the live-price-cap toggle and Post above the cheapest, with no gap left behind",
+    -- AUTOMATION & ALERTS with no card-shaped hole where RISK CHECKS was.
+    it("hides RISK CHECKS, Min return per buy %, the live-price-cap toggle and Post above the cheapest, with no gap left behind",
       function()
         GC.SettingsUI.Toggle()
         local titles = cardTitles(_G.GoldCapSniperFrame)
         assert.is_true(titles["WHAT COUNTS AS A DEAL"])
-        assert.is_nil(titles["BRAKES"])
+        assert.is_nil(titles["RISK CHECKS"])
         assert.is_true(titles["POSTING"])
         assert.is_true(titles["AUTOMATION & ALERTS"])
         assert.is_true(titles["DISPLAY"])
@@ -500,11 +500,11 @@ describe("Settings controls", function()
     assert.same({ GC.Theme.color.gold[1], GC.Theme.color.gold[2], GC.Theme.color.gold[3], 0.18 }, hover.vertexColor)
   end)
 
-  it("builds the five kit cards (WHAT COUNTS AS A DEAL/BRAKES replacing DEAL THRESHOLDS/SAFETY) and a rounded DONE button", function()
+  it("builds the five kit cards (WHAT COUNTS AS A DEAL/RISK CHECKS replacing DEAL THRESHOLDS/SAFETY) and a rounded DONE button", function()
     GC.SettingsUI.Toggle()
     local titles = cardTitles(_G.GoldCapSniperFrame)
     assert.is_true(titles["WHAT COUNTS AS A DEAL"])
-    assert.is_true(titles["BRAKES"])
+    assert.is_true(titles["RISK CHECKS"])
     assert.is_true(titles["POSTING"])
     assert.is_true(titles["AUTOMATION & ALERTS"])
     assert.is_true(titles["DISPLAY"])
@@ -528,10 +528,10 @@ describe("Settings controls", function()
     assert.is_nil(labels["GOOD — min sold/day"])
   end)
 
-  it("Min profit/Min return/Max wallet live on WHAT COUNTS AS A DEAL, and the brakes on BRAKES", function()
+  it("Min profit/Min return/Max wallet live on WHAT COUNTS AS A DEAL, and the brakes on RISK CHECKS", function()
     GC.SettingsUI.Toggle()
     local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
-    local brakes = cardByTitle(_G.GoldCapSniperFrame, "BRAKES")
+    local brakes = cardByTitle(_G.GoldCapSniperFrame, "RISK CHECKS")
     assert.is_not_nil(fieldOf(whatCounts, "Min profit per buy (gold)"))
     assert.is_not_nil(fieldOf(whatCounts, "Min return per buy %"))
     assert.is_not_nil(fieldOf(whatCounts, "Max wallet per buy %"))
@@ -547,7 +547,7 @@ describe("Settings controls", function()
     GC.SettingsUI.Toggle()
     local titles = cardTitles(_G.GoldCapSniperFrame)
     assert.is_true(titles["WHAT COUNTS AS A DEAL"])
-    assert.is_true(titles["BRAKES"])
+    assert.is_true(titles["RISK CHECKS"])
     assert.is_true(titles["POSTING"])
     assert.is_true(titles["AUTOMATION & ALERTS"])
     assert.is_true(titles["DISPLAY"])
@@ -683,7 +683,7 @@ describe("Settings controls", function()
     GC.db.settings.sniper.minimumProfitCopper = 999999
     GC.db.settings.sniper.minimumRoi = 1.5
     GC.db.settings.sniper.maxCapitalShare = 0.19
-    GC.db.settings.sniper.dumpTrendPct = 77 -- BRAKES field -- must NOT move
+    GC.db.settings.sniper.dumpTrendPct = 77 -- RISK CHECKS field -- must NOT move
     GC.SettingsUI.Toggle()
 
     local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
@@ -694,7 +694,7 @@ describe("Settings controls", function()
     assert.equal(GC.DEFAULTS.settings.sniper.minimumProfitCopper, GC.db.settings.sniper.minimumProfitCopper)
     assert.equal(GC.DEFAULTS.settings.sniper.minimumRoi, GC.db.settings.sniper.minimumRoi)
     assert.equal(GC.DEFAULTS.settings.sniper.maxCapitalShare, GC.db.settings.sniper.maxCapitalShare)
-    assert.equal(77, GC.db.settings.sniper.dumpTrendPct) -- untouched -- BRAKES owns its own button
+    assert.equal(77, GC.db.settings.sniper.dumpTrendPct) -- untouched -- RISK CHECKS owns its own button
 
     local box = fieldOf(_G.GoldCapSniperFrame, "Max wallet per buy %")
     assert.equal("5", box.editBox:GetText()) -- GC.DEFAULTS.maxCapitalShare 0.05 -> 5%

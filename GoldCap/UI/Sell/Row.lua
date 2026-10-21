@@ -113,6 +113,8 @@ end
 -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
 -- row names its level -- a pet's, its pet level -- from its own key.
 function ROW.variantSuffix(position)
+  -- A level that is the item's only one (a schematic) says nothing about the stack.
+  if position.variantKind == "level" and not GC.SellViewModel.LevelVariant(position) then return "" end
   local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))
   if position.variantKind == "pet" then
     -- A pet's level is the one its battle-pet link states. What the client's ItemKey carries in
@@ -289,6 +291,9 @@ local function createRow(parent)
       -- none for this one instead (review N7), reading which variant off the tooltip's owner --
       -- this row -- so it can never outlive the row onto some other item's tooltip (NI-B).
       self.goldcapVariant = self.position.variantKind
+      if self.goldcapVariant == "level" and not GC.SellViewModel.LevelVariant(self.position) then
+        self.goldcapVariant = nil
+      end
       local stack = self.position.quoteKey and self.position.bagStacks and self.position.bagStacks[1]
       local lot = self.position.quoteKey and self.position.ownedLots and self.position.ownedLots[1]
       if stack and GameTooltip.SetBagItem then GameTooltip:SetBagItem(stack.bag, stack.slot)

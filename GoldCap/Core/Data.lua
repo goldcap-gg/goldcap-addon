@@ -657,11 +657,13 @@ function GC.Data.GetItemValue(itemID)
   -- this realm has no median for at all, which is the case the branch below exists for.
   local target = imp and imp.targets and imp.targets[itemID] or nil
   -- A flip the payload names (F section) is priced at what it SOLD for over 7 days, which takes
-  -- the place of T's figure. The site switches T to the same sale median at the same moment, with
-  -- item level 0: a sale median is measured across every variant, so it names no level, and the
-  -- reference here names none either. Without an F entry, T answers exactly as before.
+  -- the place of T's figure. Armor and weapons sell at many levels under one id, so the site
+  -- prices them at the level that sold most and names it in L (ClickUp 869fjdhnk): the reference
+  -- carries that level, and the realm poll and the Check then weigh only lots at or above it. A
+  -- flip L names no level for is priced across every variant, level 0. Without an F entry, T
+  -- answers exactly as before.
   local flip = GC.Data.FlipFacts(itemID)
-  if flip then target = { ref = flip.ref, ilvl = 0 } end
+  if flip then target = { ref = flip.ref, ilvl = GC.Data.FlipLevel(itemID) or 0 } end
   if e then
     -- Cheap-quarter line (import Q section) and reach24 (import R section): the Sell tab's
     -- ceilings for posting above the cheapest ask, R first. Import-path only -- bundled data
@@ -788,6 +790,44 @@ end
 -- never edit it.
 function GC.Data.FlipFacts(itemID)
   return flipEntry(itemID)
+end
+
+-- Where a flip sells (the payload's L, C, S and K sections, once the site works them out; absent
+-- before, and then every answer below is nil). The payload's own tables, shared: read them, never
+-- edit them.
+
+local function payloadField(field, key)
+  local p = activePayload()
+  local t = p and p[field]
+  return t and t[key] or nil
+end
+
+--- The item level a flip was priced at, or nil when it names none (anything but armor and weapons).
+function GC.Data.FlipLevel(itemID)
+  return payloadField("flipLevels", itemID)
+end
+
+--- The realms a flip sells on within a week, best net first: { realmId, list, days, own } each,
+-- `list` what to list it at there (copper), `days` until it sells, `own` when that realm's own sales
+-- priced it. nil when the site has none for it.
+function GC.Data.SellSpots(itemID)
+  return payloadField("spots", itemID)
+end
+
+--- { floor5th, realms }: the fifth cheapest realm floor of a flip at its priced level and over how
+-- many realms, or nil (fewer than five realms list it).
+function GC.Data.CheapRealms(itemID)
+  return payloadField("cheap", itemID)
+end
+
+--- A connected realm's name as the site shows it, or nil.
+function GC.Data.RealmName(realmId)
+  return payloadField("realms", realmId)
+end
+
+--- The connected realm a realm name key (GC.SellRoute.Key) belongs to, or nil.
+function GC.Data.RealmIdByKey(key)
+  return payloadField("realmKeys", key)
 end
 
 function GC.Data.IsRareFind(itemID)

@@ -961,4 +961,72 @@ describe("Data", function()
       assert.equal(610, GC.Data.GetItemValue(201234).refIlvl)
     end)
   end)
+
+  -- Where a flip sells (the payload's L, C, S and K sections, once the site works them out): the
+  -- level a flip was priced at, the region's realms, the realms each flip sells on and its fifth
+  -- cheapest realm.
+  describe("where a flip sells", function()
+    local TS = 1783598400
+    local PAYLOAD = "GCM1;eu;" .. TS .. ";I:42=500;F:201234=300000=6=3,201235=50000=5=3"
+      .. ";L:201234=639"
+      .. ";C:1084=Tarren Mill=tarrenmill,1305=Kazzak=kazzak"
+      .. ";S:201234=1305=420000=24=0,201234=1084=350000=8=1"
+      .. ";K:201234=290000=24"
+    local savedTime
+
+    before_each(function()
+      savedTime = _G.time
+      _G.time = function() return TS + 3600 end
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = TS,
+        items = { [201234] = { m = 900000 } }, watchlist = {} })
+      assert.is_truthy(GC.Data.AdoptRegionPayload(PAYLOAD))
+    end)
+
+    after_each(function() _G.time = savedTime end)
+
+    it("prices a flip at the level it sold at, and one with no level at any", function()
+      assert.equal(639, GC.Data.FlipLevel(201234))
+      assert.equal(639, GC.Data.GetItemValue(201234).refIlvl)
+      assert.equal(300000, GC.Data.GetItemValue(201234).ref)
+      assert.is_nil(GC.Data.FlipLevel(201235))
+      assert.equal(0, GC.Data.GetItemValue(201235).refIlvl)
+    end)
+
+    it("hands out the realms a flip sells on, best net first", function()
+      assert.same({
+        { realmId = 1305, list = 420000, days = 2.4, own = false },
+        { realmId = 1084, list = 350000, days = 0.8, own = true },
+      }, GC.Data.SellSpots(201234))
+      assert.is_nil(GC.Data.SellSpots(201235))
+    end)
+
+    it("hands out a flip's fifth cheapest realm", function()
+      assert.same({ floor5th = 290000, realms = 24 }, GC.Data.CheapRealms(201234))
+      assert.is_nil(GC.Data.CheapRealms(201235))
+    end)
+
+    it("names a realm, and finds one by its key", function()
+      assert.equal("Kazzak", GC.Data.RealmName(1305))
+      assert.equal(1084, GC.Data.RealmIdByKey("tarrenmill"))
+      assert.is_nil(GC.Data.RealmName(9))
+      assert.is_nil(GC.Data.RealmIdByKey("silvermoon"))
+    end)
+
+    it("answers nothing once the payload stops answering", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = TS, items = { [1] = { m = 1 } }, watchlist = {} })
+      assert.is_nil(GC.Data.FlipLevel(201234))
+      assert.is_nil(GC.Data.SellSpots(201234))
+      assert.is_nil(GC.Data.CheapRealms(201234))
+      assert.is_nil(GC.Data.RealmName(1305))
+      assert.is_nil(GC.Data.RealmIdByKey("kazzak"))
+    end)
+
+    it("answers nothing for a payload from before the site worked them out", function()
+      GC.Data.AdoptRegionPayload("GCM1;eu;" .. TS .. ";I:42=500;F:201234=300000=6=3")
+      assert.is_nil(GC.Data.FlipLevel(201234))
+      assert.equal(0, GC.Data.GetItemValue(201234).refIlvl)
+      assert.is_nil(GC.Data.SellSpots(201234))
+      assert.is_nil(GC.Data.RealmIdByKey("kazzak"))
+    end)
+  end)
 end)

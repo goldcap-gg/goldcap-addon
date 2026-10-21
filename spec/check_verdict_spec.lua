@@ -313,6 +313,48 @@ describe("CheckVerdict", function()
       assert.equal("refuse", v.tone)
       assert.is_false(v.actionable)
     end)
+
+    -- Where a flip sells (Core/SellRoute.lua, worked out by the panel's caller): the two rows a
+    -- realm lot left empty say where to sell it and whether this realm is among the cheapest.
+    describe("with a route", function()
+      local KAZZAK = { realm = "Kazzak", copper = 22000000, days = 2.4 }
+
+      it("says where it sells best, and that this realm is among the five cheapest", function()
+        local v = GC.CheckVerdict.Build(realmDecision(), market(), { route = { target = KAZZAK, cheapRealms = 24 } })
+        assert.equal(4, #v.facts)
+        assert.same({ id = "sellOn", realm = "Kazzak", copper = 22000000, days = 2.4, tone = "plain" }, factById(v, "sellOn"))
+        assert.same({ id = "cheapRealms", count = 24, tone = "good" }, factById(v, "cheapRealms"))
+      end)
+
+      it("says to sell here", function()
+        local v = GC.CheckVerdict.Build(realmDecision(), market(),
+          { route = { target = { here = true, copper = 19000000, days = 0.6 } } })
+        assert.same({ id = "sellOn", here = true, copper = 19000000, days = 0.6, tone = "plain" }, factById(v, "sellOn"))
+        assert.equal(3, #v.facts)
+      end)
+
+      it("names a realm with no character on it when this one is not among the cheapest", function()
+        local route = { target = KAZZAK, suggest = { realm = "Silvermoon", copper = 40000000, days = 3 } }
+        local v = GC.CheckVerdict.Build(realmDecision(), market(), { route = route })
+        assert.same({ id = "betterOn", realm = "Silvermoon", copper = 40000000, days = 3, tone = "muted" }, factById(v, "betterOn"))
+        route.cheapRealms = 24
+        v = GC.CheckVerdict.Build(realmDecision(), market(), { route = route })
+        assert.is_nil(factById(v, "betterOn")) -- the cheap row is the buy's own question
+      end)
+
+      it("no longer says how fast it sells is measured nowhere", function()
+        local v = GC.CheckVerdict.Build(realmDecision(), market(), { route = { target = KAZZAK } })
+        assert.equal("routed", v.sentence)
+        assert.is_nil(GC.CheckVerdict.Build(realmDecision(), market()).sentence)
+      end)
+
+      it("says nothing of a route on any other verdict", function()
+        local v = GC.CheckVerdict.Build(decision({ reasons = { "no_comparable_lot" } }), market(),
+          { route = { target = KAZZAK, cheapRealms = 24 } })
+        assert.is_nil(factById(v, "sellOn"))
+        assert.is_nil(v.sentence)
+      end)
+    end)
   end)
 
   -- Caps fixes 2b. A cap decision is the player's own rule -- "this item at or under this
