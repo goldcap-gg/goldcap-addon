@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.22.0 (unreleased)
+## 0.22.0 (2026-10-21)
 
 - Deals, Items board: each flip says which of your realms to sell it on, for how much and how soon
   it should sell, worked out on goldcap.gg from what sold on each realm. Your realms are the ones
