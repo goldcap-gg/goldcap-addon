@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.22.1 (unreleased)
+
+- Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
+  price that never came and said "Pricing…" on every press. Once the auction house answers that
+  nothing is listed, Post lists at your price, the one you typed or GoldCap's, and the panel says
+  nothing is listed instead of waiting for an answer.
+
 ## 0.22.0 (2026-10-21)
 
 - Deals, Items board: each flip says which of your realms to sell it on, for how much and how soon

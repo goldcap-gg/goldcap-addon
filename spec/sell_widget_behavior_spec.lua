@@ -629,6 +629,21 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("no live quote yet, pricing…", rows[2].drawerFacts.text)
       assert.same({ .5, .5, .5, 1 }, rows[2].drawerFacts.color)
     end)
+
+    -- The auction house HAS answered: nothing is listed. "Has not answered" and "pricing…" both
+    -- said the opposite beside a Post that now lists at the seller's price (owner, 2026-10-21).
+    it("says nothing is listed for a bag-stock position the auction house answered empty about", function()
+      local GC = load(620, { calls = {} })
+      GC.SellState.emptyAnswers = { [42] = { at = 70, answered = true } }
+      GC.SellUI.expanded = { ["commodity:42"] = true }
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+          exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+          bagQty = 3, listedQty = 0, sources = {} },
+      })
+      assert.equal("Nothing listed on the AH right now", rows[2].drawerStand.text)
+      assert.equal("", rows[2].drawerFacts.text)
+    end)
   end)
 
   -- The one number on this screen that spends real gold was, until now, the one number a
@@ -2189,6 +2204,65 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_nil(rows[1].postStage)
     assert.equal("Post", rows[1].action.label)
     assert.is_true(rows[1].action.enabled)
+  end)
+
+  -- An item nobody lists (owner, 2026-10-21, Soothing Spearmint Candy): the auction house answered
+  -- that nothing is listed, so there is no live price to undercut and there never will be. Post
+  -- waited for one anyway, answering every press with "Pricing…" and the same empty search.
+  describe("posting an item nobody lists", function()
+    local function armEmpty(answered, override)
+      local record, posted, confirmed, planQuotes = { calls = {} }, {}, {}, {}
+      local GC, root = load(620, record)
+      GC.QuoteCache.Fresh = function() return nil end
+      -- load()'s time() is 77: an answer from 70 is 7 seconds old, inside EMPTY_ANSWER_AGE.
+      GC.SellState.emptyAnswers = { [42] = { at = 70, answered = answered } }
+      GC.SellState.priceOverrides["commodity:42"] = override
+      GC.SellPositions.BuildPostPlan = function(_, _, quote)
+        planQuotes[#planQuotes + 1] = quote
+        return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42", itemID = 42,
+          quantity = 4, unitPrice = quote.unit }
+      end
+      _G.C_AuctionHouse = {
+        PostCommodity = function(_, _, quantity, unit) posted[#posted + 1] = { quantity, unit }; return true end,
+        ConfirmPostCommodity = function(_, _, quantity, unit) confirmed[#confirmed + 1] = { quantity, unit } end,
+      }
+      GC.SellBags.LiveState =
+        function() return { bag = 0, slot = 1, stackQty = 4, exactQty = 4, itemID = 42, positionKey = "commodity:42" } end
+      GC.SellBags.ResolveLocation = function() return {} end
+      GC.SellQuotes.driver = { keyInfo = function() return { isCommodity = true } end }
+      local rows = topRows(GC, { { itemID = 42, itemName = "Candy", positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 4, bagQty = 4,
+        knownQty = 4, knownCost = 40000, listedValue = 0, sources = {}, status = "UNLISTED" } })
+      return { GC = GC, root = root, row = rows[1], post = GC.SellUI.Dock.OnPostClick,
+        posted = posted, confirmed = confirmed, planQuotes = planQuotes }
+    end
+
+    it("posts at the seller's own price once the auction house answered that nothing is listed", function()
+      local t = armEmpty(true, 5000000)
+      t.post(t.row)
+      assert.equal(1, #t.posted)
+      assert.same({ 4, 5000000 }, t.posted[1])
+      assert.equal(5000000, t.planQuotes[1].unit)
+      -- The two-click post confirms against the same empty answer it was armed on.
+      assert.equal("confirm", t.row.postStage)
+      t.post(t.row)
+      assert.equal(1, #t.confirmed)
+      assert.same({ 4, 5000000 }, t.confirmed[1])
+    end)
+
+    it("still waits for a price when the auction house never answered", function()
+      local t = armEmpty(false, 5000000)
+      t.post(t.row)
+      assert.equal(0, #t.posted)
+      assert.equal("Pricing…", t.row.action.label)
+    end)
+
+    it("says nothing is listed, and posts nothing, while there is no price of the seller's to post at", function()
+      local t = armEmpty(true, nil)
+      t.post(t.row)
+      assert.equal(0, #t.posted)
+      assert.equal("Nothing listed on the AH right now", t.root.status.text)
+    end)
   end)
 
   it("[round5 rerender] disarms an armed Repost when its pooled row shifts to another auction", function()

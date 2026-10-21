@@ -25,6 +25,14 @@ function GC.Sell._BookHint(book)
   return table.concat(parts, " · ")
 end
 
+-- Whether the auction house answered that none of this position's item is listed, recently
+-- (Services/Sell/Walk.lua): Post then lists at the seller's price, and nothing here may say the
+-- auction house is still to answer. A GC.Sell field for the same reason as _BookHint.
+function GC.Sell._AnsweredEmpty(p)
+  local Walk = GC.SellWalk
+  return type(p) == "table" and Walk ~= nil and Walk.RestedEmptyFresh(p.quoteKey or p.itemID, time()) or false
+end
+
 local BOOK_BAR_H = 6
 
 -- Clear, set, hide, show: a one-line FontString on a pooled row that was hidden and shown again
@@ -369,7 +377,8 @@ function Book.Paint(row, p, d)
       line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     end
     row.drawerDepth:Hide(); row.drawerOwn:Hide()
-    row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
+    row.drawerStand:SetText(GC.Sell._AnsweredEmpty(p) and GC.L["Nothing listed on the AH right now"]
+      or GC.L["the Auction House has not answered for this item yet"])
     setColor(row.drawerStand, Theme.color.fgDim)
   end
   row.drawerStand:Show()
@@ -418,7 +427,8 @@ function Book.Paint(row, p, d)
   for _, words in ipairs(book and wallWords(book) or {}) do facts[#facts + 1] = words end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-    or (quote and "" or (notPriced and GC.L["not priced: nothing on hand to sell"] or GC.L["no live quote yet, pricing…"])))
+    or ((quote or GC.Sell._AnsweredEmpty(p)) and ""
+      or (notPriced and GC.L["not priced: nothing on hand to sell"] or GC.L["no live quote yet, pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
   -- The words already say whether this is the last live price or a fresh one, so the color

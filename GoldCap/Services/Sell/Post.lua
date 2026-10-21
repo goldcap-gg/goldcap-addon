@@ -9,7 +9,8 @@ local _, GC = ...
 local S, View = GC.SellState, GC.SellView
 local Quotes, Bags, Compose, Owned, Walk, Post = GC.SellQuotes, GC.SellBags, GC.SellCompose, GC.SellOwned,
   GC.SellWalk, GC.SellPost
-local exact, safeMultiply, overrideKey = GC.SellUtil.exact, GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey
+local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
+  GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.SellUtil.exactRenderEntry,
   GC.SellUtil.itemName
 
@@ -249,6 +250,21 @@ end
 -- -- { confirm = true, pin = pin } or { pin = S.postingPin } -- or nil when the click ends here,
 -- having already said why. On the way to a returned call it only reads and writes plain fields:
 -- the button, the dock and the spinner wait for the handler, after the call.
+-- The quote a post is made against: the fresh live one, or an empty book for an item the auction
+-- house ANSWERED has nothing listed, recently (Walk.RestedEmptyFresh: an answer, not a timeout).
+-- Waiting for a live price there waited forever (owner, 2026-10-21). An empty book has no price of
+-- its own, nobody being there to undercut, so the post lists at the seller's number. One table per
+-- answer, so the Confirm finds the very quote its post was armed on.
+local function postQuote(position)
+  local quote = Quotes.Fresh(position)
+  if quote then return quote end
+  local quoteID = position.quoteKey or position.itemID
+  if not Walk.RestedEmptyFresh(quoteID, time()) then return nil end
+  local rest = S.emptyAnswers[quoteID]
+  rest.book = rest.book or { empty = true, at = rest.at }
+  return rest.book
+end
+
 function Post.PreparePost(row)
   -- A post already on its way answers every further press with nothing. Its buttons are
   -- disabled, but the keybinding reaches here through onQueueClick whatever they look like --
@@ -271,7 +287,7 @@ function Post.PreparePost(row)
     return
   end
   local position = row.position
-  local quote = Quotes.Fresh(position)
+  local quote = postQuote(position)
   if not quote then
     if S.postingRow == row then Post.DisarmPost() end
     -- Same silent first click as Repost had: without this the button looks
@@ -340,7 +356,13 @@ function Post.PreparePost(row)
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
   local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true },
+  -- An empty book is priced by the seller alone: the number in the box, typed or recommended.
+  local unit = quote.unit
+  if quote.empty then
+    unit = effectivePostUnit(position)
+    if not unit then View.status(GC.L["Nothing listed on the AH right now"]); return end
+  end
+  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
     { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
   if not plan then
     View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
