@@ -83,25 +83,25 @@ local function classifyBagItem(itemID, link, bag, slot)
       cache[itemID] = isCommodity
     end
   end
-  if isCommodity == true then return ("commodity:%d"):format(itemID), true end
-  if isCommodity == false then
-    local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
-    -- The auction house -- open, so its answer means something -- says it cannot take this
-    -- stack: not tradeable stock at all, so neither a row nor "waiting" (review M10). Asked of a
-    -- keyed stack too: gear that is not bound yet cannot be auctioned -- Warbound until equipped
-    -- -- keys like any other and would take a row and a search every pass (final review I3).
-    if bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
-        and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
-      local ok, valid = pcall(function()
-        -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
-        -- auction house put the red "can't auction" error and its sound on screen (review N1).
-        return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot), false)
-      end)
-      if ok and valid == false then return nil, false, nil, true end
-    end
-    return positionKey, false, quoteKey
+  if isCommodity == nil then return nil, nil end
+  -- The auction house -- open, so its answer means something -- says it cannot take this
+  -- stack: not tradeable stock at all, so neither a row nor "waiting" (review M10). Asked of a
+  -- keyed stack too: gear that is not bound yet cannot be auctioned -- Warbound until equipped
+  -- -- keys like any other and would take a row and a search every pass (final review I3). And of
+  -- a commodity: holiday candy that expires is one, and the server drops its post without an
+  -- answer, so the dock listened for a minute and then held the item (probe 21.10).
+  if bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+      and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+    local ok, valid = pcall(function()
+      -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
+      -- auction house put the red "can't auction" error and its sound on screen (review N1).
+      return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot), false)
+    end)
+    if ok and valid == false then return nil, false, nil, true end
   end
-  return nil, nil
+  if isCommodity == true then return ("commodity:%d"):format(itemID), true end
+  local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
+  return positionKey, false, quoteKey
 end
 
 function Bags.Scan()

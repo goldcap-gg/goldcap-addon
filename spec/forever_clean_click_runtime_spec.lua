@@ -493,10 +493,9 @@ describe("Clean click ordering, driven end to end", function()
       -- The dock's cancel button renders only the CANCELLED positions (filterMode
       -- "cancelqueue"), never the whole "listed" deck -- so the reach check below needs the
       -- lot's OWN item to have bag stock, not Thunderfury's (which this deck never draws).
-      -- Local to this test, and commodity-only, so it never touches classifyBagItem's
-      -- IsSellItemValid branch itself (that would double-count with the confirming click's own
-      -- post-cancel refresh below, which is free to rescan the whole bag -- see the comment on
-      -- CancelAuction's own logged() check).
+      -- Local to this test. classifyBagItem asks IsSellItemValid of a commodity stack too (a
+      -- limited-duration one cannot be posted), so the confirming click's own post-cancel
+      -- refresh below asks it of this stack -- free to, after the call, never before it.
       _G.C_Container.GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end
       _G.C_Container.GetContainerItemInfo = function(bag, slot)
         return (bag == 0 and slot == 1) and { itemID = 23427, stackCount = 50, itemName = "Sanguithorn Tea" } or nil
@@ -520,7 +519,7 @@ describe("Clean click ordering, driven end to end", function()
       log = {}
       button.scripts.OnClick(button) -- confirm
       assertCleanCall("CancelAuction")
-      assert.is_nil(logged("IsSellItemValid"))
+      assert.is_true(logged("IsSellItemValid") == nil or logged("IsSellItemValid") > logged("CancelAuction"))
       -- And every Disable this click ran came after the call, never before it.
       assert.is_truthy(logged("Disable"))
       assert.is_true(logged("Disable") > logged("CancelAuction"))

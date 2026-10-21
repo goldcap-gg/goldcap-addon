@@ -6,6 +6,8 @@
   price that never came and said "Pricing…" on every press. Once the auction house answers that
   nothing is listed, Post lists at your price, the one you typed or GoldCap's, and the panel says
   nothing is listed instead of waiting for an answer.
+- Sell: items the auction house does not accept, such as holiday candy that expires, no longer
+  show up as ready to post. Posting one used to wait a minute for an answer that never came.
 
 ## 0.22.0 (2026-10-21)
 
