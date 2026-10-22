@@ -6,7 +6,7 @@ local Mailbox = require("spec.support.mail_inbox")
 -- (spec/support/mail_inbox.lua), the widgets are the shared frame double with the real Theme, and
 -- C_Timer.After is captured in a list this spec runs by hand.
 describe("Collect button", function()
-  local GC, box, bags, events, timers, printed, clock, restoreFrames, eventFrames
+  local GC, box, bags, events, timers, printed, clock, restoreFrames, eventFrames, realScanInbox
   local KEYS = { "MailFrame", "GetTime", "C_Timer", "C_Mail", "C_Container", "GameTooltip", "GetInboxNumItems",
     "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem", "TakeInboxMoney", "TakeInboxItem", "CheckInbox",
     "RETRIEVING_DATA", "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT",
@@ -91,8 +91,10 @@ describe("Collect button", function()
     helper.loadModule("Core/MailLoop.lua", GC)
     helper.loadModule("UI/Theme.lua", GC)
     GC.db = { settings = { sniper = {} } }
+    GC.Ledger.Init(GC.db)
     GC.MailReturns.Init(GC.db)
     GC.Ledger.Context = function() return { char = "A-B", region = "eu" } end
+    realScanInbox = GC.Ledger.ScanInbox
     GC.Ledger.ScanInbox = function() events[#events + 1] = "scan" end
     GC.Print = function(text) printed[#printed + 1] = text end
     helper.loadModule("UI/MailCollect.lua", GC)
@@ -288,6 +290,66 @@ describe("Collect button", function()
       runOut()
       assert.equal(1, #box:calls())
       assert.equal(0, #GC.MailReturns.Entries())
+    end)
+  end)
+
+  -- Ledger first, proven with the real ledger reading the same mailbox double: the sale and the
+  -- won auction are in the ledger at the moment their gold and items are taken, and a sale whose
+  -- invoice the ledger cannot read yet is left until it can.
+  describe("ledger first, with the real ledger", function()
+    local WON = { sender = "Auction House", subject = "Auction won: Wool Cloth", auction = true,
+      invoice = { invoiceType = "buyer", itemName = "Wool Cloth", bid = 700 },
+      items = { [1] = { itemID = 2592, count = 5 } } }
+    local recordedAtTake
+
+    local function kinds()
+      local seen = {}
+      for _, entry in ipairs(GC.db.ledger) do seen[#seen + 1] = entry.kind .. ":" .. tostring(entry.itemName) end
+      table.sort(seen)
+      return seen
+    end
+
+    before_each(function()
+      GC.Ledger.ScanInbox = realScanInbox
+      recordedAtTake = {}
+    end)
+
+    local function watchTakes()
+      local money, item = _G.TakeInboxMoney, _G.TakeInboxItem
+      _G.TakeInboxMoney = function(i) recordedAtTake[#recordedAtTake + 1] = kinds(); return money(i) end
+      _G.TakeInboxItem = function(i, slot) recordedAtTake[#recordedAtTake + 1] = kinds(); return item(i, slot) end
+    end
+
+    it("has the sale and the won auction in the ledger when their gold and items are taken", function()
+      install({ SALE(1), WON })
+      watchTakes()
+      GC.MailCollect.OnMailShow()
+      press()
+      runOut()
+      assert.same({ "buy:Wool Cloth", "sale:Cloth 1" }, kinds())
+      assert.equal(2, #box:calls())
+      assert.same({ "buy:Wool Cloth", "sale:Cloth 1" }, recordedAtTake[1])
+      assert.same({ "buy:Wool Cloth", "sale:Cloth 1" }, recordedAtTake[2])
+      assert.equal(0, box:rowCount())
+    end)
+
+    it("leaves a sale whose invoice the ledger cannot read yet, and takes it once the ledger can", function()
+      install({ { sender = "Auction House", subject = "Auction successful: Cloth 1", money = 1000, auction = true,
+        invoice = { invoiceType = "seller", itemName = nil } } })
+      GC.MailCollect.OnMailShow()
+      assert.equal("Collect", button().label)
+      press()
+      assert.same({}, box:calls())
+      assert.same({}, GC.db.ledger)
+
+      box:row(1).invoice.itemName = "Cloth 1"
+      GC.MailCollect.OnInboxUpdate()
+      assert.equal("Collect 1", button().label)
+      press()
+      runOut()
+      assert.same({ "sale:Cloth 1" }, kinds())
+      assert.equal(1, #box:calls())
+      assert.equal("Collected 1000c from 1 sale.", printed[#printed])
     end)
   end)
 

@@ -4,6 +4,8 @@ local Mailbox = require("spec.support.mail_inbox")
 describe("MailClassify, reading an inbox row and deciding take or skip", function()
   local GC, patterns
   local ALL = { sales = true, returns = true, purchases = true, players = true }
+  -- The ledger's context (Core/Ledger.lua, Context): the character and region a sale is recorded under.
+  local CONTEXT = { char = "A-B", region = "eu" }
 
   local function with(overrides)
     local on = {}
@@ -12,9 +14,9 @@ describe("MailClassify, reading an inbox row and deciding take or skip", functio
     return on
   end
 
-  local function classify(row, enabled, loaded)
+  local function classify(row, enabled, loaded, context)
     local box = Mailbox.new({ row })
-    local mail = GC.MailClassify.Read(box.api, 1, loaded or patterns)
+    local mail = GC.MailClassify.Read(box.api, 1, loaded or patterns, context or CONTEXT)
     return GC.MailClassify.Decide(mail, enabled or ALL), mail
   end
 
@@ -43,6 +45,7 @@ describe("MailClassify, reading an inbox row and deciding take or skip", functio
     _G.AUCTION_REMOVED_MAIL_SUBJECT = "Auction canceled: %s"
     _G.AUCTION_OUTBID_MAIL_SUBJECT = "Outbid on %s"
     GC = helper.loadModule("Core/Ledger.lua")
+    GC.Ledger.Init({})
     helper.loadModule("Core/MailClassify.lua", GC)
     patterns = GC.MailClassify.Patterns({ expired = _G.AUCTION_EXPIRED_MAIL_SUBJECT,
       removed = _G.AUCTION_REMOVED_MAIL_SUBJECT, outbid = _G.AUCTION_OUTBID_MAIL_SUBJECT })
@@ -81,6 +84,29 @@ describe("MailClassify, reading an inbox row and deciding take or skip", functio
       local mail = GC.MailClassify.Read(box.api, 1, patterns)
       assert.same({ skip = "loading" }, GC.MailClassify.Decide(mail, ALL))
       box.api.GetInboxItem = real
+    end)
+
+    -- Ledger first: once a sale's gold or a won auction's items are taken, the invoice is gone, so
+    -- they wait until the ledger's own rule (Core/Ledger.lua, ReadsInvoice) says it can record them.
+    it("leaves a sale whose invoice the ledger cannot read yet as still loading", function()
+      local unnamed = { sender = "Auction House", subject = "Auction successful: Linen Cloth", money = 50000,
+        auction = true, invoice = { invoiceType = "seller", itemName = nil } }
+      assert.same({ skip = "loading" }, (classify(unnamed)))
+    end)
+
+    it("leaves a won auction whose invoice the ledger cannot read yet as still loading", function()
+      local uncounted = { sender = "Auction House", subject = "Auction won: Linen Cloth", auction = true,
+        invoice = { invoiceType = "buyer", itemName = "Linen Cloth", count = 0 },
+        items = { [1] = { itemID = 2589, count = 20 } } }
+      assert.same({ skip = "loading" }, (classify(uncounted)))
+    end)
+
+    it("leaves sales and won auctions while the ledger has no region to record them under", function()
+      local noRegion = { char = "A-B" }
+      assert.same({ skip = "loading" }, (classify(SALE, ALL, nil, noRegion)))
+      assert.same({ skip = "loading" }, (classify(WON, ALL, nil, noRegion)))
+      assert.same({ take = true, kind = "expired", group = "returns" }, (classify(EXPIRED, ALL, nil, noRegion)))
+      assert.same({ take = true, kind = "player", group = "players" }, (classify(PLAYER, ALL, nil, noRegion)))
     end)
 
     it("skips a cash on delivery mail first, even with items and a reply button", function()
@@ -161,14 +187,22 @@ describe("MailClassify, reading an inbox row and deciding take or skip", functio
   describe("Count", function()
     it("counts the takeable and the loading mails of a ten row mailbox", function()
       local box = Mailbox.new(Mailbox.tenMail())
-      local takeable, loading = GC.MailClassify.Count(box.api, patterns, ALL)
+      local takeable, loading = GC.MailClassify.Count(box.api, patterns, ALL, CONTEXT)
       assert.equal(4, takeable)
+      assert.equal(1, loading)
+    end)
+
+    it("counts a sale the ledger cannot read yet as loading, not takeable", function()
+      local box = Mailbox.new({ SALE, { sender = "Auction House", subject = "Auction successful: X", money = 9,
+        auction = true, invoice = { invoiceType = "seller", itemName = nil } } })
+      local takeable, loading = GC.MailClassify.Count(box.api, patterns, ALL, CONTEXT)
+      assert.equal(1, takeable)
       assert.equal(1, loading)
     end)
 
     it("leaves a switched off group out of the count", function()
       local box = Mailbox.new(Mailbox.tenMail())
-      local takeable, loading = GC.MailClassify.Count(box.api, patterns, with({ returns = false }))
+      local takeable, loading = GC.MailClassify.Count(box.api, patterns, with({ returns = false }), CONTEXT)
       assert.equal(3, takeable)
       assert.equal(1, loading)
     end)
@@ -177,7 +211,7 @@ describe("MailClassify, reading an inbox row and deciding take or skip", functio
       local box = Mailbox.new({ SALE, PLAYER })
       local real = box.api.GetInboxHeaderInfo
       box.api.GetInboxHeaderInfo = function(i) if i == 2 then error("no") end return real(i) end
-      local takeable, loading = GC.MailClassify.Count(box.api, patterns, ALL)
+      local takeable, loading = GC.MailClassify.Count(box.api, patterns, ALL, CONTEXT)
       assert.equal(1, takeable)
       assert.equal(1, loading)
     end)

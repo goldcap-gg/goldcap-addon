@@ -27,6 +27,8 @@ local _, GC = ...
 --   patterns     Core/MailClassify.lua's Patterns(...)
 --   enabled()    the four group switches, read fresh at every step
 --   scanLedger() a synchronous ledger scan of the inbox
+--   context()    the ledger's context (Core/Ledger.lua, Context), read fresh at every pass: a sale or
+--                a purchase is taken only when the ledger's rule says it can record its invoice
 --   epoch()      wall clock seconds for the returns log (the `now` of Step is the pacing clock,
 --                which is session time and would not survive a /reload in the log); defaults to
 --                the clock of Step
@@ -144,10 +146,11 @@ function GC.MailLoop.New(deps)
     local shown, total = shownAndTotal()
     local enabled = deps.enabled()
     local bagsOpen = not invFull and api.FreeBagSlots() > 0
+    local context = deps.context and deps.context()
     local loading, blocked = 0, 0
     local action
     for index = 1, shown do
-      local mail = GC.MailClassify.Read(api, index, deps.patterns)
+      local mail = GC.MailClassify.Read(api, index, deps.patterns, context)
       if not mail then
         loading = loading + 1
       else
@@ -256,7 +259,7 @@ function GC.MailLoop.New(deps)
   function loop:Start(now)
     if state == "running" or state == "refresh" then return false end
     if api.IsCommandPending() then return false end
-    local takeable = GC.MailClassify.Count(api, deps.patterns, deps.enabled())
+    local takeable = GC.MailClassify.Count(api, deps.patterns, deps.enabled(), deps.context and deps.context())
     if takeable == 0 then return false end
     result = newResult()
     skipItems, skipKeys, inflight, letters = {}, {}, nil, {}

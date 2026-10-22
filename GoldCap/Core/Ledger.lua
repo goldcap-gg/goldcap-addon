@@ -511,6 +511,23 @@ local function readInboxMail(api, index, context, now, noInvoice)
   }
 end
 
+-- Whether a scan can record anything at all: a ledger, and a character and a region to record
+-- under.
+local function canRecord(context)
+  return db ~= nil and type(context) == "table"
+    and type(context.char) == "string" and context.char ~= ""
+    and type(context.region) == "string" and context.region ~= ""
+end
+
+--- Whether ScanInbox would record the auction invoice at `index` right now: the same guards and
+-- the same reading (readInboxMail) it uses, so the answer can never drift from what it records.
+-- The Collect button (Core/MailClassify.lua) takes a sale's gold or a won auction's items only
+-- when this is true, because once they are taken the invoice is gone with them.
+function GC.Ledger.ReadsInvoice(api, index, context, now)
+  if not canRecord(context) then return false end
+  return readInboxMail(api, index, context, now or time()) ~= nil
+end
+
 -- Whether this mailbox visit has shown any row yet. Mail probe, retail 2026-10-11:
 -- GetInboxNumItems() reads 0 at MAIL_SHOW on every visit and the rows arrive 0.2 to 0.3 s later,
 -- so an empty pass before the first row is the inbox not loaded yet, never an empty inbox. That
@@ -524,9 +541,7 @@ local inboxRowsSeen = false
 -- good; a partial read is informative only to the mailbox UI and cannot erase
 -- durable presence state. `opening` is true for the pass MAIL_SHOW runs.
 function GC.Ledger.ScanInbox(api, context, now, opening)
-  if not db or type(context) ~= "table"
-      or type(context.char) ~= "string" or context.char == ""
-      or type(context.region) ~= "string" or context.region == "" then return 0 end
+  if not canRecord(context) then return 0 end
   now = now or time()
   local ok, count, total = pcall(api.GetInboxNumItems)
   if not ok or not exactNonNegative(count) then return 0 end

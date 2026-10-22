@@ -13,7 +13,9 @@ local _, GC = ...
 --     business with it;
 --   * a "Sale Pending" invoice, whose gold is not attached yet;
 --   * a mail still "Retrieving data": taking before the ledger could read its invoice would lose
---     the sale, so it is left for the next press and counted as still loading.
+--     the sale, so it is left for the next press and counted as still loading;
+--   * a sale or a won auction whose invoice the ledger cannot record yet, by the ledger's own rule
+--     (Core/Ledger.lua, ReadsInvoice), for the same reason and with the same count.
 -- Blizzard's own Open All (Blizzard_MailFrame/MailFrame.lua, OpenAllMailMixin) applies the same
 -- first two rules.
 
@@ -107,14 +109,18 @@ function GC.MailClassify.IdentityAt(api, index)
   return GC.MailClassify.Identity(mail)
 end
 
--- One row as a plain record, or nil when the client cannot answer for it yet.
-function GC.MailClassify.Read(api, index, patterns)
+-- One row as a plain record, or nil when the client cannot answer for it yet. `context` is the
+-- ledger's (Core/Ledger.lua, Context), for its rule on whether it can record this row's invoice.
+function GC.MailClassify.Read(api, index, patterns, context)
   local mail = readHeader(api, index)
   if not mail then return nil end
   local invoiceOk, invoiceType = pcall(api.GetInboxInvoiceInfo, index)
   if not invoiceOk then return nil end
   mail.invoiceType = invoiceType
   mail.subjectKind = subjectKindOf(mail.subject, patterns)
+  if invoiceType == "seller" or invoiceType == "buyer" then
+    mail.ledgerReads = GC.Ledger.ReadsInvoice(api, index, context) == true
+  end
   if mail.itemCount > 0 then mail.items, mail.attachments = readItems(api, index) end
   local parts = { mail.sender, mail.subject, mail.daysLeft, mail.money, mail.itemCount }
   for i = 1, 5 do parts[i] = parts[i] == nil and "" or tostring(parts[i]) end
@@ -168,16 +174,18 @@ function GC.MailClassify.Decide(mail, enabled)
   if mail.money == 0 and mail.itemCount == 0 then return { skip = "empty" } end
   -- Attachments the client has not named yet: nothing to take from until they load.
   if mail.money == 0 and #mail.items == 0 then return { skip = "loading" } end
+  -- Ledger first: the invoice goes with the gold or the items, so it must be recordable now.
+  if (kind == "sale" or kind == "purchase") and not mail.ledgerReads then return { skip = "loading" } end
   return { take = true, kind = kind, group = group }
 end
 
 -- How many rows Collect would take now, and how many are still loading.
-function GC.MailClassify.Count(api, patterns, enabled)
+function GC.MailClassify.Count(api, patterns, enabled, context)
   local ok, shown = pcall(api.GetInboxNumItems)
   if not ok or type(shown) ~= "number" then return 0, 0 end
   local takeable, loading = 0, 0
   for index = 1, shown do
-    local mail = GC.MailClassify.Read(api, index, patterns)
+    local mail = GC.MailClassify.Read(api, index, patterns, context)
     if not mail then
       loading = loading + 1
     else

@@ -5,6 +5,7 @@ describe("MailLoop, the paced take loop", function()
   local GC, box, loop, events, now, bags, enabled, patterns
   local ALL = { sales = true, returns = true, purchases = true, players = true }
   local DELAY = 0.15
+  local CONTEXT = { char = "A-B", region = "eu" }
 
   local SALE = function(n) return { sender = "Auction House", subject = "Auction successful: Cloth " .. n,
     money = 1000 * n, auction = true, invoice = { invoiceType = "seller", itemName = "Cloth " .. n } } end
@@ -27,6 +28,7 @@ describe("MailLoop, the paced take loop", function()
       api = flat, patterns = patterns,
       enabled = function() return enabled end,
       scanLedger = function() events[#events + 1] = "scan" end,
+      context = function() return CONTEXT end,
       epoch = function() return 5000 end,
       errors = { full = "Inventory is full.", unique = "You can't carry any more of those items." },
     })
@@ -51,6 +53,7 @@ describe("MailLoop, the paced take loop", function()
   before_each(function()
     _G.RETRIEVING_DATA = "Retrieving data..."
     GC = helper.loadModule("Core/Ledger.lua")
+    GC.Ledger.Init({})
     helper.loadModule("Core/MailReturns.lua", GC)
     helper.loadModule("Core/MailClassify.lua", GC)
     helper.loadModule("Core/MailLoop.lua", GC)
@@ -439,7 +442,8 @@ describe("MailLoop, the paced take loop", function()
       local shown = api.GetInboxNumItems
       api.GetInboxNumItems = function() local n, total = shown(); return n, total + grown end
       loop = GC.MailLoop.New({ api = api, patterns = patterns, enabled = function() return enabled end,
-        scanLedger = function() end, epoch = function() return 5000 end, errors = {} })
+        scanLedger = function() end, context = function() return CONTEXT end,
+        epoch = function() return 5000 end, errors = {} })
       loop:Start(now)
       local refreshes = 0
       for _ = 1, 100 do

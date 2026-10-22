@@ -79,6 +79,9 @@ local function getLoop()
         GC.Ledger.ScanInbox(client(), GC.Ledger.Context(), nil, false)
       end
     end,
+    -- Whose ledger a sale is recorded in: the loop takes a sale or a purchase only when the ledger
+    -- can record its invoice under it.
+    context = function() return GC.Ledger.Context() end,
     -- The returns log keeps wall clock time, which survives a /reload; the loop's own clock is
     -- session time.
     epoch = time,
@@ -147,7 +150,7 @@ function M.Refresh()
   elseif isRunning() then
     label, enabled = GC.L["Stop"], true
   else
-    local takeable = GC.MailClassify.Count(client(), mailPatterns(), M.Enabled())
+    local takeable = GC.MailClassify.Count(client(), mailPatterns(), M.Enabled(), GC.Ledger.Context())
     if takeable > 0 then
       label, enabled = (GC.L["Collect %d"]):format(takeable), true
     else
