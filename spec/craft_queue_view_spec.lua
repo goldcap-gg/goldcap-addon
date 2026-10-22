@@ -92,7 +92,7 @@ describe("craft queue view", function()
     GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
     showQueue()
     assert.same({ "Flask", GC.L["Restock to %d: %d held"]:format(10, 3),
-      GC.L["Auctions not counted yet: open the auction house once"] }, lineTexts(1))
+      GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"] }, lineTexts(1))
     local ev = QV._events
     assert.is_true(ev:IsEventRegistered("OWNED_AUCTIONS_UPDATED"))
     ev:GetScript("OnEvent")(ev, "OWNED_AUCTIONS_UPDATED")

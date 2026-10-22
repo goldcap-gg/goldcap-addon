@@ -16,7 +16,7 @@ local KEYS = {
   "This recipe", "Add to queue", "Restock to", "How many crafts of %s?",
   "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
   -- The Queue view.
-  "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open the auction house once",
+  "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",
   "Remove from queue", "The queue is empty. Add a recipe from This recipe.", "Missing", "%d %s",
   "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list", "Craft queue",
   "BUY list %s is ready in the BUY tab at the auction house",

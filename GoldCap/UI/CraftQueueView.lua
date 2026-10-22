@@ -143,10 +143,12 @@ local function paintLine(line, row, listedAt)
     line.detail:SetText(GC.L["Restock to %d: %d held"]:format(e.restock, row.held or 0))
   end
   local height = LAYOUT.ROW_PAD + line.name:GetHeight() + LAYOUT.LINE_GAP + line.detail:GetHeight()
-  -- A restock counts what is up on the auction house too, and that is read only there: until it
-  -- has been, say so rather than craft more than is needed without a word.
+  -- A restock counts what is up on the auction house too, and that is read only there, when
+  -- something asks the auction house for the character's own auctions: in GoldCap, the Sell tab
+  -- (Services/Sell/Owned.lua). Until then, say so rather than craft more than is needed without
+  -- a word.
   if e.restock and listedAt == nil then
-    line.note:SetText(GC.L["Auctions not counted yet: open the auction house once"])
+    line.note:SetText(GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"])
     line.note:Show()
     height = height + LAYOUT.LINE_GAP + line.note:GetHeight()
   else
