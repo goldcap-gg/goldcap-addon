@@ -1425,4 +1425,13 @@ GC.Locales.itIT = {
   ["%d still loading"] = "%d ancora in caricamento",
   ["The bags are full, the rest stays in the mailbox"] = "Le borse sono piene, il resto resta nella casella postale",
   ["Nothing to collect"] = "Niente da ritirare",
+  ["MAIL"] = "POSTA",
+  ["Collect sales"] = "Ritira le vendite",
+  ["Collect returned lots"] = "Ritira i lotti tornati",
+  ["Collect purchases"] = "Ritira gli acquisti",
+  ["Collect mail from players"] = "Ritira la posta dei giocatori",
+  ["Take the gold from sold auctions."] = "Ritira l'oro delle aste vendute.",
+  ["Take back lots that expired or that you cancelled."] = "Ritira i lotti scaduti o che hai annullato.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Ritira gli oggetti delle aste vinte e il rimborso di un'offerta superata.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Ritira oro e oggetti inviati da altri giocatori. La posta con contrassegno non viene mai ritirata.",
 }

@@ -1428,4 +1428,13 @@ GC.Locales.deDE = {
   ["%d still loading"] = "%d werden noch geladen",
   ["The bags are full, the rest stays in the mailbox"] = "Die Taschen sind voll, der Rest bleibt im Briefkasten",
   ["Nothing to collect"] = "Nichts einzusammeln",
+  ["MAIL"] = "POST",
+  ["Collect sales"] = "Verkäufe einsammeln",
+  ["Collect returned lots"] = "Rückgaben einsammeln",
+  ["Collect purchases"] = "Käufe einsammeln",
+  ["Collect mail from players"] = "Post von Spielern einsammeln",
+  ["Take the gold from sold auctions."] = "Holt das Gold aus verkauften Auktionen.",
+  ["Take back lots that expired or that you cancelled."] = "Holt Angebote zurück, die abgelaufen sind oder die du abgebrochen hast.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Holt die Gegenstände gewonnener Auktionen und die Rückzahlung eines überbotenen Gebots.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Holt Gold und Gegenstände, die dir andere Spieler geschickt haben. Nachnahme-Post wird nie genommen.",
 }

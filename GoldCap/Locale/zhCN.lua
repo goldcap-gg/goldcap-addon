@@ -1328,4 +1328,13 @@ GC.Locales.zhCN = {
   ["%d still loading"] = "%d 封仍在加载",
   ["The bags are full, the rest stays in the mailbox"] = "背包已满，其余留在邮箱里",
   ["Nothing to collect"] = "没有可收取的邮件",
+  ["MAIL"] = "邮件",
+  ["Collect sales"] = "收取出售所得",
+  ["Collect returned lots"] = "收取退回的拍卖品",
+  ["Collect purchases"] = "收取购买物品",
+  ["Collect mail from players"] = "收取玩家邮件",
+  ["Take the gold from sold auctions."] = "收取已售出拍卖的金币。",
+  ["Take back lots that expired or that you cancelled."] = "取回已过期或被你取消的拍卖品。",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "收取你拍得的物品，以及被超过的出价所退还的金币。",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "收取其他玩家寄给你的金币和物品。货到付款邮件永远不会被收取。",
 }

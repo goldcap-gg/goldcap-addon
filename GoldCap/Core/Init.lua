@@ -234,6 +234,13 @@ GC.DEFAULTS = {
       -- default: a cap firing while the player is away must not open a purchase dialog nobody
       -- asked for.
       capStopAndOpen = false,
+      -- Which mail the Collect button beside the mailbox takes (UI/MailCollect.lua, Enabled; the
+      -- MAIL card in UI/SettingsFrame.lua): sales, lots that came back, purchases, and mail from
+      -- players. All on; a saved false survives ApplyDefaults because it only fills nil.
+      collectSales = true,
+      collectReturns = true,
+      collectPurchases = true,
+      collectPlayers = true,
       -- buyRun: undeclared here on purpose (a nil-valued table field is never actually stored,
       -- so ApplyDefaults' pairs() walk would just skip it either way). The run code last shown
       -- in the Buy Runs panel, so reopening it returns to where the player left off; written by

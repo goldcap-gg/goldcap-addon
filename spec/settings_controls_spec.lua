@@ -812,4 +812,102 @@ describe("Settings controls", function()
     assert.equal("ghost", gear.variant)
     assert.equal(1, refreshRailActiveCalls)
   end)
+  -- The MAIL card: four switches for what the Collect button beside the mailbox takes. It exists
+  -- only where UI/MailCollect.lua does (retail), so GC.MailCollect is the capability check.
+  describe("the MAIL card", function()
+    local LABELS = {
+      { "Collect sales", "collectSales", "Take the gold from sold auctions." },
+      { "Collect returned lots", "collectReturns", "Take back lots that expired or that you cancelled." },
+      { "Collect purchases", "collectPurchases",
+        "Take the items of auctions you won, and the refund of an outbid bid." },
+      { "Collect mail from players", "collectPlayers",
+        "Take gold and items other players sent you. Cash on delivery mail is never taken." },
+    }
+
+    before_each(function()
+      GC.MailCollect = {}
+      GC.DEFAULTS.settings.sniper.collectSales = true
+      GC.DEFAULTS.settings.sniper.collectReturns = true
+      GC.DEFAULTS.settings.sniper.collectPurchases = true
+      GC.DEFAULTS.settings.sniper.collectPlayers = true
+      GC.db.settings.sniper.collectSales = true
+      GC.db.settings.sniper.collectReturns = true
+      GC.db.settings.sniper.collectPurchases = true
+      GC.db.settings.sniper.collectPlayers = true
+    end)
+
+    it("builds four toggles, each bound to its own setting", function()
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      assert.is_true(cardTitles(panel)["MAIL"])
+      for _, row in ipairs(LABELS) do
+        local toggle = toggleOf(panel, row[1])
+        assert.is_true(toggle.checkButton:GetChecked(), row[1])
+        toggle.checkButton.scripts.OnClick(toggle.checkButton)
+        assert.is_false(GC.db.settings.sniper[row[2]], row[2])
+        toggle.checkButton.scripts.OnClick(toggle.checkButton)
+        assert.is_true(GC.db.settings.sniper[row[2]], row[2])
+      end
+    end)
+
+    it("explains each row and says it is on by default", function()
+      local lines
+      _G.GameTooltip = setmetatable({}, { __index = function(_, name)
+        if name == "AddLine" then return function(_, text) lines[#lines + 1] = text end end
+        return function() end
+      end })
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      for _, row in ipairs(LABELS) do
+        local toggle = toggleOf(panel, row[1])
+        lines = {}
+        toggle.scripts.OnEnter(toggle)
+        assert.equal(row[1], lines[1])
+        assert.equal(row[3], lines[2])
+        assert.equal("Default: on", lines[3])
+      end
+    end)
+
+    it("writes false into the saved settings when a switch is turned off", function()
+      GC.SettingsUI.Toggle()
+      local toggle = toggleOf(settingsPanel(), "Collect sales")
+      toggle.checkButton.scripts.OnClick(toggle.checkButton)
+      assert.is_false(GC.db.settings.sniper.collectSales)
+      assert.is_true(GC.db.settings.sniper.collectReturns)
+    end)
+
+    it("is not built where the Collect button does not exist", function()
+      GC.MailCollect = nil
+      GC.SettingsUI.Toggle()
+      assert.is_nil(cardTitles(settingsPanel())["MAIL"])
+    end)
+
+    it("reaches no lower than the window's smallest height", function()
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+      local source = file:read("*a")
+      file:close()
+      local minHeight = tonumber(source:match("WIN%.RESIZE_MIN_HEIGHT = (%d+)"))
+      local TITLEBAR, MARGIN = 32, GC.Theme.pad.m
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+
+      -- A card's top offset below the panel, following its first anchor up the left column.
+      local function top(card)
+        local point = card.points[1]
+        local relative = point[2]
+        if relative == panel then return -point[5] end
+        return top(relative) + relative.height - point[5]
+      end
+      local lowest = 0
+      walk(panel, function(node)
+        if node.kind == "Frame" and node.parent == panel and node.height and node.height > 0 then
+          lowest = math.max(lowest, top(node) + node.height)
+        end
+      end)
+      local mail = cardByTitle(panel, "MAIL")
+      assert.is_true(top(mail) + mail.height <= lowest)
+      assert.is_true(lowest + MARGIN <= minHeight - TITLEBAR,
+        ("cards reach %d, the panel has %d"):format(lowest + MARGIN, minHeight - TITLEBAR))
+    end)
+  end)
 end)

@@ -1362,4 +1362,13 @@ GC.Locales.koKR = {
   ["%d still loading"] = "%d통 불러오는 중",
   ["The bags are full, the rest stays in the mailbox"] = "가방이 가득 차서 나머지는 우편함에 남습니다",
   ["Nothing to collect"] = "수령할 우편이 없습니다",
+  ["MAIL"] = "우편",
+  ["Collect sales"] = "판매 수령",
+  ["Collect returned lots"] = "회수된 경매 수령",
+  ["Collect purchases"] = "구매 수령",
+  ["Collect mail from players"] = "플레이어 우편 수령",
+  ["Take the gold from sold auctions."] = "판매된 경매의 골드를 수령합니다.",
+  ["Take back lots that expired or that you cancelled."] = "만료되었거나 직접 취소한 경매 물품을 되찾습니다.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "낙찰받은 물품과 상회 입찰로 돌려받는 골드를 수령합니다.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "다른 플레이어가 보낸 골드와 물품을 수령합니다. 착불 우편은 절대 수령하지 않습니다.",
 }

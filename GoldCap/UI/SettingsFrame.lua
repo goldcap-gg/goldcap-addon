@@ -614,6 +614,17 @@ local function build(sniperFrame)
     brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
   end
 
+  -- MAIL: what the Collect button beside the mailbox takes (UI/MailCollect.lua). That file loads
+  -- on retail only, so GC.MailCollect is the capability check and WoW: Forever never builds the
+  -- card. It stacks under RISK CHECKS (or under WHAT COUNTS where that is absent), which makes
+  -- the left column the taller one: see WIN.RESIZE_MIN_HEIGHT in UI/SniperFrame.lua.
+  local mail
+  if GC.MailCollect then
+    mail = card(panel, GC.L["MAIL"], 4)
+    mail:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
+    mail:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  end
+
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
   local posting = card(panel, GC.L["POSTING"], 2)
@@ -873,6 +884,17 @@ local function build(sniperFrame)
   if not isForeverClient() then
     toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
+  end
+
+  if mail then
+    toggleRow(mail, 1, GC.L["Collect sales"], "collectSales",
+      GC.L["Take the gold from sold auctions."])
+    toggleRow(mail, 2, GC.L["Collect returned lots"], "collectReturns",
+      GC.L["Take back lots that expired or that you cancelled."])
+    toggleRow(mail, 3, GC.L["Collect purchases"], "collectPurchases",
+      GC.L["Take the items of auctions you won, and the refund of an outbid bid."])
+    toggleRow(mail, 4, GC.L["Collect mail from players"], "collectPlayers",
+      GC.L["Take gold and items other players sent you. Cash on delivery mail is never taken."])
   end
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640

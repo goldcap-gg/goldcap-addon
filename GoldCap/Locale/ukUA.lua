@@ -1496,4 +1496,13 @@ GC.Locales.ukUA = {
   ["%d still loading"] = "Ще завантажується: %d",
   ["The bags are full, the rest stays in the mailbox"] = "Сумки повні, решта лишиться в поштовій скриньці",
   ["Nothing to collect"] = "Нічого забирати",
+  ["MAIL"] = "ПОШТА",
+  ["Collect sales"] = "Забирати продажі",
+  ["Collect returned lots"] = "Забирати повернуті лоти",
+  ["Collect purchases"] = "Забирати покупки",
+  ["Collect mail from players"] = "Забирати листи гравців",
+  ["Take the gold from sold auctions."] = "Забирає золото за продані лоти.",
+  ["Take back lots that expired or that you cancelled."] = "Забирає лоти, у яких вийшов термін або які ви скасували.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Забирає предмети виграних лотів і повернення перебитої ставки.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Забирає золото й предмети, надіслані іншими гравцями. Листи з післяплатою ніколи не беруться.",
 }

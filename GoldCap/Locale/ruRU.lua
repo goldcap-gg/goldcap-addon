@@ -1495,4 +1495,13 @@ GC.Locales.ruRU = {
   ["%d still loading"] = "Ещё загружается: %d",
   ["The bags are full, the rest stays in the mailbox"] = "Сумки полны, остальное останется в почтовом ящике",
   ["Nothing to collect"] = "Нечего забирать",
+  ["MAIL"] = "ПОЧТА",
+  ["Collect sales"] = "Забирать продажи",
+  ["Collect returned lots"] = "Забирать вернувшиеся лоты",
+  ["Collect purchases"] = "Забирать покупки",
+  ["Collect mail from players"] = "Забирать письма игроков",
+  ["Take the gold from sold auctions."] = "Забирает золото за проданные лоты.",
+  ["Take back lots that expired or that you cancelled."] = "Забирает лоты, у которых истёк срок или которые вы отменили.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Забирает предметы выигранных лотов и возврат перебитой ставки.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Забирает золото и предметы, присланные другими игроками. Письма с наложенным платежом не берутся никогда.",
 }

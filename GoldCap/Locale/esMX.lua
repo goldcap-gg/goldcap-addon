@@ -1432,4 +1432,13 @@ GC.Locales.esMX = {
   ["%d still loading"] = "%d aún se están cargando",
   ["The bags are full, the rest stays in the mailbox"] = "Las bolsas están llenas, el resto se queda en el buzón",
   ["Nothing to collect"] = "Nada que recoger",
+  ["MAIL"] = "CORREO",
+  ["Collect sales"] = "Recoger ventas",
+  ["Collect returned lots"] = "Recoger lotes devueltos",
+  ["Collect purchases"] = "Recoger compras",
+  ["Collect mail from players"] = "Recoger correo de jugadores",
+  ["Take the gold from sold auctions."] = "Recoge el oro de las subastas vendidas.",
+  ["Take back lots that expired or that you cancelled."] = "Recupera los lotes que caducaron o que cancelaste.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Recoge los objetos de las subastas que ganaste y el reembolso de una puja superada.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Recoge el oro y los objetos que te enviaron otros jugadores. El correo contra reembolso nunca se recoge.",
 }

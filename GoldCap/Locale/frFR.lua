@@ -1429,4 +1429,13 @@ GC.Locales.frFR = {
   ["%d still loading"] = "%d en cours de chargement",
   ["The bags are full, the rest stays in the mailbox"] = "Les sacs sont pleins, le reste attend dans la boîte aux lettres",
   ["Nothing to collect"] = "Rien à récupérer",
+  ["MAIL"] = "COURRIER",
+  ["Collect sales"] = "Récupérer les ventes",
+  ["Collect returned lots"] = "Récupérer les lots revenus",
+  ["Collect purchases"] = "Récupérer les achats",
+  ["Collect mail from players"] = "Récupérer le courrier des joueurs",
+  ["Take the gold from sold auctions."] = "Récupère l'or des enchères vendues.",
+  ["Take back lots that expired or that you cancelled."] = "Récupère les lots expirés ou que tu as annulés.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Récupère les objets des enchères remportées et le remboursement d'une enchère dépassée.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Récupère l'or et les objets envoyés par d'autres joueurs. Le courrier contre remboursement n'est jamais pris.",
 }

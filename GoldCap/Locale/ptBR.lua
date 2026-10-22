@@ -1423,4 +1423,13 @@ GC.Locales.ptBR = {
   ["%d still loading"] = "%d ainda carregando",
   ["The bags are full, the rest stays in the mailbox"] = "As bolsas estão cheias, o resto fica na caixa de correio",
   ["Nothing to collect"] = "Nada para coletar",
+  ["MAIL"] = "CORREIO",
+  ["Collect sales"] = "Coletar vendas",
+  ["Collect returned lots"] = "Coletar lotes devolvidos",
+  ["Collect purchases"] = "Coletar compras",
+  ["Collect mail from players"] = "Coletar correio de jogadores",
+  ["Take the gold from sold auctions."] = "Coleta o ouro dos leilões vendidos.",
+  ["Take back lots that expired or that you cancelled."] = "Recupera os lotes que expiraram ou que você cancelou.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Coleta os itens dos leilões que você ganhou e o reembolso de um lance superado.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Coleta ouro e itens que outros jogadores enviaram. Correio com pagamento na entrega nunca é coletado.",
 }

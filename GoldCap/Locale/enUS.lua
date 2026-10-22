@@ -1413,4 +1413,13 @@ GC.Locales.enUS = {
   ["%d still loading"] = "%d still loading",
   ["The bags are full, the rest stays in the mailbox"] = "The bags are full, the rest stays in the mailbox",
   ["Nothing to collect"] = "Nothing to collect",
+  ["MAIL"] = "MAIL",
+  ["Collect sales"] = "Collect sales",
+  ["Collect returned lots"] = "Collect returned lots",
+  ["Collect purchases"] = "Collect purchases",
+  ["Collect mail from players"] = "Collect mail from players",
+  ["Take the gold from sold auctions."] = "Take the gold from sold auctions.",
+  ["Take back lots that expired or that you cancelled."] = "Take back lots that expired or that you cancelled.",
+  ["Take the items of auctions you won, and the refund of an outbid bid."] = "Take the items of auctions you won, and the refund of an outbid bid.",
+  ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Take gold and items other players sent you. Cash on delivery mail is never taken.",
 }
