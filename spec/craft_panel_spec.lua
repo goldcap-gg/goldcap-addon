@@ -67,6 +67,13 @@ describe("craft panel", function()
     assert.is_true(f:IsShown())
   end)
 
+  it("is kept on screen when the window leaves no room to its right", function()
+    -- The recipes page is 942 wide: on a 16:10 or 4:3 screen the panel's right edge, where the
+    -- profit column sits, would fall off. Clamped, the client slides it back over the window.
+    load()
+    assert.is_true(W.state(show()).clamped)
+  end)
+
   for _, flag in ipairs({ "guild", "linked", "npc" }) do
     it("hides for a guild, linked or NPC profession list (" .. flag .. ")", function()
       load({ external = { [flag] = true } })

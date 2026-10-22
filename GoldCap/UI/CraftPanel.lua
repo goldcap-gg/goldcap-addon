@@ -388,6 +388,10 @@ local function build(frame)
   local f = T.Card(frame.CraftingPage, T.color.panel, T.color.border)
   f:SetWidth(LAYOUT.WIDTH)
   f:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0)
+  -- The recipes page is 942 wide: on a 16:10 or 4:3 screen, or with the window pushed to the
+  -- centre, the panel's right edge (the profit column) would fall off the screen. Clamped, the
+  -- client slides it back over the window instead. Blizzard's own UI panel width is left alone.
+  f:SetClampedToScreen(true)
   f:EnableMouse(true)
   f.title = T.Label(f, LAYOUT.TITLE)
   f.title:SetPoint("TOPLEFT", f, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
