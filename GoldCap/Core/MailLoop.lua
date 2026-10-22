@@ -314,11 +314,13 @@ function GC.MailLoop.New(deps)
   function loop:Stop(reason) finish(reason or "stopped") end
   function loop:OnClosed() finish("closed") end
 
-  -- MAIL_FAILED carries the itemID of the item the client refused.
+  -- MAIL_FAILED carries the itemID of the item the client refused. It can arrive after that take
+  -- already counted as stuck and the next one went out, so it only ends the take in flight when
+  -- that take is for the refused item.
   function loop:OnMailFailed(itemID)
     if state ~= "running" and state ~= "refresh" then return end
     if itemID ~= nil then skipItems[itemID] = true end
-    if inflight and inflight.slot then
+    if inflight and inflight.slot and inflight.itemID == itemID then
       retract(inflight)
       inflight = nil
     end

@@ -308,6 +308,19 @@ describe("MailLoop, the paced take loop", function()
       assert.equal("done", loop:Result().reason)
     end)
 
+    it("leaves the take in flight alone when a refusal arrives late for another item", function()
+      build({ EXPIRED(5, 1), EXPIRED(6, 1) })
+      box:refuse(5)
+      loop:Start(now)
+      -- Item 5's take does nothing, counts as stuck after three steps, and item 6 is taken.
+      for _ = 1, GC.MailLoop.STUCK_STEPS do cycle() end
+      assert.same({ fn = "TakeInboxItem", index = 2, slot = 1 }, box:calls()[2])
+      loop:OnMailFailed(5)
+      runToEnd()
+      assert.same({ { itemID = 6, count = 1, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+      assert.equal(1, loop:Result().returns)
+    end)
+
     it("skips the in-flight item when the client says it is unique", function()
       build({ EXPIRED(5, 1), EXPIRED(6, 1) })
       loop:Start(now)
