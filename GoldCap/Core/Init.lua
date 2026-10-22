@@ -324,7 +324,9 @@ frame:RegisterEvent("BAG_UPDATE_DELAYED")
 -- Each in its own pcall, like AUCTION_CANCELED above: an event a client does not know must not take
 -- the rest of the registrations with it.
 -- CURSOR_CHANGED tells Core/VendorBuys.lua that a picked-up merchant item was dropped or put back.
-for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED" }) do
+-- MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL stops the Sell to vendor card's run (UI/VendorSellCard.lua).
+for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED",
+    "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" }) do
   pcall(frame.RegisterEvent, frame, merchantEvent)
 end
 -- At a bank: what to carry between realms through the Warband Bank (UI/BankRoute.lua, retail only).
@@ -1042,6 +1044,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
     if GC.VendorSellCard then GC.VendorSellCard.OnMerchantClosed() end
+  elseif event == "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" then
+    if GC.VendorSellCard then GC.VendorSellCard.OnTradeTimerConfirm() end
   elseif event == "BANKFRAME_OPENED" then
     if GC.BankRoute then GC.BankRoute.OnBankOpened() end
   elseif event == "BANKFRAME_CLOSED" then

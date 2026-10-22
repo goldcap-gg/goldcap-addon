@@ -1329,4 +1329,8 @@ GC.Locales.zhTW = {
   ["%d more after this"] = "此後還有%d件",
   ["Right click a line to keep that item."] = "右鍵點擊一行以保留該物品。",
   ["Never sell this"] = "永不出售",
+  ["Stop"] = "停止",
+  ["The game sells one stack per press here."] = "遊戲在這裡每次點擊只賣出一組。",
+  ["Sold %d stacks for %s. Buyback has them until you leave."] = "已出售%d組，獲得%s。離開前可在買回中找回。",
+  ["Sold 1 stack for %s. Buyback has it until you leave."] = "已出售1組，獲得%s。離開前可在買回中找回。",
 }

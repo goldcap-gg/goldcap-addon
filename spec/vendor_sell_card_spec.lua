@@ -6,7 +6,7 @@ local W = require("spec.support.wow_frames")
 -- one test that puts the card next to the merchant note.
 describe("vendor sell card", function()
   local GC, C, restore, saved, reads, menus
-  local KEYS = { "C_Container", "C_Item", "MerchantFrame", "GetCoinTextureString", "hooksecurefunc",
+  local KEYS = { "C_Container", "C_Item", "C_Timer", "GetCursorInfo", "MerchantFrame", "GetCoinTextureString", "hooksecurefunc",
     "MenuUtil", "UIParent" }
 
   local nextID = 5000
@@ -59,6 +59,7 @@ describe("vendor sell card", function()
     helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("Core/ForeverValue.lua", GC)
     helper.loadModule("Core/VendorSelect.lua", GC)
+    helper.loadModule("Core/VendorPress.lua", GC)
     helper.loadModule("UI/Theme.lua", GC)
     helper.loadModule("UI/Tooltip.lua", GC)
     helper.loadModule("UI/MerchantNote.lua", GC)
@@ -264,5 +265,160 @@ describe("vendor sell card", function()
     reads = { stack({}) }
     C.OnMerchantShow()
     assert.equal(1, #C._pick.rows)
+  end)
+
+  -- The press: the click, the machine's driver, the chat line and the stop events. The bags are a
+  -- table the fake C_Container and the stubbed bag read both look at, so a sale is the slot going.
+  describe("the press", function()
+    local bags, used, timers, printed, refuse, buttonEnabledAtUse, readCount
+
+    local function put(bag, slot, vendorUnit)
+      nextID = nextID + 1
+      bags[bag .. ":" .. slot] = { bag = bag, slot = slot, itemID = nextID, link = "item:" .. nextID,
+        vendorUnit = vendorUnit }
+    end
+
+    local function click()
+      local button = C._frame.button
+      W.state(button).scripts.OnClick(button)
+    end
+    local function fire()
+      local t = table.remove(timers, 1)
+      if t then t() end
+      return t ~= nil
+    end
+    local function drain() while fire() do end end
+    local function label() return textOf(C._frame.button.text) end
+
+    before_each(function()
+      bags, used, timers, printed, refuse, readCount = {}, {}, {}, {}, false, 0
+      buttonEnabledAtUse = nil
+      -- Strict: the card may read an item and make the sale, nothing else in the container API.
+      _G.C_Container = setmetatable({
+        GetContainerItemInfo = function(bag, slot)
+          local item = bags[bag .. ":" .. slot]
+          return item and { hyperlink = item.link, isLocked = false, itemID = item.itemID } or nil
+        end,
+        UseContainerItem = function(bag, slot)
+          used[#used + 1] = { bag, slot }
+          buttonEnabledAtUse = C._frame.button:IsEnabled()
+          if not refuse then bags[bag .. ":" .. slot] = nil end
+        end,
+      }, { __index = function(_, name) error("the card must not call C_Container." .. name) end })
+      _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+      _G.GetCursorInfo = function() return nil end
+      GC.Print = function(text) printed[#printed + 1] = text end
+      GC.VendorBags = { Read = function()
+        readCount = readCount + 1
+        local out = {}
+        for _, item in pairs(bags) do
+          out[#out + 1] = stack({ bag = item.bag, slot = item.slot, itemID = item.itemID,
+            link = item.link, vendorUnit = item.vendorUnit })
+        end
+        return out
+      end }
+      put(0, 1, 10); put(0, 2, 20); put(0, 3, 30)
+      C.OnMerchantShow()
+    end)
+
+    after_each(function() _G.C_Timer, _G.GetCursorInfo = nil, nil end)
+
+    it("the click sells the first stack before returning", function()
+      assert.equal("Sell 3 for 60c", label())
+      click()
+      assert.equal(1, #used)
+      assert.same({ 0, 3 }, used[1]) -- the dearest first
+      assert.is_true(buttonEnabledAtUse) -- the clicked button was not put to sleep before the call
+      assert.equal(1, #timers)
+    end)
+
+    it("timers sell the rest and the chat line names count and total", function()
+      click()
+      drain()
+      assert.equal(3, #used)
+      assert.same({ "Sold 3 stacks for 60c. Buyback has them until you leave." }, printed)
+      assert.is_false(C.machine:IsRunning())
+    end)
+
+    it("one stack reads 'Sold 1 stack'", function()
+      bags["0:2"], bags["0:3"] = nil, nil
+      C.OnBagsChanged()
+      click()
+      drain()
+      assert.same({ "Sold 1 stack for 10c. Buyback has it until you leave." }, printed)
+    end)
+
+    it("closing the merchant mid-run stops it and reports what sold", function()
+      click()
+      C.OnMerchantClosed()
+      drain()
+      assert.equal(1, #used)
+      assert.same({ "Sold 1 stack for 30c. Buyback has it until you leave." }, printed)
+      assert.is_false(C._frame:IsShown())
+    end)
+
+    it("a bag update during the run does not rebuild the rows or reset the label", function()
+      click()
+      local before = readCount
+      C.OnBagsChanged()
+      C.OnMerchantUpdate()
+      assert.equal(before, readCount)
+      assert.equal("Stop", label())
+      assert.equal(3, #C._pick.rows)
+    end)
+
+    it("the button reads Stop while running and a second click stops", function()
+      click()
+      assert.equal("Stop", label())
+      click()
+      assert.equal(1, #used)
+      drain()
+      assert.equal(1, #used)
+      assert.same({ "Sold 1 stack for 30c. Buyback has it until you leave." }, printed)
+      assert.equal("Sell 2 for 30c", label()) -- what is left, read again
+    end)
+
+    it("after a slow timer sale the card says the game sells one stack per press and the next click sells one", function()
+      click()
+      refuse = true -- the first sale has left; the next one stays
+      drain()
+      assert.is_true(C.machine.oneAtATime)
+      assert.equal("The game sells one stack per press here.", textOf(C._frame.slow))
+      assert.is_true(C._frame.slow:IsShown())
+      refuse = false
+      used = {}
+      assert.equal("Sell 1 for 20c", label()) -- the dearest stack that is left, alone
+      click()
+      assert.equal(1, #used)
+      drain()
+      assert.equal(1, #used)
+    end)
+
+    it("the trade timer confirm event stops the run", function()
+      click()
+      C.OnTradeTimerConfirm()
+      assert.is_false(C.machine:IsRunning())
+      drain()
+      assert.equal(1, #used)
+    end)
+
+    it("nothing is printed when nothing sold", function()
+      refuse = true
+      click()
+      drain()
+      assert.same({}, printed)
+      assert.is_false(C.machine.oneAtATime)
+    end)
+
+    it("a new visit forgets the one stack per press mode", function()
+      click()
+      refuse = true
+      drain()
+      assert.is_true(C.machine.oneAtATime)
+      C.OnMerchantClosed()
+      C.OnMerchantShow()
+      assert.is_false(C.machine.oneAtATime)
+      assert.is_false(C._frame.slow:IsShown())
+    end)
   end)
 end)

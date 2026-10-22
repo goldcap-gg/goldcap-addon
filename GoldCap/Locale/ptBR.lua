@@ -1423,4 +1423,8 @@ GC.Locales.ptBR = {
   ["%d more after this"] = "%d a mais depois desta",
   ["Right click a line to keep that item."] = "Clique com o botão direito em uma linha para manter esse item.",
   ["Never sell this"] = "Nunca vender",
+  ["Stop"] = "Parar",
+  ["The game sells one stack per press here."] = "O jogo vende aqui uma pilha por clique.",
+  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d pilhas vendidas por %s. A recompra as guarda até você sair.",
+  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1 pilha vendida por %s. A recompra a guarda até você sair.",
 }

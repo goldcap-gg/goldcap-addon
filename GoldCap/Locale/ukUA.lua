@@ -1496,4 +1496,8 @@ GC.Locales.ukUA = {
   ["%d more after this"] = "Ще %d після цієї",
   ["Right click a line to keep that item."] = "Клацніть рядок правою кнопкою, щоб залишити цей предмет.",
   ["Never sell this"] = "Ніколи не продавати",
+  ["Stop"] = "Стоп",
+  ["The game sells one stack per press here."] = "Гра продає тут по одній стопці за натискання.",
+  ["Sold %d stacks for %s. Buyback has them until you leave."] = "Продано стопок: %d, за %s. Викуп зберігає їх, поки ви не підете.",
+  ["Sold 1 stack for %s. Buyback has it until you leave."] = "Продано 1 стопку за %s. Викуп зберігає її, поки ви не підете.",
 }

@@ -6,6 +6,12 @@ local _, GC = ...
 -- Core/VendorSelect.lua's Pick; the bags are read by Services/VendorBags.lua. Right click a line
 -- to keep that item for good (GC.db.vendorKeep).
 --
+-- The one sale call in the addon outside the Warband Bank carry (UI/BankRoute.lua) is in this
+-- file: the driver's `use` below, made for the first stack inside the player's own click and for
+-- the rest by Core/VendorPress.lua's timers, each after it has checked that the merchant is still
+-- open and the slot still holds the chosen item (the same call equips a piece of gear when no
+-- vendor is open, which binds it). spec/vendor_sell_wiring_spec.lua audits it.
+--
 -- Retail only (GoldCap.toc): WoW: Forever loads none of the vendor sell files.
 GC.VendorSellCard = {}
 local C = GC.VendorSellCard
@@ -57,6 +63,83 @@ local function followColumn()
   end
 end
 
+-- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W nor
+-- wider than the card: a label is never cut.
+local function fitButton(button)
+  local fs = button.text
+  local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+  if type(width) ~= "number" then width = 0 end
+  button:SetWidth(math.min(LAYOUT.WIDTH - 2 * LAYOUT.PAD,
+    math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)))
+end
+
+-- The button says Stop while a press is going, else what the next press promises: every row, or
+-- only the first when the game sold one stack per press this visit.
+local function paintButton()
+  if not (frame and C._pick) then return end
+  local machine = C.machine
+  if machine and machine:IsRunning() then
+    frame.button:SetLabel(GC.L["Stop"])
+  else
+    local count, copper = GC.VendorSelect.PressTotals(C._pick, machine and machine.oneAtATime or false)
+    frame.button:SetLabel(GC.L["Sell %d for %s"]:format(count, GC.Util.CoinText(copper)))
+  end
+  fitButton(frame.button)
+end
+
+-- What the machine (Core/VendorPress.lua) drives. `use` is the single place the addon sells; the
+-- other fields read the client or arm a timer.
+local function cursorBusy()
+  local ok, kind = pcall(GetCursorInfo)
+  return ok and kind ~= nil
+end
+
+local function slotNow(bag, slot)
+  local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
+  if ok and type(info) == "table" then return { link = info.hyperlink, isLocked = info.isLocked == true } end
+  return nil
+end
+
+local function merchantOpen()
+  local merchant = _G.MerchantFrame
+  if type(merchant) == "table" and merchant.IsShown and not merchant:IsShown() then return false end
+  return C._open == true
+end
+
+local function report(result)
+  if result.sold > 0 then
+    local coins = GC.Util.CoinText(result.copper)
+    if result.sold == 1 then
+      GC.Print(GC.L["Sold 1 stack for %s. Buyback has it until you leave."]:format(coins))
+    else
+      GC.Print(GC.L["Sold %d stacks for %s. Buyback has them until you leave."]:format(result.sold, coins))
+    end
+  end
+  C.Refresh()
+end
+
+function C._Machine()
+  if not C.machine then
+    C.machine = GC.VendorPress.New({
+      merchantOpen = merchantOpen,
+      slot = slotNow,
+      cursorBusy = cursorBusy,
+      use = function(bag, slot) C_Container.UseContainerItem(bag, slot) end,
+      after = function(seconds, fn) C_Timer.After(seconds, fn) end,
+      report = report,
+    })
+  end
+  return C.machine
+end
+
+-- The button's own click: the only handler that starts a press. The machine makes the first sale
+-- inside this call; the button is repainted only afterwards, and never put to sleep, because a
+-- second press stops a run.
+local function onSellClick(button)
+  C._Machine():Press(button.rows or {})
+  paintButton()
+end
+
 local function build()
   local T = GC.Theme
   local host = _G.MerchantFrame or UIParent
@@ -75,6 +158,11 @@ local function build()
   frame.more:SetJustifyH("LEFT")
   frame.more:SetWordWrap(true)
   frame.more:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3])
+  frame.slow = T.Label(frame, 10)
+  frame.slow:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
+  frame.slow:SetJustifyH("LEFT")
+  frame.slow:SetWordWrap(true)
+  frame.slow:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3])
   frame.hint = T.Label(frame, 10)
   frame.hint:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
   frame.hint:SetJustifyH("LEFT")
@@ -83,6 +171,7 @@ local function build()
   frame.hint:SetText(GC.L["Right click a line to keep that item."])
   frame.button = T.Button(frame, "primary", "plaque")
   frame.button:SetHeight(LAYOUT.BUTTON_H)
+  frame.button:SetScript("OnClick", onSellClick)
   C._frame = frame
 end
 
@@ -153,20 +242,17 @@ local function heightOf(fs, fallback)
   return fs.GetStringHeight and fs:GetStringHeight() or fallback
 end
 
--- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W nor
--- wider than the card: a label is never cut.
-local function fitButton(button)
-  local fs = button.text
-  local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
-  if type(width) ~= "number" then width = 0 end
-  button:SetWidth(math.min(LAYOUT.WIDTH - 2 * LAYOUT.PAD,
-    math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)))
-end
 
 -- Reads the bags again and shows the card with what one press would sell, or hides it.
 function C.Refresh()
   if not C._open then
     if frame then frame:Hide() end
+    return
+  end
+  -- A press is going: the rows stay as pressed (a bag update must not rebuild them under the
+  -- machine); only the button's words follow.
+  if C.machine and C.machine:IsRunning() then
+    paintButton()
     return
   end
   local settings = sniperSettings()
@@ -206,12 +292,20 @@ function C.Refresh()
   else
     frame.more:Hide()
   end
-  local count, copper = GC.VendorSelect.PressTotals(pick, false)
-  frame.button:SetLabel(GC.L["Sell %d for %s"]:format(count, GC.Util.CoinText(copper)))
-  fitButton(frame.button)
+  frame.button.rows = pick.rows
+  paintButton()
   frame.button:ClearAllPoints()
   frame.button:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
   y = y + LAYOUT.BUTTON_H + LAYOUT.ROW_GAP
+  if C.machine and C.machine.oneAtATime then
+    frame.slow:SetText(GC.L["The game sells one stack per press here."])
+    frame.slow:ClearAllPoints()
+    frame.slow:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
+    frame.slow:Show()
+    y = y + heightOf(frame.slow, 10) + LAYOUT.ROW_GAP
+  else
+    frame.slow:Hide()
+  end
   frame.hint:ClearAllPoints()
   frame.hint:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
   y = y + heightOf(frame.hint, 10)
@@ -228,6 +322,7 @@ function C.Keep(itemID)
 end
 
 function C.OnMerchantShow()
+  C._Machine():OnMerchantShow()
   C._open = true
   C.Refresh()
 end
@@ -242,7 +337,15 @@ function C.OnBagsChanged()
   if C._open then C.Refresh() end
 end
 
+-- MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL: the client asks the player to confirm selling tradeable
+-- loot; the run stops so the question is the player's, and the next call does not stack on it.
+function C.OnTradeTimerConfirm()
+  if C.machine then C.machine:Stop("confirm") end
+end
+
 function C.OnMerchantClosed()
+  -- First, so what sold before the window closed is counted and reported.
+  if C.machine then C.machine:OnMerchantClosed() end
   C._open = false
   if frame then frame:Hide() end
 end

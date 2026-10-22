@@ -1428,4 +1428,8 @@ GC.Locales.deDE = {
   ["%d more after this"] = "%d weitere danach",
   ["Right click a line to keep that item."] = "Rechtsklick auf eine Zeile, um diesen Gegenstand zu behalten.",
   ["Never sell this"] = "Nie verkaufen",
+  ["Stop"] = "Stopp",
+  ["The game sells one stack per press here."] = "Das Spiel verkauft hier pro Klick nur einen Stapel.",
+  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d Stapel für %s verkauft. Zurückkaufen geht, bis du gehst.",
+  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1 Stapel für %s verkauft. Zurückkaufen geht, bis du gehst.",
 }

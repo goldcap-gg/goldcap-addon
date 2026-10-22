@@ -1362,4 +1362,8 @@ GC.Locales.koKR = {
   ["%d more after this"] = "이후 %d개 더",
   ["Right click a line to keep that item."] = "줄을 우클릭하면 그 아이템을 보관합니다.",
   ["Never sell this"] = "절대 판매하지 않기",
+  ["Stop"] = "중지",
+  ["The game sells one stack per press here."] = "이곳에서는 한 번 누를 때마다 한 묶음씩 판매됩니다.",
+  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d묶음을 %s에 판매했습니다. 떠나기 전까지 되사기에서 되찾을 수 있습니다.",
+  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1묶음을 %s에 판매했습니다. 떠나기 전까지 되사기에서 되찾을 수 있습니다.",
 }
