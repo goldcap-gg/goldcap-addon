@@ -1495,4 +1495,10 @@ GC.Locales.ruRU = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "Рецептов без цены GoldCap на реагент или результат: %d",
   ["Each reagent at its cheapest quality"] = "Каждый реагент в самом дешёвом качестве",
   ["No recipe here has a GoldCap price yet"] = "Здесь пока нет рецептов с ценой GoldCap",
+  ["This recipe"] = "Этот рецепт",
+  ["Add to queue"] = "В очередь",
+  ["Restock to"] = "Пополнить до",
+  ["How many crafts of %s?"] = "Сколько раз скрафтить %s?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "Пополнить %s до скольких? 0 убирает из очереди.",
+  ["Type a whole number"] = "Введите целое число",
 }

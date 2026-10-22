@@ -1428,4 +1428,10 @@ GC.Locales.deDE = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d Rezepte haben keinen GoldCap-Preis für ein Reagenz oder das Ergebnis",
   ["Each reagent at its cheapest quality"] = "Jedes Reagenz in seiner günstigsten Qualität",
   ["No recipe here has a GoldCap price yet"] = "Hier hat noch kein Rezept einen GoldCap-Preis",
+  ["This recipe"] = "Dieses Rezept",
+  ["Add to queue"] = "Zur Warteschlange",
+  ["Restock to"] = "Auffüllen auf",
+  ["How many crafts of %s?"] = "Wie oft %s herstellen?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "%s auf wie viele auffüllen? 0 nimmt es aus der Warteschlange.",
+  ["Type a whole number"] = "Gib eine ganze Zahl ein",
 }

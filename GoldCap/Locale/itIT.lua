@@ -1425,4 +1425,10 @@ GC.Locales.itIT = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d ricette non hanno un prezzo GoldCap per un componente o per ciò che creano",
   ["Each reagent at its cheapest quality"] = "Ogni componente alla sua qualità più economica",
   ["No recipe here has a GoldCap price yet"] = "Nessuna ricetta qui ha ancora un prezzo GoldCap",
+  ["This recipe"] = "Questa ricetta",
+  ["Add to queue"] = "Aggiungi alla coda",
+  ["Restock to"] = "Rifornisci fino a",
+  ["How many crafts of %s?"] = "Quante volte creare %s?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "Rifornire %s fino a quanti? 0 lo toglie dalla coda.",
+  ["Type a whole number"] = "Scrivi un numero intero",
 }

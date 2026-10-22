@@ -16,6 +16,7 @@ local P = GC.CraftPanel
 local LAYOUT = {
   WIDTH = 300, PAD = 10, GAP = 6, LINE_GAP = 2, TITLE = 12, HEAD = 12, NAME = 11, SMALL = 10,
   ROW_PAD = 4, BAR = 16, PROFIT_GAP = 8, NAME_MIN = 80,
+  CARD_PAD = 8, BUTTON_H = 24, BUTTON_GAP = 8, BUTTON_MIN = 72,
 }
 LAYOUT.INNER = LAYOUT.WIDTH - 2 * LAYOUT.PAD
 LAYOUT.ROW_W = LAYOUT.INNER - LAYOUT.BAR
@@ -99,6 +100,11 @@ local function newRow(v, index)
   row.slow = wrapped(frame, LAYOUT.SMALL, LAYOUT.ROW_W)
   local warn = GC.Kit and GC.Kit.Tokens and GC.Kit.Tokens.color and GC.Kit.Tokens.color.warn or T.color.fgMuted
   setColor(row.slow, warn)
+  -- A right click offers to queue the row's recipe (UI/BuyLists.lua's menu, in the client's font).
+  frame:RegisterForClicks("RightButtonUp")
+  frame:SetScript("OnClick", function(self, button)
+    if button == "RightButton" and row.data then P.OpenRowMenu(self, row.data.recipe) end
+  end)
   return row
 end
 
@@ -195,6 +201,127 @@ function P.PaintWorth()
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- This recipe: putting the open recipe in the queue
+-- ---------------------------------------------------------------------------------------------
+
+local function queueChanged()
+  if P.OnQueueChanged then P.OnQueueChanged() end
+  P.Queue()
+end
+
+local function entryOf(char, recipeID)
+  for _, e in ipairs(GC.CraftQueue.Entries(char)) do
+    if e.recipe.recipeID == recipeID then return e end
+  end
+  return nil
+end
+
+--- Asks how many crafts of `recipe` to add to this character's queue (BUY's popup), and adds them.
+function P.AskCount(anchor, recipe)
+  local char = GC.CraftClient.Char()
+  if not (char and type(recipe) == "table") then return end
+  GC.BuyCapEditor.Open(anchor, {
+    title = GC.L["How many crafts of %s?"]:format(recipe.name),
+    text = "1",
+    read = function(text) return GC.CraftQueue.ParseCount(text) end,
+    invalid = GC.L["Type a whole number"],
+    setLabel = GC.L["Add"],
+    onCommit = function(n)
+      GC.CraftQueue.Add(char, recipe, n)
+      queueChanged()
+    end,
+  })
+end
+
+--- Asks how many of what `recipe` makes to keep on hand; 0 takes the recipe off the queue.
+function P.AskRestock(anchor, recipe)
+  local char = GC.CraftClient.Char()
+  if not (char and type(recipe) == "table") then return end
+  local entry = entryOf(char, recipe.recipeID)
+  GC.BuyCapEditor.Open(anchor, {
+    title = GC.L["Restock %s to how many? 0 takes it off the queue."]:format(recipe.name),
+    text = entry and entry.restock and tostring(entry.restock) or "",
+    read = function(text) return GC.CraftQueue.ParseCount(text, true) end,
+    invalid = GC.L["Type a whole number"],
+    setLabel = GC.L["Save"],
+    onCommit = function(n)
+      GC.CraftQueue.Restock(char, recipe, n)
+      queueChanged()
+    end,
+  })
+end
+
+--- A Worth crafting row's right click: queue its recipe with a count, or restock it.
+function P.OpenRowMenu(owner, recipe)
+  local menu = _G.MenuUtil
+  if not (type(menu) == "table" and menu.CreateContextMenu and type(recipe) == "table" and GC.CraftQueue.Writable()) then
+    return false
+  end
+  menu.CreateContextMenu(owner, function(_, root)
+    root:CreateTitle(GC.Util.ClientText(recipe.name))
+    root:CreateButton(GC.Util.ClientText(GC.L["Add to queue"]), function() P.AskCount(owner, recipe) end)
+    root:CreateButton(GC.Util.ClientText(GC.L["Restock to"]), function() P.AskRestock(owner, recipe) end)
+  end)
+  return true
+end
+
+local function buildCard(f)
+  local T = GC.Theme
+  local card = T.Card(f, T.color.panelHi, T.color.border, true)
+  card:SetWidth(LAYOUT.INNER)
+  local inner = LAYOUT.INNER - 2 * LAYOUT.CARD_PAD
+  card.heading = wrapped(card, LAYOUT.SMALL, inner)
+  card.heading:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.CARD_PAD, -LAYOUT.CARD_PAD)
+  setColor(card.heading, T.color.fgDim)
+  card.name = wrapped(card, LAYOUT.NAME, inner)
+  card.name:SetPoint("TOPLEFT", card.heading, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+  setColor(card.name, T.color.fg)
+  card.add = T.Button(card, "primary", "plaque")
+  card.add:SetHeight(LAYOUT.BUTTON_H)
+  card.add:SetPoint("TOPLEFT", card.name, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+  card.add:SetScript("OnClick", function(self) P.AskCount(self, card.recipe) end)
+  card.restock = T.Button(card, "primary", "plaque")
+  card.restock:SetHeight(LAYOUT.BUTTON_H)
+  card.restock:SetScript("OnClick", function(self) P.AskRestock(self, card.recipe) end)
+  card:Hide()
+  return card
+end
+
+-- The card for the recipe the window shows, or hidden: no recipe GoldCap prices, no character, or
+-- a store a newer GoldCap wrote. Each button is as wide as its label in the player's language;
+-- the two sit side by side when both fit the card, else one under the other.
+local function paintCard(f)
+  local card = f.card
+  local CC = GC.CraftClient
+  local open = CC.OpenRecipe()
+  local recipe = open and CC.Snapshot(open.recipeID) or nil
+  if not (recipe and CC.Char() and GC.CraftQueue.Writable()) then
+    card.recipe = nil
+    card:Hide()
+    return
+  end
+  card.recipe = recipe
+  card.heading:SetText(GC.L["This recipe"])
+  card.name:SetText(recipe.name)
+  card.add:SetLabel(GC.L["Add to queue"])
+  card.restock:SetLabel(GC.L["Restock to"])
+  card.add:FitLabels({ card.add.label }, LAYOUT.BUTTON_MIN)
+  card.restock:FitLabels({ card.restock.label }, LAYOUT.BUTTON_MIN)
+  local inner = LAYOUT.INNER - 2 * LAYOUT.CARD_PAD
+  local beside = card.add:GetWidth() + LAYOUT.BUTTON_GAP + card.restock:GetWidth() <= inner
+  card.restock:ClearAllPoints()
+  if beside then
+    card.restock:SetPoint("LEFT", card.add, "RIGHT", LAYOUT.BUTTON_GAP, 0)
+  else
+    card.restock:SetPoint("TOPLEFT", card.add, "BOTTOMLEFT", 0, -LAYOUT.BUTTON_GAP)
+  end
+  local buttons = beside and LAYOUT.BUTTON_H or (2 * LAYOUT.BUTTON_H + LAYOUT.BUTTON_GAP)
+  card:SetHeight(LAYOUT.CARD_PAD + card.heading:GetHeight() + LAYOUT.LINE_GAP + card.name:GetHeight()
+    + LAYOUT.GAP + buttons + LAYOUT.CARD_PAD)
+  card:Show()
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- The panel
 -- ---------------------------------------------------------------------------------------------
 
@@ -208,16 +335,23 @@ local function build(frame)
   f.title:SetPoint("TOPLEFT", f, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
   setColor(f.title, T.color.gold)
   f.title:SetText("GoldCap")
+  f.card = buildCard(f)
   f.body = CreateFrame("Frame", nil, f)
   f.worth = buildWorth(f.body)
   return f
 end
 
--- The view takes the panel under its title.
+-- Top to bottom: the title, This recipe when it shows, and the view in the rest of the panel.
 function P.Layout()
   local f = P._frame
+  local above = f.title
+  if f.card:IsShown() then
+    f.card:ClearAllPoints()
+    f.card:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+    above = f.card
+  end
   f.body:ClearAllPoints()
-  f.body:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+  f.body:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -LAYOUT.GAP)
   f.body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -LAYOUT.PAD, LAYOUT.PAD)
 end
 
@@ -236,6 +370,7 @@ function P.Refresh()
   end
   f:SetHeight(frame:GetHeight())
   f:Show()
+  paintCard(f)
   P.Layout()
   P.PaintWorth()
 end

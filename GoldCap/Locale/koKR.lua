@@ -1362,4 +1362,10 @@ GC.Locales.koKR = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "레시피 %d개는 재료나 결과물의 GoldCap 가격이 없습니다",
   ["Each reagent at its cheapest quality"] = "각 재료는 가장 싼 품질 기준",
   ["No recipe here has a GoldCap price yet"] = "아직 GoldCap 가격이 있는 레시피가 없습니다",
+  ["This recipe"] = "이 레시피",
+  ["Add to queue"] = "대기열에 추가",
+  ["Restock to"] = "목표 수량까지",
+  ["How many crafts of %s?"] = "%s을(를) 몇 번 제작할까요?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "%s을(를) 몇 개까지 채울까요? 0이면 대기열에서 뺍니다.",
+  ["Type a whole number"] = "정수를 입력하세요",
 }

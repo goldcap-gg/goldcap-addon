@@ -1496,4 +1496,10 @@ GC.Locales.ukUA = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "Рецептів без ціни GoldCap на реагент або результат: %d",
   ["Each reagent at its cheapest quality"] = "Кожен реагент у найдешевшій якості",
   ["No recipe here has a GoldCap price yet"] = "Тут поки немає рецептів із ціною GoldCap",
+  ["This recipe"] = "Цей рецепт",
+  ["Add to queue"] = "До черги",
+  ["Restock to"] = "Поповнити до",
+  ["How many crafts of %s?"] = "Скільки разів скрафтити %s?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "Поповнити %s до скількох? 0 прибирає з черги.",
+  ["Type a whole number"] = "Введіть ціле число",
 }

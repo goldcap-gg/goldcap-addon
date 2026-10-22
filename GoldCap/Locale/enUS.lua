@@ -1413,4 +1413,10 @@ GC.Locales.enUS = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d recipes have no GoldCap price for a reagent or what it makes",
   ["Each reagent at its cheapest quality"] = "Each reagent at its cheapest quality",
   ["No recipe here has a GoldCap price yet"] = "No recipe here has a GoldCap price yet",
+  ["This recipe"] = "This recipe",
+  ["Add to queue"] = "Add to queue",
+  ["Restock to"] = "Restock to",
+  ["How many crafts of %s?"] = "How many crafts of %s?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "Restock %s to how many? 0 takes it off the queue.",
+  ["Type a whole number"] = "Type a whole number",
 }

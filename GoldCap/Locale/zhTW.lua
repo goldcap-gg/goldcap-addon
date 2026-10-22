@@ -1329,4 +1329,10 @@ GC.Locales.zhTW = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "有 %d 個配方的某個材料或產物沒有 GoldCap 價格",
   ["Each reagent at its cheapest quality"] = "每種材料按最便宜的品質計算",
   ["No recipe here has a GoldCap price yet"] = "這裡還沒有帶 GoldCap 價格的配方",
+  ["This recipe"] = "目前配方",
+  ["Add to queue"] = "加入佇列",
+  ["Restock to"] = "補貨至",
+  ["How many crafts of %s?"] = "%s 要製作幾次？",
+  ["Restock %s to how many? 0 takes it off the queue."] = "%s 補貨到多少個？填 0 則移出佇列。",
+  ["Type a whole number"] = "請輸入整數",
 }

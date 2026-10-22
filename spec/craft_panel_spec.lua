@@ -176,6 +176,158 @@ describe("craft panel", function()
     assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
   end)
 
+  describe("putting recipes in the queue", function()
+    local savedUIParent, savedMenu
+
+    before_each(function()
+      savedUIParent, savedMenu = _G.UIParent, _G.MenuUtil
+    end)
+
+    after_each(function()
+      _G.UIParent, _G.MenuUtil = savedUIParent, savedMenu
+    end)
+
+    -- The recipe form shows recipe 2 (B); the editor is the real one, BUY's popup.
+    local function loadOpen(opts)
+      opts = opts or {}
+      opts.open = opts.open or { recipeID = 2, allocations = {} }
+      load(opts)
+      _G.UIParent = W.CreateFrame("Frame")
+      helper.loadModule("UI/BuyCapEditor.lua", GC)
+      prices()
+      return show()
+    end
+
+    local function editor() return GC.BuyCapEditor._frame end
+
+    local function commit(text)
+      editor().box:SetText(text)
+      editor().set:GetScript("OnClick")(editor().set)
+    end
+
+    it("shows the open recipe with Add to queue and Restock to", function()
+      local f = loadOpen()
+      local card = f.card
+      assert.is_true(card:IsShown())
+      assert.equal(GC.L["This recipe"], card.heading:GetText())
+      assert.equal("B", card.name:GetText())
+      assert.equal(GC.L["Add to queue"], card.add.label)
+      assert.equal(GC.L["Restock to"], card.restock.label)
+      -- The list sits under the card.
+      local _, above = f.body:GetPoint(1)
+      assert.equal(card, above)
+    end)
+
+    it("Add to queue asks how many and adds that many crafts", function()
+      local f = loadOpen()
+      f.card.add:GetScript("OnClick")(f.card.add)
+      assert.is_true(editor():IsShown())
+      assert.equal("1", editor().box:GetText())
+      assert.equal(GC.L["How many crafts of %s?"]:format("B"), editor().title:GetText())
+      assert.equal(GC.L["Add"], editor().set.label)
+      commit("0")
+      assert.is_true(editor():IsShown())
+      assert.equal(GC.L["Type a whole number"], editor().preview:GetText())
+      assert.same({}, GC.CraftQueue.Entries("Name-Realm"))
+      commit("3")
+      assert.is_false(editor():IsShown())
+      local entries = GC.CraftQueue.Entries("Name-Realm")
+      assert.equal(1, #entries)
+      assert.equal(2, entries[1].recipe.recipeID)
+      assert.equal(3, entries[1].count)
+    end)
+
+    it("Restock to asks for a target, and 0 takes the recipe off", function()
+      local f = loadOpen()
+      local changed = 0
+      P.OnQueueChanged = function() changed = changed + 1 end
+      f.card.restock:GetScript("OnClick")(f.card.restock)
+      assert.equal(GC.L["Restock %s to how many? 0 takes it off the queue."]:format("B"), editor().title:GetText())
+      assert.equal(GC.L["Save"], editor().set.label)
+      commit("12")
+      assert.equal(12, GC.CraftQueue.Entries("Name-Realm")[1].restock)
+      assert.equal(1, changed)
+      assert.equal(1, #TS.timers)
+      TS.runTimers()
+      f.card.restock:GetScript("OnClick")(f.card.restock)
+      assert.equal("12", editor().box:GetText())
+      commit("0")
+      assert.same({}, GC.CraftQueue.Entries("Name-Realm"))
+      assert.equal(2, changed)
+    end)
+
+    it("a Worth crafting row's right click offers both", function()
+      loadOpen()
+      local entries, owner = {}, nil
+      _G.MenuUtil = { CreateContextMenu = function(o, generator)
+        owner = o
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { title = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+        })
+      end }
+      local row = P._rows[2].widget
+      assert.equal("B", row.name:GetText())
+      row.frame:GetScript("OnClick")(row.frame, "RightButton")
+      assert.equal(row.frame, owner)
+      local texts = {}
+      for _, e in ipairs(entries) do if e.text then texts[#texts + 1] = e.text end end
+      assert.same({ GC.Util.ClientText(GC.L["Add to queue"]), GC.Util.ClientText(GC.L["Restock to"]) }, texts)
+      entries[#entries - 1].fn()
+      commit("2")
+      assert.equal(2, GC.CraftQueue.Entries("Name-Realm")[1].count)
+      assert.equal(2, GC.CraftQueue.Entries("Name-Realm")[1].recipe.recipeID)
+    end)
+
+    it("hides This recipe for a recipe GoldCap does not price, and when the store is newer", function()
+      local f = loadOpen({ open = { recipeID = 9, allocations = {} },
+        recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [9] = recipe(9, "Salvage", { isSalvageRecipe = true }) },
+        filtered = { 1, 2 } })
+      assert.is_false(f.card:IsShown())
+      local _, above = f.body:GetPoint(1)
+      assert.equal(f.title, above)
+      restore()
+      f = loadOpen()
+      GC.db.craft = { v = 2, chars = {} }
+      P.Refresh()
+      assert.is_false(f.card:IsShown())
+    end)
+
+    it("sizes each button to its label in every locale, stacking them when they do not fit", function()
+      local f = loadOpen()
+      for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+      local inner = f.card:GetWidth() - 2 * 8
+      local besideSomewhere = false
+      for _, code in ipairs(helper.localeCodes()) do
+        GC.ActivateLocale(code)
+        P.Refresh()
+        local add, restock = f.card.add, f.card.restock
+        for _, b in ipairs({ add, restock }) do
+          assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth(), code .. ": " .. tostring(b.label))
+          assert.is_true(b:GetWidth() <= inner, code .. ": " .. tostring(b.label))
+        end
+        local point, relative, relativePoint = restock:GetPoint(1)
+        assert.equal(add, relative, code)
+        if add:GetWidth() + 8 + restock:GetWidth() > inner then
+          assert.same({ "TOPLEFT", "BOTTOMLEFT" }, { point, relativePoint }, code)
+        else
+          assert.same({ "LEFT", "RIGHT" }, { point, relativePoint }, code)
+          besideSomewhere = true
+        end
+        assert.is_true(W.state(f.card.name).wordWrap)
+      end
+      GC.ActivateLocale(nil)
+      assert.is_true(besideSomewhere)
+      -- Two labels too long to sit side by side: one under the other, the card taller for it.
+      local beside = f.card:GetHeight()
+      GC.L = setmetatable({}, { __index = function(_, key) return key .. " " .. string.rep("w", 14) end })
+      P.Refresh()
+      local point, relative, relativePoint = f.card.restock:GetPoint(1)
+      assert.same({ "TOPLEFT", f.card.add, "BOTTOMLEFT" }, { point, relative, relativePoint })
+      assert.is_true(f.card:GetHeight() > beside)
+    end)
+  end)
+
   it("registers each event through pcall", function()
     W.unknownEvents = { NEW_RECIPE_LEARNED = true }
     load()

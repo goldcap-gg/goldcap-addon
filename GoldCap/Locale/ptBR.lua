@@ -1423,4 +1423,10 @@ GC.Locales.ptBR = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d receitas não têm preço do GoldCap para um reagente ou para o que fabricam",
   ["Each reagent at its cheapest quality"] = "Cada reagente na qualidade mais barata",
   ["No recipe here has a GoldCap price yet"] = "Nenhuma receita aqui tem preço do GoldCap ainda",
+  ["This recipe"] = "Esta receita",
+  ["Add to queue"] = "Adicionar à fila",
+  ["Restock to"] = "Repor até",
+  ["How many crafts of %s?"] = "Quantas vezes fabricar %s?",
+  ["Restock %s to how many? 0 takes it off the queue."] = "Repor %s até quantos? 0 tira da fila.",
+  ["Type a whole number"] = "Digite um número inteiro",
 }

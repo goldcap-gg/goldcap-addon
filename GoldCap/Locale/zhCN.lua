@@ -1328,4 +1328,10 @@ GC.Locales.zhCN = {
   ["%d recipes have no GoldCap price for a reagent or what it makes"] = "有 %d 个配方的某个材料或产物没有 GoldCap 价格",
   ["Each reagent at its cheapest quality"] = "每种材料按最便宜的品质计算",
   ["No recipe here has a GoldCap price yet"] = "这里还没有带 GoldCap 价格的配方",
+  ["This recipe"] = "当前配方",
+  ["Add to queue"] = "加入队列",
+  ["Restock to"] = "补货至",
+  ["How many crafts of %s?"] = "%s 要制作几次？",
+  ["Restock %s to how many? 0 takes it off the queue."] = "%s 补货到多少个？填 0 则移出队列。",
+  ["Type a whole number"] = "请输入整数",
 }

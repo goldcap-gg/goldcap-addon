@@ -105,6 +105,8 @@ function W.FontString(parent, inherits)
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
   function f:GetStringWidth() return chars(s.text) * W.CHAR_W end
+  -- The width the text would take on one line, whatever width the FontString was given.
+  function f:GetUnboundedStringWidth() return chars(s.text) * W.CHAR_W end
   function f:GetStringHeight()
     local n = chars(s.text)
     if n == 0 then return 0 end

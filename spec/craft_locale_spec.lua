@@ -12,6 +12,9 @@ local KEYS = {
   "Worth crafting", "%s an hour", "Slow seller", "1 recipe has no GoldCap price for a reagent or what it makes",
   "%d recipes have no GoldCap price for a reagent or what it makes", "Each reagent at its cheapest quality",
   "No recipe here has a GoldCap price yet",
+  -- This recipe, and the two questions it asks (BUY's popup: Add and Save are BUY's own keys).
+  "This recipe", "Add to queue", "Restock to", "How many crafts of %s?",
+  "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot
