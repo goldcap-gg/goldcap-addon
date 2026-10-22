@@ -208,12 +208,13 @@ describe("craft queue view", function()
     v.buy:GetScript("OnClick")(v.buy)
     assert.equal(1, #codes())
     local run = GC.db.runs[codes()[1]]
-    assert.equal(GC.L["Craft queue"], run.name)
+    -- Named after the character: lists are account wide, so two characters' queues read apart.
+    assert.equal(GC.L["Craft queue"] .. ": Name", run.name)
     -- 7 of Item A in all, 4 of them held as 101: BUY buys 3 of 103, less the one it sees held.
     assert.same({ { 103, 3 } }, linesOf(run))
     assert.same({ run.code }, selected)
     assert.equal(1, refreshed)
-    assert.same({ GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.L["Craft queue"]) }, printed)
+    assert.same({ GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.L["Craft queue"] .. ": Name") }, printed)
     -- Recognised by its code, kept per character, not by its name.
     assert.equal(run.code, GC.CraftQueue.BuyList("Name-Realm"))
     -- A second press writes into the same list: never a second one.

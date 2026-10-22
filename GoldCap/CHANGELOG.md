@@ -51,7 +51,7 @@
   list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor
   sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off
   changes it, so BUY never buys again what a craft already used. Each character keeps its own
-  queue and its own list.
+  queue and its own list, named after the character.
 
 ## 0.22.1 (unreleased)
 

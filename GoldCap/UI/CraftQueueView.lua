@@ -74,7 +74,7 @@ local function listOf(char)
 end
 
 -- Writes what the queue needs into the character's craft queue list, making it when the
--- character has none (named "Craft queue"). Returns the list and whether its lines changed, or
+-- character has none (named "Craft queue: <character>"). Returns the list and whether its lines changed, or
 -- nil when nothing may be written.
 local function writeList(char, needs)
   local CC, Q = GC.CraftClient, GC.CraftQueue
@@ -82,7 +82,8 @@ local function writeList(char, needs)
   local run = listOf(char)
   if run then return GC.AppRuns.SetLines(run.code, lines) end
   if not (char and Q.Writable()) then return nil end
-  run = GC.AppRuns.NewList(GC.L["Craft queue"], lines)
+  -- Lists are account wide: the character's name keeps two characters' queues apart in BUY.
+  run = GC.AppRuns.NewList(GC.L["Craft queue"] .. ": " .. (char:match("^([^%-]+)") or char), lines)
   if not (run and Q.SetBuyList(char, run.code)) then return nil end
   return run, true
 end
