@@ -128,6 +128,22 @@ function Mailbox.new(rows, opts)
     end
   end
 
+  -- The flat table Core/MailLoop.lua is given: the mailbox functions under their own names plus
+  -- the four members UI/MailCollect.lua builds from C_Mail and C_Container. `bags.free` is the
+  -- number of free bag slots, steered by the spec.
+  function box:flat(bags)
+    bags = bags or { free = 20 }
+    local flat = {}
+    for name, fn in pairs(api) do
+      if name ~= "C_Mail" then flat[name] = fn end
+    end
+    flat.CanCheckInbox = api.C_Mail.CanCheckInbox
+    flat.IsCommandPending = api.C_Mail.IsCommandPending
+    flat.SetOpeningAll = api.C_Mail.SetOpeningAll
+    flat.FreeBagSlots = function() return bags.free end
+    return flat
+  end
+
   function box:refuse(itemID) state.refused[itemID] = true end
   function box:setCanCheck(flag, seconds)
     state.canCheck, state.canCheckSeconds = flag and true or false, seconds or 0

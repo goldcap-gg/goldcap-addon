@@ -50,6 +50,7 @@ Core/PurchaseCapture.lua
 Core/Ledger.lua
 Core/MailReturns.lua
 Core/MailClassify.lua
+Core/MailLoop.lua
 Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
