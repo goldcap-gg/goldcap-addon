@@ -101,6 +101,7 @@ Core/AppRuns.lua
 Core/Caps.lua
 Core/GroupRules.lua
 Core/SellRounds.lua
+Core/BankGroups.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
