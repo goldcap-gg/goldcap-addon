@@ -63,14 +63,16 @@ local function followColumn()
   end
 end
 
--- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W nor
--- wider than the card: a label is never cut.
+-- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W: a
+-- label is never cut. "Sell 12 for" and three coins at a large font scale can run past the
+-- column's width; then this card, the lowest of the column, grows to the right to hold it.
 local function fitButton(button)
   local fs = button.text
   local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
   if type(width) ~= "number" then width = 0 end
-  button:SetWidth(math.min(LAYOUT.WIDTH - 2 * LAYOUT.PAD,
-    math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)))
+  local buttonW = math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)
+  button:SetWidth(buttonW)
+  frame:SetWidth(math.max(LAYOUT.WIDTH, buttonW + 2 * LAYOUT.PAD))
 end
 
 -- The button says Stop while a press is going, else what the next press promises: every row, or

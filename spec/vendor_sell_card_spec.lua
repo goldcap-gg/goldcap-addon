@@ -136,6 +136,17 @@ describe("vendor sell card", function()
     assert.equal("Sell 2 for 25c", textOf(C._frame.button.text))
   end)
 
+  -- "Sell 12 for" and three coins at font scale 1.3 in a long language can run past the column's
+  -- 200 px. The label is never cut: the card, the lowest of the column, grows instead.
+  it("widens the card rather than cut a label longer than the column", function()
+    _G.GetCoinTextureString = function(c) return c .. " gold, 99 silver and 99 copper as a long language writes it" end
+    reads = { stack({ vendorUnit = 10 }) }
+    C.OnMerchantShow()
+    local button = C._frame.button
+    assert.is_true(button:GetWidth() >= button.text:GetUnboundedStringWidth())
+    assert.is_true(C._frame:GetWidth() >= button:GetWidth() + 2 * 10)
+  end)
+
   it("never lists what the merchant note keeps for the auction house", function()
     -- The real bag read and the real note over one set of bags.
     local bags = {
