@@ -83,6 +83,20 @@ describe("CHANGELOG.md", function()
     assert.is_true(checked >= 7)
   end)
 
+  -- Bank by group moves stacks to and from the Warband Bank only (UI/BankRoute.lua's MoveStack),
+  -- never the character's own bank tabs: the line says where To bank puts them, and that a stack
+  -- which has to stay in the bags is named with why.
+  it("says that bank by group's To bank puts stacks in the Warband Bank", function()
+    for _, bullet in ipairs(sections()[1].bullets) do
+      if bullet:find("^%- Bank, in retail WoW") then
+        assert.is_truthy(bullet:find("To bank puts one stack per press in the Warband Bank", 1, true), bullet)
+        assert.is_truthy(bullet:find("named with why", 1, true), bullet)
+        return
+      end
+    end
+    error("the newest release has no Bank line")
+  end)
+
   it("does not promise the vendor price in Forever tooltips, which leave it to the game", function()
     for _, bullet in ipairs(assert(firstForever()).bullets) do
       if bullet:find("Tooltips", 1, true) then
