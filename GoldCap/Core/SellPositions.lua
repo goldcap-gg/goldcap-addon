@@ -356,8 +356,13 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- Followed groups (spec/sell_group_rules_spec.lua): the selling rule of the group the player
   -- follows that holds this item, read at this position's own item level, so a variant under the
   -- group's level gets the rule without its prices (Core/GroupRules.lua). Handed in by the caller
-  -- (`rules`, Services/Sell/Compose.lua) as functions: this file reads no SavedVariables.
-  local rule = rules and rules.ruleFor and rules.ruleFor(position.itemID, keyLevel) or nil
+  -- (`rules`, Services/Sell/Compose.lua) as functions: this file reads no SavedVariables. Gear
+  -- with no variant key (no bonus IDs) still states its level in its position key,
+  -- item:<id>:<level>:<suffix>:0; a commodity's key and a pet's state none.
+  local ruleLevel = keyLevel > 0 and keyLevel
+    or type(position.positionKey) == "string" and tonumber(position.positionKey:match("^item:%d+:(%d+):%d+:0$"))
+    or 0
+  local rule = rules and rules.ruleFor and rules.ruleFor(position.itemID, ruleLevel) or nil
   position.rule = type(rule) == "table" and rule or nil
   if position.rule then
     position.rulePostQty = positive(rule.perItem) and rule.perItem or nil

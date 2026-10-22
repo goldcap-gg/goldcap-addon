@@ -26,7 +26,8 @@ describe("SELL by a followed group's rules", function()
     local args = {
       acquisitions = {}, ownedLots = {},
       bagStock = { { positionKey = opts.positionKey or "commodity:10", itemID = 10, itemName = "Herb",
-        quantity = opts.qty or 5, isCommodity = opts.quoteKey == nil, quoteKey = opts.quoteKey } },
+        quantity = opts.qty or 5, isCommodity = (opts.isCommodity == nil) and (opts.quoteKey == nil) or opts.isCommodity,
+        quoteKey = opts.quoteKey } },
       quotes = { [opts.quoteKey or 10] = { unit = opts.ask or 12000, at = 9, levels = opts.levels } },
       statsByItemID = opts.stats or {},
       context = context, now = 10,
@@ -85,6 +86,38 @@ describe("SELL by a followed group's rules", function()
     assert.equal(1, p.rulePostQty)
     local _, bare = position({ rule = GATHER })
     assert.same({ { 10, 0 } }, bare)
+  end)
+
+  -- A piece of gear with no bonus IDs has no variant key (quoteKey), but its position key still
+  -- states its level, item:<id>:<level>:<suffix>:<pet> (Acquisitions.PositionKey): a transmog flip
+  -- posted with none left in the bags, or a bag stack keyed the way it always was, is read at that
+  -- level, so the group's floor holds, not dropped as a level-0 variant would be.
+  it("reads a gear position's level from its key when it has no variant key", function()
+    local function gearRule(_, level)
+      if level < 610 then return { name = "Transmog", play = "flip", durationIndex = 3, perItem = 1 } end
+      return copy(FLIP)
+    end
+    local calls = {}
+    local listed = GC.SellPositions.Build({
+      acquisitions = {}, bagStock = {},
+      ownedLots = { { positionKey = "item:10:610:0:0", itemID = 10, quantity = 1, unitPrice = 15000,
+        auctionID = 5, firstSeenAt = 1, isCommodity = false } },
+      quotes = { [10] = { unit = 12000, at = 9 } },
+      statsByItemID = {}, context = context, now = 10,
+      rules = { ruleFor = function(itemID, level) calls[#calls + 1] = { itemID, level }; return gearRule(itemID, level) end,
+        roundsFor = function() return 0 end },
+    })[1]
+    assert.is_nil(listed.quoteKey)
+    assert.same({ { 10, 610 } }, calls)
+    assert.equal(7000, listed.postFloor)
+    assert.equal(5, listed.rule.stepPct)
+    -- In the bags under the same key: the same rule.
+    local bagged, bagCalls = position({ positionKey = "item:10:610:0:0", isCommodity = false, rule = gearRule })
+    assert.same({ { 10, 610 } }, bagCalls)
+    assert.equal(7000, bagged.postFloor)
+    -- A commodity has no level to read.
+    local _, commodity = position({ rule = gearRule })
+    assert.same({ { 10, 0 } }, commodity)
   end)
 
   describe("step-down", function()
