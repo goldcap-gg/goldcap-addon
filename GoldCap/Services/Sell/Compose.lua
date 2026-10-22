@@ -129,7 +129,12 @@ function Compose.Positions(skipPaint)
   Compose.Queue()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
-    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions)
+    -- The player's cancel threshold (Settings, POSTING): a whole percent, 0 to 20. Unset is 0,
+    -- which is the queue as it always was. Not in DEFAULTS, so WoW: Forever's save never holds it.
+    local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
+    local pct = sniper and sniper.cancelUndercutPct
+    pct = (type(pct) == "number" and pct == pct) and math.max(0, math.min(20, math.floor(pct))) or 0
+    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions, { undercutPct = pct })
   else
     S.cancelEntries, S.cancelSkipped = {}, {}
   end

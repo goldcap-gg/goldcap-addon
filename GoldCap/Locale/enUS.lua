@@ -1417,4 +1417,10 @@ GC.Locales.enUS = {
   ["Marked for you: it is in a group you follow."] = "Marked for you: it is in a group you follow.",
   ["under group floor"] = "under group floor",
   ["the market is under your group's floor. Type a price to post anyway"] = "the market is under your group's floor. Type a price to post anyway",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Min. undercut to cancel (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued.",
+  ["small undercut"] = "small undercut",
+  ["relisting would go under your group's floor. Hold"] = "relisting would go under your group's floor. Hold",
+  ["undercut by less than your cancel setting. Hold"] = "undercut by less than your cancel setting. Hold",
 }

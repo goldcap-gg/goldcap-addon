@@ -1366,4 +1366,10 @@ GC.Locales.koKR = {
   ["Marked for you: it is in a group you follow."] = "자동 표시: 팔로우 중인 그룹의 아이템입니다.",
   ["under group floor"] = "그룹 하한 미만",
   ["the market is under your group's floor. Type a price to post anyway"] = "시세가 그룹 하한보다 낮습니다. 그래도 올리려면 가격을 입력하세요",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "취소할 최소 가격 차 (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "누군가 이 비율보다 더 낮게 올렸을 때만 취소합니다. 0이면 조금만 낮아도 해당됩니다. 가치보다 훨씬 싼 매물은 항상 대기열에 들어갑니다.",
+  ["small undercut"] = "작은 가격 차",
+  ["relisting would go under your group's floor. Hold"] = "재등록하면 그룹 하한보다 낮아집니다. 보류하세요",
+  ["undercut by less than your cancel setting. Hold"] = "가격 차가 취소 설정보다 작습니다. 보류하세요",
 }

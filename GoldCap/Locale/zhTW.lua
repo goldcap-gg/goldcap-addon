@@ -1333,4 +1333,10 @@ GC.Locales.zhTW = {
   ["Marked for you: it is in a group you follow."] = "已自動標記：它在你關注的分組裡。",
   ["under group floor"] = "低於分組底價",
   ["the market is under your group's floor. Type a price to post anyway"] = "市價低於你分組的底價。輸入價格仍可上架",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "取消所需最低壓價 (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "只有別人比你低出超過這個百分比時才取消。為 0 時任何壓價都算。遠低於價值的拍賣總會進入佇列。",
+  ["small undercut"] = "壓價很小",
+  ["relisting would go under your group's floor. Hold"] = "重新上架會低於你分組的底價。先保留",
+  ["undercut by less than your cancel setting. Hold"] = "壓價低於你的取消設定。先保留",
 }

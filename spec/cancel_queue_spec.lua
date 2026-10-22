@@ -224,4 +224,86 @@ describe("CancelQueue", function()
     assert.equal(1, #entries)
     assert.not_equal(entries, trimmed)
   end)
+  -- Followed groups (plan 2026-10-22, task 12): a group's floor lets an undercut lot be queued
+  -- with no cost basis at all, as long as relisting stays at or over the floor; and a threshold
+  -- the player sets keeps a small undercut from costing a deposit. Underpriced lots are urgent
+  -- whatever the threshold. Positions come from Build with the rule injected, as SELL does.
+  describe("with a followed group's rule and a cancel threshold", function()
+    local function ruled(fresh, lotUnit, opts)
+      opts = opts or {}
+      local rules = { ruleFor = function() return { name = "Herbs", play = "gather",
+        durationIndex = 2, floorUnit = opts.floor or 700 } end, roundsFor = function() return 0 end }
+      if opts.noRule then rules = nil end
+      return build({
+        acquisitions = opts.acquisitions or {},
+        ownedLots = { lot("commodity:42", 2, lotUnit or 1000, 7) },
+        quotes = { [42] = { unit = fresh, at = 9 } },
+        rules = rules,
+      })
+    end
+
+    it("a rule queues an undercut lot without a cost basis", function()
+      local positions = ruled(800)
+      assert.equal("NO_COST", positions[1].status) -- fixture honesty check
+      assert.is_nil(positions[1].recommendation)
+      local entries, skipped = GC.CancelQueue.Build(positions)
+      assert.equal(0, #skipped)
+      assert.equal(1, #entries)
+      assert.equal(1000, entries[1].listedUnit)
+      assert.equal(1600, entries[1].value)
+      -- Without the rule the same lot waits for a cost basis, as before.
+      assert.equal("no_advice", select(2, GC.CancelQueue.Build(ruled(800, 1000, { noRule = true })))[1].reason)
+    end)
+
+    it("a repost under the floor holds with below_floor", function()
+      local entries, skipped = GC.CancelQueue.Build(ruled(650))
+      assert.equal(0, #entries)
+      assert.equal("below_floor", findSkip(skipped, "commodity:42").reason)
+    end)
+
+    it("a small undercut holds", function()
+      local entries, skipped = GC.CancelQueue.Build(ruled(960), { undercutPct = 5 })
+      assert.equal(0, #entries)
+      assert.equal("small_undercut", findSkip(skipped, "commodity:42").reason)
+      entries = GC.CancelQueue.Build(ruled(940), { undercutPct = 5 })
+      assert.equal(1, #entries)
+      -- At 0 any undercut counts.
+      assert.equal(1, #GC.CancelQueue.Build(ruled(990), { undercutPct = 0 }))
+      -- An underpriced lot is urgent whatever the threshold.
+      local urgent = ruled(960, 300)
+      assert.is_true(urgent[1].facts.underpriced) -- fixture honesty check
+      entries = GC.CancelQueue.Build(urgent, { undercutPct = 20 })
+      assert.equal(1, #entries)
+      assert.is_true(entries[1].urgent)
+    end)
+
+    it("applies the threshold to an advised repost without a rule too", function()
+      local positions = advisedRepostPositions() -- lot 20000 against a 15000 market: 25% under
+      assert.equal(1, #GC.CancelQueue.Build(positions, { undercutPct = 20 }))
+      local entries, skipped = GC.CancelQueue.Build(positions, { undercutPct = 25 })
+      assert.equal(0, #entries)
+      assert.equal("small_undercut", findSkip(skipped, "commodity:42").reason)
+    end)
+
+    it("a loss hold still holds under a rule", function()
+      -- Paid 1000 a unit against an 800 market: RepostAdvice says hold, for a loss.
+      local positions = ruled(800, 1000, { acquisitions = { batch("acq:1", 2, 2000, 42, "commodity:42") } })
+      assert.equal("hold", positions[1].recommendation.action) -- fixture honesty check
+      assert.equal("loss", positions[1].recommendation.reason)
+      local entries, skipped = GC.CancelQueue.Build(positions)
+      assert.equal(0, #entries)
+      assert.equal("advised_hold", findSkip(skipped, "commodity:42").reason)
+      -- A slow hold is not the group's concern: its rule relists over the floor.
+      positions[1].recommendation = { action = "hold", reason = "slow" }
+      assert.equal(1, #GC.CancelQueue.Build(positions))
+    end)
+
+    it("no rule and no threshold is today's queue", function()
+      for _, opts in ipairs({ false, { undercutPct = 0 }, {} }) do
+        local entries, skipped = GC.CancelQueue.Build(advisedRepostPositions(), opts or nil)
+        assert.equal(1, #entries)
+        assert.equal(0, #skipped)
+      end
+    end)
+  end)
 end)

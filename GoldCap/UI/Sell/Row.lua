@@ -29,6 +29,8 @@ local ROW_TAG_TEXT = {
   posted_this_visit = "posted",
   skipped_this_visit = "skipped",
   below_rule_floor = "under group floor",
+  below_floor = "under group floor",
+  small_undercut = "small undercut",
 }
 
 local rowTag

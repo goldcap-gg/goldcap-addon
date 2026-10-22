@@ -444,6 +444,11 @@ describe("locale layer", function()
       -- SELL's row, mark and dock (task 11)
       "Group you follow: %s", "Marked for you: it is in a group you follow.", "under group floor",
       "the market is under your group's floor. Type a price to post anyway",
+      -- cancel by the group's floor and the threshold (task 12)
+      "Min. undercut to cancel (%)",
+      "Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued.",
+      "small undercut", "relisting would go under your group's floor. Hold",
+      "undercut by less than your cancel setting. Hold",
     }
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")

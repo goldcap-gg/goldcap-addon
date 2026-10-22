@@ -418,6 +418,18 @@ describe("Settings controls", function()
         assert.is_true(labels["Auto-scan on next AH visit"])
       end)
 
+    -- Followed groups (plan 2026-10-22, task 12): the cancel threshold is retail only, and the
+    -- POSTING card keeps its two rows there.
+    it("Forever POSTING has no cancel threshold row", function()
+      GC.SettingsUI.Toggle()
+      local labels = {}
+      walk(_G.GoldCapSniperFrame, function(node)
+        if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+      end)
+      assert.is_nil(labels["Min. undercut to cancel (%)"])
+      assert.equal(24 + 2 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
+    end)
+
     it("shows the vendor-wallet carve-out as a grey note under Max wallet per buy %", function()
       GC.SettingsUI.Toggle()
       local labels = {}
@@ -571,6 +583,31 @@ describe("Settings controls", function()
     end)
     assert.is_nil(labels["Min profit per buy (copper)"])
     assert.is_nil(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+  end)
+
+  -- Followed groups (plan 2026-10-22, task 12): "cancel only when undercut by more than N%",
+  -- a whole percent from 0 to 20. Kept out of GC.DEFAULTS, so an unset save reads 0.
+  it("retail POSTING has the cancel threshold row", function()
+    GC.SettingsUI.Toggle()
+    local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
+    assert.equal(24 + 3 * 26 + 6, posting.height)
+    local box = fieldOf(posting, "Min. undercut to cancel (%)")
+    assert.equal("0", box.editBox:GetText())
+    box.editBox:SetText("25")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(20, GC.db.settings.sniper.cancelUndercutPct)
+    box.editBox:SetText("-3")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(0, GC.db.settings.sniper.cancelUndercutPct)
+    box.editBox:SetText("5")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(5, GC.db.settings.sniper.cancelUndercutPct)
+    -- Its label wraps instead of being cut: it is the card's last row, with room under it.
+    local label
+    walk(posting, function(node)
+      if node.kind == "FontString" and node.textValue == "Min. undercut to cancel (%)" then label = node end
+    end)
+    assert.is_true(label.wordWrap)
   end)
 
   it("minimumRoi field round-trips UI percent 10..200 to a stored fraction 0.10..2.00, clamped at both ends", function()

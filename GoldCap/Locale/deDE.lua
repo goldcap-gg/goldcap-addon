@@ -1432,4 +1432,10 @@ GC.Locales.deDE = {
   ["Marked for you: it is in a group you follow."] = "Für dich markiert: es ist in einer Gruppe, der du folgst.",
   ["under group floor"] = "unter Gruppenboden",
   ["the market is under your group's floor. Type a price to post anyway"] = "der Markt liegt unter dem Boden deiner Gruppe. Gib einen Preis ein, um trotzdem einzustellen",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Abbrechen ab Unterbietung um (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Nur abbrechen, wenn dich jemand um mehr als diesen Prozentsatz unterbietet. Bei 0 zählt jedes Unterbieten. Angebote weit unter ihrem Wert kommen immer in die Liste.",
+  ["small undercut"] = "kleines Unterbieten",
+  ["relisting would go under your group's floor. Hold"] = "neu einzustellen ginge unter den Boden deiner Gruppe. Halten",
+  ["undercut by less than your cancel setting. Hold"] = "um weniger als deine Abbruch-Einstellung unterboten. Halten",
 }

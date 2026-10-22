@@ -1434,4 +1434,10 @@ GC.Locales.esES = {
   ["Marked for you: it is in a group you follow."] = "Marcado automáticamente: está en un grupo que sigues.",
   ["under group floor"] = "bajo el mínimo del grupo",
   ["the market is under your group's floor. Type a price to post anyway"] = "el mercado está por debajo del mínimo de tu grupo. Escribe un precio para publicar igualmente",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Rebaja mín. para cancelar (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Cancela solo cuando alguien te rebaja más de este porcentaje. Con 0 cuenta cualquier rebaja. Los lotes muy por debajo de su valor siempre entran en la cola.",
+  ["small undercut"] = "rebaja pequeña",
+  ["relisting would go under your group's floor. Hold"] = "republicar quedaría bajo el mínimo de tu grupo. Espera",
+  ["undercut by less than your cancel setting. Hold"] = "la rebaja es menor que tu ajuste de cancelación. Espera",
 }

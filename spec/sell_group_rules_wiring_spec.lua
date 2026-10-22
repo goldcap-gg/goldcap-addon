@@ -115,6 +115,18 @@ describe("Sell tab with followed groups' rules", function()
     end)
   end)
 
+  -- Task 12: the cancel threshold reaches the queue as a whole percent from 0 to 20.
+  it("Compose clamps the threshold", function()
+    services()
+    local seen
+    GC.CancelQueue.Build = function(_, opts) seen = opts; return {}, {} end
+    for _, case in ipairs({ { nil, 0 }, { 25, 20 }, { -1, 0 }, { 2.5, 2 }, { 0 / 0, 0 }, { "5", 0 }, { 7, 7 } }) do
+      GC.db.settings.sniper.cancelUndercutPct = case[1]
+      GC.SellCompose.Positions()
+      assert.equal(case[2], seen.undercutPct)
+    end
+  end)
+
   it("postQuantity starts at the rule's one", function()
     services()
     local postQuantity = GC.SellUtil.postQuantity

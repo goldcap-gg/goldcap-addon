@@ -22,6 +22,15 @@ local _, GC = ...
 -- UI/Sell/Dock.lua's onRepostClick, whose pin validation (GC.SellPost.PrepareCancel) re-derives
 -- the plan from live owned lots and a fresh quote, with its own two-click arm and its own
 -- timeout. Copy, don't compute.
+--
+-- Two additions (followed groups, plan 2026-10-22), both read off what the caller hands over:
+--   * `position.rule.floorUnit` -- a group the player follows has a floor, which lets an undercut
+--     lot be queued with no cost basis at all, as long as relisting at the fresh price stays at
+--     or over that floor (else it holds, `below_floor`). A "loss" hold from RepostAdvice still
+--     holds; any other advice does not stop a rule.
+--   * `opts.undercutPct` -- the player's own threshold (0 to 20, nil is 0): an undercut lot counts
+--     only when the fresh price is more than that share under it (else it holds,
+--     `small_undercut`). Urgent lots are queued whatever the threshold.
 GC.CancelQueue = {}
 
 local MAX_EXACT = 9007199254740991
@@ -58,22 +67,36 @@ local function positionReason(position)
   return nil
 end
 
-function GC.CancelQueue.Build(positions)
+function GC.CancelQueue.Build(positions, opts)
   local entries, skipped = {}, {}
+  local pct = opts and opts.undercutPct
+  if not exact(pct) then pct = 0 end
   for _, position in ipairs(positions or {}) do
     local lots = position.ownedLots or {}
     if #lots > 0 then
       local reason = positionReason(position)
-      local included, aboveMarket, overflowed = {}, 0, false
+      local included, aboveMarket, overflowed, heldBy = {}, 0, false, {}
       if not reason then
         local fresh = position.freshMarketUnit
         local advice = type(position.recommendation) == "table" and position.recommendation.action or nil
         local urgentUnit = position.facts and position.facts.underpriced and position.underpricedUnit or nil
+        local floorUnit = type(position.rule) == "table" and positive(position.rule.floorUnit)
+          and position.rule.floorUnit or nil
+        local lossHold = advice == "hold" and position.recommendation.reason == "loss"
         for _, lot in ipairs(lots) do
           if positive(lot.auctionID) and positive(lot.quantity) and positive(lot.unitPrice) then
-            if lot.unitPrice > fresh then aboveMarket = aboveMarket + 1 end
+            local undercut = lot.unitPrice > fresh
+            if undercut then aboveMarket = aboveMarket + 1 end
             local urgent = urgentUnit ~= nil and lot.unitPrice == urgentUnit
-            local advised = advice == "repost" and lot.unitPrice > fresh
+            local passes = (lot.unitPrice - fresh) * 100 > pct * lot.unitPrice
+            -- Would this lot be queued but for the threshold, or but for the floor? The two
+            -- holds name what stopped it, ahead of the advice's own.
+            local wanted
+            if floorUnit then wanted = undercut and not lossHold
+            else wanted = advice == "repost" and undercut end
+            local advised = wanted and passes and (not floorUnit or fresh >= floorUnit)
+            if wanted and passes and not advised then heldBy.below_floor = true end
+            if wanted and not passes then heldBy.small_undercut = true end
             if urgent or advised then
               local value = mulExact(lot.quantity, fresh)
               if not value then
@@ -94,7 +117,8 @@ function GC.CancelQueue.Build(positions)
           -- same "cannot soundly state the numbers" family PostQueue files under this reason.
           reason, included = "unresolved_identity", {}
         elseif #included == 0 and aboveMarket > 0 then
-          reason = advice == "hold" and "advised_hold" or "no_advice"
+          reason = heldBy.below_floor and "below_floor" or heldBy.small_undercut and "small_undercut"
+            or advice == "hold" and "advised_hold" or "no_advice"
         end
       end
       if reason then

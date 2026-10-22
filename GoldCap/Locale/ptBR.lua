@@ -1427,4 +1427,10 @@ GC.Locales.ptBR = {
   ["Marked for you: it is in a group you follow."] = "Marcado para você: está em um grupo que você segue.",
   ["under group floor"] = "abaixo do piso do grupo",
   ["the market is under your group's floor. Type a price to post anyway"] = "o mercado está abaixo do piso do seu grupo. Digite um preço para anunciar mesmo assim",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Diferença mín. para cancelar (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Cancela só quando alguém anuncia abaixo de você por mais que esta porcentagem. Em 0, qualquer diferença conta. Lotes muito abaixo do valor sempre entram na fila.",
+  ["small undercut"] = "diferença pequena",
+  ["relisting would go under your group's floor. Hold"] = "reanunciar ficaria abaixo do piso do seu grupo. Segure",
+  ["undercut by less than your cancel setting. Hold"] = "diferença menor que sua configuração de cancelamento. Segure",
 }

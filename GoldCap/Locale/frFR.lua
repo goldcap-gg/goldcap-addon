@@ -1433,4 +1433,10 @@ GC.Locales.frFR = {
   ["Marked for you: it is in a group you follow."] = "Marqué pour toi : il est dans un groupe que tu suis.",
   ["under group floor"] = "sous le plancher du groupe",
   ["the market is under your group's floor. Type a price to post anyway"] = "le marché est sous le plancher de ton groupe. Saisis un prix pour mettre en vente quand même",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Écart min. pour annuler (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "N'annule que si quelqu'un passe sous ton prix de plus de ce pourcentage. À 0, tout écart compte. Les lots très en dessous de leur valeur vont toujours dans la file.",
+  ["small undercut"] = "petit écart",
+  ["relisting would go under your group's floor. Hold"] = "remettre en vente passerait sous le plancher de ton groupe. Garde-le",
+  ["undercut by less than your cancel setting. Hold"] = "écart plus petit que ton réglage d'annulation. Garde-le",
 }

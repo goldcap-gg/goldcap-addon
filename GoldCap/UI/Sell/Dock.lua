@@ -156,6 +156,8 @@ local QUEUE_SKIP_TEXT = {
   awaiting_answer = "Last post may still go up. Wait a minute",
   no_advice = "cost basis incomplete. Set costs to get repost advice",
   below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
+  below_floor = "relisting would go under your group's floor. Hold",
+  small_undercut = "undercut by less than your cancel setting. Hold",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.

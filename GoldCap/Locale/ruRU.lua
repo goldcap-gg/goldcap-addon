@@ -1499,4 +1499,10 @@ GC.Locales.ruRU = {
   ["Marked for you: it is in a group you follow."] = "Отмечено само: это в группе, на которую вы подписаны.",
   ["under group floor"] = "ниже порога группы",
   ["the market is under your group's floor. Type a price to post anyway"] = "рынок ниже порога вашей группы. Введите цену, чтобы всё равно выставить",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Мин. перебив для снятия (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Снимать лот, только если вас перебили больше чем на этот процент. При 0 считается любой перебив. Лоты намного дешевле своей цены попадают в очередь всегда.",
+  ["small undercut"] = "мелкий перебив",
+  ["relisting would go under your group's floor. Hold"] = "перевыставление ушло бы ниже порога вашей группы. Придержите",
+  ["undercut by less than your cancel setting. Hold"] = "перебили меньше, чем задано в настройке снятия. Придержите",
 }

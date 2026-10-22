@@ -1500,4 +1500,10 @@ GC.Locales.ukUA = {
   ["Marked for you: it is in a group you follow."] = "Позначено саме: це в групі, на яку ви підписані.",
   ["under group floor"] = "нижче порогу групи",
   ["the market is under your group's floor. Type a price to post anyway"] = "ринок нижче порогу вашої групи. Введіть ціну, щоб однаково виставити",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Мін. перебиття для зняття (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Знімати лот, лише якщо вас перебили більше ніж на цей відсоток. При 0 рахується будь-яке перебиття. Лоти набагато дешевші за свою ціну потрапляють у чергу завжди.",
+  ["small undercut"] = "дрібне перебиття",
+  ["relisting would go under your group's floor. Hold"] = "перевиставлення пішло б нижче порогу вашої групи. Притримайте",
+  ["undercut by less than your cancel setting. Hold"] = "перебили менше, ніж задано в налаштуванні зняття. Притримайте",
 }
