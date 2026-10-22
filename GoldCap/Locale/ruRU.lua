@@ -1488,4 +1488,11 @@ GC.Locales.ruRU = {
   ["One craft sells for %s after the auction house cut"] = "Один крафт продаётся за %s за вычетом комиссии аукциона",
   ["Profit %s"] = "Прибыль %s",
   ["No GoldCap price for %s"] = "Нет цены GoldCap: %s",
+  ["Worth crafting"] = "Выгодно крафтить",
+  ["%s an hour"] = "%s в час",
+  ["Slow seller"] = "Продаётся медленно",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "У 1 рецепта нет цены GoldCap на реагент или на то, что он создаёт",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "Рецептов без цены GoldCap на реагент или результат: %d",
+  ["Each reagent at its cheapest quality"] = "Каждый реагент в самом дешёвом качестве",
+  ["No recipe here has a GoldCap price yet"] = "Здесь пока нет рецептов с ценой GoldCap",
 }

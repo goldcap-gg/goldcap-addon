@@ -1321,4 +1321,11 @@ GC.Locales.zhCN = {
   ["One craft sells for %s after the auction house cut"] = "制作一次可卖 %s（已扣拍卖行手续费）",
   ["Profit %s"] = "利润 %s",
   ["No GoldCap price for %s"] = "GoldCap 没有价格：%s",
+  ["Worth crafting"] = "值得制作",
+  ["%s an hour"] = "每小时 %s",
+  ["Slow seller"] = "卖得慢",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "有 1 个配方的某个材料或产物没有 GoldCap 价格",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "有 %d 个配方的某个材料或产物没有 GoldCap 价格",
+  ["Each reagent at its cheapest quality"] = "每种材料按最便宜的品质计算",
+  ["No recipe here has a GoldCap price yet"] = "这里还没有带 GoldCap 价格的配方",
 }

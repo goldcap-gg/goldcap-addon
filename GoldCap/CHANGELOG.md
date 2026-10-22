@@ -5,6 +5,9 @@
 - Crafting: under a recipe's reagents, GoldCap shows what the reagents you picked cost, what one
   craft sells for after the auction house cut, and the profit. A reagent GoldCap has no price for
   is named instead of a number.
+- Crafting: a GoldCap panel beside the profession window lists the recipes you know by profit per
+  craft, with the profit an hour where the market's daily sales are known, and marks recipes whose
+  item sells less than once a day.
 
 ## 0.22.1 (unreleased)
 

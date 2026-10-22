@@ -206,6 +206,21 @@ function W.CreateFrame(kind, _, parent)
     function f:HasFocus() return s.focus end
     function f:HighlightText() s.highlighted = true end
   end
+  -- ScrollFrame: its scroll child and offset, what UIPanelScrollFrameTemplate's users call. The
+  -- template's ScrollBar is not built here (Theme.QuietScrollBar skips a scrollbar that is absent).
+  if s.kind == "ScrollFrame" then
+    s.scroll = 0
+    function f:SetScrollChild(child) s.scrollChild = child end
+    function f:GetScrollChild() return s.scrollChild end
+    function f:SetVerticalScroll(v) s.scroll = v end
+    function f:GetVerticalScroll() return s.scroll end
+    function f:GetVerticalScrollRange()
+      local child = s.scrollChild
+      return math.max(0, (child and child:GetHeight() or 0) - f:GetHeight())
+    end
+    function f:UpdateScrollChildRect() end
+    function f:EnableMouseWheel(v) s.wheel = v and true or false end
+  end
   -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
   -- change, as the client does.
   if s.kind == "Button" then

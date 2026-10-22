@@ -1416,4 +1416,11 @@ GC.Locales.ptBR = {
   ["One craft sells for %s after the auction house cut"] = "Uma fabricação vende por %s após a taxa da casa de leilões",
   ["Profit %s"] = "Lucro %s",
   ["No GoldCap price for %s"] = "Sem preço do GoldCap para %s",
+  ["Worth crafting"] = "Vale a pena fabricar",
+  ["%s an hour"] = "%s por hora",
+  ["Slow seller"] = "Vende devagar",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "1 receita não tem preço do GoldCap para um reagente ou para o que fabrica",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d receitas não têm preço do GoldCap para um reagente ou para o que fabricam",
+  ["Each reagent at its cheapest quality"] = "Cada reagente na qualidade mais barata",
+  ["No recipe here has a GoldCap price yet"] = "Nenhuma receita aqui tem preço do GoldCap ainda",
 }

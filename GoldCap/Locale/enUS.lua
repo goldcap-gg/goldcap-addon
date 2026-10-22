@@ -1406,4 +1406,11 @@ GC.Locales.enUS = {
   ["One craft sells for %s after the auction house cut"] = "One craft sells for %s after the auction house cut",
   ["Profit %s"] = "Profit %s",
   ["No GoldCap price for %s"] = "No GoldCap price for %s",
+  ["Worth crafting"] = "Worth crafting",
+  ["%s an hour"] = "%s an hour",
+  ["Slow seller"] = "Slow seller",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "1 recipe has no GoldCap price for a reagent or what it makes",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "%d recipes have no GoldCap price for a reagent or what it makes",
+  ["Each reagent at its cheapest quality"] = "Each reagent at its cheapest quality",
+  ["No recipe here has a GoldCap price yet"] = "No recipe here has a GoldCap price yet",
 }

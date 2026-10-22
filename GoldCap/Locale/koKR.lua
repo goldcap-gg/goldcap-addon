@@ -1355,4 +1355,11 @@ GC.Locales.koKR = {
   ["One craft sells for %s after the auction house cut"] = "1회 제작품 판매가 %s (경매장 수수료 제외)",
   ["Profit %s"] = "수익 %s",
   ["No GoldCap price for %s"] = "GoldCap 가격 없음: %s",
+  ["Worth crafting"] = "제작할 만한 것",
+  ["%s an hour"] = "시간당 %s",
+  ["Slow seller"] = "잘 안 팔림",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "레시피 1개는 재료나 결과물의 GoldCap 가격이 없습니다",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "레시피 %d개는 재료나 결과물의 GoldCap 가격이 없습니다",
+  ["Each reagent at its cheapest quality"] = "각 재료는 가장 싼 품질 기준",
+  ["No recipe here has a GoldCap price yet"] = "아직 GoldCap 가격이 있는 레시피가 없습니다",
 }

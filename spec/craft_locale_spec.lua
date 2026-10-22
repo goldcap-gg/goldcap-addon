@@ -8,6 +8,10 @@ local KEYS = {
   -- The strip under the open recipe's reagents.
   "Reagents cost %s", "One craft sells for %s after the auction house cut", "Profit %s",
   "No GoldCap price for %s",
+  -- The panel's Worth crafting list.
+  "Worth crafting", "%s an hour", "Slow seller", "1 recipe has no GoldCap price for a reagent or what it makes",
+  "%d recipes have no GoldCap price for a reagent or what it makes", "Each reagent at its cheapest quality",
+  "No recipe here has a GoldCap price yet",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

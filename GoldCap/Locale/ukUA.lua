@@ -1489,4 +1489,11 @@ GC.Locales.ukUA = {
   ["One craft sells for %s after the auction house cut"] = "Один крафт продається за %s за вирахуванням комісії аукціону",
   ["Profit %s"] = "Прибуток %s",
   ["No GoldCap price for %s"] = "Немає ціни GoldCap: %s",
+  ["Worth crafting"] = "Вигідно крафтити",
+  ["%s an hour"] = "%s на годину",
+  ["Slow seller"] = "Продається повільно",
+  ["1 recipe has no GoldCap price for a reagent or what it makes"] = "У 1 рецепта немає ціни GoldCap на реагент або на те, що він створює",
+  ["%d recipes have no GoldCap price for a reagent or what it makes"] = "Рецептів без ціни GoldCap на реагент або результат: %d",
+  ["Each reagent at its cheapest quality"] = "Кожен реагент у найдешевшій якості",
+  ["No recipe here has a GoldCap price yet"] = "Тут поки немає рецептів із ціною GoldCap",
 }
