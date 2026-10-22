@@ -214,6 +214,17 @@ function CC.CountOf(itemID)
   return ok and type(n) == "number" and n or 0
 end
 
+--- How much of a currency the character holds (0 when the client does not know it): the count
+--- Blizzard's own form reads for a currency reagent (ProfessionsUtil.GetReagentQuantityInPossession).
+function CC.CurrencyCount(currencyID)
+  local ci = _G.C_CurrencyInfo
+  local fn = type(ci) == "table" and ci.GetCurrencyInfo or nil
+  if type(fn) ~= "function" or type(currencyID) ~= "number" then return 0 end
+  local ok, info = pcall(fn, currencyID)
+  local n = ok and type(info) == "table" and info.quantity or nil
+  return type(n) == "number" and n or 0
+end
+
 --- How many crafts of a recipe the character's reagents allow (0 when the client cannot say).
 function CC.Craftable(recipeID, level)
   local ok, n = call("GetCraftableCount", recipeID, level)

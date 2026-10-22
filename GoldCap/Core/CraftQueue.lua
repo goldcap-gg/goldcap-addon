@@ -184,13 +184,16 @@ function Q.Needs(entries, craftsOf)
   return rows
 end
 
---- The needs the character is short of: `have` counts every quality of a reagent (a currency
---- counts none here). Rows { ids or currency, need, have, missing }, only those missing some.
-function Q.Missing(needs, countOf)
+--- The needs the character is short of: `have` counts every quality of a reagent, and what
+--- `currencyOf` says the character holds of a currency (none when it is not handed in). Rows
+--- { ids or currency, need, have, missing }, only those missing some.
+function Q.Missing(needs, countOf, currencyOf)
   local out = {}
   for _, row in ipairs(type(needs) == "table" and needs or {}) do
     local have = 0
-    if not row.currency then
+    if row.currency then
+      have = currencyOf and tonumber(currencyOf(row.currency)) or 0
+    else
       for _, id in ipairs(row.ids or {}) do have = have + (tonumber(countOf(id)) or 0) end
     end
     local missing = row.q - have

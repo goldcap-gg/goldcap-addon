@@ -135,6 +135,15 @@ describe("craft queue", function()
     assert.same({}, Q.Missing({ { ids = { 101, 102, 103 }, q = 4 } }, counts({ [103] = 5 })))
   end)
 
+  it("counts what the player holds of a currency reagent, and misses only the shortfall", function()
+    local needs = { { currency = 3008, q = 10 } }
+    assert.same({}, Q.Missing(needs, counts({}), counts({ [3008] = 10 })))
+    assert.same({}, Q.Missing(needs, counts({}), counts({ [3008] = 25 })))
+    assert.same({ { currency = 3008, need = 10, have = 4, missing = 6 } }, Q.Missing(needs, counts({}), counts({ [3008] = 4 })))
+    -- No way to count it: held as none.
+    assert.same({ { currency = 3008, need = 10, have = 0, missing = 10 } }, Q.Missing(needs, counts({})))
+  end)
+
   it("BuyLines adds back what is held of the bought quality", function()
     local missing = { { ids = { 101, 102, 103 }, need = 6, have = 1, missing = 5 } }
     local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })

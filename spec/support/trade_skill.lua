@@ -20,6 +20,7 @@
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
 --       recraft = bool (the transaction's IsRecraft) } | nil,
 --     counts = { [itemID] = n }, names = { [itemID] = name }, currencies = { [currencyID] = name },
+--     currencyHeld = { [currencyID] = quantity },
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
 --     absent = { [name] = true },
@@ -191,10 +192,13 @@ function TS.install(opts)
     end,
     GetItemNameByID = function(id) return (opts.names or {})[id] end,
   })
+  -- CurrencyInfo (CurrencyInfoDocumentation.lua): `quantity` is what the character holds, the
+  -- count Blizzard's ProfessionsUtil.GetReagentQuantityInPossession reads for a currency reagent.
+  -- An id the client does not know answers nothing (MayReturnNothing).
   _G.C_CurrencyInfo = strict("C_CurrencyInfo", {
     GetCurrencyInfo = function(id)
       local name = (opts.currencies or {})[id]
-      return name and { name = name, currencyID = id } or nil
+      return name and { name = name, currencyID = id, quantity = (opts.currencyHeld or {})[id] or 0 } or nil
     end,
     GetCoinTextureString = function(copper) return tostring(copper) .. "c" end,
   })

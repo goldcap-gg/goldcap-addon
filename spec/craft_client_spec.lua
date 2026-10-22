@@ -229,6 +229,14 @@ describe("craft client", function()
     assert.equal("Valorstones", CC.MissingName({ currencyID = 3008 }))
   end)
 
+  it("counts what the character holds of a currency, and none of one the client does not know", function()
+    load({ currencies = { [3008] = "Valorstones", [3010] = "Crests" }, currencyHeld = { [3008] = 120 } })
+    assert.equal(120, CC.CurrencyCount(3008))
+    assert.equal(0, CC.CurrencyCount(3010))
+    assert.equal(0, CC.CurrencyCount(4040))
+    assert.equal(0, CC.CurrencyCount(nil))
+  end)
+
   it("folds the owned auctions into this character's store", function()
     load({ owned = { { auctionID = 1, itemKey = { itemID = 900 }, quantity = 4, status = 0 },
       { auctionID = 2, itemKey = { itemID = 900 }, quantity = 2, status = 1 } } })

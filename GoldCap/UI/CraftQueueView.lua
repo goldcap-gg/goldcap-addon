@@ -46,7 +46,7 @@ local function work(char)
     crafts[e] = n
     rows[i] = { entry = e, crafts = n, held = held }
   end
-  local missing = Q.Missing(Q.Needs(entries, function(e) return crafts[e] end), CC.CountOf)
+  local missing = Q.Missing(Q.Needs(entries, function(e) return crafts[e] end), CC.CountOf, CC.CurrencyCount)
   return rows, missing, listedAt
 end
 
