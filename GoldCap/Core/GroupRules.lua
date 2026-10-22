@@ -1,10 +1,15 @@
 -- The selling rules of the groups the player follows on goldcap.gg. The site sends a followed
 -- group's members as price caps, and each cap may point (`r`, 1-based in the file) at one of the
--- top-level `rules`: { n = name, p = flip|gather|craft|stock, d = 12|24|48 hours, q = 1 for one
--- at a time, fp = floor as a percent of usual, s = percent cheaper per unsold round }. The cap
--- itself carries the usual price `u` and, for a craft group, the cost to craft `f`. The Companion
--- writes all of it into GoldCap_AppRuns (Core/Caps.lua reads the same caps for DEALS). Retail
--- only: GoldCap_Camelot.toc does not load this file, so every caller asks `if GC.GroupRules`.
+-- top-level `rules`: { n = name, id = the group's slug, p = flip|gather|craft|stock, d = 12|24|48
+-- hours, q = 1 for one at a time, fp = floor as a percent of usual, s = percent cheaper per unsold
+-- round }. The cap itself carries the usual price `u` and, for a craft group, the cost to craft `f`.
+-- The Companion writes all of it into GoldCap_AppRuns (Core/Caps.lua reads the same caps for
+-- DEALS). Retail only: GoldCap_Camelot.toc does not load this file, so every caller asks
+-- `if GC.GroupRules`.
+--
+-- The name is the group's in the language of the player's newest follow, so it can change; the id
+-- (lowercase letters, digits, `_` and `-`, 1 to 80 of them; anything else is read as no id) does
+-- not. An older Companion's file has no id.
 --
 -- The first cap of an item decides its rule, exactly as it decides the item's cap, so the SELL
 -- chip and the DEALS row name the same group. An unreadable rule or index gives the item no rule.
@@ -41,6 +46,12 @@ local function wholePct(v)
   return nil
 end
 
+-- The group's id as the site sends it, or nil: an older Companion's file has none.
+local function groupId(v)
+  if type(v) == "string" and #v <= 80 and v:find("^[a-z0-9_%-]+$") then return v end
+  return nil
+end
+
 local function readableRule(rule)
   return type(rule) == "table" and type(rule.n) == "string" and rule.n ~= ""
     and PLAYS[rule.p] == true and M.HOURS_TO_INDEX[rule.d] ~= nil
@@ -49,7 +60,7 @@ end
 local function sameEntry(a, b)
   if a.l ~= b.l or a.u ~= b.u or a.f ~= b.f then return false end
   local x, y = a.rule, b.rule
-  return x.n == y.n and x.p == y.p and x.d == y.d and x.q == y.q and x.fp == y.fp and x.s == y.s
+  return x.n == y.n and x.id == y.id and x.p == y.p and x.d == y.d and x.q == y.q and x.fp == y.fp and x.s == y.s
 end
 
 function M.Adopt(raw)
@@ -69,7 +80,8 @@ function M.Adopt(raw)
           if readableRule(rule) then
             local u, f = num(entry.u), num(entry.f)
             nextByItem[i] = {
-              rule = { n = rule.n, p = rule.p, d = rule.d, q = rule.q, fp = rule.fp, s = rule.s },
+              rule = { n = rule.n, id = groupId(rule.id), p = rule.p, d = rule.d, q = rule.q, fp = rule.fp,
+                s = rule.s },
               l = math.max(0, math.floor(l)),
               u = u and u > 0 and math.floor(u) or nil,
               f = f and f > 0 and math.floor(f) or nil,
@@ -122,11 +134,15 @@ function M.RuleFor(itemID, itemLevel)
   return rule
 end
 
--- The followed group an item belongs to, by its rule's name, or nil: the same first cap that
--- decides the rule decides the group (the bank card, UI/BankGroupsCard.lua, lists by it).
+-- The followed group an item belongs to, or nil: the same first cap that decides the rule decides
+-- the group. Answers the group's key and its name. The key is the group's id, else (an older
+-- Companion's file, or one made by hand) its name: the bank card (UI/BankGroupsCard.lua) keeps a
+-- group's count by the key, so a follow in another language or a renamed list keeps it, and shows
+-- the name.
 function M.GroupOf(itemID)
   local entry = byItem[itemID]
-  return entry and entry.rule.n or nil
+  if not entry then return nil end
+  return entry.rule.id or entry.rule.n, entry.rule.n
 end
 
 -- Whether any followed group reached the addon: false with no Companion file, an old one, or no

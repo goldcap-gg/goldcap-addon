@@ -3,7 +3,8 @@ local helper = require("spec.spec_helper")
 -- Bank by group (Core/BankGroups.lua, retail only): which stack of a followed group one press
 -- moves between the bags and the Warband Bank, and how many of each item the player keeps in the
 -- bags. The stacks are what UI/BankRoute.lua's reader hands over; the group of an item is
--- Core/GroupRules.lua's, faked here as a table.
+-- Core/GroupRules.lua's, faked here as a table: its key and its name, the name being the key for a
+-- rule without an id (an older Companion's file).
 describe("bank by group", function()
   local GC, M
 
@@ -17,9 +18,16 @@ describe("bank by group", function()
     return s
   end
 
-  local function plan(bags, bank, keep, moving)
+  local function plan(bags, bank, keep, moving, keyed)
     return M.Plan(bags, bank, {
-      groupOf = function(id) return GROUP[id] end,
+      groupOf = function(id)
+        if keyed then
+          local g = keyed[id]
+          if g then return g[1], g[2] end
+          return nil
+        end
+        return GROUP[id], GROUP[id]
+      end,
       keepFor = function(name) return (keep or {})[name] or 0 end,
       moving = moving or {},
     })
@@ -144,6 +152,28 @@ describe("bank by group", function()
       assert.equal(4, herbs.stackCount)
     end)
 
+    -- A group is its id on goldcap.gg, not its name: two follows that read alike (a catalog group and
+    -- a player's own list, or two languages that spell a group the same) share nothing.
+    it("keeps two groups named alike apart, each with its own keep count, sorted by name then key", function()
+      local keyed = { [1] = { "u_a1b2c3d4e5f6", "Herbs" }, [3] = { "herbs-tww", "Herbs" }, [9] = { "cloth", "Cloth" } }
+      local groups = plan({ stack(1, 0, 1, 30), stack(3, 0, 2, 30), stack(9, 0, 3, 5) }, {},
+        { ["herbs-tww"] = 30, Herbs = 99 }, nil, keyed)
+      assert.equal(3, #groups)
+      assert.same({ "Cloth", "Herbs", "Herbs" }, { groups[1].name, groups[2].name, groups[3].name })
+      assert.same({ "cloth", "herbs-tww", "u_a1b2c3d4e5f6" }, { groups[1].key, groups[2].key, groups[3].key })
+      -- The catalog group keeps its 30; the list (no count of its own) moves its stack.
+      assert.equal(30, groups[2].keep)
+      assert.same({}, groups[2].toBank)
+      assert.equal(0, groups[3].keep)
+      assert.same({ "0:1" }, where(groups[3].toBank))
+      assert.equal(30, groups[3].inBags)
+    end)
+
+    it("names a group the key when no name comes with it", function()
+      local groups = plan({ stack(3, 0, 1, 30) }, {}, nil, nil, { [3] = { "ore" } })
+      assert.same({ "ore", "ore" }, { groups[1].key, groups[1].name })
+    end)
+
     it("orders a group's items by name, then by item", function()
       GROUP[4] = "Herbs"
       NAMES[4] = "Aethril"
@@ -189,6 +219,26 @@ describe("bank by group", function()
       db.bankKeep = "x"
       assert.is_true(M.SetKeep(db, "Ore", 5))
       assert.same({ v = M.VERSION, groups = { Ore = 5 } }, db.bankKeep)
+    end)
+
+    -- A follow from the site in another language, or a renamed list, keeps the group's id: the
+    -- count saved under the id is still there under the new name. A rule without an id (an older
+    -- Companion's file) is keyed by its name, as Core/GroupRules.lua's GroupOf answers it.
+    it("keeps a count under the group's key, whatever the group is called now", function()
+      local db = {}
+      assert.is_true(M.SetKeep(db, "herbs-tww", 40))
+      for _, name in ipairs({ "Herbs", "Kräuter", "Травы" }) do
+        local group = M.Plan({ stack(1, 0, 1, 30) }, {}, {
+          groupOf = function() return "herbs-tww", name end,
+          keepFor = function(key) return M.KeepFor(db, key) end,
+        })[1]
+        assert.equal(name, group.name)
+        assert.equal(40, group.keep, name)
+      end
+      -- A rule without an id is keyed by its name: a count of its own.
+      assert.equal(0, M.KeepFor(db, "Herbs"))
+      assert.is_true(M.SetKeep(db, "Herbs", 7))
+      assert.same({ v = M.VERSION, groups = { ["herbs-tww"] = 40, Herbs = 7 } }, db.bankKeep)
     end)
 
     -- A newer GoldCap's table is a shape this one does not know: it is left as it is.

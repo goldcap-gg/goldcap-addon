@@ -1529,4 +1529,6 @@ GC.Locales.frFR = {
   ["Groups with nothing to move: %d"] = "Groupes sans rien à déplacer : %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Reste dans les sacs : %s ×%d, encore remboursable",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Reste dans les sacs : %s ×%d, la banque de bataillon ne le prend pas",
+  ["%d in bags, %d in your bank"] = "%d dans les sacs, %d dans ta banque",
+  ["Stays in bags: %s ×%d, your bank does not take it"] = "Reste dans les sacs : %s ×%d, ta banque ne le prend pas",
 }

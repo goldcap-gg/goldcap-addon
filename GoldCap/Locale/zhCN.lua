@@ -1428,4 +1428,6 @@ GC.Locales.zhCN = {
   ["Groups with nothing to move: %d"] = "没有可移动物品的分组：%d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "留在背包：%s ×%d，还可以退款",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "留在背包：%s ×%d，战团银行不接受",
+  ["%d in bags, %d in your bank"] = "背包 %d，角色银行 %d",
+  ["Stays in bags: %s ×%d, your bank does not take it"] = "留在背包：%s ×%d，角色银行不接受",
 }

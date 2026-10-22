@@ -1530,4 +1530,6 @@ GC.Locales.esES = {
   ["Groups with nothing to move: %d"] = "Grupos sin nada que mover: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Se queda en las bolsas: %s ×%d, aún se puede devolver",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Se queda en las bolsas: %s ×%d, el banco de banda guerrera no lo acepta",
+  ["%d in bags, %d in your bank"] = "%d en las bolsas, %d en tu banco",
+  ["Stays in bags: %s ×%d, your bank does not take it"] = "Se queda en las bolsas: %s ×%d, tu banco no lo acepta",
 }

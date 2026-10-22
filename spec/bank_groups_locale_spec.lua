@@ -11,6 +11,10 @@ local KEYS = {
   "Stays in bags: %s ×%d, can still be refunded", "Stays in bags: %s ×%d, the Warband Bank does not take it",
   "To bank: nothing to move", "To bags: nothing to move", "Groups with nothing to move: %d",
   "Type a whole number", "Save",
+  -- The character's own bank, which the card works with when the player picks it. The two sides
+  -- of the card's bank choice are the bank window's own tab names, Blizzard's BANK and
+  -- ACCOUNT_BANK_PANEL_TITLE, so they need no key.
+  "%d in bags, %d in your bank", "Stays in bags: %s ×%d, your bank does not take it",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

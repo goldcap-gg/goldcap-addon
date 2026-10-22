@@ -4,9 +4,10 @@ local helper = require("spec.spec_helper")
 -- Tarren Mill (1084); the account has a character on Kazzak (1305). The bags, the Warband Bank and
 -- the payload are faked; Core/SellRoute.lua is the real one.
 describe("bank carry list", function()
-  local GC, bags, used, timers, wue, canUse, reads, refused, tabs
+  local GC, bags, used, timers, wue, canUse, reads, refused, refusedHere, tabs, shown, targeting, cursor
   local G = 10000
-  local ACCOUNT = 2
+  -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
+  local CHARACTER, ACCOUNT = 0, 2
 
   local function region(kind)
     local r = { kind = kind, visible = false, enabled = true, scripts = {} }
@@ -57,21 +58,30 @@ describe("bank carry list", function()
   local function press(row) row.button.scripts.OnClick(row.button) end
 
   before_each(function()
-    used, timers, wue, canUse, tabs = {}, {}, {}, true, { 12 }
+    used, timers, wue, canUse, tabs, shown = {}, {}, {}, true, { 12 }, nil
+    -- SpellIsTargeting and GetCursorInfo, the client's, read by GC.Util.CursorBusy: no spell waits
+    -- for a target and the cursor is empty unless a spec says otherwise.
+    targeting, cursor = false, nil
+    _G.SpellIsTargeting = function() return targeting end
+    _G.GetCursorInfo = function() return cursor end
     -- 0: the backpack, with a flip that sells better on Kazzak (100) and one with no route (500);
     -- 12: the first Warband Bank tab, with a flip that sells best here (200).
     bags = {
       [0] = { info(100, "Gem-Inlaid Velvet Cinch"), info(500, "Linen Cloth") },
       [12] = { info(200, "Recipe: Ornate Plate") },
     }
-    _G.Enum = { BankType = { Account = ACCOUNT } }
+    _G.Enum = { BankType = { Character = CHARACTER, Account = ACCOUNT } }
     _G.CreateFrame = function(kind) return region(kind) end
     _G.UIParent = region("Frame")
     _G.BankFrame = region("Frame")
+    -- BankFrameMixin:GetActiveBankType (Blizzard_UIPanels_Game's BankFrame.lua): the bank the
+    -- window shows, nil while its panel is hidden.
+    function _G.BankFrame:GetActiveBankType() return shown end
     _G.MerchantFrame = region("Frame")
     _G.GetRealmName = function() return "Tarren Mill" end
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
-    reads, refused = 0, {}
+    -- refused: what the Warband Bank refuses; refusedHere: what the character's own bank does.
+    reads, refused, refusedHere = 0, {}, {}
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
       GetContainerItemInfo = function(bag, slot) reads = reads + 1; return bags[bag] and bags[bag][slot] or nil end,
@@ -83,9 +93,14 @@ describe("bank carry list", function()
       GetCurrentItemLevel = function() return 0 end,
     }
     _G.C_Bank = {
-      CanUseBank = function(t) return canUse and t == ACCOUNT end,
-      IsItemAllowedInBankType = function(_, loc) return not refused[loc.bag .. ":" .. loc.slot] end,
-      FetchPurchasedBankTabIDs = function(t) return t == ACCOUNT and tabs or {} end,
+      CanUseBank = function(t) return canUse and (t == ACCOUNT or t == CHARACTER) end,
+      IsItemAllowedInBankType = function(t, loc)
+        return not (t == CHARACTER and refusedHere or refused)[loc.bag .. ":" .. loc.slot]
+      end,
+      FetchPurchasedBankTabIDs = function(t)
+        if t == ACCOUNT then return tabs end
+        return t == CHARACTER and { 6 } or {}
+      end,
     }
     _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
     GC = helper.loadModule("Core/Util.lua")
@@ -118,6 +133,7 @@ describe("bank carry list", function()
   after_each(function()
     _G.Enum, _G.CreateFrame, _G.UIParent, _G.BankFrame, _G.MerchantFrame, _G.GetRealmName = nil, nil, nil, nil, nil, nil
     _G.ItemLocation, _G.C_Container, _G.C_Item, _G.C_Bank, _G.C_Timer = nil, nil, nil, nil, nil
+    _G.SpellIsTargeting, _G.GetCursorInfo = nil, nil
   end)
 
   it("calls the realm to carry to by the player's character's realm, not the payload's name for its market", function()
@@ -147,6 +163,15 @@ describe("bank carry list", function()
     assert.equal("moving...", putIn.button.label)
     press(putIn) -- still settling: nothing more
     assert.equal(1, #used)
+  end)
+
+  -- The list hands items to another of the player's characters: only the Warband Bank does that,
+  -- whichever bank the bank window shows.
+  it("puts a stack in the Warband Bank while the bank window shows the character's own bank", function()
+    shown = CHARACTER
+    panel().OnBankOpened()
+    press(rowFor("PUT IN"))
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
   end)
 
   it("takes that stack out of the Warband Bank tab on a press", function()
@@ -186,6 +211,44 @@ describe("bank carry list", function()
     assert.same({}, used)
   end)
 
+  -- Blizzard's own list of windows a bag click feeds instead (ContainerFrame.lua): the mailbox on
+  -- either tab, the guild bank and the rest move nothing either.
+  it("moves nothing while another window a bag click feeds is open", function()
+    panel().OnBankOpened()
+    local putIn = rowFor("PUT IN")
+    for _, name in ipairs({ "MailFrame", "GuildBankFrame", "TradeFrame", "AuctionHouseFrame", "ItemUpgradeFrame",
+        "ObliterumForgeFrame", "ChallengesKeystoneFrame", "AzeriteRespecFrame", "RuneforgeFrame" }) do
+      _G[name] = region("Frame")
+      _G[name]:Show()
+      press(putIn)
+      assert.same({}, used, name)
+      _G[name] = nil
+    end
+    press(putIn)
+    assert.equal(1, #used)
+  end)
+
+  -- With a spell waiting for an item target (Disenchant, an enchant scroll) the same call casts it
+  -- on the item, and with something on the cursor it does something else again.
+  it("moves nothing while a spell waits for an item target or the cursor carries something", function()
+    panel().OnBankOpened()
+    local putIn = rowFor("PUT IN")
+    targeting = true
+    press(putIn)
+    press(rowFor("TAKE OUT"))
+    targeting, cursor = false, "item"
+    press(putIn)
+    press(rowFor("TAKE OUT"))
+    assert.same({}, used)
+    -- A read that fails counts as busy.
+    cursor, _G.SpellIsTargeting = nil, function() error("no such function") end
+    press(putIn)
+    assert.same({}, used)
+    _G.SpellIsTargeting = function() return false end
+    press(putIn)
+    assert.equal(1, #used)
+  end)
+
   it("moves nothing when the slot no longer holds the item, or it is locked", function()
     panel().OnBankOpened()
     local putIn = rowFor("PUT IN")
@@ -223,12 +286,87 @@ describe("bank carry list", function()
     refundable["0:1"], refused["0:1"], refused["0:2"], refused["12:1"] = true, true, true, true
     panel().OnBankOpened()
     local all = function() return true end
-    local inBags = panel().ReadStacks({ 0 }, false, all)
+    local inBags = panel().ReadStacks({ 0 }, false, all, ACCOUNT)
     assert.equal("refund", inBags[1].stays)
     assert.equal("refused", inBags[2].stays)
-    assert.is_nil(panel().ReadStacks({ 12 }, true, all)[1].stays)
+    assert.is_nil(panel().ReadStacks({ 12 }, true, all, ACCOUNT)[1].stays)
     refundable["0:1"], refused["0:1"] = nil, nil
-    assert.is_nil(panel().ReadStacks({ 0 }, false, all)[1].stays)
+    assert.is_nil(panel().ReadStacks({ 0 }, false, all, ACCOUNT)[1].stays)
+  end)
+
+  -- Blizzard asks before a deposit into the Warband Bank ends a refund, and deposits into the
+  -- character's own bank without asking (BankFrame.lua's BankUtil_IsAccountBankDepositRefundable,
+  -- ContainerFrame.lua's right click): toward the character's bank a refundable stack may go, and
+  -- what stays is what that bank refuses.
+  it("reads why a stack stays against the bank it would go into: the character's own bank takes a refundable one", function()
+    _G.C_Item.CanBeRefunded = function(loc) return loc.bag == 0 and loc.slot == 1 end
+    refused["0:2"], refusedHere["0:1"] = true, nil
+    panel().OnBankOpened()
+    local all = function() return true end
+    local inBags = panel().ReadStacks({ 0 }, false, all, CHARACTER)
+    assert.is_nil(inBags[1].stays)
+    assert.is_nil(inBags[2].stays)
+    refusedHere["0:2"] = true
+    assert.equal("refused", panel().ReadStacks({ 0 }, false, all, CHARACTER)[2].stays)
+    assert.equal("refund", panel().ReadStacks({ 0 }, false, all, ACCOUNT)[1].stays)
+  end)
+
+  -- The one move takes the bank it moves to or from, and keeps every guard for that bank.
+  describe("MoveStack", function()
+    local function stack(bag, slot, itemID) return { bag = bag, slot = slot, itemID = itemID } end
+
+    before_each(function()
+      bags[6] = { info(300, "Bloom") }
+      panel().OnBankOpened()
+    end)
+
+    it("deposits into the bank it is handed, and withdraws from a tab of it", function()
+      assert.is_true(panel().MoveStack(stack(0, 1, 100), true, CHARACTER))
+      assert.is_true(panel().MoveStack(stack(6, 1, 300), false, CHARACTER))
+      assert.is_true(panel().MoveStack(stack(0, 2, 500), true, ACCOUNT))
+      assert.same({ { n = 5, 0, 1, nil, CHARACTER, false }, { n = 2, 6, 1 }, { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
+    end)
+
+    it("moves nothing either way while a spell waits for an item target or the cursor carries something", function()
+      targeting = true
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, CHARACTER))
+      assert.is_false(panel().MoveStack(stack(6, 1, 300), false, CHARACTER))
+      targeting, cursor = false, "item"
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, ACCOUNT))
+      assert.is_false(panel().MoveStack(stack(12, 1, 200), false, ACCOUNT))
+      assert.same({}, used)
+    end)
+
+    it("moves nothing when handed no bank, or one it cannot use here", function()
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, nil))
+      assert.is_false(panel().MoveStack(stack(6, 1, 300), false, nil))
+      _G.C_Bank.CanUseBank = function(t) return t == ACCOUNT end
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, CHARACTER))
+      assert.is_false(panel().MoveStack(stack(6, 1, 300), false, CHARACTER))
+      assert.same({}, used)
+    end)
+
+    it("puts a refundable stack only in the character's own bank, and nothing a bank refuses into it", function()
+      _G.C_Item.CanBeRefunded = function() return true end
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, ACCOUNT))
+      refusedHere["0:2"] = true
+      assert.is_false(panel().MoveStack(stack(0, 2, 500), true, CHARACTER))
+      assert.is_true(panel().MoveStack(stack(0, 1, 100), true, CHARACTER))
+      assert.same({ { n = 5, 0, 1, nil, CHARACTER, false } }, used)
+    end)
+  end)
+
+  -- What Blizzard's own right click on a bag item deposits into (ContainerFrame.lua).
+  it("names the bank the bank window shows, the Warband Bank when it answers neither", function()
+    assert.equal(ACCOUNT, panel().ShownBankType())
+    shown = CHARACTER
+    assert.equal(CHARACTER, panel().ShownBankType())
+    shown = ACCOUNT
+    assert.equal(ACCOUNT, panel().ShownBankType())
+    function _G.BankFrame:GetActiveBankType() error("no panel") end
+    assert.equal(ACCOUNT, panel().ShownBankType())
+    _G.BankFrame = nil
+    assert.equal(ACCOUNT, panel().ShownBankType())
   end)
 
   -- A player with no route data never sees the list: they pay nothing for it at a bank either.
@@ -356,8 +494,72 @@ describe("bank carry list", function()
       local outside = text:sub(1, from - 1) .. text:sub(from + #body)
       assert.is_nil(outside:find("UseContainerItem", 1, true))
       assert.equal(2, count(body, "UseContainerItem"))
-      assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot, nil, accountBank(), false)"))
+      -- Into the bank it is handed, as Blizzard's own right click on a bag item deposits.
+      assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot, nil, bankType, false)"))
       assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot)"))
+      assert.is_truthy(body:find("function P.MoveStack(stack, into, bankType)", 1, true))
+      -- Every guard is for that bank, before either call, and the cursor is asked first too.
+      local first = assert(body:find("C_Container.UseContainerItem(", 1, true))
+      assert.is_true(assert(body:find("bankIsTheWindow(bankType)", 1, true)) < first)
+      assert.is_true(assert(body:find("if GC.Util.CursorBusy() then return false end", 1, true)) < first)
+      assert.is_true(assert(body:find("staysWhy(loc, bankType)", 1, true)) < first)
+    end)
+
+    -- The carry list hands items to another character, which only the Warband Bank does; the group
+    -- card moves to and from the bank its choice names, the one its last paint read and planned with.
+    it("hands MoveStack the Warband Bank from the carry list and the bank it names from the group card", function()
+      local carry = bodyOf(read(ROUTE), "local function onCarryClick(")
+      assert.is_truthy(carry:find('P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank())',
+        1, true))
+      local card = read(CARD)
+      local move = bodyOf(card, "local function onMoveClick(")
+      assert.is_truthy(move:find("GC.BankRoute.MoveStack(stack, button.into, C._bankType)", 1, true))
+      local refresh = bodyOf(card, "function C.Refresh(")
+      local chosen = assert(refresh:find("local bankType = C._bankType", 1, true))
+      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.ReadStacks(BAGS, false, groupOf, bankType)", 1, true)))
+      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.BankTabs(bankType)", 1, true)))
+      -- The bank is set only by a paint, the choice's own click, and the bank opening or closing;
+      -- the choice's click moves nothing.
+      -- A line that assigns to C._bankType: it stands left of the line's first lone `=`.
+      local function sets(text)
+        local n = 0
+        for line in text:gmatch("[^\n]+") do
+          local left = line:match("^(.-[^=~<>])=[^=]")
+          if left and left:find("C._bankType", 1, true) then n = n + 1 end
+        end
+        return n
+      end
+      local click = bodyOf(card, "local function onBankClick(")
+      local opened, closed = bodyOf(card, "function C.OnBankOpened("), bodyOf(card, "function C.OnBankClosed(")
+      -- Plus its declaration at the top of the file.
+      assert.equal(sets(card), 1 + sets(refresh) + sets(click) + sets(opened) + sets(closed))
+      assert.equal(1, sets(click))
+      assert.is_nil(click:find("MoveStack", 1, true))
+      assert.is_nil(click:find("UseContainerItem", 1, true))
+      assert.equal('side:SetScript("OnClick", onBankClick)', card:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
+    end)
+
+    -- A switch of the bank window's tab repaints the card through a post-hook on Blizzard's bank
+    -- panel, on the next frame. The hook reads and paints, nothing more: no move is ever made
+    -- outside a click, and nothing of the card runs inside Blizzard's call.
+    it("follows a switch of the bank window's tab through a post-hook that moves nothing", function()
+      local card = read(CARD)
+      assert.equal(5, count(card, "hooksecurefunc("))
+      assert.equal(1, count(card, 'hooksecurefunc(bankPanel, "Reset", C.OnBankShown)'))
+      assert.is_truthy(card:find("local bankPanel = _G.BankPanel", 1, true))
+      local shownBody = bodyOf(card, "function C.OnBankShown(")
+      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick" }) do
+        assert.is_nil(shownBody:find(needle, 1, true), needle)
+      end
+      assert.is_truthy(shownBody:find("C_Timer.After(0, function()", 1, true))
+      for _, path in ipairs({ ROUTE, CARD }) do
+        local text = read(path)
+        for line in text:gmatch("[^\n]*hooksecurefunc%([^\n]*") do
+          assert.is_nil(line:find("onMoveClick", 1, true), line)
+          assert.is_nil(line:find("onCarryClick", 1, true), line)
+          assert.is_nil(line:find("MoveStack", 1, true), line)
+        end
+      end
     end)
 
     it("reaches MoveStack only from the carry list's click and the group card's click, once in each", function()
@@ -407,8 +609,10 @@ describe("bank carry list", function()
       assert.is_nil(move:find("Disable(", 1, true))
       assert.is_true(assert(move:find("GC.BankRoute.MoveStack(", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
       local paint = bodyOf(card, "local function paintMove(")
-      assert.equal(1, count(card, "Disable("))
       assert.equal(1, count(paint, "button:Disable()"))
+      -- The only other: a side of the bank choice a bank cannot use, which moves nothing anyway.
+      assert.equal(2, count(card, "Disable("))
+      assert.equal(1, count(bodyOf(card, "local function paintChoice("), "side:Disable()"))
     end)
 
     it("loads in retail only, after the route module, and the group card after the route", function()

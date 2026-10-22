@@ -13,8 +13,10 @@ local _, GC = ...
 -- the bank is the window open and the slot still holds the item: the same call equips a piece of
 -- gear when no bank is open, which binds it, and sells it when a vendor is.
 --
--- The reader, the move and their guards are shared: the bank by group card (UI/BankGroupsCard.lua)
--- reads the bags and the Warband Bank through ReadStacks and moves its stacks through MoveStack.
+-- The reader, the move and their guards are shared, and each takes the bank it works with: this
+-- list always the Warband Bank (it hands items to another character), the bank by group card
+-- (UI/BankGroupsCard.lua) the bank its own choice names, which starts on the one the bank window
+-- shows (ShownBankType). The card reads through ReadStacks and moves its stacks through MoveStack.
 GC.BankRoute = {}
 local P = GC.BankRoute
 
@@ -35,14 +37,23 @@ local function accountBank()
   return Enum and Enum.BankType and Enum.BankType.Account or nil
 end
 
--- The bank is open, its Warband tabs can be used, and no other window is open that a container
--- click would feed instead: a vendor sells the item, the auction house, the mail and a trade take it.
-local function bankIsTheWindow()
-  local account = accountBank()
-  if not (P._open and account and C_Bank and C_Bank.CanUseBank) then return false end
-  local ok, can = pcall(C_Bank.CanUseBank, account)
+-- The windows a container click feeds instead of the bank, as Blizzard's own right click on a bag
+-- item lists them (live Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua,
+-- ContainerFrameItemButton_OnClick): a vendor sells the item, the auction house takes it to post,
+-- the Azerite respec and the Runeforge take it as theirs, and Blizzard treats the click as a plain
+-- use only while none of the guild bank, the mailbox (either tab), a trade, the item upgrade, the
+-- Obliterum forge and the keystone slot is open. Most of them load on demand: one that is not
+-- loaded is not open.
+local OTHER_WINDOWS = { "MerchantFrame", "AuctionHouseFrame", "AzeriteRespecFrame", "RuneforgeFrame",
+  "GuildBankFrame", "MailFrame", "TradeFrame", "ItemUpgradeFrame", "ObliterumForgeFrame",
+  "ChallengesKeystoneFrame" }
+
+-- The bank is open, `bankType`'s bank can be used here, and none of OTHER_WINDOWS is open.
+local function bankIsTheWindow(bankType)
+  if not (P._open and bankType ~= nil and C_Bank and C_Bank.CanUseBank) then return false end
+  local ok, can = pcall(C_Bank.CanUseBank, bankType)
   if not (ok and can) then return false end
-  for _, name in ipairs({ "MerchantFrame", "AuctionHouseFrame", "SendMailFrame", "TradeFrame" }) do
+  for _, name in ipairs(OTHER_WINDOWS) do
     local other = _G[name]
     if type(other) == "table" and other.IsShown and other:IsShown() then return false end
   end
@@ -62,26 +73,28 @@ local function ask(fn, ...)
   return answer
 end
 
--- The Warband Bank has a tab to put things in: a deposit into none goes nowhere.
-local function hasTabs()
-  local tabs = ask(C_Bank.FetchPurchasedBankTabIDs, accountBank())
+-- `bankType`'s bank has a tab to put things in: a deposit into none goes nowhere.
+local function hasTabs(bankType)
+  local tabs = ask(C_Bank.FetchPurchasedBankTabIDs, bankType)
   return type(tabs) == "table" and #tabs > 0
 end
 
--- Why the Warband Bank must not take a stack in the bags, or nil when it may: "refund" while it is
--- still refundable (Blizzard asks before ending the refund; GoldCap does not decide that for the
--- player), else "refused" when the Warband Bank does not take it.
-local function staysWhy(loc)
-  if ask(C_Item.CanBeRefunded, loc) == true then return "refund" end
-  if ask(C_Bank.IsItemAllowedInBankType, accountBank(), loc) == false then return "refused" end
+-- Why `bankType`'s bank must not take a stack in the bags, or nil when it may. "refund" while it is
+-- still refundable and the bank is the Warband Bank: Blizzard asks before a deposit there ends the
+-- refund (BankUtil_IsAccountBankDepositRefundable, Blizzard_UIPanels_Game's BankFrame.lua), and
+-- GoldCap does not decide that for the player; into the character's own bank Blizzard deposits
+-- without asking. Else "refused" when that bank does not take it.
+local function staysWhy(loc, bankType)
+  if bankType == accountBank() and ask(C_Item.CanBeRefunded, loc) == true then return "refund" end
+  if ask(C_Bank.IsItemAllowedInBankType, bankType, loc) == false then return "refused" end
   return nil
 end
 
 -- One stack as the bank cards read it, or nil: an empty slot, an item `wanted` does not take, a
--- soulbound one. A Warbound-until-equipped one is marked `wue`, a stack in the bags the Warband
--- Bank must not take `stays` (with why, staysWhy above), and one the game holds (on the cursor, or
+-- soulbound one. A Warbound-until-equipped one is marked `wue`, a stack in the bags `bankType`'s
+-- bank must not take `stays` (with why, staysWhy above), and one the game holds (on the cursor, or
 -- on its way) `locked`.
-local function readStack(bag, slot, inBank, wanted)
+local function readStack(bag, slot, inBank, wanted, bankType)
   local info = C_Container.GetContainerItemInfo(bag, slot)
   if not (info and info.itemID and wanted(info.itemID)) then return nil end
   local loc = locationOf(bag, slot)
@@ -90,31 +103,46 @@ local function readStack(bag, slot, inBank, wanted)
   if info.isBound and not wue then return nil end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
     icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
-    stays = (not inBank and staysWhy(loc)) or nil, locked = info.isLocked or nil }
+    stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil }
 end
 
---- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one.
-function P.ReadStacks(bags, inBank, wanted)
+--- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one; a stack in
+--- the bags is marked `stays` against `bankType`'s bank (Enum.BankType), the one it would go into.
+function P.ReadStacks(bags, inBank, wanted, bankType)
   local stacks = {}
   for _, bag in ipairs(bags) do
     for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
-      local stack = readStack(bag, slot, inBank, wanted)
+      local stack = readStack(bag, slot, inBank, wanted, bankType)
       if stack then stacks[#stacks + 1] = stack end
     end
   end
   return stacks
 end
 
---- The Warband Bank's tabs, as bags to read, while the bank is open; none otherwise.
-function P.BankTabs()
-  local tabs = P._open and ask(C_Bank.FetchPurchasedBankTabIDs, accountBank()) or nil
+--- The tabs of `bankType`'s bank, as bags to read, while the bank is open; none otherwise.
+function P.BankTabs(bankType)
+  local tabs = P._open and ask(C_Bank.FetchPurchasedBankTabIDs, bankType) or nil
   return type(tabs) == "table" and tabs or {}
 end
 
---- Whether a press can move anything now: the bank is open and is the window, and its Warband
---- Bank can be used and has a tab.
-function P.CanMove()
-  return P._open == true and bankIsTheWindow() and hasTabs()
+--- Whether a press can move anything to or from `bankType`'s bank now: the bank is open and is the
+--- window, and that bank can be used here and has a tab.
+function P.CanMove(bankType)
+  return P._open == true and bankIsTheWindow(bankType) and hasTabs(bankType)
+end
+
+--- The bank the bank window shows: what Blizzard's own right click on a bag item deposits into
+--- (`BankFrame:GetActiveBankType()`, Blizzard_UIPanels_Game's ContainerFrame.lua), the character's
+--- own bank or the Warband Bank. The Warband Bank when the window answers neither, which is only
+--- while its panel is not shown yet (the first open of the session, before the panel's OnShow). A
+--- bag addon such as Bagnon keeps Blizzard's window shown under a hidden parent on the character's
+--- bank for the whole visit, so this answers the character's bank all along; the group card has
+--- its own choice of bank for that (UI/BankGroupsCard.lua).
+function P.ShownBankType()
+  local bank, character = _G.BankFrame, Enum and Enum.BankType and Enum.BankType.Character
+  local shown = type(bank) == "table" and ask(bank.GetActiveBankType, bank) or nil
+  if character ~= nil and shown == character then return character end
+  return accountBank()
 end
 
 --- What to carry from this bank now (GC.SellRoute.CarryPlan), from the bags and, while the bank is
@@ -128,30 +156,36 @@ function P.Plan()
     end
     return out
   end
-  return GC.SellRoute.CarryPlan(routed(P.ReadStacks(BAGS, false, GC.Data.SellSpots), false),
-    routed(P.ReadStacks(P.BankTabs(), true, GC.Data.SellSpots), true), {
+  local account = accountBank()
+  return GC.SellRoute.CarryPlan(routed(P.ReadStacks(BAGS, false, GC.Data.SellSpots, account), false),
+    routed(P.ReadStacks(P.BankTabs(account), true, GC.Data.SellSpots, account), true), {
     hereId = GC.SellRoute.HereId(),
     routeFor = GC.SellRoute.ForItem,
     levelFor = GC.Data.FlipLevel,
   })
 end
 
---- The one place the addon moves an item between the bags and the Warband Bank: one
+--- The one place the addon moves an item between the bags and a bank: one
 --- C_Container.UseContainerItem, made inside the player's own click by the handler that calls this
 --- (onCarryClick below, onMoveClick in UI/BankGroupsCard.lua; spec/bank_route_spec.lua audits
---- both). The same call equips a piece of gear when no bank is open, which binds it, and sells the
---- item when a vendor is; so first it checks that the bank is the window, that the slot still holds
---- the stack's item, unlocked, and, into the bank, that the Warband Bank may take it. Deposit with
---- (bag, slot, nil, Enum.BankType.Account, false), withdraw with (tabID, slot). True when the call
+--- both). `bankType` (Enum.BankType) is the bank the stack goes into or comes out of; there is no
+--- default, so a call that names none moves nothing. The same call equips a piece of gear when no
+--- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
+--- bank is the window and that bank can be used here, that the slot still holds the stack's item,
+--- unlocked, and, into the bank, that the bank may take it. A spell waiting for an item target, or
+--- anything on the cursor, would turn the call into casting that spell on the item
+--- (GC.Util.CursorBusy): then it moves nothing. Deposit with (bag, slot, nil, bankType, false), as
+--- Blizzard's own right click on a bag item does, withdraw with (tabID, slot). True when the call
 --- was made.
-function P.MoveStack(stack, into)
-  if not (type(stack) == "table" and bankIsTheWindow()) then return false end
+function P.MoveStack(stack, into, bankType)
+  if not (type(stack) == "table" and bankIsTheWindow(bankType)) then return false end
+  if GC.Util.CursorBusy() then return false end
   local info = C_Container.GetContainerItemInfo(stack.bag, stack.slot)
   if not (info and info.itemID == stack.itemID) or info.isLocked then return false end
   if into then
     local loc = locationOf(stack.bag, stack.slot)
-    if not loc or staysWhy(loc) then return false end
-    C_Container.UseContainerItem(stack.bag, stack.slot, nil, accountBank(), false)
+    if not loc or staysWhy(loc, bankType) then return false end
+    C_Container.UseContainerItem(stack.bag, stack.slot, nil, bankType, false)
   else
     C_Container.UseContainerItem(stack.bag, stack.slot)
   end
@@ -164,7 +198,10 @@ local function onCarryClick(button)
   local row = button.row
   local loc = row and row.locations[1]
   if not loc or P._pending then return end
-  if not P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in") then return end
+  -- Always the Warband Bank: the list hands items to another of the player's characters.
+  if not P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank()) then
+    return
+  end
   pendingSeq = pendingSeq + 1
   local token = pendingSeq
   P._pending = token
@@ -306,7 +343,7 @@ end
 --- the list. Hidden too when its buttons could not work: the Warband Bank out of reach at this
 --- banker, or no tab bought.
 function P.Refresh()
-  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow() and hasTabs()) then
+  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank())) then
     if frame then frame:Hide() end
     return
   end
