@@ -44,10 +44,10 @@ local function clientApi()
     GetInboxHeaderInfo = GetInboxHeaderInfo,
     GetInboxInvoiceInfo = GetInboxInvoiceInfo,
     GetInboxItem = GetInboxItem,
-    -- The client's own subjects for the auction mails that never carry an invoice (the same list
-    -- Core/Init.lua gives the ledger scan); a global this client lacks is simply absent.
-    noInvoiceSubjects = { AUCTION_EXPIRED_MAIL_SUBJECT, AUCTION_REMOVED_MAIL_SUBJECT,
-      AUCTION_OUTBID_MAIL_SUBJECT },
+    -- The client's own subjects for the auction mails that never carry an invoice (the same keyed
+    -- list Core/Init.lua gives the ledger scan); a global this client lacks is simply absent.
+    noInvoiceSubjects = { expired = AUCTION_EXPIRED_MAIL_SUBJECT, cancelled = AUCTION_REMOVED_MAIL_SUBJECT,
+      outbid = AUCTION_OUTBID_MAIL_SUBJECT },
     TakeInboxMoney = function(index) TakeInboxMoney(index) end,
     TakeInboxItem = function(index, slot) TakeInboxItem(index, slot) end,
     CheckInbox = function() CheckInbox() end,
@@ -77,7 +77,8 @@ local function getLoop()
     api = client(),
     patterns = mailPatterns(),
     enabled = M.Enabled,
-    -- A synchronous ledger scan: a sale or a purchase is read before its mail is taken.
+    -- A synchronous ledger scan: a sale, a purchase or a lot that came back is read before its
+    -- mail is taken, and the scan logs the lot for SELL's unsold rounds.
     scanLedger = function()
       if GC.Ledger and GC.Ledger.ScanInbox then
         GC.Ledger.ScanInbox(client(), GC.Ledger.Context(), nil, false)
@@ -86,9 +87,6 @@ local function getLoop()
     -- Whose ledger a sale is recorded in: the loop takes a sale or a purchase only when the ledger
     -- can record its invoice under it.
     context = function() return GC.Ledger.Context() end,
-    -- The returns log keeps wall clock time, which survives a /reload; the loop's own clock is
-    -- session time.
-    epoch = time,
     errors = { full = ERR_INV_FULL, unique = ERR_ITEM_MAX_COUNT },
   })
   return loop

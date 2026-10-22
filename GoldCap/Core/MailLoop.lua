@@ -26,12 +26,12 @@ local _, GC = ...
 --                FreeBagSlots() -> integer
 --   patterns     Core/MailClassify.lua's Patterns(...)
 --   enabled()    the four group switches, read fresh at every step
---   scanLedger() a synchronous ledger scan of the inbox
+--   scanLedger() a synchronous ledger scan of the inbox, made right before every take of an
+--                auction's mail: it records a sale's or a purchase's invoice, and logs a lot that
+--                came back for SELL's unsold rounds (Core/MailReturns.lua). The loop logs nothing
+--                itself; the scan reads every row whoever takes the mail.
 --   context()    the ledger's context (Core/Ledger.lua, Context), read fresh at every pass: a sale or
 --                a purchase is taken only when the ledger's rule says it can record its invoice
---   epoch()      wall clock seconds for the returns log (the `now` of Step is the pacing clock,
---                which is session time and would not survive a /reload in the log); defaults to
---                the clock of Step
 --   errors       { full = ERR_INV_FULL, unique = ERR_ITEM_MAX_COUNT }
 
 GC.MailLoop = {}
@@ -100,16 +100,6 @@ function GC.MailLoop.New(deps)
     state, awaiting, waitSeconds, baseline = "running", nil, nil, nil
   end
 
-  -- A take that did nothing: its lot's returns entry goes, unless another stack of that lot was
-  -- taken (the lot did come back).
-  local function retract(flight)
-    local lot = flight and flight.slot and flight.letter.returns[flight.itemID]
-    if lot and not lot.taken then
-      GC.MailReturns.Retract(lot.entry)
-      flight.letter.returns[flight.itemID] = nil
-    end
-  end
-
   -- How many shown rows carry this identity now.
   local function rowsLike(identity)
     local shown = shownAndTotal()
@@ -134,8 +124,6 @@ function GC.MailLoop.New(deps)
       local field = GROUP_FIELD[flight.group]
       result[field] = result[field] + 1
     end
-    local lot = flight.slot and letter.returns[flight.itemID]
-    if lot then lot.taken = true end
     -- From here on the mail reads as the take left it.
     if letters[flight.identity] == letter then letters[flight.identity] = nil end
     letters[flight.after] = letter
@@ -190,28 +178,14 @@ function GC.MailLoop.New(deps)
   end
 
   local function perform(action, now)
-    if action.kind == "sale" or action.kind == "purchase" then
-      deps.scanLedger()
-    end
+    if action.kind ~= "player" then deps.scanLedger() end
     local mail = action.mail
     action.identity = mail.identity
     action.after = GC.MailClassify.IdentityAfter(mail, action.slot)
     action.likeBefore = rowsLike(action.identity)
-    local letter = letters[action.identity] or { returns = {} }
+    local letter = letters[action.identity] or {}
     letters[action.identity] = letter
     action.letter = letter
-    -- A lot that came back is one mail, in as many stacks as the auction house split it into. It is
-    -- logged once, before its first stack is taken, with the count of all its stacks: SELL's unsold
-    -- rounds go up by one per lot.
-    if action.slot and (action.kind == "expired" or action.kind == "cancelled")
-        and not letter.returns[action.itemID] then
-      local count = 0
-      for _, item in ipairs(mail.attachments) do
-        if item.itemID == action.itemID then count = count + item.count end
-      end
-      local at = deps.epoch and deps.epoch() or now
-      letter.returns[action.itemID] = { entry = GC.MailReturns.Record(action.itemID, count, action.kind, at) }
-    end
     action.steps = 0
     inflight = action
     nextAt = now + DELAY
@@ -308,7 +282,6 @@ function GC.MailLoop.New(deps)
         -- A take that did nothing: leave that item (or that gold) for this visit.
         inflight = nil
         if flight.slot then skipItems[flight.itemID] = true else skipKeys[flight.key] = true end
-        retract(flight)
       end
     end
     return act(now)
@@ -324,7 +297,6 @@ function GC.MailLoop.New(deps)
     if state ~= "running" and state ~= "refresh" then return end
     if itemID ~= nil then skipItems[itemID] = true end
     if inflight and inflight.slot and inflight.itemID == itemID then
-      retract(inflight)
       inflight = nil
     end
   end
@@ -335,12 +307,10 @@ function GC.MailLoop.New(deps)
     if message == errors.full then
       invFull = true
       if inflight and inflight.slot then
-        retract(inflight)
         inflight = nil
       end
     elseif message == errors.unique and inflight and inflight.slot then
       skipItems[inflight.itemID] = true
-      retract(inflight)
       inflight = nil
     end
   end

@@ -82,6 +82,7 @@ describe("MailReturns, the log of lots that came back", function()
     GC.MailReturns.Init(db)
     assert.equal(1, db.mailReturnsVersion)
     assert.same({}, db.mailReturns)
+    assert.same({}, db.mailReturnsSeen)
   end)
 
   it("replaces a log that is not a table", function()
@@ -90,14 +91,35 @@ describe("MailReturns, the log of lots that came back", function()
     assert.same({}, db.mailReturns)
   end)
 
-  it("retracts only the entry it is given", function()
-    GC.MailReturns.Init(db)
-    local first = GC.MailReturns.Record(100, 5, "expired", 1000)
-    local second = GC.MailReturns.Record(100, 5, "expired", 1000)
-    assert.is_true(GC.MailReturns.Retract(second))
-    assert.equal(1, #GC.MailReturns.Entries())
-    assert.equal(first, GC.MailReturns.Entries()[1])
-    assert.is_false(GC.MailReturns.Retract(second))
+  -- Observe is fed by the ledger's inbox scan (spec/ledger_returns_spec.lua drives it through the
+  -- real scan); these are its own edges.
+  describe("Observe", function()
+    local CONTEXT = { char = "A-B", region = "eu" }
+    local function lot(itemID, expiresAt) return { itemID = itemID, count = 1, reason = "expired", expiresAt = expiresAt } end
+
+    it("forgets a seen lot once its mail has expired, even on a scan that could not read everything", function()
+      GC.MailReturns.Init(db)
+      assert.equal(1, GC.MailReturns.Observe({ lot(5, 2000) }, CONTEXT, 1000, false))
+      assert.equal(1, #db.mailReturnsSeen)
+      GC.MailReturns.Observe({}, CONTEXT, 2000 + GC.MailReturns.MATCH_SECONDS + 1, false)
+      assert.same({}, db.mailReturnsSeen)
+    end)
+
+    it("logs nothing and keeps nothing in a newer save", function()
+      db.mailReturnsVersion = 2
+      db.mailReturns = {}
+      GC.MailReturns.Init(db)
+      assert.equal(0, GC.MailReturns.Observe({ lot(5, 2000) }, CONTEXT, 1000, true))
+      assert.same({}, db.mailReturns)
+      assert.is_nil(db.mailReturnsSeen)
+    end)
+
+    it("logs nothing without a character and a region to keep the lot under", function()
+      GC.MailReturns.Init(db)
+      assert.equal(0, GC.MailReturns.Observe({ lot(5, 2000) }, { char = "A-B" }, 1000, true))
+      assert.equal(0, GC.MailReturns.Observe({ lot(5, 2000) }, nil, 1000, true))
+      assert.same({}, GC.MailReturns.Entries())
+    end)
   end)
 
   it("keeps keys it does not know in a stored entry", function()

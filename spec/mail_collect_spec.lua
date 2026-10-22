@@ -184,13 +184,6 @@ describe("Collect button", function()
       runOut()
       assert.equal("Collected 3000c from 2 sales, 1 lot came back.", printed[#printed])
       assert.same({ true, false }, box:openingCalls())
-      assert.equal(1, #GC.MailReturns.Entries())
-    end)
-
-    it("stores the lot's time as wall clock, not session time", function()
-      open({ EXPIRED(5) })
-      press()
-      assert.equal(5000, GC.MailReturns.Entries()[1].at)
     end)
 
     it("says the bags are full when no slot is free", function()
@@ -289,9 +282,10 @@ describe("Collect button", function()
       open({ EXPIRED(5), SALE(1) })
       box:refuse(5)
       press()
-      assert.equal(1, #GC.MailReturns.Entries())
       fire("MAIL_FAILED", 5)
-      assert.equal(0, #GC.MailReturns.Entries())
+      -- The refused take ends at once: the next step takes the sale, not three steps later.
+      tick()
+      assert.same({ fn = "TakeInboxMoney", index = 2 }, box:calls()[2])
       runOut()
       local itemTakes = 0
       for _, call in ipairs(box:calls()) do if call.fn == "TakeInboxItem" then itemTakes = itemTakes + 1 end end
@@ -304,7 +298,6 @@ describe("Collect button", function()
       fire("UI_ERROR_MESSAGE", 50, "Inventory is full.")
       runOut()
       assert.equal(1, #box:calls())
-      assert.equal(0, #GC.MailReturns.Entries())
     end)
   end)
 
@@ -365,6 +358,28 @@ describe("Collect button", function()
       assert.same({ "sale:Cloth 1" }, kinds())
       assert.equal(1, #box:calls())
       assert.equal("Collected 1000c from 1 sale.", printed[#printed])
+    end)
+
+    -- The lots that came back are logged by the ledger's scan (Core/Ledger.lua, ScanInbox), the
+    -- one that reads every row whoever takes the mail, so the log does not depend on Collect.
+    it("logs a lot Collect takes once, at the wall clock time the scan read it", function()
+      install({ EXPIRED(5), SALE(1) })
+      GC.MailCollect.OnMailShow()
+      press()
+      runOut()
+      assert.equal(0, box:rowCount())
+      assert.same({ { itemID = 5, count = 2, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+    end)
+
+    it("logs a lot that came back with Returned lots switched off, and leaves it in the mailbox", function()
+      GC.db.settings.sniper.collectReturns = false
+      install({ SALE(1), EXPIRED(5) })
+      GC.MailCollect.OnMailShow()
+      press()
+      runOut()
+      assert.same({ { fn = "TakeInboxMoney", index = 1 } }, box:calls())
+      assert.equal(1, box:rowCount())
+      assert.same({ { itemID = 5, count = 2, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
     end)
   end)
 

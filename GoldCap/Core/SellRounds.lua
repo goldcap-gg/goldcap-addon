@@ -2,18 +2,18 @@
 -- group's rule posts it a little cheaper for (Core/SellPositions.lua's step-down). Retail only:
 -- GoldCap_Camelot.toc does not load this file, so every caller asks `if GC.SellRounds`.
 --
--- A round is a lot that came back EXPIRED, read from the mail module's returns log
--- (GC.MailReturns, entries `{ itemID, count, reason = "expired" | "cancelled", at }`, `at` in wall
--- clock seconds). A cancelled lot does not count: the player chose to take it down. Returns of one
--- item collected within ROUND_GAP_SECONDS of the last one counted are one round, so five copies of
--- one flip coming back in one mailbox visit cut its price once, not five times. A sale of the item
--- (a new sale mail, Core/Ledger.lua's ScanInbox) sets the count back to 0, and returns from
--- before that sale never count again. Ingesting the same log twice adds nothing.
+-- A round is a lot that came back EXPIRED, read from the returns log (GC.MailReturns, entries
+-- `{ itemID, count, reason = "expired" | "cancelled", at }`, `at` in wall clock seconds). The
+-- ledger's inbox scan (Core/Ledger.lua's ScanInbox) writes an entry the first time it reads the
+-- lot's mail, however that mail is then taken. A cancelled lot does not count: the player chose to
+-- take it down. Returns of one item logged within ROUND_GAP_SECONDS of the last one counted are
+-- one round, so five copies of one flip coming back in one mailbox visit cut its price once, not
+-- five times. A sale of the item (a new sale mail, read by the same scan) sets the count back to 0,
+-- and returns from before that sale never count again. Ingesting the same log twice adds nothing.
 --
--- An entry is written before its lot is taken, and the mail loop takes it back when the take did
--- nothing (Core/MailLoop.lua, within the visit that wrote it). So an entry younger than
--- SETTLE_SECONDS is read afresh from the log on every Ingest and never written into the save: one
--- taken back leaves no round behind. An older entry is counted once, for good, as above.
+-- An entry younger than SETTLE_SECONDS is read afresh from the log on every Ingest and never
+-- written into the save, so while it is young the count follows the log; an older entry is counted
+-- once, for good, as above.
 --
 -- Saved in GC.db.sellRounds = { v = 1, lastReturnAt, items = { [itemID] = { rounds, returnAt,
 -- soldAt, at } } }, created lazily here and not through DEFAULTS, so a client that never loads
@@ -26,7 +26,7 @@ local M = GC.SellRounds
 M.VERSION = 1
 M.PRUNE_SECONDS = 30 * 86400
 M.ROUND_GAP_SECONDS = 3600
--- Far longer than a take stays unanswered: the loop gives one up after a few 0.15 s steps.
+-- How long an entry is counted from the log before it is counted into the save.
 M.SETTLE_SECONDS = 3600
 
 -- The live table (db.sellRounds) when it is ours to write, else nil.
