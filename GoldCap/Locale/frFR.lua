@@ -1438,4 +1438,9 @@ GC.Locales.frFR = {
   ["Take back lots that expired or that you cancelled."] = "Récupère les lots expirés ou que tu as annulés.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Récupère les objets des enchères remportées et le remboursement d'une enchère dépassée.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Récupère l'or et les objets envoyés par d'autres joueurs. Le courrier contre remboursement n'est jamais pris.",
+  ["Collect"] = "Récupérer",
+  ["Collect %d"] = "Récupérer %d",
+  ["Stop"] = "Arrêter",
+  ["More mail in %d s"] = "Plus de courrier dans %d s",
+  ["The mailbox did not answer"] = "La boîte aux lettres n'a pas répondu",
 }

@@ -144,5 +144,6 @@ UI/BuyAddBox.lua
 UI/BuySearch.lua
 UI/BuyVendorPanel.lua
 UI/BankRoute.lua
+UI/MailCollect.lua
 UI/SettingsFrame.lua
 Core/Init.lua

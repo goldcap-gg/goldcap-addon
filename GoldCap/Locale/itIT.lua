@@ -1434,4 +1434,9 @@ GC.Locales.itIT = {
   ["Take back lots that expired or that you cancelled."] = "Ritira i lotti scaduti o che hai annullato.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Ritira gli oggetti delle aste vinte e il rimborso di un'offerta superata.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Ritira oro e oggetti inviati da altri giocatori. La posta con contrassegno non viene mai ritirata.",
+  ["Collect"] = "Ritira",
+  ["Collect %d"] = "Ritira %d",
+  ["Stop"] = "Ferma",
+  ["More mail in %d s"] = "Altra posta tra %d s",
+  ["The mailbox did not answer"] = "La casella postale non ha risposto",
 }

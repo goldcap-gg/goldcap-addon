@@ -1441,4 +1441,9 @@ GC.Locales.esMX = {
   ["Take back lots that expired or that you cancelled."] = "Recupera los lotes que caducaron o que cancelaste.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Recoge los objetos de las subastas que ganaste y el reembolso de una puja superada.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Recoge el oro y los objetos que te enviaron otros jugadores. El correo contra reembolso nunca se recoge.",
+  ["Collect"] = "Recoger",
+  ["Collect %d"] = "Recoger %d",
+  ["Stop"] = "Detener",
+  ["More mail in %d s"] = "Más correo en %d s",
+  ["The mailbox did not answer"] = "El buzón no respondió",
 }

@@ -1338,4 +1338,9 @@ GC.Locales.zhTW = {
   ["Take back lots that expired or that you cancelled."] = "取回已過期或被你取消的拍賣品。",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "領取你拍得的物品，以及被超過的出價所退還的金幣。",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "領取其他玩家寄給你的金幣和物品。貨到付款郵件永遠不會被領取。",
+  ["Collect"] = "領取",
+  ["Collect %d"] = "領取 %d",
+  ["Stop"] = "停止",
+  ["More mail in %d s"] = "%d 秒後有更多郵件",
+  ["The mailbox did not answer"] = "郵箱沒有回應",
 }

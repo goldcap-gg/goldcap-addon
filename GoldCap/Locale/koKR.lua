@@ -1371,4 +1371,9 @@ GC.Locales.koKR = {
   ["Take back lots that expired or that you cancelled."] = "만료되었거나 직접 취소한 경매 물품을 되찾습니다.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "낙찰받은 물품과 상회 입찰로 돌려받는 골드를 수령합니다.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "다른 플레이어가 보낸 골드와 물품을 수령합니다. 착불 우편은 절대 수령하지 않습니다.",
+  ["Collect"] = "수령",
+  ["Collect %d"] = "수령 %d",
+  ["Stop"] = "중지",
+  ["More mail in %d s"] = "%d초 후 추가 우편",
+  ["The mailbox did not answer"] = "우편함이 응답하지 않았습니다",
 }

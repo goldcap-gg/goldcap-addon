@@ -1505,4 +1505,9 @@ GC.Locales.ukUA = {
   ["Take back lots that expired or that you cancelled."] = "Забирає лоти, у яких вийшов термін або які ви скасували.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Забирає предмети виграних лотів і повернення перебитої ставки.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Забирає золото й предмети, надіслані іншими гравцями. Листи з післяплатою ніколи не беруться.",
+  ["Collect"] = "Забрати",
+  ["Collect %d"] = "Забрати %d",
+  ["Stop"] = "Стоп",
+  ["More mail in %d s"] = "Ще пошта через %d с",
+  ["The mailbox did not answer"] = "Поштова скринька не відповіла",
 }

@@ -1504,4 +1504,9 @@ GC.Locales.ruRU = {
   ["Take back lots that expired or that you cancelled."] = "Забирает лоты, у которых истёк срок или которые вы отменили.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Забирает предметы выигранных лотов и возврат перебитой ставки.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Забирает золото и предметы, присланные другими игроками. Письма с наложенным платежом не берутся никогда.",
+  ["Collect"] = "Забрать",
+  ["Collect %d"] = "Забрать %d",
+  ["Stop"] = "Стоп",
+  ["More mail in %d s"] = "Ещё почта через %d с",
+  ["The mailbox did not answer"] = "Почтовый ящик не ответил",
 }

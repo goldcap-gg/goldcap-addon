@@ -1432,4 +1432,9 @@ GC.Locales.ptBR = {
   ["Take back lots that expired or that you cancelled."] = "Recupera os lotes que expiraram ou que você cancelou.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Coleta os itens dos leilões que você ganhou e o reembolso de um lance superado.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Coleta ouro e itens que outros jogadores enviaram. Correio com pagamento na entrega nunca é coletado.",
+  ["Collect"] = "Coletar",
+  ["Collect %d"] = "Coletar %d",
+  ["Stop"] = "Parar",
+  ["More mail in %d s"] = "Mais correio em %d s",
+  ["The mailbox did not answer"] = "A caixa de correio não respondeu",
 }

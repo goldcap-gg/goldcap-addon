@@ -1437,4 +1437,9 @@ GC.Locales.deDE = {
   ["Take back lots that expired or that you cancelled."] = "Holt Angebote zurück, die abgelaufen sind oder die du abgebrochen hast.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Holt die Gegenstände gewonnener Auktionen und die Rückzahlung eines überbotenen Gebots.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Holt Gold und Gegenstände, die dir andere Spieler geschickt haben. Nachnahme-Post wird nie genommen.",
+  ["Collect"] = "Einsammeln",
+  ["Collect %d"] = "Einsammeln %d",
+  ["Stop"] = "Stopp",
+  ["More mail in %d s"] = "Mehr Post in %d s",
+  ["The mailbox did not answer"] = "Der Briefkasten hat nicht geantwortet",
 }

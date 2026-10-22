@@ -1422,4 +1422,9 @@ GC.Locales.enUS = {
   ["Take back lots that expired or that you cancelled."] = "Take back lots that expired or that you cancelled.",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "Take the items of auctions you won, and the refund of an outbid bid.",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "Take gold and items other players sent you. Cash on delivery mail is never taken.",
+  ["Collect"] = "Collect",
+  ["Collect %d"] = "Collect %d",
+  ["Stop"] = "Stop",
+  ["More mail in %d s"] = "More mail in %d s",
+  ["The mailbox did not answer"] = "The mailbox did not answer",
 }

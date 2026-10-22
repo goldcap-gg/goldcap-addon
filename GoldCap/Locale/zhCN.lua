@@ -1337,4 +1337,9 @@ GC.Locales.zhCN = {
   ["Take back lots that expired or that you cancelled."] = "取回已过期或被你取消的拍卖品。",
   ["Take the items of auctions you won, and the refund of an outbid bid."] = "收取你拍得的物品，以及被超过的出价所退还的金币。",
   ["Take gold and items other players sent you. Cash on delivery mail is never taken."] = "收取其他玩家寄给你的金币和物品。货到付款邮件永远不会被收取。",
+  ["Collect"] = "收取",
+  ["Collect %d"] = "收取 %d",
+  ["Stop"] = "停止",
+  ["More mail in %d s"] = "%d 秒后有更多邮件",
+  ["The mailbox did not answer"] = "邮箱没有响应",
 }

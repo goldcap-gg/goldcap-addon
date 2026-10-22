@@ -972,6 +972,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
           AUCTION_OUTBID_MAIL_SUBJECT },
       }, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
     end
+    -- The Collect button (retail only; GC.MailCollect is nil where its file is not loaded). After the
+    -- ledger scan, in the same handler: a sale is read before the button can take its gold.
+    if GC.MailCollect then
+      if event == "MAIL_SHOW" then GC.MailCollect.OnMailShow() else GC.MailCollect.OnInboxUpdate() end
+    end
     -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
     -- it. Only MAIL_SHOW (not the repeated MAIL_INBOX_UPDATE) -- Auto only needs to know mail
     -- is open, once, the same way OnAuctionHouseShow's ahOpened fires once per AH visit.
@@ -982,6 +987,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnMailClosed then
       GC.Sniper.OnMailClosed()
     end
+    if GC.MailCollect then GC.MailCollect.OnMailClosed() end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).

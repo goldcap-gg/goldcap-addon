@@ -38,7 +38,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- UI/MailCollect.lua) are retail only in this wave: WoW: Forever must not change.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
-    ["Core/MailLoop.lua"] = true }
+    ["Core/MailLoop.lua"] = true, ["UI/MailCollect.lua"] = true }
 
   it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank and the mail collect files", function()
     local expected = {}
