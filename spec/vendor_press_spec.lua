@@ -198,6 +198,26 @@ describe("VendorPress", function()
     assert.equal(12, #calls.use)
   end)
 
+  -- Never sell this, chosen while a press runs: the item's rows still to come are left alone.
+  it("skips the rows of an item kept during the run, and only those", function()
+    local r = rows(4)
+    r[1].itemID, r[2].itemID, r[3].itemID, r[4].itemID = 55, 66, 77, 77
+    machine:Press(r)
+    machine:Skip(77)
+    drain()
+    assert.same({ { 0, 1 }, { 0, 2 } }, calls.use)
+    assert.same({ sold = 2, copper = 30, stopped = nil }, calls.report[1])
+  end)
+
+  it("Skip with no run going does nothing", function()
+    machine:Skip(77)
+    local r = rows(2)
+    r[1].itemID, r[2].itemID = 77, 77
+    machine:Press(r)
+    drain()
+    assert.equal(2, #calls.use)
+  end)
+
   it("a new visit clears the one-per-press mode", function()
     machine.oneAtATime = true
     machine:OnMerchantShow()

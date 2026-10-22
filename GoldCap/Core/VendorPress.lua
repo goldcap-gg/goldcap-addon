@@ -93,7 +93,8 @@ attempt = function(self, fromTimer)
     if d.cursorBusy() then return stop(self, "cursor") end
     local row = run.rows[run.idx]
     run.idx = run.idx + 1
-    local info = d.slot(row.bag, row.slot)
+    local kept = row.itemID ~= nil and run.skip[row.itemID]
+    local info = not kept and d.slot(row.bag, row.slot) or nil
     if info and not info.isLocked and info.link == row.link then
       run.cur, run.ticks, run.fromTimer = row, 0, fromTimer
       d.use(row.bag, row.slot)
@@ -109,10 +110,16 @@ function Machine:Press(rows)
   if not rows or #rows == 0 then return end
   self.token = self.token + 1
   self.run = {
-    rows = rows, idx = 1, sold = 0, copper = 0, ticks = 0, fromTimer = false,
+    rows = rows, idx = 1, sold = 0, copper = 0, ticks = 0, fromTimer = false, skip = {},
     limit = self.oneAtATime and 1 or GC.VendorSelect.MAX_STACKS,
   }
   attempt(self, false)
+end
+
+-- Never sell this, chosen while a press runs: the item's rows still to come are skipped. A sale
+-- already made stays made (Buyback has it).
+function Machine:Skip(itemID)
+  if self.run and itemID ~= nil then self.run.skip[itemID] = true end
 end
 
 function Machine:Stop(reason) stop(self, reason) end

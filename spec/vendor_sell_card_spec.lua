@@ -436,6 +436,17 @@ describe("vendor sell card", function()
       assert.equal(0, #used)
     end)
 
+    it("Never sell this during a run takes that item out of the run", function()
+      click() -- sells 0:3, the dearest
+      local cheapest = bags["0:1"].itemID
+      C.Keep(cheapest)
+      drain()
+      assert.same({ { 0, 3 }, { 0, 2 } }, used)
+      assert.same({ "Sold 2 stacks for 50c. Buyback has them until you leave." }, printed)
+      assert.is_true(GC.db.vendorKeep[cheapest])
+      assert.is_not_nil(bags["0:1"])
+    end)
+
     it("the trade timer confirm event stops the run", function()
       click()
       C.OnTradeTimerConfirm()

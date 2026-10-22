@@ -323,11 +323,13 @@ function C.Refresh()
   frame:Show()
 end
 
--- Never sell this: the item stays in the bags from now on, and its line goes.
+-- Never sell this: the item stays in the bags from now on, and its line goes. During a press the
+-- run leaves its stacks still to come alone; the list is read again when the run ends.
 function C.Keep(itemID)
   if type(itemID) ~= "number" or not GC.db then return end
   GC.db.vendorKeep = GC.db.vendorKeep or {}
   GC.db.vendorKeep[itemID] = true
+  if C.machine then C.machine:Skip(itemID) end
   C.Refresh()
 end
 
