@@ -39,6 +39,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true }
   RETAIL_ONLY["Core/CraftMath.lua"] = true
   RETAIL_ONLY["Core/CraftQueue.lua"] = true
+  RETAIL_ONLY["Services/CraftClient.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

@@ -106,6 +106,7 @@ Services/Sell/Owned.lua
 Services/Sell/Walk.lua
 Services/Sell/Post.lua
 Services/Sell/Session.lua
+Services/CraftClient.lua
 Data/MarketData.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
