@@ -598,7 +598,8 @@ local function build(sniperFrame)
   end
 
   -- One card per settings group. Rows are laid out from the card's own top so the
-  -- two columns can stack independently; height = 24 (title band) + n*STEP + 6.
+  -- two columns can stack independently; height = 24 (title band) + n*STEP + 6 while every label
+  -- holds one line, more when one wraps (flowCard).
   -- `withDefaultsButton` adds a small kit button (ghost/badge, like the duration segments) to
   -- the title band, right-aligned, that resets every field THIS card built back to
   -- GC.DEFAULTS -- only the two left cards (numeric-only) carry one; fieldRow below is what
@@ -609,6 +610,7 @@ local function build(sniperFrame)
     local t = Theme.Num(c, 9); t:SetJustifyH("LEFT"); t:SetPoint("TOPLEFT", Theme.pad.m, -8)
     t:SetText(cardTitle); t:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     function c.rowY(i) return -(24 + (i - 1) * STEP) end
+    c.rows = {}
     if withDefaultsButton then
       c.resets, c.displays = {}, {}
       local resetBtn = Theme.Button(c, "ghost", "badge")
@@ -625,6 +627,47 @@ local function build(sniperFrame)
       end)
     end
     return c
+  end
+
+  -- A row of a card: its label, and the control right of it (`width` px wide, its top `dy` px
+  -- off the label's), in the order the rows are added. A row with no control is a note across the
+  -- card.
+  local function addRow(c, label, control, width, dy)
+    c.rows[#c.rows + 1] = { label = label, control = control, width = width or 0, dy = dy or 0 }
+  end
+
+  -- Lays a card's rows out from its width (M11: labels were cut with "..." at the smallest
+  -- window, in most languages, and at the largest font scale in English too). Every label wraps
+  -- in what its control leaves it, a word wider than that breaks rather than being cut, and a row
+  -- is as tall as its label needs, never under the STEP rhythm. The label is bound by the width
+  -- alone, never by a RIGHT anchor to its control, which would pin it to the control's height.
+  -- The rows under a taller one move down, the card grows, and so does its column (fitContent).
+  -- `c.footer` (VENDOR's Forget kept items) spans the card under the last row. Before the card
+  -- has a width the labels keep one line, until its first OnSizeChanged.
+  local function flowCard(c, width)
+    width = width or c:GetWidth() or 0
+    local y = 24
+    for _, row in ipairs(c.rows) do
+      local label = row.label
+      local room = width - 2 * Theme.pad.m - (row.control and row.width + Theme.pad.s or 0)
+      label:ClearAllPoints()
+      label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+      if room > 0 then label:SetWidth(room) end
+      label:SetWordWrap(true)
+      if label.SetNonSpaceWrap then label:SetNonSpaceWrap(true) end
+      if row.control then
+        row.control:ClearAllPoints()
+        row.control:SetPoint("TOPRIGHT", -Theme.pad.m, -y + row.dy)
+      end
+      y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
+    end
+    if c.footer then
+      c.footer:ClearAllPoints()
+      c.footer:SetPoint("TOPLEFT", Theme.pad.m, -y + 3)
+      c.footer:SetPoint("TOPRIGHT", -Theme.pad.m, -y + 3)
+      y = y + STEP
+    end
+    c:SetHeight(y + 6)
   end
 
   -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning the scroll child's left
@@ -668,7 +711,7 @@ local function build(sniperFrame)
   -- VENDOR (the Sell to vendor card's two kinds, and the items kept for good): retail only, as the
   -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under MAIL (under
   -- RISK CHECKS where MAIL is absent), never on the same anchor. VENDOR is 108 while each of its
-  -- labels holds one line, which spec/button_label_width_spec.lua pins (flowVendor).
+  -- labels holds one line, which spec/button_label_width_spec.lua pins (flowCard).
   local vendor
   if not isForeverClient() then
     vendor = card(content, GC.L["VENDOR"], 3)
@@ -705,10 +748,9 @@ local function build(sniperFrame)
 
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, FIELD_W)
 
     local refreshField = bindNumberField(box, key, opts)
     refreshers[#refreshers + 1] = refreshField
@@ -718,8 +760,6 @@ local function build(sniperFrame)
     end
 
     attachExplanation({ label, box }, labelText, sentence, defaultLine(key, opts))
-    -- Handed back so a row may let its label wrap where its card has room under it.
-    return label
   end
 
   -- Task S: Forever's own "Min profit per buy" -- its own key
@@ -742,10 +782,9 @@ local function build(sniperFrame)
     local labelText = GC.L["Min profit per buy (copper)"]
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, FIELD_W)
 
     local KEY = "foreverMinimumProfitCopper"
     local refreshField = bindNumberField(box, KEY, {
@@ -776,8 +815,8 @@ local function build(sniperFrame)
     toUI = function(v) return v / 10000 end,
     toStorage = function(v) return v * 10000 end, unit = "g" }
 
-  -- Task S: WHAT COUNTS AS A DEAL keeps four slots in both clients so the card is one height
-  -- everywhere (no reflow inside it) -- Forever just fills them differently: its own min-profit
+  -- Task S: WHAT COUNTS AS A DEAL keeps four rows in both clients (each as tall as its text needs,
+  -- flowCard) -- Forever just fills them differently: its own min-profit
   -- row, Max wallet, a grey note about the vendor-row wallet carve-out (Core/ForeverDeals.lua's
   -- BuyLimits), then Max units. Min return per buy % (minimumRoi) is retail-Evaluate-only --
   -- GC.SniperDecision.EvaluateCeiling/EvaluateCeilingLot (the whole of a Forever Check) never
@@ -799,13 +838,14 @@ local function build(sniperFrame)
     -- price, so retail's 5% share left nothing to buy at low level -- while this field stays at
     -- that shipped 5%, a vendor row gets half the wallet instead. A player who has already
     -- changed it gets exactly what they typed, unclamped by this carve-out.
+    -- A row of its own: it runs to three lines across the card, and the row under it moves down
+    -- for them rather than being drawn over.
     local note = Theme.Num(whatCounts, 9)
     note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
-    note:SetPoint("TOPRIGHT", -Theme.pad.m, whatCounts.rowY(3))
     note:SetJustifyH("LEFT")
-    note:SetWordWrap(true)
     note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     note:SetText(GC.L["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+    addRow(whatCounts, note)
   end
   -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the
   -- ROI floor above. A ceiling and not a target: what a buy actually takes is still set by how
@@ -858,12 +898,12 @@ local function build(sniperFrame)
 
     local label = Theme.Label(posting, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
-    label:SetPoint("RIGHT", hShort, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
     -- relabeled to the shorter "Duration" (no spec pins on the string).
     label:SetText(GC.L["Duration"])
+    -- The three segments and their two 2px gaps, placed by the rightmost one.
+    addRow(posting, label, hLong, 3 * 40 + 2 * 2)
 
     refreshers[#refreshers + 1] = bindDurationSegments({ hShort, hMid, hLong })
 
@@ -893,13 +933,11 @@ local function build(sniperFrame)
   -- The cancel queue's threshold (Core/CancelQueue.lua's undercutPct, read by
   -- Services/Sell/Compose.lua). Retail only, beside the followed groups it goes with. Deliberately
   -- not in GC.DEFAULTS, the precedent foreverMinProfitRow set: an unset key is 0 in code, and a
-  -- save that never had it stays as it was. The last row of its card, so its label may wrap
-  -- into the room under it rather than be cut.
+  -- save that never had it stays as it was.
   if not isForeverClient() then
-    local cancelLabel = fieldRow(posting, 3, GC.L["Min. undercut to cancel (%)"], "cancelUndercutPct",
+    fieldRow(posting, 3, GC.L["Min. undercut to cancel (%)"], "cancelUndercutPct",
       { min = 0, max = 20, unit = "%", defaultValue = function() return 0 end },
       GC.L["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."])
-    cancelLabel:SetWordWrap(true)
   end
 
   local function toggleRow(cardFrame, i, labelText, key, sentence)
@@ -908,14 +946,12 @@ local function build(sniperFrame)
 
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, box:GetWidth())
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
     attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
-    return label, box
   end
 
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.
@@ -960,8 +996,7 @@ local function build(sniperFrame)
 
   -- Short labels, since the card's title already says MAIL: each fits its row on one line at the
   -- largest font scale and the smallest window, in every language (spec/settings_controls_spec.lua
-  -- measures them in the label face). A label wraps rather than being cut should a client draw it
-  -- wider than that measure.
+  -- measures them in the label face). Should a client draw one wider, it wraps (flowCard).
   if mail then
     local rows = {
       { GC.L["Sales"], "collectSales", GC.L["Take the gold from sold auctions."] },
@@ -972,53 +1007,24 @@ local function build(sniperFrame)
         GC.L["Take gold and items other players sent you. Cash on delivery mail is never taken."] },
     }
     for i, row in ipairs(rows) do
-      toggleRow(mail, i, row[1], row[2], row[3]):SetWordWrap(true)
+      toggleRow(mail, i, row[1], row[2], row[3])
     end
   end
 
   -- VENDOR's labels are short in every language, the whole rule in the hover sentence, and
   -- spec/button_label_width_spec.lua holds each to one line of its row at the largest font scale
-  -- in the narrowest window. Should one still need more, it is never cut: its row wraps, and the
-  -- rows under it and the card's own height follow the labels' real heights (flowVendor), again on
-  -- every resize of the card and every change of the font scale.
+  -- in the narrowest window. Should one still need more, it wraps like every row (flowCard), and
+  -- Forget kept items, the card's footer, moves down with it.
   if vendor then
-    local rows = {
-      { toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
-        GC.L["Sell to vendor lists poor quality items a vendor buys."]) },
-      { toggleRow(vendor, 2, GC.L["Better at vendor"], "vendorWorth",
-        GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."]) },
-    }
+    toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
+      GC.L["Sell to vendor lists poor quality items a vendor buys."])
+    toggleRow(vendor, 2, GC.L["Better at vendor"], "vendorWorth",
+      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."])
 
     local forget = Theme.Button(vendor, "ghost", "plaque")
     forget:SetHeight(26)
     forget:SetLabel(GC.L["Forget kept items"])
-
-    -- A row is as tall as its label needs, never under the STEP rhythm; the label is bound by the
-    -- card's width alone (no RIGHT anchor to the pill, which would pin it to the pill's height).
-    -- Before the card has a width the labels keep one line, until its first OnSizeChanged.
-    local function flowVendor()
-      local y = 24
-      for _, row in ipairs(rows) do
-        local label, box = row[1], row[2]
-        local width = (vendor:GetWidth() or 0) - 2 * Theme.pad.m - box:GetWidth() - Theme.pad.s
-        label:ClearAllPoints()
-        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
-        if width > 0 then label:SetWidth(width) end
-        label:SetWordWrap(true)
-        box:ClearAllPoints()
-        box:SetPoint("TOPRIGHT", -Theme.pad.m, -y)
-        y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
-      end
-      forget:ClearAllPoints()
-      forget:SetPoint("TOPLEFT", Theme.pad.m, -y + 3)
-      forget:SetPoint("TOPRIGHT", -Theme.pad.m, -y + 3)
-      vendor:SetHeight(y + STEP + 6)
-      -- A taller card makes a taller column: the scroll child follows.
-      fitContent()
-    end
-    flowVendor()
-    vendor:HookScript("OnSizeChanged", flowVendor)
-    Theme.OnRescale(flowVendor)
+    vendor.footer = forget
 
     local function paintForget()
       if next(GC.db and GC.db.vendorKeep or {}) ~= nil then forget:Enable() else forget:Disable() end
@@ -1031,14 +1037,11 @@ local function build(sniperFrame)
     refreshers[#refreshers + 1] = paintForget
   end
 
-  -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
-  -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px
-  -- at 1.3x. Budget at the 640 minimum: 12 (pad.m) + label + 8 (pad.s) + 48 (readout) +
-  -- 8 (pad.s) + 110 (slider track) + 12 (pad.m) = 259 -> label gets 61px, which ellipsizes at
-  -- 1.3x scale and fits at 1.0x.
+  -- I1: this label once ran straight into the readout at the 640 minimum. Budget there: 12
+  -- (pad.m) + label + 8 (pad.s) + 48 (readout) + 8 (pad.s) + 110 (slider track) + 12 (pad.m) =
+  -- the card (256) -> the label gets 58px, and wraps in them (flowCard).
   local scaleLabel = Theme.Label(display, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
-  scaleLabel:SetWordWrap(false)
   scaleLabel:SetText(GC.L["Font scale"])
 
   local slider, sliderTrack = makeSlider(display, 110, 0.9, 1.3, 0.05)
@@ -1048,13 +1051,13 @@ local function build(sniperFrame)
   scaleReadout:SetWidth(48)
   scaleReadout:SetPoint("RIGHT", sliderTrack, "LEFT", -Theme.pad.s, 0)
 
-  scaleLabel:SetPoint("RIGHT", scaleReadout, "LEFT", -Theme.pad.s, 0)
+  -- The track places the row's controls (the readout hangs off it), 8px under the label's top.
+  addRow(display, scaleLabel, sliderTrack, 110 + Theme.pad.s + 48, -8)
 
   refreshers[#refreshers + 1] = bindFontSlider(slider, scaleReadout)
 
   local windowLabel = Theme.Label(display, 12)
   windowLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(2))
-  windowLabel:SetWordWrap(false)
   windowLabel:SetText(GC.L["Window position & size"])
 
   local resetBtn = Theme.Button(display, "ghost", "plaque")
@@ -1063,7 +1066,7 @@ local function build(sniperFrame)
   resetBtn:SetLabel(GC.L["RESET WINDOW"])
   resetBtn:SetScript("OnClick", resetWindow)
 
-  windowLabel:SetPoint("RIGHT", resetBtn, "LEFT", -Theme.pad.s, 0)
+  addRow(display, windowLabel, resetBtn, 120, 3)
 
   -- Language. A twelve-way choice is not a segment group, and this addon embeds no dropdown
   -- library -- MenuUtil is the engine's own menu framework (Patch 11.0, the replacement for
@@ -1074,14 +1077,13 @@ local function build(sniperFrame)
   -- rather read their own language too, but that is the side effect, not the reason.
   local langLabel = Theme.Label(display, 12)
   langLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(3))
-  langLabel:SetWordWrap(false)
   langLabel:SetText(GC.L["Language"])
 
   local langBtn = Theme.Button(display, "ghost", "plaque")
   langBtn:SetSize(120, 26)
   langBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(3) + 3)
 
-  langLabel:SetPoint("RIGHT", langBtn, "LEFT", -Theme.pad.s, 0)
+  addRow(display, langLabel, langBtn, 120, 3)
 
   local function localeSetting()
     return (GC.db and GC.db.settings and GC.db.settings.locale) or "auto"
@@ -1128,10 +1130,29 @@ local function build(sniperFrame)
   end)
 
   refreshers[#refreshers + 1] = displayLanguage
-  -- The scroll child follows the frame's width, and a frame resized while hidden does not
-  -- reliably say so: sized again on every show.
-  refreshers[#refreshers + 1] = fitContent
-  fitContent()
+
+  -- Every card flows its rows again whenever its width changes, and every card on a font scale
+  -- change (the kit re-fonts before it calls this, so the labels measure at the new size); the
+  -- scroll child follows each time. A frame resized while hidden does not reliably say so, so
+  -- all of it runs again on every show.
+  local function layout()
+    fitContent()
+    for _, cards in pairs(columns) do
+      for _, c in ipairs(cards) do flowCard(c) end
+    end
+    fitContent()
+  end
+  for _, cards in pairs(columns) do
+    for _, c in ipairs(cards) do
+      c:HookScript("OnSizeChanged", function(_, width)
+        flowCard(c, width)
+        fitContent()
+      end)
+    end
+  end
+  Theme.OnRescale(layout)
+  refreshers[#refreshers + 1] = layout
+  layout()
 
   -- Re-syncs every control from GC.db.settings.sniper (and Theme.Scale()) each time the overlay
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto

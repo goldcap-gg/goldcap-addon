@@ -28,6 +28,7 @@ describe("Settings controls", function()
     function r:GetHeight() return self.height or 0 end
     function r:SetJustifyH(j) self.justify = j end
     function r:SetWordWrap(v) self.wordWrap = v end
+    function r:SetNonSpaceWrap(v) self.nonSpaceWrap = v end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue or "" end
     function r:SetLabel(t) self.label = t end
@@ -447,6 +448,30 @@ describe("Settings controls", function()
       assert.equal(24 + 2 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
     end)
 
+    -- The note is a row of its own: three lines at the 640 minimum, and Max units per buy under
+    -- them rather than drawn over the third.
+    it("moves Max units per buy under the vendor-wallet note, however many lines it takes", function()
+      GC.SettingsUI.Toggle()
+      local card = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+      card.width = 256
+      card.scripts.OnSizeChanged(card, 256, card.height)
+      local wallet, note, units
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == "Max wallet per buy %" then wallet = child end
+        if child.kind == "FontString" and child.textValue
+            and child.textValue:find("While this stays at the default 5%", 1, true) then note = child end
+        if child.kind == "FontString" and child.textValue == "Max units per buy" then units = child end
+      end
+      assert.equal(256 - 2 * 12, note.width)
+      local lines = note:GetStringHeight() / 14
+      assert.is_true(lines > 1)
+      local function topOf(node)
+        for _, p in ipairs(node.points) do if p[1] == "TOPLEFT" then return p[3] end end
+      end
+      assert.equal(topOf(wallet) - 26, topOf(note))
+      assert.equal(topOf(note) - (lines * 14 + 6), topOf(units))
+    end)
+
     it("shows the vendor-wallet carve-out as a grey note under Max wallet per buy %", function()
       GC.SettingsUI.Toggle()
       local labels = {}
@@ -793,6 +818,109 @@ describe("Settings controls", function()
     assert.equal(124, card.height)
   end)
 
+  -- No Settings label is cut with "..." (group-rules review M11: most labels were, at the 640
+  -- minimum in most languages, and at the largest font scale in English too; M7: the cancel
+  -- threshold's wrapped label ran past its card). Every row's label wraps in what its control
+  -- leaves it, a word wider than that breaks, and its row grows: the rows under it, the card and
+  -- the scroll child follow. The fake measures 6px a character and 14px a line.
+  describe("every row label", function()
+    local ROWS = {
+      ["WHAT COUNTS AS A DEAL"] = { "Min profit per buy (gold)", "Min return per buy %", "Max wallet per buy %",
+        "Max units per buy" },
+      ["RISK CHECKS"] = { "Dump-trend cap %", "Spike-trend threshold %", "Wall absorb window (hours)" },
+      ["POSTING"] = { "Duration", "Buy cap (% of usual price)", "Min. undercut to cancel (%)" },
+      ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Auto-scan on next AH visit", "Post above the cheapest",
+        "Stop and open the buy window on your price" },
+      ["DISPLAY"] = { "Font scale", "Window position & size", "Language" },
+    }
+
+    local function labelIn(card, text)
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == text then return child end
+      end
+      error("no label " .. text)
+    end
+    -- The TOPLEFT or TOPRIGHT offset a widget was last placed at (the short SetPoint form).
+    local function top(node, point)
+      for _, p in ipairs(node.points) do
+        if p[1] == (point or "TOPLEFT") then return type(p[2]) == "number" and p[3] or p[5] end
+      end
+    end
+    local function scrollChild(panel)
+      local scroll
+      walk(panel, function(node) if node.kind == "ScrollFrame" then scroll = node end end)
+      return scroll.scrollChild
+    end
+    local function layOut(card, width)
+      card.width = width
+      card.scripts.OnSizeChanged(card, width, card.height)
+    end
+
+    it("wraps, breaks a long word and is bound by its width alone", function()
+      GC.SettingsUI.Toggle()
+      for title, labels in pairs(ROWS) do
+        local card = cardByTitle(_G.GoldCapSniperFrame, title)
+        for _, text in ipairs(labels) do
+          local label = labelIn(card, text)
+          assert.is_true(label.wordWrap, text)
+          assert.is_true(label.nonSpaceWrap, text)
+          for _, p in ipairs(label.points) do assert.not_equal("RIGHT", p[1], text) end
+        end
+      end
+    end)
+
+    it("takes the room its control leaves, and its row grows for a second line", function()
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      -- 256 is a card at the 640 minimum. "Stop and open the buy window on your price" needs two
+      -- lines in the 188 a toggle leaves; the rest of AUTOMATION & ALERTS one.
+      local automation = cardByTitle(panel, "AUTOMATION & ALERTS")
+      layOut(automation, 256)
+      local stop = labelIn(automation, "Stop and open the buy window on your price")
+      assert.equal(256 - 12 - 36 - 8 - 12, stop.width)
+      assert.equal(-(24 + 3 * 26), top(stop))
+      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+
+      -- DISPLAY: "Font scale" in the 58 the slider leaves and "Window position & size" in the 104
+      -- the reset button leaves take two lines; the button and the language row move down.
+      local display = cardByTitle(panel, "DISPLAY")
+      layOut(display, 256)
+      assert.equal(256 - 12 - 166 - 8 - 12, labelIn(display, "Font scale").width)
+      assert.equal(256 - 12 - 120 - 8 - 12, labelIn(display, "Window position & size").width)
+      assert.equal(-(24 + 34), top(labelIn(display, "Window position & size")))
+      assert.equal(-(24 + 34) + 3, top(buttonIn(display, "RESET WINDOW"), "TOPRIGHT"))
+      assert.equal(-(24 + 34 + 34), top(labelIn(display, "Language")))
+      assert.equal(24 + 34 + 34 + 26 + 6, display.height)
+
+      -- M7: the cancel threshold's label wraps inside POSTING, which grows for it.
+      local posting = cardByTitle(panel, "POSTING")
+      layOut(posting, 256)
+      assert.equal(256 - 12 - 64 - 8 - 12, labelIn(posting, "Min. undercut to cancel (%)").width)
+      assert.equal(24 + 26 + 26 + 34 + 6, posting.height)
+
+      -- The scroll child follows the taller column.
+      local left, right = 7, 7
+      for i, title in ipairs({ "WHAT COUNTS AS A DEAL", "RISK CHECKS", "VENDOR" }) do
+        left = left + (i > 1 and 12 or 0) + cardByTitle(panel, title).height
+      end
+      for i, title in ipairs({ "POSTING", "AUTOMATION & ALERTS", "DISPLAY" }) do
+        right = right + (i > 1 and 12 or 0) + cardByTitle(panel, title).height
+      end
+      assert.equal(math.max(left, right) + GC.Theme.pad.m, scrollChild(panel).height)
+    end)
+
+    it("lays every card out again when the font scale changes", function()
+      local hooks = {}
+      GC.Theme.OnRescale = function(fn) hooks[#hooks + 1] = fn end
+      GC.SettingsUI.Toggle()
+      local automation = cardByTitle(settingsPanel(), "AUTOMATION & ALERTS")
+      automation.width = 256
+      for _, fn in ipairs(hooks) do fn(1.3) end
+      assert.equal(188, labelIn(automation, "Stop and open the buy window on your price").width)
+      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+    end)
+  end)
+
   it("writes the sell toggles to settings.sniper", function()
     GC.db.settings.sniper.vendorJunk = true
     GC.db.vendorKeep = {}
@@ -1047,7 +1175,11 @@ describe("Settings controls", function()
         return left, right
       end
 
+      -- The card at the smallest window, laid out as the client lays it out once it has that width.
       local mail = cardByTitle(panel, "MAIL")
+      local cardLeft, cardRight = edges(mail)
+      mail.width = cardRight - cardLeft
+      mail.scripts.OnSizeChanged(mail, mail.width, mail.height)
       local translations = {}
       for _, code in ipairs(helper.localeCodes()) do
         local G = { Locales = {} }

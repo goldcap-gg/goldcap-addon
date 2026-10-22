@@ -35,6 +35,8 @@
   percent.
 - Settings: the Vendor card turns either kind off, Sell junk or Better at vendor, and forgets the
   items you kept.
+- Settings: no setting's name is cut short any more. A long one takes a second line in a narrow
+  window or at a large font size, and the cards scroll when they do not all fit.
 
 ## 0.22.1 (unreleased)
 
