@@ -509,6 +509,41 @@ local function build(sniperFrame)
     headerRule:SetHeight(1)
   end
 
+  -- Under the rule the cards scroll, so a column taller than the drawer still reaches its last
+  -- card at the window's smallest height, and a new card no longer raises that height
+  -- (WIN.RESIZE_MIN_HEIGHT in UI/SniperFrame.lua). The kit's scroll, as the Sold tab and the Sell
+  -- inspector have it: Blizzard's UIPanelScrollFrameTemplate under Theme.QuietScrollBar. Its bar
+  -- hangs 6px right of the frame and is 16px wide (Blizzard_SharedXML/SecureScrollTemplates.xml),
+  -- so the frame stops 22px short of the panel's right edge and the bar lands in that margin; it
+  -- is hidden while everything fits (scrollBarHideable, read by ScrollFrame_OnScrollRangeChanged).
+  -- The cards hang off the scroll child: its width is the frame's, its height the taller column's
+  -- (fitContent below).
+  local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end
+  scroll.scrollBarHideable = true
+  if scroll.ScrollBar then scroll.ScrollBar:Hide() end
+  scroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -41)
+  scroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 0)
+  local content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(1, 1)
+  scroll:SetScrollChild(content)
+
+  -- Each column's cards, top to bottom, stacked 12px apart from 7px under the scroll frame's top
+  -- (48px under the panel's, where they always started).
+  local columns = { left = {}, right = {} }
+  local function fitContent()
+    local width = scroll:GetWidth() or 0
+    if width > 0 then content:SetWidth(width) end
+    local tallest = 0
+    for _, cards in pairs(columns) do
+      local height = 7
+      for i, c in ipairs(cards) do height = height + (i > 1 and 12 or 0) + (c:GetHeight() or 0) end
+      tallest = math.max(tallest, height)
+    end
+    content:SetHeight(tallest + Theme.pad.m)
+  end
+  scroll:HookScript("OnSizeChanged", fitContent)
+
   local refreshers = {}
 
   -- Hover explanation shared by a row's label and its control (edit box / toggle / duration
@@ -592,16 +627,17 @@ local function build(sniperFrame)
     return c
   end
 
-  -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning panel-left to
-  -- panel-CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
+  -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning the scroll child's left
+  -- edge to its CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
   -- moved out of the UI entirely (Core/DealMath.lua still reads their keys/defaults for row
   -- ordering; only the settings surface for them is gone) because nobody outside this codebase
   -- could say what "HOT -- min sold/day = 3" meant. What is left is the three numbers that
   -- decide whether a buy happens at all, and the three that decide when the engine stops
   -- trusting the data it is looking at.
-  local whatCounts = card(panel, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
-  whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
-  whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  local whatCounts = card(content, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
+  whatCounts:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -7)
+  whatCounts:SetPoint("RIGHT", content, "CENTER", -7, 0)
+  columns.left[#columns.left + 1] = whatCounts
 
   -- Task S: RISK CHECKS (dumpTrendPct/spikeTrendPct/wallAbsorbHours) never built at all in Forever --
   -- every one of them feeds either SniperDecision.Evaluate's retail exit-price math or
@@ -611,40 +647,45 @@ local function build(sniperFrame)
   -- skipping it leaves no gap to reflow (whatCounts is simply the whole left column).
   local brakes
   if not isForeverClient() then
-    brakes = card(panel, GC.L["RISK CHECKS"], 3, true)
+    brakes = card(content, GC.L["RISK CHECKS"], 3, true)
     brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
-    brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+    brakes:SetPoint("RIGHT", content, "CENTER", -7, 0)
+    columns.left[#columns.left + 1] = brakes
   end
 
   -- MAIL: what the Collect button beside the mailbox takes (UI/MailCollect.lua). That file loads
   -- on retail only, so GC.MailCollect is the capability check and WoW: Forever never builds the
   -- card. It stacks under RISK CHECKS (or under WHAT COUNTS where that is absent), which makes
-  -- the left column the taller one: see WIN.RESIZE_MIN_HEIGHT in UI/SniperFrame.lua.
+  -- the left column taller than the drawer at the window's smallest height: the cards scroll.
   local mail
   if GC.MailCollect then
-    mail = card(panel, GC.L["MAIL"], 4)
+    mail = card(content, GC.L["MAIL"], 4)
     mail:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
-    mail:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+    mail:SetPoint("RIGHT", content, "CENTER", -7, 0)
+    columns.left[#columns.left + 1] = mail
   end
 
-  -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
-  -- panel-right.
+  -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning the scroll child's
+  -- CENTER+7 to its right edge.
   -- Three rows on retail: the cancel threshold (row 3, below) is retail only, like the groups
   -- whose floors it sits beside.
-  local posting = card(panel, GC.L["POSTING"], isForeverClient() and 2 or 3)
-  posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
-  posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  local posting = card(content, GC.L["POSTING"], isForeverClient() and 2 or 3)
+  posting:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -7)
+  posting:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = posting
 
   -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
   -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
   -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
+  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
-  automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  automation:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = automation
 
-  local display = card(panel, GC.L["DISPLAY"], 3)
+  local display = card(content, GC.L["DISPLAY"], 3)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
-  display:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  display:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = display
 
   local function fieldRow(cardFrame, i, labelText, key, opts, sentence)
     local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
@@ -1020,6 +1061,10 @@ local function build(sniperFrame)
   end)
 
   refreshers[#refreshers + 1] = displayLanguage
+  -- The scroll child follows the frame's width, and a frame resized while hidden does not
+  -- reliably say so: sized again on every show.
+  refreshers[#refreshers + 1] = fitContent
+  fitContent()
 
   -- Re-syncs every control from GC.db.settings.sniper (and Theme.Scale()) each time the overlay
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto

@@ -74,17 +74,16 @@ WIN.RESIZE_MAX_WIDTH = 1100
 --     own reserved line height, anchored at DG.CONTROLS_H by resizeDialogDiagnostics)
 --   + DG.CONTROLS_H(78)                                                     = 496  (bottom
 --     margin + Cancel + gap + Buy + gap-to-status)
--- That is 496 against a drawer of (RESIZE_MIN_HEIGHT - CH.TITLEBAR(32)) = 468, so at the very
--- smallest window the banner slot and the top stack DO meet. Left at 500 deliberately: the
+-- That is 496 against a drawer of (RESIZE_MIN_HEIGHT - CH.TITLEBAR(32)) = 438, so at the very
+-- smallest window the banner slot and the top stack DO meet. Left at 470 deliberately: the
 -- banner is the requote alarm, which only exists mid-purchase, and raising the floor to 540
--- would cost every player 40px of deals list to reserve a slot most sessions never draw. What
+-- would cost every player 70px of deals list to reserve a slot most sessions never draw. What
 -- the v3 layout did buy is the Details toggle: it needs DG.FIXED_HEIGHT_OPEN(550) for a
 -- purchase and 536 for a refusal (no quantity block), both now inside the docked AH drawer's
 -- ~565 ceiling -- the old pair was 548/728 and could never open there at all.
--- 500 and not 470 since the Settings window's left column grew a MAIL card: 48 (header) + WHAT
--- COUNTS 134 + RISK CHECKS 108 + MAIL 134 + two 12px gaps = 448, plus the 12px bottom margin = 460
--- against a drawer of 500 - 32 = 468 (spec/settings_controls_spec.lua pins this).
-WIN.RESIZE_MIN_HEIGHT = 500
+-- The Settings drawer sets no floor here: its cards scroll (UI/SettingsFrame.lua), however tall
+-- their columns grow.
+WIN.RESIZE_MIN_HEIGHT = 470
 WIN.RESIZE_MAX_HEIGHT = 900
 
 -- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by

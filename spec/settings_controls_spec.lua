@@ -119,6 +119,7 @@ describe("Settings controls", function()
     function r:SetThumbTexture(t) self.thumb = t end
     function r:SetValue(v) self.value = v end
     function r:GetValue() return self.value or 0 end
+    function r:SetScrollChild(child) self.scrollChild = child end
     return r
   end
 
@@ -938,9 +939,13 @@ describe("Settings controls", function()
       assert.is_number(maxScale)
 
       -- A region's left and right edge in window pixels at the smallest width, followed through its
-      -- anchors up to the window (the one region with no anchor of its own).
+      -- anchors up to the window (the one region with no anchor of its own). The cards' scroll
+      -- child has none either: it is as wide as its scroll frame (fitContent).
       local function edges(node)
-        if #node.points == 0 then return 0, minWidth end
+        if #node.points == 0 then
+          if node.parent and node.parent.scrollChild == node then return edges(node.parent) end
+          return 0, minWidth
+        end
         local left, right
         for _, p in ipairs(node.points) do
           local point, relative, relativePoint, x = p[1], p[2], p[3], p[4]
@@ -983,32 +988,42 @@ describe("Settings controls", function()
       end
     end)
 
-    it("reaches no lower than the window's smallest height", function()
+    -- The cards scroll under the header, so the MAIL card no longer sets the window's smallest
+    -- height (it raised it to 500, for WoW: Forever too): the window keeps its 470, and the left
+    -- column, now taller than the drawer there, is reached by scrolling.
+    it("sits in the scroll child, which is as tall as the taller column", function()
       local file = assert(io.open("GoldCap/UI/SniperFrame.lua"))
       local source = file:read("*a")
       file:close()
-      local minHeight = tonumber(source:match("WIN%.RESIZE_MIN_HEIGHT = (%d+)"))
-      local TITLEBAR, MARGIN = 32, GC.Theme.pad.m
+      assert.equal(470, tonumber(source:match("WIN%.RESIZE_MIN_HEIGHT = (%d+)")))
       GC.SettingsUI.Toggle()
       local panel = settingsPanel()
-
-      -- A card's top offset below the panel, following its first anchor up the left column.
-      local function top(card)
-        local point = card.points[1]
-        local relative = point[2]
-        if relative == panel then return -point[5] end
-        return top(relative) + relative.height - point[5]
+      local scroll
+      walk(panel, function(node) if node.kind == "ScrollFrame" then scroll = node end end)
+      assert.is_not_nil(scroll, "the cards are not in a scroll frame")
+      assert.equal(panel, scroll.parent)
+      local content = scroll.scrollChild
+      local left, right = {}, {}
+      for _, title in ipairs({ "WHAT COUNTS AS A DEAL", "RISK CHECKS", "MAIL" }) do
+        left[#left + 1] = cardByTitle(panel, title)
       end
-      local lowest = 0
-      walk(panel, function(node)
-        if node.kind == "Frame" and node.parent == panel and node.height and node.height > 0 then
-          lowest = math.max(lowest, top(node) + node.height)
+      for _, title in ipairs({ "POSTING", "AUTOMATION & ALERTS", "DISPLAY" }) do
+        right[#right + 1] = cardByTitle(panel, title)
+      end
+      local function column(cards)
+        local height = 7
+        for i, c in ipairs(cards) do
+          assert.equal(content, c.parent)
+          height = height + (i > 1 and 12 or 0) + c.height
         end
-      end)
-      local mail = cardByTitle(panel, "MAIL")
-      assert.is_true(top(mail) + mail.height <= lowest)
-      assert.is_true(lowest + MARGIN <= minHeight - TITLEBAR,
-        ("cards reach %d, the panel has %d"):format(lowest + MARGIN, minHeight - TITLEBAR))
+        return height
+      end
+      assert.equal(math.max(column(left), column(right)) + GC.Theme.pad.m, content.height)
+      -- Taller than the drawer at the smallest window: 470 less the 32px title bar and the
+      -- 41px header above the scroll frame.
+      assert.is_true(content.height > 470 - 32 - 41)
+      -- The bar shows only when there is something to scroll.
+      assert.is_true(scroll.scrollBarHideable)
     end)
   end)
 end)
