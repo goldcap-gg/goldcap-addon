@@ -1439,4 +1439,10 @@ GC.Locales.frFR = {
   ["small undercut"] = "petit écart",
   ["relisting would go under your group's floor. Hold"] = "remettre en vente passerait sous le plancher de ton groupe. Garde-le",
   ["undercut by less than your cancel setting. Hold"] = "écart plus petit que ton réglage d'annulation. Garde-le",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "Annuler %d lots ? Tu perds %s de cautions. Appuie sur CONFIRMER, puis une fois par lot.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "Annuler %d lots ? Appuie sur CONFIRMER, puis une fois par lot.",
+  ["CANCEL NEXT (%d)"] = "ANNULER LE SUIVANT (%d)",
+  ["Press again to cancel the next lot"] = "Appuie à nouveau pour annuler le lot suivant",
+  ["Stopped: 20 seconds without a press"] = "Arrêté : 20 secondes sans appui",
 }

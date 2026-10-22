@@ -1506,4 +1506,10 @@ GC.Locales.ukUA = {
   ["small undercut"] = "дрібне перебиття",
   ["relisting would go under your group's floor. Hold"] = "перевиставлення пішло б нижче порогу вашої групи. Притримайте",
   ["undercut by less than your cancel setting. Hold"] = "перебили менше, ніж задано в налаштуванні зняття. Притримайте",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "Лотів до скасування: %d. Ви втратите заставу: %s. Натисніть ПІДТВЕРДИТИ, потім по разу на кожен лот.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "Лотів до скасування: %d. Натисніть ПІДТВЕРДИТИ, потім по разу на кожен лот.",
+  ["CANCEL NEXT (%d)"] = "СКАСУВАТИ ЩЕ (%d)",
+  ["Press again to cancel the next lot"] = "Натисніть ще раз, щоб скасувати наступний лот",
+  ["Stopped: 20 seconds without a press"] = "Зупинено: 20 секунд без натискання",
 }

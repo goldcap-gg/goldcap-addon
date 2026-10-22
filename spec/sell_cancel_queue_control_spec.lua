@@ -438,4 +438,132 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal("Cancel lot", lot.action.label)
     end)
   end)
+  -- The cancel run (plan 2026-10-22, task 13), retail only: the first press arms the whole queue
+  -- and says how many lots and what deposits they forfeit, the confirm a second later cancels the
+  -- head, and every press after it cancels the next lot, each through onRepostClick, one
+  -- CancelAuction per press. Without Core/CancelRun.lua (Forever) every case above is the control.
+  describe("the cancel run", function()
+    local LOTS = {
+      { auctionID = 77, itemKey = { itemID = 23427 }, quantity = 100, unitPrice = 27300, isCommodity = true },
+      { auctionID = 78, itemKey = { itemID = 23427 }, quantity = 100, unitPrice = 27300, isCommodity = true },
+      { auctionID = 79, itemKey = { itemID = 23427 }, quantity = 100, unitPrice = 27300, isCommodity = true },
+    }
+    local COSTS = { [77] = 100, [78] = 150, [79] = 100 }
+    local cancelled
+
+    before_each(function()
+      cancelled = {}
+      -- The client's two clocks: GetTime in fractions of a second, time() in whole seconds.
+      _G.GetTime = function() return now end
+      _G.time = function() return math.floor(now) end
+      _G.C_AuctionHouse.GetOwnedAuctions = function() return LOTS end
+      _G.C_AuctionHouse.GetCancelCost = function(auctionID) return COSTS[auctionID] end
+      _G.C_AuctionHouse.CancelAuction = function(auctionID)
+        cancelCalls = cancelCalls + 1
+        cancelled[#cancelled + 1] = auctionID
+      end
+      helper.loadModule("Core/CancelRun.lua", GC)
+      GC.Sell.OnOwnedAuctions()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+    end)
+
+    after_each(function()
+      _G.GetTime, _G.C_Timer = nil, nil
+    end)
+
+    local function press(at)
+      now = at
+      local head = GC.SellState.cancelEntries[1]
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      return head and head.auctionID
+    end
+
+    it("confirms the whole queue once, then cancels one lot per press", function()
+      assert.equal(3, #GC.SellState.cancelEntries)
+      press(1000)
+      assert.equal(0, cancelCalls)
+      local status = root.status.text
+      assert.matches("3", status, 1, true)
+      assert.matches(GC.Util.Money(350), status, 1, true)
+      assert.equal("CONFIRM", container.cancelButton.label)
+
+      local first = press(1001.2)
+      assert.same({ first }, cancelled)
+      assert.equal("CANCEL NEXT (2)", container.cancelButton.label)
+      assert.is_true(container.cancelButton.enabled)
+
+      local second = press(1003)
+      assert.are_not.equal(first, second)
+      assert.same({ first, second }, cancelled)
+      assert.equal("CANCEL NEXT (1)", container.cancelButton.label)
+    end)
+
+    it("counts a confirm only after its second", function()
+      press(1000)
+      assert.is_false(container.cancelButton.enabled)
+      press(1000.5)
+      assert.equal(0, cancelCalls)
+      assert.equal("armed", GC.SellState.cancelRun.stage)
+      press(1001.5)
+      assert.equal(1, cancelCalls)
+    end)
+
+    it("says the deposits only when the client can tell every one", function()
+      COSTS[78] = nil
+      press(1000)
+      COSTS[78] = 150
+      assert.matches("3", root.status.text, 1, true)
+      assert.is_nil(root.status.text:find(GC.Util.Money(200), 1, true))
+      assert.equal(GC.L["Cancel %d lots? Press CONFIRM, then once per lot."]:format(3), root.status.text)
+    end)
+
+    it("stops after twenty seconds without a press, and the next press arms again", function()
+      press(1000)
+      press(1001.2)
+      assert.equal(1, cancelCalls)
+      press(1001.2 + 21)
+      assert.equal(1, cancelCalls)
+      assert.equal("armed", GC.SellState.cancelRun.stage)
+      assert.equal("CONFIRM", container.cancelButton.label)
+      assert.matches(GC.Util.Money(250), root.status.text, 1, true)
+    end)
+
+    it("comes alive after its second, and lets go after twenty idle seconds", function()
+      local timers = {}
+      _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { at = now + seconds, fn = fn } end }
+      local function fire(at)
+        now = at
+        local due = {}
+        for i = #timers, 1, -1 do
+          if timers[i].at <= at then due[#due + 1] = table.remove(timers, i) end
+        end
+        for i = #due, 1, -1 do due[i].fn() end
+      end
+      press(1000)
+      assert.is_false(container.cancelButton.enabled)
+      fire(1001)
+      assert.is_true(container.cancelButton.enabled)
+      press(1005)
+      assert.equal(1, cancelCalls)
+      -- Twenty seconds after the arm, but only fifteen after the last press: still running.
+      fire(1020.2)
+      assert.equal("running", GC.SellState.cancelRun.stage)
+      fire(1025.2)
+      assert.is_nil(GC.SellState.cancelRun)
+      assert.equal("Stopped: 20 seconds without a press", root.status.text)
+      assert.equal("CANCEL 2", container.cancelButton.label)
+    end)
+
+    it("ends the run once the queue is empty", function()
+      press(1000)
+      press(1001.2); press(1002); press(1003)
+      assert.equal(3, cancelCalls)
+      assert.equal(0, #GC.SellState.cancelEntries)
+      press(1004)
+      assert.equal(3, cancelCalls)
+      assert.is_nil(GC.SellState.cancelRun)
+    end)
+  end)
 end)

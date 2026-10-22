@@ -1435,4 +1435,10 @@ GC.Locales.itIT = {
   ["small undercut"] = "ribasso piccolo",
   ["relisting would go under your group's floor. Hold"] = "rimettere in vendita andrebbe sotto il minimo del tuo gruppo. Aspetta",
   ["undercut by less than your cancel setting. Hold"] = "ribasso inferiore alla tua impostazione di annullamento. Aspetta",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "Annullare %d lotti? Perdi %s di cauzioni. Premi CONFERMA, poi una volta per lotto.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "Annullare %d lotti? Premi CONFERMA, poi una volta per lotto.",
+  ["CANCEL NEXT (%d)"] = "ANNULLA IL PROSSIMO (%d)",
+  ["Press again to cancel the next lot"] = "Premi di nuovo per annullare il prossimo lotto",
+  ["Stopped: 20 seconds without a press"] = "Interrotto: 20 secondi senza premere",
 }

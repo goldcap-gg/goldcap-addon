@@ -1505,4 +1505,10 @@ GC.Locales.ruRU = {
   ["small undercut"] = "мелкий перебив",
   ["relisting would go under your group's floor. Hold"] = "перевыставление ушло бы ниже порога вашей группы. Придержите",
   ["undercut by less than your cancel setting. Hold"] = "перебили меньше, чем задано в настройке снятия. Придержите",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "Лотов к отмене: %d. Вы потеряете залог: %s. Нажмите ПОДТВЕРДИТЬ, затем по разу на каждый лот.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "Лотов к отмене: %d. Нажмите ПОДТВЕРДИТЬ, затем по разу на каждый лот.",
+  ["CANCEL NEXT (%d)"] = "ОТМЕНИТЬ ЕЩЁ (%d)",
+  ["Press again to cancel the next lot"] = "Нажмите ещё раз, чтобы отменить следующий лот",
+  ["Stopped: 20 seconds without a press"] = "Остановлено: 20 секунд без нажатия",
 }

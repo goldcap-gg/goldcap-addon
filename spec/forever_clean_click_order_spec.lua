@@ -72,8 +72,8 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
 
   describe("UI/Sell/Dock.lua Cancel lot (onRepostClick)", function()
     local text = source("GoldCap/UI/Sell/Dock.lua")
-    local prepare = helper.functionBody(helper.sellSource(), "function Post.PrepareCancel(row, auctionID)")
-    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
+    local prepare = helper.functionBody(helper.sellSource(), "function Post.PrepareCancel(row, auctionID, now)")
+    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID, now)")
 
     -- The armed lot is validated against a fresh, plain GetOwnedAuctions/NormalizeOwnedLots
     -- read, never against a recompose: composePositions() runs scanBagStock(), and bag stock
@@ -167,9 +167,9 @@ describe("Clean click ordering (WoW: Forever taint fix)", function()
     it("onPostClick, onRepostClick and the Prepare functions they call", function()
       local text, all = source("GoldCap/UI/Sell/Dock.lua"), helper.sellSource()
       assertClean(helper.functionBody(text, "local function onPostClick(row)"), "onPostClick")
-      assertClean(helper.functionBody(text, "local function onRepostClick(row, auctionID)"), "onRepostClick")
+      assertClean(helper.functionBody(text, "local function onRepostClick(row, auctionID, now)"), "onRepostClick")
       assertClean(helper.functionBody(all, "function Post.PreparePost(row)"), "Post.PreparePost")
-      assertClean(helper.functionBody(all, "function Post.PrepareCancel(row, auctionID)"), "Post.PrepareCancel")
+      assertClean(helper.functionBody(all, "function Post.PrepareCancel(row, auctionID, now)"), "Post.PrepareCancel")
     end)
 
     it("planDialogPrimaryClick (Sniper Start/Confirm/PlaceBid)", function()

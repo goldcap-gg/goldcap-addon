@@ -1372,4 +1372,10 @@ GC.Locales.koKR = {
   ["small undercut"] = "작은 가격 차",
   ["relisting would go under your group's floor. Hold"] = "재등록하면 그룹 하한보다 낮아집니다. 보류하세요",
   ["undercut by less than your cancel setting. Hold"] = "가격 차가 취소 설정보다 작습니다. 보류하세요",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "물량 %d개를 취소할까요? 등록비 %s을(를) 잃습니다. 확인을 누른 뒤 물량마다 한 번씩 누르세요.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "물량 %d개를 취소할까요? 확인을 누른 뒤 물량마다 한 번씩 누르세요.",
+  ["CANCEL NEXT (%d)"] = "다음 취소 (%d)",
+  ["Press again to cancel the next lot"] = "다시 누르면 다음 물량을 취소합니다",
+  ["Stopped: 20 seconds without a press"] = "중지됨: 20초 동안 누르지 않음",
 }

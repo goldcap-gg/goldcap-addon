@@ -449,6 +449,10 @@ describe("locale layer", function()
       "Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued.",
       "small undercut", "relisting would go under your group's floor. Hold",
       "undercut by less than your cancel setting. Hold",
+      -- the cancel run (task 13)
+      "Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot.",
+      "Cancel %d lots? Press CONFIRM, then once per lot.", "CANCEL NEXT (%d)",
+      "Press again to cancel the next lot", "Stopped: 20 seconds without a press",
     }
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
@@ -466,6 +470,11 @@ describe("locale layer", function()
       local chars = 0
       for _ in strings["GROUP"]:gmatch("[^\128-\191]") do chars = chars + 1 end
       assert.is_true(chars <= 11, code .. " GROUP is too long for the chip")
+      -- The run's arm names the button the way the button says it.
+      for _, key in ipairs({ "Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot.",
+          "Cancel %d lots? Press CONFIRM, then once per lot." }) do
+        assert.is_truthy(strings[key]:find(strings["CONFIRM"], 1, true), code .. " names CONFIRM its own way: " .. key)
+      end
     end
   end)
 end)

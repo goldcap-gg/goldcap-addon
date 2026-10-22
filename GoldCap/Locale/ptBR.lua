@@ -1433,4 +1433,10 @@ GC.Locales.ptBR = {
   ["small undercut"] = "diferença pequena",
   ["relisting would go under your group's floor. Hold"] = "reanunciar ficaria abaixo do piso do seu grupo. Segure",
   ["undercut by less than your cancel setting. Hold"] = "diferença menor que sua configuração de cancelamento. Segure",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "Cancelar %d lotes? Você perde %s em depósitos. Clique em CONFIRMAR e depois uma vez por lote.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "Cancelar %d lotes? Clique em CONFIRMAR e depois uma vez por lote.",
+  ["CANCEL NEXT (%d)"] = "CANCELAR PRÓXIMO (%d)",
+  ["Press again to cancel the next lot"] = "Clique de novo para cancelar o próximo lote",
+  ["Stopped: 20 seconds without a press"] = "Parado: 20 segundos sem clicar",
 }

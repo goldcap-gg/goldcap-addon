@@ -457,8 +457,8 @@ end
 -- warning, REPOST_ARM_SECONDS before a confirm counts, the timeout) and returns nil; the
 -- confirming click checks the pin against a fresh read of the player's own auctions, marks the
 -- row "cancelling" and returns the pin and its scope for onRepostClick to cancel. Plain reads
--- and writes only on the way there.
-function Post.PrepareCancel(row, auctionID)
+-- and writes only on the way there. With `now` (the cancel run, ROW.runLot) one press does both.
+function Post.PrepareCancel(row, auctionID, now)
   local position = row.position
   if S.repostingRow and S.repostingRow ~= row then
     Post.DisarmRepost()
@@ -481,7 +481,7 @@ function Post.PrepareCancel(row, auctionID)
     View.status(GC.L["Fetching a fresh price for this lot. Press Repost again in a moment"])
     Walk.RefreshFor(position); return
   end
-  if row.repostStage == "armed" then
+  if row.repostStage == "armed" and not now then
     if not row.repostReady then return end
     local pin = S.repostPin
     if not exactRenderEntry(row, pin) then
@@ -560,6 +560,8 @@ function Post.PrepareCancel(row, auctionID)
     itemID = plan.itemID, quantity = plan.quantity, listedUnit = lot.unitPrice,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
+  -- The run's own confirm was this lot's arm delay: on to the confirm's checks, nothing painted.
+  if now then row.repostStage, row.repostReady = "armed", true; return Post.PrepareCancel(row, auctionID) end
   row.repostStage, row.repostReady = "armed", false
   row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
   View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])

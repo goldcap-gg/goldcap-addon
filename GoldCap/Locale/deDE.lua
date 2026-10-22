@@ -1438,4 +1438,10 @@ GC.Locales.deDE = {
   ["small undercut"] = "kleines Unterbieten",
   ["relisting would go under your group's floor. Hold"] = "neu einzustellen ginge unter den Boden deiner Gruppe. Halten",
   ["undercut by less than your cancel setting. Hold"] = "um weniger als deine Abbruch-Einstellung unterboten. Halten",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "%d Posten abbrechen? Du verlierst %s an Gebühren. Drücke BESTÄTIGEN, dann einmal pro Posten.",
+  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "%d Posten abbrechen? Drücke BESTÄTIGEN, dann einmal pro Posten.",
+  ["CANCEL NEXT (%d)"] = "NÄCHSTEN ABBRECHEN (%d)",
+  ["Press again to cancel the next lot"] = "Drücke erneut, um den nächsten Posten abzubrechen",
+  ["Stopped: 20 seconds without a press"] = "Angehalten: 20 Sekunden nicht gedrückt",
 }
