@@ -122,6 +122,19 @@ function M.RuleFor(itemID, itemLevel)
   return rule
 end
 
+-- The followed group an item belongs to, by its rule's name, or nil: the same first cap that
+-- decides the rule decides the group (the bank card, UI/BankGroupsCard.lua, lists by it).
+function M.GroupOf(itemID)
+  local entry = byItem[itemID]
+  return entry and entry.rule.n or nil
+end
+
+-- Whether any followed group reached the addon: false with no Companion file, an old one, or no
+-- follow on goldcap.gg.
+function M.HasGroups()
+  return next(byItem) ~= nil
+end
+
 -- The rule in words, for the SELL row's tooltip. Only what applies: a floor the rule has no price
 -- for (an alert cap without a usual price, a variant under the cap's level) is not named.
 function M.Describe(rule)

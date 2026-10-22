@@ -112,6 +112,22 @@ describe("GroupRules", function()
     assert.equal("Herbs", GC.GroupRules.RuleFor(10).name)
   end)
 
+  -- The bank card's groups (UI/BankGroupsCard.lua): an item's group is its rule's name, by the same
+  -- first cap that decides the rule.
+  it("names the group of an item, and says whether any group came at all", function()
+    assert.is_false(GC.GroupRules.HasGroups())
+    assert.is_nil(GC.GroupRules.GroupOf(10))
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 }, { i = 10, c = 700, u = 1000, r = 2 }, { i = 11, c = 500 } },
+      { GATHER, FLIP })
+    assert.is_true(GC.GroupRules.HasGroups())
+    assert.equal("Herbs", GC.GroupRules.GroupOf(10))
+    assert.is_nil(GC.GroupRules.GroupOf(11))
+    _G.GoldCap_AppRuns = nil
+    GC.GroupRules.Adopt()
+    assert.is_false(GC.GroupRules.HasGroups())
+    assert.is_nil(GC.GroupRules.GroupOf(10))
+  end)
+
   it("unreadable rules give nothing", function()
     for _, bad in ipairs({
       { rules = { { n = "X", p = "gather", d = 36 } }, r = 1 },

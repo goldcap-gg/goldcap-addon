@@ -101,6 +101,7 @@ Core/AppRuns.lua
 Core/Caps.lua
 Core/GroupRules.lua
 Core/SellRounds.lua
+Core/BankGroups.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
@@ -156,6 +157,7 @@ UI/BuySearch.lua
 UI/BuyVendorPanel.lua
 UI/VendorSellCard.lua
 UI/BankRoute.lua
+UI/BankGroupsCard.lua
 UI/MailCollect.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua

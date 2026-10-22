@@ -147,6 +147,7 @@ end
 -- what onCommit gets -- nil keeps the popup open on `opts.invalid` (the BUY search's "how many").
 function GC.BuyCapEditor.Open(anchor, opts)
   if not frame then build() end
+  frame.anchor = anchor
   frame.onCommit = opts.onCommit
   frame.asks = opts.box ~= false
   frame.read = opts.text and (opts.read or function(text) return text end) or nil
@@ -183,7 +184,13 @@ end
 
 function GC.BuyCapEditor.Close()
   if not frame then return end
-  frame.onCommit = nil
+  frame.onCommit, frame.anchor = nil, nil
   if frame.box.ClearFocus then frame.box:ClearFocus() end
   frame:Hide()
+end
+
+-- Closes the box, without committing, if it is open under `anchor`: a window that goes away takes
+-- its own question with it and leaves another's alone (the bank by group card's keep count).
+function GC.BuyCapEditor.CloseFor(anchor)
+  if frame and frame.anchor == anchor and frame:IsShown() then GC.BuyCapEditor.Close() end
 end

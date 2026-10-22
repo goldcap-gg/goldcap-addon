@@ -214,6 +214,23 @@ describe("bank carry list", function()
     assert.is_truthy(rowFor("TAKE OUT"))
   end)
 
+  -- The reader the group card shares (UI/BankGroupsCard.lua) says why a stack in the bags stays
+  -- there: still refundable first (Blizzard asks before ending a refund), else refused by the
+  -- Warband Bank. A stack already in the Warband Bank stays nowhere.
+  it("reads why a stack in the bags stays there: still refundable, or refused by the Warband Bank", function()
+    local refundable = {}
+    _G.C_Item.CanBeRefunded = function(loc) return refundable[loc.bag .. ":" .. loc.slot] == true end
+    refundable["0:1"], refused["0:1"], refused["0:2"], refused["12:1"] = true, true, true, true
+    panel().OnBankOpened()
+    local all = function() return true end
+    local inBags = panel().ReadStacks({ 0 }, false, all)
+    assert.equal("refund", inBags[1].stays)
+    assert.equal("refused", inBags[2].stays)
+    assert.is_nil(panel().ReadStacks({ 12 }, true, all)[1].stays)
+    refundable["0:1"], refused["0:1"] = nil, nil
+    assert.is_nil(panel().ReadStacks({ 0 }, false, all)[1].stays)
+  end)
+
   -- A player with no route data never sees the list: they pay nothing for it at a bank either.
   it("reads no bag at a bank without route data", function()
     _G.GetRealmName = function() return "Nowhere" end
@@ -305,42 +322,106 @@ describe("bank carry list", function()
       return (t:gsub("%-%-[^\n]*", ""))
     end
 
-    it("calls UseContainerItem only inside onCarryClick", function()
+    -- The one place the addon moves an item between the bags and the Warband Bank is the route's
+    -- MoveStack, one call each time, reached only from the two click handlers that move one stack
+    -- a press: the carry list's onCarryClick here and the group card's onMoveClick
+    -- (UI/BankGroupsCard.lua, bank by group).
+    local ROUTE, CARD = "GoldCap/UI/BankRoute.lua", "GoldCap/UI/BankGroupsCard.lua"
+
+    local function bodyOf(text, header)
+      local from = assert(text:find(header, 1, true), header)
+      return text:sub(from, assert(text:find("\nend\n", from, true), header)), from
+    end
+
+    local function count(text, needle)
+      local n, at = 0, 1
+      while true do
+        local i = text:find(needle, at, true)
+        if not i then return n end
+        n, at = n + 1, i + #needle
+      end
+    end
+
+    it("calls UseContainerItem only inside MoveStack: to deposit and to withdraw, once each", function()
       local listing = assert(io.popen("find GoldCap -name '*.lua'"))
       for path in listing:lines() do
         -- The vendor sell card makes its own sale call; spec/vendor_sell_wiring_spec.lua audits it.
-        if path ~= "GoldCap/UI/BankRoute.lua" and path ~= "GoldCap/UI/VendorSellCard.lua" then
+        if path ~= ROUTE and path ~= "GoldCap/UI/VendorSellCard.lua" then
           assert.is_nil(read(path):find("UseContainerItem", 1, true), path)
         end
       end
       listing:close()
-      local text = read("GoldCap/UI/BankRoute.lua")
-      local from = assert(text:find("local function onCarryClick", 1, true))
-      local to = assert(text:find("\nend\n", from, true))
-      local outside = text:sub(1, from - 1) .. text:sub(to)
+      local text = read(ROUTE)
+      local body, from = bodyOf(text, "function P.MoveStack(")
+      local outside = text:sub(1, from - 1) .. text:sub(from + #body)
       assert.is_nil(outside:find("UseContainerItem", 1, true))
+      assert.equal(2, count(body, "UseContainerItem"))
+      assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot, nil, accountBank(), false)"))
+      assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot)"))
     end)
 
-    it("reaches onCarryClick only through the button's OnClick, and never from a timer", function()
-      local text = read("GoldCap/UI/BankRoute.lua")
-      local sites = {}
-      for line in text:gmatch("[^\n]*onCarryClick[^\n]*") do sites[#sites + 1] = line:match("^%s*(.-)%s*$") end
-      assert.same({ "local function onCarryClick(button)", 'button:SetScript("OnClick", onCarryClick)' }, sites)
-      for body in text:gmatch("C_Timer%.After%b()") do assert.is_nil(body:find("UseContainerItem", 1, true)) end
+    it("reaches MoveStack only from the carry list's click and the group card's click, once in each", function()
+      local listing = assert(io.popen("find GoldCap -name '*.lua'"))
+      for path in listing:lines() do
+        if path ~= ROUTE and path ~= CARD then
+          assert.is_nil(read(path):find("MoveStack", 1, true), path)
+        end
+      end
+      listing:close()
+      local function without(text, body)
+        local at = assert(text:find(body, 1, true))
+        return text:sub(1, at - 1) .. text:sub(at + #body)
+      end
+      local route, card = read(ROUTE), read(CARD)
+      local carry = bodyOf(route, "local function onCarryClick(")
+      local def = bodyOf(route, "function P.MoveStack(")
+      assert.is_nil(without(without(route, carry), def):find("MoveStack", 1, true))
+      assert.equal(1, count(carry, "P.MoveStack("))
+      assert.equal(1, count(def, "MoveStack"))
+      local move = bodyOf(card, "local function onMoveClick(")
+      assert.is_nil(without(card, move):find("MoveStack", 1, true))
+      assert.equal(1, count(move, "GC.BankRoute.MoveStack("))
     end)
 
-    it("disables the button only after the call", function()
-      local text = read("GoldCap/UI/BankRoute.lua")
-      local from = assert(text:find("local function onCarryClick", 1, true))
-      local body = text:sub(from, assert(text:find("\nend\n", from, true)))
-      assert.is_true(assert(body:find("UseContainerItem(", 1, true)) < assert(body:find("button:Disable()", 1, true)))
+    it("reaches each click handler only through its button's OnClick, and moves nothing from a timer", function()
+      for path, handler in pairs({ [ROUTE] = "onCarryClick", [CARD] = "onMoveClick" }) do
+        local text = read(path)
+        local sites = {}
+        for line in text:gmatch("[^\n]*" .. handler .. "[^\n]*") do sites[#sites + 1] = line:match("^%s*(.-)%s*$") end
+        assert.same({ "local function " .. handler .. "(button)", 'button:SetScript("OnClick", ' .. handler .. ")" }, sites)
+        for body in text:gmatch("C_Timer%.After%b()") do
+          assert.is_nil(body:find("UseContainerItem", 1, true), path)
+          assert.is_nil(body:find("MoveStack", 1, true), path)
+          assert.is_nil(body:find(handler, 1, true), path)
+        end
+      end
     end)
 
-    it("loads in retail only, after the route module", function()
+    -- The group card's click disables nothing itself: it calls MoveStack, then repaints, and only
+    -- the repaint disables a button whose list is now empty (paintMove).
+    it("puts a button to sleep only after the call: the carry list's in its click, the group card's in the repaint after it", function()
+      local body = bodyOf(read(ROUTE), "local function onCarryClick(")
+      assert.is_true(assert(body:find("P.MoveStack(", 1, true)) < assert(body:find("button:Disable()", 1, true)))
+      local card = read(CARD)
+      local move = bodyOf(card, "local function onMoveClick(")
+      assert.is_nil(move:find("Disable(", 1, true))
+      assert.is_true(assert(move:find("GC.BankRoute.MoveStack(", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
+      local paint = bodyOf(card, "local function paintMove(")
+      assert.equal(1, count(card, "Disable("))
+      assert.equal(1, count(paint, "button:Disable()"))
+    end)
+
+    it("loads in retail only, after the route module, and the group card after the route", function()
       local retail, forever = read("GoldCap/GoldCap.toc"), read("GoldCap/GoldCap_Camelot.toc")
       assert.is_truthy(retail:find("\nUI/BankRoute.lua\n", 1, true))
+      assert.is_truthy(retail:find("\nUI/BankGroupsCard.lua\n", 1, true))
+      assert.is_truthy(retail:find("\nCore/BankGroups.lua\n", 1, true))
       assert.is_nil(forever:find("BankRoute", 1, true))
+      assert.is_nil(forever:find("BankGroups", 1, true))
       assert.is_true(retail:find("Core/SellRoute.lua", 1, true) < retail:find("UI/BankRoute.lua", 1, true))
+      -- The card hooks the route's handlers as it loads.
+      assert.is_true(retail:find("UI/BankRoute.lua", 1, true) < retail:find("UI/BankGroupsCard.lua", 1, true))
+      assert.is_true(retail:find("Core/GroupRules.lua", 1, true) < retail:find("Core/BankGroups.lua", 1, true))
     end)
 
     it("is routed from the event frame", function()

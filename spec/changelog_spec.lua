@@ -63,7 +63,7 @@ describe("CHANGELOG.md", function()
   -- follows a line of the same area that does, as the Mail lines do.
   it("says retail WoW on every line of the newest release about a feature WoW: Forever does not load", function()
     local RETAIL_ONLY = { "a group you follow are posted", "CANCEL button", "POSTING setting", "the Vendor card",
-      "^%- Crafting" }
+      "^%- Crafting", "^%- Bank" }
     local section = sections()[1]
     local lastArea, lastRetail
     local checked = 0
@@ -81,6 +81,20 @@ describe("CHANGELOG.md", function()
       lastArea, lastRetail = area, covered
     end
     assert.is_true(checked >= 7)
+  end)
+
+  -- Bank by group moves stacks to and from the Warband Bank only (UI/BankRoute.lua's MoveStack),
+  -- never the character's own bank tabs: the line says where To bank puts them, and that a stack
+  -- which has to stay in the bags is named with why.
+  it("says that bank by group's To bank puts stacks in the Warband Bank", function()
+    for _, bullet in ipairs(sections()[1].bullets) do
+      if bullet:find("^%- Bank, in retail WoW") then
+        assert.is_truthy(bullet:find("To bank puts one stack per press in the Warband Bank", 1, true), bullet)
+        assert.is_truthy(bullet:find("named with why", 1, true), bullet)
+        return
+      end
+    end
+    error("the newest release has no Bank line")
   end)
 
   it("does not promise the vendor price in Forever tooltips, which leave it to the game", function()
