@@ -1528,4 +1528,8 @@ GC.Locales.deDE = {
   ["Groups with nothing to move: %d"] = "Gruppen ohne etwas zu verschieben: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Bleibt in den Taschen: %s ×%d, kann noch zurückgegeben werden",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Bleibt in den Taschen: %s ×%d, die Kriegsmeutenbank nimmt es nicht",
+  ["Moves stacks between your bags and the Warband Bank"] = "Verschiebt Stapel zwischen deinen Taschen und der Kriegsmeutenbank",
+  ["Moves stacks between your bags and your bank"] = "Verschiebt Stapel zwischen deinen Taschen und deiner Bank",
+  ["%d in bags, %d in your bank"] = "%d in den Taschen, %d in deiner Bank",
+  ["Stays in bags: %s ×%d, your bank does not take it"] = "Bleibt in den Taschen: %s ×%d, deine Bank nimmt es nicht",
 }

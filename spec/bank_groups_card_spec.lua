@@ -1,16 +1,18 @@
 local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 
--- UI/BankGroupsCard.lua: at a bank, the followed groups with items in the bags or the Warband Bank,
--- each with To bank and To bags, one stack a press. The real Theme, the real group rules (from a
--- Companion file), the real selection (Core/BankGroups.lua) and the real bank route
--- (UI/BankRoute.lua), whose reader, move function and guards the card uses; the bags, the
--- Warband Bank and the client calls are faked.
+-- UI/BankGroupsCard.lua: at a bank, the followed groups with items in the bags or the bank the bank
+-- window shows (the character's own or the Warband Bank), each with To bank and To bags, one stack a
+-- press. The real Theme, the real group rules (from a Companion file), the real selection
+-- (Core/BankGroups.lua) and the real bank route (UI/BankRoute.lua), whose reader, move function and
+-- guards the card uses; the bags, both banks, the bank window and the client calls are faked.
 describe("bank by group card", function()
   local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked, closedFor
-  local ACCOUNT = 2
-  local KEYS = { "Enum", "UIParent", "BankFrame", "MerchantFrame", "ItemLocation", "C_Container", "C_Item",
-    "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns" }
+  local showing, usable, charTabs, refusedHere
+  -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
+  local CHARACTER, ACCOUNT = 0, 2
+  local KEYS = { "Enum", "UIParent", "BankFrame", "BankPanel", "MerchantFrame", "ItemLocation", "C_Container",
+    "C_Item", "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns" }
 
   -- Herbs: Bloom (two qualities, 1 and 2); Ore: Bismuth (3); Cloth: Weavercloth (4), never in the
   -- bags here. Item 9 is in no followed group.
@@ -46,6 +48,20 @@ describe("bank by group card", function()
 
   local function press(button) W.state(button).scripts.OnClick(button) end
   local function at(widget) return W.state(widget).points[1] end
+  local function staysOf(b)
+    local out = {}
+    for _, fs in ipairs(b.stays) do if fs:IsShown() then out[#out + 1] = textOf(fs) end end
+    return out
+  end
+  -- The player clicks the bank window's other tab: BankFrame:SetTab sets the panel's bank type and
+  -- the panel resets (Blizzard_UIPanels_Game's BankFrame.lua); the card repaints on the next frame.
+  local function switchTo(bankType)
+    showing = bankType
+    _G.BankPanel:Reset()
+    for i = #timers, 1, -1 do
+      if timers[i].seconds == 0 then table.remove(timers, i).fn() end
+    end
+  end
 
   local function open()
     GC.BankRoute.OnBankOpened()
@@ -70,16 +86,25 @@ describe("bank by group card", function()
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = W.install()
     used, timers, canUse, tabs, refundable, refused, reads, asked = {}, {}, true, { 12 }, {}, {}, 0, nil
-    -- 0: the backpack; 5: the reagent bag; 12: the first Warband Bank tab.
+    -- The bank window shows the Warband Bank unless a spec switches it; refusedHere is what the
+    -- character's own bank refuses, refused what the Warband Bank does.
+    showing, usable, charTabs, refusedHere = ACCOUNT, { [ACCOUNT] = true, [CHARACTER] = true }, { 6 }, {}
+    -- 0: the backpack; 5: the reagent bag; 6: the character's first bank tab; 12: the first
+    -- Warband Bank tab.
     bags = {
       [0] = { info(1, 200), info(1, 20), info(9, 20) },
       [5] = { info(3, 50) },
+      [6] = { info(2, 40) },
       [12] = { info(2, 600) },
     }
-    _G.Enum = { BankType = { Account = ACCOUNT } }
+    _G.Enum = { BankType = { Character = CHARACTER, Account = ACCOUNT } }
     _G.UIParent = W.CreateFrame("Frame")
     _G.BankFrame = W.CreateFrame("Frame")
     _G.BankFrame:Show()
+    -- BankFrameMixin:GetActiveBankType, and the panel's BankPanelMixin:Reset, which the card post-hooks.
+    function _G.BankFrame:GetActiveBankType() return showing end
+    _G.BankPanel = W.CreateFrame("Frame", nil, _G.BankFrame)
+    function _G.BankPanel:Reset() end
     -- A frame the client builds is hidden until it opens; a W frame starts shown.
     _G.MerchantFrame = W.CreateFrame("Frame")
     _G.MerchantFrame:Hide()
@@ -95,9 +120,14 @@ describe("bank by group card", function()
       GetCurrentItemLevel = function() return 0 end,
     }
     _G.C_Bank = {
-      CanUseBank = function(t) return canUse and t == ACCOUNT end,
-      IsItemAllowedInBankType = function(_, loc) return not refused[loc.bag .. ":" .. loc.slot] end,
-      FetchPurchasedBankTabIDs = function(t) return t == ACCOUNT and tabs or {} end,
+      CanUseBank = function(t) return canUse and usable[t] == true end,
+      IsItemAllowedInBankType = function(t, loc)
+        return not (t == CHARACTER and refusedHere or refused)[loc.bag .. ":" .. loc.slot]
+      end,
+      FetchPurchasedBankTabIDs = function(t)
+        if t == ACCOUNT then return tabs end
+        return t == CHARACTER and charTabs or {}
+      end,
     }
     _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
     _G.hooksecurefunc = function(t, name, fn)
@@ -138,6 +168,7 @@ describe("bank by group card", function()
     open()
     assert.is_true(cardUp())
     assert.equal("GoldCap: your groups", textOf(C._frame.title))
+    assert.equal("Moves stacks between your bags and the Warband Bank", textOf(C._frame.bank))
     local herbs, ore = block("Herbs"), block("Ore")
     assert.equal("220 in bags, 600 in the Warband Bank", textOf(herbs.counts))
     -- The reagent bag counts: herbs and ore go there.
@@ -339,11 +370,6 @@ describe("bank by group card", function()
     local herbs, ore = block("Herbs"), block("Ore")
     assert.equal("220 in bags, 600 in the Warband Bank", textOf(herbs.counts))
     assert.equal("To bank: Bloom ×200 (1 left)", herbs.toBank.label)
-    local function staysOf(b)
-      local out = {}
-      for _, fs in ipairs(b.stays) do if fs:IsShown() then out[#out + 1] = textOf(fs) end end
-      return out
-    end
     assert.same({ "Stays in bags: Bloom ×20, can still be refunded" }, staysOf(herbs))
     assert.same({ "Stays in bags: Bismuth ×7, the Warband Bank does not take it" }, staysOf(ore))
     -- The refund window ends: the line goes, and the stack is offered.
@@ -361,6 +387,109 @@ describe("bank by group card", function()
     canUse, tabs = true, {}
     open()
     assert.is_false(cardUp())
+  end)
+
+  -- The ruling: the card follows the bank the player is looking at. With the character's own bank
+  -- shown, To bank deposits into it, as Blizzard's own right click on a bag item does, and To bags
+  -- takes from its tabs; the Warband Bank's stacks are not that bank's.
+  it("with the character's own bank shown, names it, counts it, and moves to and from it", function()
+    showing = CHARACTER
+    open()
+    assert.is_true(cardUp())
+    assert.equal("Moves stacks between your bags and your bank", textOf(C._frame.bank))
+    local herbs = block("Herbs")
+    assert.equal("220 in bags, 40 in your bank", textOf(herbs.counts))
+    assert.equal("50 in bags, 0 in your bank", textOf(block("Ore").counts))
+    assert.equal("To bank: Bloom ×200 (2 left)", herbs.toBank.label)
+    assert.equal("To bags: Bloom ×40 (1 left)", herbs.toBags.label)
+    press(herbs.toBank)
+    press(block("Herbs").toBags)
+    assert.same({ { n = 5, 0, 1, nil, CHARACTER, false }, { n = 2, 6, 1 } }, used)
+  end)
+
+  it("repaints for the bank the window shows when the player switches its tab", function()
+    open()
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    switchTo(CHARACTER)
+    assert.equal("Moves stacks between your bags and your bank", textOf(C._frame.bank))
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+    press(block("Herbs").toBank)
+    assert.same({ { n = 5, 0, 1, nil, CHARACTER, false } }, used)
+    -- Back on the Warband Bank's tab: the stack on its way is still on its way, the next one goes there.
+    switchTo(ACCOUNT)
+    assert.equal("Moves stacks between your bags and the Warband Bank", textOf(C._frame.bank))
+    press(block("Herbs").toBank)
+    assert.same({ n = 5, 0, 2, nil, ACCOUNT, false }, used[2])
+    press(block("Herbs").toBags)
+    assert.same({ n = 2, 12, 1 }, used[3])
+  end)
+
+  -- The panel resets from inside Blizzard's own work (a tab click, the window opening, twice as it
+  -- opens): the card repaints once, on the next frame, so nothing of the card runs in that call.
+  it("repaints once on the next frame for a run of bank panel resets, not inside them", function()
+    open()
+    reads = 0
+    local before = #timers
+    showing = CHARACTER
+    _G.BankPanel:Reset()
+    _G.BankPanel:Reset()
+    assert.equal(0, reads)
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    assert.equal(before + 1, #timers)
+    assert.equal(0, timers[#timers].seconds)
+    timers[#timers].fn()
+    assert.is_true(reads > 0)
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+    _G.BankPanel:Reset()
+    assert.equal(before + 2, #timers)
+  end)
+
+  -- The panel resets only while the window is open; should it reset outside a visit, nothing is read.
+  it("reads nothing when the bank panel resets with the bank closed", function()
+    open()
+    GC.BankRoute.OnBankClosed()
+    reads = 0
+    local before = #timers
+    switchTo(CHARACTER)
+    assert.equal(before, #timers)
+    assert.equal(0, reads)
+    assert.is_false(cardUp())
+  end)
+
+  -- Blizzard asks before a deposit into the Warband Bank ends a refund, and deposits into the
+  -- character's own bank without asking (BankFrame.lua's BankUtil_IsAccountBankDepositRefundable).
+  it("toward the character's own bank, offers a refundable stack and names one that bank refuses", function()
+    refundable["0:2"] = true
+    bags[5][2] = info(3, 7)
+    refused["5:2"], refusedHere["5:2"] = true, true
+    showing = CHARACTER
+    open()
+    local herbs, ore = block("Herbs"), block("Ore")
+    assert.same({}, staysOf(herbs))
+    assert.equal("To bank: Bloom ×200 (2 left)", herbs.toBank.label)
+    assert.same({ "Stays in bags: Bismuth ×7, your bank does not take it" }, staysOf(ore))
+    press(herbs.toBank)
+    press(block("Herbs").toBank)
+    assert.same({ n = 5, 0, 2, nil, CHARACTER, false }, used[2])
+    -- What only the Warband Bank refuses goes into the character's own bank.
+    refusedHere["5:2"] = nil
+    GC.BankRoute.OnBagsChanged()
+    assert.same({}, staysOf(block("Ore")))
+  end)
+
+  it("hides while the character's own bank shown has no tab or cannot be used here, and shows on the Warband Bank's tab", function()
+    showing, charTabs = CHARACTER, {}
+    open()
+    assert.is_false(cardUp())
+    switchTo(ACCOUNT)
+    assert.is_true(cardUp())
+    charTabs, usable[CHARACTER] = { 6 }, false
+    switchTo(CHARACTER)
+    assert.is_false(cardUp())
+    usable[CHARACTER] = true
+    switchTo(CHARACTER)
+    assert.is_true(cardUp())
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
   end)
 
   -- A group is its id on goldcap.gg: a follow from the site in another language keeps its count,
@@ -581,20 +710,33 @@ describe("bank by group card", function()
   it("never cuts a label, in any language", function()
     NAMES[1] = "Verzauberte Blütenblätter der leuchtenden Hochenblume"
     bags[0][1] = info(1, 200)
-    refundable["0:2"] = true
+    -- A stack that stays, in each group and toward each bank: the Warband Bank's refund and refusal,
+    -- the character's own bank's refusal.
+    refundable["0:2"], refusedHere["0:2"] = true, true
     bags[5][2] = info(3, 7)
-    refused["5:2"] = true
+    refused["5:2"], refusedHere["5:2"] = true, true
     bags[0][4] = info(4, 3)
     GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Cloth = 10 } }
     for _, code in ipairs(helper.localeCodes()) do
       helper.loadModule("Locale/" .. code .. ".lua", GC)
     end
+    local runs = {}
     for _, code in ipairs(helper.localeCodes()) do
+      runs[#runs + 1] = { code, ACCOUNT }
+      runs[#runs + 1] = { code, CHARACTER }
+    end
+    for _, run in ipairs(runs) do
+      local code, bankType = run[1], run[2]
       GC.ActivateLocale(code)
+      showing = bankType
       open()
       local card = C._frame
       assert.is_true(W.state(card.title).wordWrap ~= false, code)
       assert.equal(card.content:GetWidth(), card.title:GetWidth(), code)
+      -- The line naming the bank wraps at the card's width.
+      assert.is_true(W.state(card.bank).wordWrap ~= false, code)
+      assert.equal(card.content:GetWidth(), card.bank:GetWidth(), code)
+      assert.is_true((card.bank:GetText() or "") ~= "", code)
       local fold = card.fold
       assert.is_true(shown(fold), code)
       assert.is_true(fold:GetWidth() >= fold.text:GetUnboundedStringWidth(), code .. " " .. fold.label)

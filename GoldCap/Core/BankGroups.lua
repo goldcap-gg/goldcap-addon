@@ -3,7 +3,8 @@ local _, GC = ...
 -- Bank by group (retail only): at a bank, what one press of To bank or To bags moves for each
 -- followed group, and how many of each item the player keeps in the bags. Pure: the stacks come
 -- from UI/BankRoute.lua's reader and the group of an item from Core/GroupRules.lua, both handed in
--- by the card (UI/BankGroupsCard.lua). GoldCap_Camelot.toc does not load this file.
+-- by the card (UI/BankGroupsCard.lua), which reads the bank the bank window shows: the
+-- character's own or the Warband Bank. GoldCap_Camelot.toc does not load this file.
 --
 -- A group is planned and its keep count kept by its key, shown and sorted by its name. The key is
 -- the group's id on goldcap.gg, which a follow in another language or a renamed list keeps, else
@@ -13,14 +14,15 @@ local _, GC = ...
 -- stack of an item only while the bags keep at least the group's keep count of that item without
 -- it, the biggest stack first, and To bags takes every stack of the group out. A stack a press has
 -- sent and the bags do not show moved yet (`moving`) is on its way: it is offered to no press, and
--- it no longer counts toward what the bags keep. A stack in the bags the Warband Bank must not take
--- (`stays`: still refundable, or refused) is counted and kept, and named with why, so the card can
--- say which stack stays and why instead of counting it silently.
+-- it no longer counts toward what the bags keep. A stack in the bags the bank must not take
+-- (`stays`: refused by it, or still refundable and the bank is the Warband Bank) is counted and
+-- kept, and named with why, so the card can say which stack stays and why instead of counting it
+-- silently.
 --
 -- Keep counts are saved in GC.db.bankKeep = { v = 1, groups = { [group key] = count } }, one count
--- per group for the whole account, created lazily with the first count above 0 and not through
--- DEFAULTS, so a client that never loads this file keeps its SavedVariables as they were. A save
--- with a newer `v` is read-only: nothing writes to it and every group keeps 0.
+-- per group for the whole account and both banks, created lazily with the first count above 0 and
+-- not through DEFAULTS, so a client that never loads this file keeps its SavedVariables as they
+-- were. A save with a newer `v` is read-only: nothing writes to it and every group keeps 0.
 GC.BankGroups = {}
 local M = GC.BankGroups
 
@@ -88,7 +90,7 @@ end
 --- The followed groups with items in the bags or the bank, sorted by name (then key), each
 --- { key, name, inBags, inBank, keep, toBank = { stack, ... }, toBags = { stack, ... }, stays = { ... } }:
 --- the counts are what the bags and the bank show, each list is what the presses of its button
---- move, in order, and `stays` is what the bags keep because the Warband Bank must not take it,
+--- move, in order, and `stays` is what the bags keep because the bank must not take it,
 --- { itemID, name, count, why } summed per item and reason ("refund" or "refused"), by name.
 --- Stacks are UI/BankRoute.lua's: { itemID, bag, slot, count, name, locked, stays }. Each group
 --- also carries what no press can raise, for the card to size itself once: `items`, every item of

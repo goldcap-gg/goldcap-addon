@@ -1596,4 +1596,8 @@ GC.Locales.ukUA = {
   ["Groups with nothing to move: %d"] = "Групи, де нічого переносити: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Лишається в сумках: %s ×%d, його ще можна повернути торговцю",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Лишається в сумках: %s ×%d, банк загону його не приймає",
+  ["Moves stacks between your bags and the Warband Bank"] = "Переносить стопки між сумками й банком загону",
+  ["Moves stacks between your bags and your bank"] = "Переносить стопки між сумками й вашим банком",
+  ["%d in bags, %d in your bank"] = "%d у сумках, %d у вашому банку",
+  ["Stays in bags: %s ×%d, your bank does not take it"] = "Лишається в сумках: %s ×%d, ваш банк його не приймає",
 }
