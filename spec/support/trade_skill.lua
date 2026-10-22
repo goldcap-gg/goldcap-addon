@@ -148,6 +148,13 @@ function TS.install(opts)
   -- The window: ProfessionsFrame > CraftingPage > SchematicForm, with the form's reagent blocks
   -- (parentKey Reagents and OptionalReagents, Blizzard_ProfessionsRecipeSchematicForm.xml) and its
   -- extraSlotFrames array (recraft, salvage and enchant slots, hidden unless that kind is open).
+  -- The form's other parts under and beside the reagents, from the same XML:
+  --   FinishingReagents and Concentrate (the Concentrate button), shown only in the minimized
+  --     window, Finishing under Reagents or beside OptionalReagents, Concentrate at its TOPLEFT
+  --     +100, +20 (SchematicForm.lua, Init);
+  --   AllocateBestQualityCheckbox, "Use Best Quality Reagents", 26 tall at the form's BOTTOMLEFT
+  --     +30, +20, shown in the full window for recipes with reagent qualities;
+  --   Details, the 263 wide column at the form's TOPRIGHT -27, -125.
   local frame = W.CreateFrame("Frame", nil, nil)
   frame:SetSize(942, 658)
   local page = W.CreateFrame("Frame", nil, frame)
@@ -157,6 +164,20 @@ function TS.install(opts)
   local recraft = W.CreateFrame("Frame", nil, form)
   recraft:Hide()
   form.extraSlotFrames = { recraft }
+  form.FinishingReagents = W.CreateFrame("Frame", nil, form)
+  form.FinishingReagents:Hide()
+  form.Concentrate = W.CreateFrame("Frame", nil, form)
+  form.Concentrate:Hide()
+  form.AllocateBestQualityCheckbox = W.CreateFrame("CheckButton", nil, form)
+  form.Details = W.CreateFrame("Frame", nil, form)
+  -- Laid out as the full window shows a short recipe (UI units, bottom up): the form 655 x 553,
+  -- two basic slots, one optional row, the checkbox and the Details column. A spec moves any of
+  -- them with TS.layout; a block never laid out answers nil, as the client does.
+  TS.layout(form, 300, 800, 655, 553)
+  TS.layout(form.Reagents, 328, 650, 180, 110)
+  TS.layout(form.OptionalReagents, 328, 520, 180, 60)
+  TS.layout(form.AllocateBestQualityCheckbox, 330, 293, 26, 26)
+  TS.layout(form.Details, 665, 675, 263, 300)
   local open = opts.open
   function form:GetRecipeInfo()
     return open and recipes[open.recipeID] and recipes[open.recipeID].info or nil
@@ -219,6 +240,16 @@ function TS.install(opts)
     restoreFrames()
     for _, k in ipairs(GLOBALS) do _G[k] = saved[k] end
   end
+end
+
+--- Lays a region out where the client would: Region:GetLeft, GetRight, GetTop and GetBottom in UI
+--- units (bottom up: lower on screen is smaller), and its size.
+function TS.layout(region, left, top, width, height)
+  region:SetSize(width, height)
+  function region:GetLeft() return left end
+  function region:GetRight() return left + width end
+  function region:GetTop() return top end
+  function region:GetBottom() return top - height end
 end
 
 --- Runs the timers queued so far (one frame passing), and any they queue in turn.

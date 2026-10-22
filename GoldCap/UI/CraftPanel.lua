@@ -278,50 +278,93 @@ local function buildCard(f)
   card.name = wrapped(card, LAYOUT.NAME, inner)
   card.name:SetPoint("TOPLEFT", card.heading, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
   setColor(card.name, T.color.fg)
+  -- The strip's lines when there is no room for them under the reagents (UI/CraftStrip.lua).
+  card.figures = {}
   card.add = T.Button(card, "primary", "plaque")
   card.add:SetHeight(LAYOUT.BUTTON_H)
-  card.add:SetPoint("TOPLEFT", card.name, "BOTTOMLEFT", 0, -LAYOUT.GAP)
-  card.add:SetScript("OnClick", function(self) P.AskCount(self, card.recipe) end)
+  card.add:SetScript("OnClick", function(self) if card.recipe then P.AskCount(self, card.recipe) end end)
   card.restock = T.Button(card, "primary", "plaque")
   card.restock:SetHeight(LAYOUT.BUTTON_H)
-  card.restock:SetScript("OnClick", function(self) P.AskRestock(self, card.recipe) end)
+  card.restock:SetScript("OnClick", function(self) if card.recipe then P.AskRestock(self, card.recipe) end end)
   card:Hide()
   return card
 end
 
--- The card for the recipe the window shows, or hidden: no recipe GoldCap prices, a recipe the
--- character has not learned (Blizzard's list shows those too: one could never be crafted from the
--- queue), no character, or a store a newer GoldCap wrote. Each button is as wide as its label in
--- the player's language; the two sit side by side when both fit the card, else one under the other.
+-- The card for the recipe the window shows. It has the strip's lines when the strip found no room
+-- under the reagents (UI/CraftStrip.lua), and Add to queue and Restock to when the recipe can be
+-- queued: never for a recipe the character has not learned (Blizzard's list shows those too: one
+-- could never be crafted from the queue), nor without a character or with a store a newer GoldCap
+-- wrote. With neither, or no recipe GoldCap prices, it is hidden. Each button is as wide as its
+-- label in the player's language; the two sit side by side when both fit the card, else one
+-- under the other.
 local function paintCard(f)
   local card = f.card
   local CC = GC.CraftClient
   local open = CC.OpenRecipe()
-  local recipe = open and open.learned and CC.Snapshot(open.recipeID) or nil
-  if not (recipe and CC.Char() and GC.CraftQueue.Writable()) then
-    card.recipe = nil
+  local recipe = open and CC.Snapshot(open.recipeID) or nil
+  local strip = GC.CraftStrip
+  local figures = recipe and strip and strip.Folded and strip.Folded(open.recipeID) or nil
+  local queueable = recipe ~= nil and open.learned == true and CC.Char() ~= nil and GC.CraftQueue.Writable()
+  card.recipe = queueable and recipe or nil
+  if not (queueable or figures) then
     card:Hide()
     return
   end
-  card.recipe = recipe
   card.heading:SetText(GC.L["This recipe"])
   card.name:SetText(recipe.name)
-  card.add:SetLabel(GC.L["Add to queue"])
-  card.restock:SetLabel(GC.L["Restock to"])
-  card.add:FitLabels({ card.add.label }, LAYOUT.BUTTON_MIN)
-  card.restock:FitLabels({ card.restock.label }, LAYOUT.BUTTON_MIN)
   local inner = LAYOUT.INNER - 2 * LAYOUT.CARD_PAD
-  local beside = card.add:GetWidth() + LAYOUT.BUTTON_GAP + card.restock:GetWidth() <= inner
-  card.restock:ClearAllPoints()
-  if beside then
-    card.restock:SetPoint("LEFT", card.add, "RIGHT", LAYOUT.BUTTON_GAP, 0)
-  else
-    card.restock:SetPoint("TOPLEFT", card.add, "BOTTOMLEFT", 0, -LAYOUT.BUTTON_GAP)
+  local height = LAYOUT.CARD_PAD + card.heading:GetHeight() + LAYOUT.LINE_GAP + card.name:GetHeight()
+  local above = card.name
+  -- The strip's lines, each wrapped in the card and as tall as its text.
+  local lines = figures or {}
+  for i, l in ipairs(lines) do
+    local fs = card.figures[i]
+    if not fs then
+      fs = wrapped(card, LAYOUT.NAME, inner)
+      card.figures[i] = fs
+    end
+    fs:SetText(l.text)
+    setColor(fs, l.color)
+    local gap = i == 1 and LAYOUT.GAP or LAYOUT.LINE_GAP
+    fs:ClearAllPoints()
+    fs:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -gap)
+    fs:Show()
+    height = height + gap + fs:GetHeight()
+    above = fs
   end
-  local buttons = beside and LAYOUT.BUTTON_H or (2 * LAYOUT.BUTTON_H + LAYOUT.BUTTON_GAP)
-  card:SetHeight(LAYOUT.CARD_PAD + card.heading:GetHeight() + LAYOUT.LINE_GAP + card.name:GetHeight()
-    + LAYOUT.GAP + buttons + LAYOUT.CARD_PAD)
+  for i = #lines + 1, #card.figures do card.figures[i]:Hide() end
+  if queueable then
+    card.add:SetLabel(GC.L["Add to queue"])
+    card.restock:SetLabel(GC.L["Restock to"])
+    card.add:FitLabels({ card.add.label }, LAYOUT.BUTTON_MIN)
+    card.restock:FitLabels({ card.restock.label }, LAYOUT.BUTTON_MIN)
+    local beside = card.add:GetWidth() + LAYOUT.BUTTON_GAP + card.restock:GetWidth() <= inner
+    card.add:ClearAllPoints()
+    card.add:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+    card.restock:ClearAllPoints()
+    if beside then
+      card.restock:SetPoint("LEFT", card.add, "RIGHT", LAYOUT.BUTTON_GAP, 0)
+    else
+      card.restock:SetPoint("TOPLEFT", card.add, "BOTTOMLEFT", 0, -LAYOUT.BUTTON_GAP)
+    end
+    card.add:Show()
+    card.restock:Show()
+    height = height + LAYOUT.GAP + (beside and LAYOUT.BUTTON_H or (2 * LAYOUT.BUTTON_H + LAYOUT.BUTTON_GAP))
+  else
+    card.add:Hide()
+    card.restock:Hide()
+  end
+  card:SetHeight(height + LAYOUT.CARD_PAD)
   card:Show()
+end
+
+--- Repaints This recipe alone, and what sits under it: the strip calls this when it hands its
+--- lines over for want of room under the reagents, or takes them back.
+function P.PaintOpen()
+  local f = P._frame
+  if not (f and f:IsVisible()) then return end
+  paintCard(f)
+  P.Layout()
 end
 
 -- ---------------------------------------------------------------------------------------------
