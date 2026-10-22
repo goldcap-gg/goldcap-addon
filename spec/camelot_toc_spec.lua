@@ -34,10 +34,12 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   end)
 
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
-  -- goldcap.gg works out where flips sell for retail realms alone.
+  -- goldcap.gg works out where flips sell for retail realms alone. Crafting in the profession
+  -- window is retail's too: Forever's professions differ and have a design of their own.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true }
+  RETAIL_ONLY["Core/CraftMath.lua"] = true
 
-  it("loads the same files in the same order, minus retail's price snapshot and the Warband Bank", function()
+  it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}
     for _, f in ipairs(retailF) do
       if not RETAIL_ONLY[f] then expected[#expected + 1] = f end
