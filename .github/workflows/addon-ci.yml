@@ -50,3 +50,13 @@ jobs:
           [ -n "$announced" ] || { echo "::error::addon-release.yml announces no CurseForge URL"; exit 1; }
           [ "$announced" = "$documented" ] \
             || { echo "::error::the announced listing and the README's disagree"; exit 1; }
+
+  # The release workflow's manifest script publishes what the Companion installs, so its
+  # refusals (a foreign folder, a bad version, a bundled GoldCap_AppData) are tested here
+  # instead of being found out on a tag.
+  manifest-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/test-build-addon-manifest.sh
