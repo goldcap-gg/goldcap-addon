@@ -116,6 +116,9 @@ function GC.Sell.Reset()
   for key in pairs(S.postedOut) do S.postedOut[key] = nil end
   for key in pairs(S.passedThisVisit) do S.passedThisVisit[key] = nil end
   S.queueDone, S.dockKey = {}, nil
+  -- The CANCEL button's run (UI/Sell/Dock.lua) ends with the visit: its confirm was for the lots
+  -- on screen then, and a press after reopening arms again.
+  S.cancelRun = nil
   GC.QuoteCache.Clear(S.quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
