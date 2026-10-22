@@ -37,14 +37,23 @@ local function accountBank()
   return Enum and Enum.BankType and Enum.BankType.Account or nil
 end
 
--- The bank is open, `bankType`'s bank can be used here, and no other window is open that a
--- container click would feed instead: a vendor sells the item, the auction house, the mail and a
--- trade take it.
+-- The windows a container click feeds instead of the bank, as Blizzard's own right click on a bag
+-- item lists them (live Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua,
+-- ContainerFrameItemButton_OnClick): a vendor sells the item, the auction house takes it to post,
+-- the Azerite respec and the Runeforge take it as theirs, and Blizzard treats the click as a plain
+-- use only while none of the guild bank, the mailbox (either tab), a trade, the item upgrade, the
+-- Obliterum forge and the keystone slot is open. Most of them load on demand: one that is not
+-- loaded is not open.
+local OTHER_WINDOWS = { "MerchantFrame", "AuctionHouseFrame", "AzeriteRespecFrame", "RuneforgeFrame",
+  "GuildBankFrame", "MailFrame", "TradeFrame", "ItemUpgradeFrame", "ObliterumForgeFrame",
+  "ChallengesKeystoneFrame" }
+
+-- The bank is open, `bankType`'s bank can be used here, and none of OTHER_WINDOWS is open.
 local function bankIsTheWindow(bankType)
   if not (P._open and bankType ~= nil and C_Bank and C_Bank.CanUseBank) then return false end
   local ok, can = pcall(C_Bank.CanUseBank, bankType)
   if not (ok and can) then return false end
-  for _, name in ipairs({ "MerchantFrame", "AuctionHouseFrame", "SendMailFrame", "TradeFrame" }) do
+  for _, name in ipairs(OTHER_WINDOWS) do
     local other = _G[name]
     if type(other) == "table" and other.IsShown and other:IsShown() then return false end
   end
@@ -160,11 +169,14 @@ end
 --- default, so a call that names none moves nothing. The same call equips a piece of gear when no
 --- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
 --- bank is the window and that bank can be used here, that the slot still holds the stack's item,
---- unlocked, and, into the bank, that the bank may take it. Deposit with (bag, slot, nil, bankType,
---- false), as Blizzard's own right click on a bag item does, withdraw with (tabID, slot). True when
---- the call was made.
+--- unlocked, and, into the bank, that the bank may take it. A spell waiting for an item target, or
+--- anything on the cursor, would turn the call into casting that spell on the item
+--- (GC.Util.CursorBusy): then it moves nothing. Deposit with (bag, slot, nil, bankType, false), as
+--- Blizzard's own right click on a bag item does, withdraw with (tabID, slot). True when the call
+--- was made.
 function P.MoveStack(stack, into, bankType)
   if not (type(stack) == "table" and bankIsTheWindow(bankType)) then return false end
+  if GC.Util.CursorBusy() then return false end
   local info = C_Container.GetContainerItemInfo(stack.bag, stack.slot)
   if not (info and info.itemID == stack.itemID) or info.isLocked then return false end
   if into then

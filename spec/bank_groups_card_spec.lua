@@ -8,11 +8,11 @@ local W = require("spec.support.wow_frames")
 -- guards the card uses; the bags, both banks, the bank window and the client calls are faked.
 describe("bank by group card", function()
   local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked, closedFor
-  local showing, usable, charTabs, refusedHere
+  local showing, usable, charTabs, refusedHere, targeting
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
   local KEYS = { "Enum", "UIParent", "BankFrame", "BankPanel", "MerchantFrame", "ItemLocation", "C_Container",
-    "C_Item", "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns" }
+    "C_Item", "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns", "SpellIsTargeting", "GetCursorInfo" }
 
   -- Herbs: Bloom (two qualities, 1 and 2); Ore: Bismuth (3); Cloth: Weavercloth (4), never in the
   -- bags here. Item 9 is in no followed group.
@@ -98,6 +98,10 @@ describe("bank by group card", function()
       [12] = { info(2, 600) },
     }
     _G.Enum = { BankType = { Character = CHARACTER, Account = ACCOUNT } }
+    -- Read by GC.Util.CursorBusy: no spell waits for a target and the cursor is empty.
+    targeting = false
+    _G.SpellIsTargeting = function() return targeting end
+    _G.GetCursorInfo = function() return nil end
     _G.UIParent = W.CreateFrame("Frame")
     _G.BankFrame = W.CreateFrame("Frame")
     _G.BankFrame:Show()
@@ -524,6 +528,19 @@ describe("bank by group card", function()
     press(herbs.keep)
     assert.equal("How many of each item in Kräuter to keep in your bags?", asked.opts.title)
     assert.equal("30", asked.opts.text)
+  end)
+
+  -- A spell waiting for an item target turns the move into casting it on the item: the bank route's
+  -- MoveStack refuses, and the card's press moves nothing.
+  it("moves nothing while a spell waits for an item target", function()
+    open()
+    targeting = true
+    press(block("Herbs").toBank)
+    press(block("Herbs").toBags)
+    assert.same({}, used)
+    targeting = false
+    press(block("Herbs").toBank)
+    assert.equal(1, #used)
   end)
 
   it("shows nothing when no followed group has an item here", function()

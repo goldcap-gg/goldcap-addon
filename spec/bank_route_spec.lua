@@ -4,7 +4,7 @@ local helper = require("spec.spec_helper")
 -- Tarren Mill (1084); the account has a character on Kazzak (1305). The bags, the Warband Bank and
 -- the payload are faked; Core/SellRoute.lua is the real one.
 describe("bank carry list", function()
-  local GC, bags, used, timers, wue, canUse, reads, refused, refusedHere, tabs, shown
+  local GC, bags, used, timers, wue, canUse, reads, refused, refusedHere, tabs, shown, targeting, cursor
   local G = 10000
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
@@ -59,6 +59,11 @@ describe("bank carry list", function()
 
   before_each(function()
     used, timers, wue, canUse, tabs, shown = {}, {}, {}, true, { 12 }, nil
+    -- SpellIsTargeting and GetCursorInfo, the client's, read by GC.Util.CursorBusy: no spell waits
+    -- for a target and the cursor is empty unless a spec says otherwise.
+    targeting, cursor = false, nil
+    _G.SpellIsTargeting = function() return targeting end
+    _G.GetCursorInfo = function() return cursor end
     -- 0: the backpack, with a flip that sells better on Kazzak (100) and one with no route (500);
     -- 12: the first Warband Bank tab, with a flip that sells best here (200).
     bags = {
@@ -128,6 +133,7 @@ describe("bank carry list", function()
   after_each(function()
     _G.Enum, _G.CreateFrame, _G.UIParent, _G.BankFrame, _G.MerchantFrame, _G.GetRealmName = nil, nil, nil, nil, nil, nil
     _G.ItemLocation, _G.C_Container, _G.C_Item, _G.C_Bank, _G.C_Timer = nil, nil, nil, nil, nil
+    _G.SpellIsTargeting, _G.GetCursorInfo = nil, nil
   end)
 
   it("calls the realm to carry to by the player's character's realm, not the payload's name for its market", function()
@@ -203,6 +209,44 @@ describe("bank carry list", function()
     canUse = false
     press(rowFor("PUT IN"))
     assert.same({}, used)
+  end)
+
+  -- Blizzard's own list of windows a bag click feeds instead (ContainerFrame.lua): the mailbox on
+  -- either tab, the guild bank and the rest move nothing either.
+  it("moves nothing while another window a bag click feeds is open", function()
+    panel().OnBankOpened()
+    local putIn = rowFor("PUT IN")
+    for _, name in ipairs({ "MailFrame", "GuildBankFrame", "TradeFrame", "AuctionHouseFrame", "ItemUpgradeFrame",
+        "ObliterumForgeFrame", "ChallengesKeystoneFrame", "AzeriteRespecFrame", "RuneforgeFrame" }) do
+      _G[name] = region("Frame")
+      _G[name]:Show()
+      press(putIn)
+      assert.same({}, used, name)
+      _G[name] = nil
+    end
+    press(putIn)
+    assert.equal(1, #used)
+  end)
+
+  -- With a spell waiting for an item target (Disenchant, an enchant scroll) the same call casts it
+  -- on the item, and with something on the cursor it does something else again.
+  it("moves nothing while a spell waits for an item target or the cursor carries something", function()
+    panel().OnBankOpened()
+    local putIn = rowFor("PUT IN")
+    targeting = true
+    press(putIn)
+    press(rowFor("TAKE OUT"))
+    targeting, cursor = false, "item"
+    press(putIn)
+    press(rowFor("TAKE OUT"))
+    assert.same({}, used)
+    -- A read that fails counts as busy.
+    cursor, _G.SpellIsTargeting = nil, function() error("no such function") end
+    press(putIn)
+    assert.same({}, used)
+    _G.SpellIsTargeting = function() return false end
+    press(putIn)
+    assert.equal(1, #used)
   end)
 
   it("moves nothing when the slot no longer holds the item, or it is locked", function()
@@ -281,6 +325,16 @@ describe("bank carry list", function()
       assert.is_true(panel().MoveStack(stack(6, 1, 300), false, CHARACTER))
       assert.is_true(panel().MoveStack(stack(0, 2, 500), true, ACCOUNT))
       assert.same({ { n = 5, 0, 1, nil, CHARACTER, false }, { n = 2, 6, 1 }, { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
+    end)
+
+    it("moves nothing either way while a spell waits for an item target or the cursor carries something", function()
+      targeting = true
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, CHARACTER))
+      assert.is_false(panel().MoveStack(stack(6, 1, 300), false, CHARACTER))
+      targeting, cursor = false, "item"
+      assert.is_false(panel().MoveStack(stack(0, 1, 100), true, ACCOUNT))
+      assert.is_false(panel().MoveStack(stack(12, 1, 200), false, ACCOUNT))
+      assert.same({}, used)
     end)
 
     it("moves nothing when handed no bank, or one it cannot use here", function()
@@ -444,9 +498,10 @@ describe("bank carry list", function()
       assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot, nil, bankType, false)"))
       assert.equal(1, count(body, "C_Container.UseContainerItem(stack.bag, stack.slot)"))
       assert.is_truthy(body:find("function P.MoveStack(stack, into, bankType)", 1, true))
-      -- Every guard is for that bank, before either call.
+      -- Every guard is for that bank, before either call, and the cursor is asked first too.
       local first = assert(body:find("C_Container.UseContainerItem(", 1, true))
       assert.is_true(assert(body:find("bankIsTheWindow(bankType)", 1, true)) < first)
+      assert.is_true(assert(body:find("if GC.Util.CursorBusy() then return false end", 1, true)) < first)
       assert.is_true(assert(body:find("staysWhy(loc, bankType)", 1, true)) < first)
     end)
 

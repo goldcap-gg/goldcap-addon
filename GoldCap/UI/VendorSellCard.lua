@@ -90,20 +90,9 @@ local function paintButton()
 end
 
 -- What the machine (Core/VendorPress.lua) drives. `use` is the single place the addon sells; the
--- other fields read the client or arm a timer.
---
--- Busy when the cursor carries something, or when a spell waits for an item target (Disenchant, an
--- enchant scroll). GetCursorInfo is nil then, and UseContainerItem casts that spell on the item
--- instead of selling it: Blizzard's own bag click calls it for exactly that (live
--- Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:1340-1342), and shows the sell cursor over a
--- bag item only while SpellIsTargeting() is false (same file, :1559). The machine checks this
--- before every call, the one in the click included. An error from either read counts as busy.
-local function cursorBusy()
-  local okSpell, targeting = pcall(SpellIsTargeting)
-  if not okSpell or targeting then return true end
-  local ok, kind = pcall(GetCursorInfo)
-  return ok and kind ~= nil
-end
+-- other fields read the client or arm a timer. `cursorBusy` is GC.Util.CursorBusy (an item on the
+-- cursor, or a spell waiting for an item target, which UseContainerItem would cast on the item
+-- instead of selling it): the machine checks it before every call, the one in the click included.
 
 local function slotNow(bag, slot)
   local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
@@ -134,7 +123,7 @@ function C._Machine()
     C.machine = GC.VendorPress.New({
       merchantOpen = merchantOpen,
       slot = slotNow,
-      cursorBusy = cursorBusy,
+      cursorBusy = GC.Util.CursorBusy,
       use = function(bag, slot) C_Container.UseContainerItem(bag, slot) end,
       after = function(seconds, fn) C_Timer.After(seconds, fn) end,
       report = report,

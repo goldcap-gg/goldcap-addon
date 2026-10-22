@@ -475,6 +475,21 @@ function GC.Util.Upper(text)
     :gsub("\210\145", "\210\144"))
 end
 
+-- Whether a container click now would do something other than what the addon means: the cursor
+-- carries something, or a spell waits for an item target (Disenchant, an enchant scroll, a vellum).
+-- GetCursorInfo is nil then, and C_Container.UseContainerItem casts that spell on the item instead
+-- of selling, depositing or withdrawing it: Blizzard's own bag click calls it for exactly that
+-- (live Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:1340-1342), and shows the sell cursor
+-- over a bag item only while SpellIsTargeting() is false (same file, :1559). Every container move
+-- asks it first: the Sell to vendor card's machine (UI/VendorSellCard.lua) and the bank route's
+-- MoveStack (UI/BankRoute.lua). An error from either read counts as busy.
+function GC.Util.CursorBusy()
+  local okSpell, targeting = pcall(SpellIsTargeting)
+  if not okSpell or targeting then return true end
+  local ok, kind = pcall(GetCursorInfo)
+  return ok and kind ~= nil
+end
+
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
 -- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and
 -- that lookup answers "" for a code it has no text for. The table lives in the auction house's
