@@ -517,6 +517,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper._RebuildKeyTargets()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    if GC.MailReturns then GC.MailReturns.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
