@@ -7,7 +7,7 @@ local W = require("spec.support.wow_frames")
 -- (UI/BankRoute.lua), whose reader, move function and guards the card uses; the bags, the
 -- Warband Bank and the client calls are faked.
 describe("bank by group card", function()
-  local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked
+  local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked, closedFor
   local ACCOUNT = 2
   local KEYS = { "Enum", "UIParent", "BankFrame", "MerchantFrame", "ItemLocation", "C_Container", "C_Item",
     "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns" }
@@ -118,7 +118,11 @@ describe("bank by group card", function()
     -- No route data (no Companion region payload): the carry list stays hidden.
     GC.SellRoute = { HereId = function() return nil end }
     GC.db = {}
-    GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+    closedFor = {}
+    GC.BuyCapEditor = {
+      Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end,
+      CloseFor = function(anchor) closedFor[anchor] = true end,
+    }
     helper.loadModule("UI/BankRoute.lua", GC)
     helper.loadModule("UI/BankGroupsCard.lua", GC)
     C = GC.BankGroupsCard
@@ -264,6 +268,16 @@ describe("bank by group card", function()
     assert.equal("To bank: nothing to move", block("Herbs").toBank.label)
     assert.is_false(block("Herbs").toBank:IsEnabled())
     assert.equal("To bags: Bloom ×600 (1 left)", block("Herbs").toBags.label)
+  end)
+
+  -- The question is about this bank's card: it goes when the bank closes.
+  it("closes the keep popup with the bank", function()
+    open()
+    local keep = block("Herbs").keep
+    press(keep)
+    assert.is_nil(closedFor[keep])
+    GC.BankRoute.OnBankClosed()
+    assert.is_true(closedFor[keep])
   end)
 
   -- The bank route's own guards, reused: the same call equips gear with no bank open (which binds

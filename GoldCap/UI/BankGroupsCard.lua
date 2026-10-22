@@ -445,6 +445,8 @@ end
 function C.OnBankClosed()
   C._moving, C._width, C._besideRoute = {}, nil, false
   C._shown, C._unfolded = {}, false
+  -- A keep count asked at this bank goes with it.
+  for _, block in ipairs(C._blocks) do GC.BuyCapEditor.CloseFor(block.keep) end
   hide()
 end
 
