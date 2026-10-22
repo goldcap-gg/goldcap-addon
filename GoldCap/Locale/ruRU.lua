@@ -1490,4 +1490,9 @@ GC.Locales.ruRU = {
   ["Forget kept items"] = "Забыть сохранённые предметы",
   ["Sell to vendor lists poor quality items a vendor buys."] = "Продать торговцу показывает предметы низкого качества, которые торговец покупает.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Продать торговцу также показывает непривязанные предметы, за которые торговец платит столько же, сколько аукцион после своей комиссии.",
+  ["Sell to vendor"] = "Продать торговцу",
+  ["Sell %d for %s"] = "Продать %d за %s",
+  ["%d more after this"] = "Ещё %d после этой",
+  ["Right click a line to keep that item."] = "Щёлкните строку правой кнопкой, чтобы оставить этот предмет.",
+  ["Never sell this"] = "Никогда не продавать",
 }

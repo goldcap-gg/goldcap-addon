@@ -1408,4 +1408,9 @@ GC.Locales.enUS = {
   ["Forget kept items"] = "Forget kept items",
   ["Sell to vendor lists poor quality items a vendor buys."] = "Sell to vendor lists poor quality items a vendor buys.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut.",
+  ["Sell to vendor"] = "Sell to vendor",
+  ["Sell %d for %s"] = "Sell %d for %s",
+  ["%d more after this"] = "%d more after this",
+  ["Right click a line to keep that item."] = "Right click a line to keep that item.",
+  ["Never sell this"] = "Never sell this",
 }

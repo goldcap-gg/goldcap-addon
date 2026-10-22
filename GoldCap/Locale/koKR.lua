@@ -1357,4 +1357,9 @@ GC.Locales.koKR = {
   ["Forget kept items"] = "보관 목록 비우기",
   ["Sell to vendor lists poor quality items a vendor buys."] = "상인에게 판매는 상인이 사 주는 하급 품질 아이템을 목록에 올립니다.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "상인에게 판매는 경매장에서 수수료를 뗀 뒤 받을 금액과 상인이 쳐주는 금액이 같거나 더 많은, 귀속되지 않은 아이템도 목록에 올립니다.",
+  ["Sell to vendor"] = "상인에게 판매",
+  ["Sell %d for %s"] = "%d개 판매: %s",
+  ["%d more after this"] = "이후 %d개 더",
+  ["Right click a line to keep that item."] = "줄을 우클릭하면 그 아이템을 보관합니다.",
+  ["Never sell this"] = "절대 판매하지 않기",
 }

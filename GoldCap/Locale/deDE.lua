@@ -1423,4 +1423,9 @@ GC.Locales.deDE = {
   ["Forget kept items"] = "Behaltene Gegenstände vergessen",
   ["Sell to vendor lists poor quality items a vendor buys."] = "An Händler verkaufen listet Gegenstände schlechter Qualität auf, die ein Händler kauft.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "An Händler verkaufen listet auch ungebundene Gegenstände auf, für die ein Händler so viel zahlt wie das Auktionshaus nach seinem Anteil.",
+  ["Sell to vendor"] = "An Händler verkaufen",
+  ["Sell %d for %s"] = "%d für %s verkaufen",
+  ["%d more after this"] = "%d weitere danach",
+  ["Right click a line to keep that item."] = "Rechtsklick auf eine Zeile, um diesen Gegenstand zu behalten.",
+  ["Never sell this"] = "Nie verkaufen",
 }

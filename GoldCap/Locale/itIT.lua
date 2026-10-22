@@ -1420,4 +1420,9 @@ GC.Locales.itIT = {
   ["Forget kept items"] = "Dimentica gli oggetti conservati",
   ["Sell to vendor lists poor quality items a vendor buys."] = "Vendi al mercante elenca gli oggetti di qualità scadente che un mercante compra.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Vendi al mercante elenca anche gli oggetti non vincolati per cui un mercante paga quanto la casa d'aste dopo la sua commissione.",
+  ["Sell to vendor"] = "Vendi al mercante",
+  ["Sell %d for %s"] = "Vendi %d per %s",
+  ["%d more after this"] = "%d in più dopo questa",
+  ["Right click a line to keep that item."] = "Clic destro su una riga per tenere quell'oggetto.",
+  ["Never sell this"] = "Non vendere mai",
 }

@@ -1027,16 +1027,21 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
     -- A sale or a buyback at a vendor changes what the vendor note counts.
     if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
+    -- ... and what the Sell to vendor card would sell.
+    if GC.VendorSellCard then GC.VendorSellCard.OnBagsChanged() end
     -- An item put into or taken out of the Warband Bank, by a press or by hand.
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantShow() end
   elseif event == "MERCHANT_UPDATE" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantUpdate() end
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantClosed() end
   elseif event == "BANKFRAME_OPENED" then
     if GC.BankRoute then GC.BankRoute.OnBankOpened() end
   elseif event == "BANKFRAME_CLOSED" then

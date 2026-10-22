@@ -1491,4 +1491,9 @@ GC.Locales.ukUA = {
   ["Forget kept items"] = "Забути збережені предмети",
   ["Sell to vendor lists poor quality items a vendor buys."] = "Продати торговцю показує предмети низької якості, які торговець купує.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Продати торговцю також показує предмети без прив'язки, за які торговець платить стільки ж, скільки аукціон після своєї комісії.",
+  ["Sell to vendor"] = "Продати торговцю",
+  ["Sell %d for %s"] = "Продати %d за %s",
+  ["%d more after this"] = "Ще %d після цієї",
+  ["Right click a line to keep that item."] = "Клацніть рядок правою кнопкою, щоб залишити цей предмет.",
+  ["Never sell this"] = "Ніколи не продавати",
 }

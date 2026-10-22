@@ -1427,4 +1427,9 @@ GC.Locales.esMX = {
   ["Forget kept items"] = "Olvidar objetos conservados",
   ["Sell to vendor lists poor quality items a vendor buys."] = "Vender al vendedor lista los objetos de calidad pobre que un vendedor compra.",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Vender al vendedor también lista objetos no ligados por los que un vendedor paga tanto como la casa de subastas tras su comisión.",
+  ["Sell to vendor"] = "Vender al vendedor",
+  ["Sell %d for %s"] = "Vender %d por %s",
+  ["%d more after this"] = "%d más después de esta",
+  ["Right click a line to keep that item."] = "Clic derecho en una línea para conservar ese objeto.",
+  ["Never sell this"] = "No vender nunca",
 }

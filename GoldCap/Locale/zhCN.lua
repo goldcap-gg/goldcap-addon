@@ -1323,4 +1323,9 @@ GC.Locales.zhCN = {
   ["Forget kept items"] = "清除保留的物品",
   ["Sell to vendor lists poor quality items a vendor buys."] = "出售给商人会列出商人收购的粗糙品质物品。",
   ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "出售给商人还会列出商人出价不低于拍卖行扣除手续费后所得的未绑定物品。",
+  ["Sell to vendor"] = "出售给商人",
+  ["Sell %d for %s"] = "出售%d件，获得%s",
+  ["%d more after this"] = "此后还有%d件",
+  ["Right click a line to keep that item."] = "右键点击一行以保留该物品。",
+  ["Never sell this"] = "永不出售",
 }
