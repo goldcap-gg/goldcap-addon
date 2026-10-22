@@ -291,6 +291,8 @@ local function paintBlock(block, group, writable)
     GC.L["To bank: nothing to move"]))
   widest = math.max(widest, paintMove(block.toBags, group, group.toBags, GC.L["To bags: %s ×%d (%d left)"],
     GC.L["To bags: nothing to move"]))
+  -- Without the keep counts (a newer GoldCap's), To bank is not offered; its row stays (layoutBlock).
+  block.toBank:SetShown(writable)
   paintStays(block, group.stays)
   return widest
 end
@@ -347,6 +349,9 @@ local function paint(groups)
   local writable = GC.BankGroups.Writable(GC.db)
   local open, folded = {}, {}
   for _, group in ipairs(groups) do
+    -- A newer GoldCap saved the keep counts, which this one cannot read: To bank would ignore what
+    -- the player keeps, so it moves nothing.
+    if not writable then group.toBank = {} end
     if C._shown[group.name] or #group.toBank + #group.toBags + #group.stays > 0 then
       C._shown[group.name] = true
       open[#open + 1] = group

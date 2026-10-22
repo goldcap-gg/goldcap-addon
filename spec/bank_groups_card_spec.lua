@@ -505,11 +505,23 @@ describe("bank by group card", function()
     assert.same({ "TOPLEFT", route, "TOPRIGHT", 4, 0 }, at(C._frame))
   end)
 
-  it("hides its keep button when a newer GoldCap saved the keep counts", function()
+  -- A newer GoldCap's keep counts cannot be read here, so To bank would ignore them: neither the
+  -- keep count nor To bank is offered (To bank's row stays), To bags still is.
+  it("offers neither the keep count nor To bank when a newer GoldCap saved the keep counts", function()
     GC.db.bankKeep = { v = GC.BankGroups.VERSION + 1 }
     open()
-    assert.is_false(shown(block("Herbs").keep))
-    assert.is_true(shown(block("Herbs").toBank))
+    local herbs = block("Herbs")
+    assert.is_false(shown(herbs.keep))
+    assert.is_false(shown(herbs.toBank))
+    assert.is_nil(herbs.toBank.stack)
+    assert.is_true(shown(herbs.toBags))
+    assert.equal("To bags: Bloom ×600 (1 left)", herbs.toBags.label)
+    -- Ore has nothing in the Warband Bank: nothing to move, so it folds.
+    assert.is_nil(block("Ore"))
+    press(herbs.toBank)
+    assert.same({}, used)
+    press(herbs.toBags)
+    assert.same({ { n = 2, 12, 1 } }, used)
   end)
 
   -- Labels wrap and buttons are as wide as their words: a long item name in a long language widens
