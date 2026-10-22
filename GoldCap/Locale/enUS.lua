@@ -1402,4 +1402,33 @@ GC.Locales.enUS = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Where each flip sells comes with the Companion's region data: nothing to go on yet.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nothing in your bags sells notably better on another of your realms.",
   ["What to take out of the Warband Bank shows at a bank."] = "What to take out of the Warband Bank shows at a bank.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GROUP",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Listed at or under the deal price of a group you follow (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "1 at a time",
+  ["all you have"] = "all you have",
+  ["%d h"] = "%d h",
+  ["not under %d%% of usual"] = "not under %d%% of usual",
+  ["not under the cost to craft"] = "not under the cost to craft",
+  ["%d%% cheaper each time it comes back"] = "%d%% cheaper each time it comes back",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Group you follow: %s",
+  ["Marked for you: it is in a group you follow."] = "Marked for you: it is in a group you follow.",
+  ["under group floor"] = "under group floor",
+  ["the market is under your group's floor. Type a price to post anyway"] = "the market is under your group's floor. Type a price to post anyway",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Min. undercut to cancel (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued.",
+  ["small undercut"] = "small undercut",
+  ["relisting would go under your group's floor. Hold"] = "relisting would go under your group's floor. Hold",
+  ["undercut by less than your cancel setting. Hold"] = "undercut by less than your cancel setting. Hold",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "Cancel %d lots? One press per lot, CONFIRM first.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "Cancel 1 lot? You lose its %s deposit. Press CONFIRM.",
+  ["Cancel 1 lot? Press CONFIRM."] = "Cancel 1 lot? Press CONFIRM.",
+  ["CANCEL NEXT (%d)"] = "CANCEL NEXT (%d)",
+  ["Press again to cancel the next lot"] = "Press again to cancel the next lot",
+  ["Stopped: 20 seconds without a press"] = "Stopped: 20 seconds without a press",
 }

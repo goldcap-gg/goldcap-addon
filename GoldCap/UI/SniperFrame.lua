@@ -1305,6 +1305,8 @@ local function setRowDeal(row, deal)
     -- SAME unitPrice+profit (a re-Adopt from the site swapping which group owns this item)
     -- moves the CAP tier chip and the row subtitle -- neither is covered by anything above.
     (verdict and verdict.cap) and 1 or 0, tostring(deal.capGroup),
+    -- A cap turning into a followed group's (or back) moves the chip between YOUR PRICE and GROUP.
+    tostring(verdict and verdict.followed),
     -- A cap row's total can move while its cheapest level and quantity do not.
     tostring(deal.capTotal),
     -- What a buy only the wallet limit refused needs moves the verdict cell on its own.
@@ -2545,7 +2547,9 @@ end
 -- Sell tab's reader -- a hand-edited value must never reach the API.
 local function depositFor(itemID, quantity)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper
-  local duration = settings and settings.postDuration
+  -- A followed group's duration first (Core/GroupRules.lua): a field read on a plain table, no
+  -- GoldCap function, since this runs inside the purchase click.
+  local duration = GC.GroupRules and GC.GroupRules.durationByItem[itemID] or (settings and settings.postDuration)
   if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = 2 end
   return C_AuctionHouse.CalculateCommodityDeposit(itemID, duration, quantity)
 end
@@ -5150,8 +5154,11 @@ local function stampDialogFromDecision(deal, decision)
   -- `ceiling` and no reasons either; the line says which kind of deal it is and what it makes.
   -- A Forever refusal carries its reason, and reads it like any other.
   local foreverPass = decision.ceiling ~= nil and #(decision.reasons or {}) == 0
+  -- A followed group's cap is that group's deal price, which the player never typed: its own
+  -- sentence (GC.Sniper._CapNote), never "the price you set".
   dialog.reasonText:SetText(decision.cap
-    and GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+    and (decision.followed and GC.Sniper._CapNote(deal)
+      or GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."])
     or foreverPass and GC.Sniper._ForeverNote(decision.forever, decision.ceiling, decision.exitUnit,
       decision.stressProfit)
     or GC.SniperDecision.ReasonText(firstReason))
@@ -5168,7 +5175,7 @@ local function stampDialogFromDecision(deal, decision)
     -- The player's own price decided this, not the market engine: a realm lot is carried as
     -- WATCH plus a candidate (the shape onDialogPrimaryClick buys a lot on) and a commodity as
     -- SAFE, and neither word says why the Buy is offered. The board's chip says YOUR PRICE.
-    dialog.decisionStatusText:SetText(GC.L["YOUR PRICE"])
+    dialog.decisionStatusText:SetText(decision.followed and GC.L["GROUP"] or GC.L["YOUR PRICE"])
   elseif foreverPass then
     dialog.decisionStatusText:SetText(GC.Sniper._ForeverLabel(decision.forever))
   elseif decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
@@ -6010,6 +6017,7 @@ local function buildCapDeal(itemID, isCommodity, decision, cap)
     cap = cap.c,
     capGroup = cap.group,
     capManual = cap.manual,
+    capFollowed = cap.followed,
     -- Same flag every full-scan-derived deal carries: this snapshot is not itself the last
     -- word, and openDialog's first click on it is a live re-Check, exactly like any other
     -- `.stale` row -- never an arm straight off a background read.
@@ -6067,6 +6075,9 @@ end
 -- the name the item cell leaves out when it has no room for it. nil for a row that is not a cap.
 function GC.Sniper._CapNote(deal)
   if not (deal and deal.cap) then return nil end
+  if deal.capGroup and deal.capFollowed then
+    return (GC.L["Listed at or under the deal price of a group you follow (%s)"]):format(deal.capGroup)
+  end
   if deal.capGroup then
     return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
   end
@@ -6794,6 +6805,8 @@ stampVerdict = function(deal, data, manual)
     -- THIS table, not off `decision` directly -- see verdictFor) can rank/label a cap row ahead
     -- of an ordinary SAFE/WATCH one. GC.Caps.DecideRealm/DecideCommodity both set it.
     cap = decision and decision.cap or nil,
+    -- A followed group's cap (GC.Caps decisions carry it): the chip reads GROUP.
+    followed = decision and decision.followed or nil,
     -- What the buy needs, when the wallet limit alone refused it (SniperDecision.Evaluate):
     -- renderList keeps the row, GC.BoardRows labels it "needs <gold>".
     needsGold = decision and decision.needsGold or nil,

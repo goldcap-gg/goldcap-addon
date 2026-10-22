@@ -107,6 +107,13 @@ local function evaluate(position, opts)
   if not positive(unit) then
     return "no_fresh_price"
   end
+  -- A followed group's floor over the live market ("a floor above the market holds POST" in
+  -- spec/sell_group_rules_spec.lua): posting at the floor would sit above every ask, and posting
+  -- under it breaks the group's rule. Held back; a price the player typed still goes.
+  local ruleFloor = type(position.rule) == "table" and position.rule.floorUnit or nil
+  if positive(ruleFloor) and position.freshMarketUnit < ruleFloor and recommendation.mode ~= "chosen" then
+    return "below_rule_floor"
+  end
   if recommendation.belowCost == true then
     return "below_breakeven"
   end
@@ -127,7 +134,12 @@ local function evaluate(position, opts)
   local postable = positive(position.postableQty) and position.postableQty or position.bagQty
   -- ...and on fewer, when the seller asked one Post for fewer (the Sell tab's "how many").
   local chosen = opts and opts.quantities and opts.quantities[position.positionKey]
-  if positive(chosen) and chosen < postable then postable = chosen end
+  if positive(chosen) then
+    if chosen < postable then postable = chosen end
+  elseif positive(position.rulePostQty) and position.rulePostQty < postable then
+    -- A followed group's "1 at a time" ("POST takes one at a time"), when nothing is typed.
+    postable = position.rulePostQty
+  end
   local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"
@@ -165,7 +177,11 @@ function GC.PostQueue.Selling(position, marks)
   if type(marks) == "table" and type(key) == "string" then choice = marks[key] end
   if choice ~= nil then return choice == true end
   local sources = position.sources
-  return type(sources) == "table" and type(sources.goldcap) == "number" and sources.goldcap > 0
+  if type(sources) == "table" and type(sources.goldcap) == "number" and sources.goldcap > 0 then return true end
+  -- A followed group's flip or gather item is stock to sell too ("flip and gather sell by
+  -- default"); a craft or stock group's members may be reagents the player keeps.
+  local rule = position.rule
+  return type(rule) == "table" and (rule.play == "flip" or rule.play == "gather")
 end
 
 --- GC.PostQueue.Build(positions, opts) -> entries, skipped, notSelling

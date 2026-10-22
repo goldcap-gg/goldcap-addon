@@ -1,5 +1,18 @@
 # GoldCap
 
+## 0.23.0 (unreleased)
+
+- Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
+  deals show on DEALS with a GROUP tag.
+- Sell: items from a group you follow are posted by its rules: how many at a time, for how long,
+  never under its lowest price, and a little cheaper each time a flip comes back unsold. The row
+  shows the group, and its tooltip the rule.
+- Sell: the CANCEL button asks once for the whole queue and shows the deposits you lose, then
+  cancels one lot per press. It cancels only the lots you confirmed: one that joins the queue
+  later is asked about again.
+- Settings: a new POSTING setting cancels a lot only when someone undercuts you by more than a set
+  percent.
+
 ## 0.22.1 (unreleased)
 
 - Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live

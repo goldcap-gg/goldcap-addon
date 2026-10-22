@@ -209,6 +209,16 @@ function fmt.count(format, count)
   return (format:gsub("%%d", GC.Sell._InlineColor(gold, tostring(count)), 1))
 end
 
+-- A followed group's item, on its row's tooltip (UI/Sell/Row.lua): which group, and its rule in
+-- words (Core/GroupRules.lua's Describe). Both lines wrap; nothing is cut.
+function fmt.ruleTooltip(position)
+  local rule = position and position.rule
+  if not (GameTooltip and rule and rule.name) then return end
+  GameTooltip:AddLine(GC.Util.ClientText((GC.L["Group you follow: %s"]):format(rule.name)), 1, 0.82, 0, true)
+  local words = GC.GroupRules and GC.GroupRules.Describe and GC.GroupRules.Describe(rule)
+  if words then GameTooltip:AddLine(GC.Util.ClientText(words), 0.85, 0.85, 0.85, true) end
+end
+
 -- What a price makes over what one cost once the auction house has taken its 5%, as the row's
 -- line under YOU GET and the dock's YOU GET both say it: "+43%" and green, "-20%" and red, and
 -- "-0%" in red for a loss under half a percent. Nil when either is not a figure.

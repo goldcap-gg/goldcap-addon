@@ -1414,4 +1414,33 @@ GC.Locales.itIT = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dove si vende ogni oggetto arriva con i dati di regione del Companion: ancora niente.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Niente nelle tue borse si vende molto meglio su un altro tuo reame.",
   ["What to take out of the Warband Bank shows at a bank."] = "Cosa prelevare dalla banca della brigata si vede in banca.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GRUPPO",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "In vendita al prezzo d'affare di un gruppo che segui o meno (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "1 alla volta",
+  ["all you have"] = "tutto quello che hai",
+  ["%d h"] = "%d h",
+  ["not under %d%% of usual"] = "non sotto il %d%% del prezzo abituale",
+  ["not under the cost to craft"] = "non sotto il costo di creazione",
+  ["%d%% cheaper each time it comes back"] = "%d%% in meno ogni volta che torna",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Gruppo che segui: %s",
+  ["Marked for you: it is in a group you follow."] = "Segnato per te: è in un gruppo che segui.",
+  ["under group floor"] = "sotto il minimo del gruppo",
+  ["the market is under your group's floor. Type a price to post anyway"] = "il mercato è sotto il minimo del tuo gruppo. Scrivi un prezzo per mettere in vendita comunque",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Ribasso min. per annullare (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Annulla solo quando qualcuno ti supera al ribasso di più di questa percentuale. A 0 conta qualsiasi ribasso. I lotti molto sotto il loro valore entrano sempre in coda.",
+  ["small undercut"] = "ribasso piccolo",
+  ["relisting would go under your group's floor. Hold"] = "rimettere in vendita andrebbe sotto il minimo del tuo gruppo. Aspetta",
+  ["undercut by less than your cancel setting. Hold"] = "ribasso inferiore alla tua impostazione di annullamento. Aspetta",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "Annullare %d lotti? Perdi %s di cauzioni. Una pressione per lotto, prima CONFERMA.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "Annullare %d lotti? Una pressione per lotto, prima CONFERMA.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "Annullare 1 lotto? Perdi la sua cauzione di %s. Premi CONFERMA.",
+  ["Cancel 1 lot? Press CONFIRM."] = "Annullare 1 lotto? Premi CONFERMA.",
+  ["CANCEL NEXT (%d)"] = "ANNULLA IL PROSSIMO (%d)",
+  ["Press again to cancel the next lot"] = "Premi di nuovo per annullare il prossimo lotto",
+  ["Stopped: 20 seconds without a press"] = "Interrotto: 20 secondi senza premere",
 }

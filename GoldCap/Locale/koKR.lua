@@ -1351,4 +1351,33 @@ GC.Locales.koKR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "되팔기 물건이 어디서 팔리는지는 Companion의 지역 데이터로 옵니다. 아직 없습니다.",
   ["Nothing in your bags sells notably better on another of your realms."] = "가방에 다른 서버에서 훨씬 비싸게 팔리는 물건이 없습니다.",
   ["What to take out of the Warband Bank shows at a bank."] = "전투부대 은행에서 꺼낼 물건은 은행에서 보입니다.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "그룹",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "팔로우 중인 그룹의 딜 가격 이하로 등록됨 (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "한 번에 1개",
+  ["all you have"] = "가진 것 전부",
+  ["%d h"] = "%d시간",
+  ["not under %d%% of usual"] = "평소 가격의 %d%% 미만 금지",
+  ["not under the cost to craft"] = "제작 비용 미만 금지",
+  ["%d%% cheaper each time it comes back"] = "돌아올 때마다 %d%% 더 싸게",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "팔로우 중인 그룹: %s",
+  ["Marked for you: it is in a group you follow."] = "자동 표시: 팔로우 중인 그룹의 아이템입니다.",
+  ["under group floor"] = "그룹 하한 미만",
+  ["the market is under your group's floor. Type a price to post anyway"] = "시세가 그룹 하한보다 낮습니다. 그래도 올리려면 가격을 입력하세요",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "취소할 최소 가격 차 (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "누군가 이 비율보다 더 낮게 올렸을 때만 취소합니다. 0이면 조금만 낮아도 해당됩니다. 가치보다 훨씬 싼 매물은 항상 대기열에 들어갑니다.",
+  ["small undercut"] = "작은 가격 차",
+  ["relisting would go under your group's floor. Hold"] = "재등록하면 그룹 하한보다 낮아집니다. 보류하세요",
+  ["undercut by less than your cancel setting. Hold"] = "가격 차가 취소 설정보다 작습니다. 보류하세요",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "물량 %d개를 취소할까요? 등록비 %s을(를) 잃습니다. 물량마다 한 번씩 누르고, 처음은 확인입니다.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "물량 %d개를 취소할까요? 물량마다 한 번씩 누르고, 처음은 확인입니다.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "물량 1개를 취소할까요? 등록비 %s을(를) 잃습니다. 확인을 누르세요.",
+  ["Cancel 1 lot? Press CONFIRM."] = "물량 1개를 취소할까요? 확인을 누르세요.",
+  ["CANCEL NEXT (%d)"] = "다음 취소 (%d)",
+  ["Press again to cancel the next lot"] = "다시 누르면 다음 물량을 취소합니다",
+  ["Stopped: 20 seconds without a press"] = "중지됨: 20초 동안 누르지 않음",
 }

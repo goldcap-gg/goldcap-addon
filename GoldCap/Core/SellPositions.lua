@@ -272,7 +272,7 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
-local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects)
+local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
@@ -353,6 +353,23 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or keyLevel > 0 and "level" or nil)
     or nil
   local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
+  -- Followed groups (spec/sell_group_rules_spec.lua): the selling rule of the group the player
+  -- follows that holds this item, read at this position's own item level, so a variant under the
+  -- group's level gets the rule without its prices (Core/GroupRules.lua). Handed in by the caller
+  -- (`rules`, Services/Sell/Compose.lua) as functions: this file reads no SavedVariables. Gear
+  -- with no variant key (no bonus IDs) still states its level in its position key,
+  -- item:<id>:<level>:<suffix>:0; a commodity's key and a pet's state none.
+  local ruleLevel = keyLevel > 0 and keyLevel
+    or type(position.positionKey) == "string" and tonumber(position.positionKey:match("^item:%d+:(%d+):%d+:0$"))
+    or 0
+  local rule = rules and rules.ruleFor and rules.ruleFor(position.itemID, ruleLevel) or nil
+  position.rule = type(rule) == "table" and rule or nil
+  if position.rule then
+    position.rulePostQty = positive(rule.perItem) and rule.perItem or nil
+    position.ruleDurationIndex = rule.durationIndex
+    local rounds = rules.roundsFor and rules.roundsFor(position.itemID) or 0
+    position.sellRounds = exact(rounds) and rounds or 0
+  end
   position.trendPct = marketStats and marketStats.trend or nil
   position.marketValue = marketStats and marketStats.mv or nil
   position.soldPerDay = marketStats and marketStats.sold or nil
@@ -371,6 +388,13 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.postFloor = GC.Flips.PostFloor({ marketUnit = fresh, mv = position.marketValue,
     levels = levels, sold = position.soldPerDay,
     heldQty = (position.bagQty or 0) + (position.listedQty or 0) })
+  -- A followed group's floor raises this floor and never lowers it ("the rule floor raises the
+  -- floor and never lowers it"). Composed here, the one place the floor is, so the row, the
+  -- queue, the recommendations below and the post plan all hold the same number.
+  local ruleFloor = position.rule and position.rule.floorUnit
+  if positive(ruleFloor) and not (positive(position.postFloor) and position.postFloor >= ruleFloor) then
+    position.postFloor = ruleFloor
+  end
 
   local cheapestListedUnit
   for _, ownedLot in ipairs(position.ownedLots) do
@@ -492,6 +516,23 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
         trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
   else
     position.postRecommendation = nil
+  end
+
+  -- Step down ("step-down" in spec/sell_group_rules_spec.lua): a followed group's rule with a step
+  -- posts stepPct of the usual price cheaper for each time the item came back unsold since its
+  -- last sale (Core/SellRounds.lua), never under the floor composed above and never above what
+  -- the market already gives. At 0 rounds it caps the price at the usual one. A lowered price is
+  -- mode "rule", which BuildPostPlan lists at as it stands, even under the cheapest ask.
+  local stepRec = position.postRecommendation
+  if position.rule and positive(position.rule.stepPct) and positive(position.rule.usualUnit)
+      and type(stepRec) == "table" and positive(stepRec.unit) then
+    local rounds = position.sellRounds or 0
+    local step = math.floor(position.rule.usualUnit * math.max(0, 100 - position.rule.stepPct * rounds) / 100)
+    local target = GC.Flips.SilverUp(math.max(position.postFloor or 0, math.min(stepRec.unit, step)))
+    if target and target < stepRec.unit then
+      stepRec.unit, stepRec.mode, stepRec.ruleRounds = target, "rule", rounds
+      stepRec.belowCost = (stepRec.breakeven ~= nil and target < stepRec.breakeven) or false
+    end
   end
 
   -- A price the seller typed replaces the recommendation EVERYWHERE it is read, not only at
@@ -881,7 +922,7 @@ function GC.SellPositions.Build(args)
     -- here, and (an old save may hold many) would otherwise sit among the rows a player acts on.
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-        args.quoteMaxAge, args.chosenUnits, args.scanProjects)
+        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules)
       result[#result + 1] = position
     end
   end
@@ -970,8 +1011,12 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   local quantity = bagState.exactQty
   if quantity <= 0 then return nil, "no_unlisted_quantity" end
   -- Fewer when the seller asked for fewer (the Sell tab's "how many"), never more than is here.
-  if positive(opts and opts.overrideQuantity) and opts.overrideQuantity < quantity then
-    quantity = opts.overrideQuantity
+  if positive(opts and opts.overrideQuantity) then
+    if opts.overrideQuantity < quantity then quantity = opts.overrideQuantity end
+  elseif positive(position.rulePostQty) and position.rulePostQty < quantity then
+    -- A followed group's "1 at a time" ("one at a time" in spec/sell_group_rules_spec.lua): the
+    -- default when the seller typed no quantity of their own.
+    quantity = position.rulePostQty
   end
   -- A price the seller typed replaces the derived one outright -- both raises below included.
   -- Those raises exist to stop the ADDON from underpricing on its own, against a thin cheap
@@ -980,8 +1025,14 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- and `belowCost` ride on the plan so the caller can say it out loud before the second
   -- click, rather than quietly listing at a number the player did not ask for.
   local chosen = positive(opts and opts.overrideUnit) and opts.overrideUnit or nil
+  local ruleRec = position.postRecommendation
   if chosen then
     unit = chosen
+  elseif type(ruleRec) == "table" and ruleRec.mode == "rule" and positive(ruleRec.unit) then
+    -- A followed group's step down ("the post plan lists at the rule price under the cheapest
+    -- ask"): the price decoratePosition stepped to, already at or over the composed floor. No
+    -- raise above it: the step is the rule's own decision to go under the market.
+    unit = ruleRec.unit
   else
     -- The displayed recommendation and the price Post actually used were two
     -- different numbers: the plan took the raw cheapest competing ask. Apply the

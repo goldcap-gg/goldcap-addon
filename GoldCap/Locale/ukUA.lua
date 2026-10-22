@@ -1485,4 +1485,33 @@ GC.Locales.ukUA = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Де що продається, надходить із даними регіону від Companion: поки даних немає.",
   ["Nothing in your bags sells notably better on another of your realms."] = "У сумках немає нічого, що помітно дорожче продається на іншому вашому реалмі.",
   ["What to take out of the Warband Bank shows at a bank."] = "Що забрати з банку загону, видно в банку.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "ГРУПА",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Виставлено за вигідною ціною групи, на яку ви підписані, або дешевше (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "по одному",
+  ["all you have"] = "усе, що є",
+  ["%d h"] = "%d год",
+  ["not under %d%% of usual"] = "не нижче %d%% від звичайної ціни",
+  ["not under the cost to craft"] = "не нижче собівартості крафту",
+  ["%d%% cheaper each time it comes back"] = "на %d%% дешевше після кожного повернення",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Група, на яку ви підписані: %s",
+  ["Marked for you: it is in a group you follow."] = "Позначено саме: це в групі, на яку ви підписані.",
+  ["under group floor"] = "нижче порогу групи",
+  ["the market is under your group's floor. Type a price to post anyway"] = "ринок нижче порогу вашої групи. Введіть ціну, щоб однаково виставити",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Мін. перебиття для зняття (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Знімати лот, лише якщо вас перебили більше ніж на цей відсоток. При 0 рахується будь-яке перебиття. Лоти набагато дешевші за свою ціну потрапляють у чергу завжди.",
+  ["small undercut"] = "дрібне перебиття",
+  ["relisting would go under your group's floor. Hold"] = "перевиставлення пішло б нижче порогу вашої групи. Притримайте",
+  ["undercut by less than your cancel setting. Hold"] = "перебили менше, ніж задано в налаштуванні зняття. Притримайте",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "Лотів до скасування: %d. Ви втратите заставу: %s. По натисканню на кожен лот, перше на ПІДТВЕРДИТИ.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "Лотів до скасування: %d. По натисканню на кожен лот, перше на ПІДТВЕРДИТИ.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "Скасувати 1 лот? Ви втратите заставу: %s. Натисніть ПІДТВЕРДИТИ.",
+  ["Cancel 1 lot? Press CONFIRM."] = "Скасувати 1 лот? Натисніть ПІДТВЕРДИТИ.",
+  ["CANCEL NEXT (%d)"] = "СКАСУВАТИ ЩЕ (%d)",
+  ["Press again to cancel the next lot"] = "Натисніть ще раз, щоб скасувати наступний лот",
+  ["Stopped: 20 seconds without a press"] = "Зупинено: 20 секунд без натискання",
 }

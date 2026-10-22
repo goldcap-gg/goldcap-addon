@@ -77,6 +77,17 @@ describe("Services/Sell", function()
     end
   end)
 
+  -- Post.lua sat one line under the limit above; a lot's cancel, from its arm to the answer it
+  -- owes the tab once sent, is its own file, so either half has room for the next change.
+  it("keeps a lot's cancel in Services/Sell/Cancel.lua, apart from the post", function()
+    local post, cancel = read("GoldCap/Services/Sell/Post.lua"), read("GoldCap/Services/Sell/Cancel.lua")
+    for _, header in ipairs({ "function Post.PrepareCancel(row, auctionID, now)", "function Post.Cancelling(row, pin, scope)",
+        "function Post.CancelSent()", "function Post.DisarmRepost()" }) do
+      assert.is_nil(post:find(header, 1, true), "Services/Sell/Post.lua still holds " .. header)
+      assert.is_truthy(cancel:find(header, 1, true), "Services/Sell/Cancel.lua does not hold " .. header)
+    end
+  end)
+
   it("makes no protected call: those belong to the click handlers in UI/Sell/Dock.lua", function()
     local PROTECTED = { "PostItem", "PostCommodity", "ConfirmPostItem", "ConfirmPostCommodity", "CancelAuction",
       "PlaceBid", "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase" }

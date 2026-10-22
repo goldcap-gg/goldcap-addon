@@ -1484,4 +1484,33 @@ GC.Locales.ruRU = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Где что продаётся, приходит с данными региона от Companion: пока данных нет.",
   ["Nothing in your bags sells notably better on another of your realms."] = "В сумках нет ничего, что заметно дороже продаётся на другом вашем реалме.",
   ["What to take out of the Warband Bank shows at a bank."] = "Что забрать из банка отряда, видно в банке.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "ГРУППА",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Выставлено по выгодной цене группы, на которую вы подписаны, или дешевле (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "по одному",
+  ["all you have"] = "всё, что есть",
+  ["%d h"] = "%d ч",
+  ["not under %d%% of usual"] = "не ниже %d%% от обычной цены",
+  ["not under the cost to craft"] = "не ниже себестоимости крафта",
+  ["%d%% cheaper each time it comes back"] = "на %d%% дешевле после каждого возврата",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Группа, на которую вы подписаны: %s",
+  ["Marked for you: it is in a group you follow."] = "Отмечено само: это в группе, на которую вы подписаны.",
+  ["under group floor"] = "ниже порога группы",
+  ["the market is under your group's floor. Type a price to post anyway"] = "рынок ниже порога вашей группы. Введите цену, чтобы всё равно выставить",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Мин. перебив для снятия (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Снимать лот, только если вас перебили больше чем на этот процент. При 0 считается любой перебив. Лоты намного дешевле своей цены попадают в очередь всегда.",
+  ["small undercut"] = "мелкий перебив",
+  ["relisting would go under your group's floor. Hold"] = "перевыставление ушло бы ниже порога вашей группы. Придержите",
+  ["undercut by less than your cancel setting. Hold"] = "перебили меньше, чем задано в настройке снятия. Придержите",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "Лотов к отмене: %d. Вы потеряете залог: %s. По нажатию на каждый лот, первое на ПОДТВЕРДИТЬ.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "Лотов к отмене: %d. По нажатию на каждый лот, первое на ПОДТВЕРДИТЬ.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "Отменить 1 лот? Вы потеряете залог: %s. Нажмите ПОДТВЕРДИТЬ.",
+  ["Cancel 1 lot? Press CONFIRM."] = "Отменить 1 лот? Нажмите ПОДТВЕРДИТЬ.",
+  ["CANCEL NEXT (%d)"] = "ОТМЕНИТЬ ЕЩЁ (%d)",
+  ["Press again to cancel the next lot"] = "Нажмите ещё раз, чтобы отменить следующий лот",
+  ["Stopped: 20 seconds without a press"] = "Остановлено: 20 секунд без нажатия",
 }

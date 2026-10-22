@@ -1421,4 +1421,33 @@ GC.Locales.esMX = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dónde se vende cada reventa llega con los datos de región del Companion: aún no hay nada.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nada de tus bolsas se vende bastante mejor en otro de tus reinos.",
   ["What to take out of the Warband Bank shows at a bank."] = "Lo que hay que sacar del banco de banda guerrera se ve en un banco.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GRUPO",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Publicado al precio de oferta de un grupo que sigues o por debajo (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "de 1 en 1",
+  ["all you have"] = "todo lo que tienes",
+  ["%d h"] = "%d h",
+  ["not under %d%% of usual"] = "no por debajo del %d%% del precio habitual",
+  ["not under the cost to craft"] = "no por debajo del costo de fabricación",
+  ["%d%% cheaper each time it comes back"] = "un %d%% más barato cada vez que vuelve",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Grupo que sigues: %s",
+  ["Marked for you: it is in a group you follow."] = "Marcado automáticamente: está en un grupo que sigues.",
+  ["under group floor"] = "bajo el mínimo del grupo",
+  ["the market is under your group's floor. Type a price to post anyway"] = "el mercado está por debajo del mínimo de tu grupo. Escribe un precio para publicar de todos modos",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "Rebaja mín. para cancelar (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "Cancela solo cuando alguien te rebaja más de este porcentaje. Con 0 cuenta cualquier rebaja. Los lotes muy por debajo de su valor siempre entran en la cola.",
+  ["small undercut"] = "rebaja pequeña",
+  ["relisting would go under your group's floor. Hold"] = "republicar quedaría bajo el mínimo de tu grupo. Espera",
+  ["undercut by less than your cancel setting. Hold"] = "la rebaja es menor que tu ajuste de cancelación. Espera",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "¿Cancelar %d lotes? Pierdes %s en depósitos. Una pulsación por lote, primero CONFIRMAR.",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "¿Cancelar %d lotes? Una pulsación por lote, primero CONFIRMAR.",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "¿Cancelar 1 lote? Pierdes su depósito de %s. Pulsa CONFIRMAR.",
+  ["Cancel 1 lot? Press CONFIRM."] = "¿Cancelar 1 lote? Pulsa CONFIRMAR.",
+  ["CANCEL NEXT (%d)"] = "CANCELAR SIGUIENTE (%d)",
+  ["Press again to cancel the next lot"] = "Pulsa otra vez para cancelar el siguiente lote",
+  ["Stopped: 20 seconds without a press"] = "Detenido: 20 segundos sin pulsar",
 }

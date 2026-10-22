@@ -43,6 +43,9 @@ describe("GC.Sell.Reset", function()
     S.postingRow, S.postingPin = posting, { sent = true }
     S.repostingRow, S.repostPin = reposting, { sent = true }
     S.removingRow, S.removePin = removing, { sent = true }
+    -- The CANCEL button's run (Core/CancelRun.lua): a confirm given on the last visit is not one
+    -- for the next, so a press after reopening arms again.
+    S.cancelRun = { stage = "running", ids = { [77] = true }, armedAt = 1, lastPressAt = 1 }
 
     GC.Sell.Reset()
 
@@ -73,6 +76,7 @@ describe("GC.Sell.Reset", function()
     assert.is_nil(posting.postStage)
     assert.is_nil(reposting.repostStage)
     assert.is_nil(removing.removeStage)
+    assert.is_nil(S.cancelRun)
   end)
 
   it("keeps what outlives a visit: drain tombstones, positions, typed prices, the deck, cancelled lots", function()

@@ -1318,4 +1318,33 @@ GC.Locales.zhTW = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "每件轉賣物品在哪賣隨 Companion 的地區資料而來：暫時還沒有。",
   ["Nothing in your bags sells notably better on another of your realms."] = "背包裡沒有在你其他伺服器明顯賣得更好的東西。",
   ["What to take out of the Warband Bank shows at a bank."] = "要從戰隊銀行取出什麼，在銀行裡顯示。",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "分組",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "掛單價不高於你關注的分組的撿漏價（%s）",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "每次 1 個",
+  ["all you have"] = "全部",
+  ["%d h"] = "%d 小時",
+  ["not under %d%% of usual"] = "不低於常規價的 %d%%",
+  ["not under the cost to craft"] = "不低於製作成本",
+  ["%d%% cheaper each time it comes back"] = "每次退回便宜 %d%%",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "你關注的分組：%s",
+  ["Marked for you: it is in a group you follow."] = "已自動標記：它在你關注的分組裡。",
+  ["under group floor"] = "低於分組底價",
+  ["the market is under your group's floor. Type a price to post anyway"] = "市價低於你分組的底價。輸入價格仍可上架",
+  -- Followed groups: cancel by a group's floor, and the cancel threshold.
+  ["Min. undercut to cancel (%)"] = "取消所需最低壓價 (%)",
+  ["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."] = "只有別人比你低出超過這個百分比時才取消。為 0 時任何壓價都算。遠低於價值的拍賣總會進入佇列。",
+  ["small undercut"] = "壓價很小",
+  ["relisting would go under your group's floor. Hold"] = "重新上架會低於你分組的底價。先保留",
+  ["undercut by less than your cancel setting. Hold"] = "壓價低於你的取消設定。先保留",
+  -- the cancel run (groups in the addon, task 13)
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "取消 %d 批？將損失押金 %s。每批按一次，第一次按確認。",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "取消 %d 批？每批按一次，第一次按確認。",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "取消 1 批？將損失押金 %s。按確認。",
+  ["Cancel 1 lot? Press CONFIRM."] = "取消 1 批？按確認。",
+  ["CANCEL NEXT (%d)"] = "取消下一批 (%d)",
+  ["Press again to cancel the next lot"] = "再按一次，取消下一批",
+  ["Stopped: 20 seconds without a press"] = "已停止：20 秒內沒有按下",
 }

@@ -42,21 +42,53 @@ describe("Sell posting wiring", function()
   -- The cancel queue's own belt, same shape: CancelAuction forfeits a real deposit, so it may
   -- exist ONLY inside onRepostClick (the hardware click handler with the two-click arm), and
   -- the cancel control must reuse that handler rather than grow a second cancel implementation.
+  --
+  -- Updated on purpose for the cancel run (plan 2026-10-22, task 13): the control now has two
+  -- hand-overs, ROW.armLot (the two-press arm, all Forever has) and ROW.runLot (one lot per press
+  -- once the whole queue is confirmed), and onRepostClick takes a third argument that picks the
+  -- one-press checks. CancelAuction still exists once, in onRepostClick.
   it("makes CancelAuction in onRepostClick and routes the cancel control through it", function()
     local text = source()
-    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID)")
+    local click = helper.functionBody(text, "local function onRepostClick(row, auctionID, now)")
     assert.is_truthy(click:find("C_AuctionHouse.CancelAuction(", 1, true), "CancelAuction must be made in onRepostClick")
     assert.equal(1, select(2, text:gsub("C_AuctionHouse%.CancelAuction%(", "")),
       "CancelAuction must be made once in the Sell tab -- in onRepostClick, never in the cancel control")
     local control = helper.functionBody(text, "local function onCancelQueueClick()")
     -- The dock's control and a row's own Cancel lot make the same hand-over (ROW.armLot), so
-    -- the chain is checked link by link: the control calls the hand-over, and the hand-over's
-    -- only way to cancel anything is onRepostClick.
+    -- the chain is checked link by link: the control calls a hand-over, and a hand-over's only
+    -- way to cancel anything is onRepostClick.
     assert.is_truthy(control:find("ROW.armLot(", 1, true), "onCancelQueueClick must go through ROW.armLot")
-    local armStart = assert(text:find("function ROW.armLot(entry)", 1, true), "ROW.armLot must exist")
-    local armStop = assert(text:find("\nend\n", armStart, true))
-    assert.is_truthy(text:sub(armStart, armStop):find("onRepostClick(", 1, true),
-      "ROW.armLot must call onRepostClick")
+    assert.is_truthy(control:find("ROW.runLot(", 1, true), "onCancelQueueClick must go through ROW.runLot")
+    assert.is_nil(control:find("onRepostClick(", 1, true),
+      "onCancelQueueClick reaches onRepostClick only through ROW.armLot or ROW.runLot")
+    -- The only client call the control makes is the deposit a lot forfeits, read at the arm.
+    for name in control:gmatch("C_AuctionHouse%.([%a_]+)") do
+      assert.equal("GetCancelCost", name, "onCancelQueueClick must not call C_AuctionHouse." .. name)
+    end
+    for _, header in ipairs({ "function ROW.armLot(entry)", "function ROW.runLot(entry)" }) do
+      assert.is_truthy(helper.functionBody(text, header):find("onRepostClick(", 1, true),
+        header .. " must call onRepostClick")
+    end
+    -- A cancelling press makes its protected call first: the render that opens the next lot
+    -- comes after it.
+    local run = helper.functionBody(text, "function ROW.runLot(entry)")
+    local call = assert(run:find("onRepostClick(", 1, true))
+    local render = assert(run:find("RenderRows(", 1, true), "ROW.runLot opens the next lot")
+    assert.is_true(call < render, "ROW.runLot must render only after onRepostClick")
+    -- The run's press goes from the arm's checks straight to the confirm's, before the arm paints
+    -- the row's button or says anything.
+    local prepare = helper.functionBody(text, "function Post.PrepareCancel(row, auctionID, now)")
+    local straight = assert(prepare:find("if now then", 1, true), "Post.PrepareCancel must take the run's press")
+    for _, paint in ipairs({ "row.action:Disable(); row.action:SetLabel(", "View.status(GC.L[\"Cancel this lot" }) do
+      assert.is_true(straight < assert(prepare:find(paint, 1, true)), paint .. " must not run in the run's press")
+    end
+  end)
+
+  it("keeps the cancel run free of the client", function()
+    local file = assert(io.open("GoldCap/Core/CancelRun.lua", "rb"))
+    local text = file:read("*a")
+    file:close()
+    assert.is_nil(text:gsub("%-%-[^\n]*", ""):find("C_%u"), "Core/CancelRun.lua must name no C_ API")
   end)
 
   -- Bindings.xml is not a .lua file, so the source-text scans above never see it -- this reads

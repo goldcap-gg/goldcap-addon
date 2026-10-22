@@ -700,6 +700,52 @@ describe("Ledger inbox scan", function()
   -- genuinely NEW sale entry, never on the pending->paid UPDATE of the same invoice (Append's
   -- repeat-key branch). GC.Data is a plain stub here (this spec loads only Core/Ledger.lua),
   -- exercising the exact defensive `GC.Data and GC.Data.RecordSaleEvent` guard ScanInbox uses.
+  -- Followed groups (plan 2026-10-22, task 9): a new sale of an item ends its run of unsold
+  -- rounds, so the next post of a flip starts at the group's usual price again.
+  describe("unsold rounds", function()
+    before_each(function()
+      helper.loadModule("Core/SoldView.lua", GC)
+      helper.loadModule("Core/SellRounds.lua", GC)
+      GC.SellRounds.Init(db)
+      GC.SellRounds.Ingest({ { itemID = 210930, count = 1, reason = "expired", at = 100 },
+        { itemID = 210930, count = 1, reason = "expired", at = 100 + 3600 } }, 4000)
+    end)
+    after_each(function()
+      GC.SellRounds, GC.SoldView = nil, nil
+    end)
+
+    it("a new sale resets that item's rounds", function()
+      GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+        positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 20, total = 400000,
+        acquiredAt = 900, evidenceKey = "buy:1", character = context.char, region = context.region })
+      GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", context.char, context.region, 20, 950)
+      assert.equal(2, GC.SellRounds.Rounds(210930))
+      GC.Ledger.ScanInbox(apiFor({ mail() }), context, 5000)
+      assert.equal(1, #GC.Acquisitions.GetRealized(context)) -- the sale was applied to the position
+      assert.equal(0, GC.SellRounds.Rounds(210930))
+    end)
+
+    it("a farmed sale found by name resets too", function()
+      -- No purchase batch: ReconcileSale cannot place the sale, the listing names the item.
+      GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", context.char, context.region, 20, 950)
+      GC.Ledger.ScanInbox(apiFor({ mail() }), context, 5000)
+      assert.equal(0, #GC.Acquisitions.GetRealized(context))
+      assert.equal(0, GC.SellRounds.Rounds(210930))
+    end)
+
+    it("leaves the rounds alone for a sale it cannot name, and for the same mail seen again", function()
+      GC.Ledger.ScanInbox(apiFor({ mail({ invoice = { itemName = "Something Else" } }) }), context, 5000)
+      assert.equal(2, GC.SellRounds.Rounds(210930))
+      GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", context.char, context.region, 20, 950)
+      GC.Ledger.ScanInbox(apiFor({ mail() }), context, 5000)
+      assert.equal(0, GC.SellRounds.Rounds(210930))
+      GC.SellRounds.Ingest({ { itemID = 210930, count = 1, reason = "expired", at = 9000 } }, 9000)
+      -- The same mail, still in the inbox an hour later: not a new sale.
+      assert.equal(0, GC.Ledger.ScanInbox(apiFor({ mail({ daysLeft = 30 - (4100 / 86400) }) }), context, 9100))
+      assert.equal(1, GC.SellRounds.Rounds(210930))
+    end)
+  end)
+
   describe("RecordSaleEvent wiring (F2)", function()
     it("calls GC.Data.RecordSaleEvent once for a newly-recorded sale", function()
       local calls = {}

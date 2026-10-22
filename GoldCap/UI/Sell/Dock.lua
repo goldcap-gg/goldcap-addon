@@ -155,6 +155,9 @@ local QUEUE_SKIP_TEXT = {
   -- (GC.Sell._lateAnswers).
   awaiting_answer = "Last post may still go up. Wait a minute",
   no_advice = "cost basis incomplete. Set costs to get repost advice",
+  below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
+  below_floor = "relisting would go under your group's floor. Hold",
+  small_undercut = "undercut by less than your cancel setting. Hold",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.
@@ -257,6 +260,19 @@ paintCancelButton = function()
     end
     button:SetLabel(waiting and GC.L["NO LIVE PRICE YET"] or GC.L["NOTHING TO CANCEL"])
     button:Disable()
+  elseif S.cancelRun and GC.CancelRun and GC.CancelRun.Covers(S.cancelRun, head) then
+    -- The cancel run (onCancelQueueClick): CONFIRM once the deposit guard's second has passed,
+    -- then a press per lot, counting down the lots the confirm counted. A head it did not count
+    -- falls to the last branch: the press arms again.
+    local run = S.cancelRun
+    button:SetVariant("danger")
+    if run.stage == "armed" then
+      button:SetLabel(GC.L["CONFIRM"])
+      if GC.CancelRun.Confirmable(run, (GetTime or time)()) then button:Enable() else button:Disable() end
+    else
+      button:SetLabel((GC.L["CANCEL NEXT (%d)"]):format(GC.CancelRun.Left(run, S.cancelEntries)))
+      button:Enable()
+    end
   else
     button:SetVariant("danger")
     button:SetLabel((GC.L["CANCEL %d"]):format(#S.cancelEntries))
@@ -369,8 +385,10 @@ Dock.OnPostClick = onPostClick
 
 -- The Cancel lot click: a lot's own button, a position's, the dock's CANCEL. Post.PrepareCancel
 -- decides; this makes the protected call first, and only then disables the button and recomposes.
-local function onRepostClick(row, auctionID)
-  local pin, scope = Post.PrepareCancel(row, auctionID)
+-- `now` is the cancel run's press (ROW.runLot): the whole queue is already confirmed, so the arm's
+-- and the confirm's checks run in this one press.
+local function onRepostClick(row, auctionID, now)
+  local pin, scope = Post.PrepareCancel(row, auctionID, now)
   if not pin then return end
   C_AuctionHouse.CancelAuction(pin.auctionID)
   row.action:Disable()
@@ -457,6 +475,36 @@ function ROW.armLot(entry)
     end
   end
   setStatus(GC.L["Could not find the queue's next lot to cancel. Try again"])
+end
+
+-- A press of the cancel run, once the player confirmed the whole queue (onCancelQueueClick): the
+-- head lot's row is already on screen, opened by the press before, and this press is its cancel
+-- -- onRepostClick, first, with nothing rendered or built ahead of it. Only then does it open the
+-- next lot's position for the press after. A head not on screen (the player shut it, the queue
+-- moved) costs this press: it opens the head and asks for another, with no protected call.
+function ROW.runLot(entry)
+  local target
+  for _, row in ipairs(UI.rows) do
+    -- `row:IsShown()`, never `row.shown`, as in ROW.armLot.
+    if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
+        and row.lot.auctionID == entry.auctionID then
+      target = row
+      break
+    end
+  end
+  if target then
+    onRepostClick(target, entry.auctionID, true)
+    Post.CancelSent()
+  end
+  local head = S.cancelEntries[1]
+  for other in pairs(UI.expanded) do UI.expanded[other] = nil end
+  if head then UI.expanded[head.positionKey] = true end
+  UI.List.RenderRows()
+  -- The last lot gone, the run is over: its idle watcher has nothing to say, and a lot that joins
+  -- the queue later is armed and confirmed like any other.
+  if not S.cancelEntries[1] then S.cancelRun = nil end
+  paintCancelButton()
+  if not target then setStatus(GC.L["Press again to cancel the next lot"]) end
 end
 
 -- What the totals add up, by deck. On the posting deck, what POST lists -- the queue, whatever
@@ -629,15 +677,81 @@ end
 -- REPOST_ARM_SECONDS delay before a confirm counts, the timeout) and pin validation apply
 -- unchanged. A first click therefore arms at most; nothing here calls a protected API --
 -- see spec/sell_post_wiring_spec.lua's static guard on exactly that.
+--
+-- Retail runs the queue instead (Core/CancelRun.lua): the first press arms all of it and says
+-- what it costs, a press a second later confirms and cancels the head through ROW.runLot, and
+-- each press after cancels the next lot, until twenty seconds pass without a press or the queue
+-- is empty. A press on a head the confirm did not count arms again ("changed"), with the count
+-- and the deposits as they are now. Without GC.CancelRun (Forever) every press is the two-press
+-- arm above, per lot.
 local function onCancelQueueClick()
   if #S.cancelEntries == 0 then
+    -- An empty queue is also the end of a run ("done").
+    S.cancelRun = nil
     setStatus(GC.L["Nothing queued to cancel"])
     return
   end
   -- The queue's own order, head first (renderRows' "cancelqueue" branch); the rest is the same
   -- hand-over the row's own Cancel lot makes -- see ROW.armLot.
   S.filterMode = "cancelqueue"
-  ROW.armLot(S.cancelEntries[1])
+  local Run = GC.CancelRun
+  if not Run then
+    ROW.armLot(S.cancelEntries[1])
+    return
+  end
+  local now = (GetTime or time)()
+  local action, entry = "expired", nil
+  if S.cancelRun then action, entry = Run.Press(S.cancelRun, S.cancelEntries, now) end
+  if action == "cancel" then
+    ROW.runLot(entry)
+    return
+  end
+  if action == "early" then return end
+  if action == "done" then
+    S.cancelRun = nil
+    paintCancelButton()
+    return
+  end
+  -- No run, one that lapsed, or a head the confirm did not count: arm the queue. Nothing is
+  -- cancelled in this press, so it may open the head's position for the confirm to find its row.
+  -- An arm still asking (a lot's own Cancel lot, a post's Confirm) is answered "no" first, as a
+  -- click on a row answers it: it held every render and painted this button as its own.
+  Post.WalkAway()
+  local run = Run.Start(S.cancelEntries, C_AuctionHouse and C_AuctionHouse.GetCancelCost, now)
+  S.cancelRun = run
+  for other in pairs(UI.expanded) do UI.expanded[other] = nil end
+  UI.expanded[S.cancelEntries[1].positionKey] = true
+  UI.List.RenderRows()
+  -- One lot has a sentence of its own: its CONFIRM is the only press it needs.
+  if run.count == 1 and run.cost then
+    setStatus((GC.L["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."]):format(GC.Util.Money(run.cost)))
+  elseif run.count == 1 then
+    setStatus(GC.L["Cancel 1 lot? Press CONFIRM."])
+  elseif run.cost then
+    setStatus((GC.L["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."]):format(
+      run.count, GC.Util.Money(run.cost)))
+  else
+    setStatus((GC.L["Cancel %d lots? One press per lot, CONFIRM first."]):format(run.count))
+  end
+  if C_Timer and C_Timer.After then
+    -- CONFIRM comes alive after the deposit guard's second.
+    C_Timer.After(Run.ARM_SECONDS, function()
+      if S.cancelRun == run then run.ready = true; paintCancelButton() end
+    end)
+    Dock.WatchCancelRun(run)
+  end
+end
+
+-- Lets a run go once IDLE_SECONDS pass without a press, and says so. Each press moves the
+-- deadline (Core/CancelRun.lua Press), so the check waits again until the last press is that old.
+function Dock.WatchCancelRun(run)
+  local wait = run.lastPressAt + GC.CancelRun.IDLE_SECONDS - (GetTime or time)()
+  C_Timer.After(math.max(wait, 0) + 0.1, function()
+    if S.cancelRun ~= run then return end
+    if not GC.CancelRun.Expired(run, (GetTime or time)()) then return Dock.WatchCancelRun(run) end
+    S.cancelRun = nil
+    setStatus(GC.L["Stopped: 20 seconds without a press"])
+  end)
 end
 
 -- The dock's surface, built before the toolbar as it always was.
@@ -757,6 +871,15 @@ function Dock.Build(f)
   local cancelButton = Theme.Button(container, "ghost", "plaque")
   -- 136: "NOTHING TO CANCEL" (132.6px at mono-10 and Theme.Scale() 1.3) must fit inside.
   cancelButton:SetSize(136, DOCK.BUTTON_H)
+  -- With the cancel run's words (retail), as wide as the widest of its words in the player's
+  -- language, never cut short: the line beside it starts where it ends (Dock.LayoutLedger). The
+  -- counts are measured at three figures, a queue of up to 999 lots.
+  local function fitCancel()
+    cancelButton:FitLabels({ (GC.L["CANCEL %d"]):format(999), GC.L["CANCEL LOT?"], GC.L["CANCELLING…"],
+      GC.L["NOTHING TO CANCEL"], GC.L["NO LIVE PRICE YET"], GC.L["CONFIRM"],
+      (GC.L["CANCEL NEXT (%d)"]):format(999) }, 136)
+  end
+  if GC.CancelRun and cancelButton.FitLabels and Theme.OnRescale then fitCancel(); Theme.OnRescale(fitCancel) end
   -- The row's left end: only one deck is ever on screen, so only POST's panel or this cluster is
   -- ever shown there.
   cancelButton:SetPoint("LEFT", container, "BOTTOMLEFT", DOCK.PAD, DOCK.MID_Y)

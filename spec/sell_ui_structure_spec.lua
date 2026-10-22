@@ -80,6 +80,17 @@ describe("UI/Sell", function()
     end
   end)
 
+  -- Row.lua sat one line under the limit above; what a row says on hover (the item, the selling
+  -- mark, the action's help) is its own file, so the row has room for the next change.
+  it("keeps a row's tooltips in UI/Sell/Tooltips.lua, apart from the row", function()
+    local row, tips = read("GoldCap/UI/Sell/Row.lua"), read("GoldCap/UI/Sell/Tooltips.lua")
+    for _, needle in ipairs({ "function ROW.markTooltip(owner, row)", "function ROW.itemTooltip(row)",
+        "function ROW.actionTooltip(button)", "local ACTION_HELP = {" }) do
+      assert.is_nil(row:find(needle, 1, true), "UI/Sell/Row.lua still holds " .. needle)
+      assert.is_truthy(tips:find(needle, 1, true), "UI/Sell/Tooltips.lua does not hold " .. needle)
+    end
+  end)
+
   it("keeps no top-level copy of another part's function: calls go through GC.SellUI at run time", function()
     for _, path in ipairs(helper.SELL_UI_FILES) do
       for line in lines(code(read("GoldCap/" .. path))) do

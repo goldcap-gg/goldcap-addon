@@ -542,6 +542,8 @@ local function build(sniperFrame)
   local function defaultLine(key, opts)
     local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
     local stored = d and d[key]
+    -- A key kept out of DEFAULTS on purpose says its code default instead (opts.defaultValue).
+    if stored == nil and opts.defaultValue then stored = opts.defaultValue() end
     local text = "?"
     if stored ~= nil then
       local ui = opts.toUI and opts.toUI(stored) or stored
@@ -616,7 +618,9 @@ local function build(sniperFrame)
 
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
-  local posting = card(panel, GC.L["POSTING"], 2)
+  -- Three rows on retail: the cancel threshold (row 3, below) is retail only, like the groups
+  -- whose floors it sits beside.
+  local posting = card(panel, GC.L["POSTING"], isForeverClient() and 2 or 3)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -650,6 +654,8 @@ local function build(sniperFrame)
     end
 
     attachExplanation({ label, box }, labelText, sentence, defaultLine(key, opts))
+    -- Handed back so a row may let its label wrap where its card has room under it.
+    return label
   end
 
   -- Task S: Forever's own "Min profit per buy" -- its own key
@@ -819,6 +825,18 @@ local function build(sniperFrame)
   -- cover has no usual price and no cap.
   fieldRow(posting, 2, GC.L["Buy cap (% of usual price)"], "buyCapPct", { min = 100, max = 300, unit = "%" },
     GC.L["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."])
+
+  -- The cancel queue's threshold (Core/CancelQueue.lua's undercutPct, read by
+  -- Services/Sell/Compose.lua). Retail only, beside the followed groups it goes with. Deliberately
+  -- not in GC.DEFAULTS, the precedent foreverMinProfitRow set: an unset key is 0 in code, and a
+  -- save that never had it stays as it was. The last row of its card, so its label may wrap
+  -- into the room under it rather than be cut.
+  if not isForeverClient() then
+    local cancelLabel = fieldRow(posting, 3, GC.L["Min. undercut to cancel (%)"], "cancelUndercutPct",
+      { min = 0, max = 20, unit = "%", defaultValue = function() return 0 end },
+      GC.L["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."])
+    cancelLabel:SetWordWrap(true)
+  end
 
   local function toggleRow(cardFrame, i, labelText, key, sentence)
     local box = makeToggle(cardFrame)

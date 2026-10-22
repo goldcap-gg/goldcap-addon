@@ -213,6 +213,11 @@ local function postQuantity(position)
   local key = overrideKey(position)
   local chosen = key and GC.SellState.quantityOverrides[key] or nil
   if exact(chosen) and chosen > 0 and chosen < most then return chosen, most, true end
+  -- A followed group's "1 at a time" is where the count starts when nothing is typed.
+  local ruleQty = position.rulePostQty
+  if not (exact(chosen) and chosen > 0) and exact(ruleQty) and ruleQty > 0 and ruleQty < most then
+    return ruleQty, most, false
+  end
   return most, most, false
 end
 
