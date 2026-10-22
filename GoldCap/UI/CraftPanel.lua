@@ -289,14 +289,15 @@ local function buildCard(f)
   return card
 end
 
--- The card for the recipe the window shows, or hidden: no recipe GoldCap prices, no character, or
--- a store a newer GoldCap wrote. Each button is as wide as its label in the player's language;
--- the two sit side by side when both fit the card, else one under the other.
+-- The card for the recipe the window shows, or hidden: no recipe GoldCap prices, a recipe the
+-- character has not learned (Blizzard's list shows those too: one could never be crafted from the
+-- queue), no character, or a store a newer GoldCap wrote. Each button is as wide as its label in
+-- the player's language; the two sit side by side when both fit the card, else one under the other.
 local function paintCard(f)
   local card = f.card
   local CC = GC.CraftClient
   local open = CC.OpenRecipe()
-  local recipe = open and CC.Snapshot(open.recipeID) or nil
+  local recipe = open and open.learned and CC.Snapshot(open.recipeID) or nil
   if not (recipe and CC.Char() and GC.CraftQueue.Writable()) then
     card.recipe = nil
     card:Hide()

@@ -295,6 +295,19 @@ describe("craft panel", function()
       assert.is_false(f.card:IsShown())
     end)
 
+    it("hides This recipe for a recipe the character has not learned: it can never be queued", function()
+      -- Blizzard's list shows unlearned recipes too, and selecting one fills the form.
+      local f = loadOpen({ open = { recipeID = 9, allocations = {} },
+        recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [9] = recipe(9, "Unlearned", { learned = false }) },
+        filtered = { 1, 2, 9 } })
+      assert.is_false(f.card:IsShown())
+      assert.is_nil(f.card.recipe)
+      local _, above = f.switch:GetPoint(1)
+      assert.equal(f.title, above)
+      -- Nothing reaches the queue from it.
+      assert.same({}, GC.CraftQueue.Entries("Name-Realm"))
+    end)
+
     it("sizes each button to its label in every locale, stacking them when they do not fit", function()
       local f = loadOpen()
       for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end

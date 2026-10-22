@@ -119,7 +119,7 @@ describe("craft client", function()
   it("reads the allocation and the crafted item the window shows", function()
     load({ recipes = { [7] = potion() }, open = { recipeID = 7, level = 2, output = 901, guid = "Item-1-2",
       allocations = { [1] = { { itemID = 101, q = 2 }, { itemID = 102, q = 1 } }, [2] = { { itemID = 300, q = 1 } } } } })
-    assert.same({ recipeID = 7, level = 2, output = 901,
+    assert.same({ recipeID = 7, level = 2, output = 901, learned = true,
       alloc = { [1] = { { itemID = 101, q = 2 }, { itemID = 102, q = 1 } }, [2] = { { itemID = 300, q = 1 } } } },
       CC.OpenRecipe())
     local out = TS.callsOf("GetRecipeOutputItemData")
@@ -127,6 +127,11 @@ describe("craft client", function()
     assert.equal(7, out[1].args[1])
     assert.equal(TS.reagentInfoTbl, out[1].args[2])
     assert.equal("Item-1-2", out[1].args[3])
+  end)
+
+  it("says whether the character has learned the open recipe", function()
+    load({ recipes = { [7] = potion({ learned = false }) }, open = { recipeID = 7, allocations = {} } })
+    assert.is_false(CC.OpenRecipe().learned)
   end)
 
   it("leaves a slot out when the player has nothing allocated for it", function()

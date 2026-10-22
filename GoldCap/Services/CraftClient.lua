@@ -137,10 +137,11 @@ function CC.Form()
   return type(form) == "table" and form or nil
 end
 
---- What the window shows for the selected recipe: { recipeID, level, output, alloc }, alloc the
---- reagents allocated per slot ({ { itemID, q }, ... }, a slot with nothing allocated absent), and
---- output the item the window says this allocation makes. nil when the recipes page is not on
---- screen, or a recraft is open.
+--- What the window shows for the selected recipe: { recipeID, level, output, alloc, learned },
+--- alloc the reagents allocated per slot ({ { itemID, q }, ... }, a slot with nothing allocated
+--- absent), output the item the window says this allocation makes, learned true only when the
+--- character knows the recipe (Blizzard's list shows unlearned recipes too). nil when the recipes
+--- page is not on screen, or a recraft is open.
 function CC.OpenRecipe()
   local form = CC.Form()
   if not form then return nil end
@@ -170,7 +171,7 @@ function CC.OpenRecipe()
     end
     local data = ts().GetRecipeOutputItemData(info.recipeID, tx:CreateCraftingReagentInfoTbl(), tx:GetAllocationItemGUID())
     return { recipeID = info.recipeID, level = form:GetCurrentRecipeLevel(),
-      output = type(data) == "table" and data.itemID or nil, alloc = alloc }
+      output = type(data) == "table" and data.itemID or nil, alloc = alloc, learned = info.learned == true }
   end)
   return ok and open or nil
 end
