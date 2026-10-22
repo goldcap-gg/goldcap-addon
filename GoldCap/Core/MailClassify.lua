@@ -45,33 +45,81 @@ local function subjectKindOf(subject, patterns)
   return nil
 end
 
+-- `items` are the attachments the client has named, the ones a take can go for; `attachments`
+-- are every slot that holds an item id, named yet or not, for the mail's identity.
 local function readItems(api, index)
-  local items = {}
+  local items, attachments = {}, {}
   for slot = 1, SLOTS do
     local ok, name, itemID, _, count = pcall(api.GetInboxItem, index, slot)
-    if ok and name then
-      items[#items + 1] = { slot = slot, itemID = itemID, count = count or 1 }
+    if ok and (name or itemID ~= nil) then
+      local item = { slot = slot, itemID = itemID, count = count or 1 }
+      attachments[#attachments + 1] = item
+      if name then items[#items + 1] = item end
     end
   end
-  return items
+  return items, attachments
+end
+
+-- What a mail is, apart from where it sits and how long it has left: sender, subject, gold, the
+-- number of attachments and each attachment's item id and count. Core/MailLoop.lua confirms a
+-- take by it, because a row index does not hold still: Blizzard's MailFrame refreshes the inbox by
+-- itself in the middle of a run (MailFrame.lua, InboxFrame_Update), which brings rows in at the
+-- back and new mail in at the front. Days left is left out because a refresh recomputes it.
+function GC.MailClassify.Identity(mail)
+  local parts = { tostring(mail.sender), tostring(mail.subject), tostring(mail.money),
+    tostring(mail.itemCount) }
+  for _, item in ipairs(mail.attachments or {}) do
+    parts[#parts + 1] = item.slot .. ":" .. tostring(item.itemID) .. "x" .. tostring(item.count)
+  end
+  return table.concat(parts, "\1")
+end
+
+-- The identity the same mail has once a take of its gold (`slot` nil) or of one slot has landed.
+function GC.MailClassify.IdentityAfter(mail, slot)
+  local after = { sender = mail.sender, subject = mail.subject, money = mail.money,
+    itemCount = mail.itemCount, attachments = mail.attachments }
+  if slot then
+    after.itemCount = mail.itemCount - 1
+    after.attachments = {}
+    for _, item in ipairs(mail.attachments or {}) do
+      if item.slot ~= slot then after.attachments[#after.attachments + 1] = item end
+    end
+  else
+    after.money = 0
+  end
+  return GC.MailClassify.Identity(after)
+end
+
+local function readHeader(api, index)
+  local ok, _, _, sender, subject, money, cod, daysLeft, itemCount, _, _, _, canReply, isGM =
+    pcall(api.GetInboxHeaderInfo, index)
+  if not ok or (sender == nil and subject == nil and money == nil) then return nil end
+  return { index = index, sender = sender, subject = subject, money = money or 0, cod = cod or 0,
+    daysLeft = daysLeft, itemCount = itemCount or 0, canReply = canReply, isGM = isGM,
+    items = {}, attachments = {} }
+end
+
+-- The identity of the row at `index` now, or nil when the client cannot answer for it yet.
+function GC.MailClassify.IdentityAt(api, index)
+  local mail = readHeader(api, index)
+  if not mail then return nil end
+  if mail.itemCount > 0 then mail.items, mail.attachments = readItems(api, index) end
+  return GC.MailClassify.Identity(mail)
 end
 
 -- One row as a plain record, or nil when the client cannot answer for it yet.
 function GC.MailClassify.Read(api, index, patterns)
-  local headerOk, _, _, sender, subject, money, cod, daysLeft, itemCount, _, _, _, canReply, isGM =
-    pcall(api.GetInboxHeaderInfo, index)
-  if not headerOk or (sender == nil and subject == nil and money == nil) then return nil end
+  local mail = readHeader(api, index)
+  if not mail then return nil end
   local invoiceOk, invoiceType = pcall(api.GetInboxInvoiceInfo, index)
   if not invoiceOk then return nil end
-  local mail = {
-    index = index, sender = sender, subject = subject, money = money or 0, cod = cod or 0,
-    daysLeft = daysLeft, itemCount = itemCount or 0, canReply = canReply, isGM = isGM,
-    invoiceType = invoiceType, subjectKind = subjectKindOf(subject, patterns), items = {},
-  }
-  if mail.itemCount > 0 then mail.items = readItems(api, index) end
-  local parts = { sender, subject, daysLeft, mail.money, mail.itemCount }
+  mail.invoiceType = invoiceType
+  mail.subjectKind = subjectKindOf(mail.subject, patterns)
+  if mail.itemCount > 0 then mail.items, mail.attachments = readItems(api, index) end
+  local parts = { mail.sender, mail.subject, mail.daysLeft, mail.money, mail.itemCount }
   for i = 1, 5 do parts[i] = parts[i] == nil and "" or tostring(parts[i]) end
   mail.key = table.concat(parts, "\1")
+  mail.identity = GC.MailClassify.Identity(mail)
   return mail
 end
 

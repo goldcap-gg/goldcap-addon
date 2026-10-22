@@ -92,6 +92,7 @@ describe("mail collect wiring", function()
       end
       assert.is_nil(text:find(":advance(", 1, true), path)
       assert.is_nil(text:find(":refuse(", 1, true), path)
+      assert.is_nil(text:find(":refreshNow(", 1, true), path)
     end)
   end)
 

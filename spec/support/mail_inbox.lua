@@ -10,6 +10,8 @@
 --     index shifts; any other mail stays until the player deletes it.
 -- A take is a command: IsCommandPending() stays true until box:advance(), which applies it, the
 -- way the client answers a take a moment later. A refused item (box:refuse) is never emptied.
+-- A take acts on the mail its index named when it was made, as the server does, not on whatever
+-- row that index holds by the time it lands: box:refreshNow can move the rows in between.
 local Mailbox = {}
 
 local SLOTS = 16
@@ -75,12 +77,12 @@ function Mailbox.new(rows, opts)
 
   function api.TakeInboxMoney(index)
     state.takes[#state.takes + 1] = { fn = "TakeInboxMoney", index = index }
-    state.pending = { kind = "money", index = index }
+    state.pending = { kind = "money", row = state.rows[index] }
   end
 
   function api.TakeInboxItem(index, slot)
     state.takes[#state.takes + 1] = { fn = "TakeInboxItem", index = index, slot = slot }
-    state.pending = { kind = "item", index = index, slot = slot }
+    state.pending = { kind = "item", row = state.rows[index], slot = slot }
   end
 
   function api.CheckInbox()
@@ -107,18 +109,20 @@ function Mailbox.new(rows, opts)
   function box:advance()
     local take = state.pending
     state.pending = nil
-    if take then
-      local row = state.rows[take.index]
-      if row then
-        if take.kind == "money" then
-          row.money = 0
-        else
-          local item = row.items[take.slot]
-          if item and not state.refused[item.itemID] then row.items[take.slot] = nil end
-        end
-        if row.auction and row.money == 0 and next(row.items) == nil then
-          table.remove(state.rows, take.index)
-        end
+    local at
+    for i, row in ipairs(state.rows) do
+      if take and row == take.row then at = i end
+    end
+    if at then
+      local row = take.row
+      if take.kind == "money" then
+        row.money = 0
+      else
+        local item = row.items[take.slot]
+        if item and not state.refused[item.itemID] then row.items[take.slot] = nil end
+      end
+      if row.auction and row.money == 0 and next(row.items) == nil then
+        table.remove(state.rows, at)
       end
     end
     if state.checkAsked then
@@ -142,6 +146,17 @@ function Mailbox.new(rows, opts)
     flat.SetOpeningAll = api.C_Mail.SetOpeningAll
     flat.FreeBagSlots = function() return bags.free end
     return flat
+  end
+
+  -- Blizzard's own refresh landing right now, whatever the loop has in flight: MailFrame.lua's
+  -- InboxFrame_Update calls CheckInbox by itself on every MAIL_INBOX_UPDATE while fewer than
+  -- MAX_INBOX_SIZE (100) rows show and more exist. The rows out of view come in at the back, and
+  -- `delivered` (mail that arrived since, newest first) comes in at the front, shifting every
+  -- index after it.
+  function box:refreshNow(delivered)
+    for i = #(delivered or {}), 1, -1 do table.insert(state.rows, 1, copyRow(delivered[i])) end
+    for _, row in ipairs(state.hidden) do state.rows[#state.rows + 1] = row end
+    state.hidden = {}
   end
 
   function box:refuse(itemID) state.refused[itemID] = true end

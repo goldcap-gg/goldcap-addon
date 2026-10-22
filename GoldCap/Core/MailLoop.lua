@@ -10,9 +10,14 @@ local _, GC = ...
 -- next one; the run is wrapped in C_Mail.SetOpeningAll; money first, then the items from the last
 -- slot down. Postal paces the same way.
 --
--- Indices move: an emptied auction mail is deleted by the server and every later row shifts. So
--- no index survives between steps. Every step reads the inbox again and acts on the first
--- takeable row it finds.
+-- Indices move: an emptied auction mail is deleted by the server and every later row shifts, and
+-- Blizzard's MailFrame refreshes the inbox by itself in the middle of a run (MailFrame.lua,
+-- InboxFrame_Update), which brings rows in at the back and new mail in at the front. So no index
+-- survives between steps. Every step reads the inbox again and acts on the first takeable row it
+-- finds, and a take is confirmed by the mail it was made on (Core/MailClassify.lua's Identity):
+-- the take landed when fewer rows than before carry that mail's identity. One case stays open: a
+-- refresh that brings in a mail identical to the one just taken, in the same step, hides the take,
+-- which then counts as stuck.
 --
 -- deps:
 --   api          GetInboxNumItems, GetInboxHeaderInfo, GetInboxInvoiceInfo, GetInboxItem (read by
@@ -51,7 +56,10 @@ function GC.MailLoop.New(deps)
   local state = "idle"
   local result = newResult()
   local skipItems, skipKeys = {}, {}
-  local inflight, lastMail
+  local inflight
+  -- The mails this run has taken from, by the identity each has now: a mail counts once however
+  -- many takes it needs, and a take of a mail already worked on continues it.
+  local letters = {}
   local nextAt = 0
   local invFull = false
   local refreshes = 0
@@ -76,30 +84,33 @@ function GC.MailLoop.New(deps)
     if flight and flight.entry then GC.MailReturns.Retract(flight.entry) end
   end
 
-  -- Did the take in flight do what it was asked? Row count dropped, the money is gone, or the
-  -- slot is empty.
-  local function confirmed(flight)
+  -- How many shown rows carry this identity now.
+  local function rowsLike(identity)
     local shown = shownAndTotal()
-    if shown < flight.rowsBefore then return true end
-    if flight.slot then
-      local ok, name = pcall(api.GetInboxItem, flight.index, flight.slot)
-      return ok and not name
+    local n = 0
+    for index = 1, shown do
+      if GC.MailClassify.IdentityAt(api, index) == identity then n = n + 1 end
     end
-    local ok, _, _, _, _, money = pcall(api.GetInboxHeaderInfo, flight.index)
-    return ok and money == 0
+    return n
   end
 
-  local function tally(flight, rowsNow)
+  -- Did the take in flight land? The mail it was made on no longer reads as it did: its gold or
+  -- that slot is gone, or the mail itself is. Where it sits now does not matter.
+  local function confirmed(flight)
+    return rowsLike(flight.identity) < flight.likeBefore
+  end
+
+  local function tally(flight)
     if flight.kind == "sale" and flight.amount then result.gold = result.gold + flight.amount end
-    -- A mail counts once, however many takes it needed: a continuation is the same row, the same
-    -- mail, with no deletion between.
-    local sameMail = lastMail and lastMail.index == flight.index and lastMail.ident == flight.ident
-    if not sameMail then
+    local letter = flight.letter
+    if not letter.counted then
+      letter.counted = true
       local field = GROUP_FIELD[flight.group]
       result[field] = result[field] + 1
     end
-    if rowsNow < flight.rowsBefore then lastMail = nil
-    else lastMail = { index = flight.index, ident = flight.ident } end
+    -- From here on the mail reads as the take left it.
+    if letters[flight.identity] == letter then letters[flight.identity] = nil end
+    letters[flight.after] = letter
   end
 
   -- One pass over the inbox. Returns the action to take, or nil plus what the pass saw.
@@ -118,10 +129,9 @@ function GC.MailLoop.New(deps)
         if decision.skip == "loading" then
           loading = loading + 1
         elseif decision.take and not action then
-          local ident = table.concat({ tostring(mail.sender), tostring(mail.subject), tostring(mail.daysLeft) }, "\1")
           if mail.money > 0 and not skipKeys[mail.key] then
             action = { index = index, kind = decision.kind, group = decision.group, amount = mail.money,
-              key = mail.key, ident = ident }
+              key = mail.key, mail = mail }
           else
             local pick, left = nil, 0
             for _, item in ipairs(mail.items) do
@@ -132,7 +142,7 @@ function GC.MailLoop.New(deps)
             end
             if pick and bagsOpen then
               action = { index = index, slot = pick.slot, kind = decision.kind, group = decision.group,
-                itemID = pick.itemID, count = pick.count, key = mail.key, ident = ident }
+                itemID = pick.itemID, count = pick.count, key = mail.key, mail = mail }
             elseif pick then
               blocked = blocked + left
             end
@@ -160,7 +170,11 @@ function GC.MailLoop.New(deps)
       entry = GC.MailReturns.Record(action.itemID, action.count, action.kind, at)
     end
     action.entry = entry
-    action.rowsBefore = shownAndTotal()
+    action.identity = action.mail.identity
+    action.after = GC.MailClassify.IdentityAfter(action.mail, action.slot)
+    action.likeBefore = rowsLike(action.identity)
+    action.letter = letters[action.identity] or {}
+    letters[action.identity] = action.letter
     action.steps = 0
     inflight = action
     nextAt = now + DELAY
@@ -210,7 +224,7 @@ function GC.MailLoop.New(deps)
     local takeable = GC.MailClassify.Count(api, deps.patterns, deps.enabled())
     if takeable == 0 then return false end
     result = newResult()
-    skipItems, skipKeys, inflight, lastMail = {}, {}, nil, nil
+    skipItems, skipKeys, inflight, letters = {}, {}, nil, {}
     invFull, refreshes, awaiting, waitSeconds, nextAt = false, 0, nil, nil, 0
     state = "running"
     api.SetOpeningAll(true)
@@ -238,10 +252,9 @@ function GC.MailLoop.New(deps)
     if now < nextAt or api.IsCommandPending() then return "wait" end
     if inflight then
       local flight = inflight
-      local rowsNow = shownAndTotal()
       if confirmed(flight) then
         inflight = nil
-        tally(flight, rowsNow)
+        tally(flight)
       else
         flight.steps = flight.steps + 1
         if flight.steps < STUCK_STEPS then
