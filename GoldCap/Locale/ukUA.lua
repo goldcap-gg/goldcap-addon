@@ -1585,4 +1585,11 @@ GC.Locales.ukUA = {
   ["Craft queue"] = "Черга крафту",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "Список BUY %s готовий на вкладці BUY на аукціоні",
   ["Currency %d"] = "Валюта %d",
+  ["GoldCap: your groups"] = "GoldCap: ваші групи",
+  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Підпишіться на групу на goldcap.gg, і Companion принесе її сюди.",
+  ["%d in bags, %d in the Warband Bank"] = "%d у сумках, %d у банку загону",
+  ["Keep in bags: %d of each"] = "Залишати в сумках: по %d",
+  ["How many of each item in %s to keep in your bags?"] = "Скільки кожного предмета з %s залишати в сумках?",
+  ["To bank: %s ×%d (%d left)"] = "У банк: %s ×%d (лишилось %d)",
+  ["To bags: %s ×%d (%d left)"] = "У сумки: %s ×%d (лишилось %d)",
 }

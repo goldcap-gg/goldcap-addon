@@ -63,7 +63,7 @@ describe("CHANGELOG.md", function()
   -- follows a line of the same area that does, as the Mail lines do.
   it("says retail WoW on every line of the newest release about a feature WoW: Forever does not load", function()
     local RETAIL_ONLY = { "a group you follow are posted", "CANCEL button", "POSTING setting", "the Vendor card",
-      "^%- Crafting" }
+      "^%- Crafting", "^%- Bank" }
     local section = sections()[1]
     local lastArea, lastRetail
     local checked = 0

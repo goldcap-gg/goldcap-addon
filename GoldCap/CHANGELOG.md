@@ -31,6 +31,9 @@
   equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
   or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
   only when they are junk.
+- Bank, in retail WoW: a card beside the bank lists the groups you follow on goldcap.gg that have
+  items in your bags or the Warband Bank. To bank and To bags move one stack per press, and you can
+  set how many of each item stay in your bags.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
   group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
 - Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by

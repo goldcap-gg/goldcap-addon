@@ -1,0 +1,326 @@
+local helper = require("spec.spec_helper")
+local W = require("spec.support.wow_frames")
+
+-- UI/BankGroupsCard.lua: at a bank, the followed groups with items in the bags or the Warband Bank,
+-- each with To bank and To bags, one stack a press. The real Theme, the real group rules (from a
+-- Companion file), the real selection (Core/BankGroups.lua) and the real bank route
+-- (UI/BankRoute.lua), whose reader, move function and guards the card uses; the bags, the
+-- Warband Bank and the client calls are faked.
+describe("bank by group card", function()
+  local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked
+  local ACCOUNT = 2
+  local KEYS = { "Enum", "UIParent", "BankFrame", "MerchantFrame", "ItemLocation", "C_Container", "C_Item",
+    "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns" }
+
+  -- Herbs: Bloom (two qualities, 1 and 2); Ore: Bismuth (3); Cloth: Weavercloth (4), never in the
+  -- bags here. Item 9 is in no followed group.
+  local FILE = {
+    v = 3, generatedAt = 1, runs = {}, groups = { "G" },
+    caps = {
+      { i = 1, c = 700, u = 1000, r = 1, k = true }, { i = 2, c = 700, u = 1000, r = 1, k = true },
+      { i = 3, c = 700, u = 1000, r = 2, k = true }, { i = 4, c = 700, u = 1000, r = 3, k = true },
+    },
+    rules = { { n = "Herbs", p = "gather", d = 24, fp = 80 }, { n = "Ore", p = "gather", d = 24, fp = 80 },
+      { n = "Cloth", p = "gather", d = 24, fp = 80 } },
+  }
+  local NAMES = { [1] = "Bloom", [2] = "Bloom", [3] = "Bismuth", [4] = "Weavercloth", [9] = "Linen Cloth" }
+
+  local function info(itemID, count, over)
+    local i = { itemID = itemID, itemName = NAMES[itemID], stackCount = count, iconFileID = itemID,
+      isBound = false, isLocked = false }
+    for k, v in pairs(over or {}) do i[k] = v end
+    return i
+  end
+
+  local function textOf(fs) return W.state(fs).text end
+  local function shown(widget) return widget ~= nil and widget:IsShown() end
+  local function cardUp() return C._frame ~= nil and C._frame:IsShown() end
+
+  local function block(name)
+    for _, b in ipairs(C._blocks) do
+      if b:IsShown() and textOf(b.name) == name then return b end
+    end
+  end
+
+  local function press(button) W.state(button).scripts.OnClick(button) end
+
+  local function open()
+    GC.BankRoute.OnBankOpened()
+  end
+
+  before_each(function()
+    saved = {}
+    for _, k in ipairs(KEYS) do saved[k] = _G[k] end
+    restore = W.install()
+    used, timers, canUse, tabs, refundable, refused, reads, asked = {}, {}, true, { 12 }, {}, {}, 0, nil
+    -- 0: the backpack; 5: the reagent bag; 12: the first Warband Bank tab.
+    bags = {
+      [0] = { info(1, 200), info(1, 20), info(9, 20) },
+      [5] = { info(3, 50) },
+      [12] = { info(2, 600) },
+    }
+    _G.Enum = { BankType = { Account = ACCOUNT } }
+    _G.UIParent = W.CreateFrame("Frame")
+    _G.BankFrame = W.CreateFrame("Frame")
+    _G.BankFrame:Show()
+    -- A frame the client builds is hidden until it opens; a W frame starts shown.
+    _G.MerchantFrame = W.CreateFrame("Frame")
+    _G.MerchantFrame:Hide()
+    _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
+      GetContainerItemInfo = function(bag, slot) reads = reads + 1; return bags[bag] and bags[bag][slot] or nil end,
+      UseContainerItem = function(...) used[#used + 1] = { n = select("#", ...), ... } end,
+    }
+    _G.C_Item = {
+      IsBoundToAccountUntilEquip = function() return false end,
+      CanBeRefunded = function(loc) return refundable[loc.bag .. ":" .. loc.slot] == true end,
+      GetCurrentItemLevel = function() return 0 end,
+    }
+    _G.C_Bank = {
+      CanUseBank = function(t) return canUse and t == ACCOUNT end,
+      IsItemAllowedInBankType = function(_, loc) return not refused[loc.bag .. ":" .. loc.slot] end,
+      FetchPurchasedBankTabIDs = function(t) return t == ACCOUNT and tabs or {} end,
+    }
+    _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
+    _G.hooksecurefunc = function(t, name, fn)
+      local original = t[name]
+      t[name] = function(...)
+        local result = original(...)
+        fn(...)
+        return result
+      end
+    end
+    _G.GoldCap_AppRuns = FILE
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("UI/Theme.lua", GC)
+    helper.loadModule("Core/GroupRules.lua", GC)
+    helper.loadModule("Core/CraftQueue.lua", GC)
+    helper.loadModule("Core/BankGroups.lua", GC)
+    GC.GroupRules.Adopt()
+    -- No route data (no Companion region payload): the carry list stays hidden.
+    GC.SellRoute = { HereId = function() return nil end }
+    GC.db = {}
+    GC.BuyCapEditor = { Open = function(anchor, opts) asked = { anchor = anchor, opts = opts } end }
+    helper.loadModule("UI/BankRoute.lua", GC)
+    helper.loadModule("UI/BankGroupsCard.lua", GC)
+    C = GC.BankGroupsCard
+  end)
+
+  after_each(function()
+    GC.ActivateLocale(nil)
+    restore()
+    for _, k in ipairs(KEYS) do _G[k] = saved[k] end
+  end)
+
+  it("lists each followed group with items in the bags or the Warband Bank, with both counts", function()
+    open()
+    assert.is_true(cardUp())
+    assert.equal("GoldCap: your groups", textOf(C._frame.title))
+    local herbs, ore = block("Herbs"), block("Ore")
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(herbs.counts))
+    -- The reagent bag counts: herbs and ore go there.
+    assert.equal("50 in bags, 0 in the Warband Bank", textOf(ore.counts))
+    assert.is_nil(block("Cloth"))
+    local names = {}
+    for _, b in ipairs(C._blocks) do if b:IsShown() then names[#names + 1] = textOf(b.name) end end
+    assert.same({ "Herbs", "Ore" }, names)
+  end)
+
+  it("says what the next press moves and how many stacks are left", function()
+    open()
+    local herbs = block("Herbs")
+    assert.equal("To bank: Bloom ×200 (2 left)", herbs.toBank.label)
+    assert.equal("To bags: Bloom ×600 (1 left)", herbs.toBags.label)
+    assert.is_false(shown(block("Ore").toBags))
+  end)
+
+  it("puts exactly one stack in the Warband Bank a press, inside the click, and names the next one at once", function()
+    open()
+    local toBank = block("Herbs").toBank
+    press(toBank)
+    assert.equal(1, #used)
+    assert.same({ n = 5, 0, 1, nil, ACCOUNT, false }, used[1])
+    -- Never put to sleep: the next press moves the next stack.
+    assert.is_true(toBank:IsEnabled())
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    press(block("Herbs").toBank)
+    assert.equal(2, #used)
+    assert.same({ n = 5, 0, 2, nil, ACCOUNT, false }, used[2])
+    -- Both on their way: nothing more to send.
+    assert.is_false(shown(block("Herbs").toBank))
+  end)
+
+  it("takes exactly one stack out of the Warband Bank a press", function()
+    open()
+    press(block("Herbs").toBags)
+    assert.same({ { n = 2, 12, 1 } }, used)
+    assert.is_false(shown(block("Herbs").toBags))
+  end)
+
+  it("repaints when the game shows the move, and offers a stack again when nothing moved in time", function()
+    open()
+    press(block("Herbs").toBank)
+    bags[12][2], bags[0][1] = bags[0][1], info(9, 1)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("20 in bags, 800 in the Warband Bank", textOf(block("Herbs").counts))
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    -- A press the server refused (a full bank): the stack stays in its slot.
+    press(block("Herbs").toBank)
+    assert.is_false(shown(block("Herbs").toBank))
+    GC.BankRoute.OnBagsChanged()
+    assert.is_false(shown(block("Herbs").toBank))
+    timers[#timers].fn()
+    assert.equal(GC.BankRoute.SETTLE_SECONDS, timers[#timers].seconds)
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+  end)
+
+  it("keeps the keep count of each item in the bags, set from the card and remembered for the account", function()
+    open()
+    local keep = block("Herbs").keep
+    assert.equal("Keep in bags: 0 of each", keep.label)
+    press(keep)
+    assert.equal(keep, asked.anchor)
+    assert.equal("How many of each item in Herbs to keep in your bags?", asked.opts.title)
+    assert.equal("0", asked.opts.text)
+    assert.equal(30, asked.opts.read("30"))
+    assert.is_nil(asked.opts.read("lots"))
+    asked.opts.onCommit(30)
+    assert.same({ v = GC.BankGroups.VERSION, groups = { Herbs = 30 } }, GC.db.bankKeep)
+    local herbs = block("Herbs")
+    assert.equal("Keep in bags: 30 of each", herbs.keep.label)
+    -- 220 Bloom: the 200 would leave 20, under 30; the 20 leaves 200.
+    assert.equal("To bank: Bloom ×20 (1 left)", herbs.toBank.label)
+    asked.opts.onCommit(300)
+    assert.is_false(shown(block("Herbs").toBank))
+    assert.equal("To bags: Bloom ×600 (1 left)", block("Herbs").toBags.label)
+  end)
+
+  -- The bank route's own guards, reused: the same call equips gear with no bank open (which binds
+  -- it) and sells to an open vendor; a stack still refundable or one the Warband Bank refuses is the
+  -- player's to decide.
+  it("moves nothing once the bank has closed, while a vendor is open, or with the Warband Bank out of reach", function()
+    open()
+    local toBank = block("Herbs").toBank
+    GC.BankRoute.OnBankClosed()
+    assert.is_false(cardUp())
+    press(toBank)
+    assert.same({}, used)
+    open()
+    toBank = block("Herbs").toBank
+    _G.MerchantFrame:Show()
+    press(toBank)
+    assert.same({}, used)
+    _G.MerchantFrame:Hide()
+    canUse = false
+    press(toBank)
+    assert.same({}, used)
+  end)
+
+  it("moves nothing when the slot no longer holds the stack's item, or it is locked", function()
+    open()
+    -- The button names Bloom ×200 in 0:1; the bags change before any event says so.
+    bags[0][1] = info(9, 200)
+    press(block("Herbs").toBank)
+    assert.same({}, used)
+    -- The refusal repaints: the next press names what is there now.
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    bags[0][1] = info(1, 200)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("To bank: Bloom ×200 (2 left)", block("Herbs").toBank.label)
+    bags[0][1] = info(1, 200, { isLocked = true })
+    press(block("Herbs").toBank)
+    assert.same({}, used)
+  end)
+
+  it("never offers a stack still refundable or one the Warband Bank refuses, and refuses it at the press too", function()
+    refundable["0:1"], refused["0:2"] = true, true
+    open()
+    assert.is_false(shown(block("Herbs").toBank))
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    refundable["0:1"], refused["0:2"] = nil, nil
+    GC.BankRoute.OnBagsChanged()
+    local toBank = block("Herbs").toBank
+    refundable["0:1"] = true
+    press(toBank)
+    assert.same({}, used)
+  end)
+
+  it("shows nothing when the Warband Bank cannot be used here, or has no tab", function()
+    canUse = false
+    open()
+    assert.is_false(cardUp())
+    GC.BankRoute.OnBankClosed()
+    canUse, tabs = true, {}
+    open()
+    assert.is_false(cardUp())
+  end)
+
+  it("shows nothing when no followed group has an item here", function()
+    bags = { [0] = { info(9, 20) } }
+    open()
+    assert.is_false(cardUp())
+  end)
+
+  it("says in one line how to get groups when none is followed, and reads no slot", function()
+    _G.GoldCap_AppRuns = nil
+    GC.GroupRules.Adopt()
+    open()
+    assert.is_true(cardUp())
+    assert.equal("Follow a group on goldcap.gg and the Companion brings it here.", textOf(C._frame.hint))
+    assert.is_true(C._frame.hint:IsShown())
+    for _, b in ipairs(C._blocks) do assert.is_false(b:IsShown()) end
+    assert.equal(0, reads)
+  end)
+
+  it("sits under the carry list when it shows, else beside the bank window", function()
+    open()
+    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 4, 0 }, W.state(C._frame).points[1])
+    local route = W.CreateFrame("Frame")
+    route:Show()
+    GC.BankRoute._frame = route
+    GC.BankRoute.Refresh()
+    assert.same({ "TOPLEFT", route, "BOTTOMLEFT", 0, -4 }, W.state(C._frame).points[1])
+  end)
+
+  it("hides its keep button when a newer GoldCap saved the keep counts", function()
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION + 1 }
+    open()
+    assert.is_false(shown(block("Herbs").keep))
+    assert.is_true(shown(block("Herbs").toBank))
+  end)
+
+  -- Labels wrap and buttons are as wide as their words: a long item name in a long language widens
+  -- the card instead of being cut.
+  it("never cuts a label, in any language", function()
+    NAMES[1] = "Verzauberte Blütenblätter der leuchtenden Hochenblume"
+    bags[0][1] = info(1, 200)
+    for _, code in ipairs(helper.localeCodes()) do
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+    end
+    for _, code in ipairs(helper.localeCodes()) do
+      GC.ActivateLocale(code)
+      open()
+      local card = C._frame
+      for _, fs in ipairs({ card.title, card.hint }) do
+        assert.is_true(W.state(fs).wordWrap ~= false, code)
+      end
+      for _, b in ipairs(C._blocks) do
+        if b:IsShown() then
+          for _, fs in ipairs({ b.name, b.counts }) do
+            assert.is_true(W.state(fs).wordWrap ~= false, code)
+            assert.equal(card:GetWidth() - 20, fs:GetWidth(), code)
+          end
+          for _, button in ipairs({ b.keep, b.toBank, b.toBags }) do
+            if button:IsShown() then
+              assert.is_true(button:GetWidth() >= button.text:GetUnboundedStringWidth(), code .. " " .. button.label)
+              assert.is_true(card:GetWidth() >= button:GetWidth() + 20, code .. " " .. button.label)
+            end
+          end
+        end
+      end
+      GC.BankRoute.OnBankClosed()
+    end
+    NAMES[1] = "Bloom"
+  end)
+end)

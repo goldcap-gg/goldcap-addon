@@ -1519,4 +1519,11 @@ GC.Locales.esES = {
   ["Craft queue"] = "Cola de fabricación",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "La lista de BUY %s está lista en la pestaña BUY de la casa de subastas",
   ["Currency %d"] = "Moneda %d",
+  ["GoldCap: your groups"] = "GoldCap: tus grupos",
+  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Sigue un grupo en goldcap.gg y el Companion lo trae aquí.",
+  ["%d in bags, %d in the Warband Bank"] = "%d en las bolsas, %d en el banco de banda guerrera",
+  ["Keep in bags: %d of each"] = "Guardar en las bolsas: %d de cada",
+  ["How many of each item in %s to keep in your bags?"] = "¿Cuántos de cada objeto de %s quieres guardar en las bolsas?",
+  ["To bank: %s ×%d (%d left)"] = "Al banco: %s ×%d (quedan %d)",
+  ["To bags: %s ×%d (%d left)"] = "A las bolsas: %s ×%d (quedan %d)",
 }

@@ -1451,4 +1451,11 @@ GC.Locales.koKR = {
   ["Craft queue"] = "제작 대기열",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY 목록 %s이(가) 경매장 BUY 탭에 준비되었습니다",
   ["Currency %d"] = "화폐 %d",
+  ["GoldCap: your groups"] = "GoldCap: 내 그룹",
+  ["Follow a group on goldcap.gg and the Companion brings it here."] = "goldcap.gg에서 그룹을 팔로우하면 Companion이 여기로 가져옵니다.",
+  ["%d in bags, %d in the Warband Bank"] = "가방에 %d, 전투부대 은행에 %d",
+  ["Keep in bags: %d of each"] = "가방에 남길 수: 각 %d개",
+  ["How many of each item in %s to keep in your bags?"] = "%s의 각 아이템을 가방에 몇 개 남길까요?",
+  ["To bank: %s ×%d (%d left)"] = "은행으로: %s ×%d (%d 남음)",
+  ["To bags: %s ×%d (%d left)"] = "가방으로: %s ×%d (%d 남음)",
 }

@@ -12,6 +12,9 @@ local _, GC = ...
 -- click, made by the player's own click (spec/bank_route_spec.lua) and only after checking
 -- the bank is the window open and the slot still holds the item: the same call equips a piece of
 -- gear when no bank is open, which binds it, and sells it when a vendor is.
+--
+-- The reader, the move and their guards are shared: the bank by group card (UI/BankGroupsCard.lua)
+-- reads the bags and the Warband Bank through ReadStacks and moves its stacks through MoveStack.
 GC.BankRoute = {}
 local P = GC.BankRoute
 
@@ -65,61 +68,99 @@ local function hasTabs()
   return type(tabs) == "table" and #tabs > 0
 end
 
--- One stack as CarryPlan reads it, or nil: an empty slot, an item goldcap.gg has no route for, a
--- soulbound one, one the Warband Bank refuses or one still refundable (Blizzard asks before ending
--- the refund; GoldCap does not decide that for the player). A Warbound-until-equipped one is read,
--- marked, so the player is told why it stays.
-local function readStack(bag, slot, inBank)
+-- A stack in the bags the Warband Bank must not take: one still refundable (Blizzard asks before
+-- ending the refund; GoldCap does not decide that for the player), or one it refuses.
+local function noDeposit(loc)
+  return ask(C_Item.CanBeRefunded, loc) == true or ask(C_Bank.IsItemAllowedInBankType, accountBank(), loc) == false
+end
+
+-- One stack as the bank cards read it, or nil: an empty slot, an item `wanted` does not take, a
+-- soulbound one. A Warbound-until-equipped one is marked `wue`, a stack in the bags the Warband
+-- Bank must not take `noDeposit`, and one the game holds (on the cursor, or on its way) `locked`.
+local function readStack(bag, slot, inBank, wanted)
   local info = C_Container.GetContainerItemInfo(bag, slot)
-  if not (info and info.itemID and GC.Data.SellSpots(info.itemID)) then return nil end
+  if not (info and info.itemID and wanted(info.itemID)) then return nil end
   local loc = locationOf(bag, slot)
   if not loc then return nil end
   local wue = ask(C_Item.IsBoundToAccountUntilEquip, loc) == true
   if info.isBound and not wue then return nil end
-  if not inBank and not wue then
-    if ask(C_Item.CanBeRefunded, loc) then return nil end
-    if ask(C_Bank.IsItemAllowedInBankType, accountBank(), loc) == false then return nil end
-  end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
-    icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil }
+    icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
+    noDeposit = (not inBank and noDeposit(loc)) or nil, locked = info.isLocked or nil }
 end
 
-local function readContainers(bags, inBank)
+--- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one.
+function P.ReadStacks(bags, inBank, wanted)
   local stacks = {}
   for _, bag in ipairs(bags) do
     for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
-      local stack = readStack(bag, slot, inBank)
+      local stack = readStack(bag, slot, inBank, wanted)
       if stack then stacks[#stacks + 1] = stack end
     end
   end
   return stacks
 end
 
+--- The Warband Bank's tabs, as bags to read, while the bank is open; none otherwise.
+function P.BankTabs()
+  local tabs = P._open and ask(C_Bank.FetchPurchasedBankTabIDs, accountBank()) or nil
+  return type(tabs) == "table" and tabs or {}
+end
+
+--- Whether a press can move anything now: the bank is open and is the window, and its Warband
+--- Bank can be used and has a tab.
+function P.CanMove()
+  return P._open == true and bankIsTheWindow() and hasTabs()
+end
+
 --- What to carry from this bank now (GC.SellRoute.CarryPlan), from the bags and, while the bank is
---- open, the Warband Bank's tabs.
+--- open, the Warband Bank's tabs. A stack in the bags the Warband Bank must not take is left out,
+--- unless it is Warbound until equipped: that one is told why it stays.
 function P.Plan()
-  local tabs = P._open and ask(C_Bank.FetchPurchasedBankTabIDs, accountBank()) or {}
-  return GC.SellRoute.CarryPlan(readContainers(BAGS, false), readContainers(tabs, true), {
+  local function routed(stacks, inBank)
+    local out = {}
+    for _, stack in ipairs(stacks) do
+      if inBank or stack.wue or not stack.noDeposit then out[#out + 1] = stack end
+    end
+    return out
+  end
+  return GC.SellRoute.CarryPlan(routed(P.ReadStacks(BAGS, false, GC.Data.SellSpots), false),
+    routed(P.ReadStacks(P.BankTabs(), true, GC.Data.SellSpots), true), {
     hereId = GC.SellRoute.HereId(),
     routeFor = GC.SellRoute.ForItem,
     levelFor = GC.Data.FlipLevel,
   })
 end
 
--- The button's own click: the one place the addon moves an item. Checks the bank is the window
--- and the slot still holds the row's item and is not locked, makes the call, and only then puts
+--- The one place the addon moves an item between the bags and the Warband Bank: one
+--- C_Container.UseContainerItem, made inside the player's own click by the handler that calls this
+--- (onCarryClick below, onMoveClick in UI/BankGroupsCard.lua; spec/bank_route_spec.lua audits
+--- both). The same call equips a piece of gear when no bank is open, which binds it, and sells the
+--- item when a vendor is; so first it checks that the bank is the window, that the slot still holds
+--- the stack's item, unlocked, and, into the bank, that the Warband Bank may take it. Deposit with
+--- (bag, slot, nil, Enum.BankType.Account, false), withdraw with (tabID, slot). True when the call
+--- was made.
+function P.MoveStack(stack, into)
+  if not (type(stack) == "table" and bankIsTheWindow()) then return false end
+  local info = C_Container.GetContainerItemInfo(stack.bag, stack.slot)
+  if not (info and info.itemID == stack.itemID) or info.isLocked then return false end
+  if into then
+    local loc = locationOf(stack.bag, stack.slot)
+    if not loc or noDeposit(loc) then return false end
+    C_Container.UseContainerItem(stack.bag, stack.slot, nil, accountBank(), false)
+  else
+    C_Container.UseContainerItem(stack.bag, stack.slot)
+  end
+  return true
+end
+
+-- The carry list's button: moves the row's stack through MoveStack, and only after the call puts
 -- the button to sleep: BAG_UPDATE_DELAYED (OnBagsChanged) paints the move.
 local function onCarryClick(button)
   local row = button.row
   local loc = row and row.locations[1]
-  if not loc or P._pending or not bankIsTheWindow() then return end
-  local info = C_Container.GetContainerItemInfo(loc.bag, loc.slot)
-  if not (info and info.itemID == row.itemID) or info.isLocked then return end
-  if button.kind == "in" then
-    C_Container.UseContainerItem(loc.bag, loc.slot, nil, accountBank(), false)
-  else
-    C_Container.UseContainerItem(loc.bag, loc.slot)
-  end
+  if not loc or P._pending then return end
+  if not P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in") then return end
   pendingSeq = pendingSeq + 1
   local token = pendingSeq
   P._pending = token

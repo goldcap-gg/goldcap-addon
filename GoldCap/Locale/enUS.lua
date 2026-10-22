@@ -1502,4 +1502,11 @@ GC.Locales.enUS = {
   ["Craft queue"] = "Craft queue",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY list %s is ready in the BUY tab at the auction house",
   ["Currency %d"] = "Currency %d",
+  ["GoldCap: your groups"] = "GoldCap: your groups",
+  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Follow a group on goldcap.gg and the Companion brings it here.",
+  ["%d in bags, %d in the Warband Bank"] = "%d in bags, %d in the Warband Bank",
+  ["Keep in bags: %d of each"] = "Keep in bags: %d of each",
+  ["How many of each item in %s to keep in your bags?"] = "How many of each item in %s to keep in your bags?",
+  ["To bank: %s ×%d (%d left)"] = "To bank: %s ×%d (%d left)",
+  ["To bags: %s ×%d (%d left)"] = "To bags: %s ×%d (%d left)",
 }
