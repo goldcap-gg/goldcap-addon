@@ -136,7 +136,8 @@ describe("Settings controls", function()
       OnRescale = function() end,
       Panel = function(parent) return region("Frame", parent) end,
       Card = function(parent) return region("Frame", parent) end,
-      Label = function(parent) return region("FontString", parent) end,
+      -- `fontSize` is the size asked for before Theme.Scale(), for the MAIL card's layout test.
+      Label = function(parent, size) local r = region("FontString", parent); r.fontSize = size; return r end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
@@ -815,12 +816,13 @@ describe("Settings controls", function()
   -- The MAIL card: four switches for what the Collect button beside the mailbox takes. It exists
   -- only where UI/MailCollect.lua does (retail), so GC.MailCollect is the capability check.
   describe("the MAIL card", function()
+    -- Short labels: the card's title already says MAIL.
     local LABELS = {
-      { "Collect sales", "collectSales", "Take the gold from sold auctions." },
-      { "Collect returned lots", "collectReturns", "Take back lots that expired or that you cancelled." },
-      { "Collect purchases", "collectPurchases",
+      { "Sales", "collectSales", "Take the gold from sold auctions." },
+      { "Returned lots", "collectReturns", "Take back lots that expired or that you cancelled." },
+      { "Purchases", "collectPurchases",
         "Take the items of auctions you won, and the refund of an outbid bid." },
-      { "Collect mail from players", "collectPlayers",
+      { "Player mail", "collectPlayers",
         "Take gold and items other players sent you. Cash on delivery mail is never taken." },
     }
 
@@ -870,7 +872,7 @@ describe("Settings controls", function()
 
     it("writes false into the saved settings when a switch is turned off", function()
       GC.SettingsUI.Toggle()
-      local toggle = toggleOf(settingsPanel(), "Collect sales")
+      local toggle = toggleOf(settingsPanel(), "Sales")
       toggle.checkButton.scripts.OnClick(toggle.checkButton)
       assert.is_false(GC.db.settings.sniper.collectSales)
       assert.is_true(GC.db.settings.sniper.collectReturns)
@@ -880,6 +882,68 @@ describe("Settings controls", function()
       GC.MailCollect = nil
       GC.SettingsUI.Toggle()
       assert.is_nil(cardTitles(settingsPanel())["MAIL"])
+    end)
+
+    -- The owner's rule: no text is ever cut short. Each label is measured in the face Labels draw in
+    -- (UI/Kit/Fonts.lua: Media/FiraSans-Medium.ttf for every Latin and Cyrillic language; Korean
+    -- and Chinese draw in a client face, a full em per Hangul or Han glyph) at the largest font
+    -- scale the slider allows, in every language, against the room its row leaves at the window's
+    -- smallest width. And a label wraps rather than being cut, should a client draw it wider.
+    it("fits each label on its row at the largest font scale in every language, and wraps it", function()
+      local face = require("spec.support.font_metrics").load("GoldCap/Media/FiraSans-Medium.ttf")
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+      local minWidth = tonumber(file:read("*a"):match("WIN%.RESIZE_MIN_WIDTH = (%d+)"))
+      file:close()
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      local maxScale
+      walk(panel, function(node) if node.kind == "Slider" then maxScale = node.max end end)
+      assert.is_number(maxScale)
+
+      -- A region's left and right edge in window pixels at the smallest width, followed through its
+      -- anchors up to the window (the one region with no anchor of its own).
+      local function edges(node)
+        if #node.points == 0 then return 0, minWidth end
+        local left, right
+        for _, p in ipairs(node.points) do
+          local point, relative, relativePoint, x = p[1], p[2], p[3], p[4]
+          if type(relative) ~= "table" then
+            relative, relativePoint, x = node.parent, point, relative
+          end
+          local l, r = edges(relative)
+          local at = (relativePoint:find("LEFT") and l) or (relativePoint:find("RIGHT") and r) or (l + r) / 2
+          if point:find("LEFT") then left = at + (x or 0)
+          elseif point:find("RIGHT") then right = at + (x or 0) end
+        end
+        if left and not right then right = left + node.width end
+        if right and not left then left = right - node.width end
+        return left, right
+      end
+
+      local mail = cardByTitle(panel, "MAIL")
+      local translations = {}
+      for _, code in ipairs(helper.localeCodes()) do
+        local G = { Locales = {} }
+        assert(loadfile("GoldCap/Locale/" .. code .. ".lua"))("GoldCap", G)
+        translations[code] = G.Locales[code]
+      end
+      for _, row in ipairs(LABELS) do
+        local label
+        for _, child in ipairs(mail.children) do
+          if child.kind == "FontString" and child.textValue == row[1] then label = child end
+        end
+        assert.is_not_nil(label, row[1])
+        assert.is_true(label.wordWrap, row[1] .. " is cut instead of wrapped")
+        local left, right = edges(label)
+        local room = right - left
+        for _, code in ipairs(helper.localeCodes()) do
+          local text = translations[code][row[1]]
+          assert.is_string(text, code .. " has no " .. row[1])
+          local width = face:width(text, label.fontSize * maxScale)
+          assert.is_true(width <= room, ("%s %q is %.0f px at %.2f, its row has %.0f px")
+            :format(code, text, width, maxScale, room))
+        end
+      end
     end)
 
     it("reaches no lower than the window's smallest height", function()

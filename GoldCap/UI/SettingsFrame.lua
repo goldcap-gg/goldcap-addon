@@ -844,6 +844,7 @@ local function build(sniperFrame)
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
     attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
+    return label
   end
 
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.
@@ -886,15 +887,22 @@ local function build(sniperFrame)
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 
+  -- Short labels, since the card's title already says MAIL: each fits its row on one line at the
+  -- largest font scale and the smallest window, in every language (spec/settings_controls_spec.lua
+  -- measures them in the label face). A label wraps rather than being cut should a client draw it
+  -- wider than that measure.
   if mail then
-    toggleRow(mail, 1, GC.L["Collect sales"], "collectSales",
-      GC.L["Take the gold from sold auctions."])
-    toggleRow(mail, 2, GC.L["Collect returned lots"], "collectReturns",
-      GC.L["Take back lots that expired or that you cancelled."])
-    toggleRow(mail, 3, GC.L["Collect purchases"], "collectPurchases",
-      GC.L["Take the items of auctions you won, and the refund of an outbid bid."])
-    toggleRow(mail, 4, GC.L["Collect mail from players"], "collectPlayers",
-      GC.L["Take gold and items other players sent you. Cash on delivery mail is never taken."])
+    local rows = {
+      { GC.L["Sales"], "collectSales", GC.L["Take the gold from sold auctions."] },
+      { GC.L["Returned lots"], "collectReturns", GC.L["Take back lots that expired or that you cancelled."] },
+      { GC.L["Purchases"], "collectPurchases",
+        GC.L["Take the items of auctions you won, and the refund of an outbid bid."] },
+      { GC.L["Player mail"], "collectPlayers",
+        GC.L["Take gold and items other players sent you. Cash on delivery mail is never taken."] },
+    }
+    for i, row in ipairs(rows) do
+      toggleRow(mail, i, row[1], row[2], row[3]):SetWordWrap(true)
+    end
   end
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
