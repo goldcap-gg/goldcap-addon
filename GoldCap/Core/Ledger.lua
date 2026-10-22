@@ -517,6 +517,22 @@ end
 -- after rows were seen is the player having emptied the inbox, and still retires them.
 local inboxRowsSeen = false
 
+-- The item a new sale mail sold, for SELL's unsold rounds (Core/SellRounds.lua): the position the
+-- sale was applied to when ReconcileSale placed it, else the one item this character listed under
+-- the mail's name (farmed goods have no purchase to place the sale on). `listed` is the scan's
+-- own cache, so the listing index is built at most once per scan. nil when neither names it.
+local function soldItemID(stored, reconciled, context, listed)
+  if type(reconciled) == "table" and reconciled.status == "applied" and reconciled.positionKey then
+    local id = GC.SoldView.PositionItemID(reconciled.positionKey)
+    if id then return id end
+  end
+  if listed.index == nil then
+    listed.index = GC.SoldView.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
+      and GC.Acquisitions.GetActivities(context) or {})
+  end
+  return GC.SoldView.ListedItemID(listed.index, stored.itemName, context.char, context.region)
+end
+
 -- Walks the inbox and records every auction invoice it can read.  Occurrence
 -- reconciliation deliberately waits until every row in the snapshot is known
 -- good; a partial read is informative only to the mailbox UI and cannot erase
@@ -556,15 +572,22 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)
 
-  local created = 0
+  local created, listed = 0, {}
   for _, mail in ipairs(plan.mails) do
     local stored, isNew, appendError = GC.Ledger.Append(mail.entry)
     if not appendError and stored then
       if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
         GC.Acquisitions.ReconcileBuy(stored)
       end
+      local reconciled
       if stored.kind == "sale" and GC.Acquisitions and GC.Acquisitions.ReconcileSale then
-        GC.Acquisitions.ReconcileSale(stored)
+        reconciled = GC.Acquisitions.ReconcileSale(stored)
+      end
+      -- A new sale ends the item's run of unsold rounds: a followed flip group's next post
+      -- starts at the usual price again. Retail only (both modules are guarded).
+      if isNew and stored.kind == "sale" and GC.SellRounds and GC.SoldView then
+        local soldID = soldItemID(stored, reconciled, context, listed)
+        if soldID then GC.SellRounds.Sold(soldID, stored.at) end
       end
       if isNew then
         created = created + 1

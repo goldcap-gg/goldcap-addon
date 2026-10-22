@@ -80,6 +80,12 @@ function Compose.Positions(skipPaint)
   -- every keyless batch of a fully-sold item into its own repair row.
   local identityEvidence = GC.Acquisitions and GC.Acquisitions.GetIdentityEvidence
     and GC.Acquisitions.GetIdentityEvidence(scope) or {}
+  -- Followed groups: the lots that came back unsold since the last compose count as rounds before
+  -- the positions are priced (Core/SellRounds.lua). The returns log is the mail module's; a
+  -- client without it has no returns. Retail only.
+  if GC.SellRounds then
+    GC.SellRounds.Ingest(GC.MailReturns and GC.MailReturns.Entries() or (GC.db and GC.db.mailReturns), time())
+  end
   S.positions = GC.SellPositions.Build({ acquisitions = batches, identityEvidence = identityEvidence,
     pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = S.ownedLots,

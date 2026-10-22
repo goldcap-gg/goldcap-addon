@@ -519,6 +519,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, retail only).
     if GC.GroupRules then GC.GroupRules.Adopt() end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua, retail only).
+    if GC.SellRounds then GC.SellRounds.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.

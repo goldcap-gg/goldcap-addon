@@ -37,7 +37,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
   -- selling rules too: groups are retail only (plan 2026-10-22).
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
-    ["Core/GroupRules.lua"] = true }
+    ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true }
 
   it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank and the followed groups' rules", function()
     local expected = {}
