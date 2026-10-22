@@ -119,6 +119,16 @@ describe("Settings controls", function()
     function r:SetThumbTexture(t) self.thumb = t end
     function r:SetValue(v) self.value = v end
     function r:GetValue() return self.value or 0 end
+    -- FontString:GetStringHeight as the client answers it: 14px a line, a line holding 6px a
+    -- character, the text wrapped to the string's own width when it wraps and has one.
+    if kind == "FontString" then
+      function r:GetStringHeight()
+        local n = #(self.textValue or "")
+        if n == 0 then return 0 end
+        if self.wordWrap and (self.width or 0) > 0 then return math.ceil(n * 6 / self.width) * 14 end
+        return 14
+      end
+    end
     return r
   end
 
@@ -691,7 +701,7 @@ describe("Settings controls", function()
     GC.SettingsUI.Toggle()
     local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
     assert.is_not_nil(toggleOf(card, "Sell junk"))
-    assert.is_not_nil(toggleOf(card, "Sell what a vendor pays more for"))
+    assert.is_not_nil(toggleOf(card, "Better at vendor"))
     local forget = buttonIn(card, "Forget kept items")
     assert.is_not_nil(forget)
     assert.is_false(forget.enabled) -- nothing kept yet
@@ -704,6 +714,44 @@ describe("Settings controls", function()
     assert.same({}, GC.db.vendorKeep)
     assert.is_true(GC.db.settings.sniper.vendorJunk)
     assert.is_false(forget.enabled)
+  end)
+
+  -- Nothing is cut with "...". The VENDOR labels fit one line at the narrowest window and the
+  -- largest scale (spec/button_label_width_spec.lua); should one still need two, its row wraps,
+  -- the rows under it move down and the card grows, on every resize.
+  it("the VENDOR rows wrap and grow instead of cutting a label", function()
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    local function labelIn(text)
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == text then return child end
+      end
+      error("no label " .. text)
+    end
+    -- The TOPLEFT offset a widget was last placed at (the short SetPoint form: point, x, y).
+    local function top(node)
+      for _, p in ipairs(node.points) do
+        if p[1] == "TOPLEFT" then return type(p[2]) == "number" and p[3] or p[5] end
+      end
+    end
+    local junk, worth = labelIn("Sell junk"), labelIn("Better at vendor")
+    local forget = buttonIn(card, "Forget kept items")
+    for _, label in ipairs({ junk, worth }) do
+      assert.is_true(label.wordWrap)
+      for _, p in ipairs(label.points) do assert.not_equal("RIGHT", p[1]) end -- its height is its own
+    end
+
+    card.width = 259 -- the left column at the 640 minimum
+    card.scripts.OnSizeChanged(card, 259, card.height)
+    assert.equal(191, junk.width)
+    assert.same({ -24, -50, -73 }, { top(junk), top(worth), top(forget) })
+    assert.equal(108, card.height)
+
+    card.width = 120 -- 52px of row: each label takes two lines
+    card.scripts.OnSizeChanged(card, 120, card.height)
+    assert.same({ -24, -58, -89 }, { top(junk), top(worth), top(forget) })
+    assert.equal(124, card.height)
   end)
 
   it("writes the sell toggles to settings.sniper", function()

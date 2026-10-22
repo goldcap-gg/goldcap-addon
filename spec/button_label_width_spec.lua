@@ -298,6 +298,58 @@ describe("row button labels fit the button", function()
     return lines
   end
 
+  -- Settings, VENDOR (UI/SettingsFrame.lua): a toggle's label has the row left of its pill, and it
+  -- must fit there on one line at the narrowest window and the largest font scale -- the full rule
+  -- is the hover sentence. A Label is Fira Sans 12, not the mono face, and 0.6 em a character is an
+  -- upper bound for it (fontTools on Media/FiraSans-Medium.ttf: 0.44 to 0.55 em on these labels);
+  -- CJK counts double. Every figure is read off the source: the window's RESIZE_MIN_WIDTH less the
+  -- rail is the panel, the left column runs from its inset to the centre less its gap, and the row
+  -- is that less pad.m, the pill, pad.s and pad.m (640: 259 card, 191 row, 20 characters at 1.3).
+  -- The labels measured are the ones the VENDOR card's toggleRow calls name.
+  do
+    local function read(path)
+      local f = assert(io.open(path, "r"))
+      local text = f:read("*a")
+      f:close()
+      return text
+    end
+    local settings = read("GoldCap/UI/SettingsFrame.lua")
+    local theme = read("GoldCap/UI/Theme.lua")
+    local minWidth = tonumber(read("GoldCap/UI/SniperFrame.lua"):match("WIN%.RESIZE_MIN_WIDTH = (%d+)"))
+    local rail = tonumber(theme:match("T%.RAIL_W = (%d+)"))
+    local padS, padM = theme:match("T%.pad = { xs = %d+, s = (%d+), m = (%d+)")
+    padS, padM = tonumber(padS), tonumber(padM)
+    local inset = tonumber(settings:match('whatCounts:SetPoint%("TOPLEFT", panel, "TOPLEFT", (%d+), %-%d+%)'))
+    local gap = tonumber(settings:match('vendor:SetPoint%("RIGHT", panel, "CENTER", %-(%d+), 0%)'))
+    local pill = tonumber(settings:match("local function makeToggle%(parent%).-box:SetSize%((%d+), %d+%)"))
+    local maxScale = tonumber(settings:match("makeSlider%(display, %d+, [%d.]+, ([%d.]+),"))
+    local size = tonumber(settings:match("local function toggleRow%(.-Theme%.Label%(cardFrame, (%d+)%)"))
+    local keys = {}
+    for key in settings:gmatch('toggleRow%(vendor, %d+, GC%.L%["(.-)"%]') do keys[#keys + 1] = key end
+
+    it("reads the VENDOR row's budget off the sources", function()
+      for name, v in pairs({ minWidth = minWidth, rail = rail, padS = padS, padM = padM, inset = inset,
+          gap = gap, pill = pill, maxScale = maxScale, size = size }) do
+        assert.is_number(v, name)
+      end
+      assert.equal(2, #keys)
+    end)
+
+    for _, code in ipairs(helper.localeCodes()) do
+      it(("keeps every %s VENDOR toggle label on one line of its row at the largest scale"):format(code), function()
+        local GC = helper.loadModule("Locale/Core.lua")
+        helper.loadModule("Locale/" .. code .. ".lua", GC)
+        local card = (minWidth - rail) / 2 - inset - gap
+        local row = card - padM - pill - padS - padM
+        for _, key in ipairs(keys) do
+          local label = assert(GC.Locales[code][key], code .. " is missing " .. key)
+          assert.is_true(displayWidth(label) <= holds(row, size, maxScale), ("%s: %q is %d wide, over the %d a %dpx row holds at %.1f"):format(
+            code, label, displayWidth(label), holds(row, size, maxScale), row, maxScale))
+        end
+      end)
+    end
+  end
+
   for _, code in ipairs(helper.localeCodes()) do
     it(("keeps the %s needs-gold caption on its two lines"):format(code), function()
       local GC = helper.loadModule("Locale/Core.lua")

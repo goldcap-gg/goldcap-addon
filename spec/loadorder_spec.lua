@@ -47,6 +47,9 @@ describe("TOC load order", function()
         GetVerticalScrollRange = function() return 0 end,
         SetWordWrap = function() end,
         SetMaxLines = function() end,
+        -- Settings' VENDOR card lays its rows out from its labels' heights (flowVendor), once
+        -- during construction.
+        GetStringHeight = function() return 0 end,
         -- Deals empty-state panel (createFrame's f.emptyText): a multi-line FontString with
         -- explicit line spacing, set once at construction.
         SetSpacing = function() end,

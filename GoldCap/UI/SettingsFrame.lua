@@ -617,7 +617,8 @@ local function build(sniperFrame)
   -- VENDOR (the Sell to vendor card's two kinds, and the items kept for good): retail only, as the
   -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). Under RISK CHECKS, so it
   -- shares that card's retail-only gate; the left column ends well above the panel's minimum
-  -- height (48 + 134 + 12 + 108 + 12 + 108 = 422 against 470 - 32 = 438).
+  -- height (48 + 134 + 12 + 108 + 12 + 108 = 422 against 470 - 32 = 438). VENDOR is 108 while
+  -- each of its labels holds one line, which spec/button_label_width_spec.lua pins (flowVendor).
   local vendor
   if not isForeverClient() then
     vendor = card(panel, GC.L["VENDOR"], 3)
@@ -844,6 +845,7 @@ local function build(sniperFrame)
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
     attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
+    return label, box
   end
 
   -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.
@@ -886,17 +888,48 @@ local function build(sniperFrame)
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 
+  -- VENDOR's labels are short in every language, the whole rule in the hover sentence, and
+  -- spec/button_label_width_spec.lua holds each to one line of its row at the largest font scale
+  -- in the narrowest window. Should one still need more, it is never cut: its row wraps, and the
+  -- rows under it and the card's own height follow the labels' real heights (flowVendor), again on
+  -- every resize of the card and every change of the font scale.
   if vendor then
-    toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
-      GC.L["Sell to vendor lists poor quality items a vendor buys."])
-    toggleRow(vendor, 2, GC.L["Sell what a vendor pays more for"], "vendorWorth",
-      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."])
+    local rows = {
+      { toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
+        GC.L["Sell to vendor lists poor quality items a vendor buys."]) },
+      { toggleRow(vendor, 2, GC.L["Better at vendor"], "vendorWorth",
+        GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."]) },
+    }
 
     local forget = Theme.Button(vendor, "ghost", "plaque")
     forget:SetHeight(26)
-    forget:SetPoint("TOPLEFT", Theme.pad.m, vendor.rowY(3) + 3)
-    forget:SetPoint("TOPRIGHT", -Theme.pad.m, vendor.rowY(3) + 3)
     forget:SetLabel(GC.L["Forget kept items"])
+
+    -- A row is as tall as its label needs, never under the STEP rhythm; the label is bound by the
+    -- card's width alone (no RIGHT anchor to the pill, which would pin it to the pill's height).
+    -- Before the card has a width the labels keep one line, until its first OnSizeChanged.
+    local function flowVendor()
+      local y = 24
+      for _, row in ipairs(rows) do
+        local label, box = row[1], row[2]
+        local width = (vendor:GetWidth() or 0) - 2 * Theme.pad.m - box:GetWidth() - Theme.pad.s
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+        if width > 0 then label:SetWidth(width) end
+        label:SetWordWrap(true)
+        box:ClearAllPoints()
+        box:SetPoint("TOPRIGHT", -Theme.pad.m, -y)
+        y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
+      end
+      forget:ClearAllPoints()
+      forget:SetPoint("TOPLEFT", Theme.pad.m, -y + 3)
+      forget:SetPoint("TOPRIGHT", -Theme.pad.m, -y + 3)
+      vendor:SetHeight(y + STEP + 6)
+    end
+    flowVendor()
+    vendor:HookScript("OnSizeChanged", flowVendor)
+    Theme.OnRescale(flowVendor)
+
     local function paintForget()
       if next(GC.db and GC.db.vendorKeep or {}) ~= nil then forget:Enable() else forget:Disable() end
     end
