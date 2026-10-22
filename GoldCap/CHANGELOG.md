@@ -7,12 +7,10 @@
   many mails it will take, and one press again stops it.
 - Mail: sales are written to the SOLD tab before their gold is taken, and mail that is still
   loading is left for the next press, so no sale goes missing.
-- Mail: cash on delivery mail and mail from Blizzard is never taken. Settings has a MAIL card to
+- Mail: cash on delivery mail and mail from Blizzard are never taken. Settings has a MAIL card to
   choose which kinds Collect takes.
 - Mail: it stops when the bags are full (gold is still taken) and says what it collected in the
   chat.
-- Mail: lots that came back are remembered for two weeks, so the Sell tab can tell which items did
-  not sell.
 
 ## 0.22.1 (unreleased)
 
