@@ -119,9 +119,9 @@ local function report(result)
   if result.sold > 0 then
     local coins = GC.Util.CoinText(result.copper)
     if result.sold == 1 then
-      GC.Print(GC.L["Sold 1 stack for %s. Buyback has it until you leave."]:format(coins))
+      GC.Print(GC.L["Sold 1 stack for %s. Buyback keeps the last 12 you sold."]:format(coins))
     else
-      GC.Print(GC.L["Sold %d stacks for %s. Buyback has them until you leave."]:format(result.sold, coins))
+      GC.Print(GC.L["Sold %d stacks for %s. Buyback keeps the last 12 you sold."]:format(result.sold, coins))
     end
   end
   C.Refresh()

@@ -1427,6 +1427,6 @@ GC.Locales.itIT = {
   ["Never sell this"] = "Non vendere mai",
   ["Stop"] = "Ferma",
   ["The game sells one stack per press here."] = "Il gioco qui vende una pila per pressione.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d pile vendute per %s. Il riacquisto le tiene finché non te ne vai.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1 pila venduta per %s. Il riacquisto la tiene finché non te ne vai.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "%d pile vendute per %s. Il riacquisto tiene le ultime 12 vendite.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "1 pila venduta per %s. Il riacquisto tiene le ultime 12 vendite.",
 }

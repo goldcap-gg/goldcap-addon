@@ -1430,6 +1430,6 @@ GC.Locales.deDE = {
   ["Never sell this"] = "Nie verkaufen",
   ["Stop"] = "Stopp",
   ["The game sells one stack per press here."] = "Das Spiel verkauft hier pro Klick nur einen Stapel.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d Stapel für %s verkauft. Zurückkaufen geht, bis du gehst.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1 Stapel für %s verkauft. Zurückkaufen geht, bis du gehst.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "%d Stapel für %s verkauft. Der Rückkauf hält die letzten 12 Verkäufe.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "1 Stapel für %s verkauft. Der Rückkauf hält die letzten 12 Verkäufe.",
 }

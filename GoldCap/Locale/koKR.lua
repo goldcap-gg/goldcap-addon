@@ -1364,6 +1364,6 @@ GC.Locales.koKR = {
   ["Never sell this"] = "절대 판매하지 않기",
   ["Stop"] = "중지",
   ["The game sells one stack per press here."] = "이곳에서는 한 번 누를 때마다 한 묶음씩 판매됩니다.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d묶음을 %s에 판매했습니다. 떠나기 전까지 되사기에서 되찾을 수 있습니다.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1묶음을 %s에 판매했습니다. 떠나기 전까지 되사기에서 되찾을 수 있습니다.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "%d묶음을 %s에 판매했습니다. 되사기에는 최근 판매한 12개가 남습니다.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "1묶음을 %s에 판매했습니다. 되사기에는 최근 판매한 12개가 남습니다.",
 }

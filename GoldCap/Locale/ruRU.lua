@@ -1497,6 +1497,6 @@ GC.Locales.ruRU = {
   ["Never sell this"] = "Никогда не продавать",
   ["Stop"] = "Стоп",
   ["The game sells one stack per press here."] = "Игра продаёт здесь по одной стопке за нажатие.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "Продано стопок: %d, за %s. Выкуп хранит их, пока вы не уйдёте.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "Продана 1 стопка за %s. Выкуп хранит её, пока вы не уйдёте.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "Продано стопок: %d, за %s. Выкуп хранит 12 последних продаж.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "Продана 1 стопка за %s. Выкуп хранит 12 последних продаж.",
 }

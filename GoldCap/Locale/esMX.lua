@@ -1434,6 +1434,6 @@ GC.Locales.esMX = {
   ["Never sell this"] = "No vender nunca",
   ["Stop"] = "Detener",
   ["The game sells one stack per press here."] = "El juego vende aquí una pila por pulsación.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "%d pilas vendidas por %s. Recompra las tiene hasta que te vayas.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "1 pila vendida por %s. Recompra la tiene hasta que te vayas.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "%d pilas vendidas por %s. Recompra guarda las 12 últimas ventas.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "1 pila vendida por %s. Recompra guarda las 12 últimas ventas.",
 }

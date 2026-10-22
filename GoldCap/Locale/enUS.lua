@@ -1415,6 +1415,6 @@ GC.Locales.enUS = {
   ["Never sell this"] = "Never sell this",
   ["Stop"] = "Stop",
   ["The game sells one stack per press here."] = "The game sells one stack per press here.",
-  ["Sold %d stacks for %s. Buyback has them until you leave."] = "Sold %d stacks for %s. Buyback has them until you leave.",
-  ["Sold 1 stack for %s. Buyback has it until you leave."] = "Sold 1 stack for %s. Buyback has it until you leave.",
+  ["Sold %d stacks for %s. Buyback keeps the last 12 you sold."] = "Sold %d stacks for %s. Buyback keeps the last 12 you sold.",
+  ["Sold 1 stack for %s. Buyback keeps the last 12 you sold."] = "Sold 1 stack for %s. Buyback keeps the last 12 you sold.",
 }
