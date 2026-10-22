@@ -28,6 +28,7 @@ local ROW_TAG_TEXT = {
   below_vendor = "vendor pays more",
   posted_this_visit = "posted",
   skipped_this_visit = "skipped",
+  below_rule_floor = "under group floor",
 }
 
 local rowTag
@@ -81,7 +82,10 @@ function ROW.markTooltip(owner, row)
     or GC.L["POST passes it by. Click the item to post it from the bar below."]), 0.85, 0.85, 0.85, true)
   local marks = GC.Sell._QueueOpts().marks
   if selling and position and type(marks) == "table" and marks[position.positionKey] == nil then
-    GameTooltip:AddLine(GC.Util.ClientText(GC.L["Marked for you: you bought it on DEALS."]), 0.85, 0.85, 0.85, true)
+    -- Deals bought it, else a followed flip or gather group holds it (GC.PostQueue.Selling).
+    local bought = type(position.sources) == "table" and (tonumber(position.sources.goldcap) or 0) > 0
+    GameTooltip:AddLine(GC.Util.ClientText(bought and GC.L["Marked for you: you bought it on DEALS."]
+      or GC.L["Marked for you: it is in a group you follow."]), 0.85, 0.85, 0.85, true)
   end
   GameTooltip:AddLine(GC.Util.ClientText(GC.L["Click to change."]), 0.6, 0.6, 0.6)
   GameTooltip:Show()
@@ -309,6 +313,7 @@ local function createRow(parent)
         GameTooltip:AddLine(GC.Util.ClientText(GC.L["Not on hand: the stock is in the mail, the bank, or on another character"]),
           0.85, 0.85, 0.85, true)
       end
+      UI.fmt.ruleTooltip(self.position)
       GameTooltip:Show()
     elseif GameTooltip and (self.kind == "group" or self.kind == "batch" or self.kind == "section")
         and self.groupHint and self.groupHint ~= "" then
@@ -555,7 +560,8 @@ function Row.PaintPosition(row, entry, ctx)
   row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
     or GC.SellViewModel.SourceText(p))
     .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
-    .. rowTag(p, heldBackReason[p.positionKey], notOnHand))
+    .. rowTag(p, heldBackReason[p.positionKey], notOnHand) -- then a followed group's name, in gold:
+    .. (p.rule and p.rule.name and ("  " .. GC.Sell._InlineColor(Theme.color.gold, p.rule.name)) or ""))
   -- Cost per unit, not the position total: it is the number that compares against the
   -- market price in the very next column. An incomplete basis says so in words below.
   local unitCost = nil

@@ -1428,4 +1428,9 @@ GC.Locales.frFR = {
   ["not under %d%% of usual"] = "pas sous %d%% du prix habituel",
   ["not under the cost to craft"] = "pas sous le coût de fabrication",
   ["%d%% cheaper each time it comes back"] = "%d%% moins cher à chaque retour",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Groupe que tu suis : %s",
+  ["Marked for you: it is in a group you follow."] = "Marqué pour toi : il est dans un groupe que tu suis.",
+  ["under group floor"] = "sous le plancher du groupe",
+  ["the market is under your group's floor. Type a price to post anyway"] = "le marché est sous le plancher de ton groupe. Saisis un prix pour mettre en vente quand même",
 }

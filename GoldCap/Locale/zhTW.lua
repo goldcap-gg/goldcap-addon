@@ -1328,4 +1328,9 @@ GC.Locales.zhTW = {
   ["not under %d%% of usual"] = "不低於常規價的 %d%%",
   ["not under the cost to craft"] = "不低於製作成本",
   ["%d%% cheaper each time it comes back"] = "每次退回便宜 %d%%",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "你關注的分組：%s",
+  ["Marked for you: it is in a group you follow."] = "已自動標記：它在你關注的分組裡。",
+  ["under group floor"] = "低於分組底價",
+  ["the market is under your group's floor. Type a price to post anyway"] = "市價低於你分組的底價。輸入價格仍可上架",
 }

@@ -1327,4 +1327,9 @@ GC.Locales.zhCN = {
   ["not under %d%% of usual"] = "不低于常规价的 %d%%",
   ["not under the cost to craft"] = "不低于制作成本",
   ["%d%% cheaper each time it comes back"] = "每次退回便宜 %d%%",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "你关注的分组：%s",
+  ["Marked for you: it is in a group you follow."] = "已自动标记：它在你关注的分组里。",
+  ["under group floor"] = "低于分组底价",
+  ["the market is under your group's floor. Type a price to post anyway"] = "市价低于你分组的底价。输入价格仍可上架",
 }

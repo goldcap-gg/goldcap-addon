@@ -155,6 +155,7 @@ local QUEUE_SKIP_TEXT = {
   -- (GC.Sell._lateAnswers).
   awaiting_answer = "Last post may still go up. Wait a minute",
   no_advice = "cost basis incomplete. Set costs to get repost advice",
+  below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.

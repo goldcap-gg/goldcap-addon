@@ -104,6 +104,11 @@ function Compose.Positions(skipPaint)
     -- the market there, so the projection prices bag stock from it while the live walk is still
     -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
     scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
+    -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
+    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Retail only: on
+    -- WoW: Forever neither module loads and no position has a rule.
+    rules = GC.GroupRules and { ruleFor = GC.GroupRules.RuleFor,
+      roundsFor = GC.SellRounds and GC.SellRounds.Rounds or function() return 0 end } or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose

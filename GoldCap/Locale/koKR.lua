@@ -1361,4 +1361,9 @@ GC.Locales.koKR = {
   ["not under %d%% of usual"] = "평소 가격의 %d%% 미만 금지",
   ["not under the cost to craft"] = "제작 비용 미만 금지",
   ["%d%% cheaper each time it comes back"] = "돌아올 때마다 %d%% 더 싸게",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "팔로우 중인 그룹: %s",
+  ["Marked for you: it is in a group you follow."] = "자동 표시: 팔로우 중인 그룹의 아이템입니다.",
+  ["under group floor"] = "그룹 하한 미만",
+  ["the market is under your group's floor. Type a price to post anyway"] = "시세가 그룹 하한보다 낮습니다. 그래도 올리려면 가격을 입력하세요",
 }

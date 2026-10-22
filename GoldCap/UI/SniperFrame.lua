@@ -2547,7 +2547,9 @@ end
 -- Sell tab's reader -- a hand-edited value must never reach the API.
 local function depositFor(itemID, quantity)
   local settings = GC.db and GC.db.settings and GC.db.settings.sniper
-  local duration = settings and settings.postDuration
+  -- A followed group's duration first (Core/GroupRules.lua): a field read on a plain table, no
+  -- GoldCap function, since this runs inside the purchase click.
+  local duration = GC.GroupRules and GC.GroupRules.durationByItem[itemID] or (settings and settings.postDuration)
   if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = 2 end
   return C_AuctionHouse.CalculateCommodityDeposit(itemID, duration, quantity)
 end

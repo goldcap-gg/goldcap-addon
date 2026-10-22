@@ -1494,4 +1494,9 @@ GC.Locales.ruRU = {
   ["not under %d%% of usual"] = "не ниже %d%% от обычной цены",
   ["not under the cost to craft"] = "не ниже себестоимости крафта",
   ["%d%% cheaper each time it comes back"] = "на %d%% дешевле после каждого возврата",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Группа, на которую вы подписаны: %s",
+  ["Marked for you: it is in a group you follow."] = "Отмечено само: это в группе, на которую вы подписаны.",
+  ["under group floor"] = "ниже порога группы",
+  ["the market is under your group's floor. Type a price to post anyway"] = "рынок ниже порога вашей группы. Введите цену, чтобы всё равно выставить",
 }

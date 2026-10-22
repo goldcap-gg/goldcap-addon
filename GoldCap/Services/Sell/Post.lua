@@ -414,7 +414,11 @@ function Post.PreparePost(row)
   -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
   -- post cannot disagree about what they are doing. A duration changed in the settings panel
   -- between the two clicks must not let a post start at one duration and confirm at another.
-  local duration = postDuration()
+  -- A followed group's rule names its own duration (Core/GroupRules.lua's index, 1 to 3): a plain
+  -- field read off the position, like everything else pinned here.
+  local ruleDuration = position.ruleDurationIndex
+  local duration = (ruleDuration == 1 or ruleDuration == 2 or ruleDuration == 3) and ruleDuration
+    or postDuration()
   S.postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,

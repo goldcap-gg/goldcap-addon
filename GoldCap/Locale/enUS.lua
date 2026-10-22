@@ -1412,4 +1412,9 @@ GC.Locales.enUS = {
   ["not under %d%% of usual"] = "not under %d%% of usual",
   ["not under the cost to craft"] = "not under the cost to craft",
   ["%d%% cheaper each time it comes back"] = "%d%% cheaper each time it comes back",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Group you follow: %s",
+  ["Marked for you: it is in a group you follow."] = "Marked for you: it is in a group you follow.",
+  ["under group floor"] = "under group floor",
+  ["the market is under your group's floor. Type a price to post anyway"] = "the market is under your group's floor. Type a price to post anyway",
 }

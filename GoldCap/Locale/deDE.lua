@@ -1427,4 +1427,9 @@ GC.Locales.deDE = {
   ["not under %d%% of usual"] = "nicht unter %d%% des üblichen Preises",
   ["not under the cost to craft"] = "nicht unter den Herstellungskosten",
   ["%d%% cheaper each time it comes back"] = "jedes Mal %d%% billiger, wenn es zurückkommt",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Gruppe, der du folgst: %s",
+  ["Marked for you: it is in a group you follow."] = "Für dich markiert: es ist in einer Gruppe, der du folgst.",
+  ["under group floor"] = "unter Gruppenboden",
+  ["the market is under your group's floor. Type a price to post anyway"] = "der Markt liegt unter dem Boden deiner Gruppe. Gib einen Preis ein, um trotzdem einzustellen",
 }

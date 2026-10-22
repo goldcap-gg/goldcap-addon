@@ -432,4 +432,35 @@ describe("locale layer", function()
       for key, text in pairs(strings) do assert.equal(text, loc.Locales[code][key], code .. " " .. key) end
     end
   end)
+  -- Followed groups (plan 2026-10-22): every key the groups' DEALS chip, SELL's rules and the
+  -- cancel run added, in all twelve files, read whole and with no long dash.
+  it("carries the group rules keys in all twelve languages", function()
+    local keys = {
+      -- DEALS (task 7)
+      "GROUP", "Listed at or under the deal price of a group you follow (%s)",
+      -- the rule in words (task 8)
+      "1 at a time", "all you have", "%d h", "not under %d%% of usual", "not under the cost to craft",
+      "%d%% cheaper each time it comes back",
+      -- SELL's row, mark and dock (task 11)
+      "Group you follow: %s", "Marked for you: it is in a group you follow.", "under group floor",
+      "the market is under your group's floor. Type a price to post anyway",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+      -- The DEALS chip is a fixed width: eleven characters at most in every language.
+      local chars = 0
+      for _ in strings["GROUP"]:gmatch("[^\128-\191]") do chars = chars + 1 end
+      assert.is_true(chars <= 11, code .. " GROUP is too long for the chip")
+    end
+  end)
 end)

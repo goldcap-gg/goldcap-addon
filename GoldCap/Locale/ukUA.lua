@@ -1495,4 +1495,9 @@ GC.Locales.ukUA = {
   ["not under %d%% of usual"] = "не нижче %d%% від звичайної ціни",
   ["not under the cost to craft"] = "не нижче собівартості крафту",
   ["%d%% cheaper each time it comes back"] = "на %d%% дешевше після кожного повернення",
+  -- Followed groups: SELL's row, its mark and the dock.
+  ["Group you follow: %s"] = "Група, на яку ви підписані: %s",
+  ["Marked for you: it is in a group you follow."] = "Позначено саме: це в групі, на яку ви підписані.",
+  ["under group floor"] = "нижче порогу групи",
+  ["the market is under your group's floor. Type a price to post anyway"] = "ринок нижче порогу вашої групи. Введіть ціну, щоб однаково виставити",
 }
