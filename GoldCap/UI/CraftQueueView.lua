@@ -219,7 +219,7 @@ function QV.Refresh()
 
   v.buy:SetLabel(GC.L["Make a BUY list"])
   v.buy:FitLabels({ v.buy.label }, LAYOUT.BUTTON_MIN)
-  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf)
+  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf, GC.CraftClient.VendorOf)
   if #lines > 0 then v.buy:Enable() else v.buy:Disable() end
 end
 
@@ -236,7 +236,7 @@ function QV.MakeBuyList()
   local char = GC.CraftClient.Char()
   if not char then return nil end
   local _, missing = work(char)
-  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf)
+  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf, GC.CraftClient.VendorOf)
   if #lines == 0 then return nil end
   local run = GC.AppRuns.NewList(GC.L["Craft queue"], lines)
   if not run then return nil end

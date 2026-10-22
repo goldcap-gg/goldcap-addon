@@ -151,6 +151,14 @@ describe("craft queue", function()
     assert.same({ { i = 103, q = 5 } }, (Q.BuyLines(missing, prices, counts({ [101] = 3 }))))
   end)
 
+  it("marks a reagent a vendor sells as a vendor stop with the vendor's price", function()
+    local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 }, { ids = { 201 }, need = 2, have = 0, missing = 2 } }
+    local prices = unit({ [101] = 50, [102] = 900, [201] = 300 })
+    local vendor = function(id) return id == 101 and 50 or nil end
+    assert.same({ { i = 101, q = 4, v = true, vu = 50 }, { i = 201, q = 2 } },
+      (Q.BuyLines(missing, prices, counts({}), vendor)))
+  end)
+
   it("buys the lowest quality when no quality has a price, and leaves a currency out", function()
     local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 }, { currency = 3008, need = 2, have = 0, missing = 2 } }
     local lines, notBuyable = Q.BuyLines(missing, unit({}), counts({}))

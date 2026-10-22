@@ -210,15 +210,20 @@ end
 --- BUY lines ({ i, q }) that buy exactly what is missing. The item bought is the cheapest priced
 --- quality, else the lowest. BUY buys a line's `q` less what it sees held of that one item
 --- (Core/BuyRun.lua), while `missing` already counted every quality held: so what is held of the
---- bought item is added back, or BUY would take it off twice. A currency goes to `notBuyable`.
-function Q.BuyLines(missing, unitOf, countOf)
+--- bought item is added back, or BUY would take it off twice. An item `vendorOf` gives a vendor's
+--- price for is a vendor stop ({ i, q, v = true, vu }), which BUY lists for the merchant instead
+--- of searching the auction house. A currency goes to `notBuyable`.
+function Q.BuyLines(missing, unitOf, countOf, vendorOf)
   local lines, notBuyable = {}, {}
   for _, row in ipairs(type(missing) == "table" and missing or {}) do
     if row.currency then
       notBuyable[#notBuyable + 1] = { currency = row.currency }
     elseif type(row.ids) == "table" and row.ids[1] then
       local i = GC.CraftMath.SlotChoice({ ids = row.ids }, unitOf) or row.ids[1]
-      lines[#lines + 1] = { i = i, q = row.missing + (tonumber(countOf(i)) or 0) }
+      local line = { i = i, q = row.missing + (tonumber(countOf(i)) or 0) }
+      local vu = vendorOf and tonumber(vendorOf(i)) or nil
+      if vu and vu > 0 then line.v, line.vu = true, vu end
+      lines[#lines + 1] = line
     end
   end
   return lines, notBuyable

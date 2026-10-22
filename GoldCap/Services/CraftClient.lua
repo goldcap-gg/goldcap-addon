@@ -181,12 +181,19 @@ function CC.OpenRecipe()
   return ok and open or nil
 end
 
+--- What a vendor charges for one of an item, as a BUY list the player holds says (nil: none does).
+function CC.VendorOf(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local vendor = GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
+  return type(vendor) == "number" and vendor or nil
+end
+
 --- What one of a reagent costs: the vendor price a BUY list carries for it, else the market price
 --- GoldCap trusts for a cost (the order Core/Init.lua's craft capture prices a reagent in).
 function CC.UnitOf(itemID)
   if type(itemID) ~= "number" then return nil end
-  local vendor = GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
-  if type(vendor) == "number" then return vendor end
+  local vendor = CC.VendorOf(itemID)
+  if vendor then return vendor end
   local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
   local unit = GC.Tooltip.TrustedHeadline(v)
   return type(unit) == "number" and math.floor(unit) or nil

@@ -154,6 +154,17 @@ describe("craft queue view", function()
     assert.equal(2, n)
   end)
 
+  it("puts a reagent a vendor sells on the BUY list as a vendor stop", function()
+    load({ counts = { [101] = 1 } })
+    -- A list the player holds says a vendor sells Item A for 50 (Core/AppRuns.lua's VendorUnitFor).
+    GC.db.runs = { vendor = { code = "vendor", updatedAt = 1, lines = { { i = 101, q = 1, v = true, vu = 50 } } } }
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+    showQueue()
+    local run = QV.MakeBuyList()
+    assert.equal(1, #run.lines)
+    assert.same({ 101, 4, true, 50 }, { run.lines[1].i, run.lines[1].q, run.lines[1].v, run.lines[1].vu })
+  end)
+
   it("leaves a currency off the BUY list and says it is not on the auction house", function()
     load({ filtered = { 7 } })
     GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
