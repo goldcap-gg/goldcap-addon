@@ -110,7 +110,7 @@ function M.Ingest(entries, now)
   for _, entry in ipairs(readable) do
     local at = entry.at
     if at >= settled then
-      -- Not settled: the mail loop may still take it back. Counted below, never into the save.
+      -- Not settled: counted afresh from the log below, never into the save.
       if entry.reason == "expired" and at >= store.lastReturnAt then
         local ats = young[entry.itemID] or {}
         young[entry.itemID] = ats
