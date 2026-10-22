@@ -1484,4 +1484,10 @@ GC.Locales.ruRU = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Где что продаётся, приходит с данными региона от Companion: пока данных нет.",
   ["Nothing in your bags sells notably better on another of your realms."] = "В сумках нет ничего, что заметно дороже продаётся на другом вашем реалме.",
   ["What to take out of the Warband Bank shows at a bank."] = "Что забрать из банка отряда, видно в банке.",
+  ["VENDOR"] = "ТОРГОВЕЦ",
+  ["Sell junk"] = "Продавать серые предметы",
+  ["Sell what a vendor pays more for"] = "Продавать то, что торговец оплачивает лучше",
+  ["Forget kept items"] = "Забыть сохранённые предметы",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "Продать торговцу показывает предметы низкого качества, которые торговец покупает.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Продать торговцу также показывает непривязанные предметы, за которые торговец платит столько же, сколько аукцион после своей комиссии.",
 }

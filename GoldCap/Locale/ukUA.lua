@@ -1485,4 +1485,10 @@ GC.Locales.ukUA = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Де що продається, надходить із даними регіону від Companion: поки даних немає.",
   ["Nothing in your bags sells notably better on another of your realms."] = "У сумках немає нічого, що помітно дорожче продається на іншому вашому реалмі.",
   ["What to take out of the Warband Bank shows at a bank."] = "Що забрати з банку загону, видно в банку.",
+  ["VENDOR"] = "ТОРГОВЕЦЬ",
+  ["Sell junk"] = "Продавати сірі предмети",
+  ["Sell what a vendor pays more for"] = "Продавати те, що торговець оплачує краще",
+  ["Forget kept items"] = "Забути збережені предмети",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "Продати торговцю показує предмети низької якості, які торговець купує.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Продати торговцю також показує предмети без прив'язки, за які торговець платить стільки ж, скільки аукціон після своєї комісії.",
 }

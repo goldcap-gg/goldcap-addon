@@ -1412,4 +1412,10 @@ GC.Locales.ptBR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Onde cada revenda vende vem com os dados de região do Companion: ainda não há nada.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nada nas suas bolsas vende bem melhor em outro dos seus reinos.",
   ["What to take out of the Warband Bank shows at a bank."] = "O que retirar do banco do bando de guerra aparece num banco.",
+  ["VENDOR"] = "VENDEDOR",
+  ["Sell junk"] = "Vender lixo",
+  ["Sell what a vendor pays more for"] = "Vender o que o vendedor paga mais",
+  ["Forget kept items"] = "Esquecer itens mantidos",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "Vender ao vendedor lista os itens de qualidade pobre que um vendedor compra.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Vender ao vendedor também lista itens não vinculados pelos quais um vendedor paga tanto quanto a casa de leilões após a sua comissão.",
 }

@@ -355,6 +355,11 @@ describe("Settings controls", function()
 
     after_each(function() _G.GetBuildInfo = nil end)
 
+    it("builds no VENDOR card", function()
+      GC.SettingsUI.Toggle()
+      assert.is_nil(cardTitles(_G.GoldCapSniperFrame)["VENDOR"])
+    end)
+
     it("labels the three segments 2H/8H/24H instead of 12H/24H/48H", function()
       GC.db.settings.sniper.postDuration = 2
       GC.SettingsUI.Toggle()
@@ -677,6 +682,38 @@ describe("Settings controls", function()
     local resetBtn = buttonIn(whatCounts, "DEFAULTS")
     resetBtn.scripts.OnClick(resetBtn)
     assert.equal(2, settingsChangedCalls)
+  end)
+
+  it("the VENDOR card holds the two sell toggles and Forget kept items, which empties vendorKeep only", function()
+    GC.db.settings.sniper.vendorJunk = true
+    GC.db.settings.sniper.vendorWorth = true
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    assert.is_not_nil(toggleOf(card, "Sell junk"))
+    assert.is_not_nil(toggleOf(card, "Sell what a vendor pays more for"))
+    local forget = buttonIn(card, "Forget kept items")
+    assert.is_not_nil(forget)
+    assert.is_false(forget.enabled) -- nothing kept yet
+
+    GC.db.vendorKeep = { [123] = true, [456] = true }
+    GC.SettingsUI.Toggle() -- close and reopen: the panel re-reads its state on show
+    GC.SettingsUI.Toggle()
+    assert.is_true(forget.enabled)
+    forget.scripts.OnClick(forget)
+    assert.same({}, GC.db.vendorKeep)
+    assert.is_true(GC.db.settings.sniper.vendorJunk)
+    assert.is_false(forget.enabled)
+  end)
+
+  it("writes the sell toggles to settings.sniper", function()
+    GC.db.settings.sniper.vendorJunk = true
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    local toggle = toggleOf(card, "Sell junk")
+    toggle.checkButton.scripts.OnClick(toggle.checkButton)
+    assert.is_false(GC.db.settings.sniper.vendorJunk)
   end)
 
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()

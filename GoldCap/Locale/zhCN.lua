@@ -1317,4 +1317,10 @@ GC.Locales.zhCN = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "每件倒卖物品在哪卖随 Companion 的地区数据而来：暂时还没有。",
   ["Nothing in your bags sells notably better on another of your realms."] = "背包里没有在你其他服务器明显卖得更好的东西。",
   ["What to take out of the Warband Bank shows at a bank."] = "要从战团银行取出什么，在银行里显示。",
+  ["VENDOR"] = "商人",
+  ["Sell junk"] = "出售垃圾",
+  ["Sell what a vendor pays more for"] = "出售商人出价更高的物品",
+  ["Forget kept items"] = "清除保留的物品",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "出售给商人会列出商人收购的粗糙品质物品。",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "出售给商人还会列出商人出价不低于拍卖行扣除手续费后所得的未绑定物品。",
 }

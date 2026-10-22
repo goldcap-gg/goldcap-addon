@@ -1419,4 +1419,10 @@ GC.Locales.esES = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dónde se vende cada reventa llega con los datos de región del Companion: aún no hay nada.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nada de tus bolsas se vende bastante mejor en otro de tus reinos.",
   ["What to take out of the Warband Bank shows at a bank."] = "Lo que hay que sacar del banco de banda guerrera se ve en un banco.",
+  ["VENDOR"] = "VENDEDOR",
+  ["Sell junk"] = "Vender basura",
+  ["Sell what a vendor pays more for"] = "Vender lo que el vendedor paga mejor",
+  ["Forget kept items"] = "Olvidar objetos conservados",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "Vender al vendedor lista los objetos de calidad pobre que un vendedor compra.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Vender al vendedor también lista objetos no ligados por los que un vendedor paga tanto como la casa de subastas tras su comisión.",
 }

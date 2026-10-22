@@ -1402,4 +1402,10 @@ GC.Locales.enUS = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Where each flip sells comes with the Companion's region data: nothing to go on yet.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nothing in your bags sells notably better on another of your realms.",
   ["What to take out of the Warband Bank shows at a bank."] = "What to take out of the Warband Bank shows at a bank.",
+  ["VENDOR"] = "VENDOR",
+  ["Sell junk"] = "Sell junk",
+  ["Sell what a vendor pays more for"] = "Sell what a vendor pays more for",
+  ["Forget kept items"] = "Forget kept items",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "Sell to vendor lists poor quality items a vendor buys.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut.",
 }

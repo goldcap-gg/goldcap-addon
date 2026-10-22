@@ -1351,4 +1351,10 @@ GC.Locales.koKR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "되팔기 물건이 어디서 팔리는지는 Companion의 지역 데이터로 옵니다. 아직 없습니다.",
   ["Nothing in your bags sells notably better on another of your realms."] = "가방에 다른 서버에서 훨씬 비싸게 팔리는 물건이 없습니다.",
   ["What to take out of the Warband Bank shows at a bank."] = "전투부대 은행에서 꺼낼 물건은 은행에서 보입니다.",
+  ["VENDOR"] = "상인",
+  ["Sell junk"] = "잡템 판매",
+  ["Sell what a vendor pays more for"] = "상인이 더 쳐주는 물건 판매",
+  ["Forget kept items"] = "보관 목록 비우기",
+  ["Sell to vendor lists poor quality items a vendor buys."] = "상인에게 판매는 상인이 사 주는 하급 품질 아이템을 목록에 올립니다.",
+  ["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."] = "상인에게 판매는 경매장에서 수수료를 뗀 뒤 받을 금액과 상인이 쳐주는 금액이 같거나 더 많은, 귀속되지 않은 아이템도 목록에 올립니다.",
 }

@@ -614,6 +614,17 @@ local function build(sniperFrame)
     brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
   end
 
+  -- VENDOR (the Sell to vendor card's two kinds, and the items kept for good): retail only, as the
+  -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). Under RISK CHECKS, so it
+  -- shares that card's retail-only gate; the left column ends well above the panel's minimum
+  -- height (48 + 134 + 12 + 108 + 12 + 108 = 422 against 470 - 32 = 438).
+  local vendor
+  if not isForeverClient() then
+    vendor = card(panel, GC.L["VENDOR"], 3)
+    vendor:SetPoint("TOPLEFT", brakes, "BOTTOMLEFT", 0, -12)
+    vendor:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  end
+
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
   local posting = card(panel, GC.L["POSTING"], 2)
@@ -873,6 +884,28 @@ local function build(sniperFrame)
   if not isForeverClient() then
     toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
+  end
+
+  if vendor then
+    toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
+      GC.L["Sell to vendor lists poor quality items a vendor buys."])
+    toggleRow(vendor, 2, GC.L["Sell what a vendor pays more for"], "vendorWorth",
+      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."])
+
+    local forget = Theme.Button(vendor, "ghost", "plaque")
+    forget:SetHeight(26)
+    forget:SetPoint("TOPLEFT", Theme.pad.m, vendor.rowY(3) + 3)
+    forget:SetPoint("TOPRIGHT", -Theme.pad.m, vendor.rowY(3) + 3)
+    forget:SetLabel(GC.L["Forget kept items"])
+    local function paintForget()
+      if next(GC.db and GC.db.vendorKeep or {}) ~= nil then forget:Enable() else forget:Disable() end
+    end
+    forget:SetScript("OnClick", function()
+      if GC.db then GC.db.vendorKeep = {} end
+      paintForget()
+      if GC.VendorSellCard and GC.VendorSellCard.Refresh then GC.VendorSellCard.Refresh() end
+    end)
+    refreshers[#refreshers + 1] = paintForget
   end
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640

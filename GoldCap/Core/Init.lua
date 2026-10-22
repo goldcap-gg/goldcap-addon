@@ -50,6 +50,10 @@ GC.DEFAULTS = {
   -- post-next key list (Core/PostQueue.lua's Selling). Account-wide: an item sold on one character
   -- is sold on all of them. Same empty-table ApplyDefaults contract as `flips` above.
   sellMarks = {},
+  -- itemID -> true: items the player chose "Never sell this" for on the Sell to vendor card.
+  -- Account-wide; an entry for an item no longer owned is harmless. Same empty-table
+  -- ApplyDefaults contract as `sellMarks` above.
+  vendorKeep = {},
   -- Live observations: bounded facts about the book the client just saw, for the companion
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.
@@ -119,6 +123,11 @@ GC.DEFAULTS = {
       -- default because the measurement says so; off posts at the cheapest ask instead.
       -- ApplyDefaults fills it in on existing saves.
       overcut = true,
+      -- The Sell to vendor card (UI/VendorSellCard.lua, retail only): sell poor-quality items a
+      -- vendor buys, and sell unbound items a vendor pays as much for as the auction house
+      -- would after its cut. Both on; the VENDOR card in Settings turns either off.
+      vendorJunk = true,
+      vendorWorth = true,
       -- Whether the deals list shows rows the background live check has refused. Off by
       -- default: the point of checking in the background is that the list stops offering
       -- flips a Check has already ruled out. Owned by the Deals toolbar's own toggle (see
