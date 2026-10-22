@@ -2,14 +2,20 @@
 
 ## 0.23.0 (unreleased)
 
-- At a vendor: a Sell to vendor card under the other GoldCap cards lists what one press would sell,
-  your junk and the items a vendor pays as much for as the auction house would after its cut, and
-  sells them for you. A press sells at most 12 stacks, so everything it sold is still in the
-  vendor's Buyback tab, and the card says how many more are left. Right click a line and choose
-  Never sell this to keep an item for good. Items you can still return, tradeable raid loot, gear
-  in an equipment set, items you marked as ones you sell, bound gear that is not junk and crafting
-  reagents that are not junk are never sold. The Vendor card in Settings turns either kind off and
-  forgets the items you kept.
+- At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists what one
+  press would sell and sells it for you. It sells your junk, and unbound items a vendor pays at
+  least as much for as the auction house would after its cut, going by an auction house price from
+  the last 24 hours that came through the Companion or an import, never by the prices built into
+  the addon. A press sells at most 12 stacks, so everything it sold is still in the vendor's
+  Buyback tab, and the card says how many more are left. While it sells, its button reads Stop.
+  Right click a line and choose Never sell this to keep an item for good. WoW: Forever does not
+  have the card yet.
+- Sell to vendor never sells items you can still return, tradeable raid loot, items in an
+  equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
+  or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
+  only when they are junk.
+- Settings: the Vendor card turns either kind off, Sell junk or Better at vendor, and forgets the
+  items you kept.
 
 ## 0.22.1 (unreleased)
 
