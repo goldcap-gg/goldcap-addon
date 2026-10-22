@@ -150,6 +150,10 @@ function CC.OpenRecipe()
     if type(info) ~= "table" or type(info.recipeID) ~= "number" or info.isRecraft == true then return nil end
     local tx = form:GetTransaction()
     if type(tx) ~= "table" then return nil end
+    -- Recrafting an item opens its normal recipe (info.isRecraft false) with a recraft
+    -- transaction, whose slots and output are the recraft's: the transaction says which it is
+    -- (ProfessionsRecipeTransactionMixin:IsRecraft, Blizzard_ProfessionsTransaction.lua).
+    if tx:IsRecraft() then return nil end
     local alloc = {}
     for _, tbl in tx:Enumerate() do
       local slot = type(tbl) == "table" and tbl.reagentSlotSchematic or nil

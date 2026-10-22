@@ -146,6 +146,16 @@ describe("craft client", function()
     assert.is_nil(CC.OpenRecipe())
   end)
 
+  it("reads nothing for an item being recrafted, whose recipe info is the normal recipe's", function()
+    -- Recrafting an item opens its normal recipe (isRecraft false) with a recraft transaction.
+    load({ recipes = { [7] = potion() }, open = { recipeID = 7, recraft = true,
+      allocations = { [1] = { { itemID = 101, q = 3 } } } } })
+    assert.is_nil(CC.OpenRecipe())
+    restore()
+    load({ recipes = { [7] = potion() }, open = { recipeID = 7, recraft = false } })
+    assert.is_not_nil(CC.OpenRecipe())
+  end)
+
   it("is not the character's own list for a guild, guild member, linked, NPC or runeforging view", function()
     for _, flag in ipairs({ "guild", "guildMember", "linked", "npc", "runeforging" }) do
       load({ external = { [flag] = true } })

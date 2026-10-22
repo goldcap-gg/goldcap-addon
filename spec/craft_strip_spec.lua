@@ -108,6 +108,12 @@ describe("craft strip", function()
     assert.is_false(show():IsShown())
   end)
 
+  it("hides while an item is being recrafted: a recraft is never priced as a fresh craft", function()
+    load({ recipes = { [7] = potion() }, open = { recipeID = 7, recraft = true, allocations = {} } })
+    VALUES[103], VALUES[900] = commodity(400), commodity(10000)
+    assert.is_false(show():IsShown())
+  end)
+
   it("grows with its text, every line wrapped in the strip", function()
     load({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
     VALUES[103], VALUES[900] = commodity(400), commodity(10000)

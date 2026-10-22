@@ -17,7 +17,8 @@
 --     recipes = { [recipeID] = { info = TradeSkillRecipeInfo, schematic = CraftingRecipeSchematic,
 --       inSkillLine = bool (default true), craftable = n, quality = { itemID, ... } } },
 --     filtered = { recipeID, ... }, all = { recipeID, ... } | nil, professionID = n,
---     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid } | nil,
+--     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
+--       recraft = bool (the transaction's IsRecraft) } | nil,
 --     counts = { [itemID] = n }, names = { [itemID] = name }, currencies = { [currencyID] = name },
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
@@ -82,6 +83,11 @@ local function transactionFor(schematic, open)
   function tx:Enumerate() return enumerate(tbls) end
   function tx:CreateCraftingReagentInfoTbl() record("CreateCraftingReagentInfoTbl"); return TS.reagentInfoTbl end
   function tx:GetAllocationItemGUID() return open.guid end
+  -- ProfessionsRecipeTransactionMixin:IsRecraft answers the transaction's own flag, which the form
+  -- sets when an item is recrafted (Professions.SetRecraftingTransitionData). The recipe info the
+  -- form holds then is the item's normal recipe, isRecraft false
+  -- (Blizzard_ProfessionsRecipeSchematicForm.lua, Init).
+  function tx:IsRecraft() return open.recraft == true end
   return strict("transaction", tx)
 end
 
