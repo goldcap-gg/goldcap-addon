@@ -78,6 +78,17 @@ describe("MailReturns, the log of lots that came back", function()
     assert.equal(1, #db.mailReturns)
   end)
 
+  -- SELL counts unsold rounds from what Entries() hands it, into a save of its own version: a log
+  -- of a shape this build does not know must not reach it.
+  it("hands out no entries from a newer save", function()
+    db.mailReturns = { { itemID = 1, count = 1, reason = "expired", at = 1, extra = true } }
+    db.mailReturnsVersion = 2
+    _G.time = function() return 100 * DAY end
+    GC.MailReturns.Init(db)
+    assert.same({}, GC.MailReturns.Entries())
+    assert.equal(1, #db.mailReturns)
+  end)
+
   it("creates the log and its version on a fresh save", function()
     GC.MailReturns.Init(db)
     assert.equal(1, db.mailReturnsVersion)

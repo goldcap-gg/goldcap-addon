@@ -38,8 +38,9 @@ local function finite(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
 
+-- The log for SELL to count from. A newer save's log is a shape this build does not know: none.
 function GC.MailReturns.Entries()
-  if db and type(db.mailReturns) == "table" then return db.mailReturns end
+  if db and not readOnly and type(db.mailReturns) == "table" then return db.mailReturns end
   return {}
 end
 
