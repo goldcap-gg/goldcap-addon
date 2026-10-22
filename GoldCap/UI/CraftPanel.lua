@@ -16,10 +16,12 @@ local P = GC.CraftPanel
 local LAYOUT = {
   WIDTH = 300, PAD = 10, GAP = 6, LINE_GAP = 2, TITLE = 12, HEAD = 12, NAME = 11, SMALL = 10,
   ROW_PAD = 4, BAR = 16, PROFIT_GAP = 8, NAME_MIN = 80,
-  CARD_PAD = 8, BUTTON_H = 24, BUTTON_GAP = 8, BUTTON_MIN = 72,
+  CARD_PAD = 8, BUTTON_H = 24, BUTTON_GAP = 8, BUTTON_MIN = 72, SEG_PAD = 2, SEG_MIN = 60,
 }
 LAYOUT.INNER = LAYOUT.WIDTH - 2 * LAYOUT.PAD
 LAYOUT.ROW_W = LAYOUT.INNER - LAYOUT.BAR
+-- The width a view in the panel's body draws in (UI/CraftQueueView.lua).
+P.BODY_W = LAYOUT.INNER
 
 -- What changes the list: the window opening, its recipe list refreshed, a recipe learned, bags
 -- changed (a reagent bought or used moves nothing here, but the queue reads them: UI/CraftQueueView).
@@ -322,6 +324,61 @@ local function paintCard(f)
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- The view switch: Worth crafting or the Queue (UI/CraftQueueView.lua), for this session
+-- ---------------------------------------------------------------------------------------------
+
+--- The view the body shows: "queue" once the player picked it and the Queue view is there.
+function P.View()
+  local qv = GC.CraftQueueView
+  if P._view == "queue" and qv and qv._frame then return "queue" end
+  return "worth"
+end
+
+-- The Sell tab's deck switch (UI/Sell/Toolbar.lua): a sunken track, the view that is on lit and
+-- the other bare text.
+local function buildSwitch(f)
+  local T = GC.Theme
+  local sw = CreateFrame("Frame", nil, f)
+  sw.track = T.SlicedTexture(sw, "BACKGROUND", T.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12)
+  sw.track:SetAllPoints(sw)
+  for _, id in ipairs({ "worth", "queue" }) do
+    local b = T.Button(sw, "segment", "plaque")
+    b:SetHeight(LAYOUT.BUTTON_H - 2 * LAYOUT.SEG_PAD)
+    b:SetScript("OnClick", function()
+      P._view = id
+      P.Refresh()
+    end)
+    sw[id] = b
+  end
+  return sw
+end
+
+-- Each half as wide as its label in the player's language; one under the other when the two do
+-- not fit the panel side by side.
+local function paintSwitch(f)
+  local sw = f.switch
+  local view = P.View()
+  sw.worth:SetLabel(GC.L["Worth crafting"])
+  sw.queue:SetLabel(GC.L["Queue"])
+  for _, id in ipairs({ "worth", "queue" }) do
+    sw[id]:FitLabels({ sw[id].label }, LAYOUT.SEG_MIN)
+    sw[id]:SetVariant(id == view and "active" or "segment")
+  end
+  local pad, h = LAYOUT.SEG_PAD, LAYOUT.BUTTON_H - 2 * LAYOUT.SEG_PAD
+  local a, b = sw.worth:GetWidth(), sw.queue:GetWidth()
+  sw.worth:ClearAllPoints()
+  sw.worth:SetPoint("TOPLEFT", sw, "TOPLEFT", pad, -pad)
+  sw.queue:ClearAllPoints()
+  if a + b + 3 * pad <= LAYOUT.INNER then
+    sw.queue:SetPoint("LEFT", sw.worth, "RIGHT", pad, 0)
+    sw:SetSize(a + b + 3 * pad, h + 2 * pad)
+  else
+    sw.queue:SetPoint("TOPLEFT", sw.worth, "BOTTOMLEFT", 0, -pad)
+    sw:SetSize(math.max(a, b) + 2 * pad, 2 * h + 3 * pad)
+  end
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- The panel
 -- ---------------------------------------------------------------------------------------------
 
@@ -336,12 +393,16 @@ local function build(frame)
   setColor(f.title, T.color.gold)
   f.title:SetText("GoldCap")
   f.card = buildCard(f)
+  f.switch = buildSwitch(f)
   f.body = CreateFrame("Frame", nil, f)
   f.worth = buildWorth(f.body)
+  -- UI/CraftQueueView.lua loads after this file; by the time the window opens it is there.
+  if GC.CraftQueueView and GC.CraftQueueView.Build then GC.CraftQueueView.Build(f.body) end
   return f
 end
 
--- Top to bottom: the title, This recipe when it shows, and the view in the rest of the panel.
+-- Top to bottom: the title, This recipe when it shows, the view switch, and the view in the rest
+-- of the panel.
 function P.Layout()
   local f = P._frame
   local above = f.title
@@ -350,6 +411,9 @@ function P.Layout()
     f.card:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -LAYOUT.GAP)
     above = f.card
   end
+  f.switch:ClearAllPoints()
+  f.switch:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+  above = f.switch
   f.body:ClearAllPoints()
   f.body:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -LAYOUT.GAP)
   f.body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -LAYOUT.PAD, LAYOUT.PAD)
@@ -371,8 +435,18 @@ function P.Refresh()
   f:SetHeight(frame:GetHeight())
   f:Show()
   paintCard(f)
+  paintSwitch(f)
   P.Layout()
-  P.PaintWorth()
+  local qv = GC.CraftQueueView
+  if P.View() == "queue" then
+    f.worth:Hide()
+    qv._frame:Show()
+    qv.Refresh()
+  else
+    if qv and qv._frame then qv._frame:Hide() end
+    f.worth:Show()
+    P.PaintWorth()
+  end
 end
 
 --- One repaint on the next frame, however many times this is asked for before then.

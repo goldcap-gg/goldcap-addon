@@ -42,6 +42,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   RETAIL_ONLY["Services/CraftClient.lua"] = true
   RETAIL_ONLY["UI/CraftStrip.lua"] = true
   RETAIL_ONLY["UI/CraftPanel.lua"] = true
+  RETAIL_ONLY["UI/CraftQueueView.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

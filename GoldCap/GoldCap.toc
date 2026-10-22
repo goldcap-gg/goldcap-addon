@@ -146,5 +146,6 @@ UI/BuyVendorPanel.lua
 UI/BankRoute.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua
+UI/CraftQueueView.lua
 UI/SettingsFrame.lua
 Core/Init.lua

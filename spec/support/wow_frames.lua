@@ -144,6 +144,14 @@ function W.CreateFrame(kind, _, parent)
     s.events = s.events or {}
     s.events[event] = true
   end
+  -- Frame:RegisterUnitEvent: the event, for the listed units only.
+  function f:RegisterUnitEvent(event, ...)
+    if W.unknownEvents[event] then error(("Attempt to register unknown event %q"):format(event), 2) end
+    s.events = s.events or {}
+    s.events[event] = true
+    s.unitEvents = s.unitEvents or {}
+    s.unitEvents[event] = { ... }
+  end
   function f:UnregisterEvent(event) if s.events then s.events[event] = nil end end
   function f:IsEventRegistered(event) return s.events ~= nil and s.events[event] == true end
   function f:RegisterForDrag(...) s.drag = { ... } end

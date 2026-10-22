@@ -39,6 +39,7 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/BuyVendorPanel.lua",
     "GoldCap/UI/CraftStrip.lua",
     "GoldCap/UI/CraftPanel.lua",
+    "GoldCap/UI/CraftQueueView.lua",
   }
   for _, path in ipairs(helper.SELL_FILES) do SOURCES[#SOURCES + 1] = "GoldCap/" .. path end
 

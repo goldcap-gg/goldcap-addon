@@ -8,6 +8,9 @@
 - Crafting: a GoldCap panel beside the profession window lists the recipes you know by profit per
   craft, with the profit an hour where the market's daily sales are known, and marks recipes whose
   item sells less than once a day.
+- Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
+  bags, bank and on the auction house. The queue shows which reagents are missing, and Make a BUY
+  list turns them into a list the BUY tab buys. Each character keeps its own queue.
 
 ## 0.22.1 (unreleased)
 

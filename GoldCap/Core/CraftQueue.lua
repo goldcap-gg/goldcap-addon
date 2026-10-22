@@ -242,15 +242,16 @@ function Q.Listed(char)
 end
 
 --- A finished cast: a counted recipe of that spell has one craft fewer, and leaves the queue at 0.
---- A restock target is untouched; what it holds says how far it is.
+--- A restock target is untouched; what it holds says how far it is. True when an entry changed.
 function Q.OnCraftSucceeded(char, spellID)
   local c = charOf(char, false)
-  if not c or not Q.Writable() or type(spellID) ~= "number" then return end
+  if not c or not Q.Writable() or type(spellID) ~= "number" then return false end
   local i = indexOf(c, spellID)
   local e = i and c.entries[i] or nil
-  if not (e and type(e.count) == "number") then return end
+  if not (e and type(e.count) == "number") then return false end
   e.count = e.count - 1
   if e.count <= 0 then table.remove(c.entries, i) end
+  return true
 end
 
 --- A count the player typed: a whole number 1 to 9999 (0 to 9999 with `allowZero`), else nil.

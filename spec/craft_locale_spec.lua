@@ -15,6 +15,11 @@ local KEYS = {
   -- This recipe, and the two questions it asks (BUY's popup: Add and Save are BUY's own keys).
   "This recipe", "Add to queue", "Restock to", "How many crafts of %s?",
   "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
+  -- The Queue view.
+  "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open the auction house once",
+  "Remove from queue", "The queue is empty. Add a recipe from This recipe.", "Missing", "%d %s",
+  "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list", "Craft queue",
+  "BUY list %s is ready in the BUY tab at the auction house",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

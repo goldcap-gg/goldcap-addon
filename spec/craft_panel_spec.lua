@@ -213,9 +213,11 @@ describe("craft panel", function()
       assert.equal("B", card.name:GetText())
       assert.equal(GC.L["Add to queue"], card.add.label)
       assert.equal(GC.L["Restock to"], card.restock.label)
-      -- The list sits under the card.
-      local _, above = f.body:GetPoint(1)
+      -- The view switch sits under the card, and the list under the switch.
+      local _, above = f.switch:GetPoint(1)
       assert.equal(card, above)
+      _, above = f.body:GetPoint(1)
+      assert.equal(f.switch, above)
     end)
 
     it("Add to queue asks how many and adds that many crafts", function()
@@ -284,7 +286,7 @@ describe("craft panel", function()
         recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [9] = recipe(9, "Salvage", { isSalvageRecipe = true }) },
         filtered = { 1, 2 } })
       assert.is_false(f.card:IsShown())
-      local _, above = f.body:GetPoint(1)
+      local _, above = f.switch:GetPoint(1)
       assert.equal(f.title, above)
       restore()
       f = loadOpen()
