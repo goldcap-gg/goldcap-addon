@@ -4,12 +4,12 @@
 
 - Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
   deals show on DEALS with a GROUP tag.
-- Sell: items from a group you follow are posted by its rules: how many at a time, for how long,
-  never under the group's floor price, and a little cheaper each time a flip comes back unsold.
-  The row shows the group, and its tooltip the rule.
-- Sell: the CANCEL button asks once for the whole queue and shows the deposits you lose, then
-  cancels one lot per press. It cancels only the lots you confirmed: one that joins the queue
-  later is asked about again.
+- Sell, in retail WoW: items from a group you follow are posted by its rules: how many at a time,
+  for how long, never under the group's floor price, and a little cheaper each time a flip comes
+  back unsold. The row shows the group, and its tooltip the rule.
+- Sell, in retail WoW: the CANCEL button asks once for the whole queue and shows the deposits you
+  lose, then cancels one lot per press. It cancels only the lots you confirmed: one that joins the
+  queue later is asked about again.
 - Mail, in retail WoW: a Collect button under the mailbox takes everything in one press: the gold from sales,
   lots that came back, auctions you won and gold or items from other players. The button says how
   many mails it will take, and one press again stops it.
@@ -33,16 +33,16 @@
   only when they are junk.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
   group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
-- Settings: a new POSTING setting cancels a lot only when someone undercuts you by more than a set
-  percent.
-- Settings: the Vendor card turns either kind off, Sell junk or Better at vendor, and forgets the
-  items you kept.
+- Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by
+  more than a set percent.
+- Settings, in retail WoW: the Vendor card turns either kind off, Sell junk or Better at vendor,
+  and forgets the items you kept.
 - Settings: no setting's name is cut short any more. A long one takes a second line in a narrow
   window or at a large font size, and the cards scroll when they do not all fit.
-- Crafting: under a recipe's reagents, GoldCap shows what the reagents you picked cost, what one
-  craft sells for after the auction house cut, and the profit. A reagent GoldCap has no price for
-  is named instead of a number. When a recipe has too many reagents to leave room, or the window
-  is minimized, the same lines show in the GoldCap panel beside the window.
+- Crafting, in retail WoW: under a recipe's reagents, GoldCap shows what the reagents you picked
+  cost, what one craft sells for after the auction house cut, and the profit. A reagent GoldCap
+  has no price for is named instead of a number. When a recipe has too many reagents to leave
+  room, or the window is minimized, the same lines show in the GoldCap panel beside the window.
 - Crafting: a GoldCap panel beside the profession window lists the recipes you know by profit per
   craft, with the profit an hour where the market's daily sales are known, and marks recipes whose
   item sells less than once a day.
