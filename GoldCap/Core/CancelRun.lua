@@ -1,7 +1,9 @@
 -- The CANCEL button's run over the cancel queue: the first press arms the whole queue and says
 -- how many lots and what deposits they forfeit; a press at least ARM_SECONDS later confirms it and
 -- cancels the head lot; every press after that cancels the next lot, until IDLE_SECONDS pass
--- without a press or the queue is empty. This module only decides what a press does. The press
+-- without a press or the queue is empty. A run cancels only the lots its confirm counted: a lot
+-- that reaches the head later is not in the count or the deposits the player saw, so the press
+-- on it arms again. This module only decides what a press does. The press
 -- itself, and the one CancelAuction it may make, stay in UI/Sell/Dock.lua (onCancelQueueClick,
 -- ROW.runLot): a protected call is the player's own click, one per click (docs/addon/AGENTS.md
 -- "Protected actions"). Pure, with the clock passed in. Retail only: GoldCap_Camelot.toc does not
@@ -30,7 +32,24 @@ function M.Start(entries, costOf, now)
       cost = cost + value
     end
   end
-  return { stage = "armed", count = #entries, cost = cost, armedAt = now, lastPressAt = now }
+  local ids = {}
+  for _, entry in ipairs(entries) do ids[entry.auctionID] = true end
+  return { stage = "armed", count = #entries, cost = cost, armedAt = now, lastPressAt = now, ids = ids }
+end
+
+-- Whether the run's confirm counted this lot.
+function M.Covers(run, entry)
+  return type(run) == "table" and type(run.ids) == "table" and type(entry) == "table"
+    and run.ids[entry.auctionID] == true
+end
+
+-- How many of the queue's lots the run's confirm counted: what is left of the run.
+function M.Left(run, entries)
+  local left = 0
+  for _, entry in ipairs(entries or {}) do
+    if M.Covers(run, entry) then left = left + 1 end
+  end
+  return left
 end
 
 function M.Expired(run, now)
@@ -38,12 +57,15 @@ function M.Expired(run, now)
 end
 
 -- What a press at `now` does: "expired" (arm again), "early" (a confirm inside ARM_SECONDS:
--- nothing), "done" (the queue is empty), or "cancel" with the head entry, which marks the run
--- running from this press.
+-- nothing), "done" (the queue is empty), "changed" (the head is a lot the confirm did not count:
+-- arm again), or "cancel" with the head entry, which marks the run running from this press. A
+-- confirmed lot stays the run's while it is queued, so a press that could not reach it leaves it
+-- for the next.
 function M.Press(run, entries, now)
   if M.Expired(run, now) then return "expired" end
-  if run.stage == "armed" and now - run.armedAt < M.ARM_SECONDS then return "early" end
   if #entries == 0 then return "done" end
+  if not M.Covers(run, entries[1]) then return "changed" end
+  if run.stage == "armed" and now - run.armedAt < M.ARM_SECONDS then return "early" end
   run.stage, run.lastPressAt = "running", now
   return "cancel", entries[1]
 end

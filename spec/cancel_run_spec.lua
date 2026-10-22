@@ -24,7 +24,8 @@ describe("the cancel run", function()
   it("Start sums the deposits", function()
     local costs = { [101] = 100, [102] = 250 }
     local run = Run.Start(entries(2), function(id) return costs[id] end, 50)
-    assert.same({ stage = "armed", count = 2, cost = 350, armedAt = 50, lastPressAt = 50 }, run)
+    assert.same({ stage = "armed", count = 2, cost = 350, armedAt = 50, lastPressAt = 50,
+      ids = { [101] = true, [102] = true } }, run)
     -- One deposit the client cannot say makes the total unknown, not smaller.
     run = Run.Start(entries(2), function(id) return id == 101 and 100 or nil end, 50)
     assert.equal(2, run.count)
@@ -61,6 +62,36 @@ describe("the cancel run", function()
     -- The queue ran out.
     run = Run.Start(queue, function() return 1 end, 200)
     assert.equal("done", (Run.Press(run, {}, 205)))
+  end)
+
+  -- The confirm covers the lots it counted and priced, and no other: a lot that reaches the head
+  -- later (the market moved, a lot came back) is "changed", which arms again with a new count
+  -- and a new total, never a cancel the player did not see.
+  it("cancels only the lots the confirm showed", function()
+    local queue = entries(2)
+    local run = Run.Start(queue, function() return 1 end, 100)
+    assert.is_true(Run.Covers(run, queue[1]))
+    assert.is_true(Run.Covers(run, queue[2]))
+    local late = { auctionID = 109, positionKey = "commodity:9" }
+    assert.is_false(Run.Covers(run, late))
+    assert.is_false(Run.Covers(nil, queue[1]))
+    assert.is_false(Run.Covers(run, nil))
+    -- Before the confirm: a new head is not what CONFIRM would confirm, and the button no longer
+    -- says CONFIRM, so even a press inside the second arms again rather than doing nothing.
+    assert.equal("changed", (Run.Press(run, { late, queue[1], queue[2] }, 100.5)))
+    assert.equal("changed", (Run.Press(run, { late, queue[1], queue[2] }, 101.2)))
+    -- Running: the next head joined after the confirm.
+    assert.equal("cancel", (Run.Press(run, queue, 101.2)))
+    assert.equal("changed", (Run.Press(run, { late, queue[2] }, 102)))
+    -- A confirmed lot is still the run's while it stays queued: a press that could not reach it
+    -- (its row was not on screen) leaves it for the next press.
+    local action, entry = Run.Press(run, { queue[2], late }, 103)
+    assert.equal("cancel", action)
+    assert.equal(queue[2], entry)
+    -- Counting what is left of the run: the confirmed lots still queued.
+    assert.equal(1, Run.Left(run, { queue[2], late }))
+    assert.equal(0, Run.Left(run, { late }))
+    assert.equal(0, Run.Left(nil, { queue[2] }))
   end)
 
   it("lets an armed run lapse after twenty seconds without its confirm", function()

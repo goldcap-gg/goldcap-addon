@@ -260,16 +260,17 @@ paintCancelButton = function()
     end
     button:SetLabel(waiting and GC.L["NO LIVE PRICE YET"] or GC.L["NOTHING TO CANCEL"])
     button:Disable()
-  elseif S.cancelRun and GC.CancelRun then
+  elseif S.cancelRun and GC.CancelRun and GC.CancelRun.Covers(S.cancelRun, head) then
     -- The cancel run (onCancelQueueClick): CONFIRM once the deposit guard's second has passed,
-    -- then a press per lot.
+    -- then a press per lot, counting down the lots the confirm counted. A head it did not count
+    -- falls to the last branch: the press arms again.
     local run = S.cancelRun
     button:SetVariant("danger")
     if run.stage == "armed" then
       button:SetLabel(GC.L["CONFIRM"])
       if (GetTime or time)() - run.armedAt >= GC.CancelRun.ARM_SECONDS then button:Enable() else button:Disable() end
     else
-      button:SetLabel((GC.L["CANCEL NEXT (%d)"]):format(#S.cancelEntries))
+      button:SetLabel((GC.L["CANCEL NEXT (%d)"]):format(GC.CancelRun.Left(run, S.cancelEntries)))
       button:Enable()
     end
   else
@@ -499,6 +500,9 @@ function ROW.runLot(entry)
   for other in pairs(UI.expanded) do UI.expanded[other] = nil end
   if head then UI.expanded[head.positionKey] = true end
   UI.List.RenderRows()
+  -- The last lot gone, the run is over: its idle watcher has nothing to say, and a lot that joins
+  -- the queue later is armed and confirmed like any other.
+  if not S.cancelEntries[1] then S.cancelRun = nil end
   paintCancelButton()
   if not target then setStatus(GC.L["Press again to cancel the next lot"]) end
 end
@@ -677,7 +681,9 @@ end
 -- Retail runs the queue instead (Core/CancelRun.lua): the first press arms all of it and says
 -- what it costs, a press a second later confirms and cancels the head through ROW.runLot, and
 -- each press after cancels the next lot, until twenty seconds pass without a press or the queue
--- is empty. Without GC.CancelRun (Forever) every press is the two-press arm above, per lot.
+-- is empty. A press on a head the confirm did not count arms again ("changed"), with the count
+-- and the deposits as they are now. Without GC.CancelRun (Forever) every press is the two-press
+-- arm above, per lot.
 local function onCancelQueueClick()
   if #S.cancelEntries == 0 then
     -- An empty queue is also the end of a run ("done").
@@ -706,8 +712,8 @@ local function onCancelQueueClick()
     paintCancelButton()
     return
   end
-  -- No run, or one that lapsed: arm the queue. Nothing is cancelled in this press, so it may
-  -- open the head's position for the confirm to find its row.
+  -- No run, one that lapsed, or a head the confirm did not count: arm the queue. Nothing is
+  -- cancelled in this press, so it may open the head's position for the confirm to find its row.
   local run = Run.Start(S.cancelEntries, C_AuctionHouse and C_AuctionHouse.GetCancelCost, now)
   S.cancelRun = run
   for other in pairs(UI.expanded) do UI.expanded[other] = nil end

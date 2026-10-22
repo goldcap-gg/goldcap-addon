@@ -561,9 +561,68 @@ describe("Sell tab, the cancel queue control", function()
       press(1001.2); press(1002); press(1003)
       assert.equal(3, cancelCalls)
       assert.equal(0, #GC.SellState.cancelEntries)
+      -- The press that cancelled the last lot ends it: a lot that joins the queue later is armed
+      -- and confirmed like any other.
+      assert.is_nil(GC.SellState.cancelRun)
       press(1004)
       assert.equal(3, cancelCalls)
       assert.is_nil(GC.SellState.cancelRun)
+    end)
+
+    it("says nothing about an idle run after the run cancelled every lot", function()
+      local timers = {}
+      _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { at = now + seconds, fn = fn } end }
+      press(1000)
+      press(1001.2); press(1002); press(1003)
+      assert.equal(3, cancelCalls)
+      root.status.text = "Lot cancelled; wait for it to return to bags"
+      -- Every timer due by then, once: the run's own watcher among them.
+      now = 1040
+      local due = {}
+      for _, timer in ipairs(timers) do if timer.at <= now then due[#due + 1] = timer end end
+      for _, timer in ipairs(due) do timer.fn() end
+      assert.equal("Lot cancelled; wait for it to return to bags", root.status.text)
+    end)
+
+    -- A lot that reaches the head after the confirm was not in its count or its deposits: the
+    -- next press arms again, with the count and the total as they are now, and cancels nothing.
+    it("asks again for a lot that joined the queue after the confirm", function()
+      local live = { LOTS[1], LOTS[2], LOTS[3] }
+      _G.C_AuctionHouse.GetOwnedAuctions = function() return live end
+      COSTS[80] = 300
+      press(1000)
+      local first = press(1001.2)
+      assert.same({ first }, cancelled)
+      -- A bigger lot of the same tea comes up for cancelling, and heads the queue.
+      live[#live + 1] = { auctionID = 80, itemKey = { itemID = 23427 }, quantity = 150, unitPrice = 27300,
+        isCommodity = true }
+      GC.Sell.OnOwnedAuctions()
+      assert.equal(80, GC.SellState.cancelEntries[1].auctionID)
+      assert.equal("CANCEL 3", container.cancelButton.label)
+      assert.is_true(container.cancelButton.enabled)
+      press(1002)
+      COSTS[80] = nil
+      assert.same({ first }, cancelled)
+      assert.equal("armed", GC.SellState.cancelRun.stage)
+      assert.equal("CONFIRM", container.cancelButton.label)
+      assert.matches(GC.Util.Money(150 + 100 + 300), root.status.text, 1, true)
+      press(1003.2)
+      assert.same({ first, 80 }, cancelled)
+    end)
+
+    it("counts down only the lots the confirm showed", function()
+      local live = { LOTS[1], LOTS[2], LOTS[3] }
+      _G.C_AuctionHouse.GetOwnedAuctions = function() return live end
+      press(1000)
+      press(1001.2)
+      assert.equal("CANCEL NEXT (2)", container.cancelButton.label)
+      -- A smaller lot joins at the back of the queue: two of the three left are the run's.
+      live[#live + 1] = { auctionID = 81, itemKey = { itemID = 23427 }, quantity = 10, unitPrice = 27300,
+        isCommodity = true }
+      GC.Sell.OnOwnedAuctions()
+      assert.equal(3, #GC.SellState.cancelEntries)
+      assert.equal(81, GC.SellState.cancelEntries[3].auctionID)
+      assert.equal("CANCEL NEXT (2)", container.cancelButton.label)
     end)
   end)
 end)
