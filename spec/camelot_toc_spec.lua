@@ -37,15 +37,22 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
   -- selling rules too: groups are retail only (plan 2026-10-22). The mail collect files
   -- (Core/Mail*.lua, UI/MailCollect.lua) and the vendor sell files are retail only in this wave:
-  -- WoW: Forever must not change.
+  -- WoW: Forever must not change. Crafting in the profession window is retail's too: Forever's
+  -- professions differ and have a design of their own.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
     ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
     ["Core/MailLoop.lua"] = true, ["UI/MailCollect.lua"] = true,
     ["Core/VendorSelect.lua"] = true, ["Core/VendorPress.lua"] = true,
     ["Services/VendorBags.lua"] = true, ["UI/VendorSellCard.lua"] = true }
+  RETAIL_ONLY["Core/CraftMath.lua"] = true
+  RETAIL_ONLY["Core/CraftQueue.lua"] = true
+  RETAIL_ONLY["Services/CraftClient.lua"] = true
+  RETAIL_ONLY["UI/CraftStrip.lua"] = true
+  RETAIL_ONLY["UI/CraftPanel.lua"] = true
+  RETAIL_ONLY["UI/CraftQueueView.lua"] = true
 
-  it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank, the followed groups' rules, the cancel run, the mail collect files and the vendor sell files", function()
+  it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}
     for _, f in ipairs(retailF) do
       if not RETAIL_ONLY[f] then expected[#expected + 1] = f end

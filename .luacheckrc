@@ -77,4 +77,8 @@ read_globals = {
   -- A purchase click's plan runs fenced off from the call it answers (Core/PurchaseCall.lua),
   -- and /gc taint reports whether that click stayed secure.
   "securecallfunction", "issecure",
+  -- Crafting in the profession window (retail): Blizzard's callback registry the profession window
+  -- announces a selected recipe and a changed allocation through, the window itself, and a
+  -- currency reagent's name.
+  "EventRegistry", "ProfessionsFrame", "C_CurrencyInfo",
 }

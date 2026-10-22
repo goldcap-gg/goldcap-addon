@@ -47,6 +47,7 @@ describe("Services/Sell", function()
         if entry == helper.SELL_FILES[1] then first = i end
         if entry == "Core/QuoteCache.lua" then cache = i end
         if not ui and entry:match("^UI/") then ui = i end
+        -- Services/Sell/ only: Services/CraftClient.lua (retail crafting) is a service of its own.
         if entry:match("^Services/Sell/") then count = count + 1 end
       end
       assert.is_not_nil(first, toc .. " does not load " .. helper.SELL_FILES[1])

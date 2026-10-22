@@ -105,6 +105,8 @@ function W.FontString(parent, inherits)
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
   function f:GetStringWidth() return chars(s.text) * W.CHAR_W end
+  -- The width the text would take on one line, whatever width the FontString was given.
+  function f:GetUnboundedStringWidth() return chars(s.text) * W.CHAR_W end
   function f:GetStringHeight()
     local n = chars(s.text)
     if n == 0 then return 0 end
@@ -141,6 +143,14 @@ function W.CreateFrame(kind, _, parent)
     if W.unknownEvents[event] then error(("Attempt to register unknown event %q"):format(event), 2) end
     s.events = s.events or {}
     s.events[event] = true
+  end
+  -- Frame:RegisterUnitEvent: the event, for the listed units only.
+  function f:RegisterUnitEvent(event, ...)
+    if W.unknownEvents[event] then error(("Attempt to register unknown event %q"):format(event), 2) end
+    s.events = s.events or {}
+    s.events[event] = true
+    s.unitEvents = s.unitEvents or {}
+    s.unitEvents[event] = { ... }
   end
   function f:UnregisterEvent(event) if s.events then s.events[event] = nil end end
   function f:IsEventRegistered(event) return s.events ~= nil and s.events[event] == true end
@@ -205,6 +215,21 @@ function W.CreateFrame(kind, _, parent)
     end
     function f:HasFocus() return s.focus end
     function f:HighlightText() s.highlighted = true end
+  end
+  -- ScrollFrame: its scroll child and offset, what UIPanelScrollFrameTemplate's users call. The
+  -- template's ScrollBar is not built here (Theme.QuietScrollBar skips a scrollbar that is absent).
+  if s.kind == "ScrollFrame" then
+    s.scroll = 0
+    function f:SetScrollChild(child) s.scrollChild = child end
+    function f:GetScrollChild() return s.scrollChild end
+    function f:SetVerticalScroll(v) s.scroll = v end
+    function f:GetVerticalScroll() return s.scroll end
+    function f:GetVerticalScrollRange()
+      local child = s.scrollChild
+      return math.max(0, (child and child:GetHeight() or 0) - f:GetHeight())
+    end
+    function f:UpdateScrollChildRect() end
+    function f:EnableMouseWheel(v) s.wheel = v and true or false end
   end
   -- Button: the state methods Theme.Button uses. Enable and Disable run OnEnable/OnDisable on a
   -- change, as the client does.
