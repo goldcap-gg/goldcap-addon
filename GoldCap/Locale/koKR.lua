@@ -1354,4 +1354,11 @@ GC.Locales.koKR = {
   -- Followed groups: the DEALS chip and its tooltip.
   ["GROUP"] = "그룹",
   ["Listed at or under the deal price of a group you follow (%s)"] = "팔로우 중인 그룹의 딜 가격 이하로 등록됨 (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "한 번에 1개",
+  ["all you have"] = "가진 것 전부",
+  ["%d h"] = "%d시간",
+  ["not under %d%% of usual"] = "평소 가격의 %d%% 미만 금지",
+  ["not under the cost to craft"] = "제작 비용 미만 금지",
+  ["%d%% cheaper each time it comes back"] = "돌아올 때마다 %d%% 더 싸게",
 }

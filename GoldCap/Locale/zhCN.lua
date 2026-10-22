@@ -1320,4 +1320,11 @@ GC.Locales.zhCN = {
   -- Followed groups: the DEALS chip and its tooltip.
   ["GROUP"] = "分组",
   ["Listed at or under the deal price of a group you follow (%s)"] = "挂单价不高于你关注的分组的捡漏价（%s）",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "每次 1 个",
+  ["all you have"] = "全部",
+  ["%d h"] = "%d 小时",
+  ["not under %d%% of usual"] = "不低于常规价的 %d%%",
+  ["not under the cost to craft"] = "不低于制作成本",
+  ["%d%% cheaper each time it comes back"] = "每次退回便宜 %d%%",
 }

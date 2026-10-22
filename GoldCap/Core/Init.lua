@@ -516,6 +516,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
       GC.Sniper._RebuildKeyTargets()
     end
+    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, retail only).
+    if GC.GroupRules then GC.GroupRules.Adopt() end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
@@ -741,6 +743,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
         GC.Sniper._RebuildKeyTargets()
       end
+      if GC.GroupRules then GC.GroupRules.Adopt() end
       -- The BUY tab too: a new session cannot answer for the last one, so what the last one left
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end

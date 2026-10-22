@@ -1422,4 +1422,11 @@ GC.Locales.esES = {
   -- Followed groups: the DEALS chip and its tooltip.
   ["GROUP"] = "GRUPO",
   ["Listed at or under the deal price of a group you follow (%s)"] = "Publicado al precio de oferta de un grupo que sigues o por debajo (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "de 1 en 1",
+  ["all you have"] = "todo lo que tienes",
+  ["%d h"] = "%d h",
+  ["not under %d%% of usual"] = "no por debajo del %d%% del precio habitual",
+  ["not under the cost to craft"] = "no por debajo del coste de fabricación",
+  ["%d%% cheaper each time it comes back"] = "un %d%% más barato cada vez que vuelve",
 }

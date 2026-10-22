@@ -1487,4 +1487,11 @@ GC.Locales.ruRU = {
   -- Followed groups: the DEALS chip and its tooltip.
   ["GROUP"] = "ГРУППА",
   ["Listed at or under the deal price of a group you follow (%s)"] = "Выставлено по выгодной цене группы, на которую вы подписаны, или дешевле (%s)",
+  -- Followed groups: a group's selling rule in words (Core/GroupRules.lua).
+  ["1 at a time"] = "по одному",
+  ["all you have"] = "всё, что есть",
+  ["%d h"] = "%d ч",
+  ["not under %d%% of usual"] = "не ниже %d%% от обычной цены",
+  ["not under the cost to craft"] = "не ниже себестоимости крафта",
+  ["%d%% cheaper each time it comes back"] = "на %d%% дешевле после каждого возврата",
 }
