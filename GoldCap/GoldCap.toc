@@ -97,6 +97,7 @@ Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Core/CraftMath.lua
+Core/CraftQueue.lua
 Services/Sell/State.lua
 Services/Sell/Quotes.lua
 Services/Sell/Bags.lua
