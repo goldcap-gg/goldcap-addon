@@ -173,6 +173,17 @@ describe("craft panel", function()
     assert.equal(2, #P._rows)
   end)
 
+  it("never reprices Worth crafting for a bag change: nothing in it depends on the bags", function()
+    load()
+    prices()
+    show()
+    local asked = #TS.callsOf("GetFilteredRecipeIDs")
+    local ev = P._events
+    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+    TS.runTimers()
+    assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
+  end)
+
   it("reads nothing while the recipes page is not on screen", function()
     load()
     prices()

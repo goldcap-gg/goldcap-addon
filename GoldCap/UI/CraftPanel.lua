@@ -23,8 +23,10 @@ LAYOUT.ROW_W = LAYOUT.INNER - LAYOUT.BAR
 -- The width a view in the panel's body draws in (UI/CraftQueueView.lua).
 P.BODY_W = LAYOUT.INNER
 
--- What changes the list: the window opening, its recipe list refreshed, a recipe learned, bags
--- changed (a reagent bought or used moves nothing here, but the queue reads them: UI/CraftQueueView).
+-- What changes the list: the window opening, its recipe list refreshed, a recipe learned. Bags
+-- changing moves nothing in Worth crafting, but the queue reads them (UI/CraftQueueView.lua): a
+-- bag change repaints that view alone, never the whole list, which fires on every craft of a
+-- Create All.
 local EVENTS = { "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED", "BAG_UPDATE_DELAYED" }
 
 local function window()
@@ -526,7 +528,14 @@ if type(CreateFrame) == "function" then
   for _, event in ipairs(EVENTS) do pcall(events.RegisterEvent, events, event) end
   events:SetScript("OnEvent", function(_, event)
     -- Blizzard's own handler opens the window first: the panel attaches a frame later.
-    if event == "TRADE_SKILL_SHOW" then after(P.Attach) else P.Queue() end
+    if event == "TRADE_SKILL_SHOW" then
+      after(P.Attach)
+    elseif event == "BAG_UPDATE_DELAYED" then
+      local qv = GC.CraftQueueView
+      if P._frame and P.View() == "queue" and qv and qv.Queue then qv.Queue() end
+    else
+      P.Queue()
+    end
   end)
   P._events = events
 end

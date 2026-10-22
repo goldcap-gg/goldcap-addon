@@ -180,6 +180,19 @@ describe("craft queue view", function()
     assert.is_nil(QV.MakeBuyList())
   end)
 
+  it("a bag change repaints what is missing", function()
+    load({ counts = { [101] = 1 } })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+    local v = showQueue()
+    assert.same({ GC.L["%d %s"]:format(3, "Item A") }, missingTexts(v))
+    TS.opts.counts[101] = 4
+    local ev = P._events
+    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+    TS.runTimers()
+    assert.same({}, missingTexts(v))
+    assert.is_true(v.none:IsShown())
+  end)
+
   it("a finished craft takes one off its line", function()
     load()
     GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
