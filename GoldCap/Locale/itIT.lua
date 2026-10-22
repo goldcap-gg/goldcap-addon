@@ -1414,4 +1414,7 @@ GC.Locales.itIT = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dove si vende ogni oggetto arriva con i dati di regione del Companion: ancora niente.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Niente nelle tue borse si vende molto meglio su un altro tuo reame.",
   ["What to take out of the Warband Bank shows at a bank."] = "Cosa prelevare dalla banca della brigata si vede in banca.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GRUPPO",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "In vendita al prezzo d'affare di un gruppo che segui o meno (%s)",
 }

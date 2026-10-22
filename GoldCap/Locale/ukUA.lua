@@ -1485,4 +1485,7 @@ GC.Locales.ukUA = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Де що продається, надходить із даними регіону від Companion: поки даних немає.",
   ["Nothing in your bags sells notably better on another of your realms."] = "У сумках немає нічого, що помітно дорожче продається на іншому вашому реалмі.",
   ["What to take out of the Warband Bank shows at a bank."] = "Що забрати з банку загону, видно в банку.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "ГРУПА",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Виставлено за вигідною ціною групи, на яку ви підписані, або дешевше (%s)",
 }

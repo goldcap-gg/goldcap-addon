@@ -1318,4 +1318,7 @@ GC.Locales.zhTW = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "每件轉賣物品在哪賣隨 Companion 的地區資料而來：暫時還沒有。",
   ["Nothing in your bags sells notably better on another of your realms."] = "背包裡沒有在你其他伺服器明顯賣得更好的東西。",
   ["What to take out of the Warband Bank shows at a bank."] = "要從戰隊銀行取出什麼，在銀行裡顯示。",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "分組",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "掛單價不高於你關注的分組的撿漏價（%s）",
 }

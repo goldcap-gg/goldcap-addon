@@ -1402,4 +1402,7 @@ GC.Locales.enUS = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Where each flip sells comes with the Companion's region data: nothing to go on yet.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nothing in your bags sells notably better on another of your realms.",
   ["What to take out of the Warband Bank shows at a bank."] = "What to take out of the Warband Bank shows at a bank.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GROUP",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Listed at or under the deal price of a group you follow (%s)",
 }

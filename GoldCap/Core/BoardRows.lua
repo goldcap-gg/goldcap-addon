@@ -53,6 +53,10 @@ end
 function GC.BoardRows.Label(verdict, pending)
   local bucket = GC.BoardRows.Bucket(verdict, pending)
   if bucket == "CAP" then
+    -- A group the player follows on goldcap.gg: its deal price, not one the player typed. The
+    -- group's name is on the item cell, as an alert group's is. GROUP fits the chip's eleven
+    -- characters in every language.
+    if verdict.followed then return GC.L["GROUP"] end
     return GC.L["YOUR PRICE"]
   elseif bucket == "SAFE" then
     -- GC.Util.FormatGoldFloor, not FormatMoney: this cell is a fixed width and FormatMoney's

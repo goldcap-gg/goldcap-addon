@@ -1351,4 +1351,7 @@ GC.Locales.koKR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "되팔기 물건이 어디서 팔리는지는 Companion의 지역 데이터로 옵니다. 아직 없습니다.",
   ["Nothing in your bags sells notably better on another of your realms."] = "가방에 다른 서버에서 훨씬 비싸게 팔리는 물건이 없습니다.",
   ["What to take out of the Warband Bank shows at a bank."] = "전투부대 은행에서 꺼낼 물건은 은행에서 보입니다.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "그룹",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "팔로우 중인 그룹의 딜 가격 이하로 등록됨 (%s)",
 }

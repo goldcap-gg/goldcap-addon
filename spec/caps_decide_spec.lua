@@ -257,3 +257,31 @@ describe("Caps.DecideCommodity", function()
     assert.equal(70 * 2 + 90, limited.entryTotal)
   end)
 end)
+
+-- Followed groups (plan 2026-10-22, task 7): a followed group's cap is the same live cap in every
+-- respect but one, the mark its decision carries for the GROUP chip. It still refuses a lot under
+-- its item level: a group's flip price at 610 is never paid for a 600.
+describe("Caps decisions on a followed group's cap", function()
+  local GC
+  before_each(function()
+    GC = helper.loadModule("Core/Caps.lua")
+  end)
+
+  it("a followed cap still refuses a lower level", function()
+    local cap = { c = 1000, l = 610, followed = true }
+    local low = GC.Caps.DecideRealm(cap, { { auctionID = 1, buyout = 900, itemLevel = 600, quantity = 1 } })
+    assert.is_true(low == nil or low.cap ~= true)
+    local ok = GC.Caps.DecideRealm(cap, { { auctionID = 1, buyout = 900, itemLevel = 610, quantity = 1 } })
+    assert.is_true(ok.cap)
+    assert.is_true(ok.followed)
+  end)
+
+  it("a commodity decision carries the mark only for a followed cap", function()
+    local roomy = { maxQuantity = 5000, budget = 1000000000000 }
+    local levels = { { unitPrice = 80, quantity = 3 } }
+    assert.is_true(GC.Caps.DecideCommodity({ c = 100, followed = true }, levels, roomy).followed)
+    assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, levels, roomy).followed)
+    assert.is_nil(GC.Caps.DecideRealm({ c = 100, l = 0 },
+      { { auctionID = 1, buyout = 90, itemLevel = 0, quantity = 1 } }).followed)
+  end)
+end)

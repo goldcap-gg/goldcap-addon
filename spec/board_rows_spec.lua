@@ -49,6 +49,14 @@ describe("BoardRows", function()
       assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true, buyable = false, status = "WATCH" }))
     end)
 
+    -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows reads
+    -- GROUP; the group's own name is on the row's item cell, as an alert group's is.
+    it("Label says GROUP for a followed cap", function()
+      assert.equal("GROUP", GC.BoardRows.Label({ cap = true, followed = true }))
+      assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true }))
+      assert.equal("CAP", GC.BoardRows.Bucket({ cap = true, followed = true }))
+    end)
+
     it("reads SAFE +<money> from the verdict's stressProfit", function()
       local label = GC.BoardRows.Label({ buyable = true, stressProfit = 50000 })
       assert.equal("SAFE +5g", label)

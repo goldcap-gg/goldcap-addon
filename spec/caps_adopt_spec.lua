@@ -86,6 +86,38 @@ describe("Caps.Adopt", function()
     assert.same({ 0, 0 }, { GC.Caps.Dropped() })
   end)
 
+  -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows on
+  -- goldcap.gg carries k (true from the Companion, 1 from a raw wire copy). It is marked
+  -- `followed`; an alert cap keeps exactly the shape it always had, with no new key at all.
+  it("marks a followed group's cap and leaves an alert cap's shape as it was", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs", "Consumables" },
+      caps = { { i = 5, c = 800, g = 1, k = true, u = 1000, r = 1 },
+        { i = 7, c = 600, l = 610, g = 2, m = true } },
+      rules = { { n = "Herbs", p = "gather", d = 24, fp = 80 } } }
+    assert.is_true(GC.Caps.Adopt())
+    assert.same({ c = 800, l = 0, group = "Herbs", manual = false, followed = true }, GC.Caps.For(5))
+    assert.same({ c = 600, l = 610, group = "Consumables", manual = true }, GC.Caps.For(7))
+
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+      caps = { { i = 5, c = 800, g = 1, k = 1 }, { i = 6, c = 900, k = "yes" }, { i = 8, c = 900, k = 2 } } }
+    GC.Caps.Adopt()
+    assert.is_true(GC.Caps.For(5).followed)
+    assert.is_nil(GC.Caps.For(6).followed)
+    assert.is_nil(GC.Caps.For(8).followed)
+  end)
+
+  it("Adopt reports a change when only the follow mark moves", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+      caps = { { i = 5, c = 800, g = 1 } } }
+    GC.Caps.Adopt()
+    assert.is_false(GC.Caps.Adopt())
+    _G.GoldCap_AppRuns.caps[1].k = true
+    assert.is_true(GC.Caps.Adopt())
+    assert.is_false(GC.Caps.Adopt())
+    _G.GoldCap_AppRuns.caps[1].k = nil
+    assert.is_true(GC.Caps.Adopt())
+  end)
+
   it("an absent or unsupported file clears the set", function()
     _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, caps = { { i = 1, c = 1 } } }
     GC.Caps.Adopt()

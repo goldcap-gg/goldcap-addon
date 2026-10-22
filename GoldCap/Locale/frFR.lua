@@ -1418,4 +1418,7 @@ GC.Locales.frFR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Où chaque objet se vend arrive avec les données de région du Companion : rien pour l'instant.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Rien dans vos sacs ne se vend nettement mieux sur un autre de vos royaumes.",
   ["What to take out of the Warband Bank shows at a bank."] = "Ce qu'il faut retirer de la banque de bataillon s'affiche à une banque.",
+  -- Followed groups: the DEALS chip and its tooltip.
+  ["GROUP"] = "GROUPE",
+  ["Listed at or under the deal price of a group you follow (%s)"] = "Mis en vente au prix de bonne affaire d'un groupe que tu suis ou en dessous (%s)",
 }

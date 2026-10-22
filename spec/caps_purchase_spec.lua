@@ -940,6 +940,28 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.is_nil(enter:find("verdict.cap and capNote", 1, true))
       end)
 
+      -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows is
+      -- that group's deal price, not one the player set, and the tooltip says so. The chip on
+      -- the row reads GROUP instead of YOUR PRICE.
+      it("_CapNote names a group you follow", function()
+        local GC = loadSniper()
+        assert.equal("Listed at or under the deal price of a group you follow (Herbs)",
+          GC.Sniper._CapNote({ cap = 800, capGroup = "Herbs", capFollowed = true }))
+        assert.equal((GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format("Herbs"),
+          GC.Sniper._CapNote({ cap = 800, capGroup = "Herbs" }))
+
+        _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+          caps = { { i = 42, c = 2000000, g = 1, k = true } } }
+        GC.Caps.Adopt()
+        capLive(GC, 42, TWO_LEVELS)
+        assert.equal("Listed at or under the deal price of a group you follow (Herbs)",
+          GC.Sniper._CapNote(boardDeal(GC, 42)))
+        local row = fakeRow()
+        function row.tierChip:SetLabel(text) self.text = text end
+        getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+        assert.equal("GROUP", row.tierChip.text)
+      end)
+
       it("says in the row's tooltip what YOUR PRICE means, group included", function()
         local GC = loadSniper()
         grouped(GC)

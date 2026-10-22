@@ -53,6 +53,10 @@ function GC.Caps.Adopt()
             l = math.max(0, math.floor(l)),
             group = g and type(groups[g]) == "string" and groups[g] or nil,
             manual = entry.m == true,
+            -- A group the player follows on goldcap.gg (`k`: true as the Companion writes it, 1
+            -- as the site's wire has it). nil, not false, on an alert cap, so its shape stays
+            -- exactly what it was. The DEALS chip reads GROUP for it (Core/BoardRows.lua).
+            followed = (entry.k == true or entry.k == 1) or nil,
           }
           next_order[#next_order + 1] = i
         end
@@ -67,7 +71,8 @@ function GC.Caps.Adopt()
   if not changed then
     for id, cap in pairs(next_caps) do
       local old = caps[id]
-      if not old or old.c ~= cap.c or old.l ~= cap.l or old.group ~= cap.group or old.manual ~= cap.manual then
+      if not old or old.c ~= cap.c or old.l ~= cap.l or old.group ~= cap.group or old.manual ~= cap.manual
+          or old.followed ~= cap.followed then
         changed = true; break
       end
     end
@@ -184,6 +189,8 @@ function GC.Caps.DecideRealm(cap, lots)
     entryTotal = best.buyout,
     entryUnitDisplay = bestUnit,
     capUnit = cap.c,
+    -- A followed group's cap: the board's chip reads GROUP (GC.BoardRows.Label).
+    followed = cap.followed,
   }
 end
 
@@ -251,6 +258,7 @@ function GC.Caps.DecideCommodity(cap, levels, limits, fixedQuantity)
     entryUnitDisplay = math.floor(total / quantity),
     unit = qualifying[1].unitPrice,
     capUnit = cap.c,
+    followed = cap.followed,
   }
 end
 
