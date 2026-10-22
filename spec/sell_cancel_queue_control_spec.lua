@@ -516,7 +516,23 @@ describe("Sell tab, the cancel queue control", function()
       COSTS[78] = 150
       assert.matches("3", root.status.text, 1, true)
       assert.is_nil(root.status.text:find(GC.Util.Money(200), 1, true))
-      assert.equal(GC.L["Cancel %d lots? Press CONFIRM, then once per lot."]:format(3), root.status.text)
+      assert.equal(GC.L["Cancel %d lots? One press per lot, CONFIRM first."]:format(3), root.status.text)
+    end)
+
+    -- One lot is one lot, not "1 lots", and its CONFIRM is the only press it needs.
+    it("asks about a single lot in the singular", function()
+      _G.C_AuctionHouse.GetOwnedAuctions = function() return { LOTS[1] } end
+      GC.Sell.OnOwnedAuctions()
+      compose()
+      assert.equal(1, #GC.SellState.cancelEntries)
+      press(1000)
+      assert.equal(GC.L["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."]:format(GC.Util.Money(100)), root.status.text)
+      press(1021.5)
+      COSTS[77] = nil
+      press(1043)
+      COSTS[77] = 100
+      assert.equal(GC.L["Cancel 1 lot? Press CONFIRM."], root.status.text)
+      assert.equal(0, cancelCalls)
     end)
 
     it("stops after twenty seconds without a press, and the next press arms again", function()

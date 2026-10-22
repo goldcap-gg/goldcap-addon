@@ -719,11 +719,16 @@ local function onCancelQueueClick()
   for other in pairs(UI.expanded) do UI.expanded[other] = nil end
   UI.expanded[S.cancelEntries[1].positionKey] = true
   UI.List.RenderRows()
-  if run.cost then
-    setStatus((GC.L["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."]):format(
+  -- One lot has a sentence of its own: its CONFIRM is the only press it needs.
+  if run.count == 1 and run.cost then
+    setStatus((GC.L["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."]):format(GC.Util.Money(run.cost)))
+  elseif run.count == 1 then
+    setStatus(GC.L["Cancel 1 lot? Press CONFIRM."])
+  elseif run.cost then
+    setStatus((GC.L["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."]):format(
       run.count, GC.Util.Money(run.cost)))
   else
-    setStatus((GC.L["Cancel %d lots? Press CONFIRM, then once per lot."]):format(run.count))
+    setStatus((GC.L["Cancel %d lots? One press per lot, CONFIRM first."]):format(run.count))
   end
   if C_Timer and C_Timer.After then
     -- CONFIRM comes alive after the deposit guard's second.

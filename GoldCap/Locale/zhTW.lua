@@ -1340,8 +1340,10 @@ GC.Locales.zhTW = {
   ["relisting would go under your group's floor. Hold"] = "重新上架會低於你分組的底價。先保留",
   ["undercut by less than your cancel setting. Hold"] = "壓價低於你的取消設定。先保留",
   -- the cancel run (groups in the addon, task 13)
-  ["Cancel %d lots? You lose %s in deposits. Press CONFIRM, then once per lot."] = "取消 %d 批？將損失押金 %s。先按確認，然後每批按一次。",
-  ["Cancel %d lots? Press CONFIRM, then once per lot."] = "取消 %d 批？先按確認，然後每批按一次。",
+  ["Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first."] = "取消 %d 批？將損失押金 %s。每批按一次，第一次按確認。",
+  ["Cancel %d lots? One press per lot, CONFIRM first."] = "取消 %d 批？每批按一次，第一次按確認。",
+  ["Cancel 1 lot? You lose its %s deposit. Press CONFIRM."] = "取消 1 批？將損失押金 %s。按確認。",
+  ["Cancel 1 lot? Press CONFIRM."] = "取消 1 批？按確認。",
   ["CANCEL NEXT (%d)"] = "取消下一批 (%d)",
   ["Press again to cancel the next lot"] = "再按一次，取消下一批",
   ["Stopped: 20 seconds without a press"] = "已停止：20 秒內沒有按下",
