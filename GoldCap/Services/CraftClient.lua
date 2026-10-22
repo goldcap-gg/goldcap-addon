@@ -49,12 +49,15 @@ end
 
 -- The slots a craft cannot do without: required Basic reagents and required Modifying ones (a
 -- spark). Finishing and Automatic reagents, optional slots and slots the form hides are left out.
+-- nil when one of them has a reagent that needs a count of its own (variableQuantities,
+-- ProfessionsUtil's GetQuantityRequired): every count here is the slot's quantityRequired.
 local function slotsOf(schematic)
   local basic, modifying = enum("CraftingReagentType", "Basic", 1), enum("CraftingReagentType", "Modifying", 0)
   local slots = {}
   for _, s in ipairs(type(schematic.reagentSlotSchematics) == "table" and schematic.reagentSlotSchematics or {}) do
     if type(s) == "table" and s.required == true and s.hiddenInCraftingForm ~= true
         and (s.reagentType == basic or s.reagentType == modifying) and type(s.quantityRequired) == "number" then
+      if type(s.variableQuantities) == "table" and #s.variableQuantities > 0 then return nil end
       local ids, currency = {}, nil
       for _, r in ipairs(type(s.reagents) == "table" and s.reagents or {}) do
         if type(r) == "table" and type(r.itemID) == "number" then
@@ -74,7 +77,8 @@ local function slotsOf(schematic)
 end
 
 --- A recipe as GoldCap prices it ({ recipeID, name, per, output, outputs, slots }), or nil for a
---- recipe that makes no item to sell: salvage, recraft, enchant, gathering, a dummy, no output.
+--- recipe that makes no item to sell (salvage, recraft, enchant, gathering, a dummy, no output) or
+--- one whose required reagent needs a count of its own.
 function CC.Snapshot(recipeID)
   if type(recipeID) ~= "number" then return nil end
   local known = snapshots[recipeID]
@@ -82,7 +86,8 @@ function CC.Snapshot(recipeID)
   local okI, info = call("GetRecipeInfo", recipeID)
   local okS, schematic = call("GetRecipeSchematic", recipeID, false)
   if not (okI and okS and type(info) == "table" and type(schematic) == "table") then return nil end
-  if refuses(info, schematic) then
+  local slots = not refuses(info, schematic) and slotsOf(schematic) or nil
+  if not slots then
     snapshots[recipeID] = false
     return nil
   end
@@ -97,7 +102,7 @@ function CC.Snapshot(recipeID)
     per = math.max(1, tonumber(schematic.quantityMin) or 1),
     output = schematic.outputItemID,
     outputs = outputs,
-    slots = slotsOf(schematic),
+    slots = slots,
   }
   snapshots[recipeID] = recipe
   return recipe

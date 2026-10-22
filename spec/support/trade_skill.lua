@@ -287,9 +287,13 @@ function TS.info(recipeID, name, extra)
   return info
 end
 
+-- CraftingReagentSlotSchematic. `variableQuantities` is never nil: empty unless a reagent of the
+-- slot needs a count of its own ({ { reagent, quantity }, ... }, ProfessionsUtil's
+-- GetQuantityRequired).
 function TS.slot(slotIndex, quantityRequired, reagents, extra)
   local s = { slotIndex = slotIndex, quantityRequired = quantityRequired, reagents = reagents,
-    reagentType = 1, required = true, hiddenInCraftingForm = false, dataSlotIndex = slotIndex }
+    reagentType = 1, required = true, hiddenInCraftingForm = false, dataSlotIndex = slotIndex,
+    variableQuantities = {} }
   for k, v in pairs(extra or {}) do s[k] = v end
   return s
 end

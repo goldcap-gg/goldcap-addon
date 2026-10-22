@@ -78,6 +78,20 @@ describe("craft client", function()
     end
   end)
 
+  it("refuses a recipe whose required reagent needs a count of its own, and ignores one on an optional slot", function()
+    -- A variable quantity: one reagent of the slot takes 5 where the slot says 3. No 12.x recipe
+    -- has one on a required slot; if one ever does, a figure at the slot's count would be wrong.
+    local r = potion()
+    r.schematic.reagentSlotSchematics[1].variableQuantities = { { reagent = { itemID = 103 }, quantity = 5 } }
+    load({ recipes = { [7] = r } })
+    assert.is_nil(CC.Snapshot(7))
+    restore()
+    r = potion()
+    r.schematic.reagentSlotSchematics[3].variableQuantities = { { reagent = { itemID = 400 }, quantity = 2 } }
+    load({ recipes = { [7] = r } })
+    assert.is_not_nil(CC.Snapshot(7))
+  end)
+
   it("gives nothing for a recipe the client does not answer for", function()
     load({ recipes = {} })
     assert.is_nil(CC.Snapshot(99))
