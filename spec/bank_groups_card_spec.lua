@@ -405,6 +405,10 @@ describe("bank by group card", function()
     assert.is_true(countsY > bankY and bankY > bagsY)
     -- A one-line name and counts: 18 + 2 + 14 + 4 + 22 + 4 + 22.
     assert.equal(86, herbs:GetHeight())
+    -- The scroll clips at its edges, so no button in it draws the halo it would cut.
+    for _, button in ipairs({ herbs.toBank, herbs.toBags }) do
+      assert.is_true(button.glow == nil or not button.glow:IsShown())
+    end
   end)
 
   -- A group with nothing to move (all of it kept in the bags, or staying there) is one line among

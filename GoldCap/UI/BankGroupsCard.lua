@@ -188,6 +188,8 @@ end
 
 local function moveButton(parent, variant, into)
   local button = GC.Theme.Button(parent, variant, "plaque")
+  -- In the scroll, which clips at its edges: a halo would be cut flat along the card's left side.
+  button:SetGlow(false)
   button:SetHeight(LAYOUT.BUTTON_H)
   button.into = into
   button:SetScript("OnClick", onMoveClick)
