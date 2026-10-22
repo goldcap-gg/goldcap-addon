@@ -37,10 +37,14 @@ GC.MailLoop = {}
 local DELAY = 0.15
 local STUCK_STEPS = 3
 local MAX_REFRESHES = 10
+-- How long one CheckInbox may go unanswered before the run ends. The answer normally comes within
+-- a second; without a limit a lost one left the button reading Stop with SetOpeningAll still on.
+local REFRESH_TIMEOUT = 10
 
 GC.MailLoop.DELAY = DELAY
 GC.MailLoop.STUCK_STEPS = STUCK_STEPS
 GC.MailLoop.MAX_REFRESHES = MAX_REFRESHES
+GC.MailLoop.REFRESH_TIMEOUT = REFRESH_TIMEOUT
 
 local GROUP_FIELD = { sales = "sales", returns = "returns", purchases = "purchases", players = "players" }
 
@@ -67,7 +71,7 @@ function GC.MailLoop.New(deps)
   -- itself (MailFrame.lua, MailFrame_RefreshInbox), often before this loop may, so the wait ends
   -- as soon as the inbox no longer reads like this, whoever asked.
   local baseline
-  local awaiting      -- true while this loop's own CheckInbox is out
+  local awaiting      -- { at } while this loop's own CheckInbox is out
   local waitSeconds
 
   local function shownAndTotal()
@@ -196,7 +200,7 @@ function GC.MailLoop.New(deps)
   end
 
   -- Nothing to take from what is shown: more mail than shown, bags, or the end.
-  local function conclude(seen)
+  local function conclude(seen, now)
     result.loading = seen.loading
     if seen.blocked > 0 then
       result.itemsLeft = seen.blocked
@@ -210,7 +214,7 @@ function GC.MailLoop.New(deps)
       baseline = { shown = seen.shown, total = seen.total }
       if canCheck then
         refreshes = refreshes + 1
-        awaiting = true
+        awaiting = { at = now }
         waitSeconds = nil
         api.CheckInbox()
       else
@@ -230,7 +234,7 @@ function GC.MailLoop.New(deps)
       perform(action, now)
       return "took"
     end
-    return conclude(seen)
+    return conclude(seen, now)
   end
 
   function loop:Start(now)
@@ -253,12 +257,14 @@ function GC.MailLoop.New(deps)
       if inboxMoved() then
         resume()
       elseif awaiting then
-        return "refresh"
+        if now - awaiting.at < REFRESH_TIMEOUT then return "refresh" end
+        finish("done")
+        return "done"
       else
         local canCheck, seconds = api.CanCheckInbox()
         if canCheck then
           refreshes = refreshes + 1
-          awaiting = true
+          awaiting = { at = now }
           waitSeconds = nil
           api.CheckInbox()
         else
