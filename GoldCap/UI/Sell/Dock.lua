@@ -872,11 +872,12 @@ function Dock.Build(f)
   -- 136: "NOTHING TO CANCEL" (132.6px at mono-10 and Theme.Scale() 1.3) must fit inside.
   cancelButton:SetSize(136, DOCK.BUTTON_H)
   -- With the cancel run's words (retail), as wide as the widest of its words in the player's
-  -- language, never cut short: the line beside it starts where it ends (Dock.LayoutLedger).
+  -- language, never cut short: the line beside it starts where it ends (Dock.LayoutLedger). The
+  -- counts are measured at three figures, a queue of up to 999 lots.
   local function fitCancel()
-    cancelButton:FitLabels({ (GC.L["CANCEL %d"]):format(99), GC.L["CANCEL LOT?"], GC.L["CANCELLING…"],
+    cancelButton:FitLabels({ (GC.L["CANCEL %d"]):format(999), GC.L["CANCEL LOT?"], GC.L["CANCELLING…"],
       GC.L["NOTHING TO CANCEL"], GC.L["NO LIVE PRICE YET"], GC.L["CONFIRM"],
-      (GC.L["CANCEL NEXT (%d)"]):format(99) }, 136)
+      (GC.L["CANCEL NEXT (%d)"]):format(999) }, 136)
   end
   if GC.CancelRun and cancelButton.FitLabels and Theme.OnRescale then fitCancel(); Theme.OnRescale(fitCancel) end
   -- The row's left end: only one deck is ever on screen, so only POST's panel or this cluster is

@@ -585,6 +585,36 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal(1, cancelCalls)
     end)
 
+    -- Retail sizes the button to its widest word in the player's language. A queue of a hundred
+    -- lots or more is three figures, one wider than "99" measured.
+    it("sizes the button for a count of three figures", function()
+      local fitted = {}
+      GC.Theme.OnRescale = function() end
+      local plain = GC.Theme.Button
+      GC.Theme.Button = function(...)
+        local button = plain(...)
+        function button:FitLabels(labels) fitted[#fitted + 1] = labels end
+        return button
+      end
+      local again = region("Frame")
+      again.HookScript = function(_, n, f) again.scripts[n] = f end
+      again.status = region("FontString", again)
+      GC.Sell.Attach(again, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
+        rowWidth = 1100, rowHeight = 24 })
+      GC.Theme.Button, GC.Theme.OnRescale = plain, nil
+      local cancelLabels
+      for _, labels in ipairs(fitted) do
+        for _, label in ipairs(labels) do
+          if label == GC.L["NOTHING TO CANCEL"] then cancelLabels = labels end
+        end
+      end
+      assert.is_table(cancelLabels)
+      local has = {}
+      for _, label in ipairs(cancelLabels) do has[label] = true end
+      assert.is_true(has[(GC.L["CANCEL %d"]):format(999)])
+      assert.is_true(has[(GC.L["CANCEL NEXT (%d)"]):format(999)])
+    end)
+
     it("ends the run once the queue is empty", function()
       press(1000)
       press(1001.2); press(1002); press(1003)
