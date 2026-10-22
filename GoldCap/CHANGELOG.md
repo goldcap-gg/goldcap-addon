@@ -10,6 +10,15 @@
 - Sell: the CANCEL button asks once for the whole queue and shows the deposits you lose, then
   cancels one lot per press. It cancels only the lots you confirmed: one that joins the queue
   later is asked about again.
+- Mail: a Collect button under the mailbox takes everything in one press: the gold from sales,
+  lots that came back, auctions you won and gold or items from other players. The button says how
+  many mails it will take, and one press again stops it.
+- Mail: sales are written to the SOLD tab before their gold is taken, and mail that is still
+  loading is left for the next press, so no sale goes missing.
+- Mail: cash on delivery mail and mail from Blizzard are never taken. Settings has a MAIL card to
+  choose which kinds Collect takes.
+- Mail: it stops when the bags are full (gold is still taken) and says what it collected in the
+  chat.
 - Settings: a new POSTING setting cancels a lot only when someone undercuts you by more than a set
   percent.
 

@@ -41,6 +41,23 @@ describe("CHANGELOG.md", function()
     end
   end)
 
+  -- What SELL does with the mailbox's returned lots log is told in its own Sell line, never in a
+  -- Mail one. And the owner's rule for every player-facing text: no long dashes.
+  it("promises no Sell tab behaviour in a Mail bullet, and uses no long dash there", function()
+    local mailBullets = 0
+    for _, section in ipairs(sections()) do
+      for _, bullet in ipairs(section.bullets) do
+        if bullet:find("^%- Mail:") then
+          mailBullets = mailBullets + 1
+          assert.is_nil(bullet:find("Sell", 1, true), bullet)
+          assert.is_nil(bullet:find("\226\128\148", 1, true), bullet)
+          assert.is_nil(bullet:find("\226\128\147", 1, true), bullet)
+        end
+      end
+    end
+    assert.is_true(mailBullets > 0)
+  end)
+
   it("does not promise the vendor price in Forever tooltips, which leave it to the game", function()
     for _, bullet in ipairs(assert(firstForever()).bullets) do
       if bullet:find("Tooltips", 1, true) then

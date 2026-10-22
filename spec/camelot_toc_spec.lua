@@ -35,11 +35,14 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
 
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
   -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
-  -- selling rules too: groups are retail only (plan 2026-10-22).
+  -- selling rules too: groups are retail only (plan 2026-10-22). The mail collect files
+  -- (Core/Mail*.lua, UI/MailCollect.lua) are retail only in this wave: WoW: Forever must not change.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
-    ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true }
+    ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
+    ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
+    ["Core/MailLoop.lua"] = true, ["UI/MailCollect.lua"] = true }
 
-  it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank, the followed groups' rules and the cancel run", function()
+  it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank, the followed groups' rules, the cancel run and the mail collect files", function()
     local expected = {}
     for _, f in ipairs(retailF) do
       if not RETAIL_ONLY[f] then expected[#expected + 1] = f end

@@ -48,6 +48,9 @@ Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua
+Core/MailReturns.lua
+Core/MailClassify.lua
+Core/MailLoop.lua
 Core/SoldView.lua
 Core/QuoteCache.lua
 Core/Flips.lua
@@ -146,5 +149,6 @@ UI/BuyAddBox.lua
 UI/BuySearch.lua
 UI/BuyVendorPanel.lua
 UI/BankRoute.lua
+UI/MailCollect.lua
 UI/SettingsFrame.lua
 Core/Init.lua

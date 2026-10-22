@@ -62,6 +62,10 @@ read_globals = {
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
   "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT", "AUCTION_OUTBID_MAIL_SUBJECT",
+  -- The Collect button (UI/MailCollect.lua): the take calls, the inbox refresh, the mailbox
+  -- frame it sits beside, C_Mail, and the client's own two refusal messages.
+  "TakeInboxMoney", "TakeInboxItem", "CheckInbox", "MailFrame", "C_Mail", "ERR_INV_FULL",
+  "ERR_ITEM_MAX_COUNT",
   -- The tooltip's counts: grouped in thousands with the player's locale's separator.
   "BreakUpLargeNumbers",
   -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is

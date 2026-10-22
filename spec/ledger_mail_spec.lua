@@ -383,6 +383,52 @@ describe("Ledger inbox scan", function()
     end)
   end
 
+  -- The Collect button (Core/MailClassify.lua) tells a lapsed auction from a quest reward with
+  -- these same patterns, so the ledger exports them rather than the button keeping a second copy.
+  it("exports the subject patterns the Collect button reuses", function()
+    local patterns = GC.Ledger.NoInvoicePatterns({ "Auction expired: %s" })
+    local function matches(subject)
+      for _, pattern in ipairs(patterns) do
+        if subject:find(pattern) then return true end
+      end
+      return false
+    end
+    assert.is_true(matches("Auction expired: Linen Cloth"))
+    assert.is_false(matches("%s"))
+    assert.same({}, GC.Ledger.NoInvoicePatterns({ "%s" }))
+  end)
+
+  -- The Collect button takes a sale's gold or a won auction's items only when ReadsInvoice says the
+  -- ledger can record the invoice, so it must answer exactly what ScanInbox then records.
+  for _, case in ipairs({
+    { "a whole sale", function() return mail() end, true },
+    { "a won auction", function() return mail({ invoice = { invoiceType = "buyer" },
+      item = { name = "Ironclaw Ore", itemID = 2770 } }) end, true },
+    { "a sale with no item name yet", function() return mail({ invoice = { itemName = "" } }) end, false },
+    { "a sale with no count yet", function() return mail({ invoice = { count = 0 } }) end, false },
+    { "a sale with an inexact bid", function() return mail({ invoice = { bid = 0.5 } }) end, false },
+    { "a sale with no days left to read", function() return mail({ daysLeft = -1 }) end, false },
+    { "a lapsed auction without an invoice", function()
+      local lapsed = mail({ subject = "Auction expired: Ironclaw Ore" })
+      lapsed.invoice = nil
+      return lapsed
+    end, false },
+  }) do
+    it("ReadsInvoice answers what ScanInbox records for " .. case[1], function()
+      local api = apiFor({ case[2]() })
+      assert.equal(case[3], GC.Ledger.ReadsInvoice(api, 1, context, 1000))
+      assert.equal(case[3] and 1 or 0, GC.Ledger.ScanInbox(api, context, 1000, true))
+    end)
+  end
+
+  it("ReadsInvoice says no while the ledger has no character or region to record under", function()
+    local api = apiFor({ mail() })
+    assert.is_false(GC.Ledger.ReadsInvoice(api, 1, { char = "Belarsa-Dentarg" }, 1000))
+    assert.is_false(GC.Ledger.ReadsInvoice(api, 1, { region = "eu" }, 1000))
+    assert.is_false(GC.Ledger.ReadsInvoice(api, 1, nil, 1000))
+    assert.is_true(GC.Ledger.ReadsInvoice(api, 1, context, 1000))
+  end)
+
   for _, subject in ipairs({ "Retrieving data", "Your crafting order" }) do
     it("still waits on '" .. subject .. "', which does not read as a lapsed auction", function()
       local function api(mails)
@@ -401,7 +447,7 @@ describe("Ledger inbox scan", function()
     end)
   end
 
-  -- The inbox shows at most 50 mails; GetInboxNumItems' second return counts them all. A mail
+  -- The inbox shows at most 100 mails; GetInboxNumItems' second return counts them all. A mail
   -- past the shown ones is not absent, only out of view.
   it("never infers absence while the client shows only part of a full inbox", function()
     assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000, true))
