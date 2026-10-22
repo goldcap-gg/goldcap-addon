@@ -102,3 +102,104 @@ describe("SellRounds", function()
     assert.is_false(fresh.SellRounds.Sold(10, 1000))
   end)
 end)
+
+-- The mail loop writes a lot's returns entry before it takes the lot, and takes the entry back
+-- when the take did nothing (Core/MailLoop.lua). A compose that read the entry in between must not
+-- keep the round it gave (group-rules review M2): the count reads the log again until an entry
+-- is settled.
+describe("SellRounds with the mail loop's returns log", function()
+  local Mailbox = require("spec.support.mail_inbox")
+  local GC, box, loop, clock, epoch
+  local EXPIRED = function(itemID) return { sender = "Auction House", subject = "Auction expired: Silk",
+    auction = true, items = { [1] = { itemID = itemID, count = 1 } } } end
+
+  local function visit(rows, at)
+    box = Mailbox.new(rows)
+    epoch = at
+    loop = GC.MailLoop.New({
+      api = box:flat({ free = 20 }),
+      patterns = GC.MailClassify.Patterns({ expired = "Auction expired: %s", removed = "Auction canceled: %s",
+        outbid = "Outbid on %s" }),
+      enabled = function() return { sales = true, returns = true, purchases = true, players = true } end,
+      scanLedger = function() end,
+      context = function() return { char = "A-B", region = "eu" } end,
+      epoch = function() return epoch end,
+      errors = { full = "Inventory is full.", unique = "You can't carry any more of those items." },
+    })
+  end
+
+  local function runToEnd()
+    for _ = 1, 60 do
+      box:advance()
+      clock = clock + GC.MailLoop.DELAY + 0.01
+      loop:Step(clock)
+      if loop:State() == "done" then return end
+    end
+  end
+
+  -- What the Sell tab does on every compose (Services/Sell/Compose.lua).
+  local function compose(now) GC.SellRounds.Ingest(GC.MailReturns.Entries(), now) end
+
+  before_each(function()
+    _G.RETRIEVING_DATA = "Retrieving data..."
+    GC = helper.loadModule("Core/Ledger.lua")
+    GC.Ledger.Init({})
+    helper.loadModule("Core/MailReturns.lua", GC)
+    helper.loadModule("Core/MailClassify.lua", GC)
+    helper.loadModule("Core/MailLoop.lua", GC)
+    helper.loadModule("Core/SellRounds.lua", GC)
+    local db = {}
+    GC.MailReturns.Init(db)
+    GC.SellRounds.Init(db)
+    clock = 100
+  end)
+
+  after_each(function() _G.RETRIEVING_DATA = nil end)
+
+  it("leaves no round for an entry taken back after a compose read it", function()
+    visit({ EXPIRED(5), EXPIRED(6) }, 5000)
+    box:refuse(5)
+    loop:Start(clock)
+    -- The take of item 5 is out and its entry written: a compose now sees the round.
+    compose(5000)
+    assert.equal(1, GC.SellRounds.Rounds(5))
+    runToEnd()
+    -- Item 5 never left the mailbox, its entry is gone; item 6 came back.
+    assert.same({ { itemID = 6, count = 1, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+    compose(5001)
+    assert.equal(0, GC.SellRounds.Rounds(5))
+    assert.equal(1, GC.SellRounds.Rounds(6))
+  end)
+
+  it("counts the lot once when it is taken on a later visit", function()
+    visit({ EXPIRED(5) }, 5000)
+    box:refuse(5)
+    loop:Start(clock)
+    compose(5000)
+    runToEnd()
+    compose(5001)
+    -- Two hours later the same lot is taken: one round, not two.
+    visit({ EXPIRED(5) }, 5000 + 7200)
+    loop:Start(clock)
+    runToEnd()
+    compose(5000 + 7200)
+    assert.equal(1, GC.SellRounds.Rounds(5))
+    -- And it stays one once its entry is settled and saved.
+    compose(5000 + 7200 + GC.SellRounds.SETTLE_SECONDS)
+    assert.equal(1, GC.SellRounds.Rounds(5))
+    compose(5000 + 7200 + 2 * GC.SellRounds.SETTLE_SECONDS)
+    assert.equal(1, GC.SellRounds.Rounds(5))
+  end)
+
+  it("counts a second return within the hour once the first one is taken back", function()
+    local log = {}
+    local first = { itemID = 5, count = 1, reason = "expired", at = 5000 }
+    log[1] = first
+    assert.equal(1, GC.SellRounds.Ingest(log, 5000))
+    log[2] = { itemID = 5, count = 1, reason = "expired", at = 5600 }
+    assert.equal(0, GC.SellRounds.Ingest(log, 5600))
+    table.remove(log, 1)
+    assert.equal(0, GC.SellRounds.Ingest(log, 5601))
+    assert.equal(1, GC.SellRounds.Rounds(5))
+  end)
+end)

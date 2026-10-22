@@ -10,6 +10,11 @@
 -- (a new sale mail, Core/Ledger.lua's ScanInbox) sets the count back to 0, and returns from
 -- before that sale never count again. Ingesting the same log twice adds nothing.
 --
+-- An entry is written before its lot is taken, and the mail loop takes it back when the take did
+-- nothing (Core/MailLoop.lua, within the visit that wrote it). So an entry younger than
+-- SETTLE_SECONDS is read afresh from the log on every Ingest and never written into the save: one
+-- taken back leaves no round behind. An older entry is counted once, for good, as above.
+--
 -- Saved in GC.db.sellRounds = { v = 1, lastReturnAt, items = { [itemID] = { rounds, returnAt,
 -- soldAt, at } } }, created lazily here and not through DEFAULTS, so a client that never loads
 -- this file keeps its SavedVariables as they were. A save with a newer `v` is read-only: nothing
@@ -21,9 +26,14 @@ local M = GC.SellRounds
 M.VERSION = 1
 M.PRUNE_SECONDS = 30 * 86400
 M.ROUND_GAP_SECONDS = 3600
+-- Far longer than a take stays unanswered: the loop gives one up after a few 0.15 s steps.
+M.SETTLE_SECONDS = 3600
 
 -- The live table (db.sellRounds) when it is ours to write, else nil.
 local store
+-- The rounds of entries not yet settled, by item: { ats = sorted `at`s, rounds = n }. Rebuilt from
+-- the log by every Ingest and never saved: the log they come from is.
+local fresh = {}
 
 local function finite(v)
   return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
@@ -34,7 +44,7 @@ local function itemKey(v)
 end
 
 function M.Init(db)
-  store = nil
+  store, fresh = nil, {}
   if type(db) ~= "table" then return end
   local saved = db.sellRounds
   if type(saved) == "table" and type(saved.v) == "number" and saved.v > M.VERSION then return end
@@ -59,8 +69,23 @@ function M.Prune(now)
   return dropped
 end
 
+-- How many rounds the returns at `ats` (sorted) add to `item`, the saved state, without writing
+-- it: the same sale and hour rules Ingest counts by.
+local function roundsAfter(item, ats)
+  local soldAt = item and finite(item.soldAt) and item.soldAt or nil
+  local last = item and finite(item.returnAt) and item.returnAt or nil
+  local n = 0
+  for _, at in ipairs(ats) do
+    if not (soldAt and at <= soldAt) and not (last and at < last + M.ROUND_GAP_SECONDS) then
+      n, last = n + 1, at
+    end
+  end
+  return n
+end
+
 -- `entries` is the log as GC.MailReturns.Entries() hands it (an array), or a table holding it
--- as `.entries`; nil is no returns. Returns how many rounds it added.
+-- as `.entries`; nil is no returns. Returns how many rounds it added, less any that an entry taken
+-- back since the last Ingest had given.
 function M.Ingest(entries, now)
   if not store or type(entries) ~= "table" or not finite(now) then return 0 end
   local list = type(entries.entries) == "table" and entries.entries or entries
@@ -72,26 +97,44 @@ function M.Ingest(entries, now)
   end
   -- Oldest first, so the hour between two counted returns is measured from the earlier one.
   table.sort(readable, function(a, b) return a.at < b.at end)
+  local settled = now - M.SETTLE_SECONDS
   local added, newest = 0, store.lastReturnAt
+  local young = {}
   for _, entry in ipairs(readable) do
     local at = entry.at
-    if entry.reason == "expired" and at >= store.lastReturnAt then
-      local item = store.items[entry.itemID]
-      if not (item and finite(item.soldAt) and at <= item.soldAt)
-          and not (item and finite(item.returnAt) and at < item.returnAt + M.ROUND_GAP_SECONDS) then
-        if not item then
-          item = { rounds = 0 }
-          store.items[entry.itemID] = item
-        end
-        item.rounds = (finite(item.rounds) and item.rounds or 0) + 1
-        item.returnAt, item.at = at, now
-        added = added + 1
+    if at >= settled then
+      -- Not settled: the mail loop may still take it back. Counted below, never into the save.
+      if entry.reason == "expired" and at >= store.lastReturnAt then
+        local ats = young[entry.itemID] or {}
+        young[entry.itemID] = ats
+        ats[#ats + 1] = at
       end
+    else
+      if entry.reason == "expired" and at >= store.lastReturnAt then
+        local item = store.items[entry.itemID]
+        if not (item and finite(item.soldAt) and at <= item.soldAt)
+            and not (item and finite(item.returnAt) and at < item.returnAt + M.ROUND_GAP_SECONDS) then
+          if not item then
+            item = { rounds = 0 }
+            store.items[entry.itemID] = item
+          end
+          item.rounds = (finite(item.rounds) and item.rounds or 0) + 1
+          item.returnAt, item.at = at, now
+          added = added + 1
+        end
+      end
+      if at > newest then newest = at end
     end
-    if at > newest then newest = at end
   end
   store.lastReturnAt = newest
   M.Prune(now)
+  for _, f in pairs(fresh) do added = added - f.rounds end
+  fresh = {}
+  for itemID, ats in pairs(young) do
+    local n = roundsAfter(store.items[itemID], ats)
+    fresh[itemID] = { ats = ats, rounds = n }
+    added = added + n
+  end
   return added
 end
 
@@ -106,11 +149,15 @@ function M.Sold(itemID, at)
     store.items[itemID] = item
   end
   item.rounds, item.soldAt, item.at = 0, at, at
+  local f = fresh[itemID]
+  if f then f.rounds = roundsAfter(item, f.ats) end
   return true
 end
 
 function M.Rounds(itemID)
-  local item = store and store.items[itemID]
-  if type(item) == "table" and finite(item.rounds) and item.rounds > 0 then return item.rounds end
-  return 0
+  if not store then return 0 end
+  local item = store.items[itemID]
+  local n = type(item) == "table" and finite(item.rounds) and item.rounds > 0 and item.rounds or 0
+  local f = fresh[itemID]
+  return n + (f and f.rounds or 0)
 end
