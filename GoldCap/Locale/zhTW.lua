@@ -1075,6 +1075,7 @@ GC.Locales.zhTW = {
   ["From goldcap.gg: rename or remove it there"] = "來自 goldcap.gg：請在那裡重新命名或移除",
   ["GoldCap: Import a list"] = "GoldCap：匯入清單",
   ["Import a list…"] = "匯入清單…",
+  ["One list per subgroup"] = "每個子群組一個清單",
   ["Import into this list…"] = "匯入到此清單…",
   ["Imported %s with %d items."] = "已匯入「%s」，共 %d 件物品。",
   ["List %d"] = "清單 %d",

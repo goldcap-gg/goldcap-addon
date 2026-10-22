@@ -15,7 +15,9 @@ describe("ImportDialog", function()
     function f:SetJustifyH() end
     function f:SetWordWrap() end
     function f:SetSize() end
-    function f:SetWidth() end
+    function f:SetWidth(w) self.width = w end
+    function f:SetShown(v) self.shown = v and true or false end
+    function f:GetFontString() return { GetStringWidth = function() return 180 end, SetText = function() end } end
     function f:SetHeight() end
     function f:SetMovable() end
     function f:EnableMouse() end
@@ -44,6 +46,13 @@ describe("ImportDialog", function()
       if f.kind == "Button" and f:GetText() == "Import" then return f end
     end
     error("no Import button was built")
+  end
+
+  local function perGroupButton()
+    for _, f in ipairs(frames) do
+      if f.kind == "Button" and f:GetText() == "One list per subgroup" then return f end
+    end
+    error("no per-subgroup button was built")
   end
 
   local function paste(text)
@@ -379,5 +388,47 @@ describe("ImportDialog", function()
     _G.GetBuildInfo = nil
     assert.equal("GCS1;something else", pricesParsed)
     assert.is_truthy(dialog.status:GetText():find("Import failed:", 1, true))
+  end)
+
+  describe("a TSM group with subgroups", function()
+    local printed
+    before_each(function()
+      printed = {}
+      GC.Print = function(line) printed[#printed + 1] = line end
+      _G.C_Item = {
+        GetItemInfoInstant = function(what) return type(what) == "number" and what < 900000 and what or nil end,
+        GetItemInfo = function() return nil end,
+      }
+    end)
+
+    it("offers one list per subgroup only for a new list from a TSM string with subgroups", function()
+      GC.UI.ShowImportDialog({ lists = true })
+      local d = _G.GoldCapImportDialog
+      local function typed(text) d.edit:SetText(text); d.edit.scripts.OnTextChanged(d.edit, true) end
+      typed("group:R`A,i:1,group:R`B,i:2"); assert.is_true(perGroupButton().shown)
+      typed("group:R`A,i:1,i:2"); assert.is_false(perGroupButton().shown)
+      typed('L^"A"'); assert.is_false(perGroupButton().shown)
+      GC.UI.ShowImportDialog({ lists = true, into = "game-1" }); typed("group:R`A,i:1,group:R`B,i:2"); assert.is_false(perGroupButton().shown)
+      GC.UI.ShowImportDialog(); typed("group:R`A,i:1,group:R`B,i:2"); assert.is_false(perGroupButton().shown)
+    end)
+
+    it("makes one list per subgroup named Root: Sub, while Import makes one list named after the root", function()
+      local text = "group:R`A,i:1,group:R`B,i:2"
+      GC.UI.ShowImportDialog({ lists = true })
+      local d = _G.GoldCapImportDialog
+      d.edit:SetText(text); d.edit.scripts.OnTextChanged(d.edit, true)
+      perGroupButton().scripts.OnClick()
+      assert.same({ "Imported R: A with 1 items.", "Imported R: B with 1 items." }, printed)
+      assert.is_false(d.shown)
+      printed = {}
+      d.edit:SetText(text)
+      importButton().scripts.OnClick()
+      assert.same({ "Imported R with 2 items." }, printed)
+    end)
+
+    it("sizes the button to its label, in every language", function()
+      GC.UI.ShowImportDialog({ lists = true })
+      assert.is_true(perGroupButton().width >= 204)
+    end)
   end)
 end)

@@ -1162,6 +1162,7 @@ GC.Locales.esES = {
     "De goldcap.gg: cámbiale el nombre o quítala allí",
   ["GoldCap: Import a list"] = "GoldCap: Importar una lista",
   ["Import a list…"] = "Importar una lista…",
+  ["One list per subgroup"] = "Una lista por subgrupo",
   ["Import into this list…"] = "Importar a esta lista…",
   ["Imported %s with %d items."] = "Importada %s con %d objetos.",
   ["List %d"] = "Lista %d",

@@ -15,6 +15,55 @@ local function setStatus(f, text)
   f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 44 + math.ceil(tonumber(h) or 0))
 end
 
+-- Both buttons end here: the list half of the router. `perSubgroup` is the second button's: a TSM
+-- group with subgroups as one list per subgroup instead of one list named after the group.
+local function importLists(f, text, perSubgroup)
+  local result, why = GC.BuyLists.ImportText(text, f.into, perSubgroup)
+  if result and result.error then
+    setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. result.error .. "|r")
+    return
+  end
+  if result then
+    for _, line in ipairs(result.printed or {}) do GC.Print(line) end
+    -- ...and the tab shows it now. GC.Buy picks a run in Show(), so a run pasted while the BUY
+    -- tab was already on screen sat in the list unseen until the player left the tab and came
+    -- back -- which reads as an import that did nothing. Guarded because this file loads
+    -- before UI/BuyFrame.lua and specs load it on its own.
+    if result.code and GC.Buy and GC.Buy.SelectRun then
+      GC.Buy.SelectRun(result.code)
+      GC.Buy.RefreshIfShown()
+    end
+    f.edit:SetText("")
+    -- What was left out stays on screen until the player has read it.
+    if result.missed then
+      setStatus(f, result.missed)
+    else
+      f:Hide()
+    end
+    return
+  end
+  if f.lists then
+    setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. GC.BuyLists.NotAList(why) .. "|r")
+    return
+  end
+end
+
+-- The second button shows for a new list from a TSM string that has subgroups, and only then.
+local function refreshPerGroup(f)
+  if not f.perGroup then return end
+  local show = false
+  if f.lists and not f.into then
+    local parsed = GC.ListStrings and GC.ListStrings.Parse(f.edit:GetText() or "")
+    show = parsed and parsed.subgroups ~= nil or false
+  end
+  local label = GC.Util.ClientText(GC.L["One list per subgroup"])
+  f.perGroup:SetText(label)
+  -- Sized to its label, so it is never cut in a longer language.
+  local fs = f.perGroup:GetFontString()
+  f.perGroup:SetWidth(math.max(140, (fs and fs:GetStringWidth() or 0) + 24))
+  f.perGroup:SetShown(show)
+end
+
 local function createDialog()
   local f = CreateFrame("Frame", "GoldCapImportDialog", UIParent, "BasicFrameTemplateWithInset")
   f:SetSize(520, 300)
@@ -41,6 +90,7 @@ local function createDialog()
   edit:SetWidth(460)
   edit:SetAutoFocus(true)
   edit:SetScript("OnEscapePressed", function() f:Hide() end)
+  edit:SetScript("OnTextChanged", function() refreshPerGroup(f) end)
   scroll:SetScrollChild(edit)
   f.edit = edit
 
@@ -65,34 +115,8 @@ local function createDialog()
     -- front once went to the price parser, which answered "not a GoldCap import string" about a
     -- run it had never been asked to read.
     if f.lists and not text:find("GCS1;", 1, true) and GC.BuyLists and GC.BuyLists.ImportText then
-      local result, why = GC.BuyLists.ImportText(text, f.into)
-      if result and result.error then
-        setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. result.error .. "|r")
-        return
-      end
-      if result then
-        for _, line in ipairs(result.printed or {}) do GC.Print(line) end
-        -- ...and the tab shows it now. GC.Buy picks a run in Show(), so a run pasted while the BUY
-        -- tab was already on screen sat in the list unseen until the player left the tab and came
-        -- back -- which reads as an import that did nothing. Guarded because this file loads
-        -- before UI/BuyFrame.lua and specs load it on its own.
-        if result.code and GC.Buy and GC.Buy.SelectRun then
-          GC.Buy.SelectRun(result.code)
-          GC.Buy.RefreshIfShown()
-        end
-        f.edit:SetText("")
-        -- What was left out stays on screen until the player has read it.
-        if result.missed then
-          setStatus(f, result.missed)
-        else
-          f:Hide()
-        end
-        return
-      end
-      if f.lists then
-        setStatus(f, "|cffff4040" .. GC.L["Import failed:"] .. " " .. GC.BuyLists.NotAList(why) .. "|r")
-        return
-      end
+      importLists(f, text)
+      return
     end
     -- Final review I2: no Forever import string exists yet (goldcap.gg has not shipped one),
     -- so anything pasted here on a Forever client is a retail string -- and would feed the
@@ -123,6 +147,13 @@ local function createDialog()
     f:Hide()
   end)
 
+  local perGroup = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  perGroup:SetHeight(22)
+  perGroup:SetPoint("RIGHT", btn, "LEFT", -6, 0)
+  perGroup:SetScript("OnClick", function() importLists(f, f.edit:GetText() or "", true) end)
+  perGroup:Hide()
+  f.perGroup = perGroup
+
   return f
 end
 
@@ -144,6 +175,7 @@ function GC.UI.ShowImportDialog(opts)
     dialog.hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
   end
   setStatus(dialog, "")
+  refreshPerGroup(dialog)
   -- Above the docked window (HIGH, toplevel) and the auction house it docks into: opened from
   -- the BUY tab's run menu, a MEDIUM-strata dialog came up behind them and read as a dead entry.
   if dialog.SetFrameStrata then dialog:SetFrameStrata("DIALOG") end

@@ -1229,6 +1229,7 @@ GC.Locales.ruRU = {
     "С goldcap.gg: переименовывайте и удаляйте там",
   ["GoldCap: Import a list"] = "GoldCap: импорт списка",
   ["Import a list…"] = "Импортировать список…",
+  ["One list per subgroup"] = "Список на каждую подгруппу",
   ["Import into this list…"] = "Импортировать в этот список…",
   ["Imported %s with %d items."] = "Список «%s» импортирован, предметов: %d.",
   ["List %d"] = "Список %d",

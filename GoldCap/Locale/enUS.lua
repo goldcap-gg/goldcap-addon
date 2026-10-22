@@ -485,6 +485,7 @@ GC.Locales.enUS = {
   ["Nothing to watch on this board yet."] = "Nothing to watch on this board yet.",
   ["ON THE AUCTION HOUSE"] = "ON THE AUCTION HOUSE",
   ["On the AH now"] = "On the AH now",
+  ["One list per subgroup"] = "One list per subgroup",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime."] =
     "One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown: rescan anytime.",
   ["Open the Auction House first."] = "Open the Auction House first.",

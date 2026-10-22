@@ -1230,6 +1230,7 @@ GC.Locales.ukUA = {
   ["From goldcap.gg: rename or remove it there"] = "З goldcap.gg: перейменовуйте й видаляйте там",
   ["GoldCap: Import a list"] = "GoldCap: імпорт списку",
   ["Import a list…"] = "Імпортувати список…",
+  ["One list per subgroup"] = "Список на кожну підгрупу",
   ["Import into this list…"] = "Імпортувати в цей список…",
   ["Imported %s with %d items."] = "Список «%s» імпортовано, предметів: %d.",
   ["List %d"] = "Список %d",
