@@ -714,6 +714,9 @@ local function onCancelQueueClick()
   end
   -- No run, one that lapsed, or a head the confirm did not count: arm the queue. Nothing is
   -- cancelled in this press, so it may open the head's position for the confirm to find its row.
+  -- An arm still asking (a lot's own Cancel lot, a post's Confirm) is answered "no" first, as a
+  -- click on a row answers it: it held every render and painted this button as its own.
+  Post.WalkAway()
   local run = Run.Start(S.cancelEntries, C_AuctionHouse and C_AuctionHouse.GetCancelCost, now)
   S.cancelRun = run
   for other in pairs(UI.expanded) do UI.expanded[other] = nil end

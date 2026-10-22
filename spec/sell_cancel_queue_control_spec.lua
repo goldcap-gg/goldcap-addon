@@ -626,6 +626,22 @@ describe("Sell tab, the cancel queue control", function()
       assert.same({ first, 80 }, cancelled)
     end)
 
+    -- A lot's own Cancel lot, armed and waiting for its second click, holds every render and
+    -- painted the dock's button as its own. Arming the queue answers it "no", as a click on a row
+    -- does, so the queue's CONFIRM is the button's and the head's row is on screen for it.
+    it("lets go of a lot's own armed Cancel lot when it arms the queue", function()
+      GC.SellState.filterMode = "cancelqueue"
+      GC.SellUI.ROW.armLot(GC.SellState.cancelEntries[1])
+      assert.equal("armed", GC.SellState.repostingRow.repostStage)
+      press(1000)
+      assert.is_nil(GC.SellState.repostingRow)
+      assert.equal("armed", GC.SellState.cancelRun.stage)
+      assert.equal("CONFIRM", container.cancelButton.label)
+      press(1001.2)
+      assert.equal(1, cancelCalls)
+      assert.equal("CANCEL NEXT (2)", container.cancelButton.label)
+    end)
+
     it("counts down only the lots the confirm showed", function()
       local live = { LOTS[1], LOTS[2], LOTS[3] }
       _G.C_AuctionHouse.GetOwnedAuctions = function() return live end
