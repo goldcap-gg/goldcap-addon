@@ -86,22 +86,34 @@ end
 --- the counts are what the bags and the bank show, each list is what the presses of its button
 --- move, in order, and `stays` is what the bags keep because the Warband Bank must not take it,
 --- { itemID, name, count, why } summed per item and reason ("refund" or "refused"), by name.
---- Stacks are UI/BankRoute.lua's: { itemID, bag, slot, count, name, locked, stays }.
+--- Stacks are UI/BankRoute.lua's: { itemID, bag, slot, count, name, locked, stays }. Each group
+--- also carries what no press can raise, for the card to size itself once: `items`, every item of
+--- the group here { itemID, name, count } with its count in the bags and the bank together, and
+--- `stackCount`, its stacks in both (a stack moves whole, and landing on another only merges them).
 --- `opts.groupOf(itemID)` names an item's group, `opts.keepFor(name)` its keep count, and
 --- `opts.moving[bag .. ":" .. slot]` marks a stack a press has sent.
 function M.Plan(bagStacks, bankStacks, opts)
   local moving = opts.moving or {}
   local groups, byName = {}, {}
+  -- The stack's group, or nil; the stack is counted in it (stackCount, items).
   local function groupFor(stack)
     local name = opts.groupOf(stack.itemID)
     if not name then return nil end
     local group = byName[name]
     if not group then
       group = { name = name, inBags = 0, inBank = 0, keep = opts.keepFor(name) or 0, toBank = {}, toBags = {},
-        stays = {}, items = {}, bankItems = {}, staysBy = {} }
+        stays = {}, items = {}, stackCount = 0, bagItems = {}, bankItems = {}, staysBy = {}, totals = {} }
       byName[name] = group
       groups[#groups + 1] = group
     end
+    group.stackCount = group.stackCount + 1
+    local total = group.totals[stack.itemID]
+    if not total then
+      total = { itemID = stack.itemID, name = stack.name, count = 0 }
+      group.totals[stack.itemID] = total
+      group.items[#group.items + 1] = total
+    end
+    total.count = total.count + stack.count
     return group
   end
   local function itemIn(list, stack)
@@ -120,7 +132,7 @@ function M.Plan(bagStacks, bankStacks, opts)
     local group = groupFor(stack)
     if group then
       group.inBags = group.inBags + stack.count
-      local item = itemIn(group.items, stack)
+      local item = itemIn(group.bagItems, stack)
       -- What the bags hold once the stacks already sent have left.
       if not moving[key(stack)] then item.kept = item.kept + stack.count end
       if stack.stays then
@@ -153,7 +165,7 @@ function M.Plan(bagStacks, bankStacks, opts)
     return out
   end
   for _, group in ipairs(groups) do
-    for _, item in ipairs(sortedItems(group.items)) do
+    for _, item in ipairs(sortedItems(group.bagItems)) do
       table.sort(item.stacks, stackOrder)
       local left = item.kept
       for _, stack in ipairs(item.stacks) do
@@ -171,7 +183,8 @@ function M.Plan(bagStacks, bankStacks, opts)
       if a.name ~= b.name or a.itemID ~= b.itemID then return itemOrder(a, b) end
       return a.why < b.why
     end)
-    group.items, group.bankItems, group.staysBy = nil, nil, nil
+    table.sort(group.items, itemOrder)
+    group.bagItems, group.bankItems, group.staysBy, group.totals = nil, nil, nil, nil
   end
   table.sort(groups, function(a, b) return a.name < b.name end)
   return groups

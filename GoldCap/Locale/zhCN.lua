@@ -1423,6 +1423,8 @@ GC.Locales.zhCN = {
   ["How many of each item in %s to keep in your bags?"] = "%s 的每种物品要在背包里保留多少？",
   ["To bank: %s ×%d (%d left)"] = "存入银行：%s ×%d（剩 %d）",
   ["To bags: %s ×%d (%d left)"] = "取到背包：%s ×%d（剩 %d）",
+  ["To bank: nothing to move"] = "存入银行：没有可移动的",
+  ["To bags: nothing to move"] = "取到背包：没有可移动的",
   ["Stays in bags: %s ×%d, can still be refunded"] = "留在背包：%s ×%d，还可以退款",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "留在背包：%s ×%d，战团银行不接受",
 }

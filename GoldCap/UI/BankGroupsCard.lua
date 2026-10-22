@@ -1,6 +1,6 @@
 local _, GC = ...
 
--- At a bank: bank by group. Beside the bank window (under the carry list, UI/BankRoute.lua, when
+-- At a bank: bank by group. Beside the bank window (beside the carry list, UI/BankRoute.lua, when
 -- that shows), the groups the player follows on goldcap.gg that have items in the bags or the
 -- Warband Bank, each with how many are where, To bank and To bags, how many of each item it keeps
 -- in the bags (GC.db.bankKeep, Core/BankGroups.lua), and which stacks stay in the bags and why
@@ -10,9 +10,15 @@ local _, GC = ...
 --
 -- One stack a press, moved inside the player's own click through the bank route's MoveStack,
 -- whose guards apply: the bank is the window, the slot still holds the stack, unlocked, and the
--- Warband Bank may take it (spec/bank_route_spec.lua audits the call sites). The button is never
--- put to sleep: it names the next stack as soon as a press has sent one, and a stack sent is
--- offered again only if the bags have not shown it moved within the route's SETTLE_SECONDS.
+-- Warband Bank may take it (spec/bank_route_spec.lua audits the call sites). The button names the
+-- next stack as soon as a press has sent one, and a stack sent is offered again only if the bags
+-- have not shown it moved within the route's SETTLE_SECONDS.
+--
+-- Pressed again and again in one spot, so nothing on the card moves between two presses: each
+-- button has its own row, kept when its list is empty (it then says so and is disabled, by the
+-- repaint after its own last press); the card's width is set for the widest label a press can
+-- bring, and the counts line keeps room for the most it can say. The card has its own column,
+-- beside the carry list, so that list growing or emptying does not move it either.
 --
 -- Wired through the bank route's own handlers, which Core/Init.lua's event frame calls: the card
 -- hooks them as it loads (after UI/BankRoute.lua in GoldCap.toc). Retail only: GoldCap_Camelot.toc
@@ -29,6 +35,10 @@ C._blocks = {}
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
 C._moving = {}
+-- While the bank is open: the card's width, which only grows, and whether the carry list has shown
+-- (the card then keeps the column beside it until the bank closes).
+C._width = nil
+C._besideRoute = false
 local frame
 local settleSeq = 0
 
@@ -41,13 +51,15 @@ local function heightOf(fs, fallback)
   return type(h) == "number" and h or fallback
 end
 
---- Under the carry list when it shows, else beside the bank window.
+--- Beside the carry list once it has shown in this visit to the bank, else beside the bank window:
+--- a column of its own, which the carry list's height never moves.
 function C._Place()
+  local route, bank = GC.BankRoute._frame, _G.BankFrame
+  if isUp(route) then C._besideRoute = true end
   if not frame then return end
   frame:ClearAllPoints()
-  local route, bank = GC.BankRoute._frame, _G.BankFrame
-  if isUp(route) then
-    frame:SetPoint("TOPLEFT", route, "BOTTOMLEFT", 0, -LAYOUT.GAP)
+  if C._besideRoute and route then
+    frame:SetPoint("TOPLEFT", route, "TOPRIGHT", LAYOUT.X, 0)
   elseif isUp(bank) then
     frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", LAYOUT.X, 0)
   else
@@ -151,6 +163,10 @@ local function blockAt(i)
   return block
 end
 
+local function itemName(item)
+  return (item.name or ("#" .. tostring(item.itemID))) .. GC.Theme.QualityMarkup(item.itemID, 12)
+end
+
 -- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W: a
 -- label is never cut. Answers the width; the card grows to the widest.
 local function fitButton(button)
@@ -162,18 +178,28 @@ local function fitButton(button)
   return w
 end
 
--- What the next press moves and how many presses are left, or nothing to press.
-local function paintMove(button, stacks, format)
+-- What the next press moves and how many presses are left. With nothing to move the button stays
+-- in its row, says so and is disabled: from the start, or by the repaint its own last press makes
+-- after its call. Its width is the widest label it can show while the bank is open (each item of
+-- the group with its total and the group's stack count, which no press raises), so a press never
+-- resizes it; answers that width.
+local function paintMove(button, group, stacks, format, done)
   local stack = stacks[1]
   button.stack = stack
-  if not stack then
-    button:Hide()
-    return 0
+  local labels = { done }
+  for _, item in ipairs(group.items) do
+    labels[#labels + 1] = format:format(itemName(item), item.count, group.stackCount)
   end
-  local name = (stack.name or ("#" .. tostring(stack.itemID))) .. GC.Theme.QualityMarkup(stack.itemID, 12)
-  button:SetLabel(format:format(name, stack.count, #stacks))
-  button:Show()
-  return fitButton(button)
+  if stack then
+    labels[#labels + 1] = format:format(itemName(stack), stack.count, #stacks)
+    button:SetLabel(labels[#labels])
+    button:Enable()
+  else
+    button:SetLabel(done)
+    button:Disable()
+  end
+  button:FitLabels(labels, LAYOUT.BUTTON_MIN_W)
+  return button:GetWidth()
 end
 
 -- One line a stack that stays in the bags, per item and reason (Core/BankGroups.lua's `stays`).
@@ -184,7 +210,7 @@ local function paintStays(block, stays)
       fs = wrappingLabel(block, 10, GC.Theme.color.fgDim)
       block.stays[i] = fs
     end
-    local name = (entry.name or ("#" .. tostring(entry.itemID))) .. GC.Theme.QualityMarkup(entry.itemID, 12)
+    local name = itemName(entry)
     local why = entry.why == "refund" and GC.L["Stays in bags: %s ×%d, can still be refunded"]
       or GC.L["Stays in bags: %s ×%d, the Warband Bank does not take it"]
     fs:SetText(why:format(name, entry.count))
@@ -196,7 +222,11 @@ end
 -- Paints a block's words and buttons; answers the widest button.
 local function paintBlock(block, group, writable)
   block.name:SetText(group.name)
-  block.counts:SetText(GC.L["%d in bags, %d in the Warband Bank"]:format(group.inBags, group.inBank))
+  local counts = GC.L["%d in bags, %d in the Warband Bank"]
+  block.counts:SetText(counts:format(group.inBags, group.inBank))
+  -- A move keeps the group's total, so neither number can grow longer than it.
+  local total = group.inBags + group.inBank
+  block.countsMost = counts:format(total, total)
   local widest = 0
   block.keep.group = group.name
   if writable then
@@ -206,13 +236,25 @@ local function paintBlock(block, group, writable)
   else
     block.keep:Hide()
   end
-  widest = math.max(widest, paintMove(block.toBank, group.toBank, GC.L["To bank: %s ×%d (%d left)"]))
-  widest = math.max(widest, paintMove(block.toBags, group.toBags, GC.L["To bags: %s ×%d (%d left)"]))
+  widest = math.max(widest, paintMove(block.toBank, group, group.toBank, GC.L["To bank: %s ×%d (%d left)"],
+    GC.L["To bank: nothing to move"]))
+  widest = math.max(widest, paintMove(block.toBags, group, group.toBags, GC.L["To bags: %s ×%d (%d left)"],
+    GC.L["To bags: nothing to move"]))
   paintStays(block, group.stays)
   return widest
 end
 
--- Lays a block out at the card's inner width, top to bottom; answers its height.
+-- The counts line's height: room for the most it can say while the bank is open.
+local function countsHeight(counts, most)
+  local said = counts:GetText()
+  counts:SetText(most)
+  local h = heightOf(counts, 10)
+  counts:SetText(said)
+  return math.max(h, heightOf(counts, 10))
+end
+
+-- Lays a block out at the card's inner width, top to bottom; answers its height. The keep, To bank
+-- and To bags rows keep their place whether or not their button shows.
 local function layoutBlock(block, inner)
   block:SetWidth(inner)
   block.name:SetWidth(inner)
@@ -220,14 +262,12 @@ local function layoutBlock(block, inner)
   local y = heightOf(block.name, 12) + LAYOUT.LINE_GAP
   block.counts:ClearAllPoints()
   block.counts:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
-  y = y + heightOf(block.counts, 10)
+  y = y + countsHeight(block.counts, block.countsMost)
   for _, button in ipairs({ block.keep, block.toBank, block.toBags }) do
-    if button:IsShown() then
-      y = y + LAYOUT.GAP
-      button:ClearAllPoints()
-      button:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
-      y = y + (button == block.keep and LAYOUT.KEEP_H or LAYOUT.BUTTON_H)
-    end
+    y = y + LAYOUT.GAP
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
+    y = y + (button == block.keep and LAYOUT.KEEP_H or LAYOUT.BUTTON_H)
   end
   for _, fs in ipairs(block.stays) do
     if fs:IsShown() then
@@ -254,7 +294,9 @@ local function paint(groups)
     widest = math.max(widest, paintBlock(blockAt(i), group, writable))
   end
   for i = #groups + 1, #C._blocks do C._blocks[i]:Hide() end
-  local width = math.max(LAYOUT.WIDTH, widest + 2 * LAYOUT.PAD)
+  -- Only ever wider while the bank is open: a narrower card would wrap its lines anew.
+  local width = math.max(LAYOUT.WIDTH, widest + 2 * LAYOUT.PAD, C._width or 0)
+  C._width = width
   local inner = width - 2 * LAYOUT.PAD
   frame:SetWidth(width)
   frame.title:SetWidth(inner)
@@ -291,13 +333,15 @@ function C.Refresh()
   paint(groups)
 end
 
+-- The route has painted already (the card's hooks run after its handlers): the carry list's
+-- column is known.
 function C.OnBankOpened()
-  C._moving = {}
+  C._moving, C._width, C._besideRoute = {}, nil, isUp(GC.BankRoute._frame) and true or false
   C.Refresh()
 end
 
 function C.OnBankClosed()
-  C._moving = {}
+  C._moving, C._width, C._besideRoute = {}, nil, false
   hide()
 end
 

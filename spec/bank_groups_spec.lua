@@ -134,6 +134,16 @@ describe("bank by group", function()
       assert.same({}, plan({ stack(3, 0, 1, 10) }, {})[1].stays)
     end)
 
+    -- What a press can never raise: an item's total in the bags and the bank together, and the
+    -- group's number of stacks (a stack moves whole; landing on another only merges the two).
+    -- The card sizes itself for the widest label these allow, so it does not change between presses.
+    it("names every item of the group with its total here, and counts the group's stacks", function()
+      local herbs = plan({ stack(1, 0, 1, 200), stack(1, 0, 2, 20, { stays = "refund" }), stack(2, 0, 3, 5) },
+        { stack(1, 12, 1, 600) }, nil, { ["0:3"] = true })[1]
+      assert.same({ { itemID = 1, name = "Bloom", count = 820 }, { itemID = 2, name = "Bloom", count = 5 } }, herbs.items)
+      assert.equal(4, herbs.stackCount)
+    end)
+
     it("orders a group's items by name, then by item", function()
       GROUP[4] = "Herbs"
       NAMES[4] = "Aethril"

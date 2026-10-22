@@ -19,11 +19,13 @@ describe("bank by group card", function()
     caps = {
       { i = 1, c = 700, u = 1000, r = 1, k = true }, { i = 2, c = 700, u = 1000, r = 1, k = true },
       { i = 3, c = 700, u = 1000, r = 2, k = true }, { i = 4, c = 700, u = 1000, r = 3, k = true },
+      { i = 6, c = 700, u = 1000, r = 1, k = true },
     },
     rules = { { n = "Herbs", p = "gather", d = 24, fp = 80 }, { n = "Ore", p = "gather", d = 24, fp = 80 },
       { n = "Cloth", p = "gather", d = 24, fp = 80 } },
   }
-  local NAMES = { [1] = "Bloom", [2] = "Bloom", [3] = "Bismuth", [4] = "Weavercloth", [9] = "Linen Cloth" }
+  local NAMES = { [1] = "Bloom", [2] = "Bloom", [3] = "Bismuth", [4] = "Weavercloth", [6] = "Mycobloom of the Deepest Earthen Caverns",
+    [9] = "Linen Cloth" }
 
   local function info(itemID, count, over)
     local i = { itemID = itemID, itemName = NAMES[itemID], stackCount = count, iconFileID = itemID,
@@ -43,6 +45,7 @@ describe("bank by group card", function()
   end
 
   local function press(button) W.state(button).scripts.OnClick(button) end
+  local function at(widget) return W.state(widget).points[1] end
 
   local function open()
     GC.BankRoute.OnBankOpened()
@@ -132,7 +135,11 @@ describe("bank by group card", function()
     local herbs = block("Herbs")
     assert.equal("To bank: Bloom ×200 (2 left)", herbs.toBank.label)
     assert.equal("To bags: Bloom ×600 (1 left)", herbs.toBags.label)
-    assert.is_false(shown(block("Ore").toBags))
+    -- Nothing of Ore in the Warband Bank: its To bags stays in its place, saying so, disabled.
+    local oreBags = block("Ore").toBags
+    assert.is_true(shown(oreBags))
+    assert.equal("To bags: nothing to move", oreBags.label)
+    assert.is_false(oreBags:IsEnabled())
   end)
 
   it("puts exactly one stack in the Warband Bank a press, inside the click, and names the next one at once", function()
@@ -147,15 +154,18 @@ describe("bank by group card", function()
     press(block("Herbs").toBank)
     assert.equal(2, #used)
     assert.same({ n = 5, 0, 2, nil, ACCOUNT, false }, used[2])
-    -- Both on their way: nothing more to send.
-    assert.is_false(shown(block("Herbs").toBank))
+    -- Both on their way: nothing more to send. The button stays where it was, disabled.
+    assert.is_true(shown(toBank))
+    assert.equal("To bank: nothing to move", toBank.label)
+    assert.is_false(toBank:IsEnabled())
   end)
 
   it("takes exactly one stack out of the Warband Bank a press", function()
     open()
     press(block("Herbs").toBags)
     assert.same({ { n = 2, 12, 1 } }, used)
-    assert.is_false(shown(block("Herbs").toBags))
+    assert.equal("To bags: nothing to move", block("Herbs").toBags.label)
+    assert.is_false(block("Herbs").toBags:IsEnabled())
   end)
 
   it("repaints when the game shows the move, and offers a stack again when nothing moved in time", function()
@@ -167,12 +177,57 @@ describe("bank by group card", function()
     assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
     -- A press the server refused (a full bank): the stack stays in its slot.
     press(block("Herbs").toBank)
-    assert.is_false(shown(block("Herbs").toBank))
+    assert.is_false(block("Herbs").toBank:IsEnabled())
     GC.BankRoute.OnBagsChanged()
-    assert.is_false(shown(block("Herbs").toBank))
+    assert.is_false(block("Herbs").toBank:IsEnabled())
     timers[#timers].fn()
     assert.equal(GC.BankRoute.SETTLE_SECONDS, timers[#timers].seconds)
     assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    assert.is_true(block("Herbs").toBank:IsEnabled())
+  end)
+
+  -- The card is pressed again and again in one spot: nothing on it moves between two presses, so
+  -- a press never lands on another button. An emptied button stays where it was and is disabled
+  -- only after its own last move; the card's width (and so every line's wrapping) is set for the
+  -- widest label any press can bring, and each line keeps room for the most it can say.
+  it("keeps every button and line where it is between presses, an emptied button included", function()
+    bags[0][4] = info(6, 5)
+    open()
+    local card, herbs, ore = C._frame, block("Herbs"), block("Ore")
+    local function snapshot()
+      return {
+        width = card:GetWidth(), height = card:GetHeight(), herbs = at(herbs), ore = at(ore),
+        keep = at(herbs.keep), toBank = at(herbs.toBank), toBags = at(herbs.toBags),
+        bankW = herbs.toBank:GetWidth(), bagsW = herbs.toBags:GetWidth(), oreBank = at(ore.toBank),
+      }
+    end
+    local before = snapshot()
+    local enabledAtCall = {}
+    local use = _G.C_Container.UseContainerItem
+    _G.C_Container.UseContainerItem = function(...)
+      enabledAtCall[#enabledAtCall + 1] = herbs.toBank:IsEnabled()
+      return use(...)
+    end
+    press(herbs.toBank)
+    press(herbs.toBank)
+    -- The next one has the longest name of the group: the card was already wide enough for it.
+    assert.equal("To bank: Mycobloom of the Deepest Earthen Caverns ×5 (1 left)", herbs.toBank.label)
+    assert.same(before, snapshot())
+    press(herbs.toBank)
+    assert.same({ true, true, true }, enabledAtCall)
+    assert.equal("To bank: nothing to move", herbs.toBank.label)
+    assert.is_false(herbs.toBank:IsEnabled())
+    -- A press on it now moves nothing, and never reaches To bags.
+    press(herbs.toBank)
+    assert.equal(3, #used)
+    assert.same(before, snapshot())
+    -- The three land in the Warband Bank: To bags has four stacks now, To bank none.
+    bags[12][2], bags[12][3], bags[12][4] = bags[0][1], bags[0][2], bags[0][4]
+    bags[0][1], bags[0][2], bags[0][4] = info(9, 1), info(9, 1), info(9, 1)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("0 in bags, 825 in the Warband Bank", textOf(herbs.counts))
+    assert.equal("To bags: Bloom ×200 (4 left)", herbs.toBags.label)
+    assert.same(before, snapshot())
   end)
 
   it("keeps the keep count of each item in the bags, set from the card and remembered for the account", function()
@@ -192,7 +247,8 @@ describe("bank by group card", function()
     -- 220 Bloom: the 200 would leave 20, under 30; the 20 leaves 200.
     assert.equal("To bank: Bloom ×20 (1 left)", herbs.toBank.label)
     asked.opts.onCommit(300)
-    assert.is_false(shown(block("Herbs").toBank))
+    assert.equal("To bank: nothing to move", block("Herbs").toBank.label)
+    assert.is_false(block("Herbs").toBank:IsEnabled())
     assert.equal("To bags: Bloom ×600 (1 left)", block("Herbs").toBags.label)
   end)
 
@@ -236,7 +292,7 @@ describe("bank by group card", function()
   it("never offers a stack still refundable or one the Warband Bank refuses, and refuses it at the press too", function()
     refundable["0:1"], refused["0:2"] = true, true
     open()
-    assert.is_false(shown(block("Herbs").toBank))
+    assert.is_false(block("Herbs").toBank:IsEnabled())
     assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
     refundable["0:1"], refused["0:2"] = nil, nil
     GC.BankRoute.OnBagsChanged()
@@ -308,14 +364,31 @@ describe("bank by group card", function()
     assert.equal(0, reads)
   end)
 
-  it("sits under the carry list when it shows, else beside the bank window", function()
+  -- Its own column: beside the carry list, never under it, so the carry list growing, shrinking
+  -- or emptying does not move the card. Once the carry list has shown, the card keeps that column
+  -- until the bank closes.
+  it("sits beside the carry list in its own column, else beside the bank window, and stays put while the bank is open", function()
     open()
-    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 4, 0 }, W.state(C._frame).points[1])
+    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 4, 0 }, at(C._frame))
+    assert.equal(1, #W.state(C._frame).points)
     local route = W.CreateFrame("Frame")
     route:Show()
     GC.BankRoute._frame = route
     GC.BankRoute.Refresh()
-    assert.same({ "TOPLEFT", route, "BOTTOMLEFT", 0, -4 }, W.state(C._frame).points[1])
+    assert.same({ "TOPLEFT", route, "TOPRIGHT", 4, 0 }, at(C._frame))
+    route:SetHeight(400)
+    GC.BankRoute.Refresh()
+    route:Hide()
+    GC.BankRoute.OnBagsChanged()
+    assert.same({ "TOPLEFT", route, "TOPRIGHT", 4, 0 }, at(C._frame))
+    -- A new visit starts beside whatever shows then.
+    GC.BankRoute.OnBankClosed()
+    open()
+    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 4, 0 }, at(C._frame))
+    route:Show()
+    GC.BankRoute.OnBankClosed()
+    open()
+    assert.same({ "TOPLEFT", route, "TOPRIGHT", 4, 0 }, at(C._frame))
   end)
 
   it("hides its keep button when a newer GoldCap saved the keep counts", function()

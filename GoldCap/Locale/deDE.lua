@@ -1523,6 +1523,8 @@ GC.Locales.deDE = {
   ["How many of each item in %s to keep in your bags?"] = "Wie viele von jedem Gegenstand aus %s willst du in den Taschen behalten?",
   ["To bank: %s ×%d (%d left)"] = "In die Bank: %s ×%d (noch %d)",
   ["To bags: %s ×%d (%d left)"] = "In die Taschen: %s ×%d (noch %d)",
+  ["To bank: nothing to move"] = "In die Bank: nichts zu verschieben",
+  ["To bags: nothing to move"] = "In die Taschen: nichts zu verschieben",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Bleibt in den Taschen: %s ×%d, kann noch zurückgegeben werden",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Bleibt in den Taschen: %s ×%d, die Kriegsmeutenbank nimmt es nicht",
 }

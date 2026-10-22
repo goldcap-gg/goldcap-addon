@@ -397,10 +397,18 @@ describe("bank carry list", function()
       end
     end)
 
-    it("puts the carry list's button to sleep only after the call, and the group card's never", function()
+    -- The group card's click disables nothing itself: it calls MoveStack, then repaints, and only
+    -- the repaint disables a button whose list is now empty (paintMove).
+    it("puts a button to sleep only after the call: the carry list's in its click, the group card's in the repaint after it", function()
       local body = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_true(assert(body:find("P.MoveStack(", 1, true)) < assert(body:find("button:Disable()", 1, true)))
-      assert.is_nil(read(CARD):find("Disable(", 1, true))
+      local card = read(CARD)
+      local move = bodyOf(card, "local function onMoveClick(")
+      assert.is_nil(move:find("Disable(", 1, true))
+      assert.is_true(assert(move:find("GC.BankRoute.MoveStack(", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
+      local paint = bodyOf(card, "local function paintMove(")
+      assert.equal(1, count(card, "Disable("))
+      assert.equal(1, count(paint, "button:Disable()"))
     end)
 
     it("loads in retail only, after the route module, and the group card after the route", function()
