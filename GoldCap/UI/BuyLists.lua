@@ -257,11 +257,12 @@ end
 
 --- Imports a pasted list: a goldcap.gg run string (GCR1), a TSM string or an Auctionator list,
 --- each list of it as a new list, or every item of it into `into` (one of the player's own lists).
---- Names are resolved with NameLookup; what could not be is named back, and the rest imported.
+--- With `perSubgroup` (and no `into`), a TSM group's subgroups are the lists instead of the one list
+--- named after the group. Names are resolved with NameLookup; what could not be is named back, and the rest imported.
 --- Returns nil and why (Core/ListStrings.lua's Parse) when the text is none of the three, else
 --- { error = text } when nothing could be imported, or { code = <the list to show>, printed =
 --- { chat lines }, missed = <a sentence, when names were left out> }.
-function GC.BuyLists.ImportText(text, into)
+function GC.BuyLists.ImportText(text, into, perSubgroup)
   if type(text) ~= "string" then return nil, "empty" end
   local lists
   if text:match("^%s*GCR1;") then
@@ -279,7 +280,9 @@ function GC.BuyLists.ImportText(text, into)
     if not parsed then return nil, why end
     local lookup = GC.BuyLists.NameLookup()
     lists = {}
-    for _, list in ipairs(parsed.lists) do
+    -- A TSM group with subgroups can come in as one list per subgroup; into a list it never does.
+    local source = (perSubgroup and not into and parsed.subgroups) or parsed.lists
+    for _, list in ipairs(source) do
       local lines, unresolved = GC.ListStrings.Resolve(list.items, lookup)
       lists[#lists + 1] = { name = list.name, lines = knownLines(lines, unresolved), unresolved = unresolved }
     end

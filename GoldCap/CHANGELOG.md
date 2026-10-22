@@ -31,6 +31,8 @@
   equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
   or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
   only when they are junk.
+- BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
+  group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
 - Settings: a new POSTING setting cancels a lot only when someone undercuts you by more than a set
   percent.
 - Settings: the Vendor card turns either kind off, Sell junk or Better at vendor, and forgets the

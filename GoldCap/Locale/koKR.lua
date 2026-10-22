@@ -1101,6 +1101,7 @@ GC.Locales.koKR = {
   ["From goldcap.gg: rename or remove it there"] = "goldcap.gg 목록: 이름 변경과 삭제는 거기서 하세요",
   ["GoldCap: Import a list"] = "GoldCap: 목록 가져오기",
   ["Import a list…"] = "목록 가져오기…",
+  ["One list per subgroup"] = "하위 그룹별 목록",
   ["Import into this list…"] = "이 목록으로 가져오기…",
   ["Imported %s with %d items."] = "%s 목록을 가져왔습니다. 아이템 %d개.",
   ["List %d"] = "목록 %d",

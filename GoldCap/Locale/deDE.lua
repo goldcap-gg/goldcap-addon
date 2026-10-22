@@ -1160,6 +1160,7 @@ GC.Locales.deDE = {
     "Von goldcap.gg: dort umbenennen oder entfernen",
   ["GoldCap: Import a list"] = "GoldCap: Liste importieren",
   ["Import a list…"] = "Liste importieren…",
+  ["One list per subgroup"] = "Eine Liste pro Untergruppe",
   ["Import into this list…"] = "In diese Liste importieren…",
   ["Imported %s with %d items."] = "%s mit %d Gegenständen importiert.",
   ["List %d"] = "Liste %d",

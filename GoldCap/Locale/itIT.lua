@@ -1159,6 +1159,7 @@ GC.Locales.itIT = {
   ["From goldcap.gg: rename or remove it there"] = "Da goldcap.gg: rinominala o rimuovila lì",
   ["GoldCap: Import a list"] = "GoldCap: Importa una lista",
   ["Import a list…"] = "Importa una lista…",
+  ["One list per subgroup"] = "Una lista per sottogruppo",
   ["Import into this list…"] = "Importa in questa lista…",
   ["Imported %s with %d items."] = "Importata %s con %d oggetti.",
   ["List %d"] = "Lista %d",
