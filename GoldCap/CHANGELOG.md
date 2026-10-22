@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.23.0 (unreleased)
+
+- BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A group with
+  subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
+
 ## 0.22.1 (unreleased)
 
 - Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
