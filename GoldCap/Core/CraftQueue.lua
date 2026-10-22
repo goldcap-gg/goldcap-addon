@@ -21,6 +21,9 @@ local C = {
   -- Enum.AuctionStatus.Sold (AuctionHouseDocumentation.lua): a sold auction stays in the owned
   -- list until its gold is collected, and it is no longer anything the player holds.
   SOLD = 1,
+  -- The longest an auction runs: a read of the owned auctions older than that may count auctions
+  -- that sold, expired and were collected since.
+  LISTED_MAX_AGE = 48 * 3600,
 }
 
 local function isWhole(n, min)
@@ -237,10 +240,13 @@ function Q.FoldListed(char, owned, now)
   c.listedAt = now
 end
 
---- What this character has up on the auction house, and when that was read (nil: not yet).
-function Q.Listed(char)
+--- What this character has up on the auction house, and when that was read (nil: not yet). With
+--- `now`, a read older than the longest auction (48 hours) is no read: {} and nil.
+function Q.Listed(char, now)
   local c = charOf(char, false)
   if not c then return {}, nil end
+  local at = tonumber(c.listedAt)
+  if at and type(now) == "number" and now - at > C.LISTED_MAX_AGE then return {}, nil end
   return c.listed, c.listedAt
 end
 

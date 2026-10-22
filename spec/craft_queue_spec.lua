@@ -172,6 +172,17 @@ describe("craft queue", function()
     assert.equal(1300, at)
   end)
 
+  it("takes a read older than the longest auction, 48 hours, as no read", function()
+    -- What sold and was collected since cannot be told from it.
+    Q.FoldListed("A-R", { { itemKey = { itemID = 900 }, quantity = 4, status = 0 } }, 1000)
+    local listed, at = Q.Listed("A-R", 1000 + 48 * 3600)
+    assert.same({ [900] = 4 }, listed)
+    assert.equal(1000, at)
+    listed, at = Q.Listed("A-R", 1000 + 48 * 3600 + 1)
+    assert.same({}, listed)
+    assert.is_nil(at)
+  end)
+
   it("knows nothing listed before the auction house was seen", function()
     local listed, at = Q.Listed("A-R")
     assert.same({}, listed)

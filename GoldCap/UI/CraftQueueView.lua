@@ -38,7 +38,7 @@ end
 local function work(char)
   local CC, Q = GC.CraftClient, GC.CraftQueue
   local entries = Q.Entries(char)
-  local listed, listedAt = Q.Listed(char)
+  local listed, listedAt = Q.Listed(char, time())
   local rows, crafts = {}, {}
   for i, e in ipairs(entries) do
     local held = e.restock and Q.Held(e, CC.CountOf, listed) or nil
