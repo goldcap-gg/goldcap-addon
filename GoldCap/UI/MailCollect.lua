@@ -1,6 +1,6 @@
 local _, GC = ...
 
--- The Collect button beside the mailbox: one press takes the sales, the lots that came back, the
+-- The Collect button under the mailbox: one press takes the sales, the lots that came back, the
 -- purchases and the mail from players (Core/MailClassify.lua decides which mail, Core/MailLoop.lua
 -- paces the takes). The card anchors to MailFrame and nothing of Blizzard's is hooked or touched:
 -- no hooksecurefunc on the inbox, no InboxFrame_Update, no OpenAllMail. This file owns the only
@@ -15,7 +15,11 @@ local _, GC = ...
 GC.MailCollect = {}
 local M = GC.MailCollect
 
-local LAYOUT = { MIN_BUTTON_W = 150, BUTTON_H = 24, PAD = 10, GAP = 6, X = 4, TITLE = 12 }
+-- BELOW: how far under the mail window's bottom edge the card starts. Blizzard_MailFrame/MailFrame.xml
+-- hangs the Inbox and Send Mail tabs (32 px tall) from BOTTOMLEFT 14, -30 of MailFrame, and opens a
+-- letter in OpenMailFrame, anchored TOPLEFT to InboxFrame's TOPRIGHT and as tall as the mail window.
+-- Under the window and below its tabs is the one place beside it that neither ever covers.
+local LAYOUT = { MIN_BUTTON_W = 150, BUTTON_H = 24, PAD = 10, GAP = 6, BELOW = 34, TITLE = 12 }
 
 local frame, loop, patterns, api
 local tickToken = 0
@@ -234,7 +238,7 @@ function M.OnMailShow()
   loop, active, lastSummary = nil, false, nil
   if not frame then
     frame = build(host)
-    frame:SetPoint("TOPLEFT", host, "TOPRIGHT", LAYOUT.X, 0)
+    frame:SetPoint("TOPLEFT", host, "BOTTOMLEFT", 0, -LAYOUT.BELOW)
     frame.button:SetScript("OnClick", onCollectClick)
     frame.button:SetScript("OnEnter", showTooltip)
     frame.button:SetScript("OnLeave", function() GameTooltip:Hide() end)

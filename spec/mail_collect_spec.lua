@@ -243,6 +243,21 @@ describe("Collect button", function()
       assert.same({ true, false, true }, box:openingCalls())
     end)
 
+    -- Blizzard opens a letter in OpenMailFrame, anchored TOPLEFT to InboxFrame's TOPRIGHT and as tall
+    -- as the mail window (Blizzard_MailFrame/MailFrame.xml), so the card's old place right of the
+    -- mail window's top was under the letter. Under the mail window, below the tabs that hang
+    -- 30 px under its bottom edge (MailFrameTab1: BOTTOMLEFT 14, -30), nothing of Blizzard's mail
+    -- covers it.
+    it("sits under the mail window, below its tabs, where an open letter never reaches", function()
+      open({ SALE(1) })
+      assert.equal(1, card():GetNumPoints())
+      local point, relative, relativePoint, _, y = card():GetPoint(1)
+      assert.equal("TOPLEFT", point)
+      assert.equal(_G.MailFrame, relative)
+      assert.equal("BOTTOMLEFT", relativePoint)
+      assert.is_true(y < -30)
+    end)
+
     it("does nothing until MailFrame exists", function()
       _G.MailFrame = nil
       install({ SALE(1) })

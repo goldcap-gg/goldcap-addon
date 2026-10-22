@@ -2,7 +2,7 @@
 
 ## 0.23.0 (unreleased)
 
-- Mail: a Collect button beside the mailbox takes everything in one press: the gold from sales,
+- Mail: a Collect button under the mailbox takes everything in one press: the gold from sales,
   lots that came back, auctions you won and gold or items from other players. The button says how
   many mails it will take, and one press again stops it.
 - Mail: sales are written to the SOLD tab before their gold is taken, and mail that is still
