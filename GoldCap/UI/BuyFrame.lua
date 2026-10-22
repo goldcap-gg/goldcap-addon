@@ -169,8 +169,9 @@ GC.Buy._log = {}
 --
 --   itemID -> { qty, total, runCode, have, at, session }
 --
--- `have` is the line's HAVE at the moment it was stranded: the warning on that line lifts
--- when that number moves, which is exactly what a delivery that really happened does to it.
+-- `have` is what the bags and the banks held of the item at the moment it was stranded
+-- (carriedOf: HAVE less the mailbox): the warning on that line lifts when that number moves,
+-- which is exactly what a delivery that really happened does to it.
 GC.Buy._stranded = {}
 -- The same for a gear line's bid (BUY 2.0 week 2): a PlaceBid whose answer did not come -- the
 -- watchdog gave up, the auction house closed on it, or an error arrived that could be another
@@ -515,14 +516,39 @@ local function bankOf(itemID)
   return bank > 0 and bank or 0
 end
 
--- bags, bank -- the row tooltip is the one place the two halves are said apart.
+-- bags, bank, mailbox -- the row tooltip is the one place they are said apart. The mailbox is what
+-- Core/MailStock.lua says waits there for this character (retail only, 0 where that file is not
+-- loaded): every auction house purchase is delivered by mail, so a line that subtracted only the
+-- bags and the banks offered again what was bought and not yet taken, wherever the player held
+-- some before buying (`buy` is need - max(have, bought), Core/BuyRun.lua).
+--
+-- The character is read once, when the client first knows it whole ("Name-Realm"): HAVE is asked
+-- for every line of every Refresh, and another character is another UI session.
+local mailChar
 local function haveSplit(itemID)
-  return bagStock[itemID] or 0, bankOf(itemID)
+  local stock, mail = GC.MailStock, 0
+  if stock then
+    if not mailChar then
+      local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+      local char = context and context.char
+      if type(char) == "string" and char:find("-", 1, true) then mailChar = char end
+    end
+    mail = stock.Count(mailChar, itemID)
+  end
+  return bagStock[itemID] or 0, bankOf(itemID), mail
+end
+
+-- The bags and the banks alone: a stranded purchase's evidence (strandedFor). A purchase of the
+-- same item elsewhere moves the mailbox count, and must not lift a warning over units that may
+-- still have been bought.
+local function carriedOf(itemID)
+  local bags, bank = haveSplit(itemID)
+  return bags + bank
 end
 
 local function haveOf(itemID)
-  local bags, bank = haveSplit(itemID)
-  return bags + bank
+  local bags, bank, mail = haveSplit(itemID)
+  return bags + bank + mail
 end
 
 -- The reference a line is priced and capped against. The player's own single scan is not one
@@ -973,7 +999,7 @@ local function strandedBids(line)
   for auctionID, bid in pairs(GC.Buy._bidStranded) do
     if (time() - (bid.at or 0)) > BD.STRANDED_SECONDS then
       GC.Buy._bidStranded[auctionID] = nil
-    elseif bid.itemID == line.itemID and (bid.have == nil or line.have == bid.have) then
+    elseif bid.itemID == line.itemID and (bid.have == nil or carriedOf(line.itemID) == bid.have) then
       holding, bids = bid, bids + 1
     end
   end
@@ -1001,7 +1027,7 @@ local function strandedFor(line)
   end
   -- Released on evidence, not on a timer. The record itself is kept -- a late success still has
   -- to be bookable -- but the line stops being one the player may not touch.
-  if record.have ~= nil and line.have ~= record.have then return nil end
+  if record.have ~= nil and carriedOf(line.itemID) ~= record.have then return nil end
   return record
 end
 
@@ -1654,13 +1680,19 @@ local function settlePurchase(itemID, qty, total, runCode, itemKey)
     local listCode = not (GC.BuySearch and GC.BuySearch.IsCode(runCode)) and runCode or nil
     recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, listCode, itemKey)
     recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, listCode, mv)
+    -- On its way to the mailbox: HAVE counts it from now on (Core/MailStock.lua, retail only).
+    if GC.MailStock then
+      local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+      GC.MailStock.Bought(context and context.char, itemID, qty)
+    end
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The purchase is booked against the run whether or not the units have arrived: the auction
-  -- house delivers them as mail, so HAVE moves only once the player empties the mailbox, and
-  -- `buy` is need - max(have, bought) precisely so the line is right in the meantime. HAVE is
-  -- re-counted anyway (the mail may already be in), and the next line that still needs
-  -- something takes the focus, so Enter carries on down the run without reaching for the mouse.
+  -- house delivers them as mail. On retail HAVE counts what waits in the mailbox (haveSplit); on
+  -- WoW: Forever it moves only once the player empties the mailbox, and `buy` is
+  -- need - max(have, bought) so the line is right in the meantime. HAVE is re-counted anyway, and
+  -- the next line that still needs something takes the focus, so Enter carries on down the run
+  -- without reaching for the mouse.
   scanBags()
   GC.Buy._focus = nextOpenAfter(itemID)
   -- The dock's line -- the next one, or this same gear line with more to buy -- is read again.
@@ -2224,7 +2256,7 @@ end
 local function strandBid(attempt, line)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   GC.Buy._bidStranded[attempt.auctionID] = { itemID = attempt.itemID, total = attempt.total,
-    runCode = attempt.runCode, itemKey = attempt.itemKey, have = line and line.have or nil, at = time() }
+    runCode = attempt.runCode, itemKey = attempt.itemKey, have = line and carriedOf(line.itemID) or nil, at = time() }
   attempt.stage = "unknown"
 end
 
@@ -2260,7 +2292,7 @@ retireStalled = function(token, stall)
   -- GC.Sniper keeps the same table for the same reason (_strandedConfirmed).
   GC.Buy._stranded[attempt.itemID] = {
     qty = attempt.qty, total = attempt.serverTotal or attempt.total,
-    runCode = attempt.runCode, have = line and line.have or nil,
+    runCode = attempt.runCode, have = line and carriedOf(line.itemID) or nil,
     at = time(), session = sessionToken,
   }
   logAttempt(line)
@@ -3170,16 +3202,19 @@ local function showLineTooltip(row)
     GameTooltip:SetItemByID(line.itemID)
   end
   GameTooltip:AddLine(" ")
-  local bags, bank = haveSplit(line.itemID)
+  local bags, bank, mail = haveSplit(line.itemID)
   if offered(line) > 0 then
     local have = bags + bank
     GameTooltip:AddLine(tip(have > 0
       and (GC.L["buy %d of %d, have %d in bags and bank"]):format(offered(line), line.need, have)
       or (GC.L["buy %d of %d"]):format(offered(line), line.need)), dim[1], dim[2], dim[3], true)
   end
-  -- HAVE counts the banks as well as the bags, so a line covered by three hundred of them owes the
-  -- player where they are. Only when the bank actually holds some.
-  if bank > 0 then
+  -- HAVE counts the banks and the mailbox as well as the bags, so a line covered by three hundred
+  -- of them owes the player where they are. Only when the bank or the mailbox actually holds some.
+  if mail > 0 then
+    GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d · in the mailbox %d"]):format(bags, bank, mail)),
+      dim[1], dim[2], dim[3], true)
+  elseif bank > 0 then
     GameTooltip:AddLine(tip((GC.L["in bags %d · in bank %d"]):format(bags, bank)), dim[1], dim[2], dim[3], true)
   end
   if (line.bought or 0) > 0 then

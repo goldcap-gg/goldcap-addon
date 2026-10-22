@@ -39,22 +39,51 @@ local function wrapped(parent, size, width)
   return fs
 end
 
+-- How many of an item `char` holds, its mailbox included (Services/CraftClient.lua's CountOf), for
+-- every count of one pass over the queue: the character is read once by the caller, not per item.
+local function counter(char)
+  local CC = GC.CraftClient
+  return function(itemID) return CC.CountOf(itemID, char) end
+end
+
+-- What the queue needs that waits in the mailbox (Core/MailStock.lua, retail only), one row per
+-- reagent ({ itemID, n }): held, so not missing, but Blizzard's Create takes reagents from the
+-- bags and the banks alone. `n` is what the bags and the banks do not cover of the need.
+local function inMailbox(needs, char, countOf)
+  local stock = GC.MailStock
+  local out = {}
+  if not stock then return out end
+  for _, row in ipairs(needs) do
+    local mail, held, named = 0, 0, nil
+    for _, id in ipairs(row.ids or {}) do
+      local m = stock.Count(char, id)
+      if m > 0 and not named then named = id end
+      mail = mail + m
+      held = held + countOf(id) - m
+    end
+    local n = math.min(mail, row.q - held)
+    if named and n > 0 then out[#out + 1] = { itemID = named, n = n } end
+  end
+  return out
+end
+
 -- The queue as it stands: one row per entry ({ entry, crafts, held }), what the queue is short
--- of, when the auction house was last read for this character (nil: not yet), and what the queue
--- needs in all.
+-- of, when the auction house was last read for this character (nil: not yet), what the queue
+-- needs in all, and what of that waits in the mailbox.
 local function work(char)
   local CC, Q = GC.CraftClient, GC.CraftQueue
+  local countOf = counter(char)
   local entries = Q.Entries(char)
   local listed, listedAt = Q.Listed(char, time())
   local rows, crafts = {}, {}
   for i, e in ipairs(entries) do
-    local held = e.restock and Q.Held(e, CC.CountOf, listed) or nil
+    local held = e.restock and Q.Held(e, countOf, listed) or nil
     local n = Q.CraftsNeeded(e, held or 0)
     crafts[e] = n
     rows[i] = { entry = e, crafts = n, held = held }
   end
   local needs = Q.Needs(entries, function(e) return crafts[e] end)
-  return rows, Q.Missing(needs, CC.CountOf, CC.CurrencyCount), listedAt, needs
+  return rows, Q.Missing(needs, countOf, CC.CurrencyCount), listedAt, needs, inMailbox(needs, char, countOf)
 end
 
 -- Whether the queue is short of anything the BUY tab can buy (a currency it cannot).
@@ -78,7 +107,7 @@ end
 -- nil when nothing may be written.
 local function writeList(char, needs)
   local CC, Q = GC.CraftClient, GC.CraftQueue
-  local lines = Q.BuyLines(needs, CC.UnitOf, CC.CountOf, CC.VendorOf)
+  local lines = Q.BuyLines(needs, CC.UnitOf, counter(char), CC.VendorOf)
   local run = listOf(char)
   if run then return GC.AppRuns.SetLines(run.code, lines) end
   if not (char and Q.Writable()) then return nil end
@@ -229,7 +258,7 @@ function QV.Refresh()
   local v = QV._frame
   if not (v and v:IsVisible()) then return end
   local char = GC.CraftClient.Char()
-  local rows, missing, listedAt = work(char)
+  local rows, missing, listedAt, _, mailed = work(char)
   QV._rows = rows
   local y = 0
   for i, row in ipairs(rows) do
@@ -261,7 +290,15 @@ function QV.Refresh()
       v.none:Hide()
     end
   end
-  local shown = #rows > 0 and #missing or 0
+  -- Under Missing, what is held but waits in the mailbox: take it out before crafting.
+  local texts = {}
+  if #rows > 0 then
+    for _, row in ipairs(missing) do texts[#texts + 1] = missingText(row) end
+    for _, row in ipairs(mailed) do
+      texts[#texts + 1] = GC.L["%d %s in the mailbox"]:format(row.n, GC.CraftClient.MissingName({ itemID = row.itemID }))
+    end
+  end
+  local shown = #texts
   for i = 1, shown do
     local fs = v.missingLines[i]
     if not fs then
@@ -269,7 +306,7 @@ function QV.Refresh()
       setColor(fs, GC.Theme.color.fg)
       v.missingLines[i] = fs
     end
-    fs:SetText(missingText(missing[i]))
+    fs:SetText(texts[i])
     y = stack(v, fs, y, LAYOUT.LINE_GAP)
   end
   for i = shown + 1, #v.missingLines do v.missingLines[i]:Hide() end
@@ -304,10 +341,31 @@ function QV.MakeBuyList()
   return run
 end
 
+-- Whether a visit to the mailbox is going on (Core/MailStock.lua, retail only). The client is
+-- asked as well, as UI/SniperFrame.lua's _ClearStaleMailPause asks it: walking from the mailbox
+-- straight to an auctioneer can shut it with no MAIL_CLOSED (in game 2026-09-23), and a visit left
+-- open would keep the bags uncounted. A client that cannot say leaves it to the events.
+local function mailboxOpen()
+  if not (GC.MailStock and GC.MailStock.IsOpen()) then return false end
+  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
+  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
+    local ok, open = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
+    if ok and open == false then return false end
+  end
+  return true
+end
+
 --- UNIT_SPELLCAST_SUCCEEDED: a craft of a counted recipe takes one off its line, the window open
 --- or not. OWNED_AUCTIONS_UPDATED: what this character has up on the auction house, for restocks.
 --- BAG_UPDATE_DELAYED: what a restock holds, which a craft of it adds to only once the item is in
---- the bags. Each one brings the craft queue list in step (SyncBuyList).
+--- the bags. MAIL_CLOSED: what waits in the mailbox, as the visit's last read of the inbox left it
+--- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
+--- brings the craft queue list in step (SyncBuyList).
+---
+--- While the mailbox is open the bags are not counted: a take can reach the bags before the read of
+--- the inbox that sees it gone, and for that moment the units count twice. The list would shrink
+--- with them, and what it lowered as bought would not come back when the read caught up.
+--- MAIL_CLOSED counts once, when the visit is over.
 function QV.OnEvent(event, ...)
   if event == "UNIT_SPELLCAST_SUCCEEDED" then
     local _, _, spellID = ...
@@ -329,7 +387,13 @@ function QV.OnEvent(event, ...)
       QV.Queue()
     end
   elseif event == "BAG_UPDATE_DELAYED" then
+    if not mailboxOpen() then QV.SyncBuyList() end
+  elseif event == "MAIL_CLOSED" then
+    -- Core/Init.lua ends the visit too; whichever frame hears the event first ends it, so what is
+    -- counted here is what the visit settled.
+    if GC.MailStock then GC.MailStock.Closed() end
     QV.SyncBuyList()
+    QV.Queue()
   end
 end
 
@@ -338,6 +402,7 @@ if type(CreateFrame) == "function" then
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
   pcall(events.RegisterEvent, events, "OWNED_AUCTIONS_UPDATED")
   pcall(events.RegisterEvent, events, "BAG_UPDATE_DELAYED")
+  pcall(events.RegisterEvent, events, "MAIL_CLOSED")
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)
   QV._events = events
 end

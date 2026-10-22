@@ -132,8 +132,8 @@ function Q.Remove(char, recipeID)
   if i then table.remove(c.entries, i) end
 end
 
---- What the character holds of what the recipe makes, in every quality: `countOf` (bags and banks)
---- plus what `listed` says is up on the auction house.
+--- What the character holds of what the recipe makes, in every quality: `countOf` (bags, banks and
+--- the mailbox) plus what `listed` says is up on the auction house.
 function Q.Held(entry, countOf, listed)
   local recipe = type(entry) == "table" and entry.recipe or nil
   if type(recipe) ~= "table" then return 0 end

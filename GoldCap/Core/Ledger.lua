@@ -203,6 +203,9 @@ local function expiryBucket(now, daysLeft)
   if expiresAt ~= expiresAt or expiresAt == math.huge or expiresAt > MAX_EXACT then return nil end
   return math.floor(expiresAt / BUCKET_SECONDS)
 end
+-- Core/MailStock.lua keys the attachments it has seen by the same bucket.
+GC.Ledger.ExpiryBucket = expiryBucket
+GC.Ledger.BUCKET_SECONDS = BUCKET_SECONDS
 
 local function valueFingerprint(fields)
   local copy = {}
@@ -235,6 +238,8 @@ end
 -- twins are split by the snapshot multiset (`used` in planSnapshot), and a
 -- collected mail's occurrence is retired before its value-twin can arrive.
 local BUCKET_MATCH_TOLERANCE = 13
+-- Core/MailStock.lua matches the attachments it has seen within the same tolerance.
+GC.Ledger.BUCKET_MATCH_TOLERANCE = BUCKET_MATCH_TOLERANCE
 
 local function occurrenceMatches(occurrence, identity, bucket, invoiceClass, context)
   return occurrenceIsActive(occurrence) and occurrence.identity == identity
@@ -636,7 +641,8 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if count > 0 then inboxRowsSeen = true end
   -- The inbox shows at most 100 mails (MAX_INBOX_SIZE in Blizzard_MailFrame/MailFrame.lua), and
   -- the second return counts them all: a mail past the shown ones is out of view, not gone.
-  if exactNonNegative(total) and total > count then complete = false end
+  local allShown = not (exactNonNegative(total) and total > count)
+  if not allShown then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   -- The lots that came back, for SELL's unsold rounds: this scan sees every lapsed-auction mail
   -- whoever takes it, so the returns log is written here and nowhere else. Retail only: where
@@ -657,6 +663,9 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   -- one item first read in the same pass leave a round (SellRounds counts a return stamped in the
   -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
   if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
+  -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
+  -- retail only). Every pass goes to it: it keeps its own visit, and its own rule for an empty one.
+  if GC.MailStock then GC.MailStock.Observe(api, count, total, context.char, now, opening) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)

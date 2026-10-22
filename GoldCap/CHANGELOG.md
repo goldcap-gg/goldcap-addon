@@ -53,11 +53,16 @@
   craft, with the profit an hour where the market's daily sales are known, and marks recipes whose
   item sells less than once a day.
 - Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
-  bags, bank and on the auction house. The queue shows which reagents are missing, and Make a BUY
-  list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor
-  sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off
-  changes it, so BUY never buys again what a craft already used. Each character keeps its own
+  bags, bank, mailbox and on the auction house. The queue shows which reagents are missing, and
+  Make a BUY list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent
+  a vendor sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take
+  off changes it, so BUY never buys again what a craft already used. Each character keeps its own
   queue and its own list, named after the character.
+- BUY, in retail WoW: what waits in your mailbox counts as what you have. What you buy at the
+  auction house counts from the moment you buy it, so BUY does not offer it again while it waits
+  in the mailbox. Items another player sent you count once you have opened the mailbox. A line's
+  tooltip says how many are in the mailbox. The craft queue counts them too, and under Missing it
+  names the reagents that wait in the mailbox, so you can take them out before you craft.
 
 ## 0.22.1 (unreleased)
 

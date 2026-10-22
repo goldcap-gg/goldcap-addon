@@ -5404,8 +5404,20 @@ local function recordPurchaseFacts(deal, purchase)
   if GC.Acquisitions and GC.Acquisitions.RecordGoldCap then
     GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, ledgerEntry and ledgerEntry.key or nil)
   end
+  -- Delivered by mail: BUY and the craft queue count it as held from now on (retail only).
+  if GC.MailStock then GC.MailStock.Bought(context and context.char, deal.itemID, purchase.quantity) end
   updateSellTabLabel()
   consumePurchasedDeal(deal)
+end
+
+-- A success with no purchase facts (no price anyone can record) still sent `quantity` units of
+-- the item to the mailbox: BUY and the craft queue count them as held from now on (retail only),
+-- as recordPurchaseFacts does for a priced one. Nothing without a quantity. A field, not a local:
+-- this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._MailedUnpriced(itemID, quantity)
+  if not GC.MailStock then return end
+  local context = GC.Ledger.Context()
+  GC.MailStock.Bought(context and context.char, itemID, quantity)
 end
 
 local function reportDetachedCommodity(pending, note)
@@ -5442,6 +5454,8 @@ local function settleDetachedConfirmed(pending, terminal)
         or GC.L["bought %d"]):format(purchase.quantity))
       return
     end
+    local quote = pending and pending.quote
+    if deal and quote and quote.itemID == deal.itemID then GC.Sniper._MailedUnpriced(deal.itemID, quote.quantity) end
     reportDetachedCommodity(pending, GC.L["purchase total unavailable. Check your mail"])
     return
   end
@@ -8359,6 +8373,7 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
     market = marketForDecision(deal.itemID),
     decision = decision,
   }) or nil
+  if deal and not facts then GC.Sniper._MailedUnpriced(deal.itemID, candidate and candidate.quantity or deal.qty) end
   resolvePurchase(row, true,
     deal and (GC.L["sniped for "] .. GC.Util.CoinText(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
     facts)
@@ -8815,10 +8830,15 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
   local quote = pending.quote
   if not deal or not quote or quote.token ~= pending.token or quote.itemID ~= pending.itemID
       or not quote.decision or quote.decision.status ~= "SAFE" then
+    -- Frozen: no price to record, but the quote this attempt confirmed says how many were bought.
+    if quote and quote.token == pending.token and quote.itemID == pending.itemID then
+      GC.Sniper._MailedUnpriced(pending.itemID, quote.quantity)
+    end
     resolvePurchase(row, true, GC.L["purchase total unavailable. Check your mail"])
     return
   end
   local purchase = purchaseFacts(deal, quote)
+  if not purchase then GC.Sniper._MailedUnpriced(deal.itemID, quote.quantity) end
   resolvePurchase(row, true, purchase and (GC.L["bought %d x %s"]):format(purchase.quantity,
     GC.Sniper._ItemLabel(deal.itemID))
     or GC.L["purchase total unavailable. Check your mail"], purchase, deal)

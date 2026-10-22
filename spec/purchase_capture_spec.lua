@@ -328,4 +328,41 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(0, #GC.Acquisitions.GetAll())
     assert.equal(0, #GC.Acquisitions.GetPending())
   end)
+
+  -- Retail delivers every purchase by mail: one made on Blizzard's own buy page is counted as
+  -- waiting in the mailbox (Core/MailStock.lua) the moment it succeeds, priced or not, and one that
+  -- did not go through is not. Where the file is not loaded (WoW: Forever) nothing is kept.
+  it("counts a purchase that succeeded as waiting in the mailbox", function()
+    GC.db = {}
+    helper.loadModule("Core/MailStock.lua", GC)
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    fire("StartCommoditiesPurchase", 42, 2)
+    fire("ConfirmCommoditiesPurchase", 42, 2)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    fire("StartCommoditiesPurchase", 42, 4)
+    fire("ConfirmCommoditiesPurchase", 42, 4)
+    GC.PurchaseCapture.OnCommodityPriceUnavailable()
+    fire("StartCommoditiesPurchase", 42, 6)
+    fire("ConfirmCommoditiesPurchase", 42, 6)
+    GC.PurchaseCapture.OnCommodityPurchaseFailed()
+    results[1] = { auctionID = 9001, quantity = 2, buyoutAmount = 100000 }
+    GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10, itemSuffix = 0, battlePetSpeciesID = 0 })
+    fire("PlaceBid", 9001, 100000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    assert.equal(5, GC.MailStock.Count("A-R", 42))
+    assert.equal(1, GC.MailStock.Count("A-R", 77))
+  end)
+
+  it("keeps no mailbox where Core/MailStock.lua is not loaded", function()
+    GC.db = {}
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_nil(GC.db.mailStock)
+  end)
 end)

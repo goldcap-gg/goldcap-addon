@@ -532,6 +532,7 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(accounting:find("GC.Data.RecordFlip(deal, purchase", 1, true))
     assert.is_truthy(accounting:find("GC.Ledger.RecordSniperBuy(deal, purchase", 1, true))
     assert.is_truthy(accounting:find("GC.Acquisitions.RecordGoldCap(deal, purchase", 1, true))
+    assert.is_truthy(accounting:find("GC.MailStock.Bought(context and context.char, deal.itemID, purchase.quantity)", 1, true))
   end)
 
   it("cancels a sub-five-percent failed requote before any confirm can run", function()
@@ -1351,6 +1352,8 @@ describe("Sniper purchase wiring", function()
 
   it("records the confirmed final quote exactly once after an AH-close tombstone", function()
     local flipPurchase, ledgerPurchase, confirmCalls, cancelDisabled = nil, nil, 0, false
+    -- Core/MailStock.lua's one entry: the purchase is on its way to the mailbox (retail).
+    local mailed = {}
     _G.time = function() return 100000 end
     _G.GetTime = function() return 0 end
     _G.C_AuctionHouse = { ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end }
@@ -1367,13 +1370,14 @@ describe("Sniper purchase wiring", function()
         RecordFlip = function(_, purchase) flipPurchase = purchase end,
       },
       Ledger = {
-        Context = function() return {} end,
+        Context = function() return { char = "A-B" } end,
         RecordSniperBuy = function(_, purchase) ledgerPurchase = purchase; return { key = "snipe:42" } end,
       },
       Acquisitions = { RecordGoldCap = function(_, purchase, _, _, key)
         assert.equal("snipe:42", key)
         assert.is_true(purchase == ledgerPurchase)
       end },
+      MailStock = { Bought = function(char, itemID, qty) mailed[#mailed + 1] = { char, itemID, qty } end },
       Sell = { Reset = function() end, SellableCount = function() return 0 end },
       Print = function() end,
       db = { settings = { sniper = {} } },
@@ -1475,6 +1479,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(123456, flipPurchase.total)
     assert.equal(1, GC.Sniper.session.buys)
     assert.equal(123456, GC.Sniper.session.spent)
+    assert.same({ { "A-B", 42, 3 } }, mailed)
     assert.equal("requerying", row.purchaseStage)
     assert.is_true(row.deal == newDeal)
     assert.equal(22, row.purchaseToken)
@@ -3207,6 +3212,63 @@ describe("Sniper purchase wiring", function()
       -- Consumed: a second terminal event cannot book the same purchase twice.
       GC.Sniper.OnCommodityPurchaseSucceeded()
       assert.equal(1, recorded.ledger)
+    end)
+
+    -- Retail delivers a purchase by mail whether or not its price could be recorded: an unpriced
+    -- success still goes to Core/MailStock.lua with the quantity its confirmed quote asked for,
+    -- so BUY and the craft queue do not offer it again. A price the server could not give is not a
+    -- success, and goes nowhere.
+    describe("an unpriced success, counted as waiting in the mailbox", function()
+      local GC, mailed
+      before_each(function()
+        GC = loadSniper()
+        mailed = {}
+        GC.MailStock = { Bought = function(char, itemID, qty) mailed[#mailed + 1] = { char, itemID, qty } end }
+      end)
+
+      -- A quote whose quantity is not the decision's has no facts (purchaseFacts).
+      local function unpriced(pending)
+        pending.quote.decision.quantity = 3
+        return pending
+      end
+
+      it("after the release", function()
+        local pending = unpriced(confirmedAttempt({}, { itemID = 42, isCommodity = true }))
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+        GC.Sniper._ReleaseStrandedConfirmed(pending)
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+        assert.equal(0, recorded.ledger)
+        assert.same({ { "A-R", 42, 2 } }, mailed)
+      end)
+
+      it("on the row it froze", function()
+        local row = {}
+        local pending = confirmedAttempt(row, { itemID = 42, isCommodity = true })
+        pending.quote.decision.status = "WATCH"
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+        assert.equal("frozen", row.purchaseStage)
+        assert.equal(0, recorded.ledger)
+        assert.same({ { "A-R", 42, 2 } }, mailed)
+      end)
+
+      it("for a realm lot with no facts", function()
+        local deal = { itemID = 77, isCommodity = false, auctionID = 8801, qty = 3, unitPrice = 10 }
+        local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 1 }
+        setUpvalue(GC.Sniper.OnPurchaseCompleted, "pendingAuction", { [8801] = row })
+        GC.Sniper.OnPurchaseCompleted(8801)
+        assert.equal(0, recorded.ledger)
+        assert.same({ { "A-R", 77, 3 } }, mailed)
+      end)
+
+      it("never for a price the server could not give", function()
+        local row = {}
+        local pending = confirmedAttempt(row, { itemID = 42, isCommodity = true })
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+        GC.Sniper.OnCommodityPriceUnavailable()
+        assert.equal("frozen", row.purchaseStage)
+        assert.same({}, mailed)
+      end)
     end)
 
     -- Two records and the attribution would be a guess: commodity events carry no attempt id.

@@ -1690,6 +1690,63 @@ describe("BUY purchase", function()
     assert.equal("quoted", GC.Buy._attempt.stage)
   end)
 
+  -- Retail delivers every auction house purchase by mail, and Core/MailStock.lua counts it as held
+  -- from the moment it lands: a line the bags held some of was offered again right after its
+  -- purchase, four of ten here, until the mail was taken.
+  describe("with the mailbox counted", function()
+    before_each(function() helper.loadModule("Core/MailStock.lua", GC) end)
+
+    it("counts a purchase as waiting in the mailbox, so the line buys nothing again", function()
+      bags[1] = { itemID = 101, qty = 4 }
+      GC.Buy.Show()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      assert.equal(6, GC.Buy._attempt.qty)
+      click(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityPriceUpdated(900, 5400)
+      click(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityPurchaseSucceeded()
+      assert.equal(6, GC.MailStock.Count("Tester-Realm", 101))
+      local line = runLine(101)
+      assert.equal(10, line.have)
+      assert.equal(0, line.buy)
+      assert.is_true(line.done)
+    end)
+
+    -- A stranded confirm's warning lifts on what the bags and the banks hold: the Sniper buying the
+    -- same item moves the mailbox count, and says nothing about the confirm that went unanswered.
+    it("keeps a no-answer warning when another purchase of the item goes to the mailbox", function()
+      strandOne()
+      GC.Buy._attempt = nil
+      GC.MailStock.Bought("Tester-Realm", 101, 5)
+      GC.Buy.RefreshIfShown()
+      assert.equal(5, runLine(101).have)
+      assert.equal("no answer. Check your mail", buttonFor(rowWithText("Alpha Herb")).label)
+      -- Units reaching the bags lift it, as they always did.
+      deliver(101, 3)
+      GC.Buy.Show()
+      pick(rowWithText("Alpha Herb"))
+      assert.not_equal("no answer. Check your mail", buttonFor(rowWithText("Alpha Herb")).label)
+    end)
+  end)
+
+  -- WoW: Forever loads no Core/MailStock.lua: HAVE is the bags and the banks there, as it always
+  -- was, and the four held before the purchase still leave four on offer until the mail is taken.
+  it("keeps HAVE to the bags and the banks where the mailbox is not counted", function()
+    bags[1] = { itemID = 101, qty = 4 }
+    GC.Buy.Show()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(900, 5400)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.is_nil(GC.db.mailStock)
+    local line = runLine(101)
+    assert.equal(4, line.have)
+    assert.equal(4, line.buy)
+  end)
+
   -- `/gc buy` names the item even when its line is gone: the record knows the id.
   it("names the item when it drops what it cannot attribute", function()
     strandOne()
