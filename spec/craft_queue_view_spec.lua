@@ -133,8 +133,9 @@ describe("craft queue view", function()
     GC.MailStock.Bought("Name-Realm", itemID, qty)
   end
 
+  -- Just delivered: an auction house mail has 30 days left when it arrives.
   local function wonMail(itemID, count)
-    return { sender = "Auction House", subject = "Auction won: Item A", auction = true,
+    return { sender = "Auction House", subject = "Auction won: Item A", auction = true, daysLeft = 30,
       invoice = { invoiceType = "buyer", itemName = "Item A", count = count, bid = 400 * count },
       items = { [1] = { itemID = itemID, count = count } } }
   end

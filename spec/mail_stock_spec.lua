@@ -14,7 +14,8 @@ describe("MailStock", function()
   local NOT_YET = { GetInboxNumItems = function() return 0, 0 end }
 
   -- A mail delivered at `at` (time()); its days left are worked out when the mailbox shows it, as
-  -- the client does, so the same mail keeps one expiry from visit to visit.
+  -- the client does, so the same mail keeps one expiry from visit to visit (`shift` moves the
+  -- expiry one read reports, as a fresh delivery's placeholder does).
   local function won(itemID, count, at)
     return { sender = "Auction House", subject = "Auction won: Item A", auction = true, at = at or 0,
       invoice = { invoiceType = "buyer", itemName = "Item A", count = count, bid = 100 * count },
@@ -36,7 +37,7 @@ describe("MailStock", function()
     for i, row in ipairs(rows or {}) do
       local copy = {}
       for k, v in pairs(row) do copy[k] = v end
-      copy.daysLeft = ((row.at or 0) + 30 * DAY - now) / DAY
+      copy.daysLeft = ((row.at or 0) + 30 * DAY + (row.shift or 0) - now) / DAY
       out[i] = copy
     end
     return out
@@ -240,6 +241,165 @@ describe("MailStock", function()
     assert.equal(12, count(101))
   end)
 
+  -- R1: a fresh delivery can read 30 minutes "younger" on one pass than on the next (the ledger's
+  -- 2026-08-19 incident); the same mail must not be credited twice.
+  it("credits a fresh won auction once when its expiry moves half an hour between passes", function()
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 6)
+    GC.MailStock.Bought("A-B", 101, 6, now + 5)
+    now = now + 20
+    local placeholder = won(101, 6, now - 20)
+    placeholder.shift = -1800
+    show({ placeholder, player(900, 1) })
+    assert.equal(12, count(101))
+    inbox({ won(101, 6, now - 20), player(900, 1) })
+    scan(false)
+    assert.equal(12, count(101))
+    close(5)
+    assert.equal(12, count(101))
+  end)
+
+  -- R2: with mail always out of view, a taken mail's attachment must not swallow the next one.
+  local function overflow(n)
+    local out = {}
+    for i = 1, n do out[i] = player(500 + i, 1) end
+    return out
+  end
+
+  it("tells a take from a scroll by the total, so the same purchase minutes later is credited", function()
+    local hidden = overflow(5)
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    show({ won(101, 6, now - 10), player(900, 1) }, hidden)
+    assert.equal(6, count(101))
+    box.api.TakeInboxItem(1, 1)
+    box:advance()
+    scan(false)
+    assert.equal(0, count(101))
+    close()
+    now = now + 180
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    show({ won(101, 6, now - 10), player(900, 1) }, hidden)
+    assert.equal(6, count(101))
+    box.api.TakeInboxItem(1, 1)
+    box:advance()
+    scan(false)
+    close()
+    assert.equal(0, count(101))
+    for _ = 1, 3 do
+      now = now + DAY
+      show({ player(900, 1) }, hidden)
+      close()
+    end
+    assert.equal(0, count(101))
+  end)
+
+  -- A take that landed after the visit's last pass: the next visit's total says the mail went, so
+  -- the same purchase made minutes later is credited when it shows.
+  it("lets a mail taken after the last pass go at the next read, when the total fell by it", function()
+    local hidden = overflow(5)
+    baseline()
+    now = now + 600
+    show({ won(101, 6, now), player(900, 1) }, hidden)
+    box.api.TakeInboxItem(1, 1)
+    close()
+    box:advance()
+    now = now + 60
+    show({ player(900, 1) }, hidden)
+    close()
+    now = now + 60
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    show({ won(101, 6, now - 10), player(900, 1) }, hidden)
+    assert.equal(6, count(101))
+  end)
+
+  it("keeps what scrolled out of view when new mail pushed it, and its key does not grow for ever", function()
+    local hidden = overflow(5)
+    baseline()
+    now = now + 600
+    local old = won(101, 6, now - DAY)
+    show({ old, player(900, 1) }, hidden)
+    close()
+    -- New mail arrived: the total rose, and the old won auction is out of view.
+    now = now + 60
+    show({ player(902, 1), player(900, 1) }, { old, hidden[1], hidden[2], hidden[3], hidden[4], hidden[5] })
+    close()
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    show({ old, player(900, 1) }, hidden)
+    -- The old one is back in view and not a delivery: the purchase still counts.
+    assert.equal(12, count(101))
+    -- Thirty days on, nothing of it is kept.
+    now = now + 31 * DAY
+    show({ player(900, 1) }, hidden)
+    for _, set in ipairs({ GC.db.mailStock.chars["A-B"].seen, GC.db.mailStock.chars["A-B"].fresh }) do
+      for key in pairs(set) do assert.is_nil(key:find("^101:"), key) end
+    end
+  end)
+
+  it("keeps the store bounded with an inbox always over 100 and mail taken on every visit", function()
+    local hidden = overflow(1)
+    baseline()
+    local id = 1000
+    local function size(t)
+      local n = 0
+      for _ in pairs(t or {}) do n = n + 1 end
+      return n
+    end
+    for _ = 1, 50 do
+      local rows = {}
+      for i = 1, 10 do
+        id = id + 1
+        rows[i] = returned(id, 1, now)
+      end
+      show(rows, hidden)
+      for _ = 1, 10 do
+        box.api.TakeInboxItem(1, 1)
+        box:advance()
+        scan(false)
+      end
+      close()
+      now = now + 3600
+    end
+    local c = GC.db.mailStock.chars["A-B"]
+    assert.is_true(size(c.seen) + size(c.fresh) <= 2, size(c.seen) .. " seen, " .. size(c.fresh) .. " fresh")
+  end)
+
+  -- R4: an old won auction out of view since the first read is no delivery when it comes into view.
+  it("never takes a won auction that came before the purchase for its delivery", function()
+    local old = won(101, 6, now - 20 * DAY)
+    show({ player(900, 1) }, { old })
+    close()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 30
+    show({ old, player(900, 1) }, { won(101, 6, now - 30), player(777, 1) })
+    assert.equal(12, count(101))
+  end)
+
+  -- R5: a won auction already seen is never a delivery, even when another player's mail of the same
+  -- item, count and expiry sits among the new ones.
+  it("never credits a won auction already seen, for a player's mail of the same key", function()
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 20)
+    now = now + 10
+    show({ won(101, 20, now - 10), player(900, 1) })
+    assert.equal(20, count(101))
+    GC.MailStock.Bought("A-B", 101, 20)
+    -- An alt's 20 arrives within the same minutes of expiry; the second purchase is not listed yet.
+    inbox({ won(101, 20, now - 10), player(101, 20, nil, now - 5), player(900, 1) })
+    scan(false)
+    assert.equal(60, count(101))
+    scan(false)
+    assert.equal(60, count(101))
+  end)
+
   -- A won auction's invoice can come a pass after its row: the row reads as a mail with no invoice.
   it("counts a won auction whose invoice comes a pass late once, and an old one's not at all", function()
     local old = won(102, 2, now - DAY)
@@ -285,8 +445,9 @@ describe("MailStock", function()
     assert.equal(0, count(102))
   end)
 
-  -- I3: a take that lands after the visit's last pass. The next visit to an empty inbox reads it.
-  it("stops counting the last mail taken with no pass after it, at the next visit to an empty inbox", function()
+  -- I3: a take that lands after the visit's last pass stays counted until a visit that shows mail;
+  -- an empty inbox is not read (the client may answer 0, 0 before the rows).
+  it("keeps the last mail taken with no pass after it counted until a visit that shows mail", function()
     baseline()
     now = now + 600
     show({ won(101, 6, now) })
@@ -295,24 +456,28 @@ describe("MailStock", function()
     close()
     box:advance()
     assert.equal(6, count(101))
-    -- Next visit: MAIL_SHOW reads nothing yet, then the client answers an empty inbox.
     now = now + 60
     show({})
+    assert.is_false(close(5))
     assert.equal(6, count(101))
-    assert.is_true(close(3))
+    now = now + 600
+    show({ player(900, 1) })
     assert.equal(0, count(101))
   end)
 
-  it("reads no empty inbox from a visit too short to have shown its rows, nor from the opening pass", function()
-    show({ won(101, 6) })
+  -- R3: on a reopen inside the CanCheckInbox window the client may answer 0, 0 before the rows.
+  it("reads no empty inbox from a visit that never showed a row, however long it lasts", function()
+    show({ won(101, 6, now - 3600) })
     close()
+    GC.MailStock.Bought("A-B", 101, 4)
+    now = now + 200
     show({})
-    assert.is_false(close(1))
-    assert.equal(6, count(101))
+    assert.is_false(close(30))
+    assert.equal(10, count(101))
     inbox({})
     scan(true)
     assert.is_false(close(5))
-    assert.equal(6, count(101))
+    assert.equal(10, count(101))
   end)
 
   it("clears nothing on an empty pass the rows come after", function()

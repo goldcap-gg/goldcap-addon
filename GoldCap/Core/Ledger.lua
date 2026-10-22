@@ -205,6 +205,7 @@ local function expiryBucket(now, daysLeft)
 end
 -- Core/MailStock.lua keys the attachments it has seen by the same bucket.
 GC.Ledger.ExpiryBucket = expiryBucket
+GC.Ledger.BUCKET_SECONDS = BUCKET_SECONDS
 
 local function valueFingerprint(fields)
   local copy = {}
@@ -237,6 +238,8 @@ end
 -- twins are split by the snapshot multiset (`used` in planSnapshot), and a
 -- collected mail's occurrence is retired before its value-twin can arrive.
 local BUCKET_MATCH_TOLERANCE = 13
+-- Core/MailStock.lua matches the attachments it has seen within the same tolerance.
+GC.Ledger.BUCKET_MATCH_TOLERANCE = BUCKET_MATCH_TOLERANCE
 
 local function occurrenceMatches(occurrence, identity, bucket, invoiceClass, context)
   return occurrenceIsActive(occurrence) and occurrence.identity == identity
@@ -662,7 +665,7 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
   -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
   -- retail only). Every pass goes to it: it keeps its own visit, and its own rule for an empty one.
-  if GC.MailStock then GC.MailStock.Observe(api, count, allShown, context.char, now, opening) end
+  if GC.MailStock then GC.MailStock.Observe(api, count, total, context.char, now, opening) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)
