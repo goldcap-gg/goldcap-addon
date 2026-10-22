@@ -63,7 +63,11 @@ function GC.MailLoop.New(deps)
   local nextAt = 0
   local invFull = false
   local refreshes = 0
-  local awaiting      -- { shown, total } while a CheckInbox is out
+  -- { shown, total } where the shown mail ran out. Blizzard's MailFrame asks for the rest by
+  -- itself (MailFrame.lua, MailFrame_RefreshInbox), often before this loop may, so the wait ends
+  -- as soon as the inbox no longer reads like this, whoever asked.
+  local baseline
+  local awaiting      -- true while this loop's own CheckInbox is out
   local waitSeconds
 
   local function shownAndTotal()
@@ -76,8 +80,18 @@ function GC.MailLoop.New(deps)
     if state == "idle" or state == "done" then return end
     state = "done"
     result.reason = reason
-    inflight, awaiting, waitSeconds = nil, nil, nil
+    inflight, awaiting, waitSeconds, baseline = nil, nil, nil, nil
     api.SetOpeningAll(false)
+  end
+
+  local function inboxMoved()
+    if not baseline then return false end
+    local shown, total = shownAndTotal()
+    return shown ~= baseline.shown or total ~= baseline.total
+  end
+
+  local function resume()
+    state, awaiting, waitSeconds, baseline = "running", nil, nil, nil
   end
 
   local function retract(flight)
@@ -193,9 +207,10 @@ function GC.MailLoop.New(deps)
       if refreshes >= MAX_REFRESHES then finish("done"); return "done" end
       local canCheck, seconds = api.CanCheckInbox()
       state = "refresh"
+      baseline = { shown = seen.shown, total = seen.total }
       if canCheck then
         refreshes = refreshes + 1
-        awaiting = { shown = seen.shown, total = seen.total }
+        awaiting = true
         waitSeconds = nil
         api.CheckInbox()
       else
@@ -225,7 +240,7 @@ function GC.MailLoop.New(deps)
     if takeable == 0 then return false end
     result = newResult()
     skipItems, skipKeys, inflight, letters = {}, {}, nil, {}
-    invFull, refreshes, awaiting, waitSeconds, nextAt = false, 0, nil, nil, 0
+    invFull, refreshes, awaiting, waitSeconds, baseline, nextAt = false, 0, nil, nil, nil, 0
     state = "running"
     api.SetOpeningAll(true)
     deps.scanLedger()
@@ -235,18 +250,22 @@ function GC.MailLoop.New(deps)
 
   function loop:Step(now)
     if state == "refresh" then
-      if awaiting then return "refresh" end
-      local canCheck, seconds = api.CanCheckInbox()
-      if canCheck then
-        local shown, total = shownAndTotal()
-        refreshes = refreshes + 1
-        awaiting = { shown = shown, total = total }
-        waitSeconds = nil
-        api.CheckInbox()
+      if inboxMoved() then
+        resume()
+      elseif awaiting then
+        return "refresh"
       else
-        waitSeconds = type(seconds) == "number" and math.ceil(seconds) or nil
+        local canCheck, seconds = api.CanCheckInbox()
+        if canCheck then
+          refreshes = refreshes + 1
+          awaiting = true
+          waitSeconds = nil
+          api.CheckInbox()
+        else
+          waitSeconds = type(seconds) == "number" and math.ceil(seconds) or nil
+        end
+        return "refresh"
       end
-      return "refresh"
     end
     if state ~= "running" then return "done" end
     if now < nextAt or api.IsCommandPending() then return "wait" end
@@ -300,14 +319,12 @@ function GC.MailLoop.New(deps)
   end
 
   function loop:OnInboxUpdate()
-    if state ~= "refresh" or not awaiting then return end
-    local shown, total = shownAndTotal()
-    local before = awaiting
-    awaiting = nil
-    if shown == before.shown and total == before.total then
+    if state ~= "refresh" then return end
+    if inboxMoved() then
+      resume()
+    elseif awaiting then
+      -- This loop's own refresh came back with nothing new.
       finish("done")
-    else
-      state = "running"
     end
   end
 

@@ -416,7 +416,7 @@ describe("Ledger inbox scan", function()
     end)
   end
 
-  -- The inbox shows at most 50 mails; GetInboxNumItems' second return counts them all. A mail
+  -- The inbox shows at most 100 mails; GetInboxNumItems' second return counts them all. A mail
   -- past the shown ones is not absent, only out of view.
   it("never infers absence while the client shows only part of a full inbox", function()
     assert.equal(1, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000, true))

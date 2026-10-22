@@ -545,8 +545,8 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   local mails, complete = {}, true
   if count == 0 and not inboxRowsSeen then complete = false end
   if count > 0 then inboxRowsSeen = true end
-  -- The inbox shows at most 50 mails, and the second return counts them all: a mail past the
-  -- shown ones is out of view, not gone.
+  -- The inbox shows at most 100 mails (MAX_INBOX_SIZE in Blizzard_MailFrame/MailFrame.lua), and
+  -- the second return counts them all: a mail past the shown ones is out of view, not gone.
   if exactNonNegative(total) and total > count then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   for index = 1, count do
