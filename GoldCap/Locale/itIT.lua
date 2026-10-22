@@ -1515,7 +1515,6 @@ GC.Locales.itIT = {
   ["BUY list %s is ready in the BUY tab at the auction house"] = "La lista BUY %s è pronta nella scheda BUY della casa d'aste",
   ["Currency %d"] = "Valuta %d",
   ["GoldCap: your groups"] = "GoldCap: i tuoi gruppi",
-  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Segui un gruppo su goldcap.gg e il Companion lo porta qui.",
   ["%d in bags, %d in the Warband Bank"] = "%d nelle borse, %d nella banca della brigata",
   ["Keep in bags: %d of each"] = "Tieni nelle borse: %d di ognuno",
   ["How many of each item in %s to keep in your bags?"] = "Quanti di ogni oggetto di %s tenere nelle borse?",

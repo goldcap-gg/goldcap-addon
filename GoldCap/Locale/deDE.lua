@@ -1518,7 +1518,6 @@ GC.Locales.deDE = {
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY-Liste %s liegt im BUY-Tab am Auktionshaus bereit",
   ["Currency %d"] = "Währung %d",
   ["GoldCap: your groups"] = "GoldCap: deine Gruppen",
-  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Folge einer Gruppe auf goldcap.gg, und der Companion bringt sie hierher.",
   ["%d in bags, %d in the Warband Bank"] = "%d in den Taschen, %d in der Kriegsmeutenbank",
   ["Keep in bags: %d of each"] = "In den Taschen behalten: je %d",
   ["How many of each item in %s to keep in your bags?"] = "Wie viele von jedem Gegenstand aus %s willst du in den Taschen behalten?",

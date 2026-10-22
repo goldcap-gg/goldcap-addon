@@ -5,7 +5,7 @@ local helper = require("spec.spec_helper")
 -- is plain punctuation in everything a player reads. The popup's "Type a whole number" and "Save"
 -- are the craft queue's and BUY's own keys.
 local KEYS = {
-  "GoldCap: your groups", "Follow a group on goldcap.gg and the Companion brings it here.",
+  "GoldCap: your groups",
   "%d in bags, %d in the Warband Bank", "Keep in bags: %d of each",
   "How many of each item in %s to keep in your bags?", "To bank: %s ×%d (%d left)", "To bags: %s ×%d (%d left)",
   "Type a whole number", "Save",

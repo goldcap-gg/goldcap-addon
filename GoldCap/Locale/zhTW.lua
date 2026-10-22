@@ -1419,7 +1419,6 @@ GC.Locales.zhTW = {
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY 清單 %s 已在拍賣場的 BUY 分頁中準備好",
   ["Currency %d"] = "貨幣 %d",
   ["GoldCap: your groups"] = "GoldCap：你的群組",
-  ["Follow a group on goldcap.gg and the Companion brings it here."] = "在 goldcap.gg 追蹤一個群組，Companion 會把它帶到這裡。",
   ["%d in bags, %d in the Warband Bank"] = "背包 %d，戰隊銀行 %d",
   ["Keep in bags: %d of each"] = "背包保留：每種 %d 個",
   ["How many of each item in %s to keep in your bags?"] = "%s 的每種物品要在背包保留多少？",

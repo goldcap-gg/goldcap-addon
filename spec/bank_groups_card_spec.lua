@@ -262,14 +262,26 @@ describe("bank by group card", function()
     assert.is_false(cardUp())
   end)
 
-  it("says in one line how to get groups when none is followed, and reads no slot", function()
+  -- Most players follow no group: they see no card at all, and nothing is built or read for it.
+  it("is not shown at all when no group is followed: builds nothing and reads no slot", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     open()
+    assert.is_nil(C._frame)
+    assert.equal(0, reads)
+    GC.BankRoute.OnBagsChanged()
+    assert.is_nil(C._frame)
+    assert.equal(0, reads)
+  end)
+
+  it("hides once the last followed group is gone, and reads no slot for it", function()
+    open()
     assert.is_true(cardUp())
-    assert.equal("Follow a group on goldcap.gg and the Companion brings it here.", textOf(C._frame.hint))
-    assert.is_true(C._frame.hint:IsShown())
-    for _, b in ipairs(C._blocks) do assert.is_false(b:IsShown()) end
+    _G.GoldCap_AppRuns = nil
+    GC.GroupRules.Adopt()
+    reads = 0
+    GC.BankRoute.OnBagsChanged()
+    assert.is_false(cardUp())
     assert.equal(0, reads)
   end)
 
@@ -302,9 +314,7 @@ describe("bank by group card", function()
       GC.ActivateLocale(code)
       open()
       local card = C._frame
-      for _, fs in ipairs({ card.title, card.hint }) do
-        assert.is_true(W.state(fs).wordWrap ~= false, code)
-      end
+      assert.is_true(W.state(card.title).wordWrap ~= false, code)
       for _, b in ipairs(C._blocks) do
         if b:IsShown() then
           for _, fs in ipairs({ b.name, b.counts }) do

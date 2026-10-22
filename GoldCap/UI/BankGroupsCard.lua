@@ -4,8 +4,8 @@ local _, GC = ...
 -- that shows), the groups the player follows on goldcap.gg that have items in the bags or the
 -- Warband Bank, each with how many are where, To bank and To bags, and how many of each item it
 -- keeps in the bags (GC.db.bankKeep, Core/BankGroups.lua). Which stack a press moves is
--- Core/BankGroups.lua's Plan; an item's group is Core/GroupRules.lua's. With no followed group the
--- card says in one line how to get one.
+-- Core/BankGroups.lua's Plan; an item's group is Core/GroupRules.lua's. With no followed group there
+-- is no card at all: it is not built and no slot is read for it.
 --
 -- One stack a press, moved inside the player's own click through the bank route's MoveStack,
 -- whose guards apply: the bank is the window, the slot still holds the stack, unlocked, and the
@@ -120,7 +120,6 @@ local function build()
   frame:EnableMouse(true)
   frame.title = wrappingLabel(frame, 12, T.color.gold)
   frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
-  frame.hint = wrappingLabel(frame, 10, T.color.fgDim)
   C._frame = frame
 end
 
@@ -219,7 +218,7 @@ local function hide()
   if frame then frame:Hide() end
 end
 
--- The card's title, then either the hint or the blocks, at the card's width.
+-- The card's title, then the blocks, at the card's width.
 local function paint(groups)
   local writable = GC.BankGroups.Writable(GC.db)
   local widest = 0
@@ -231,25 +230,15 @@ local function paint(groups)
   local inner = width - 2 * LAYOUT.PAD
   frame:SetWidth(width)
   frame.title:SetWidth(inner)
-  frame.hint:SetWidth(inner)
   frame.title:SetText(GC.L["GoldCap: your groups"])
   local y = LAYOUT.PAD + heightOf(frame.title, 12) + LAYOUT.GAP * 2
-  if #groups == 0 then
-    frame.hint:SetText(GC.L["Follow a group on goldcap.gg and the Companion brings it here."])
-    frame.hint:ClearAllPoints()
-    frame.hint:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
-    frame.hint:Show()
-    y = y + heightOf(frame.hint, 10)
-  else
-    frame.hint:Hide()
-    for i, block in ipairs(C._blocks) do
-      if i > #groups then break end
-      if i > 1 then y = y + LAYOUT.BLOCK_GAP end
-      block:ClearAllPoints()
-      block:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
-      block:Show()
-      y = y + layoutBlock(block, inner)
-    end
+  for i, block in ipairs(C._blocks) do
+    if i > #groups then break end
+    if i > 1 then y = y + LAYOUT.BLOCK_GAP end
+    block:ClearAllPoints()
+    block:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
+    block:Show()
+    y = y + layoutBlock(block, inner)
   end
   frame:SetHeight(math.ceil(y + LAYOUT.PAD))
   C._Place()
@@ -257,12 +246,10 @@ local function paint(groups)
 end
 
 --- Reads the bags and the Warband Bank again and paints the card, or hides it: with the bank
---- closed or not the window, the Warband Bank out of reach or without a tab, and when no followed
---- group has an item here. With no followed group it reads no slot and says how to get one.
+--- closed or not the window, the Warband Bank out of reach or without a tab, with no followed
+--- group (then nothing is built and no slot is read), and when no followed group has an item here.
 function C.Refresh()
-  if not GC.BankRoute.CanMove() then return hide() end
-  if not frame then build() end
-  if not GC.GroupRules.HasGroups() then return paint({}) end
+  if not (GC.BankRoute.CanMove() and GC.GroupRules.HasGroups()) then return hide() end
   pruneMoving()
   local groupOf = GC.GroupRules.GroupOf
   local groups = GC.BankGroups.Plan(GC.BankRoute.ReadStacks(BAGS, false, groupOf),
@@ -272,6 +259,7 @@ function C.Refresh()
       moving = C._moving,
     })
   if #groups == 0 then return hide() end
+  if not frame then build() end
   paint(groups)
 end
 

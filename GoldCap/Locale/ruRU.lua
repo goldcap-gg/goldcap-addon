@@ -1585,7 +1585,6 @@ GC.Locales.ruRU = {
   ["BUY list %s is ready in the BUY tab at the auction house"] = "Список BUY %s готов на вкладке BUY на аукционе",
   ["Currency %d"] = "Валюта %d",
   ["GoldCap: your groups"] = "GoldCap: ваши группы",
-  ["Follow a group on goldcap.gg and the Companion brings it here."] = "Подпишитесь на группу на goldcap.gg, и Companion принесёт её сюда.",
   ["%d in bags, %d in the Warband Bank"] = "%d в сумках, %d в банке отряда",
   ["Keep in bags: %d of each"] = "Оставлять в сумках: по %d",
   ["How many of each item in %s to keep in your bags?"] = "Сколько каждого предмета из %s оставлять в сумках?",
