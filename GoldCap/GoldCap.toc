@@ -85,6 +85,7 @@ Core/BuyDock.lua
 Core/BuyLots.lua
 Core/BuyVendor.lua
 Core/VendorBuys.lua
+Core/VendorSelect.lua
 Core/BuyRecents.lua
 Core/BuyWaitDiag.lua
 Core/BuySearchModel.lua
