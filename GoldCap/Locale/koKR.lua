@@ -1381,4 +1381,5 @@ GC.Locales.koKR = {
   ["Make a BUY list"] = "BUY 목록 만들기",
   ["Craft queue"] = "제작 대기열",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY 목록 %s이(가) 경매장 BUY 탭에 준비되었습니다",
+  ["Currency %d"] = "화폐 %d",
 }

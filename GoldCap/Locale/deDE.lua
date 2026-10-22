@@ -1447,4 +1447,5 @@ GC.Locales.deDE = {
   ["Make a BUY list"] = "BUY-Liste erstellen",
   ["Craft queue"] = "Herstellungs-Warteschlange",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY-Liste %s liegt im BUY-Tab am Auktionshaus bereit",
+  ["Currency %d"] = "Währung %d",
 }

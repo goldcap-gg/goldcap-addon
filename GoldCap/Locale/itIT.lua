@@ -1444,4 +1444,5 @@ GC.Locales.itIT = {
   ["Make a BUY list"] = "Crea lista BUY",
   ["Craft queue"] = "Coda di creazione",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "La lista BUY %s è pronta nella scheda BUY della casa d'aste",
+  ["Currency %d"] = "Valuta %d",
 }

@@ -1442,4 +1442,5 @@ GC.Locales.ptBR = {
   ["Make a BUY list"] = "Criar lista do BUY",
   ["Craft queue"] = "Fila de fabricação",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "A lista do BUY %s está pronta na aba BUY da casa de leilões",
+  ["Currency %d"] = "Moeda %d",
 }

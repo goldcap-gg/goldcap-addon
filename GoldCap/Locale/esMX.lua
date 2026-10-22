@@ -1451,4 +1451,5 @@ GC.Locales.esMX = {
   ["Make a BUY list"] = "Crear lista de BUY",
   ["Craft queue"] = "Cola de fabricación",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "La lista de BUY %s está lista en la pestaña BUY de la casa de subastas",
+  ["Currency %d"] = "Moneda %d",
 }

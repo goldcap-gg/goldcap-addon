@@ -1348,4 +1348,5 @@ GC.Locales.zhTW = {
   ["Make a BUY list"] = "建立 BUY 清單",
   ["Craft queue"] = "製作佇列",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY 清單 %s 已在拍賣場的 BUY 分頁中準備好",
+  ["Currency %d"] = "貨幣 %d",
 }

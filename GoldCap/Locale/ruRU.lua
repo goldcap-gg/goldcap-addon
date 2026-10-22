@@ -1514,4 +1514,5 @@ GC.Locales.ruRU = {
   ["Make a BUY list"] = "Создать список BUY",
   ["Craft queue"] = "Очередь крафта",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "Список BUY %s готов на вкладке BUY на аукционе",
+  ["Currency %d"] = "Валюта %d",
 }

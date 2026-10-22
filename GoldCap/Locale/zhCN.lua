@@ -1347,4 +1347,5 @@ GC.Locales.zhCN = {
   ["Make a BUY list"] = "生成 BUY 清单",
   ["Craft queue"] = "制作队列",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY 清单 %s 已在拍卖行的 BUY 标签页中准备好",
+  ["Currency %d"] = "货币 %d",
 }

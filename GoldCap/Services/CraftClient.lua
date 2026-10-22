@@ -251,7 +251,7 @@ function CC.MissingName(m)
     local ok, info = false, nil
     if type(ci) == "table" and type(ci.GetCurrencyInfo) == "function" then ok, info = pcall(ci.GetCurrencyInfo, m.currencyID) end
     if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
-    return tostring(m.currencyID)
+    return GC.L["Currency %d"]:format(m.currencyID)
   end
   local item = _G.C_Item
   local ok, name = false, nil

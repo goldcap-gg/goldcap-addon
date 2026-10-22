@@ -1515,4 +1515,5 @@ GC.Locales.ukUA = {
   ["Make a BUY list"] = "Створити список BUY",
   ["Craft queue"] = "Черга крафту",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "Список BUY %s готовий на вкладці BUY на аукціоні",
+  ["Currency %d"] = "Валюта %d",
 }

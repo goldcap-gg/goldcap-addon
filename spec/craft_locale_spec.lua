@@ -19,7 +19,7 @@ local KEYS = {
   "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",
   "Remove from queue", "The queue is empty. Add a recipe from This recipe.", "Missing", "%d %s",
   "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list", "Craft queue",
-  "BUY list %s is ready in the BUY tab at the auction house",
+  "BUY list %s is ready in the BUY tab at the auction house", "Currency %d",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

@@ -241,6 +241,9 @@ describe("craft client", function()
     assert.equal("Item A", CC.MissingName({ itemID = 101 }))
     assert.equal("Item 102", CC.MissingName({ itemID = 102 }))
     assert.equal("Valorstones", CC.MissingName({ currencyID = 3008 }))
+    -- A currency the client cannot name reads as one, never as a bare number.
+    assert.equal(GC.L["Currency %d"]:format(3010), CC.MissingName({ currencyID = 3010 }))
+    assert.equal("Currency 3010", CC.MissingName({ currencyID = 3010 }))
   end)
 
   it("counts what the character holds of a currency, and none of one the client does not know", function()

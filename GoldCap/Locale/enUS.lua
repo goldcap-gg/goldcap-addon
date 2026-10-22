@@ -1432,4 +1432,5 @@ GC.Locales.enUS = {
   ["Make a BUY list"] = "Make a BUY list",
   ["Craft queue"] = "Craft queue",
   ["BUY list %s is ready in the BUY tab at the auction house"] = "BUY list %s is ready in the BUY tab at the auction house",
+  ["Currency %d"] = "Currency %d",
 }
