@@ -47,13 +47,13 @@ describe("Services/Sell", function()
         if entry == helper.SELL_FILES[1] then first = i end
         if entry == "Core/QuoteCache.lua" then cache = i end
         if not ui and entry:match("^UI/") then ui = i end
-        if entry:match("^Services/") then count = count + 1 end
+        if entry:match("^Services/Sell/") then count = count + 1 end
       end
       assert.is_not_nil(first, toc .. " does not load " .. helper.SELL_FILES[1])
       local block = {}
       for i = first, first + #helper.SELL_FILES - 1 do block[#block + 1] = entries[i] end
       assert.same(helper.SELL_FILES, block, toc)
-      assert.equal(#helper.SELL_FILES, count, toc .. " loads a Services file helper.SELL_FILES does not list")
+      assert.equal(#helper.SELL_FILES, count, toc .. " loads a Services/Sell file helper.SELL_FILES does not list")
       assert.is_true(cache < first, toc .. ": Core/QuoteCache.lua must load before the services")
       assert.is_true(first + #helper.SELL_FILES - 1 < ui, toc .. ": the services must load before any UI file")
     end
