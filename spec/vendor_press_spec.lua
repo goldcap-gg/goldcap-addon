@@ -119,6 +119,50 @@ describe("VendorPress", function()
     assert.same({ sold = 1, copper = 10, stopped = nil }, calls.report[2])
   end)
 
+  -- A sale leaves the bag when the server answers, which on a slow connection takes well over a
+  -- second; the machine looks every 0.2 s for up to 3 s before it calls a sale refused.
+  it("gives a timer sale 3 s to leave the bag, looking every 0.2 s, before falling back", function()
+    machine:Press(rows(3))
+    refuse = true
+    fire() -- the first sale has left; the second is made from this timer and stays
+    assert.equal(2, #calls.use)
+    local looks = 0
+    while #calls.report == 0 do
+      assert.equal(0.2, timers[1].seconds)
+      fire()
+      looks = looks + 1
+    end
+    assert.equal(15, looks)
+    assert.equal("slow", calls.report[1].stopped)
+    assert.is_true(machine.oneAtATime)
+  end)
+
+  it("counts a timer sale that leaves after 2.8 s and goes on", function()
+    machine:Press(rows(3))
+    refuse = true
+    fire() -- the second sale is made and stays for now
+    for _ = 1, 13 do fire() end -- 2.6 s
+    assert.equal(0, #calls.report)
+    bags[key(0, 2)] = nil -- the server's answer arrives
+    refuse = false
+    drain()
+    assert.equal(3, #calls.use)
+    assert.same({ sold = 3, copper = 60, stopped = nil }, calls.report[1])
+    assert.is_false(machine.oneAtATime)
+  end)
+
+  it("gives the sale made in the click the same 3 s before calling it refused", function()
+    refuse = true
+    machine:Press(rows(3))
+    local looks = 0
+    while #calls.report == 0 do
+      fire()
+      looks = looks + 1
+    end
+    assert.equal(15, looks)
+    assert.equal("refused", calls.report[1].stopped)
+  end)
+
   it("does not fall back when the sale made in the click stays", function()
     refuse = true
     machine:Press(rows(3))

@@ -17,8 +17,10 @@ GC.VendorPress = {}
 local P = GC.VendorPress
 
 P.STEP = 0.2
--- Ticks of STEP a sale gets to leave the bag (5 x 0.2 = 1 s); counted as integers.
-P.CONFIRM_TICKS = 5
+-- Ticks of STEP a sale gets to leave the bag (15 x 0.2 = 3 s); counted as integers. The slot
+-- empties when the server answers, and a slow connection takes well over a second: at 1 s a
+-- high-latency visit fell back to one stack per press, and a sale in the click ended silently.
+P.CONFIRM_TICKS = 15
 
 local Machine = {}
 Machine.__index = Machine
