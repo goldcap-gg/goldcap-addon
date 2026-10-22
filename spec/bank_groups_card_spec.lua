@@ -51,6 +51,20 @@ describe("bank by group card", function()
     GC.BankRoute.OnBankOpened()
   end
 
+  -- n followed groups, "Group 01" to "Group n", each with one item (100 + k), 20 of it in the bags.
+  local function manyGroups(n)
+    local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" }, caps = {}, rules = {} }
+    bags = { [0] = {}, [12] = {} }
+    for k = 1, n do
+      file.caps[k] = { i = 100 + k, c = 700, u = 1000, r = k, k = true }
+      file.rules[k] = { n = ("Group %02d"):format(k), p = "gather", d = 24, fp = 80 }
+      NAMES[100 + k] = "Item " .. k
+      bags[0][k] = info(100 + k, 20)
+    end
+    _G.GoldCap_AppRuns = file
+    GC.GroupRules.Adopt()
+  end
+
   before_each(function()
     saved = {}
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
@@ -364,6 +378,106 @@ describe("bank by group card", function()
     assert.equal(0, reads)
   end)
 
+  -- Compact: the keep count is a badge on the group's name line, the moves one under the other
+  -- under the counts.
+  it("puts the keep count on the group's name line, and the two moves under the counts", function()
+    open()
+    local herbs = block("Herbs")
+    assert.equal(C._frame.content, herbs:GetParent())
+    assert.same({ "TOPRIGHT", herbs, "TOPRIGHT", 0, 0 }, at(herbs.keep))
+    assert.same({ "TOPLEFT", herbs, "TOPLEFT", 0, 0 }, at(herbs.name))
+    assert.equal(herbs:GetWidth() - herbs.keep:GetWidth() - 4, herbs.name:GetWidth())
+    local countsY, bankY, bagsY = at(herbs.counts)[5], at(herbs.toBank)[5], at(herbs.toBags)[5]
+    assert.is_true(countsY > bankY and bankY > bagsY)
+    -- A one-line name and counts: 18 + 2 + 14 + 4 + 22 + 4 + 22.
+    assert.equal(86, herbs:GetHeight())
+  end)
+
+  -- A group with nothing to move (all of it kept in the bags, or staying there) is one line among
+  -- others, not a block; the line opens them, so their keep count can still be changed.
+  it("folds the groups with nothing to move into one line, which opens them below it", function()
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Ore = 100 } }
+    open()
+    assert.is_nil(block("Ore"))
+    assert.is_truthy(block("Herbs"))
+    local fold = C._frame.fold
+    assert.is_true(shown(fold))
+    assert.equal("Groups with nothing to move: 1 ▼", fold.label)
+    local foldAt = at(fold)
+    press(fold)
+    assert.equal("Groups with nothing to move: 1 ▲", fold.label)
+    assert.same(foldAt, at(fold))
+    local ore = block("Ore")
+    assert.is_true(at(ore)[5] < foldAt[5])
+    assert.equal("Keep in bags: 100 of each", ore.keep.label)
+    assert.is_false(ore.toBank:IsEnabled())
+    assert.is_false(ore.toBags:IsEnabled())
+    press(fold)
+    assert.is_nil(block("Ore"))
+    assert.equal("Groups with nothing to move: 1 ▼", fold.label)
+  end)
+
+  it("shows no fold line when every group has something to move", function()
+    open()
+    assert.is_false(shown(C._frame.fold))
+  end)
+
+  -- A stack that stays has a reason to tell: its group is a block, not folded.
+  it("never folds a group with a stack that stays in the bags", function()
+    refundable["5:1"] = true
+    open()
+    local ore = block("Ore")
+    assert.is_truthy(ore)
+    assert.equal("Stays in bags: Bismuth ×50, can still be refunded", textOf(ore.stays[1]))
+    assert.is_false(ore.toBank:IsEnabled())
+    assert.is_false(shown(C._frame.fold))
+  end)
+
+  -- Folding a group the player is pressing would slide the blocks under it up into the cursor.
+  it("keeps a group's block while the bank is open once it has shown, even with nothing left to move", function()
+    open()
+    local ore = block("Ore")
+    local before = at(ore)
+    press(ore.toBank)
+    assert.equal(ore, block("Ore"))
+    assert.same(before, at(ore))
+    assert.is_false(shown(C._frame.fold))
+    GC.BankRoute.OnBankClosed()
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Ore = 100 } }
+    open()
+    assert.is_nil(block("Ore"))
+  end)
+
+  -- A TSM player brings 8 to 20 groups: the card stays on the screen, no taller than the room under
+  -- its top, and the rest scrolls.
+  it("stays on the screen with many groups: clamped, no taller than the room under its top, the rest scrolls", function()
+    manyGroups(12)
+    _G.BankFrame.GetTop = function() return 700 end
+    open()
+    local card = C._frame
+    assert.is_true(W.state(card).clamped)
+    assert.equal(700 - 80, card:GetHeight())
+    local scroll, content = card.scroll, card.content
+    assert.equal(content, scroll:GetScrollChild())
+    assert.is_true(scroll:GetVerticalScrollRange() > 0)
+    local names, lowest = {}, 0
+    for _, b in ipairs(C._blocks) do
+      if b:IsShown() then
+        names[#names + 1] = textOf(b.name)
+        assert.equal(content, b:GetParent())
+        lowest = math.max(lowest, -at(b)[5] + b:GetHeight())
+      end
+    end
+    assert.equal(12, #names)
+    assert.equal(lowest, content:GetHeight())
+    -- Few groups: as tall as they need.
+    GC.BankRoute.OnBankClosed()
+    manyGroups(1)
+    open()
+    assert.is_true(card:GetHeight() < 700 - 80)
+    assert.equal(0, scroll:GetVerticalScrollRange())
+  end)
+
   -- Its own column: beside the carry list, never under it, so the carry list growing, shrinking
   -- or emptying does not move the card. Once the carry list has shown, the card keeps that column
   -- until the bank closes.
@@ -406,6 +520,8 @@ describe("bank by group card", function()
     refundable["0:2"] = true
     bags[5][2] = info(3, 7)
     refused["5:2"] = true
+    bags[0][4] = info(4, 3)
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Cloth = 10 } }
     for _, code in ipairs(helper.localeCodes()) do
       helper.loadModule("Locale/" .. code .. ".lua", GC)
     end
@@ -414,19 +530,30 @@ describe("bank by group card", function()
       open()
       local card = C._frame
       assert.is_true(W.state(card.title).wordWrap ~= false, code)
+      assert.equal(card.content:GetWidth(), card.title:GetWidth(), code)
+      local fold = card.fold
+      assert.is_true(shown(fold), code)
+      assert.is_true(fold:GetWidth() >= fold.text:GetUnboundedStringWidth(), code .. " " .. fold.label)
+      assert.is_true(card.content:GetWidth() >= fold:GetWidth(), code .. " " .. fold.label)
       for _, b in ipairs(C._blocks) do
         if b:IsShown() then
-          local labels = { b.name, b.counts }
+          local inner = card.content:GetWidth()
+          assert.equal(inner, b:GetWidth(), code)
+          local labels = { b.counts }
           for _, fs in ipairs(b.stays) do if fs:IsShown() then labels[#labels + 1] = fs end end
-          assert.is_true(#labels > 2, code)
+          assert.is_true(#labels > 1, code)
           for _, fs in ipairs(labels) do
             assert.is_true(W.state(fs).wordWrap ~= false, code)
-            assert.equal(card:GetWidth() - 20, fs:GetWidth(), code)
+            assert.equal(inner, fs:GetWidth(), code)
           end
+          -- The name wraps beside the keep badge, never under 80px.
+          assert.is_true(W.state(b.name).wordWrap ~= false, code)
+          assert.is_true(b.name:GetWidth() >= 80, code)
+          assert.is_true(b.name:GetWidth() + 4 + b.keep:GetWidth() <= inner, code)
           for _, button in ipairs({ b.keep, b.toBank, b.toBags }) do
             if button:IsShown() then
               assert.is_true(button:GetWidth() >= button.text:GetUnboundedStringWidth(), code .. " " .. button.label)
-              assert.is_true(card:GetWidth() >= button:GetWidth() + 20, code .. " " .. button.label)
+              assert.is_true(inner >= button:GetWidth(), code .. " " .. button.label)
             end
           end
         end

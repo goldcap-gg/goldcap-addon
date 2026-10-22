@@ -20,14 +20,25 @@ local _, GC = ...
 -- bring, and the counts line keeps room for the most it can say. The card has its own column,
 -- beside the carry list, so that list growing or emptying does not move it either.
 --
+-- On the screen with any number of groups: each group is a compact block (the keep count a badge
+-- on its name line), the groups with nothing to move and nothing to say (all they have here kept in
+-- the bags by their keep count) fold into one line that opens them, and the
+-- card is clamped to the screen, no taller than the room under its top, with the rest in the kit's
+-- scroll. A group shown as a block keeps it until the bank closes, so a press never folds the
+-- block under the cursor.
+--
 -- Wired through the bank route's own handlers, which Core/Init.lua's event frame calls: the card
 -- hooks them as it loads (after UI/BankRoute.lua in GoldCap.toc). Retail only: GoldCap_Camelot.toc
 -- loads none of the bank files.
 GC.BankGroupsCard = {}
 local C = GC.BankGroupsCard
 
-local LAYOUT = { WIDTH = 240, PAD = 10, GAP = 4, X = 4, LINE_GAP = 2, BLOCK_GAP = 12, BUTTON_H = 22,
-  KEEP_H = 18, BUTTON_MIN_W = 80 }
+-- BAR: the scroll's bar hangs 6px right of the scroll frame and is 16px wide
+-- (Blizzard_SharedXML/SecureScrollTemplates.xml), so the scroll frame stops 22px short of the
+-- card's right edge and the bar lands in that margin, as in UI/SettingsFrame.lua. SCREEN_GAP: what
+-- the card leaves free under it, above the action bars.
+local LAYOUT = { WIDTH = 260, PAD = 10, GAP = 4, X = 4, LINE_GAP = 2, BLOCK_GAP = 8, BUTTON_H = 22,
+  KEEP_H = 18, BUTTON_MIN_W = 80, NAME_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160 }
 -- The backpack, the four bag slots and the reagent bag: herbs, ore and cloth go to the reagent bag.
 local BAGS = { 0, 1, 2, 3, 4, 5 }
 
@@ -35,10 +46,13 @@ C._blocks = {}
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
 C._moving = {}
--- While the bank is open: the card's width, which only grows, and whether the carry list has shown
--- (the card then keeps the column beside it until the bank closes).
+-- While the bank is open: the card's width, which only grows; whether the carry list has shown
+-- (the card then keeps the column beside it until the bank closes); the groups shown as a block,
+-- which stay one; and whether the folded groups are open.
 C._width = nil
 C._besideRoute = false
+C._shown = {}
+C._unfolded = false
 local frame
 local settleSeq = 0
 
@@ -52,19 +66,35 @@ local function heightOf(fs, fallback)
 end
 
 --- Beside the carry list once it has shown in this visit to the bank, else beside the bank window:
---- a column of its own, which the carry list's height never moves.
+--- a column of its own, which the carry list's height never moves. Answers the frame whose top
+--- the card's top is level with, or nil.
 function C._Place()
   local route, bank = GC.BankRoute._frame, _G.BankFrame
   if isUp(route) then C._besideRoute = true end
-  if not frame then return end
+  if not frame then return nil end
   frame:ClearAllPoints()
   if C._besideRoute and route then
     frame:SetPoint("TOPLEFT", route, "TOPRIGHT", LAYOUT.X, 0)
+    return route
   elseif isUp(bank) then
     frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", LAYOUT.X, 0)
-  else
-    frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
+    return bank
   end
+  frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
+  return nil
+end
+
+-- The most the card may be tall: the room from its top (the top of what it stands beside) down to
+-- SCREEN_GAP above the screen's bottom, or the screen less twice that when it stands centred.
+-- Unbounded where the client gives no measure.
+local function maxHeight(beside)
+  local top = beside and beside.GetTop and beside:GetTop()
+  if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
+  local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
+  if type(screen) == "number" and screen > 0 then
+    return math.max(LAYOUT.MIN_H, screen - 2 * LAYOUT.SCREEN_GAP)
+  end
+  return math.huge
 end
 
 -- Forgets a sent stack once its slot no longer holds it as it was: moved, merged, or emptied.
@@ -126,13 +156,33 @@ local function wrappingLabel(parent, size, color)
   return fs
 end
 
+-- The fold line's own click: opens or closes the groups with nothing to move.
+local function onFoldClick()
+  C._unfolded = not C._unfolded
+  C.Refresh()
+end
+
+-- The title, then the kit's scroll (UIPanelScrollFrameTemplate under Theme.QuietScrollBar, its
+-- bar hidden while everything fits), whose child holds the blocks and the fold line.
 local function build()
   local T = GC.Theme
   frame = T.Card(UIParent, T.color.panel, T.color.border, true)
   frame:SetWidth(LAYOUT.WIDTH)
   frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
   frame.title = wrappingLabel(frame, 12, T.color.gold)
   frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
+  local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+  if T.QuietScrollBar then T.QuietScrollBar(scroll) end
+  scroll.scrollBarHideable = true
+  if scroll.ScrollBar then scroll.ScrollBar:Hide() end
+  frame.content = CreateFrame("Frame", nil, scroll)
+  frame.content:SetSize(1, 1)
+  scroll:SetScrollChild(frame.content)
+  frame.scroll = scroll
+  frame.fold = T.Button(frame.content, "ghost", "badge")
+  frame.fold:SetHeight(LAYOUT.KEEP_H)
+  frame.fold:SetScript("OnClick", onFoldClick)
   C._frame = frame
 end
 
@@ -144,12 +194,12 @@ local function moveButton(parent, variant, into)
   return button
 end
 
--- One group: its name, how many are where, the keep count, To bank and To bags.
+-- One group: its name and keep count, how many are where, To bank and To bags.
 local function blockAt(i)
   local block = C._blocks[i]
   if block then return block end
   local T = GC.Theme
-  block = CreateFrame("Frame", nil, frame)
+  block = CreateFrame("Frame", nil, frame.content)
   block.name = wrappingLabel(block, 11, T.color.fg)
   block.name:SetPoint("TOPLEFT", block, "TOPLEFT", 0, 0)
   block.counts = wrappingLabel(block, 10, T.color.fgDim)
@@ -232,7 +282,8 @@ local function paintBlock(block, group, writable)
   if writable then
     block.keep:SetLabel(GC.L["Keep in bags: %d of each"]:format(group.keep))
     block.keep:Show()
-    widest = fitButton(block.keep)
+    -- The name wraps beside the badge, in no less than NAME_MIN_W.
+    widest = fitButton(block.keep) + LAYOUT.GAP + LAYOUT.NAME_MIN_W
   else
     block.keep:Hide()
   end
@@ -253,21 +304,24 @@ local function countsHeight(counts, most)
   return math.max(h, heightOf(counts, 10))
 end
 
--- Lays a block out at the card's inner width, top to bottom; answers its height. The keep, To bank
--- and To bags rows keep their place whether or not their button shows.
+-- Lays a block out at the card's inner width, top to bottom: the name with the keep badge at its
+-- right, the counts, To bank, To bags, then what stays in the bags. Answers its height. The badge's
+-- line and the two move rows keep their place whether or not their button shows.
 local function layoutBlock(block, inner)
   block:SetWidth(inner)
-  block.name:SetWidth(inner)
+  block.keep:ClearAllPoints()
+  block.keep:SetPoint("TOPRIGHT", block, "TOPRIGHT", 0, 0)
+  block.name:SetWidth(block.keep:IsShown() and (inner - block.keep:GetWidth() - LAYOUT.GAP) or inner)
   block.counts:SetWidth(inner)
-  local y = heightOf(block.name, 12) + LAYOUT.LINE_GAP
+  local y = math.max(heightOf(block.name, 12), LAYOUT.KEEP_H) + LAYOUT.LINE_GAP
   block.counts:ClearAllPoints()
   block.counts:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
   y = y + countsHeight(block.counts, block.countsMost)
-  for _, button in ipairs({ block.keep, block.toBank, block.toBags }) do
+  for _, button in ipairs({ block.toBank, block.toBags }) do
     y = y + LAYOUT.GAP
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
-    y = y + (button == block.keep and LAYOUT.KEEP_H or LAYOUT.BUTTON_H)
+    y = y + LAYOUT.BUTTON_H
   end
   for _, fs in ipairs(block.stays) do
     if fs:IsShown() then
@@ -286,32 +340,74 @@ local function hide()
   if frame then frame:Hide() end
 end
 
--- The card's title, then the blocks, at the card's width.
+-- The card: its title, then in the scroll as blocks the groups with something to move or a stack
+-- that stays in the bags (and those shown as a block earlier in this visit), the fold line for the
+-- others, and, opened, their blocks under it.
 local function paint(groups)
   local writable = GC.BankGroups.Writable(GC.db)
+  local open, folded = {}, {}
+  for _, group in ipairs(groups) do
+    if C._shown[group.name] or #group.toBank + #group.toBags + #group.stays > 0 then
+      C._shown[group.name] = true
+      open[#open + 1] = group
+    else
+      folded[#folded + 1] = group
+    end
+  end
+  local listed = { unpack(open) }
+  if C._unfolded then
+    for _, group in ipairs(folded) do listed[#listed + 1] = group end
+  end
   local widest = 0
-  for i, group in ipairs(groups) do
+  for i, group in ipairs(listed) do
     widest = math.max(widest, paintBlock(blockAt(i), group, writable))
   end
-  for i = #groups + 1, #C._blocks do C._blocks[i]:Hide() end
+  for i = #listed + 1, #C._blocks do C._blocks[i]:Hide() end
+  local fold = frame.fold
+  if #folded > 0 then
+    fold:SetLabel(GC.L["Groups with nothing to move: %d"]:format(#folded) .. (C._unfolded and " ▲" or " ▼"))
+    fold:Show()
+    widest = math.max(widest, fitButton(fold))
+  else
+    fold:Hide()
+  end
   -- Only ever wider while the bank is open: a narrower card would wrap its lines anew.
-  local width = math.max(LAYOUT.WIDTH, widest + 2 * LAYOUT.PAD, C._width or 0)
+  local width = math.max(LAYOUT.WIDTH, widest + LAYOUT.PAD + LAYOUT.BAR, C._width or 0)
   C._width = width
-  local inner = width - 2 * LAYOUT.PAD
+  local inner = width - LAYOUT.PAD - LAYOUT.BAR
   frame:SetWidth(width)
   frame.title:SetWidth(inner)
   frame.title:SetText(GC.L["GoldCap: your groups"])
-  local y = LAYOUT.PAD + heightOf(frame.title, 12) + LAYOUT.GAP * 2
-  for i, block in ipairs(C._blocks) do
-    if i > #groups then break end
-    if i > 1 then y = y + LAYOUT.BLOCK_GAP end
+  local y = 0
+  local function place(i)
+    local block = C._blocks[i]
     block:ClearAllPoints()
-    block:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
+    block:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
     block:Show()
     y = y + layoutBlock(block, inner)
   end
-  frame:SetHeight(math.ceil(y + LAYOUT.PAD))
-  C._Place()
+  for i = 1, #open do
+    if i > 1 then y = y + LAYOUT.BLOCK_GAP end
+    place(i)
+  end
+  if #folded > 0 then
+    if #open > 0 then y = y + LAYOUT.BLOCK_GAP end
+    fold:ClearAllPoints()
+    fold:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
+    y = y + LAYOUT.KEEP_H
+    for i = #open + 1, #listed do
+      y = y + LAYOUT.BLOCK_GAP
+      place(i)
+    end
+  end
+  y = math.ceil(y)
+  frame.content:SetSize(inner, y)
+  local top = math.ceil(LAYOUT.PAD + heightOf(frame.title, 12) + LAYOUT.GAP * 2)
+  local height = math.min(top + y + LAYOUT.PAD, maxHeight(C._Place()))
+  frame:SetHeight(height)
+  frame.scroll:ClearAllPoints()
+  frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -top)
+  frame.scroll:SetSize(inner, height - top - LAYOUT.PAD)
   frame:Show()
 end
 
@@ -337,11 +433,13 @@ end
 -- column is known.
 function C.OnBankOpened()
   C._moving, C._width, C._besideRoute = {}, nil, isUp(GC.BankRoute._frame) and true or false
+  C._shown, C._unfolded = {}, false
   C.Refresh()
 end
 
 function C.OnBankClosed()
   C._moving, C._width, C._besideRoute = {}, nil, false
+  C._shown, C._unfolded = {}, false
   hide()
 end
 

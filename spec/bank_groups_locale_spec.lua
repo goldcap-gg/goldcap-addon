@@ -9,7 +9,7 @@ local KEYS = {
   "%d in bags, %d in the Warband Bank", "Keep in bags: %d of each",
   "How many of each item in %s to keep in your bags?", "To bank: %s ×%d (%d left)", "To bags: %s ×%d (%d left)",
   "Stays in bags: %s ×%d, can still be refunded", "Stays in bags: %s ×%d, the Warband Bank does not take it",
-  "To bank: nothing to move", "To bags: nothing to move",
+  "To bank: nothing to move", "To bags: nothing to move", "Groups with nothing to move: %d",
   "Type a whole number", "Save",
 }
 

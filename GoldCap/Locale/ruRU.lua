@@ -1592,6 +1592,7 @@ GC.Locales.ruRU = {
   ["To bags: %s ×%d (%d left)"] = "В сумки: %s ×%d (осталось %d)",
   ["To bank: nothing to move"] = "В банк: нечего переносить",
   ["To bags: nothing to move"] = "В сумки: нечего переносить",
+  ["Groups with nothing to move: %d"] = "Группы, где нечего переносить: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Остаётся в сумках: %s ×%d, его ещё можно вернуть торговцу",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Остаётся в сумках: %s ×%d, банк отряда его не принимает",
 }

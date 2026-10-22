@@ -1520,6 +1520,7 @@ GC.Locales.ptBR = {
   ["To bags: %s ×%d (%d left)"] = "Para as bolsas: %s ×%d (faltam %d)",
   ["To bank: nothing to move"] = "Para o banco: nada a mover",
   ["To bags: nothing to move"] = "Para as bolsas: nada a mover",
+  ["Groups with nothing to move: %d"] = "Grupos sem nada a mover: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Fica nas bolsas: %s ×%d, ainda pode ser reembolsado",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Fica nas bolsas: %s ×%d, o banco do bando de guerra não aceita",
 }

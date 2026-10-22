@@ -1510,6 +1510,7 @@ GC.Locales.enUS = {
   ["To bags: %s ×%d (%d left)"] = "To bags: %s ×%d (%d left)",
   ["To bank: nothing to move"] = "To bank: nothing to move",
   ["To bags: nothing to move"] = "To bags: nothing to move",
+  ["Groups with nothing to move: %d"] = "Groups with nothing to move: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Stays in bags: %s ×%d, can still be refunded",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Stays in bags: %s ×%d, the Warband Bank does not take it",
 }
