@@ -15,8 +15,8 @@ local _, GC = ...
 --
 -- The reader, the move and their guards are shared, and each takes the bank it works with: this
 -- list always the Warband Bank (it hands items to another character), the bank by group card
--- (UI/BankGroupsCard.lua) the bank the bank window shows (ShownBankType), the character's own or
--- the Warband Bank. The card reads through ReadStacks and moves its stacks through MoveStack.
+-- (UI/BankGroupsCard.lua) the bank its own choice names, which starts on the one the bank window
+-- shows (ShownBankType). The card reads through ReadStacks and moves its stacks through MoveStack.
 GC.BankRoute = {}
 local P = GC.BankRoute
 
@@ -133,8 +133,11 @@ end
 
 --- The bank the bank window shows: what Blizzard's own right click on a bag item deposits into
 --- (`BankFrame:GetActiveBankType()`, Blizzard_UIPanels_Game's ContainerFrame.lua), the character's
---- own bank or the Warband Bank. The Warband Bank when the window answers neither: its panel not
---- shown yet, or another addon's bank window in its place.
+--- own bank or the Warband Bank. The Warband Bank when the window answers neither, which is only
+--- while its panel is not shown yet (the first open of the session, before the panel's OnShow). A
+--- bag addon such as Bagnon keeps Blizzard's window shown under a hidden parent on the character's
+--- bank for the whole visit, so this answers the character's bank all along; the group card has
+--- its own choice of bank for that (UI/BankGroupsCard.lua).
 function P.ShownBankType()
   local bank, character = _G.BankFrame, Enum and Enum.BankType and Enum.BankType.Character
   local shown = type(bank) == "table" and ask(bank.GetActiveBankType, bank) or nil

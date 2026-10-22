@@ -1525,8 +1525,6 @@ GC.Locales.itIT = {
   ["Groups with nothing to move: %d"] = "Gruppi senza niente da spostare: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Resta nelle borse: %s ×%d, si può ancora rimborsare",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Resta nelle borse: %s ×%d, la banca della brigata non lo accetta",
-  ["Moves stacks between your bags and the Warband Bank"] = "Sposta pile tra le tue borse e la banca della brigata",
-  ["Moves stacks between your bags and your bank"] = "Sposta pile tra le tue borse e la tua banca",
   ["%d in bags, %d in your bank"] = "%d nelle borse, %d nella tua banca",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Resta nelle borse: %s ×%d, la tua banca non lo accetta",
 }

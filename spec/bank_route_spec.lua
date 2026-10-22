@@ -506,7 +506,7 @@ describe("bank carry list", function()
     end)
 
     -- The carry list hands items to another character, which only the Warband Bank does; the group
-    -- card moves to and from the bank it names, the one the bank window showed at its last paint.
+    -- card moves to and from the bank its choice names, the one its last paint read and planned with.
     it("hands MoveStack the Warband Bank from the carry list and the bank it names from the group card", function()
       local carry = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_truthy(carry:find('P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank())',
@@ -515,9 +515,28 @@ describe("bank carry list", function()
       local move = bodyOf(card, "local function onMoveClick(")
       assert.is_truthy(move:find("GC.BankRoute.MoveStack(stack, button.into, C._bankType)", 1, true))
       local refresh = bodyOf(card, "function C.Refresh(")
-      assert.is_true(assert(refresh:find("C._bankType = bankType", 1, true))
-        < assert(refresh:find("GC.BankRoute.CanMove(bankType)", 1, true)))
-      assert.equal(1, count(card, "C._bankType = bankType"))
+      local chosen = assert(refresh:find("local bankType = C._bankType", 1, true))
+      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.ReadStacks(BAGS, false, groupOf, bankType)", 1, true)))
+      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.BankTabs(bankType)", 1, true)))
+      -- The bank is set only by a paint, the choice's own click, and the bank opening or closing;
+      -- the choice's click moves nothing.
+      -- A line that assigns to C._bankType: it stands left of the line's first lone `=`.
+      local function sets(text)
+        local n = 0
+        for line in text:gmatch("[^\n]+") do
+          local left = line:match("^(.-[^=~<>])=[^=]")
+          if left and left:find("C._bankType", 1, true) then n = n + 1 end
+        end
+        return n
+      end
+      local click = bodyOf(card, "local function onBankClick(")
+      local opened, closed = bodyOf(card, "function C.OnBankOpened("), bodyOf(card, "function C.OnBankClosed(")
+      -- Plus its declaration at the top of the file.
+      assert.equal(sets(card), 1 + sets(refresh) + sets(click) + sets(opened) + sets(closed))
+      assert.equal(1, sets(click))
+      assert.is_nil(click:find("MoveStack", 1, true))
+      assert.is_nil(click:find("UseContainerItem", 1, true))
+      assert.equal('side:SetScript("OnClick", onBankClick)', card:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
     end)
 
     -- A switch of the bank window's tab repaints the card through a post-hook on Blizzard's bank
@@ -590,8 +609,10 @@ describe("bank carry list", function()
       assert.is_nil(move:find("Disable(", 1, true))
       assert.is_true(assert(move:find("GC.BankRoute.MoveStack(", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
       local paint = bodyOf(card, "local function paintMove(")
-      assert.equal(1, count(card, "Disable("))
       assert.equal(1, count(paint, "button:Disable()"))
+      -- The only other: a side of the bank choice a bank cannot use, which moves nothing anyway.
+      assert.equal(2, count(card, "Disable("))
+      assert.equal(1, count(bodyOf(card, "local function paintChoice("), "side:Disable()"))
     end)
 
     it("loads in retail only, after the route module, and the group card after the route", function()

@@ -1513,8 +1513,6 @@ GC.Locales.enUS = {
   ["Groups with nothing to move: %d"] = "Groups with nothing to move: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "Stays in bags: %s ×%d, can still be refunded",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Stays in bags: %s ×%d, the Warband Bank does not take it",
-  ["Moves stacks between your bags and the Warband Bank"] = "Moves stacks between your bags and the Warband Bank",
-  ["Moves stacks between your bags and your bank"] = "Moves stacks between your bags and your bank",
   ["%d in bags, %d in your bank"] = "%d in bags, %d in your bank",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Stays in bags: %s ×%d, your bank does not take it",
 }

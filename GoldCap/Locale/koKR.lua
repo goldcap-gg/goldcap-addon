@@ -1462,8 +1462,6 @@ GC.Locales.koKR = {
   ["Groups with nothing to move: %d"] = "옮길 것 없는 그룹: %d",
   ["Stays in bags: %s ×%d, can still be refunded"] = "가방에 남음: %s ×%d, 아직 환불할 수 있음",
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "가방에 남음: %s ×%d, 전투부대 은행에 넣을 수 없음",
-  ["Moves stacks between your bags and the Warband Bank"] = "가방과 전투부대 은행 사이에서 묶음을 옮깁니다",
-  ["Moves stacks between your bags and your bank"] = "가방과 캐릭터 은행 사이에서 묶음을 옮깁니다",
   ["%d in bags, %d in your bank"] = "가방에 %d, 캐릭터 은행에 %d",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "가방에 남음: %s ×%d, 캐릭터 은행에 넣을 수 없음",
 }

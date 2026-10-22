@@ -2,22 +2,27 @@ local _, GC = ...
 
 -- At a bank: bank by group. Beside the bank window (beside the carry list, UI/BankRoute.lua, when
 -- that shows), the groups the player follows on goldcap.gg that have items in the bags or the bank
--- the bank window shows, each with how many are where, To bank and To bags, how many of each item
--- it keeps in the bags (GC.db.bankKeep, Core/BankGroups.lua, by the group's key), and which stacks
+-- the card works with, each with how many are where, To bank and To bags, how many of each item it
+-- keeps in the bags (GC.db.bankKeep, Core/BankGroups.lua, by the group's key), and which stacks
 -- stay in the bags and why (the bank does not take them, or, for the Warband Bank, they are still
 -- refundable). Which stack a press moves is Core/BankGroups.lua's Plan; an item's group is
 -- Core/GroupRules.lua's. With no followed group there is no card at all: it is not built and no
 -- slot is read for it.
 --
--- It follows the bank the player is looking at (GC.BankRoute.ShownBankType): with the character's
--- own bank shown, To bank puts stacks in it and To bags takes them from its tabs; with the Warband
--- Bank shown, the same with the Warband Bank. The line under the title names which, and the card
--- repaints when the player switches the bank window's tab (the post-hook on BankPanel's Reset at the
--- end of this file). The carry list stays with the Warband Bank whatever the window shows.
+-- Which bank: the character's own or the Warband Bank, a two-way choice under the title named as
+-- the bank window's tabs name them. At each open it starts on the bank the window shows
+-- (GC.BankRoute.ShownBankType), and it goes along when the window comes to show the other bank (the
+-- player clicks its tab: the post-hook on BankPanel's Reset at the end of this file). A click on
+-- the card's choice sets it until then or until the bank closes: a bag addon such as Bagnon keeps
+-- Blizzard's hidden window on the character's bank for the whole visit, and the choice is how its
+-- player reaches the Warband Bank. A bank with no tab bought, or out of reach at this banker, is
+-- a disabled side, and the card works with the other. The counts, the plan and every move come
+-- from the bank chosen. The carry list stays with the Warband Bank whatever is chosen.
 --
 -- One stack a press, moved inside the player's own click through the bank route's MoveStack,
--- whose guards apply: the bank is the window, the slot still holds the stack, unlocked, and the
--- bank may take it (spec/bank_route_spec.lua audits the call sites). The button names the next
+-- whose guards apply: the bank is the window, no spell waits for an item target and the cursor is
+-- empty, the slot still holds the stack, unlocked, and the bank may take it
+-- (spec/bank_route_spec.lua audits the call sites). The button names the next
 -- stack as soon as a press has sent one, and a stack sent is offered again only if the bags have
 -- not shown it moved within the route's SETTLE_SECONDS.
 --
@@ -44,8 +49,11 @@ local C = GC.BankGroupsCard
 -- (Blizzard_SharedXML/SecureScrollTemplates.xml), so the scroll frame stops 22px short of the
 -- card's right edge and the bar lands in that margin, as in UI/SettingsFrame.lua. SCREEN_GAP: what
 -- the card leaves free under it, above the action bars.
+-- SEG_PAD, SEG_MIN: the bank choice's track around its two sides, and a side's least width, as the
+-- crafting panel's view switch has them (UI/CraftPanel.lua).
 local LAYOUT = { WIDTH = 260, PAD = 10, GAP = 4, X = 4, LINE_GAP = 2, BLOCK_GAP = 8, BUTTON_H = 22,
-  KEEP_H = 18, BUTTON_MIN_W = 80, NAME_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160 }
+  KEEP_H = 18, BUTTON_MIN_W = 80, NAME_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160, SEG_PAD = 2,
+  SEG_MIN = 60 }
 -- The backpack, the four bag slots and the reagent bag: herbs, ore and cloth go to the reagent bag.
 local BAGS = { 0, 1, 2, 3, 4, 5 }
 
@@ -53,11 +61,13 @@ C._blocks = {}
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
 C._moving = {}
--- While the bank is open: the bank the card shows and moves to (Enum.BankType), as of its last
--- paint; the card's width, which only grows; whether the carry list has shown (the card then keeps
--- the column beside it until the bank closes); the groups shown as a block (by key), which stay
--- one; and whether the folded groups are open.
+-- While the bank is open: the bank the card works with (Enum.BankType), as of its last paint, and
+-- the bank the window showed then (the card goes along only when that changes); the card's width,
+-- which only grows; whether the carry list has shown (the card then keeps the column beside it
+-- until the bank closes); the groups shown as a block (by key), which stay one; and whether the
+-- folded groups are open.
 C._bankType = nil
+C._seenType = nil
 C._width = nil
 C._besideRoute = false
 C._shown = {}
@@ -173,9 +183,32 @@ local function onFoldClick()
   C.Refresh()
 end
 
--- The title and the line naming the bank, then the kit's scroll (UIPanelScrollFrameTemplate under
+-- A side of the bank choice: the card works with that bank until the window comes to show the
+-- other one or the bank closes. It moves nothing; a disabled side gets no click.
+local function onBankClick(button)
+  C._bankType = button.bankType
+  C.Refresh()
+end
+
+-- The two banks, the character's own first, as the bank window's tabs come.
+local function banks()
+  local types = Enum and Enum.BankType
+  return types and types.Character, types and types.Account
+end
+
+-- The bank window's own name for a bank, in the player's language: Blizzard's BANK and
+-- ACCOUNT_BANK_PANEL_TITLE, which its tabs and its title read (Blizzard_UIPanels_Game's
+-- Mainline/BankFrame.lua, GenerateBankTypeTabs and RequestTitleRefresh).
+local function bankName(bankType)
+  local _, account = banks()
+  local name = bankType == account and _G.ACCOUNT_BANK_PANEL_TITLE or _G.BANK
+  return type(name) == "string" and name or ""
+end
+
+-- The title and the bank choice, then the kit's scroll (UIPanelScrollFrameTemplate under
 -- Theme.QuietScrollBar, its bar hidden while everything fits), whose child holds the blocks and the
--- fold line.
+-- fold line. The choice is the crafting panel's view switch (UI/CraftPanel.lua): a sunken track,
+-- the bank chosen lit and the other bare text.
 local function build()
   local T = GC.Theme
   frame = T.Card(UIParent, T.color.panel, T.color.border, true)
@@ -184,7 +217,18 @@ local function build()
   frame:SetClampedToScreen(true)
   frame.title = wrappingLabel(frame, 12, T.color.gold)
   frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
-  frame.bank = wrappingLabel(frame, 10, T.color.fgDim)
+  local choice = CreateFrame("Frame", nil, frame)
+  choice.track = T.SlicedTexture(choice, "BACKGROUND", T.MEDIA .. "plaque.png", { 0, 0, 0, 0.3 }, 12)
+  choice.track:SetAllPoints(choice)
+  choice.sides = {}
+  for i, bankType in ipairs({ banks() }) do
+    local side = T.Button(choice, "segment", "plaque")
+    side:SetHeight(LAYOUT.KEEP_H)
+    side.bankType = bankType
+    side:SetScript("OnClick", onBankClick)
+    choice.sides[i] = side
+  end
+  frame.choice = choice
   local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
   if T.QuietScrollBar then T.QuietScrollBar(scroll) end
   scroll.scrollBarHideable = true
@@ -267,16 +311,37 @@ local function paintMove(button, group, stacks, format, done)
   return button:GetWidth()
 end
 
--- The card's words for the bank it shows: the Warband Bank's, else the character's own bank's.
+-- The card's words for the bank it works with: the Warband Bank's, else the character's own bank's.
 local function bankWords()
-  if C._bankType == (Enum and Enum.BankType and Enum.BankType.Account) then
-    return { line = GC.L["Moves stacks between your bags and the Warband Bank"],
-      counts = GC.L["%d in bags, %d in the Warband Bank"],
+  local _, account = banks()
+  if C._bankType == account then
+    return { counts = GC.L["%d in bags, %d in the Warband Bank"],
       refused = GC.L["Stays in bags: %s ×%d, the Warband Bank does not take it"] }
   end
-  return { line = GC.L["Moves stacks between your bags and your bank"],
-    counts = GC.L["%d in bags, %d in your bank"],
+  return { counts = GC.L["%d in bags, %d in your bank"],
     refused = GC.L["Stays in bags: %s ×%d, your bank does not take it"] }
+end
+
+-- The bank choice: each side named and as wide as its name, the bank chosen lit, a bank that
+-- cannot be used (`usable[bankType]` false) disabled. The two sides stand side by side and the card
+-- grows to hold them, so a name is never cut. Answers the track's width.
+local function paintChoice(usable)
+  local choice, pad = frame.choice, LAYOUT.SEG_PAD
+  for _, side in ipairs(choice.sides) do
+    side:SetLabel(bankName(side.bankType))
+    side:FitLabels({ side.label }, LAYOUT.SEG_MIN)
+    side:SetVariant(side.bankType == C._bankType and "active" or "segment")
+    -- Enabled first, so a side disabled again repaints as disabled over its new variant.
+    side:Enable()
+    if not usable[side.bankType] then side:Disable() end
+  end
+  local first, second = choice.sides[1], choice.sides[2]
+  first:ClearAllPoints()
+  first:SetPoint("TOPLEFT", choice, "TOPLEFT", pad, -pad)
+  second:ClearAllPoints()
+  second:SetPoint("LEFT", first, "RIGHT", pad, 0)
+  choice:SetSize(first:GetWidth() + second:GetWidth() + 3 * pad, LAYOUT.KEEP_H + 2 * pad)
+  return choice:GetWidth()
 end
 
 -- One line a stack that stays in the bags, per item and reason (Core/BankGroups.lua's `stays`).
@@ -368,10 +433,10 @@ local function hide()
   if frame then frame:Hide() end
 end
 
--- The card: its title, then in the scroll as blocks the groups with something to move or a stack
--- that stays in the bags (and those shown as a block earlier in this visit), the fold line for the
--- others, and, opened, their blocks under it.
-local function paint(groups)
+-- The card: its title and the bank choice, then in the scroll as blocks the groups with something
+-- to move or a stack that stays in the bags (and those shown as a block earlier in this visit), the
+-- fold line for the others, and, opened, their blocks under it.
+local function paint(groups, usable)
   local writable = GC.BankGroups.Writable(GC.db)
   local words = bankWords()
   local open, folded = {}, {}
@@ -390,7 +455,7 @@ local function paint(groups)
   if C._unfolded then
     for _, group in ipairs(folded) do listed[#listed + 1] = group end
   end
-  local widest = 0
+  local widest = paintChoice(usable)
   for i, group in ipairs(listed) do
     widest = math.max(widest, paintBlock(blockAt(i), group, writable, words))
   end
@@ -411,10 +476,8 @@ local function paint(groups)
   frame.title:SetWidth(inner)
   frame.title:SetText(GC.L["GoldCap: your groups"])
   local titleH = heightOf(frame.title, 12)
-  frame.bank:SetWidth(inner)
-  frame.bank:SetText(words.line)
-  frame.bank:ClearAllPoints()
-  frame.bank:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP))
+  frame.choice:ClearAllPoints()
+  frame.choice:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP))
   local y = 0
   local function place(i)
     local block = C._blocks[i]
@@ -439,7 +502,7 @@ local function paint(groups)
   end
   y = math.ceil(y)
   frame.content:SetSize(inner, y)
-  local top = math.ceil(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP + heightOf(frame.bank, 10) + LAYOUT.GAP * 2)
+  local top = math.ceil(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP + frame.choice:GetHeight() + LAYOUT.GAP * 2)
   local height = math.min(top + y + LAYOUT.PAD, maxHeight(C._Place()))
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
@@ -448,13 +511,20 @@ local function paint(groups)
   frame:Show()
 end
 
---- Reads the bags and the bank the bank window shows again and paints the card, or hides it: with
---- the bank closed or not the window, that bank out of reach here or without a tab, with no followed
---- group (then nothing is built and no slot is read), and when no followed group has an item here.
+--- Reads the bags and the bank the card works with again and paints the card, or hides it: with no
+--- followed group (then nothing is built and no slot is read), with the bank closed or not the
+--- window, with neither bank usable here with a tab, and when no followed group has an item here.
 function C.Refresh()
-  local bankType = GC.BankRoute.ShownBankType()
-  C._bankType = bankType
-  if not (GC.BankRoute.CanMove(bankType) and GC.GroupRules.HasGroups()) then return hide() end
+  local route, character, account = GC.BankRoute, banks()
+  if not (character and account and GC.GroupRules.HasGroups()) then return hide() end
+  -- The window shows another bank than at the last paint (it opened, or the player clicked its
+  -- other tab): the card goes along. Else the bank stays the one the player chose on the card.
+  local shown = route.ShownBankType()
+  if shown ~= C._seenType then C._seenType, C._bankType = shown, shown end
+  local usable = { [character] = route.CanMove(character), [account] = route.CanMove(account) }
+  if not usable[C._bankType] then C._bankType = C._bankType == account and character or account end
+  local bankType = C._bankType
+  if not usable[bankType] then return hide() end
   pruneMoving()
   local groupOf = GC.GroupRules.GroupOf
   local groups = GC.BankGroups.Plan(GC.BankRoute.ReadStacks(BAGS, false, groupOf, bankType),
@@ -465,19 +535,21 @@ function C.Refresh()
     })
   if #groups == 0 then return hide() end
   if not frame then build() end
-  paint(groups)
+  paint(groups, usable)
 end
 
 -- The route has painted already (the card's hooks run after its handlers): the carry list's
 -- column is known.
 function C.OnBankOpened()
   C._moving, C._width, C._besideRoute = {}, nil, isUp(GC.BankRoute._frame) and true or false
+  -- The choice starts again on the bank the window shows.
+  C._bankType, C._seenType = nil, nil
   C._shown, C._unfolded = {}, false
   C.Refresh()
 end
 
 function C.OnBankClosed()
-  C._moving, C._width, C._besideRoute, C._bankType = {}, nil, false, nil
+  C._moving, C._width, C._besideRoute, C._bankType, C._seenType = {}, nil, false, nil, nil
   C._shown, C._unfolded = {}, false
   -- A keep count asked at this bank goes with it.
   for _, block in ipairs(C._blocks) do GC.BuyCapEditor.CloseFor(block.keep) end
@@ -490,7 +562,8 @@ function C.OnBagsChanged()
 end
 
 -- The bank window shows a bank: as it opens, when the player switches between the character's own
--- bank and the Warband Bank, and when a tab is bought. The card follows the bank shown. Blizzard's
+-- bank and the Warband Bank, and when a tab is bought. The card goes along when the bank shown
+-- changed (C.Refresh), and a bought tab may enable a side of its choice. Blizzard's
 -- panel calls this from inside its own work (the tab click's SetTab, the window's OnShow), so the
 -- card repaints on the next frame, once for a run of them, and never inside Blizzard's call.
 function C.OnBankShown()

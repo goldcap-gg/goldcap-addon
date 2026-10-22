@@ -12,7 +12,8 @@ describe("bank by group card", function()
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
   local KEYS = { "Enum", "UIParent", "BankFrame", "BankPanel", "MerchantFrame", "ItemLocation", "C_Container",
-    "C_Item", "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns", "SpellIsTargeting", "GetCursorInfo" }
+    "C_Item", "C_Bank", "C_Timer", "hooksecurefunc", "GoldCap_AppRuns", "SpellIsTargeting", "GetCursorInfo", "BANK",
+    "ACCOUNT_BANK_PANEL_TITLE" }
 
   -- Herbs: Bloom (two qualities, 1 and 2); Ore: Bismuth (3); Cloth: Weavercloth (4), never in the
   -- bags here. Item 9 is in no followed group.
@@ -53,6 +54,13 @@ describe("bank by group card", function()
     for _, fs in ipairs(b.stays) do if fs:IsShown() then out[#out + 1] = textOf(fs) end end
     return out
   end
+  -- The card's bank choice: its side for a bank, and a click on it.
+  local function side(bankType)
+    for _, b in ipairs(C._frame.choice.sides) do
+      if b.bankType == bankType then return b end
+    end
+  end
+  local function choose(bankType) press(side(bankType)) end
   -- The player clicks the bank window's other tab: BankFrame:SetTab sets the panel's bank type and
   -- the panel resets (Blizzard_UIPanels_Game's BankFrame.lua); the card repaints on the next frame.
   local function switchTo(bankType)
@@ -98,6 +106,8 @@ describe("bank by group card", function()
       [12] = { info(2, 600) },
     }
     _G.Enum = { BankType = { Character = CHARACTER, Account = ACCOUNT } }
+    -- The client's own names for the two banks, which the bank window's tabs read.
+    _G.BANK, _G.ACCOUNT_BANK_PANEL_TITLE = "Bank", "Warband Bank"
     -- Read by GC.Util.CursorBusy: no spell waits for a target and the cursor is empty.
     targeting = false
     _G.SpellIsTargeting = function() return targeting end
@@ -172,7 +182,10 @@ describe("bank by group card", function()
     open()
     assert.is_true(cardUp())
     assert.equal("GoldCap: your groups", textOf(C._frame.title))
-    assert.equal("Moves stacks between your bags and the Warband Bank", textOf(C._frame.bank))
+    -- The bank choice names the two banks as the bank window's tabs do, and starts on the one it shows.
+    assert.equal("Bank", side(CHARACTER).label)
+    assert.equal("Warband Bank", side(ACCOUNT).label)
+    assert.equal(ACCOUNT, C._bankType)
     local herbs, ore = block("Herbs"), block("Ore")
     assert.equal("220 in bags, 600 in the Warband Bank", textOf(herbs.counts))
     -- The reagent bag counts: herbs and ore go there.
@@ -383,14 +396,115 @@ describe("bank by group card", function()
     assert.equal("To bank: Bloom ×200 (2 left)", block("Herbs").toBank.label)
   end)
 
-  it("shows nothing when the Warband Bank cannot be used here, or has no tab", function()
+  it("shows nothing when neither bank can be used here, or neither has a tab", function()
     canUse = false
     open()
     assert.is_false(cardUp())
     GC.BankRoute.OnBankClosed()
-    canUse, tabs = true, {}
+    canUse, tabs, charTabs = true, {}, {}
     open()
     assert.is_false(cardUp())
+  end)
+
+  -- A bank that cannot take a move (no tab bought, out of reach at this banker) is a disabled side
+  -- of the choice, and the card works with the other one, whichever the window shows.
+  it("disables the side of a bank with no tab or out of reach, and works with the other", function()
+    tabs = {}
+    open()
+    assert.is_true(cardUp())
+    assert.equal(CHARACTER, C._bankType)
+    assert.is_false(side(ACCOUNT):IsEnabled())
+    assert.is_true(side(CHARACTER):IsEnabled())
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+    press(block("Herbs").toBank)
+    assert.same({ { n = 5, 0, 1, nil, CHARACTER, false } }, used)
+    -- A character with no bank tab of its own: the card opens on the Warband Bank.
+    GC.BankRoute.OnBankClosed()
+    tabs, charTabs, showing = { 12 }, {}, CHARACTER
+    open()
+    assert.equal(ACCOUNT, C._bankType)
+    assert.is_false(side(CHARACTER):IsEnabled())
+    assert.equal("Warband Bank", side(ACCOUNT).label)
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    -- Out of reach at this banker counts the same.
+    GC.BankRoute.OnBankClosed()
+    charTabs, usable[CHARACTER] = { 6 }, false
+    open()
+    assert.equal(ACCOUNT, C._bankType)
+    assert.is_false(side(CHARACTER):IsEnabled())
+  end)
+
+  -- Bagnon keeps Blizzard's bank window shown under a hidden parent, on the character's bank, for
+  -- the whole visit, and never calls SetTab: the bank window never comes to show the Warband Bank.
+  -- The card's own choice is how its player gets there.
+  it("reaches the Warband Bank through its own choice while the bank window stays on the character's bank", function()
+    showing = CHARACTER
+    open()
+    assert.equal(CHARACTER, C._bankType)
+    choose(ACCOUNT)
+    assert.equal(ACCOUNT, C._bankType)
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    -- A bag update does not take it back: the window still shows what it showed.
+    GC.BankRoute.OnBagsChanged()
+    assert.equal(ACCOUNT, C._bankType)
+    press(block("Herbs").toBank)
+    press(block("Herbs").toBags)
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 2, 12, 1 } }, used)
+    choose(CHARACTER)
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+  end)
+
+  -- The window coming to show the other bank (the player clicks its tab) takes the card along, over
+  -- a choice made on the card.
+  it("goes along when the bank window comes to show the other bank, over the card's own choice", function()
+    open()
+    choose(CHARACTER)
+    switchTo(CHARACTER)
+    assert.equal(CHARACTER, C._bankType)
+    switchTo(ACCOUNT)
+    assert.equal(ACCOUNT, C._bankType)
+    choose(CHARACTER)
+    -- A reset that shows the same bank (a tab bought) leaves the card's choice as it is.
+    switchTo(ACCOUNT)
+    assert.equal(CHARACTER, C._bankType)
+  end)
+
+  it("starts again on the bank the window shows at each open", function()
+    showing = CHARACTER
+    open()
+    choose(ACCOUNT)
+    GC.BankRoute.OnBankClosed()
+    open()
+    assert.equal(CHARACTER, C._bankType)
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+  end)
+
+  -- On the session's first open BANKFRAME_OPENED can come before Blizzard's bank panel shows: the
+  -- window answers no bank and the card starts on the Warband Bank, then the panel's Reset from its
+  -- OnShow brings it to the bank the window shows.
+  it("on the first open, before the bank panel shows, starts on the Warband Bank and goes along once it shows", function()
+    showing = nil
+    open()
+    assert.equal(ACCOUNT, C._bankType)
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
+    switchTo(CHARACTER)
+    assert.equal(CHARACTER, C._bankType)
+    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
+    press(block("Herbs").toBank)
+    assert.same({ { n = 5, 0, 1, nil, CHARACTER, false } }, used)
+  end)
+
+  -- A spell waiting for an item target turns the move into casting it on the item: the bank route's
+  -- MoveStack refuses, and the card's press moves nothing.
+  it("moves nothing while a spell waits for an item target", function()
+    open()
+    targeting = true
+    press(block("Herbs").toBank)
+    press(block("Herbs").toBags)
+    assert.same({}, used)
+    targeting = false
+    press(block("Herbs").toBank)
+    assert.equal(1, #used)
   end)
 
   -- The ruling: the card follows the bank the player is looking at. With the character's own bank
@@ -400,7 +514,7 @@ describe("bank by group card", function()
     showing = CHARACTER
     open()
     assert.is_true(cardUp())
-    assert.equal("Moves stacks between your bags and your bank", textOf(C._frame.bank))
+    assert.equal(CHARACTER, C._bankType)
     local herbs = block("Herbs")
     assert.equal("220 in bags, 40 in your bank", textOf(herbs.counts))
     assert.equal("50 in bags, 0 in your bank", textOf(block("Ore").counts))
@@ -415,13 +529,13 @@ describe("bank by group card", function()
     open()
     assert.equal("220 in bags, 600 in the Warband Bank", textOf(block("Herbs").counts))
     switchTo(CHARACTER)
-    assert.equal("Moves stacks between your bags and your bank", textOf(C._frame.bank))
+    assert.equal(CHARACTER, C._bankType)
     assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
     press(block("Herbs").toBank)
     assert.same({ { n = 5, 0, 1, nil, CHARACTER, false } }, used)
     -- Back on the Warband Bank's tab: the stack on its way is still on its way, the next one goes there.
     switchTo(ACCOUNT)
-    assert.equal("Moves stacks between your bags and the Warband Bank", textOf(C._frame.bank))
+    assert.equal(ACCOUNT, C._bankType)
     press(block("Herbs").toBank)
     assert.same({ n = 5, 0, 2, nil, ACCOUNT, false }, used[2])
     press(block("Herbs").toBags)
@@ -481,21 +595,6 @@ describe("bank by group card", function()
     assert.same({}, staysOf(block("Ore")))
   end)
 
-  it("hides while the character's own bank shown has no tab or cannot be used here, and shows on the Warband Bank's tab", function()
-    showing, charTabs = CHARACTER, {}
-    open()
-    assert.is_false(cardUp())
-    switchTo(ACCOUNT)
-    assert.is_true(cardUp())
-    charTabs, usable[CHARACTER] = { 6 }, false
-    switchTo(CHARACTER)
-    assert.is_false(cardUp())
-    usable[CHARACTER] = true
-    switchTo(CHARACTER)
-    assert.is_true(cardUp())
-    assert.equal("220 in bags, 40 in your bank", textOf(block("Herbs").counts))
-  end)
-
   -- A group is its id on goldcap.gg: a follow from the site in another language keeps its count,
   -- and a catalog group and a player's own list that read alike are two groups.
   it("keeps a group's count by its id: a new name keeps it, and two groups named alike are two", function()
@@ -528,19 +627,6 @@ describe("bank by group card", function()
     press(herbs.keep)
     assert.equal("How many of each item in Kräuter to keep in your bags?", asked.opts.title)
     assert.equal("30", asked.opts.text)
-  end)
-
-  -- A spell waiting for an item target turns the move into casting it on the item: the bank route's
-  -- MoveStack refuses, and the card's press moves nothing.
-  it("moves nothing while a spell waits for an item target", function()
-    open()
-    targeting = true
-    press(block("Herbs").toBank)
-    press(block("Herbs").toBags)
-    assert.same({}, used)
-    targeting = false
-    press(block("Herbs").toBank)
-    assert.equal(1, #used)
   end)
 
   it("shows nothing when no followed group has an item here", function()
@@ -725,6 +811,8 @@ describe("bank by group card", function()
   -- Labels wrap and buttons are as wide as their words: a long item name in a long language widens
   -- the card instead of being cut.
   it("never cuts a label, in any language", function()
+    -- The client's names for the banks are its own; long ones widen the card instead of being cut.
+    _G.BANK, _G.ACCOUNT_BANK_PANEL_TITLE = "Persönliches Bankfach des Charakters", "Kriegsmeutenbank der Kriegsmeute"
     NAMES[1] = "Verzauberte Blütenblätter der leuchtenden Hochenblume"
     bags[0][1] = info(1, 200)
     -- A stack that stays, in each group and toward each bank: the Warband Bank's refund and refusal,
@@ -750,10 +838,11 @@ describe("bank by group card", function()
       local card = C._frame
       assert.is_true(W.state(card.title).wordWrap ~= false, code)
       assert.equal(card.content:GetWidth(), card.title:GetWidth(), code)
-      -- The line naming the bank wraps at the card's width.
-      assert.is_true(W.state(card.bank).wordWrap ~= false, code)
-      assert.equal(card.content:GetWidth(), card.bank:GetWidth(), code)
-      assert.is_true((card.bank:GetText() or "") ~= "", code)
+      -- Each side of the bank choice as wide as its name, and the card wide enough for both.
+      for _, b in ipairs(card.choice.sides) do
+        assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth(), code .. " " .. b.label)
+      end
+      assert.is_true(card.content:GetWidth() >= card.choice:GetWidth(), code)
       local fold = card.fold
       assert.is_true(shown(fold), code)
       assert.is_true(fold:GetWidth() >= fold.text:GetUnboundedStringWidth(), code .. " " .. fold.label)
