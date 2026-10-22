@@ -77,18 +77,19 @@ describe("VendorBags", function()
   after_each(function() for _, k in ipairs(KEYS) do _G[k] = saved[k] end end)
 
   local function one()
-    local out = B.Read(function(id) return id == 50 and { mv = 400 } or nil end)
+    local out = B.Read(function(id) return id == 50 and { mv = 400, source = "region", at = 1700000000 } or nil end)
     return out[1], out
   end
 
-  it("reads a stack with its vendor price, quality and the auction house figure", function()
+  it("reads a stack with its vendor price, quality and the auction house figure, its source and time", function()
     put(1, 2, 50, { stackCount = 7, quality = 2, isBound = true, isLocked = true, hasNoValue = true })
     items[50] = { quality = 2, sell = 40, class = 4, reagent = true }
     local s = one()
     assert.same({
       bag = 1, slot = 2, itemID = 50, link = "|Hitem:50|h", count = 7, quality = 2, vendorUnit = 40,
-      ahUnit = 400, hasNoValue = true, isLocked = true, isBound = true, isGear = true, isReagent = true,
-      refundable = false, tradeTimer = false, inSet = false, excludedBag = false, selling = false,
+      ahUnit = 400, ahSource = "region", ahAt = 1700000000, hasNoValue = true, isLocked = true,
+      isBound = true, isGear = true, isReagent = true, refundable = false, tradeTimer = false,
+      inSet = false, excludedBag = false, selling = false,
     }, s)
   end)
 

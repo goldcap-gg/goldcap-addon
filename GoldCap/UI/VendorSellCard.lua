@@ -269,6 +269,7 @@ function C.Refresh()
     junk = settings.vendorJunk ~= false,
     worth = settings.vendorWorth ~= false,
     kept = GC.db and GC.db.vendorKeep or {},
+    now = time(),
   }
   local valueFor = GC.MerchantNote and GC.MerchantNote.ValueFor
   local pick = GC.VendorSelect.Pick(GC.VendorBags.Read(valueFor), opts)

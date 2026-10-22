@@ -10,21 +10,26 @@ describe("VendorSelect", function()
     S = GC.VendorSelect
   end)
 
+  local NOW = 1800000000
+  local DAY = 24 * 3600
+
   local nextID = 1000
+  -- A stack's auction house price is from the import, a minute old, unless a case says otherwise.
   local function stack(over)
     nextID = nextID + 1
     local s = {
       bag = 0, slot = 1, itemID = nextID, link = "item:" .. nextID, count = 1, quality = 0,
-      vendorUnit = 10, ahUnit = nil, hasNoValue = false, isLocked = false, isBound = false,
-      isGear = false, isReagent = false, refundable = false, tradeTimer = false, inSet = false,
-      excludedBag = false, selling = false,
+      vendorUnit = 10, ahUnit = nil, ahSource = "import", ahAt = NOW - 60, hasNoValue = false,
+      isLocked = false, isBound = false, isGear = false, isReagent = false, refundable = false,
+      tradeTimer = false, inSet = false, excludedBag = false, selling = false,
     }
     for k, v in pairs(over or {}) do s[k] = v end
     if over and over.vendorUnit == false then s.vendorUnit = nil end
     if over and over.ahUnit == false then s.ahUnit = nil end
+    if over and over.ahAt == false then s.ahAt = nil end
     return s
   end
-  local ON = { junk = true, worth = true, kept = {} }
+  local ON = { junk = true, worth = true, kept = {}, now = NOW }
 
   it("sells a grey stack the vendor buys", function()
     assert.equal("junk", (S.Decide(stack({}), { junk = true })))
@@ -89,6 +94,60 @@ describe("VendorSelect", function()
     local rule, why = S.Decide(stack({ quality = 1, ahUnit = false }), ON)
     assert.is_nil(rule)
     assert.equal("unpriced", why)
+  end)
+
+  -- The vendor rule sells only on a price GoldCap fetched lately: the import or the region payload,
+  -- at most a day old by the price's own time. The bundled table is months old and may be another
+  -- region's; an item it prices low would otherwise go to a vendor for good.
+  describe("sells by the vendor rule only on a fresh auction house price", function()
+    local function d(over, opts)
+      local s = stack({ quality = 1, vendorUnit = 95, ahUnit = 100 })
+      for k, v in pairs(over) do s[k] = v end
+      if over.ahAt == false then s.ahAt = nil end
+      if over.ahSource == false then s.ahSource = nil end
+      return S.Decide(s, opts or ON)
+    end
+
+    it("from the import or the region payload, up to exactly a day old", function()
+      assert.equal("vendor", (d({ ahSource = "import", ahAt = NOW })))
+      assert.equal("vendor", (d({ ahSource = "import", ahAt = NOW - DAY })))
+      assert.equal("vendor", (d({ ahSource = "region", ahAt = NOW - DAY })))
+    end)
+
+    it("not a second older than a day", function()
+      for _, source in ipairs({ "import", "region" }) do
+        local rule, why = d({ ahSource = source, ahAt = NOW - DAY - 1 })
+        assert.is_nil(rule)
+        assert.equal("stale_price", why)
+      end
+    end)
+
+    it("never on the bundled snapshot or another source, however new", function()
+      for _, source in ipairs({ "bundled", "scan", false }) do
+        local rule, why = d({ ahSource = source, ahAt = NOW })
+        assert.is_nil(rule)
+        assert.equal("stale_price", why)
+      end
+    end)
+
+    it("never without a time, with a time ahead of the clock, or without the clock", function()
+      local rule, why = d({ ahAt = false })
+      assert.is_nil(rule)
+      assert.equal("stale_price", why)
+      rule, why = d({ ahAt = NOW + 1 })
+      assert.is_nil(rule)
+      assert.equal("stale_price", why)
+      rule, why = d({}, { junk = true, worth = true, kept = {} })
+      assert.is_nil(rule)
+      assert.equal("stale_price", why)
+    end)
+
+    it("leaves junk alone: an old price still keeps a grey item for the auction house, and never stops a grey sale", function()
+      local rule, why = S.Decide(stack({ ahUnit = 100, vendorUnit = 10, ahSource = "bundled", ahAt = 1 }), ON)
+      assert.is_nil(rule)
+      assert.equal("ah", why)
+      assert.equal("junk", (S.Decide(stack({ ahUnit = 5, vendorUnit = 10, ahSource = "bundled", ahAt = 1 }), ON)))
+    end)
   end)
 
   it("never sells gear by the vendor rule", function()

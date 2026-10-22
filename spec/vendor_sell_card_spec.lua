@@ -10,13 +10,14 @@ describe("vendor sell card", function()
     "GetCoinTextureString", "hooksecurefunc", "MenuUtil", "UIParent" }
 
   local nextID = 5000
+  -- An auction house price, where a case gives one, is the import's and a minute old.
   local function stack(over)
     nextID = nextID + 1
     local s = {
       bag = 0, slot = nextID - 5000, itemID = nextID, link = "item:" .. nextID, count = 1, quality = 0,
-      vendorUnit = 10, hasNoValue = false, isLocked = false, isBound = false, isGear = false,
-      isReagent = false, refundable = false, tradeTimer = false, inSet = false, excludedBag = false,
-      selling = false,
+      vendorUnit = 10, ahSource = "import", ahAt = time() - 60, hasNoValue = false, isLocked = false,
+      isBound = false, isGear = false, isReagent = false, refundable = false, tradeTimer = false,
+      inSet = false, excludedBag = false, selling = false,
     }
     for k, v in pairs(over or {}) do s[k] = v end
     return s
@@ -95,6 +96,15 @@ describe("vendor sell card", function()
     assert.is_truthy(text:find("Item " .. cheap.itemID, 1, true))
     assert.is_nil(text:find("Item " .. refundable.itemID, 1, true))
     assert.equal("95c", textOf(C._rows[1].price))
+  end)
+
+  it("lists by the value rule on a price under a day old by the clock, not on an older one", function()
+    local fresh = stack({ quality = 1, vendorUnit = 95, ahUnit = 100, ahAt = time() - 3600 })
+    local old = stack({ quality = 1, vendorUnit = 95, ahUnit = 100, ahAt = time() - 25 * 3600 })
+    reads = { fresh, old }
+    C.OnMerchantShow()
+    assert.equal(1, #C._pick.rows)
+    assert.equal(fresh.itemID, C._pick.rows[1].itemID)
   end)
 
   it("shows nothing when the bags hold nothing to sell, and when both toggles are off", function()

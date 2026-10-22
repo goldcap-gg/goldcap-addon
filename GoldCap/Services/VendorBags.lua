@@ -130,11 +130,12 @@ function B.Read(valueFor)
         end
         local gear = classID == ITEM_CLASS_WEAPON or classID == ITEM_CLASS_ARMOR
         local value = type(valueFor) == "function" and valueFor(itemID) or nil
+        if type(value) ~= "table" then value = {} end
         local quality = info.quality
         stacks[#stacks + 1] = {
           bag = bag, slot = slot, itemID = itemID, link = info.hyperlink, count = info.stackCount,
           quality = quality, vendorUnit = GC.ForeverValue.VendorUnit(itemID),
-          ahUnit = type(value) == "table" and value.mv or nil,
+          ahUnit = value.mv, ahSource = value.source, ahAt = value.at,
           hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
           isBound = info.isBound == true, isGear = gear, isReagent = reagent == true,
           refundable = isRefundable(bag, slot),

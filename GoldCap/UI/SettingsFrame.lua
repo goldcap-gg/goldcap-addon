@@ -890,7 +890,7 @@ local function build(sniperFrame)
     toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
       GC.L["Sell to vendor lists poor quality items a vendor buys."])
     toggleRow(vendor, 2, GC.L["Sell what a vendor pays more for"], "vendorWorth",
-      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut."])
+      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."])
 
     local forget = Theme.Button(vendor, "ghost", "plaque")
     forget:SetHeight(26)

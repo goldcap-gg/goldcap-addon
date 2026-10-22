@@ -4,8 +4,10 @@ local _, GC = ...
 -- Services/VendorBags.lua, the figures from the same ForeverValue verdict the merchant note uses,
 -- so the note and this list never claim the same stack.
 --
--- Stack: { bag, slot, itemID, link, count, quality, vendorUnit, ahUnit, hasNoValue, isLocked,
---   isBound, isGear, isReagent, refundable, tradeTimer, inSet, excludedBag, selling }.
+-- Stack: { bag, slot, itemID, link, count, quality, vendorUnit, ahUnit, ahSource, ahAt, hasNoValue,
+--   isLocked, isBound, isGear, isReagent, refundable, tradeTimer, inSet, excludedBag, selling }.
+-- ahSource and ahAt say where the auction house figure came from and when (UI/MerchantNote.lua's
+-- ValueFor). opts: { junk, worth, kept, now }.
 GC.VendorSelect = {}
 local V = GC.VendorSelect
 
@@ -15,14 +17,29 @@ V.MAX_STACKS = 12
 -- What the auction house leaves the seller; the same factor ForeverValue.Verdict applies.
 local KEEP = 0.95
 
+-- The value rule sells for good on one auction house figure, so only on one GoldCap fetched lately:
+-- the import or the region payload (GC.Data.GetItemValue's sources), at most a day old by the
+-- price's own time. Never on the bundled table, which is months old and may be another region's.
+V.FRESH_SOURCES = { import = true, region = true }
+V.FRESH_SECONDS = 24 * 3600
+
 local WHY = {
   EMPTY = "empty", LOCKED = "locked", NO_VALUE = "no_value", NO_PRICE = "no_price",
   REFUNDABLE = "refundable", TRADE_TIMER = "trade_timer", SET = "set", EXCLUDED = "excluded_bag",
   KEPT = "kept", SELLING = "selling", AH = "ah", JUNK_OFF = "junk_off", BOUND = "bound",
-  REAGENT = "reagent", WORTH_OFF = "worth_off", UNPRICED = "unpriced", NOT_WORTH = "not_worth",
+  REAGENT = "reagent", WORTH_OFF = "worth_off", UNPRICED = "unpriced", STALE = "stale_price",
+  NOT_WORTH = "not_worth",
 }
 
 local function positive(n) return type(n) == "number" and n > 0 end
+
+-- A time ahead of the clock is not fresh either: nothing vouches for it.
+local function fresh(stack, now)
+  if not V.FRESH_SOURCES[stack.ahSource] then return false end
+  if type(now) ~= "number" or type(stack.ahAt) ~= "number" then return false end
+  local age = now - stack.ahAt
+  return age >= 0 and age <= V.FRESH_SECONDS
+end
 
 -- rule ("junk" or "vendor"), or nil and the first reason the stack stays. The order is the contract.
 function V.Decide(stack, opts)
@@ -49,6 +66,7 @@ function V.Decide(stack, opts)
   if stack.isReagent then return nil, WHY.REAGENT end
   if not opts.worth then return nil, WHY.WORTH_OFF end
   if not positive(stack.ahUnit) then return nil, WHY.UNPRICED end
+  if not fresh(stack, opts.now) then return nil, WHY.STALE end
   if GC.ForeverValue.Verdict(stack.ahUnit, stack.vendorUnit, nil, stack.isGear) == "vendor" then
     return "vendor"
   end
