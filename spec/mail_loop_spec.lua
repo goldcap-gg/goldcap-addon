@@ -173,6 +173,49 @@ describe("MailLoop, the paced take loop", function()
     end)
   end)
 
+  -- SELL's unsold rounds go up by one for each lot that came back, so the log holds one entry per
+  -- lot: a commodity lot comes back as one mail in several stacks.
+  describe("one returns entry per lot", function()
+    local STACKS = { sender = "Auction House", subject = "Auction expired: Silk", auction = true,
+      items = { [1] = { itemID = 5, count = 200 }, [2] = { itemID = 5, count = 200 }, [3] = { itemID = 5, count = 100 } } }
+
+    it("writes one entry for a lot that comes back in three stacks, with the whole count", function()
+      build({ STACKS })
+      loop:Start(now)
+      runToEnd()
+      assert.same({ { itemID = 5, count = 500, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+      assert.equal(1, loop:Result().returns)
+      assert.equal(3, #box:calls())
+    end)
+
+    it("writes one entry for each of two lots that read the same", function()
+      build({ STACKS, STACKS })
+      loop:Start(now)
+      runToEnd()
+      assert.equal(2, #GC.MailReturns.Entries())
+      assert.equal(2, loop:Result().returns)
+      assert.equal(6, #box:calls())
+    end)
+
+    it("keeps the entry when a later stack of the lot is refused", function()
+      build({ STACKS })
+      loop:Start(now)
+      cycle()
+      loop:OnMailFailed(5)
+      runToEnd()
+      assert.same({ { itemID = 5, count = 500, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+    end)
+
+    it("takes the entry back when no stack of the lot was taken", function()
+      build({ STACKS, EXPIRED(6, 1) })
+      box:refuse(5)
+      loop:Start(now)
+      loop:OnMailFailed(5)
+      runToEnd()
+      assert.same({ { itemID = 6, count = 1, reason = "expired", at = 5000 } }, GC.MailReturns.Entries())
+    end)
+  end)
+
   describe("indices move under the loop", function()
     it("targets row 1 every time while sale mails are deleted, never index 3", function()
       build({ SALE(1), SALE(2), SALE(3) })

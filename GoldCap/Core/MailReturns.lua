@@ -6,7 +6,8 @@ local _, GC = ...
 -- written BEFORE the items are taken, because the mail's own record is gone afterwards; the loop
 -- retracts it when the take turns out to have done nothing (Core/MailLoop.lua).
 --
--- Entries are exactly { itemID, count, reason = "expired" | "cancelled", at }. They are pruned
+-- Entries are exactly { itemID, count, reason = "expired" | "cancelled", at }, one per lot even when
+-- the lot comes back in several stacks, with `count` the stacks' sum. They are pruned
 -- after 14 days and the log is versioned: a newer save is read-only here, so an older build never
 -- rewrites a shape it does not know. The log is created lazily, not through DEFAULTS, so a
 -- client that never loads this file (WoW: Forever) keeps its SavedVariables untouched.

@@ -98,8 +98,14 @@ function GC.MailLoop.New(deps)
     state, awaiting, waitSeconds, baseline = "running", nil, nil, nil
   end
 
+  -- A take that did nothing: its lot's returns entry goes, unless another stack of that lot was
+  -- taken (the lot did come back).
   local function retract(flight)
-    if flight and flight.entry then GC.MailReturns.Retract(flight.entry) end
+    local lot = flight and flight.slot and flight.letter.returns[flight.itemID]
+    if lot and not lot.taken then
+      GC.MailReturns.Retract(lot.entry)
+      flight.letter.returns[flight.itemID] = nil
+    end
   end
 
   -- How many shown rows carry this identity now.
@@ -126,6 +132,8 @@ function GC.MailLoop.New(deps)
       local field = GROUP_FIELD[flight.group]
       result[field] = result[field] + 1
     end
+    local lot = flight.slot and letter.returns[flight.itemID]
+    if lot then lot.taken = true end
     -- From here on the mail reads as the take left it.
     if letters[flight.identity] == letter then letters[flight.identity] = nil end
     letters[flight.after] = letter
@@ -182,17 +190,25 @@ function GC.MailLoop.New(deps)
     if action.kind == "sale" or action.kind == "purchase" then
       deps.scanLedger()
     end
-    local entry
-    if action.slot and (action.kind == "expired" or action.kind == "cancelled") then
-      local at = deps.epoch and deps.epoch() or now
-      entry = GC.MailReturns.Record(action.itemID, action.count, action.kind, at)
-    end
-    action.entry = entry
-    action.identity = action.mail.identity
-    action.after = GC.MailClassify.IdentityAfter(action.mail, action.slot)
+    local mail = action.mail
+    action.identity = mail.identity
+    action.after = GC.MailClassify.IdentityAfter(mail, action.slot)
     action.likeBefore = rowsLike(action.identity)
-    action.letter = letters[action.identity] or {}
-    letters[action.identity] = action.letter
+    local letter = letters[action.identity] or { returns = {} }
+    letters[action.identity] = letter
+    action.letter = letter
+    -- A lot that came back is one mail, in as many stacks as the auction house split it into. It is
+    -- logged once, before its first stack is taken, with the count of all its stacks: SELL's unsold
+    -- rounds go up by one per lot.
+    if action.slot and (action.kind == "expired" or action.kind == "cancelled")
+        and not letter.returns[action.itemID] then
+      local count = 0
+      for _, item in ipairs(mail.attachments) do
+        if item.itemID == action.itemID then count = count + item.count end
+      end
+      local at = deps.epoch and deps.epoch() or now
+      letter.returns[action.itemID] = { entry = GC.MailReturns.Record(action.itemID, count, action.kind, at) }
+    end
     action.steps = 0
     inflight = action
     nextAt = now + DELAY
