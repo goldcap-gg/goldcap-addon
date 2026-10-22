@@ -44,6 +44,18 @@ describe("ListStrings", function()
       assert.same({ { name = "R", items = { { itemID = 1, qty = 1 } } }, { name = "R: A", items = { { itemID = 2, qty = 1 } } },
         { name = "R: A: Deep", items = { { itemID = 3, qty = 1 } } }, { name = "R: B", items = { { itemID = 4, qty = 1 } } } }, parsed.subgroups)
     end)
+    -- The prefix ends at the first step that differs: a step that matches again further down
+    -- (both paths end in "Mats") is not part of it, whatever `#` makes of a table with a hole.
+    it("ends the common prefix at the first step that differs, even when a later step matches", function()
+      local parsed = LS.Parse("group:Professions`Alchemy`Mats,i:1,group:Professions`Tailoring`Mats,i:2")
+      assert.equal("Professions", parsed.lists[1].name)
+      assert.same({ { name = "Professions: Alchemy: Mats", items = { { itemID = 1, qty = 1 } } },
+        { name = "Professions: Tailoring: Mats", items = { { itemID = 2, qty = 1 } } } }, parsed.subgroups)
+      parsed = LS.Parse("group:A`Mats,i:1,group:B`Mats,i:2")
+      assert.is_nil(parsed.lists[1].name)
+      assert.same({ { name = "A: Mats", items = { { itemID = 1, qty = 1 } } },
+        { name = "B: Mats", items = { { itemID = 2, qty = 1 } } } }, parsed.subgroups)
+    end)
     it("puts an item named in two groups in the last one, and makes no list of a group of pets", function()
       local parsed = LS.Parse("group:R`A,i:1,i:2,group:R`B,i:1,group:R`Pets,p:5")
       assert.same({ { name = "R: A", items = { { itemID = 2, qty = 1 } } }, { name = "R: B", items = { { itemID = 1, qty = 1 } } } }, parsed.subgroups)

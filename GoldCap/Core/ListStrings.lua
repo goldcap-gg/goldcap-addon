@@ -61,15 +61,19 @@ local function pathSteps(path)
   return steps
 end
 
--- The steps every path starts with. A path is `{}` for items that come before any group.
+-- The steps every path starts with. A path is `{}` for items that come before any group. The
+-- prefix ends at the first step that differs, so it never has a hole for `#` to read past.
 local function commonPrefix(paths)
   local prefix = nil
   for _, steps in ipairs(paths) do
     if not prefix then
       prefix = { unpack(steps) }
     else
-      for i = #prefix, 1, -1 do
-        if prefix[i] ~= steps[i] then prefix[i] = nil end
+      for i = 1, #prefix do
+        if prefix[i] ~= steps[i] then
+          for j = #prefix, i, -1 do prefix[j] = nil end
+          break
+        end
       end
     end
   end
