@@ -6,8 +6,8 @@ local W = require("spec.support.wow_frames")
 -- one test that puts the card next to the merchant note.
 describe("vendor sell card", function()
   local GC, C, restore, saved, reads, menus
-  local KEYS = { "C_Container", "C_Item", "C_Timer", "GetCursorInfo", "MerchantFrame", "GetCoinTextureString", "hooksecurefunc",
-    "MenuUtil", "UIParent" }
+  local KEYS = { "C_Container", "C_Item", "C_Timer", "GetCursorInfo", "SpellIsTargeting", "MerchantFrame",
+    "GetCoinTextureString", "hooksecurefunc", "MenuUtil", "UIParent" }
 
   local nextID = 5000
   local function stack(over)
@@ -270,7 +270,7 @@ describe("vendor sell card", function()
   -- The press: the click, the machine's driver, the chat line and the stop events. The bags are a
   -- table the fake C_Container and the stubbed bag read both look at, so a sale is the slot going.
   describe("the press", function()
-    local bags, used, timers, printed, refuse, buttonEnabledAtUse, readCount
+    local bags, used, timers, printed, refuse, buttonEnabledAtUse, readCount, targeting
 
     local function put(bag, slot, vendorUnit)
       nextID = nextID + 1
@@ -291,7 +291,7 @@ describe("vendor sell card", function()
     local function label() return textOf(C._frame.button.text) end
 
     before_each(function()
-      bags, used, timers, printed, refuse, readCount = {}, {}, {}, {}, false, 0
+      bags, used, timers, printed, refuse, readCount, targeting = {}, {}, {}, {}, false, 0, false
       buttonEnabledAtUse = nil
       -- Strict: the card may read an item and make the sale, nothing else in the container API.
       _G.C_Container = setmetatable({
@@ -307,6 +307,9 @@ describe("vendor sell card", function()
       }, { __index = function(_, name) error("the card must not call C_Container." .. name) end })
       _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
       _G.GetCursorInfo = function() return nil end
+      -- A global function the client defines (FrameXML calls it bare, ContainerFrame.lua), no
+      -- arguments, one boolean.
+      _G.SpellIsTargeting = function() return targeting end
       GC.Print = function(text) printed[#printed + 1] = text end
       GC.VendorBags = { Read = function()
         readCount = readCount + 1
@@ -321,7 +324,7 @@ describe("vendor sell card", function()
       C.OnMerchantShow()
     end)
 
-    after_each(function() _G.C_Timer, _G.GetCursorInfo = nil, nil end)
+    after_each(function() _G.C_Timer, _G.GetCursorInfo, _G.SpellIsTargeting = nil, nil, nil end)
 
     it("the click sells the first stack before returning", function()
       assert.equal("Sell 3 for 60c", label())
@@ -392,6 +395,35 @@ describe("vendor sell card", function()
       assert.equal(1, #used)
       drain()
       assert.equal(1, #used)
+    end)
+
+    -- A spell waiting for an item target (Disenchant, an enchant scroll) turns UseContainerItem
+    -- into casting it on the item, and GetCursorInfo is nil then.
+    it("a spell waiting for an item target refuses the first sale in the click", function()
+      targeting = true
+      click()
+      assert.equal(0, #used)
+      assert.is_false(C.machine:IsRunning())
+      assert.same({}, printed)
+      assert.equal("Sell 3 for 60c", label())
+    end)
+
+    it("a spell waiting for an item target stops the run before the next sale", function()
+      click()
+      targeting = true
+      drain()
+      assert.equal(1, #used)
+      assert.is_false(C.machine:IsRunning())
+      assert.same({ "Sold 1 stack for 30c. Buyback has it until you leave." }, printed)
+    end)
+
+    it("an error from SpellIsTargeting is read as a spell waiting, and nothing is sold", function()
+      _G.SpellIsTargeting = function() error("no such function") end
+      click()
+      assert.equal(0, #used)
+      _G.SpellIsTargeting = nil
+      click()
+      assert.equal(0, #used)
     end)
 
     it("the trade timer confirm event stops the run", function()

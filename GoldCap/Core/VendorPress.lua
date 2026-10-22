@@ -8,7 +8,7 @@ local _, GC = ...
 -- driver = {
 --   merchantOpen() -> boolean,
 --   slot(bag, slot) -> { link, isLocked } | nil,
---   cursorBusy() -> boolean,
+--   cursorBusy() -> boolean,       -- an item on the cursor, or a spell waiting for an item target
 --   use(bag, slot)                 -- the sale call
 --   after(seconds, fn)             -- a timer
 --   report({ sold, copper, stopped })  -- once per run; stopped is nil for a finished run

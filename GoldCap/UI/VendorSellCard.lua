@@ -89,7 +89,16 @@ end
 
 -- What the machine (Core/VendorPress.lua) drives. `use` is the single place the addon sells; the
 -- other fields read the client or arm a timer.
+--
+-- Busy when the cursor carries something, or when a spell waits for an item target (Disenchant, an
+-- enchant scroll). GetCursorInfo is nil then, and UseContainerItem casts that spell on the item
+-- instead of selling it: Blizzard's own bag click calls it for exactly that (live
+-- Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:1340-1342), and shows the sell cursor over a
+-- bag item only while SpellIsTargeting() is false (same file, :1559). The machine checks this
+-- before every call, the one in the click included. An error from either read counts as busy.
 local function cursorBusy()
+  local okSpell, targeting = pcall(SpellIsTargeting)
+  if not okSpell or targeting then return true end
   local ok, kind = pcall(GetCursorInfo)
   return ok and kind ~= nil
 end
