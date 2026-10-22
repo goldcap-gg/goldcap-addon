@@ -135,6 +135,22 @@ describe("VendorBags", function()
     assert.is_false(out[2].inSet)
   end)
 
+  -- Profession tools and accessories (Enum.ItemClass.Profession = 19, live
+  -- ItemConstantsDocumentation.lua) come in ranks under one id, like weapons and armor, so their
+  -- auction house figure is the cheapest rank's: gear, never sold by the value rule, and in a set
+  -- when the set API cannot say.
+  it("counts profession equipment as gear", function()
+    put(0, 1, 50, { quality = 2 }); put(0, 2, 51, { quality = 2 })
+    items[50], items[51] = { sell = 5, class = 19 }, { sell = 5, class = 15 }
+    local out = B.Read()
+    assert.is_true(out[1].isGear)
+    assert.is_false(out[2].isGear)
+    errors.setIDs = true
+    out = B.Read()
+    assert.is_true(out[1].inSet)
+    assert.is_false(out[2].inSet)
+  end)
+
   describe("trade timer", function()
     it("marks a bound grey stack with the trade timer line", function()
       put(0, 1, 50, { isBound = true }); put(0, 2, 51, { isBound = true })

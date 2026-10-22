@@ -11,8 +11,11 @@ local B = GC.VendorBags
 -- (Blizzard_FrameXMLBase/Constants.lua): a set's location is a real place only above 1.
 local LAST_SENTINEL = 1
 
--- C_Item.GetItemInfo returns: classID is the 12th value (2 weapon, 4 armor), isCraftingReagent the 17th.
-local ITEM_CLASS_WEAPON, ITEM_CLASS_ARMOR = 2, 4
+-- C_Item.GetItemInfo returns: classID is the 12th value, isCraftingReagent the 17th. Gear is a
+-- weapon (2), armor (4) or profession equipment (19; Enum.ItemClass, live
+-- ItemConstantsDocumentation.lua): each comes in ranks or levels under one id, so its auction house
+-- figure is the cheapest version's and the value rule never sells it.
+local GEAR_CLASS = { [2] = true, [4] = true, [19] = true }
 
 -- pcall that returns ok and the answer.
 local function try(fn, ...)
@@ -128,7 +131,7 @@ function B.Read(valueFor)
           local okG, got = pcall(function() return { C_Item.GetItemInfo(itemID) } end)
           if okG then classID, reagent = got[12], got[17] end
         end
-        local gear = classID == ITEM_CLASS_WEAPON or classID == ITEM_CLASS_ARMOR
+        local gear = GEAR_CLASS[classID] == true
         local value = type(valueFor) == "function" and valueFor(itemID) or nil
         if type(value) ~= "table" then value = {} end
         local quality = info.quality
