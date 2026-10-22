@@ -34,8 +34,10 @@ local _, GC = ...
 -- either out of view or gone. The inbox's total tells them apart: when it fell by exactly as many
 -- mails as left the view, they were taken (a take moves one mail per pass, and new mail that
 -- pushes old mail out of view raises the total), so their attachments are let go; otherwise they
--- are kept, so they are not new when they come back into view. A kept attachment whose mail would
--- have expired by now is let go, so nothing is kept longer than its mail can wait.
+-- are kept apart as out of view, so they are not new when they come back into view. A kept
+-- attachment leaves only when it comes back into view or its mail would have expired by now, so
+-- nothing is kept longer than its mail can wait. Won auctions are matched before other mail, so a
+-- player's mail of the same item and count never uses up a won auction's key.
 --
 -- Absence is the fallback, so that a purchase whose mail no read saw arrive does not count for
 -- ever: a read of the whole inbox (every row loaded, none out of view) clears the purchases of
@@ -49,14 +51,17 @@ local _, GC = ...
 -- shows mail; two mails of the same item and count within the tolerance are one to the keys, so
 -- such a take followed within the hour by the same purchase reads as the old mail still there; and
 -- a row the client has not loaded yet (the "Retrieving data" subject, an attachment without a
--- name) leaves that pass unread.
+-- name) leaves that pass unread. One gap errs low: `items` holds only the mail in view, so what
+-- newer mail pushed out of view, a purchase already credited included, counts nowhere until it
+-- comes back into view.
 --
 -- Store: GC.db.mailStock = { v = 1, chars = { ["Name-Realm"] = {
 --   items = { [itemID] = n },
 --   bought = { [itemID] = { n = units, at = time() of the last, first = time() of the oldest } },
 --   seen = { ["itemID:count:bucket"] = n } or nil before the first read,
 --   fresh = { ["itemID:count:bucket"] = n }: attachments new at the last read, not yet a won auction,
---   last = { total, mails = { ["sender\1subject:bucket"] = n } }: the last read's inbox } } },
+--   last = { total, mails = { ["sender\1subject:bucket"] = n } }: the last read's inbox,
+--   away = { seen = {...}, fresh = {...} } or nil: kept for mail out of view, keyed as seen } } },
 -- made on the first write and never by a count. A store a newer GoldCap wrote is left exactly as it
 -- is and counts nothing. Retail TOC only: WoW: Forever never loads this file, so every caller asks
 -- `if GC.MailStock`.
@@ -246,41 +251,54 @@ local function prune(set, now)
   end
 end
 
+-- Takes one entry like `e` out of the first of `sets` that holds it; that set's index, or nil.
+local function takeFirst(sets, e)
+  for i, set in ipairs(sets) do
+    if takeOne(set, e) then return i end
+  end
+  return nil
+end
+
 -- One read of the inbox for character `c`: `items`, `list` and `mails` as readInbox gives them,
 -- `total` the inbox's own count of its mail, `opened` when this visit began.
 local function settle(c, items, list, mails, total, now, opened)
   local allShown = not (type(total) == "number" and total > #mails)
   local seen, fresh = {}, {}
+  local away = type(c.away) == "table" and c.away or {}
+  local awaySeen, awayFresh = copy(away.seen), copy(away.fresh)
   if type(c.seen) == "table" then
     local lastSeen, lastFresh = copy(c.seen), copy(c.fresh)
+    -- Won auctions first, and each takes a key already seen before a new one, in view or out of
+    -- it: a won auction already seen is never a delivery, and a player's mail with the same key
+    -- must not use its key up. A player's mail takes a new key first for the same reason.
     for _, a in ipairs(list) do
-      local key = a.prefix .. ":" .. a.bucket
       if a.won then
-        if not takeOne(lastSeen, a) then
-          takeOne(lastFresh, a)
-          if arrivedSince(c.bought[a.itemID], a) then deliver(c.bought, a) end
-        end
-        add(seen, key, 1)
-      elseif takeOne(lastSeen, a) then
-        add(seen, key, 1)
-      else
-        takeOne(lastFresh, a)
-        add(fresh, key, 1)
+        local was = takeFirst({ lastSeen, awaySeen, lastFresh, awayFresh }, a)
+        if (not was or was > 2) and arrivedSince(c.bought[a.itemID], a) then deliver(c.bought, a) end
+        add(seen, a.prefix .. ":" .. a.bucket, 1)
       end
     end
-    -- Out of view rather than gone: kept, so it is not new when it comes back into view.
+    for _, a in ipairs(list) do
+      if not a.won then
+        local was = takeFirst({ lastFresh, awayFresh, lastSeen, awaySeen }, a)
+        add((was == 3 or was == 4) and seen or fresh, a.prefix .. ":" .. a.bucket, 1)
+      end
+    end
+    -- What left the view on this pass: gone when the total fell by it, otherwise out of view and
+    -- kept apart until it comes back or its mail would have expired, so it is not new then.
     if not allShown and not onlyTaken(c.last, mails, total) then
-      for key, n in pairs(lastSeen) do add(seen, key, n) end
-      for key, n in pairs(lastFresh) do add(fresh, key, n) end
+      for key, n in pairs(lastSeen) do add(awaySeen, key, n) end
+      for key, n in pairs(lastFresh) do add(awayFresh, key, n) end
     end
   else
     for _, a in ipairs(list) do add(seen, a.prefix .. ":" .. a.bucket, 1) end
   end
-  prune(seen, now)
-  prune(fresh, now)
+  if allShown then awaySeen, awayFresh = {}, {} end
+  for _, set in ipairs({ seen, fresh, awaySeen, awayFresh }) do prune(set, now) end
   local inView = {}
   for _, m in ipairs(mails) do add(inView, m.prefix .. ":" .. m.bucket, 1) end
   c.items, c.seen, c.fresh = items, seen, fresh
+  c.away = (next(awaySeen) or next(awayFresh)) and { seen = awaySeen, fresh = awayFresh } or nil
   c.last = { total = type(total) == "number" and total or #mails, mails = inView }
   for itemID, b in pairs(c.bought) do
     local at = type(b) == "table" and tonumber(b.at) or nil

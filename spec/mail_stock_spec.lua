@@ -337,12 +337,44 @@ describe("MailStock", function()
     -- Thirty days on, nothing of it is kept.
     now = now + 31 * DAY
     show({ player(900, 1) }, hidden)
-    for _, set in ipairs({ GC.db.mailStock.chars["A-B"].seen, GC.db.mailStock.chars["A-B"].fresh }) do
+    local c = GC.db.mailStock.chars["A-B"]
+    local away = c.away or {}
+    for _, set in ipairs({ c.seen, c.fresh, away.seen or {}, away.fresh or {} }) do
       for key in pairs(set) do assert.is_nil(key:find("^101:"), key) end
     end
   end)
 
-  it("keeps the store bounded with an inbox always over 100 and mail taken on every visit", function()
+  -- C1: what is kept for mail out of view lasts until that mail comes back or would have expired,
+  -- not until the next pass where nothing changed.
+  it("never credits a won auction again when it comes back into view after unchanged passes", function()
+    local hidden = overflow(2)
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    local first = won(101, 6, now - 10)
+    show({ first, player(900, 1) }, hidden)
+    assert.equal(6, count(101))
+    close()
+    -- A second purchase of the same within the hour; its mail stays out of view.
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 6)
+    now = now + 10
+    -- New mail in front pushed the first won auction out of view, then a pass where nothing changed.
+    show({ player(902, 1), player(900, 1) }, { first, won(101, 6, now - 10), hidden[1], hidden[2] })
+    scan(false)
+    -- The new mail is taken, and the first won auction comes back into view.
+    inbox({ player(900, 1), first }, { won(101, 6, now - 10), hidden[1], hidden[2] })
+    scan(false)
+    assert.equal(12, count(101))
+    scan(false)
+    assert.equal(12, count(101))
+  end)
+
+  -- The last take of each visit leaves no row in view, so no pass reads it, and the next visit's
+  -- new mail hides whether it was taken or pushed out of view: its key is kept as out of view
+  -- until that mail would have expired.
+  it("keeps the store bounded by the mail's expiry with an inbox always over 100 and mail taken on every visit", function()
     local hidden = overflow(1)
     baseline()
     local id = 1000
@@ -351,7 +383,12 @@ describe("MailStock", function()
       for _ in pairs(t or {}) do n = n + 1 end
       return n
     end
-    for _ = 1, 50 do
+    local function kept()
+      local c = GC.db.mailStock.chars["A-B"]
+      local away = c.away or {}
+      return size(c.seen) + size(c.fresh) + size(away.seen) + size(away.fresh)
+    end
+    for visit = 1, 50 do
       local rows = {}
       for i = 1, 10 do
         id = id + 1
@@ -364,10 +401,13 @@ describe("MailStock", function()
         scan(false)
       end
       close()
+      assert.is_true(kept() <= visit + 1, kept() .. " keys kept after visit " .. visit)
       now = now + 3600
     end
-    local c = GC.db.mailStock.chars["A-B"]
-    assert.is_true(size(c.seen) + size(c.fresh) <= 2, size(c.seen) .. " seen, " .. size(c.fresh) .. " fresh")
+    now = now + 31 * DAY
+    show({ player(900, 1) }, hidden)
+    close()
+    assert.is_true(kept() <= 2, kept() .. " keys kept")
   end)
 
   -- R4: an old won auction out of view since the first read is no delivery when it comes into view.
@@ -395,6 +435,56 @@ describe("MailStock", function()
     -- An alt's 20 arrives within the same minutes of expiry; the second purchase is not listed yet.
     inbox({ won(101, 20, now - 10), player(101, 20, nil, now - 5), player(900, 1) })
     scan(false)
+    assert.equal(60, count(101))
+    scan(false)
+    assert.equal(60, count(101))
+  end)
+
+  -- R5: a player's mail takes a new key before one already seen, so a won auction pushed out of
+  -- view beside it keeps its own after that mail is taken.
+  it("keeps a credited won auction's key out of view when a player's mail of the same key goes", function()
+    local hidden = overflow(1)
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 20)
+    now = now + 10
+    local first = won(101, 20, now - 10)
+    local alt = player(101, 20, nil, now - 5)
+    show({ alt, first, player(900, 1) }, hidden)
+    assert.equal(40, count(101))
+    close()
+    -- A second purchase of the same; its mail stays out of view.
+    now = now + 120
+    GC.MailStock.Bought("A-B", 101, 20)
+    now = now + 10
+    local second = won(101, 20, now - 10)
+    -- New mail pushed the first won auction out of view; then the alt's mail is taken.
+    show({ player(902, 1), alt, player(900, 1) }, { first, second, hidden[1] })
+    inbox({ player(902, 1), player(900, 1) }, { first, second, hidden[1] })
+    scan(false)
+    -- The new mail is taken too, and the first won auction comes back into view.
+    inbox({ player(900, 1), first }, { second, hidden[1] })
+    scan(false)
+    assert.equal(40, count(101))
+  end)
+
+  -- R5: nor when the player's mail is read before the won auction it shares a key with.
+  it("never lets a player's mail read above a credited won auction use up its key", function()
+    local hidden = overflow(1)
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 20)
+    now = now + 10
+    local first = won(101, 20, now - 10)
+    show({ first, player(900, 1) }, hidden)
+    assert.equal(20, count(101))
+    close()
+    -- A second purchase of the same; its mail stays out of view.
+    now = now + 120
+    GC.MailStock.Bought("A-B", 101, 20)
+    now = now + 10
+    -- An alt's 20, sent when the first was delivered, now sits above it.
+    show({ player(101, 20, nil, now - 140), first, player(900, 1) }, { won(101, 20, now - 10), hidden[1] })
     assert.equal(60, count(101))
     scan(false)
     assert.equal(60, count(101))
