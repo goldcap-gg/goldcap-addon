@@ -106,6 +106,7 @@ Services/Sell/Compose.lua
 Services/Sell/Owned.lua
 Services/Sell/Walk.lua
 Services/Sell/Post.lua
+Services/Sell/Cancel.lua
 Services/Sell/Session.lua
 Data/MarketData.lua
 UI/Kit/Tokens.lua
@@ -129,6 +130,7 @@ UI/SellViewModel.lua
 UI/Sell/Frame.lua
 UI/Sell/Book.lua
 UI/Sell/Row.lua
+UI/Sell/Tooltips.lua
 UI/Sell/Inspector.lua
 UI/Sell/List.lua
 UI/Sell/CostDialog.lua

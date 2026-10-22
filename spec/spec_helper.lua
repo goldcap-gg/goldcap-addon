@@ -19,12 +19,12 @@ helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua"
 --- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
 --- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
 helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Services/Sell/Bags.lua", "Services/Sell/Compose.lua",
-  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua",
+  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua", "Services/Sell/Cancel.lua",
   "Services/Sell/Session.lua" }
 
 --- The Sell tab's view, in the order both TOCs load it: one block right after UI/SellViewModel.lua
 --- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
-helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua", "UI/Sell/PostPanel.lua" }
+helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Tooltips.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua", "UI/Sell/PostPanel.lua" }
 
 -- An amount in the Sell view's own coins (GC.Sell._FormatAmount), written the short way a spec
 -- reads best: helper.money("1g90s") is "1[gold] 90[silver]", helper.money("2450g") is
