@@ -454,6 +454,8 @@ local function noInvoicePatterns(formats)
   end
   return patterns
 end
+-- Core/MailClassify.lua (the Collect button) reuses this subject matching rather than a second copy.
+GC.Ledger.NoInvoicePatterns = noInvoicePatterns
 
 local function readInboxMail(api, index, context, now, noInvoice)
   local headerOk, _, _, sender, subject, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)

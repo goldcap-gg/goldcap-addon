@@ -37,7 +37,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- goldcap.gg works out where flips sell for retail realms alone. The mail collect files (Core/Mail*.lua,
   -- UI/MailCollect.lua) are retail only in this wave: WoW: Forever must not change.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
-    ["Core/MailReturns.lua"] = true }
+    ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true }
 
   it("loads the same files in the same order, minus retail's price snapshot, the Warband Bank and the mail collect files", function()
     local expected = {}

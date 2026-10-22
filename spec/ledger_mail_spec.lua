@@ -383,6 +383,21 @@ describe("Ledger inbox scan", function()
     end)
   end
 
+  -- The Collect button (Core/MailClassify.lua) tells a lapsed auction from a quest reward with
+  -- these same patterns, so the ledger exports them rather than the button keeping a second copy.
+  it("exports the subject patterns the Collect button reuses", function()
+    local patterns = GC.Ledger.NoInvoicePatterns({ "Auction expired: %s" })
+    local function matches(subject)
+      for _, pattern in ipairs(patterns) do
+        if subject:find(pattern) then return true end
+      end
+      return false
+    end
+    assert.is_true(matches("Auction expired: Linen Cloth"))
+    assert.is_false(matches("%s"))
+    assert.same({}, GC.Ledger.NoInvoicePatterns({ "%s" }))
+  end)
+
   for _, subject in ipairs({ "Retrieving data", "Your crafting order" }) do
     it("still waits on '" .. subject .. "', which does not read as a lapsed auction", function()
       local function api(mails)
