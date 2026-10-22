@@ -307,7 +307,9 @@ end
 --- UNIT_SPELLCAST_SUCCEEDED: a craft of a counted recipe takes one off its line, the window open
 --- or not. OWNED_AUCTIONS_UPDATED: what this character has up on the auction house, for restocks.
 --- BAG_UPDATE_DELAYED: what a restock holds, which a craft of it adds to only once the item is in
---- the bags. Each one brings the craft queue list in step (SyncBuyList).
+--- the bags. MAIL_CLOSED: what waits in the mailbox, as the visit's last read of the inbox left it
+--- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
+--- brings the craft queue list in step (SyncBuyList).
 function QV.OnEvent(event, ...)
   if event == "UNIT_SPELLCAST_SUCCEEDED" then
     local _, _, spellID = ...
@@ -330,6 +332,9 @@ function QV.OnEvent(event, ...)
     end
   elseif event == "BAG_UPDATE_DELAYED" then
     QV.SyncBuyList()
+  elseif event == "MAIL_CLOSED" then
+    QV.SyncBuyList()
+    QV.Queue()
   end
 end
 
@@ -338,6 +343,7 @@ if type(CreateFrame) == "function" then
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
   pcall(events.RegisterEvent, events, "OWNED_AUCTIONS_UPDATED")
   pcall(events.RegisterEvent, events, "BAG_UPDATE_DELAYED")
+  pcall(events.RegisterEvent, events, "MAIL_CLOSED")
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)
   QV._events = events
 end

@@ -421,6 +421,43 @@ describe("BuyFrame", function()
     assert.is_nil(lineWith(lines, "in bank"))
   end)
 
+  -- Retail: what waits in the mailbox (Core/MailStock.lua: a purchase not taken yet, mail from
+  -- another player) is HAVE too. Without the file, as on WoW: Forever, HAVE is the bags and the
+  -- banks, which every test above pins.
+  describe("with the mailbox counted", function()
+    before_each(function()
+      GC.Ledger = { Context = function() return { char = "A-B", region = "eu" } end }
+      helper.loadModule("Core/MailStock.lua", GC)
+    end)
+
+    it("counts what waits in the mailbox into HAVE, and buys only the rest", function()
+      GC.MailStock.Bought("A-B", 101, 6)
+      GC.MailStock.Bought("A-B", 102, 2)
+      GC.MailStock.Bought("C-D", 103, 3)
+      GC.Buy.Show()
+      local alpha = lineOfRow(rowWithText("Alpha Herb"))
+      assert.equal(6, alpha.have)
+      assert.equal(4, alpha.buy)
+      assert.equal(7, lineOfRow(rowWithText("Bravo Ore")).have)
+      assert.equal(0, lineOfRow(rowWithText("Charlie Dust")).have)
+    end)
+
+    it("says on the row tooltip how many wait in the mailbox", function()
+      stubItemCount({ [102] = { all = 305, carried = 5 } })
+      GC.MailStock.Bought("A-B", 101, 6)
+      GC.MailStock.Bought("A-B", 102, 2)
+      GC.Buy.Show()
+      local lines = tooltipOn(rowWithText("Alpha Herb"))
+      assert.truthy(lineWith(lines, "buy 4 of 10"))
+      assert.truthy(lineWith(lines, "in bags 0, in bank 0, in the mailbox 6"))
+      lines = tooltipOn(rowWithText("Bravo Ore"))
+      assert.truthy(lineWith(lines, "in bags 5, in bank 300, in the mailbox 2"))
+      local split = 0
+      for _, l in ipairs(lines) do if (l.text or ""):find("in bags", 1, true) then split = split + 1 end end
+      assert.equal(1, split)
+    end)
+  end)
+
   it("says how many are left to buy of how many, and how many the player has", function()
     stubItemCount({ [101] = { all = 4, carried = 0 } })
     GC.Buy.Show()

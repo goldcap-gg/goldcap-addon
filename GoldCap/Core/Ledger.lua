@@ -636,7 +636,8 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   if count > 0 then inboxRowsSeen = true end
   -- The inbox shows at most 100 mails (MAX_INBOX_SIZE in Blizzard_MailFrame/MailFrame.lua), and
   -- the second return counts them all: a mail past the shown ones is out of view, not gone.
-  if exactNonNegative(total) and total > count then complete = false end
+  local allShown = not (exactNonNegative(total) and total > count)
+  if not allShown then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
   -- The lots that came back, for SELL's unsold rounds: this scan sees every lapsed-auction mail
   -- whoever takes it, so the returns log is written here and nowhere else. Retail only: where
@@ -657,6 +658,9 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   -- one item first read in the same pass leave a round (SellRounds counts a return stamped in the
   -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
   if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
+  -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
+  -- retail only), read past the empty pass before the first row as the occurrences are.
+  if GC.MailStock and inboxRowsSeen then GC.MailStock.Observe(api, count, allShown, context.char, now) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)

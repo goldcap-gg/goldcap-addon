@@ -637,6 +637,7 @@ GC.Locales.ptBR = {
   ["done"] = "feito",
   ["from %s"] = "de %s",
   ["in bags %d · in bank %d"] = "nas bolsas %d · no banco %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "nas bolsas %d · no banco %d · na caixa de correio %d",
   ["includes %d for crafting %s"] = "inclui %d para fabricar %s",
   ["no answer. Check your mail"] = "sem resposta. Confira o correio",
   ["nothing at or under your cap of %s"] = "nada no seu teto de %s ou abaixo",

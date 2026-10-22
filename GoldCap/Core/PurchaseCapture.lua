@@ -69,6 +69,14 @@ local function recordExact(attempt)
   })
 end
 
+-- A purchase that succeeded is on its way to the mailbox, where retail delivers every one: BUY and
+-- the craft queue count it as held from now on (Core/MailStock.lua, retail only).
+local function toMailbox(attempt)
+  if not GC.MailStock then return end
+  local context = attempt.context or currentContext()
+  GC.MailStock.Bought(context and context.char, attempt.itemID, attempt.quantity)
+end
+
 local function hasCompleteItemIdentity(itemKey)
   return type(itemKey) == "table" and isPositiveInteger(itemKey.itemID)
     and isExactInteger(itemKey.itemLevel) and isExactInteger(itemKey.itemSuffix)
@@ -190,6 +198,7 @@ function GC.PurchaseCapture.OnPurchaseCompleted(auctionID)
   else
     recordPending(attempt, "item purchase exact evidence unavailable")
   end
+  toMailbox(attempt)
 end
 
 -- After Confirm, a price update is the server re-quoting: nothing was bought, Blizzard's own buy
@@ -220,7 +229,10 @@ function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
   if not attempt.confirmed then
     -- Re-quoted after Confirm and not confirmed again, yet something went through: which price
     -- it paid is not known, so the mail settles it.
-    if attempt.requoted then recordPending(attempt, "commodity purchase re-quoted after confirm") end
+    if attempt.requoted then
+      recordPending(attempt, "commodity purchase re-quoted after confirm")
+      toMailbox(attempt)
+    end
     return
   end
   if isPositiveInteger(attempt.finalTotal) then
@@ -228,6 +240,7 @@ function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
   else
     recordPending(attempt, "commodity purchase exact total unavailable")
   end
+  toMailbox(attempt)
 end
 
 function GC.PurchaseCapture.OnCommodityPurchaseFailed()

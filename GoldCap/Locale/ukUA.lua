@@ -1143,6 +1143,7 @@ GC.Locales.ukUA = {
   ["everything bought"] = "усе куплено",
   ["from %s"] = "від %s",
   ["in bags %d · in bank %d"] = "у сумках %d · у банку %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "у сумках %d · у банку %d · у поштовій скриньці %d",
   ["in bags and bank · purchases arrive by mail"] = "у сумках і банку · покупки надходять поштою",
   ["manual import"] = "ручний імпорт",
   ["no answer from the auction house"] = "аукціон не відповів",

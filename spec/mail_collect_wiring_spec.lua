@@ -19,7 +19,8 @@ describe("mail collect wiring", function()
   end
 
   local UI = "GoldCap/UI/MailCollect.lua"
-  local PURE = { "GoldCap/Core/MailLoop.lua", "GoldCap/Core/MailClassify.lua", "GoldCap/Core/MailReturns.lua" }
+  local PURE = { "GoldCap/Core/MailLoop.lua", "GoldCap/Core/MailClassify.lua", "GoldCap/Core/MailReturns.lua",
+    "GoldCap/Core/MailStock.lua" }
 
   -- Core/MailLoop.lua makes the takes through the `api` it is handed (api.TakeInboxMoney(...)), the
   -- one spelling allowed outside the UI file: it names no global, and what api is can only be read

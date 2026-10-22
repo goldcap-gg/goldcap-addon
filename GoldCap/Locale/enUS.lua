@@ -771,6 +771,7 @@ GC.Locales.enUS = {
   ["import stale: /goldcap import or /goldcap companion"] = "import stale: /goldcap import or /goldcap companion",
   ["imported %d items for %s (%s). Prices are live now."] = "imported %d items for %s (%s). Prices are live now.",
   ["in bags %d · in bank %d"] = "in bags %d · in bank %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "in bags %d · in bank %d · in the mailbox %d",
   ["in the mail"] = "in the mail",
   ["includes %d for crafting %s"] = "includes %d for crafting %s",
   ["is what this market absorbs. Past that you are buying stock you will sit on"] =

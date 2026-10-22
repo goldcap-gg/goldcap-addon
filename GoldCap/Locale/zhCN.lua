@@ -588,6 +588,7 @@ GC.Locales.zhCN = {
   ["done"] = "完成",
   ["from %s"] = "来自 %s",
   ["in bags %d · in bank %d"] = "背包 %d · 银行 %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 银行 %d · 邮箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 个用于制作 %s",
   ["no answer. Check your mail"] = "没有回应。请查看邮箱",
   ["nothing at or under your cap of %s"] = "没有不高于你上限 %s 的",

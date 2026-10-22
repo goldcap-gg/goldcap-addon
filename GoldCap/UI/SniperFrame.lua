@@ -5404,6 +5404,8 @@ local function recordPurchaseFacts(deal, purchase)
   if GC.Acquisitions and GC.Acquisitions.RecordGoldCap then
     GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, ledgerEntry and ledgerEntry.key or nil)
   end
+  -- Delivered by mail: BUY and the craft queue count it as held from now on (retail only).
+  if GC.MailStock then GC.MailStock.Bought(context and context.char, deal.itemID, purchase.quantity) end
   updateSellTabLabel()
   consumePurchasedDeal(deal)
 end

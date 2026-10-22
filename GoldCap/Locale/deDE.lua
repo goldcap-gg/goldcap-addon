@@ -639,6 +639,7 @@ GC.Locales.deDE = {
   ["done"] = "erledigt",
   ["from %s"] = "von %s",
   ["in bags %d · in bank %d"] = "in Taschen %d · in der Bank %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "in Taschen %d · in der Bank %d · im Briefkasten %d",
   ["includes %d for crafting %s"] = "davon %d zum Herstellen von %s",
   ["no answer. Check your mail"] = "keine Antwort. Sieh in der Post nach",
   ["nothing at or under your cap of %s"] = "nichts zu deinem Deckel von %s oder darunter",

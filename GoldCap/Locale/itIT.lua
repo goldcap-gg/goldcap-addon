@@ -637,6 +637,7 @@ GC.Locales.itIT = {
   ["done"] = "fatto",
   ["from %s"] = "di %s",
   ["in bags %d · in bank %d"] = "nelle borse %d · in banca %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "nelle borse %d · in banca %d · nella casella postale %d",
   ["includes %d for crafting %s"] = "di cui %d per creare %s",
   ["no answer. Check your mail"] = "nessuna risposta. Controlla la posta",
   ["nothing at or under your cap of %s"] = "niente al tuo tetto di %s o meno",

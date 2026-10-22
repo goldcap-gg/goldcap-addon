@@ -589,6 +589,7 @@ GC.Locales.zhTW = {
   ["done"] = "完成",
   ["from %s"] = "來自 %s",
   ["in bags %d · in bank %d"] = "背包 %d · 銀行 %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "背包 %d · 銀行 %d · 郵箱 %d",
   ["includes %d for crafting %s"] = "其中 %d 個用於製作 %s",
   ["no answer. Check your mail"] = "沒有回應。請查看信箱",
   ["nothing at or under your cap of %s"] = "沒有不高於你上限 %s 的",

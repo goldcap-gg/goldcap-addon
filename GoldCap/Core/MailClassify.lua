@@ -138,6 +138,8 @@ local function isLoadingSubject(subject)
   local retrieving = _G.RETRIEVING_DATA
   return type(retrieving) == "string" and trimEllipsis(subject) == trimEllipsis(retrieving)
 end
+-- Core/MailStock.lua holds back its read of the inbox on the same rule.
+GC.MailClassify.IsLoading = isLoadingSubject
 
 local KIND_GROUP = {
   sale = "sales", expired = "returns", cancelled = "returns", purchase = "purchases",

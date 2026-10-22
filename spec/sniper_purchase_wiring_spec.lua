@@ -532,6 +532,7 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(accounting:find("GC.Data.RecordFlip(deal, purchase", 1, true))
     assert.is_truthy(accounting:find("GC.Ledger.RecordSniperBuy(deal, purchase", 1, true))
     assert.is_truthy(accounting:find("GC.Acquisitions.RecordGoldCap(deal, purchase", 1, true))
+    assert.is_truthy(accounting:find("GC.MailStock.Bought(context and context.char, deal.itemID, purchase.quantity)", 1, true))
   end)
 
   it("cancels a sub-five-percent failed requote before any confirm can run", function()
@@ -1351,6 +1352,8 @@ describe("Sniper purchase wiring", function()
 
   it("records the confirmed final quote exactly once after an AH-close tombstone", function()
     local flipPurchase, ledgerPurchase, confirmCalls, cancelDisabled = nil, nil, 0, false
+    -- Core/MailStock.lua's one entry: the purchase is on its way to the mailbox (retail).
+    local mailed = {}
     _G.time = function() return 100000 end
     _G.GetTime = function() return 0 end
     _G.C_AuctionHouse = { ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end }
@@ -1367,13 +1370,14 @@ describe("Sniper purchase wiring", function()
         RecordFlip = function(_, purchase) flipPurchase = purchase end,
       },
       Ledger = {
-        Context = function() return {} end,
+        Context = function() return { char = "A-B" } end,
         RecordSniperBuy = function(_, purchase) ledgerPurchase = purchase; return { key = "snipe:42" } end,
       },
       Acquisitions = { RecordGoldCap = function(_, purchase, _, _, key)
         assert.equal("snipe:42", key)
         assert.is_true(purchase == ledgerPurchase)
       end },
+      MailStock = { Bought = function(char, itemID, qty) mailed[#mailed + 1] = { char, itemID, qty } end },
       Sell = { Reset = function() end, SellableCount = function() return 0 end },
       Print = function() end,
       db = { settings = { sniper = {} } },
@@ -1475,6 +1479,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(123456, flipPurchase.total)
     assert.equal(1, GC.Sniper.session.buys)
     assert.equal(123456, GC.Sniper.session.spent)
+    assert.same({ { "A-B", 42, 3 } }, mailed)
     assert.equal("requerying", row.purchaseStage)
     assert.is_true(row.deal == newDeal)
     assert.equal(22, row.purchaseToken)

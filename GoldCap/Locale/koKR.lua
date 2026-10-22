@@ -602,6 +602,7 @@ GC.Locales.koKR = {
   ["done"] = "완료",
   ["from %s"] = "%s의 목록",
   ["in bags %d · in bank %d"] = "가방 %d · 은행 %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "가방 %d · 은행 %d · 우편함 %d",
   ["includes %d for crafting %s"] = "%d개는 %s 제작용",
   ["no answer. Check your mail"] = "응답 없음. 우편함을 확인하세요",
   ["nothing at or under your cap of %s"] = "상한 %s 이하 매물 없음",

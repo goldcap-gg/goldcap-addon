@@ -638,6 +638,7 @@ GC.Locales.esES = {
   ["done"] = "hecho",
   ["from %s"] = "de %s",
   ["in bags %d · in bank %d"] = "en bolsas %d · en banco %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "en bolsas %d · en banco %d · en el buzón %d",
   ["includes %d for crafting %s"] = "incluye %d para fabricar %s",
   ["no answer. Check your mail"] = "sin respuesta. Revisa el correo",
   ["nothing at or under your cap of %s"] = "nada a tu tope de %s o menos",

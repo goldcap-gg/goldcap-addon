@@ -228,14 +228,20 @@ function CC.ProfitOf(recipe, open)
   return GC.CraftMath.Profit(recipe, CC.UnitOf, function(id) return (CC.SellOf(id)) end, open)
 end
 
---- How many of an item the character holds in bags, bank, reagent bank and warband bank together:
---- the count the BUY tab buys against (UI/BuyFrame.lua) and crafting pulls from.
+--- How many of an item the character holds in bags, bank, reagent bank and warband bank together,
+--- and what waits for it in the mailbox (Core/MailStock.lua): the count the BUY tab buys against
+--- (UI/BuyFrame.lua's haveOf), so the queue's Missing, its BUY list and a restock say what BUY does.
 function CC.CountOf(itemID)
+  if type(itemID) ~= "number" then return 0 end
   local item = _G.C_Item
   local fn = type(item) == "table" and item.GetItemCount or nil
-  if type(fn) ~= "function" or type(itemID) ~= "number" then return 0 end
-  local ok, n = pcall(fn, itemID, true, false, true, true)
-  return ok and type(n) == "number" and n or 0
+  local held = 0
+  if type(fn) == "function" then
+    local ok, n = pcall(fn, itemID, true, false, true, true)
+    held = ok and type(n) == "number" and n or 0
+  end
+  local stock = GC.MailStock
+  return held + (stock and stock.Count(CC.Char(), itemID) or 0)
 end
 
 --- How much of a currency the character holds (0 when the client does not know it): the count

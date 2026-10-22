@@ -637,6 +637,7 @@ GC.Locales.frFR = {
   ["done"] = "fait",
   ["from %s"] = "de %s",
   ["in bags %d · in bank %d"] = "dans les sacs %d · en banque %d",
+  ["in bags %d · in bank %d · in the mailbox %d"] = "dans les sacs %d · en banque %d · dans la boîte aux lettres %d",
   ["includes %d for crafting %s"] = "dont %d pour fabriquer %s",
   ["no answer. Check your mail"] = "pas de réponse. Regarde ton courrier",
   ["nothing at or under your cap of %s"] = "rien à ton plafond de %s ou moins",
