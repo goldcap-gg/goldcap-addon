@@ -94,6 +94,21 @@ describe("the cancel run", function()
     assert.equal(0, Run.Left(nil, { queue[2] }))
   end)
 
+  -- The second is the dock's timer, not the clock: the frame the timer fires on can read a hair
+  -- under it, and a CONFIRM painted live then must also count when pressed.
+  it("counts a confirm once the arm's timer said it is ready", function()
+    local queue = entries(2)
+    local run = Run.Start(queue, function() return 1 end, 100)
+    assert.is_false(Run.Confirmable(run, 100.9999))
+    assert.equal("early", (Run.Press(run, queue, 100.9999)))
+    run.ready = true
+    assert.is_true(Run.Confirmable(run, 100.9999))
+    assert.equal("cancel", (Run.Press(run, queue, 100.9999)))
+    run = Run.Start(queue, function() return 1 end, 100)
+    assert.is_true(Run.Confirmable(run, 101))
+    assert.is_false(Run.Confirmable(nil, 101))
+  end)
+
   it("lets an armed run lapse after twenty seconds without its confirm", function()
     local queue = entries(1)
     local run = Run.Start(queue, function() return 1 end, 0)

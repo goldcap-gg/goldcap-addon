@@ -572,6 +572,19 @@ describe("Sell tab, the cancel queue control", function()
       assert.equal("CANCEL 2", container.cancelButton.label)
     end)
 
+    it("comes alive when its timer fires, even on a frame a hair under the second", function()
+      local timers = {}
+      _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { at = now + seconds, fn = fn } end }
+      press(1000)
+      assert.is_false(container.cancelButton.enabled)
+      -- The arm's one-second timer, run on a frame whose clock reads just under it.
+      now = 1000.9998
+      for _, timer in ipairs(timers) do if timer.at <= 1001 then timer.fn() end end
+      assert.is_true(container.cancelButton.enabled)
+      press(1000.9999)
+      assert.equal(1, cancelCalls)
+    end)
+
     it("ends the run once the queue is empty", function()
       press(1000)
       press(1001.2); press(1002); press(1003)

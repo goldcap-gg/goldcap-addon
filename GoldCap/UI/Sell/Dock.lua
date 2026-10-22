@@ -268,7 +268,7 @@ paintCancelButton = function()
     button:SetVariant("danger")
     if run.stage == "armed" then
       button:SetLabel(GC.L["CONFIRM"])
-      if (GetTime or time)() - run.armedAt >= GC.CancelRun.ARM_SECONDS then button:Enable() else button:Disable() end
+      if GC.CancelRun.Confirmable(run, (GetTime or time)()) then button:Enable() else button:Disable() end
     else
       button:SetLabel((GC.L["CANCEL NEXT (%d)"]):format(GC.CancelRun.Left(run, S.cancelEntries)))
       button:Enable()
@@ -735,7 +735,9 @@ local function onCancelQueueClick()
   end
   if C_Timer and C_Timer.After then
     -- CONFIRM comes alive after the deposit guard's second.
-    C_Timer.After(Run.ARM_SECONDS, function() if S.cancelRun == run then paintCancelButton() end end)
+    C_Timer.After(Run.ARM_SECONDS, function()
+      if S.cancelRun == run then run.ready = true; paintCancelButton() end
+    end)
     Dock.WatchCancelRun(run)
   end
 end

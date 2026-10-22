@@ -52,6 +52,13 @@ function M.Left(run, entries)
   return left
 end
 
+-- Whether CONFIRM counts yet: ARM_SECONDS after the arm, or once the dock's timer for that second
+-- has fired (`run.ready`), whatever the clock reads on the frame it fires on, so the button the
+-- timer lit is never a press that does nothing.
+function M.Confirmable(run, now)
+  return type(run) == "table" and (run.ready == true or now - run.armedAt >= M.ARM_SECONDS)
+end
+
 function M.Expired(run, now)
   return type(run) == "table" and now - run.lastPressAt > M.IDLE_SECONDS
 end
@@ -65,7 +72,7 @@ function M.Press(run, entries, now)
   if M.Expired(run, now) then return "expired" end
   if #entries == 0 then return "done" end
   if not M.Covers(run, entries[1]) then return "changed" end
-  if run.stage == "armed" and now - run.armedAt < M.ARM_SECONDS then return "early" end
+  if run.stage == "armed" and not M.Confirmable(run, now) then return "early" end
   run.stage, run.lastPressAt = "running", now
   return "cancel", entries[1]
 end
