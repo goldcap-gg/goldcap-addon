@@ -363,6 +363,40 @@ describe("bank by group card", function()
     assert.is_false(cardUp())
   end)
 
+  -- A group is its id on goldcap.gg: a follow from the site in another language keeps its count,
+  -- and a catalog group and a player's own list that read alike are two groups.
+  it("keeps a group's count by its id: a new name keeps it, and two groups named alike are two", function()
+    local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" }, caps = FILE.caps, rules = {
+      { n = "Herbs", id = "herbs", p = "gather", d = 24, fp = 80 },
+      { n = "Herbs", id = "u_a1b2c3d4e5f6", p = "gather", d = 24, fp = 80 },
+      { n = "Cloth", id = "cloth", p = "gather", d = 24, fp = 80 },
+    } }
+    _G.GoldCap_AppRuns = file
+    GC.GroupRules.Adopt()
+    open()
+    local named = {}
+    for _, b in ipairs(C._blocks) do if b:IsShown() then named[#named + 1] = b end end
+    assert.same({ "Herbs", "Herbs" }, { textOf(named[1].name), textOf(named[2].name) })
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(named[1].counts))
+    assert.equal("50 in bags, 0 in the Warband Bank", textOf(named[2].counts))
+    press(named[1].keep)
+    assert.equal("How many of each item in Herbs to keep in your bags?", asked.opts.title)
+    asked.opts.onCommit(30)
+    assert.same({ v = GC.BankGroups.VERSION, groups = { herbs = 30 } }, GC.db.bankKeep)
+    assert.equal("Keep in bags: 30 of each", named[1].keep.label)
+    assert.equal("Keep in bags: 0 of each", named[2].keep.label)
+    -- The same group, followed again from the site in German: its id stays, its name changes.
+    file.rules[1].n = "Kräuter"
+    GC.GroupRules.Adopt()
+    GC.BankRoute.OnBagsChanged()
+    local herbs = block("Kräuter")
+    assert.equal("Keep in bags: 30 of each", herbs.keep.label)
+    assert.equal("To bank: Bloom ×20 (1 left)", herbs.toBank.label)
+    press(herbs.keep)
+    assert.equal("How many of each item in Kräuter to keep in your bags?", asked.opts.title)
+    assert.equal("30", asked.opts.text)
+  end)
+
   it("shows nothing when no followed group has an item here", function()
     bags = { [0] = { info(9, 20) } }
     open()

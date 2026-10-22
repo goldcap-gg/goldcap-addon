@@ -128,6 +128,42 @@ describe("GroupRules", function()
     assert.is_nil(GC.GroupRules.GroupOf(10))
   end)
 
+  -- The name is the group's in the language of the newest follow, so it changes; the id (the
+  -- group's slug on goldcap.gg) does not. The bank card keeps counts by the key GroupOf answers.
+  it("answers a group's key and name: its id when the rule has one, else its name", function()
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 }, { i = 11, c = 700, u = 1000, r = 2 } },
+      { { n = "Kräuter", id = "herbs-tww", p = "gather", d = 24 }, GATHER })
+    assert.same({ "herbs-tww", "Kräuter" }, { GC.GroupRules.GroupOf(10) })
+    -- An older Companion's file has no id: the name is the key.
+    assert.same({ "Herbs", "Herbs" }, { GC.GroupRules.GroupOf(11) })
+    -- A player's own list from a TSM import has a slug of its own.
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "My Herbs", id = "u_a1b2c3d4e5f6", p = "gather", d = 24 } })
+    assert.same({ "u_a1b2c3d4e5f6", "My Herbs" }, { GC.GroupRules.GroupOf(10) })
+  end)
+
+  it("reads an id only in the site's shape, and a rule with a broken id keeps its name as the key", function()
+    local long = string.rep("a", 80)
+    for id, want in pairs({ [long] = long, ["ore_1-x"] = "ore_1-x", [long .. "a"] = "Herbs", ["Herbs"] = "Herbs",
+        ["herbs tww"] = "Herbs", [""] = "Herbs", ["herbs\n"] = "Herbs", ["травы"] = "Herbs" }) do
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", id = id, p = "gather", d = 24 } })
+      assert.equal(want, (GC.GroupRules.GroupOf(10)), id)
+      assert.equal("Herbs", GC.GroupRules.RuleFor(10).name, id)
+    end
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", id = 42, p = "gather", d = 24 } })
+    assert.equal("Herbs", (GC.GroupRules.GroupOf(10)))
+  end)
+
+  it("reports a new id as a change, and the same id under a new name too", function()
+    assert.is_true(adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { { n = "Herbs", id = "herbs", p = "gather", d = 24 } }))
+    _G.GoldCap_AppRuns.rules[1].id = "herbs-tww"
+    assert.is_true(GC.GroupRules.Adopt())
+    assert.equal("herbs-tww", (GC.GroupRules.GroupOf(10)))
+    _G.GoldCap_AppRuns.rules[1].n = "Kräuter"
+    assert.is_true(GC.GroupRules.Adopt())
+    assert.same({ "herbs-tww", "Kräuter" }, { GC.GroupRules.GroupOf(10) })
+    assert.is_false(GC.GroupRules.Adopt())
+  end)
+
   it("unreadable rules give nothing", function()
     for _, bad in ipairs({
       { rules = { { n = "X", p = "gather", d = 36 } }, r = 1 },

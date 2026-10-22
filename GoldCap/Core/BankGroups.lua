@@ -5,6 +5,10 @@ local _, GC = ...
 -- from UI/BankRoute.lua's reader and the group of an item from Core/GroupRules.lua, both handed in
 -- by the card (UI/BankGroupsCard.lua). GoldCap_Camelot.toc does not load this file.
 --
+-- A group is planned and its keep count kept by its key, shown and sorted by its name. The key is
+-- the group's id on goldcap.gg, which a follow in another language or a renamed list keeps, else
+-- its name (Core/GroupRules.lua's GroupOf): two groups named alike are two groups.
+--
 -- A press moves one stack, whole: the game cannot split a stack in one call. So To bank moves a
 -- stack of an item only while the bags keep at least the group's keep count of that item without
 -- it, the biggest stack first, and To bags takes every stack of the group out. A stack a press has
@@ -13,7 +17,7 @@ local _, GC = ...
 -- (`stays`: still refundable, or refused) is counted and kept, and named with why, so the card can
 -- say which stack stays and why instead of counting it silently.
 --
--- Keep counts are saved in GC.db.bankKeep = { v = 1, groups = { [group name] = count } }, one count
+-- Keep counts are saved in GC.db.bankKeep = { v = 1, groups = { [group key] = count } }, one count
 -- per group for the whole account, created lazily with the first count above 0 and not through
 -- DEFAULTS, so a client that never loads this file keeps its SavedVariables as they were. A save
 -- with a newer `v` is read-only: nothing writes to it and every group keeps 0.
@@ -42,29 +46,29 @@ function M.Writable(db)
   return type(db) == "table" and not newer(db.bankKeep)
 end
 
---- How many of each item of `name` the player keeps in the bags: 0 until they set a count.
-function M.KeepFor(db, name)
+--- How many of each item of the group `key` the player keeps in the bags: 0 until they set a count.
+function M.KeepFor(db, key)
   local saved = type(db) == "table" and db.bankKeep or nil
   if not ours(saved) then return 0 end
-  local n = saved.groups[name]
+  local n = saved.groups[key]
   return wholeKeep(n) and n or 0
 end
 
---- Sets the keep count of a group, 0 to forget it. True when it is set (or already 0 with nothing
---- saved); false for a count that is not a whole number from 0 to MAX_KEEP, a group with no name,
---- or a newer GoldCap's table.
-function M.SetKeep(db, name, n)
-  if type(db) ~= "table" or type(name) ~= "string" or name == "" or not wholeKeep(n) then return false end
+--- Sets the keep count of the group `key`, 0 to forget it. True when it is set (or already 0 with
+--- nothing saved); false for a count that is not a whole number from 0 to MAX_KEEP, a group with no
+--- key, or a newer GoldCap's table.
+function M.SetKeep(db, key, n)
+  if type(db) ~= "table" or type(key) ~= "string" or key == "" or not wholeKeep(n) then return false end
   if newer(db.bankKeep) then return false end
   if not ours(db.bankKeep) then
     if n == 0 then return true end
     db.bankKeep = { v = M.VERSION, groups = {} }
   end
-  db.bankKeep.groups[name] = n > 0 and n or nil
+  db.bankKeep.groups[key] = n > 0 and n or nil
   return true
 end
 
-local function key(stack)
+local function slotKey(stack)
   return stack.bag .. ":" .. stack.slot
 end
 
@@ -81,8 +85,8 @@ local function stackOrder(a, b)
   return a.slot < b.slot
 end
 
---- The followed groups with items in the bags or the bank, sorted by name, each
---- { name, inBags, inBank, keep, toBank = { stack, ... }, toBags = { stack, ... }, stays = { ... } }:
+--- The followed groups with items in the bags or the bank, sorted by name (then key), each
+--- { key, name, inBags, inBank, keep, toBank = { stack, ... }, toBags = { stack, ... }, stays = { ... } }:
 --- the counts are what the bags and the bank show, each list is what the presses of its button
 --- move, in order, and `stays` is what the bags keep because the Warband Bank must not take it,
 --- { itemID, name, count, why } summed per item and reason ("refund" or "refused"), by name.
@@ -90,20 +94,20 @@ end
 --- also carries what no press can raise, for the card to size itself once: `items`, every item of
 --- the group here { itemID, name, count } with its count in the bags and the bank together, and
 --- `stackCount`, its stacks in both (a stack moves whole, and landing on another only merges them).
---- `opts.groupOf(itemID)` names an item's group, `opts.keepFor(name)` its keep count, and
---- `opts.moving[bag .. ":" .. slot]` marks a stack a press has sent.
+--- `opts.groupOf(itemID)` answers an item's group as its key and its name, `opts.keepFor(key)` its
+--- keep count, and `opts.moving[bag .. ":" .. slot]` marks a stack a press has sent.
 function M.Plan(bagStacks, bankStacks, opts)
   local moving = opts.moving or {}
-  local groups, byName = {}, {}
+  local groups, byKey = {}, {}
   -- The stack's group, or nil; the stack is counted in it (stackCount, items).
   local function groupFor(stack)
-    local name = opts.groupOf(stack.itemID)
-    if not name then return nil end
-    local group = byName[name]
+    local key, name = opts.groupOf(stack.itemID)
+    if not key then return nil end
+    local group = byKey[key]
     if not group then
-      group = { name = name, inBags = 0, inBank = 0, keep = opts.keepFor(name) or 0, toBank = {}, toBags = {},
-        stays = {}, items = {}, stackCount = 0, bagItems = {}, bankItems = {}, staysBy = {}, totals = {} }
-      byName[name] = group
+      group = { key = key, name = name or key, inBags = 0, inBank = 0, keep = opts.keepFor(key) or 0, toBank = {},
+        toBags = {}, stays = {}, items = {}, stackCount = 0, bagItems = {}, bankItems = {}, staysBy = {}, totals = {} }
+      byKey[key] = group
       groups[#groups + 1] = group
     end
     group.stackCount = group.stackCount + 1
@@ -125,7 +129,7 @@ function M.Plan(bagStacks, bankStacks, opts)
     return item
   end
   local function free(stack)
-    return not moving[key(stack)] and not stack.locked
+    return not moving[slotKey(stack)] and not stack.locked
   end
 
   for _, stack in ipairs(bagStacks or {}) do
@@ -134,7 +138,7 @@ function M.Plan(bagStacks, bankStacks, opts)
       group.inBags = group.inBags + stack.count
       local item = itemIn(group.bagItems, stack)
       -- What the bags hold once the stacks already sent have left.
-      if not moving[key(stack)] then item.kept = item.kept + stack.count end
+      if not moving[slotKey(stack)] then item.kept = item.kept + stack.count end
       if stack.stays then
         local why = stack.itemID .. ":" .. stack.stays
         local entry = group.staysBy[why]
@@ -186,6 +190,9 @@ function M.Plan(bagStacks, bankStacks, opts)
     table.sort(group.items, itemOrder)
     group.bagItems, group.bankItems, group.staysBy, group.totals = nil, nil, nil, nil
   end
-  table.sort(groups, function(a, b) return a.name < b.name end)
+  table.sort(groups, function(a, b)
+    if a.name ~= b.name then return a.name < b.name end
+    return a.key < b.key
+  end)
   return groups
 end

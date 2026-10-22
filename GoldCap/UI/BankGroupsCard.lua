@@ -3,8 +3,8 @@ local _, GC = ...
 -- At a bank: bank by group. Beside the bank window (beside the carry list, UI/BankRoute.lua, when
 -- that shows), the groups the player follows on goldcap.gg that have items in the bags or the
 -- Warband Bank, each with how many are where, To bank and To bags, how many of each item it keeps
--- in the bags (GC.db.bankKeep, Core/BankGroups.lua), and which stacks stay in the bags and why
--- (still refundable, or the Warband Bank does not take them). Which stack a press moves is
+-- in the bags (GC.db.bankKeep, Core/BankGroups.lua, by the group's key), and which stacks stay in
+-- the bags and why (still refundable, or the Warband Bank does not take them). Which stack a press moves is
 -- Core/BankGroups.lua's Plan; an item's group is Core/GroupRules.lua's. With no followed group there
 -- is no card at all: it is not built and no slot is read for it.
 --
@@ -47,8 +47,8 @@ C._blocks = {}
 -- slot shows the move or the settle timer gives up on it.
 C._moving = {}
 -- While the bank is open: the card's width, which only grows; whether the carry list has shown
--- (the card then keeps the column beside it until the bank closes); the groups shown as a block,
--- which stay one; and whether the folded groups are open.
+-- (the card then keeps the column beside it until the bank closes); the groups shown as a block
+-- (by key), which stay one; and whether the folded groups are open.
 C._width = nil
 C._besideRoute = false
 C._shown = {}
@@ -131,18 +131,19 @@ local function onMoveClick(button)
   C.Refresh()
 end
 
--- The keep count, asked in the kit's popup (UI/BuyCapEditor.lua) and saved for the account.
+-- The keep count, asked in the kit's popup (UI/BuyCapEditor.lua) and saved for the account, by the
+-- group's key; the question names the group.
 local function askKeep(button)
-  local name = button.group
-  if not name then return end
+  local key = button.group
+  if not key then return end
   GC.BuyCapEditor.Open(button, {
-    title = GC.L["How many of each item in %s to keep in your bags?"]:format(name),
-    text = tostring(GC.BankGroups.KeepFor(GC.db, name)),
+    title = GC.L["How many of each item in %s to keep in your bags?"]:format(button.groupName or key),
+    text = tostring(GC.BankGroups.KeepFor(GC.db, key)),
     read = function(text) return GC.CraftQueue.ParseCount(text, true) end,
     invalid = GC.L["Type a whole number"],
     setLabel = GC.L["Save"],
     onCommit = function(n)
-      GC.BankGroups.SetKeep(GC.db, name, n)
+      GC.BankGroups.SetKeep(GC.db, key, n)
       C.Refresh()
     end,
   })
@@ -280,7 +281,7 @@ local function paintBlock(block, group, writable)
   local total = group.inBags + group.inBank
   block.countsMost = counts:format(total, total)
   local widest = 0
-  block.keep.group = group.name
+  block.keep.group, block.keep.groupName = group.key, group.name
   if writable then
     block.keep:SetLabel(GC.L["Keep in bags: %d of each"]:format(group.keep))
     block.keep:Show()
@@ -354,8 +355,8 @@ local function paint(groups)
     -- A newer GoldCap saved the keep counts, which this one cannot read: To bank would ignore what
     -- the player keeps, so it moves nothing.
     if not writable then group.toBank = {} end
-    if C._shown[group.name] or #group.toBank + #group.toBags + #group.stays > 0 then
-      C._shown[group.name] = true
+    if C._shown[group.key] or #group.toBank + #group.toBags + #group.stays > 0 then
+      C._shown[group.key] = true
       open[#open + 1] = group
     else
       folded[#folded + 1] = group
@@ -428,7 +429,7 @@ function C.Refresh()
   local groups = GC.BankGroups.Plan(GC.BankRoute.ReadStacks(BAGS, false, groupOf),
     GC.BankRoute.ReadStacks(GC.BankRoute.BankTabs(), true, groupOf), {
       groupOf = groupOf,
-      keepFor = function(name) return GC.BankGroups.KeepFor(GC.db, name) end,
+      keepFor = function(key) return GC.BankGroups.KeepFor(GC.db, key) end,
       moving = C._moving,
     })
   if #groups == 0 then return hide() end
