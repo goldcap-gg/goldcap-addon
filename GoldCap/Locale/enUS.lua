@@ -1497,6 +1497,7 @@ GC.Locales.enUS = {
   ["The queue is empty. Add a recipe from This recipe."] = "The queue is empty. Add a recipe from This recipe.",
   ["Missing"] = "Missing",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s in the mailbox",
   ["%s is not sold on the auction house"] = "%s is not sold on the auction house",
   ["Nothing is missing for the queue"] = "Nothing is missing for the queue",
   ["Make a BUY list"] = "Make a BUY list",

@@ -133,13 +133,20 @@ local function trimEllipsis(text)
   return (text:gsub("%.+%s*$", ""):gsub("\226\128\166%s*$", ""))
 end
 
+-- The client's placeholder subject for a row whose data has not arrived yet.
+local function isRetrieving(subject)
+  local retrieving = _G.RETRIEVING_DATA
+  return type(subject) == "string" and type(retrieving) == "string"
+    and trimEllipsis(subject) == trimEllipsis(retrieving)
+end
+-- Core/MailStock.lua holds back its read of the inbox on the placeholder alone: it reads a mail
+-- with no subject as loaded, where the Collect button leaves one alone.
+GC.MailClassify.IsRetrieving = isRetrieving
+
 local function isLoadingSubject(subject)
   if subject == nil or subject == "" then return true end
-  local retrieving = _G.RETRIEVING_DATA
-  return type(retrieving) == "string" and trimEllipsis(subject) == trimEllipsis(retrieving)
+  return isRetrieving(subject)
 end
--- Core/MailStock.lua holds back its read of the inbox on the same rule.
-GC.MailClassify.IsLoading = isLoadingSubject
 
 local KIND_GROUP = {
   sale = "sales", expired = "returns", cancelled = "returns", purchase = "purchases",

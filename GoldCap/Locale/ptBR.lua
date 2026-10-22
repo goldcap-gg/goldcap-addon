@@ -1507,6 +1507,7 @@ GC.Locales.ptBR = {
   ["The queue is empty. Add a recipe from This recipe."] = "A fila está vazia. Adicione uma receita em “Esta receita”.",
   ["Missing"] = "Faltando",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s na caixa de correio",
   ["%s is not sold on the auction house"] = "%s não é vendido na casa de leilões",
   ["Nothing is missing for the queue"] = "Não falta nada para a fila",
   ["Make a BUY list"] = "Criar lista do BUY",

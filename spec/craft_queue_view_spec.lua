@@ -7,7 +7,7 @@ local Mailbox = require("spec.support.mail_inbox")
 -- reagents the queue is short of, and Make a BUY list, which writes what the queue needs into the
 -- character's one Craft queue list, the list the queue then keeps in step with itself.
 describe("craft queue view", function()
-  local GC, P, QV, restore, VALUES, printed, selected, refreshed
+  local GC, P, QV, restore, VALUES, printed, selected, refreshed, buyTab
 
   local function commodity(mv, sold)
     return { mv = mv, sold = sold, ts = 0, source = "import", kind = "region_commodity" }
@@ -32,6 +32,14 @@ describe("craft queue view", function()
     opts.names = opts.names or { [101] = "Item A", [102] = "Item A", [103] = "Item A" }
     opts.currencies = { [3008] = "Valorstones" }
     restore = TS.install(opts)
+    -- BUY asks the client what the character owns and what it carries, and counts the difference
+    -- as the banks (UI/BuyFrame.lua's bankOf). The spec's counts are all owned and none walked in
+    -- a bag, so BUY reads them as banked: the same total the queue reads.
+    local owned = _G.C_Item.GetItemCount
+    _G.C_Item.GetItemCount = function(id, includeBank, ...)
+      local n = owned(id, includeBank, ...)
+      return includeBank and n or 0
+    end
     GC = TS.craftGC()
     VALUES = {}
     GC.Data = { GetItemValue = function(id) return VALUES[id] end }
@@ -51,6 +59,13 @@ describe("craft queue view", function()
     helper.loadModule("UI/CraftPanel.lua", GC)
     helper.loadModule("UI/CraftQueueView.lua", GC)
     P, QV = GC.CraftPanel, GC.CraftQueueView
+    -- The BUY tab itself (UI/BuyFrame.lua), over this GC's SavedVariables, lists and mailbox and
+    -- loaded beside the GC.Buy double the queue view talks to: its own driver works out HAVE and
+    -- what each line still buys.
+    helper.loadModule("Core/DealMath.lua", GC)
+    local tab = setmetatable({}, { __index = GC })
+    helper.loadModule("UI/BuyFrame.lua", tab)
+    buyTab = tab.Buy
   end
 
   local function snapshot(id) return GC.CraftClient.Snapshot(id) end
@@ -99,25 +114,12 @@ describe("craft queue view", function()
     return out
   end
 
-  -- What BUY buys of each line of `run` and the BuyRun it worked that out with: Core/BuyRun.lua
-  -- with UI/BuyFrame.lua's driver for this character (held from the same count the queue reads:
-  -- the bags and the banks, and what Core/MailStock.lua says waits in the mailbox; what was bought
-  -- for the list from GC.db.buyProgress).
+  -- What BUY buys of each line of `run` and the BuyRun it worked that out with: the BUY tab picks
+  -- the list, as the run cycle does, and its own driver reads HAVE (bags, banks and what
+  -- Core/MailStock.lua says waits in the mailbox) and what was bought for the list.
   local function buyRun(run)
-    local r = GC.BuyRun.New(run, {
-      now = function() return 1 end,
-      haveOf = function(id) return ((TS.opts.counts or {})[id] or 0) + GC.MailStock.Count("Name-Realm", id) end,
-      usualUnit = function() return nil end,
-      capPct = function() return 130 end,
-      progress = function(code)
-        GC.db.buyProgress = GC.db.buyProgress or {}
-        local mine = GC.db.buyProgress["Name-Realm"] or {}
-        GC.db.buyProgress["Name-Realm"] = mine
-        mine[code] = mine[code] or {}
-        return mine[code]
-      end,
-    })
-    r:Refresh()
+    buyTab.SelectRun(run.code)
+    local r = buyTab.CurrentRun()
     local out = {}
     for _, line in ipairs(r:Lines()) do out[line.itemID] = line.buy end
     return out, r
@@ -143,6 +145,12 @@ describe("craft queue view", function()
     GC.Ledger.ScanInbox(box.api, GC.Ledger.Context(), time(), opening)
   end
 
+  local function bagsChanged()
+    local ev = QV._events
+    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+    TS.runTimers()
+  end
+
   -- Takes the first mail's first attachment, as a click on it does, and puts it in the bags.
   local function takeFirst(box, itemID, count)
     box.api.TakeInboxItem(1, 1)
@@ -155,6 +163,13 @@ describe("craft queue view", function()
     local ev = QV._events
     ev:GetScript("OnEvent")(ev, "MAIL_CLOSED")
     TS.runTimers()
+  end
+
+  -- The character has opened the mailbox once before: Core/MailStock.lua takes nothing in a
+  -- character's first read for a delivery.
+  local function visitedMailbox()
+    readMailbox(Mailbox.new({ { sender = "Friend", subject = "Hi", canReply = true } }), true)
+    mailClosed()
   end
 
   -- A finished cast of `spellID`, as the client fires it.
@@ -367,6 +382,7 @@ describe("craft queue view", function()
   -- house. Retail delivers a purchase by mail, so the bags still hold the four.
   local function boughtIntoMailbox()
     load({ counts = { [101] = 4 } })
+    visitedMailbox()
     VALUES[101], VALUES[102], VALUES[103] = commodity(400), commodity(450), commodity(500)
     GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
     local run = QV.MakeBuyList()
@@ -386,11 +402,35 @@ describe("craft queue view", function()
     crafted(3, 2)
     assert.same({ { 101, 6 } }, linesOf(run))
     assert.equal(0, buyRun(run)[101])
-    -- The queue says the same: nothing missing, and Make a BUY list has nothing to add.
+    -- The queue says the same: nothing missing, and Make a BUY list has nothing to add. What waits
+    -- in the mailbox is named under Missing, since a craft takes reagents from the bags.
     local v = showQueue()
-    assert.same({}, missingTexts(v))
+    assert.same({ "6 Item A in the mailbox" }, missingTexts(v))
     assert.equal("Nothing is missing for the queue", v.none:GetText())
     assert.is_false(v.buy:IsEnabled())
+  end)
+
+  -- Under Missing, only what the bags and the banks do not cover.
+  it("names under Missing what the queue needs from the mailbox, no more", function()
+    boughtIntoMailbox()
+    local v = showQueue()
+    assert.same({ "6 Item A in the mailbox" }, missingTexts(v))
+    TS.opts.counts[101] = 8
+    QV.Refresh()
+    assert.same({ "2 Item A in the mailbox" }, missingTexts(v))
+    TS.opts.counts[101] = 10
+    QV.Refresh()
+    assert.same({}, missingTexts(v))
+  end)
+
+  -- I1 at the queue: a mailbox opened soon after the purchase can list what the client held before
+  -- it; the purchase still counts, and BUY offers nothing.
+  it("lets BUY buy nothing again when the mailbox shows a list from before the purchase", function()
+    local run = boughtIntoMailbox()
+    readMailbox(Mailbox.new({ { sender = "Friend", subject = "Hi", canReply = true } }), true)
+    mailClosed()
+    assert.equal(0, buyRun(run)[101])
+    assert.same({ { 101, 10 } }, linesOf(run))
   end)
 
   it("counts the mail once, when the mailbox shows it and after it is taken", function()
@@ -400,7 +440,9 @@ describe("craft queue view", function()
     local box = Mailbox.new({ wonMail(101, 6) })
     readMailbox(box, true)
     assert.equal(0, buyRun(run)[101])
+    -- The last mail taken: the empty inbox counts when the visit ends on it.
     takeFirst(box, 101, 6)
+    mailClosed()
     local offer, r = buyRun(run)
     assert.equal(0, offer[101])
     assert.equal(6, r:Lines()[1].have)
@@ -463,7 +505,51 @@ describe("craft queue view", function()
     assert.same({ { 101, 7 } }, linesOf(run))
     assert.equal(3, buyRun(run)[101])
     local v = showQueue()
-    assert.same({ "3 Item A" }, missingTexts(v))
+    assert.same({ "3 Item A", "7 Item A in the mailbox" }, missingTexts(v))
+  end)
+
+  -- M1: a take can reach the bags before the read of the inbox that sees it gone. Counted then, the
+  -- three would count twice and shrink the list for a moment; the list waits for the close.
+  it("leaves the list alone while the mailbox is open, and counts once at the close", function()
+    load({ counts = {} })
+    visitedMailbox()
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+    local run = QV.MakeBuyList()
+    local box = Mailbox.new({ { sender = "Friend", subject = "Mats", canReply = true,
+      items = { [1] = { itemID = 102, count = 3 } } } })
+    readMailbox(box, true)
+    mailClosed()
+    assert.same({ { 101, 7 } }, linesOf(run))
+    readMailbox(box, true)
+    box.api.TakeInboxItem(1, 1)
+    box:advance()
+    TS.opts.counts[102] = 3
+    bagsChanged()
+    assert.same({ { 101, 7 } }, linesOf(run))
+    readMailbox(box)
+    mailClosed()
+    assert.same({ { 101, 7 } }, linesOf(run))
+    assert.equal(7, buyRun(run)[101])
+  end)
+
+  -- Walking from the mailbox straight to an auctioneer can shut it with no MAIL_CLOSED: the client
+  -- says so, and the bags count again.
+  it("counts the bags again when the client says the mailbox shut with no MAIL_CLOSED", function()
+    load({ counts = {} })
+    visitedMailbox()
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+    local run = QV.MakeBuyList()
+    readMailbox(Mailbox.new({ { sender = "Friend", subject = "Hi", canReply = true } }), true)
+    local interacting = true
+    _G.Enum.PlayerInteractionType = { MailInfo = 17 }
+    _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function(kind) return kind == 17 and interacting end }
+    TS.opts.counts[102] = 4
+    bagsChanged()
+    assert.same({ { 101, 10 } }, linesOf(run))
+    interacting = false
+    bagsChanged()
+    _G.C_PlayerInteractionManager = nil
+    assert.same({ { 101, 6 } }, linesOf(run))
   end)
 
   it("counts a crafted item waiting in the mailbox toward its restock", function()

@@ -1514,6 +1514,7 @@ GC.Locales.esES = {
   ["The queue is empty. Add a recipe from This recipe."] = "La cola está vacía. Añade una receta desde «Esta receta».",
   ["Missing"] = "Falta",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s en el buzón",
   ["%s is not sold on the auction house"] = "%s no se vende en la casa de subastas",
   ["Nothing is missing for the queue"] = "No falta nada para la cola",
   ["Make a BUY list"] = "Crear lista de BUY",

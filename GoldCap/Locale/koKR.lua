@@ -1446,6 +1446,7 @@ GC.Locales.koKR = {
   ["The queue is empty. Add a recipe from This recipe."] = "대기열이 비어 있습니다. '이 레시피'에서 레시피를 추가하세요.",
   ["Missing"] = "부족",
   ["%d %s"] = "%d개 %s",
+  ["%d %s in the mailbox"] = "%d개 %s (우편함)",
   ["%s is not sold on the auction house"] = "%s은(는) 경매장에서 팔지 않습니다",
   ["Nothing is missing for the queue"] = "대기열에 부족한 재료가 없습니다",
   ["Make a BUY list"] = "BUY 목록 만들기",

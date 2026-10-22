@@ -521,11 +521,19 @@ end
 -- loaded): every auction house purchase is delivered by mail, so a line that subtracted only the
 -- bags and the banks offered again what was bought and not yet taken, wherever the player held
 -- some before buying (`buy` is need - max(have, bought), Core/BuyRun.lua).
+--
+-- The character is read once, when the client first knows it whole ("Name-Realm"): HAVE is asked
+-- for every line of every Refresh, and another character is another UI session.
+local mailChar
 local function haveSplit(itemID)
   local stock, mail = GC.MailStock, 0
   if stock then
-    local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
-    mail = stock.Count(context and context.char, itemID)
+    if not mailChar then
+      local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+      local char = context and context.char
+      if type(char) == "string" and char:find("-", 1, true) then mailChar = char end
+    end
+    mail = stock.Count(mailChar, itemID)
   end
   return bagStock[itemID] or 0, bankOf(itemID), mail
 end

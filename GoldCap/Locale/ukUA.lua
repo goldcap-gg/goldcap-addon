@@ -1580,6 +1580,7 @@ GC.Locales.ukUA = {
   ["The queue is empty. Add a recipe from This recipe."] = "Черга порожня. Додайте рецепт у блоці «Цей рецепт».",
   ["Missing"] = "Бракує",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s у поштовій скриньці",
   ["%s is not sold on the auction house"] = "%s не продається на аукціоні",
   ["Nothing is missing for the queue"] = "Для черги всього вистачає",
   ["Make a BUY list"] = "Створити список BUY",

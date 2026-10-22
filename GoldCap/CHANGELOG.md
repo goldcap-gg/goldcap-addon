@@ -57,10 +57,11 @@
   a vendor sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take
   off changes it, so BUY never buys again what a craft already used. Each character keeps its own
   queue and its own list, named after the character.
-- BUY, in retail WoW: what waits in your mailbox counts as what you have, so BUY never buys again
-  what you bought and have not taken out of the mailbox yet. Items another player sent you count
-  once you have opened the mailbox. A line's tooltip says how many are in the mailbox, and the
-  craft queue counts them too.
+- BUY, in retail WoW: what waits in your mailbox counts as what you have. What you buy at the
+  auction house counts from the moment you buy it, so BUY does not offer it again while it waits
+  in the mailbox. Items another player sent you count once you have opened the mailbox. A line's
+  tooltip says how many are in the mailbox. The craft queue counts them too, and under Missing it
+  names the reagents that wait in the mailbox, so you can take them out before you craft.
 
 ## 0.22.1 (unreleased)
 

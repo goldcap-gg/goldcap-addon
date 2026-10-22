@@ -1412,6 +1412,7 @@ GC.Locales.zhCN = {
   ["The queue is empty. Add a recipe from This recipe."] = "队列为空。请在“当前配方”中添加配方。",
   ["Missing"] = "缺少",
   ["%d %s"] = "%d 个 %s",
+  ["%d %s in the mailbox"] = "邮箱中 %d 个 %s",
   ["%s is not sold on the auction house"] = "%s 不在拍卖行出售",
   ["Nothing is missing for the queue"] = "队列所需材料齐全",
   ["Make a BUY list"] = "生成 BUY 清单",

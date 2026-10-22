@@ -203,6 +203,8 @@ local function expiryBucket(now, daysLeft)
   if expiresAt ~= expiresAt or expiresAt == math.huge or expiresAt > MAX_EXACT then return nil end
   return math.floor(expiresAt / BUCKET_SECONDS)
 end
+-- Core/MailStock.lua keys the attachments it has seen by the same bucket.
+GC.Ledger.ExpiryBucket = expiryBucket
 
 local function valueFingerprint(fields)
   local copy = {}
@@ -659,8 +661,8 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
   if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
   -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
-  -- retail only), read past the empty pass before the first row as the occurrences are.
-  if GC.MailStock and inboxRowsSeen then GC.MailStock.Observe(api, count, allShown, context.char, now) end
+  -- retail only). Every pass goes to it: it keeps its own visit, and its own rule for an empty one.
+  if GC.MailStock then GC.MailStock.Observe(api, count, allShown, context.char, now, opening) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)

@@ -1513,6 +1513,7 @@ GC.Locales.frFR = {
   ["The queue is empty. Add a recipe from This recipe."] = "La file est vide. Ajoute une recette depuis « Cette recette ».",
   ["Missing"] = "Manquant",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s dans la boîte aux lettres",
   ["%s is not sold on the auction house"] = "%s ne se vend pas à l'hôtel des ventes",
   ["Nothing is missing for the queue"] = "Rien ne manque pour la file",
   ["Make a BUY list"] = "Créer une liste BUY",

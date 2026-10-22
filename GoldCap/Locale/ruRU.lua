@@ -1579,6 +1579,7 @@ GC.Locales.ruRU = {
   ["The queue is empty. Add a recipe from This recipe."] = "Очередь пуста. Добавьте рецепт в блоке «Этот рецепт».",
   ["Missing"] = "Не хватает",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s в почтовом ящике",
   ["%s is not sold on the auction house"] = "%s не продаётся на аукционе",
   ["Nothing is missing for the queue"] = "Для очереди всего хватает",
   ["Make a BUY list"] = "Создать список BUY",

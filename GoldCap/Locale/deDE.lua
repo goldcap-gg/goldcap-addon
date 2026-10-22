@@ -1512,6 +1512,7 @@ GC.Locales.deDE = {
   ["The queue is empty. Add a recipe from This recipe."] = "Die Warteschlange ist leer. Füge ein Rezept unter „Dieses Rezept“ hinzu.",
   ["Missing"] = "Fehlt",
   ["%d %s"] = "%d %s",
+  ["%d %s in the mailbox"] = "%d %s im Briefkasten",
   ["%s is not sold on the auction house"] = "%s gibt es nicht im Auktionshaus",
   ["Nothing is missing for the queue"] = "Für die Warteschlange fehlt nichts",
   ["Make a BUY list"] = "BUY-Liste erstellen",

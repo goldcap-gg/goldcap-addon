@@ -320,8 +320,9 @@ pcall(function() frame:RegisterEvent("AUCTION_CANCELED") end)
 frame:RegisterEvent("MAIL_SHOW")
 frame:RegisterEvent("MAIL_INBOX_UPDATE")
 -- Sniper v3 §3: MAIL_CLOSED has no ledger use (there's nothing left to scan once the mailbox
--- closes) -- registered purely so the Sniper's Auto mode can resume once the player's done
--- with mail. MAIL_SHOW is forwarded to the Sniper too, below, alongside its existing ledger use.
+-- closes) -- registered so the Sniper's Auto mode can resume once the player's done with mail,
+-- and so Core/MailStock.lua's visit ends. MAIL_SHOW is forwarded to the Sniper too, below,
+-- alongside its existing ledger use.
 frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 -- BAG_UPDATE_DELAYED, not BAG_UPDATE: the delayed form fires once after a burst of container
@@ -1005,6 +1006,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnMailClosed()
     end
     if GC.MailCollect then GC.MailCollect.OnMailClosed() end
+    -- The visit Core/MailStock.lua counts the mailbox over ends here (retail only).
+    if GC.MailStock then GC.MailStock.Closed() end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
