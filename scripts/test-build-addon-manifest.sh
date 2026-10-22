@@ -86,7 +86,14 @@ missing_toc_fails() {
   expect_refused notoc "$(make_zip notoc -)"
 }
 
-for t in good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
+workflow="$here/../.github/workflows/addon-release.yml"
+
+mirror_runs_only_on_addon_tags() {
+  awk '/^  mirror:/{f=1;next} f&&/^  [a-z]/{exit} f&&/^    if: startsWith\(github.ref, .refs\/tags\/addon-v.\)$/{ok=1} END{exit !ok}' "$workflow" \
+    || { echo "mirror job is not limited to refs/tags/addon-v*" >&2; return 1; }
+}
+
+for t in mirror_runs_only_on_addon_tags good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
          foreign_top_folder_fails appdata_folder_fails executable_fails missing_toc_fails; do
   "$t"
   echo "ok $t"
