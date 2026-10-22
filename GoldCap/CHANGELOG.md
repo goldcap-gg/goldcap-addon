@@ -1,5 +1,19 @@
 # GoldCap
 
+## 0.23.0 (unreleased)
+
+- Mail: a Collect button beside the mailbox takes everything in one press: the gold from sales,
+  lots that came back, auctions you won and gold or items from other players. The button says how
+  many mails it will take, and one press again stops it.
+- Mail: sales are written to the SOLD tab before their gold is taken, and mail that is still
+  loading is left for the next press, so no sale goes missing.
+- Mail: cash on delivery mail and mail from Blizzard is never taken. Settings has a MAIL card to
+  choose which kinds Collect takes.
+- Mail: it stops when the bags are full (gold is still taken) and says what it collected in the
+  chat.
+- Mail: lots that came back are remembered for two weeks, so the Sell tab can tell which items did
+  not sell.
+
 ## 0.22.1 (unreleased)
 
 - Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
