@@ -1518,4 +1518,6 @@ GC.Locales.ptBR = {
   ["How many of each item in %s to keep in your bags?"] = "Quantos de cada item de %s manter nas bolsas?",
   ["To bank: %s ×%d (%d left)"] = "Para o banco: %s ×%d (faltam %d)",
   ["To bags: %s ×%d (%d left)"] = "Para as bolsas: %s ×%d (faltam %d)",
+  ["Stays in bags: %s ×%d, can still be refunded"] = "Fica nas bolsas: %s ×%d, ainda pode ser reembolsado",
+  ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Fica nas bolsas: %s ×%d, o banco do bando de guerra não aceita",
 }

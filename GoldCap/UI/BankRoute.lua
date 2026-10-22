@@ -68,15 +68,19 @@ local function hasTabs()
   return type(tabs) == "table" and #tabs > 0
 end
 
--- A stack in the bags the Warband Bank must not take: one still refundable (Blizzard asks before
--- ending the refund; GoldCap does not decide that for the player), or one it refuses.
-local function noDeposit(loc)
-  return ask(C_Item.CanBeRefunded, loc) == true or ask(C_Bank.IsItemAllowedInBankType, accountBank(), loc) == false
+-- Why the Warband Bank must not take a stack in the bags, or nil when it may: "refund" while it is
+-- still refundable (Blizzard asks before ending the refund; GoldCap does not decide that for the
+-- player), else "refused" when the Warband Bank does not take it.
+local function staysWhy(loc)
+  if ask(C_Item.CanBeRefunded, loc) == true then return "refund" end
+  if ask(C_Bank.IsItemAllowedInBankType, accountBank(), loc) == false then return "refused" end
+  return nil
 end
 
 -- One stack as the bank cards read it, or nil: an empty slot, an item `wanted` does not take, a
 -- soulbound one. A Warbound-until-equipped one is marked `wue`, a stack in the bags the Warband
--- Bank must not take `noDeposit`, and one the game holds (on the cursor, or on its way) `locked`.
+-- Bank must not take `stays` (with why, staysWhy above), and one the game holds (on the cursor, or
+-- on its way) `locked`.
 local function readStack(bag, slot, inBank, wanted)
   local info = C_Container.GetContainerItemInfo(bag, slot)
   if not (info and info.itemID and wanted(info.itemID)) then return nil end
@@ -86,7 +90,7 @@ local function readStack(bag, slot, inBank, wanted)
   if info.isBound and not wue then return nil end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
     icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
-    noDeposit = (not inBank and noDeposit(loc)) or nil, locked = info.isLocked or nil }
+    stays = (not inBank and staysWhy(loc)) or nil, locked = info.isLocked or nil }
 end
 
 --- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one.
@@ -120,7 +124,7 @@ function P.Plan()
   local function routed(stacks, inBank)
     local out = {}
     for _, stack in ipairs(stacks) do
-      if inBank or stack.wue or not stack.noDeposit then out[#out + 1] = stack end
+      if inBank or stack.wue or not stack.stays then out[#out + 1] = stack end
     end
     return out
   end
@@ -146,7 +150,7 @@ function P.MoveStack(stack, into)
   if not (info and info.itemID == stack.itemID) or info.isLocked then return false end
   if into then
     local loc = locationOf(stack.bag, stack.slot)
-    if not loc or noDeposit(loc) then return false end
+    if not loc or staysWhy(loc) then return false end
     C_Container.UseContainerItem(stack.bag, stack.slot, nil, accountBank(), false)
   else
     C_Container.UseContainerItem(stack.bag, stack.slot)

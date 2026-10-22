@@ -1520,4 +1520,6 @@ GC.Locales.itIT = {
   ["How many of each item in %s to keep in your bags?"] = "Quanti di ogni oggetto di %s tenere nelle borse?",
   ["To bank: %s ×%d (%d left)"] = "In banca: %s ×%d (ne restano %d)",
   ["To bags: %s ×%d (%d left)"] = "Nelle borse: %s ×%d (ne restano %d)",
+  ["Stays in bags: %s ×%d, can still be refunded"] = "Resta nelle borse: %s ×%d, si può ancora rimborsare",
+  ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Resta nelle borse: %s ×%d, la banca della brigata non lo accetta",
 }

@@ -2,8 +2,9 @@ local _, GC = ...
 
 -- At a bank: bank by group. Beside the bank window (under the carry list, UI/BankRoute.lua, when
 -- that shows), the groups the player follows on goldcap.gg that have items in the bags or the
--- Warband Bank, each with how many are where, To bank and To bags, and how many of each item it
--- keeps in the bags (GC.db.bankKeep, Core/BankGroups.lua). Which stack a press moves is
+-- Warband Bank, each with how many are where, To bank and To bags, how many of each item it keeps
+-- in the bags (GC.db.bankKeep, Core/BankGroups.lua), and which stacks stay in the bags and why
+-- (still refundable, or the Warband Bank does not take them). Which stack a press moves is
 -- Core/BankGroups.lua's Plan; an item's group is Core/GroupRules.lua's. With no followed group there
 -- is no card at all: it is not built and no slot is read for it.
 --
@@ -145,6 +146,7 @@ local function blockAt(i)
   block.keep:SetScript("OnClick", askKeep)
   block.toBank = moveButton(block, "primary", true)
   block.toBags = moveButton(block, "ghost", false)
+  block.stays = {}
   C._blocks[i] = block
   return block
 end
@@ -174,6 +176,23 @@ local function paintMove(button, stacks, format)
   return fitButton(button)
 end
 
+-- One line a stack that stays in the bags, per item and reason (Core/BankGroups.lua's `stays`).
+local function paintStays(block, stays)
+  for i, entry in ipairs(stays) do
+    local fs = block.stays[i]
+    if not fs then
+      fs = wrappingLabel(block, 10, GC.Theme.color.fgDim)
+      block.stays[i] = fs
+    end
+    local name = (entry.name or ("#" .. tostring(entry.itemID))) .. GC.Theme.QualityMarkup(entry.itemID, 12)
+    local why = entry.why == "refund" and GC.L["Stays in bags: %s ×%d, can still be refunded"]
+      or GC.L["Stays in bags: %s ×%d, the Warband Bank does not take it"]
+    fs:SetText(why:format(name, entry.count))
+    fs:Show()
+  end
+  for i = #stays + 1, #block.stays do block.stays[i]:Hide() end
+end
+
 -- Paints a block's words and buttons; answers the widest button.
 local function paintBlock(block, group, writable)
   block.name:SetText(group.name)
@@ -189,6 +208,7 @@ local function paintBlock(block, group, writable)
   end
   widest = math.max(widest, paintMove(block.toBank, group.toBank, GC.L["To bank: %s ×%d (%d left)"]))
   widest = math.max(widest, paintMove(block.toBags, group.toBags, GC.L["To bags: %s ×%d (%d left)"]))
+  paintStays(block, group.stays)
   return widest
 end
 
@@ -207,6 +227,14 @@ local function layoutBlock(block, inner)
       button:ClearAllPoints()
       button:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -y)
       y = y + (button == block.keep and LAYOUT.KEEP_H or LAYOUT.BUTTON_H)
+    end
+  end
+  for _, fs in ipairs(block.stays) do
+    if fs:IsShown() then
+      fs:SetWidth(inner)
+      fs:ClearAllPoints()
+      fs:SetPoint("TOPLEFT", block, "TOPLEFT", 0, -(y + LAYOUT.LINE_GAP))
+      y = y + LAYOUT.LINE_GAP + heightOf(fs, 10)
     end
   end
   y = math.ceil(y)

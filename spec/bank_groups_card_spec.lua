@@ -246,6 +246,29 @@ describe("bank by group card", function()
     assert.same({}, used)
   end)
 
+  -- A stack that stays is still counted ("220 in bags"), so the card says which one and why.
+  it("names each stack that stays in the bags and why, under its group", function()
+    refundable["0:2"] = true
+    bags[5][2] = info(3, 7)
+    refused["5:2"] = true
+    open()
+    local herbs, ore = block("Herbs"), block("Ore")
+    assert.equal("220 in bags, 600 in the Warband Bank", textOf(herbs.counts))
+    assert.equal("To bank: Bloom ×200 (1 left)", herbs.toBank.label)
+    local function staysOf(b)
+      local out = {}
+      for _, fs in ipairs(b.stays) do if fs:IsShown() then out[#out + 1] = textOf(fs) end end
+      return out
+    end
+    assert.same({ "Stays in bags: Bloom ×20, can still be refunded" }, staysOf(herbs))
+    assert.same({ "Stays in bags: Bismuth ×7, the Warband Bank does not take it" }, staysOf(ore))
+    -- The refund window ends: the line goes, and the stack is offered.
+    refundable["0:2"] = nil
+    GC.BankRoute.OnBagsChanged()
+    assert.same({}, staysOf(block("Herbs")))
+    assert.equal("To bank: Bloom ×200 (2 left)", block("Herbs").toBank.label)
+  end)
+
   it("shows nothing when the Warband Bank cannot be used here, or has no tab", function()
     canUse = false
     open()
@@ -307,6 +330,9 @@ describe("bank by group card", function()
   it("never cuts a label, in any language", function()
     NAMES[1] = "Verzauberte Blütenblätter der leuchtenden Hochenblume"
     bags[0][1] = info(1, 200)
+    refundable["0:2"] = true
+    bags[5][2] = info(3, 7)
+    refused["5:2"] = true
     for _, code in ipairs(helper.localeCodes()) do
       helper.loadModule("Locale/" .. code .. ".lua", GC)
     end
@@ -317,7 +343,10 @@ describe("bank by group card", function()
       assert.is_true(W.state(card.title).wordWrap ~= false, code)
       for _, b in ipairs(C._blocks) do
         if b:IsShown() then
-          for _, fs in ipairs({ b.name, b.counts }) do
+          local labels = { b.name, b.counts }
+          for _, fs in ipairs(b.stays) do if fs:IsShown() then labels[#labels + 1] = fs end end
+          assert.is_true(#labels > 2, code)
+          for _, fs in ipairs(labels) do
             assert.is_true(W.state(fs).wordWrap ~= false, code)
             assert.equal(card:GetWidth() - 20, fs:GetWidth(), code)
           end

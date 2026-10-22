@@ -1591,4 +1591,6 @@ GC.Locales.ukUA = {
   ["How many of each item in %s to keep in your bags?"] = "Скільки кожного предмета з %s залишати в сумках?",
   ["To bank: %s ×%d (%d left)"] = "У банк: %s ×%d (лишилось %d)",
   ["To bags: %s ×%d (%d left)"] = "У сумки: %s ×%d (лишилось %d)",
+  ["Stays in bags: %s ×%d, can still be refunded"] = "Лишається в сумках: %s ×%d, його ще можна повернути торговцю",
+  ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Лишається в сумках: %s ×%d, банк загону його не приймає",
 }

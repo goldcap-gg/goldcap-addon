@@ -214,6 +214,23 @@ describe("bank carry list", function()
     assert.is_truthy(rowFor("TAKE OUT"))
   end)
 
+  -- The reader the group card shares (UI/BankGroupsCard.lua) says why a stack in the bags stays
+  -- there: still refundable first (Blizzard asks before ending a refund), else refused by the
+  -- Warband Bank. A stack already in the Warband Bank stays nowhere.
+  it("reads why a stack in the bags stays there: still refundable, or refused by the Warband Bank", function()
+    local refundable = {}
+    _G.C_Item.CanBeRefunded = function(loc) return refundable[loc.bag .. ":" .. loc.slot] == true end
+    refundable["0:1"], refused["0:1"], refused["0:2"], refused["12:1"] = true, true, true, true
+    panel().OnBankOpened()
+    local all = function() return true end
+    local inBags = panel().ReadStacks({ 0 }, false, all)
+    assert.equal("refund", inBags[1].stays)
+    assert.equal("refused", inBags[2].stays)
+    assert.is_nil(panel().ReadStacks({ 12 }, true, all)[1].stays)
+    refundable["0:1"], refused["0:1"] = nil, nil
+    assert.is_nil(panel().ReadStacks({ 0 }, false, all)[1].stays)
+  end)
+
   -- A player with no route data never sees the list: they pay nothing for it at a bank either.
   it("reads no bag at a bank without route data", function()
     _G.GetRealmName = function() return "Nowhere" end

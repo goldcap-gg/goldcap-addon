@@ -110,9 +110,28 @@ describe("bank by group", function()
     -- A stack the Warband Bank must not take (still refundable, or refused) stays in the bags: it is
     -- counted, it counts toward the keep, and To bank never offers it.
     it("never offers a stack the Warband Bank must not take, and counts it as kept", function()
-      local ore = plan({ stack(3, 0, 1, 30, { noDeposit = true }), stack(3, 0, 2, 10) }, {}, { Ore = 30 })[1]
-      assert.same({ "0:2" }, where(ore.toBank))
-      assert.equal(40, ore.inBags)
+      for _, why in ipairs({ "refund", "refused" }) do
+        local ore = plan({ stack(3, 0, 1, 30, { stays = why }), stack(3, 0, 2, 10) }, {}, { Ore = 30 })[1]
+        assert.same({ "0:2" }, where(ore.toBank), why)
+        assert.equal(40, ore.inBags, why)
+      end
+    end)
+
+    -- And the card says so: which item stays, how many, and why, one line per item and reason.
+    it("names what stays in the bags and why, summed per item and reason", function()
+      local herbs = plan({
+        stack(1, 0, 1, 20, { stays = "refund" }), stack(1, 0, 2, 5, { stays = "refund" }),
+        stack(2, 0, 3, 7, { stays = "refused" }), stack(1, 0, 4, 3, { stays = "refused" }),
+        stack(1, 0, 5, 100),
+      }, {})[1]
+      assert.same({
+        { itemID = 1, name = "Bloom", count = 25, why = "refund" },
+        { itemID = 1, name = "Bloom", count = 3, why = "refused" },
+        { itemID = 2, name = "Bloom", count = 7, why = "refused" },
+      }, herbs.stays)
+      assert.same({ "0:5" }, where(herbs.toBank))
+      assert.equal(135, herbs.inBags)
+      assert.same({}, plan({ stack(3, 0, 1, 10) }, {})[1].stays)
     end)
 
     it("orders a group's items by name, then by item", function()

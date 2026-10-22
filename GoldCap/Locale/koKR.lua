@@ -1457,4 +1457,6 @@ GC.Locales.koKR = {
   ["How many of each item in %s to keep in your bags?"] = "%s의 각 아이템을 가방에 몇 개 남길까요?",
   ["To bank: %s ×%d (%d left)"] = "은행으로: %s ×%d (%d 남음)",
   ["To bags: %s ×%d (%d left)"] = "가방으로: %s ×%d (%d 남음)",
+  ["Stays in bags: %s ×%d, can still be refunded"] = "가방에 남음: %s ×%d, 아직 환불할 수 있음",
+  ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "가방에 남음: %s ×%d, 전투부대 은행에 넣을 수 없음",
 }
