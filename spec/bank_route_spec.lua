@@ -308,7 +308,8 @@ describe("bank carry list", function()
     it("calls UseContainerItem only inside onCarryClick", function()
       local listing = assert(io.popen("find GoldCap -name '*.lua'"))
       for path in listing:lines() do
-        if path ~= "GoldCap/UI/BankRoute.lua" then
+        -- The vendor sell card makes its own sale call; spec/vendor_sell_wiring_spec.lua audits it.
+        if path ~= "GoldCap/UI/BankRoute.lua" and path ~= "GoldCap/UI/VendorSellCard.lua" then
           assert.is_nil(read(path):find("UseContainerItem", 1, true), path)
         end
       end

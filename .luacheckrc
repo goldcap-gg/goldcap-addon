@@ -34,6 +34,9 @@ read_globals = {
   -- Sniper v3 §3 AutoScan wiring: the machine's own clock domain, and the native AH frame
   -- whose SearchBar/SetDisplayMode are hooked for player-search detection.
   "GetTime", "AuctionHouseFrame",
+  -- UI/VendorSellCard.lua: the cursor carries an item, or a spell waits for an item target, so a
+  -- sale call would do something else.
+  "GetCursorInfo", "SpellIsTargeting",
   -- HOT-deal alert for alt-tabbed players (pingNewHotDeals): flashes the OS taskbar/dock icon.
   "FlashClientIcon",
   -- Blizzard's tab helpers. UI/AuctionHouseTab.lua calls TabResize/SelectTab on

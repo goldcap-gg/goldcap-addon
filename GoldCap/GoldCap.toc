@@ -89,6 +89,8 @@ Core/BuyDock.lua
 Core/BuyLots.lua
 Core/BuyVendor.lua
 Core/VendorBuys.lua
+Core/VendorSelect.lua
+Core/VendorPress.lua
 Core/BuyRecents.lua
 Core/BuyWaitDiag.lua
 Core/BuySearchModel.lua
@@ -111,6 +113,7 @@ Services/Sell/Walk.lua
 Services/Sell/Post.lua
 Services/Sell/Cancel.lua
 Services/Sell/Session.lua
+Services/VendorBags.lua
 Data/MarketData.lua
 UI/Kit/Tokens.lua
 UI/Kit/Icons.lua
@@ -148,6 +151,7 @@ UI/BuyLists.lua
 UI/BuyAddBox.lua
 UI/BuySearch.lua
 UI/BuyVendorPanel.lua
+UI/VendorSellCard.lua
 UI/BankRoute.lua
 UI/MailCollect.lua
 UI/SettingsFrame.lua

@@ -26,10 +26,15 @@ function N.Text(totals)
     :format(items, coins)
 end
 
--- An item's value as BagTotals reads it (`mv`), at the figure its tooltip prints.
+-- An item's value as BagTotals reads it (`mv`), at the figure its tooltip prints, with where that
+-- figure came from (`source`, GC.Data.GetItemValue's) and when (`at`: the fact's own time when the
+-- price has one, else the data's). BagTotals reads `mv` alone; the Sell to vendor card's value rule
+-- (Core/VendorSelect.lua) sells only on a recent import or region price.
 function N.ValueFor(itemID)
-  local unit = GC.Tooltip.Headline(GC.Data.GetItemValue(itemID))
-  return unit and { mv = unit } or nil
+  local v = GC.Data.GetItemValue(itemID)
+  local unit = GC.Tooltip.Headline(v)
+  if not unit then return nil end
+  return { mv = unit, source = v.source, at = v.sourceAt or v.ts }
 end
 
 local function build(host)

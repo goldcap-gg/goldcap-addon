@@ -19,8 +19,22 @@
   choose which kinds Collect takes.
 - Mail: it stops when the bags are full (gold is still taken) and says what it collected in the
   chat.
+- At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists what one
+  press would sell and sells it for you. It sells your junk, and unbound items a vendor pays at
+  least as much for as the auction house would after its cut, going by an auction house price from
+  the last 24 hours that came through the Companion or an import, never by the prices built into
+  the addon. A press sells at most 12 stacks, so everything it sold is still in the vendor's
+  Buyback tab, and the card says how many more are left. While it sells, its button reads Stop.
+  Right click a line and choose Never sell this to keep an item for good. WoW: Forever does not
+  have the card yet.
+- Sell to vendor never sells items you can still return, tradeable raid loot, items in an
+  equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
+  or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
+  only when they are junk.
 - Settings: a new POSTING setting cancels a lot only when someone undercuts you by more than a set
   percent.
+- Settings: the Vendor card turns either kind off, Sell junk or Better at vendor, and forgets the
+  items you kept.
 
 ## 0.22.1 (unreleased)
 

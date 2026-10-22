@@ -95,6 +95,16 @@ describe("vendor note", function()
       end)
     end
 
+    -- The Sell to vendor card's value rule reads the same figure, and needs where it came from and
+    -- how old it is: the fact's own time when the price has one, else the data's.
+    it("ValueFor carries the price's source and its time", function()
+      VALUES[41] = { mv = 100, ts = 1700000000, sourceAt = 1699990000, source = "region", kind = "region_commodity" }
+      VALUES[42] = { mv = 100, ts = 1700000000, source = "bundled", kind = "region_commodity" }
+      assert.same({ mv = 100, source = "region", at = 1699990000 }, N.ValueFor(41))
+      assert.same({ mv = 100, source = "bundled", at = 1700000000 }, N.ValueFor(42))
+      assert.is_nil(N.ValueFor(43))
+    end)
+
     it("counts an item in two stacks once, and adds both stacks' gain", function()
       BAGS[0] = { stack(21, 2) }
       BAGS[1] = { nil, stack(21, 3) }
