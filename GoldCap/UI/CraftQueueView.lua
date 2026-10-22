@@ -2,9 +2,15 @@ local _, GC = ...
 
 -- The craft panel's Queue view (retail, beside the profession window): this character's queued
 -- recipes with what is left to craft, the reagents the queue is short of, and Make a BUY list,
--- which turns exactly those into a list the BUY tab buys at the auction house. Nothing is bought
--- here, and nothing is crafted here: a craft from Blizzard's own button takes one off a counted
--- line all the same (UNIT_SPELLCAST_SUCCEEDED).
+-- which writes what the queue needs into the character's one Craft queue list for the BUY tab at
+-- the auction house. Nothing is bought here, and nothing is crafted here: a craft from Blizzard's
+-- own button takes one off a counted line all the same (UNIT_SPELLCAST_SUCCEEDED).
+--
+-- That list follows the queue: every change to the queue, and to what a restock holds, rewrites
+-- its lines (SyncBuyList), so BUY never buys again what a craft already used. It is known by the
+-- code GC.db.craft keeps for the character, never by its name: the player's other lists, one
+-- named Craft queue included, are never touched, and one the player deleted is made again only
+-- by the button.
 --
 -- Its events are its own, each registered under pcall (Core/Collection.lua's shape), so
 -- Core/Init.lua is not touched. The arithmetic is Core/CraftQueue.lua's; every count and price
@@ -34,7 +40,8 @@ local function wrapped(parent, size, width)
 end
 
 -- The queue as it stands: one row per entry ({ entry, crafts, held }), what the queue is short
--- of, and when the auction house was last read for this character (nil: not yet).
+-- of, when the auction house was last read for this character (nil: not yet), and what the queue
+-- needs in all.
 local function work(char)
   local CC, Q = GC.CraftClient, GC.CraftQueue
   local entries = Q.Entries(char)
@@ -46,8 +53,57 @@ local function work(char)
     crafts[e] = n
     rows[i] = { entry = e, crafts = n, held = held }
   end
-  local missing = Q.Missing(Q.Needs(entries, function(e) return crafts[e] end), CC.CountOf, CC.CurrencyCount)
-  return rows, missing, listedAt
+  local needs = Q.Needs(entries, function(e) return crafts[e] end)
+  return rows, Q.Missing(needs, CC.CountOf, CC.CurrencyCount), listedAt, needs
+end
+
+-- Whether the queue is short of anything the BUY tab can buy (a currency it cannot).
+local function buyable(missing)
+  for _, row in ipairs(missing) do
+    if type(row.ids) == "table" and row.ids[1] then return true end
+  end
+  return false
+end
+
+-- The character's craft queue list, while the store may be written and the list is still there.
+local function listOf(char)
+  local Q = GC.CraftQueue
+  local code = char and Q.Writable() and Q.BuyList(char) or nil
+  local run = code and GC.AppRuns.Get(code) or nil
+  return (type(run) == "table" and run.origin == "game") and run or nil
+end
+
+-- Writes what the queue needs into the character's craft queue list, making it when the
+-- character has none (named "Craft queue"). Returns the list and whether its lines changed, or
+-- nil when nothing may be written.
+local function writeList(char, needs)
+  local CC, Q = GC.CraftClient, GC.CraftQueue
+  local lines = Q.BuyLines(needs, CC.UnitOf, CC.CountOf, CC.VendorOf)
+  local run = listOf(char)
+  if run then return GC.AppRuns.SetLines(run.code, lines) end
+  if not (char and Q.Writable()) then return nil end
+  run = GC.AppRuns.NewList(GC.L["Craft queue"], lines)
+  if not (run and Q.SetBuyList(char, run.code)) then return nil end
+  return run, true
+end
+
+--- The queue changed, or what it holds did: its list, when the character has one, says what the
+--- queue needs now. Only the button makes one. BUY rebuilds a list whose updatedAt moved the next
+--- time it shows (UI/BuyFrame.lua's ensureRun); the one it holds now is rebuilt here, so what it
+--- counts as bought is read afresh, unless a purchase is in the client's hands. Returns the list
+--- or nil.
+function QV.SyncBuyList()
+  local char = GC.CraftClient.Char()
+  if not listOf(char) then return nil end
+  local _, _, _, needs = work(char)
+  local run, changed = writeList(char, needs)
+  local buy = GC.Buy
+  local shown = changed and buy and buy.CurrentRun and buy.CurrentRun() or nil
+  if shown and shown:Code() == run.code and not (buy._InFlight and buy._InFlight()) then
+    buy.SelectRun(run.code)
+    if buy.RefreshIfShown then buy.RefreshIfShown() end
+  end
+  return run
 end
 
 --- A queue line's right click: more crafts, a restock target, or off the queue.
@@ -64,6 +120,7 @@ function QV.OpenLineMenu(owner, entry)
     root:CreateButton(GC.Util.ClientText(GC.L["Remove from queue"]), function()
       local char = GC.CraftClient.Char()
       if char then GC.CraftQueue.Remove(char, recipe.recipeID) end
+      QV.SyncBuyList()
       QV.Queue()
     end)
   end)
@@ -219,8 +276,7 @@ function QV.Refresh()
 
   v.buy:SetLabel(GC.L["Make a BUY list"])
   v.buy:FitLabels({ v.buy.label }, LAYOUT.BUTTON_MIN)
-  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf, GC.CraftClient.VendorOf)
-  if #lines > 0 then v.buy:Enable() else v.buy:Disable() end
+  if buyable(missing) then v.buy:Enable() else v.buy:Disable() end
 end
 
 --- One repaint on the next frame, however many times this is asked for before then.
@@ -230,16 +286,17 @@ function QV.Queue()
   after(QV.Refresh)
 end
 
---- A new BUY list named "Craft queue" holding what the queue is short of, the cheapest priced
---- quality of each reagent, shown in the BUY tab. Returns the list, or nil when nothing is missing.
+--- The character's craft queue list, made when it has none (named "Craft queue"), holding what
+--- the queue needs (Core/CraftQueue.lua's BuyLines), out of the archive and shown in the BUY tab.
+--- Returns the list, or nil when nothing is missing.
 function QV.MakeBuyList()
   local char = GC.CraftClient.Char()
   if not char then return nil end
-  local _, missing = work(char)
-  local lines = GC.CraftQueue.BuyLines(missing, GC.CraftClient.UnitOf, GC.CraftClient.CountOf, GC.CraftClient.VendorOf)
-  if #lines == 0 then return nil end
-  local run = GC.AppRuns.NewList(GC.L["Craft queue"], lines)
+  local _, missing, _, needs = work(char)
+  if not buyable(missing) then return nil end
+  local run = writeList(char, needs)
   if not run then return nil end
+  GC.AppRuns.SetArchived(run.code, false)
   if GC.Buy and GC.Buy.SelectRun then GC.Buy.SelectRun(run.code) end
   if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
   GC.Print(GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.AppRuns.Label(run)))
@@ -248,6 +305,8 @@ end
 
 --- UNIT_SPELLCAST_SUCCEEDED: a craft of a counted recipe takes one off its line, the window open
 --- or not. OWNED_AUCTIONS_UPDATED: what this character has up on the auction house, for restocks.
+--- BAG_UPDATE_DELAYED: what a restock holds, which a craft of it adds to only once the item is in
+--- the bags. Each one brings the craft queue list in step (SyncBuyList).
 function QV.OnEvent(event, ...)
   if event == "UNIT_SPELLCAST_SUCCEEDED" then
     local _, _, spellID = ...
@@ -259,9 +318,17 @@ function QV.OnEvent(event, ...)
       local char = GC.CraftClient.Char()
       return char ~= nil and GC.CraftQueue.OnCraftSucceeded(char, spellID)
     end)
-    if ok and changed then QV.Queue() end
+    if ok and changed then
+      QV.SyncBuyList()
+      QV.Queue()
+    end
   elseif event == "OWNED_AUCTIONS_UPDATED" then
-    if GC.CraftClient.ReadListed() then QV.Queue() end
+    if GC.CraftClient.ReadListed() then
+      QV.SyncBuyList()
+      QV.Queue()
+    end
+  elseif event == "BAG_UPDATE_DELAYED" then
+    QV.SyncBuyList()
   end
 end
 
@@ -269,9 +336,15 @@ if type(CreateFrame) == "function" then
   local events = CreateFrame("Frame")
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
   pcall(events.RegisterEvent, events, "OWNED_AUCTIONS_UPDATED")
+  pcall(events.RegisterEvent, events, "BAG_UPDATE_DELAYED")
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)
   QV._events = events
 end
 
--- What the panel's This recipe and row menu add shows here at once.
-if GC.CraftPanel then GC.CraftPanel.OnQueueChanged = QV.Refresh end
+--- What the panel's This recipe and row menu add or restock: into the list, and on screen at once.
+function QV.OnQueueChanged()
+  QV.SyncBuyList()
+  QV.Refresh()
+end
+
+if GC.CraftPanel then GC.CraftPanel.OnQueueChanged = QV.OnQueueChanged end

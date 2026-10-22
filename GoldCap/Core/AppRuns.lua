@@ -711,6 +711,55 @@ function GC.AppRuns.RemoveLine(code, itemID)
   return false
 end
 
+-- What every character's BUY progress counts as bought for `itemID` on list `code` goes down by
+-- `by`, and what it cost with it, in proportion; nothing left is no entry.
+local function lowerBought(db, code, itemID, by)
+  if type(db.buyProgress) ~= "table" then return end
+  for _, byChar in pairs(db.buyProgress) do
+    local forRun = type(byChar) == "table" and byChar[code] or nil
+    local saved = type(forRun) == "table" and forRun[itemID] or nil
+    local bought = type(saved) == "table" and tonumber(saved.bought) or nil
+    if bought then
+      local left = math.max(0, bought - by)
+      if left == 0 then
+        forRun[itemID] = nil
+      else
+        saved.spent = math.floor((tonumber(saved.spent) or 0) * left / bought)
+        saved.bought = left
+      end
+    end
+  end
+end
+
+--- Replaces the lines of a list made in the game with `lines` ({ i, q, v?, vu? }, one per item):
+--- the craft queue's list (UI/CraftQueueView.lua), which follows the queue. Code, name, caps and
+--- place stay. Where a line now asks for fewer, or went, what each character bought for it goes
+--- down by as much: BUY buys a line's need less the larger of what it sees held and what it bought
+--- for the list (Core/BuyRun.lua), and the units the list no longer asks for are ones a craft used,
+--- which counted as bought would keep BUY from buying what is still short. A line that asks for more
+--- keeps what was bought for it, held or still in the mailbox. Returns the run and whether a line
+--- changed, or nil for any other list.
+function GC.AppRuns.SetLines(code, lines)
+  local run = GC.AppRuns.Get(code)
+  if not (type(run) == "table" and run.origin == "game") then return nil end
+  local fresh = mergeLines(lines or {})
+  local old, asked = {}, {}
+  for _, line in ipairs(type(run.lines) == "table" and run.lines or {}) do old[line.i] = line end
+  local changed = #fresh ~= #(run.lines or {})
+  for _, line in ipairs(fresh) do
+    local was = old[line.i]
+    asked[line.i] = line.q
+    if not (was and was.q == line.q and was.v == line.v and was.vu == line.vu) then changed = true end
+  end
+  if not changed then return run, false end
+  run.lines, run.updatedAt = fresh, time()
+  for itemID, was in pairs(old) do
+    local by = (tonumber(was.q) or 0) - (asked[itemID] or 0)
+    if by > 0 then lowerBought(GC.db, code, itemID, by) end
+  end
+  return run, true
+end
+
 --- A 0.17 quick list becomes a list made in the game, "List N", in place: same code, so its lines,
 --- its caps, what was bought on it and the BUY tab's choice of it all stay where they are.
 function GC.AppRuns.Migrate()

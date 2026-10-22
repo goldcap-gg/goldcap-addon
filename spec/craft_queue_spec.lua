@@ -35,8 +35,11 @@ describe("craft queue", function()
     assert.is_nil(Q.Add("A-R", recipe(1), 2))
     assert.is_nil(Q.Restock("A-R", recipe(1), 5))
     Q.FoldListed("A-R", { { itemKey = { itemID = 900 }, quantity = 1, status = 0 } }, 100)
+    assert.is_false(Q.SetBuyList("A-R", "game-1"))
     assert.same({ v = 2, chars = {} }, GC.db.craft)
     assert.is_false(Q.Writable())
+    GC.db.craft = { v = 2, chars = { ["A-R"] = { entries = {}, buyList = "game-1" } } }
+    assert.is_nil(Q.BuyList("A-R"))
   end)
 
   it("is writable when no store exists yet or it is this version's", function()
@@ -144,26 +147,44 @@ describe("craft queue", function()
     assert.same({ { currency = 3008, need = 10, have = 0, missing = 10 } }, Q.Missing(needs, counts({})))
   end)
 
-  it("BuyLines adds back what is held of the bought quality", function()
-    local missing = { { ids = { 101, 102, 103 }, need = 6, have = 1, missing = 5 } }
+  -- The lines of the craft queue's BUY list: everything the queue needs, as BUY reads a line (it
+  -- buys the need less what it sees held of that one item, Core/BuyRun.lua).
+  it("BuyLines asks for the whole need less what is held of the other qualities", function()
+    local needs = { { ids = { 101, 102, 103 }, q = 6 } }
     local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })
-    assert.same({ { i = 103, q = 6 } }, (Q.BuyLines(missing, prices, counts({ [103] = 1 }))))
-    assert.same({ { i = 103, q = 5 } }, (Q.BuyLines(missing, prices, counts({ [101] = 3 }))))
+    assert.same({ { i = 103, q = 6 } }, (Q.BuyLines(needs, prices, counts({ [103] = 1 }))))
+    assert.same({ { i = 103, q = 3 } }, (Q.BuyLines(needs, prices, counts({ [101] = 3 }))))
+    -- Held of the bought quality stays on the line, which BUY then reads as done.
+    assert.same({ { i = 103, q = 6 } }, (Q.BuyLines(needs, prices, counts({ [103] = 9 }))))
+    -- Other qualities cover it: no line.
+    assert.same({}, (Q.BuyLines(needs, prices, counts({ [101] = 2, [102] = 4 }))))
   end)
 
   it("marks a reagent a vendor sells as a vendor stop with the vendor's price", function()
-    local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 }, { ids = { 201 }, need = 2, have = 0, missing = 2 } }
+    local needs = { { ids = { 101, 102 }, q = 4 }, { ids = { 201 }, q = 2 } }
     local prices = unit({ [101] = 50, [102] = 900, [201] = 300 })
     local vendor = function(id) return id == 101 and 50 or nil end
     assert.same({ { i = 101, q = 4, v = true, vu = 50 }, { i = 201, q = 2 } },
-      (Q.BuyLines(missing, prices, counts({}), vendor)))
+      (Q.BuyLines(needs, prices, counts({}), vendor)))
   end)
 
   it("buys the lowest quality when no quality has a price, and leaves a currency out", function()
-    local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 }, { currency = 3008, need = 2, have = 0, missing = 2 } }
-    local lines, notBuyable = Q.BuyLines(missing, unit({}), counts({}))
+    local needs = { { ids = { 101, 102 }, q = 4 }, { currency = 3008, q = 2 } }
+    local lines, notBuyable = Q.BuyLines(needs, unit({}), counts({}))
     assert.same({ { i = 101, q = 4 } }, lines)
     assert.same({ { currency = 3008 } }, notBuyable)
+  end)
+
+  it("remembers each character's craft queue BUY list", function()
+    assert.is_nil(Q.BuyList("A-R"))
+    assert.is_nil(GC.db.craft)
+    assert.is_true(Q.SetBuyList("A-R", "game-3"))
+    assert.equal("game-3", Q.BuyList("A-R"))
+    assert.equal("game-3", GC.db.craft.chars["A-R"].buyList)
+    assert.is_nil(Q.BuyList("B-R"))
+    assert.is_false(Q.SetBuyList("A-R", ""))
+    assert.is_false(Q.SetBuyList(nil, "game-4"))
+    assert.equal("game-3", Q.BuyList("A-R"))
   end)
 
   it("FoldListed counts live auctions and never sold ones", function()

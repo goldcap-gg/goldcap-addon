@@ -48,8 +48,10 @@
   item sells less than once a day.
 - Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
   bags, bank and on the auction house. The queue shows which reagents are missing, and Make a BUY
-  list turns them into a list the BUY tab buys, with a reagent a vendor sells under AT A VENDOR.
-  Each character keeps its own queue.
+  list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor
+  sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off
+  changes it, so BUY never buys again what a craft already used. Each character keeps its own
+  queue and its own list.
 
 ## 0.22.1 (unreleased)
 

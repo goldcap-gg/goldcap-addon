@@ -5,7 +5,9 @@ local _, GC = ...
 -- what to buy. Pure apart from GC.db; every count and price is a function the caller hands in.
 --
 -- Store: GC.db.craft = { v = 1, chars = { ["Name-Realm"] = { entries = { Entry, ... },
---   listed = { [itemID] = quantity }, listedAt = time() or nil } } }
+--   listed = { [itemID] = quantity }, listedAt = time() or nil, buyList = code or nil } } }
+-- `buyList` is the code of the character's one craft queue BUY list in GC.db.runs (the list
+-- UI/CraftQueueView.lua keeps in step with the queue).
 -- Entry: { recipe = Recipe, count = n } or { recipe = Recipe, restock = n }. Recipe is the
 -- snapshot Services/CraftClient.lua makes (Core/CraftMath.lua names its shape), stored whole so
 -- the queue reads without the profession window open.
@@ -207,26 +209,49 @@ function Q.Missing(needs, countOf, currencyOf)
   return out
 end
 
---- BUY lines ({ i, q }) that buy exactly what is missing. The item bought is the cheapest priced
---- quality, else the lowest. BUY buys a line's `q` less what it sees held of that one item
---- (Core/BuyRun.lua), while `missing` already counted every quality held: so what is held of the
---- bought item is added back, or BUY would take it off twice. An item `vendorOf` gives a vendor's
---- price for is a vendor stop ({ i, q, v = true, vu }), which BUY lists for the merchant instead
---- of searching the auction house. A currency goes to `notBuyable`.
-function Q.BuyLines(missing, unitOf, countOf, vendorOf)
+--- The craft queue's BUY lines ({ i, q }), from `needs` (Needs' rows): one per reagent, the
+--- cheapest priced quality, else the lowest, asking for the whole need less what is held of the
+--- reagent's other qualities. BUY buys a line's `q` less what it sees held of that one item
+--- (Core/BuyRun.lua), so the line buys exactly what is missing, and reads done once the bags hold
+--- it. A reagent the other qualities cover has no line. An item `vendorOf` gives a vendor's price
+--- for is a vendor stop ({ i, q, v = true, vu }), which BUY lists for the merchant instead of
+--- searching the auction house. A currency goes to `notBuyable`.
+function Q.BuyLines(needs, unitOf, countOf, vendorOf)
   local lines, notBuyable = {}, {}
-  for _, row in ipairs(type(missing) == "table" and missing or {}) do
+  for _, row in ipairs(type(needs) == "table" and needs or {}) do
     if row.currency then
       notBuyable[#notBuyable + 1] = { currency = row.currency }
     elseif type(row.ids) == "table" and row.ids[1] then
       local i = GC.CraftMath.SlotChoice({ ids = row.ids }, unitOf) or row.ids[1]
-      local line = { i = i, q = row.missing + (tonumber(countOf(i)) or 0) }
-      local vu = vendorOf and tonumber(vendorOf(i)) or nil
-      if vu and vu > 0 then line.v, line.vu = true, vu end
-      lines[#lines + 1] = line
+      local q = tonumber(row.q) or 0
+      for _, id in ipairs(row.ids) do
+        if id ~= i then q = q - (tonumber(countOf(id)) or 0) end
+      end
+      if q > 0 then
+        local line = { i = i, q = q }
+        local vu = vendorOf and tonumber(vendorOf(i)) or nil
+        if vu and vu > 0 then line.v, line.vu = true, vu end
+        lines[#lines + 1] = line
+      end
     end
   end
   return lines, notBuyable
+end
+
+--- The code of this character's craft queue BUY list, or nil (none yet, or a newer store).
+function Q.BuyList(char)
+  local c = charOf(char, false)
+  local code = c and c.buyList or nil
+  return type(code) == "string" and code ~= "" and code or nil
+end
+
+--- Remembers `code` as this character's craft queue BUY list. False when nothing may be written.
+function Q.SetBuyList(char, code)
+  if type(code) ~= "string" or code == "" then return false end
+  local c = charOf(char, true)
+  if not c then return false end
+  c.buyList = code
+  return true
 end
 
 --- The character's own auctions (C_AuctionHouse.GetOwnedAuctions) as listed counts, replacing the

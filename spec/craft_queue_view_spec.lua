@@ -3,8 +3,8 @@ local W = require("spec.support.wow_frames")
 local TS = require("spec.support.trade_skill")
 
 -- UI/CraftQueueView.lua: the panel's Queue view. Each queued recipe with what is left to craft, the
--- reagents the queue is short of, and Make a BUY list, which turns exactly those into a list the
--- BUY tab buys.
+-- reagents the queue is short of, and Make a BUY list, which writes what the queue needs into the
+-- character's one Craft queue list, the list the queue then keeps in step with itself.
 describe("craft queue view", function()
   local GC, P, QV, restore, VALUES, printed, selected, refreshed
 
@@ -37,6 +37,7 @@ describe("craft queue view", function()
     GC.Ledger = { Context = function() return { char = "Name-Realm" } end }
     GC.db = {}
     helper.loadModule("Core/AppRuns.lua", GC)
+    helper.loadModule("Core/BuyRun.lua", GC)
     printed, selected, refreshed = {}, {}, 0
     GC.Print = function(msg) printed[#printed + 1] = msg end
     GC.Buy = { SelectRun = function(code) selected[#selected + 1] = code end, RefreshIfShown = function() refreshed = refreshed + 1 end }
@@ -69,6 +70,74 @@ describe("craft queue view", function()
     local out = {}
     for _, fs in ipairs(v.missingLines) do if fs:IsShown() then out[#out + 1] = fs:GetText() end end
     return out
+  end
+
+  local function codes()
+    local out = {}
+    for code in pairs(GC.db.runs or {}) do out[#out + 1] = code end
+    table.sort(out)
+    return out
+  end
+
+  local function linesOf(run)
+    local out = {}
+    for n, line in ipairs(run.lines) do out[n] = { line.i, line.q } end
+    return out
+  end
+
+  local function copy(t)
+    if type(t) ~= "table" then return t end
+    local out = {}
+    for k, v in pairs(t) do out[k] = copy(v) end
+    return out
+  end
+
+  -- What BUY buys of each line of `run` and the BuyRun it worked that out with: Core/BuyRun.lua
+  -- with UI/BuyFrame.lua's driver for this character (held from the same count the queue reads,
+  -- what was bought for the list from GC.db.buyProgress).
+  local function buyRun(run)
+    local r = GC.BuyRun.New(run, {
+      now = function() return 1 end,
+      haveOf = function(id) return (TS.opts.counts or {})[id] or 0 end,
+      usualUnit = function() return nil end,
+      capPct = function() return 130 end,
+      progress = function(code)
+        GC.db.buyProgress = GC.db.buyProgress or {}
+        local mine = GC.db.buyProgress["Name-Realm"] or {}
+        GC.db.buyProgress["Name-Realm"] = mine
+        mine[code] = mine[code] or {}
+        return mine[code]
+      end,
+    })
+    r:Refresh()
+    local out = {}
+    for _, line in ipairs(r:Lines()) do out[line.itemID] = line.buy end
+    return out, r
+  end
+
+  -- A finished cast of `spellID`, as the client fires it.
+  local function crafted(spellID, times)
+    local ev = QV._events
+    for _ = 1, times or 1 do
+      ev:GetScript("OnEvent")(ev, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-" .. spellID, spellID)
+    end
+    TS.runTimers()
+  end
+
+  -- The entries of a queue line's right click menu.
+  local function lineMenu(i)
+    local entries = {}
+    local saved = _G.MenuUtil
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function() end,
+        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+      })
+    end }
+    local line = QV._rows[i].widget.frame
+    line:GetScript("OnClick")(line, "RightButton")
+    _G.MenuUtil = saved
+    return entries
   end
 
   after_each(function() if restore then restore() end end)
@@ -129,7 +198,7 @@ describe("craft queue view", function()
     assert.is_false(v.none:IsShown())
   end)
 
-  it("Make a BUY list makes a list named Craft queue and opens it in BUY", function()
+  it("Make a BUY list makes the character's Craft queue list and opens it in BUY, one list however often it is pressed", function()
     load({ counts = { [101] = 4, [103] = 1 } })
     VALUES[101], VALUES[102], VALUES[103] = commodity(500), commodity(450), commodity(400)
     GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
@@ -137,21 +206,166 @@ describe("craft queue view", function()
     local v = showQueue()
     assert.is_true(v.buy:IsEnabled())
     v.buy:GetScript("OnClick")(v.buy)
-    local codes = {}
-    for code in pairs(GC.db.runs) do codes[#codes + 1] = code end
-    assert.equal(1, #codes)
-    local run = GC.db.runs[codes[1]]
+    assert.equal(1, #codes())
+    local run = GC.db.runs[codes()[1]]
     assert.equal(GC.L["Craft queue"], run.name)
-    assert.equal(1, #run.lines)
-    assert.same({ 103, 3 }, { run.lines[1].i, run.lines[1].q })
+    -- 7 of Item A in all, 4 of them held as 101: BUY buys 3 of 103, less the one it sees held.
+    assert.same({ { 103, 3 } }, linesOf(run))
     assert.same({ run.code }, selected)
     assert.equal(1, refreshed)
     assert.same({ GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.L["Craft queue"]) }, printed)
-    -- A new list on every press: nothing is bought here.
+    -- Recognised by its code, kept per character, not by its name.
+    assert.equal(run.code, GC.CraftQueue.BuyList("Name-Realm"))
+    -- A second press writes into the same list: never a second one.
     v.buy:GetScript("OnClick")(v.buy)
-    local n = 0
-    for _ in pairs(GC.db.runs) do n = n + 1 end
-    assert.equal(2, n)
+    assert.same({ run.code }, codes())
+    assert.same({ run.code, run.code }, selected)
+  end)
+
+  it("makes the list again once the player deleted it, and brings it out of the archive", function()
+    load({ counts = {} })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 1)
+    local first = QV.MakeBuyList()
+    GC.AppRuns.SetArchived(first.code, true)
+    assert.equal(first, QV.MakeBuyList())
+    assert.is_false(GC.AppRuns.IsArchived(first.code))
+    GC.AppRuns.Remove(first.code)
+    -- A queue change alone makes nothing: only the button does.
+    crafted(5)
+    GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+    P.OnQueueChanged()
+    assert.same({}, codes())
+    local made = QV.MakeBuyList()
+    assert.is_true(made.code ~= first.code)
+    assert.same({ made.code }, codes())
+    assert.equal(made.code, GC.CraftQueue.BuyList("Name-Realm"))
+  end)
+
+  it("never touches the player's other lists, one named Craft queue included", function()
+    load({ counts = {} })
+    local mine = GC.AppRuns.NewList(GC.L["Craft queue"], { { i = 101, q = 7 } })
+    local before = copy(mine)
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+    showQueue()
+    local run = QV.MakeBuyList()
+    assert.is_true(run.code ~= mine.code)
+    crafted(3)
+    GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+    P.OnQueueChanged()
+    lineMenu(1)[3].fn()
+    TS.runTimers()
+    QV.MakeBuyList()
+    assert.same(before, GC.db.runs[mine.code])
+    assert.equal(2, #codes())
+  end)
+
+  it("keeps the list in step with the queue: a finished craft, an add and a removal, down to empty", function()
+    load({ counts = {} })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+    showQueue()
+    local run = QV.MakeBuyList()
+    assert.same({ { 101, 6 } }, linesOf(run))
+    -- A Potion takes two of Item A: two fewer to buy.
+    crafted(3)
+    assert.same({ { 101, 4 } }, linesOf(run))
+    -- The panel adds a Flask, one more.
+    GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+    P.OnQueueChanged()
+    assert.same({ { 101, 5 } }, linesOf(run))
+    -- The Flask taken off from its line's menu.
+    TS.runTimers()
+    assert.equal("Flask", QV._rows[2].widget.name:GetText())
+    lineMenu(2)[3].fn()
+    TS.runTimers()
+    assert.same({ { 101, 4 } }, linesOf(run))
+    -- The last two Potions: an empty queue leaves the list, empty.
+    crafted(3, 2)
+    assert.same({}, GC.CraftQueue.Entries("Name-Realm"))
+    assert.equal(run, GC.AppRuns.Get(run.code))
+    assert.same({}, run.lines)
+  end)
+
+  it("lets BUY buy nothing a craft already used", function()
+    load({ counts = { [101] = 4 } })
+    VALUES[101], VALUES[102], VALUES[103] = commodity(400), commodity(450), commodity(500)
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+    local run = QV.MakeBuyList()
+    assert.same({ { 101, 10 } }, linesOf(run))
+    assert.equal(6, buyRun(run)[101])
+    -- Two Potions use the four held, before anything is bought: still six short, not ten.
+    TS.opts.counts[101] = 0
+    crafted(3, 2)
+    assert.same({ { 101, 6 } }, linesOf(run))
+    assert.equal(6, buyRun(run)[101])
+  end)
+
+  it("lets BUY buy the rest after some was bought and used", function()
+    load({ counts = {} })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+    local run = QV.MakeBuyList()
+    local _, r = buyRun(run)
+    r:RecordPurchase(101, 4, 1600, 1)
+    TS.opts.counts[101] = 4
+    assert.equal(6, buyRun(run)[101])
+    -- Two Potions use the four bought: six still to buy, none of them counted as bought.
+    TS.opts.counts[101] = 0
+    crafted(3, 2)
+    assert.equal(6, buyRun(run)[101])
+    -- Bought into the mailbox (bags full): not held, but bought, and not bought again.
+    _, r = buyRun(run)
+    r:RecordPurchase(101, 6, 2400, 2)
+    assert.equal(0, buyRun(run)[101])
+    GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+    P.OnQueueChanged()
+    assert.equal(1, buyRun(run)[101])
+  end)
+
+  it("follows a restock as what it holds changes", function()
+    load({ counts = {} })
+    GC.CraftQueue.Restock("Name-Realm", snapshot(3), 5)
+    local run = QV.MakeBuyList()
+    assert.same({ { 101, 10 } }, linesOf(run))
+    -- Two Potions made: the restock needs three more, which reach the bags after the cast.
+    TS.opts.counts[903] = 2
+    local ev = QV._events
+    assert.is_true(ev:IsEventRegistered("BAG_UPDATE_DELAYED"))
+    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+    assert.same({ { 101, 6 } }, linesOf(run))
+  end)
+
+  it("rebuilds the list BUY holds when the queue changes it, never under a purchase", function()
+    load({ counts = {} })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+    local run = QV.MakeBuyList()
+    selected = {}
+    local inFlight = false
+    GC.Buy.CurrentRun = function() return { Code = function() return run.code end } end
+    GC.Buy._InFlight = function() return inFlight end
+    crafted(3)
+    assert.same({ run.code }, selected)
+    inFlight = true
+    crafted(3)
+    assert.same({ run.code }, selected)
+    assert.same({ { 101, 2 } }, linesOf(run))
+  end)
+
+  it("leaves a store and a list a newer GoldCap wrote as they are", function()
+    load({ counts = {} })
+    GC.db.craft = { v = 2, chars = { ["Name-Realm"] = { entries = { { recipe = snapshot(3), count = 2 } },
+      listed = {}, buyList = "game-1" } } }
+    GC.db.runs = { ["game-1"] = { code = "game-1", origin = "game", name = "Craft queue", createdAt = 1, updatedAt = 1,
+      lines = { { i = 101, q = 3, v = false } } } }
+    local craft, runs = copy(GC.db.craft), copy(GC.db.runs)
+    local v = showQueue()
+    assert.is_false(v.buy:IsEnabled())
+    assert.is_nil(QV.MakeBuyList())
+    crafted(3)
+    local ev = QV._events
+    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+    P.OnQueueChanged()
+    TS.runTimers()
+    assert.same(craft, GC.db.craft)
+    assert.same(runs, GC.db.runs)
   end)
 
   it("puts a reagent a vendor sells on the BUY list as a vendor stop", function()
@@ -289,7 +503,7 @@ describe("craft queue view", function()
   it("repaints when the panel adds to the queue", function()
     load()
     showQueue()
-    assert.equal(QV.Refresh, P.OnQueueChanged)
+    assert.equal(QV.OnQueueChanged, P.OnQueueChanged)
     GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
     P.OnQueueChanged()
     assert.equal(1, #QV._rows)
