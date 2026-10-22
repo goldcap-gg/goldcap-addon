@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.23.0 (unreleased)
+
+- Crafting: under a recipe's reagents, GoldCap shows what the reagents you picked cost, what one
+  craft sells for after the auction house cut, and the profit. A reagent GoldCap has no price for
+  is named instead of a number.
+
 ## 0.22.1 (unreleased)
 
 - Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live

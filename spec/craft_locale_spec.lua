@@ -1,0 +1,46 @@
+local helper = require("spec.spec_helper")
+
+-- Every player string the crafting surfaces in the profession window add (UI/CraftStrip.lua,
+-- UI/CraftPanel.lua, UI/CraftQueueView.lua), in all twelve languages, and none of them written
+-- with a dash, an ellipsis or a middle dot: the client's faces draw some of those as boxes, and
+-- the owner's rule is plain punctuation in everything a player reads.
+local KEYS = {
+  -- The strip under the open recipe's reagents.
+  "Reagents cost %s", "One craft sells for %s after the auction house cut", "Profit %s",
+  "No GoldCap price for %s",
+}
+
+local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot
+
+describe("crafting strings", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Locale/Core.lua", GC)
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+  end)
+
+  it("has every crafting string in all 12 locales", function()
+    assert.equal(12, #helper.localeCodes())
+    for _, code in ipairs(helper.localeCodes()) do
+      for _, key in ipairs(KEYS) do
+        local value = GC.Locales[code][key]
+        assert.is_string(value, ("%s has no %q"):format(code, key))
+        assert.is_true(value ~= "", ("%s: %q is empty"):format(code, key))
+      end
+    end
+  end)
+
+  it("writes no dash, ellipsis or middle dot", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      for _, key in ipairs(KEYS) do
+        for _, text in ipairs({ key, GC.Locales[code][key] or "" }) do
+          for _, banned in ipairs(BANNED) do
+            assert.is_nil(text:find(banned, 1, true), ("%s: %q"):format(code, text))
+          end
+        end
+      end
+    end
+  end)
+end)

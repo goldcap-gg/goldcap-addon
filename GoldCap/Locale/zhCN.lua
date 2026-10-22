@@ -1317,4 +1317,8 @@ GC.Locales.zhCN = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "每件倒卖物品在哪卖随 Companion 的地区数据而来：暂时还没有。",
   ["Nothing in your bags sells notably better on another of your realms."] = "背包里没有在你其他服务器明显卖得更好的东西。",
   ["What to take out of the Warband Bank shows at a bank."] = "要从战团银行取出什么，在银行里显示。",
+  ["Reagents cost %s"] = "材料成本 %s",
+  ["One craft sells for %s after the auction house cut"] = "制作一次可卖 %s（已扣拍卖行手续费）",
+  ["Profit %s"] = "利润 %s",
+  ["No GoldCap price for %s"] = "GoldCap 没有价格：%s",
 }

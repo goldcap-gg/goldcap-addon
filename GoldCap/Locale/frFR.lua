@@ -1418,4 +1418,8 @@ GC.Locales.frFR = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Où chaque objet se vend arrive avec les données de région du Companion : rien pour l'instant.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Rien dans vos sacs ne se vend nettement mieux sur un autre de vos royaumes.",
   ["What to take out of the Warband Bank shows at a bank."] = "Ce qu'il faut retirer de la banque de bataillon s'affiche à une banque.",
+  ["Reagents cost %s"] = "Les composants coûtent %s",
+  ["One craft sells for %s after the auction house cut"] = "Une fabrication se vend %s après la commission de l'hôtel des ventes",
+  ["Profit %s"] = "Profit %s",
+  ["No GoldCap price for %s"] = "Pas de prix GoldCap pour %s",
 }

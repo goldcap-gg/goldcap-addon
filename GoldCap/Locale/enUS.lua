@@ -1402,4 +1402,8 @@ GC.Locales.enUS = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Where each flip sells comes with the Companion's region data: nothing to go on yet.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nothing in your bags sells notably better on another of your realms.",
   ["What to take out of the Warband Bank shows at a bank."] = "What to take out of the Warband Bank shows at a bank.",
+  ["Reagents cost %s"] = "Reagents cost %s",
+  ["One craft sells for %s after the auction house cut"] = "One craft sells for %s after the auction house cut",
+  ["Profit %s"] = "Profit %s",
+  ["No GoldCap price for %s"] = "No GoldCap price for %s",
 }

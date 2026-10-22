@@ -1421,4 +1421,8 @@ GC.Locales.esMX = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Dónde se vende cada reventa llega con los datos de región del Companion: aún no hay nada.",
   ["Nothing in your bags sells notably better on another of your realms."] = "Nada de tus bolsas se vende bastante mejor en otro de tus reinos.",
   ["What to take out of the Warband Bank shows at a bank."] = "Lo que hay que sacar del banco de banda guerrera se ve en un banco.",
+  ["Reagents cost %s"] = "Los componentes cuestan %s",
+  ["One craft sells for %s after the auction house cut"] = "Una fabricación se vende por %s tras la comisión de la casa de subastas",
+  ["Profit %s"] = "Ganancia %s",
+  ["No GoldCap price for %s"] = "Sin precio de GoldCap para %s",
 }

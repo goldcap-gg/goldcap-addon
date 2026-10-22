@@ -30,7 +30,7 @@ local W = require("spec.support.wow_frames")
 local TS = { calls = {} }
 
 local GLOBALS = { "C_TradeSkillUI", "ProfessionsFrame", "EventRegistry", "C_Item", "C_CurrencyInfo",
-  "C_AuctionHouse", "Enum" }
+  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString" }
 
 local function strict(label, t, absent)
   return setmetatable(t, { __index = function(_, key)
@@ -195,6 +195,10 @@ function TS.install(opts)
   _G.C_AuctionHouse = strict("C_AuctionHouse", {
     GetOwnedAuctions = function() record("GetOwnedAuctions"); return opts.owned or {} end,
   })
+  -- C_Timer.After(0, fn) runs fn on the next frame: here, when the spec says (TS.runTimers).
+  TS.timers = {}
+  _G.C_Timer = strict("C_Timer", { After = function(_, fn) TS.timers[#TS.timers + 1] = fn end })
+  _G.GetCoinTextureString = function(copper) return tostring(copper) .. "c" end
   _G.Enum = {
     TradeskillRecipeType = { Item = 1, Salvage = 2, Enchant = 3, Gathering = 4 },
     CraftingReagentType = { Modifying = 0, Basic = 1, Finishing = 2, Automatic = 3 },
@@ -205,6 +209,29 @@ function TS.install(opts)
     restoreFrames()
     for _, k in ipairs(GLOBALS) do _G[k] = saved[k] end
   end
+end
+
+--- Runs the timers queued so far (one frame passing), and any they queue in turn.
+function TS.runTimers()
+  local guard = 0
+  while #TS.timers > 0 do
+    local due = TS.timers
+    TS.timers = {}
+    for _, fn in ipairs(due) do fn() end
+    guard = guard + 1
+    assert(guard < 50, "timers keep queueing timers")
+  end
+end
+
+--- GoldCap as the client loads it for crafting: prices, the craft modules and the kit, in TOC order.
+function TS.craftGC()
+  local helper = require("spec.spec_helper")
+  local GC = helper.loadModule("Core/Util.lua")
+  for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/CraftMath.lua", "Core/CraftQueue.lua",
+    "Services/CraftClient.lua", "UI/Theme.lua", "UI/Tooltip.lua" }) do
+    helper.loadModule(path, GC)
+  end
+  return GC
 end
 
 function TS.trigger(event, ...)

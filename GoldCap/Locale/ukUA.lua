@@ -1485,4 +1485,8 @@ GC.Locales.ukUA = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Де що продається, надходить із даними регіону від Companion: поки даних немає.",
   ["Nothing in your bags sells notably better on another of your realms."] = "У сумках немає нічого, що помітно дорожче продається на іншому вашому реалмі.",
   ["What to take out of the Warband Bank shows at a bank."] = "Що забрати з банку загону, видно в банку.",
+  ["Reagents cost %s"] = "Реагенти коштують %s",
+  ["One craft sells for %s after the auction house cut"] = "Один крафт продається за %s за вирахуванням комісії аукціону",
+  ["Profit %s"] = "Прибуток %s",
+  ["No GoldCap price for %s"] = "Немає ціни GoldCap: %s",
 }

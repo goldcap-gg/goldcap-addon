@@ -1484,4 +1484,8 @@ GC.Locales.ruRU = {
   ["Where each flip sells comes with the Companion's region data: nothing to go on yet."] = "Где что продаётся, приходит с данными региона от Companion: пока данных нет.",
   ["Nothing in your bags sells notably better on another of your realms."] = "В сумках нет ничего, что заметно дороже продаётся на другом вашем реалме.",
   ["What to take out of the Warband Bank shows at a bank."] = "Что забрать из банка отряда, видно в банке.",
+  ["Reagents cost %s"] = "Реагенты стоят %s",
+  ["One craft sells for %s after the auction house cut"] = "Один крафт продаётся за %s за вычетом комиссии аукциона",
+  ["Profit %s"] = "Прибыль %s",
+  ["No GoldCap price for %s"] = "Нет цены GoldCap: %s",
 }
