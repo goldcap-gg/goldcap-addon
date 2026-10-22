@@ -108,8 +108,19 @@ function CC.Snapshot(recipeID)
   return recipe
 end
 
+-- A ranked recipe (older expansions) answers for every rank the character learned, chained by
+-- nextRecipeID. Blizzard's list shows the chain once, and the rank crafted is the highest learned
+-- (Professions.GetFirstRecipe, GetHighestLearnedRecipe): a rank whose next rank is learned too is
+-- not a recipe of its own.
+local function higherRankLearned(info)
+  if type(info.nextRecipeID) ~= "number" then return false end
+  local ok, nextInfo = call("GetRecipeInfo", info.nextRecipeID)
+  return ok and type(nextInfo) == "table" and nextInfo.learned == true
+end
+
 --- The recipes this character has learned in the profession the window shows, as the window
---- lists them (the player's search and filters included), that GoldCap can price.
+--- lists them (the player's search and filters included), that GoldCap can price. A ranked
+--- recipe once, at the highest rank learned.
 function CC.KnownRecipes()
   local api = ts()
   if type(api) ~= "table" then return {} end
@@ -127,7 +138,8 @@ function CC.KnownRecipes()
   for _, id in ipairs(ids) do
     local okL, inLine = call("IsRecipeInSkillLine", id, skillLine)
     local okR, info = call("GetRecipeInfo", id)
-    if okL and inLine == true and okR and type(info) == "table" and info.learned == true and CC.Snapshot(id) then
+    if okL and inLine == true and okR and type(info) == "table" and info.learned == true
+        and not higherRankLearned(info) and CC.Snapshot(id) then
       out[#out + 1] = id
     end
   end

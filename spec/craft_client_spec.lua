@@ -115,6 +115,19 @@ describe("craft client", function()
     assert.same({ 1, 2823 }, TS.callsOf("IsRecipeInSkillLine")[1].args)
   end)
 
+  it("lists a ranked recipe once, at the highest rank the character learned", function()
+    -- Ranks 1 to 3 of one recipe (11, 12, 13), chained by previousRecipeID and nextRecipeID;
+    -- the character knows ranks 1 and 2. Blizzard's list shows the chain once.
+    local function rank(id, prev, nxt, learned)
+      local r = potion()
+      r.info = TS.info(id, "Ranked", { previousRecipeID = prev, nextRecipeID = nxt, learned = learned })
+      return r
+    end
+    load({ recipes = { [11] = rank(11, nil, 12, true), [12] = rank(12, 11, 13, true), [13] = rank(13, 12, nil, false),
+      [1] = potion() }, filtered = { 11, 12, 13, 1 }, professionID = 5 })
+    assert.same({ 12, 1 }, CC.KnownRecipes())
+  end)
+
   it("leaves out a known recipe GoldCap does not price", function()
     load({ recipes = { [1] = potion(), [2] = potion({ isSalvageRecipe = true }) }, filtered = { 1, 2 }, professionID = 5 })
     assert.same({ 1 }, CC.KnownRecipes())
