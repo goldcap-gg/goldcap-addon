@@ -32,10 +32,11 @@
   or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
   only when they are junk.
 - Bank, in retail WoW: a card beside the bank lists the groups you follow on goldcap.gg that have
-  items in your bags or in the bank you have open. To bank puts one stack per press in whichever
-  bank you have open, yours or the Warband Bank, and To bags takes one back out of it. You can set
-  how many of each item stay in your bags. A stack that has to stay, because that bank does not take
-  it or, for the Warband Bank, because you can still return it for a refund, is named with why.
+  items in your bags, your bank or the Warband Bank. Pick your bank or the Warband Bank on the card:
+  it starts on the one the bank window shows. To bank puts one stack per press in that bank and To
+  bags takes one back out of it. You can set how many of each item stay in your bags. A stack that
+  has to stay, because that bank does not take it or, for the Warband Bank, because you can still
+  return it for a refund, is named with why.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
   group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
 - Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by
