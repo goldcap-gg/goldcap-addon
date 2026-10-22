@@ -60,6 +60,30 @@ describe("SellRounds", function()
     assert.equal(1, GC.SellRounds.Rounds(10))
   end)
 
+  -- One ledger scan stamps a sale and a lot that came back of the same item with the same `now`.
+  -- A batch's unsold lots expire after its sales, so at equal times the return is the later one.
+  it("counts a return stamped in the same second as a sale as after it", function()
+    assert.is_true(GC.SellRounds.Sold(10, 5000))
+    -- Item 11 came back a second before its sale: that return still never counts.
+    assert.is_true(GC.SellRounds.Sold(11, 5000))
+    local log = { expired(11, 4999), expired(10, 5000) }
+    assert.equal(1, GC.SellRounds.Ingest(log, 5000))
+    assert.equal(1, GC.SellRounds.Rounds(10))
+    assert.equal(0, GC.SellRounds.Rounds(11))
+    -- The same once the entries settle into the save.
+    assert.equal(0, GC.SellRounds.Ingest(log, 5000 + GC.SellRounds.SETTLE_SECONDS + 1))
+    assert.equal(1, GC.SellRounds.Rounds(10))
+    assert.equal(0, GC.SellRounds.Rounds(11))
+  end)
+
+  it("counts it the same when the sale is recorded after the log was read", function()
+    assert.equal(1, GC.SellRounds.Ingest({ expired(10, 5000) }, 5000))
+    assert.is_true(GC.SellRounds.Sold(10, 5000))
+    assert.equal(1, GC.SellRounds.Rounds(10))
+    GC.SellRounds.Ingest({ expired(10, 5000) }, 5000 + GC.SellRounds.SETTLE_SECONDS + 1)
+    assert.equal(1, GC.SellRounds.Rounds(10))
+  end)
+
   it("untouched for 30 days is pruned", function()
     GC.SellRounds.Sold(10, 0)
     GC.SellRounds.Sold(11, day)

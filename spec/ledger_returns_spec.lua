@@ -194,5 +194,23 @@ describe("Ledger scan, the lots that came back", function()
       GC.SellRounds.Ingest(entries(), 9000)
       assert.equal(0, GC.SellRounds.Rounds(210930))
     end)
+
+    -- Both stamped with the scan's `now`. A batch's unsold lots expire after its sales, so the
+    -- lot is the later one: the visit leaves a round.
+    it("counts a lot read in the same scan as a sale of the item as after the sale", function()
+      GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", CONTEXT.char, CONTEXT.region, 40, 950)
+      box = Mailbox.new({ lot(210930, { 20 }, "Auction expired: Ironclaw Ore"),
+        { sender = "Auction House", subject = "Auction successful: Ironclaw Ore", money = 400000,
+          auction = true, daysLeft = 30,
+          invoice = { invoiceType = "seller", itemName = "Ironclaw Ore", bid = 400000, buyout = 400000, count = 20 } } })
+      scan(1000, nil, true)
+      assert.same({ { itemID = 210930, count = 20, reason = "expired", at = 1000 } }, entries())
+      assert.equal(210930, next(db.sellRounds.items))
+      assert.equal(1000, db.sellRounds.items[210930].soldAt)
+      GC.SellRounds.Ingest(entries(), 1000)
+      assert.equal(1, GC.SellRounds.Rounds(210930))
+      GC.SellRounds.Ingest(entries(), 1000 + GC.SellRounds.SETTLE_SECONDS + 1)
+      assert.equal(1, GC.SellRounds.Rounds(210930))
+    end)
   end)
 end)

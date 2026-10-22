@@ -9,7 +9,9 @@
 -- take it down. Returns of one item logged within ROUND_GAP_SECONDS of the last one counted are
 -- one round, so five copies of one flip coming back in one mailbox visit cut its price once, not
 -- five times. A sale of the item (a new sale mail, read by the same scan) sets the count back to 0,
--- and returns from before that sale never count again. Ingesting the same log twice adds nothing.
+-- and returns from before that sale never count again. A return stamped in the same second as the
+-- sale counts as after it: one scan stamps a sale and a lot it reads in the same pass with the same
+-- `now`, and a batch's unsold lots expire after its sales. Ingesting the same log twice adds nothing.
 --
 -- An entry younger than SETTLE_SECONDS is read afresh from the log on every Ingest and never
 -- written into the save, so while it is young the count follows the log; an older entry is counted
@@ -69,14 +71,19 @@ function M.Prune(now)
   return dropped
 end
 
+-- Whether a return at `at` came before the item's last sale and so never counts. At the same
+-- second it is after the sale (see the header).
+local function beforeSale(item, at)
+  return item ~= nil and finite(item.soldAt) and at < item.soldAt
+end
+
 -- How many rounds the returns at `ats` (sorted) add to `item`, the saved state, without writing
 -- it: the same sale and hour rules Ingest counts by.
 local function roundsAfter(item, ats)
-  local soldAt = item and finite(item.soldAt) and item.soldAt or nil
   local last = item and finite(item.returnAt) and item.returnAt or nil
   local n = 0
   for _, at in ipairs(ats) do
-    if not (soldAt and at <= soldAt) and not (last and at < last + M.ROUND_GAP_SECONDS) then
+    if not beforeSale(item, at) and not (last and at < last + M.ROUND_GAP_SECONDS) then
       n, last = n + 1, at
     end
   end
@@ -112,7 +119,7 @@ function M.Ingest(entries, now)
     else
       if entry.reason == "expired" and at >= store.lastReturnAt then
         local item = store.items[entry.itemID]
-        if not (item and finite(item.soldAt) and at <= item.soldAt)
+        if not beforeSale(item, at)
             and not (item and finite(item.returnAt) and at < item.returnAt + M.ROUND_GAP_SECONDS) then
           if not item then
             item = { rounds = 0 }

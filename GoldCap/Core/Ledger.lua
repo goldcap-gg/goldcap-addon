@@ -654,8 +654,8 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
     end
   end
   -- Before the invoices, and stamped with the same `now` as a new sale below: a lot and a sale of
-  -- one item first read in the same pass leave no round (SellRounds counts a return only after
-  -- the item's last sale).
+  -- one item first read in the same pass leave a round (SellRounds counts a return stamped in the
+  -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
   if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
