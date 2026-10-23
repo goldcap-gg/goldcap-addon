@@ -243,7 +243,7 @@ describe("VendorPress", function()
     assert.equal(0, #calls.report)
   end)
 
-  -- As UI/BankGroupsCard.lua drives it: no cap beyond its rows, no fallback, and a `use` that may
+  -- As UI/HoardFrame.lua drives it: no cap beyond its rows, no fallback, and a `use` that may
   -- decline the call (GC.BankRoute.MoveStack's guards).
   describe("without a limit or a fallback", function()
     local declined

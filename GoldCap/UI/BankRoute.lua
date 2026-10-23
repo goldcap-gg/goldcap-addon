@@ -14,9 +14,9 @@ local _, GC = ...
 -- gear when no bank is open, which binds it, and sells it when a vendor is.
 --
 -- The reader, the move and their guards are shared, and each takes the bank it works with: this
--- list always the Warband Bank (it hands items to another character), the bank by group card
--- (UI/BankGroupsCard.lua) the bank its own choice names, which starts on the one the bank window
--- shows (ShownBankType). The card reads through ReadStacks and moves its stacks through MoveStack.
+-- list always the Warband Bank (it hands items to another character), the GoldCap Hoard
+-- (UI/HoardFrame.lua) the bank its own switch names, which starts on the one the bank window shows
+-- (ShownBankType). The Hoard reads through ReadStacks and moves its stacks through MoveStack.
 GC.BankRoute = {}
 local P = GC.BankRoute
 
@@ -26,8 +26,8 @@ P._rows = {}
 P._headings = {}
 
 -- WIDTH: the rows' width. The list is PAD left of them and BAR right, where the scroll's bar hangs
--- (as on the bank by group card, UI/BankGroupsCard.lua). SCREEN_GAP, MIN_H: what the list leaves
--- free under it beside the bank, and its least height.
+-- (as on the GoldCap Hoard, UI/HoardFrame.lua). SCREEN_GAP, MIN_H: what the list leaves free under
+-- it beside the bank, and its least height.
 local LAYOUT = { WIDTH = 220, PAD = 10, GAP = 4, X = 4, ICON = 24, ICON_GAP = 6, ROW_GAP = 8,
   SECTION_GAP = 12, BUTTON_H = 22, BUTTON_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160 }
 -- The backpack and the four bag slots; the reagent bag holds no realm item.
@@ -36,8 +36,8 @@ local BAGS = { 0, 1, 2, 3, 4 }
 local frame
 local pendingSeq = 0
 
--- How far past the bank window's right edge a panel beside it starts (this list, and the bank by
--- group card): past the tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
+-- How far past the bank window's right edge a panel beside it starts (this list, and the GoldCap
+-- Hoard): past the tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
 -- BankPanelMixin:RefreshBankTabs, 2 out from it), which covered the left of both (owner,
 -- 2026-10-23). Measured from what the panel shows past the edge, plus the tab's border past its
 -- button: SpellBook-SkillLineTab is 64 wide at x -3 and drawn to x 38, 4 past the 32-wide button.
@@ -159,8 +159,8 @@ end
 --- own bank or the Warband Bank. The Warband Bank when the window answers neither, which is only
 --- while its panel is not shown yet (the first open of the session, before the panel's OnShow). A
 --- bag addon such as Bagnon keeps Blizzard's window shown under a hidden parent on the character's
---- bank for the whole visit, so this answers the character's bank all along; the group card has
---- its own choice of bank for that (UI/BankGroupsCard.lua).
+--- bank for the whole visit, so this answers the character's bank all along; the Hoard has its
+--- own switch of bank for that (UI/HoardFrame.lua).
 function P.ShownBankType()
   local bank, character = _G.BankFrame, Enum and Enum.BankType and Enum.BankType.Character
   local shown = type(bank) == "table" and ask(bank.GetActiveBankType, bank) or nil
@@ -190,9 +190,9 @@ end
 
 --- The one place the addon moves an item between the bags and a bank: one
 --- C_Container.UseContainerItem, made by the player's own press: inside the click by onCarryClick
---- below, and by the group card's press (UI/BankGroupsCard.lua's moveRow, which Core/VendorPress.lua
---- calls first inside the card's click and then from its timers, each after re-checking the bank and
---- the slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the
+--- below, and by the Hoard's press (UI/HoardFrame.lua's moveRow, which Core/VendorPress.lua calls
+--- first inside the Hoard's click and then from its timers, each after re-checking the bank and the
+--- slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the
 --- stack goes into or comes out of; there is no default, so a call that names none moves nothing.
 --- The same call equips a piece of gear when no
 --- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
@@ -374,18 +374,28 @@ local function paintRow(row, entry, kind)
   end
 end
 
--- Where the list goes: on the GoldCap tab's panel, at its right, while that tab is picked
--- (UI/BankTab.lua), else beside the bank window, past the tab buttons down its right edge, or at
--- the screen's left with no window to stand beside. Answers the most the list may be tall: the
--- panel's room, or the room from its top down to SCREEN_GAP above the screen's bottom.
+-- What of the GoldCap Hoard (UI/HoardFrame.lua) stands beside the bank window: its window, or the
+-- handle it closes to, or nothing.
+local function hoardShown()
+  local hoard = GC.HoardFrame
+  for _, widget in ipairs({ hoard and hoard._frame, hoard and hoard._handle }) do
+    if type(widget) == "table" and widget.IsShown and widget:IsShown() then return widget end
+  end
+  return nil
+end
+
+-- Where the list goes: beside the GoldCap Hoard while it stands beside the bank window, its top
+-- level with the Hoard's; else beside the bank window, past the tab buttons down its right edge; or
+-- at the screen's left with no window to stand beside. Answers the most the list may be tall: the
+-- room from its top down to SCREEN_GAP above the screen's bottom.
 local function place()
-  local tab = GC.BankTab
-  local roomH = tab and select(2, tab.Hold(frame, "right"))
-  if roomH then return math.max(LAYOUT.MIN_H, roomH) end
-  if tab then tab.Release(frame) end
   frame:ClearAllPoints()
-  local bank = _G.BankFrame
-  if type(bank) == "table" and bank.IsShown and bank:IsShown() then
+  local bank, hoard = _G.BankFrame, hoardShown()
+  if hoard then
+    frame:SetPoint("TOPLEFT", hoard, "TOPRIGHT", LAYOUT.X, 0)
+    local top = hoard.GetTop and hoard:GetTop()
+    if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
+  elseif type(bank) == "table" and bank.IsShown and bank:IsShown() then
     frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", P.BesideBankX(bank, LAYOUT.X), 0)
     local top = bank.GetTop and bank:GetTop()
     if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
@@ -400,10 +410,9 @@ end
 --- Reads the bags and the bank again and paints the list, or hides it when there is nothing to
 --- carry. Reads nothing without route data (no Companion, another region): that player never sees
 --- the list. Hidden too when its buttons could not work: the Warband Bank out of reach at this
---- banker, or no tab bought; and while the bank window shows Blizzard's own tab, not GoldCap's.
+--- banker, or no tab bought.
 function P.Refresh()
-  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank()))
-    or (GC.BankTab and GC.BankTab.Where() == "away") then
+  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank())) then
     if frame then frame:Hide() end
     return
   end

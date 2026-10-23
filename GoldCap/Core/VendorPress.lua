@@ -2,8 +2,8 @@ local _, GC = ...
 
 -- One press that makes a run of container calls, as a state machine over a driver, so the call
 -- itself stays in the UI file that owns the player's click: at a vendor, the sales of
--- UI/VendorSellCard.lua; at a bank, the moves of a group in UI/BankGroupsCard.lua. The first call
--- is made synchronously by Press (inside the click); the rest follow from timers, each after
+-- UI/VendorSellCard.lua; at a bank, the moves of the GoldCap Hoard, UI/HoardFrame.lua. The first
+-- call is made synchronously by Press (inside the click); the rest follow from timers, each after
 -- re-checking that the window is still open and the slot still holds the item that was chosen.
 --
 -- driver = {

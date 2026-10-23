@@ -144,7 +144,7 @@ end
 
 -- The followed group an item belongs to, or nil: the same first cap that decides the rule decides
 -- the group. Answers the group's key and its name. The key is the group's id, else (an older
--- Companion's file, or one made by hand) its name: the bank card (UI/BankGroupsCard.lua) keeps a
+-- Companion's file, or one made by hand) its name: the GoldCap Hoard (UI/HoardFrame.lua) keeps a
 -- group's count by the key, so a follow in another language or a renamed list keeps it, and shows
 -- the name.
 --

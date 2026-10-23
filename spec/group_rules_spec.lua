@@ -112,7 +112,7 @@ describe("GroupRules", function()
     assert.equal("Herbs", GC.GroupRules.RuleFor(10).name)
   end)
 
-  -- The bank card's groups (UI/BankGroupsCard.lua): an item's group is its rule's name, by the same
+  -- The Hoard's groups (UI/HoardFrame.lua): an item's group is its rule's name, by the same
   -- first cap that decides the rule.
   it("names the group of an item, and says whether any group came at all", function()
     assert.is_false(GC.GroupRules.HasGroups())

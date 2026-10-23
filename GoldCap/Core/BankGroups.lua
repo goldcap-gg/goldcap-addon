@@ -1,23 +1,23 @@
 local _, GC = ...
 
--- Bank by group (retail only): at a bank, what one press of To bank or To bags moves for each
+-- Bank by group (retail only): at a bank, what one press of Store or Take out moves for each
 -- followed group, and how many of each item the player keeps in the bags. Pure: the stacks come
 -- from UI/BankRoute.lua's reader and the group of an item from Core/GroupRules.lua, both handed in
--- by the card (UI/BankGroupsCard.lua), which reads the bank the bank window shows: the
--- character's own or the Warband Bank. GoldCap_Camelot.toc does not load this file.
+-- by the GoldCap Hoard (UI/HoardFrame.lua), which reads the bank its switch names: the character's
+-- own or the Warband Bank. GoldCap_Camelot.toc does not load this file.
 --
 -- A group is planned and its keep count kept by its key, shown and sorted by its name. The key is
 -- the group's id on goldcap.gg, which a follow in another language or a renamed list keeps, else
 -- its name (Core/GroupRules.lua's GroupOf): two groups named alike are two groups.
 --
 -- A press moves its button's list in order, a stack at a time and each whole: the game cannot
--- split a stack in one call. So To bank lists a stack of an item only while the bags keep at least
--- the group's keep count of that item without it, the biggest stack first, and To bags lists every
+-- split a stack in one call. So Store lists a stack of an item only while the bags keep at least
+-- the group's keep count of that item without it, the biggest stack first, and Take out lists every
 -- stack of the group. A stack a press has
 -- sent and the bags do not show moved yet (`moving`) is on its way: it is offered to no press, and
 -- it no longer counts toward what the bags keep. A stack in the bags the bank must not take
 -- (`stays`: refused by it, or still refundable and the bank is the Warband Bank) is counted and
--- kept, and named with why, so the card can say which stack stays and why instead of counting it
+-- kept, and named with why, so the Hoard can say which stack stays and why instead of counting it
 -- silently.
 --
 -- Keep counts are saved in GC.db.bankKeep = { v = 1, groups = { [group key] = count } }, one count
@@ -97,7 +97,7 @@ end
 --- move, in order, and `stays` is what the bags keep because the bank must not take it,
 --- { itemID, name, count, why } summed per item and reason ("refund" or "refused"), by name.
 --- Stacks are UI/BankRoute.lua's: { itemID, bag, slot, count, name, locked, stays }. Each group
---- also carries what no press can raise, for the card to size itself once: `items`, every item of
+--- also carries what no press can raise, for the Hoard to size itself once: `items`, every item of
 --- the group here { itemID, name, count } with its count in the bags and the bank together, and
 --- `stackCount`, its stacks in both (a stack moves whole, and landing on another only merges them).
 --- Each group also has `parentKey`, `parentName` and `shortName` (nil for a top group), as

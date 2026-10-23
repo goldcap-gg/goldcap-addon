@@ -1,29 +1,31 @@
 local helper = require("spec.spec_helper")
 
--- Every player string the bank by group card adds (UI/BankGroupsCard.lua), in all twelve
--- languages, and none of them written with a dash, an ellipsis or a middle dot: the owner's rule
--- is plain punctuation in everything a player reads. The popup's "Type a whole number" and "Save"
--- are the craft queue's and BUY's own keys.
+-- Every player string the GoldCap Hoard shows (UI/HoardFrame.lua and UI/HoardRow.lua), in all
+-- twelve languages, and none of them written with a dash, an ellipsis or a middle dot: the owner's
+-- rule is plain punctuation in everything a player reads. The popup's "Type a whole number" and
+-- "Save" are the craft queue's and BUY's own keys. The two sides of the bank switch are the bank
+-- window's own tab names, Blizzard's BANK and ACCOUNT_BANK_PANEL_TITLE, so they need no key; the
+-- window's name, GoldCap Hoard, is the product's.
 local KEYS = {
-  "GoldCap: your groups",
-  "%d in bags, %d in the Warband Bank", "Keep in bags: %d of each",
-  "How many of each item in %s to keep in your bags?", "To bank: %s ×%d (%d left)", "To bags: %s ×%d (%d left)",
-  "Stays in bags: %s ×%d, can still be refunded", "Stays in bags: %s ×%d, the Warband Bank does not take it",
-  "To bank: nothing to move", "To bags: nothing to move", "Groups with nothing to move: %d",
+  -- The switch's free slots, the groups' heading with the bar's legend, and the buttons over every
+  -- group.
+  "Bags %d free", "Bank %d free", "Your groups", "bags", "bank", "Store all", "Take all out",
+  -- A row: its two moves and what their tooltips say, its play, a folder's count, and the fold
+  -- line.
+  "Store", "Take out", "%s ×%d (%d left)", "Nothing to move", "Gather", "Craft", "Flip", "Stock", "%d groups",
+  "%d more groups have nothing to move at this bank", "1 more group has nothing to move at this bank",
+  -- An opened row, at the Warband Bank and at the character's own bank, and its keep count's popup.
+  "%d in bags, %d in the Warband Bank", "%d in bags, %d in your bank", "Keep in bags: %d of each",
+  "How many of each item in %s to keep in your bags?", "Stays in bags: %s ×%d, can still be refunded",
+  "Stays in bags: %s ×%d, the Warband Bank does not take it", "Stays in bags: %s ×%d, your bank does not take it",
   "Type a whole number", "Save",
-  -- The character's own bank, which the card works with when the player picks it. The two sides
-  -- of the card's bank choice are the bank window's own tab names, Blizzard's BANK and
-  -- ACCOUNT_BANK_PANEL_TITLE, so they need no key.
-  "%d in bags, %d in your bank", "Stays in bags: %s ×%d, your bank does not take it",
-  -- The card's two buttons over every group, and its line on the GoldCap tab's panel with no group
-  -- here; the panel's own line when it holds nothing (UI/BankTab.lua). The tab's name is GoldCap's.
-  "All to bank", "All to bags", "None of your groups' items are in your bags or this bank.",
-  "Nothing to move at this bank.",
+  -- No followed group's item in the bags or this bank.
+  "None of your groups' items are in your bags or this bank.",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot
 
-describe("bank by group strings", function()
+describe("GoldCap Hoard strings", function()
   local GC
 
   before_each(function()

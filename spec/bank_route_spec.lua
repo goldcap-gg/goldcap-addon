@@ -281,7 +281,7 @@ describe("bank carry list", function()
     assert.is_truthy(rowFor("TAKE OUT"))
   end)
 
-  -- The reader the group card shares (UI/BankGroupsCard.lua) says why a stack in the bags stays
+  -- The reader the Hoard shares (UI/HoardFrame.lua) says why a stack in the bags stays
   -- there: still refundable first (Blizzard asks before ending a refund), else refused by the
   -- Warband Bank. A stack already in the Warband Bank stays nowhere.
   it("reads why a stack in the bags stays there: still refundable, or refused by the Warband Bank", function()
@@ -464,11 +464,11 @@ describe("bank carry list", function()
       return (t:gsub("%-%-[^\n]*", ""))
     end
 
-    -- The one place the addon moves an item between the bags and the Warband Bank is the route's
-    -- MoveStack, one call each time, reached only from the two click handlers that move one stack
-    -- a press: the carry list's onCarryClick here and the group card's onMoveClick
-    -- (UI/BankGroupsCard.lua, bank by group).
-    local ROUTE, CARD = "GoldCap/UI/BankRoute.lua", "GoldCap/UI/BankGroupsCard.lua"
+    -- The one place the addon moves an item between the bags and a bank is the route's MoveStack,
+    -- one call each time, reached only from the carry list's onCarryClick here and from the GoldCap
+    -- Hoard's press (UI/HoardFrame.lua), which its move buttons' onMoveClick starts. A row of the
+    -- Hoard (UI/HoardRow.lua) builds and paints those buttons and moves nothing itself.
+    local ROUTE, HOARD, ROW = "GoldCap/UI/BankRoute.lua", "GoldCap/UI/HoardFrame.lua", "GoldCap/UI/HoardRow.lua"
 
     local function bodyOf(text, header)
       local from = assert(text:find(header, 1, true), header)
@@ -509,73 +509,87 @@ describe("bank carry list", function()
       assert.is_true(assert(body:find("staysWhy(loc, bankType)", 1, true)) < first)
     end)
 
-    -- The carry list hands items to another character, which only the Warband Bank does; the group
-    -- card moves to and from the bank its choice names, the one its last paint read and planned with:
-    -- its click names that bank on every stack of the press, and the press hands it on.
-    it("hands MoveStack the Warband Bank from the carry list and the bank it names from the group card", function()
+    -- The carry list hands items to another character, which only the Warband Bank does; the Hoard
+    -- moves to and from the bank its switch names, the one its last paint read and planned with, or
+    -- the one the caller of its press names (a later part's own list): its press names that bank on
+    -- every stack, and the machine hands it on.
+    it("hands MoveStack the Warband Bank from the carry list and the bank it names from the Hoard", function()
       local carry = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_truthy(carry:find('P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank())',
         1, true))
-      local card = read(CARD)
-      local row = bodyOf(card, "local function moveRow(")
+      local hoard = read(HOARD)
+      local row = bodyOf(hoard, "local function moveRow(")
       assert.is_truthy(row:find("GC.BankRoute.MoveStack(row.stack, row.into, row.bankType)", 1, true))
-      local move = bodyOf(card, "local function onMoveClick(")
-      assert.is_truthy(move:find("into = button.into, bankType = C._bankType }", 1, true))
-      local refresh = bodyOf(card, "function C.Refresh(")
-      local chosen = assert(refresh:find("local bankType = C._bankType", 1, true))
-      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.ReadStacks(BAGS, false, groupOf, bankType)", 1, true)))
-      assert.is_true(chosen < assert(refresh:find("GC.BankRoute.BankTabs(bankType)", 1, true)))
-      -- The bank is set only by a paint, the choice's own click, and the bank opening or closing;
-      -- the choice's click moves nothing.
-      -- A line that assigns to C._bankType: it stands left of the line's first lone `=`.
+      local pressBody = bodyOf(hoard, "function HF.Press(")
+      assert.is_truthy(pressBody:find("if bankType == nil then bankType = HF._bankType end", 1, true))
+      assert.is_truthy(pressBody:find("into = into, bankType = bankType }", 1, true))
+      local refresh = bodyOf(hoard, "local function refresh(")
+      local chosen = assert(refresh:find("local bankType = HF._bankType", 1, true))
+      assert.is_true(chosen < assert(refresh:find("read(bankType, usable, hasGroups)", 1, true)))
+      local reader = bodyOf(hoard, "local function read(")
+      assert.is_truthy(reader:find("route.ReadStacks(BAGS, false, groupOf, bankType)", 1, true))
+      assert.is_truthy(reader:find("route.ReadStacks(route.BankTabs(bankType), true, groupOf, bankType)", 1, true))
+      -- The bank is set only by a paint, the switch's own click, and a new visit (the bank opening
+      -- or closing); the switch's click moves nothing.
+      -- A line that assigns to HF._bankType: it stands left of the line's first lone `=`.
       local function sets(text)
         local n = 0
         for line in text:gmatch("[^\n]+") do
           local left = line:match("^(.-[^=~<>])=[^=]")
-          if left and left:find("C._bankType", 1, true) then n = n + 1 end
+          if left and left:find("HF._bankType", 1, true) then n = n + 1 end
         end
         return n
       end
-      local click = bodyOf(card, "local function onBankClick(")
-      local opened, closed = bodyOf(card, "function C.OnBankOpened("), bodyOf(card, "function C.OnBankClosed(")
+      local click = bodyOf(hoard, "local function onBankClick(")
+      local visit = bodyOf(hoard, "local function newVisit(")
       -- Plus its declaration at the top of the file.
-      assert.equal(sets(card), 1 + sets(refresh) + sets(click) + sets(opened) + sets(closed))
+      assert.equal(sets(hoard), 1 + sets(refresh) + sets(click) + sets(visit))
       assert.equal(1, sets(click))
+      assert.equal(0, sets(read(ROW)))
+      -- Its definition, and the bank opening and closing.
+      assert.equal(3, count(hoard, "newVisit("))
+      assert.equal(1, count(bodyOf(hoard, "function HF.OnBankOpened("), "newVisit()"))
+      assert.equal(1, count(bodyOf(hoard, "function HF.OnBankClosed("), "newVisit()"))
       assert.is_nil(click:find("MoveStack", 1, true))
       assert.is_nil(click:find("UseContainerItem", 1, true))
-      assert.equal('side:SetScript("OnClick", onBankClick)', card:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
+      assert.is_nil(click:find("Press(", 1, true))
+      assert.equal('side:SetScript("OnClick", onBankClick)', hoard:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
     end)
 
-    -- A switch of the bank window's tab repaints the card through a post-hook on Blizzard's bank
+    -- A switch of the bank window's tab repaints the Hoard through a post-hook on Blizzard's bank
     -- panel, on the next frame. The hook reads and paints, nothing more: no move is ever made
-    -- outside a click, and nothing of the card runs inside Blizzard's call.
+    -- outside a click, and nothing of the Hoard runs inside Blizzard's call.
     it("follows a switch of the bank window's tab through a post-hook that moves nothing", function()
-      local card = read(CARD)
-      assert.equal(5, count(card, "hooksecurefunc("))
-      assert.equal(1, count(card, 'hooksecurefunc(bankPanel, "Reset", C.OnBankShown)'))
-      assert.is_truthy(card:find("local bankPanel = _G.BankPanel", 1, true))
-      local shownBody = bodyOf(card, "function C.OnBankShown(")
-      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick" }) do
+      local hoard = read(HOARD)
+      -- The route's three handlers, and the bank panel's Reset.
+      assert.equal(4, count(hoard, "hooksecurefunc("))
+      assert.equal(1, count(hoard, 'hooksecurefunc(bankPanel, "Reset", HF.OnBankShown)'))
+      assert.is_truthy(hoard:find("local bankPanel = _G.BankPanel", 1, true))
+      local shownBody = bodyOf(hoard, "function HF.OnBankShown(")
+      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick", "Press(" }) do
         assert.is_nil(shownBody:find(needle, 1, true), needle)
       end
       assert.is_truthy(shownBody:find("C_Timer.After(0, function()", 1, true))
-      for _, path in ipairs({ ROUTE, CARD }) do
+      assert.is_nil(read(ROW):find("hooksecurefunc", 1, true))
+      for _, path in ipairs({ ROUTE, HOARD }) do
         local text = read(path)
         for line in text:gmatch("[^\n]*hooksecurefunc%([^\n]*") do
           assert.is_nil(line:find("onMoveClick", 1, true), line)
           assert.is_nil(line:find("onCarryClick", 1, true), line)
           assert.is_nil(line:find("MoveStack", 1, true), line)
+          assert.is_nil(line:find("Press", 1, true), line)
         end
       end
     end)
 
-    -- The group card's moves are its press's (Core/VendorPress.lua): the first inside the move
-    -- button's click, the rest from the machine's timers, each through the card's moveRow, which is
-    -- the machine's call and nothing else's.
-    it("reaches MoveStack only from the carry list's click and the group card's press, once in each", function()
+    -- The Hoard's moves are its press's (Core/VendorPress.lua): the first inside the move button's
+    -- click, the rest from the machine's timers, each through the Hoard's moveRow, which is the
+    -- machine's call and nothing else's. Its press is started, inside the Hoard's files, by the move
+    -- button's click alone.
+    it("reaches MoveStack only from the carry list's click and the Hoard's press, once in each", function()
       local listing = assert(io.popen("find GoldCap -name '*.lua'"))
       for path in listing:lines() do
-        if path ~= ROUTE and path ~= CARD then
+        if path ~= ROUTE and path ~= HOARD then
           assert.is_nil(read(path):find("MoveStack", 1, true), path)
         end
       end
@@ -584,27 +598,30 @@ describe("bank carry list", function()
         local at = assert(text:find(body, 1, true))
         return text:sub(1, at - 1) .. text:sub(at + #body)
       end
-      local route, card = read(ROUTE), read(CARD)
+      local route, hoard = read(ROUTE), read(HOARD)
       local carry = bodyOf(route, "local function onCarryClick(")
       local def = bodyOf(route, "function P.MoveStack(")
       assert.is_nil(without(without(route, carry), def):find("MoveStack", 1, true))
       assert.equal(1, count(carry, "P.MoveStack("))
       assert.equal(1, count(def, "MoveStack"))
-      local row = bodyOf(card, "local function moveRow(")
-      assert.is_nil(without(card, row):find("MoveStack", 1, true))
+      local row = bodyOf(hoard, "local function moveRow(")
+      assert.is_nil(without(hoard, row):find("MoveStack", 1, true))
       assert.equal(1, count(row, "GC.BankRoute.MoveStack("))
       -- Its definition and the machine's driver, nothing more.
-      assert.equal(2, count(card, "moveRow"))
-      assert.equal(1, count(card, "      use = moveRow,"))
-      -- The machine is started by the move button's click alone.
-      assert.equal(1, count(card, ":Press("))
-      assert.equal(1, count(bodyOf(card, "local function onMoveClick("), "machine:Press(rows)"))
+      assert.equal(2, count(hoard, "moveRow"))
+      assert.equal(1, count(hoard, "      use = moveRow,"))
+      -- The machine is started by Press alone, and Press by the move button's click.
+      assert.equal(1, count(hoard, ":Press("))
+      assert.equal(1, count(bodyOf(hoard, "function HF.Press("), "machine:Press(rows)"))
+      assert.equal(2, count(hoard, "HF.Press("))
+      assert.equal(1, count(bodyOf(hoard, "local function onMoveClick("), "HF.Press(button, button.stacks, button.into)"))
+      assert.is_nil(read(ROW):find("Press(", 1, true))
     end)
 
-    -- No timer of either file moves anything: the group card's moves after the first come from the
-    -- press machine's own timers (its driver's `after`), each through moveRow and its re-checks.
+    -- No timer of these files moves anything: the Hoard's moves after the first come from the press
+    -- machine's own timers (its driver's `after`), each through moveRow and its re-checks.
     it("reaches each click handler only through its button's OnClick, and moves nothing from a timer of its own", function()
-      for path, handler in pairs({ [ROUTE] = "onCarryClick", [CARD] = "onMoveClick" }) do
+      for path, handler in pairs({ [ROUTE] = "onCarryClick", [HOARD] = "onMoveClick" }) do
         local text = read(path)
         local sites = {}
         for line in text:gmatch("[^\n]*" .. handler .. "[^\n]*") do sites[#sites + 1] = line:match("^%s*(.-)%s*$") end
@@ -614,42 +631,54 @@ describe("bank carry list", function()
           assert.is_nil(body:find("MoveStack", 1, true), path)
           assert.is_nil(body:find(handler, 1, true), path)
           assert.is_nil(body:find("moveRow", 1, true), path)
+          assert.is_nil(body:find("Press(", 1, true), path)
         end
       end
-      assert.equal(1, count(read(CARD), "after = function(seconds, fn) C_Timer.After(seconds, fn) end,"))
+      assert.is_nil(read(ROW):find("C_Timer", 1, true))
+      assert.equal(1, count(read(HOARD), "after = function(seconds, fn) C_Timer.After(seconds, fn) end,"))
     end)
 
-    -- The group card's click disables nothing itself: it starts its press (the first move), then
+    -- The Hoard's click disables nothing itself: it starts its press (the first move), then
     -- repaints, and only the repaint disables a button whose list is now empty (paintMove).
-    it("puts a button to sleep only after the call: the carry list's in its click, the group card's in the repaint after it", function()
+    it("puts a button to sleep only after the call: the carry list's in its click, the Hoard's in the repaint after it", function()
       local body = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_true(assert(body:find("P.MoveStack(", 1, true)) < assert(body:find("button:Disable()", 1, true)))
-      local card = read(CARD)
-      local move = bodyOf(card, "local function onMoveClick(")
-      assert.is_nil(move:find("Disable(", 1, true))
-      assert.is_true(assert(move:find("machine:Press(rows)", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
-      local paint = bodyOf(card, "local function paintMove(")
+      local hoard = read(HOARD)
+      assert.is_nil(bodyOf(hoard, "local function onMoveClick("):find("Disable(", 1, true))
+      local pressBody = bodyOf(hoard, "function HF.Press(")
+      assert.is_nil(pressBody:find("Disable(", 1, true))
+      assert.is_true(assert(pressBody:find("machine:Press(rows)", 1, true)) < assert(pressBody:find("HF.Refresh()", 1, true)))
+      local paint = bodyOf(hoard, "local function paintMove(")
       assert.equal(1, count(paint, "button:Disable()"))
-      -- All to bank and All to bags, through the same click and the same repaint (paintAll).
-      assert.equal(1, count(bodyOf(card, "local function paintAll("), "button:Disable()"))
-      -- The only other: a side of the bank choice a bank cannot use, which moves nothing anyway.
-      assert.equal(3, count(card, "Disable("))
-      assert.equal(1, count(bodyOf(card, "local function paintChoice("), "side:Disable()"))
+      -- Store all and Take all out, and each row's Store and Take out, through the same repaint.
+      assert.is_truthy(bodyOf(hoard, "local function paintAll("):find("paintMove(button, stacks, label)", 1, true))
+      local row = read(ROW)
+      assert.is_nil(row:find("Disable(", 1, true))
+      assert.equal(1, count(row, "U.paintMove(row.store, data.toBank,"))
+      assert.equal(1, count(row, "U.paintMove(row.take, data.toBags,"))
+      -- The only other: a side of the bank switch a bank cannot use, which moves nothing anyway.
+      assert.equal(2, count(hoard, "Disable("))
+      assert.equal(1, count(bodyOf(hoard, "local function paintChoice("), "side:Disable()"))
     end)
 
-    it("loads in retail only, after the route module, and the group card after the route", function()
+    it("loads in retail only, the Hoard after the route module", function()
       local retail, forever = read("GoldCap/GoldCap.toc"), read("GoldCap/GoldCap_Camelot.toc")
-      assert.is_truthy(retail:find("\nUI/BankRoute.lua\n", 1, true))
-      assert.is_truthy(retail:find("\nUI/BankGroupsCard.lua\n", 1, true))
-      assert.is_truthy(retail:find("\nCore/BankGroups.lua\n", 1, true))
-      assert.is_nil(forever:find("BankRoute", 1, true))
-      assert.is_nil(forever:find("BankGroups", 1, true))
+      for _, file in ipairs({ "UI/BankRoute.lua", "UI/HoardFrame.lua", "UI/HoardRow.lua", "Core/BankGroups.lua",
+        "Core/Hoard.lua" }) do
+        assert.is_truthy(retail:find("\n" .. file .. "\n", 1, true), file)
+      end
+      for _, name in ipairs({ "BankRoute", "BankGroups", "Hoard" }) do
+        assert.is_nil(forever:find(name, 1, true), name)
+      end
+      -- The bank tab and the bank by group card it held are gone.
+      assert.is_nil(retail:find("BankTab", 1, true))
+      assert.is_nil(retail:find("BankGroupsCard", 1, true))
       assert.is_true(retail:find("Core/SellRoute.lua", 1, true) < retail:find("UI/BankRoute.lua", 1, true))
-      -- The card hooks the route's handlers as it loads, and the GoldCap tab both the route's and the card's.
-      assert.is_true(retail:find("UI/BankRoute.lua", 1, true) < retail:find("UI/BankGroupsCard.lua", 1, true))
-      assert.is_true(retail:find("UI/BankGroupsCard.lua", 1, true) < retail:find("\nUI/BankTab.lua\n", 1, true))
-      assert.is_nil(forever:find("BankTab", 1, true))
+      -- The Hoard hooks the route's handlers as it loads, and its rows read what it shares.
+      assert.is_true(retail:find("UI/BankRoute.lua", 1, true) < retail:find("UI/HoardFrame.lua", 1, true))
+      assert.is_true(retail:find("UI/HoardFrame.lua", 1, true) < retail:find("UI/HoardRow.lua", 1, true))
       assert.is_true(retail:find("Core/GroupRules.lua", 1, true) < retail:find("Core/BankGroups.lua", 1, true))
+      assert.is_true(retail:find("Core/BankGroups.lua", 1, true) < retail:find("Core/Hoard.lua", 1, true))
     end)
 
     it("is routed from the event frame", function()
