@@ -201,6 +201,19 @@ describe("bank by group", function()
     end)
   end)
 
+  -- Shared with Core/Hoard.lua, whose plans move stacks in the same order and skip the same sent ones.
+  describe("SlotKey and StackOrder", function()
+    it("names a stack by where it sits", function()
+      assert.equal("5:12", M.SlotKey(stack(1, 5, 12, 20)))
+    end)
+
+    it("orders stacks the biggest first, then by bag, then by slot", function()
+      local stacks = { stack(1, 1, 1, 20), stack(1, 0, 4, 200), stack(1, 0, 2, 20), stack(1, 0, 9, 200) }
+      table.sort(stacks, M.StackOrder)
+      assert.same({ "0:4", "0:9", "0:2", "1:1" }, where(stacks))
+    end)
+  end)
+
   describe("keep counts", function()
     it("is 0 for every group until the player sets one, and creates nothing to read it", function()
       local db = {}

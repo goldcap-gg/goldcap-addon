@@ -71,7 +71,9 @@ function M.SetKeep(db, key, n)
   return true
 end
 
-local function slotKey(stack)
+--- Where a stack sits, "bag:slot": the key a press records a stack it has sent under (`moving`),
+--- which Plan and Core/Hoard.lua read.
+function M.SlotKey(stack)
   return stack.bag .. ":" .. stack.slot
 end
 
@@ -81,8 +83,9 @@ local function itemOrder(a, b)
   return a.itemID < b.itemID
 end
 
--- The biggest stack first, then by where it sits, so a plan reads the same every time.
-local function stackOrder(a, b)
+--- The order a press moves stacks in, a table.sort comparator: the biggest stack first, then by
+--- where it sits, so a plan reads the same every time. Core/Hoard.lua's plans use it too.
+function M.StackOrder(a, b)
   if a.count ~= b.count then return a.count > b.count end
   if a.bag ~= b.bag then return a.bag < b.bag end
   return a.slot < b.slot
@@ -135,7 +138,7 @@ function M.Plan(bagStacks, bankStacks, opts)
     return item
   end
   local function free(stack)
-    return not moving[slotKey(stack)] and not stack.locked
+    return not moving[M.SlotKey(stack)] and not stack.locked
   end
 
   for _, stack in ipairs(bagStacks or {}) do
@@ -144,7 +147,7 @@ function M.Plan(bagStacks, bankStacks, opts)
       group.inBags = group.inBags + stack.count
       local item = itemIn(group.bagItems, stack)
       -- What the bags hold once the stacks already sent have left.
-      if not moving[slotKey(stack)] then item.kept = item.kept + stack.count end
+      if not moving[M.SlotKey(stack)] then item.kept = item.kept + stack.count end
       if stack.stays then
         local why = stack.itemID .. ":" .. stack.stays
         local entry = group.staysBy[why]
@@ -176,7 +179,7 @@ function M.Plan(bagStacks, bankStacks, opts)
   end
   for _, group in ipairs(groups) do
     for _, item in ipairs(sortedItems(group.bagItems)) do
-      table.sort(item.stacks, stackOrder)
+      table.sort(item.stacks, M.StackOrder)
       local left = item.kept
       for _, stack in ipairs(item.stacks) do
         if left - stack.count >= group.keep then
@@ -186,7 +189,7 @@ function M.Plan(bagStacks, bankStacks, opts)
       end
     end
     for _, item in ipairs(sortedItems(group.bankItems)) do
-      table.sort(item.stacks, stackOrder)
+      table.sort(item.stacks, M.StackOrder)
       for _, stack in ipairs(item.stacks) do group.toBags[#group.toBags + 1] = stack end
     end
     table.sort(group.stays, function(a, b)

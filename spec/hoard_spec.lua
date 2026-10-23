@@ -85,21 +85,29 @@ describe("Hoard", function()
     return H.Rows(groups, o)
   end
 
-  -- The rows as "name" (depth 0) or "  name" (depth 1, inside an open folder).
-  local function names(result)
+  -- The rows (or, with `which`, another list of the answer, such as foldedRows) as "name" (depth 0)
+  -- or "  name" (depth 1, under a folder).
+  local function names(result, which)
     local out = {}
-    for _, row in ipairs(result.rows) do out[#out + 1] = (row.depth == 1 and "  " or "") .. row.name end
+    for _, row in ipairs(result[which or "rows"]) do out[#out + 1] = (row.depth == 1 and "  " or "") .. row.name end
     return out
   end
 
-  local function rowNamed(result, name)
-    for _, row in ipairs(result.rows) do
+  local function rowNamed(result, name, which)
+    for _, row in ipairs(result[which or "rows"]) do
       if row.name == name then return row end
     end
     return nil
   end
 
   local function allOpen() return true end
+
+  local function deepCopy(value)
+    if type(value) ~= "table" then return value end
+    local out = {}
+    for k, v in pairs(value) do out[k] = deepCopy(v) end
+    return out
+  end
 
   before_each(function()
     GC = helper.loadModule("Core/NameMatch.lua")
@@ -182,6 +190,25 @@ describe("Hoard", function()
 
     it("has nothing to take out of an empty bank", function()
       assert.same({ stacks = {}, items = {}, worth = 0 }, up({}))
+    end)
+
+    it("asks each item's group and prices once, however many stacks it has", function()
+      local asked = {}
+      local function count(what) return function(id)
+        asked[what .. " " .. id] = (asked[what .. " " .. id] or 0) + 1
+        if what == "group" then return groupOf(id) end
+        return (what == "now" and NOW or USUAL)[id]
+      end end
+      local out = H.PricesUp({ stack(40, 6, 1, 3), stack(40, 6, 2, 5), stack(40, 6, 3, 1), stack(30, 6, 4, 10),
+        stack(30, 6, 5, 10) }, { groupOf = count("group"), valueOf = count("now"), usualOf = count("usual") })
+      assert.equal(9, out.items[1].count)
+      assert.same({ ["group 40"] = 1, ["now 40"] = 1, ["usual 40"] = 1, ["group 30"] = 1, ["now 30"] = 1,
+        ["usual 30"] = 1 }, asked)
+    end)
+
+    it("takes out nothing when asked with no prices at all", function()
+      assert.same({ stacks = {}, items = {}, worth = 0 }, H.PricesUp({ stack(40, 6, 1, 3) }))
+      assert.same({ stacks = {}, items = {}, worth = 0 }, H.PricesUp({ stack(40, 6, 1, 3) }, {}))
     end)
   end)
 
@@ -338,8 +365,11 @@ describe("Hoard", function()
       local herbs, gathering = rowNamed(result, "Herbs"), rowNamed(result, "Gathering")
       assert.equal(145, herbs.inBags)
       assert.equal(80, herbs.inBank)
-      assert.equal(herbs.group.toBank, herbs.toBank)
-      assert.equal(herbs.group.toBags, herbs.toBags)
+      -- The row's lists are its own: the window may change them without touching the plan.
+      assert.same(herbs.group.toBank, herbs.toBank)
+      assert.are_not.equal(herbs.group.toBank, herbs.toBank)
+      assert.same(herbs.group.toBags, herbs.toBags)
+      assert.are_not.equal(herbs.group.toBags, herbs.toBags)
       assert.equal(345, gathering.inBags)
       assert.equal(1130, gathering.inBank)
       -- Children by worth: Herbs, Ore, Cloth.
@@ -359,6 +389,32 @@ describe("Hoard", function()
       assert.equal("gather", rowNamed(result, "Herbs").play)
       assert.is_nil(rowNamed(result, "Gathering").play)
       assert.is_nil(rowNamed(rows(world()), "Gems").play)
+    end)
+
+    -- Rows only reads the plan: the window paints from it again after every move.
+    it("leaves the Plan groups as they were, but for the groups it remembers as shown", function()
+      local groups = world()
+      local before = deepCopy(groups)
+      local shown = {}
+      rows(groups, { filter = "move", shown = shown, query = "o", sort = "name", folderOpen = allOpen })
+      rows(groups, { filter = "all", shown = shown, playOf = function() return "gather" end })
+      assert.same(before, groups)
+      assert.is_true(shown.herbs)
+    end)
+
+    -- A followed top group can have the key of another group's parent (both "Gathering" and
+    -- "Gathering: Herbs" followed): two rows, the folder first, whatever the sort.
+    it("lists a top group and a folder of the same key as two rows in a fixed order", function()
+      local groups = plan({ stack(1, 0, 1, 20), stack(10, 0, 2, 200), stack(70, 0, 3, 1) }, {}, nil, function(id)
+        if id == 70 then return "gathering", "Gathering" end
+        return groupOf(id)
+      end)
+      for _, sort in ipairs({ "name", "value" }) do
+        local result = rows(groups, { sort = sort, valueOf = function() return nil end })
+        assert.same({ "Gathering", "Gathering" }, names(result), sort)
+        assert.same({ "folder", "group" }, { result.rows[1].kind, result.rows[2].kind }, sort)
+        assert.same({ "gathering", "gathering" }, { result.rows[1].key, result.rows[2].key }, sort)
+      end
     end)
 
     describe("the filter", function()
@@ -420,6 +476,30 @@ describe("Hoard", function()
           { filter = "move", shown = shown, folderOpen = allOpen })
         assert.same({ "Crafting", "  Potions", "Gathering", "  Herbs", "  Ore" }, names(result))
       end)
+
+      -- The fold line opens onto the groups it counts, as rows like the others. A folder whose
+      -- groups fall on both sides of the line is on both, each time over its groups on that side.
+      it("hands the folded groups to the fold line as rows, a folder on both sides with its own groups", function()
+        local result = rows(bagsOnly(), { filter = "move", folderOpen = allOpen })
+        assert.same({ "Crafting", "  Flasks", "Gathering", "  Ore", "  Cloth", "Gems" }, names(result, "foldedRows"))
+        local listed, folded = rowNamed(result, "Gathering"), rowNamed(result, "Gathering", "foldedRows")
+        assert.same({ "herbs" }, listed.children)
+        assert.same({ "ore", "cloth" }, folded.children)
+        assert.equal(3, listed.childCount)
+        assert.equal(3, folded.childCount)
+        assert.equal(1000, listed.worth)
+        assert.equal(1030, folded.worth)
+        assert.same({ { itemID = 1, icon = 100001, count = 20 } }, listed.icons)
+        assert.same({ { itemID = 10, icon = 100010, count = 200 }, { itemID = 20, icon = 100020, count = 30 } },
+          folded.icons)
+        assert.equal(0, folded.more)
+        assert.equal("group", rowNamed(result, "Gems", "foldedRows").kind)
+      end)
+
+      it("folds nothing under All, and closed folders under the line show no groups", function()
+        assert.same({}, rows(bagsOnly(), { filter = "all" }).foldedRows)
+        assert.same({ "Crafting", "Gathering", "Gems" }, names(rows(bagsOnly(), { filter = "move" }), "foldedRows"))
+      end)
     end)
 
     describe("the search", function()
@@ -459,8 +539,26 @@ describe("Hoard", function()
         local result = rows(groups, { filter = "move", query = "ore" })
         assert.same({}, names(result))
         assert.equal(1, result.folded)
+        assert.same({ "Gathering", "  Ore" }, names(result, "foldedRows"))
         assert.equal(3, result.total)
         assert.equal(1, result.toMove)
+      end)
+
+      -- What the search found is on the screen, inside a closed folder too; the folder is not
+      -- opened for good, so clearing the search closes it again.
+      it("shows the groups it finds inside a closed folder, without opening the folder for good", function()
+        local db = {}
+        local result = rows(world(), { query = "bloom", folderOpen = function(key) return H.FolderOpen(db, key) end })
+        assert.same({ "Gathering", "  Herbs" }, names(result))
+        assert.is_false(result.rows[1].open)
+        assert.is_true(result.rows[1].forcedOpen)
+        assert.same({}, db)
+        local open = rows(world(), { query = "bloom", folderOpen = allOpen })
+        assert.is_true(open.rows[1].open)
+        assert.is_false(open.rows[1].forcedOpen)
+        local cleared = rows(world(), { query = "" })
+        assert.same({ "Crafting", "Transmog: Plate", "Gathering", "Gems" }, names(cleared))
+        assert.is_false(cleared.rows[1].forcedOpen)
       end)
     end)
 
@@ -490,6 +588,28 @@ describe("Hoard", function()
         keys = {}
         for _, row in ipairs(same.rows) do keys[#keys + 1] = row.key end
         assert.same({ "a-key", "b-key", "c" }, keys)
+      end)
+
+      -- As the player reads them: case-blind and accent-blind (Core/NameMatch.lua), where the bytes
+      -- would put every lowercase and accented name after Z. Two names that read alike keep an order.
+      it("sorts names as the player reads them, whatever their case or accents", function()
+        local named = { [301] = { "z-lower", "zinc" }, [302] = { "eclat", "Éclat" }, [303] = { "z-upper", "Zinc" },
+          [304] = { "mithril", "mithril" } }
+        local groups = plan({ stack(301, 0, 1, 1), stack(302, 0, 2, 1), stack(303, 0, 3, 1), stack(304, 0, 4, 1) }, {},
+          nil, function(id)
+            local g = named[id]
+            if g then return g[1], g[2] end
+            return nil
+          end)
+        assert.same({ "Éclat", "mithril", "Zinc", "zinc" }, names(rows(groups, { sort = "name" })))
+        assert.same({ "Éclat", "mithril", "Zinc", "zinc" }, names(rows(groups, { valueOf = function() return nil end })))
+      end)
+
+      it("shows icons of the same worth by name as the player reads them", function()
+        NAMES[2], NAMES[3] = "Zinc Ore", "éclat Dust"
+        local herbs = rows(plan({ stack(2, 0, 1, 1), stack(3, 0, 2, 1) }, {}), { valueOf = function() return 10 end }).rows[1]
+        NAMES[2], NAMES[3] = "Argentleaf", "Azeroot"
+        assert.same({ 3, 2 }, { herbs.icons[1].itemID, herbs.icons[2].itemID })
       end)
     end)
 
@@ -553,7 +673,7 @@ describe("Hoard", function()
     end)
 
     it("lists nothing with no group", function()
-      assert.same({ rows = {}, folded = 0, total = 0, toMove = 0 }, H.Rows({}, {}))
+      assert.same({ rows = {}, foldedRows = {}, folded = 0, total = 0, toMove = 0 }, H.Rows({}, {}))
     end)
   end)
 
@@ -620,15 +740,32 @@ describe("Hoard", function()
   describe("PutBack", function()
     local room = { bankType = 2, at = 1000, items = { [1] = 70, [2] = 5, [3] = 10 } }
 
-    it("takes back each item up to the count remembered, the biggest stacks first", function()
+    it("takes back each item's remembered count in the fewest stacks, the biggest first", function()
       local stacks = H.PutBack(room, {
         stack(1, 6, 1, 30), stack(1, 6, 2, 20), stack(1, 6, 3, 40), stack(2, 6, 4, 200), stack(3, 6, 5, 4),
         stack(4, 6, 6, 99), stack(1, 6, 7, 5, { locked = true }), stack(3, 6, 8, 2),
       }, { ["6:8"] = true })
-      -- Bloom: 40 and 30 make the 70. Argentleaf: the one stack is more than the 5 that went, and
-      -- a stack moves whole. Azeroot: another character took some, so the 4 that are there.
-      assert.same({ "6:3", "6:1", "6:5" }, where(stacks))
+      -- Bloom: 40 and 30 make the 70. Argentleaf: the 5 that went merged into a stack the bank
+      -- held, and a stack moves whole, so the 200 comes back. Azeroot: another character took
+      -- some, so the 4 that are there.
+      assert.same({ "6:3", "6:1", "6:4", "6:5" }, where(stacks))
     end)
+
+    -- Deposits merge into the stacks the bank already held: what went in may now be part of a
+    -- bigger stack. The biggest stacks while they fit, then the smallest that covers the rest.
+    local cases = {
+      { "the smallest stack that covers what is left", 70, { 50, 30, 25 }, { "6:1", "6:3" } },
+      { "the remembered count exactly when the stacks make it", 70, { 40, 30, 20 }, { "6:1", "6:2" } },
+      { "one merged stack for a few that went", 5, { 200 }, { "6:1" } },
+      { "all there is when there is less", 100, { 30, 20 }, { "6:1", "6:2" } },
+    }
+    for _, case in ipairs(cases) do
+      it("takes " .. case[1], function()
+        local bank = {}
+        for i, count in ipairs(case[3]) do bank[i] = stack(1, 6, i, count) end
+        assert.same(case[4], where(H.PutBack({ bankType = 2, at = 1, items = { [1] = case[2] } }, bank)))
+      end)
+    end
 
     it("takes nothing with nothing remembered", function()
       assert.same({}, H.PutBack(nil, { stack(1, 6, 1, 30) }))
