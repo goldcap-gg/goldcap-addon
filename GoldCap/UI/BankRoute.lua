@@ -189,8 +189,9 @@ end
 --- C_Container.UseContainerItem, made by the player's own press: inside the click by onCarryClick
 --- below, and by the group card's press (UI/BankGroupsCard.lua's moveRow, which Core/VendorPress.lua
 --- calls first inside the card's click and then from its timers, each after re-checking the bank and
---- the slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the stack goes into or comes out of; there is no
---- default, so a call that names none moves nothing. The same call equips a piece of gear when no
+--- the slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the
+--- stack goes into or comes out of; there is no default, so a call that names none moves nothing.
+--- The same call equips a piece of gear when no
 --- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
 --- bank is the window and that bank can be used here, that the slot still holds the stack's item,
 --- unlocked, and, into the bank, that the bank may take it. A spell waiting for an item target, or

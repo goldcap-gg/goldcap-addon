@@ -35,9 +35,8 @@
   items in your bags, your bank or the Warband Bank. Pick your bank or the Warband Bank on the card:
   it starts on the one the bank window shows. One press of To bank puts the whole group in that
   bank, and one press of To bags takes it all back out; press again to stop. You can set how many
-  of each item stay in your bags. A stack that
-  has to stay, because that bank does not take it or, for the Warband Bank, because you can still
-  return it for a refund, is named with why.
+  of each item stay in your bags. A stack that has to stay, because that bank does not take it or,
+  for the Warband Bank, because you can still return it for a refund, is named with why.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
   group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
 - Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by
