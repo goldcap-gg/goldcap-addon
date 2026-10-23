@@ -83,16 +83,19 @@ describe("CHANGELOG.md", function()
     assert.is_true(checked >= 7)
   end)
 
-  -- Bank by group works with the bank picked on its card (UI/BankGroupsCard.lua), the character's
-  -- own or the Warband Bank, starting on the one the bank window shows. The line says so, that one
-  -- press of To bank puts the whole group in that bank, and that a stack which has to stay in the
-  -- bags is named with why.
-  it("says that bank by group's To bank puts the whole group in the bank picked on the card, yours or the Warband Bank", function()
+  -- Bank by group is on a GoldCap tab of the bank window (UI/BankTab.lua) and works with the bank
+  -- picked on it, the character's own or the Warband Bank, starting on the one the bank window
+  -- showed. The line says so, that one press of To bank puts the whole group in that bank, that All
+  -- to bank and All to bags do every group, and that a stack which has to stay in the bags is named
+  -- with why.
+  it("says that bank by group's To bank puts the whole group in the bank picked on the GoldCap tab, yours or the Warband Bank", function()
     for _, bullet in ipairs(sections()[1].bullets) do
       if bullet:find("^%- Bank, in retail WoW") then
-        assert.is_truthy(bullet:find("Pick your bank or the Warband Bank on the card: it starts on the one the bank window shows.",
+        assert.is_truthy(bullet:find("the bank window has a GoldCap tab after Bank and Warband Bank", 1, true), bullet)
+        assert.is_truthy(bullet:find("Pick your bank or the Warband Bank on the tab: it starts on the one the bank window showed.",
           1, true), bullet)
         assert.is_truthy(bullet:find("One press of To bank puts the whole group in that bank", 1, true), bullet)
+        assert.is_truthy(bullet:find("All to bank and All to bags do it for every group at once", 1, true), bullet)
         assert.is_truthy(bullet:find("named with why", 1, true), bullet)
         return
       end
