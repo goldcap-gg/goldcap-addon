@@ -506,14 +506,17 @@ describe("bank carry list", function()
     end)
 
     -- The carry list hands items to another character, which only the Warband Bank does; the group
-    -- card moves to and from the bank its choice names, the one its last paint read and planned with.
+    -- card moves to and from the bank its choice names, the one its last paint read and planned with:
+    -- its click names that bank on every stack of the press, and the press hands it on.
     it("hands MoveStack the Warband Bank from the carry list and the bank it names from the group card", function()
       local carry = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_truthy(carry:find('P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank())',
         1, true))
       local card = read(CARD)
+      local row = bodyOf(card, "local function moveRow(")
+      assert.is_truthy(row:find("GC.BankRoute.MoveStack(row.stack, row.into, row.bankType)", 1, true))
       local move = bodyOf(card, "local function onMoveClick(")
-      assert.is_truthy(move:find("GC.BankRoute.MoveStack(stack, button.into, C._bankType)", 1, true))
+      assert.is_truthy(move:find("into = button.into, bankType = C._bankType }", 1, true))
       local refresh = bodyOf(card, "function C.Refresh(")
       local chosen = assert(refresh:find("local bankType = C._bankType", 1, true))
       assert.is_true(chosen < assert(refresh:find("GC.BankRoute.ReadStacks(BAGS, false, groupOf, bankType)", 1, true)))
@@ -562,7 +565,10 @@ describe("bank carry list", function()
       end
     end)
 
-    it("reaches MoveStack only from the carry list's click and the group card's click, once in each", function()
+    -- The group card's moves are its press's (Core/VendorPress.lua): the first inside the move
+    -- button's click, the rest from the machine's timers, each through the card's moveRow, which is
+    -- the machine's call and nothing else's.
+    it("reaches MoveStack only from the carry list's click and the group card's press, once in each", function()
       local listing = assert(io.popen("find GoldCap -name '*.lua'"))
       for path in listing:lines() do
         if path ~= ROUTE and path ~= CARD then
@@ -580,12 +586,20 @@ describe("bank carry list", function()
       assert.is_nil(without(without(route, carry), def):find("MoveStack", 1, true))
       assert.equal(1, count(carry, "P.MoveStack("))
       assert.equal(1, count(def, "MoveStack"))
-      local move = bodyOf(card, "local function onMoveClick(")
-      assert.is_nil(without(card, move):find("MoveStack", 1, true))
-      assert.equal(1, count(move, "GC.BankRoute.MoveStack("))
+      local row = bodyOf(card, "local function moveRow(")
+      assert.is_nil(without(card, row):find("MoveStack", 1, true))
+      assert.equal(1, count(row, "GC.BankRoute.MoveStack("))
+      -- Its definition and the machine's driver, nothing more.
+      assert.equal(2, count(card, "moveRow"))
+      assert.equal(1, count(card, "      use = moveRow,"))
+      -- The machine is started by the move button's click alone.
+      assert.equal(1, count(card, ":Press("))
+      assert.equal(1, count(bodyOf(card, "local function onMoveClick("), "machine:Press(rows)"))
     end)
 
-    it("reaches each click handler only through its button's OnClick, and moves nothing from a timer", function()
+    -- No timer of either file moves anything: the group card's moves after the first come from the
+    -- press machine's own timers (its driver's `after`), each through moveRow and its re-checks.
+    it("reaches each click handler only through its button's OnClick, and moves nothing from a timer of its own", function()
       for path, handler in pairs({ [ROUTE] = "onCarryClick", [CARD] = "onMoveClick" }) do
         local text = read(path)
         local sites = {}
@@ -595,19 +609,21 @@ describe("bank carry list", function()
           assert.is_nil(body:find("UseContainerItem", 1, true), path)
           assert.is_nil(body:find("MoveStack", 1, true), path)
           assert.is_nil(body:find(handler, 1, true), path)
+          assert.is_nil(body:find("moveRow", 1, true), path)
         end
       end
+      assert.equal(1, count(read(CARD), "after = function(seconds, fn) C_Timer.After(seconds, fn) end,"))
     end)
 
-    -- The group card's click disables nothing itself: it calls MoveStack, then repaints, and only
-    -- the repaint disables a button whose list is now empty (paintMove).
+    -- The group card's click disables nothing itself: it starts its press (the first move), then
+    -- repaints, and only the repaint disables a button whose list is now empty (paintMove).
     it("puts a button to sleep only after the call: the carry list's in its click, the group card's in the repaint after it", function()
       local body = bodyOf(read(ROUTE), "local function onCarryClick(")
       assert.is_true(assert(body:find("P.MoveStack(", 1, true)) < assert(body:find("button:Disable()", 1, true)))
       local card = read(CARD)
       local move = bodyOf(card, "local function onMoveClick(")
       assert.is_nil(move:find("Disable(", 1, true))
-      assert.is_true(assert(move:find("GC.BankRoute.MoveStack(", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
+      assert.is_true(assert(move:find("machine:Press(rows)", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
       local paint = bodyOf(card, "local function paintMove(")
       assert.equal(1, count(paint, "button:Disable()"))
       -- The only other: a side of the bank choice a bank cannot use, which moves nothing anyway.

@@ -1,18 +1,28 @@
 local _, GC = ...
 
--- One press at a vendor as a state machine over a driver, so the sale call itself stays in the
--- UI file that owns the player's click. The first sale is made synchronously by Press (inside the
--- click); the rest follow from timers, each after re-checking that the merchant is still open and
--- the slot still holds the item that was chosen.
+-- One press that makes a run of container calls, as a state machine over a driver, so the call
+-- itself stays in the UI file that owns the player's click: at a vendor, the sales of
+-- UI/VendorSellCard.lua; at a bank, the moves of a group in UI/BankGroupsCard.lua. The first call
+-- is made synchronously by Press (inside the click); the rest follow from timers, each after
+-- re-checking that the window is still open and the slot still holds the item that was chosen.
 --
 -- driver = {
---   merchantOpen() -> boolean,
+--   open() -> boolean,             -- the window the calls need is still open (the merchant, the bank)
 --   slot(bag, slot) -> { link, isLocked } | nil,
 --   cursorBusy() -> boolean,       -- an item on the cursor, or a spell waiting for an item target
---   use(bag, slot)                 -- the sale call
+--   use(bag, slot, row) -> false?  -- the call; false when it made none (the row is skipped)
 --   after(seconds, fn)             -- a timer
 --   report({ sold, copper, stopped })  -- once per run; stopped is nil for a finished run
+--   limit = n | nil,               -- the most calls one press makes; nil: every row
+--   slowFallback = true | nil,     -- a timer call that stays switches the visit to one per press
 -- }
+--
+-- `slowFallback` is the vendor's: whether a sale made from a timer is honoured was not measured
+-- (docs/superpowers/specs/2026-10-22-vendor-in-one-press-design.md), so a timer sale that stays in
+-- the bag says the game sells one stack per press there. The bank leaves it off: a move that stays
+-- is mostly a bank or bags with no room, which the game says itself, and one per press for the
+-- visit would be wrong for that. Its run just stops ("stalled"), and the next press still makes
+-- its first move inside the click, as every press did before runs.
 GC.VendorPress = {}
 local P = GC.VendorPress
 
@@ -77,6 +87,7 @@ local function tick(self, token)
   run.ticks = run.ticks + 1
   if run.ticks >= P.CONFIRM_TICKS then
     if run.fromTimer then
+      if not self.driver.slowFallback then return stop(self, "stalled") end
       self.oneAtATime = true
       return stop(self, "slow")
     end
@@ -89,15 +100,14 @@ attempt = function(self, fromTimer)
   local run, d = self.run, self.driver
   while true do
     if run.idx > #run.rows then return finish(self) end
-    if not d.merchantOpen() then return stop(self, "closed") end
+    if not d.open() then return stop(self, "closed") end
     if d.cursorBusy() then return stop(self, "cursor") end
     local row = run.rows[run.idx]
     run.idx = run.idx + 1
     local kept = row.itemID ~= nil and run.skip[row.itemID]
     local info = not kept and d.slot(row.bag, row.slot) or nil
-    if info and not info.isLocked and info.link == row.link then
+    if info and not info.isLocked and info.link == row.link and d.use(row.bag, row.slot, row) ~= false then
       run.cur, run.ticks, run.fromTimer = row, 0, fromTimer
-      d.use(row.bag, row.slot)
       local token = self.token
       d.after(P.STEP, function() tick(self, token) end)
       return
@@ -111,7 +121,7 @@ function Machine:Press(rows)
   self.token = self.token + 1
   self.run = {
     rows = rows, idx = 1, sold = 0, copper = 0, ticks = 0, fromTimer = false, skip = {},
-    limit = self.oneAtATime and 1 or GC.VendorSelect.MAX_STACKS,
+    limit = self.oneAtATime and 1 or self.driver.limit or math.huge,
   }
   attempt(self, false)
 end
@@ -124,12 +134,12 @@ end
 
 function Machine:Stop(reason) stop(self, reason) end
 
-function Machine:OnMerchantClosed()
+function Machine:OnClosed()
   if self.run then stop(self, "closed") end
 end
 
 -- A new visit: forget the one-per-press mode and drop any run without a report.
-function Machine:OnMerchantShow()
+function Machine:OnShown()
   self.oneAtATime = false
   self.run = nil
   self.token = self.token + 1

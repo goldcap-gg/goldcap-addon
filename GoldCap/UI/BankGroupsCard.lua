@@ -5,9 +5,9 @@ local _, GC = ...
 -- the card works with, each with how many are where, To bank and To bags, how many of each item it
 -- keeps in the bags (GC.db.bankKeep, Core/BankGroups.lua, by the group's key), and which stacks
 -- stay in the bags and why (the bank does not take them, or, for the Warband Bank, they are still
--- refundable). Which stack a press moves is Core/BankGroups.lua's Plan; an item's group is
--- Core/GroupRules.lua's. With no followed group there is no card at all: it is not built and no
--- slot is read for it.
+-- refundable). Which stacks a press moves, and in which order, is Core/BankGroups.lua's Plan; an
+-- item's group is Core/GroupRules.lua's. With no followed group there is no card at all: it is not
+-- built and no slot is read for it.
 --
 -- Which bank: the character's own or the Warband Bank, a two-way choice under the title named as
 -- the bank window's tabs name them. At each open it starts on the bank the window shows
@@ -19,17 +19,21 @@ local _, GC = ...
 -- a disabled side, and the card works with the other. The counts, the plan and every move come
 -- from the bank chosen. The carry list stays with the Warband Bank whatever is chosen.
 --
--- One stack a press, moved inside the player's own click through the bank route's MoveStack,
--- whose guards apply: the bank is the window, no spell waits for an item target and the cursor is
--- empty, the slot still holds the stack, unlocked, and the bank may take it
--- (spec/bank_route_spec.lua audits the call sites). The button names the next
--- stack as soon as a press has sent one, and a stack sent is offered again only if the bags have
--- not shown it moved within the route's SETTLE_SECONDS.
+-- One press moves the button's whole list, a stack at a time, through the bank route's MoveStack,
+-- whose guards apply to every move: the bank is the window, no spell waits for an item target and
+-- the cursor is empty, the slot still holds the stack, unlocked, and the bank may take it
+-- (spec/bank_route_spec.lua audits the call sites). The press is the vendor card's machine
+-- (Core/VendorPress.lua): the first move inside the player's click, the rest 0.2 s apart from its
+-- timers, each once the one before has left its slot; a second press stops it, and so do the
+-- bank closing and the card coming to work with the other bank. A move that stays (a full bank or
+-- bags: the game says so itself) ends the run without a word, and the next press still makes its
+-- first move in the click. The button names the next stack as soon as one is sent, and a stack
+-- sent is offered again only if the bags have not shown it moved within the route's SETTLE_SECONDS.
 --
--- Pressed again and again in one spot, so nothing on the card moves between two presses: each
--- button has its own row, kept when its list is empty (it then says so and is disabled, by the
--- repaint after its own last press); the card's width is set for the widest label a press can
--- bring, and the counts line keeps room for the most it can say. The card has its own column,
+-- Pressed again and again in one spot, so nothing on the card moves between two presses or while
+-- one runs: each button has its own row, kept when its list is empty (it then says so and is
+-- disabled, by the repaint after its own last move); the card's width is set for the widest label
+-- a press can bring, and the counts line keeps room for the most it can say. The card has its own column,
 -- beside the carry list, so that list growing or emptying does not move it either.
 --
 -- On the screen with any number of groups: each group is a compact block (the keep count a badge
@@ -61,6 +65,11 @@ C._blocks = {}
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
 C._moving = {}
+-- The press machine (Core/VendorPress.lua), made at the first press, and the button and the bank
+-- of the press now running, or nil.
+C.machine = nil
+C._runButton = nil
+C._runBank = nil
 -- While the bank is open: the bank the card works with (Enum.BankType), as of its last paint, and
 -- the bank the window showed then (the card goes along only when that changes); the card's width,
 -- which only grows; whether the carry list has shown (the card then keeps the column beside it
@@ -134,20 +143,64 @@ function C._Settle(token)
   C.Refresh()
 end
 
--- A move button's own click: one stack, through the bank route's MoveStack, inside the click. The
--- stack is the one the button names, and the bank the one the card names; the button is repainted
--- only after the call.
-local function onMoveClick(button)
-  local stack = button.stack
-  if not stack then return end
-  if GC.BankRoute.MoveStack(stack, button.into, C._bankType) then
-    C._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count }
-    settleSeq = settleSeq + 1
-    local token = settleSeq
-    if C_Timer and C_Timer.After then
-      C_Timer.After(GC.BankRoute.SETTLE_SECONDS, function() C._Settle(token) end)
-    end
+-- What the press machine (Core/VendorPress.lua) reads of a slot: the item it holds, and whether
+-- it is locked.
+local function slotNow(bag, slot)
+  local info = C_Container.GetContainerItemInfo(bag, slot)
+  if type(info) == "table" then return { link = info.hyperlink, isLocked = info.isLocked == true } end
+  return nil
+end
+
+-- The machine's call: one stack, through the bank route's MoveStack, the way and the bank the
+-- press named. A stack sent is on its way (C._moving) until its slot shows the move or the settle
+-- timer gives up on it. False when MoveStack made no call: the machine goes on with the next.
+local function moveRow(_, _, row)
+  local stack = row.stack
+  if not GC.BankRoute.MoveStack(row.stack, row.into, row.bankType) then return false end
+  C._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count }
+  settleSeq = settleSeq + 1
+  local token = settleSeq
+  if C_Timer and C_Timer.After then
+    C_Timer.After(GC.BankRoute.SETTLE_SECONDS, function() C._Settle(token) end)
   end
+  return true
+end
+
+-- A run over: the card repaints, unless it stopped for a repaint already on its way (the card
+-- came to work with the other bank, C.Refresh; another button's press, onMoveClick).
+local function report(result)
+  C._runButton, C._runBank = nil, nil
+  if result.stopped ~= "bank" and result.stopped ~= "switched" then C.OnBagsChanged() end
+end
+
+function C._Machine()
+  if not C.machine then
+    C.machine = GC.VendorPress.New({
+      open = function() return GC.BankRoute.CanMove(C._bankType) end,
+      slot = slotNow,
+      cursorBusy = GC.Util.CursorBusy,
+      use = moveRow,
+      after = function(seconds, fn) C_Timer.After(seconds, fn) end,
+      report = report,
+    })
+  end
+  return C.machine
+end
+
+-- A move button's own click: the press over the button's whole list, in the plan's order, to or
+-- from the bank the card names. The machine makes the first move inside this call. A second press
+-- of the button whose press runs stops it and moves nothing; another button's press stops it and
+-- starts its own. The button is repainted only after.
+local function onMoveClick(button)
+  local rows = {}
+  for i, stack in ipairs(button.stacks or {}) do
+    rows[i] = { bag = stack.bag, slot = stack.slot, link = stack.link, itemID = stack.itemID, stack = stack,
+      into = button.into, bankType = C._bankType }
+  end
+  local machine = C._Machine()
+  if machine:IsRunning() and C._runButton ~= button then machine:Stop("switched") end
+  machine:Press(rows)
+  if machine:IsRunning() then C._runButton, C._runBank = button, C._bankType end
   C.Refresh()
 end
 
@@ -294,7 +347,7 @@ end
 -- resizes it; answers that width.
 local function paintMove(button, group, stacks, format, done)
   local stack = stacks[1]
-  button.stack = stack
+  button.stacks = stacks
   local labels = { done }
   for _, item in ipairs(group.items) do
     labels[#labels + 1] = format:format(itemName(item), item.count, group.stackCount)
@@ -524,6 +577,8 @@ function C.Refresh()
   local usable = { [character] = route.CanMove(character), [account] = route.CanMove(account) }
   if not usable[C._bankType] then C._bankType = C._bankType == account and character or account end
   local bankType = C._bankType
+  -- A press running on the other bank stops: its stacks were planned against that one.
+  if C._runBank ~= nil and C._runBank ~= bankType and C.machine then C.machine:Stop("bank") end
   if not usable[bankType] then return hide() end
   pruneMoving()
   local groupOf = GC.GroupRules.GroupOf
@@ -541,6 +596,9 @@ end
 -- The route has painted already (the card's hooks run after its handlers): the carry list's
 -- column is known.
 function C.OnBankOpened()
+  -- A new visit: a press of the last one is dropped without a word.
+  if C.machine then C.machine:OnShown() end
+  C._runButton, C._runBank = nil, nil
   C._moving, C._width, C._besideRoute = {}, nil, isUp(GC.BankRoute._frame) and true or false
   -- The choice starts again on the bank the window shows.
   C._bankType, C._seenType = nil, nil
@@ -549,6 +607,7 @@ function C.OnBankOpened()
 end
 
 function C.OnBankClosed()
+  if C.machine then C.machine:OnClosed() end
   C._moving, C._width, C._besideRoute, C._bankType, C._seenType = {}, nil, false, nil, nil
   C._shown, C._unfolded = {}, false
   -- A keep count asked at this bank goes with it.

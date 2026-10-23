@@ -122,7 +122,7 @@ local function readStack(bag, slot, inBank, wanted, bankType)
   local wue = ask(C_Item.IsBoundToAccountUntilEquip, loc) == true
   if info.isBound and not wue then return nil end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
-    icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
+    link = info.hyperlink, icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
     stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil }
 end
 
@@ -186,9 +186,10 @@ function P.Plan()
 end
 
 --- The one place the addon moves an item between the bags and a bank: one
---- C_Container.UseContainerItem, made inside the player's own click by the handler that calls this
---- (onCarryClick below, onMoveClick in UI/BankGroupsCard.lua; spec/bank_route_spec.lua audits
---- both). `bankType` (Enum.BankType) is the bank the stack goes into or comes out of; there is no
+--- C_Container.UseContainerItem, made by the player's own press: inside the click by onCarryClick
+--- below, and by the group card's press (UI/BankGroupsCard.lua's moveRow, which Core/VendorPress.lua
+--- calls first inside the card's click and then from its timers, each after re-checking the bank and
+--- the slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the stack goes into or comes out of; there is no
 --- default, so a call that names none moves nothing. The same call equips a piece of gear when no
 --- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
 --- bank is the window and that bank can be used here, that the slot still holds the stack's item,

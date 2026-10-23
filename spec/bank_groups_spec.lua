@@ -1,10 +1,10 @@
 local helper = require("spec.spec_helper")
 
--- Bank by group (Core/BankGroups.lua, retail only): which stack of a followed group one press
--- moves between the bags and the Warband Bank, and how many of each item the player keeps in the
--- bags. The stacks are what UI/BankRoute.lua's reader hands over; the group of an item is
--- Core/GroupRules.lua's, faked here as a table: its key and its name, the name being the key for a
--- rule without an id (an older Companion's file).
+-- Bank by group (Core/BankGroups.lua, retail only): which stacks of a followed group a press moves
+-- between the bags and the Warband Bank, in which order, and how many of each item the player
+-- keeps in the bags. The stacks are what UI/BankRoute.lua's reader hands over; the group of an
+-- item is Core/GroupRules.lua's, faked here as a table: its key and its name, the name being the
+-- key for a rule without an id (an older Companion's file).
 describe("bank by group", function()
   local GC, M
 

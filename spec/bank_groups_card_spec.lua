@@ -2,13 +2,14 @@ local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 
 -- UI/BankGroupsCard.lua: at a bank, the followed groups with items in the bags or the bank the bank
--- window shows (the character's own or the Warband Bank), each with To bank and To bags, one stack a
--- press. The real Theme, the real group rules (from a Companion file), the real selection
--- (Core/BankGroups.lua) and the real bank route (UI/BankRoute.lua), whose reader, move function and
--- guards the card uses; the bags, both banks, the bank window and the client calls are faked.
+-- window shows (the character's own or the Warband Bank), each with To bank and To bags, which move
+-- the group's whole list on one press. The real Theme, the real group rules (from a Companion file), the real selection
+-- (Core/BankGroups.lua), the real press machine (Core/VendorPress.lua) and the real bank route
+-- (UI/BankRoute.lua), whose reader, move function and guards the card uses; the bags, both banks,
+-- the bank window and the client calls are faked.
 describe("bank by group card", function()
   local GC, C, restore, saved, bags, used, timers, canUse, tabs, refundable, refused, reads, asked, closedFor
-  local showing, usable, charTabs, refusedHere, targeting
+  local showing, usable, charTabs, refusedHere, targeting, landing
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
   local KEYS = { "Enum", "UIParent", "BankFrame", "BankPanel", "MerchantFrame", "ItemLocation", "C_Container",
@@ -32,7 +33,7 @@ describe("bank by group card", function()
 
   local function info(itemID, count, over)
     local i = { itemID = itemID, itemName = NAMES[itemID], stackCount = count, iconFileID = itemID,
-      isBound = false, isLocked = false }
+      hyperlink = "item:" .. itemID, isBound = false, isLocked = false }
     for k, v in pairs(over or {}) do i[k] = v end
     return i
   end
@@ -75,6 +76,21 @@ describe("bank by group card", function()
     GC.BankRoute.OnBankOpened()
   end
 
+  -- The press machine's own timers (Core/VendorPress.lua's STEP), first armed first, until none is
+  -- left; answers how many ran. The settle timers stay.
+  local function ticks()
+    local n = 0
+    while true do
+      local due
+      for k, t in ipairs(timers) do
+        if t.seconds == GC.VendorPress.STEP then due = k break end
+      end
+      if not due then return n end
+      table.remove(timers, due).fn()
+      n = n + 1
+    end
+  end
+
   -- n followed groups, "Group 01" to "Group n", each with one item (100 + k), 20 of it in the bags.
   local function manyGroups(n)
     local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" }, caps = {}, rules = {} }
@@ -94,6 +110,7 @@ describe("bank by group card", function()
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = W.install()
     used, timers, canUse, tabs, refundable, refused, reads, asked = {}, {}, true, { 12 }, {}, {}, 0, nil
+    landing = false
     -- The bank window shows the Warband Bank unless a spec switches it; refusedHere is what the
     -- character's own bank refuses, refused what the Warband Bank does.
     showing, usable, charTabs, refusedHere = ACCOUNT, { [ACCOUNT] = true, [CHARACTER] = true }, { 6 }, {}
@@ -126,7 +143,18 @@ describe("bank by group card", function()
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
       GetContainerItemInfo = function(bag, slot) reads = reads + 1; return bags[bag] and bags[bag][slot] or nil end,
-      UseContainerItem = function(...) used[#used + 1] = { n = select("#", ...), ... } end,
+      -- With `landing`, the server takes each move at once: the slot empties (false keeps the bag's
+      -- size) and the stack lands at the end of the bags, the character's bank tab or the Warband
+      -- Bank's, as the call names them.
+      UseContainerItem = function(...)
+        used[#used + 1] = { n = select("#", ...), ... }
+        if not landing then return end
+        local bag, slot, _, bankType = ...
+        local stack = bags[bag][slot]
+        bags[bag][slot] = false
+        local into = select("#", ...) == 5 and (bankType == CHARACTER and 6 or 12) or 0
+        bags[into][#bags[into] + 1] = stack
+      end,
     }
     _G.C_Item = {
       IsBoundToAccountUntilEquip = function() return false end,
@@ -158,6 +186,7 @@ describe("bank by group card", function()
     helper.loadModule("Core/GroupRules.lua", GC)
     helper.loadModule("Core/CraftQueue.lua", GC)
     helper.loadModule("Core/BankGroups.lua", GC)
+    helper.loadModule("Core/VendorPress.lua", GC)
     GC.GroupRules.Adopt()
     -- No route data (no Companion region payload): the carry list stays hidden.
     GC.SellRoute = { HereId = function() return nil end }
@@ -208,55 +237,140 @@ describe("bank by group card", function()
     assert.is_false(oreBags:IsEnabled())
   end)
 
-  it("puts exactly one stack in the Warband Bank a press, inside the click, and names the next one at once", function()
+  it("puts the group's whole list in the Warband Bank on one press: the first inside the click, the rest from timers", function()
+    landing = true
     open()
     local toBank = block("Herbs").toBank
     press(toBank)
-    assert.equal(1, #used)
-    assert.same({ n = 5, 0, 1, nil, ACCOUNT, false }, used[1])
-    -- Never put to sleep: the next press moves the next stack.
-    assert.is_true(toBank:IsEnabled())
-    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
-    press(block("Herbs").toBank)
-    assert.equal(2, #used)
-    assert.same({ n = 5, 0, 2, nil, ACCOUNT, false }, used[2])
-    -- Both on their way: nothing more to send. The button stays where it was, disabled.
+    -- Inside the click: the first stack, and no other before a timer runs.
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("0 in bags, 820 in the Warband Bank", textOf(block("Herbs").counts))
+    -- Never put to sleep by the press; the repaint after the last move says there is nothing left.
     assert.is_true(shown(toBank))
     assert.equal("To bank: nothing to move", toBank.label)
     assert.is_false(toBank:IsEnabled())
+    -- Ore's list was not pressed: it stays.
+    assert.equal("50 in bags, 0 in the Warband Bank", textOf(block("Ore").counts))
   end)
 
-  it("takes exactly one stack out of the Warband Bank a press", function()
+  it("takes the group's whole list out of the Warband Bank on one press", function()
+    landing = true
+    bags[12][2] = info(1, 30)
     open()
+    -- The bank's Bloom of the first quality first, the biggest stack first.
+    assert.equal("To bags: Bloom ×30 (2 left)", block("Herbs").toBags.label)
     press(block("Herbs").toBags)
-    assert.same({ { n = 2, 12, 1 } }, used)
+    assert.same({ { n = 2, 12, 2 } }, used)
+    ticks()
+    assert.same({ { n = 2, 12, 2 }, { n = 2, 12, 1 } }, used)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("850 in bags, 0 in the Warband Bank", textOf(block("Herbs").counts))
     assert.equal("To bags: nothing to move", block("Herbs").toBags.label)
-    assert.is_false(block("Herbs").toBags:IsEnabled())
   end)
 
-  it("repaints when the game shows the move, and offers a stack again when nothing moved in time", function()
+  it("stops at a second press, which moves nothing itself, and starts again at the next", function()
+    landing = true
+    bags[0][4] = info(6, 5)
     open()
     press(block("Herbs").toBank)
-    bags[12][2], bags[0][1] = bags[0][1], info(9, 1)
+    press(block("Herbs").toBank)
+    ticks()
+    assert.equal(1, #used)
+    GC.BankRoute.OnBagsChanged()
+    press(block("Herbs").toBank)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 2, nil, ACCOUNT, false },
+      { n = 5, 0, 4, nil, ACCOUNT, false } }, used)
+  end)
+
+  it("stops at another button's press, which starts its own", function()
+    landing = true
+    open()
+    press(block("Herbs").toBank)
+    press(block("Ore").toBank)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 5, 1, nil, ACCOUNT, false } }, used)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+  end)
+
+  it("stops when the bank closes, and when the card comes to work with the other bank", function()
+    landing = true
+    open()
+    press(block("Herbs").toBank)
+    GC.BankRoute.OnBankClosed()
+    ticks()
+    assert.equal(1, #used)
+    -- Reopened: the run is gone, and a press over the character's own bank's choice stops the next.
+    open()
+    press(block("Herbs").toBank)
+    assert.equal(2, #used)
+    choose(CHARACTER)
+    ticks()
+    assert.equal(2, #used)
+    assert.equal(CHARACTER, C._bankType)
+  end)
+
+  it("skips a stack whose slot no longer holds it when its turn comes", function()
+    landing = true
+    bags[0][4] = info(6, 5)
+    open()
+    press(block("Herbs").toBank)
+    bags[0][2] = info(9, 20)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 4, nil, ACCOUNT, false } }, used)
+  end)
+
+  -- A move the server refused (a full bank): the stack stays in its slot. The run stops without a
+  -- word (the game says why itself), the press after it still moves in its click, and the stack is
+  -- offered again once nothing showed it moved in time.
+  it("stops quietly when a move stays, and offers the stack again when nothing moved in time", function()
+    open()
+    press(block("Herbs").toBank)
+    assert.equal(1, #used)
+    -- On its way: the button names the next stack.
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    -- 3 s of looking, every 0.2 s, and the run is over: nothing more was sent, and nothing is said.
+    assert.equal(15, ticks())
+    assert.equal(1, #used)
+    assert.is_false(C._Machine():IsRunning())
+    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
+    press(block("Herbs").toBank)
+    assert.equal(2, #used)
+    ticks()
+    assert.equal("To bank: nothing to move", block("Herbs").toBank.label)
+    assert.is_false(block("Herbs").toBank:IsEnabled())
+    -- The settle timer gives both back.
+    for i = #timers, 1, -1 do
+      if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
+    end
+    assert.equal("To bank: Bloom ×200 (2 left)", block("Herbs").toBank.label)
+    assert.is_true(block("Herbs").toBank:IsEnabled())
+    press(block("Herbs").toBank)
+    assert.equal(3, #used)
+  end)
+
+  it("keeps the keep count in the bags: a press moves only what is over it", function()
+    landing = true
+    GC.BankGroups.SetKeep(GC.db, "Herbs", 20)
+    open()
+    assert.equal("To bank: Bloom ×200 (1 left)", block("Herbs").toBank.label)
+    press(block("Herbs").toBank)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
     GC.BankRoute.OnBagsChanged()
     assert.equal("20 in bags, 800 in the Warband Bank", textOf(block("Herbs").counts))
-    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
-    -- A press the server refused (a full bank): the stack stays in its slot.
-    press(block("Herbs").toBank)
-    assert.is_false(block("Herbs").toBank:IsEnabled())
-    GC.BankRoute.OnBagsChanged()
-    assert.is_false(block("Herbs").toBank:IsEnabled())
-    timers[#timers].fn()
-    assert.equal(GC.BankRoute.SETTLE_SECONDS, timers[#timers].seconds)
-    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
-    assert.is_true(block("Herbs").toBank:IsEnabled())
   end)
 
-  -- The card is pressed again and again in one spot: nothing on it moves between two presses, so
-  -- a press never lands on another button. An emptied button stays where it was and is disabled
-  -- only after its own last move; the card's width (and so every line's wrapping) is set for the
-  -- widest label any press can bring, and each line keeps room for the most it can say.
-  it("keeps every button and line where it is between presses, an emptied button included", function()
+  -- The card is pressed again and again in one spot: nothing on it moves between two presses, or
+  -- while a press runs, so a press never lands on another button. An emptied button stays where it
+  -- was and is disabled only by the repaint after its own last move; the card's width (and so every
+  -- line's wrapping) is set for the widest label any press can bring, and each line keeps room for
+  -- the most it can say.
+  it("keeps every button and line where it is while a press runs, an emptied button included", function()
     bags[0][4] = info(6, 5)
     open()
     local card, herbs, ore = C._frame, block("Herbs"), block("Ore")
@@ -268,29 +382,34 @@ describe("bank by group card", function()
       }
     end
     local before = snapshot()
-    local enabledAtCall = {}
+    local enabledAtCall, labels = {}, {}
     local use = _G.C_Container.UseContainerItem
     _G.C_Container.UseContainerItem = function(...)
       enabledAtCall[#enabledAtCall + 1] = herbs.toBank:IsEnabled()
       return use(...)
     end
+    landing = true
     press(herbs.toBank)
-    press(herbs.toBank)
-    -- The next one has the longest name of the group: the card was already wide enough for it.
-    assert.equal("To bank: Mycobloom of the Deepest Earthen Caverns ×5 (1 left)", herbs.toBank.label)
+    labels[1] = herbs.toBank.label
     assert.same(before, snapshot())
-    press(herbs.toBank)
+    -- Each move the game shows repaints the card (BAG_UPDATE_DELAYED) while the press runs on.
+    while true do
+      local due
+      for k, t in ipairs(timers) do
+        if t.seconds == GC.VendorPress.STEP then due = k break end
+      end
+      if not due then break end
+      table.remove(timers, due).fn()
+      GC.BankRoute.OnBagsChanged()
+      if labels[#labels] ~= herbs.toBank.label then labels[#labels + 1] = herbs.toBank.label end
+      assert.same(before, snapshot())
+    end
     assert.same({ true, true, true }, enabledAtCall)
-    assert.equal("To bank: nothing to move", herbs.toBank.label)
+    -- The one with the longest name of the group came up: the card was already wide enough for it.
+    assert.same({ "To bank: Bloom ×20 (2 left)", "To bank: Mycobloom of the Deepest Earthen Caverns ×5 (1 left)",
+      "To bank: nothing to move" }, labels)
     assert.is_false(herbs.toBank:IsEnabled())
-    -- A press on it now moves nothing, and never reaches To bags.
-    press(herbs.toBank)
-    assert.equal(3, #used)
-    assert.same(before, snapshot())
-    -- The three land in the Warband Bank: To bags has four stacks now, To bank none.
-    bags[12][2], bags[12][3], bags[12][4] = bags[0][1], bags[0][2], bags[0][4]
-    bags[0][1], bags[0][2], bags[0][4] = info(9, 1), info(9, 1), info(9, 1)
-    GC.BankRoute.OnBagsChanged()
+    -- The three are in the Warband Bank: To bags has four stacks now, To bank none.
     assert.equal("0 in bags, 825 in the Warband Bank", textOf(herbs.counts))
     assert.equal("To bags: Bloom ×200 (4 left)", herbs.toBags.label)
     assert.same(before, snapshot())
@@ -349,20 +468,22 @@ describe("bank by group card", function()
     assert.same({}, used)
   end)
 
-  it("moves nothing when the slot no longer holds the stack's item, or it is locked", function()
+  it("moves no stack whose slot no longer holds its item, or is locked, and goes on with the rest", function()
     open()
     -- The button names Bloom ×200 in 0:1; the bags change before any event says so.
     bags[0][1] = info(9, 200)
     press(block("Herbs").toBank)
-    assert.same({}, used)
-    -- The refusal repaints: the next press names what is there now.
-    assert.equal("To bank: Bloom ×20 (1 left)", block("Herbs").toBank.label)
-    bags[0][1] = info(1, 200)
-    GC.BankRoute.OnBagsChanged()
+    assert.same({ { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
+    ticks()
+    GC.BankRoute.OnBankClosed()
+    used = {}
+    bags[0][1], bags[0][2] = info(1, 200), info(1, 20)
+    open()
     assert.equal("To bank: Bloom ×200 (2 left)", block("Herbs").toBank.label)
-    bags[0][1] = info(1, 200, { isLocked = true })
+    bags[0][1], bags[0][2] = info(1, 200, { isLocked = true }), info(1, 20, { isLocked = true })
     press(block("Herbs").toBank)
     assert.same({}, used)
+    assert.is_false(C._Machine():IsRunning())
   end)
 
   it("never offers a stack still refundable or one the Warband Bank refuses, and refuses it at the press too", function()
@@ -373,9 +494,10 @@ describe("bank by group card", function()
     refundable["0:1"], refused["0:2"] = nil, nil
     GC.BankRoute.OnBagsChanged()
     local toBank = block("Herbs").toBank
+    -- Refundable again before the press: MoveStack makes no call for it, and the press goes on.
     refundable["0:1"] = true
     press(toBank)
-    assert.same({}, used)
+    assert.same({ { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
   end)
 
   -- A stack that stays is still counted ("220 in bags"), so the card says which one and why.
@@ -586,8 +708,9 @@ describe("bank by group card", function()
     assert.same({}, staysOf(herbs))
     assert.equal("To bank: Bloom ×200 (2 left)", herbs.toBank.label)
     assert.same({ "Stays in bags: Bismuth ×7, your bank does not take it" }, staysOf(ore))
+    landing = true
     press(herbs.toBank)
-    press(block("Herbs").toBank)
+    ticks()
     assert.same({ n = 5, 0, 2, nil, CHARACTER, false }, used[2])
     -- What only the Warband Bank refuses goes into the character's own bank.
     refusedHere["5:2"] = nil

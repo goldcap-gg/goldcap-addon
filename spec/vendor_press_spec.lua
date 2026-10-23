@@ -32,7 +32,7 @@ describe("VendorPress", function()
     calls = { use = {}, report = {} }
     open, cursor, refuse = true, false, false
     machine = P.New({
-      merchantOpen = function() return open end,
+      open = function() return open end,
       slot = function(b, s)
         local x = bags[key(b, s)]
         return x and { link = x.link, isLocked = x.isLocked } or nil
@@ -44,6 +44,9 @@ describe("VendorPress", function()
       end,
       after = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end,
       report = function(r) calls.report[#calls.report + 1] = r end,
+      -- As UI/VendorSellCard.lua drives it.
+      limit = GC.VendorSelect.MAX_STACKS,
+      slowFallback = true,
     })
   end)
 
@@ -187,7 +190,7 @@ describe("VendorPress", function()
 
   it("counts the in-flight sale when stopped", function()
     machine:Press(rows(3))
-    machine:OnMerchantClosed()
+    machine:OnClosed()
     assert.same({ sold = 1, copper = 10, stopped = "closed" }, calls.report[1])
   end)
 
@@ -220,7 +223,7 @@ describe("VendorPress", function()
 
   it("a new visit clears the one-per-press mode", function()
     machine.oneAtATime = true
-    machine:OnMerchantShow()
+    machine:OnShown()
     assert.is_false(machine.oneAtATime)
   end)
 
@@ -238,5 +241,61 @@ describe("VendorPress", function()
     machine:Press({})
     assert.equal(0, #calls.use)
     assert.equal(0, #calls.report)
+  end)
+
+  -- As UI/BankGroupsCard.lua drives it: no cap beyond its rows, no fallback, and a `use` that may
+  -- decline the call (GC.BankRoute.MoveStack's guards).
+  describe("without a limit or a fallback", function()
+    local declined
+    before_each(function()
+      declined = {}
+      machine = P.New({
+        open = function() return open end,
+        slot = function(b, s)
+          local x = bags[key(b, s)]
+          return x and { link = x.link, isLocked = x.isLocked } or nil
+        end,
+        cursorBusy = function() return cursor end,
+        use = function(b, s, row)
+          if declined[s] then return false end
+          calls.use[#calls.use + 1] = { b, s, row }
+          if not refuse then bags[key(b, s)] = nil end
+          return true
+        end,
+        after = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end,
+        report = function(r) calls.report[#calls.report + 1] = r end,
+      })
+    end)
+
+    it("makes a call for every row, the row handed to the call", function()
+      local list = rows(20)
+      machine:Press(list)
+      drain()
+      assert.equal(20, #calls.use)
+      assert.equal(list[20], calls.use[20][3])
+      assert.same({ sold = 20, copper = 2100, stopped = nil }, calls.report[1])
+    end)
+
+    it("skips a row whose call was declined and goes on", function()
+      declined[2] = true
+      machine:Press(rows(3))
+      drain()
+      assert.same({ 1, 3 }, { calls.use[1][2], calls.use[2][2] })
+      assert.equal(2, calls.report[1].sold)
+    end)
+
+    it("stops quietly when a timer call stays, and the next press starts again in the click", function()
+      machine:Press(rows(3))
+      refuse = true
+      drain()
+      assert.equal("stalled", calls.report[1].stopped)
+      assert.is_false(machine.oneAtATime)
+      refuse = false
+      calls.use = {}
+      machine:Press(rows(3))
+      assert.equal(1, #calls.use)
+      drain()
+      assert.same({ sold = 3, copper = 60, stopped = nil }, calls.report[2])
+    end)
   end)
 end)

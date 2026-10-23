@@ -121,12 +121,14 @@ end
 function C._Machine()
   if not C.machine then
     C.machine = GC.VendorPress.New({
-      merchantOpen = merchantOpen,
+      open = merchantOpen,
       slot = slotNow,
       cursorBusy = GC.Util.CursorBusy,
       use = function(bag, slot) C_Container.UseContainerItem(bag, slot) end,
       after = function(seconds, fn) C_Timer.After(seconds, fn) end,
       report = report,
+      limit = GC.VendorSelect.MAX_STACKS,
+      slowFallback = true,
     })
   end
   return C.machine
@@ -325,7 +327,7 @@ function C.Keep(itemID)
 end
 
 function C.OnMerchantShow()
-  C._Machine():OnMerchantShow()
+  C._Machine():OnShown()
   C._open = true
   C.Refresh()
 end
@@ -348,7 +350,7 @@ end
 
 function C.OnMerchantClosed()
   -- First, so what sold before the window closed is counted and reported.
-  if C.machine then C.machine:OnMerchantClosed() end
+  if C.machine then C.machine:OnClosed() end
   C._open = false
   if frame then frame:Hide() end
 end

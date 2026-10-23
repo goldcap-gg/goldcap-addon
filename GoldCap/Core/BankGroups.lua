@@ -10,9 +10,10 @@ local _, GC = ...
 -- the group's id on goldcap.gg, which a follow in another language or a renamed list keeps, else
 -- its name (Core/GroupRules.lua's GroupOf): two groups named alike are two groups.
 --
--- A press moves one stack, whole: the game cannot split a stack in one call. So To bank moves a
--- stack of an item only while the bags keep at least the group's keep count of that item without
--- it, the biggest stack first, and To bags takes every stack of the group out. A stack a press has
+-- A press moves its button's list in order, a stack at a time and each whole: the game cannot
+-- split a stack in one call. So To bank lists a stack of an item only while the bags keep at least
+-- the group's keep count of that item without it, the biggest stack first, and To bags lists every
+-- stack of the group. A stack a press has
 -- sent and the bags do not show moved yet (`moving`) is on its way: it is offered to no press, and
 -- it no longer counts toward what the bags keep. A stack in the bags the bank must not take
 -- (`stays`: refused by it, or still refundable and the bank is the Warband Bank) is counted and
