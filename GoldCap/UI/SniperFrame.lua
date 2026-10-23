@@ -5803,6 +5803,26 @@ function GC.Sniper._LostSlot(row, pending)
   if frame then frame.status:SetText(GC.L["another purchase took over: nothing was confirmed"]) end
 end
 
+-- Somebody else's Start has replaced the client's one commodity purchase (Core/Init.lua's
+-- foreignQuote): Blizzard's own buy window, or another addon. A tombstone not confirmed waited on
+-- a late quote that cannot be told from theirs now, and the Cancel it sent on every price update
+-- is what sent their purchase back for the tombstone's whole 20 seconds (owner, 2026-10-23): it
+-- goes, without one. A purchase of this window's not confirmed is gone from the server as well,
+-- and is dropped the way a lost slot drops one, its slot let go. A confirmed one is left alone:
+-- its answer comes ahead of anything of theirs, and it may have taken gold.
+function GC.Sniper._OnForeignPurchase()
+  local tombstone = commodityDraining
+  if tombstone and not tombstone.confirmed then
+    commodityDraining = nil
+    GC.Sniper._EndDrainHold(tombstone)
+  end
+  local pending = commodityPurchase
+  if pending and not pending.confirmed then
+    GC.Sniper._LostSlot(pending.row, pending)
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+  end
+end
+
 -- Follow-up P1: a confirmed purchase has just settled -- succeeded, failed, answered unavailable,
 -- or been given up on by the stranded release. Buy on the window in front of the player was
 -- held behind it (dark, "waiting for previous commodity purchase to settle") and stayed dark until

@@ -2954,6 +2954,49 @@ describe("Sniper purchase wiring", function()
       assert.is_false(GC.Sniper.IsPurchaseQuiet())
     end)
 
+    -- Owner, 2026-10-23: a purchase in Blizzard's own window within 20 seconds of a Cancel here
+    -- only refreshed, until it went through on its own: the tombstone sent Cancel on its quote.
+    -- Somebody else's Start (Core/Init.lua's foreignQuote) retires an unconfirmed tombstone and an
+    -- unconfirmed purchase as bookkeeping, and nothing here cancels what is now theirs.
+    it("drops what it still waited on when somebody else starts a purchase, and cancels nothing", function()
+      local GC = loadSniper()
+      local cancels = 0
+      _G.C_AuctionHouse.CancelCommoditiesPurchase = function() cancels = cancels + 1 end
+      local row = { purchaseStage = "confirm", purchaseToken = 7,
+        purchaseDeal = { itemID = 42, isCommodity = true } }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7, priceReceived = true })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 9, token = 1 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+      GC.Sniper._OnForeignPurchase()
+
+      assert.equal(0, cancels)
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+      assert.is_nil(row.purchaseStage)
+      -- Nothing left to drain: a price update after it is nobody's here.
+      GC.Sniper.OnCommodityPriceUpdated(7800, 7800)
+      assert.equal(0, cancels)
+    end)
+
+    it("leaves a confirmed purchase and a confirmed tombstone alone when somebody else starts one", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "confirming", purchaseToken = 7,
+        purchaseDeal = { itemID = 42, isCommodity = true } }
+      local pending = { row = row, itemID = 42, token = 7, confirmed = true }
+      local tombstone = { itemID = 9, token = 1, confirmed = true }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", tombstone)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+      GC.Sniper._OnForeignPurchase()
+
+      assert.equal("confirming", row.purchaseStage)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase") == pending)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == tombstone)
+    end)
+
     -- The words came from `_G.AuctionHouseErrorMessages`, a table the client does not have: the
     -- default UI's own lookup is AuctionHouseUtil.GetErrorText (Blizzard_AuctionHouseUtil.lua),
     -- so every error read "the auction house reported an error" whatever it was.

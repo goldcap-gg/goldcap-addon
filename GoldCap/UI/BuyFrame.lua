@@ -1548,6 +1548,22 @@ function GC.Buy._CancelConfirm()
   return true
 end
 
+-- Somebody else's Start has replaced the client's one commodity purchase (Core/Init.lua's
+-- foreignQuote): Blizzard's own buy window, or another addon. What this tab still waited on there
+-- -- a drain's late quote, a Start unanswered, a quote not confirmed -- is gone from the server,
+-- and a Cancel now would hand back THEIRS. Dropped as bookkeeping only, as the Deals window drops
+-- its own (GC.Sniper._LostSlot). A confirmed attempt is left alone: its answer comes ahead of
+-- anything of theirs, and it may have taken gold.
+function GC.Buy._OnForeignPurchase()
+  if GC.Buy._drain then GC.Buy._EndDrain() end
+  local attempt = GC.Buy._attempt
+  if not (attempt and (attempt.stage == "started" or attempt.stage == "confirm")) then return end
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  logAttempt(lineFor(attempt.itemID), GC.L["another purchase took over: nothing was confirmed"])
+  GC.Buy._attempt = nil
+  GC.Buy.RefreshIfShown()
+end
+
 local armStall, retireStalled
 
 -- Re-armed for whatever the attempt has just become, not once at the start. EVERY post-start

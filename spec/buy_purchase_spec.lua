@@ -1569,6 +1569,73 @@ describe("BUY purchase", function()
     assert.are_not.equal("CONFIRM", buttonFor(rowWithText("Alpha Herb")).label)
   end)
 
+  -- Owner, 2026-10-23: a purchase in Blizzard's own window right after a Start of ours was cancelled
+  -- only refreshed, because its quote was read as the late answer to ours and cancelled. A quote
+  -- after somebody else's Start (Core/PurchaseCapture.lua's SessionIsForeign) reaches neither
+  -- window: each drops what it waited on there, and nothing is cancelled.
+  local function foreignCapture()
+    local state = { foreign = false, quotes = 0 }
+    GC.PurchaseCapture = {
+      SessionIsForeign = function() return state.foreign end,
+      OnCommodityPriceUpdated = function() state.quotes = state.quotes + 1 end,
+      OnCommodityPriceUnavailable = function() end,
+    }
+    GC.Sniper._OnForeignPurchase = function() sniperCalls[#sniperCalls + 1] = "foreign" end
+    return state
+  end
+
+  it("offers a quote for somebody else's Start to neither window, and ends a drain without a Cancel", function()
+    local onEvent = loadRouter()
+    local capture = foreignCapture()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn() -- the watchdog: no answer, cancelled, drained
+    assert.is_truthy(GC.Buy._drain)
+    local sent = cancels
+
+    capture.foreign = true
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 7800, 7800)
+
+    assert.same({ "foreign" }, sniperCalls)
+    assert.equal(sent, cancels)
+    assert.is_nil(GC.Buy._drain)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.equal(1, capture.quotes) -- the capture still records the purchase made there
+    onEvent(nil, "COMMODITY_PRICE_UNAVAILABLE")
+    assert.same({ "foreign", "foreign" }, sniperCalls)
+  end)
+
+  it("drops a quote it has not confirmed when somebody else starts, and keeps one it has", function()
+    local onEvent = loadRouter()
+    local capture = foreignCapture()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1020, 10200)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+    local sent = cancels
+
+    capture.foreign = true
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 7800, 7800)
+    assert.is_nil(GC.Buy._attempt)
+    assert.equal(sent, cancels)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("another purchase took over", 1, true))
+
+    -- Confirmed, it may have taken gold, and its answer comes ahead of theirs.
+    capture.foreign = false
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    assert.equal("confirming", GC.Buy._attempt.stage)
+    capture.foreign = true
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 7800, 7800)
+    assert.equal("confirming", GC.Buy._attempt.stage)
+  end)
+
   it("hands a commodity event the tab has no claim on straight to the sniper", function()
     local onEvent = loadRouter()
     onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")

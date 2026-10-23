@@ -449,6 +449,20 @@ local function ensureCraftTicker()
   if C_Timer and C_Timer.NewTicker then craftTicker = C_Timer.NewTicker(1, pumpCraftCapture) end
 end
 
+-- The client's one commodity purchase is somebody else's: Core/PurchaseCapture.lua saw a Start
+-- that was not ours (Blizzard's own buy window, or another addon). Its quote names no attempt, and
+-- both windows would read it as the answer to a Start of their own: the Deals window, still
+-- draining a Start it had cancelled, sent Cancel on it, so a purchase in Blizzard's window only
+-- refreshed until that drain ran out, 20 seconds on (owner, 2026-10-23). So neither window is
+-- offered it; each drops, without a Cancel, what it still waited on there. True when it was so.
+local function foreignQuote()
+  local capture = GC.PurchaseCapture
+  if not (capture and capture.SessionIsForeign and capture.SessionIsForeign()) then return false end
+  if GC.Buy and GC.Buy._OnForeignPurchase then GC.Buy._OnForeignPurchase() end
+  if GC.Sniper._OnForeignPurchase then GC.Sniper._OnForeignPurchase() end
+  return true
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -893,14 +907,17 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- holds the slot (it released it on the way out), so an ownership gate made that whole path
     -- unreachable and handed those successes to the Sniper. GC.Buy.mayOwnTerminal is where the
     -- "can this be ours" question now lives, slot included.
+    --
+    -- A quote that answers somebody else's Start goes to neither window (foreignQuote).
     local unitPrice, totalPrice = ...
-    if not (GC.Buy and GC.Buy.OnCommodityPriceUpdated
+    if not foreignQuote() and not (GC.Buy and GC.Buy.OnCommodityPriceUpdated
         and GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)) then
       if GC.Sniper.OnCommodityPriceUpdated then GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice) end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
-    if not (GC.Buy and GC.Buy.OnCommodityPriceUnavailable and GC.Buy.OnCommodityPriceUnavailable()) then
+    if not foreignQuote() and not (GC.Buy and GC.Buy.OnCommodityPriceUnavailable
+        and GC.Buy.OnCommodityPriceUnavailable()) then
       if GC.Sniper.OnCommodityPriceUnavailable then GC.Sniper.OnCommodityPriceUnavailable() end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end

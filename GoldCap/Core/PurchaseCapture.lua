@@ -8,6 +8,11 @@ local attemptNumber = 0
 local sessionStartedAt = 0
 local hooksInstalled = false
 local commodityAttempt
+-- Whether the client's one commodity purchase on the server is now somebody else's: the last
+-- StartCommoditiesPurchase was made by Blizzard's own buy window or another addon, not by the
+-- Deals window or the BUY tab. A Start replaces whatever purchase was there before, so until one
+-- of ours starts again every quote that comes answers theirs (GC.PurchaseCapture.SessionIsForeign).
+local foreignSession = false
 local itemResults = {}
 local itemAttempts = {}
 
@@ -102,8 +107,10 @@ end
 local function onCommodityStart(itemID, quantity)
   if ownsCommodity(itemID, quantity) then
     commodityAttempt = nil
+    foreignSession = false
     return
   end
+  foreignSession = true
   if not isPositiveInteger(itemID) or not isPositiveInteger(quantity) then
     return
   end
@@ -247,7 +254,16 @@ function GC.PurchaseCapture.OnCommodityPurchaseFailed()
   commodityAttempt = nil
 end
 
+--- True while the last commodity Start this auction house visit was not GoldCap's (see
+--- `foreignSession`): Core/Init.lua then keeps the quotes that come from both purchase windows,
+--- which would read them as answers to their own Start and Cancel them, and tells each window to
+--- drop what it was still waiting on there.
+function GC.PurchaseCapture.SessionIsForeign()
+  return foreignSession
+end
+
 function GC.PurchaseCapture.Reset()
+  foreignSession = false
   commodityAttempt = nil
   itemResults = {}
   itemAttempts = {}

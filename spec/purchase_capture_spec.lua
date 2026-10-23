@@ -39,6 +39,23 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(3, hookCalls)
   end)
 
+  -- A Start replaces the client's one commodity purchase: after Blizzard's own buy window starts
+  -- one, every quote answers theirs until one of GoldCap's windows starts again (Core/Init.lua's
+  -- foreignQuote keeps those quotes from both windows).
+  it("says the commodity purchase is somebody else's from their Start until one of ours", function()
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+    fire("StartCommoditiesPurchase", 42, 3)
+    assert.is_true(GC.PurchaseCapture.SessionIsForeign())
+    ownsCommodity = true
+    fire("StartCommoditiesPurchase", 42, 3)
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+    ownsCommodity = false
+    fire("StartCommoditiesPurchase", 7, 1)
+    assert.is_true(GC.PurchaseCapture.SessionIsForeign())
+    GC.PurchaseCapture.Reset()
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+  end)
+
   it("records a normal commodity only after confirm and success", function()
     fire("StartCommoditiesPurchase", 42, 3)
     GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
