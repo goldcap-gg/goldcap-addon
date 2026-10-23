@@ -96,7 +96,7 @@ function C._Place()
     frame:SetPoint("TOPLEFT", route, "TOPRIGHT", LAYOUT.X, 0)
     return route
   elseif isUp(bank) then
-    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", LAYOUT.X, 0)
+    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", GC.BankRoute.BesideBankX(bank, LAYOUT.X), 0)
     return bank
   end
   frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)

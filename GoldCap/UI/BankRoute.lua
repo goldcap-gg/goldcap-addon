@@ -33,6 +33,26 @@ local BAGS = { 0, 1, 2, 3, 4 }
 local frame
 local pendingSeq = 0
 
+-- How far past the bank window's right edge a panel beside it starts (this list, and the bank by
+-- group card): past the tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
+-- BankPanelMixin:RefreshBankTabs, 2 out from it), which covered the left of both (owner,
+-- 2026-10-23). Measured from what the panel shows past the edge, plus the tab's border past its
+-- button: SpellBook-SkillLineTab is 64 wide at x -3 and drawn to x 38, 4 past the 32-wide button.
+-- `gap` alone where nothing sticks out.
+local TAB_BORDER = 4
+function P.BesideBankX(bank, gap)
+  local panel = _G.BankPanel
+  local edge = type(bank) == "table" and bank.GetRight and bank:GetRight()
+  if not (edge and type(panel) == "table" and panel.GetChildren) then return gap end
+  local far = edge
+  for _, child in ipairs({ panel:GetChildren() }) do
+    local right = child.IsShown and child:IsShown() and child.GetRight and child:GetRight()
+    if right and right > far then far = right end
+  end
+  if far <= edge then return gap end
+  return far - edge + TAB_BORDER + gap
+end
+
 local function accountBank()
   return Enum and Enum.BankType and Enum.BankType.Account or nil
 end
@@ -367,7 +387,7 @@ function P.Refresh()
   frame:ClearAllPoints()
   local bank = _G.BankFrame
   if type(bank) == "table" and bank.IsShown and bank:IsShown() then
-    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", LAYOUT.X, 0)
+    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", P.BesideBankX(bank, LAYOUT.X), 0)
   else
     frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
   end

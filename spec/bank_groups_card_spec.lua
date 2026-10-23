@@ -789,6 +789,26 @@ describe("bank by group card", function()
     assert.same({ "TOPLEFT", route, "TOPRIGHT", 4, 0 }, at(C._frame))
   end)
 
+  -- Blizzard hangs the bank's tab buttons off the bank panel's right edge (BankFrame.lua,
+  -- BankPanelMixin:RefreshBankTabs), and they covered the left of the card (owner, 2026-10-23).
+  it("starts past the bank's tab buttons, their border included", function()
+    function _G.BankFrame:GetRight() return 500 end
+    local tab = W.CreateFrame("Button", nil, _G.BankPanel)
+    function tab:GetRight() return 534 end -- 2 out from the edge, 32 wide
+    local hidden = W.CreateFrame("Button", nil, _G.BankPanel)
+    function hidden:GetRight() return 900 end
+    hidden:Hide()
+    local inside = W.CreateFrame("Button", nil, _G.BankPanel)
+    function inside:GetRight() return 480 end
+    open()
+    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 34 + 4 + 4, 0 }, at(C._frame))
+    -- Nothing past the edge: the usual gap.
+    tab:Hide()
+    GC.BankRoute.OnBankClosed()
+    open()
+    assert.same({ "TOPLEFT", _G.BankFrame, "TOPRIGHT", 4, 0 }, at(C._frame))
+  end)
+
   -- A newer GoldCap's keep counts cannot be read here, so To bank would ignore them: neither the
   -- keep count nor To bank is offered (To bank's row stays), To bags still is.
   it("offers neither the keep count nor To bank when a newer GoldCap saved the keep counts", function()

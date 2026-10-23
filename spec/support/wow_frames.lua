@@ -130,6 +130,7 @@ function W.CreateFrame(kind, _, parent)
     if siblings then siblings[#siblings + 1] = f end
   end
   s.scripts = {}
+  function f:GetChildren() return unpack(s.children) end
   function f:SetFrameLevel(level) s.level = level end
   function f:GetFrameLevel() return s.level end
   function f:SetFrameStrata(strata) s.strata = strata end
