@@ -164,6 +164,50 @@ describe("GroupRules", function()
     assert.is_false(GC.GroupRules.Adopt())
   end)
 
+  it("answers a subgroup's parent and its own short name", function()
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 }, { i = 11, c = 700, u = 1000, r = 2 } },
+      { { n = "Herbs: Classic", id = "herbs-classic", pi = "herbs", pn = "Herbs", cn = "Classic", p = "gather", d = 24 },
+        GATHER })
+    assert.same({ "herbs-classic", "Herbs: Classic", "herbs", "Herbs", "Classic" }, { GC.GroupRules.GroupOf(10) })
+    -- A top group has no parent.
+    assert.same({ "Herbs", "Herbs" }, { GC.GroupRules.GroupOf(11) })
+    -- No short name of its own: the whole name stands in for it.
+    adopt({ { i = 10, c = 700, u = 1000, r = 1 } },
+      { { n = "Herbs: Classic", id = "herbs-classic", pi = "herbs", pn = "Herbs", p = "gather", d = 24 } })
+    assert.same({ "herbs-classic", "Herbs: Classic", "herbs", "Herbs", "Herbs: Classic" }, { GC.GroupRules.GroupOf(10) })
+  end)
+
+  it("has no parent for a malformed parent id or a parent with no name", function()
+    local function parentOf(over)
+      local rule = { n = "Herbs: Classic", id = "herbs-classic", pi = "herbs", pn = "Herbs", cn = "Classic",
+        p = "gather", d = 24 }
+      for k, v in pairs(over) do rule[k] = v end
+      adopt({ { i = 10, c = 700, u = 1000, r = 1 } }, { rule })
+      return { GC.GroupRules.GroupOf(10) }
+    end
+    local bare = { "herbs-classic", "Herbs: Classic" }
+    assert.same(bare, parentOf({ pi = "Herbs" }))
+    assert.same(bare, parentOf({ pi = "" }))
+    assert.same(bare, parentOf({ pi = 7 }))
+    assert.same(bare, parentOf({ pi = string.rep("a", 81) }))
+    assert.same(bare, parentOf({ pn = "" }))
+    assert.same(bare, parentOf({ pn = false }))
+    assert.same(bare, parentOf({ pn = 5 }))
+    assert.same(bare, parentOf({ pn = 5 }))
+    assert.same({ "herbs-classic", "Herbs: Classic", "herbs", "Herbs", "Herbs: Classic" }, parentOf({ cn = "" }))
+  end)
+
+  it("reports a change of the parent id, its name or the short name alone", function()
+    assert.is_true(adopt({ { i = 10, c = 700, u = 1000, r = 1 } },
+      { { n = "Herbs: Classic", id = "herbs-classic", pi = "herbs", pn = "Herbs", cn = "Classic", p = "gather", d = 24 } }))
+    assert.is_false(GC.GroupRules.Adopt())
+    for _, field in ipairs({ { "pi", "herbs-2" }, { "pn", "Kräuter" }, { "cn", "Klassik" } }) do
+      _G.GoldCap_AppRuns.rules[1][field[1]] = field[2]
+      assert.is_true(GC.GroupRules.Adopt(), field[1])
+      assert.is_false(GC.GroupRules.Adopt(), field[1])
+    end
+  end)
+
   it("unreadable rules give nothing", function()
     for _, bad in ipairs({
       { rules = { { n = "X", p = "gather", d = 36 } }, r = 1 },

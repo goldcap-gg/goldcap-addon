@@ -2,14 +2,15 @@
 -- group's members as price caps, and each cap may point (`r`, 1-based in the file) at one of the
 -- top-level `rules`: { n = name, id = the group's slug, p = flip|gather|craft|stock, d = 12|24|48
 -- hours, q = 1 for one at a time, fp = floor as a percent of usual, s = percent cheaper per unsold
--- round }. The cap itself carries the usual price `u` and, for a craft group, the cost to craft `f`.
+-- round, and for a subgroup only pi = its parent group's slug, pn = the parent's name, cn = the
+-- subgroup's own short label }. The cap itself carries the usual price `u` and, for a craft group, the cost to craft `f`.
 -- The Companion writes all of it into GoldCap_AppRuns (Core/Caps.lua reads the same caps for
 -- DEALS). Retail only: GoldCap_Camelot.toc does not load this file, so every caller asks
 -- `if GC.GroupRules`.
 --
 -- The name is the group's in the language of the player's newest follow, so it can change; the id
 -- (lowercase letters, digits, `_` and `-`, 1 to 80 of them; anything else is read as no id) does
--- not. An older Companion's file has no id.
+-- not. An older Companion's file has no id. The parent's slug `pi` is read the same way.
 --
 -- The first cap of an item decides its rule, exactly as it decides the item's cap, so the SELL
 -- chip and the DEALS row name the same group. An unreadable rule or index gives the item no rule.
@@ -52,6 +53,12 @@ local function groupId(v)
   return nil
 end
 
+-- A non-empty string, or nil.
+local function label(v)
+  if type(v) == "string" and v ~= "" then return v end
+  return nil
+end
+
 local function readableRule(rule)
   return type(rule) == "table" and type(rule.n) == "string" and rule.n ~= ""
     and PLAYS[rule.p] == true and M.HOURS_TO_INDEX[rule.d] ~= nil
@@ -61,6 +68,7 @@ local function sameEntry(a, b)
   if a.l ~= b.l or a.u ~= b.u or a.f ~= b.f then return false end
   local x, y = a.rule, b.rule
   return x.n == y.n and x.id == y.id and x.p == y.p and x.d == y.d and x.q == y.q and x.fp == y.fp and x.s == y.s
+    and x.pi == y.pi and x.pn == y.pn and x.cn == y.cn
 end
 
 function M.Adopt(raw)
@@ -81,7 +89,7 @@ function M.Adopt(raw)
             local u, f = num(entry.u), num(entry.f)
             nextByItem[i] = {
               rule = { n = rule.n, id = groupId(rule.id), p = rule.p, d = rule.d, q = rule.q, fp = rule.fp,
-                s = rule.s },
+                s = rule.s, pi = groupId(rule.pi), pn = label(rule.pn), cn = label(rule.cn) },
               l = math.max(0, math.floor(l)),
               u = u and u > 0 and math.floor(u) or nil,
               f = f and f > 0 and math.floor(f) or nil,
@@ -139,10 +147,18 @@ end
 -- Companion's file, or one made by hand) its name: the bank card (UI/BankGroupsCard.lua) keeps a
 -- group's count by the key, so a follow in another language or a renamed list keeps it, and shows
 -- the name.
+--
+-- A subgroup also answers its parent's key and name and its own short name (`cn`, else the whole
+-- name), for the bank window to fold groups sharing a parent into a folder. A folder needs a name,
+-- so a rule with a good `pi` but no `pn` has no parent at all: all three are nil, as they are for
+-- a top group and for a malformed `pi`.
 function M.GroupOf(itemID)
   local entry = byItem[itemID]
   if not entry then return nil end
-  return entry.rule.id or entry.rule.n, entry.rule.n
+  local rule = entry.rule
+  local key, name = rule.id or rule.n, rule.n
+  if rule.pi and rule.pn then return key, name, rule.pi, rule.pn, rule.cn or name end
+  return key, name
 end
 
 -- Whether any followed group reached the addon: false with no Companion file, an old one, or no

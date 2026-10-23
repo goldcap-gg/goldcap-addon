@@ -23,7 +23,7 @@ describe("bank by group", function()
       groupOf = function(id)
         if keyed then
           local g = keyed[id]
-          if g then return g[1], g[2] end
+          if g then return g[1], g[2], g[3], g[4], g[5] end
           return nil
         end
         return GROUP[id], GROUP[id]
@@ -56,6 +56,24 @@ describe("bank by group", function()
       assert.equal("Ore", groups[2].name)
       assert.equal(50, groups[2].inBags)
       assert.equal(0, groups[2].inBank)
+    end)
+
+    it("carries a group's parent and short name onto the group, nil for a top group", function()
+      local groups = M.Plan({ stack(1, 0, 1, 200), stack(3, 5, 1, 50) }, {}, {
+        groupOf = function(id)
+          if id == 1 then return "herbs-classic", "Herbs: Classic", "herbs", "Herbs", "Classic" end
+          return "Ore", "Ore"
+        end,
+        keepFor = function() return 0 end,
+      })
+      assert.equal("herbs-classic", groups[1].key)
+      assert.equal("herbs", groups[1].parentKey)
+      assert.equal("Herbs", groups[1].parentName)
+      assert.equal("Classic", groups[1].shortName)
+      assert.equal("Ore", groups[2].key)
+      assert.is_nil(groups[2].parentKey)
+      assert.is_nil(groups[2].parentName)
+      assert.is_nil(groups[2].shortName)
     end)
 
     it("leaves out a group with nothing here, and items in no followed group", function()

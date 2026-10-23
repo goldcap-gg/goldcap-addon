@@ -97,18 +97,21 @@ end
 --- also carries what no press can raise, for the card to size itself once: `items`, every item of
 --- the group here { itemID, name, count } with its count in the bags and the bank together, and
 --- `stackCount`, its stacks in both (a stack moves whole, and landing on another only merges them).
---- `opts.groupOf(itemID)` answers an item's group as its key and its name, `opts.keepFor(key)` its
---- keep count, and `opts.moving[bag .. ":" .. slot]` marks a stack a press has sent.
+--- Each group also has `parentKey`, `parentName` and `shortName` (nil for a top group), as
+--- `opts.groupOf(itemID)` answers them after the key and the name (Core/GroupRules.lua's GroupOf).
+--- `opts.keepFor(key)` answers a group's keep count, and `opts.moving[bag .. ":" .. slot]` marks a
+--- stack a press has sent.
 function M.Plan(bagStacks, bankStacks, opts)
   local moving = opts.moving or {}
   local groups, byKey = {}, {}
   -- The stack's group, or nil; the stack is counted in it (stackCount, items).
   local function groupFor(stack)
-    local key, name = opts.groupOf(stack.itemID)
+    local key, name, parentKey, parentName, shortName = opts.groupOf(stack.itemID)
     if not key then return nil end
     local group = byKey[key]
     if not group then
-      group = { key = key, name = name or key, inBags = 0, inBank = 0, keep = opts.keepFor(key) or 0, toBank = {},
+      group = { key = key, name = name or key, parentKey = parentKey, parentName = parentName,
+        shortName = shortName, inBags = 0, inBank = 0, keep = opts.keepFor(key) or 0, toBank = {},
         toBags = {}, stays = {}, items = {}, stackCount = 0, bagItems = {}, bankItems = {}, staysBy = {}, totals = {} }
       byKey[key] = group
       groups[#groups + 1] = group
