@@ -15,6 +15,10 @@ local KEYS = {
   -- of the card's bank choice are the bank window's own tab names, Blizzard's BANK and
   -- ACCOUNT_BANK_PANEL_TITLE, so they need no key.
   "%d in bags, %d in your bank", "Stays in bags: %s ×%d, your bank does not take it",
+  -- The card's two buttons over every group, and its line on the GoldCap tab's panel with no group
+  -- here; the panel's own line when it holds nothing (UI/BankTab.lua). The tab's name is GoldCap's.
+  "All to bank", "All to bags", "None of your groups' items are in your bags or this bank.",
+  "Nothing to move at this bank.",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

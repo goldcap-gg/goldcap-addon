@@ -271,6 +271,51 @@ describe("bank by group card", function()
     assert.equal("To bags: nothing to move", block("Herbs").toBags.label)
   end)
 
+  -- All to bank and All to bags, under the bank choice: one press over every group's list, group by
+  -- group (Herbs, then Ore), through the same machine as a group's own button.
+  it("puts every group in the bank on one press of All to bank, and takes them all out with All to bags", function()
+    landing = true
+    open()
+    local allBank, allBags = C._frame.allBank, C._frame.allBags
+    assert.equal("All to bank", allBank.label)
+    assert.equal("All to bags", allBags.label)
+    press(allBank)
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 2, nil, ACCOUNT, false },
+      { n = 5, 5, 1, nil, ACCOUNT, false } }, used)
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("0 in bags, 820 in the Warband Bank", textOf(block("Herbs").counts))
+    assert.equal("0 in bags, 50 in the Warband Bank", textOf(block("Ore").counts))
+    -- Nothing left for it: in its place, its label kept, disabled.
+    assert.is_true(shown(allBank))
+    assert.is_false(allBank:IsEnabled())
+    used = {}
+    press(allBags)
+    ticks()
+    assert.equal(4, #used)
+    for _, call in ipairs(used) do assert.equal(2, call.n) end
+    GC.BankRoute.OnBagsChanged()
+    assert.equal("820 in bags, 0 in the Warband Bank", textOf(block("Herbs").counts))
+    assert.equal("50 in bags, 0 in the Warband Bank", textOf(block("Ore").counts))
+    assert.is_false(allBags:IsEnabled())
+  end)
+
+  it("keeps each group's keep count on All to bank, and stops at a second press", function()
+    landing = true
+    GC.BankGroups.SetKeep(GC.db, "Herbs", 20)
+    open()
+    press(C._frame.allBank)
+    press(C._frame.allBank)
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
+    GC.BankRoute.OnBagsChanged()
+    press(C._frame.allBank)
+    ticks()
+    -- The 20 Bloom Herbs keeps stay; Ore keeps none.
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 5, 1, nil, ACCOUNT, false } }, used)
+  end)
+
   it("stops at a second press, which moves nothing itself, and starts again at the next", function()
     landing = true
     bags[0][4] = info(6, 5)

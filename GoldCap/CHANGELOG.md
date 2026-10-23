@@ -31,12 +31,16 @@
   equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
   or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
   only when they are junk.
-- Bank, in retail WoW: a card beside the bank lists the groups you follow on goldcap.gg that have
-  items in your bags, your bank or the Warband Bank. Pick your bank or the Warband Bank on the card:
-  it starts on the one the bank window shows. One press of To bank puts the whole group in that
-  bank, and one press of To bags takes it all back out; press again to stop. You can set how many
-  of each item stay in your bags. A stack that has to stay, because that bank does not take it or,
-  for the Warband Bank, because you can still return it for a refund, is named with why.
+- Bank, in retail WoW: the bank window has a GoldCap tab after Bank and Warband Bank. It lists the
+  groups you follow on goldcap.gg that have items in your bags, your bank or the Warband Bank, and
+  the list of flips to carry to another realm moves there too. Pick your bank or the Warband Bank
+  on the tab: it starts on the one the bank window showed. One press of To bank puts the whole
+  group in that bank, and one press of To bags takes it all back out; All to bank and All to bags
+  do it for every group at once. Press again to stop. You can set how many of each item stay in
+  your bags. A stack that has to stay, because that bank does not take it or, for the Warband
+  Bank, because you can still return it for a refund, is named with why. The bank opens on the
+  tab you closed it on. With a bag addon that replaces the bank window, all of this shows beside
+  the bank instead.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A

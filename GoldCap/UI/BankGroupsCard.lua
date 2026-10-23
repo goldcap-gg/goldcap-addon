@@ -55,9 +55,11 @@ local C = GC.BankGroupsCard
 -- the card leaves free under it, above the action bars.
 -- SEG_PAD, SEG_MIN: the bank choice's track around its two sides, and a side's least width, as the
 -- crafting panel's view switch has them (UI/CraftPanel.lua).
+-- COL_GAP: between two columns of groups, on the GoldCap tab's panel (UI/BankTab.lua), where the
+-- card is as wide as its room and the groups stand in as many columns as fit.
 local LAYOUT = { WIDTH = 260, PAD = 10, GAP = 4, X = 4, LINE_GAP = 2, BLOCK_GAP = 8, BUTTON_H = 22,
   KEEP_H = 18, BUTTON_MIN_W = 80, NAME_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160, SEG_PAD = 2,
-  SEG_MIN = 60 }
+  SEG_MIN = 60, COL_GAP = 12 }
 -- The backpack, the four bag slots and the reagent bag: herbs, ore and cloth go to the reagent bag.
 local BAGS = { 0, 1, 2, 3, 4, 5 }
 
@@ -81,6 +83,9 @@ C._width = nil
 C._besideRoute = false
 C._shown = {}
 C._unfolded = false
+-- On the GoldCap tab's panel, the room the card has there ({ width, height }), as of its last
+-- placing; nil beside the bank.
+C._slot = nil
 local frame
 local settleSeq = 0
 
@@ -93,13 +98,25 @@ local function heightOf(fs, fallback)
   return type(h) == "number" and h or fallback
 end
 
---- Beside the carry list once it has shown in this visit to the bank, else beside the bank window:
---- a column of its own, which the carry list's height never moves. Answers the frame whose top
---- the card's top is level with, or nil.
+--- On the GoldCap tab's panel while that tab is picked (UI/BankTab.lua): at its left, as wide as
+--- the panel less the carry list's column once the carry list has shown in this visit, and no
+--- taller than the panel (C._slot). Else beside the carry list once it has shown in this visit to
+--- the bank, else beside the bank window: a column of its own, which the carry list's height never
+--- moves. Answers the frame whose top the card's top is level with beside the bank, or nil.
 function C._Place()
   local route, bank = GC.BankRoute._frame, _G.BankFrame
   if isUp(route) then C._besideRoute = true end
   if not frame then return nil end
+  local tab = GC.BankTab
+  local roomW, roomH
+  if tab then roomW, roomH = tab.Hold(frame, "left") end
+  if roomW then
+    if C._besideRoute and route then roomW = roomW - route:GetWidth() - tab.PAD end
+    C._slot = { width = roomW, height = roomH }
+    return nil
+  end
+  C._slot = nil
+  if tab then tab.Release(frame) end
   frame:ClearAllPoints()
   if C._besideRoute and route then
     frame:SetPoint("TOPLEFT", route, "TOPRIGHT", LAYOUT.X, 0)
@@ -110,6 +127,14 @@ function C._Place()
   end
   frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
   return nil
+end
+
+-- The carry list painted (it shows, hides and grows by itself): the card is placed again, and on
+-- the tab's panel painted again when the list's column has just come, so the card makes room.
+function C._OnRouteRefresh()
+  local had = C._besideRoute
+  C._Place()
+  if C._slot and not had and C._besideRoute and isUp(frame) then C.Refresh() end
 end
 
 -- The most the card may be tall: the room from its top (the top of what it stands beside) down to
@@ -258,6 +283,16 @@ local function bankName(bankType)
   return type(name) == "string" and name or ""
 end
 
+local function moveButton(parent, variant, into)
+  local button = GC.Theme.Button(parent, variant, "plaque")
+  -- In the scroll, which clips at its edges: a halo would be cut flat along the card's left side.
+  button:SetGlow(false)
+  button:SetHeight(LAYOUT.BUTTON_H)
+  button.into = into
+  button:SetScript("OnClick", onMoveClick)
+  return button
+end
+
 -- The title and the bank choice, then the kit's scroll (UIPanelScrollFrameTemplate under
 -- Theme.QuietScrollBar, its bar hidden while everything fits), whose child holds the blocks and the
 -- fold line. The choice is the crafting panel's view switch (UI/CraftPanel.lua): a sunken track,
@@ -293,17 +328,13 @@ local function build()
   frame.fold = T.Button(frame.content, "ghost", "badge")
   frame.fold:SetHeight(LAYOUT.KEEP_H)
   frame.fold:SetScript("OnClick", onFoldClick)
+  -- Under the choice: one press over every group's list at once.
+  frame.allBank = moveButton(frame, "primary", true)
+  frame.allBags = moveButton(frame, "ghost", false)
+  -- On the tab's panel, where the card shows with no group here: says so, under the choice.
+  frame.empty = wrappingLabel(frame.content, 11, T.color.fgDim)
+  frame.empty:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, 0)
   C._frame = frame
-end
-
-local function moveButton(parent, variant, into)
-  local button = GC.Theme.Button(parent, variant, "plaque")
-  -- In the scroll, which clips at its edges: a halo would be cut flat along the card's left side.
-  button:SetGlow(false)
-  button:SetHeight(LAYOUT.BUTTON_H)
-  button.into = into
-  button:SetScript("OnClick", onMoveClick)
-  return button
 end
 
 -- One group: its name and keep count, how many are where, To bank and To bags.
@@ -486,10 +517,60 @@ local function hide()
   if frame then frame:Hide() end
 end
 
--- The card: its title and the bank choice, then in the scroll as blocks the groups with something
--- to move or a stack that stays in the bags (and those shown as a block earlier in this visit), the
--- fold line for the others, and, opened, their blocks under it.
+-- All to bank and All to bags: one press over every group's list, group by group in the plan's
+-- order; disabled with nothing to move. Their label never changes, so a press never resizes them.
+-- Answers the width the two take side by side.
+local function paintAll(groups, writable)
+  local lists = { toBank = {}, toBags = {} }
+  for _, group in ipairs(groups) do
+    for _, key in ipairs({ "toBank", "toBags" }) do
+      for _, stack in ipairs(group[key]) do lists[key][#lists[key] + 1] = stack end
+    end
+  end
+  local width = 0
+  for _, entry in ipairs({ { frame.allBank, lists.toBank, GC.L["All to bank"] },
+    { frame.allBags, lists.toBags, GC.L["All to bags"] } }) do
+    local button, stacks, label = entry[1], entry[2], entry[3]
+    button.stacks = stacks
+    button:SetLabel(label)
+    button:FitLabels({ label }, LAYOUT.BUTTON_MIN_W)
+    if #stacks > 0 then button:Enable() else button:Disable() end
+    width = width + button:GetWidth()
+  end
+  -- Without the keep counts (a newer GoldCap's), To bank is not offered; All to bags keeps its place.
+  frame.allBank:SetShown(writable)
+  return width + LAYOUT.GAP
+end
+
+-- Blocks first to last in rows of `cols`, each `colW` wide, from `y` down in the content; a row as
+-- tall as its tallest block. Answers the y under the last row.
+local function placeBlocks(first, last, cols, colW, y)
+  local i = first
+  while i <= last do
+    local rowH = 0
+    for c = 0, cols - 1 do
+      local block = C._blocks[i + c]
+      if not block or i + c > last then break end
+      block:ClearAllPoints()
+      block:SetPoint("TOPLEFT", frame.content, "TOPLEFT", c * (colW + LAYOUT.COL_GAP), -y)
+      block:Show()
+      rowH = math.max(rowH, layoutBlock(block, colW))
+    end
+    y = y + rowH
+    i = i + cols
+    if i <= last then y = y + LAYOUT.BLOCK_GAP end
+  end
+  return y
+end
+
+-- The card: its title, the bank choice and the two All buttons, then in the scroll as blocks the
+-- groups with something to move or a stack that stays in the bags (and those shown as a block
+-- earlier in this visit), the fold line for the others, and, opened, their blocks under it. Beside
+-- the bank the blocks stand in one column and the card is as wide as they need; on the tab's panel
+-- the card is as wide as its room, and the blocks stand in as many columns of that width as fit.
 local function paint(groups, usable)
+  local beside = C._Place()
+  local slot = C._slot
   local writable = GC.BankGroups.Writable(GC.db)
   local words = bankWords()
   local open, folded = {}, {}
@@ -508,7 +589,7 @@ local function paint(groups, usable)
   if C._unfolded then
     for _, group in ipairs(folded) do listed[#listed + 1] = group end
   end
-  local widest = paintChoice(usable)
+  local widest = math.max(paintChoice(usable), paintAll(groups, writable))
   for i, group in ipairs(listed) do
     widest = math.max(widest, paintBlock(blockAt(i), group, writable, words))
   end
@@ -522,41 +603,53 @@ local function paint(groups, usable)
     fold:Hide()
   end
   -- Only ever wider while the bank is open: a narrower card would wrap its lines anew.
-  local width = math.max(LAYOUT.WIDTH, widest + LAYOUT.PAD + LAYOUT.BAR, C._width or 0)
-  C._width = width
+  local natural = math.max(LAYOUT.WIDTH, widest + LAYOUT.PAD + LAYOUT.BAR, C._width or 0)
+  C._width = natural
+  local width = slot and math.max(natural, slot.width) or natural
   local inner = width - LAYOUT.PAD - LAYOUT.BAR
+  local cols, colW = 1, inner
+  if slot then
+    local blockW = natural - LAYOUT.PAD - LAYOUT.BAR
+    cols = math.max(1, math.floor((inner + LAYOUT.COL_GAP) / (blockW + LAYOUT.COL_GAP)))
+    colW = math.floor((inner - (cols - 1) * LAYOUT.COL_GAP) / cols)
+  end
   frame:SetWidth(width)
   frame.title:SetWidth(inner)
   frame.title:SetText(GC.L["GoldCap: your groups"])
   local titleH = heightOf(frame.title, 12)
+  local choiceY = LAYOUT.PAD + titleH + LAYOUT.LINE_GAP
   frame.choice:ClearAllPoints()
-  frame.choice:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP))
-  local y = 0
-  local function place(i)
-    local block = C._blocks[i]
-    block:ClearAllPoints()
-    block:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
-    block:Show()
-    y = y + layoutBlock(block, inner)
+  frame.choice:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -choiceY)
+  local allY = choiceY + frame.choice:GetHeight() + LAYOUT.GAP
+  frame.allBank:ClearAllPoints()
+  frame.allBank:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -allY)
+  frame.allBags:ClearAllPoints()
+  if frame.allBank:IsShown() then
+    frame.allBags:SetPoint("LEFT", frame.allBank, "RIGHT", LAYOUT.GAP, 0)
+  else
+    frame.allBags:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -allY)
   end
-  for i = 1, #open do
-    if i > 1 then y = y + LAYOUT.BLOCK_GAP end
-    place(i)
-  end
+  local y = placeBlocks(1, #open, cols, colW, 0)
   if #folded > 0 then
     if #open > 0 then y = y + LAYOUT.BLOCK_GAP end
     fold:ClearAllPoints()
     fold:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
     y = y + LAYOUT.KEEP_H
-    for i = #open + 1, #listed do
-      y = y + LAYOUT.BLOCK_GAP
-      place(i)
-    end
+    if #listed > #open then y = placeBlocks(#open + 1, #listed, cols, colW, y + LAYOUT.BLOCK_GAP) end
+  end
+  local empty = frame.empty
+  if #groups == 0 then
+    empty:SetWidth(inner)
+    empty:SetText(GC.L["None of your groups' items are in your bags or this bank."])
+    empty:Show()
+    y = heightOf(empty, 12)
+  else
+    empty:Hide()
   end
   y = math.ceil(y)
   frame.content:SetSize(inner, y)
-  local top = math.ceil(LAYOUT.PAD + titleH + LAYOUT.LINE_GAP + frame.choice:GetHeight() + LAYOUT.GAP * 2)
-  local height = math.min(top + y + LAYOUT.PAD, maxHeight(C._Place()))
+  local top = math.ceil(allY + LAYOUT.BUTTON_H + LAYOUT.GAP * 2)
+  local height = math.min(top + y + LAYOUT.PAD, slot and slot.height or maxHeight(beside))
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -top)
@@ -566,10 +659,14 @@ end
 
 --- Reads the bags and the bank the card works with again and paints the card, or hides it: with no
 --- followed group (then nothing is built and no slot is read), with the bank closed or not the
---- window, with neither bank usable here with a tab, and when no followed group has an item here.
+--- window, while the bank window shows Blizzard's own tab and not GoldCap's (UI/BankTab.lua), with
+--- neither bank usable here with a tab, and beside the bank when no followed group has an item
+--- here. On the GoldCap tab's panel it shows then too, saying so, with its bank choice.
 function C.Refresh()
   local route, character, account = GC.BankRoute, banks()
   if not (character and account and GC.GroupRules.HasGroups()) then return hide() end
+  local where = GC.BankTab and GC.BankTab.Where() or "beside"
+  if where == "away" then return hide() end
   -- The window shows another bank than at the last paint (it opened, or the player clicked its
   -- other tab): the card goes along. Else the bank stays the one the player chose on the card.
   local shown = route.ShownBankType()
@@ -588,7 +685,7 @@ function C.Refresh()
       keepFor = function(key) return GC.BankGroups.KeepFor(GC.db, key) end,
       moving = C._moving,
     })
-  if #groups == 0 then return hide() end
+  if #groups == 0 and where ~= "inside" then return hide() end
   if not frame then build() end
   paint(groups, usable)
 end
@@ -636,12 +733,12 @@ function C.OnBankShown()
 end
 
 -- The route's handlers are what Core/Init.lua calls on the bank events; the card follows each, and
--- is placed again after every repaint of the carry list, which shows, hides and grows by itself.
+-- is placed again after every repaint of the carry list (C._OnRouteRefresh).
 if hooksecurefunc and GC.BankRoute then
   hooksecurefunc(GC.BankRoute, "OnBankOpened", C.OnBankOpened)
   hooksecurefunc(GC.BankRoute, "OnBankClosed", C.OnBankClosed)
   hooksecurefunc(GC.BankRoute, "OnBagsChanged", C.OnBagsChanged)
-  hooksecurefunc(GC.BankRoute, "Refresh", C._Place)
+  hooksecurefunc(GC.BankRoute, "Refresh", C._OnRouteRefresh)
 end
 -- Blizzard's bank panel (Blizzard_UIPanels_Game's BankFrame.lua, BankPanelMixin) resets as the
 -- window opens (its OnShow), when the player clicks the other bank's tab (BankFrame:SetTab, then

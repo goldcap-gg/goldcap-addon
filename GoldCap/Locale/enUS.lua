@@ -1517,4 +1517,8 @@ GC.Locales.enUS = {
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Stays in bags: %s ×%d, the Warband Bank does not take it",
   ["%d in bags, %d in your bank"] = "%d in bags, %d in your bank",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Stays in bags: %s ×%d, your bank does not take it",
+  ["All to bank"] = "All to bank",
+  ["All to bags"] = "All to bags",
+  ["None of your groups' items are in your bags or this bank."] = "None of your groups' items are in your bags or this bank.",
+  ["Nothing to move at this bank."] = "Nothing to move at this bank.",
 }

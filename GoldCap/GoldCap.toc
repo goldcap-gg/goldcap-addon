@@ -159,6 +159,7 @@ UI/BuyVendorPanel.lua
 UI/VendorSellCard.lua
 UI/BankRoute.lua
 UI/BankGroupsCard.lua
+UI/BankTab.lua
 UI/MailCollect.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua

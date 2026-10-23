@@ -25,8 +25,11 @@ P.SETTLE_SECONDS = 3
 P._rows = {}
 P._headings = {}
 
-local LAYOUT = { WIDTH = 240, PAD = 10, GAP = 4, X = 4, ICON = 24, ICON_GAP = 6, ROW_GAP = 8,
-  SECTION_GAP = 12, BUTTON_H = 22, BUTTON_MIN_W = 80 }
+-- WIDTH: the rows' width. The list is PAD left of them and BAR right, where the scroll's bar hangs
+-- (as on the bank by group card, UI/BankGroupsCard.lua). SCREEN_GAP, MIN_H: what the list leaves
+-- free under it beside the bank, and its least height.
+local LAYOUT = { WIDTH = 220, PAD = 10, GAP = 4, X = 4, ICON = 24, ICON_GAP = 6, ROW_GAP = 8,
+  SECTION_GAP = 12, BUTTON_H = 22, BUTTON_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160 }
 -- The backpack and the four bag slots; the reagent bag holds no realm item.
 local BAGS = { 0, 1, 2, 3, 4 }
 
@@ -242,19 +245,30 @@ function P._Expire(token)
   end
 end
 
+-- The title, then the kit's scroll (UIPanelScrollFrameTemplate under Theme.QuietScrollBar, its bar
+-- hidden while everything fits), whose child holds the headings, the rows and the note.
 local function build()
   local T = GC.Theme
   frame = T.Card(UIParent, T.color.panel, T.color.border, true)
-  frame:SetWidth(LAYOUT.WIDTH)
+  frame:SetWidth(LAYOUT.PAD + LAYOUT.WIDTH + LAYOUT.BAR)
   frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
   frame.title = T.Label(frame, 12)
   frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
-  frame.title:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
+  frame.title:SetWidth(LAYOUT.WIDTH)
   frame.title:SetJustifyH("LEFT")
   frame.title:SetWordWrap(true)
   frame.title:SetTextColor(T.color.gold[1], T.color.gold[2], T.color.gold[3])
-  frame.note = T.Label(frame, 10)
-  frame.note:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
+  local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+  if T.QuietScrollBar then T.QuietScrollBar(scroll) end
+  scroll.scrollBarHideable = true
+  if scroll.ScrollBar then scroll.ScrollBar:Hide() end
+  frame.content = CreateFrame("Frame", nil, scroll)
+  frame.content:SetSize(LAYOUT.WIDTH, 1)
+  scroll:SetScrollChild(frame.content)
+  frame.scroll = scroll
+  frame.note = T.Label(frame.content, 10)
+  frame.note:SetWidth(LAYOUT.WIDTH)
   frame.note:SetJustifyH("LEFT")
   frame.note:SetWordWrap(true)
   frame.note:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3])
@@ -265,8 +279,8 @@ local function headingAt(i)
   local T = GC.Theme
   local heading = P._headings[i]
   if heading then return heading end
-  heading = T.Label(frame, 11)
-  heading:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
+  heading = T.Label(frame.content, 11)
+  heading:SetWidth(LAYOUT.WIDTH)
   heading:SetJustifyH("LEFT")
   heading:SetWordWrap(true)
   heading:SetTextColor(T.color.fg[1], T.color.fg[2], T.color.fg[3])
@@ -280,12 +294,12 @@ local function rowAt(i)
   local T = GC.Theme
   local row = P._rows[i]
   if row then return row end
-  row = CreateFrame("Frame", nil, frame)
-  row:SetWidth(LAYOUT.WIDTH - 2 * LAYOUT.PAD)
+  row = CreateFrame("Frame", nil, frame.content)
+  row:SetWidth(LAYOUT.WIDTH)
   row.icon = row:CreateTexture(nil, "ARTWORK")
   row.icon:SetSize(LAYOUT.ICON, LAYOUT.ICON)
   row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-  local textW = LAYOUT.WIDTH - 2 * LAYOUT.PAD - LAYOUT.ICON - LAYOUT.ICON_GAP
+  local textW = LAYOUT.WIDTH - LAYOUT.ICON - LAYOUT.ICON_GAP
   row.name = T.Label(row, 11)
   row.name:SetPoint("TOPLEFT", row, "TOPLEFT", LAYOUT.ICON + LAYOUT.ICON_GAP, 0)
   row.name:SetWidth(textW)
@@ -310,7 +324,7 @@ local function fitButton(button)
   local fs = button.text
   local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
   if type(width) ~= "number" then width = 0 end
-  button:SetWidth(math.min(LAYOUT.WIDTH - 2 * LAYOUT.PAD,
+  button:SetWidth(math.min(LAYOUT.WIDTH,
     math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)))
 end
 
@@ -360,12 +374,36 @@ local function paintRow(row, entry, kind)
   end
 end
 
+-- Where the list goes: on the GoldCap tab's panel, at its right, while that tab is picked
+-- (UI/BankTab.lua), else beside the bank window, past the tab buttons down its right edge, or at
+-- the screen's left with no window to stand beside. Answers the most the list may be tall: the
+-- panel's room, or the room from its top down to SCREEN_GAP above the screen's bottom.
+local function place()
+  local tab = GC.BankTab
+  local roomH = tab and select(2, tab.Hold(frame, "right"))
+  if roomH then return math.max(LAYOUT.MIN_H, roomH) end
+  if tab then tab.Release(frame) end
+  frame:ClearAllPoints()
+  local bank = _G.BankFrame
+  if type(bank) == "table" and bank.IsShown and bank:IsShown() then
+    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", P.BesideBankX(bank, LAYOUT.X), 0)
+    local top = bank.GetTop and bank:GetTop()
+    if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
+  else
+    frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
+  end
+  local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
+  if type(screen) == "number" and screen > 0 then return math.max(LAYOUT.MIN_H, screen - 2 * LAYOUT.SCREEN_GAP) end
+  return math.huge
+end
+
 --- Reads the bags and the bank again and paints the list, or hides it when there is nothing to
 --- carry. Reads nothing without route data (no Companion, another region): that player never sees
 --- the list. Hidden too when its buttons could not work: the Warband Bank out of reach at this
---- banker, or no tab bought.
+--- banker, or no tab bought; and while the bank window shows Blizzard's own tab, not GoldCap's.
 function P.Refresh()
-  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank())) then
+  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank()))
+    or (GC.BankTab and GC.BankTab.Where() == "away") then
     if frame then frame:Hide() end
     return
   end
@@ -386,22 +424,17 @@ function P.Refresh()
     return
   end
   if not frame then build() end
-  frame:ClearAllPoints()
-  local bank = _G.BankFrame
-  if type(bank) == "table" and bank.IsShown and bank:IsShown() then
-    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", P.BesideBankX(bank, LAYOUT.X), 0)
-  else
-    frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
-  end
+  local maxH = place()
   frame.title:SetText(GC.L["GoldCap: carry between realms"])
-  local y = LAYOUT.PAD + (frame.title.GetStringHeight and frame.title:GetStringHeight() or 12)
+  local top = math.ceil(LAYOUT.PAD + (frame.title.GetStringHeight and frame.title:GetStringHeight() or 12) + LAYOUT.ROW_GAP)
+  local y = 0
   local r = 0
   for i, section in ipairs(sections) do
     local heading = headingAt(i)
     heading:SetText(section.heading)
     heading:ClearAllPoints()
-    y = y + (i == 1 and LAYOUT.ROW_GAP or LAYOUT.SECTION_GAP)
-    heading:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
+    if i > 1 then y = y + LAYOUT.SECTION_GAP end
+    heading:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
     heading:Show()
     y = y + (heading.GetStringHeight and heading:GetStringHeight() or 12) + LAYOUT.ROW_GAP
     for _, entry in ipairs(section.rows) do
@@ -410,7 +443,7 @@ function P.Refresh()
       paintRow(row, entry, section.kind)
       local h = layoutRow(row, section.kind ~= "stuck")
       row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
+      row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
       row:Show()
       y = y + h + LAYOUT.ROW_GAP
     end
@@ -422,9 +455,14 @@ function P.Refresh()
     and GC.L["Then log in a character on that realm and open a bank: GoldCap lists what to take out."]
     or GC.L["Then list it from GoldCap's Sell tab at the auction house."])
   frame.note:ClearAllPoints()
-  frame.note:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -y)
-  y = y + (frame.note.GetStringHeight and frame.note:GetStringHeight() or 10) + LAYOUT.PAD
-  frame:SetHeight(math.ceil(y))
+  frame.note:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
+  y = math.ceil(y + (frame.note.GetStringHeight and frame.note:GetStringHeight() or 10))
+  frame.content:SetSize(LAYOUT.WIDTH, y)
+  local height = math.min(top + y + LAYOUT.PAD, maxH)
+  frame:SetHeight(height)
+  frame.scroll:ClearAllPoints()
+  frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -top)
+  frame.scroll:SetSize(LAYOUT.WIDTH, height - top - LAYOUT.PAD)
   frame:Show()
 end
 

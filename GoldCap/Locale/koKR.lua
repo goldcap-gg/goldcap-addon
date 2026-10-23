@@ -1466,4 +1466,8 @@ GC.Locales.koKR = {
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "가방에 남음: %s ×%d, 전투부대 은행에 넣을 수 없음",
   ["%d in bags, %d in your bank"] = "가방에 %d, 캐릭터 은행에 %d",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "가방에 남음: %s ×%d, 캐릭터 은행에 넣을 수 없음",
+  ["All to bank"] = "모두 은행으로",
+  ["All to bags"] = "모두 가방으로",
+  ["None of your groups' items are in your bags or this bank."] = "그룹의 아이템이 가방이나 이 은행에 없습니다.",
+  ["Nothing to move at this bank."] = "이 은행에서 옮길 것이 없습니다.",
 }

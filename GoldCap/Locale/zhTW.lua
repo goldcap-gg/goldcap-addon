@@ -1433,4 +1433,8 @@ GC.Locales.zhTW = {
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "留在背包：%s ×%d，戰隊銀行不接受",
   ["%d in bags, %d in your bank"] = "背包 %d，角色銀行 %d",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "留在背包：%s ×%d，角色銀行不接受",
+  ["All to bank"] = "全部存入銀行",
+  ["All to bags"] = "全部取到背包",
+  ["None of your groups' items are in your bags or this bank."] = "你的群組物品不在背包或這個銀行裡。",
+  ["Nothing to move at this bank."] = "這個銀行沒有可移動的物品。",
 }

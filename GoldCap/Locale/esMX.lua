@@ -1536,4 +1536,8 @@ GC.Locales.esMX = {
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Se queda en las bolsas: %s ×%d, el banco de banda guerrera no lo acepta",
   ["%d in bags, %d in your bank"] = "%d en las bolsas, %d en tu banco",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Se queda en las bolsas: %s ×%d, tu banco no lo acepta",
+  ["All to bank"] = "Todo al banco",
+  ["All to bags"] = "Todo a las bolsas",
+  ["None of your groups' items are in your bags or this bank."] = "Ningún objeto de tus grupos está en tus bolsas ni en este banco.",
+  ["Nothing to move at this bank."] = "No hay nada que mover en este banco.",
 }

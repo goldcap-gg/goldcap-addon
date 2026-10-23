@@ -1529,4 +1529,8 @@ GC.Locales.itIT = {
   ["Stays in bags: %s ×%d, the Warband Bank does not take it"] = "Resta nelle borse: %s ×%d, la banca della brigata non lo accetta",
   ["%d in bags, %d in your bank"] = "%d nelle borse, %d nella tua banca",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Resta nelle borse: %s ×%d, la tua banca non lo accetta",
+  ["All to bank"] = "Tutto in banca",
+  ["All to bags"] = "Tutto nelle borse",
+  ["None of your groups' items are in your bags or this bank."] = "Nessun oggetto dei tuoi gruppi è nelle tue borse o in questa banca.",
+  ["Nothing to move at this bank."] = "Niente da spostare in questa banca.",
 }

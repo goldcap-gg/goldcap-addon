@@ -28,8 +28,12 @@ describe("bank carry list", function()
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
     function r:EnableMouse() end
+    function r:SetClampedToScreen() end
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:CreateTexture() return region("Texture") end
+    -- The list's scroll: UIPanelScrollFrameTemplate's ScrollFrame, without its bar.
+    function r:SetScrollChild(child) self.child = child end
+    function r:GetParent() return self.parent end
     return r
   end
 
@@ -626,8 +630,10 @@ describe("bank carry list", function()
       assert.is_true(assert(move:find("machine:Press(rows)", 1, true)) < assert(move:find("C.Refresh()", 1, true)))
       local paint = bodyOf(card, "local function paintMove(")
       assert.equal(1, count(paint, "button:Disable()"))
+      -- All to bank and All to bags, through the same click and the same repaint (paintAll).
+      assert.equal(1, count(bodyOf(card, "local function paintAll("), "button:Disable()"))
       -- The only other: a side of the bank choice a bank cannot use, which moves nothing anyway.
-      assert.equal(2, count(card, "Disable("))
+      assert.equal(3, count(card, "Disable("))
       assert.equal(1, count(bodyOf(card, "local function paintChoice("), "side:Disable()"))
     end)
 
@@ -639,8 +645,10 @@ describe("bank carry list", function()
       assert.is_nil(forever:find("BankRoute", 1, true))
       assert.is_nil(forever:find("BankGroups", 1, true))
       assert.is_true(retail:find("Core/SellRoute.lua", 1, true) < retail:find("UI/BankRoute.lua", 1, true))
-      -- The card hooks the route's handlers as it loads.
+      -- The card hooks the route's handlers as it loads, and the GoldCap tab both the route's and the card's.
       assert.is_true(retail:find("UI/BankRoute.lua", 1, true) < retail:find("UI/BankGroupsCard.lua", 1, true))
+      assert.is_true(retail:find("UI/BankGroupsCard.lua", 1, true) < retail:find("\nUI/BankTab.lua\n", 1, true))
+      assert.is_nil(forever:find("BankTab", 1, true))
       assert.is_true(retail:find("Core/GroupRules.lua", 1, true) < retail:find("Core/BankGroups.lua", 1, true))
     end)
 
