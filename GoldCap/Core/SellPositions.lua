@@ -521,12 +521,14 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- Step down ("step-down" in spec/sell_group_rules_spec.lua): a followed group's rule with a step
   -- posts stepPct of the usual price cheaper for each time the item came back unsold since its
   -- last sale (Core/SellRounds.lua), never under the floor composed above and never above what
-  -- the market already gives. At 0 rounds it caps the price at the usual one. A lowered price is
-  -- mode "rule", which BuildPostPlan lists at as it stands, even under the cheapest ask.
+  -- the market already gives. Before the first unsold round the market's price stands, above the
+  -- usual one too (owner, 2026-10-23): the recommendation already guards against a lone dear
+  -- listing. A lowered price is mode "rule", which BuildPostPlan lists at as it stands, even under
+  -- the cheapest ask.
   local stepRec = position.postRecommendation
-  if position.rule and positive(position.rule.stepPct) and positive(position.rule.usualUnit)
+  local rounds = position.sellRounds or 0
+  if rounds > 0 and position.rule and positive(position.rule.stepPct) and positive(position.rule.usualUnit)
       and type(stepRec) == "table" and positive(stepRec.unit) then
-    local rounds = position.sellRounds or 0
     local step = math.floor(position.rule.usualUnit * math.max(0, 100 - position.rule.stepPct * rounds) / 100)
     local target = GC.Flips.SilverUp(math.max(position.postFloor or 0, math.min(stepRec.unit, step)))
     if target and target < stepRec.unit then

@@ -127,9 +127,19 @@ describe("SELL by a followed group's rules", function()
       assert.equal("rule", p.postRecommendation.mode)
       assert.equal(2, p.postRecommendation.ruleRounds)
       assert.equal(2, p.sellRounds)
-      assert.equal(10000, position({ rule = FLIP, ask = 12000, rounds = 0 }).postRecommendation.unit)
+      assert.equal(9500, position({ rule = FLIP, ask = 12000, rounds = 1 }).postRecommendation.unit)
       assert.equal(7000, position({ rule = FLIP, ask = 12000, rounds = 8 }).postRecommendation.unit)
       assert.equal(7000, position({ rule = FLIP, ask = 12000, rounds = 40 }).postRecommendation.unit)
+    end)
+
+    -- Owner, 2026-10-23: a market above the usual price is the market's to take until a round
+    -- comes back unsold; the recommendation guards against a lone dear listing on its own.
+    it("posts at the market's price before the first unsold round, above the usual price too", function()
+      local p = position({ rule = FLIP, ask = 12000, rounds = 0 })
+      local free = position({ rule = false, ask = 12000 })
+      assert.equal(free.postRecommendation.unit, p.postRecommendation.unit)
+      assert.is_true(p.postRecommendation.unit > FLIP.usualUnit)
+      assert.is_not.equal("rule", p.postRecommendation.mode)
     end)
 
     it("never raises a price the market already put under it", function()
