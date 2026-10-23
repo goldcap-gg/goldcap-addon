@@ -1513,6 +1513,7 @@ GC.Locales.enUS = {
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Stays in bags: %s ×%d, your bank does not take it",
   ["None of your groups' items are in your bags or this bank."] = "None of your groups' items are in your bags or this bank.",
   -- GoldCap Hoard, the window beside the bank (UI/HoardFrame.lua, UI/HoardRow.lua).
+  ["Hoard"] = "Hoard",
   ["Bags %d free"] = "Bags %d free",
   ["Bank %d free"] = "Bank %d free",
   ["Your groups"] = "Your groups",

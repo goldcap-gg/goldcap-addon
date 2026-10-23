@@ -14,8 +14,8 @@ local _, GC = ...
 -- and its painting, is UI/HoardRow.lua's, loaded after this file. With no followed group and no
 -- section there is no window at all: it is not built and no slot is read for it.
 --
--- Which bank: the character's own or the Warband Bank, a two-way switch under the title named as
--- the bank window's tabs name them. At each open it starts on the bank the window shows
+-- Which bank: the character's own or the Warband Bank, a two-way switch under the title named and
+-- ordered as the bank window's tabs are. At each open it starts on the bank the window shows
 -- (GC.BankRoute.ShownBankType), and it goes along when the window comes to show the other bank (the
 -- player clicks its tab: the post-hook on BankPanel's Reset at the end of this file). A click on
 -- the switch holds until then or until the bank closes: a bag addon such as Bagnon keeps Blizzard's
@@ -29,11 +29,13 @@ local _, GC = ...
 -- (spec/bank_route_spec.lua audits the call sites). The press is the vendor card's machine
 -- (Core/VendorPress.lua): the first move inside the player's click, the rest 0.2 s apart from its
 -- timers, each once the one before has left its slot. One run at a time, for the whole window
--- (Press): a second press of the running button stops it, another button's press stops it and
--- starts its own, and the bank closing, the switch changing and the window closing stop it too. A
--- move that stays (a full bank or bags: the game says so itself) ends the run without a word, and
--- the next press still makes its first move in the click. A stack sent is offered again only if the
--- bags have not shown it moved within the route's SETTLE_SECONDS.
+-- (Press), known by what it moves (its button's run id: a group's Store, a folder's Take out) and
+-- not by the widget pressed, as rows are pooled by place and a folder opened mid-run draws another
+-- group on the running row's widget. A second press of what runs stops it, a press of anything
+-- else stops it and starts its own, and the bank closing, the switch changing and the window
+-- closing stop it too. A move that stays (a full bank or bags: the game says so itself) ends the
+-- run without a word, and the next press still makes its first move in the click. A stack sent is
+-- offered again only if the bags have not shown it moved within the route's SETTLE_SECONDS.
 --
 -- Pressed again and again in one spot, so nothing in the window moves between two presses or while
 -- one runs: every row keeps its buttons where they are, a button with nothing left is disabled only
@@ -50,21 +52,23 @@ GC.HoardFrame = {}
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 
--- In UI units; the approved boards are drawn at twice that. WIDTH: the board's 360, widened by the
--- scroll's bar, which hangs 6px right of the scroll frame and is 16px wide
--- (Blizzard_SharedXML/SecureScrollTemplates.xml), so the rows keep the board's 336 and the bar
--- lands in the BAR margin, as in UI/SettingsFrame.lua. SCREEN_GAP: what the window leaves free
--- under it, above the action bars. INDENT: a folder's groups, in from its own row.
+-- In UI units; the approved boards are drawn at twice that. WIDTH: the board's 360 and GUTTER, the
+-- room the scroll's bar takes right of the list (it hangs 6px right of the scroll frame and is 16px
+-- wide, Blizzard_SharedXML/SecureScrollTemplates.xml), so the rows keep the board's 336 and the
+-- header, the switch and the bar all end PAD from the window's right edge, as everything starts
+-- PAD from its left. SCREEN_GAP: what the window leaves free under it, above the action bars.
+-- INDENT: a folder's groups, in from its own row. NAME_MIN: the least room a row's name gets beside
+-- its play's chip; MIN_ICONS: the fewest icons a row gives up for that before its chip goes under
+-- the name.
 local L = {
-  WIDTH = 370, PAD = 12, BAR = 22, X = 4, SCREEN_GAP = 80, MIN_H = 160,
+  WIDTH = 382, PAD = 12, GUTTER = 22, X = 4, SCREEN_GAP = 80, MIN_H = 160,
   HEAD_H = 28, LOGO = 22, CLOSE = 22, CLOSE_ICON = 10, SWITCH_GAP = 8, SEG_H = 20, SEG_PAD = 2, SEG_MIN = 50,
-  FREE_GAP = 10, SECTION_GAP = 11, HEADING_GAP = 5, ROW_GAP = 3,
+  FREE_GAP = 10, FREE_ICON = 10, FREE_PART = 4, SECTION_GAP = 11, HEADING_GAP = 5, ROW_GAP = 3,
   ROW_H = 26, FOLDER_H = 30, ROW_PAD = 6, TEXT_PAD = 5, INDENT = 15, ICON = 15, ICON_GAP = 2, MOVE = 18,
-  MOVE_ICON = 9, MOVE_GAP = 4, WORTH_W = 46, COL_GAP = 6, CHIP_H = 13, NAME_MIN = 40, CHEVRON = 8,
-  BAR_H = 2, BAR_IN = 7, ALL_H = 18, LEGEND_W = 7, LEGEND_H = 3, FOLD_H = 22, ITEM_ICON = 16,
-  ITEM_GAP = 4, KEEP_H = 16, HANDLE_H = 28, HANDLE_LOGO = 18,
+  MOVE_ICON = 9, MOVE_GAP = 4, WORTH_W = 46, COL_GAP = 6, CHIP_H = 13, CHIP_GAP = 4, NAME_MIN = 60,
+  MIN_ICONS = 3, CHEVRON = 8, BAR_H = 2, BAR_IN = 7, ALL_H = 18, LEGEND_W = 7, LEGEND_H = 3, FOLD_H = 22,
+  ITEM_ICON = 16, ITEM_GAP = 4, KEEP_H = 16, KEEP_PAD = 5, PENCIL = 8, HANDLE_H = 28, HANDLE_LOGO = 18,
 }
-L.INNER = L.WIDTH - L.PAD - L.BAR
 -- The backpack, the four bag slots and the reagent bag: herbs, ore and cloth go to the reagent bag.
 local BAGS = { 0, 1, 2, 3, 4, 5 }
 
@@ -76,10 +80,12 @@ local SLATE = { K.yours[1], K.yours[2], K.yours[3], 0.6 }
 -- The stacks a press has sent, "bag:slot" -> { itemID, count } as the slot held them, until the
 -- slot shows the move or the settle timer gives up on it.
 HF._moving = {}
--- The press machine (Core/VendorPress.lua), made at the first press; the button of the press now
--- running, the bank its stacks go to or come from, and the bank the switch named when it started.
+-- The press machine (Core/VendorPress.lua), made at the first press; the run id of the press now
+-- running (Press), the bank its stacks go to or come from, and the bank the switch named when it
+-- started. Every button a press came from, to find the one that carries the running id now.
 HF.machine = nil
-HF._runButton, HF._runBank, HF._runSwitch = nil, nil, nil
+HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
+HF._movers = setmetatable({}, { __mode = "k" })
 -- While the bank is open: the bank the window works with (Enum.BankType), as of its last paint, and
 -- the bank the bank window showed then (the switch goes along only when that changes); the window's
 -- width and its worth column's, which only grow; the groups Core/Hoard.lua's Rows has listed in
@@ -113,17 +119,44 @@ local function colour(fs, c)
   fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end
 
--- SetText with the text a FontString already holds does not redraw it, and a window hidden and
--- shown again can come back with a line not drawn (docs/addon/AGENTS.md "Text"): clear first.
+-- SetText with the text a FontString already holds does not redraw it (docs/addon/AGENTS.md
+-- "Text"): clear first.
 local function setText(fs, text)
   fs:SetText("")
   fs:SetText(text or "")
 end
 
+-- A line that wraps, at word breaks and, for a name with none (a Chinese one, or one long German
+-- word), anywhere.
 local function wrapping(fs)
   fs:SetJustifyH("LEFT")
   fs:SetWordWrap(true)
+  fs:SetNonSpaceWrap(true)
   return fs
+end
+
+-- Every FontString a frame of the window draws in (`owner`: the window, a row, the handle), so a
+-- re-show can redraw them all (restamp).
+local function track(owner, fs)
+  owner.texts = owner.texts or {}
+  owner.texts[#owner.texts + 1] = fs
+  return fs
+end
+
+-- docs/addon/AGENTS.md "Text", measured in game: a one-line FontString whose frame or a parent was
+-- hidden and shown again can come back with its text not drawn, and SetText with the text it holds
+-- does not redraw it. The cure is clear, set, hide, show, on every re-show: here for each of
+-- `owner`'s lines that shows.
+local function restamp(owner)
+  for _, fs in ipairs(owner.texts or {}) do
+    if fs:IsShown() then
+      local text = fs:GetText()
+      fs:SetText("")
+      fs:SetText(text or "")
+      fs:Hide()
+      fs:Show()
+    end
+  end
 end
 
 -- `text` with the figure `n` in it in `c`, brighter than the words around it, as the boards draw a
@@ -268,7 +301,7 @@ end
 -- A run over: the window repaints, unless it stopped for a repaint already on its way (the switch
 -- came to the other bank, HF.Refresh; another button's press, Press; the window closed).
 local function report(result)
-  HF._runButton, HF._runBank, HF._runSwitch = nil, nil, nil
+  HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
   local stopped = result.stopped
   if stopped ~= "bank" and stopped ~= "switched" and stopped ~= "hidden" then HF.OnBagsChanged() end
 end
@@ -290,10 +323,15 @@ end
 --- The one way anything in the window starts a run: a press of `button` over `stacks` (a plan's
 --- list, in its order), into the bank (`into` true) or out to the bags, to or from `bankType`, the
 --- switch's bank unless the caller names its own (the carry list's Warband Bank). The machine makes
---- the first move inside this call, so it is called only from the player's own click. A second
---- press of the button whose run goes stops it and moves nothing; another button's press stops it
---- and starts its own. The window is repainted only after, so the button's state changes after its
---- call.
+--- the first move inside this call, so it is called only from the player's own click. The window is
+--- repainted only after, so the button's state changes after its call.
+---
+--- A run is known by `button.runId`, what the button moves, not by the widget: a row's Store or
+--- Take out is "<kind>:<key>:in" or ":out" (kind "group" or "folder", the row's key), Store all
+--- and Take all out are "all:in" and "all:out", and a later part names its own buttons the same
+--- way ("tile:<id>", "carry:<id>", "selection:in"). A button with no run id is its own. A press
+--- of the id that runs stops it and moves nothing; a press of another id stops it and starts its
+--- own.
 function HF.Press(button, stacks, into, bankType)
   if bankType == nil then bankType = HF._bankType end
   local rows = {}
@@ -301,22 +339,30 @@ function HF.Press(button, stacks, into, bankType)
     rows[i] = { bag = stack.bag, slot = stack.slot, link = stack.link, itemID = stack.itemID, stack = stack,
       into = into, bankType = bankType }
   end
+  local id = button.runId or button
+  HF._movers[button] = true
   local machine = HF._Machine()
-  if machine:IsRunning() and HF._runButton ~= button then machine:Stop("switched") end
+  if machine:IsRunning() and HF._runId ~= id then machine:Stop("switched") end
   -- The machine asks this bank (its driver's open) before every move, the first one inside Press.
   if not machine:IsRunning() then HF._runBank = bankType end
   machine:Press(rows)
   if machine:IsRunning() then
-    HF._runButton, HF._runBank, HF._runSwitch = button, bankType, HF._bankType
+    HF._runId, HF._runBank, HF._runSwitch = id, bankType, HF._bankType
   else
     HF._runBank = nil
   end
   HF.Refresh()
 end
 
---- The button whose run goes now, or nil.
+--- The run id of the press that runs now, or nil; and the button that carries that id where the
+--- player sees it now (a row redrawn since may carry it on another widget), or nil.
 function HF.Running()
-  return HF._runButton
+  local id = HF._runId
+  if id == nil then return nil end
+  for button in pairs(HF._movers) do
+    if (button.runId or button) == id and button:IsVisible() then return id, button end
+  end
+  return id, nil
 end
 
 -- A move button's own click: its whole list, the way it moves, through Press.
@@ -327,6 +373,14 @@ end
 -- ---------------------------------------------------------------------------------------------
 -- The clicks that move nothing
 -- ---------------------------------------------------------------------------------------------
+
+-- A keep count asked in the kit's popup goes with the row it was asked from: on the X, and on any
+-- click that redraws the list (a row opened or closed, a folder, the fold line), which can put
+-- another group on that row.
+local function closeKeep()
+  if not GC.BuyCapEditor then return end
+  for _, row in ipairs(HF._rows) do GC.BuyCapEditor.CloseFor(row.keep) end
+end
 
 -- A side of the bank switch: the window works with that bank until the bank window comes to show
 -- the other one or the bank closes. It moves nothing; a disabled side gets no click.
@@ -345,6 +399,7 @@ end
 
 -- The fold line's own click: opens or closes the groups with nothing to move.
 local function onFoldClick()
+  closeKeep()
   HF._unfolded = not HF._unfolded
   HF.Refresh()
 end
@@ -356,6 +411,7 @@ end
 -- The X: the window goes, remembered for the account (Core/Hoard.lua's SetClosed), and a run of it
 -- stops; the handle beside the bank window brings it back.
 local function onCloseClick()
+  closeKeep()
   if not GC.Hoard.SetClosed(GC.db, true) then HF._closedHere = true end
   if HF.machine and HF.machine:IsRunning() then HF.machine:Stop("hidden") end
   HF.Refresh()
@@ -406,6 +462,7 @@ local function moveButton(parent, into, variant)
   button:SetScript("OnClick", onMoveClick)
   button:SetScript("OnEnter", showMoveTip)
   button:SetScript("OnLeave", hideTip)
+  HF._movers[button] = true
   return button
 end
 
@@ -434,6 +491,39 @@ local function plate(parent, ring, art)
   return b
 end
 
+-- The window's name, "Hoard" in the player's language, in Fira Sans SemiBold as the board draws it
+-- where GoldCap's own face carries the language; in the label face the kit picks elsewhere (the
+-- client's, for Korean and Chinese).
+local function semibold(parent, size)
+  local T = GC.Theme
+  local fs = T.Label(parent, size)
+  if T.FONT_LABEL == T.FONT_TEXT then
+    fs:SetFont(T.FONT_TEXT_SEMI, size * T.Scale(), "")
+    T.TrackFont(fs, { role = "label", path = T.FONT_TEXT_SEMI, size = size, flags = "" })
+  end
+  fs:SetWordWrap(false)
+  return fs
+end
+
+-- A free-slot count beside the switch, as the board draws it: the kit's glyph (a bag, a bank), the
+-- words before the number, the number in the mono face, the words after it fainter.
+local function freeChip(glyph)
+  local T = GC.Theme
+  local chip = CreateFrame("Frame", nil, frame)
+  chip:SetHeight(12)
+  chip.icon = chip:CreateTexture(nil, "ARTWORK")
+  chip.icon:SetSize(L.FREE_ICON, L.FREE_ICON)
+  T.SetIcon(chip.icon, glyph, K.text3)
+  chip.words = track(frame, T.Label(chip, 10))
+  colour(chip.words, K.text2)
+  chip.num = track(frame, T.Num(chip, 10))
+  colour(chip.num, K.text1)
+  chip.rest = track(frame, T.Label(chip, 10))
+  colour(chip.rest, K.text3)
+  for _, fs in ipairs({ chip.words, chip.num, chip.rest }) do fs:SetWordWrap(false) end
+  return chip
+end
+
 -- The window: its glass, the header (the GoldCap mark, its name in the brand's face, "Hoard" and
 -- the X), the bank switch with the free slots, then the kit's scroll (UIPanelScrollFrameTemplate
 -- under Theme.QuietScrollBar, its bar hidden while everything fits), whose child holds the
@@ -451,12 +541,13 @@ local function build()
   frame.logo:SetSize(L.LOGO, L.LOGO)
   frame.logo:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -(L.PAD + (L.HEAD_H - L.LOGO) / 2))
   -- The brand in the condensed heavy face whatever the language: it is the name, written in Latin.
-  frame.brand = frame:CreateFontString(nil, "OVERLAY")
+  frame.brand = track(frame, frame:CreateFontString(nil, "OVERLAY"))
   frame.brand:SetFont(T.FONT_HEAD_HEAVY, 16 * T.Scale(), "")
   T.TrackFont(frame.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = 16 })
+  frame.brand:SetWordWrap(false)
   colour(frame.brand, K.goldText)
   frame.brand:SetPoint("LEFT", frame.logo, "RIGHT", 7, 0)
-  frame.title = T.Heading(frame, 12)
+  frame.title = track(frame, semibold(frame, 12))
   colour(frame.title, K.text2)
   frame.title:SetPoint("BOTTOMLEFT", frame.brand, "BOTTOMRIGHT", 6, 1)
   frame.close = T.Button(frame, "ghost", "badge")
@@ -468,59 +559,60 @@ local function build()
   T.SetIcon(frame.close.icon, "close", K.text2)
   frame.close:SetScript("OnClick", onCloseClick)
 
-  -- The bank switch: the crafting panel's view switch (UI/CraftPanel.lua), a sunken track with the
-  -- other bank bare text, and the bank chosen in the gold fill the board gives it (no halo: it is a
-  -- choice, not the window's main action). The Warband Bank first, as the board has it: it is where
-  -- most of what the player hoards goes.
+  -- The bank switch: the crafting panel's view switch (UI/CraftPanel.lua), a sunken track in the
+  -- glass's border with the other bank bare text, and the bank chosen in the gold fill the board
+  -- gives it (no halo: it is a choice, not the window's main action). In the bank window's order.
   local choice = CreateFrame("Frame", nil, frame)
   choice.track = T.SlicedTexture(choice, "BACKGROUND", T.MEDIA .. "plaque.png", { 0, 0, 0, 0.35 }, T.SLICE.plaque)
   choice.track:SetAllPoints(choice)
+  choice.edge = T.SlicedTexture(choice, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
+  choice.edge:SetAllPoints(choice)
   choice.sides = {}
-  local character, account = banks()
-  for i, bankType in ipairs({ account, character }) do
+  for i, bankType in ipairs({ banks() }) do
     local side = T.Button(choice, "segment", "plaque")
     side:SetGlow(false)
     side:SetHeight(L.SEG_H)
     side.bankType = bankType
     side:SetScript("OnClick", onBankClick)
+    track(frame, side.text)
     choice.sides[i] = side
   end
   frame.choice = choice
-  for _, key in ipairs({ "freeBags", "freeBank" }) do
-    local fs = T.Label(frame, 10)
-    fs:SetWordWrap(false)
-    colour(fs, K.text2)
-    frame[key] = fs
-  end
+  frame.freeBags, frame.freeBank = freeChip("bag"), freeChip("bank")
 
   local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
   if T.QuietScrollBar then T.QuietScrollBar(scroll) end
   scroll.scrollBarHideable = true
   if scroll.ScrollBar then scroll.ScrollBar:Hide() end
   local content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(L.INNER, 1)
+  content:SetSize(L.WIDTH - 2 * L.PAD - L.GUTTER, 1)
   scroll:SetScrollChild(content)
   frame.scroll, frame.content = scroll, content
 
   -- "Your groups", the legend of the bar under each row, Store all and Take all out.
-  frame.groupsTitle = T.Heading(content, 9)
+  frame.groupsTitle = track(frame, T.Heading(content, 9))
+  frame.groupsTitle:SetWordWrap(false)
   colour(frame.groupsTitle, K.text3)
   frame.legend = {}
   for i, c in ipairs({ K.gold, SLATE }) do
     local swatch = T.Solid(content, "ARTWORK", c)
     swatch:SetSize(L.LEGEND_W, L.LEGEND_H)
-    local fs = T.Label(content, 9)
+    local fs = track(frame, T.Label(content, 9))
     fs:SetWordWrap(false)
     colour(fs, K.text3)
     frame.legend[i] = { swatch = swatch, text = fs }
   end
-  for _, entry in ipairs({ { "storeAll", true }, { "takeAll", false } }) do
-    local b = moveButton(content, entry[2], "ghost")
+  -- Quiet, as the board draws them: no fill, a faint ring, the words in the second text colour
+  -- (paintMove keeps that over the kit's own on every enable).
+  for _, entry in ipairs({ { "storeAll", true, "all:in" }, { "takeAll", false, "all:out" } }) do
+    local b = moveButton(content, entry[2], "segment")
     b:SetHeight(L.ALL_H)
     b:SetRing(K.windowBorder)
+    b.runId, b.textColor = entry[3], K.text2
+    track(frame, b.text)
     frame[entry[1]] = b
   end
-  frame.empty = wrapping(T.Label(content, 10))
+  frame.empty = track(frame, wrapping(T.Label(content, 10)))
   colour(frame.empty, K.text3)
 
   -- As tall as one line of its text: the badge art, whose corners a plaque's would notch at that
@@ -528,13 +620,16 @@ local function build()
   local fold = plate(content, K.glassBorder, "badge")
   fold.caret = fold:CreateTexture(nil, "ARTWORK")
   fold.caret:SetSize(L.CHEVRON, L.CHEVRON)
-  fold.text = wrapping(T.Label(fold, 10))
+  fold.text = track(frame, wrapping(T.Label(fold, 10)))
   colour(fold.text, K.text3)
   fold:SetScript("OnClick", onFoldClick)
   frame.fold = fold
   -- Measures what a worth column must hold; never shown.
   frame.measure = T.Num(content, 10)
   frame.measure:Hide()
+  -- A frame made from Lua starts shown: hidden until refresh shows it, so its first show is a
+  -- re-show like any other (restamp).
+  frame:Hide()
   HF._frame = frame
 end
 
@@ -551,10 +646,11 @@ local function buildHandle()
   handle.logo:SetTexture(T.MEDIA .. "GoldCap")
   handle.logo:SetSize(L.HANDLE_LOGO, L.HANDLE_LOGO)
   handle.logo:SetPoint("LEFT", handle, "LEFT", 6, 0)
-  handle.text = T.Heading(handle, 12)
+  handle.text = track(handle, semibold(handle, 12))
   colour(handle.text, K.text2)
   handle.text:SetPoint("LEFT", handle.logo, "RIGHT", 5, 0)
   handle:SetScript("OnClick", onHandleClick)
+  handle:Hide()
   HF._handle = handle
 end
 
@@ -562,18 +658,21 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- The bank switch: each side named and as wide as its name, the bank chosen lit, a bank that cannot
--- be used (`usable[bankType]` false) disabled; side by side, or one under the other when the two do
--- not fit, so a name is never cut. Answers its height and width.
+-- The bank switch: each side named and as wide as its name, the bank chosen lit, the other in the
+-- second text colour the board gives it, a bank that cannot be used (`usable[bankType]` false)
+-- disabled; side by side, or one under the other when the two do not fit, so a name is never cut.
+-- Answers its height and width.
 local function paintChoice(usable, inner)
   local choice, pad = frame.choice, L.SEG_PAD
   for _, side in ipairs(choice.sides) do
     side:SetLabel(bankName(side.bankType))
     side:FitLabels({ side.label }, L.SEG_MIN)
-    side:SetVariant(side.bankType == HF._bankType and "primary" or "segment")
+    local chosen = side.bankType == HF._bankType
+    side:SetVariant(chosen and "primary" or "segment")
     -- Enabled first, so a side disabled again repaints as disabled over its new variant.
     side:Enable()
     if not usable[side.bankType] then side:Disable() end
+    if not chosen and side:IsEnabled() then colour(side.text, K.text2) end
   end
   local first, second = choice.sides[1], choice.sides[2]
   local a, b = first:GetWidth(), second:GetWidth()
@@ -601,24 +700,49 @@ local function freeIn(bags)
   return free, all
 end
 
--- A free-slot count in `words`, and the width the most it can say takes (every slot free), so a
--- move never moves it.
-local function paintFree(fs, words, free, all)
-  setText(fs, words:format(all))
-  local most = math.ceil(fs:GetStringWidth() or 0)
-  setText(fs, lit(words:format(free), free, K.text1))
-  return most
+-- A free-slot chip from `words` ("Bags %d free" in the player's language): the words either side
+-- of the number, and the number in a box as wide as the most it can say (every slot free), so a
+-- move never moves anything on the line. Answers the chip's width.
+local function paintFree(chip, words, free, all)
+  local at = words:find("%d", 1, true)
+  local before = at and (words:sub(1, at - 1):gsub("%s+$", "")) or words
+  local after = at and (words:sub(at + 2):gsub("^%s+", "")) or ""
+  setText(chip.words, before)
+  setText(chip.num, tostring(all))
+  local numW = math.ceil(chip.num:GetStringWidth() or 0)
+  setText(chip.num, tostring(free))
+  setText(chip.rest, after)
+  chip.rest:SetShown(after ~= "")
+  local x = 0
+  chip.icon:ClearAllPoints()
+  chip.icon:SetPoint("LEFT", chip, "LEFT", x, 0)
+  x = x + L.FREE_ICON + L.FREE_PART
+  chip.words:ClearAllPoints()
+  chip.words:SetPoint("LEFT", chip, "LEFT", x, 0)
+  x = x + math.ceil(chip.words:GetStringWidth() or 0) + L.FREE_PART
+  chip.num:SetWidth(numW)
+  chip.num:ClearAllPoints()
+  chip.num:SetPoint("LEFT", chip, "LEFT", x, 0)
+  x = x + numW
+  if after ~= "" then
+    x = x + L.FREE_PART
+    chip.rest:ClearAllPoints()
+    chip.rest:SetPoint("LEFT", chip, "LEFT", x, 0)
+    x = x + math.ceil(chip.rest:GetStringWidth() or 0)
+  end
+  chip:SetWidth(x)
+  return x
 end
 
--- The bank switch at `y`, with the free slots in the bags and the bank chosen beside it, or under
--- it when there is no room. Answers the height they take.
+-- The bank switch at `y`, with the free slots in the bags and the bank chosen at the header's
+-- right, or under it when there is no room. Answers the height they take.
 local function paintSwitch(state, y, inner)
   local h, w = paintChoice(state.usable, inner)
   frame.choice:ClearAllPoints()
   frame.choice:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -y)
-  local bagsW = paintFree(frame.freeBags, GC.L["Bags %d free"], freeIn(BAGS))
-  local bankW = paintFree(frame.freeBank, GC.L["Bank %d free"], freeIn(GC.BankRoute.BankTabs(state.bankType)))
   local bags, bank = frame.freeBags, frame.freeBank
+  local bagsW = paintFree(bags, GC.L["Bags %d free"], freeIn(BAGS))
+  local bankW = paintFree(bank, GC.L["Bank %d free"], freeIn(GC.BankRoute.BankTabs(state.bankType)))
   bags:ClearAllPoints()
   bank:ClearAllPoints()
   if w + L.FREE_GAP + bagsW + L.FREE_GAP + bankW <= inner then
@@ -630,18 +754,21 @@ local function paintSwitch(state, y, inner)
   local below = y + h + L.HEADING_GAP
   bags:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -below)
   bank:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD + bagsW + L.FREE_GAP, -below)
-  return h + L.HEADING_GAP + math.ceil(heightOf(bags, 12))
+  return h + L.HEADING_GAP + 12
 end
 
 -- A move button for `stacks`: enabled while it has something to move; disabled with nothing, from
--- the start or by the repaint after its own last move, never by its click. Its tooltip follows.
+-- the start or by the repaint after its own last move, never by its click. Its icon and, for a
+-- quiet one, its words keep their colour over the kit's own enable. Its tooltip follows.
 local function paintMove(button, stacks, title)
   button.stacks, button.tipTitle = stacks, title
   if #stacks > 0 then button:Enable() else button:Disable() end
+  local live = button:IsEnabled()
   if button.icon then
-    local c = button:IsEnabled() and button.iconColor or K.text3
+    local c = live and button.iconColor or K.text3
     button.icon:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
   end
+  if button.textColor and live then colour(button.text, button.textColor) end
   local tooltip = _G.GameTooltip
   if tooltip and tooltip.IsOwned and tooltip:IsOwned(button) then showMoveTip(button) end
 end
@@ -706,21 +833,25 @@ end
 HF.ui = {
   L = L, SLATE = SLATE, setText = setText, colour = colour, wrapping = wrapping, heightOf = heightOf,
   itemName = itemName, worthText = worthText, plate = plate, moveButton = moveButton, paintMove = paintMove,
+  track = track, restamp = restamp, closeKeep = closeKeep,
 }
 
 -- The rows of `list` from `y` in the scroll, from the pool's `first`; answers the y under them and
--- the next free place in the pool.
+-- the next free place in the pool. A pooled row shown again in a window that shows is redrawn
+-- whole (restamp).
 local function paintRows(list, ctx, y, first, inner)
   local index = first
   for _, data in ipairs(list) do
     local row = HF._rows[index] or HF.Row.New(frame.content)
     HF._rows[index] = row
     local indent = (data.depth or 0) * L.INDENT
+    local wasUp = row:IsShown()
     row:SetWidth(inner - indent)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", indent, -y)
     row:Show()
     y = y + HF.Row.Paint(row, data, ctx) + L.ROW_GAP
+    if not wasUp and frame:IsShown() then restamp(row) end
     index = index + 1
   end
   return y, index
@@ -781,40 +912,42 @@ local function worthWidth(lists)
   return widest
 end
 
--- The window's width: the board's, or as wide as its widest label in the player's language needs,
--- and only ever wider while the bank is open, so nothing reflows under the cursor.
+-- The window's width: the board's with the scroll's gutter, or as wide as its widest label in the
+-- player's language needs (a side of the switch in the header, Store all with Take all out in the
+-- list), and only ever wider while the bank is open, so nothing reflows under the cursor. Answers
+-- it, the header's room inside the window's margins, and the list's, which the gutter takes from.
 local function widthFor()
   local need = 0
   for _, side in ipairs(frame.choice.sides) do
     side:SetLabel(bankName(side.bankType))
     side:FitLabels({ side.label }, L.SEG_MIN)
-    need = math.max(need, side:GetWidth() + 2 * L.SEG_PAD)
+    need = math.max(need, side:GetWidth() + 2 * L.SEG_PAD + 2 * L.PAD)
   end
   for _, entry in ipairs({ { frame.storeAll, GC.L["Store all"] }, { frame.takeAll, GC.L["Take all out"] } }) do
     entry[1]:SetLabel(entry[2])
     entry[1]:FitLabels({ entry[2] }, 0)
   end
-  need = math.max(need, frame.storeAll:GetWidth() + 4 + frame.takeAll:GetWidth())
-  local width = math.max(L.WIDTH, need + L.PAD + L.BAR, HF._width or 0)
+  need = math.max(need, frame.storeAll:GetWidth() + 4 + frame.takeAll:GetWidth() + 2 * L.PAD + L.GUTTER)
+  local width = math.max(L.WIDTH, need, HF._width or 0)
   HF._width = width
-  return width, width - L.PAD - L.BAR
+  return width, width - 2 * L.PAD, width - 2 * L.PAD - L.GUTTER
 end
 
 -- The window, top to bottom: the header and the switch, fixed; then in the scroll the tiles, the
 -- groups' heading, the rows the plan lists, the fold line with, opened, the folded rows under it,
 -- the carry list and the footer. Clamped to the screen and never taller than the room under its
--- top. Answers false when it has nothing at all to show (no followed group, and every section
--- empty).
+-- top. Laid out, not shown: answers false when it has nothing at all to show (no followed group,
+-- and every section empty).
 local function paint(state)
   local beside = place(frame)
-  local width, inner = widthFor()
+  local width, head, inner = widthFor()
   frame:SetWidth(width)
   setText(frame.brand, "GoldCap")
-  setText(frame.title, "Hoard")
+  setText(frame.title, GC.L["Hoard"])
   frame.close:ClearAllPoints()
-  frame.close:SetPoint("TOPRIGHT", frame, "TOPLEFT", L.PAD + inner, -(L.PAD + (L.HEAD_H - L.CLOSE) / 2))
+  frame.close:SetPoint("TOPRIGHT", frame, "TOPLEFT", L.PAD + head, -(L.PAD + (L.HEAD_H - L.CLOSE) / 2))
   local y = L.PAD + L.HEAD_H + L.SWITCH_GAP
-  y = y + paintSwitch(state, y, inner) + L.SECTION_GAP
+  y = y + paintSwitch(state, y, head) + L.SECTION_GAP
   local top = y
 
   local writable = GC.BankGroups.Writable(GC.db)
@@ -829,9 +962,9 @@ local function paint(state)
   })
   local folded = HF._unfolded and result.foldedRows or {}
   -- The folded rows' worth is measured too, closed, so opening the fold line moves no column.
-  local ctx = { bankType = state.bankType, usable = state.usable, running = HF._runButton ~= nil,
-    groups = state.groups, valueOf = valueOf, width = inner, writable = writable, icons = state.icons,
-    perItem = state.perItem, worthW = worthWidth({ result.rows, result.foldedRows }) }
+  local ctx = { bankType = state.bankType, usable = state.usable, running = HF._runId ~= nil,
+    runId = HF._runId, groups = state.groups, valueOf = valueOf, width = inner, writable = writable,
+    icons = state.icons, perItem = state.perItem, worthW = worthWidth({ result.rows, result.foldedRows }) }
 
   local cy, shownH = 0, 0
   local tilesH = paintSection("tiles", ctx, cy)
@@ -880,7 +1013,6 @@ local function paint(state)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
   frame.scroll:SetSize(inner, height - top - L.PAD)
-  frame:Show()
   return true
 end
 
@@ -918,16 +1050,18 @@ end
 local function showHandle()
   if frame then frame:Hide() end
   if not handle then buildHandle() end
+  local wasUp = handle:IsShown()
   place(handle)
-  setText(handle.text, "Hoard")
+  setText(handle.text, GC.L["Hoard"])
   handle:SetWidth(6 + L.HANDLE_LOGO + 5 + math.ceil(handle.text:GetStringWidth() or 0) + 10)
   handle:Show()
+  if not wasUp then restamp(handle) end
 end
 
 -- Reads the bags and the bank the window works with again and paints it, or hides it: with no
 -- followed group and no section (then nothing is built and no slot is read), with the bank closed
 -- or not the window, with neither bank usable here with a tab, and with nothing at all to show.
--- While the player has closed it, only the handle shows.
+-- While the player has closed it, the handle shows in its place, when the window would have.
 local function refresh()
   local route, character, account = GC.BankRoute, banks()
   if not (route._open and character and account) then return hideAll() end
@@ -944,12 +1078,22 @@ local function refresh()
   -- bank.
   if HF._runSwitch ~= nil and HF._runSwitch ~= bankType and HF.machine then HF.machine:Stop("bank") end
   if not usable[bankType] then return hideAll() end
-  if closedNow() then return showHandle() end
-  if handle then handle:Hide() end
+  local closed = closedNow()
+  -- A followed group always makes a window, so its handle needs no reading.
+  if closed and hasGroups then return showHandle() end
   pruneMoving()
   local state = read(bankType, usable, hasGroups)
   if not frame then build() end
-  if not paint(state) then hideAll() end
+  local wasUp = frame:IsShown()
+  if not paint(state) then return hideAll() end
+  if closed then return showHandle() end
+  if handle then handle:Hide() end
+  frame:Show()
+  if wasUp then return end
+  restamp(frame)
+  for _, row in ipairs(HF._rows) do
+    if row:IsShown() then restamp(row) end
+  end
 end
 
 -- What of the Hoard stands beside the bank window now: the window, the handle, or nothing.
@@ -970,8 +1114,9 @@ end
 --- A later part of the window: `name` is its place ("tiles" between the switch and the groups,
 --- "carry" and "footer" below the groups), `spec` = { build = fn(parent), paint = fn(section, ctx)
 --- -> height }. `build` runs once, with a frame of its own in the scroll; `paint` at every paint of
---- the window, with ctx = { bankType, usable = { [bankType] = bool }, running, groups (the plan's),
---- valueOf, width }, and answers the height it took, 0 for nothing to show.
+--- the window, with ctx = { bankType, usable = { [bankType] = bool }, running, runId (the run id
+--- that runs, Press), groups (the plan's), valueOf, width }, and answers the height it took, 0 for
+--- nothing to show.
 function HF.AddSection(name, spec)
   if name ~= "tiles" and name ~= "carry" and name ~= "footer" then
     error("GoldCap: the Hoard has no place named " .. tostring(name), 2)
@@ -984,7 +1129,7 @@ end
 -- A new visit: the switch, the list and the press start again (the route has painted already: the
 -- window's hooks run after its handlers).
 local function newVisit()
-  HF._runButton, HF._runBank, HF._runSwitch = nil, nil, nil
+  HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
   HF._moving, HF._width, HF._worthW = {}, nil, nil
   -- The switch starts again on the bank the window shows.
   HF._bankType, HF._seenType = nil, nil
@@ -1002,9 +1147,7 @@ function HF.OnBankClosed()
   if HF.machine then HF.machine:OnClosed() end
   newVisit()
   -- A keep count asked at this bank goes with it.
-  if GC.BuyCapEditor then
-    for _, row in ipairs(HF._rows) do GC.BuyCapEditor.CloseFor(row.keep) end
-  end
+  closeKeep()
   hideAll()
 end
 

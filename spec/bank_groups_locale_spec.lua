@@ -4,9 +4,11 @@ local helper = require("spec.spec_helper")
 -- twelve languages, and none of them written with a dash, an ellipsis or a middle dot: the owner's
 -- rule is plain punctuation in everything a player reads. The popup's "Type a whole number" and
 -- "Save" are the craft queue's and BUY's own keys. The two sides of the bank switch are the bank
--- window's own tab names, Blizzard's BANK and ACCOUNT_BANK_PANEL_TITLE, so they need no key; the
--- window's name, GoldCap Hoard, is the product's.
+-- window's own tab names, Blizzard's BANK and ACCOUNT_BANK_PANEL_TITLE, so they need no key. The
+-- window's name is "Hoard" in the player's language beside the brand, GoldCap, which stays.
 local KEYS = {
+  -- The window's name, at its header and on the handle that brings it back.
+  "Hoard",
   -- The switch's free slots, the groups' heading with the bar's legend, and the buttons over every
   -- group.
   "Bags %d free", "Bank %d free", "Your groups", "bags", "bank", "Store all", "Take all out",
@@ -21,6 +23,13 @@ local KEYS = {
   "Type a whole number", "Save",
   -- No followed group's item in the bags or this bank.
   "None of your groups' items are in your bags or this bank.",
+}
+
+-- The bank by group card's, which the Hoard took over from: gone from every language.
+local GONE = {
+  "GoldCap: your groups", "To bank: %s ×%d (%d left)", "To bags: %s ×%d (%d left)", "To bank: nothing to move",
+  "To bags: nothing to move", "Groups with nothing to move: %d", "All to bank", "All to bags",
+  "Nothing to move at this bank.",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot
@@ -51,6 +60,14 @@ describe("GoldCap Hoard strings", function()
         for _, key in ipairs(KEYS) do
           assert.is_true(GC.Locales[code][key] ~= key, ("%s leaves %q in English"):format(code, key))
         end
+      end
+    end
+  end)
+
+  it("keeps none of the bank card's strings", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      for _, key in ipairs(GONE) do
+        assert.is_nil(rawget(GC.Locales[code], key), ("%s still has %q"):format(code, key))
       end
     end
   end)

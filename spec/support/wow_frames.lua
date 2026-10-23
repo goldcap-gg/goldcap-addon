@@ -11,7 +11,13 @@
 -- A FontString with word wrap and a width answers GetHeight with its wrapped height, the way the
 -- client does for one whose height was never set (Blizzard's QuestInfo_ShowRewards measures its
 -- own ItemChooseText that way): CHAR_W pixels a character, LINE_H a line.
-local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {} }
+--
+-- With W.CLIENT_METRICS (a spec turns it on for itself, `false` again after), text is measured
+-- closer to the client, for a spec that lays out tightly packed lines: CHAR_W and LINE_H are a
+-- 12-point face's and scale with the size SetFont gave, a colour escape (|cAARRGGBB, |r) takes no
+-- room, and a texture or atlas escape (|T..|t, |A..|a) the face's height plus its 2px offset, as
+-- the coin a money figure ends in does.
+local W = { CHAR_W = 6, LINE_H = 14, unknownEvents = {}, CLIENT_METRICS = false }
 
 local STATE = setmetatable({}, { __mode = "k" })
 
@@ -23,6 +29,20 @@ local function chars(text)
   local n = 0
   for _ in tostring(text or ""):gmatch("[^\128-\191]") do n = n + 1 end
   return n
+end
+
+-- How wide `text` draws on one line at `size` points (CLIENT_METRICS above).
+local function measure(text, size)
+  if not W.CLIENT_METRICS then return chars(text) * W.CHAR_W end
+  local plain = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  local icons
+  plain, icons = plain:gsub("|[TA].-|[ta]", "")
+  return chars(plain) * W.CHAR_W * size / 12 + icons * (size + 2)
+end
+
+local function lineHeight(size)
+  if not W.CLIENT_METRICS then return W.LINE_H end
+  return W.LINE_H * size / 12
 end
 
 -- Methods every region has: anchors, size, visibility, parent.
@@ -99,21 +119,21 @@ function W.FontString(parent, inherits)
   function f:SetJustifyH(v) s.justifyH = v end
   function f:SetJustifyV(v) s.justifyV = v end
   function f:SetWordWrap(v) s.wordWrap = v end
+  function f:SetNonSpaceWrap(v) s.nonSpaceWrap = v end
   function f:SetMaxLines(n) s.maxLines = n end
   function f:SetTextColor(r, g, b, a) s.color = { r, g, b, a or 1 } end
   function f:GetTextColor() return s.color[1], s.color[2], s.color[3], s.color[4] end
   function f:SetFont(path, size, flags) s.font = { path, size, flags }; return true end
   function f:GetFont() return s.font[1], s.font[2], s.font[3] end
-  function f:GetStringWidth() return chars(s.text) * W.CHAR_W end
+  function f:GetStringWidth() return measure(s.text, s.font[2]) end
   -- The width the text would take on one line, whatever width the FontString was given.
-  function f:GetUnboundedStringWidth() return chars(s.text) * W.CHAR_W end
+  function f:GetUnboundedStringWidth() return measure(s.text, s.font[2]) end
   function f:GetStringHeight()
-    local n = chars(s.text)
-    if n == 0 then return 0 end
+    if chars(s.text) == 0 then return 0 end
     if s.wordWrap ~= false and (s.width or 0) > 0 then
-      return math.ceil(n * W.CHAR_W / s.width) * W.LINE_H
+      return math.ceil(measure(s.text, s.font[2]) / s.width) * lineHeight(s.font[2])
     end
-    return W.LINE_H
+    return lineHeight(s.font[2])
   end
   function f:GetHeight() return s.height or f:GetStringHeight() end
   return f

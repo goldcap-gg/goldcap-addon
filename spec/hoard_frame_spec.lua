@@ -10,7 +10,7 @@ local W = require("spec.support.wow_frames")
 -- the bank window, the tooltip and the client calls are faked, shaped as the client's.
 describe("GoldCap Hoard window", function()
   local GC, HF, restore, saved, bags, sizes, used, timers, canUse, tabs, refundable, refused, reads, asked
-  local closedFor, showing, usable, charTabs, refusedHere, targeting, landing, tip
+  local closedFor, showing, usable, charTabs, refusedHere, targeting, landing, tip, arrivals
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
   local KEYS = { "Enum", "UIParent", "BankFrame", "BankPanel", "MerchantFrame", "ItemLocation", "C_Container",
@@ -43,15 +43,25 @@ describe("GoldCap Hoard window", function()
   end
 
   local function textOf(fs) return W.state(fs).text end
+  -- A free-slot chip as the player reads it: its words, its number and the words after it.
+  local function freeText(chip)
+    local rest = textOf(chip.rest) or ""
+    return helper.plain(textOf(chip.words)) .. " " .. textOf(chip.num) .. (rest ~= "" and (" " .. rest) or "")
+  end
   local function shown(widget) return widget ~= nil and widget:IsShown() end
   local function windowUp() return HF._frame ~= nil and HF._frame:IsShown() end
   local function press(button) W.state(button).scripts.OnClick(button) end
   local function at(widget) return W.state(widget).points[1] end
 
-  -- A shown row by the name it shows, and of a kind when asked.
+  -- A shown row by the name it shows, and of a kind when asked; or by its group's key.
   local function row(name, kind)
     for _, r in ipairs(HF._rows) do
       if r:IsShown() and textOf(r.name) == name and (kind == nil or r.data.kind == kind) then return r end
+    end
+  end
+  local function rowByKey(key)
+    for _, r in ipairs(HF._rows) do
+      if r:IsShown() and r.data.kind == "group" and r.data.key == key then return r end
     end
   end
   local function rowNames()
@@ -94,8 +104,19 @@ describe("GoldCap Hoard window", function()
   local function close() GC.BankRoute.OnBankClosed() end
   local function bagsChanged() GC.BankRoute.OnBagsChanged() end
 
+  -- The server's answer to the moves sent so far (with `landing`): each slot empties (false keeps
+  -- the bag's size) and its stack lands at the end of the bags, the character's bank tab or the
+  -- Warband Bank's, as the call named them.
+  local function land()
+    for _, a in ipairs(arrivals) do
+      bags[a.bag][a.slot] = false
+      bags[a.into][#bags[a.into] + 1] = a.stack
+    end
+    arrivals = {}
+  end
+
   -- The press machine's own timers (Core/VendorPress.lua's STEP), first armed first, until none is
-  -- left; answers how many ran. The settle timers stay.
+  -- left, the server answering before each; answers how many ran. The settle timers stay.
   local function ticks()
     local n = 0
     while true do
@@ -104,6 +125,7 @@ describe("GoldCap Hoard window", function()
         if t.seconds == GC.VendorPress.STEP then due = k break end
       end
       if not due then return n end
+      land()
       table.remove(timers, due).fn()
       n = n + 1
     end
@@ -147,7 +169,10 @@ describe("GoldCap Hoard window", function()
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = W.install()
     used, timers, canUse, tabs, refundable, refused, reads, asked = {}, {}, true, { 12 }, {}, {}, 0, nil
-    landing = false
+    landing, arrivals = false, {}
+    -- Measured as the client measures text (spec/support/wow_frames.lua): the rows pack a name, a
+    -- chip, icons and a worth on one line.
+    W.CLIENT_METRICS = true
     -- The bank window shows the Warband Bank unless a spec switches it; refusedHere is what the
     -- character's own bank refuses, refused what the Warband Bank does.
     showing, usable, charTabs, refusedHere = ACCOUNT, { [ACCOUNT] = true, [CHARACTER] = true }, { 6 }, {}
@@ -192,17 +217,19 @@ describe("GoldCap Hoard window", function()
         return free, 0
       end,
       GetContainerItemInfo = function(bag, slot) reads = reads + 1; return bags[bag] and bags[bag][slot] or nil end,
-      -- With `landing`, the server takes each move at once: the slot empties (false keeps the bag's
-      -- size) and the stack lands at the end of the bags, the character's bank tab or the Warband
-      -- Bank's, as the call names them.
+      -- With `landing`, the server takes each move: the slot locks at once, as the client locks a
+      -- slot whose item is on its way, and the stack arrives at the server's answer (land).
       UseContainerItem = function(...)
         used[#used + 1] = { n = select("#", ...), ... }
         if not landing then return end
         local bag, slot, _, bankType = ...
         local stack = bags[bag][slot]
-        bags[bag][slot] = false
+        local locked = {}
+        for k, v in pairs(stack) do locked[k] = v end
+        locked.isLocked = true
+        bags[bag][slot] = locked
         local into = select("#", ...) == 5 and (bankType == CHARACTER and 6 or 12) or 0
-        bags[into][#bags[into] + 1] = stack
+        arrivals[#arrivals + 1] = { bag = bag, slot = slot, into = into, stack = stack }
       end,
     }
     _G.C_Item = {
@@ -265,10 +292,12 @@ describe("GoldCap Hoard window", function()
   end)
 
   after_each(function()
+    W.CLIENT_METRICS = false
     GC.ActivateLocale(nil)
     restore()
     for _, k in ipairs(KEYS) do _G[k] = saved[k] end
     NAMES[1], VALUE[9] = "Bloom", nil
+    for id = 21, 25 do NAMES[id], VALUE[id] = nil, nil end
   end)
 
   -- ---------------------------------------------------------------------------------------------
@@ -426,6 +455,59 @@ describe("GoldCap Hoard window", function()
     assert.is_true(windowUp())
   end)
 
+  -- The handle brings back a window that has something to show: with no followed group, it stands
+  -- only while a section (the carry list, the footer) has something.
+  it("shows the handle only where the window would have shown", function()
+    _G.GoldCap_AppRuns = nil
+    GC.GroupRules.Adopt()
+    GC.Hoard.SetClosed(GC.db, true)
+    local h = 0
+    HF.AddSection("footer", { build = function() end, paint = function() return h end })
+    open()
+    assert.is_false(windowUp())
+    assert.is_false(shown(HF._handle))
+    h = 20
+    bagsChanged()
+    assert.is_false(windowUp())
+    assert.is_true(shown(HF._handle))
+    press(HF._handle)
+    assert.is_true(windowUp())
+    assert.is_false(shown(HF._handle))
+    h = 0
+    bagsChanged()
+    assert.is_false(windowUp())
+    assert.is_false(shown(HF._handle))
+  end)
+
+  -- A keep count asked from a row goes when the list is redrawn under it or the window closes: the
+  -- row may show another group by then.
+  it("closes the keep popup on the X, on a row's click and on the fold line's", function()
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Ore = 100 } }
+    open()
+    openRow("Herbs")
+    local keep = row("Herbs").keep
+    press(keep)
+    assert.equal(keep, asked.anchor)
+    press(HF._frame.fold)
+    assert.is_true(closedFor[keep])
+    closedFor = {}
+    openRow("Herbs")
+    assert.is_true(closedFor[keep])
+    closedFor = {}
+    press(HF._frame.close)
+    assert.is_true(closedFor[keep])
+  end)
+
+  it("names itself Hoard in the player's language beside the brand, and on its handle", function()
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+    GC.ActivateLocale("ruRU")
+    open()
+    assert.equal("GoldCap", textOf(HF._frame.brand))
+    assert.equal("Клад", textOf(HF._frame.title))
+    press(HF._frame.close)
+    assert.equal("Клад", textOf(HF._handle.text))
+  end)
+
   -- ---------------------------------------------------------------------------------------------
   -- The bank switch and the free slots
   -- ---------------------------------------------------------------------------------------------
@@ -437,18 +519,58 @@ describe("GoldCap Hoard window", function()
     assert.equal(ACCOUNT, HF._bankType)
     -- The backpack's 20 slots hold 3, the reagent bag's 36 hold 1; the Warband Bank's tab holds 1
     -- of 98.
-    assert.equal("Bags 52 free", helper.plain(textOf(HF._frame.freeBags)))
-    assert.equal("Bank 97 free", helper.plain(textOf(HF._frame.freeBank)))
+    assert.equal("Bags 52 free", freeText(HF._frame.freeBags))
+    assert.equal("Bank 97 free", freeText(HF._frame.freeBank))
     choose(CHARACTER)
-    assert.equal("Bank 97 free", helper.plain(textOf(HF._frame.freeBank)))
+    assert.equal("Bank 97 free", freeText(HF._frame.freeBank))
     charTabs = { 6, 7 }
     sizes[7] = 98
     bagsChanged()
-    assert.equal("Bank 195 free", helper.plain(textOf(HF._frame.freeBank)))
+    assert.equal("Bank 195 free", freeText(HF._frame.freeBank))
   end)
 
   -- Bagnon keeps Blizzard's bank window on the character's bank for the whole visit and never calls
   -- SetTab: the switch is how its player reaches the Warband Bank.
+  -- Side by side in the bank window's own order, its tabs' (BankFrame.lua's GenerateBankTypeTabs):
+  -- the character's bank, then the Warband Bank.
+  it("orders the switch as the bank window's tabs: the character's bank, then the Warband Bank", function()
+    open()
+    local sides = HF._frame.choice.sides
+    assert.same({ CHARACTER, ACCOUNT }, { sides[1].bankType, sides[2].bankType })
+    assert.same({ "LEFT", sides[1], "RIGHT", 2, 0 }, at(sides[2]))
+  end)
+
+  -- As the approved board draws them: "Hoard" in Fira Sans SemiBold, the bank not chosen in the
+  -- second text colour in a ringed track, the free slots with the kit's glyphs and the number in the
+  -- mono face, Store all and Take all out quiet, and everything on the right 12 in from the edge,
+  -- the rows keeping the board's 336 beside the scroll's gutter.
+  it("draws the header, the switch, the free slots and the buttons over the groups as the board does", function()
+    open()
+    local f, T, K = HF._frame, GC.Theme, GC.Kit.Tokens.color
+    local function same(c, fs, what) assert.same({ c[1], c[2], c[3], c[4] or 1 }, W.state(fs).color, what) end
+    assert.equal("Hoard", textOf(f.title))
+    assert.equal(T.FONT_TEXT_SEMI, W.state(f.title).font[1])
+    assert.equal(382, f:GetWidth())
+    assert.equal(336, f.content:GetWidth())
+    assert.equal(336, row("Herbs"):GetWidth())
+    assert.same({ "TOPRIGHT", f, "TOPLEFT", 382 - 12 }, { unpack(at(f.close), 1, 4) })
+    assert.same({ "RIGHT", f, "TOPLEFT", 382 - 12 }, { unpack(at(f.freeBank), 1, 4) })
+    same(K.text2, side(CHARACTER).text, "the bank not chosen")
+    same(K.onGold, side(ACCOUNT).text, "the bank chosen")
+    assert.is_true(shown(f.choice.edge))
+    same(K.text2, f.freeBags.words)
+    same(K.text1, f.freeBags.num)
+    same(K.text3, f.freeBags.rest)
+    assert.equal(T.FONT_UI, W.state(f.freeBags.num).font[1])
+    assert.same({ T.IconCoords("bag") }, W.state(f.freeBags.icon).texCoord)
+    assert.same({ T.IconCoords("bank") }, W.state(f.freeBank.icon).texCoord)
+    for _, b in ipairs({ f.storeAll, f.takeAll }) do
+      same(K.text2, b.text, b.label)
+      assert.equal(0, W.state(b.bg).vertex[4])
+      assert.is_true(shown(b.ring))
+    end
+  end)
+
   it("reaches the Warband Bank through its own switch while the bank window stays on the character's bank", function()
     showing = CHARACTER
     open()
@@ -568,6 +690,17 @@ describe("GoldCap Hoard window", function()
     assert.is_true(shown(herbs.store.icon))
   end)
 
+  it("wears the kit's tray arrows on Store and Take out, and its pencil on the keep count", function()
+    open()
+    openRow("Herbs")
+    local herbs, T = row("Herbs"), GC.Theme
+    assert.same({ T.IconCoords("trayIn") }, W.state(herbs.store.icon).texCoord)
+    assert.same({ T.IconCoords("trayOut") }, W.state(herbs.take.icon).texCoord)
+    assert.same({ T.IconCoords("pencil") }, W.state(herbs.keep.pencil).texCoord)
+    assert.equal("RIGHT", at(herbs.keep.pencil)[1])
+    assert.is_true(herbs.keep:GetWidth() >= herbs.keep.text:GetUnboundedStringWidth() + 8 + 2 * 5)
+  end)
+
   it("names what the next press moves in each move's tooltip", function()
     open()
     local herbs, ore = row("Herbs"), row("Ore")
@@ -590,7 +723,8 @@ describe("GoldCap Hoard window", function()
     press(store)
     -- Inside the click: the first stack, and no other before a timer runs.
     assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
-    assert.equal(store, HF.Running())
+    assert.equal("group:Herbs:in", HF.Running())
+    assert.equal(store, select(2, HF.Running()))
     -- The tooltip under the cursor names the next stack.
     assert.same({ "Store", "Bloom ×20 (1 left)" }, tip.lines)
     ticks()
@@ -637,9 +771,32 @@ describe("GoldCap Hoard window", function()
     open()
     press(row("Herbs").store)
     press(row("Ore").store)
-    assert.equal(row("Ore").store, HF.Running())
+    assert.equal("group:Ore:in", HF.Running())
+    assert.equal(row("Ore").store, select(2, HF.Running()))
     ticks()
     assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 5, 1, nil, ACCOUNT, false } }, used)
+  end)
+
+  -- Rows are pooled by place: a folder opened mid-run draws another group on the running row's
+  -- widget. A run is known by what it moves, so a press there is that group's own.
+  it("knows a run by what it moves, not by the row's widget it was pressed on", function()
+    landing = true
+    folders()
+    open()
+    local widget = row("Linen").store
+    press(widget)
+    assert.equal("group:linen:in", HF.Running())
+    press(row("Gathering", "folder").head)
+    assert.equal(widget, row("Herbs").store)
+    assert.equal("group:linen:in", HF.Running())
+    assert.equal(row("Linen").store, select(2, HF.Running()))
+    press(widget)
+    assert.equal("group:herbs:in", HF.Running())
+    assert.equal(widget, select(2, HF.Running()))
+    assert.same({ { n = 5, 0, 3, nil, ACCOUNT, false }, { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
+    -- Store all and Take all out are runs of their own too.
+    assert.equal("all:in", HF._frame.storeAll.runId)
+    assert.equal("all:out", HF._frame.takeAll.runId)
   end)
 
   it("stops when the bank closes, and when the switch comes to the other bank", function()
@@ -720,6 +877,15 @@ describe("GoldCap Hoard window", function()
     assert.same({}, used)
   end)
 
+  it("moves nothing from a locked slot", function()
+    open()
+    local store = row("Herbs").store
+    bags[0][1], bags[0][2] = info(1, 200, { isLocked = true }), info(1, 20, { isLocked = true })
+    press(store)
+    assert.same({}, used)
+    assert.is_false(HF._Machine():IsRunning())
+  end)
+
   it("moves nothing while a spell waits for an item target", function()
     open()
     targeting = true
@@ -768,12 +934,21 @@ describe("GoldCap Hoard window", function()
     landing = true
     press(herbs.store)
     assert.same(before, snapshot())
+    -- Painted while the first stack is on its way (its slot locked, the window waiting for it) as
+    -- well as after each landing.
+    bagsChanged()
+    assert.is_true(bags[0][1].isLocked)
+    assert.is_truthy(HF._moving["0:1"])
+    assert.same(before, snapshot())
     while true do
       local due
       for k, t in ipairs(timers) do
         if t.seconds == GC.VendorPress.STEP then due = k break end
       end
       if not due then break end
+      land()
+      bagsChanged()
+      assert.same(before, snapshot())
       table.remove(timers, due).fn()
       bagsChanged()
       assert.same(before, snapshot())
@@ -856,6 +1031,66 @@ describe("GoldCap Hoard window", function()
     openRow("Ore")
     assert.same({ "57 in bags, 0 in your bank" }, lines(row("Ore"), "items"))
     assert.same({ "Stays in bags: Bismuth ×7, your bank does not take it" }, lines(row("Ore"), "stays"))
+  end)
+
+  -- Blizzard asks before a deposit into the Warband Bank ends a refund, and deposits into the
+  -- character's own bank without asking (BankFrame.lua's BankUtil_IsAccountBankDepositRefundable).
+  it("toward the character's own bank, offers a refundable stack and names one that bank refuses", function()
+    refundable["0:2"] = true
+    bags[5][2] = info(3, 7)
+    refused["5:2"], refusedHere["5:2"] = true, true
+    showing = CHARACTER
+    open()
+    openRow("Herbs")
+    local herbs = row("Herbs")
+    assert.same({}, lines(herbs, "stays"))
+    W.state(herbs.store).scripts.OnEnter(herbs.store)
+    assert.same({ "Store", "Bloom ×200 (2 left)" }, tip.lines)
+    openRow("Ore")
+    assert.same({ "Stays in bags: Bismuth ×7, your bank does not take it" }, lines(row("Ore"), "stays"))
+    landing = true
+    press(row("Herbs").store)
+    ticks()
+    assert.same({ n = 5, 0, 2, nil, CHARACTER, false }, used[2])
+    -- What only the Warband Bank refuses goes into the character's own bank.
+    refusedHere["5:2"] = nil
+    bagsChanged()
+    assert.same({}, lines(row("Ore"), "stays"))
+  end)
+
+  -- A group is its id on goldcap.gg: a follow from the site in another language keeps its count,
+  -- and a catalog group and a player's own list that read alike are two groups.
+  it("keeps a group's count by its id: a new name keeps it, and two groups named alike are two", function()
+    local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" }, caps = FILE.caps, rules = {
+      { n = "Herbs", id = "herbs", p = "gather", d = 24, fp = 80 },
+      { n = "Herbs", id = "u_a1b2c3d4e5f6", p = "gather", d = 24, fp = 80 },
+      { n = "Cloth", id = "cloth", p = "gather", d = 24, fp = 80 },
+    } }
+    _G.GoldCap_AppRuns = file
+    GC.GroupRules.Adopt()
+    open()
+    assert.same({ "Herbs", "Herbs" }, rowNames())
+    press(rowByKey("herbs").head)
+    press(rowByKey("herbs").keep)
+    assert.equal("How many of each item in Herbs to keep in your bags?", asked.opts.title)
+    asked.opts.onCommit(30)
+    assert.same({ v = GC.BankGroups.VERSION, groups = { herbs = 30 } }, GC.db.bankKeep)
+    assert.equal("Keep in bags: 30 of each", rowByKey("herbs").keep.label)
+    press(rowByKey("u_a1b2c3d4e5f6").head)
+    assert.equal("Keep in bags: 0 of each", rowByKey("u_a1b2c3d4e5f6").keep.label)
+    press(rowByKey("herbs").head)
+    -- The same group, followed again from the site in German: its id stays, its name changes.
+    file.rules[1].n = "Kräuter"
+    GC.GroupRules.Adopt()
+    bagsChanged()
+    local herbs = rowByKey("herbs")
+    assert.equal("Kräuter", textOf(herbs.name))
+    assert.equal("Keep in bags: 30 of each", herbs.keep.label)
+    W.state(herbs.store).scripts.OnEnter(herbs.store)
+    assert.same({ "Store", "Bloom ×20 (1 left)" }, tip.lines)
+    press(herbs.keep)
+    assert.equal("How many of each item in Kräuter to keep in your bags?", asked.opts.title)
+    assert.equal("30", asked.opts.text)
   end)
 
   it("sets the keep count from the opened row, remembered for the account, and repaints", function()
@@ -1004,6 +1239,87 @@ describe("GoldCap Hoard window", function()
   end)
 
   -- ---------------------------------------------------------------------------------------------
+  -- Redrawing what is shown again
+  -- ---------------------------------------------------------------------------------------------
+
+  -- docs/addon/AGENTS.md "Text": a one-line label whose frame was hidden and shown again can come
+  -- back blank, and SetText with the text it holds does not redraw it. The cure is clear, set,
+  -- hide, show, on every re-show.
+  local function watch(logs, fs)
+    local log = {}
+    local set, hide, showIt = fs.SetText, fs.Hide, fs.Show
+    fs.SetText = function(self, text, ...)
+      log[#log + 1] = "set " .. tostring(text)
+      return set(self, text, ...)
+    end
+    fs.Hide = function(self) log[#log + 1] = "hide"; return hide(self) end
+    fs.Show = function(self) log[#log + 1] = "show"; return showIt(self) end
+    logs[fs] = log
+  end
+  local function restamped(logs, fs)
+    local log, n = logs[fs], #logs[fs]
+    return n >= 4 and log[n - 3] == "set " and log[n - 2] == "set " .. tostring(textOf(fs)) and log[n - 1] == "hide"
+      and log[n] == "show"
+  end
+
+  it("redraws every label it shows when the window comes back", function()
+    open()
+    openRow("Herbs")
+    press(HF._frame.close)
+    local f, herbs, logs = HF._frame, row("Herbs"), {}
+    for _, fs in ipairs(f.texts) do watch(logs, fs) end
+    for _, r in ipairs(HF._rows) do
+      if r:IsShown() then
+        for _, fs in ipairs(r.texts) do watch(logs, fs) end
+      end
+    end
+    -- Each named one is among them.
+    for _, fs in ipairs({ f.title, f.brand, side(CHARACTER).text, side(ACCOUNT).text, f.storeAll.text, f.takeAll.text,
+      f.freeBags.words, f.freeBags.num, f.freeBank.words, f.groupsTitle, herbs.name, herbs.chip.text,
+      herbs.keep.text, herbs.worth }) do
+      assert.is_truthy(logs[fs])
+    end
+    press(HF._handle)
+    assert.is_true(windowUp())
+    local checked = 0
+    for fs in pairs(logs) do
+      if fs:IsShown() and textOf(fs) ~= nil then
+        assert.is_true(restamped(logs, fs), tostring(textOf(fs)))
+        checked = checked + 1
+      end
+    end
+    assert.is_true(checked >= 14)
+  end)
+
+  it("redraws an opened row's keep count, a row shown again and the handle", function()
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { Ore = 100 } }
+    open()
+    openRow("Herbs")
+    openRow("Herbs")
+    local logs = {}
+    local keep = row("Herbs").keep
+    watch(logs, keep.text)
+    openRow("Herbs")
+    assert.is_true(restamped(logs, keep.text))
+    -- The fold line's rows, folded away and shown again.
+    press(HF._frame.fold)
+    local ore = row("Ore")
+    press(HF._frame.fold)
+    assert.is_false(ore:IsShown())
+    watch(logs, ore.name)
+    press(HF._frame.fold)
+    assert.is_true(ore:IsShown())
+    assert.is_true(restamped(logs, ore.name))
+    -- The handle, at the next visit.
+    press(HF._frame.close)
+    close()
+    watch(logs, HF._handle.text)
+    open()
+    assert.is_true(shown(HF._handle))
+    assert.is_true(restamped(logs, HF._handle.text))
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
   -- What later parts of the window build on
   -- ---------------------------------------------------------------------------------------------
 
@@ -1060,12 +1376,111 @@ describe("GoldCap Hoard window", function()
     -- Another press stops it and starts its own.
     press(row("Herbs").take)
     assert.same({ n = 2, 6, 1 }, used[2])
-    assert.equal(row("Herbs").take, HF.Running())
+    assert.equal("group:Herbs:out", HF.Running())
+    assert.equal(row("Herbs").take, select(2, HF.Running()))
   end)
 
   -- ---------------------------------------------------------------------------------------------
   -- Words
   -- ---------------------------------------------------------------------------------------------
+
+  -- A subgroup's top line, one level in, packs its name, its play's chip, five icons with their
+  -- counts and a seven-figure worth: nothing overlaps or runs past the row in any language, the row
+  -- showing fewer icons or its chip under the name where they do not fit side by side, and a press
+  -- leaves it as it was.
+  it("never overlaps or cuts a row's top line, in any language", function()
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+    local COUNTS = { 12345, 1234, 999, 20, 5 }
+    local function deep(play, name)
+      local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" },
+        caps = { { i = 3, c = 700, u = 1000, r = 2, k = true } }, rules = {
+          { n = "Gathering: " .. name, id = "herbs", pi = "gathering", pn = "Gathering", cn = name, p = play, d = 24 },
+          { n = "Gathering: Ore", id = "ore", pi = "gathering", pn = "Gathering", cn = "Ore", p = play, d = 24 },
+        } }
+      bags = { [0] = {}, [5] = { info(3, 50) }, [12] = {} }
+      for k = 1, 5 do
+        local id = 20 + k
+        file.caps[#file.caps + 1] = { i = id, c = 700, u = 1000, r = 1, k = true }
+        -- 100g each: 14,603 of them, 1,460,300g.
+        NAMES[id], VALUE[id] = "Herb " .. k, 1000000
+        bags[0][k] = info(id, COUNTS[k])
+      end
+      _G.GoldCap_AppRuns = file
+      GC.GroupRules.Adopt()
+      GC.Hoard.SetFolderOpen(GC.db, "gathering", true)
+    end
+    local beside, under = 0, 0
+    local function check(r, what)
+      local nameX, nameTop = at(r.name)[4], -at(r.name)[5]
+      local nameRight, nameBottom = nameX + r.name:GetWidth(), nameTop + r.name:GetHeight()
+      local worthRight = at(r.worth)[4]
+      local worthLeft = worthRight - r.worth:GetStringWidth()
+      local firstLeft, lastRight = worthLeft, nil
+      local function take(region)
+        local x = at(region)[4]
+        firstLeft, lastRight = math.min(firstLeft, x), math.max(lastRight or x, x + region:GetWidth())
+      end
+      for _, slot in ipairs(r.icons) do
+        if slot.edge:IsShown() then
+          take(slot.edge)
+          assert.is_true(slot.count:GetStringWidth() <= slot.edge:GetWidth() - 2, what .. " " .. textOf(slot.count))
+        end
+      end
+      if r.more:IsShown() then take(r.more) end
+      assert.is_true(nameRight <= firstLeft, what .. ": the name over the icons")
+      assert.is_true(r.name:GetWidth() >= math.min(r.name:GetUnboundedStringWidth(), 60), what .. ": the name squeezed")
+      assert.is_true(nameBottom <= r.head:GetHeight(), what .. ": the name below its line")
+      if r.chip:IsShown() then
+        local chipX, chipTop = at(r.chip)[4], -at(r.chip)[5]
+        if chipX >= nameRight then beside = beside + 1 end
+        if chipTop >= nameBottom then under = under + 1 end
+        assert.is_true(chipX >= nameRight or chipTop >= nameBottom, what .. ": the chip over the name")
+        assert.is_true(chipX + r.chip:GetWidth() <= firstLeft, what .. ": the chip over the icons")
+        assert.is_true(chipTop + r.chip:GetHeight() <= r.head:GetHeight(), what .. ": the chip below its line")
+        assert.is_true(r.chip:GetWidth() >= r.chip.text:GetUnboundedStringWidth(), what .. ": the chip cut")
+      end
+      if lastRight then assert.is_true(lastRight <= worthLeft, what .. ": the icons over the worth") end
+      assert.is_true(worthRight <= at(r.store)[4], what .. ": the worth over Store")
+      assert.is_true(at(r.take)[4] + r.take:GetWidth() <= r:GetWidth(), what .. ": past the row's edge")
+    end
+    for _, code in ipairs(helper.localeCodes()) do
+      GC.ActivateLocale(code)
+      for _, play in ipairs({ "gather", "craft", "flip", "stock" }) do
+        for _, name in ipairs({ "Herbs", "Kräuterblumen der Insel von Dorn und der Tiefen" }) do
+          deep(play, name)
+          open()
+          local what = ("%s %s %s"):format(code, play, name)
+          local r = rowByKey("herbs")
+          assert.equal(1, r.data.depth, what)
+          assert.equal(5, #r.data.icons, what)
+          for _, each in ipairs(HF._rows) do
+            if each:IsShown() then check(each, what) end
+          end
+          local height, chipAt = r:GetHeight(), at(r.chip)
+          press(r.store)
+          assert.equal(height, rowByKey("herbs"):GetHeight(), what)
+          assert.same(chipAt, at(rowByKey("herbs").chip), what)
+          close()
+        end
+      end
+    end
+    assert.is_true(beside > 0)
+    assert.is_true(under > 0)
+  end)
+
+  -- A count over an item's icon fits inside it: smaller, or in whole thousands, or not at all.
+  it("fits each item's count inside its icon", function()
+    bags[0][1], bags[12][1] = info(1, 1234), info(2, 123456)
+    open()
+    local herbs = row("Herbs")
+    local counts = {}
+    for i = 1, 2 do
+      local slot = herbs.icons[i]
+      counts[i] = textOf(slot.count)
+      assert.is_true(slot.count:GetStringWidth() <= 15 - 2, counts[i])
+    end
+    assert.same({ "123k", "1.2k" }, counts)
+  end)
 
   -- Labels wrap and buttons are as wide as their words: a long name in a long language grows the
   -- row or the window instead of being cut.
@@ -1100,8 +1515,14 @@ describe("GoldCap Hoard window", function()
         fits(f.storeAll, code)
         fits(f.takeAll, code)
         assert.is_true(inner >= f.choice:GetWidth(), code)
-        for _, fs in ipairs({ f.freeBags, f.freeBank }) do
-          assert.is_true(W.state(fs).wordWrap == false, code)
+        -- The free slots: one line each, as wide as its parts, inside the header.
+        for _, chip in ipairs({ f.freeBags, f.freeBank }) do
+          for _, fs in ipairs({ chip.words, chip.num, chip.rest }) do
+            assert.is_true(W.state(fs).wordWrap == false, code)
+          end
+          local need = 10 + 4 + chip.words:GetStringWidth() + 4 + chip.num:GetStringWidth()
+          if (textOf(chip.rest) or "") ~= "" then need = need + 4 + chip.rest:GetStringWidth() end
+          assert.is_true(chip:GetWidth() >= need, code)
         end
         local fold = f.fold
         assert.is_true(shown(fold), code)
@@ -1110,7 +1531,9 @@ describe("GoldCap Hoard window", function()
         for _, r in ipairs(HF._rows) do
           if r:IsShown() then
             assert.is_true(W.state(r.name).wordWrap ~= false, code)
-            assert.is_true(r.name:GetWidth() >= 40, code)
+            -- As wide as it is, or at least 60 for a name that wraps.
+            assert.is_true(r.name:GetWidth() >= math.min(r.name:GetUnboundedStringWidth(), 60), code)
+            assert.is_true(W.state(r.name).nonSpaceWrap == true, code)
             if r.chip:IsShown() then
               assert.is_true(r.chip:GetWidth() >= r.chip.text:GetUnboundedStringWidth(), code .. " " .. textOf(r.chip.text))
             end
