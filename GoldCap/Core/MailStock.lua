@@ -42,7 +42,9 @@ local _, GC = ...
 -- Absence is the fallback, so that a purchase whose mail no read saw arrive does not count for
 -- ever: a read of the whole inbox (every row loaded, none out of view) clears the purchases of
 -- an item last bought more than LAG_SECONDS before the visit opened, and a purchase is dropped
--- KEEP_SECONDS after it was made whatever the reads said.
+-- KEEP_SECONDS after it was made whatever the reads said. The opening pass never clears: MailFrame
+-- asks the server for the inbox only once it shows (MailFrame_Show calls MailFrame_RefreshInbox),
+-- so that pass reads the list the client held from before the visit.
 --
 -- Reads count only between the opening pass (MAIL_SHOW) and MAIL_CLOSED (Closed). An empty answer
 -- counts only at MAIL_CLOSED, and only when the visit showed rows and its last pass answered empty
@@ -51,9 +53,10 @@ local _, GC = ...
 -- shows mail; two mails of the same item and count within the tolerance are one to the keys, so
 -- such a take followed within the hour by the same purchase reads as the old mail still there; and
 -- a row the client has not loaded yet (the "Retrieving data" subject, an attachment without a
--- name) leaves that pass unread. One gap errs low: `items` holds only the mail in view, so what
--- newer mail pushed out of view, a purchase already credited included, counts nowhere until it
--- comes back into view.
+-- name) leaves that pass unread. Mail out of view counts by the keys kept for it (`away`), so a
+-- purchase already credited still counts after the day's sale mail pushed it past the hundredth
+-- row; a take on the very pass new mail came in reads as a scroll, and that mail counts until its
+-- expiry.
 --
 -- Store: GC.db.mailStock = { v = 1, chars = { ["Name-Realm"] = {
 --   items = { [itemID] = n },
@@ -148,13 +151,27 @@ local function copy(set)
   return out
 end
 
---- How many of an item wait in this character's mailbox: what the last read found plus what was
---- bought since. 0 for an unknown character or a newer store.
+-- The units of `itemID` that the keys in `set` ({ ["itemID:count:bucket"] = n }) stand for.
+local function unitsIn(set, itemID)
+  local units = 0
+  if type(set) ~= "table" then return units end
+  for key, n in pairs(set) do
+    local id, per = key:match("^(%d+):(%d+):")
+    if tonumber(id) == itemID then units = units + tonumber(per) * n end
+  end
+  return units
+end
+
+--- How many of an item wait in this character's mailbox: what the last read found in view and
+--- kept for mail out of view, plus what was bought since. 0 for an unknown character or a newer
+--- store.
 function MS.Count(char, itemID)
   local c = charOf(char, false)
   if not c or type(itemID) ~= "number" then return 0 end
   local bought = c.bought[itemID]
+  local away = type(c.away) == "table" and c.away or {}
   return (tonumber(c.items[itemID]) or 0) + (type(bought) == "table" and tonumber(bought.n) or 0)
+    + unitsIn(away.seen, itemID) + unitsIn(away.fresh, itemID)
 end
 
 --- An auction house purchase that succeeded: `qty` units of `itemID` are on their way to the
@@ -260,8 +277,9 @@ local function takeFirst(sets, e)
 end
 
 -- One read of the inbox for character `c`: `items`, `list` and `mails` as readInbox gives them,
--- `total` the inbox's own count of its mail, `opened` when this visit began.
-local function settle(c, items, list, mails, total, now, opened)
+-- `total` the inbox's own count of its mail, `opened` when this visit began, `opening` whether
+-- this is the visit's first pass (the list from before it).
+local function settle(c, items, list, mails, total, now, opened, opening)
   local allShown = not (type(total) == "number" and total > #mails)
   local seen, fresh = {}, {}
   local away = type(c.away) == "table" and c.away or {}
@@ -303,7 +321,7 @@ local function settle(c, items, list, mails, total, now, opened)
   for itemID, b in pairs(c.bought) do
     local at = type(b) == "table" and tonumber(b.at) or nil
     if not at or (tonumber(b.n) or 0) <= 0 or now - at > KEEP_SECONDS
-        or (allShown and opened - at > LAG_SECONDS) then
+        or (allShown and not opening and opened - at > LAG_SECONDS) then
       c.bought[itemID] = nil
     end
   end
@@ -326,7 +344,7 @@ function MS.Observe(api, shown, total, char, now, opening)
   if not items then return false end
   local c = charOf(char, true)
   if not c then return false end
-  settle(c, items, list, mails, total, now, visit.at)
+  settle(c, items, list, mails, total, now, visit.at, opening)
   return true
 end
 

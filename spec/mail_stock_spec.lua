@@ -169,6 +169,36 @@ describe("MailStock", function()
     assert.equal(6, count(101))
   end)
 
+  -- Blizzard's MailFrame asks the server for the inbox only once it shows (MailFrame_Show calls
+  -- MailFrame_RefreshInbox), so the pass MAIL_SHOW runs reads the list the client already held.
+  it("drops nothing on the opening pass, which lists the inbox from before the visit", function()
+    baseline()
+    now = now + 30
+    GC.MailStock.Bought("A-B", 101, 50)
+    now = now + 130
+    -- Every row loaded and in view, no won auction: the list of the visit before the purchase.
+    inbox({ player(900, 1) })
+    scan(true)
+    assert.equal(50, count(101))
+    -- The fetch answers with the won auction in front: the same fifty, never a hundred.
+    box:refreshNow(dated({ won(101, 50, now - 130) }))
+    scan(false)
+    assert.equal(50, count(101))
+    close()
+    assert.equal(50, count(101))
+  end)
+
+  it("keeps counting a purchase when the visit closes before the fetch answers", function()
+    baseline()
+    now = now + 30
+    GC.MailStock.Bought("A-B", 101, 50)
+    now = now + 130
+    inbox({ player(900, 1) })
+    scan(true)
+    close()
+    assert.equal(50, count(101))
+  end)
+
   -- The fallback: a purchase no read ever saw arrive (taken on a visit whose reads missed it, or
   -- never sent) stops counting at a read of the whole inbox well after it was made.
   it("drops a purchase a full read does not hold once it is older than the visit by two minutes", function()
@@ -342,6 +372,28 @@ describe("MailStock", function()
     for _, set in ipairs({ c.seen, c.fresh, away.seen or {}, away.fresh or {} }) do
       for key in pairs(set) do assert.is_nil(key:find("^101:"), key) end
     end
+  end)
+
+  -- A seller's inbox: the won auction was credited, then the day's sale mail pushed it past the
+  -- hundredth row. It still waits there, so BUY must not offer its units again.
+  it("keeps counting a credited purchase whose mail newer mail pushed out of view", function()
+    local hidden = overflow(3)
+    baseline()
+    now = now + 600
+    GC.MailStock.Bought("A-B", 101, 200)
+    now = now + 10
+    local mail = won(101, 200, now - 10)
+    show({ mail, player(900, 1) }, hidden)
+    assert.equal(200, count(101))
+    close()
+    now = now + 600
+    show({ player(902, 1), player(900, 1) }, { mail, hidden[1], hidden[2], hidden[3] })
+    assert.equal(200, count(101))
+    close()
+    -- The sale mail is taken and the won auction is back in view: the same two hundred.
+    now = now + 60
+    show({ mail, player(900, 1) }, hidden)
+    assert.equal(200, count(101))
   end)
 
   -- C1: what is kept for mail out of view lasts until that mail comes back or would have expired,
