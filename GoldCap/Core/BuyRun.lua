@@ -58,16 +58,20 @@ function GC.BuyRun.New(run, driver)
   -- spent are the run's score, and a /reload must not read as "nothing bought yet".
   local progress = driver.progress and driver.progress(run.code) or nil
 
+  -- Bought and spent are read from the saved score on every call, not once: the craft queue's
+  -- list lowers it in place when a craft used units (GC.AppRuns.SetLines), also while this run is
+  -- on screen with a purchase in the client's hands, and RecordPurchase must add to that.
   local function stateFor(itemID)
     local state = perItem[itemID]
     if not state then
-      local saved = progress and progress[itemID] or nil
-      state = {
-        bought = saved and tonumber(saved.bought) or 0,
-        spent = saved and tonumber(saved.spent) or 0,
-        boughtAt = saved and saved.boughtAt or nil,
-      }
+      state = { bought = 0, spent = 0 }
       perItem[itemID] = state
+    end
+    if progress then
+      local saved = type(progress[itemID]) == "table" and progress[itemID] or nil
+      state.bought = saved and tonumber(saved.bought) or 0
+      state.spent = saved and tonumber(saved.spent) or 0
+      state.boughtAt = saved and saved.boughtAt or nil
     end
     return state
   end

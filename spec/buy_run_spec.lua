@@ -138,6 +138,27 @@ describe("BuyRun progress across sessions", function()
     assert.equal(150, again:Lines()[1].buy)
   end)
 
+  -- The craft queue's list lowers the saved score in place when a craft used units
+  -- (GC.AppRuns.SetLines), and BUY skips rebuilding the list on screen while a purchase is in the
+  -- client's hands: the purchase that then settles adds to the lowered score, never writes the
+  -- one this object read before.
+  it("adds a purchase to the saved score as it stands, after the craft queue lowered it", function()
+    local saved = {}
+    local run = newRun(saved)
+    run:Refresh()
+    run:RecordPurchase(5, 20, 20 * 30000, 1000)
+    saved[5].bought, saved[5].spent = 10, 10 * 30000
+    run:RecordPurchase(5, 5, 5 * 30000, 1001)
+    assert.same({ bought = 15, spent = 15 * 30000, boughtAt = 1001 }, saved[5])
+    assert.equal(15, run:Lines()[1].bought)
+    -- A craft that used every unit bought leaves no entry; the next purchase starts from nothing.
+    saved[5] = nil
+    run:Refresh()
+    assert.equal(0, run:Lines()[1].bought)
+    run:RecordPurchase(5, 3, 3 * 30000, 1002)
+    assert.equal(3, saved[5].bought)
+  end)
+
   it("keeps a run that has no progress table in memory only", function()
     local run = GC.BuyRun.New({ code = "abcd2345", lines = { { i = 5, q = 10 } } },
       { now = function() return 1 end, haveOf = function() return 0 end,
