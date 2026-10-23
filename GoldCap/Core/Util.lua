@@ -487,7 +487,7 @@ function GC.Util.CursorBusy()
   local okSpell, targeting = pcall(SpellIsTargeting)
   if not okSpell or targeting then return true end
   local ok, kind = pcall(GetCursorInfo)
-  return ok and kind ~= nil
+  return not ok or kind ~= nil
 end
 
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints

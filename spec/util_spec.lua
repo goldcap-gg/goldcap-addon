@@ -232,6 +232,33 @@ describe("Util", function()
     it("reads a spaced unit", function() assert.equal(500, GC.Util.ParseMoney("5 s")) end)
     it("refuses a non-string", function() assert.is_nil(GC.Util.ParseMoney(nil)) end)
   end)
+
+  -- Asked before every container move: a click while the cursor is busy casts or drops instead.
+  describe("CursorBusy", function()
+    local spell, cursor
+    before_each(function()
+      spell, cursor = function() return false end, function() return nil end
+      _G.SpellIsTargeting = function() return spell() end
+      _G.GetCursorInfo = function() return cursor() end
+    end)
+    after_each(function() _G.SpellIsTargeting, _G.GetCursorInfo = nil, nil end)
+
+    it("is free with no spell waiting and nothing on the cursor", function()
+      assert.is_false(GC.Util.CursorBusy())
+    end)
+    it("is busy while a spell waits for an item or the cursor carries something", function()
+      spell = function() return true end
+      assert.is_true(GC.Util.CursorBusy())
+      spell, cursor = function() return false end, function() return "item", 2589 end
+      assert.is_true(GC.Util.CursorBusy())
+    end)
+    it("counts an error from either read as busy", function()
+      spell = function() error("no") end
+      assert.is_true(GC.Util.CursorBusy())
+      spell, cursor = function() return false end, function() error("no") end
+      assert.is_true(GC.Util.CursorBusy())
+    end)
+  end)
 end)
 
 describe("GC.Util.SlashArgs", function()
