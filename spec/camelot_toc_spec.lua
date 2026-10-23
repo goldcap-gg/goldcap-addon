@@ -51,8 +51,10 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   RETAIL_ONLY["UI/CraftStrip.lua"] = true
   RETAIL_ONLY["UI/CraftPanel.lua"] = true
   RETAIL_ONLY["UI/CraftQueueView.lua"] = true
-  -- Bank by group: the followed groups are retail only, and so is the bank route it moves through.
+  -- Bank by group and the Hoard: the followed groups are retail only, and so is the bank route they
+  -- move through.
   RETAIL_ONLY["Core/BankGroups.lua"] = true
+  RETAIL_ONLY["Core/Hoard.lua"] = true
   RETAIL_ONLY["UI/BankGroupsCard.lua"] = true
   RETAIL_ONLY["UI/BankTab.lua"] = true
 
