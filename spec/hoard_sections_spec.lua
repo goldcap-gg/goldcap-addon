@@ -275,11 +275,12 @@ describe("GoldCap Hoard sections", function()
   end)
 
   after_each(function()
-    W.CLIENT_METRICS = false
+    W.CLIENT_METRICS, W.CHAR_W = false, 6
     GC.ActivateLocale(nil)
     restore()
     for _, k in ipairs(KEYS) do _G[k] = saved[k] end
     for id = 301, 320 do NAMES[id], VALUE[id] = nil, nil end
+    NAMES[70], VALUE[70] = nil, nil
   end)
 
   -- Route data: this realm is Tarren Mill (1084), the account has a character on Kazzak (1305). The
@@ -469,6 +470,33 @@ describe("GoldCap Hoard sections", function()
     assert.same({ { 5, 1, CHARACTER } }, moves())
   end)
 
+  -- A piece of gear is priced at the item level its group's cap names (610 here): a 615 sells above
+  -- its usual price, a 600 has none (Core/GroupRules.lua's RuleFor). Prices are up takes out only
+  -- the 615 in the bank, and Put away stores the 600 in the bags and keeps the 615 out.
+  it("reads a piece of gear at its own item level for Prices are up and Put away", function()
+    local file = { v = 3, generatedAt = 1, runs = {}, groups = { "G" }, caps = {}, rules = FILE.rules }
+    for i, cap in ipairs(FILE.caps) do file.caps[i] = cap end
+    file.caps[#file.caps + 1] = { i = 70, c = 700, u = 5000, l = 610, r = 1, k = true }
+    _G.GoldCap_AppRuns = file
+    GC.GroupRules.Adopt()
+    NAMES[70], VALUE[70] = "Ornate Girdle", 9000
+    local levels = { ["12:6"] = 615, ["12:7"] = 600, ["0:7"] = 615, ["0:8"] = 600 }
+    _G.C_Item.GetCurrentItemLevel = function(loc) return levels[loc.bag .. ":" .. loc.slot] or 0 end
+    bags[12][6], bags[12][7] = info(70, 1), info(70, 1)
+    bags[0][7], bags[0][8] = info(70, 1), info(70, 1)
+    open()
+    local function slots(id)
+      local out = {}
+      for _, stack in ipairs(tileButton(id).plan.stacks) do out[stack.bag .. ":" .. stack.slot] = true end
+      return out
+    end
+    assert.is_true(slots("pricesUp")["12:6"])
+    assert.is_nil(slots("pricesUp")["12:7"])
+    assert.is_true(slots("putAway")["0:8"])
+    assert.is_nil(slots("putAway")["0:7"])
+    assert.equal("4 items sell above your usual price", textOf(tile("pricesUp").line))
+  end)
+
   -- From SEARCH_MIN_GROUPS groups the tiles are the board's compact strip: each tile one button,
   -- two icons, its name, how much, and a chevron.
   it("is a compact strip of three buttons over many groups", function()
@@ -490,6 +518,26 @@ describe("GoldCap Hoard sections", function()
     assert.equal(ACCOUNT, moves()[1][3])
     -- The strip stands over the search row.
     assert.is_true(-at(f)[5] + f:GetHeight() <= -at(HF._frame.search)[5])
+  end)
+
+  -- Pressed again and again in one spot: Prices are up's worth can grow up to the gold cap in the
+  -- visit, and the strip keeps its height, in a face a step wider than the spec's own too, where the
+  -- gold cap's figure takes two lines beside the icons.
+  it("keeps the compact strip's height however much Prices are up comes to, in any language", function()
+    W.CHAR_W = 7
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+    for _, code in ipairs(helper.localeCodes()) do
+      GC.ActivateLocale(code)
+      close()
+      manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+      open()
+      local h = tile("pricesUp").button:GetHeight()
+      -- The four odd ones' 30 each, at 80,000g.
+      for k = 1, GC.Hoard.SEARCH_MIN_GROUPS, 2 do VALUE[300 + k] = 80000 * 10000 end
+      bagsChanged()
+      assert.equal(helper.money("9600000g"), plainOf(tile("pricesUp").sub), code)
+      assert.equal(h, tile("pricesUp").button:GetHeight(), code)
+    end
   end)
 
   it("paints no tile without a followed group, and reads no slot for them", function()
@@ -579,6 +627,23 @@ describe("GoldCap Hoard sections", function()
     assert.equal("carry:200:12:6:out", HF.Running())
   end)
 
+  -- A card's button moves the first stack of its item that the game does not hold and no press has
+  -- sent: a stack on the cursor or on its way is passed over for the next.
+  it("moves the card's first free stack, passing over one the game holds", function()
+    route()
+    bags[0][7] = info(100, 1, { isLocked = true })
+    bags[0][8] = info(100, 1)
+    open()
+    local card = cards()[1]
+    assert.equal("Gem-Inlaid Velvet Cinch ×2", plainOf(card.name))
+    assert.is_true(card.button:IsEnabled())
+    press(card.button)
+    assert.same({ { n = 5, 0, 8, nil, ACCOUNT, false } }, used)
+    assert.equal("carry:100:0:8:in", HF.Running())
+    -- Its own run's Stop while that stack is on its way.
+    assert.equal("Stop", textOf(cards()[1].button.text))
+  end)
+
   -- A card done in this visit keeps its place, so the next press in that spot is not another card's.
   it("keeps a card whose stack has gone in its place for the visit, its button disabled", function()
     route()
@@ -637,6 +702,8 @@ describe("GoldCap Hoard sections", function()
     assert.equal(6, #used)
     for _, m in ipairs(moves()) do assert.is_false(m[1] == 0 and m[2] == 2) end
     close()
+    -- Put back would bring those back first (a room is one bank's): this is another character's day.
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", nil)
     used = {}
     switchTo(CHARACTER)
     bags[0] = { info(1, 20, { isBound = true }) }
@@ -695,6 +762,132 @@ describe("GoldCap Hoard sections", function()
       helper.plain(tip.lines[2]))
   end)
 
+  -- What Make room put away is never more than its bank holds: another character took some of it
+  -- out of the Warband Bank, or the player took it all by hand. A later Make room starts afresh.
+  it("caps what Put back brings back at what the bank still holds, and forgets what it holds none of", function()
+    landing = true
+    bags[0] = { info(9, 20), info(3, 7) }
+    bags[5] = {}
+    open()
+    press(footer().makeRoom)
+    ticks()
+    assert.same({ [9] = 20, [3] = 7 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    -- Another character took 8 of the Linen; the player took the Bismuth by hand.
+    for slot, held in pairs(bags[12]) do
+      if held and held.itemID == 9 then bags[12][slot] = info(9, 12) end
+      if held and held.itemID == 3 then bags[12][slot] = false end
+    end
+    bagsChanged()
+    assert.same({ [9] = 12 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    -- The player takes the rest by hand: nothing is left to put back.
+    for slot, held in pairs(bags[12]) do
+      if held and held.itemID == 9 then bags[12][slot] = false end
+    end
+    bagsChanged()
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    assert.is_false(footer().putBack:IsEnabled())
+    -- A later Make room remembers what it puts away now, not the count that was.
+    bags[0] = { info(9, 5) }
+    bagsChanged()
+    press(footer().makeRoom)
+    ticks()
+    assert.same({ [9] = 5 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+  end)
+
+  -- A room is one bank's: while what Make room put into the other bank is not back, Make room is
+  -- disabled and says where it is; it works again once Put back brings it back.
+  it("disables Make room while what it put into the other bank is not back, and enables it once Put back has", function()
+    landing = true
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = CHARACTER, at = now, items = { [2] = 40 } })
+    open()
+    assert.equal(ACCOUNT, HF._bankType)
+    assert.is_false(footer().makeRoom:IsEnabled())
+    hover(footer().makeRoom)
+    assert.equal("Make room", helper.plain(tip.lines[1]))
+    assert.equal("What Make room put away is still in Bank: put it back first.", helper.plain(tip.lines[2]))
+    W.state(HF._frame.choice.sides[1]).scripts.OnClick(HF._frame.choice.sides[1])
+    assert.equal(CHARACTER, HF._bankType)
+    press(footer().putBack)
+    ticks()
+    assert.same({ { 6, 1, "out" } }, moves())
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    assert.is_true(footer().makeRoom:IsEnabled())
+    W.state(HF._frame.choice.sides[2]).scripts.OnClick(HF._frame.choice.sides[2])
+    assert.equal(ACCOUNT, HF._bankType)
+    assert.is_true(footer().makeRoom:IsEnabled())
+  end)
+
+  it("enables Make room again once the other bank holds none of what it put there", function()
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = CHARACTER, at = now, items = { [2] = 40 } })
+    open()
+    assert.is_false(footer().makeRoom:IsEnabled())
+    -- The player took the 40 out of the character's bank by hand.
+    bags[6] = {}
+    bagsChanged()
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    assert.is_true(footer().makeRoom:IsEnabled())
+  end)
+
+  it("disables Make room while it could not remember what it puts away, saying why", function()
+    GC.db.hoard = { v = GC.Hoard.VERSION + 1 }
+    open()
+    assert.is_false(footer().makeRoom:IsEnabled())
+    hover(footer().makeRoom)
+    assert.equal("A newer version of GoldCap saved what Make room remembers: update GoldCap to use it.",
+      helper.plain(tip.lines[2]))
+    GC.db.hoard = nil
+    GC.CraftClient.Char = function() return nil end
+    bagsChanged()
+    assert.is_false(footer().makeRoom:IsEnabled())
+    hover(footer().makeRoom)
+    assert.equal("GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away.",
+      helper.plain(tip.lines[2]))
+    GC.CraftClient.Char = function() return "Me-Tarren Mill" end
+    bagsChanged()
+    assert.is_true(footer().makeRoom:IsEnabled())
+  end)
+
+  -- The bank closed while Make room's stack was on its way: it is remembered once the bags show it
+  -- left.
+  it("remembers a stack Make room sent before the bank closed once it lands", function()
+    landing = true
+    bags[0] = { info(9, 20), info(3, 7) }
+    bags[5] = {}
+    open()
+    press(footer().makeRoom)
+    close()
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    land()
+    bagsChanged()
+    assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+  end)
+
+  -- Pressed again and again in one spot: the price line can say an older age or another source in
+  -- the visit, and the footer keeps its height and its buttons their place.
+  it("keeps the footer's room and its buttons' place whatever the price line says in the visit, in any language", function()
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+    for _, code in ipairs(helper.localeCodes()) do
+      GC.ActivateLocale(code)
+      close()
+      origin, GC.db.imported = "app", { ts = now - 12 * 60 }
+      open()
+      local f = footer()
+      local function place() return { f:GetHeight(), at(f), at(f.makeRoom), at(f.putBack) } end
+      local before = place()
+      for _, age in ipairs({ 59 * 60, 23 * 3600, 400 * 86400 }) do
+        GC.db.imported.ts = now - age
+        bagsChanged()
+        assert.same(before, place(), code .. " " .. age)
+      end
+      origin = "manual"
+      bagsChanged()
+      assert.same(before, place(), code .. " manual")
+      origin, GC.db.imported = "none", nil
+      bagsChanged()
+      assert.same(before, place(), code .. " none")
+    end
+  end)
+
   it("turns the price line amber once the prices are older than FRESH_SECONDS, and says where they came from", function()
     local K = GC.Kit.Tokens.color
     GC.db.imported.ts = now - HF.Footer.FRESH_SECONDS + 1
@@ -713,7 +906,7 @@ describe("GoldCap Hoard sections", function()
     assert.same(K.warn, W.state(footer().dot).vertex)
   end)
 
-  it("shows the footer only with a followed group", function()
+  it("shows the footer only with a followed group, or while Make room has something to bring back", function()
     route()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
@@ -721,5 +914,23 @@ describe("GoldCap Hoard sections", function()
     assert.is_true(HF._frame:IsShown())
     assert.is_false(shown(footer()))
     assert.equal(2, #cards())
+  end)
+
+  -- Unfollowing every group does not strand what Make room put away: the footer stays until Put back
+  -- has brought it back.
+  it("shows the footer without a followed group while Make room has something to bring back", function()
+    _G.GoldCap_AppRuns = nil
+    GC.GroupRules.Adopt()
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now, items = { [2] = 100 } })
+    landing = true
+    open()
+    assert.is_true(HF._frame:IsShown())
+    assert.is_true(shown(footer()))
+    assert.is_true(footer().putBack:IsEnabled())
+    press(footer().putBack)
+    ticks()
+    assert.same({ { 12, 1, "out" } }, moves())
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    assert.is_false(HF._frame:IsShown())
   end)
 end)

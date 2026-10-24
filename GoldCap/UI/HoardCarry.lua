@@ -14,8 +14,9 @@ local _, GC = ...
 --
 -- A card hands its item to another of the player's characters, which only the Warband Bank does: its
 -- button names that bank whatever the window's switch says (HF.Press's bankType), and moves its
--- row's first stack, one per press, through the window's press (its run id
--- "carry:<itemID>:<bag>:<slot>:in" or ":out"); while that run goes the button is its Stop. This file
+-- row's first stack the game does not hold and no press has sent, one per press, through the
+-- window's press (its run id "carry:<itemID>:<bag>:<slot>:in" or ":out"); while that run goes the
+-- button is its Stop. This file
 -- reads and paints and moves nothing. Pressed again and again in one spot, so a card shown in this
 -- bank visit keeps its place and its height for the visit: one whose item has gone stays, its icon
 -- checked and its button disabled, and a new one comes under the others.
@@ -97,6 +98,24 @@ local function rowsNow(f, ctx, plan)
   return entries
 end
 
+local function runIdOf(itemID, stack, kind)
+  return ("carry:%d:%d:%d:%s"):format(itemID, stack.bag, stack.slot, kind)
+end
+
+-- The stack a card's button stands for, and whether a press may take it: while that button's own
+-- run goes, the stack it sent; else the row's first stack the game does not hold and no press has
+-- sent (the first one, not free, when there is none). Nothing for a row that has gone.
+local function pressable(row, kind, live, ctx)
+  if not live then return nil, false end
+  for _, stack in ipairs(row.stacks) do
+    if ctx.runId == runIdOf(row.itemID, stack, kind) then return stack, false end
+  end
+  for _, stack in ipairs(row.stacks) do
+    if not stack.locked and not (ctx.moving and ctx.moving[GC.BankGroups.SlotKey(stack)]) then return stack, true end
+  end
+  return row.stacks[1], false
+end
+
 -- A card for `entry` at `y`, `width` wide: its lines, its icon (checked once its item has gone), and
 -- its button over the row's first stack, the Stop of its own run. Answers its height, never lower
 -- than it was in this visit.
@@ -111,10 +130,9 @@ local function paintCard(f, card, entry, ctx, y, width)
   if stuck then
     b:Hide()
   else
-    local stack = live and row.stacks[1] or nil
-    local free = stack ~= nil and not stack.locked and not (ctx.moving and ctx.moving[GC.BankGroups.SlotKey(stack)])
+    local stack, free = pressable(row, kind, live, ctx)
     b.into = kind == "in"
-    b.runId = stack and ("carry:%d:%d:%d:%s"):format(row.itemID, stack.bag, stack.slot, kind) or ("carry:" .. entry.key)
+    b.runId = stack and runIdOf(row.itemID, stack, kind) or ("carry:" .. entry.key)
     local title = kind == "in" and GC.L["Put in the Warband Bank"] or GC.L["Take out to sell here"]
     local own = HF.List.PaintPair({ { b, free and { stack } or {}, title, GC.BankRoute.WhereText(kind, row.spot) } },
       ctx.runId, true, ctx.run) == b

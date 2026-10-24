@@ -117,6 +117,11 @@ HF._movers = setmetatable({}, { __mode = "k" })
 -- (`onRunEnd`, Press).
 HF._runInto, HF._runRows, HF._moved = nil, nil, {}
 HF._runEnd = nil
+-- The runs over whose button has not heard yet (Press's onRunEnd): each waits until every stack it
+-- sent before it ended has landed or been given up, a bank visit or not, { done, bank, result, rows,
+-- landed = { ["bag:slot"] = true }, flying = { ["bag:slot"] = { itemID, count } as sent } }
+-- (report, settleEndings).
+HF._endings = {}
 -- How many bank visits the window has seen: a section keeps what only grows (a tile's room) for
 -- one visit.
 HF._visit = 0
@@ -293,20 +298,28 @@ end
 -- The press
 -- ---------------------------------------------------------------------------------------------
 
+-- Whether `slotKey`'s slot no longer holds what was sent from it (`sent`, { itemID, count }): moved,
+-- merged, or emptied.
+local function hasLeft(slotKey, sent)
+  local bag, slot = slotKey:match("^(%-?%d+):(%d+)$")
+  local info = C_Container.GetContainerItemInfo(tonumber(bag), tonumber(slot))
+  return not (info and info.itemID == sent.itemID and (info.stackCount or 1) == sent.count)
+end
+
+-- Whether a slot can be told from a move now: a bag's always, a bank tab's only while the bank is
+-- open (closed, its slots answer nothing that could be told from a move).
+local function readable(slotKey)
+  return IS_BAG[tonumber(slotKey:match("^(%-?%d+):"))] == true or GC.BankRoute._open == true
+end
+
 -- Forgets a sent stack once its slot no longer holds it as it was: moved, merged, or emptied. That
 -- is the one place a stack counts as moved (HF._moved), for the run's cast bars and checks, and
--- for what a run's end hands its button (report). `bagsOnly`: the bags' slots alone, for when the
--- bank has closed and its tabs' slots answer nothing that could be told from a move.
-local function pruneMoving(bagsOnly)
+-- for what a run's end hands its button (report).
+local function pruneMoving()
   for slotKey, sent in pairs(HF._moving) do
-    local bag, slot = slotKey:match("^(%-?%d+):(%d+)$")
-    bag, slot = tonumber(bag), tonumber(slot)
-    if not bagsOnly or IS_BAG[bag] then
-      local info = C_Container.GetContainerItemInfo(bag, slot)
-      if not (info and info.itemID == sent.itemID and (info.stackCount or 1) == sent.count) then
-        HF._moving[slotKey] = nil
-        HF._moved[slotKey] = true
-      end
+    if readable(slotKey) and hasLeft(slotKey, sent) then
+      HF._moving[slotKey] = nil
+      HF._moved[slotKey] = true
     end
   end
 end
@@ -317,6 +330,34 @@ function HF._Settle(token)
   if token ~= settleSeq then return end
   HF._moving = {}
   HF.Refresh()
+end
+
+-- Hands each run over whose stacks have all landed or been given up to its button: onRunEnd(the
+-- stacks that left their slots, in the run's order, the run's bank, the machine's report). A stack
+-- still on its way lands when its slot shows the move, read as pruneMoving reads it; `gaveUp`, the
+-- run whose settle timer ran, drops what has not landed by then.
+local function settleEndings(gaveUp)
+  local i = 1
+  while i <= #HF._endings do
+    local ending = HF._endings[i]
+    for slotKey, sent in pairs(ending.flying) do
+      if readable(slotKey) and hasLeft(slotKey, sent) then
+        ending.flying[slotKey], ending.landed[slotKey] = nil, true
+      elseif ending == gaveUp then
+        ending.flying[slotKey] = nil
+      end
+    end
+    if next(ending.flying) == nil then
+      table.remove(HF._endings, i)
+      local moved = {}
+      for _, row in ipairs(ending.rows) do
+        if ending.landed[row.bag .. ":" .. row.slot] then moved[#moved + 1] = row.stack end
+      end
+      ending.done(moved, ending.bank, ending.result)
+    else
+      i = i + 1
+    end
+  end
 end
 
 -- What the press machine (Core/VendorPress.lua) reads of a slot: the item it holds, and whether
@@ -346,18 +387,33 @@ end
 -- `onRunEnd`, Press), then the window repaints, unless the run stopped for a repaint already on its
 -- way (the switch came to the other bank, HF.Refresh; another button's press, Press; the window
 -- closed). A stack counts as moved as the cast bars count it (pruneMoving, HF._moved), never by a
--- guess from the bags afterwards: the footer's Make room remembers exactly those for Put back.
+-- guess from the bags afterwards: the footer's Make room remembers exactly those for Put back. A
+-- stack still on its way as the run ends (a Stop, the bank closed, the switch) is waited for: the
+-- button hears once it has landed or the route's SETTLE_SECONDS have given up on it
+-- (settleEndings), so what lands after the end is remembered too.
 local function report(result)
   local rows, bank, done = HF._runRows, HF._runBank, HF._runEnd
   HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
   HF._runInto, HF._runRows, HF._runEnd = nil, nil, nil
   if done then
-    pruneMoving(not GC.BankRoute._open)
-    local moved = {}
-    for _, row in ipairs(rows or {}) do
-      if HF._moved[row.bag .. ":" .. row.slot] then moved[#moved + 1] = row.stack end
+    pruneMoving()
+    local ending = { done = done, bank = bank, result = result, rows = rows or {}, landed = {}, flying = {} }
+    for _, row in ipairs(ending.rows) do
+      local slotKey = row.bag .. ":" .. row.slot
+      if HF._moved[slotKey] then
+        ending.landed[slotKey] = true
+      elseif HF._moving[slotKey] then
+        ending.flying[slotKey] = HF._moving[slotKey]
+      end
     end
-    done(moved, bank, result)
+    HF._endings[#HF._endings + 1] = ending
+    if next(ending.flying) ~= nil and C_Timer and C_Timer.After then
+      C_Timer.After(GC.BankRoute.SETTLE_SECONDS, function()
+        settleEndings(ending)
+        if GC.BankRoute._open then HF.Refresh() end
+      end)
+    end
+    settleEndings()
   end
   local stopped = result.stopped
   if stopped ~= "bank" and stopped ~= "switched" and stopped ~= "hidden" then HF.OnBagsChanged() end
@@ -940,7 +996,7 @@ HF.ui = {
   heightOf = heightOf,
   itemName = itemName, worthText = worthText, plate = plate, moveButton = moveButton, paintMove = paintMove,
   showMoveTip = showMoveTip, hideTip = hideTip, track = track, restamp = restamp, closeKeep = closeKeep,
-  bankName = bankName, lit = lit, BAGS = BAGS,
+  bankName = bankName, BAGS = BAGS,
 }
 
 -- The rows of `list` from `y` in the scroll, from the pool's `first`; answers the y under them and
@@ -1359,7 +1415,9 @@ function HF.OnBankClosed()
 end
 
 -- BAG_UPDATE_DELAYED, and a run of Warband Bank slot changes (the route hands it on once after it).
+-- A run over hears of a stack that landed after it, the bank open or not (settleEndings).
 function HF.OnBagsChanged()
+  settleEndings()
   if GC.BankRoute._open then HF.Refresh() end
 end
 

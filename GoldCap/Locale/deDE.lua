@@ -1597,4 +1597,7 @@ GC.Locales.deDE = {
   ["What Make room put away is in %s: switch to it to put it back."] = "Was Platz schaffen weggelegt hat, liegt in der %s: wechsle dorthin, um es zurückzulegen.",
   ["Make room has put nothing away to bring back."] = "Platz schaffen hat nichts weggelegt, das zurückzuholen wäre.",
   ["Prices from the Companion, %s ago"] = "Preise vom Companion, vor %s",
+  ["What Make room put away is still in %s: put it back first."] = "Was Platz schaffen weggelegt hat, liegt noch in der %s: lege es zuerst zurück.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "Eine neuere Version von GoldCap hat gespeichert, was Platz schaffen sich merkt: aktualisiere GoldCap, um es zu nutzen.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap kennt Namen und Realm dieses Charakters noch nicht, daher kann sich Platz schaffen nicht merken, was es weglegt.",
 }

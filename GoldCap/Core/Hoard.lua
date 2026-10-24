@@ -17,7 +17,7 @@ local _, GC = ...
 --   group on goldcap.gg, the filter, the search and the sort, a folder's checkbox (CheckState) and
 --   the selection bar's totals (Selection);
 -- - the footer's Make room (MakeRoom, then Remember what went) and Put back (PutBack, then what is
---   Unreturned).
+--   Unreturned), never more than the bank still holds (Fit).
 --
 -- Where a stack sits and the order a press moves stacks in are Core/BankGroups.lua's
 -- (GC.BankGroups.SlotKey and StackOrder), so a tile, a row and a group's plan never disagree. They
@@ -105,43 +105,53 @@ local function cover(candidates, want)
   return taken, sum
 end
 
--- An item's two prices when it sells above its usual price now, else nil: the rule IsPriceUp
--- answers, kept in one place for PricesUp too, which needs the prices as well.
-local function upPrices(itemID, valueOf, usualOf)
+-- An item's two prices at `itemLevel` when it sells above its usual price now, else nil: the rule
+-- IsPriceUp answers, kept in one place for PricesUp too, which needs the prices as well.
+local function upPrices(itemID, valueOf, usualOf, itemLevel)
   local now = valueOf and price(valueOf(itemID))
-  local usual = usualOf and price(usualOf(itemID))
+  local usual = usualOf and price(usualOf(itemID, itemLevel))
   if now and usual and now * 100 >= usual * H.PRICE_UP_PCT then return now, usual end
   return nil
 end
 
---- Whether an item sells above its usual price now: both prices known, and the market value
---- (`valueOf(itemID)`) at least PRICE_UP_PCT percent of the usual price (`usualOf(itemID)`). An
---- item missing either price is never up: a guess would take out what the player stored on
---- purpose. The window also asks it of the bags, to keep those items out of Put away.
-function H.IsPriceUp(itemID, valueOf, usualOf)
-  return upPrices(itemID, valueOf, usualOf) ~= nil
+--- Whether an item at `itemLevel` (a stack's, as the bank route's reader reads it; nil for none)
+--- sells above its usual price now: both prices known, and the market value (`valueOf(itemID)`)
+--- at least PRICE_UP_PCT percent of the usual price (`usualOf(itemID, itemLevel)`: a piece of gear
+--- under the level its group's cap was priced at has none, Core/GroupRules.lua's RuleFor). An item
+--- missing either price is never up: a guess would take out what the player stored on purpose.
+--- The window also asks it of each stack in the bags, to keep those stacks out of Put away.
+function H.IsPriceUp(itemID, valueOf, usualOf, itemLevel)
+  return upPrices(itemID, valueOf, usualOf, itemLevel) ~= nil
 end
 
 --- Prices are up: the stacks in the bank (`bankStacks`) of the followed groups' items that sell
---- above their usual price now (IsPriceUp), to take out for the Sell tab. `opts.groupOf(itemID)`
---- answers an item's group (Core/GroupRules.lua's GroupOf), nil for an item in none;
---- `opts.valueOf` and `opts.usualOf` the two prices; `opts.moving` marks the stacks a press has
---- sent. Each is asked once per item, however many stacks it has; without them nothing is up.
---- Answers { stacks, items = { { itemID, name, count, now, usual } }, worth }: the items the most
---- worth first (count × now), then by name and item, each item's stacks the biggest first, and
---- `worth` their worth now in whole copper.
+--- above their usual price now (IsPriceUp, at each stack's item level `ilvl`), to take out for the
+--- Sell tab. `opts.groupOf(itemID)` answers an item's group (Core/GroupRules.lua's GroupOf), nil
+--- for an item in none; `opts.valueOf` and `opts.usualOf` the two prices; `opts.moving` marks the
+--- stacks a press has sent. The group and the market value are asked once per item, the usual
+--- price once per item and level, however many stacks there are; without them nothing is up.
+--- Answers { stacks, items = { { itemID, name, count, now, usual } }, worth }: an item counts only
+--- its stacks that are up, with the prices of the first of them; the items the most worth first
+--- (count × now), then by name and item, each item's stacks the biggest first, and `worth` their
+--- worth now in whole copper.
 function H.PricesUp(bankStacks, opts)
   opts = opts or {}
-  local items, byItem, stacksOf, prices = {}, {}, {}, {}
+  local items, byItem, stacksOf, prices, grouped, values = {}, {}, {}, {}, {}, {}
+  local function valueOf(itemID)
+    if values[itemID] == nil then values[itemID] = opts.valueOf and opts.valueOf(itemID) or false end
+    return values[itemID] or nil
+  end
   for _, stack in ipairs(bankStacks or {}) do
     local id = stack.itemID
-    if prices[id] == nil then
+    local at = id .. ":" .. tostring(stack.ilvl or 0)
+    if prices[at] == nil then
+      if grouped[id] == nil then grouped[id] = opts.groupOf ~= nil and opts.groupOf(id) ~= nil end
       local now, usual = nil, nil
-      if opts.groupOf and opts.groupOf(id) ~= nil then now, usual = upPrices(id, opts.valueOf, opts.usualOf) end
-      prices[id] = now and { now = now, usual = usual } or false
+      if grouped[id] then now, usual = upPrices(id, valueOf, opts.usualOf, stack.ilvl) end
+      prices[at] = now and { now = now, usual = usual } or false
     end
-    if prices[id] and free(stack, opts.moving) then
-      addTo(items, byItem, stack, prices[id])
+    if prices[at] and free(stack, opts.moving) then
+      addTo(items, byItem, stack, prices[at])
       stacksOf[id] = stacksOf[id] or {}
       table.insert(stacksOf[id], stack)
     end
@@ -201,16 +211,18 @@ function H.ForCrafts(missing, bankStacks, moving)
 end
 
 --- Put away: every group's To bank stack (Core/BankGroups.lua's Plan, so each group's keep count
---- holds) whose item is not in `excludeIds` ({ [itemID] = true }: the window leaves out what
---- Prices are up would sell and the reagents the craft queue needs). Answers { stacks, items =
+--- holds) whose item is not in `excludeIds` ({ [itemID] = true }: the window leaves out the
+--- reagents the craft queue needs, of every quality) and whose slot is not in `excludeSlots`
+--- ({ ["bag:slot"] = true }: the stacks in the bags that sell above their usual price, each at its
+--- own item level, so another level of the same item still goes). Answers { stacks, items =
 --- { { itemID, name, count } } }, the stacks in the groups' order and the items summed in the
 --- order they first come.
-function H.PutAway(groups, excludeIds)
-  local exclude = excludeIds or {}
+function H.PutAway(groups, excludeIds, excludeSlots)
+  local exclude, slots = excludeIds or {}, excludeSlots or {}
   local out, byItem = { stacks = {}, items = {} }, {}
   for _, group in ipairs(groups or {}) do
     for _, stack in ipairs(group.toBank or {}) do
-      if not exclude[stack.itemID] then
+      if not exclude[stack.itemID] and not slots[GC.BankGroups.SlotKey(stack)] then
         out.stacks[#out.stacks + 1] = stack
         addTo(out.items, byItem, stack)
       end
@@ -587,6 +599,30 @@ function H.Unreturned(room, stacks)
   end
   if next(left) == nil then return nil end
   return { bankType = room.bankType, at = room.at, items = left }
+end
+
+--- What of `room` its bank still holds: each item's count capped at what `bankStacks` (read from
+--- `room.bankType`'s tabs) hold of it now, an item they hold none of left out. Another character
+--- may have taken some out of the Warband Bank, or the player all of it by hand, and Put back must
+--- not offer, nor a later Make room add to, what is no longer there. Answers the room as it is now
+--- (nil when nothing of it is left, for SetRoom to forget it) and whether that differs from
+--- `room`, which is left as it is.
+function H.Fit(room, bankStacks)
+  if type(room) ~= "table" or type(room.items) ~= "table" then return nil, false end
+  local held = {}
+  for _, stack in ipairs(bankStacks or {}) do
+    if room.items[stack.itemID] and type(stack.count) == "number" then
+      held[stack.itemID] = (held[stack.itemID] or 0) + stack.count
+    end
+  end
+  local items, changed = {}, false
+  for id, count in pairs(room.items) do
+    local now = math.min(count, held[id] or 0)
+    if now > 0 then items[id] = now end
+    changed = changed or now ~= count
+  end
+  if next(items) == nil then return nil, true end
+  return { bankType = room.bankType, at = room.at, items = items }, changed
 end
 
 -- The window's memory, GC.db.hoard = { v = 1, closed = true or nil, open = { [parent key] = true },

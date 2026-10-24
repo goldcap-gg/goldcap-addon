@@ -8,23 +8,32 @@ local _, GC = ...
 --   the bank the switch names takes, the biggest first (Core/Hoard.lua's MakeRoom over the bank
 --   route's reader), soulbound ones too into the character's own bank (the Warband Bank refuses
 --   them). When its run is over, what actually left the bags (the window's run end, HF.Press's
---   onRunEnd) is remembered for the character at the keyboard, added to what an earlier Make room
---   into the same bank put there and Put back has not brought back yet (Remember, SetRoom).
+--   onRunEnd, heard once every stack the run sent has landed or been given up) is remembered for
+--   the character at the keyboard, added to what an earlier Make room into the same bank put there
+--   and Put back has not brought back yet (Remember, SetRoom). It is disabled, its tooltip saying
+--   why, while what it put into the other bank is not back (a room is one bank's, and a second one
+--   would lose the first), and while it could not remember: a newer GoldCap's save, or a character
+--   whose name and realm the game has not told yet.
 -- - Put back takes that back out of that bank (PutBack), wherever the bags have room; when its run
 --   is over, what came back is forgotten (Unreturned), the whole room once nothing is left. With
 --   nothing remembered, or with the switch on the other bank, it is disabled and its tooltip says
 --   why, and which bank holds it.
+-- - What is remembered is never more than its bank holds: whenever that bank can be read (each
+--   paint, and each run's end, at a bank where it can be used) every item is capped at what the
+--   bank holds of it now, and the room forgotten once it holds none (Fit). Another character may
+--   have taken some out of the Warband Bank, or the player all of it by hand.
 -- - The price line: where the prices GoldCap reads came from and how long ago, with a dot in the
 --   kit's green while they are under FRESH_SECONDS old, amber after or with none.
--- Shown with a followed group, as the window's own part.
+-- Shown with a followed group, as the window's own part, and without one while Make room has
+-- something to bring back.
 --
 -- Both buttons are the window's move buttons (HF.ui.moveButton: their click is HF.Press, with the
 -- run ids "footer:makeRoom" and "footer:putBack"), a pair as a row's Store and Take out are
 -- (UI/HoardList.lua's PaintPair): while one's run goes it is its Stop where it stands and the other
 -- gives way. Each is as wide as the wider of its words and Stop, and the footer keeps the room the
--- most its price line has needed in the bank visit, so nothing here moves under the cursor. This
--- file reads, paints and writes what Make room put away (GC.db.hoard, through Core/Hoard.lua), and
--- moves nothing.
+-- most its price line can need in the bank visit (every source and an age of each unit's widest
+-- figure, measured at each paint), so nothing here moves under the cursor. This file reads, paints
+-- and writes what Make room put away (GC.db.hoard, through Core/Hoard.lua), and moves nothing.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 local U = HF.ui
@@ -47,12 +56,29 @@ end
 
 local function everything() return true end
 
+-- What Make room put away for `char`, as its bank holds it now: capped at that bank's stacks
+-- whenever they can be read (Core/Hoard.lua's Fit), and kept so, forgotten once the bank holds none
+-- of it. Answers the room (nil for none) and that bank's stacks of its items (nil while the bank
+-- cannot be read: then the room is as remembered).
+local function roomNow(char)
+  local H, route = GC.Hoard, GC.BankRoute
+  local room = char and H.Room(GC.db, char) or nil
+  if not (room and route.CanMove(room.bankType)) then return room, nil end
+  local function remembered(itemID) return room.items[itemID] ~= nil end
+  local stacks = route.ReadStacks(route.BankTabs(room.bankType), true, remembered, room.bankType, { soulbound = true })
+  local fitted, changed = H.Fit(room, stacks)
+  if changed then H.SetRoom(GC.db, char, fitted) end
+  return fitted, stacks
+end
+
 -- Make room's run is over: what left the bags is remembered for the character, added to an earlier
--- room in the same bank. A run that moved nothing leaves the memory as it was.
+-- room in the same bank, then capped at what that bank holds. A run that moved nothing leaves the
+-- memory as it was.
 local function onRoomMade(moved, bankType)
   local char = charNow()
   if not char or #moved == 0 then return end
   GC.Hoard.SetRoom(GC.db, char, GC.Hoard.Remember(bankType, time(), moved, GC.Hoard.Room(GC.db, char)))
+  roomNow(char)
 end
 
 -- Put back's run is over: what came back is forgotten, the room once nothing is left of it.
@@ -60,6 +86,7 @@ local function onPutBack(moved)
   local char = charNow()
   if not char or #moved == 0 then return end
   GC.Hoard.SetRoom(GC.db, char, GC.Hoard.Unreturned(GC.Hoard.Room(GC.db, char), moved))
+  roomNow(char)
 end
 
 -- A quiet button, as Store all and Take all out are drawn: no fill, a faint ring, its words in the
@@ -84,50 +111,83 @@ local function build(f)
   colour(f.prices, K.text3)
 end
 
+-- The price line's words for `origin` ("app", "manual" or "none") and an age in seconds.
+local function pricesText(origin, age)
+  if age and (origin == "app" or origin == "manual") then
+    local ago = GC.Util.FormatElapsedWords(age) or ""
+    return origin == "app" and GC.L["Prices from the Companion, %s ago"]:format(ago)
+      or GC.L["You pasted these prices %s ago"]:format(ago)
+  end
+  return GC.L["No prices for your region yet"]
+end
+
+-- An age of each unit's widest figure, for the price line's room: what it can say later in the
+-- visit is measured now.
+local WIDEST_AGES = { 59, 59 * 60, 23 * 3600, 999 * 86400 }
+
 -- Where the prices came from and how long ago, and whether that is fresh.
 local function pricesNow()
   local origin = GC.Data.OriginState and GC.Data.OriginState() or "none"
   local ts = GC.db and GC.db.imported and GC.db.imported.ts
   local age = type(ts) == "number" and ts > 0 and math.max(0, time() - ts) or nil
-  if age and (origin == "app" or origin == "manual") then
-    local ago = GC.Util.FormatElapsedWords(age) or ""
-    local text = origin == "app" and GC.L["Prices from the Companion, %s ago"]:format(ago)
-      or GC.L["You pasted these prices %s ago"]:format(ago)
-    return text, age < HFF.FRESH_SECONDS
-  end
-  return GC.L["No prices for your region yet"], false
+  local known = age and (origin == "app" or origin == "manual")
+  return pricesText(origin, age), known and age < HFF.FRESH_SECONDS or false
 end
 
--- What Put back's tooltip says under its title, and what it takes back: from the bank the switch
--- names when Make room put things there, else nothing, with why.
-local function putBackPlan(room, ctx)
+-- Every line the price line can say in this visit: each source at each widest age, and none.
+local function pricesVariants(text)
+  local out = { text, pricesText("none") }
+  for _, origin in ipairs({ "app", "manual" }) do
+    for _, age in ipairs(WIDEST_AGES) do out[#out + 1] = pricesText(origin, age) end
+  end
+  return out
+end
+
+-- What Put back takes back, and what its tooltip says under its title: from the bank the switch
+-- names when Make room put things there (`stacks`, that bank's, read by roomNow), else nothing,
+-- with why.
+local function putBackPlan(room, stacks, ctx)
   if not room then return {}, GC.L["Make room has put nothing away to bring back."] end
   local bank = U.bankName(room.bankType)
   if room.bankType ~= ctx.bankType then
     return {}, GC.L["What Make room put away is in %s: switch to it to put it back."]:format(bank)
   end
-  local route = GC.BankRoute
-  local function remembered(itemID) return room.items[itemID] ~= nil end
-  local stacks = route.ReadStacks(route.BankTabs(ctx.bankType), true, remembered, ctx.bankType, { soulbound = true })
-  return GC.Hoard.PutBack(room, stacks, ctx.moving),
+  return GC.Hoard.PutBack(room, stacks or {}, ctx.moving),
     GC.L["Takes back from %s what Make room put there. It lands wherever your bags have room, not in its old slots."]:format(bank)
 end
 
+-- What Make room moves into the bank the switch names, and what its tooltip says: nothing, with
+-- why, while it could not remember what went or while what it put into the other bank is not back.
+local function makeRoomPlan(room, char, ctx)
+  if not GC.Hoard.Writable(GC.db) then
+    return {}, GC.L["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."]
+  end
+  if not char then
+    return {}, GC.L["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."]
+  end
+  if room and room.bankType ~= ctx.bankType then
+    return {}, GC.L["What Make room put away is still in %s: put it back first."]:format(U.bankName(room.bankType))
+  end
+  local route = GC.BankRoute
+  local bagStacks = route.ReadStacks(U.BAGS, false, everything, ctx.bankType,
+    { soulbound = ctx.bankType == Enum.BankType.Character })
+  return GC.Hoard.MakeRoom(bagStacks, ctx.moving),
+    GC.L["Moves every stack in your bags that %s takes, and remembers what went for Put back."]:format(U.bankName(ctx.bankType))
+end
+
 -- The two buttons on the footer's first line, then the price line beside them or under them, its
--- room kept for the visit. Answers the footer's height, 0 without a followed group.
+-- room kept for the visit. Answers the footer's height, 0 with neither a followed group nor
+-- anything Make room put away.
 local function paint(f, ctx)
-  if not ctx.hasGroups then return 0 end
-  local route, H = GC.BankRoute, GC.Hoard
-  local character = Enum.BankType.Character
-  local bagStacks = route.ReadStacks(U.BAGS, false, everything, ctx.bankType, { soulbound = ctx.bankType == character })
   local char = charNow()
-  local room = char and H.Room(GC.db, char) or nil
-  local back, backNote = putBackPlan(room, ctx)
-  local bank = U.bankName(ctx.bankType)
+  local room, stacks = roomNow(char)
+  if not ctx.hasGroups and not room then return 0 end
+  if f.visit ~= ctx.visit then f.visit, f.most, f.under = ctx.visit, 0, false end
+  local back, backNote = putBackPlan(room, stacks, ctx)
+  local make, makeNote = makeRoomPlan(room, char, ctx)
   local labels = { GC.L["Make room"], GC.L["Put back"] }
   local running = HF.List.PaintPair({
-    { f.makeRoom, H.MakeRoom(bagStacks, ctx.moving), labels[1],
-      GC.L["Moves every stack in your bags that %s takes, and remembers what went for Put back."]:format(bank) },
+    { f.makeRoom, make, labels[1], makeNote },
     { f.putBack, back, labels[2], backNote },
   }, ctx.runId, true, ctx.run)
   for i, b in ipairs({ f.makeRoom, f.putBack }) do
@@ -143,25 +203,38 @@ local function paint(f, ctx)
   local text, fresh = pricesNow()
   local c = fresh and K.profit or K.warn
   f.dot:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  local buttonsW = makeW + M.GAP + backW
-  local besideW = ctx.width - buttonsW - M.LINE_GAP - M.DOT - M.DOT_GAP
-  -- Beside the buttons, ending at the footer's right, while it fits on one line there; else on a line
-  -- of its own under them, wrapping.
+  local besideW = ctx.width - (makeW + M.GAP + backW) - M.LINE_GAP - M.DOT - M.DOT_GAP
+  local underW = ctx.width - M.DOT - M.DOT_GAP
+  -- Beside the buttons, ending at the footer's right, while every line it can say in this visit fits
+  -- on one line there; else on a line of its own under them, wrapping, for the rest of the visit.
   f.prices:SetWidth(ctx.width)
+  local variants = pricesVariants(text)
+  local widest = 0
+  for _, line in ipairs(variants) do
+    setText(f.prices, line)
+    widest = math.max(widest, math.ceil(f.prices:GetUnboundedStringWidth() or 0))
+  end
+  if widest > besideW then f.under = true end
+  local oneLine = not f.under
   setText(f.prices, text)
   local fullW = math.ceil(f.prices:GetUnboundedStringWidth() or 0)
-  local oneLine = fullW <= besideW
-  local textW = oneLine and fullW or (ctx.width - M.DOT - M.DOT_GAP)
+  local textW = oneLine and fullW or underW
+  -- The room: the tallest line it can say, at the width it has.
+  local textH = 0
+  f.prices:SetWidth(math.max(1, oneLine and widest or underW))
+  for _, line in ipairs(variants) do
+    setText(f.prices, line)
+    textH = math.max(textH, math.ceil(heightOf(f.prices, 12)))
+  end
   f.prices:SetWidth(math.max(1, textW))
-  local textH = math.ceil(heightOf(f.prices, 12))
-  local lineY = oneLine and math.floor((L.ALL_H - textH) / 2) or (L.ALL_H + L.HEADING_GAP)
+  setText(f.prices, text)
+  local lineY = oneLine and math.floor((L.ALL_H - math.ceil(heightOf(f.prices, 12))) / 2) or (L.ALL_H + L.HEADING_GAP)
   local textX = oneLine and (ctx.width - textW) or (M.DOT + M.DOT_GAP)
   f.prices:ClearAllPoints()
   f.prices:SetPoint("TOPLEFT", f, "TOPLEFT", textX, -lineY)
   f.dot:ClearAllPoints()
   f.dot:SetPoint("TOPLEFT", f, "TOPLEFT", textX - M.DOT_GAP - M.DOT, -(lineY + math.floor((math.min(textH, 12) - M.DOT) / 2)))
   local h = oneLine and math.max(L.ALL_H, textH) or (lineY + textH)
-  if f.visit ~= ctx.visit then f.visit, f.most = ctx.visit, 0 end
   f.most = math.max(f.most, h)
   return f.most
 end

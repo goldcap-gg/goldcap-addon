@@ -1664,4 +1664,7 @@ GC.Locales.ruRU = {
   ["What Make room put away is in %s: switch to it to put it back."] = "То, что убрало «Освободить место», лежит в «%s»: переключитесь туда, чтобы вернуть.",
   ["Make room has put nothing away to bring back."] = "«Освободить место» ничего не убирало, возвращать нечего.",
   ["Prices from the Companion, %s ago"] = "Цены от Companion, %s назад",
+  ["What Make room put away is still in %s: put it back first."] = "То, что убрало «Освободить место», всё ещё лежит в «%s»: сначала верните это.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "Более новая версия GoldCap сохранила то, что помнит «Освободить место»: обновите GoldCap, чтобы пользоваться им.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap ещё не знает имя и игровой мир этого персонажа, поэтому «Освободить место» не может запомнить, что убирает.",
 }

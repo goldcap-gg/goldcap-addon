@@ -1592,4 +1592,7 @@ GC.Locales.ptBR = {
   ["What Make room put away is in %s: switch to it to put it back."] = "O que Abrir espaço guardou está no %s: mude para ele para devolver.",
   ["Make room has put nothing away to bring back."] = "Abrir espaço não guardou nada para devolver.",
   ["Prices from the Companion, %s ago"] = "Preços do Companion, há %s",
+  ["What Make room put away is still in %s: put it back first."] = "O que Abrir espaço guardou ainda está no %s: devolva primeiro.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "Uma versão mais nova do GoldCap salvou o que Abrir espaço lembra: atualize o GoldCap para usar.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "O GoldCap ainda não sabe o nome e o reino deste personagem, então Abrir espaço não pode lembrar o que guarda.",
 }

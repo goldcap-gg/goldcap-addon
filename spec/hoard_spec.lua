@@ -148,6 +148,15 @@ describe("Hoard", function()
         function(id) asked[#asked + 1] = "usual " .. id; return 100 end)
       assert.same({ "now 7", "usual 7" }, asked)
     end)
+
+    -- A piece of gear under the level its group's cap was priced at has no usual price
+    -- (Core/GroupRules.lua's RuleFor): the usual price is asked at the piece's own level.
+    it("asks the usual price at the item level it is given", function()
+      local function usualAt(_, level) return (level or 0) >= 610 and 100 or nil end
+      assert.is_true(H.IsPriceUp(7, function() return 200 end, usualAt, 615))
+      assert.is_false(H.IsPriceUp(7, function() return 200 end, usualAt, 600))
+      assert.is_false(H.IsPriceUp(7, function() return 200 end, usualAt))
+    end)
   end)
 
   describe("PricesUp", function()
@@ -209,6 +218,26 @@ describe("Hoard", function()
     it("takes out nothing when asked with no prices at all", function()
       assert.same({ stacks = {}, items = {}, worth = 0 }, H.PricesUp({ stack(40, 6, 1, 3) }))
       assert.same({ stacks = {}, items = {}, worth = 0 }, H.PricesUp({ stack(40, 6, 1, 3) }, {}))
+    end)
+
+    -- The Velvet Cinch's cap was priced at item level 610: a 615 sells above its usual price, a
+    -- 600 has none (Core/GroupRules.lua's RuleFor) and stays. Each level is asked once, the group
+    -- and the market value once an item.
+    it("asks the usual price at each stack's item level, and takes out only the levels that are up", function()
+      local asked = {}
+      local out = H.PricesUp({ stack(50, 6, 1, 1, { ilvl = 600 }), stack(50, 6, 2, 1, { ilvl = 615 }),
+        stack(50, 6, 3, 1, { ilvl = 615 }), stack(50, 6, 4, 1, { ilvl = 600 }) }, {
+        groupOf = function(id) asked[#asked + 1] = "group " .. id; return groupOf(id) end,
+        valueOf = function(id) asked[#asked + 1] = "now " .. id; return 9000 end,
+        usualOf = function(id, level)
+          asked[#asked + 1] = "usual " .. id .. " " .. tostring(level)
+          return level >= 610 and 5000 or nil
+        end,
+      })
+      assert.same({ "6:2", "6:3" }, where(out.stacks))
+      assert.same({ { itemID = 50, name = "Velvet Cinch", count = 2, now = 9000, usual = 5000 } }, out.items)
+      assert.equal(2 * 9000, out.worth)
+      assert.same({ "group 50", "now 50", "usual 50 600", "usual 50 615" }, asked)
     end)
   end)
 
@@ -273,6 +302,16 @@ describe("Hoard", function()
       local out = H.PutAway(groups, { [1] = true, [30] = true })
       assert.same({ "0:2", "0:1" }, where(out.stacks))
       assert.same({ { itemID = 2, name = "Argentleaf", count = 25 } }, out.items)
+    end)
+
+    -- Prices are up is asked of each stack in the bags at its own item level: a piece that sells
+    -- above its usual price stays out of the bank, another level of the same item goes in.
+    it("leaves out the stacks it is told to by their slots, and stores the rest of the same item", function()
+      local groups = plan({ stack(50, 0, 1, 1, { ilvl = 615 }), stack(50, 0, 2, 1, { ilvl = 600 }), stack(2, 0, 3, 10) },
+        {}, {})
+      local out = H.PutAway(groups, { [2] = true }, { ["0:1"] = true })
+      assert.same({ "0:2" }, where(out.stacks))
+      assert.same({ { itemID = 50, name = "Velvet Cinch", count = 1 } }, out.items)
     end)
 
     it("stores the whole To bank of every group with nothing left out", function()
@@ -808,6 +847,46 @@ describe("Hoard", function()
     it("keeps the room as it was when nothing came back, or only what was never in it", function()
       assert.same(room, H.Unreturned(room, {}))
       assert.same(room, H.Unreturned(room, { stack(9, 0, 1, 40) }))
+    end)
+  end)
+
+  -- What Put back can still bring back is never more than the bank holds now: another character
+  -- took some out of the Warband Bank, or the player took it all by hand.
+  describe("Fit", function()
+    local room = { bankType = 2, at = 1000, items = { [1] = 70, [2] = 5, [3] = 10 } }
+
+    it("caps each item at what the bank holds of it now, and drops an item it holds none of", function()
+      -- Bloom: another character took 40 of the 70. Argentleaf: merged into a stack of 200, all 5
+      -- still there. Azeroot: taken out by hand.
+      local fitted, changed = H.Fit(room, { stack(1, 6, 1, 20), stack(1, 6, 2, 10), stack(2, 6, 3, 200), stack(4, 6, 4, 9) })
+      assert.same({ bankType = 2, at = 1000, items = { [1] = 30, [2] = 5 } }, fitted)
+      assert.is_true(changed)
+      assert.same({ [1] = 70, [2] = 5, [3] = 10 }, room.items)
+    end)
+
+    it("keeps the room as it is while the bank holds all of it", function()
+      local fitted, changed = H.Fit(room, { stack(1, 6, 1, 70), stack(2, 6, 2, 5), stack(3, 6, 3, 12) })
+      assert.same(room, fitted)
+      assert.is_false(changed)
+    end)
+
+    it("forgets the room once the bank holds none of it", function()
+      local fitted, changed = H.Fit(room, { stack(4, 6, 1, 99) })
+      assert.is_nil(fitted)
+      assert.is_true(changed)
+      assert.is_nil((H.Fit(room, {})))
+      assert.same({ nil, false }, { H.Fit(nil, { stack(1, 6, 1, 70) }) })
+    end)
+
+    -- The player took the 20 Bloom out by hand, then a later Make room put 10 back: the room is
+    -- the 10 the bank holds, not 30.
+    it("leaves a later Make room into the same bank no stale count to add to", function()
+      local earlier = { bankType = 2, at = 10, items = { [1] = 20 } }
+      local merged = H.Remember(2, 1000, { stack(1, 0, 1, 10) }, earlier)
+      assert.same({ [1] = 30 }, merged.items)
+      assert.same({ bankType = 2, at = 1000, items = { [1] = 10 } }, H.Fit(merged, { stack(1, 6, 1, 10) }))
+      assert.same({ bankType = 2, at = 1000, items = { [1] = 10 } },
+        H.Remember(2, 1000, { stack(1, 0, 1, 10) }, H.Fit(earlier, {})))
     end)
   end)
 

@@ -1531,4 +1531,7 @@ GC.Locales.koKR = {
   ["What Make room put away is in %s: switch to it to put it back."] = "공간 만들기로 넣은 것은 %s에 있습니다. 되돌리려면 그쪽으로 전환하세요.",
   ["Make room has put nothing away to bring back."] = "공간 만들기로 넣어 둔 것이 없어 되돌릴 것이 없습니다.",
   ["Prices from the Companion, %s ago"] = "Companion 가격, %s 전",
+  ["What Make room put away is still in %s: put it back first."] = "공간 만들기로 넣은 것이 아직 %s에 있습니다. 먼저 되돌리세요.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "더 새로운 버전의 GoldCap이 공간 만들기의 기록을 저장했습니다. 사용하려면 GoldCap을 업데이트하세요.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap이 아직 이 캐릭터의 이름과 서버를 알지 못해 공간 만들기가 넣은 것을 기억할 수 없습니다.",
 }

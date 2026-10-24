@@ -1582,4 +1582,7 @@ GC.Locales.enUS = {
   ["What Make room put away is in %s: switch to it to put it back."] = "What Make room put away is in %s: switch to it to put it back.",
   ["Make room has put nothing away to bring back."] = "Make room has put nothing away to bring back.",
   ["Prices from the Companion, %s ago"] = "Prices from the Companion, %s ago",
+  ["What Make room put away is still in %s: put it back first."] = "What Make room put away is still in %s: put it back first.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "A newer version of GoldCap saved what Make room remembers: update GoldCap to use it.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away.",
 }

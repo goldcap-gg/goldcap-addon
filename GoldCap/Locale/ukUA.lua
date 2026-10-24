@@ -1665,4 +1665,7 @@ GC.Locales.ukUA = {
   ["What Make room put away is in %s: switch to it to put it back."] = "Те, що прибрало «Звільнити місце», лежить у «%s»: перемкніться туди, щоб повернути.",
   ["Make room has put nothing away to bring back."] = "«Звільнити місце» нічого не прибирало, повертати нічого.",
   ["Prices from the Companion, %s ago"] = "Ціни від Companion, %s тому",
+  ["What Make room put away is still in %s: put it back first."] = "Те, що прибрало «Звільнити місце», досі лежить у «%s»: спершу поверніть це.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "Новіша версія GoldCap зберегла те, що пам'ятає «Звільнити місце»: оновіть GoldCap, щоб ним користуватися.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap ще не знає ім'я та світ цього персонажа, тому «Звільнити місце» не може запам'ятати, що прибирає.",
 }

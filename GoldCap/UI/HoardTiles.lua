@@ -54,16 +54,18 @@ local MOVE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
 local DIM = 0.45
 -- The count a line or a label is measured with besides its own, so a count that changes does not
 -- make a tile taller (one past it can, once in a visit: the room is measured at the paint that
--- shows it, never after).
+-- shows it, never after). MOST_WORTH the same for Prices are up's worth: the gold cap.
 local MOST = 99
+local MOST_WORTH = 9999999 * 10000
 
 -- ---------------------------------------------------------------------------------------------
 -- What each tile moves
 -- ---------------------------------------------------------------------------------------------
 
--- An item's usual price: its group's (Core/GroupRules.lua), nil without one.
-local function usualOf(itemID)
-  local rule = GC.GroupRules.RuleFor(itemID)
+-- An item's usual price at `itemLevel` (a stack's): its group's (Core/GroupRules.lua), nil without
+-- one, and nil for a piece of gear under the level its group's cap was priced at.
+local function usualOf(itemID, itemLevel)
+  local rule = GC.GroupRules.RuleFor(itemID, itemLevel)
   return rule and rule.usualUnit or nil
 end
 
@@ -94,22 +96,24 @@ local function forCrafts(ctx, needs)
 end
 
 -- The three plans over what the window read (the followed groups' stacks in the bags and the bank
--- chosen, and its plan), and how many crafts the queue has.
+-- chosen, and its plan), and how many crafts the queue has. Put away leaves out every quality of
+-- what the queue needs, and each stack in the bags that sells above its usual price at its own
+-- item level.
 local function plansFor(ctx)
   local H = GC.Hoard
   local needs, crafts = craftNeeds()
-  local exclude = {}
+  local reagents, up = {}, {}
   for _, row in ipairs(needs) do
-    for _, id in ipairs(row.ids or {}) do exclude[id] = true end
+    for _, id in ipairs(row.ids or {}) do reagents[id] = true end
   end
   for _, stack in ipairs(ctx.bagStacks) do
-    if H.IsPriceUp(stack.itemID, ctx.valueOf, usualOf) then exclude[stack.itemID] = true end
+    if H.IsPriceUp(stack.itemID, ctx.valueOf, usualOf, stack.ilvl) then up[GC.BankGroups.SlotKey(stack)] = true end
   end
   return {
     pricesUp = H.PricesUp(ctx.bankStacks, { groupOf = GC.GroupRules.GroupOf, valueOf = ctx.valueOf, usualOf = usualOf,
       moving = ctx.moving }),
     forCrafts = forCrafts(ctx, needs),
-    putAway = H.PutAway(ctx.groups, exclude),
+    putAway = H.PutAway(ctx.groups, reagents, up),
   }, crafts
 end
 
@@ -170,7 +174,7 @@ end
 local function labelsOf(id, plan)
   local labels = { labelOf(id, plan), GC.L["Stop"] }
   if id == "pricesUp" then
-    labels[3] = GC.L["Take out"]
+    labels[3], labels[4] = GC.L["Take out"], GC.L["Take out %s"]:format(U.worthText(MOST_WORTH))
   else
     for _, n in ipairs({ 0, 1, MOST }) do labels[#labels + 1] = stacksLabel(id == "putAway", n) end
   end
@@ -450,7 +454,11 @@ local function paintCompact(f, plans, ctx, w)
     local t, plan = f.compact[id], plans[id]
     titleH = math.max(titleH, tallest(t.title, textW, { titleOf(id) }))
     local subs = { subOf(id, plan), GC.L["Nothing to move"] }
-    if id ~= "pricesUp" then subs[3], subs[4] = GC.L["1 stack"], GC.L["%d stacks"]:format(MOST) end
+    if id == "pricesUp" then
+      subs[3] = U.worthText(MOST_WORTH)
+    else
+      subs[3], subs[4] = GC.L["1 stack"], GC.L["%d stacks"]:format(MOST)
+    end
     setText(t.cast.count, ("%d / %d"):format(MOST, MOST))
     countH = math.max(countH, math.ceil(heightOf(t.cast.count, 12)))
     subH = math.max(subH, tallest(t.sub, textW, subs), countH + 2 + L.FILL_H)

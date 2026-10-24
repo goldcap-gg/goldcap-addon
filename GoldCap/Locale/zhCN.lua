@@ -1497,4 +1497,7 @@ GC.Locales.zhCN = {
   ["What Make room put away is in %s: switch to it to put it back."] = "腾出空间收起的物品在%s：切换到那里才能放回。",
   ["Make room has put nothing away to bring back."] = "腾出空间还没有收起任何物品，没有可放回的。",
   ["Prices from the Companion, %s ago"] = "来自 Companion 的价格，%s前",
+  ["What Make room put away is still in %s: put it back first."] = "腾出空间收起的物品仍在%s：请先放回。",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "更新版本的 GoldCap 保存了腾出空间的记录：请更新 GoldCap 后使用。",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap 还不知道这个角色的名字和服务器，腾出空间无法记住收起了什么。",
 }

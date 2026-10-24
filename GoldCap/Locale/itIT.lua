@@ -1594,4 +1594,7 @@ GC.Locales.itIT = {
   ["What Make room put away is in %s: switch to it to put it back."] = "Ciò che Fai spazio ha messo via è nella %s: passa a quella per rimetterlo.",
   ["Make room has put nothing away to bring back."] = "Fai spazio non ha messo via nulla da rimettere.",
   ["Prices from the Companion, %s ago"] = "Prezzi da Companion, %s fa",
+  ["What Make room put away is still in %s: put it back first."] = "Ciò che Fai spazio ha messo via è ancora nella %s: rimettilo prima.",
+  ["A newer version of GoldCap saved what Make room remembers: update GoldCap to use it."] = "Una versione più recente di GoldCap ha salvato ciò che Fai spazio ricorda: aggiorna GoldCap per usarlo.",
+  ["GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away."] = "GoldCap non conosce ancora il nome e il reame di questo personaggio, quindi Fai spazio non può ricordare ciò che mette via.",
 }

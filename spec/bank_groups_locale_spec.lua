@@ -51,6 +51,9 @@ local KEYS = {
   "Takes back from %s what Make room put there. It lands wherever your bags have room, not in its old slots.",
   "What Make room put away is in %s: switch to it to put it back.", "Make room has put nothing away to bring back.",
   "Prices from the Companion, %s ago", "You pasted these prices %s ago", "No prices for your region yet",
+  "What Make room put away is still in %s: put it back first.",
+  "A newer version of GoldCap saved what Make room remembers: update GoldCap to use it.",
+  "GoldCap does not know this character's name and realm yet, so Make room cannot remember what it puts away.",
 }
 
 -- The bank by group card's, which the Hoard took over from: gone from every language.

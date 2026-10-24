@@ -143,6 +143,13 @@ describe("GoldCap Hoard window", function()
     arrivals = {}
   end
 
+  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given up.
+  local function settle()
+    for i = #timers, 1, -1 do
+      if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
+    end
+  end
+
   -- The press machine's own timers (Core/VendorPress.lua's STEP), first armed first, until none is
   -- left, the server answering before each; answers how many ran. The settle timers stay.
   local function ticks()
@@ -2024,14 +2031,55 @@ describe("GoldCap Hoard window", function()
     assert.equal(1, #ends[2].moved)
     assert.equal(200, ends[2].moved[1].count)
     assert.equal("pressed", ends[2].result.stopped)
-    -- Nothing moved: an empty list, still once.
+    -- Nothing moved: the stack sent is waited for until the settle timer gives up on it, then an
+    -- empty list, still once.
     bags[0] = { info(1, 200) }
     landing = false
     HF.Press(mine, { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" } }, true)
     ticks()
+    assert.equal(2, #ends)
+    settle()
     assert.equal(3, #ends)
     assert.equal("refused", ends[3].result.stopped)
     assert.same({}, ends[3].moved)
+    settle()
+    assert.equal(3, #ends)
+  end)
+
+  -- A Stop, the bank closing or the switch can end a run while a stack it sent is on its way: the
+  -- button hears once that stack has landed, so what Make room put away is remembered whole.
+  it("waits for a stack on its way as the run ends, and tells onRunEnd once it lands, the bank open or not", function()
+    landing = true
+    open()
+    local ends = {}
+    local mine = W.CreateFrame("Button")
+    mine.runId = "footer:makeRoom"
+    mine.onRunEnd = function(moved) ends[#ends + 1] = moved end
+    local function two()
+      return { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" },
+        { itemID = 1, bag = 0, slot = 2, count = 20, link = "item:1" } }
+    end
+    -- Stopped right after its first move, before the server answered.
+    HF.Press(mine, two(), true)
+    HF.Press(mine, {}, true)
+    assert.equal(0, #ends)
+    land()
+    bagsChanged()
+    assert.equal(1, #ends)
+    assert.same({ 200 }, { ends[1][1].count })
+    -- The bank closed under it: the bags still tell the move.
+    bags[0] = { info(1, 200), info(1, 20) }
+    open()
+    HF.Press(mine, two(), true)
+    close()
+    assert.equal(1, #ends)
+    land()
+    bagsChanged()
+    assert.equal(2, #ends)
+    assert.same({ 200 }, { ends[2][1].count })
+    -- Heard once: the settle timer finds nothing more to tell.
+    settle()
+    assert.equal(2, #ends)
   end)
 
   -- A section's button that lists what it moves its own way (a tile's) says it in its tooltip
