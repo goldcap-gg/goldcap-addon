@@ -11,11 +11,13 @@ local _, GC = ...
 -- Store and Take out are the window's move buttons (HF.ui.moveButton): their click is the window's
 -- press, and this file moves nothing. Its own clicks open a row or a folder and ask the keep count.
 --
--- While the run of its Store or Take out goes, the one pressed is its Stop where it stands and the
--- other gives way (UI/HoardList.lua's PaintPair); the run's cast bar takes the name's room for
--- where the stacks go and the worth column for how many have moved, with a gold fill under them.
--- Any row's item icons wear the run's marks: a gold ring while a stack of the item is on its way, a
--- check once one has moved.
+-- While the run of its Store or Take out goes, the row wears the board's gold, the one pressed is
+-- its Stop where it stands, its tooltip saying where the run goes, and the other gives way
+-- (UI/HoardList.lua's PaintPair); the worth column says how many stacks have moved of how many,
+-- with a gold fill under the count. The name and the play stay where they are. Any row's item
+-- icons wear the run's marks: a gold ring while a stack of the item is on its way, a check once
+-- every stack of it in the run has moved. A checked group wears a gold wash and ring, a folder
+-- with any group checked a gold ring.
 --
 -- Pressed again and again in one spot, so nothing on a row moves while a press runs: everything
 -- right of the name stands at a fixed place from the row's right edge, the worth column is as wide
@@ -23,8 +25,7 @@ local _, GC = ...
 -- say. Nothing on the top line overlaps or cuts the name in any language: where the name and its
 -- chip lack room beside the icons, the row shows fewer icons (their "+N" grows), and then puts the
 -- chip under the name, by measures a press does not change, so a row's height holds through a run.
--- The checkbox takes the same room on every row from the first paint, and the top line keeps room
--- for the run's words in the name's place whichever way a run would go.
+-- The checkbox takes the same room on every row from the first paint.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 local U = HF.ui
@@ -37,8 +38,16 @@ local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrappi
 local STORE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
 local OPEN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
 local ICON_EDGE = { 0, 0, 0, 0.75 }
--- An icon whose item has moved in the run: shaded under the check, as the board draws it.
-local MOVED_SHADE = { 0.047, 0.055, 0.075, 0.6 }
+-- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
+-- the board draws it.
+local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
+-- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
+-- folder with any group checked.
+local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
+local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
+local CHECK_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
+local CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.3 }
+local FOLDER_CHECK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
 local PLAY_COLOR = { gather = K.profit, craft = K.yours, flip = K.goldText, stock = K.text2 }
 -- The bar's bank share: the legend's slate (HF.ui.SLATE) a step darker, as the board draws the
 -- bar's track under the bags' gold.
@@ -260,7 +269,7 @@ local function newRow(parent)
   row.keep = keepChip(row)
   row.check = HF.List.NewCheck(row)
   for _, b in ipairs({ row.store, row.take, row.keep, row.check }) do b:SetFrameLevel(row:GetFrameLevel() + 3) end
-  -- A run's cast bar: its words in the name's room, its count in the worth column's face.
+  -- How far a run of the row is, in the worth column's place and face.
   row.cast = HF.List.NewCast(row, row, 10)
   row.items, row.stays = {}, {}
   return row
@@ -423,9 +432,7 @@ end
 -- The name, the play's chip and a folder's chevron and group count, from the checkbox's room at the
 -- row's left to the block's nameRight: the name as wide as it is up to the room left, wrapping, its
 -- chip beside its first line or under it (layout). Answers the top line's height, which grows for a
--- name that wraps, for a chip under it, and for a run's words that would need more lines there than
--- the name (they take its place while a run of the row goes: paintRun); the block; and where the
--- name starts.
+-- name that wraps and for a chip under it, and the block.
 local function paintName(row, data, ctx)
   local folder = data.kind == "folder"
   local x = L.ROW_PAD + L.CHECK + L.CHECK_GAP
@@ -453,7 +460,6 @@ local function paintName(row, data, ctx)
   local nameW = math.max(1, math.min(math.ceil(row.name:GetUnboundedStringWidth() or 0) + 1, room))
   row.name:SetWidth(nameW)
   setText(row.name, data.name)
-  row.name:Show()
   local nameH = heightOf(row.name, 13)
   local textH = nameH
   if chipW > 0 then
@@ -467,8 +473,7 @@ local function paintName(row, data, ctx)
   else
     row.sub:Hide()
   end
-  local castH = HF.List.LabelHeight(row.cast, ctx.castLabels, block.nameRight - x)
-  local headH = math.max(folder and L.FOLDER_H or L.ROW_H, math.ceil(math.max(textH, castH)) + 2 * L.TEXT_PAD)
+  local headH = math.max(folder and L.FOLDER_H or L.ROW_H, math.ceil(textH) + 2 * L.TEXT_PAD)
   local textTop = math.floor((headH - textH) / 2)
   row.name:ClearAllPoints()
   row.name:SetPoint("TOPLEFT", row, "TOPLEFT", x, -textTop)
@@ -488,23 +493,16 @@ local function paintName(row, data, ctx)
         -(textTop + math.max(0, math.floor((firstLine - L.CHIP_H) / 2))))
     end
   end
-  return headH, block, x
+  return headH, block
 end
 
--- The run of the row's Store or Take out (`run`, UI/HoardList.lua's RunState), as its cast bar:
--- where the stacks go in the name's room, the name, its chip and a folder's count hidden for it;
--- how many have moved of how many in the worth column, with the gold fill under the count. With
--- no run of the row's, the cast bar is hidden and the name's line is paintName's.
-local function paintRun(row, run, headH, block, x, ctx)
+-- The run of the row's Store or Take out (`run`, UI/HoardList.lua's RunState) in the worth
+-- column, in the worth's place: how many stacks have moved of how many, the gold fill under the
+-- count. With no run of the row's, nothing of it shows and the worth does.
+local function paintRun(row, run, headH, block, ctx)
   local cast = row.cast
+  row.worth:SetShown(not run)
   if not run then return HF.List.HideCast(cast) end
-  for _, part in ipairs({ row.name, row.chip, row.sub }) do part:Hide() end
-  local label = cast.label
-  label:SetWidth(math.max(1, block.nameRight - x))
-  setText(label, run.label)
-  label:ClearAllPoints()
-  label:SetPoint("TOPLEFT", row, "TOPLEFT", x, -math.floor((headH - heightOf(label, 11)) / 2))
-  label:Show()
   setText(cast.count, HF.List.CountText(run))
   local countH = heightOf(cast.count, 12)
   local top = math.floor((headH - (countH + 2 + L.FILL_H)) / 2)
@@ -541,13 +539,9 @@ local function paintRow(row, data, ctx)
   local opened = not folder and HF._open == data.key
   local width = row:GetWidth()
   row.data, row.head.data = data, data
-  local fill = folder and K.glassTop or K.glassBottom
-  local ring = opened and OPEN_RING or (folder and K.glassBorder or K.hairline)
-  row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
-  row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
 
-  local headH, block, x = paintName(row, data, ctx)
-  HF.List.PaintCheck(row.check, data, ctx.selected)
+  local headH, block = paintName(row, data, ctx)
+  local checked = HF.List.PaintCheck(row.check, data, ctx.selected)
   row.check:ClearAllPoints()
   row.check:SetPoint("TOPLEFT", row, "TOPLEFT", L.ROW_PAD, -math.floor((headH - L.CHECK) / 2))
   -- The icons, "+N", the worth and the two moves, centred on the top line.
@@ -587,16 +581,25 @@ local function paintRow(row, data, ctx)
   row.take.runId = data.kind .. ":" .. data.key .. ":out"
   -- Without the keep counts (a newer GoldCap's), Store is not offered; Take out keeps its place.
   local running = HF.List.PaintPair({ { row.store, data.toBank, GC.L["Store"] },
-    { row.take, data.toBags, GC.L["Take out"] } }, ctx.runId, ctx.writable)
-  row.worth:SetShown(not running)
-  paintRun(row, running and ctx.run or nil, headH, block, x, ctx)
+    { row.take, data.toBags, GC.L["Take out"] } }, ctx.runId, ctx.writable, ctx.run)
+  paintRun(row, running and ctx.run or nil, headH, block, ctx)
+  -- Its glass: gold while its run goes, a checked group gold too, a folder with any group checked
+  -- ringed in gold, an opened row ringed in it.
+  local fill = folder and K.glassTop or K.glassBottom
+  local ring = folder and K.glassBorder or K.hairline
+  if not folder and checked == "on" then fill, ring = CHECK_FILL, CHECK_RING end
+  if folder and checked ~= "off" then ring = FOLDER_CHECK_RING end
+  if opened then ring = OPEN_RING end
+  if running then fill, ring = RUN_FILL, RUN_RING end
+  row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
+  row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
   row.head:ClearAllPoints()
   row.head:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
   row.head:SetSize(width, headH)
 
   local height = headH
   if opened then height = paintOpen(row, data.group, ctx, headH) else closeOpen(row) end
-  -- The lines an opened row shows, or the ones a run hid or showed, shown again: redrawn whole.
+  -- The lines an opened row shows, or the worth a run hid, shown again: redrawn whole.
   if (opened and not row.wasOpen) or (running ~= nil) ~= (row.ran == true) then U.restamp(row) end
   row.wasOpen, row.ran = opened, running ~= nil
   height = paintBar(row, data, height)

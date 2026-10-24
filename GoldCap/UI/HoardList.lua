@@ -2,15 +2,18 @@ local _, GC = ...
 
 -- What the GoldCap Hoard's list does beyond its rows (UI/HoardFrame.lua, the window, and
 -- UI/HoardRow.lua, a row, both loaded before this file): finding a group, checking several, and
--- showing a run as it goes. Over many groups (from GC.Hoard.SEARCH_MIN_GROUPS) the search row: the
--- BUY tab's search box, the filter "To move here" or "All" and the sort "By value" or "By name",
--- for the bank visit. A checkbox on every row, and while any is checked the selection bar at the
--- window's foot: how many groups, their stacks and their worth, their Store and Take out, and a
--- clear button. And a run's look: the button pressed turns into its Stop where it stands and the
--- other move of its pair gives way (PaintPair), the cast bar says where the stacks go and how many
--- have moved with a gold fill, and the marks on the items' icons (RunState). What is checked, found
--- and run is Core/Hoard.lua's (Rows, CheckState, Selection); every move is the window's press
--- (its move buttons, HF.ui.moveButton), and nothing here moves an item or presses for the player.
+-- showing a run as it goes. Over many groups (from GC.Hoard.SEARCH_MIN_GROUPS) the search row,
+-- fixed above the list: the BUY tab's search box, the filter "To move here" or "All" and the sort
+-- "By value" or "By name", for the bank visit. A checkbox on every row, and the selection bar's
+-- room at the window's foot from the first paint with checkboxes: a quiet hint while nothing is
+-- checked, then how many groups (and how many of them the search or the fold hides) and their
+-- worth, their Store and Take out, and a clear button. And a run's look: the button pressed turns
+-- into its Stop where it stands, its tooltip saying where the run goes, and the other move of its
+-- pair gives way (PaintPair); how many stacks have moved, with a gold fill; on Store all's line and
+-- the selection bar, the cast bar's words too; and the marks on the items' icons (RunState). What
+-- is checked, found and run is Core/Hoard.lua's (Rows, Check, CheckState, NotShown, Selection);
+-- every move is the window's press (its move buttons, HF.ui.moveButton), and nothing here moves an
+-- item or presses for the player.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 local U = HF.ui
@@ -22,13 +25,13 @@ local HL = HF.List
 
 -- The colours the boards draw these with, from the kit's tokens: an unchecked box's faint ring (a
 -- checked one is filled and ringed in gold), a cast bar's track under its gold fill, the selection
--- bar in a gold wash with a gold ring, its Take out ringed in gold, its clear button quiet.
+-- bar in a gold wash with a gold ring, its Take out ringed in gold (its clear button wears the
+-- window's own border).
 local CHECK_OFF = { 1, 1, 1, 0.28 }
 local FILL_TRACK = { 1, 1, 1, 0.08 }
 local BAR_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.10 }
 local BAR_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
 local TAKE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
-local CLEAR_RING = { 1, 1, 1, 0.14 }
 -- A move button's Stop: the kit's stop look with a ring in its colour.
 local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
 -- The most a run's count can say: the bags and both banks hold fewer than a thousand stacks.
@@ -57,11 +60,12 @@ local function wear(button, stop)
   end
 end
 
--- A move button while the run its press started goes: its Stop, live whatever it has left (a press
--- of it is the second press, which stops the run: HF.Press), its tooltip naming what comes next.
-local function paintStop(button, stacks)
+-- A move button while the run its press started goes (`run`, RunState's): its Stop, live whatever
+-- it has left (a press of it is the second press, which stops the run: HF.Press), its tooltip
+-- saying what it stops and where the run goes.
+local function paintStop(button, stacks, run)
   wear(button, true)
-  button.stacks, button.tipTitle = stacks, GC.L["Stop"]
+  button.stacks, button.tipTitle, button.tipNote = stacks, GC.L["Stop moving"], run and run.label
   button:Enable()
   if button.icon then button.icon:SetVertexColor(K.loss[1], K.loss[2], K.loss[3], 1) end
   local tooltip = _G.GameTooltip
@@ -69,11 +73,12 @@ local function paintStop(button, stacks)
 end
 
 --- Store and Take out side by side (a row's, Store all and Take all out, the selection bar's):
---- `pair` = { { store, its stacks, its tooltip's title }, { take out, ... } }. Each paints what it
---- moves (HF.ui.paintMove); while the run of one of them goes (`runId`), that one is Stop and the
---- other gives way. Store shows only with the keep counts readable (`writable`); Take out keeps
---- its place. Answers the button whose run goes, or nil.
-function HL.PaintPair(pair, runId, writable)
+--- `pair` = { { store, its stacks, its tooltip's title, a note under it or nil }, { take out, ...
+--- } }. Each paints what it moves (HF.ui.paintMove); while the run of one of them goes (`runId`,
+--- `run` as RunState gives it), that one is Stop and the other gives way. Store shows only with
+--- the keep counts readable (`writable`); Take out keeps its place. Answers the button whose run
+--- goes, or nil.
+function HL.PaintPair(pair, runId, writable, run)
   local running
   for _, entry in ipairs(pair) do
     if runId ~= nil and entry[1].runId == runId then running = entry[1] end
@@ -82,9 +87,10 @@ function HL.PaintPair(pair, runId, writable)
   for i, entry in ipairs(pair) do
     local button = entry[1]
     if button == running then
-      paintStop(button, entry[2])
+      paintStop(button, entry[2], run)
     else
       wear(button, false)
+      button.tipNote = entry[4]
       U.paintMove(button, entry[2], entry[3])
     end
     local up = (running == nil or running == button) and (i > 1 or writable)
@@ -95,22 +101,31 @@ function HL.PaintPair(pair, runId, writable)
 end
 
 --- The run that goes, as its cast bars say it: { id, into, label, done, total }, `done` its
---- stacks sent whose slots have shown the move (the window's HF._moving has let them go) of the
---- `total` it was pressed with; and each item's mark, { [itemID] = "moving" | "moved" }: moving
---- while a stack of it is on its way, moved once one has left. Nothing while no run goes.
+--- stacks whose slots have shown the move (the window's HF._moved, never a stack the settle timer
+--- gave up on) of the `total` it was pressed with; and each item's mark, { [itemID] = "moving" |
+--- "moved" }: moved once every stack of it in the run has, else moving while one is on its way.
+--- Nothing while no run goes.
 function HL.RunState()
   local rows = HF._runRows
   if HF._runId == nil or not rows then return nil, {} end
-  local done, marks = 0, {}
+  local done, items = 0, {}
   for _, row in ipairs(rows) do
     local slotKey = row.bag .. ":" .. row.slot
-    if HF._sent[slotKey] then
-      if HF._moving[slotKey] then
-        marks[row.itemID] = "moving"
-      else
-        done = done + 1
-        if marks[row.itemID] == nil then marks[row.itemID] = "moved" end
-      end
+    local item = items[row.itemID] or { total = 0, moved = 0, moving = false }
+    item.total = item.total + 1
+    if HF._moved[slotKey] then
+      done, item.moved = done + 1, item.moved + 1
+    elseif HF._moving[slotKey] then
+      item.moving = true
+    end
+    items[row.itemID] = item
+  end
+  local marks = {}
+  for itemID, item in pairs(items) do
+    if item.moved == item.total then
+      marks[itemID] = "moved"
+    elseif item.moving then
+      marks[itemID] = "moving"
     end
   end
   local label = HF._runInto and GC.L["Moving to %s"]:format(U.bankName(HF._runBank)) or GC.L["Moving to your bags"]
@@ -127,14 +142,18 @@ function HL.CountText(run)
   return ("%d / %d"):format(run.done, run.total)
 end
 
---- A cast bar's parts on `parent`, its lines tracked on `owner` for the redraw cure: its words,
---- wrapping, in the gold the board gives them; its count in the mono face at `countSize`; its
---- track and gold fill. Hidden until a run paints it.
-function HL.NewCast(parent, owner, countSize)
+--- A cast bar's parts on `parent`, its lines tracked on `owner` for the redraw cure: with `words`,
+--- where the run goes, wrapping, in the gold the board gives them (a row has none: its Stop's
+--- tooltip says it); its count in the mono face at `countSize`; its track and gold fill. Hidden
+--- until a run paints it.
+function HL.NewCast(parent, owner, countSize, words)
   local T = GC.Theme
-  local cast = { label = track(owner, wrapping(T.Label(parent, 9))), count = track(owner, T.Num(parent, countSize)),
-    track = T.Solid(parent, "ARTWORK", FILL_TRACK), fill = T.Solid(parent, "OVERLAY", K.gold) }
-  colour(cast.label, K.goldText)
+  local cast = { count = track(owner, T.Num(parent, countSize)), track = T.Solid(parent, "ARTWORK", FILL_TRACK),
+    fill = T.Solid(parent, "OVERLAY", K.gold) }
+  if words then
+    cast.label = track(owner, wrapping(T.Label(parent, 9)))
+    colour(cast.label, K.goldText)
+  end
   colour(cast.count, K.text2)
   cast.count:SetWordWrap(false)
   HL.HideCast(cast)
@@ -142,12 +161,13 @@ function HL.NewCast(parent, owner, countSize)
 end
 
 function HL.HideCast(cast)
-  for _, part in ipairs({ cast.label, cast.count, cast.track, cast.fill }) do part:Hide() end
+  for _, part in ipairs({ cast.count, cast.track, cast.fill }) do part:Hide() end
+  if cast.label then cast.label:Hide() end
 end
 
---- How tall a cast bar's words are at `width` for the longest of `labels`, so a line keeps their
---- room from its first paint. The words the label holds are left as they were.
-function HL.LabelHeight(cast, labels, width)
+-- How tall a cast bar's words are at `width` for the longest of `labels`, so a line keeps their
+-- room from its first paint. The words the label holds are left as they were.
+local function labelHeight(cast, labels, width)
   local label = cast.label
   local was = label:GetText()
   label:SetWidth(math.max(1, width))
@@ -172,7 +192,7 @@ end
 --- The room a cast bar takes on a line `width` wide (Store all's, the selection bar's): its words,
 --- wrapping, the most its count can say at their right, and the gold fill under them.
 function HL.LineCastHeight(cast, labels, width)
-  return HL.LabelHeight(cast, labels, width - countRoom(cast) - L.CAST_GAP) + 2 + L.FILL_H
+  return labelHeight(cast, labels, width - countRoom(cast) - L.CAST_GAP) + 2 + L.FILL_H
 end
 
 --- The gold fill of `run` (done of total) at `x`, `y` in `parent`, `width` wide, over its track.
@@ -241,7 +261,7 @@ function HL.NewCheck(row)
 end
 
 --- A checkbox for the row `data` (Core/Hoard.lua's Rows) against `selected`: a group's own key, a
---- folder's groups together (GC.Hoard.CheckState).
+--- folder's groups together (GC.Hoard.CheckState). Answers its state: "on", "mixed" or "off".
 function HL.PaintCheck(check, data, selected)
   local state = data.kind == "folder" and GC.Hoard.CheckState(data, selected) or (selected[data.key] and "on" or "off")
   check.data, check.state = data, state
@@ -251,6 +271,7 @@ function HL.PaintCheck(check, data, selected)
   check.fill:SetShown(on)
   if on then GC.Theme.SetIcon(check.glyph, state == "on" and "check" or "minus", K.onGold) end
   check.glyph:SetShown(on)
+  return state
 end
 
 local function onClearClick()
@@ -267,7 +288,8 @@ local function showClearTip(button)
   tooltip:Show()
 end
 
--- The selection bar, at the window's foot outside the scroll, so it stays in reach over 40 groups.
+-- The selection bar, at the window's foot outside the scroll, so it stays in reach over 40 groups;
+-- with nothing checked, its room holds a quiet hint instead.
 local function buildSelection()
   local T = GC.Theme
   local bar = CreateFrame("Frame", nil, frame)
@@ -280,6 +302,9 @@ local function buildSelection()
   colour(bar.title, K.goldText)
   bar.sub = track(frame, wrapping(T.Label(bar, 9)))
   colour(bar.sub, K.text2)
+  bar.hint = track(frame, wrapping(T.Label(bar, 10)))
+  bar.hint:SetJustifyH("CENTER")
+  colour(bar.hint, K.text3)
   -- Store in the gold fill, Take out ringed in gold, each with the kit's tray arrow before its words.
   bar.store = U.moveButton(bar, true, { variant = "primary", icon = "trayIn", iconColor = K.onGold, label = true })
   bar.take = U.moveButton(bar, false, { variant = "active", ring = TAKE_RING, icon = "trayOut", iconColor = K.goldText,
@@ -293,7 +318,7 @@ local function buildSelection()
   end
   bar.clear = T.Button(bar, "ghost", "badge")
   bar.clear:SetSize(L.SEL_BTN, L.SEL_BTN)
-  bar.clear:SetRing(CLEAR_RING)
+  bar.clear:SetRing(K.windowBorder)
   bar.clear.icon = bar.clear:CreateTexture(nil, "OVERLAY")
   bar.clear.icon:SetSize(L.SEL_ICON, L.SEL_ICON)
   bar.clear.icon:SetPoint("CENTER", bar.clear, "CENTER", 0, 0)
@@ -301,7 +326,7 @@ local function buildSelection()
   bar.clear:SetScript("OnClick", onClearClick)
   bar.clear:SetScript("OnEnter", showClearTip)
   bar.clear:SetScript("OnLeave", U.hideTip)
-  bar.cast = HL.NewCast(bar, frame, 9)
+  bar.cast = HL.NewCast(bar, frame, 9, true)
   bar:Hide()
   frame.selection = bar
 end
@@ -325,21 +350,53 @@ local function labelMove(button, label, stop)
   return width
 end
 
+-- The selection bar's first line: how many groups are checked, and how many of them the search or
+-- the fold line hides, fainter.
+local function selectedText(n, hidden)
+  local text = n == 1 and GC.L["1 group selected"] or GC.L["%d groups selected"]:format(n)
+  if hidden > 0 then text = text .. ", " .. GC.Util.Colored(K.text3, GC.L["%d not shown"]:format(hidden)) end
+  return text
+end
+
+-- Its second line: what the checked groups are worth here, in gold, as a row's worth is written.
+local function worthLine(copper)
+  local worth = U.worthText(copper)
+  return GC.L["Worth about %s"]:format(GC.Util.Colored(K.goldText, worth ~= "" and worth or GC.Util.Money(0)))
+end
+
+-- What a press of the bar's Store or Take out moves (`into`: Store's, to the bank the switch
+-- names), under its tooltip's title; nothing with nothing to move.
+local function moveNote(stacks, into, bankName)
+  local n = #stacks
+  if n == 0 then return nil end
+  if into then
+    return n == 1 and GC.L["1 stack into %s"]:format(bankName) or GC.L["%d stacks into %s"]:format(n, bankName)
+  end
+  return n == 1 and GC.L["1 stack into your bags"] or GC.L["%d stacks into your bags"]:format(n)
+end
+
 --- The selection bar for the groups checked of `groups` (the plan's), `head` wide at the window's
---- foot: on its left how many groups and their stacks with their worth (GC.Hoard.Selection), on
---- its right their Store and Take out and the clear button, or the buttons on a line of their own
---- where the words would have too little room. While its run goes, Stop where the press was and
---- the cast bar in the stacks' line, whose room the bar keeps from its first paint, as it keeps the
---- most that line can say. Answers its height, 0 with nothing checked.
-function HL.PaintSelection(groups, ctx, head)
+--- foot, its bottom `bottom` over the window's. Its room is kept for the visit from the first paint
+--- with a group (its rows' checkboxes), as tall as the most it can say (every group checked and
+--- hidden, their whole worth, the run's cast bar, or the hint), and only ever taller (HF._selH), so
+--- a check never moves the list. Nothing checked: the hint alone in it. Checked: on its left how
+--- many groups (`ctx.notShown` of them hidden) and their worth here (GC.Hoard.Selection), on its
+--- right their Store and Take out, each tooltip saying what it moves, and the clear button; or the
+--- buttons on a line of their own where the words would have too little room. While its run goes,
+--- Stop where the press was and the cast bar in the worth's line. Answers the room's height, 0
+--- with no group.
+function HL.PaintSelection(groups, ctx, head, bottom)
   local bar = frame.selection
-  local sel = GC.Hoard.Selection(groups, ctx.selected, ctx.valueOf)
-  if sel.groups == 0 then
+  if #groups == 0 then
     bar:Hide()
     return 0
   end
-  local running = HL.PaintPair({ { bar.store, sel.toBank, GC.L["Store"] }, { bar.take, sel.toBags, GC.L["Take out"] } },
-    ctx.runId, ctx.writable)
+  local sel = GC.Hoard.Selection(groups, ctx.selected, ctx.valueOf)
+  local any = sel.groups > 0
+  local bankName = U.bankName(ctx.bankType)
+  local running = HL.PaintPair({ { bar.store, sel.toBank, GC.L["Store"], moveNote(sel.toBank, true, bankName) },
+    { bar.take, sel.toBags, GC.L["Take out"], moveNote(sel.toBags, false, bankName) } }, ctx.runId, ctx.writable,
+    ctx.run)
   local storeW = labelMove(bar.store, GC.L["Store"], running == bar.store)
   local takeW = labelMove(bar.take, GC.L["Take out"], running == bar.take)
   local rightW = storeW + L.SEL_GAP + takeW + L.SEL_GAP + L.SEL_BTN
@@ -347,50 +404,65 @@ function HL.PaintSelection(groups, ctx, head)
   local twoLines = textW < L.SEL_TEXT_MIN
   if twoLines then textW = head - 2 * L.SEL_PAD end
 
-  local n = sel.groups
+  -- The room, from the most each line can say: every group checked and as many hidden, their whole
+  -- worth or the widest worth under a gold, the cast bar's words; and the hint across the bar.
+  local every = {}
+  for _, group in ipairs(groups) do every[group.key] = true end
+  local most = GC.Hoard.Selection(groups, every, ctx.valueOf)
   bar.title:SetWidth(textW)
-  setText(bar.title, n == 1 and GC.L["1 group selected"] or GC.L["%d groups selected"]:format(n))
+  setText(bar.title, selectedText(most.groups, most.groups))
   local titleH = math.ceil(heightOf(bar.title, 13))
-  local worth = U.worthText(sel.worth)
-  worth = GC.Util.Colored(K.goldText, worth ~= "" and worth or GC.Util.Money(0))
-  local function stacksLine(count)
-    if count == 1 then return GC.L["1 stack to move, worth about %s"]:format(worth) end
-    return GC.L["%d stacks to move, worth about %s"]:format(count, worth)
-  end
-  local stacks = #sel.toBank + #sel.toBags
   bar.sub:SetWidth(textW)
-  setText(bar.sub, stacksLine(COUNT_MOST))
-  local subH = heightOf(bar.sub, 11)
-  setText(bar.sub, stacksLine(stacks))
-  subH = math.ceil(math.max(subH, heightOf(bar.sub, 11)))
-  local lowerH = math.max(subH, HL.LineCastHeight(bar.cast, ctx.castLabels, textW))
+  local subH = 0
+  for _, copper in ipairs({ most.worth, 9999 }) do
+    setText(bar.sub, worthLine(copper))
+    subH = math.max(subH, heightOf(bar.sub, 11))
+  end
+  local lowerH = math.max(math.ceil(subH), HL.LineCastHeight(bar.cast, ctx.castLabels, textW))
   local textH = titleH + 2 + lowerH
-  local height = 2 * L.SEL_PAD + (twoLines and (textH + L.SEL_GAP + L.SEL_BTN) or math.max(textH, L.SEL_BTN))
+  local plateH = 2 * L.SEL_PAD + (twoLines and (textH + L.SEL_GAP + L.SEL_BTN) or math.max(textH, L.SEL_BTN))
+  bar.hint:SetWidth(head - 2 * L.SEL_PAD)
+  setText(bar.hint, GC.L["Tick groups to move several at once"])
+  local hintH = math.ceil(heightOf(bar.hint, 12))
+  local height = math.max(HF._selH or 0, plateH, hintH + 2 * L.SEL_PAD)
+  HF._selH = height
 
   bar:ClearAllPoints()
-  bar:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, L.PAD)
+  bar:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, bottom)
   bar:SetSize(head, height)
-  local textTop = twoLines and L.SEL_PAD or math.floor((height - textH) / 2)
-  bar.title:ClearAllPoints()
-  bar.title:SetPoint("TOPLEFT", bar, "TOPLEFT", L.SEL_PAD, -textTop)
-  local lowerY = textTop + titleH + 2
-  bar.sub:ClearAllPoints()
-  bar.sub:SetPoint("TOPLEFT", bar, "TOPLEFT", L.SEL_PAD, -lowerY)
-  bar.sub:SetShown(not running)
-  if running then HL.PaintLineCast(bar.cast, ctx.run, bar, L.SEL_PAD, lowerY, textW) else HL.HideCast(bar.cast) end
-  local buttonY = twoLines and (height - L.SEL_PAD - L.SEL_BTN) or math.floor((height - L.SEL_BTN) / 2)
-  local x = head - L.SEL_PAD - rightW
-  bar.store:ClearAllPoints()
-  bar.store:SetPoint("TOPLEFT", bar, "TOPLEFT", x, -buttonY)
-  bar.take:ClearAllPoints()
-  bar.take:SetPoint("TOPLEFT", bar, "TOPLEFT", x + storeW + L.SEL_GAP, -buttonY)
-  bar.clear:ClearAllPoints()
-  bar.clear:SetPoint("TOPLEFT", bar, "TOPLEFT", head - L.SEL_PAD - L.SEL_BTN, -buttonY)
-  -- Shown again, or its stacks' line and the cast bar trading places: redrawn whole.
+  bar.hint:ClearAllPoints()
+  bar.hint:SetPoint("TOPLEFT", bar, "TOPLEFT", L.SEL_PAD, -math.floor((height - hintH) / 2))
+  bar.hint:SetShown(not any)
+  for _, part in ipairs({ bar.bg, bar.ring, bar.title, bar.clear }) do part:SetShown(any) end
+  if any then
+    setText(bar.title, selectedText(sel.groups, ctx.notShown or 0))
+    setText(bar.sub, worthLine(sel.worth))
+    local textTop = twoLines and L.SEL_PAD or math.floor((height - textH) / 2)
+    bar.title:ClearAllPoints()
+    bar.title:SetPoint("TOPLEFT", bar, "TOPLEFT", L.SEL_PAD, -textTop)
+    local lowerY = textTop + titleH + 2
+    bar.sub:ClearAllPoints()
+    bar.sub:SetPoint("TOPLEFT", bar, "TOPLEFT", L.SEL_PAD, -lowerY)
+    bar.sub:SetShown(not running)
+    if running then HL.PaintLineCast(bar.cast, ctx.run, bar, L.SEL_PAD, lowerY, textW) else HL.HideCast(bar.cast) end
+    local buttonY = twoLines and (height - L.SEL_PAD - L.SEL_BTN) or math.floor((height - L.SEL_BTN) / 2)
+    local x = head - L.SEL_PAD - rightW
+    bar.store:ClearAllPoints()
+    bar.store:SetPoint("TOPLEFT", bar, "TOPLEFT", x, -buttonY)
+    bar.take:ClearAllPoints()
+    bar.take:SetPoint("TOPLEFT", bar, "TOPLEFT", x + storeW + L.SEL_GAP, -buttonY)
+    bar.clear:ClearAllPoints()
+    bar.clear:SetPoint("TOPLEFT", bar, "TOPLEFT", head - L.SEL_PAD - L.SEL_BTN, -buttonY)
+  else
+    for _, part in ipairs({ bar.sub, bar.store, bar.take }) do part:Hide() end
+    HL.HideCast(bar.cast)
+  end
+  -- Shown again, or the hint and the bar, or its worth's line and the cast bar, trading places:
+  -- redrawn whole.
   local wasUp = bar:IsShown()
   bar:Show()
-  if not wasUp or (running ~= nil) ~= (bar.ran == true) then U.restamp(frame) end
-  bar.ran = running ~= nil
+  if not wasUp or any ~= (bar.any == true) or (running ~= nil) ~= (bar.ran == true) then U.restamp(frame) end
+  bar.any, bar.ran = any, running ~= nil
   return height
 end
 
@@ -408,14 +480,14 @@ local function onSortClick()
   HF.Refresh()
 end
 
--- The search row, in the scroll over the rows: the BUY tab's search box (UI/BuyFrame.lua's tools
--- row: the kit's well, an edit box in the mono face, the hint while it is empty and not typed in),
--- with the kit's magnifier at its left as the board draws it; the filter, a switch as the bank
--- switch is built, the side chosen in the kit's active gold; the sort, a quiet button with the
--- kit's caret.
+-- The search row, fixed in the window over the list (the scroll), as the board draws it: the BUY
+-- tab's search box (UI/BuyFrame.lua's tools row: the kit's well, an edit box in the mono face, the
+-- hint while it is empty and not typed in), with the kit's magnifier at its left; the filter, a
+-- switch as the bank switch is built, on its sunken track, the side chosen in the kit's active
+-- gold; the sort, a quiet button with the kit's caret.
 local function buildSearch()
   local T = GC.Theme
-  local row = CreateFrame("Frame", nil, frame.content)
+  local row = CreateFrame("Frame", nil, frame)
   local well = CreateFrame("Frame", nil, row)
   well:SetHeight(L.WELL_H)
   local wc = T.color.bg or T.color.panel
@@ -462,7 +534,7 @@ local function buildSearch()
   row.well, row.box, row.hint, row.textX, row.applyHint = well, box, hint, textX, applyHint
 
   local filter = CreateFrame("Frame", nil, row)
-  filter.track = T.SlicedTexture(filter, "BACKGROUND", T.MEDIA .. "plaque.png", { 0, 0, 0, 0.35 }, T.SLICE.plaque)
+  filter.track = T.SlicedTexture(filter, "BACKGROUND", T.MEDIA .. "plaque.png", U.SWITCH_TRACK, T.SLICE.plaque)
   filter.track:SetAllPoints(filter)
   filter.edge = T.SlicedTexture(filter, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
   filter.edge:SetAllPoints(filter)
@@ -488,12 +560,12 @@ local function buildSearch()
   frame.search = row
 end
 
---- The search row at `y` in the scroll, `inner` wide: the search box, the filter with every group
---- counted (`total`) and those that can move here (`toMove`), and the sort, on one line; or the box
---- on a line of its own and the filter with the sort under it where they do not fit. Every part
---- as wide as the most it can say, so a click or a count that changes moves nothing. Answers its
---- height.
-function HL.PaintSearch(y, inner, total, toMove)
+--- The search row at `x`, `y` in the window, `inner` wide (the list's): the search box, the filter
+--- with every group counted (`total`) and those that can move here (`toMove`), and the sort, on one
+--- line; or the box on a line of its own and the filter with the sort under it where they do not
+--- fit. Every part as wide as the most it can say, so a click or a count that changes moves
+--- nothing. Answers its height.
+function HL.PaintSearch(x, y, inner, total, toMove)
   local s = frame.search
   local words = { move = GC.L["To move here %d"], all = GC.L["All %d"] }
   local sides, pad = s.filter.sides, L.SEG_PAD
@@ -524,9 +596,9 @@ function HL.PaintSearch(y, inner, total, toMove)
   local leastW = s.textX + math.ceil(s.hint:GetStringWidth() or 0) + L.WELL_PAD
   local lineH = math.max(L.WELL_H, filterH, L.SORT_H)
   local height
-  local function put(widget, x, top, h)
+  local function put(widget, left, top, h)
     widget:ClearAllPoints()
-    widget:SetPoint("TOPLEFT", s, "TOPLEFT", x, -(top + math.floor((lineH - h) / 2)))
+    widget:SetPoint("TOPLEFT", s, "TOPLEFT", left, -(top + math.floor((lineH - h) / 2)))
   end
   if leastW + gap + filterW + gap + sortW <= inner then
     local wellW = inner - filterW - sortW - 2 * gap
@@ -549,7 +621,7 @@ function HL.PaintSearch(y, inner, total, toMove)
     end
   end
   s:ClearAllPoints()
-  s:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
+  s:SetPoint("TOPLEFT", frame, "TOPLEFT", x, -y)
   s:SetSize(inner, height)
   s:Show()
   return height
@@ -581,5 +653,5 @@ function HL.Build(f)
   frame = f
   buildSearch()
   buildSelection()
-  frame.cast = HL.NewCast(frame.content, frame, 9)
+  frame.cast = HL.NewCast(frame.content, frame, 9, true)
 end

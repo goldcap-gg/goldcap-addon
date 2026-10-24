@@ -695,6 +695,21 @@ describe("Hoard", function()
     end)
   end)
 
+  describe("NotShown", function()
+    local groups = { { key = "herbs" }, { key = "ore" }, { key = "cloth" }, { key = "linen" } }
+
+    it("counts the selected groups no row shows, a folder showing the groups it lists", function()
+      local listed = { { kind = "folder", key = "gathering", children = { "herbs" } }, { kind = "group", key = "cloth" } }
+      assert.equal(2, H.NotShown(groups, listed, { herbs = true, ore = true, cloth = true, linen = true }))
+      assert.equal(0, H.NotShown(groups, listed, { herbs = true, cloth = true }))
+    end)
+
+    it("leaves out a selected key with no group here, and counts nothing with no selection", function()
+      assert.equal(0, H.NotShown(groups, {}, { potions = true }))
+      assert.equal(0, H.NotShown(groups, {}, nil))
+    end)
+  end)
+
   describe("Check", function()
     local folder = { kind = "folder", key = "trade", children = { "herbs", "ore", "cloth" } }
 

@@ -26,11 +26,12 @@ local KEYS = {
   "None of your groups' items are in your bags or this bank.",
   -- The search row's filter and sort, and a search that matches nothing.
   "To move here %d", "All %d", "By value", "By name", "No group or item matches your search.",
-  -- The selection bar, and its clear button's tooltip.
-  "%d groups selected", "1 group selected", "%d stacks to move, worth about %s", "1 stack to move, worth about %s",
-  "Clear the selection",
-  -- A run's cast bar.
-  "Moving to %s", "Moving to your bags",
+  -- The selection bar: its hint while nothing is checked, its lines, its buttons' and its clear
+  -- button's tooltips.
+  "Tick groups to move several at once", "%d groups selected", "1 group selected", "%d not shown", "Worth about %s",
+  "%d stacks into %s", "1 stack into %s", "%d stacks into your bags", "1 stack into your bags", "Clear the selection",
+  -- A run: its cast bar, and its Stop's tooltip.
+  "Moving to %s", "Moving to your bags", "Stop moving",
 }
 
 -- The bank by group card's, which the Hoard took over from: gone from every language.
@@ -38,6 +39,8 @@ local GONE = {
   "GoldCap: your groups", "To bank: %s ×%d (%d left)", "To bags: %s ×%d (%d left)", "To bank: nothing to move",
   "To bags: nothing to move", "Groups with nothing to move: %d", "All to bank", "All to bags",
   "Nothing to move at this bank.",
+  -- The selection bar's first stacks line, which named a count neither of its buttons moves.
+  "%d stacks to move, worth about %s", "1 stack to move, worth about %s",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

@@ -467,6 +467,26 @@ function H.Check(row, selected)
   end
 end
 
+--- How many of the selected groups (`selected`, { [group key] = true }) of `groups` (the plan's)
+--- none of `rows` shows (Rows' rows, and its folded rows while the fold line is open): the search
+--- or the fold hides them. A folder row shows the groups it lists (its `children`), open or not. A
+--- selected key with no group here is not counted.
+function H.NotShown(groups, rows, selected)
+  local seen = {}
+  for _, row in ipairs(rows or {}) do
+    if row.kind == "folder" then
+      for _, key in ipairs(row.children) do seen[key] = true end
+    else
+      seen[row.key] = true
+    end
+  end
+  local n = 0
+  for _, group in ipairs(groups or {}) do
+    if selected and selected[group.key] and not seen[group.key] then n = n + 1 end
+  end
+  return n
+end
+
 --- The selection bar: the Plan groups whose key is selected ({ [group key] = true }), the children
 --- of a closed folder included, as they are not painted but are selected. Answers { groups, toBank,
 --- toBags, worth }: how many, their To bank and To bags stacks in the groups' order, and what they
