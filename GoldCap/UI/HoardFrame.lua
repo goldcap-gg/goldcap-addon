@@ -473,6 +473,14 @@ function HF.Press(button, stacks, into, bankType)
   HF.Refresh()
 end
 
+--- Whether no run goes and every run over has told its button (settleEndings): only then do the
+--- bags and the banks hold still for a section to write down what it reads of them (the footer's
+--- room, UI/HoardFooter.lua). While a run goes, a stack that has left its slot is not yet one its
+--- button has heard of.
+function HF.Settled()
+  return HF._runId == nil and #HF._endings == 0
+end
+
 --- The run id of the press that runs now, or nil; and the button that carries that id where the
 --- player sees it now (a row redrawn since may carry it on another widget), or nil.
 function HF.Running()

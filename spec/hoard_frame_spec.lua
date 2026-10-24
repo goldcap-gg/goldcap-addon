@@ -2059,13 +2059,18 @@ describe("GoldCap Hoard window", function()
       return { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" },
         { itemID = 1, bag = 0, slot = 2, count = 20, link = "item:1" } }
     end
-    -- Stopped right after its first move, before the server answered.
+    -- Stopped right after its first move, before the server answered. Not settled until the button
+    -- has heard (HF.Settled).
+    assert.is_true(HF.Settled())
     HF.Press(mine, two(), true)
+    assert.is_false(HF.Settled())
     HF.Press(mine, {}, true)
     assert.equal(0, #ends)
+    assert.is_false(HF.Settled())
     land()
     bagsChanged()
     assert.equal(1, #ends)
+    assert.is_true(HF.Settled())
     assert.same({ 200 }, { ends[1][1].count })
     -- The bank closed under it: the bags still tell the move.
     bags[0] = { info(1, 200), info(1, 20) }

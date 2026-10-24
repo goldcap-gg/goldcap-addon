@@ -21,7 +21,11 @@ local _, GC = ...
 -- - What is remembered is never more than its bank holds: whenever that bank can be read (each
 --   paint, and each run's end, at a bank where it can be used) every item is capped at what the
 --   bank holds of it now, and the room forgotten once it holds none (Fit). Another character may
---   have taken some out of the Warband Bank, or the player all of it by hand.
+--   have taken some out of the Warband Bank, or the player all of it by hand. The cap is written
+--   only while no run goes and every run over has been heard (HF.Settled): during a Put back a
+--   paint caps what it shows and plans, but the stacks that have left the bank are taken off at
+--   the run's end, from the room as it was stored, and only then is it capped and written. Writing
+--   the paint's cap would take them off twice.
 -- - The price line: where the prices GoldCap reads came from and how long ago, with a dot in the
 --   kit's green while they are under FRESH_SECONDS old, amber after or with none.
 -- Shown with a followed group, as the window's own part, and without one while Make room has
@@ -57,9 +61,10 @@ end
 local function everything() return true end
 
 -- What Make room put away for `char`, as its bank holds it now: capped at that bank's stacks
--- whenever they can be read (Core/Hoard.lua's Fit), and kept so, forgotten once the bank holds none
--- of it. Answers the room (nil for none) and that bank's stacks of its items (nil while the bank
--- cannot be read: then the room is as remembered).
+-- whenever they can be read (Core/Hoard.lua's Fit), and kept so while every run has been heard
+-- (HF.Settled), forgotten once the bank holds none of it; while a run goes the cap is only shown and
+-- planned with. Answers the room (nil for none) and that bank's stacks of its items (nil while the
+-- bank cannot be read: then the room is as remembered).
 local function roomNow(char)
   local H, route = GC.Hoard, GC.BankRoute
   local room = char and H.Room(GC.db, char) or nil
@@ -67,13 +72,13 @@ local function roomNow(char)
   local function remembered(itemID) return room.items[itemID] ~= nil end
   local stacks = route.ReadStacks(route.BankTabs(room.bankType), true, remembered, room.bankType, { soulbound = true })
   local fitted, changed = H.Fit(room, stacks)
-  if changed then H.SetRoom(GC.db, char, fitted) end
+  if changed and HF.Settled() then H.SetRoom(GC.db, char, fitted) end
   return fitted, stacks
 end
 
--- Make room's run is over: what left the bags is remembered for the character, added to an earlier
--- room in the same bank, then capped at what that bank holds. A run that moved nothing leaves the
--- memory as it was.
+-- Make room's run is over: what left the bags is remembered for the character, added to the room as
+-- it was stored for the same bank, then capped at what that bank holds now. A run that moved
+-- nothing leaves the memory as it was.
 local function onRoomMade(moved, bankType)
   local char = charNow()
   if not char or #moved == 0 then return end
@@ -81,7 +86,9 @@ local function onRoomMade(moved, bankType)
   roomNow(char)
 end
 
--- Put back's run is over: what came back is forgotten, the room once nothing is left of it.
+-- Put back's run is over: what came back is taken off the room as it was stored (never capped while
+-- the run went), the room forgotten once nothing is left of it, then the rest capped at what that
+-- bank holds now.
 local function onPutBack(moved)
   local char = charNow()
   if not char or #moved == 0 then return end

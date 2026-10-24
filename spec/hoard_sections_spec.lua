@@ -94,6 +94,13 @@ describe("GoldCap Hoard sections", function()
     return n
   end
 
+  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given up.
+  local function settle()
+    for i = #timers, 1, -1 do
+      if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
+    end
+  end
+
   -- What the moves made: { bag, slot, "in" with the bank | "out" }, in order.
   local function moves()
     local out = {}
@@ -792,6 +799,54 @@ describe("GoldCap Hoard sections", function()
     press(footer().makeRoom)
     ticks()
     assert.same({ [9] = 5 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+  end)
+
+  -- Make room's 220 Linen merged into two stacks in the Warband Bank, 200 and 20. Put back's run
+  -- stopped once the 200 came out, the window repainting in between: the 20 the bank still holds
+  -- are still to bring back. What a paint caps while a run goes is never written, so the run's end
+  -- does not take the 200 off a second time.
+  local function linenRoom()
+    bags[12][6], bags[12][7] = info(9, 200), info(9, 20)
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now, items = { [9] = 220 } })
+  end
+
+  it("keeps what is still in the bank when Put back's run stops partway", function()
+    landing = true
+    linenRoom()
+    open()
+    press(footer().putBack)
+    assert.same({ { 12, 6, "out" } }, moves())
+    land()
+    bagsChanged()
+    assert.same({ [9] = 220 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    press(footer().putBack)
+    assert.is_nil(HF.Running())
+    assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    assert.is_true(footer().putBack:IsEnabled())
+  end)
+
+  it("forgets the room once Put back's run brought it all back", function()
+    landing = true
+    linenRoom()
+    open()
+    press(footer().putBack)
+    ticks()
+    assert.same({ { 12, 6, "out" }, { 12, 7, "out" } }, moves())
+    assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+  end)
+
+  -- The server refused the 20 (the bags were full): it stays in the bank, and in the room.
+  it("keeps a stack the server refused in the middle of Put back's run", function()
+    landing = true
+    linenRoom()
+    open()
+    press(footer().putBack)
+    landing = false
+    ticks()
+    assert.equal(2, #used)
+    assert.same({ [9] = 220 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    settle()
+    assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
   end)
 
   -- A room is one bank's: while what Make room put into the other bank is not back, Make room is
