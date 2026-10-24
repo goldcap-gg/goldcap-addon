@@ -83,24 +83,24 @@ describe("CHANGELOG.md", function()
     assert.is_true(checked >= 7)
   end)
 
-  -- Bank by group is on a GoldCap tab of the bank window (UI/BankTab.lua) and works with the bank
-  -- picked on it, the character's own or the Warband Bank, starting on the one the bank window
-  -- showed. The line says so, that one press of To bank puts the whole group in that bank, that All
-  -- to bank and All to bags do every group, and that a stack which has to stay in the bags is named
-  -- with why.
-  it("says that bank by group's To bank puts the whole group in the bank picked on the GoldCap tab, yours or the Warband Bank", function()
+  -- Bank by group is GoldCap Hoard, a window beside the bank (UI/HoardFrame.lua), which works with
+  -- the bank picked at its top, the character's own or the Warband Bank. The first Bank line says
+  -- what the window is, that Store puts a group in the bank, that Store all and Take all out do
+  -- every group, and the Bank lines say that a stack which has to stay in the bags is named with why.
+  it("says that GoldCap Hoard beside the bank stores a whole group in one press and names a stack that stays", function()
+    local said = {}
     for _, bullet in ipairs(sections()[1].bullets) do
-      if bullet:find("^%- Bank, in retail WoW") then
-        assert.is_truthy(bullet:find("the bank window has a GoldCap tab after Bank and Warband Bank", 1, true), bullet)
-        assert.is_truthy(bullet:find("Pick your bank or the Warband Bank on the tab: it starts on the one the bank window showed.",
-          1, true), bullet)
-        assert.is_truthy(bullet:find("One press of To bank puts the whole group in that bank", 1, true), bullet)
-        assert.is_truthy(bullet:find("All to bank and All to bags do it for every group at once", 1, true), bullet)
-        assert.is_truthy(bullet:find("named with why", 1, true), bullet)
-        return
-      end
+      if bullet:find("^%- Bank") then said[#said + 1] = bullet end
     end
-    error("the newest release has no Bank line")
+    assert.is_true(#said > 0, "the newest release has no Bank line")
+    local first, all = said[1], table.concat(said, "\n")
+    assert.is_truthy(first:find("^%- Bank, in retail WoW: GoldCap Hoard, a window beside the bank"), first)
+    assert.is_truthy(first:find("Store puts a group in the bank", 1, true), first)
+    assert.is_truthy(first:find("Store all and\n  Take all out do every group", 1, true)
+      or first:find("Store all and Take all out do every group", 1, true), first)
+    assert.is_truthy(all:find("named with why", 1, true), all)
+    assert.is_truthy(all:find("Pick your bank or the Warband Bank", 1, true)
+      or all:find("pick your bank or the Warband Bank", 1, true), all)
   end)
 
   it("does not promise the vendor price in Forever tooltips, which leave it to the game", function()

@@ -31,16 +31,24 @@
   equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
   or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
   only when they are junk.
-- Bank, in retail WoW: the bank window has a GoldCap tab after Bank and Warband Bank. It lists the
-  groups you follow on goldcap.gg that have items in your bags, your bank or the Warband Bank, and
-  the list of flips to carry to another realm moves there too. Pick your bank or the Warband Bank
-  on the tab: it starts on the one the bank window showed. One press of To bank puts the whole
-  group in that bank, and one press of To bags takes it all back out; All to bank and All to bags
-  do it for every group at once. Press again to stop. You can set how many of each item stay in
-  your bags. A stack that has to stay, because that bank does not take it or, for the Warband
-  Bank, because you can still return it for a refund, is named with why. The bank opens on the
-  tab you closed it on. With a bag addon that replaces the bank window, all of this shows beside
-  the bank instead.
+- Bank, in retail WoW: GoldCap Hoard, a window beside the bank. It lists the groups you follow on
+  goldcap.gg with their items, how many of them are in your bags and in the bank, and what they are
+  worth. Store puts a group in the bank and Take out brings it back to your bags; Store all and
+  Take all out do every group, and ticking several groups moves just those. A bar in the group's
+  line shows the move as it goes, and Stop stops it. Groups that belong together on goldcap.gg sit
+  in a folder. With many groups, search them by group or item name and show only those with
+  something to move at this bank.
+- Bank: three tiles at the top of the Hoard do the right thing in one press. Prices are up takes
+  out what sells above its usual price right now, For your crafts takes out the reagents your
+  craft queue is missing, and Put away stores what you are not selling. Hover a tile to see what
+  it will move.
+- Bank: Make room puts everything from your bags into the bank, and Put back brings those items
+  back later, even after a reload.
+- Bank: pick your bank or the Warband Bank at the top of the Hoard. You can set how many of each
+  item stay in your bags, and a stack that has to stay, because that bank does not take it or, for
+  the Warband Bank, because you can still return it for a refund, is named with why. The flips to
+  carry to another realm show in the Hoard too. Close it with the X, and a small Hoard button
+  beside the bank opens it again.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
