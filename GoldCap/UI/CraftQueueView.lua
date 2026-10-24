@@ -86,6 +86,16 @@ local function work(char)
   return rows, Q.Missing(needs, countOf, CC.CurrencyCount), listedAt, needs, inMailbox(needs, char, countOf)
 end
 
+--- What `char`'s queue needs in all (Core/CraftQueue.lua's Needs), over what each entry has left
+--- to craft as this view counts it, and how many crafts that is. The GoldCap Hoard's For your
+--- crafts tile (UI/HoardTiles.lua) asks it and counts the bags alone against it.
+function QV.Needs(char)
+  local rows, _, _, needs = work(char)
+  local crafts = 0
+  for _, row in ipairs(rows) do crafts = crafts + row.crafts end
+  return needs, crafts
+end
+
 -- Whether the queue is short of anything the BUY tab can buy (a currency it cannot).
 local function buyable(missing)
   for _, row in ipairs(missing) do

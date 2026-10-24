@@ -170,8 +170,8 @@ local function bodyText(s)
   return GC.L["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."]
 end
 
--- The tabs, then the carry list at a bank (UI/BankRoute.lua): retail only, as goldcap.gg works
--- out where flips sell for retail realms alone.
+-- The tabs, then the GoldCap Hoard at a bank (UI/HoardFrame.lua): retail only, as is the bank code
+-- it stands on (UI/BankRoute.lua).
 local FEATURES = {
   { icon = "deals", name = "DEALS" },
   { icon = "sell", name = "SELL" },

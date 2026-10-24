@@ -1,47 +1,41 @@
 local _, GC = ...
 
--- At a bank: what to carry between realms through the Warband Bank (ClickUp 869fjhvn9). Beside
--- the bank window, the flips in the bags that sell notably better on another of the player's
--- realms (PUT IN), and the flips in the Warband Bank that sell best on this one (TAKE OUT), each
+-- At a bank (retail only, GoldCap.toc): the one reader of the bags and a bank's tabs as stacks,
+-- the one move of a stack between them, and what to carry between realms through the Warband Bank
+-- (ClickUp 869fjhvn9): the flips in the bags that sell notably better on another of the player's
+-- realms (put in), and the flips in the Warband Bank that sell best on this one (take out), each
 -- with where, for how much and how soon (Core/SellRoute.lua's CarryPlan, from goldcap.gg's
 -- payload). Worked out from what is there, not from a list kept since the purchase: an item bought
--- outside GoldCap, or one whose best realm moved since, is placed right all the same.
+-- outside GoldCap, or one whose best realm moved since, is placed right all the same. goldcap.gg
+-- works out where flips sell for retail realms alone, so on WoW: Forever there is nothing to carry.
 --
--- Retail only (GoldCap.toc): goldcap.gg works out where flips sell for retail realms alone, so on
--- WoW: Forever there is nothing to carry. One C_Container.UseContainerItem a
--- click, made by the player's own click (spec/bank_route_spec.lua) and only after checking
--- the bank is the window open and the slot still holds the item: the same call equips a piece of
--- gear when no bank is open, which binds it, and sells it when a vendor is.
+-- This file draws nothing. The GoldCap Hoard (UI/HoardFrame.lua) stands beside the bank window and
+-- draws it all: its rows, tiles and footer read through ReadStacks, its carry cards
+-- (UI/HoardCarry.lua) list Plan, and every press of the window moves through MoveStack, one
+-- C_Container.UseContainerItem a stack (spec/bank_route_spec.lua audits it), made only after
+-- checking the bank is the window open and the slot still holds the item: the same call equips a
+-- piece of gear when no bank is open, which binds it, and sells it when a vendor is. The bank
+-- events reach the Hoard through this file's handlers (OnBankOpened, OnBankClosed, OnBagsChanged,
+-- OnTabSlotsChanged), which Core/Init.lua's event frame calls and the Hoard hooks.
 --
--- The reader, the move and their guards are shared, and each takes the bank it works with: this
--- list always the Warband Bank (it hands items to another character), the GoldCap Hoard
--- (UI/HoardFrame.lua) the bank its own switch names, which starts on the one the bank window shows
--- (ShownBankType). The Hoard reads through ReadStacks and moves its stacks through MoveStack.
+-- The reader, the move and their guards each take the bank they work with: the carry cards always
+-- the Warband Bank (they hand items to another character), the rest of the Hoard the bank its own
+-- switch names, which starts on the one the bank window shows (ShownBankType).
 GC.BankRoute = {}
 local P = GC.BankRoute
 
--- How long a press waits for the bags to show the move before the button is offered again.
+-- How long a press waits for the bags to show the move before the stack is offered again.
 P.SETTLE_SECONDS = 3
-P._rows = {}
-P._headings = {}
 
--- WIDTH: the rows' width. The list is PAD left of them and BAR right, where the scroll's bar hangs
--- (as on the GoldCap Hoard, UI/HoardFrame.lua). SCREEN_GAP, MIN_H: what the list leaves free under
--- it beside the bank, and its least height.
-local LAYOUT = { WIDTH = 220, PAD = 10, GAP = 4, X = 4, ICON = 24, ICON_GAP = 6, ROW_GAP = 8,
-  SECTION_GAP = 12, BUTTON_H = 22, BUTTON_MIN_W = 80, BAR = 22, SCREEN_GAP = 80, MIN_H = 160 }
 -- The backpack and the four bag slots; the reagent bag holds no realm item.
 local BAGS = { 0, 1, 2, 3, 4 }
 
-local frame
-local pendingSeq = 0
-
--- How far past the bank window's right edge a panel beside it starts (this list, and the GoldCap
--- Hoard): past the tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
--- BankPanelMixin:RefreshBankTabs, 2 out from it), which covered the left of both (owner,
--- 2026-10-23). Measured from what the panel shows past the edge, plus the tab's border past its
--- button: SpellBook-SkillLineTab is 64 wide at x -3 and drawn to x 38, 4 past the 32-wide button.
--- `gap` alone where nothing sticks out.
+-- How far past the bank window's right edge a panel beside it starts (the GoldCap Hoard): past the
+-- tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
+-- BankPanelMixin:RefreshBankTabs, 2 out from it), which covered the left of the carry list that
+-- stood there before (owner, 2026-10-23). Measured from what the panel shows past the edge, plus
+-- the tab's border past its button: SpellBook-SkillLineTab is 64 wide at x -3 and drawn to x 38,
+-- 4 past the 32-wide button. `gap` alone where nothing sticks out.
 local TAB_BORDER = 4
 function P.BesideBankX(bank, gap)
   local panel = _G.BankPanel
@@ -113,17 +107,17 @@ local function staysWhy(loc, bankType)
   return nil
 end
 
--- One stack as the bank cards read it, or nil: an empty slot, an item `wanted` does not take, a
--- soulbound one. A Warbound-until-equipped one is marked `wue`, a stack in the bags `bankType`'s
--- bank must not take `stays` (with why, staysWhy above), and one the game holds (on the cursor, or
--- on its way) `locked`.
-local function readStack(bag, slot, inBank, wanted, bankType)
+-- One stack as the Hoard reads it, or nil: an empty slot, an item `wanted` does not take, a
+-- soulbound one unless `soulbound` asks for those too. A Warbound-until-equipped one is marked
+-- `wue`, a stack in the bags `bankType`'s bank must not take `stays` (with why, staysWhy above),
+-- and one the game holds (on the cursor, or on its way) `locked`.
+local function readStack(bag, slot, inBank, wanted, bankType, soulbound)
   local info = C_Container.GetContainerItemInfo(bag, slot)
   if not (info and info.itemID and wanted(info.itemID)) then return nil end
   local loc = locationOf(bag, slot)
   if not loc then return nil end
   local wue = ask(C_Item.IsBoundToAccountUntilEquip, loc) == true
-  if info.isBound and not wue then return nil end
+  if info.isBound and not wue and not soulbound then return nil end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
     link = info.hyperlink, icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
     stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil }
@@ -131,11 +125,17 @@ end
 
 --- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one; a stack in
 --- the bags is marked `stays` against `bankType`'s bank (Enum.BankType), the one it would go into.
-function P.ReadStacks(bags, inBank, wanted, bankType)
+--- `opts.soulbound`: soulbound stacks too, which are left out otherwise. The character's own bank
+--- takes one (the Hoard's Make room moves them there, and its Put back and For your crafts take
+--- them out of it); the Warband Bank refuses one, so in the bags against it one `stays`, refused:
+--- that bank's answer (C_Bank.IsItemAllowedInBankType, which Blizzard's own bags ask to dim what
+--- the bank shown will not take, Blizzard_FrameXMLUtil's ItemUtil.lua).
+function P.ReadStacks(bags, inBank, wanted, bankType, opts)
+  local soulbound = type(opts) == "table" and opts.soulbound == true
   local stacks = {}
   for _, bag in ipairs(bags) do
     for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
-      local stack = readStack(bag, slot, inBank, wanted, bankType)
+      local stack = readStack(bag, slot, inBank, wanted, bankType, soulbound)
       if stack then stacks[#stacks + 1] = stack end
     end
   end
@@ -169,9 +169,13 @@ function P.ShownBankType()
 end
 
 --- What to carry from this bank now (GC.SellRoute.CarryPlan), from the bags and, while the bank is
---- open, the Warband Bank's tabs. A stack in the bags the Warband Bank must not take is left out,
---- unless it is Warbound until equipped: that one is told why it stays.
+--- open, the Warband Bank's tabs, for the Hoard's carry cards and /gc route. A stack in the bags the
+--- Warband Bank must not take is left out, unless it is Warbound until equipped: that one is told
+--- why it stays. Soulbound stacks are left out: no other character can sell them. Without route
+--- data (no Companion region payload, another region) nothing is read and the plan is empty.
 function P.Plan()
+  local hereId = GC.SellRoute.HereId()
+  if not hereId then return GC.SellRoute.CarryPlan({}, {}, {}) end
   local function routed(stacks, inBank)
     local out = {}
     for _, stack in ipairs(stacks) do
@@ -182,19 +186,18 @@ function P.Plan()
   local account = accountBank()
   return GC.SellRoute.CarryPlan(routed(P.ReadStacks(BAGS, false, GC.Data.SellSpots, account), false),
     routed(P.ReadStacks(P.BankTabs(account), true, GC.Data.SellSpots, account), true), {
-    hereId = GC.SellRoute.HereId(),
+    hereId = hereId,
     routeFor = GC.SellRoute.ForItem,
     levelFor = GC.Data.FlipLevel,
   })
 end
 
 --- The one place the addon moves an item between the bags and a bank: one
---- C_Container.UseContainerItem, made by the player's own press: inside the click by onCarryClick
---- below, and by the Hoard's press (UI/HoardFrame.lua's moveRow, which Core/VendorPress.lua calls
---- first inside the Hoard's click and then from its timers, each after re-checking the bank and the
---- slot); spec/bank_route_spec.lua audits both. `bankType` (Enum.BankType) is the bank the
---- stack goes into or comes out of; there is no default, so a call that names none moves nothing.
---- The same call equips a piece of gear when no
+--- C_Container.UseContainerItem, made by the player's own press, the Hoard's (UI/HoardFrame.lua's
+--- moveRow, which Core/VendorPress.lua calls first inside the Hoard's click and then from its
+--- timers, each after re-checking the bank and the slot); spec/bank_route_spec.lua audits it.
+--- `bankType` (Enum.BankType) is the bank the stack goes into or comes out of; there is no
+--- default, so a call that names none moves nothing. The same call equips a piece of gear when no
 --- bank is open, which binds it, and sells the item when a vendor is; so first it checks that the
 --- bank is the window and that bank can be used here, that the slot still holds the stack's item,
 --- unlocked, and, into the bank, that the bank may take it. A spell waiting for an item target, or
@@ -217,283 +220,33 @@ function P.MoveStack(stack, into, bankType)
   return true
 end
 
--- The carry list's button: moves the row's stack through MoveStack, and only after the call puts
--- the button to sleep: BAG_UPDATE_DELAYED (OnBagsChanged) paints the move.
-local function onCarryClick(button)
-  local row = button.row
-  local loc = row and row.locations[1]
-  if not loc or P._pending then return end
-  -- Always the Warband Bank: the list hands items to another of the player's characters.
-  if not P.MoveStack({ bag = loc.bag, slot = loc.slot, itemID = row.itemID }, button.kind == "in", accountBank()) then
-    return
-  end
-  pendingSeq = pendingSeq + 1
-  local token = pendingSeq
-  P._pending = token
-  button:Disable()
-  button:SetLabel(GC.L["moving..."])
-  if C_Timer and C_Timer.After then
-    C_Timer.After(P.SETTLE_SECONDS, function() P._Expire(token) end)
-  end
-end
-
--- Nothing moved in time (full bags, a slot the server refused): the button is offered again.
-function P._Expire(token)
-  if P._pending == token then
-    P._pending = nil
-    P.Refresh()
-  end
-end
-
--- The title, then the kit's scroll (UIPanelScrollFrameTemplate under Theme.QuietScrollBar, its bar
--- hidden while everything fits), whose child holds the headings, the rows and the note.
-local function build()
-  local T = GC.Theme
-  frame = T.Card(UIParent, T.color.panel, T.color.border, true)
-  frame:SetWidth(LAYOUT.PAD + LAYOUT.WIDTH + LAYOUT.BAR)
-  frame:EnableMouse(true)
-  frame:SetClampedToScreen(true)
-  frame.title = T.Label(frame, 12)
-  frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
-  frame.title:SetWidth(LAYOUT.WIDTH)
-  frame.title:SetJustifyH("LEFT")
-  frame.title:SetWordWrap(true)
-  frame.title:SetTextColor(T.color.gold[1], T.color.gold[2], T.color.gold[3])
-  local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-  if T.QuietScrollBar then T.QuietScrollBar(scroll) end
-  scroll.scrollBarHideable = true
-  if scroll.ScrollBar then scroll.ScrollBar:Hide() end
-  frame.content = CreateFrame("Frame", nil, scroll)
-  frame.content:SetSize(LAYOUT.WIDTH, 1)
-  scroll:SetScrollChild(frame.content)
-  frame.scroll = scroll
-  frame.note = T.Label(frame.content, 10)
-  frame.note:SetWidth(LAYOUT.WIDTH)
-  frame.note:SetJustifyH("LEFT")
-  frame.note:SetWordWrap(true)
-  frame.note:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3])
-  P._frame = frame
-end
-
-local function headingAt(i)
-  local T = GC.Theme
-  local heading = P._headings[i]
-  if heading then return heading end
-  heading = T.Label(frame.content, 11)
-  heading:SetWidth(LAYOUT.WIDTH)
-  heading:SetJustifyH("LEFT")
-  heading:SetWordWrap(true)
-  heading:SetTextColor(T.color.fg[1], T.color.fg[2], T.color.fg[3])
-  P._headings[i] = heading
-  return heading
-end
-
--- One line: the icon, the item and how many (wrapping), where it goes (wrapping), and under them
--- the button, as wide as its label.
-local function rowAt(i)
-  local T = GC.Theme
-  local row = P._rows[i]
-  if row then return row end
-  row = CreateFrame("Frame", nil, frame.content)
-  row:SetWidth(LAYOUT.WIDTH)
-  row.icon = row:CreateTexture(nil, "ARTWORK")
-  row.icon:SetSize(LAYOUT.ICON, LAYOUT.ICON)
-  row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-  local textW = LAYOUT.WIDTH - LAYOUT.ICON - LAYOUT.ICON_GAP
-  row.name = T.Label(row, 11)
-  row.name:SetPoint("TOPLEFT", row, "TOPLEFT", LAYOUT.ICON + LAYOUT.ICON_GAP, 0)
-  row.name:SetWidth(textW)
-  row.name:SetJustifyH("LEFT")
-  row.name:SetWordWrap(true)
-  row.name:SetTextColor(T.color.fg[1], T.color.fg[2], T.color.fg[3])
-  row.where = T.Num(row, 9)
-  row.where:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -2)
-  row.where:SetWidth(textW)
-  row.where:SetJustifyH("LEFT")
-  row.where:SetWordWrap(true)
-  row.where:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3])
-  local button = T.Button(row, "primary", "plaque")
-  button:SetHeight(LAYOUT.BUTTON_H)
-  button:SetScript("OnClick", onCarryClick)
-  row.button = button
-  P._rows[i] = row
-  return row
-end
-
-local function fitButton(button)
-  local fs = button.text
-  local width = fs and fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
-  if type(width) ~= "number" then width = 0 end
-  button:SetWidth(math.min(LAYOUT.WIDTH,
-    math.max(LAYOUT.BUTTON_MIN_W, math.ceil(width) + 2 * GC.Theme.pad.m)))
-end
-
--- Lays a row out for what it now says, and answers its height. A row with no button (a stuck one)
--- ends under its words.
-local function layoutRow(row, withButton)
-  local nameH = row.name.GetStringHeight and row.name:GetStringHeight() or 12
-  local whereH = row.where.GetStringHeight and row.where:GetStringHeight() or 10
-  local textH = math.max(LAYOUT.ICON, (nameH or 0) + 2 + (whereH or 0))
-  local h = textH
-  if withButton then
-    fitButton(row.button)
-    row.button:ClearAllPoints()
-    row.button:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, -(textH + LAYOUT.GAP))
-    row.button:Show()
-    h = textH + LAYOUT.GAP + LAYOUT.BUTTON_H
-  else
-    row.button:Hide()
-  end
-  h = math.ceil(h)
-  row:SetHeight(h)
-  return h
-end
-
--- Where a row's item goes, in words.
-local function whereText(kind, spot)
+--- Where a carry row's item goes, in words: for which realm, at what list price and how soon
+--- ("in", put in for another realm), here ("out", take out to sell here), or why the auction house
+--- refuses it ("stuck"). The Hoard's carry cards and /gc route say it the same way.
+function P.WhereText(kind, spot)
   if kind == "stuck" then return GC.L["Warbound until equipped: the auction house refuses it"] end
   local money, pace = GC.Util.FormatMoney(spot.list), GC.SellRoute.PaceText(spot.days)
   if kind == "out" then return (GC.L["here: %s, %s"]):format(money, pace) end
   return (GC.L["for %s: %s, %s"]):format(GC.SellRoute.RealmName(spot.realmId) or "?", money, pace)
 end
 
-local function paintRow(row, entry, kind)
-  row.button.row, row.button.kind = entry, kind
-  if entry.icon then row.icon:SetTexture(entry.icon); row.icon:Show() else row.icon:Hide() end
-  local name = entry.name or ("#" .. tostring(entry.itemID))
-  row.name:SetText(entry.count > 1 and ("%s ×%d"):format(name, entry.count) or name)
-  row.where:SetText(whereText(kind, entry.spot))
-  local b = row.button
-  b:SetVariant("primary")
-  if P._pending then
-    b:SetLabel(GC.L["moving..."])
-    b:Enable(); b:Disable()
-  else
-    b:SetLabel(kind == "in" and GC.L["PUT IN"] or GC.L["TAKE OUT"])
-    b:Enable()
-  end
-end
-
--- What of the GoldCap Hoard (UI/HoardFrame.lua) stands beside the bank window: its window, or the
--- handle it closes to, or nothing.
-local function hoardShown()
-  local hoard = GC.HoardFrame
-  for _, widget in ipairs({ hoard and hoard._frame, hoard and hoard._handle }) do
-    if type(widget) == "table" and widget.IsShown and widget:IsShown() then return widget end
-  end
-  return nil
-end
-
--- Where the list goes: beside the GoldCap Hoard while it stands beside the bank window, its top
--- level with the Hoard's; else beside the bank window, past the tab buttons down its right edge; or
--- at the screen's left with no window to stand beside. Answers the most the list may be tall: the
--- room from its top down to SCREEN_GAP above the screen's bottom.
-local function place()
-  frame:ClearAllPoints()
-  local bank, hoard = _G.BankFrame, hoardShown()
-  if hoard then
-    frame:SetPoint("TOPLEFT", hoard, "TOPRIGHT", LAYOUT.X, 0)
-    local top = hoard.GetTop and hoard:GetTop()
-    if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
-  elseif type(bank) == "table" and bank.IsShown and bank:IsShown() then
-    frame:SetPoint("TOPLEFT", bank, "TOPRIGHT", P.BesideBankX(bank, LAYOUT.X), 0)
-    local top = bank.GetTop and bank:GetTop()
-    if type(top) == "number" then return math.max(LAYOUT.MIN_H, top - LAYOUT.SCREEN_GAP) end
-  else
-    frame:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
-  end
-  local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
-  if type(screen) == "number" and screen > 0 then return math.max(LAYOUT.MIN_H, screen - 2 * LAYOUT.SCREEN_GAP) end
-  return math.huge
-end
-
---- Reads the bags and the bank again and paints the list, or hides it when there is nothing to
---- carry. Reads nothing without route data (no Companion, another region): that player never sees
---- the list. Hidden too when its buttons could not work: the Warband Bank out of reach at this
---- banker, or no tab bought.
-function P.Refresh()
-  if not (P._open and GC.SellRoute.HereId() and bankIsTheWindow(accountBank()) and hasTabs(accountBank())) then
-    if frame then frame:Hide() end
-    return
-  end
-  local plan = P.Plan()
-  local sections = {}
-  if #plan.putIn > 0 then
-    sections[#sections + 1] = { kind = "in", heading = GC.L["Put in the Warband Bank"], rows = plan.putIn }
-  end
-  if #plan.takeOut > 0 then
-    sections[#sections + 1] = { kind = "out", heading = GC.L["Take out to sell here"], rows = plan.takeOut }
-  end
-  if #plan.stuck > 0 then
-    sections[#sections + 1] = { kind = "stuck", heading = GC.L["Can't be sold"], rows = plan.stuck }
-  end
-  -- A piece that cannot be sold is told beside something to carry, never opens the list alone.
-  if #plan.putIn + #plan.takeOut == 0 then
-    if frame then frame:Hide() end
-    return
-  end
-  if not frame then build() end
-  local maxH = place()
-  frame.title:SetText(GC.L["GoldCap: carry between realms"])
-  local top = math.ceil(LAYOUT.PAD + (frame.title.GetStringHeight and frame.title:GetStringHeight() or 12) + LAYOUT.ROW_GAP)
-  local y = 0
-  local r = 0
-  for i, section in ipairs(sections) do
-    local heading = headingAt(i)
-    heading:SetText(section.heading)
-    heading:ClearAllPoints()
-    if i > 1 then y = y + LAYOUT.SECTION_GAP end
-    heading:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
-    heading:Show()
-    y = y + (heading.GetStringHeight and heading:GetStringHeight() or 12) + LAYOUT.ROW_GAP
-    for _, entry in ipairs(section.rows) do
-      r = r + 1
-      local row = rowAt(r)
-      paintRow(row, entry, section.kind)
-      local h = layoutRow(row, section.kind ~= "stuck")
-      row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
-      row:Show()
-      y = y + h + LAYOUT.ROW_GAP
-    end
-  end
-  for i = #sections + 1, #P._headings do P._headings[i]:Hide() end
-  for i = r + 1, #P._rows do P._rows[i]:Hide() end
-  -- What comes next, for a player new to it: where the item goes after the bank.
-  frame.note:SetText(#plan.putIn > 0
-    and GC.L["Then log in a character on that realm and open a bank: GoldCap lists what to take out."]
-    or GC.L["Then list it from GoldCap's Sell tab at the auction house."])
-  frame.note:ClearAllPoints()
-  frame.note:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
-  y = math.ceil(y + (frame.note.GetStringHeight and frame.note:GetStringHeight() or 10))
-  frame.content:SetSize(LAYOUT.WIDTH, y)
-  local height = math.min(top + y + LAYOUT.PAD, maxH)
-  frame:SetHeight(height)
-  frame.scroll:ClearAllPoints()
-  frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -top)
-  frame.scroll:SetSize(LAYOUT.WIDTH, height - top - LAYOUT.PAD)
-  frame:Show()
-end
-
+-- The bank events, as Core/Init.lua's event frame hands them on. The Hoard hooks each
+-- (UI/HoardFrame.lua) and repaints; here they only keep whether the bank is open.
 function P.OnBankOpened()
-  P._open, P._pending = true, nil
-  P.Refresh()
+  P._open = true
 end
 
 function P.OnBankClosed()
-  P._open, P._pending = false, nil
-  if frame then frame:Hide() end
+  P._open = false
 end
 
--- BAG_UPDATE_DELAYED: an item moved, by a press or by the player's own hand. Once a batch.
+-- BAG_UPDATE_DELAYED: an item moved, by a press or by the player's own hand. Once a batch; the
+-- Hoard repaints.
 function P.OnBagsChanged()
-  if not P._open then return end
-  P._pending = nil
-  P.Refresh()
 end
 
 -- PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED comes once a slot: sorting the Warband Bank or depositing
--- everything is hundreds of them. One repaint after the run.
+-- everything is hundreds of them. One OnBagsChanged after the run.
 function P.OnTabSlotsChanged()
   if not P._open or P._repaintQueued then return end
   if not (C_Timer and C_Timer.After) then return P.OnBagsChanged() end
@@ -516,7 +269,7 @@ function P.PrintRoute()
     for _, row in ipairs(rows) do
       local name = row.name or ("#" .. tostring(row.itemID))
       if row.count > 1 then name = ("%s ×%d"):format(name, row.count) end
-      GC.Print((GC.L["%s: %s"]):format(name, whereText(kind, row.spot)))
+      GC.Print((GC.L["%s: %s"]):format(name, P.WhereText(kind, row.spot)))
     end
   end
   if #plan.putIn == 0 and (not P._open or #plan.takeOut + #plan.stuck == 0) then

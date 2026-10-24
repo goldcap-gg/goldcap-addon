@@ -6,7 +6,7 @@ local _, GC = ...
 -- Core/VendorSelect.lua's Pick; the bags are read by Services/VendorBags.lua. Right click a line
 -- to keep that item for good (GC.db.vendorKeep).
 --
--- The one sale call in the addon outside the Warband Bank carry (UI/BankRoute.lua) is in this
+-- The one sale call in the addon outside the bank moves (UI/BankRoute.lua's MoveStack) is in this
 -- file: the driver's `use` below, made for the first stack inside the player's own click and for
 -- the rest by Core/VendorPress.lua's timers, each after it has checked that the merchant is still
 -- open and the slot still holds the chosen item (the same call equips a piece of gear when no

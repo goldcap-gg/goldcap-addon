@@ -337,7 +337,7 @@ for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_C
     "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" }) do
   pcall(frame.RegisterEvent, frame, merchantEvent)
 end
--- At a bank: what to carry between realms through the Warband Bank (UI/BankRoute.lua, retail only).
+-- At a bank: the GoldCap Hoard (UI/HoardFrame.lua) through UI/BankRoute.lua's handlers, retail only.
 -- A move into or out of a Warband Bank tab is PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED; one in the bags,
 -- BAG_UPDATE_DELAYED. Each in its own pcall, like the merchant events above.
 for _, bankEvent in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
@@ -1071,7 +1071,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
     -- ... and what the Sell to vendor card would sell.
     if GC.VendorSellCard then GC.VendorSellCard.OnBagsChanged() end
-    -- An item put into or taken out of the Warband Bank, by a press or by hand.
+    -- An item put into or taken out of a bank, by a press or by hand.
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end

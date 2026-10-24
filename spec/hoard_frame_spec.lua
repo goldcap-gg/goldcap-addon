@@ -1531,6 +1531,12 @@ describe("GoldCap Hoard window", function()
     assert.equal("2 groups selected, 1 not shown", plainText(bar().title))
     typeInto(search().box, "")
     assert.equal("2 groups selected", plainText(bar().title))
+    -- One key with its own punctuation in every language, not a Latin comma glued on.
+    helper.loadModule("Locale/zhCN.lua", GC)
+    GC.ActivateLocale("zhCN")
+    typeInto(search().box, "group 03")
+    assert.equal(GC.L["%d groups selected"]:format(2) .. GC.L[", %d not shown"]:format(1), plainText(bar().title))
+    assert.is_nil(plainText(bar().title):find(", ", 1, true))
   end)
 
   it("checks every group of a folder from off, and clears them all from on or mixed", function()
@@ -1922,7 +1928,7 @@ describe("GoldCap Hoard window", function()
   end)
 
   -- A section below the groups may be pinned at the window's foot, outside the scroll (the footer):
-  -- under the selection bar's room, at the window's width less its margins. The tiles cannot be.
+  -- under the selection bar's room, at the window's width less its margins.
   it("pins a section asked for under the selection bar's room, outside the scroll", function()
     local frames, ctxs = {}, {}
     HF.AddSection("footer", { pinned = true, build = function() end,
@@ -1936,8 +1942,108 @@ describe("GoldCap Hoard window", function()
     assert.equal(382 - 24, footer:GetWidth())
     assert.same({ "BOTTOMLEFT", f, "BOTTOMLEFT", 12, 12 + 30 + 11 }, at(b))
     assert.is_true(-at(f.scroll)[5] + f.scroll:GetHeight() <= f:GetHeight() - (12 + 30 + 11 + b:GetHeight()))
-    assert.has_error(function() HF.AddSection("tiles", { pinned = true, build = function() end,
-      paint = function() return 0 end }) end)
+  end)
+
+  -- The tiles pinned stand under the switch, over the search row (the ManyGroups board), at the
+  -- window's width less its margins, and never scroll away.
+  it("pins the tiles asked for under the switch and over the search row, outside the scroll", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    local frames, ctxs = {}, {}
+    HF.AddSection("tiles", { pinned = true, build = function() end,
+      paint = function(f, ctx) frames.tiles, ctxs.tiles = f, ctx return 40 end })
+    open()
+    local f, tiles = HF._frame, frames.tiles
+    assert.equal(f, tiles:GetParent())
+    assert.equal(382 - 24, ctxs.tiles.width)
+    assert.equal(12, at(tiles)[4])
+    local tilesY = -at(tiles)[5]
+    assert.is_true(tilesY >= -at(f.choice)[5] + f.choice:GetHeight())
+    local searchY = -at(search())[5]
+    assert.equal(tilesY + 40 + 11, searchY)
+    assert.is_true(-at(f.scroll)[5] >= searchY + search():GetHeight())
+    -- What the tiles are told of the window: the search row shows, the stacks of the groups.
+    assert.is_true(ctxs.tiles.many)
+    assert.is_true(ctxs.tiles.hasGroups)
+    assert.equal(GC.Hoard.SEARCH_MIN_GROUPS, #ctxs.tiles.bagStacks)
+    assert.same({}, ctxs.tiles.bankStacks)
+    local first = ctxs.tiles.visit
+    bagsChanged()
+    assert.equal(first, ctxs.tiles.visit)
+    close()
+    open()
+    assert.is_true(ctxs.tiles.visit > first)
+  end)
+
+  -- A low bank window (a small screen, a high UI scale): with the tiles over the list and the footer
+  -- under it, the scroll still keeps three rows' room, and the window grows past the room under its
+  -- top for that rather than leaving the list none (the window is clamped to the screen).
+  it("keeps three rows' room in the scroll however low the room beside the bank window is", function()
+    manyGroups(12)
+    function _G.BankFrame:GetTop() return 100 end
+    HF.AddSection("tiles", { pinned = true, build = function() end, paint = function() return 120 end })
+    HF.AddSection("footer", { pinned = true, build = function() end, paint = function() return 60 end })
+    open()
+    local f = HF._frame
+    assert.equal(3 * (26 + 3), f.scroll:GetHeight())
+    assert.equal(f:GetHeight(), -at(f.scroll)[5] + f.scroll:GetHeight() + (f:GetHeight() - (-at(f.scroll)[5]) - f.scroll:GetHeight()))
+    assert.is_true(f:GetHeight() > 160)
+    -- With room under its top, it is as tall as all it shows, the scroll ends over its foot.
+    function _G.BankFrame:GetTop() return 4000 end
+    bagsChanged()
+    assert.is_true(f.scroll:GetHeight() > 3 * (26 + 3))
+    assert.equal(f.content:GetHeight(), f.scroll:GetHeight())
+  end)
+
+  -- The run's end tells the button that pressed it which of its stacks left their slots: what the
+  -- footer's Make room remembers for Put back. A stack the server never moved is not among them.
+  it("tells a button's onRunEnd which of its stacks left their slots, once, however the run ended", function()
+    landing = true
+    open()
+    local ends = {}
+    local mine = W.CreateFrame("Button")
+    mine.runId = "footer:makeRoom"
+    mine.onRunEnd = function(moved, bank, result) ends[#ends + 1] = { moved = moved, bank = bank, result = result } end
+    local first, second = bags[0][1], bags[0][2]
+    HF.Press(mine, { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" },
+      { itemID = 1, bag = 0, slot = 2, count = 20, link = "item:1" } }, true)
+    assert.equal(0, #ends)
+    ticks()
+    assert.equal(1, #ends)
+    assert.equal(ACCOUNT, ends[1].bank)
+    assert.same({ 1, 1 }, { ends[1].moved[1].itemID, ends[1].moved[2].itemID })
+    assert.same({ 200, 20 }, { ends[1].moved[1].count, ends[1].moved[2].count })
+    assert.is_nil(ends[1].result.stopped)
+    assert.is_truthy(first and second)
+    -- Stopped after its first move: only that one.
+    bags[0] = { info(1, 200), info(1, 20) }
+    HF.Press(mine, { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" },
+      { itemID = 1, bag = 0, slot = 2, count = 20, link = "item:1" } }, true)
+    land()
+    HF.Press(mine, {}, true)
+    assert.equal(2, #ends)
+    assert.equal(1, #ends[2].moved)
+    assert.equal(200, ends[2].moved[1].count)
+    assert.equal("pressed", ends[2].result.stopped)
+    -- Nothing moved: an empty list, still once.
+    bags[0] = { info(1, 200) }
+    landing = false
+    HF.Press(mine, { { itemID = 1, bag = 0, slot = 1, count = 200, link = "item:1" } }, true)
+    ticks()
+    assert.equal(3, #ends)
+    assert.equal("refused", ends[3].result.stopped)
+    assert.same({}, ends[3].moved)
+  end)
+
+  -- A section's button that lists what it moves its own way (a tile's) says it in its tooltip
+  -- instead of the stack line; its Stop says what it stops as every Stop does.
+  it("lets a button list what it moves in its tooltip its own way", function()
+    open()
+    local mine = HF.ui.moveButton(HF._frame, false, { variant = "active" })
+    mine.runId = "tile:test"
+    mine.tipLines = function(tooltip) tooltip:AddLine("Mine") end
+    HF.ui.paintMove(mine, { { itemID = 1, bag = 12, slot = 1, count = 600, link = "item:1", name = "Bloom" } }, "Tile")
+    W.state(mine).scripts.OnEnter(mine)
+    assert.same({ "Tile", "Mine" }, tip.lines)
   end)
 
   -- A section's own press (the carry list into the Warband Bank) names its bank; the rest of the

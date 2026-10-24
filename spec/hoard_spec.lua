@@ -776,6 +776,39 @@ describe("Hoard", function()
         H.Remember(2, 1000, { stack(1, 0, 1, 20), stack(1, 0, 2, 30), stack(2, 0, 3, 5) }))
       assert.same({ bankType = 0, at = 5, items = {} }, H.Remember(0, 5, {}))
     end)
+
+    -- A second Make room before a Put back adds to what the first put away, so Put back brings
+    -- both back. The room is one bank's: one into the other bank starts afresh.
+    it("adds what an earlier Make room put into the same bank, and only that bank's", function()
+      local earlier = { bankType = 2, at = 10, items = { [1] = 20, [3] = 5 } }
+      assert.same({ bankType = 2, at = 1000, items = { [1] = 50, [2] = 5, [3] = 5 } },
+        H.Remember(2, 1000, { stack(1, 0, 1, 30), stack(2, 0, 3, 5) }, earlier))
+      assert.same({ bankType = 0, at = 1000, items = { [1] = 30 } }, H.Remember(0, 1000, { stack(1, 0, 1, 30) }, earlier))
+      assert.same({ [1] = 20, [3] = 5 }, earlier.items)
+      assert.same({ bankType = 2, at = 7, items = { [1] = 30 } }, H.Remember(2, 7, { stack(1, 0, 1, 30) }, nil))
+    end)
+  end)
+
+  -- What Put back still has to bring back after a run: the room less what came out of the bank.
+  describe("Unreturned", function()
+    local room = { bankType = 2, at = 1000, items = { [1] = 70, [2] = 5, [3] = 10 } }
+
+    it("takes off what came back of each item, an item that came back whole left out", function()
+      -- Bloom: 40 of the 70. Argentleaf: a merged stack of 200 for the 5 that went.
+      assert.same({ bankType = 2, at = 1000, items = { [1] = 30, [3] = 10 } },
+        H.Unreturned(room, { stack(1, 0, 1, 40), stack(2, 0, 2, 200) }))
+      assert.same({ [1] = 70, [2] = 5, [3] = 10 }, room.items)
+    end)
+
+    it("leaves nothing to bring back once everything came back", function()
+      assert.is_nil(H.Unreturned(room, { stack(1, 0, 1, 40), stack(1, 0, 2, 30), stack(2, 0, 3, 5), stack(3, 0, 4, 12) }))
+      assert.is_nil(H.Unreturned(nil, {}))
+    end)
+
+    it("keeps the room as it was when nothing came back, or only what was never in it", function()
+      assert.same(room, H.Unreturned(room, {}))
+      assert.same(room, H.Unreturned(room, { stack(9, 0, 1, 40) }))
+    end)
   end)
 
   describe("PutBack", function()

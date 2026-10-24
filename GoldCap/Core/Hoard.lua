@@ -16,7 +16,8 @@ local _, GC = ...
 -- - the followed groups as rows (Rows): a row per group, a folder for the subgroups of one parent
 --   group on goldcap.gg, the filter, the search and the sort, a folder's checkbox (CheckState) and
 --   the selection bar's totals (Selection);
--- - the footer's Make room (MakeRoom, then Remember what went) and Put back (PutBack).
+-- - the footer's Make room (MakeRoom, then Remember what went) and Put back (PutBack, then what is
+--   Unreturned).
 --
 -- Where a stack sits and the order a press moves stacks in are Core/BankGroups.lua's
 -- (GC.BankGroups.SlotKey and StackOrder), so a tile, a row and a group's plan never disagree. They
@@ -521,9 +522,15 @@ function H.MakeRoom(bagStacks, moving)
 end
 
 --- What Make room put into the bank, for Put back: { bankType, at, items = { [itemID] = count } },
---- the bank (Enum.BankType), when (`now`, time()) and how many of each item `stacks` held.
-function H.Remember(bankType, now, stacks)
+--- the bank (Enum.BankType), when (`now`, time()) and how many of each item `stacks` held. With
+--- `earlier` (Room's answer for the character), what an earlier Make room into the same bank put
+--- there and Put back has not brought back yet is added in, so a second Make room loses nothing;
+--- one into the other bank is not, as a room is one bank's. `earlier` is left as it is.
+function H.Remember(bankType, now, stacks, earlier)
   local room = { bankType = bankType, at = now, items = {} }
+  if type(earlier) == "table" and earlier.bankType == bankType and type(earlier.items) == "table" then
+    for id, count in pairs(earlier.items) do room.items[id] = count end
+  end
   for _, stack in ipairs(stacks or {}) do
     if type(stack.count) == "number" and stack.count > 0 then
       room.items[stack.itemID] = (room.items[stack.itemID] or 0) + stack.count
@@ -562,6 +569,24 @@ function H.PutBack(room, bankStacks, moving)
     for _, stack in ipairs(taken) do out[#out + 1] = stack end
   end
   return out
+end
+
+--- What of `room` Put back has still to bring back once `stacks` came out of its bank: each item's
+--- count less what its stacks held (a merged stack may hold more than went in), an item that came
+--- back whole left out; nil when nothing is left, for SetRoom to forget the room. `room` is left
+--- as it is.
+function H.Unreturned(room, stacks)
+  if type(room) ~= "table" or type(room.items) ~= "table" then return nil end
+  local left = {}
+  for id, count in pairs(room.items) do left[id] = count end
+  for _, stack in ipairs(stacks or {}) do
+    local want = left[stack.itemID]
+    if want and type(stack.count) == "number" then
+      left[stack.itemID] = want > stack.count and want - stack.count or nil
+    end
+  end
+  if next(left) == nil then return nil end
+  return { bankType = room.bankType, at = room.at, items = left }
 end
 
 -- The window's memory, GC.db.hoard = { v = 1, closed = true or nil, open = { [parent key] = true },

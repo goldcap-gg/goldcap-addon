@@ -607,4 +607,6 @@ local function paintRow(row, data, ctx)
   return height
 end
 
-HF.Row = { New = newRow, Paint = paintRow }
+-- A row, and an item's icon as a row draws it, for the window's other parts (UI/HoardTiles.lua's
+-- tiles, UI/HoardCarry.lua's cards).
+HF.Row = { New = newRow, Paint = paintRow, NewIcon = newIcon, PaintIcon = paintIcon, HideIcon = hideIcon }

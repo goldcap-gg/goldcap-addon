@@ -351,10 +351,10 @@ local function labelMove(button, label, stop)
 end
 
 -- The selection bar's first line: how many groups are checked, and how many of them the search or
--- the fold line hides, fainter.
+-- the fold line hides, fainter, joined with the language's own punctuation (the key carries it).
 local function selectedText(n, hidden)
   local text = n == 1 and GC.L["1 group selected"] or GC.L["%d groups selected"]:format(n)
-  if hidden > 0 then text = text .. ", " .. GC.Util.Colored(K.text3, GC.L["%d not shown"]:format(hidden)) end
+  if hidden > 0 then text = text .. GC.Util.Colored(K.text3, GC.L[", %d not shown"]:format(hidden)) end
   return text
 end
 

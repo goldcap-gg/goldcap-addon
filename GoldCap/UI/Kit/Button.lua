@@ -42,6 +42,9 @@ local BUTTON_VARIANTS = {
   -- The Stop a button turns into while the run it started goes (the GoldCap Hoard's): the loss
   -- colour as warn wears its own, a faint tint and its words, not danger's fill.
   stop    = { bg = { K.loss[1], K.loss[2], K.loss[3], 0.10 }, text = K.loss },
+  -- What goes to another of the player's characters (the GoldCap Hoard's carry cards' Put in and
+  -- Take out): the "yours" blue as stop wears the loss colour, a faint tint and its words.
+  yours   = { bg = { K.yours[1], K.yours[2], K.yours[3], 0.14 }, text = K.yours },
   -- The half of a segmented switch that is not on: bare text in the track the switch draws, no
   -- fill and no ring of its own (the Sell tab's TO POST / MY LOTS). Its other half is `active`.
   segment = { bg = { 1, 1, 1, 0 }, text = K.text3, bare = true },

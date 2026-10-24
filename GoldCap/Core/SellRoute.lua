@@ -116,8 +116,9 @@ end
 --- (`bagItems`) and in the Warband Bank's tabs (`bankItems`): one entry a stack,
 --- { itemID, bag, slot, count, name, icon, ilvl?, wue? }, `wue` for one Warbound until equipped.
 --- opts: hereId, routeFor(itemID) (ForItem), levelFor(itemID) (GC.Data.FlipLevel).
---- Answers { putIn, takeOut, stuck }, a row an item, its stacks' slots in `locations`, the
---- most valuable first:
+--- Answers { putIn, takeOut, stuck }, a row an item, its stacks' slots in `locations` and the
+--- stacks themselves as they were handed in in `stacks` (the GoldCap Hoard's carry card moves one
+--- through the window's press, which needs its link and count), the most valuable first:
 ---   putIn    in the bags, and it sells notably better on another of the player's realms (Target)
 ---   takeOut  in the Warband Bank, and it sells best here
 ---   stuck    in the bags, Warbound until equipped: the auction house refuses it on every realm
@@ -133,12 +134,13 @@ function GC.SellRoute.CarryPlan(bagItems, bankItems, opts)
     local key = kind .. ":" .. e.itemID
     local row = rows[key]
     if not row then
-      row = { itemID = e.itemID, name = e.name, icon = e.icon, count = 0, locations = {}, spot = spot }
+      row = { itemID = e.itemID, name = e.name, icon = e.icon, count = 0, locations = {}, stacks = {}, spot = spot }
       rows[key] = row
       list[#list + 1] = row
     end
     row.count = row.count + (e.count or 1)
     row.locations[#row.locations + 1] = { bag = e.bag, slot = e.slot }
+    row.stacks[#row.stacks + 1] = e
   end
   local function walk(items, inBank)
     for _, e in ipairs(items or {}) do

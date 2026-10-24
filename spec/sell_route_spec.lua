@@ -207,6 +207,17 @@ describe("SellRoute", function()
       assert.same({}, plan.takeOut)
     end)
 
+    -- The GoldCap Hoard's carry card moves a stack through the window's press, which needs the
+    -- stack as the reader read it (its link, its count), not only where it sits.
+    it("keeps each stack of a row as it was read, in the order of its slots", function()
+      local first, second = item(100, 0, 1, { link = "item:100" }), item(100, 2, 5, { link = "item:100" })
+      local plan = GC.SellRoute.CarryPlan({ first, second }, { item(200, 12, 4) }, opts())
+      assert.equal(first, plan.putIn[1].stacks[1])
+      assert.equal(second, plan.putIn[1].stacks[2])
+      assert.equal(2, #plan.putIn[1].stacks)
+      assert.equal(1, #plan.takeOut[1].stacks)
+    end)
+
     it("takes out what sells best here", function()
       local plan = GC.SellRoute.CarryPlan({}, { item(200, 12, 4, { count = 3 }), item(100, 12, 5) }, opts())
       assert.equal(1, #plan.takeOut)

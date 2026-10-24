@@ -162,6 +162,9 @@ UI/BankRoute.lua
 UI/HoardFrame.lua
 UI/HoardRow.lua
 UI/HoardList.lua
+UI/HoardTiles.lua
+UI/HoardCarry.lua
+UI/HoardFooter.lua
 UI/MailCollect.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua

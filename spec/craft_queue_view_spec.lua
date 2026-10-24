@@ -256,6 +256,21 @@ describe("craft queue view", function()
     assert.is_false(v.none:IsShown())
   end)
 
+  -- The GoldCap Hoard's For your crafts tile reads the queue the way this view does: what each
+  -- entry has left to craft (a restock by what it holds) and what that needs in all. It counts the
+  -- bags alone against it itself.
+  it("answers what the queue needs in all and how many crafts are left, as the view counts them", function()
+    load({ counts = { [905] = 4 } })
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+    GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+    local needs, crafts = QV.Needs("Name-Realm")
+    -- 2 Potions at two of Item A, 6 Flasks at one: one reagent in three qualities.
+    assert.equal(8, crafts)
+    assert.same({ { ids = { 101, 102, 103 }, q = 10 } }, needs)
+    assert.same({}, (QV.Needs("Other-Realm")))
+    assert.equal(0, select(2, QV.Needs("Other-Realm")))
+  end)
+
   it("Make a BUY list makes the character's Craft queue list and opens it in BUY, one list however often it is pressed", function()
     load({ counts = { [101] = 4, [103] = 1 } })
     VALUES[101], VALUES[102], VALUES[103] = commodity(500), commodity(450), commodity(400)

@@ -154,6 +154,10 @@ function W.CreateFrame(kind, _, parent)
   function f:SetFrameLevel(level) s.level = level end
   function f:GetFrameLevel() return s.level end
   function f:SetFrameStrata(strata) s.strata = strata end
+  -- Frame:SetAlpha: the frame's own alpha, which the client multiplies into everything it and its
+  -- children draw (a Texture's SetAlpha, above, replaces its vertex alpha instead).
+  function f:SetAlpha(a) s.alpha = a end
+  function f:GetAlpha() return s.alpha or 1 end
   function f:EnableMouse(v) s.mouse = v and true or false end
   function f:IsMouseEnabled() return s.mouse == true end
   function f:SetID(id) s.id = id end
