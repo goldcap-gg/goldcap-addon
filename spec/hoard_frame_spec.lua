@@ -130,7 +130,11 @@ describe("GoldCap Hoard window", function()
 
   local function open() GC.BankRoute.OnBankOpened() end
   local function close() GC.BankRoute.OnBankClosed() end
-  local function bagsChanged() GC.BankRoute.OnBagsChanged() end
+  -- BAG_UPDATE_DELAYED, and the frame after it, where the window paints.
+  local function bagsChanged()
+    GC.BankRoute.OnBagsChanged()
+    nextFrame()
+  end
 
   -- The server's answer to the moves sent so far (with `landing`): each slot empties (false keeps
   -- the bag's size) and its stack lands at the end of the bags, the character's bank tab or the
@@ -143,15 +147,18 @@ describe("GoldCap Hoard window", function()
     arrivals = {}
   end
 
-  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given up.
+  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given
+  -- up, and the window paints on the frame after.
   local function settle()
     for i = #timers, 1, -1 do
       if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
     end
+    nextFrame()
   end
 
   -- The press machine's own timers (Core/VendorPress.lua's STEP), first armed first, until none is
-  -- left, the server answering before each; answers how many ran. The settle timers stay.
+  -- left, the server answering before each, then the frame after the last, where the window paints
+  -- the run's end; answers how many ran. The settle timers stay.
   local function ticks()
     local n = 0
     while true do
@@ -159,7 +166,10 @@ describe("GoldCap Hoard window", function()
       for k, t in ipairs(timers) do
         if t.seconds == GC.VendorPress.STEP then due = k break end
       end
-      if not due then return n end
+      if not due then
+        nextFrame()
+        return n
+      end
       land()
       table.remove(timers, due).fn()
       n = n + 1
@@ -535,6 +545,29 @@ describe("GoldCap Hoard window", function()
     assert.is_true(closedFor[keep])
   end)
 
+  -- The same for every other click that redraws the list: the bank switch, a search, the filter,
+  -- the sort and a checkbox.
+  it("closes the keep popup on the bank switch, a search, the filter, the sort and a checkbox", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    open()
+    openRow("Group 01")
+    local keep = row("Group 01").keep
+    press(keep)
+    assert.equal(keep, asked.anchor)
+    local clicks = {
+      search = function() typeInto(search().box, "Group") end,
+      filter = function() press(filterSide("all")) end,
+      sort = function() press(search().sort) end,
+      check = function() checkOf("Group 02") end,
+      switch = function() choose(CHARACTER) end,
+    }
+    for _, name in ipairs({ "search", "filter", "sort", "check", "switch" }) do
+      closedFor = {}
+      clicks[name]()
+      assert.is_true(closedFor[keep], name)
+    end
+  end)
+
   it("names itself Hoard in the player's language beside the brand, and on its handle", function()
     for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
     GC.ActivateLocale("ruRU")
@@ -878,9 +911,7 @@ describe("GoldCap Hoard window", function()
     assert.equal(2, #used)
     ticks()
     assert.is_false(store:IsEnabled())
-    for i = #timers, 1, -1 do
-      if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
-    end
+    settle()
     assert.is_true(store:IsEnabled())
     press(store)
     assert.equal(3, #used)
@@ -1705,9 +1736,7 @@ describe("GoldCap Hoard window", function()
     local herbs = row("Herbs")
     press(herbs.store)
     assert.equal(1, #used)
-    for i = #timers, 1, -1 do
-      if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
-    end
+    settle()
     assert.is_true(HF._Machine():IsRunning())
     assert.equal("0 / 3", textOf(herbs.cast.count))
     assert.is_false(shown(herbs.icons[2].mark))
@@ -1772,6 +1801,56 @@ describe("GoldCap Hoard window", function()
     assert.is_nil(HF.Running())
     assert.equal("Take out", b.take.label)
     assert.is_true(shown(b.sub))
+  end)
+
+  -- A run whose row the list does not show (the search hides its group, or its folder is closed)
+  -- can still be watched and stopped: on Store all's line, the button of its way is its Stop, the
+  -- other gives way, and the line says where it goes and how far. A press of that Stop stops it.
+  it("shows a run whose row is out of view on Store all's line, where its Stop stops it", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    open()
+    local f = HF._frame
+    local storeAll, takeAll = f.storeAll, f.takeAll
+    local width, place = storeAll:GetWidth(), at(storeAll)
+    press(row("Group 01").store)
+    assert.equal("group:Group 01:in", HF.Running())
+    assert.equal("Store all", storeAll.label)
+    typeInto(search().box, "Group 02")
+    assert.is_nil(row("Group 01"))
+    assert.equal("Stop", storeAll.label)
+    assert.same({ width, place }, { storeAll:GetWidth(), at(storeAll) })
+    assert.is_false(shown(takeAll))
+    assert.is_true(shown(f.cast.label))
+    assert.equal("Moving to Warband Bank", textOf(f.cast.label))
+    assert.equal("0 / 1", textOf(f.cast.count))
+    press(storeAll)
+    assert.is_nil(HF.Running())
+    assert.equal(1, #used)
+    assert.equal("Store all", storeAll.label)
+    assert.equal("all:in", storeAll.runId)
+    assert.is_true(shown(takeAll))
+    assert.is_false(shown(f.cast.label))
+  end)
+
+  -- A run out of a group whose folder the player closes, on Take all out's side.
+  it("shows a run whose folder is closed on Store all's line, Take all out its Stop", function()
+    folders()
+    open()
+    local f = HF._frame
+    local storeAll, takeAll = f.storeAll, f.takeAll
+    press(row("Gathering", "folder").head)
+    press(row("Herbs").take)
+    assert.equal("group:herbs:out", HF.Running())
+    press(row("Gathering", "folder").head)
+    assert.is_nil(row("Herbs"))
+    assert.equal("Stop", takeAll.label)
+    assert.is_false(shown(storeAll))
+    assert.equal("Moving to your bags", textOf(f.cast.label))
+    press(takeAll)
+    assert.is_nil(HF.Running())
+    assert.equal(1, #used)
+    assert.equal("Take all out", takeAll.label)
+    assert.equal("all:out", takeAll.runId)
   end)
 
   -- A press checks nothing away under the cursor: the selection bar keeps its run's Stop until the
@@ -1893,8 +1972,9 @@ describe("GoldCap Hoard window", function()
   -- What later parts of the window build on
   -- ---------------------------------------------------------------------------------------------
 
-  -- Sections: the tiles above the groups, the carry list and the footer below them, each built once
-  -- in a frame of its own and painted with what it needs.
+  -- Sections: the tiles pinned under the switch, the carry cards in the scroll under the groups and
+  -- the footer pinned at the window's foot, each built once in a frame of its own and painted with
+  -- what it needs.
   it("paints its sections in their places with what they need, and works with none", function()
     local built, ctxs, frames = {}, {}, {}
     local function section(name, h)
@@ -1908,37 +1988,47 @@ describe("GoldCap Hoard window", function()
     end
     HF.AddSection("footer", section("footer", 20))
     HF.AddSection("tiles", section("tiles", 40))
-    HF.AddSection("carry", section("carry", 0))
+    HF.AddSection("carry", section("carry", 30))
     open()
     bagsChanged()
     assert.equal(3, #built)
-    local tiles, footer = ctxs.tiles, ctxs.footer
+    local tiles, carry, footer = ctxs.tiles, ctxs.carry, ctxs.footer
     assert.equal(ACCOUNT, tiles.bankType)
     assert.same({ [CHARACTER] = true, [ACCOUNT] = true }, tiles.usable)
     assert.is_false(tiles.running)
     assert.same({ "Herbs", "Ore" }, { tiles.groups[1].name, tiles.groups[2].name })
     assert.equal(60000, tiles.valueOf(2))
-    assert.equal(HF._frame.content:GetWidth(), tiles.width)
-    -- The tiles first, then the groups, then the carry list (empty: not shown), then the footer.
     assert.equal(footer.bankType, tiles.bankType)
-    local tilesY, titleY = -at(frames.tiles)[5], -at(HF._frame.groupsTitle)[5]
-    local footerY, oreY = -at(frames.footer)[5], -at(row("Ore"))[5]
-    assert.equal(0, tilesY)
-    assert.is_true(titleY >= 40)
-    assert.is_true(footerY > oreY)
-    assert.is_false(shown(frames.carry))
+    -- The pinned ones as wide as the header, the carry cards as the list.
+    assert.equal(382 - 24, tiles.width)
+    assert.equal(382 - 24, footer.width)
+    assert.equal(HF._frame.content:GetWidth(), carry.width)
+    -- What the paint read, for each part to take what it wants from: every stack in the bags (the
+    -- backpack's three and the reagent bag's one) and in a bank's tabs.
+    assert.equal(4, #tiles.inBags())
+    assert.same({ 2, 600 }, { tiles.inBank(ACCOUNT)[1].itemID, tiles.inBank(ACCOUNT)[1].count })
+    assert.same({ 2, 40 }, { carry.inBank(CHARACTER)[1].itemID, carry.inBank(CHARACTER)[1].count })
+    -- The tiles under the switch, outside the scroll; the carry cards in the scroll under the
+    -- groups; the footer at the window's foot.
+    local f = HF._frame
+    assert.equal(f, frames.tiles:GetParent())
+    assert.same({ "TOPLEFT", f, "TOPLEFT", 12 }, { unpack(at(frames.tiles), 1, 4) })
+    assert.is_true(-at(frames.tiles)[5] + 40 <= -at(f.scroll)[5])
+    assert.equal(f.content, frames.carry:GetParent())
+    assert.is_true(-at(frames.carry)[5] > -at(row("Ore"))[5])
+    assert.is_true(shown(frames.carry))
+    assert.equal(f, frames.footer:GetParent())
+    assert.same({ "BOTTOMLEFT", f, "BOTTOMLEFT", 12, 12 }, at(frames.footer))
     assert.is_true(shown(frames.footer))
-    -- Each built once, in a frame of its own in the scroll.
-    for _, b in ipairs(built) do assert.equal(HF._frame.content, b.parent:GetParent()) end
     press(row("Herbs").store)
     assert.is_true(ctxs.tiles.running)
   end)
 
-  -- A section below the groups may be pinned at the window's foot, outside the scroll (the footer):
-  -- under the selection bar's room, at the window's width less its margins.
-  it("pins a section asked for under the selection bar's room, outside the scroll", function()
+  -- The footer is pinned at the window's foot, outside the scroll: under the selection bar's room,
+  -- at the window's width less its margins.
+  it("pins the footer under the selection bar's room, outside the scroll", function()
     local frames, ctxs = {}, {}
-    HF.AddSection("footer", { pinned = true, build = function() end,
+    HF.AddSection("footer", { build = function() end,
       paint = function(f, ctx) frames.footer, ctxs.footer = f, ctx return 30 end })
     open()
     local f, b, footer = HF._frame, bar(), frames.footer
@@ -1951,12 +2041,12 @@ describe("GoldCap Hoard window", function()
     assert.is_true(-at(f.scroll)[5] + f.scroll:GetHeight() <= f:GetHeight() - (12 + 30 + 11 + b:GetHeight()))
   end)
 
-  -- The tiles pinned stand under the switch, over the search row (the ManyGroups board), at the
+  -- The tiles are pinned under the switch, over the search row (the ManyGroups board), at the
   -- window's width less its margins, and never scroll away.
-  it("pins the tiles asked for under the switch and over the search row, outside the scroll", function()
+  it("pins the tiles under the switch and over the search row, outside the scroll", function()
     manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
     local frames, ctxs = {}, {}
-    HF.AddSection("tiles", { pinned = true, build = function() end,
+    HF.AddSection("tiles", { build = function() end,
       paint = function(f, ctx) frames.tiles, ctxs.tiles = f, ctx return 40 end })
     open()
     local f, tiles = HF._frame, frames.tiles
@@ -1987,16 +2077,18 @@ describe("GoldCap Hoard window", function()
   it("keeps three rows' room in the scroll however low the room beside the bank window is", function()
     manyGroups(12)
     function _G.BankFrame:GetTop() return 100 end
-    HF.AddSection("tiles", { pinned = true, build = function() end, paint = function() return 120 end })
-    HF.AddSection("footer", { pinned = true, build = function() end, paint = function() return 60 end })
+    HF.AddSection("tiles", { build = function() end, paint = function() return 120 end })
+    HF.AddSection("footer", { build = function() end, paint = function() return 60 end })
     open()
     local f = HF._frame
     assert.equal(3 * (26 + 3), f.scroll:GetHeight())
     assert.equal(f:GetHeight(), -at(f.scroll)[5] + f.scroll:GetHeight() + (f:GetHeight() - (-at(f.scroll)[5]) - f.scroll:GetHeight()))
     assert.is_true(f:GetHeight() > 160)
-    -- With room under its top, it is as tall as all it shows, the scroll ends over its foot.
+    -- With room under its top, at the next open it is as tall as all it shows, the scroll ends over
+    -- its foot.
     function _G.BankFrame:GetTop() return 4000 end
-    bagsChanged()
+    close()
+    open()
     assert.is_true(f.scroll:GetHeight() > 3 * (26 + 3))
     assert.equal(f.content:GetHeight(), f.scroll:GetHeight())
   end)

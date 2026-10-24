@@ -150,6 +150,35 @@ describe("bank route", function()
     assert.same({}, panel().Plan().putIn)
   end)
 
+  -- The Hoard hands Plan what its paint read (UI/HoardFrame.lua): every stack, bound ones too, those
+  -- in the bags marked against the bank its switch names. Plan takes the flips from it, leaves the
+  -- bound ones out, and asks a stack marked against the character's own bank again against the
+  -- Warband Bank, reading no slot itself.
+  it("plans from the Hoard's read, asking a stack read against the character's bank again", function()
+    refused["0:1"] = true
+    bags[0][3] = info(100, "Gem-Inlaid Velvet Cinch", { isBound = true })
+    panel().OnBankOpened()
+    local all = { soulbound = true }
+    local inBags = panel().ReadStacks({ 0 }, false, nil, CHARACTER, all)
+    local inBank = panel().ReadStacks({ 12 }, true, nil, ACCOUNT, all)
+    assert.is_nil(inBags[1].stays)
+    reads = 0
+    local asked = {}
+    local plan = panel().Plan({ inBags = function() return inBags end, against = CHARACTER,
+      inBank = function(bankType) asked[#asked + 1] = bankType return inBank end })
+    assert.equal(0, reads)
+    assert.same({ ACCOUNT }, asked)
+    -- The cinch the Warband Bank refuses, and the bound one: neither is put in.
+    assert.same({}, plan.putIn)
+    assert.equal("Recipe: Ornate Plate", plan.takeOut[1].name)
+    -- What the Hoard read is left as it was.
+    assert.is_nil(inBags[1].stays)
+    refused["0:1"] = nil
+    plan = panel().Plan({ inBags = function() return inBags end, against = CHARACTER, inBank = function() return inBank end })
+    assert.same({ 0, 1 }, { plan.putIn[1].stacks[1].bag, plan.putIn[1].stacks[1].slot })
+    assert.equal(1, #plan.putIn[1].stacks)
+  end)
+
   -- A player with no route data never sees a carry card: they pay nothing for it at a bank either.
   it("reads no bag for the plan without route data", function()
     _G.GetRealmName = function() return "Nowhere" end
@@ -271,6 +300,9 @@ describe("bank route", function()
     local withBound = panel().ReadStacks({ 0 }, false, all, CHARACTER, { soulbound = true })
     assert.same({ 100, 500 }, { withBound[1].itemID, withBound[2].itemID })
     assert.is_nil(withBound[1].stays)
+    -- Marked, for a reader that leaves them out to tell them; with no `wanted`, every stack.
+    assert.same({ true }, { withBound[1].bound, withBound[2].bound })
+    assert.equal(2, #panel().ReadStacks({ 0 }, false, nil, CHARACTER, { soulbound = true }))
     local againstWarband = panel().ReadStacks({ 0 }, false, all, ACCOUNT, { soulbound = true })
     assert.equal("refused", againstWarband[1].stays)
     assert.is_nil(againstWarband[2].stays)
@@ -344,22 +376,23 @@ describe("bank route", function()
   -- The bank events
   -- ---------------------------------------------------------------------------------------------
 
-  -- Sorting the Warband Bank or depositing everything moves hundreds of slots, one event each: the
-  -- Hoard, which hooks OnBagsChanged, repaints once after the run.
-  it("hands on a run of Warband Bank slot changes once, on the next frame, and nothing with the bank closed", function()
+  -- Sorting the Warband Bank or depositing everything moves hundreds of slots, one event each, and a
+  -- move into it comes with a BAG_UPDATE_DELAYED too: each is handed on as the bags' change while
+  -- the bank is open, and the Hoard, which hooks OnBagsChanged, paints once on the next frame for
+  -- all of them (spec/hoard_sections_spec.lua).
+  it("hands each Warband Bank slot change on as the bags' change while the bank is open, and none with it closed", function()
     local heard = 0
     local onBags = panel().OnBagsChanged
     panel().OnBagsChanged = function() heard = heard + 1; onBags() end
     for _ = 1, 50 do panel().OnTabSlotsChanged() end
-    assert.equal(0, #timers)
+    assert.equal(0, heard)
     panel().OnBankOpened()
     for _ = 1, 50 do panel().OnTabSlotsChanged() end
-    assert.equal(0, heard)
-    assert.equal(1, #timers)
-    timers[1]()
-    assert.equal(1, heard)
+    assert.equal(50, heard)
+    assert.equal(0, #timers)
+    panel().OnBankClosed()
     panel().OnTabSlotsChanged()
-    assert.equal(2, #timers)
+    assert.equal(50, heard)
   end)
 
   it("keeps whether the bank is open", function()
@@ -476,12 +509,15 @@ describe("bank route", function()
       local pressBody = bodyOf(hoard, "function HF.Press(")
       assert.is_truthy(pressBody:find("if bankType == nil then bankType = HF._bankType end", 1, true))
       assert.is_truthy(pressBody:find("into = into, bankType = bankType }", 1, true))
+      -- A paint reads for the bank the switch names: the bags marked against it, and its tabs.
       local refresh = bodyOf(hoard, "local function refresh(")
       local chosen = assert(refresh:find("local bankType = HF._bankType", 1, true))
-      assert.is_true(chosen < assert(refresh:find("read(bankType, usable, hasGroups)", 1, true)))
-      local reader = bodyOf(hoard, "local function read(")
-      assert.is_truthy(reader:find("route.ReadStacks(BAGS, false, groupOf, bankType)", 1, true))
-      assert.is_truthy(reader:find("route.ReadStacks(route.BankTabs(bankType), true, groupOf, bankType)", 1, true))
+      assert.is_true(chosen < assert(refresh:find("reading = newReading(bankType)", 1, true)))
+      assert.is_true(chosen < assert(refresh:find("bankOf(reading, bankType)", 1, true)))
+      assert.is_truthy(bodyOf(hoard, "local function bagsOf("):find(
+        "GC.BankRoute.ReadStacks(BAGS, false, nil, reading.bankType, ALL)", 1, true))
+      assert.is_truthy(bodyOf(hoard, "local function bankOf("):find(
+        "GC.BankRoute.ReadStacks(tabs, true, nil, bankType, ALL)", 1, true))
       -- The bank is set only by a paint, the switch's own click, and a new visit (the bank opening
       -- or closing); the switch's click moves nothing.
       -- A line that assigns to HF._bankType: it stands left of the line's first lone `=`.
@@ -506,7 +542,13 @@ describe("bank route", function()
       assert.is_nil(click:find("MoveStack", 1, true))
       assert.is_nil(click:find("UseContainerItem", 1, true))
       assert.is_nil(click:find("Press(", 1, true))
-      assert.equal('side:SetScript("OnClick", onBankClick)', hoard:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
+      -- Its only use: the click of each side of the switch, as the switch builder sets it.
+      assert.equal('frame.choice = newSwitch(frame, "bankType", { banks() }, onBankClick)',
+        hoard:match("[^\n]*onBankClick%)[^\n]*"):match("^%s*(.-)%s*$"))
+      assert.equal(2, count(hoard, "onBankClick"))
+      local switch = bodyOf(hoard, "local function newSwitch(")
+      assert.equal(1, count(switch, 'side:SetScript("OnClick", onClick)'))
+      assert.equal(2, count(switch, "onClick"))
     end)
 
     -- A switch of the bank window's tab repaints the Hoard through a post-hook on Blizzard's bank
@@ -519,10 +561,16 @@ describe("bank route", function()
       assert.equal(1, count(hoard, 'hooksecurefunc(bankPanel, "Reset", HF.OnBankShown)'))
       assert.is_truthy(hoard:find("local bankPanel = _G.BankPanel", 1, true))
       local shownBody = bodyOf(hoard, "function HF.OnBankShown(")
-      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick", "Press(" }) do
+      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick", "Press(", "refresh(" }) do
         assert.is_nil(shownBody:find(needle, 1, true), needle)
       end
-      assert.is_truthy(shownBody:find("C_Timer.After(0, function()", 1, true))
+      -- It hands on to the window's own bag change, which paints on the next frame.
+      assert.is_truthy(shownBody:find("HF.OnBagsChanged()", 1, true))
+      local bagsBody = bodyOf(hoard, "function HF.OnBagsChanged(")
+      assert.is_truthy(bagsBody:find("C_Timer.After(0, function()", 1, true))
+      for _, needle in ipairs({ "MoveStack", "UseContainerItem", "onMoveClick", "OnClick", "Press(" }) do
+        assert.is_nil(bagsBody:find(needle, 1, true), needle)
+      end
       assert.is_nil(read(ROW):find("hooksecurefunc", 1, true))
       assert.is_nil(read(LIST):find("hooksecurefunc", 1, true))
       for _, path in ipairs(SECTIONS) do assert.is_nil(read(path):find("hooksecurefunc", 1, true), path) end
@@ -572,6 +620,22 @@ describe("bank route", function()
       end
     end)
 
+    -- A paint of the Hoard reads each slot once (UI/HoardFrame.lua's newReading, bagsOf, bankOf):
+    -- its rows, its list and its parts take what they want from what the paint read, and none of
+    -- them reads a slot of its own.
+    it("reads the bags and the banks for the Hoard in its window's paint alone", function()
+      for _, path in ipairs({ ROW, LIST, SECTIONS[1], SECTIONS[2], SECTIONS[3] }) do
+        local text = read(path)
+        for _, needle in ipairs({ "ReadStacks", "BankTabs", "GetContainerItemInfo", "GetContainerNumFreeSlots" }) do
+          assert.is_nil(text:find(needle, 1, true), path .. " " .. needle)
+        end
+      end
+      local hoard = read(HOARD)
+      assert.equal(2, count(hoard, "ReadStacks("))
+      assert.equal(1, count(bodyOf(hoard, "local function bagsOf("), "ReadStacks("))
+      assert.equal(1, count(bodyOf(hoard, "local function bankOf("), "ReadStacks("))
+    end)
+
     -- No timer of these files moves anything: the Hoard's moves after the first come from the press
     -- machine's own timers (its driver's `after`), each through moveRow and its re-checks.
     it("reaches each click handler only through its button's OnClick, and moves nothing from a timer of its own", function()
@@ -606,7 +670,7 @@ describe("bank route", function()
       assert.is_nil(bodyOf(hoard, "local function onMoveClick("):find("Disable(", 1, true))
       local pressBody = bodyOf(hoard, "function HF.Press(")
       assert.is_nil(pressBody:find("Disable(", 1, true))
-      assert.is_true(assert(pressBody:find("machine:Press(rows)", 1, true)) < assert(pressBody:find("HF.Refresh()", 1, true)))
+      assert.is_true(assert(pressBody:find("machine:Press(rows)", 1, true)) < assert(pressBody:find("HF.Refresh(true)", 1, true)))
       local paint = bodyOf(hoard, "local function paintMove(")
       assert.equal(1, count(paint, "button:Disable()"))
       -- Store all and Take all out, each row's Store and Take out and the selection bar's, through

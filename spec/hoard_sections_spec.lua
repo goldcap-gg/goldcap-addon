@@ -12,7 +12,7 @@ local W = require("spec.support.wow_frames")
 -- needs are UI/CraftQueueView.lua's Needs, faked here (spec/craft_queue_view_spec.lua has its own).
 describe("GoldCap Hoard sections", function()
   local GC, HF, restore, saved, bags, sizes, used, timers, canUse, tabs, reads, showing, usable, charTabs
-  local refused, refusedHere, landing, arrivals, tip, needs, crafts, now, origin
+  local refused, refusedHere, landing, arrivals, tip, needs, crafts, now, origin, warbound
   -- Enum.BankType (Blizzard_APIDocumentationGenerated's ItemConstantsDocumentation.lua).
   local CHARACTER, ACCOUNT = 0, 2
   local G = 10000
@@ -55,11 +55,15 @@ describe("GoldCap Hoard sections", function()
 
   local function open() GC.BankRoute.OnBankOpened() end
   local function close() GC.BankRoute.OnBankClosed() end
-  local function bagsChanged() GC.BankRoute.OnBagsChanged() end
   local function nextFrame()
     for i = #timers, 1, -1 do
       if timers[i].seconds == 0 then table.remove(timers, i).fn() end
     end
+  end
+  -- BAG_UPDATE_DELAYED, and the frame after it, where the window paints.
+  local function bagsChanged()
+    GC.BankRoute.OnBagsChanged()
+    nextFrame()
   end
   local function switchTo(bankType)
     showing = bankType
@@ -94,10 +98,27 @@ describe("GoldCap Hoard sections", function()
     return n
   end
 
-  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given up.
+  -- The settle timers armed so far (the route's SETTLE_SECONDS): what is still on its way is given
+  -- up, and the window paints on the frame after.
   local function settle()
     for i = #timers, 1, -1 do
       if timers[i].seconds == GC.BankRoute.SETTLE_SECONDS then table.remove(timers, i).fn() end
+    end
+    nextFrame()
+  end
+  -- The player types into the search box: the client changes its text and runs OnTextChanged with
+  -- userInput true.
+  local function typeInto(box, text)
+    W.state(box).text = text
+    W.state(box).scripts.OnTextChanged(box, true)
+  end
+  -- Which kit glyph a texture draws: its name in the atlas, from its coordinates.
+  local function glyph(texture)
+    local coords = W.state(texture).texCoord
+    for name in pairs(GC.Kit.Icons.index) do
+      if coords and coords[1] == GC.Theme.IconCoords(name) and select(3, GC.Theme.IconCoords(name)) == coords[3] then
+        return name
+      end
     end
   end
 
@@ -150,6 +171,9 @@ describe("GoldCap Hoard sections", function()
     used, timers, canUse, tabs, reads, landing, arrivals = {}, {}, true, { 12 }, 0, false, {}
     W.CLIENT_METRICS = true
     showing, usable, charTabs, refused, refusedHere = ACCOUNT, { [ACCOUNT] = true, [CHARACTER] = true }, { 6 }, {}, {}
+    -- The slots holding an item bound to the account (Warbound): the client reports it isBound as it
+    -- does a soulbound one, and the Warband Bank takes it.
+    warbound = {}
     -- 0: the backpack; 5: the reagent bag; 6: the character's first bank tab; 12: the first
     -- Warband Bank tab.
     bags = {
@@ -202,12 +226,12 @@ describe("GoldCap Hoard sections", function()
       CanBeRefunded = function() return false end,
       GetCurrentItemLevel = function() return 0 end,
     }
-    -- The Warband Bank refuses a soulbound item, as the client answers for one.
+    -- The Warband Bank refuses a soulbound item and takes a Warbound one, as the client answers.
     _G.C_Bank = {
       CanUseBank = function(t) return canUse and usable[t] == true end,
       IsItemAllowedInBankType = function(t, loc)
         local held = bags[loc.bag] and bags[loc.bag][loc.slot]
-        if t == ACCOUNT and held and held.isBound then return false end
+        if t == ACCOUNT and held and held.isBound and not warbound[loc.bag .. ":" .. loc.slot] then return false end
         return not (t == CHARACTER and refusedHere or refused)[loc.bag .. ":" .. loc.slot]
       end,
       FetchPurchasedBankTabIDs = function(t)
@@ -547,6 +571,26 @@ describe("GoldCap Hoard sections", function()
     end
   end)
 
+  -- A compact tile is one button: while its run goes, the kit's close glyph stands where its chevron
+  -- was, as an icon button's Stop wears it (UI/HoardList.lua's PaintPair), and its line says how far.
+  it("shows the kit's close glyph in a compact tile's chevron place while its run goes", function()
+    landing = true
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    open()
+    local button = tileButton("putAway")
+    local place = { at(button.icon), button.icon:GetWidth(), button.icon:GetHeight() }
+    assert.equal("caretRight", glyph(button.icon))
+    press(button)
+    assert.equal("tile:putAway", HF.Running())
+    assert.is_true(shown(button.icon))
+    assert.equal("close", glyph(button.icon))
+    assert.same(place, { at(button.icon), button.icon:GetWidth(), button.icon:GetHeight() })
+    press(button)
+    assert.is_nil(HF.Running())
+    assert.is_true(shown(button.icon))
+    assert.equal("caretRight", glyph(button.icon))
+  end)
+
   it("paints no tile without a followed group, and reads no slot for them", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
@@ -696,28 +740,37 @@ describe("GoldCap Hoard sections", function()
     assert.same(GC.Kit.Tokens.color.profit, W.state(f.dot).vertex)
   end)
 
-  -- Make room at the Warband Bank: every stack in the bags it takes, the biggest first. At the
-  -- character's own bank a soulbound one too, which the Warband Bank refuses.
+  -- Make room at the Warband Bank: every stack in the bags it takes, the biggest first, a Warbound
+  -- one too, which the client reports bound as it does a soulbound one. At the character's own bank
+  -- a soulbound one too, which the Warband Bank refuses.
   it("makes room with every stack the bank chosen takes, soulbound ones only into the character's bank", function()
     landing = true
     bags[0][2] = info(1, 20, { isBound = true })
+    bags[0][7] = info(9, 5, { isBound = true })
+    warbound["0:7"] = true
     open()
     press(footer().makeRoom)
     assert.same({ 0, 1, ACCOUNT }, moves()[1])
     ticks()
-    -- Every stack of the bags but the soulbound one: five in the backpack, one in the reagent bag.
-    assert.equal(6, #used)
-    for _, m in ipairs(moves()) do assert.is_false(m[1] == 0 and m[2] == 2) end
+    -- Every stack of the bags but the soulbound one: six in the backpack, the Warbound one among
+    -- them, and one in the reagent bag.
+    assert.equal(7, #used)
+    local slots = {}
+    for _, m in ipairs(moves()) do slots[m[1] .. ":" .. m[2]] = true end
+    assert.is_nil(slots["0:2"])
+    assert.is_true(slots["0:7"])
     close()
     -- Put back would bring those back first (a room is one bank's): this is another character's day.
     GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", nil)
     used = {}
     switchTo(CHARACTER)
-    bags[0] = { info(1, 20, { isBound = true }) }
+    bags[0] = { info(1, 20, { isBound = true }), info(9, 5, { isBound = true }) }
+    warbound = { ["0:2"] = true }
     bags[5] = {}
     open()
     press(footer().makeRoom)
-    assert.same({ { 0, 1, CHARACTER } }, moves())
+    ticks()
+    assert.same({ { 0, 1, CHARACTER }, { 0, 2, CHARACTER } }, moves())
   end)
 
   -- What Make room put away is what left the bags, remembered for this character, and a second Make
@@ -779,7 +832,8 @@ describe("GoldCap Hoard sections", function()
     press(footer().makeRoom)
     ticks()
     assert.same({ [9] = 20, [3] = 7 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
-    -- Another character took 8 of the Linen; the player took the Bismuth by hand.
+    -- A minute later another character took 8 of the Linen; the player took the Bismuth by hand.
+    now = now + 60
     for slot, held in pairs(bags[12]) do
       if held and held.itemID == 9 then bags[12][slot] = info(9, 12) end
       if held and held.itemID == 3 then bags[12][slot] = false end
@@ -873,7 +927,7 @@ describe("GoldCap Hoard sections", function()
   end)
 
   it("enables Make room again once the other bank holds none of what it put there", function()
-    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = CHARACTER, at = now, items = { [2] = 40 } })
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = CHARACTER, at = now - 60, items = { [2] = 40 } })
     open()
     assert.is_false(footer().makeRoom:IsEnabled())
     -- The player took the 40 out of the character's bank by hand.
@@ -915,6 +969,57 @@ describe("GoldCap Hoard sections", function()
     land()
     bagsChanged()
     assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+  end)
+
+  -- The Warband Bank can show a deposit a moment after the bags show it gone: for the route's
+  -- SETTLE_SECONDS after Make room remembered it, the room is not capped at what the bank's slots
+  -- show, so a slot that updates late does not lose what went in.
+  it("keeps what Make room remembered while the bank has not shown it yet", function()
+    landing = true
+    bags[0] = { info(9, 20) }
+    bags[5] = {}
+    open()
+    press(footer().makeRoom)
+    -- The bags show the Linen gone; the Warband Bank's slot does not show it yet.
+    arrivals = {}
+    bags[0][1] = false
+    bagsChanged()
+    ticks()
+    assert.is_nil(HF.Running())
+    assert.same({ bankType = ACCOUNT, at = now, items = { [9] = 20 } }, GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    now = now + GC.BankRoute.SETTLE_SECONDS - 1
+    bagsChanged()
+    assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    -- It shows: kept, as the bank holds it.
+    bags[12][#bags[12] + 1] = info(9, 20)
+    now = now + 1
+    bagsChanged()
+    assert.same({ [9] = 20 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+    -- Once settled, what the bank does not hold is no longer remembered.
+    bags[12][#bags[12]] = info(9, 12)
+    bagsChanged()
+    assert.same({ [9] = 12 }, GC.Hoard.Room(GC.db, "Me-Tarren Mill").items)
+  end)
+
+  -- A move takes what the other side has room for: the bags had room for 150 of the 200 Linen Put
+  -- back took out, so the bank's slot keeps 50. What left the slot is what came back, and the 50 are
+  -- still to put back.
+  it("counts what left a slot: a withdraw the bags took only part of leaves the rest to put back", function()
+    landing = true
+    bags[12][6] = info(9, 200)
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now - 60, items = { [9] = 200 } })
+    open()
+    press(footer().putBack)
+    assert.same({ { 12, 6, "out" } }, moves())
+    arrivals = {}
+    bags[12][6] = info(9, 50)
+    bags[0][#bags[0] + 1] = info(9, 150)
+    bagsChanged()
+    -- The slot still holds Linen: the run waits for it, then stops.
+    ticks()
+    assert.is_nil(HF.Running())
+    assert.same({ bankType = ACCOUNT, at = now - 60, items = { [9] = 50 } }, GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
+    assert.is_true(footer().putBack:IsEnabled())
   end)
 
   -- Pressed again and again in one spot: the price line can say an older age or another source in
@@ -987,5 +1092,136 @@ describe("GoldCap Hoard sections", function()
     assert.same({ { 12, 1, "out" } }, moves())
     assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
     assert.is_false(HF._frame:IsShown())
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- The window while things move
+  -- ---------------------------------------------------------------------------------------------
+
+  -- Where the window's height leaves its foot on the screen: the window hangs from the bank
+  -- window's top, and the footer and the selection bar stand on its bottom.
+  local function foot()
+    local f = HF._frame
+    local bottom = _G.BankFrame:GetTop() + at(f)[5] - f:GetHeight()
+    return { height = f:GetHeight(), footer = bottom + at(footer())[5], bar = bottom + at(f.selection)[5],
+      makeRoom = at(footer().makeRoom)[4], putBack = at(footer().putBack)[4] }
+  end
+
+  -- Pressed again and again in one spot: Make room's Stop and the selection bar stay under the
+  -- cursor while its run changes the list. The bags keep 100 Bismuth for Ore, so Ore has nothing to
+  -- move here and folds under the line; Make room puts its Bismuth into the Warband Bank, and Ore
+  -- comes up from under it. The window keeps its height and the scroll takes the change.
+  it("keeps its height and its foot where they are while Make room brings a folded group up", function()
+    landing = true
+    GC.BankGroups.SetKeep(GC.db, "Ore", 100)
+    open()
+    local f = HF._frame
+    assert.is_true(shown(f.fold))
+    local before = foot()
+    press(footer().makeRoom)
+    assert.same(before, foot())
+    for _ = 1, 3 do
+      land()
+      bagsChanged()
+      assert.same(before, foot())
+      for k, t in ipairs(timers) do
+        if t.seconds == GC.VendorPress.STEP then table.remove(timers, k).fn() break end
+      end
+    end
+    ticks()
+    assert.is_nil(HF.Running())
+    assert.is_false(shown(f.fold))
+    assert.same(before, foot())
+  end)
+
+  -- Put back takes the cinch out of the Warband Bank to the bags, where it sells better on another
+  -- of the player's realms: a carry card comes under the others, and the foot stays where it was.
+  it("keeps its height and its foot where they are while Put back brings a card to carry", function()
+    route()
+    landing = true
+    bags[0][7] = false
+    bags[12][7] = info(100, 1)
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now - 60, items = { [100] = 1 } })
+    open()
+    local list = cards()
+    local before = foot()
+    press(footer().putBack)
+    assert.same(before, foot())
+    ticks()
+    assert.equal(#list + 1, #cards())
+    assert.same(before, foot())
+  end)
+
+  -- The player's own clicks that change what the list holds take the window to its new height:
+  -- opening a row.
+  it("takes its new height at a click that opens a row, never at a bag event", function()
+    open()
+    local f = HF._frame
+    local h = f:GetHeight()
+    -- Another character takes the Weavercloth out of the Warband Bank: Cloth's row goes, and the
+    -- window stays as it was, the scroll taking the room.
+    local scrollH = f.scroll:GetHeight()
+    bags[12][2] = false
+    bagsChanged()
+    assert.equal(h, f:GetHeight())
+    assert.equal(scrollH, f.scroll:GetHeight())
+    local herbs
+    for _, r in ipairs(HF._rows) do if r:IsShown() and textOf(r.name) == "Herbs" then herbs = r end end
+    press(herbs.head)
+    assert.is_true(f:GetHeight() > h)
+  end)
+
+  -- One paint reads each bag slot and each bank tab's slot once, whatever its parts need: here the
+  -- groups at the character's own bank, the craft queue's reagents (the tiles), the carry cards (the
+  -- Warband Bank) and what Make room put into the Warband Bank (the footer).
+  it("reads the bags and each bank once a paint", function()
+    route()
+    switchTo(CHARACTER)
+    GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now - 60, items = { [2] = 600 } })
+    open()
+    assert.equal(CHARACTER, HF._bankType)
+    assert.is_true(#cards() > 0)
+    reads = 0
+    bagsChanged()
+    -- The backpack's 20 slots and the reagent bag's 36, the character's tab and the Warband Bank's.
+    assert.equal(20 + 36 + 98 + 98, reads)
+  end)
+
+  -- A click that only changes what the window shows paints from what the last paint read.
+  it("reads nothing for a keystroke in the search box, the filter, the sort or a checkbox", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    open()
+    local search = HF._frame.search
+    reads = 0
+    typeInto(search.box, "G")
+    typeInto(search.box, "Gr")
+    press(search.filter.sides[2])
+    press(search.sort)
+    for _, r in ipairs(HF._rows) do
+      if r:IsShown() then press(r.check) break end
+    end
+    assert.equal(0, reads)
+  end)
+
+  -- A move into the Warband Bank is told twice, by BAG_UPDATE_DELAYED and by the Warband Bank's
+  -- slot that took it (PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED): one paint for both, on the next
+  -- frame.
+  it("paints once for a move into the Warband Bank, on the next frame", function()
+    landing = true
+    open()
+    reads = 0
+    bagsChanged()
+    local one = reads
+    assert.is_true(one > 0)
+    press(tileButton("putAway"))
+    land()
+    reads = 0
+    GC.BankRoute.OnBagsChanged()
+    GC.BankRoute.OnTabSlotsChanged()
+    GC.BankRoute.OnTabSlotsChanged()
+    assert.equal(0, reads)
+    nextFrame()
+    nextFrame()
+    assert.equal(one, reads)
   end)
 end)

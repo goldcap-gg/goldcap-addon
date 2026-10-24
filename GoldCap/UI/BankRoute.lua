@@ -29,6 +29,8 @@ P.SETTLE_SECONDS = 3
 
 -- The backpack and the four bag slots; the reagent bag holds no realm item.
 local BAGS = { 0, 1, 2, 3, 4 }
+local IS_BAG = {}
+for _, bag in ipairs(BAGS) do IS_BAG[bag] = true end
 
 -- How far past the bank window's right edge a panel beside it starts (the GoldCap Hoard): past the
 -- tab buttons Blizzard hangs off the bank panel's right edge (BankFrame.lua,
@@ -107,29 +109,34 @@ local function staysWhy(loc, bankType)
   return nil
 end
 
--- One stack as the Hoard reads it, or nil: an empty slot, an item `wanted` does not take, a
--- soulbound one unless `soulbound` asks for those too. A Warbound-until-equipped one is marked
--- `wue`, a stack in the bags `bankType`'s bank must not take `stays` (with why, staysWhy above),
--- and one the game holds (on the cursor, or on its way) `locked`.
+-- One stack as the Hoard reads it, or nil: an empty slot, an item `wanted` does not take (with a
+-- `wanted`), a bound one unless `soulbound` asks for those too, and then marked `bound`. A
+-- Warbound-until-equipped one is marked `wue`, a stack in the bags `bankType`'s bank must not take
+-- `stays` (with why, staysWhy above), and one the game holds (on the cursor, or on its way)
+-- `locked`.
 local function readStack(bag, slot, inBank, wanted, bankType, soulbound)
   local info = C_Container.GetContainerItemInfo(bag, slot)
-  if not (info and info.itemID and wanted(info.itemID)) then return nil end
+  if not (info and info.itemID and (wanted == nil or wanted(info.itemID))) then return nil end
   local loc = locationOf(bag, slot)
   if not loc then return nil end
   local wue = ask(C_Item.IsBoundToAccountUntilEquip, loc) == true
-  if info.isBound and not wue and not soulbound then return nil end
+  local bound = info.isBound and not wue
+  if bound and not soulbound then return nil end
   return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
     link = info.hyperlink, icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
-    stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil }
+    stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil, bound = bound or nil }
 end
 
---- Every stack of `bags` whose item `wanted(itemID)` takes, read as readStack reads one; a stack in
---- the bags is marked `stays` against `bankType`'s bank (Enum.BankType), the one it would go into.
---- `opts.soulbound`: soulbound stacks too, which are left out otherwise. The character's own bank
---- takes one (the Hoard's Make room moves them there, and its Put back and For your crafts take
---- them out of it); the Warband Bank refuses one, so in the bags against it one `stays`, refused:
---- that bank's answer (C_Bank.IsItemAllowedInBankType, which Blizzard's own bags ask to dim what
---- the bank shown will not take, Blizzard_FrameXMLUtil's ItemUtil.lua).
+--- Every stack of `bags` whose item `wanted(itemID)` takes (every stack, `wanted` nil), read as
+--- readStack reads one; a stack in the bags is marked `stays` against `bankType`'s bank
+--- (Enum.BankType), the one it would go into. `opts.soulbound`: the stacks the client reports
+--- bound too, marked `bound`, which are left out otherwise: soulbound ones, and items bound to the
+--- account (Warbound), which can report bound as well. The character's own bank takes either (the
+--- Hoard's Make room moves them there, and its Put back and For your crafts take them out of it);
+--- the Warband Bank refuses a soulbound one and takes a Warbound one, so in the bags against it
+--- what it refuses `stays`, refused: that bank's answer (C_Bank.IsItemAllowedInBankType, which
+--- Blizzard's own bags ask to dim what the bank shown will not take, Blizzard_FrameXMLUtil's
+--- ItemUtil.lua).
 function P.ReadStacks(bags, inBank, wanted, bankType, opts)
   local soulbound = type(opts) == "table" and opts.soulbound == true
   local stacks = {}
@@ -171,21 +178,44 @@ end
 --- What to carry from this bank now (GC.SellRoute.CarryPlan), from the bags and, while the bank is
 --- open, the Warband Bank's tabs, for the Hoard's carry cards and /gc route. A stack in the bags the
 --- Warband Bank must not take is left out, unless it is Warbound until equipped: that one is told
---- why it stays. Soulbound stacks are left out: no other character can sell them. Without route
---- data (no Companion region payload, another region) nothing is read and the plan is empty.
-function P.Plan()
+--- why it stays. Bound stacks are left out: no other character can sell them. Without route data
+--- (no Companion region payload, another region) nothing is read and the plan is empty.
+---
+--- `read`, the Hoard's paint's (UI/HoardFrame.lua), so a paint reads each slot once: { inBags,
+--- inBank, against }, `inBags()` every stack it read in the bags, bound ones too, marked `stays`
+--- against the bank `against` (the one its switch names), and `inBank(bankType)` every stack of
+--- that bank's tabs; both asked only with route data. A stack in the bags marked against the
+--- character's own bank is asked again here, against the Warband Bank. Without `read` (/gc route)
+--- Plan reads them itself.
+function P.Plan(read)
   local hereId = GC.SellRoute.HereId()
   if not hereId then return GC.SellRoute.CarryPlan({}, {}, {}) end
+  local account = accountBank()
+  local against = read and read.against or account
   local function routed(stacks, inBank)
     local out = {}
     for _, stack in ipairs(stacks) do
-      if inBank or stack.wue or not stack.stays then out[#out + 1] = stack end
+      if not stack.bound and (inBank or IS_BAG[stack.bag]) and GC.Data.SellSpots(stack.itemID) then
+        if not inBank and against ~= account then
+          local mine = {}
+          for k, v in pairs(stack) do mine[k] = v end
+          local loc = locationOf(stack.bag, stack.slot)
+          mine.stays = loc and staysWhy(loc, account) or nil
+          stack = mine
+        end
+        if inBank or stack.wue or not stack.stays then out[#out + 1] = stack end
+      end
     end
     return out
   end
-  local account = accountBank()
-  return GC.SellRoute.CarryPlan(routed(P.ReadStacks(BAGS, false, GC.Data.SellSpots, account), false),
-    routed(P.ReadStacks(P.BankTabs(account), true, GC.Data.SellSpots, account), true), {
+  local bagStacks, bankStacks
+  if read then
+    bagStacks, bankStacks = read.inBags(), read.inBank(account)
+  else
+    bagStacks = P.ReadStacks(BAGS, false, GC.Data.SellSpots, account)
+    bankStacks = P.ReadStacks(P.BankTabs(account), true, GC.Data.SellSpots, account)
+  end
+  return GC.SellRoute.CarryPlan(routed(bagStacks, false), routed(bankStacks, true), {
     hereId = hereId,
     routeFor = GC.SellRoute.ForItem,
     levelFor = GC.Data.FlipLevel,
@@ -246,15 +276,11 @@ function P.OnBagsChanged()
 end
 
 -- PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED comes once a slot: sorting the Warband Bank or depositing
--- everything is hundreds of them. One OnBagsChanged after the run.
+-- everything is hundreds of them, and a move into it comes with a BAG_UPDATE_DELAYED too. Each is
+-- handed on as the bags' change while the bank is open; the Hoard paints once on the next frame
+-- for all of them (UI/HoardFrame.lua's OnBagsChanged), so a move into the Warband Bank paints once.
 function P.OnTabSlotsChanged()
-  if not P._open or P._repaintQueued then return end
-  if not (C_Timer and C_Timer.After) then return P.OnBagsChanged() end
-  P._repaintQueued = true
-  C_Timer.After(0, function()
-    P._repaintQueued = nil
-    P.OnBagsChanged()
-  end)
+  if P._open then P.OnBagsChanged() end
 end
 
 --- The carry list in the chat, from anywhere: what in the bags to take to which realm. What sits in

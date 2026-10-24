@@ -99,8 +99,9 @@ end
 -- A row's own click, on its top line: a folder opens or closes, remembered for the account
 -- (GC.db.hoard), or for this session when a newer GoldCap's memory cannot be written; a group row
 -- opens (one at a time) or closes. A row is told apart by its kind as well as its key, as a
--- folder's key is its parent group's, which a followed top group may share. The list is redrawn,
--- so a keep count asked from any row goes (HF.ui.closeKeep).
+-- folder's key is its parent group's, which a followed top group may share. The list is redrawn
+-- from what the window last read, so a keep count asked from any row goes (HF.ui.closeKeep), and
+-- the window may take its new height.
 local function onRowClick(head)
   local data = head.data
   if not data then return end
@@ -115,7 +116,7 @@ local function onRowClick(head)
   else
     HF._open = HF._open ~= data.key and data.key or nil
   end
-  HF.Refresh()
+  HF.Refresh(false, true)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -290,15 +291,6 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- A wrapping line's height at its width, with room for the longest it can say (`most`): a move
--- keeps a group's total, so neither number can grow longer than it.
-local function heightFor(fs, text, most)
-  setText(fs, most)
-  local h = heightOf(fs, 12)
-  setText(fs, text)
-  return math.max(h, heightOf(fs, 12))
-end
-
 -- The keep count's chip at `x`, `y`: its words, then the pencil, as wide as the words need.
 local function paintKeep(keep, count, x, y)
   keep:SetLabel(GC.L["Keep in bags: %d of each"]:format(count))
@@ -342,8 +334,10 @@ local function paintOpen(row, group, ctx, y)
     local nameH = heightOf(line.name, 12)
     local here = ctx.perItem[item.itemID] or { bags = 0, bank = 0 }
     line.counts:SetWidth(width - nameX - L.ROW_PAD)
-    local countsH = heightFor(line.counts, words.counts:format(here.bags, here.bank),
-      words.counts:format(item.count, item.count))
+    -- With room for the longest it can say: a move keeps a group's total, so neither number can
+    -- grow longer than it.
+    local countsH = U.tallest(line.counts, { words.counts:format(item.count, item.count),
+      words.counts:format(here.bags, here.bank) })
     line.counts:ClearAllPoints()
     line.counts:SetPoint("TOPLEFT", row, "TOPLEFT", nameX, -(y + nameH + 1))
     line.counts:Show()

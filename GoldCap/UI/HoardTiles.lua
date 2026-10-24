@@ -31,8 +31,6 @@ local U = HF.ui
 local L = U.L
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
 
-HF.Tiles = {}
-
 -- In UI units; the boards are drawn at twice that. GAP: between two tiles. PAD: a tile's margin.
 -- ICON, OVERLAP: a full tile's icons and how far each lies over the one before; ICON_GAP, TITLE_GAP,
 -- BUTTON_GAP: under the icons, the title and the line. BUTTON_H, LABEL_PAD: the button's least
@@ -63,10 +61,20 @@ local MOST_WORTH = 9999999 * 10000
 -- ---------------------------------------------------------------------------------------------
 
 -- An item's usual price at `itemLevel` (a stack's): its group's (Core/GroupRules.lua), nil without
--- one, and nil for a piece of gear under the level its group's cap was priced at.
-local function usualOf(itemID, itemLevel)
-  local rule = GC.GroupRules.RuleFor(itemID, itemLevel)
-  return rule and rule.usualUnit or nil
+-- one, and nil for a piece of gear under the level its group's cap was priced at. For one paint:
+-- asked of the group rules once per item and level, however many stacks and tiles ask.
+local function usualsOnce()
+  local seen = {}
+  return function(itemID, itemLevel)
+    local at = itemID .. ":" .. tostring(itemLevel or 0)
+    local usual = seen[at]
+    if usual == nil then
+      local rule = GC.GroupRules.RuleFor(itemID, itemLevel)
+      usual = rule and rule.usualUnit or false
+      seen[at] = usual
+    end
+    return usual or nil
+  end
 end
 
 -- What the craft queue of the character at the keyboard needs in all, and how many crafts that is.
@@ -77,21 +85,23 @@ local function craftNeeds()
 end
 
 -- For your crafts: the queue's needs counted against the bags alone, every quality of a reagent and
--- the soulbound ones too, and what the bank chosen has of them.
+-- the bound ones too, and what the bank chosen has of them: of the stacks the window's paint read
+-- (ctx.inBags, ctx.inBank), no slot read here.
 local function forCrafts(ctx, needs)
   local want = {}
   for _, row in ipairs(needs) do
     for _, id in ipairs(row.ids or {}) do want[id] = true end
   end
   if next(want) == nil then return { stacks = {}, items = {} } end
-  local function wanted(itemID) return want[itemID] == true end
-  local route, all = GC.BankRoute, { soulbound = true }
   local inBags = {}
-  for _, stack in ipairs(route.ReadStacks(U.BAGS, false, wanted, ctx.bankType, all)) do
-    inBags[stack.itemID] = (inBags[stack.itemID] or 0) + stack.count
+  for _, stack in ipairs(ctx.inBags()) do
+    if want[stack.itemID] then inBags[stack.itemID] = (inBags[stack.itemID] or 0) + stack.count end
   end
   local missing = GC.CraftQueue.Missing(needs, function(id) return inBags[id] or 0 end, GC.CraftClient.CurrencyCount)
-  local bank = route.ReadStacks(route.BankTabs(ctx.bankType), true, wanted, ctx.bankType, all)
+  local bank = {}
+  for _, stack in ipairs(ctx.inBank(ctx.bankType)) do
+    if want[stack.itemID] then bank[#bank + 1] = stack end
+  end
   return GC.Hoard.ForCrafts(missing, bank, ctx.moving)
 end
 
@@ -102,6 +112,7 @@ end
 local function plansFor(ctx)
   local H = GC.Hoard
   local needs, crafts = craftNeeds()
+  local usualOf = usualsOnce()
   local reagents, up = {}, {}
   for _, row in ipairs(needs) do
     for _, id in ipairs(row.ids or {}) do reagents[id] = true end
@@ -215,10 +226,6 @@ local function itemRows(tooltip, items, icons, right)
   end
 end
 
-local function intoBags(n)
-  return n == 1 and GC.L["1 stack into your bags"] or GC.L["%d stacks into your bags"]:format(n)
-end
-
 -- What each tile's press moves, under its title: what the tile is, the items, and what comes after.
 local TIPS = {
   pricesUp = function(tooltip, button)
@@ -240,15 +247,14 @@ local TIPS = {
     itemRows(tooltip, plan.items, iconsOf(plan), function(item)
       return ("%d / %d / %d"):format(item.need, item.inBags, item.taken)
     end)
-    line(tooltip, intoBags(#plan.stacks), K.text1)
+    line(tooltip, U.stacksInto(#plan.stacks), K.text1)
   end,
   putAway = function(tooltip, button)
     local plan, n = button.plan, #button.plan.stacks
     line(tooltip, GC.L["Leaves out what sells above its usual price and what your craft queue needs."], K.text2, true)
     if n == 0 then return line(tooltip, GC.L["Nothing to move"], K.text3) end
     itemRows(tooltip, plan.items, iconsOf(plan))
-    local bank = U.bankName(button.bankShown)
-    line(tooltip, n == 1 and GC.L["1 stack into %s"]:format(bank) or GC.L["%d stacks into %s"]:format(n, bank), K.text1)
+    line(tooltip, U.stacksInto(n, U.bankName(button.bankShown)), K.text1)
   end,
 }
 
@@ -317,13 +323,14 @@ local function newFull(f, id)
 end
 
 -- A compact tile: the whole tile is its button, with two icons, its title, how much, and the kit's
--- chevron at its right, which its Stop does without.
+-- chevron at its right, where its Stop wears the kit's close glyph, as an icon button's does
+-- (UI/HoardList.lua's PaintPair).
 local function newCompact(f, id)
   local T, owner = GC.Theme, HF._frame
   local gold = id == "pricesUp"
   local t = { id = id }
   t.button = U.moveButton(f, id == "putAway", { variant = gold and "active" or "ghost", ring = gold and UP_RING or K.glassBorder,
-    icon = "caretRight", iconColor = gold and K.goldText or K.text2, label = true })
+    icon = "caretRight", iconColor = gold and K.goldText or K.text2 })
   t.card = t.button
   t.button.runId = "tile:" .. id
   t.button.tipLines = TIPS[id]
@@ -358,17 +365,6 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- How tall `fs` is at `width` for the tallest of `texts`; it is left holding the last.
-local function tallest(fs, width, texts)
-  fs:SetWidth(math.max(1, width))
-  local most = 0
-  for _, text in ipairs(texts) do
-    setText(fs, text)
-    most = math.max(most, heightOf(fs, 12))
-  end
-  return math.ceil(most)
-end
-
 -- The room each part keeps for the bank visit: never less than it was, so nothing moves.
 local function keep(f, ctx, room)
   if f.visit ~= ctx.visit then f.visit, f.room = ctx.visit, {} end
@@ -400,10 +396,10 @@ local function paintFull(f, plans, crafts, ctx, w)
   local titleH, lineH, labelH = 0, 0, 0
   for _, id in ipairs(ORDER) do
     local t, plan = f.full[id], plans[id]
-    titleH = math.max(titleH, tallest(t.title, inner, { titleOf(id) }))
+    titleH = math.max(titleH, U.tallest(t.title, { titleOf(id) }, inner))
     local lines = id == "putAway" and { lineOf(id) } or { lineOf(id, 0), lineOf(id, 1), lineOf(id, MOST) }
-    lineH = math.max(lineH, tallest(t.line, inner, lines), HF.List.LineCastHeight(t.cast, ctx.castLabels, inner))
-    labelH = math.max(labelH, tallest(f.measure, labelW, labelsOf(id, plan)))
+    lineH = math.max(lineH, U.tallest(t.line, lines, inner), HF.List.LineCastHeight(t.cast, ctx.castLabels, inner))
+    labelH = math.max(labelH, U.tallest(f.measure, labelsOf(id, plan), labelW))
   end
   local room = keep(f, ctx, { title = titleH, line = lineH, button = math.max(M.BUTTON_H, labelH + 2 * M.LABEL_VPAD) })
   local titleY = M.PAD + M.ICON + M.ICON_GAP
@@ -452,7 +448,7 @@ local function paintCompact(f, plans, ctx, w)
   local titleH, subH, countH = 0, 0, 0
   for _, id in ipairs(ORDER) do
     local t, plan = f.compact[id], plans[id]
-    titleH = math.max(titleH, tallest(t.title, textW, { titleOf(id) }))
+    titleH = math.max(titleH, U.tallest(t.title, { titleOf(id) }, textW))
     local subs = { subOf(id, plan), GC.L["Nothing to move"] }
     if id == "pricesUp" then
       subs[3] = U.worthText(MOST_WORTH)
@@ -461,7 +457,7 @@ local function paintCompact(f, plans, ctx, w)
     end
     setText(t.cast.count, ("%d / %d"):format(MOST, MOST))
     countH = math.max(countH, math.ceil(heightOf(t.cast.count, 12)))
-    subH = math.max(subH, tallest(t.sub, textW, subs), countH + 2 + L.FILL_H)
+    subH = math.max(subH, U.tallest(t.sub, subs, textW), countH + 2 + L.FILL_H)
   end
   local room = keep(f, ctx, { compactTitle = titleH, sub = subH })
   local h = math.max(M.COMPACT_H, room.compactTitle + 2 + room.sub + 2 * M.COMPACT_PAD)
@@ -514,4 +510,4 @@ local function paint(f, ctx)
   return h
 end
 
-HF.AddSection("tiles", { pinned = true, build = build, paint = paint })
+HF.AddSection("tiles", { build = build, paint = paint })

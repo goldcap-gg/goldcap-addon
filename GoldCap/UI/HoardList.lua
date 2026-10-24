@@ -165,21 +165,6 @@ function HL.HideCast(cast)
   if cast.label then cast.label:Hide() end
 end
 
--- How tall a cast bar's words are at `width` for the longest of `labels`, so a line keeps their
--- room from its first paint. The words the label holds are left as they were.
-local function labelHeight(cast, labels, width)
-  local label = cast.label
-  local was = label:GetText()
-  label:SetWidth(math.max(1, width))
-  local most = 0
-  for _, text in ipairs(labels) do
-    setText(label, text)
-    most = math.max(most, heightOf(label, 11))
-  end
-  setText(label, was)
-  return math.ceil(most)
-end
-
 -- The room the most a cast bar's count can say takes.
 local function countRoom(cast)
   local was = cast.count:GetText()
@@ -190,9 +175,10 @@ local function countRoom(cast)
 end
 
 --- The room a cast bar takes on a line `width` wide (Store all's, the selection bar's): its words,
---- wrapping, the most its count can say at their right, and the gold fill under them.
+--- wrapping, as tall as the longest of `labels` (HF.ui.tallest: the words are set again when a run
+--- paints it), the most its count can say at their right, and the gold fill under them.
 function HL.LineCastHeight(cast, labels, width)
-  return labelHeight(cast, labels, width - countRoom(cast) - L.CAST_GAP) + 2 + L.FILL_H
+  return U.tallest(cast.label, labels, width - countRoom(cast) - L.CAST_GAP) + 2 + L.FILL_H
 end
 
 --- The gold fill of `run` (done of total) at `x`, `y` in `parent`, `width` wide, over its track.
@@ -235,10 +221,12 @@ local function stopBarRun()
 end
 
 -- A checkbox's click, which moves nothing: a group checks or unchecks; a folder checks every group
--- it lists from off, and clears them all from on or mixed (GC.Hoard.Check).
+-- it lists from off, and clears them all from on or mixed (GC.Hoard.Check). The list is redrawn
+-- from what the window last read, so a keep count asked from a row goes (HF.ui.closeKeep).
 local function onCheckClick(check)
   local data = check.data
   if not data then return end
+  U.closeKeep()
   GC.Hoard.Check(data, HF._selected)
   if next(HF._selected) == nil then stopBarRun() end
   HF.Refresh()
@@ -275,6 +263,7 @@ function HL.PaintCheck(check, data, selected)
 end
 
 local function onClearClick()
+  U.closeKeep()
   HF._selected = {}
   stopBarRun()
   HF.Refresh()
@@ -367,12 +356,8 @@ end
 -- What a press of the bar's Store or Take out moves (`into`: Store's, to the bank the switch
 -- names), under its tooltip's title; nothing with nothing to move.
 local function moveNote(stacks, into, bankName)
-  local n = #stacks
-  if n == 0 then return nil end
-  if into then
-    return n == 1 and GC.L["1 stack into %s"]:format(bankName) or GC.L["%d stacks into %s"]:format(n, bankName)
-  end
-  return n == 1 and GC.L["1 stack into your bags"] or GC.L["%d stacks into your bags"]:format(n)
+  if #stacks == 0 then return nil end
+  return U.stacksInto(#stacks, into and bankName or nil)
 end
 
 --- The selection bar for the groups checked of `groups` (the plan's), `head` wide at the window's
@@ -412,13 +397,8 @@ function HL.PaintSelection(groups, ctx, head, bottom)
   bar.title:SetWidth(textW)
   setText(bar.title, selectedText(most.groups, most.groups))
   local titleH = math.ceil(heightOf(bar.title, 13))
-  bar.sub:SetWidth(textW)
-  local subH = 0
-  for _, copper in ipairs({ most.worth, 9999 }) do
-    setText(bar.sub, worthLine(copper))
-    subH = math.max(subH, heightOf(bar.sub, 11))
-  end
-  local lowerH = math.max(math.ceil(subH), HL.LineCastHeight(bar.cast, ctx.castLabels, textW))
+  local subH = U.tallest(bar.sub, { worthLine(most.worth), worthLine(9999) }, textW)
+  local lowerH = math.max(subH, HL.LineCastHeight(bar.cast, ctx.castLabels, textW))
   local textH = titleH + 2 + lowerH
   local plateH = 2 * L.SEL_PAD + (twoLines and (textH + L.SEL_GAP + L.SEL_BTN) or math.max(textH, L.SEL_BTN))
   bar.hint:SetWidth(head - 2 * L.SEL_PAD)
@@ -470,14 +450,18 @@ end
 -- The search row
 -- ---------------------------------------------------------------------------------------------
 
+-- The filter's and the sort's clicks redraw the list from what the window last read, so a keep
+-- count asked from a row goes (HF.ui.closeKeep); the window may take its new height.
 local function onFilterClick(side)
+  U.closeKeep()
   HF._filter = side.filter
-  HF.Refresh()
+  HF.Refresh(false, true)
 end
 
 local function onSortClick()
+  U.closeKeep()
   HF._sort = HF._sort == "name" and "value" or "name"
-  HF.Refresh()
+  HF.Refresh(false, true)
 end
 
 -- The search row, fixed in the window over the list (the scroll), as the board draws it: the BUY
@@ -517,11 +501,15 @@ local function buildSearch()
   local function applyHint()
     hint:SetShown((box:GetText() or "") == "" and not box:HasFocus())
   end
-  -- What is typed, trimmed, narrows the rows as it is typed (Core/Hoard.lua's Rows, `query`).
+  -- What is typed, trimmed, narrows the rows as it is typed (Core/Hoard.lua's Rows, `query`): each
+  -- keystroke redraws the list from what the window last read, and reads no slot.
   box:SetScript("OnTextChanged", function(self, byUser)
     HF._query = (self:GetText() or ""):match("^%s*(.-)%s*$")
     applyHint()
-    if byUser then HF.Refresh() end
+    if byUser then
+      U.closeKeep()
+      HF.Refresh(false, true)
+    end
   end)
   box:SetScript("OnEditFocusGained", applyHint)
   box:SetScript("OnEditFocusLost", applyHint)
@@ -529,30 +517,16 @@ local function buildSearch()
   box:SetScript("OnEscapePressed", function(self)
     self:SetText("")
     self:ClearFocus()
-    HF.Refresh()
+    U.closeKeep()
+    HF.Refresh(false, true)
   end)
   row.well, row.box, row.hint, row.textX, row.applyHint = well, box, hint, textX, applyHint
 
-  local filter = CreateFrame("Frame", nil, row)
-  filter.track = T.SlicedTexture(filter, "BACKGROUND", T.MEDIA .. "plaque.png", U.SWITCH_TRACK, T.SLICE.plaque)
-  filter.track:SetAllPoints(filter)
-  filter.edge = T.SlicedTexture(filter, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
-  filter.edge:SetAllPoints(filter)
-  filter.sides = {}
-  for i, key in ipairs({ "move", "all" }) do
-    local side = T.Button(filter, "segment", "plaque")
-    side:SetGlow(false)
-    side:SetHeight(L.SEG_H)
-    side.filter = key
-    side:SetScript("OnClick", onFilterClick)
-    track(frame, side.text)
-    filter.sides[i] = side
-  end
-  row.filter = filter
+  row.filter = U.newSwitch(row, "filter", { "move", "all" }, onFilterClick)
   -- Quiet, as Store all and Take all out are.
-  local sort = T.Button(row, "segment", "badge")
+  local sort = T.Button(row, U.QUIET.variant, "badge")
   sort:SetHeight(L.SORT_H)
-  sort:SetRing(K.windowBorder)
+  sort:SetRing(U.QUIET.ring)
   sort:SetScript("OnClick", onSortClick)
   track(frame, sort.text)
   row.sort = sort
@@ -587,7 +561,7 @@ function HL.PaintSearch(x, y, inner, total, toMove)
   local byValue, byName = GC.L["By value"] .. " ▼", GC.L["By name"] .. " ▼"
   s.sort:SetLabel(HF._sort == "name" and byName or byValue)
   s.sort:FitLabels({ byValue, byName }, 0)
-  colour(s.sort.text, K.text2)
+  colour(s.sort.text, U.QUIET.textColor)
   local sortW = s.sort:GetWidth()
 
   setText(s.hint, GC.L["Search"])

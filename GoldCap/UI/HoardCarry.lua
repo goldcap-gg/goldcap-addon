@@ -25,8 +25,6 @@ local K = GC.Kit.Tokens.color
 local U = HF.ui
 local setText, colour, wrapping, heightOf, track = U.setText, U.colour, U.wrapping, U.heightOf, U.track
 
-HF.Carry = {}
-
 -- In UI units; the boards are drawn at twice that. PAD: a card's margin; ICON and ICON_GAP: the
 -- item's icon and the room right of it; LINE_GAP between a card's lines; GAP between two cards;
 -- BUTTON_H and BUTTON_GAP: its button and the room left of it; NOTE_GAP over the note.
@@ -172,10 +170,12 @@ local function paintCard(f, card, entry, ctx, y, width)
 end
 
 -- The cards while the Warband Bank can be used here and the plan has something to carry (or had,
--- in this visit), then what comes next. Answers their height, 0 for none.
+-- in this visit), then what comes next: planned over the stacks the window's paint read (the bank
+-- route's Plan with ctx's inBags and inBank), no slot read here. Answers their height, 0 for none.
 local function paint(f, ctx)
   local route = GC.BankRoute
-  local entries = route.CanMove(Enum.BankType.Account) and rowsNow(f, ctx, route.Plan()) or {}
+  local entries = route.CanMove(Enum.BankType.Account)
+    and rowsNow(f, ctx, route.Plan({ inBags = ctx.inBags, inBank = ctx.inBank, against = ctx.bankType })) or {}
   local y, anyIn = 0, false
   for i, entry in ipairs(entries) do
     local card = f.cards[i] or newCard(f)

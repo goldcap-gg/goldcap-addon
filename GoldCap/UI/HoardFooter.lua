@@ -5,39 +5,45 @@ local _, GC = ...
 -- UI/HoardList.lua), as the Window board draws it: Make room, Put back, and where the prices come
 -- from.
 -- - Make room moves every stack in the bags (the backpack, the four bags and the reagent bag) that
---   the bank the switch names takes, the biggest first (Core/Hoard.lua's MakeRoom over the bank
---   route's reader), soulbound ones too into the character's own bank (the Warband Bank refuses
---   them). When its run is over, what actually left the bags (the window's run end, HF.Press's
---   onRunEnd, heard once every stack the run sent has landed or been given up) is remembered for
---   the character at the keyboard, added to what an earlier Make room into the same bank put there
---   and Put back has not brought back yet (Remember, SetRoom). It is disabled, its tooltip saying
---   why, while what it put into the other bank is not back (a room is one bank's, and a second one
---   would lose the first), and while it could not remember: a newer GoldCap's save, or a character
---   whose name and realm the game has not told yet.
+--   the bank the switch names takes, the biggest first (Core/Hoard.lua's MakeRoom over the stacks
+--   the window's paint read, bound ones among them): into the character's own bank a soulbound one
+--   too, into the Warband Bank a Warbound one but not a soulbound one, which it refuses (the
+--   reader marks that one `stays`). When its run is over, what actually left the bags (the
+--   window's run end, HF.Press's onRunEnd, heard once every stack the run sent has landed or been
+--   given up, each with as many as left its slot) is remembered for the character at the keyboard,
+--   added to what an earlier Make room into the same bank put there and Put back has not brought
+--   back yet (Remember, SetRoom). It is disabled, its tooltip saying why, while what it put into the
+--   other bank is not back (a room is one bank's, and a second one would lose the first), and while
+--   it could not remember: a newer GoldCap's save, or a character whose name and realm the game has
+--   not told yet.
 -- - Put back takes that back out of that bank (PutBack), wherever the bags have room; when its run
---   is over, what came back is forgotten (Unreturned), the whole room once nothing is left. With
---   nothing remembered, or with the switch on the other bank, it is disabled and its tooltip says
---   why, and which bank holds it.
+--   is over, what came back is forgotten (Unreturned), the whole room once nothing is left: as many
+--   of each stack as left the bank's slot, so a withdraw the bags had room for only part of keeps
+--   the rest to put back. With nothing remembered, or with the switch on the other bank, it is
+--   disabled and its tooltip says why, and which bank holds it.
 -- - What is remembered is never more than its bank holds: whenever that bank can be read (each
---   paint, and each run's end, at a bank where it can be used) every item is capped at what the
---   bank holds of it now, and the room forgotten once it holds none (Fit). Another character may
---   have taken some out of the Warband Bank, or the player all of it by hand. The cap is written
---   only while no run goes and every run over has been heard (HF.Settled): during a Put back a
---   paint caps what it shows and plans, but the stacks that have left the bank are taken off at
---   the run's end, from the room as it was stored, and only then is it capped and written. Writing
---   the paint's cap would take them off twice.
+--   paint at a bank where it can be used) every item is capped at what the bank holds of it now,
+--   and the room forgotten once it holds none (Fit). Another character may have taken some out of
+--   the Warband Bank, or the player all of it by hand. Not for the route's SETTLE_SECONDS after
+--   Make room remembered it, though: a deposit's bank slot can show it a moment after the bags show
+--   it gone, and a cap then would forget what went in. The cap is written only while no run goes
+--   and every run over has been heard (HF.Settled): during a Put back a paint caps what it shows
+--   and plans, but the stacks that have left the bank are taken off at the run's end, from the room
+--   as it was stored, and the next paint caps and writes it. Writing the paint's cap would take
+--   them off twice.
 -- - The price line: where the prices GoldCap reads came from and how long ago, with a dot in the
 --   kit's green while they are under FRESH_SECONDS old, amber after or with none.
 -- Shown with a followed group, as the window's own part, and without one while Make room has
 -- something to bring back.
 --
--- Both buttons are the window's move buttons (HF.ui.moveButton: their click is HF.Press, with the
--- run ids "footer:makeRoom" and "footer:putBack"), a pair as a row's Store and Take out are
+-- Both buttons are the window's quiet move buttons (HF.ui.quietMove: their click is HF.Press, with
+-- the run ids "footer:makeRoom" and "footer:putBack"), a pair as a row's Store and Take out are
 -- (UI/HoardList.lua's PaintPair): while one's run goes it is its Stop where it stands and the other
 -- gives way. Each is as wide as the wider of its words and Stop, and the footer keeps the room the
 -- most its price line can need in the bank visit (every source and an age of each unit's widest
--- figure, measured at each paint), so nothing here moves under the cursor. This file reads, paints
--- and writes what Make room put away (GC.db.hoard, through Core/Hoard.lua), and moves nothing.
+-- figure, measured at each paint), so nothing here moves under the cursor. This file paints from
+-- what the window's paint read (ctx.inBags, ctx.inBank), writes what Make room put away
+-- (GC.db.hoard, through Core/Hoard.lua), and reads no slot and moves nothing.
 local HF = GC.HoardFrame
 local K = GC.Kit.Tokens.color
 local U = HF.ui
@@ -58,58 +64,50 @@ local function charNow()
   return GC.CraftClient.Char()
 end
 
-local function everything() return true end
-
--- What Make room put away for `char`, as its bank holds it now: capped at that bank's stacks
--- whenever they can be read (Core/Hoard.lua's Fit), and kept so while every run has been heard
--- (HF.Settled), forgotten once the bank holds none of it; while a run goes the cap is only shown and
--- planned with. Answers the room (nil for none) and that bank's stacks of its items (nil while the
--- bank cannot be read: then the room is as remembered).
-local function roomNow(char)
+-- What Make room put away for `char`, as its bank holds it now, from that bank's stacks as the
+-- window's paint read them (ctx.inBank): capped at them whenever they can be read (Core/Hoard.lua's
+-- Fit), and kept so while every run has been heard (HF.Settled), forgotten once the bank holds none
+-- of it; while a run goes the cap is only shown and planned with. For the route's SETTLE_SECONDS
+-- after Make room remembered it nothing is capped: the bank's slot can show a deposit a moment
+-- after the bags show it gone. Answers the room (nil for none) and that bank's stacks of its items
+-- (nil while the bank cannot be read: then the room is as remembered).
+local function roomNow(char, ctx)
   local H, route = GC.Hoard, GC.BankRoute
   local room = char and H.Room(GC.db, char) or nil
   if not (room and route.CanMove(room.bankType)) then return room, nil end
-  local function remembered(itemID) return room.items[itemID] ~= nil end
-  local stacks = route.ReadStacks(route.BankTabs(room.bankType), true, remembered, room.bankType, { soulbound = true })
+  local stacks = {}
+  for _, stack in ipairs(ctx.inBank(room.bankType)) do
+    if room.items[stack.itemID] then stacks[#stacks + 1] = stack end
+  end
+  if time() - room.at < route.SETTLE_SECONDS then return room, stacks end
   local fitted, changed = H.Fit(room, stacks)
   if changed and HF.Settled() then H.SetRoom(GC.db, char, fitted) end
   return fitted, stacks
 end
 
 -- Make room's run is over: what left the bags is remembered for the character, added to the room as
--- it was stored for the same bank, then capped at what that bank holds now. A run that moved
--- nothing leaves the memory as it was.
+-- it was stored for the same bank; the next paint caps it at what that bank holds, once its slots
+-- have had the time to show it. A run that moved nothing leaves the memory as it was.
 local function onRoomMade(moved, bankType)
   local char = charNow()
   if not char or #moved == 0 then return end
   GC.Hoard.SetRoom(GC.db, char, GC.Hoard.Remember(bankType, time(), moved, GC.Hoard.Room(GC.db, char)))
-  roomNow(char)
 end
 
 -- Put back's run is over: what came back is taken off the room as it was stored (never capped while
--- the run went), the room forgotten once nothing is left of it, then the rest capped at what that
--- bank holds now.
+-- the run went), the room forgotten once nothing is left of it; the next paint caps the rest at what
+-- that bank holds.
 local function onPutBack(moved)
   local char = charNow()
   if not char or #moved == 0 then return end
   GC.Hoard.SetRoom(GC.db, char, GC.Hoard.Unreturned(GC.Hoard.Room(GC.db, char), moved))
-  roomNow(char)
-end
-
--- A quiet button, as Store all and Take all out are drawn: no fill, a faint ring, its words in the
--- second text colour.
-local function quietButton(f, into, runId, onRunEnd)
-  local b = U.moveButton(f, into, { variant = "segment", ring = K.windowBorder, textColor = K.text2 })
-  b:SetHeight(L.ALL_H)
-  b.runId, b.onRunEnd = runId, onRunEnd
-  track(HF._frame, b.text)
-  return b
 end
 
 local function build(f)
   local T = GC.Theme
-  f.makeRoom = quietButton(f, true, "footer:makeRoom", onRoomMade)
-  f.putBack = quietButton(f, false, "footer:putBack", onPutBack)
+  f.makeRoom = U.quietMove(f, true, "footer:makeRoom")
+  f.putBack = U.quietMove(f, false, "footer:putBack")
+  f.makeRoom.onRunEnd, f.putBack.onRunEnd = onRoomMade, onPutBack
   -- The badge art is round at this size (T.LiveDot draws its light the same way).
   f.dot = f:CreateTexture(nil, "ARTWORK")
   f.dot:SetTexture(T.MEDIA .. "badge.png")
@@ -151,8 +149,8 @@ local function pricesVariants(text)
 end
 
 -- What Put back takes back, and what its tooltip says under its title: from the bank the switch
--- names when Make room put things there (`stacks`, that bank's, read by roomNow), else nothing,
--- with why.
+-- names when Make room put things there (`stacks`, that bank's, from roomNow), else nothing, with
+-- why.
 local function putBackPlan(room, stacks, ctx)
   if not room then return {}, GC.L["Make room has put nothing away to bring back."] end
   local bank = U.bankName(room.bankType)
@@ -175,10 +173,7 @@ local function makeRoomPlan(room, char, ctx)
   if room and room.bankType ~= ctx.bankType then
     return {}, GC.L["What Make room put away is still in %s: put it back first."]:format(U.bankName(room.bankType))
   end
-  local route = GC.BankRoute
-  local bagStacks = route.ReadStacks(U.BAGS, false, everything, ctx.bankType,
-    { soulbound = ctx.bankType == Enum.BankType.Character })
-  return GC.Hoard.MakeRoom(bagStacks, ctx.moving),
+  return GC.Hoard.MakeRoom(ctx.inBags(), ctx.moving),
     GC.L["Moves every stack in your bags that %s takes, and remembers what went for Put back."]:format(U.bankName(ctx.bankType))
 end
 
@@ -187,7 +182,7 @@ end
 -- anything Make room put away.
 local function paint(f, ctx)
   local char = charNow()
-  local room, stacks = roomNow(char)
+  local room, stacks = roomNow(char, ctx)
   if not ctx.hasGroups and not room then return 0 end
   if f.visit ~= ctx.visit then f.visit, f.most, f.under = ctx.visit, 0, false end
   local back, backNote = putBackPlan(room, stacks, ctx)
@@ -227,12 +222,7 @@ local function paint(f, ctx)
   local fullW = math.ceil(f.prices:GetUnboundedStringWidth() or 0)
   local textW = oneLine and fullW or underW
   -- The room: the tallest line it can say, at the width it has.
-  local textH = 0
-  f.prices:SetWidth(math.max(1, oneLine and widest or underW))
-  for _, line in ipairs(variants) do
-    setText(f.prices, line)
-    textH = math.max(textH, math.ceil(heightOf(f.prices, 12)))
-  end
+  local textH = U.tallest(f.prices, variants, oneLine and widest or underW)
   f.prices:SetWidth(math.max(1, textW))
   setText(f.prices, text)
   local lineY = oneLine and math.floor((L.ALL_H - math.ceil(heightOf(f.prices, 12))) / 2) or (L.ALL_H + L.HEADING_GAP)
@@ -246,4 +236,4 @@ local function paint(f, ctx)
   return f.most
 end
 
-HF.AddSection("footer", { pinned = true, build = build, paint = paint })
+HF.AddSection("footer", { build = build, paint = paint })
