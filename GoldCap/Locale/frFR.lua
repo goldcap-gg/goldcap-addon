@@ -1548,4 +1548,17 @@ GC.Locales.frFR = {
   ["%d groups"] = "%d groupes",
   ["%d more groups have nothing to move at this bank"] = "%d autres groupes n'ont rien à déplacer dans cette banque",
   ["1 more group has nothing to move at this bank"] = "1 autre groupe n'a rien à déplacer dans cette banque",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "À déplacer %d",
+  ["All %d"] = "Tous %d",
+  ["By value"] = "Par valeur",
+  ["By name"] = "Par nom",
+  ["No group or item matches your search."] = "Aucun groupe ni objet ne correspond à ta recherche.",
+  ["%d groups selected"] = "%d groupes sélectionnés",
+  ["1 group selected"] = "1 groupe sélectionné",
+  ["%d stacks to move, worth about %s"] = "%d piles à déplacer, valant environ %s",
+  ["1 stack to move, worth about %s"] = "1 pile à déplacer, valant environ %s",
+  ["Clear the selection"] = "Effacer la sélection",
+  ["Moving to %s"] = "Déplacement vers la %s",
+  ["Moving to your bags"] = "Déplacement vers tes sacs",
 }

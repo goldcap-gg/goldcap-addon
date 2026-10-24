@@ -1614,4 +1614,17 @@ GC.Locales.ruRU = {
   ["%d groups"] = "Групп: %d",
   ["%d more groups have nothing to move at this bank"] = "Ещё групп, где в этом банке нечего переносить: %d",
   ["1 more group has nothing to move at this bank"] = "Ещё 1 группа: в этом банке нечего переносить",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "К переносу %d",
+  ["All %d"] = "Все %d",
+  ["By value"] = "По цене",
+  ["By name"] = "По названию",
+  ["No group or item matches your search."] = "Ни одна группа и ни один предмет не подходят под поиск.",
+  ["%d groups selected"] = "Выбрано групп: %d",
+  ["1 group selected"] = "Выбрана 1 группа",
+  ["%d stacks to move, worth about %s"] = "Стопок к переносу: %d, примерно на %s",
+  ["1 stack to move, worth about %s"] = "1 стопка к переносу, примерно на %s",
+  ["Clear the selection"] = "Снять выбор",
+  ["Moving to %s"] = "Переносим в %s",
+  ["Moving to your bags"] = "Переносим в сумки",
 }

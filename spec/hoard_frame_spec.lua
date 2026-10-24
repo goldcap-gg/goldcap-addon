@@ -1,9 +1,11 @@
 local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 
--- UI/HoardFrame.lua and UI/HoardRow.lua: GoldCap Hoard, the window beside Blizzard's bank window.
--- Its followed groups as rows and folders, with Store and Take out on each, Store all and Take all
--- out over every group, the bank switch, and the sections later tasks paint into it. The real Theme
+-- UI/HoardFrame.lua, UI/HoardRow.lua and UI/HoardList.lua: GoldCap Hoard, the window beside
+-- Blizzard's bank window. Its followed groups as rows and folders, with Store and Take out on each,
+-- Store all and Take all out over every group, the bank switch, the search row over many groups,
+-- the checkboxes with the selection bar, a run's cast bar with Stop, and the sections later tasks
+-- paint into it. The real Theme
 -- and kit, the real group rules (from a Companion file), the real plan (Core/BankGroups.lua) and
 -- rows (Core/Hoard.lua), the real press machine (Core/VendorPress.lua) and the real bank route
 -- (UI/BankRoute.lua), whose reader, move function and guards the window uses; the bags, both banks,
@@ -77,6 +79,32 @@ describe("GoldCap Hoard window", function()
       if (fs.counts and fs.counts:IsShown()) or (not fs.counts and fs:IsShown()) then out[#out + 1] = text end
     end
     return out
+  end
+
+  -- The search row over many groups and the selection bar (UI/HoardList.lua).
+  local function search() return HF._frame.search end
+  local function bar() return HF._frame.selection end
+  local function filterSide(key)
+    for _, s in ipairs(search().filter.sides) do
+      if s.filter == key then return s end
+    end
+  end
+  -- The player types into the search box: the client changes its text and runs OnTextChanged with
+  -- userInput true.
+  local function typeInto(box, text)
+    W.state(box).text = text
+    W.state(box).scripts.OnTextChanged(box, true)
+  end
+  local function checkOf(name, kind) press(row(name, kind).check) end
+  local function plainText(fs) return helper.plain(textOf(fs) or "") end
+  -- Which kit glyph a texture draws: its name in the atlas, from its coordinates.
+  local function glyph(texture)
+    local coords = W.state(texture).texCoord
+    for name in pairs(GC.Kit.Icons.index) do
+      if coords and coords[1] == GC.Theme.IconCoords(name) and select(3, GC.Theme.IconCoords(name)) == coords[3] then
+        return name
+      end
+    end
   end
 
   -- The window's bank switch: its side for a bank, and a click on it.
@@ -288,6 +316,7 @@ describe("GoldCap Hoard window", function()
     helper.loadModule("UI/BankRoute.lua", GC)
     helper.loadModule("UI/HoardFrame.lua", GC)
     helper.loadModule("UI/HoardRow.lua", GC)
+    helper.loadModule("UI/HoardList.lua", GC)
     HF = GC.HoardFrame
   end)
 
@@ -298,6 +327,7 @@ describe("GoldCap Hoard window", function()
     for _, k in ipairs(KEYS) do _G[k] = saved[k] end
     NAMES[1], VALUE[9] = "Bloom", nil
     for id = 21, 25 do NAMES[id], VALUE[id] = nil, nil end
+    for id = 101, 120 do NAMES[id], VALUE[id] = nil, nil end
   end)
 
   -- ---------------------------------------------------------------------------------------------
@@ -725,8 +755,8 @@ describe("GoldCap Hoard window", function()
     assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
     assert.equal("group:Herbs:in", HF.Running())
     assert.equal(store, select(2, HF.Running()))
-    -- The tooltip under the cursor names the next stack.
-    assert.same({ "Store", "Bloom ×20 (1 left)" }, tip.lines)
+    -- The button is Stop now, and its tooltip under the cursor names the next stack.
+    assert.same({ "Stop", "Bloom ×20 (1 left)" }, tip.lines)
     ticks()
     assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 2, nil, ACCOUNT, false } }, used)
     assert.is_nil(HF.Running())
@@ -1239,6 +1269,428 @@ describe("GoldCap Hoard window", function()
   end)
 
   -- ---------------------------------------------------------------------------------------------
+  -- Many groups: the search, the filter and the sort
+  -- ---------------------------------------------------------------------------------------------
+
+  -- A TSM player brings 8 to 20 groups (GC.Hoard.SEARCH_MIN_GROUPS): over the rows a search box,
+  -- the filter and the sort; with fewer, none of it, and the list is what can move here, by value.
+  it("shows the search row from 8 groups, and under 8 lists what can move here by value", function()
+    manyGroups(7)
+    VALUE[105] = 50000
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { ["Group 01"] = 100 } }
+    open()
+    assert.is_false(shown(search()))
+    -- Group 05 is worth 100g, the rest nothing; Group 01 keeps all of its 20: under the fold line.
+    assert.same({ "Group 05", "Group 02", "Group 03", "Group 04", "Group 06", "Group 07" }, rowNames())
+    assert.is_true(shown(HF._frame.fold))
+    close()
+    manyGroups(8)
+    open()
+    local s = search()
+    assert.is_true(shown(s))
+    assert.equal("To move here 7", filterSide("move").label)
+    assert.equal("All 8", filterSide("all").label)
+    assert.equal("By value ▼", s.sort.label)
+    -- The BUY tab's search box, its hint and all.
+    assert.is_true(shown(s.hint))
+    assert.equal("Search", textOf(s.hint))
+    -- Above the rows, under the groups' heading.
+    assert.is_true(-at(s)[5] > -at(HF._frame.groupsTitle)[5])
+    assert.is_true(-at(row("Group 05"))[5] > -at(s)[5])
+  end)
+
+  it("narrows the rows to the groups whose name or items' names hold what is typed, case-blind", function()
+    manyGroups(10)
+    open()
+    local box = search().box
+    typeInto(box, "group 03")
+    assert.same({ "Group 03" }, rowNames())
+    -- Item 1 and Item 10.
+    typeInto(box, "ITEM 1")
+    assert.same({ "Group 01", "Group 10" }, rowNames())
+    assert.is_false(shown(search().hint))
+    typeInto(box, "zzz")
+    assert.same({}, rowNames())
+    assert.is_true(shown(HF._frame.empty))
+    assert.equal("No group or item matches your search.", textOf(HF._frame.empty))
+    typeInto(box, "")
+    assert.equal(10, #rowNames())
+    assert.is_false(shown(HF._frame.empty))
+    assert.is_true(shown(search().hint))
+  end)
+
+  it("switches between what can move here and all of it, counting each, the switch staying where it is", function()
+    manyGroups(8)
+    GC.db.bankKeep = { v = GC.BankGroups.VERSION, groups = { ["Group 01"] = 100, ["Group 02"] = 100 } }
+    open()
+    local move, all = filterSide("move"), filterSide("all")
+    local K = GC.Kit.Tokens.color
+    assert.equal("To move here 6", move.label)
+    assert.equal("All 8", all.label)
+    assert.same({ K.goldText[1], K.goldText[2], K.goldText[3], 1 }, W.state(move.text).color)
+    assert.same({ K.text2[1], K.text2[2], K.text2[3], 1 }, W.state(all.text).color)
+    assert.equal(6, #rowNames())
+    assert.is_true(shown(HF._frame.fold))
+    local before = { at(move), at(all), move:GetWidth(), all:GetWidth() }
+    press(all)
+    assert.equal(8, #rowNames())
+    assert.is_false(shown(HF._frame.fold))
+    assert.same({ K.goldText[1], K.goldText[2], K.goldText[3], 1 }, W.state(all.text).color)
+    assert.same(before, { at(move), at(all), move:GetWidth(), all:GetWidth() })
+    press(move)
+    assert.equal(6, #rowNames())
+  end)
+
+  it("sorts by value or by name at a click of the sort button, which keeps its width", function()
+    manyGroups(8)
+    VALUE[105], VALUE[103] = 50000, 10000
+    open()
+    local sort = search().sort
+    assert.same({ "Group 05", "Group 03", "Group 01", "Group 02", "Group 04", "Group 06", "Group 07", "Group 08" },
+      rowNames())
+    local width, place = sort:GetWidth(), at(sort)
+    press(sort)
+    assert.equal("By name ▼", sort.label)
+    assert.same({ "Group 01", "Group 02", "Group 03", "Group 04", "Group 05", "Group 06", "Group 07", "Group 08" },
+      rowNames())
+    assert.equal(width, sort:GetWidth())
+    assert.same(place, at(sort))
+    press(sort)
+    assert.equal("By value ▼", sort.label)
+    assert.equal("Group 05", rowNames()[1])
+  end)
+
+  it("keeps the search, the filter and the sort for the visit, and starts again at the next", function()
+    manyGroups(10)
+    open()
+    local s = search()
+    typeInto(s.box, "group 0")
+    press(filterSide("all"))
+    press(s.sort)
+    bagsChanged()
+    assert.equal(9, #rowNames())
+    assert.equal("By name ▼", s.sort.label)
+    close()
+    assert.equal("", W.state(s.box).text)
+    open()
+    assert.equal(10, #rowNames())
+    assert.equal("By value ▼", s.sort.label)
+    assert.same({ GC.Kit.Tokens.color.goldText[1], GC.Kit.Tokens.color.goldText[2], GC.Kit.Tokens.color.goldText[3], 1 },
+      W.state(filterSide("move").text).color)
+  end)
+
+  -- The BUY tab's search box: Enter lets go of the keyboard and keeps what was typed, Escape lets
+  -- go and empties it, and nothing keeps the keyboard once the bank has closed.
+  it("lets go of the keyboard at Enter, at Escape, which empties it, and when the bank closes", function()
+    manyGroups(10)
+    open()
+    local box = search().box
+    box:SetFocus()
+    assert.is_false(shown(search().hint))
+    typeInto(box, "group 04")
+    W.state(box).scripts.OnEnterPressed(box)
+    assert.is_false(box:HasFocus())
+    assert.same({ "Group 04" }, rowNames())
+    box:SetFocus()
+    W.state(box).scripts.OnEscapePressed(box)
+    assert.is_false(box:HasFocus())
+    assert.equal("", W.state(box).text)
+    assert.equal(10, #rowNames())
+    box:SetFocus()
+    typeInto(box, "group 05")
+    close()
+    assert.is_false(box:HasFocus())
+    open()
+    box:SetFocus()
+    press(HF._frame.close)
+    assert.is_false(box:HasFocus())
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- Several groups at once
+  -- ---------------------------------------------------------------------------------------------
+
+  -- Every row has its checkbox in the same room at its left from the first paint, so checking one
+  -- moves nothing and never sends a row's play under its name some of the time.
+  it("draws a checkbox in fixed room at the left of every group and folder row, and moves nothing when checked", function()
+    folders()
+    GC.Hoard.SetFolderOpen(GC.db, "gathering", true)
+    open()
+    local f = HF._frame
+    local function snapshot()
+      local out = { content = f.content:GetHeight() }
+      for _, r in ipairs(HF._rows) do
+        if r:IsShown() then out[#out + 1] = { at(r), r:GetHeight(), at(r.name), at(r.check), at(r.store) } end
+      end
+      return out
+    end
+    for _, r in ipairs(HF._rows) do
+      if r:IsShown() then
+        assert.is_true(shown(r.check), textOf(r.name))
+        assert.equal(6, at(r.check)[4])
+        assert.is_true(at(r.name)[4] >= 6 + r.check:GetWidth() + 4, textOf(r.name))
+      end
+    end
+    assert.equal(at(row("Herbs").name)[4], at(row("Linen").name)[4])
+    local before = snapshot()
+    checkOf("Herbs")
+    assert.same(before, snapshot())
+    -- A click on the box checks it and does not open the row.
+    assert.is_false(shown(row("Herbs").keep))
+    assert.equal("check", glyph(row("Herbs").check.glyph))
+  end)
+
+  it("shows the selection bar at the window's foot with how many groups, their stacks and their worth", function()
+    open()
+    assert.is_false(shown(bar()))
+    checkOf("Herbs")
+    local b = bar()
+    assert.is_true(shown(b))
+    assert.same({ "BOTTOMLEFT", HF._frame, "BOTTOMLEFT", 12, 12 }, at(b))
+    assert.equal(382 - 24, b:GetWidth())
+    -- Herbs: the bags' two Bloom stacks to store, the Warband Bank's one to take out; 4,700g.
+    assert.equal("1 group selected", plainText(b.title))
+    assert.equal(helper.plain(("3 stacks to move, worth about %s"):format(GC.Util.Money(4700 * 10000))),
+      plainText(b.sub))
+    checkOf("Ore")
+    assert.equal("2 groups selected", plainText(b.title))
+    assert.equal(helper.plain(("4 stacks to move, worth about %s"):format(GC.Util.Money(4800 * 10000))),
+      plainText(b.sub))
+    -- The scroll keeps clear of it.
+    local scroll = HF._frame.scroll
+    assert.is_true(-at(scroll)[5] + scroll:GetHeight() <= HF._frame:GetHeight() - 12 - b:GetHeight())
+    press(b.clear)
+    assert.is_false(shown(b))
+    assert.is_nil(next(HF._selected))
+  end)
+
+  it("checks every group of a folder from off, and clears them all from on or mixed", function()
+    folders()
+    open()
+    local folder = row("Gathering", "folder")
+    assert.equal("off", folder.check.state)
+    press(folder.check)
+    assert.same({ herbs = true, ore = true }, HF._selected)
+    assert.equal("check", glyph(row("Gathering", "folder").check.glyph))
+    assert.equal("2 groups selected", plainText(bar().title))
+    press(row("Gathering", "folder").head)
+    checkOf("Herbs")
+    assert.same({ ore = true }, HF._selected)
+    assert.equal("mixed", row("Gathering", "folder").check.state)
+    assert.equal("minus", glyph(row("Gathering", "folder").check.glyph))
+    press(row("Gathering", "folder").check)
+    assert.is_nil(next(HF._selected))
+    assert.is_false(shown(bar()))
+    press(row("Gathering", "folder").check)
+    press(row("Gathering", "folder").check)
+    assert.is_nil(next(HF._selected))
+  end)
+
+  it("stores the selected groups' stacks on one press of the bar's Store, the first inside the click", function()
+    landing = true
+    open()
+    checkOf("Herbs")
+    checkOf("Ore")
+    local store = bar().store
+    assert.equal("selection:in", store.runId)
+    assert.equal("selection:out", bar().take.runId)
+    press(store)
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
+    assert.equal("selection:in", HF.Running())
+    assert.equal(store, select(2, HF.Running()))
+    ticks()
+    assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false }, { n = 5, 0, 2, nil, ACCOUNT, false },
+      { n = 5, 5, 1, nil, ACCOUNT, false } }, used)
+    bagsChanged()
+    assert.is_false(store:IsEnabled())
+    used = {}
+    press(bar().take)
+    ticks()
+    assert.equal(4, #used)
+    for _, call in ipairs(used) do assert.equal(2, call.n) end
+  end)
+
+  it("drops the selection when the bank closes and when the switch comes to the other bank", function()
+    open()
+    checkOf("Herbs")
+    close()
+    open()
+    assert.is_false(shown(bar()))
+    assert.is_nil(next(HF._selected))
+    checkOf("Herbs")
+    choose(CHARACTER)
+    assert.is_false(shown(bar()))
+    assert.is_nil(next(HF._selected))
+    -- The bank window comes to the bank the switch names: kept; then to the other: dropped.
+    checkOf("Herbs")
+    switchTo(CHARACTER)
+    assert.is_true(shown(bar()))
+    switchTo(ACCOUNT)
+    assert.is_false(shown(bar()))
+    -- A repaint on the same bank keeps it.
+    checkOf("Ore")
+    bagsChanged()
+    assert.is_true(shown(bar()))
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- A run as it goes
+  -- ---------------------------------------------------------------------------------------------
+
+  -- One step of the press machine: the server answers the move in flight, then the machine's next
+  -- timer runs. Answers whether there was one.
+  local function step()
+    for k, t in ipairs(timers) do
+      if t.seconds == GC.VendorPress.STEP then
+        land()
+        table.remove(timers, k).fn()
+        return true
+      end
+    end
+    return false
+  end
+
+  -- The pressed button turns into Stop where it stands (one button, two looks: docs/addon/AGENTS.md
+  -- "Buttons and hover"), the other move gives way, and the row says where the run goes and how far
+  -- it is; the moved item wears a check, the one on its way a gold ring.
+  it("turns the pressed button into Stop and shows where the run goes, how far, and what has moved", function()
+    landing = true
+    bags[0][4] = info(6, 5)
+    open()
+    local herbs = row("Herbs")
+    local store, take = herbs.store, herbs.take
+    local storeAt = at(store)
+    press(store)
+    assert.same(storeAt, at(store))
+    assert.is_true(shown(store))
+    assert.is_true(store:IsEnabled())
+    assert.equal("close", glyph(store.icon))
+    assert.is_false(shown(take))
+    assert.is_false(shown(herbs.worth))
+    assert.is_false(shown(herbs.name))
+    assert.is_true(shown(herbs.cast.label))
+    assert.equal("Moving to Warband Bank", textOf(herbs.cast.label))
+    assert.equal("0 / 3", textOf(herbs.cast.count))
+    -- Its icons: Bloom of the second quality (not in the run), Bloom of the first (its stack of 200
+    -- on its way), Mycobloom.
+    assert.is_true(shown(herbs.icons[2].ring))
+    assert.is_false(shown(herbs.icons[1].ring))
+    assert.is_false(shown(herbs.icons[2].mark))
+    land()
+    bagsChanged()
+    assert.equal("1 / 3", textOf(herbs.cast.count))
+    assert.is_true(herbs.cast.fill:GetWidth() > 0)
+    assert.is_true(shown(herbs.icons[2].mark))
+    assert.equal("check", glyph(herbs.icons[2].mark))
+    assert.is_false(shown(herbs.icons[2].ring))
+    step()
+    bagsChanged()
+    assert.is_true(shown(herbs.icons[2].ring))
+    -- Stop: a second press where the button was pressed, through the same machine.
+    press(store)
+    assert.is_nil(HF.Running())
+    ticks()
+    assert.equal(2, #used)
+    bagsChanged()
+    assert.equal("trayIn", glyph(store.icon))
+    assert.is_true(shown(take))
+    assert.is_true(shown(herbs.worth))
+    assert.is_true(shown(herbs.name))
+    assert.is_false(shown(herbs.cast.label))
+    assert.is_false(shown(herbs.icons[2].ring))
+    assert.is_false(shown(herbs.icons[2].mark))
+  end)
+
+  it("says a run out goes to the bags, and a run in goes to the bank the switch names", function()
+    landing = true
+    showing = CHARACTER
+    open()
+    press(row("Herbs").take)
+    assert.equal("Moving to your bags", textOf(row("Herbs").cast.label))
+    assert.equal("close", glyph(row("Herbs").take.icon))
+    assert.is_false(shown(row("Herbs").store))
+    press(row("Herbs").take)
+    press(row("Herbs").store)
+    assert.equal("Moving to Bank", textOf(row("Herbs").cast.label))
+  end)
+
+  -- Store all and Take all out, and the selection bar, run the same way: the pressed button says
+  -- Stop where it stands, the other gives way, and the line says where the run goes and how far.
+  it("shows the run on Store all's line and on the selection bar, Stop where the press was", function()
+    landing = true
+    open()
+    local f = HF._frame
+    local storeAll, takeAll = f.storeAll, f.takeAll
+    local width, place = storeAll:GetWidth(), at(storeAll)
+    press(storeAll)
+    assert.equal("Stop", storeAll.label)
+    assert.equal(width, storeAll:GetWidth())
+    assert.same(place, at(storeAll))
+    assert.is_false(shown(takeAll))
+    assert.is_true(shown(f.cast.label))
+    assert.equal("Moving to Warband Bank", textOf(f.cast.label))
+    assert.equal("0 / 3", textOf(f.cast.count))
+    press(storeAll)
+    assert.is_nil(HF.Running())
+    assert.equal("Store all", storeAll.label)
+    assert.is_true(shown(takeAll))
+    assert.is_false(shown(f.cast.label))
+    bagsChanged()
+    used = {}
+    checkOf("Herbs")
+    local b = bar()
+    local barH, takeW, takeAt = b:GetHeight(), b.take:GetWidth(), at(b.take)
+    press(b.take)
+    assert.equal(1, #used)
+    assert.equal("Stop", b.take.label)
+    assert.equal(takeW, b.take:GetWidth())
+    assert.same(takeAt, at(b.take))
+    assert.is_false(shown(b.store))
+    assert.is_false(shown(b.sub))
+    assert.equal("Moving to your bags", textOf(b.cast.label))
+    assert.equal("0 / 1", textOf(b.cast.count))
+    assert.equal(barH, b:GetHeight())
+    press(b.take)
+    assert.is_nil(HF.Running())
+    assert.equal("Take out", b.take.label)
+    assert.is_true(shown(b.sub))
+  end)
+
+  -- A press checks nothing away under the cursor: the selection bar keeps its run's Stop until the
+  -- run ends, and clearing the selection stops it with the bar.
+  it("stops a selection's run when the selection is cleared", function()
+    landing = true
+    open()
+    checkOf("Herbs")
+    press(bar().store)
+    assert.equal("selection:in", HF.Running())
+    press(bar().clear)
+    assert.is_nil(HF.Running())
+    ticks()
+    assert.equal(1, #used)
+  end)
+
+  it("hands sections the run as it goes", function()
+    landing = true
+    local seen
+    HF.AddSection("tiles", { build = function() end, paint = function(_, ctx) seen = ctx return 0 end })
+    open()
+    assert.is_false(seen.running)
+    assert.is_nil(seen.run)
+    checkOf("Herbs")
+    press(bar().store)
+    assert.is_true(seen.running)
+    assert.equal("selection:in", seen.run.id)
+    assert.same({ 0, 2 }, { seen.run.done, seen.run.total })
+    land()
+    bagsChanged()
+    assert.same({ 1, 2 }, { seen.run.done, seen.run.total })
+    ticks()
+    bagsChanged()
+    assert.is_false(seen.running)
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
   -- Redrawing what is shown again
   -- ---------------------------------------------------------------------------------------------
 
@@ -1427,6 +1879,7 @@ describe("GoldCap Hoard window", function()
         end
       end
       if r.more:IsShown() then take(r.more) end
+      assert.is_true(at(r.check)[4] + r.check:GetWidth() < nameX, what .. ": the checkbox under the name")
       assert.is_true(nameRight <= firstLeft, what .. ": the name over the icons")
       assert.is_true(r.name:GetWidth() >= math.min(r.name:GetUnboundedStringWidth(), 60), what .. ": the name squeezed")
       assert.is_true(nameBottom <= r.head:GetHeight(), what .. ": the name below its line")
@@ -1458,8 +1911,17 @@ describe("GoldCap Hoard window", function()
           end
           local height, chipAt = r:GetHeight(), at(r.chip)
           press(r.store)
-          assert.equal(height, rowByKey("herbs"):GetHeight(), what)
-          assert.same(chipAt, at(rowByKey("herbs").chip), what)
+          local ran = rowByKey("herbs")
+          assert.equal(height, ran:GetHeight(), what)
+          assert.same(chipAt, at(ran.chip), what)
+          -- The run's words where the name was, wrapping inside the top line; how far it is inside
+          -- the worth column.
+          local label = ran.cast.label
+          assert.is_true(shown(label), what)
+          assert.is_true(W.state(label).wordWrap ~= false, what)
+          assert.is_true(at(label)[4] + label:GetWidth() <= at(ran.icons[1].edge)[4], what .. ": the run's words over the icons")
+          assert.is_true(-at(label)[5] + label:GetHeight() <= ran.head:GetHeight(), what .. ": the run's words below the line")
+          assert.is_true(ran.cast.count:GetStringWidth() <= HF._worthW, what .. ": the count past the worth column")
           close()
         end
       end
@@ -1507,14 +1969,17 @@ describe("GoldCap Hoard window", function()
         openRow("Herbs")
         local f = HF._frame
         local inner = f.content:GetWidth()
+        -- The switch lays out in the header's room, the window's less its margins; the rest in the
+        -- list's, which the scroll's gutter takes from.
+        local head = f:GetWidth() - 24
         assert.is_true(f:GetWidth() >= 360, code)
         for _, b in ipairs(f.choice.sides) do
           fits(b, code)
-          assert.is_true(inner >= b:GetWidth(), code)
+          assert.is_true(head >= b:GetWidth(), code)
         end
         fits(f.storeAll, code)
         fits(f.takeAll, code)
-        assert.is_true(inner >= f.choice:GetWidth(), code)
+        assert.is_true(head >= f.choice:GetWidth(), code)
         -- The free slots: one line each, as wide as its parts, inside the header.
         for _, chip in ipairs({ f.freeBags, f.freeBank }) do
           for _, fs in ipairs({ chip.words, chip.num, chip.rest }) do
@@ -1549,6 +2014,78 @@ describe("GoldCap Hoard window", function()
             end
           end
         end
+        close()
+      end
+    end
+  end)
+
+  -- Over many groups, with groups checked and a run going, in every language and toward both banks
+  -- (named long, as a German client might): every button as wide as its words, Stop included on
+  -- the button that turns into it, every line that can run long wrapping, everything inside the
+  -- window, and a run that changes no height.
+  it("never cuts the search row, the selection bar or a run's words, in any language", function()
+    _G.BANK, _G.ACCOUNT_BANK_PANEL_TITLE = "Persönliches Bankfach des Charakters", "Kriegsmeutenbank der Kriegsmeute"
+    for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+    -- The room a button's words have between their two anchors.
+    local function room(button)
+      local left, right = 0, 0
+      for _, p in ipairs(W.state(button.text).points) do
+        if p[1] == "LEFT" then left = p[4] end
+        if p[1] == "RIGHT" then right = p[4] end
+      end
+      return button:GetWidth() - left + right
+    end
+    local function fits(button, what)
+      assert.is_true(room(button) >= button.text:GetUnboundedStringWidth(), what .. " " .. tostring(button.label))
+    end
+    local function within(widget, width, what)
+      local x = at(widget)[4]
+      assert.is_true(x >= 0 and x + widget:GetWidth() <= width + 0.01, what)
+    end
+    for _, code in ipairs(helper.localeCodes()) do
+      for _, bankType in ipairs({ ACCOUNT, CHARACTER }) do
+        GC.ActivateLocale(code)
+        manyGroups(8)
+        showing, landing = bankType, true
+        open()
+        local f, s = HF._frame, search()
+        local inner, head = f.content:GetWidth(), f:GetWidth() - 24
+        local what = ("%s %d"):format(code, bankType)
+        assert.is_true(shown(s), what)
+        for _, half in ipairs(s.filter.sides) do fits(half, what) end
+        fits(s.sort, what)
+        for _, part in ipairs({ s.well, s.filter, s.sort }) do within(part, inner, what) end
+        local hint = at(s.hint)
+        assert.is_true(hint[4] + s.hint:GetStringWidth() <= s.well:GetWidth(), what .. " " .. textOf(s.hint))
+        checkOf("Group 01")
+        checkOf("Group 02")
+        local b = bar()
+        assert.equal(head, b:GetWidth(), what)
+        for _, button in ipairs({ b.store, b.take }) do fits(button, what) end
+        for _, fs in ipairs({ b.title, b.sub }) do
+          assert.is_true(W.state(fs).wordWrap ~= false, what)
+          within(fs, head, what)
+          assert.is_true(-at(fs)[5] + fs:GetHeight() <= b:GetHeight(), what .. " " .. plainText(fs))
+        end
+        local barH = b:GetHeight()
+        press(b.store)
+        assert.equal(GC.L["Stop"], b.store.label, what)
+        fits(b.store, what)
+        assert.equal(barH, b:GetHeight(), what)
+        local label = b.cast.label
+        assert.is_true(W.state(label).wordWrap ~= false, what)
+        within(label, head, what)
+        -- Left of the buttons, or over them when they have a line of their own.
+        local labelRight = at(label)[4] + label:GetWidth() + b.cast.count:GetStringWidth()
+        assert.is_true(labelRight <= at(b.store)[4] or -at(label)[5] + label:GetHeight() <= -at(b.store)[5], what)
+        assert.is_true(-at(label)[5] + label:GetHeight() <= barH, what .. " " .. textOf(label))
+        press(b.store)
+        press(f.storeAll)
+        assert.equal(GC.L["Stop"], f.storeAll.label, what)
+        fits(f.storeAll, what)
+        -- Store all stands by its right edge.
+        assert.is_true(at(f.cast.label)[4] + f.cast.label:GetWidth() <= at(f.storeAll)[4] - f.storeAll:GetWidth(), what)
+        press(f.storeAll)
         close()
       end
     end

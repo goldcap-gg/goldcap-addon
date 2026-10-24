@@ -1615,4 +1615,17 @@ GC.Locales.ukUA = {
   ["%d groups"] = "Груп: %d",
   ["%d more groups have nothing to move at this bank"] = "Ще груп, де в цьому банку нічого переносити: %d",
   ["1 more group has nothing to move at this bank"] = "Ще 1 група: у цьому банку нічого переносити",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "До перенесення %d",
+  ["All %d"] = "Усі %d",
+  ["By value"] = "За ціною",
+  ["By name"] = "За назвою",
+  ["No group or item matches your search."] = "Жодна група чи предмет не відповідає пошуку.",
+  ["%d groups selected"] = "Вибрано груп: %d",
+  ["1 group selected"] = "Вибрано 1 групу",
+  ["%d stacks to move, worth about %s"] = "Стопок до перенесення: %d, приблизно на %s",
+  ["1 stack to move, worth about %s"] = "1 стопка до перенесення, приблизно на %s",
+  ["Clear the selection"] = "Зняти вибір",
+  ["Moving to %s"] = "Переносимо в %s",
+  ["Moving to your bags"] = "Переносимо в сумки",
 }

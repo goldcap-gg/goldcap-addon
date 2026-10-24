@@ -1551,4 +1551,17 @@ GC.Locales.esMX = {
   ["%d groups"] = "%d grupos",
   ["%d more groups have nothing to move at this bank"] = "%d grupos más no tienen nada que mover en este banco",
   ["1 more group has nothing to move at this bank"] = "1 grupo más no tiene nada que mover en este banco",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "Por mover %d",
+  ["All %d"] = "Todos %d",
+  ["By value"] = "Por valor",
+  ["By name"] = "Por nombre",
+  ["No group or item matches your search."] = "Ningún grupo ni objeto coincide con tu búsqueda.",
+  ["%d groups selected"] = "%d grupos seleccionados",
+  ["1 group selected"] = "1 grupo seleccionado",
+  ["%d stacks to move, worth about %s"] = "%d pilas por mover, valen unos %s",
+  ["1 stack to move, worth about %s"] = "1 pila por mover, vale unos %s",
+  ["Clear the selection"] = "Quitar la selección",
+  ["Moving to %s"] = "Moviendo al %s",
+  ["Moving to your bags"] = "Moviendo a las bolsas",
 }

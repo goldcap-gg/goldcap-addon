@@ -695,6 +695,32 @@ describe("Hoard", function()
     end)
   end)
 
+  describe("Check", function()
+    local folder = { kind = "folder", key = "trade", children = { "herbs", "ore", "cloth" } }
+
+    it("selects every group of a folder that is off, and keeps the others", function()
+      local selected = { potions = true }
+      H.Check(folder, selected)
+      assert.same({ potions = true, herbs = true, ore = true, cloth = true }, selected)
+    end)
+
+    it("clears every group of a folder that is on or mixed, and keeps the others", function()
+      for _, start in ipairs({ { herbs = true, ore = true, cloth = true }, { ore = true } }) do
+        start.potions = true
+        H.Check(folder, start)
+        assert.same({ potions = true }, start)
+      end
+    end)
+
+    it("checks a group that is off and clears one that is on", function()
+      local selected = {}
+      H.Check({ kind = "group", key = "herbs" }, selected)
+      assert.same({ herbs = true }, selected)
+      H.Check({ kind = "group", key = "herbs" }, selected)
+      assert.same({}, selected)
+    end)
+  end)
+
   describe("Selection", function()
     it("totals the selected groups, a closed folder's included, each once", function()
       local groups = world()

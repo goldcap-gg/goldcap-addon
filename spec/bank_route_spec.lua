@@ -467,8 +467,10 @@ describe("bank carry list", function()
     -- The one place the addon moves an item between the bags and a bank is the route's MoveStack,
     -- one call each time, reached only from the carry list's onCarryClick here and from the GoldCap
     -- Hoard's press (UI/HoardFrame.lua), which its move buttons' onMoveClick starts. A row of the
-    -- Hoard (UI/HoardRow.lua) builds and paints those buttons and moves nothing itself.
+    -- Hoard (UI/HoardRow.lua) builds and paints those buttons and moves nothing itself, and nor do
+    -- its search row, checkboxes, selection bar and cast bars (UI/HoardList.lua).
     local ROUTE, HOARD, ROW = "GoldCap/UI/BankRoute.lua", "GoldCap/UI/HoardFrame.lua", "GoldCap/UI/HoardRow.lua"
+    local LIST = "GoldCap/UI/HoardList.lua"
 
     local function bodyOf(text, header)
       local from = assert(text:find(header, 1, true), header)
@@ -571,6 +573,7 @@ describe("bank carry list", function()
       end
       assert.is_truthy(shownBody:find("C_Timer.After(0, function()", 1, true))
       assert.is_nil(read(ROW):find("hooksecurefunc", 1, true))
+      assert.is_nil(read(LIST):find("hooksecurefunc", 1, true))
       for _, path in ipairs({ ROUTE, HOARD }) do
         local text = read(path)
         for line in text:gmatch("[^\n]*hooksecurefunc%([^\n]*") do
@@ -616,6 +619,8 @@ describe("bank carry list", function()
       assert.equal(2, count(hoard, "HF.Press("))
       assert.equal(1, count(bodyOf(hoard, "local function onMoveClick("), "HF.Press(button, button.stacks, button.into)"))
       assert.is_nil(read(ROW):find("Press(", 1, true))
+      assert.is_nil(read(LIST):find("Press(", 1, true))
+      assert.is_nil(read(LIST):find("UseContainerItem", 1, true))
     end)
 
     -- No timer of these files moves anything: the Hoard's moves after the first come from the press
@@ -635,6 +640,7 @@ describe("bank carry list", function()
         end
       end
       assert.is_nil(read(ROW):find("C_Timer", 1, true))
+      assert.is_nil(read(LIST):find("C_Timer", 1, true))
       assert.equal(1, count(read(HOARD), "after = function(seconds, fn) C_Timer.After(seconds, fn) end,"))
     end)
 
@@ -650,12 +656,17 @@ describe("bank carry list", function()
       assert.is_true(assert(pressBody:find("machine:Press(rows)", 1, true)) < assert(pressBody:find("HF.Refresh()", 1, true)))
       local paint = bodyOf(hoard, "local function paintMove(")
       assert.equal(1, count(paint, "button:Disable()"))
-      -- Store all and Take all out, and each row's Store and Take out, through the same repaint.
-      assert.is_truthy(bodyOf(hoard, "local function paintAll("):find("paintMove(button, stacks, label)", 1, true))
+      -- Store all and Take all out, each row's Store and Take out and the selection bar's, through
+      -- the same repaint: the pair's (UI/HoardList.lua), which paints each one that is not a Stop.
+      local list = read(LIST)
+      assert.is_nil(list:find("Disable(", 1, true))
+      assert.equal(1, count(bodyOf(list, "function HL.PaintPair("), "U.paintMove(button, entry[2], entry[3])"))
+      assert.is_truthy(bodyOf(hoard, "local function paintAll("):find("HF.List.PaintPair({ { frame.storeAll, lists.toBank,", 1, true))
+      assert.equal(1, count(bodyOf(list, "function HL.PaintSelection("), "HL.PaintPair({ { bar.store, sel.toBank,"))
       local row = read(ROW)
       assert.is_nil(row:find("Disable(", 1, true))
-      assert.equal(1, count(row, "U.paintMove(row.store, data.toBank,"))
-      assert.equal(1, count(row, "U.paintMove(row.take, data.toBags,"))
+      assert.equal(1, count(row, "HF.List.PaintPair({ { row.store, data.toBank,"))
+      assert.equal(1, count(row, "{ row.take, data.toBags,"))
       -- The only other: a side of the bank switch a bank cannot use, which moves nothing anyway.
       assert.equal(2, count(hoard, "Disable("))
       assert.equal(1, count(bodyOf(hoard, "local function paintChoice("), "side:Disable()"))
@@ -663,8 +674,8 @@ describe("bank carry list", function()
 
     it("loads in retail only, the Hoard after the route module", function()
       local retail, forever = read("GoldCap/GoldCap.toc"), read("GoldCap/GoldCap_Camelot.toc")
-      for _, file in ipairs({ "UI/BankRoute.lua", "UI/HoardFrame.lua", "UI/HoardRow.lua", "Core/BankGroups.lua",
-        "Core/Hoard.lua" }) do
+      for _, file in ipairs({ "UI/BankRoute.lua", "UI/HoardFrame.lua", "UI/HoardRow.lua", "UI/HoardList.lua",
+        "Core/BankGroups.lua", "Core/Hoard.lua" }) do
         assert.is_truthy(retail:find("\n" .. file .. "\n", 1, true), file)
       end
       for _, name in ipairs({ "BankRoute", "BankGroups", "Hoard" }) do
@@ -677,6 +688,7 @@ describe("bank carry list", function()
       -- The Hoard hooks the route's handlers as it loads, and its rows read what it shares.
       assert.is_true(retail:find("UI/BankRoute.lua", 1, true) < retail:find("UI/HoardFrame.lua", 1, true))
       assert.is_true(retail:find("UI/HoardFrame.lua", 1, true) < retail:find("UI/HoardRow.lua", 1, true))
+      assert.is_true(retail:find("UI/HoardRow.lua", 1, true) < retail:find("UI/HoardList.lua", 1, true))
       assert.is_true(retail:find("Core/GroupRules.lua", 1, true) < retail:find("Core/BankGroups.lua", 1, true))
       assert.is_true(retail:find("Core/BankGroups.lua", 1, true) < retail:find("Core/Hoard.lua", 1, true))
     end)

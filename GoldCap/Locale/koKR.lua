@@ -1481,4 +1481,17 @@ GC.Locales.koKR = {
   ["%d groups"] = "그룹 %d개",
   ["%d more groups have nothing to move at this bank"] = "이 은행에서 옮길 것이 없는 그룹 %d개 더",
   ["1 more group has nothing to move at this bank"] = "이 은행에서 옮길 것이 없는 그룹 1개 더",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "옮길 것 %d",
+  ["All %d"] = "전체 %d",
+  ["By value"] = "가치순",
+  ["By name"] = "이름순",
+  ["No group or item matches your search."] = "검색과 일치하는 그룹이나 아이템이 없습니다.",
+  ["%d groups selected"] = "그룹 %d개 선택됨",
+  ["1 group selected"] = "그룹 1개 선택됨",
+  ["%d stacks to move, worth about %s"] = "옮길 묶음 %d개, 약 %s 가치",
+  ["1 stack to move, worth about %s"] = "옮길 묶음 1개, 약 %s 가치",
+  ["Clear the selection"] = "선택 해제",
+  ["Moving to %s"] = "%s으로 옮기는 중",
+  ["Moving to your bags"] = "가방으로 옮기는 중",
 }

@@ -456,6 +456,17 @@ function H.CheckState(row, selected)
   return "off"
 end
 
+--- A checkbox's click on `row`, in `selected` ({ [group key] = true }) itself: a group checks or
+--- clears; a folder checks every group it lists from off, and clears them all from on or mixed.
+function H.Check(row, selected)
+  if row.kind == "folder" then
+    local on = H.CheckState(row, selected) == "off"
+    for _, key in ipairs(row.children) do selected[key] = on or nil end
+  else
+    selected[row.key] = not selected[row.key] or nil
+  end
+end
+
 --- The selection bar: the Plan groups whose key is selected ({ [group key] = true }), the children
 --- of a closed folder included, as they are not painted but are selected. Answers { groups, toBank,
 --- toBags, worth }: how many, their To bank and To bags stacks in the groups' order, and what they

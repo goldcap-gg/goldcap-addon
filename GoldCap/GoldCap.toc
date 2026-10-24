@@ -161,6 +161,7 @@ UI/VendorSellCard.lua
 UI/BankRoute.lua
 UI/HoardFrame.lua
 UI/HoardRow.lua
+UI/HoardList.lua
 UI/MailCollect.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua

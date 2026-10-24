@@ -11,8 +11,10 @@ local _, GC = ...
 -- (GC.db.bankKeep, Core/BankGroups.lua), and which stacks stay in the bags and why. What each press
 -- moves, and in which order, is Core/BankGroups.lua's Plan; the rows, folders and the fold line are
 -- Core/Hoard.lua's Rows; an item's group is Core/GroupRules.lua's; a row of the list, its widgets
--- and its painting, is UI/HoardRow.lua's, loaded after this file. With no followed group and no
--- section there is no window at all: it is not built and no slot is read for it.
+-- and its painting, is UI/HoardRow.lua's, loaded after this file; the search row over many groups,
+-- the selection bar and a run's cast bar are UI/HoardList.lua's, loaded after that. With no
+-- followed group and no section there is no window at all: it is not built and no slot is read
+-- for it.
 --
 -- Which bank: the character's own or the Warband Bank, a two-way switch under the title named and
 -- ordered as the bank window's tabs are. At each open it starts on the bank the window shows
@@ -40,7 +42,11 @@ local _, GC = ...
 -- Pressed again and again in one spot, so nothing in the window moves between two presses or while
 -- one runs: every row keeps its buttons where they are, a button with nothing left is disabled only
 -- by the repaint after its own last move, a group shown in this visit stays shown, the worth column
--- only widens, and an opened row keeps room for the most its lines can say.
+-- only widens, and an opened row keeps room for the most its lines can say. While a run goes, the
+-- button pressed is its Stop where it stands (one button with two looks, never a second one laid
+-- over it: docs/addon/AGENTS.md "Buttons and hover"), and a second press of it is the press that
+-- stops the run; the other move of its row gives way, and the run's cast bar (UI/HoardList.lua)
+-- says where the stacks go and how many have, in room every line keeps for it from its first paint.
 --
 -- Later parts of the window paint into it through AddSection (the tiles above the groups, the carry
 -- list and the footer below them) and move through Press, so the window keeps one run.
@@ -59,7 +65,9 @@ local K = GC.Kit.Tokens.color
 -- PAD from its left. SCREEN_GAP: what the window leaves free under it, above the action bars.
 -- INDENT: a folder's groups, in from its own row. NAME_MIN: the least room a row's name gets beside
 -- its play's chip; MIN_ICONS: the fewest icons a row gives up for that before its chip goes under
--- the name.
+-- the name. CHECK: a row's checkbox, the badge art's least size (UI/Kit/Textures.lua). The search
+-- row (WELL_H: the BUY tab's search well), the selection bar (SEL_*) and the cast bar (CAST_GAP
+-- between its words and its count, FILL_H its gold fill's height) are UI/HoardList.lua's.
 local L = {
   WIDTH = 382, PAD = 12, GUTTER = 22, X = 4, SCREEN_GAP = 80, MIN_H = 160,
   HEAD_H = 28, LOGO = 22, CLOSE = 22, CLOSE_ICON = 10, SWITCH_GAP = 8, SEG_H = 20, SEG_PAD = 2, SEG_MIN = 50,
@@ -68,6 +76,9 @@ local L = {
   MOVE_ICON = 9, MOVE_GAP = 4, WORTH_W = 46, COL_GAP = 6, CHIP_H = 13, CHIP_GAP = 4, NAME_MIN = 60,
   MIN_ICONS = 3, CHEVRON = 8, BAR_H = 2, BAR_IN = 7, ALL_H = 18, LEGEND_W = 7, LEGEND_H = 3, FOLD_H = 22,
   ITEM_ICON = 16, ITEM_GAP = 4, KEEP_H = 16, KEEP_PAD = 5, PENCIL = 8, HANDLE_H = 28, HANDLE_LOGO = 18,
+  CHECK = 13, CHECK_GAP = 5, CHECK_GLYPH = 9, MARK = 9, CAST_GAP = 6, FILL_H = 3, TOOL_GAP = 6, WELL_H = 22,
+  WELL_ICON = 10, WELL_PAD = 8, SORT_H = 20, SEL_PAD = 8, SEL_GAP = 4, SEL_BTN = 21, SEL_BTN_PAD = 8, SEL_ICON = 9,
+  SEL_TEXT_MIN = 110,
 }
 -- The backpack, the four bag slots and the reagent bag: herbs, ore and cloth go to the reagent bag.
 local BAGS = { 0, 1, 2, 3, 4, 5 }
@@ -86,6 +97,9 @@ HF._moving = {}
 HF.machine = nil
 HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
 HF._movers = setmetatable({}, { __mode = "k" })
+-- The run that goes, as its cast bar shows it: whether it moves into the bank, the list it was
+-- pressed with (Press's rows), and the slots of the stacks it has sent ("bag:slot" -> true).
+HF._runInto, HF._runRows, HF._sent = nil, nil, {}
 -- While the bank is open: the bank the window works with (Enum.BankType), as of its last paint, and
 -- the bank the bank window showed then (the switch goes along only when that changes); the window's
 -- width and its worth column's, which only grow; the groups Core/Hoard.lua's Rows has listed in
@@ -95,6 +109,11 @@ HF._width, HF._worthW = nil, nil
 HF._shown = {}
 HF._unfolded = false
 HF._open = nil
+-- From SEARCH_MIN_GROUPS groups, for the bank visit (UI/HoardList.lua): whether the search row has
+-- shown, what is typed in it, the filter ("move" or "all") and the sort ("value" or "name"). The
+-- groups checked, by key, and the bank they were checked at: a switch to the other bank drops them.
+HF._searchUp, HF._query, HF._filter, HF._sort = nil, "", "move", "value"
+HF._selected, HF._selBank = {}, nil
 -- What later parts of the window paint (AddSection), by place.
 HF._sections = {}
 HF._rows = {}
@@ -285,11 +304,14 @@ end
 
 -- The machine's call: one stack, through the bank route's MoveStack, the way and the bank the
 -- press named. A stack sent is on its way (HF._moving) until its slot shows the move or the settle
--- timer gives up on it. False when MoveStack made no call: the machine goes on with the next.
+-- timer gives up on it, and one of the run's (HF._sent) for its cast bar. False when MoveStack made
+-- no call: the machine goes on with the next.
 local function moveRow(_, _, row)
   local stack = row.stack
   if not GC.BankRoute.MoveStack(row.stack, row.into, row.bankType) then return false end
-  HF._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count }
+  local slotKey = stack.bag .. ":" .. stack.slot
+  HF._moving[slotKey] = { itemID = stack.itemID, count = stack.count }
+  HF._sent[slotKey] = true
   settleSeq = settleSeq + 1
   local token = settleSeq
   if C_Timer and C_Timer.After then
@@ -302,6 +324,7 @@ end
 -- came to the other bank, HF.Refresh; another button's press, Press; the window closed).
 local function report(result)
   HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
+  HF._runInto, HF._runRows = nil, nil
   local stopped = result.stopped
   if stopped ~= "bank" and stopped ~= "switched" and stopped ~= "hidden" then HF.OnBagsChanged() end
 end
@@ -331,7 +354,8 @@ end
 --- and Take all out are "all:in" and "all:out", and a later part names its own buttons the same
 --- way ("tile:<id>", "carry:<id>", "selection:in"). A button with no run id is its own. A press
 --- of the id that runs stops it and moves nothing; a press of another id stops it and starts its
---- own.
+--- own. While its run goes the button is its Stop (UI/HoardList.lua's PaintPair), so that second
+--- press is a press of the same button where it stands.
 function HF.Press(button, stacks, into, bankType)
   if bankType == nil then bankType = HF._bankType end
   local rows = {}
@@ -344,10 +368,11 @@ function HF.Press(button, stacks, into, bankType)
   local machine = HF._Machine()
   if machine:IsRunning() and HF._runId ~= id then machine:Stop("switched") end
   -- The machine asks this bank (its driver's open) before every move, the first one inside Press.
-  if not machine:IsRunning() then HF._runBank = bankType end
+  if not machine:IsRunning() then HF._runBank, HF._sent = bankType, {} end
   machine:Press(rows)
   if machine:IsRunning() then
     HF._runId, HF._runBank, HF._runSwitch = id, bankType, HF._bankType
+    HF._runInto, HF._runRows = into, rows
   else
     HF._runBank = nil
   end
@@ -453,12 +478,21 @@ end
 -- Building
 -- ---------------------------------------------------------------------------------------------
 
--- A move button: its click is the press, its tooltip what the press moves.
-local function moveButton(parent, into, variant)
-  local button = GC.Theme.Button(parent, variant, "badge")
+-- A move button: its click is the press, its tooltip what the press moves. `look` is how it is
+-- drawn at rest, kept for when its run's Stop is over (UI/HoardList.lua's PaintPair): { variant,
+-- ring, icon, iconColor, textColor, label }, all but the variant optional: the kit's glyph `icon`
+-- in `iconColor` while enabled (the caller sizes and places it), the words in `textColor` over the
+-- variant's, and `label` true for a button that carries words beside its icon.
+local function moveButton(parent, into, look)
+  local button = GC.Theme.Button(parent, look.variant, "badge")
   -- In the scroll, which clips at its edges: a halo would be cut flat along its side.
   button:SetGlow(false)
-  button.into = into
+  if look.ring then button:SetRing(look.ring) end
+  if look.icon then
+    button.icon = button:CreateTexture(nil, "OVERLAY")
+    GC.Theme.SetIcon(button.icon, look.icon, look.iconColor)
+  end
+  button.look, button.into, button.iconColor, button.textColor = look, into, look.iconColor, look.textColor
   button:SetScript("OnClick", onMoveClick)
   button:SetScript("OnEnter", showMoveTip)
   button:SetScript("OnLeave", hideTip)
@@ -605,10 +639,9 @@ local function build()
   -- Quiet, as the board draws them: no fill, a faint ring, the words in the second text colour
   -- (paintMove keeps that over the kit's own on every enable).
   for _, entry in ipairs({ { "storeAll", true, "all:in" }, { "takeAll", false, "all:out" } }) do
-    local b = moveButton(content, entry[2], "segment")
+    local b = moveButton(content, entry[2], { variant = "segment", ring = K.windowBorder, textColor = K.text2 })
     b:SetHeight(L.ALL_H)
-    b:SetRing(K.windowBorder)
-    b.runId, b.textColor = entry[3], K.text2
+    b.runId = entry[3]
     track(frame, b.text)
     frame[entry[1]] = b
   end
@@ -627,6 +660,8 @@ local function build()
   -- Measures what a worth column must hold; never shown.
   frame.measure = T.Num(content, 10)
   frame.measure:Hide()
+  -- The search row, the selection bar and Store all's cast bar.
+  HF.List.Build(frame)
   -- A frame made from Lua starts shown: hidden until refresh shows it, so its first show is a
   -- re-show like any other (restamp).
   frame:Hide()
@@ -773,30 +808,33 @@ local function paintMove(button, stacks, title)
   if tooltip and tooltip.IsOwned and tooltip:IsOwned(button) then showMoveTip(button) end
 end
 
--- Store all and Take all out: every group's list, group by group in the plan's order. Their label
--- never changes, so a press never resizes them.
-local function paintAll(groups, writable)
+-- Store all and Take all out: every group's list, group by group in the plan's order. Each is as
+-- wide as the wider of its words and Stop, which it says while its run goes, so a press never
+-- resizes it. Without the keep counts (a newer GoldCap's), Store all is not offered; Take all out
+-- keeps its place. Answers the one whose run goes, or nil.
+local function paintAll(groups, writable, runId)
   local lists = { toBank = {}, toBags = {} }
   for _, group in ipairs(groups) do
     for _, key in ipairs({ "toBank", "toBags" }) do
       for _, stack in ipairs(group[key]) do lists[key][#lists[key] + 1] = stack end
     end
   end
-  for _, entry in ipairs({ { frame.storeAll, lists.toBank, GC.L["Store all"] },
-    { frame.takeAll, lists.toBags, GC.L["Take all out"] } }) do
-    local button, stacks, label = entry[1], entry[2], entry[3]
-    button:SetLabel(label)
-    button:FitLabels({ label }, 0)
-    paintMove(button, stacks, label)
+  local labels = { GC.L["Store all"], GC.L["Take all out"] }
+  local running = HF.List.PaintPair({ { frame.storeAll, lists.toBank, labels[1] },
+    { frame.takeAll, lists.toBags, labels[2] } }, runId, writable)
+  for i, button in ipairs({ frame.storeAll, frame.takeAll }) do
+    button:SetLabel(button == running and GC.L["Stop"] or labels[i])
+    button:FitLabels({ labels[i], GC.L["Stop"] }, 0)
   end
-  -- Without the keep counts (a newer GoldCap's), Store is not offered; Take all out keeps its
-  -- place.
-  frame.storeAll:SetShown(writable)
+  return running
 end
 
 -- "Your groups" with the legend at `y` in the scroll, Store all and Take all out at its right, or
--- on a line under it when there is no room. Answers the y under it.
-local function paintHeading(y, inner)
+-- on a line under it when there is no room. While the run of one of them goes (`running`), its
+-- cast bar stands left of them, over the heading and the legend on their line; the line keeps the
+-- cast bar's room from its first paint (UI/HoardList.lua's LineCastHeight), so a press moves
+-- nothing. Answers the y under it.
+local function paintHeading(y, inner, ctx, running)
   local title = frame.groupsTitle
   setText(title, GC.Util.Upper(GC.L["Your groups"]))
   local x = math.ceil(title:GetStringWidth() or 0) + 10
@@ -810,22 +848,38 @@ local function paintHeading(y, inner)
   local storeW, takeW = frame.storeAll:GetWidth(), frame.takeAll:GetWidth()
   local buttonsW = storeW + 4 + takeW
   local oneLine = x + buttonsW <= inner
-  local lineH = oneLine and L.ALL_H or 12
+  local castW = inner - buttonsW - L.CAST_GAP
+  local castH = HF.List.LineCastHeight(frame.cast, ctx.castLabels, castW)
+  local buttonsH = math.max(L.ALL_H, castH)
+  local lineH = oneLine and buttonsH or 12
   local mid = y + lineH / 2
+  local headingUp = not (oneLine and running)
   title:ClearAllPoints()
   title:SetPoint("LEFT", frame.content, "TOPLEFT", 0, -mid)
+  title:SetShown(headingUp)
   for _, part in ipairs(parts) do
     part.entry.swatch:ClearAllPoints()
     part.entry.swatch:SetPoint("LEFT", frame.content, "TOPLEFT", part.x, -mid)
     part.entry.text:ClearAllPoints()
     part.entry.text:SetPoint("LEFT", part.entry.swatch, "RIGHT", 4, 0)
+    part.entry.swatch:SetShown(headingUp)
+    part.entry.text:SetShown(headingUp)
   end
   local buttonsY = oneLine and y or (y + lineH + L.HEADING_GAP)
+  local top = buttonsY + math.floor((buttonsH - L.ALL_H) / 2)
   frame.takeAll:ClearAllPoints()
-  frame.takeAll:SetPoint("TOPRIGHT", frame.content, "TOPLEFT", inner, -buttonsY)
+  frame.takeAll:SetPoint("TOPRIGHT", frame.content, "TOPLEFT", inner, -top)
   frame.storeAll:ClearAllPoints()
-  frame.storeAll:SetPoint("TOPRIGHT", frame.content, "TOPLEFT", inner - takeW - 4, -buttonsY)
-  return buttonsY + L.ALL_H
+  frame.storeAll:SetPoint("TOPRIGHT", frame.content, "TOPLEFT", inner - takeW - 4, -top)
+  if running then
+    HF.List.PaintLineCast(frame.cast, ctx.run, frame.content, 0, buttonsY + math.floor((buttonsH - castH) / 2), castW)
+  else
+    HF.List.HideCast(frame.cast)
+  end
+  -- What was hidden for the run, or the run's words, shown again: redrawn whole.
+  if (running ~= nil) ~= (frame.headRan == true) then restamp(frame) end
+  frame.headRan = running ~= nil
+  return buttonsY + buttonsH
 end
 
 -- What a row of the list (UI/HoardRow.lua, loaded after this file) is built and painted with: the
@@ -833,7 +887,8 @@ end
 HF.ui = {
   L = L, SLATE = SLATE, setText = setText, colour = colour, wrapping = wrapping, heightOf = heightOf,
   itemName = itemName, worthText = worthText, plate = plate, moveButton = moveButton, paintMove = paintMove,
-  track = track, restamp = restamp, closeKeep = closeKeep,
+  showMoveTip = showMoveTip, hideTip = hideTip, track = track, restamp = restamp, closeKeep = closeKeep,
+  bankName = bankName,
 }
 
 -- The rows of `list` from `y` in the scroll, from the pool's `first`; answers the y under them and
@@ -899,13 +954,17 @@ local function paintSection(name, ctx, y)
 end
 
 -- How wide the worth column must be for `lists`' rows, and never narrower than it has been in this
--- visit.
+-- visit: what each row is worth, and how far a run of its longer list can say it has come, which
+-- its cast bar writes there (UI/HoardRow.lua).
 local function worthWidth(lists)
   local widest = math.max(L.WORTH_W, HF._worthW or 0)
   for _, list in ipairs(lists) do
     for _, data in ipairs(list) do
-      setText(frame.measure, worthText(data.worth))
-      widest = math.max(widest, math.ceil(frame.measure:GetStringWidth() or 0))
+      local most = math.max(#data.toBank, #data.toBags)
+      for _, text in ipairs({ worthText(data.worth), ("%d / %d"):format(most, most) }) do
+        setText(frame.measure, text)
+        widest = math.max(widest, math.ceil(frame.measure:GetStringWidth() or 0))
+      end
     end
   end
   HF._worthW = widest
@@ -914,8 +973,9 @@ end
 
 -- The window's width: the board's with the scroll's gutter, or as wide as its widest label in the
 -- player's language needs (a side of the switch in the header, Store all with Take all out in the
--- list), and only ever wider while the bank is open, so nothing reflows under the cursor. Answers
--- it, the header's room inside the window's margins, and the list's, which the gutter takes from.
+-- list, each as wide as Stop too), and only ever wider while the bank is open, so nothing reflows
+-- under the cursor. Answers it, the header's room inside the window's margins, and the list's,
+-- which the gutter takes from.
 local function widthFor()
   local need = 0
   for _, side in ipairs(frame.choice.sides) do
@@ -925,7 +985,7 @@ local function widthFor()
   end
   for _, entry in ipairs({ { frame.storeAll, GC.L["Store all"] }, { frame.takeAll, GC.L["Take all out"] } }) do
     entry[1]:SetLabel(entry[2])
-    entry[1]:FitLabels({ entry[2] }, 0)
+    entry[1]:FitLabels({ entry[2], GC.L["Stop"] }, 0)
   end
   need = math.max(need, frame.storeAll:GetWidth() + 4 + frame.takeAll:GetWidth() + 2 * L.PAD + L.GUTTER)
   local width = math.max(L.WIDTH, need, HF._width or 0)
@@ -934,10 +994,11 @@ local function widthFor()
 end
 
 -- The window, top to bottom: the header and the switch, fixed; then in the scroll the tiles, the
--- groups' heading, the rows the plan lists, the fold line with, opened, the folded rows under it,
--- the carry list and the footer. Clamped to the screen and never taller than the room under its
--- top. Laid out, not shown: answers false when it has nothing at all to show (no followed group,
--- and every section empty).
+-- groups' heading, from SEARCH_MIN_GROUPS groups the search row, the rows the plan lists, the fold
+-- line with, opened, the folded rows under it, the carry list and the footer; under the scroll, at
+-- the window's foot, the selection bar while groups are checked. Clamped to the screen and never
+-- taller than the room under its top. Laid out, not shown: answers false when it has nothing at
+-- all to show (no followed group, and every section empty).
 local function paint(state)
   local beside = place(frame)
   local width, head, inner = widthFor()
@@ -956,14 +1017,22 @@ local function paint(state)
     -- the player keeps, so it moves nothing.
     if not writable then group.toBank = {} end
   end
+  -- From SEARCH_MIN_GROUPS groups the search row, for the rest of the visit; with fewer, the list is
+  -- what can move here, by value.
+  if #state.groups >= GC.Hoard.SEARCH_MIN_GROUPS then HF._searchUp = true end
+  local searching = HF._searchUp == true
   local result = GC.Hoard.Rows(state.groups, {
-    valueOf = valueOf, filter = "move", sort = "value", folderOpen = folderOpen, shown = HF._shown,
-    playOf = playOf, iconOf = function(itemID) return state.icons[itemID] end,
+    valueOf = valueOf, filter = searching and HF._filter or "move", sort = searching and HF._sort or "value",
+    query = searching and HF._query or nil, folderOpen = folderOpen, shown = HF._shown, playOf = playOf,
+    iconOf = function(itemID) return state.icons[itemID] end,
   })
   local folded = HF._unfolded and result.foldedRows or {}
+  -- The run as its cast bars show it, and the marks on its items' icons (UI/HoardList.lua).
+  local run, marks = HF.List.RunState()
   -- The folded rows' worth is measured too, closed, so opening the fold line moves no column.
   local ctx = { bankType = state.bankType, usable = state.usable, running = HF._runId ~= nil,
-    runId = HF._runId, groups = state.groups, valueOf = valueOf, width = inner, writable = writable,
+    runId = HF._runId, run = run, marks = marks, castLabels = HF.List.CastLabels(state.bankType),
+    selected = HF._selected, groups = state.groups, valueOf = valueOf, width = inner, writable = writable,
     icons = state.icons, perItem = state.perItem, worthW = worthWidth({ result.rows, result.foldedRows }) }
 
   local cy, shownH = 0, 0
@@ -972,14 +1041,18 @@ local function paint(state)
   local groupsUp = state.hasGroups
   local index = 1
   if groupsUp then
-    paintAll(state.groups, writable)
-    frame.groupsTitle:Show()
-    frame.takeAll:Show()
-    for _, entry in ipairs(frame.legend) do entry.swatch:Show(); entry.text:Show() end
-    cy = paintHeading(cy, inner) + L.HEADING_GAP + 2
-    if #state.groups == 0 then
+    cy = paintHeading(cy, inner, ctx, paintAll(state.groups, writable, HF._runId)) + L.HEADING_GAP + 2
+    if searching then
+      cy = cy + HF.List.PaintSearch(cy, inner, result.total, result.toMove) + L.HEADING_GAP + 2
+    else
+      HF.List.HideSearch()
+    end
+    -- No group here at all, or none the search finds.
+    local nothing = #state.groups == 0 and GC.L["None of your groups' items are in your bags or this bank."]
+      or (#result.rows == 0 and result.folded == 0 and GC.L["No group or item matches your search."])
+    if nothing then
       frame.empty:SetWidth(inner)
-      setText(frame.empty, GC.L["None of your groups' items are in your bags or this bank."])
+      setText(frame.empty, nothing)
       frame.empty:ClearAllPoints()
       frame.empty:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
       frame.empty:Show()
@@ -998,6 +1071,7 @@ local function paint(state)
   else
     for _, key in ipairs({ "groupsTitle", "storeAll", "takeAll", "empty", "fold" }) do frame[key]:Hide() end
     for _, entry in ipairs(frame.legend) do entry.swatch:Hide(); entry.text:Hide() end
+    HF.List.HideSearch()
   end
   for i = index, #HF._rows do HF._rows[i]:Hide() end
   for _, name in ipairs({ "carry", "footer" }) do
@@ -1008,11 +1082,13 @@ local function paint(state)
 
   cy = math.ceil(math.max(cy, 1))
   frame.content:SetSize(inner, cy)
-  local height = math.min(top + cy + L.PAD, maxHeight(beside))
+  local barH = HF.List.PaintSelection(groupsUp and state.groups or {}, ctx, head)
+  local below = barH > 0 and (barH + L.SECTION_GAP) or 0
+  local height = math.min(top + cy + below + L.PAD, maxHeight(beside))
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
-  frame.scroll:SetSize(inner, height - top - L.PAD)
+  frame.scroll:SetSize(inner, height - top - L.PAD - below)
   return true
 end
 
@@ -1041,13 +1117,16 @@ local function read(bankType, usable, hasGroups)
   return state
 end
 
+-- Nothing of the window keeps the keyboard once it is gone (UI/HoardList.lua's search box).
 local function hideAll()
+  HF.List.Blur()
   if frame then frame:Hide() end
   if handle then handle:Hide() end
 end
 
 -- Closed: the handle beside the bank window instead, the mark and the window's name.
 local function showHandle()
+  HF.List.Blur()
   if frame then frame:Hide() end
   if not handle then buildHandle() end
   local wasUp = handle:IsShown()
@@ -1074,6 +1153,9 @@ local function refresh()
   local usable = { [character] = route.CanMove(character), [account] = route.CanMove(account) }
   if not usable[HF._bankType] then HF._bankType = HF._bankType == account and character or account end
   local bankType = HF._bankType
+  -- The groups checked at the other bank are dropped: what the selection bar moves is planned
+  -- against the bank the switch names.
+  if HF._selBank ~= bankType then HF._selected, HF._selBank = {}, bankType end
   -- A run started under the other side of the switch stops: its stacks were planned against that
   -- bank.
   if HF._runSwitch ~= nil and HF._runSwitch ~= bankType and HF.machine then HF.machine:Stop("bank") end
@@ -1126,14 +1208,18 @@ function HF.AddSection(name, spec)
   HF._sections[name] = { spec = spec }
 end
 
--- A new visit: the switch, the list and the press start again (the route has painted already: the
--- window's hooks run after its handlers).
+-- A new visit: the switch, the list, the search, the selection and the press start again (the
+-- route has painted already: the window's hooks run after its handlers).
 local function newVisit()
   HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
+  HF._runInto, HF._runRows, HF._sent = nil, nil, {}
   HF._moving, HF._width, HF._worthW = {}, nil, nil
   -- The switch starts again on the bank the window shows.
   HF._bankType, HF._seenType = nil, nil
   HF._shown, HF._unfolded, HF._open = {}, false, nil
+  HF._searchUp, HF._query, HF._filter, HF._sort = nil, "", "move", "value"
+  HF._selected, HF._selBank = {}, nil
+  HF.List.Reset()
 end
 
 function HF.OnBankOpened()

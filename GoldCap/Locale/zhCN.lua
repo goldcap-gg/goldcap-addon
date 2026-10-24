@@ -1447,4 +1447,17 @@ GC.Locales.zhCN = {
   ["%d groups"] = "%d 个分组",
   ["%d more groups have nothing to move at this bank"] = "另有 %d 个分组在这个银行没有可移动的物品",
   ["1 more group has nothing to move at this bank"] = "另有 1 个分组在这个银行没有可移动的物品",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "可移动 %d",
+  ["All %d"] = "全部 %d",
+  ["By value"] = "按价值",
+  ["By name"] = "按名称",
+  ["No group or item matches your search."] = "没有符合搜索的分组或物品。",
+  ["%d groups selected"] = "已选 %d 个分组",
+  ["1 group selected"] = "已选 1 个分组",
+  ["%d stacks to move, worth about %s"] = "%d 组待移动，约值 %s",
+  ["1 stack to move, worth about %s"] = "1 组待移动，约值 %s",
+  ["Clear the selection"] = "清除选择",
+  ["Moving to %s"] = "正在移至%s",
+  ["Moving to your bags"] = "正在移至背包",
 }

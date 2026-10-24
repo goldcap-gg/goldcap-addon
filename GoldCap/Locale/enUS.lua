@@ -1532,4 +1532,17 @@ GC.Locales.enUS = {
   ["%d groups"] = "%d groups",
   ["%d more groups have nothing to move at this bank"] = "%d more groups have nothing to move at this bank",
   ["1 more group has nothing to move at this bank"] = "1 more group has nothing to move at this bank",
+  -- Its search row, the selection bar and a run's cast bar (UI/HoardList.lua).
+  ["To move here %d"] = "To move here %d",
+  ["All %d"] = "All %d",
+  ["By value"] = "By value",
+  ["By name"] = "By name",
+  ["No group or item matches your search."] = "No group or item matches your search.",
+  ["%d groups selected"] = "%d groups selected",
+  ["1 group selected"] = "1 group selected",
+  ["%d stacks to move, worth about %s"] = "%d stacks to move, worth about %s",
+  ["1 stack to move, worth about %s"] = "1 stack to move, worth about %s",
+  ["Clear the selection"] = "Clear the selection",
+  ["Moving to %s"] = "Moving to %s",
+  ["Moving to your bags"] = "Moving to your bags",
 }

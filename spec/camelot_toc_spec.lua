@@ -57,6 +57,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   RETAIL_ONLY["Core/Hoard.lua"] = true
   RETAIL_ONLY["UI/HoardFrame.lua"] = true
   RETAIL_ONLY["UI/HoardRow.lua"] = true
+  RETAIL_ONLY["UI/HoardList.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

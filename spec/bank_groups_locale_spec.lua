@@ -1,11 +1,12 @@
 local helper = require("spec.spec_helper")
 
--- Every player string the GoldCap Hoard shows (UI/HoardFrame.lua and UI/HoardRow.lua), in all
--- twelve languages, and none of them written with a dash, an ellipsis or a middle dot: the owner's
+-- Every player string the GoldCap Hoard shows (UI/HoardFrame.lua, UI/HoardRow.lua and
+-- UI/HoardList.lua), in all twelve languages, and none of them written with a dash, an ellipsis or a middle dot: the owner's
 -- rule is plain punctuation in everything a player reads. The popup's "Type a whole number" and
 -- "Save" are the craft queue's and BUY's own keys. The two sides of the bank switch are the bank
 -- window's own tab names, Blizzard's BANK and ACCOUNT_BANK_PANEL_TITLE, so they need no key. The
--- window's name is "Hoard" in the player's language beside the brand, GoldCap, which stays.
+-- window's name is "Hoard" in the player's language beside the brand, GoldCap, which stays. The
+-- search box's "Search" is BUY's own key, and a run's "Stop" the vendor sell's and the mail's.
 local KEYS = {
   -- The window's name, at its header and on the handle that brings it back.
   "Hoard",
@@ -23,6 +24,13 @@ local KEYS = {
   "Type a whole number", "Save",
   -- No followed group's item in the bags or this bank.
   "None of your groups' items are in your bags or this bank.",
+  -- The search row's filter and sort, and a search that matches nothing.
+  "To move here %d", "All %d", "By value", "By name", "No group or item matches your search.",
+  -- The selection bar, and its clear button's tooltip.
+  "%d groups selected", "1 group selected", "%d stacks to move, worth about %s", "1 stack to move, worth about %s",
+  "Clear the selection",
+  -- A run's cast bar.
+  "Moving to %s", "Moving to your bags",
 }
 
 -- The bank by group card's, which the Hoard took over from: gone from every language.
