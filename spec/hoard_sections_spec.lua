@@ -1171,6 +1171,42 @@ describe("GoldCap Hoard sections", function()
     assert.is_true(f:GetHeight() > h)
   end)
 
+  -- The bank window's own tab brings up the other bank, a new list: the window takes the height that
+  -- list asks for, as the switch's click would.
+  it("takes its height again when the bank window's own tab shows the other bank", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    -- Nothing in the bags or the character's bank: every group folds there, and the window is low.
+    bags[0], bags[5], bags[6] = {}, {}, {}
+    showing = CHARACTER
+    open()
+    local f = HF._frame
+    local low = f:GetHeight()
+    switchTo(ACCOUNT)
+    assert.equal(ACCOUNT, HF._bankType)
+    local h = f:GetHeight()
+    assert.is_true(h > low)
+    HF.Refresh(false, true)
+    assert.equal(h, f:GetHeight())
+  end)
+
+  -- A bag event outside a run keeps the window's height, but never under the least it has room for:
+  -- rows that came since the list showed less than ROWS_MIN of them get that room.
+  it("grows to its least height at a bag event when the list it kept was shorter", function()
+    manyGroups(GC.Hoard.SEARCH_MIN_GROUPS)
+    -- Nothing in the bags or the Warband Bank: every group folds, and the window is low.
+    bags[0], bags[5], bags[12] = {}, {}, {}
+    open()
+    local f = HF._frame
+    local low, scrollLow = f:GetHeight(), f.scroll:GetHeight()
+    -- Another character puts three groups' items into the Warband Bank: three rows to take out.
+    for k = 1, 3 do bags[12][k] = info(300 + k, 30) end
+    bagsChanged()
+    assert.is_true(f:GetHeight() > low)
+    assert.is_true(f.scroll:GetHeight() > scrollLow)
+    local L = HF.ui.L
+    assert.is_true(f.scroll:GetHeight() >= L.ROWS_MIN * (L.ROW_H + L.ROW_GAP))
+  end)
+
   -- One paint reads each bag slot and each bank tab's slot once, whatever its parts need: here the
   -- groups at the character's own bank, the craft queue's reagents (the tiles), the carry cards (the
   -- Warband Bank) and what Make room put into the Warband Bank (the footer).

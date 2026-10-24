@@ -687,6 +687,12 @@ describe("bank route", function()
       -- The only other: a side of the bank switch a bank cannot use, which moves nothing anyway.
       assert.equal(2, count(hoard, "Disable("))
       assert.equal(1, count(bodyOf(hoard, "local function paintChoice("), "side:Disable()"))
+      -- The sections' buttons through the pair's repaint too: a tile's, beside it, sleeps while
+      -- another press's run goes, in the repaint; the carry cards and the footer disable nothing.
+      local tiles = read(SECTIONS[1])
+      assert.equal(1, count(tiles, "Disable("))
+      assert.equal(1, count(bodyOf(tiles, "local function paintTileButton("), "button:Disable()"))
+      for _, path in ipairs({ SECTIONS[2], SECTIONS[3] }) do assert.is_nil(read(path):find("Disable(", 1, true), path) end
     end)
 
     it("loads in retail only, the Hoard after the route module", function()

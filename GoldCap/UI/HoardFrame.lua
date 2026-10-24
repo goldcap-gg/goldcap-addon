@@ -520,8 +520,8 @@ end
 --- of the id that runs stops it and moves nothing; a press of another id stops it and starts its
 --- own. While its run goes the button is its Stop (UI/HoardList.lua's PaintPair), so that second
 --- press is a press of the same button where it stands. A section's button presses here the same
---- way wherever the section stands, in the scroll or pinned at the window's foot (AddSection's
---- `pinned`, the footer's).
+--- way wherever the section stands, in the scroll or pinned outside it (AddSection: the tiles under
+--- the switch, the footer at the window's foot).
 function HF.Press(button, stacks, into, bankType)
   if bankType == nil then bankType = HF._bankType end
   local rows = {}
@@ -1321,11 +1321,13 @@ end
 -- Its height is set only where nothing stands under the cursor: as it comes up (the first paint of
 -- a bank visit, or back from its handle), and at the player's own click that changes what the list
 -- holds (`layout`: a row, a folder or the fold line opened or closed, a search, the filter, the
--- sort, the bank switch), never while a run goes. Else it keeps the height it had and the scroll
--- takes what the list gained or lost, so the selection bar and the footer at its foot, and a Stop on
--- them, stay where they are through a run and the bag events of its moves (Make room bringing a
--- folded group up, Put back bringing a card to carry). Laid out, not shown: answers false when it
--- has nothing at all to show (no followed group, and every section empty).
+-- sort, the bank switch), and when the other bank comes up by the bank window's own tab, never while
+-- a run goes. Else it keeps the height it had and the scroll takes what the list gained or lost, so
+-- the selection bar and the footer at its foot, and a Stop on them, stay where they are through a
+-- run and the bag events of its moves (Make room bringing a folded group up, Put back bringing a
+-- card to carry); outside a run it grows to the least height when it kept less. Laid out, not
+-- shown: answers false when it has nothing at all to show (no followed group, and every section
+-- empty).
 local function paint(state, layout)
   local beside = place(frame)
   local width, head, inner = widthFor()
@@ -1448,7 +1450,9 @@ local function paint(state, layout)
   if roomH > 0 then foot = foot + roomH + L.SECTION_GAP end
   local least = top + math.min(cy, L.ROWS_MIN * (L.ROW_H + L.ROW_GAP)) + foot
   local height = math.min(top + cy + foot, math.max(least, maxHeight(beside)))
-  if HF._height and not layout then height = HF._height end
+  -- Kept while things move, but outside a run never so short that a part which came since (the
+  -- selection bar's room, the search row) leaves the list fewer than ROWS_MIN rows.
+  if HF._height and not layout then height = HF._runId and HF._height or math.max(HF._height, least) end
   HF._height = height
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
@@ -1504,8 +1508,10 @@ local function refresh(read, layout)
   -- A run started under the other side of the switch stops: its stacks were planned against that
   -- bank.
   if HF._runSwitch ~= nil and HF._runSwitch ~= bankType and HF.machine then HF.machine:Stop("bank") end
-  -- A keep count asked at the other bank goes with it: its row may show another group here.
-  if HF._paintedType ~= nil and HF._paintedType ~= bankType then closeKeep() end
+  -- A keep count asked at the other bank goes with it: its row may show another group here. The
+  -- other bank is a new list, so the window takes its height again, whichever switch or tab chose it.
+  local bankChanged = HF._paintedType ~= nil and HF._paintedType ~= bankType
+  if bankChanged then closeKeep() end
   HF._paintedType = bankType
   if not usable[bankType] then return hideAll() end
   local closed = closedNow()
@@ -1525,7 +1531,7 @@ local function refresh(read, layout)
   local state = stateOf(reading, usable, hasGroups)
   if not frame then build() end
   local wasUp = frame:IsShown()
-  if not paint(state, (layout or not wasUp) and HF._runId == nil) then return hideAll() end
+  if not paint(state, (layout or not wasUp or bankChanged) and HF._runId == nil) then return hideAll() end
   if closed then return showHandle() end
   if handle then handle:Hide() end
   frame:Show()
