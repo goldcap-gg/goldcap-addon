@@ -785,19 +785,17 @@ describe("Key poll wiring", function()
         assert.equal(3, select(2, text:gsub("\n%s*GC%.Sniper%._ShowItemTooltip%(", "")))
       end)
 
-      -- GoldCap's own price block under the item (UI/Tooltip.lua: Vendor, Auction, region price,
-      -- data age) stands aside on the Items board, whose cells already say it, and keeps its place
-      -- on the commodity board.
-      it("keeps GoldCap's price block off an Items board row's tooltip", function()
+      -- GoldCap's own price block under the item (UI/Tooltip.lua) stays on a flip row's tooltip
+      -- (owner, 2026-10-25: "в тултипе пусть будет", only the comparison windows were in the way)
+      -- and stands aside for a Rare finds row alone, which has no price. The realm line that
+      -- repeated the block's region price, with "(ilvl 0)" for a level it did not know, is gone.
+      it("keeps GoldCap's price block on a flip row's tooltip, without the realm line", function()
         local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
         local text = f:read("*a")
         f:close()
         local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
         local enter = text:sub(enterAt)
-        local own = assert(enter:find(
-          'self.goldcapOwnLines = (self.deal and (self.deal.kind == "rare" or GC.Sniper._RealmBoard())) or nil', 1, true))
-        assert.is_true(own < assert(enter:find("GC.Sniper._ShowItemTooltip(self, self.deal.itemID)", 1, true)))
-        -- And the second realm line under the verdict is gone: the Check names the region's price.
+        assert.is_truthy(enter:find('self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil', 1, true))
         assert.is_nil(text:find("local realmValue = GC.Sniper._RealmValue(self.deal.itemID)", 1, true))
       end)
 

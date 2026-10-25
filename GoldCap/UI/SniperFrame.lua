@@ -11185,9 +11185,8 @@ createRow = function(parent, index)
     self.rail:Show()
     hoveredRow = self
     -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
-    -- has no price (GC.Sniper._RareTooltip), and for every row of the Items board, whose cells
-    -- already say what it would (owner, 2026-10-25). Set on every enter: the row is pooled.
-    self.goldcapOwnLines = (self.deal and (self.deal.kind == "rare" or GC.Sniper._RealmBoard())) or nil
+    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
     if not self.deal then return end
     GC.Sniper._BeginInspect(self)
     if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self) end
@@ -11233,8 +11232,9 @@ createRow = function(parent, index)
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
     -- A realm row priced against the region says nothing more about it here: the verdict line
-    -- above says it is a realm item, and the Check names the region's price (owner, 2026-10-25:
-    -- the line read "region reference 77824g (ilvl 0)" under its twin).
+    -- above says it is a realm item, and GoldCap's price block under the item names the region's
+    -- price and its item level (owner, 2026-10-25: the line read "region reference 77824g (ilvl 0)"
+    -- under its twin).
     if not GC.Sniper._RealmValue(self.deal.itemID) and GC.Sniper._RealmNeedsReference(self.deal.itemID) then
       -- A pinned realm item the region has no price for. It is on the board because the player
       -- put it there, and the row cannot say anything about value -- so the tooltip says the

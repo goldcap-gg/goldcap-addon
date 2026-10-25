@@ -66,8 +66,7 @@
   SHOW DETAILS is gone there, its rows stayed empty for these items, and a single item has no
   quantity row. A deal from a group you follow names the group and its price, not your price.
 - DEALS, Items board: hovering a row shows one window. The windows that compare the item with what
-  you wear show only while you hold Shift, as anywhere in the game, and GoldCap's own price lines
-  under the item stay off, since the row already shows them.
+  you wear show only while you hold Shift, as anywhere in the game.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
