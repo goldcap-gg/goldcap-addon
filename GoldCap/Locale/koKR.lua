@@ -1457,6 +1457,8 @@ GC.Locales.koKR = {
   ["%d in bags, %d in your bank"] = "가방에 %d, 캐릭터 은행에 %d",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "가방에 남음: %s ×%d, 캐릭터 은행에 넣을 수 없음",
   ["None of your groups' items are in your bags or this bank."] = "그룹의 아이템이 가방이나 이 은행에 없습니다.",
+  ["None of your groups' items are in your bags or this bank. %s holds some of them: pick it at the top."] =
+    "그룹의 아이템이 가방이나 이 은행에 없습니다. 일부가 %s에 있습니다. 위에서 선택하세요.",
   ["You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press."] =
     "아직 팔로우한 그룹이 없습니다. goldcap.gg의 그룹에서 팔로우하면 GoldCap Companion이 여기로 가져옵니다. 각 그룹이 가방과 이 은행에 가진 것을 한 번에 보관하거나 꺼낼 수 있습니다.",
   -- GoldCap Hoard, the window beside the bank (UI/HoardFrame.lua, UI/HoardRow.lua).

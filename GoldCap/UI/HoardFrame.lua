@@ -1310,6 +1310,21 @@ local function widthFor()
   return width, width - 2 * L.PAD, width - 2 * L.PAD - L.GUTTER
 end
 
+-- No followed group's item is in the bags or this bank: says so, and names the other bank when that
+-- one holds some, read only here where the list is empty, so the player knows where to switch.
+local function noneHere(state)
+  local character, account = banks()
+  local other = state.bankType == account and character or account
+  if state.usable[other] then
+    for _, stack in ipairs(bankOf(state.reading, other)) do
+      if not stack.bound and GC.GroupRules.GroupOf(stack.itemID) then
+        return GC.L["None of your groups' items are in your bags or this bank. %s holds some of them: pick it at the top."]:format(bankName(other))
+      end
+    end
+  end
+  return GC.L["None of your groups' items are in your bags or this bank."]
+end
+
 -- The list's one line of text in place of its rows (frame.empty), `cy` down the scroll: answers
 -- where it ends.
 local function showEmpty(text, cy, inner)
@@ -1413,7 +1428,7 @@ local function paint(state, layout)
   if groupsUp then
     cy = paintHeading(cy, inner, ctx, paintAll(state.groups, writable, ctx, stray)) + L.HEADING_GAP + 2
     -- No group here at all, or none the search finds.
-    local nothing = #state.groups == 0 and GC.L["None of your groups' items are in your bags or this bank."]
+    local nothing = #state.groups == 0 and noneHere(state)
       or (#result.rows == 0 and result.folded == 0 and GC.L["No group or item matches your search."])
     if nothing then
       cy = showEmpty(nothing, cy, inner) + L.ROW_GAP

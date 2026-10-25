@@ -407,6 +407,21 @@ describe("GoldCap Hoard window", function()
     assert.is_false(HF._frame.takeAll:IsEnabled())
   end)
 
+  -- The groups' items are all in the other bank: the line names it, so the player knows where to
+  -- switch; there they show.
+  it("names the other bank when only that one holds the followed groups' items", function()
+    bags = { [0] = { info(9, 20) }, [6] = { info(2, 40) }, [12] = {} }
+    open()
+    assert.equal(ACCOUNT, HF._bankType)
+    assert.same({}, rowNames())
+    assert.equal("None of your groups' items are in your bags or this bank. Bank holds some of them: pick it at the top.",
+      textOf(HF._frame.empty))
+    choose(CHARACTER)
+    assert.equal(CHARACTER, HF._bankType)
+    assert.same({ "Herbs" }, rowNames())
+    assert.is_false(shown(HF._frame.empty))
+  end)
+
   it("shows nothing when neither bank can be used here, or neither has a tab", function()
     canUse = false
     open()
