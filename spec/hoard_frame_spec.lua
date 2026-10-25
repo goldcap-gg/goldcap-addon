@@ -306,6 +306,8 @@ describe("GoldCap Hoard window", function()
     tip = { owner = nil, lines = {} }
     _G.GameTooltip = {
       SetOwner = function(_, owner) tip.owner, tip.lines = owner, {} end,
+      ClearAllPoints = function() end,
+      SetPoint = function(_, ...) tip.point = { ... } end,
       AddLine = function(_, text) tip.lines[#tip.lines + 1] = text end,
       Show = function() end,
       Hide = function() tip.owner = nil end,
@@ -777,8 +779,8 @@ describe("GoldCap Hoard window", function()
     open()
     openRow("Herbs")
     local herbs, T = row("Herbs"), GC.Theme
-    assert.same({ T.IconCoords("trayIn") }, W.state(herbs.store.icon).texCoord)
-    assert.same({ T.IconCoords("trayOut") }, W.state(herbs.take.icon).texCoord)
+    assert.same({ T.IconCoords("arrowDown") }, W.state(herbs.store.icon).texCoord)
+    assert.same({ T.IconCoords("arrowUp") }, W.state(herbs.take.icon).texCoord)
     assert.same({ T.IconCoords("pencil") }, W.state(herbs.keep.pencil).texCoord)
     assert.equal("RIGHT", at(herbs.keep.pencil)[1])
     assert.is_true(herbs.keep:GetWidth() >= herbs.keep.text:GetUnboundedStringWidth() + 8 + 2 * 5)
@@ -1732,7 +1734,7 @@ describe("GoldCap Hoard window", function()
     ticks()
     assert.equal(2, #used)
     bagsChanged()
-    assert.equal("trayIn", glyph(store.icon))
+    assert.equal("arrowDown", glyph(store.icon))
     assert.is_true(shown(take))
     assert.is_true(shown(herbs.worth))
     assert.is_false(shown(herbs.cast.count))

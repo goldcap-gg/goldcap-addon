@@ -126,8 +126,8 @@ end
 -- A row's Store or Take out, as the boards draw them: a small rounded button with the kit's tray
 -- arrow (in for Store, out for Take out), Store in the gold the bags' share wears, Take out quiet.
 local function iconMove(parent, into)
-  local look = into and { variant = "active", ring = STORE_RING, icon = "trayIn", iconColor = K.goldText }
-    or { variant = "ghost", ring = K.windowBorder, icon = "trayOut", iconColor = K.text2 }
+  local look = into and { variant = "active", ring = STORE_RING, icon = "arrowDown", iconColor = K.goldText }
+    or { variant = "ghost", ring = K.windowBorder, icon = "arrowUp", iconColor = K.text2 }
   local b = U.moveButton(parent, into, look)
   b:SetSize(L.MOVE, L.MOVE)
   b.icon:SetSize(L.MOVE_ICON, L.MOVE_ICON)

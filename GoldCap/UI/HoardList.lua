@@ -295,8 +295,8 @@ local function buildSelection()
   bar.hint:SetJustifyH("CENTER")
   colour(bar.hint, K.text3)
   -- Store in the gold fill, Take out ringed in gold, each with the kit's tray arrow before its words.
-  bar.store = U.moveButton(bar, true, { variant = "primary", icon = "trayIn", iconColor = K.onGold, label = true })
-  bar.take = U.moveButton(bar, false, { variant = "active", ring = TAKE_RING, icon = "trayOut", iconColor = K.goldText,
+  bar.store = U.moveButton(bar, true, { variant = "primary", icon = "arrowDown", iconColor = K.onGold, label = true })
+  bar.take = U.moveButton(bar, false, { variant = "active", ring = TAKE_RING, icon = "arrowUp", iconColor = K.goldText,
     label = true })
   bar.store.runId, bar.take.runId = "selection:in", "selection:out"
   for _, button in ipairs({ bar.store, bar.take }) do

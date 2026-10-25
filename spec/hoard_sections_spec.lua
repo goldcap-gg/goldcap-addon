@@ -253,6 +253,8 @@ describe("GoldCap Hoard sections", function()
     tip = { owner = nil, lines = {} }
     _G.GameTooltip = {
       SetOwner = function(_, owner) tip.owner, tip.lines = owner, {} end,
+      ClearAllPoints = function() end,
+      SetPoint = function(_, ...) tip.point = { ... } end,
       AddLine = function(_, text) tip.lines[#tip.lines + 1] = text end,
       AddDoubleLine = function(_, left, right) tip.lines[#tip.lines + 1] = left .. " | " .. right end,
       Show = function() end,
@@ -369,7 +371,14 @@ describe("GoldCap Hoard sections", function()
 
   it("lists in Prices are up's tooltip what it takes out, each price now and usual, its worth and what comes next", function()
     open()
+    -- The kit's helper puts the tooltip beside a window, never inside it (UI/Theme.lua).
+    local beside, real = nil, GC.Theme.ItemTooltipOutside
+    GC.Theme.ItemTooltipOutside = function(owner, window)
+      beside = { owner, window }
+      return real(owner, window)
+    end
     hover(tileButton("pricesUp"))
+    GC.Theme.ItemTooltipOutside = real
     local lines = {}
     for i, line in ipairs(tip.lines) do lines[i] = helper.plain(line) end
     assert.equal("Prices are up", lines[1])
@@ -380,6 +389,8 @@ describe("GoldCap Hoard sections", function()
     assert.is_truthy(lines[6]:find("Mycobloom ×10 | ", 1, true))
     assert.equal("Worth about " .. helper.money("3640g"), lines[7])
     assert.equal("Takes them out to your bags, ready for the Sell tab.", lines[8])
+    -- Beside the window, never over the list it describes, as the approved board draws it.
+    assert.same({ tileButton("pricesUp"), HF._frame }, beside)
   end)
 
   -- The queue needs 30 Resilient Leather: the bags hold 5, the Warband Bank 15 of one quality and

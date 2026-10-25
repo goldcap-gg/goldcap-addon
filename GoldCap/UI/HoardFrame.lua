@@ -638,7 +638,9 @@ end
 local function showMoveTip(button)
   local tooltip = _G.GameTooltip
   if not (tooltip and button.tipTitle) then return end
-  tooltip:SetOwner(button, GC.Theme.TooltipAnchor(button))
+  -- Beside the window, level with the button, as the approved board draws a tile's: never over the
+  -- list it describes.
+  GC.Theme.ItemTooltipOutside(button, frame)
   tooltip:AddLine(GC.Util.ClientText(button.tipTitle), K.goldText[1], K.goldText[2], K.goldText[3])
   if button.tipNote then
     tooltip:AddLine(GC.Util.ClientText(button.tipNote), K.text1[1], K.text1[2], K.text1[3], true)
