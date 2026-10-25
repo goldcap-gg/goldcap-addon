@@ -9,7 +9,8 @@ local KEYS = {
   "Reagents cost %s", "One craft sells for %s after the auction house cut", "Profit %s",
   "No GoldCap price for %s",
   -- The panel's Worth crafting list.
-  "Worth crafting", "%s an hour", "Slow seller", "1 recipe has no GoldCap price for a reagent or what it makes",
+  "Worth crafting", "Sells about %s a day", "Slow seller",
+  "1 recipe makes no profit now", "%d recipes make no profit now", "No recipe here makes a profit now", "1 recipe has no GoldCap price for a reagent or what it makes",
   "%d recipes have no GoldCap price for a reagent or what it makes", "Each reagent at its cheapest quality",
   "No recipe here has a GoldCap price yet",
   -- This recipe, and the two questions it asks (BUY's popup: Add and Save are BUY's own keys).

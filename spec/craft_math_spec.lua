@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- Core/CraftMath.lua: what one craft costs, what it sells for after the auction house cut, the
--- profit, profit an hour, the slow mark and the ranking. Prices are injected functions, in copper.
+-- profit, the slow mark and the ranking. Prices are injected functions, in copper.
 describe("craft maths", function()
   local M
 
@@ -62,25 +62,31 @@ describe("craft maths", function()
     assert.same({ cost = 12000, sells = 9500, profit = -2500 }, r)
   end)
 
-  it("works out profit an hour from the market's daily sales", function()
-    assert.equal(5000, M.PerHour(10000, 12, 1))
-    assert.equal(2500, M.PerHour(10000, 12, 2))
-    assert.is_nil(M.PerHour(10000, nil, 1))
-  end)
-
   it("marks a recipe slow when its item sells under once a day", function()
     assert.is_true(M.IsSlow(0.5)); assert.is_true(M.IsSlow(0))
     assert.is_false(M.IsSlow(1)); assert.is_false(M.IsSlow(nil))
   end)
 
   it("ranks by profit per craft and counts recipes it cannot price", function()
-    local ranked, unpriced = M.Rank({
+    local ranked, unpriced, unprofitable = M.Rank({
       { recipeID = 1, name = "B", result = { profit = 500 } },
       { recipeID = 2, name = "C", result = { profit = 900 } },
       { recipeID = 3, name = "D", result = { missing = { { itemID = 1 } } } },
       { recipeID = 4, name = "A", result = { profit = 500 } } })
     assert.same({ 2, 4, 1 }, { ranked[1].recipeID, ranked[2].recipeID, ranked[3].recipeID })
-    assert.equal(3, #ranked); assert.equal(1, unpriced)
+    assert.equal(3, #ranked); assert.equal(1, unpriced); assert.equal(0, unprofitable)
+  end)
+
+  it("leaves out and counts priced recipes that make no profit", function()
+    local ranked, unpriced, unprofitable = M.Rank({
+      { recipeID = 1, name = "Win", result = { profit = 1 } },
+      { recipeID = 2, name = "Even", result = { profit = 0 } },
+      { recipeID = 3, name = "Lose", result = { profit = -9690 } },
+      { recipeID = 4, name = "Unknown", result = { missing = { { itemID = 1 } } } } })
+    assert.same({ 1 }, { ranked[1].recipeID }); assert.equal(1, #ranked)
+    assert.equal(1, unpriced); assert.equal(2, unprofitable)
+    local none, _, all = M.Rank({ { recipeID = 5, name = "Lose", result = { profit = -1 } } })
+    assert.equal(0, #none); assert.equal(1, all)
   end)
 
   it("breaks a tie of profit and name by recipe id", function()

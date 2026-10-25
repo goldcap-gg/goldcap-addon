@@ -1,10 +1,11 @@
 local _, GC = ...
 
 -- Retail's profession window: a GoldCap panel beside it, on the recipes page. Worth crafting lists
--- the recipes this character knows in the open profession by profit per craft, each reagent at its
--- cheapest priced quality, with the profit an hour where the market's daily sales are known, and
--- marks a recipe whose item sells under once a day. A recipe GoldCap cannot price (a reagent or
--- what it makes has no price) is counted under the list, never ranked as 0 profit.
+-- the recipes this character knows in the open profession that make a profit, by profit per craft,
+-- each reagent at its cheapest priced quality, with how many of its item sell a day where that is
+-- known, and marks a recipe whose item sells under once a day. A recipe that makes no profit, and
+-- one GoldCap cannot price (a reagent or what it makes has no price), are each counted under the
+-- list, never listed.
 --
 -- The panel is a frame of its own, a child of the crafting page so it goes with the page, and it
 -- leaves Blizzard's frames as they are: no hook, no method replaced. It shows only for the
@@ -71,6 +72,8 @@ local function buildWorth(body)
   v.unpriced = wrapped(v, LAYOUT.SMALL, LAYOUT.INNER)
   v.unpriced:SetPoint("BOTTOMLEFT", v.note, "TOPLEFT", 0, LAYOUT.LINE_GAP)
   setColor(v.unpriced, T.color.fgMuted)
+  v.unprofitable = wrapped(v, LAYOUT.SMALL, LAYOUT.INNER)
+  setColor(v.unprofitable, T.color.fgMuted)
   v.scroll = CreateFrame("ScrollFrame", nil, v, "UIPanelScrollFrameTemplate")
   if T.QuietScrollBar then T.QuietScrollBar(v.scroll) end
   v.content = CreateFrame("Frame", nil, v.scroll)
@@ -99,8 +102,8 @@ local function newRow(v, index)
   row.name = wrapped(frame, LAYOUT.NAME, LAYOUT.ROW_W)
   row.name:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -LAYOUT.ROW_PAD)
   setColor(row.name, T.color.fg)
-  row.hour = wrapped(frame, LAYOUT.SMALL, LAYOUT.ROW_W)
-  setColor(row.hour, T.color.fgMuted)
+  row.pace = wrapped(frame, LAYOUT.SMALL, LAYOUT.ROW_W)
+  setColor(row.pace, T.color.fgMuted)
   row.slow = wrapped(frame, LAYOUT.SMALL, LAYOUT.ROW_W)
   local warn = GC.Kit and GC.Kit.Tokens and GC.Kit.Tokens.color and GC.Kit.Tokens.color.warn or T.color.fgMuted
   setColor(row.slow, warn)
@@ -119,12 +122,15 @@ local function paintRow(row, data, previous)
   setColor(row.profit, profit > 0 and T.color.green or (profit < 0 and T.color.red or T.color.fg))
   row.name:SetText(data.name)
   row.name:SetWidth(math.max(LAYOUT.NAME_MIN, LAYOUT.ROW_W - (row.profit:GetStringWidth() or 0) - LAYOUT.PROFIT_GAP))
-  -- Top to bottom: the name beside the profit, then profit an hour and the slow mark under them,
-  -- each line as tall as its wrapped text.
+  -- Top to bottom: the name beside the profit, then how many sell a day or the slow mark under
+  -- them (never both: a slow seller sells under one a day), each line as tall as its wrapped text.
   local y = LAYOUT.ROW_PAD + math.max(row.name:GetHeight(), row.profit:GetHeight())
-  local perHour = GC.CraftMath.PerHour(profit, data.sold, data.recipe and data.recipe.per or 1)
+  local sold, pace = data.sold, nil
+  if type(sold) == "number" and not GC.CraftMath.IsSlow(sold) then
+    pace = GC.L["Sells about %s a day"]:format(GC.Util.Grouped(sold))
+  end
   for _, part in ipairs({
-    { fs = row.hour, text = perHour and GC.L["%s an hour"]:format(GC.Util.Money(perHour)) or nil },
+    { fs = row.pace, text = pace },
     { fs = row.slow, text = GC.CraftMath.IsSlow(data.sold) and GC.L["Slow seller"] or nil },
   }) do
     if part.text then
@@ -148,8 +154,8 @@ local function paintRow(row, data, previous)
   row.frame:Show()
 end
 
---- Worth crafting's rows: every known recipe GoldCap can price, by profit per craft, and how many
---- it could not price.
+--- Worth crafting's rows: every known recipe that makes a profit, by profit per craft, then how
+--- many GoldCap could not price and how many it priced that make no profit.
 function P.Rows()
   local CC = GC.CraftClient
   local rows = {}
@@ -166,7 +172,7 @@ end
 function P.PaintWorth()
   local v = P._frame.worth
   v.heading:SetText(GC.L["Worth crafting"])
-  local ranked, unpriced = P.Rows()
+  local ranked, unpriced, unprofitable = P.Rows()
   P._rows = ranked
   local previous, total = nil, 0
   for i, data in ipairs(ranked) do
@@ -181,7 +187,8 @@ function P.PaintWorth()
   v.content:SetHeight(math.max(1, total))
 
   if #ranked == 0 then
-    v.empty:SetText(GC.L["No recipe here has a GoldCap price yet"])
+    v.empty:SetText(unprofitable > 0 and GC.L["No recipe here makes a profit now"]
+      or GC.L["No recipe here has a GoldCap price yet"])
     v.empty:Show()
     v.scroll:Hide()
   else
@@ -197,6 +204,17 @@ function P.PaintWorth()
     footer = footer + LAYOUT.LINE_GAP + v.unpriced:GetHeight()
   else
     v.unpriced:Hide()
+  end
+  -- Under an empty list the empty line already says that no recipe makes a profit.
+  if unprofitable > 0 and #ranked > 0 then
+    v.unprofitable:SetText(unprofitable == 1 and GC.L["1 recipe makes no profit now"]
+      or GC.L["%d recipes make no profit now"]:format(unprofitable))
+    v.unprofitable:ClearAllPoints()
+    v.unprofitable:SetPoint("BOTTOMLEFT", unpriced > 0 and v.unpriced or v.note, "TOPLEFT", 0, LAYOUT.LINE_GAP)
+    v.unprofitable:Show()
+    footer = footer + LAYOUT.LINE_GAP + v.unprofitable:GetHeight()
+  else
+    v.unprofitable:Hide()
   end
   -- The list takes what the heading and the footer leave, both as tall as their wrapped text.
   v.scroll:ClearAllPoints()

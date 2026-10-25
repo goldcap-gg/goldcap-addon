@@ -3,9 +3,9 @@ local W = require("spec.support.wow_frames")
 local TS = require("spec.support.trade_skill")
 
 -- UI/CraftPanel.lua: GoldCap's panel beside the profession window. Worth crafting lists the
--- character's known recipes of the open profession by profit per craft, with profit an hour where
--- the market's daily sales are known, and marks slow sellers; a recipe GoldCap cannot price is
--- counted, never ranked as 0.
+-- character's known recipes of the open profession that make a profit by profit
+-- per craft, with how many sell a day where that is known, and marks slow sellers; a recipe that
+-- makes no profit, and one GoldCap cannot price, are counted, never listed.
 describe("craft panel", function()
   local GC, P, restore, VALUES
 
@@ -82,7 +82,7 @@ describe("craft panel", function()
     end)
   end
 
-  it("lists known recipes by profit per craft, with profit an hour where daily sales are known", function()
+  it("lists known recipes that make a profit by profit per craft, with sales a day where known", function()
     load()
     prices()
     local f = show()
@@ -93,29 +93,89 @@ describe("craft panel", function()
     local first, second, third = P._rows[1].widget, P._rows[2].widget, P._rows[3].widget
     assert.equal("A", first.name:GetText())
     assert.equal(GC.Util.Money(900), first.profit:GetText())
-    assert.equal(GC.L["%s an hour"]:format(GC.Util.Money(GC.CraftMath.PerHour(900, 12, 1))), first.hour:GetText())
-    assert.is_true(first.hour:IsShown())
+    assert.equal(GC.L["Sells about %s a day"]:format("12"), first.pace:GetText())
+    assert.is_true(first.pace:IsShown())
     assert.is_false(first.slow:IsShown())
-    assert.is_false(second.hour:IsShown())
+    assert.is_false(second.pace:IsShown())
     assert.is_false(second.slow:IsShown())
     assert.is_true(third.slow:IsShown())
+    assert.is_false(third.pace:IsShown())
     assert.equal(GC.L["Slow seller"], third.slow:GetText())
     -- Rows stack in that order, each under the one before.
     local _, above = third.frame:GetPoint(1)
     assert.equal(second.frame, above)
   end)
 
-  it("paints profit green and a loss red", function()
+  it("paints profit green", function()
     load()
     prices()
-    VALUES[102] = commodity(5000)
     show()
-    local last = P._rows[#P._rows].widget
-    assert.equal(GC.Util.Money(1900 - 5000), last.profit:GetText())
-    local r, g, b = last.profit:GetTextColor()
-    assert.same(GC.Theme.color.red, { r, g, b })
-    r, g, b = P._rows[1].widget.profit:GetTextColor()
+    local r, g, b = P._rows[1].widget.profit:GetTextColor()
     assert.same(GC.Theme.color.green, { r, g, b })
+  end)
+
+  it("lists only recipes that make a profit and counts the rest under the list", function()
+    load()
+    prices()
+    local f = show()
+    assert.is_false(f.worth.unprofitable:IsShown())
+    VALUES[102] = commodity(5000) -- B loses 3,100 a craft
+    P.Refresh()
+    local ids = {}
+    for _, row in ipairs(P._rows) do ids[#ids + 1] = row.recipeID end
+    assert.same({ 1, 3 }, ids)
+    assert.equal(GC.L["1 recipe makes no profit now"], f.worth.unprofitable:GetText())
+    assert.is_true(f.worth.unprofitable:IsShown())
+    -- Stacked above the unpriced line (D), which sits above the note.
+    local _, relative = f.worth.unprofitable:GetPoint(1)
+    assert.equal(f.worth.unpriced, relative)
+    VALUES[103] = commodity(1900) -- C makes exactly 0
+    P.Refresh()
+    assert.equal(GC.L["%d recipes make no profit now"]:format(2), f.worth.unprofitable:GetText())
+    VALUES[104] = commodity(1900) -- D priced, makes 0
+    P.Refresh()
+    assert.is_false(f.worth.unpriced:IsShown())
+    assert.equal(GC.L["%d recipes make no profit now"]:format(3), f.worth.unprofitable:GetText())
+    _, relative = f.worth.unprofitable:GetPoint(1)
+    assert.equal(f.worth.note, relative)
+  end)
+
+  it("says no recipe makes a profit when every priced recipe loses, and no price when none is priced", function()
+    load()
+    prices()
+    VALUES[101], VALUES[102], VALUES[103] = commodity(5000), commodity(5000), commodity(5000)
+    local f = show()
+    assert.same({}, P._rows)
+    assert.is_true(f.worth.empty:IsShown())
+    assert.equal(GC.L["No recipe here makes a profit now"], f.worth.empty:GetText())
+    assert.is_false(f.worth.unprofitable:IsShown()) -- the empty line says it already
+    VALUES = {}
+    P.Refresh()
+    assert.equal(GC.L["No recipe here has a GoldCap price yet"], f.worth.empty:GetText())
+    assert.is_false(f.worth.unprofitable:IsShown())
+  end)
+
+  it("says how many sell a day: rounded, grouped, and Slow seller alone under one a day", function()
+    load()
+    prices()
+    VALUES[901], VALUES[902], VALUES[903] = commodity(2000, 2.6), commodity(2000, 1234), commodity(2000, 1)
+    show()
+    local text = {}
+    for _, row in ipairs(P._rows) do
+      local w = row.widget
+      text[row.recipeID] = w.pace:IsShown() and w.pace:GetText() or false
+      assert.is_false(w.slow:IsShown())
+    end
+    assert.equal(GC.L["Sells about %s a day"]:format("3"), text[1])
+    assert.equal(GC.L["Sells about %s a day"]:format(GC.Util.Grouped(1234)), text[2])
+    assert.equal(GC.L["Sells about %s a day"]:format("1"), text[3])
+    VALUES[901], VALUES[902], VALUES[903] = commodity(2000, 0.9), commodity(2000, 0), commodity(2000)
+    P.Refresh()
+    for _, row in ipairs(P._rows) do
+      local w = row.widget
+      assert.is_false(w.pace:IsShown())
+      assert.equal(row.recipeID ~= 3, w.slow:IsShown())
+    end
   end)
 
   it("counts recipes with no price in the footer, never as rows", function()

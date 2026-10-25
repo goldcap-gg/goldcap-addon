@@ -61,9 +61,9 @@
   cost, what one craft sells for after the auction house cut, and the profit. A reagent GoldCap
   has no price for is named instead of a number. When a recipe has too many reagents to leave
   room, or the window is minimized, the same lines show in the GoldCap panel beside the window.
-- Crafting: a GoldCap panel beside the profession window lists the recipes you know by profit per
-  craft, with the profit an hour where the market's daily sales are known, and marks recipes whose
-  item sells less than once a day.
+- Crafting: a GoldCap panel beside the profession window lists the recipes you know that make a
+  profit, best profit per craft first, and says about how many of each item sell a day, or that it
+  sells less than once a day. Under the list it counts the recipes that make no profit now.
 - Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
   bags, bank, mailbox and on the auction house. The queue shows which reagents are missing, and
   Make a BUY list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent

@@ -1,8 +1,8 @@
 local _, GC = ...
 
 -- Crafting in the profession window (retail): what one craft of a recipe costs in reagents, what
--- it sells for after the auction house cut, and the profit; profit an hour of the market's daily
--- sales, the slow mark, and the order the Worth crafting list reads in.
+-- it sells for after the auction house cut, and the profit; the slow mark, and the order the Worth
+-- crafting list reads in, which keeps only the recipes that make a profit.
 --
 -- Pure: every price is a function the caller hands in (Services/CraftClient.lua's UnitOf and
 -- SellOf), in copper. A recipe is the snapshot CraftClient makes:
@@ -85,26 +85,21 @@ function M.Profit(recipe, unitOf, sellUnitOf, open)
   return { cost = cost, sells = sells, profit = sells - cost }
 end
 
---- Profit an hour if every craft sold at the market's pace: `sold` items a day, `per` items a
---- craft. nil when the market's daily sales are not known.
-function M.PerHour(profit, sold, per)
-  if type(sold) ~= "number" or type(profit) ~= "number" then return nil end
-  return math.floor(profit * sold / (24 * math.max(1, per or 1)))
-end
-
 --- A crafted item that sells less than once a day on the market. Unknown sales are not slow.
 function M.IsSlow(sold)
   return type(sold) == "number" and sold < 1
 end
 
---- The Worth crafting order: priced rows by profit per craft, highest first, then by name, then by
---- recipe id. A row whose result is missing a price is left out and counted, never ranked as 0.
+--- The Worth crafting order: priced rows that make a profit, by profit per craft, highest first,
+--- then by name, then by recipe id. Returns ranked, unpriced, unprofitable: a row whose result is
+--- missing a price is left out and counted, never ranked as 0; a priced row with no profit (0 or a
+--- loss) is left out and counted too.
 function M.Rank(rows)
-  local ranked, unpriced = {}, 0
+  local ranked, unpriced, unprofitable = {}, 0, 0
   for _, row in ipairs(type(rows) == "table" and rows or {}) do
     local r = row.result
     if type(r) == "table" and type(r.profit) == "number" and r.missing == nil then
-      ranked[#ranked + 1] = row
+      if r.profit > 0 then ranked[#ranked + 1] = row else unprofitable = unprofitable + 1 end
     else
       unpriced = unpriced + 1
     end
@@ -115,5 +110,5 @@ function M.Rank(rows)
     if an ~= bn then return an < bn end
     return (a.recipeID or 0) < (b.recipeID or 0)
   end)
-  return ranked, unpriced
+  return ranked, unpriced, unprofitable
 end
