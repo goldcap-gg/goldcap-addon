@@ -524,13 +524,13 @@ local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r"
 local function loginText(s)
   local k = s.kind
   if k == "bundled" then
-    return GC.L["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"]:format(LINK)
+    return GC.L["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"]:format(LINK)
   elseif k == "manual" or k == "manual_stale" then
     return GC.L["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"]:format(ago(s.age), LINK)
   elseif (k == "app_stale" or k == "crowd_stale") and s.age then
     return GC.L["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"]:format(ago(s.age), LINK)
   elseif k == "error" then
-    return GC.L["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"]:format(LINK)
+    return GC.L["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"]:format(LINK)
   elseif k == "own" then
     return GC.L["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"]:format(LINK)
   end

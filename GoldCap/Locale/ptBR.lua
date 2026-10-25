@@ -1342,14 +1342,14 @@ GC.Locales.ptBR = {
   ["Everyone's prices are in, from %s ago"] = "Os preços de todos os jogadores chegaram, de %s atrás",
   ["No prices from other players for this auction house yet"] =
     "Ainda não há preços de outros jogadores para esta casa de leilões",
-  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
-    "O GoldCap não tem preços recentes do seu reino, então o DEALS não encontra ofertas. O GoldCap Companion traz os preços e os mantém atualizados: %s",
+  ["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "Não há preços recentes do seu reino, então o DEALS não encontra ofertas. O GoldCap Companion traz os preços e os mantém atualizados: %s",
   ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
     "Os preços que você colou têm %s. O GoldCap Companion busca preços recentes a cada 30 minutos e traz seus grupos do goldcap.gg: %s",
   ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
     "O GoldCap Companion não envia preços há %s. Confira se ele está em execução, o ícone fica ao lado do relógio: %s",
-  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
-    "O GoldCap não conseguiu ler o que o Companion gravou. Atualize o GoldCap e o GoldCap Companion: %s",
+  ["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "Não foi possível ler o que o Companion gravou. Atualize o GoldCap e o GoldCap Companion: %s",
   ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
     "O GoldCap Companion soma às suas varreduras as de todos os jogadores do GoldCap nesta casa de leilões, para mais itens com preço e preços mais recentes: %s",
   ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =

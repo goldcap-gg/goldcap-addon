@@ -1248,14 +1248,14 @@ GC.Locales.zhCN = {
   ["The Companion's prices could not be read"] = "无法读取 Companion 的价格",
   ["Everyone's prices are in, from %s ago"] = "所有人的价格已到，来自 %s前",
   ["No prices from other players for this auction house yet"] = "这个拍卖行还没有其他玩家的价格",
-  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
-    "GoldCap 没有你所在服务器的最新价格，所以 DEALS 找不到捡漏。GoldCap Companion 会带来价格并自动保持最新：%s",
+  ["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "没有你所在服务器的最新价格，所以 DEALS 找不到捡漏。GoldCap Companion 会带来价格并自动保持最新：%s",
   ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
     "你粘贴的价格已经是 %s 前的了。GoldCap Companion 每 30 分钟获取一次最新价格，还会带来你在 goldcap.gg 的分组：%s",
   ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
     "GoldCap Companion 已经 %s 没有发送价格了。请检查它是否在运行，它的图标在时钟旁边：%s",
-  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
-    "GoldCap 无法读取 Companion 写入的内容。请更新 GoldCap 和 GoldCap Companion：%s",
+  ["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "无法读取 Companion 写入的内容。请更新 GoldCap 和 GoldCap Companion：%s",
   ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
     "GoldCap Companion 会把所有 GoldCap 玩家对这个拍卖行的扫描加到你的扫描里，有价格的物品更多，价格也更新：%s",
   ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =

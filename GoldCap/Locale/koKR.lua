@@ -1281,14 +1281,14 @@ GC.Locales.koKR = {
   ["The Companion's prices could not be read"] = "Companion의 가격을 읽을 수 없습니다",
   ["Everyone's prices are in, from %s ago"] = "모두의 가격이 반영됨, %s 전 기준",
   ["No prices from other players for this auction house yet"] = "이 경매장에는 아직 다른 플레이어의 가격이 없습니다",
-  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
-    "GoldCap에 이 서버의 최신 가격이 없어 DEALS가 특가를 찾지 못합니다. GoldCap Companion이 가격을 가져와 늘 최신으로 유지합니다: %s",
+  ["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "이 서버의 최신 가격이 없어 DEALS가 특가를 찾지 못합니다. GoldCap Companion이 가격을 가져와 늘 최신으로 유지합니다: %s",
   ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
     "붙여넣은 가격은 %s 전 것입니다. GoldCap Companion이 30분마다 최신 가격을 가져오고 goldcap.gg의 그룹도 가져옵니다: %s",
   ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
     "GoldCap Companion이 %s 동안 가격을 보내지 않았습니다. 실행 중인지 확인하세요. 아이콘은 시계 옆에 있습니다: %s",
-  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
-    "GoldCap이 Companion이 기록한 내용을 읽지 못했습니다. GoldCap과 GoldCap Companion을 업데이트하세요: %s",
+  ["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "Companion이 기록한 내용을 읽지 못했습니다. GoldCap과 GoldCap Companion을 업데이트하세요: %s",
   ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
     "GoldCap Companion이 이 경매장에 대한 모든 GoldCap 플레이어의 검색을 내 검색에 더해 줘서, 가격이 있는 아이템이 늘고 가격도 더 최신이 됩니다: %s",
   ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =

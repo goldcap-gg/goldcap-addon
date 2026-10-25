@@ -1331,14 +1331,14 @@ GC.Locales.enUS = {
   ["Everyone's prices are in, from %s ago"] = "Everyone's prices are in, from %s ago",
   ["No prices from other players for this auction house yet"] =
     "No prices from other players for this auction house yet",
-  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
-    "GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s",
+  ["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s",
   ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
     "Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s",
   ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
     "GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s",
-  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
-    "GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s",
+  ["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s",
   ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
     "GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s",
   ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =
