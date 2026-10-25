@@ -614,6 +614,65 @@ describe("Sniper buy dialog verdict block", function()
     assert.is_true(shapes[#shapes].actionable)
   end)
 
+  -- Check on an Items lot (2026-10-25): only what GoldCap knows about a realm item. No
+  -- transcript to open (its rows are about commodities and stood empty), no quantity row for one
+  -- item, and the sentence says how often it sold this week when goldcap.gg counted it.
+  it("shows a realm lot without Details, without a quantity for one item, with its week's sales", function()
+    local GC, stamp = load()
+    helper.loadModule("Core/ItemsBoard.lua", GC)
+    GC.Data.FlipFacts = function(itemID) return itemID == 42 and { sales7d = 18, realms = 11 } or nil end
+    local shapes = {}
+    local d = fakeDialog({ layoutBlocks = function(shape) shapes[#shapes + 1] = shape end })
+    setUpvalue(stamp, "dialog", d)
+    local function lot(quantity)
+      return { status = "WATCH", buyable = false, quantity = quantity, entryTotal = 179510000,
+        reference = 778240000, reasons = { "realm_item_unverified" },
+        candidate = { auctionID = 9, buyout = 179510000, quantity = quantity } }
+    end
+
+    stamp({ itemID = 42, isCommodity = false, qty = 1 }, lot(1))
+    assert.is_false(shapes[#shapes].details)
+    assert.is_false(shapes[#shapes].qty)
+    assert.equal("Sold 18 times in 7 days on 11 realms", d.verdictHead.text)
+
+    stamp({ itemID = 42, isCommodity = false, qty = 3 }, lot(3))
+    assert.is_false(shapes[#shapes].details)
+    assert.is_true(shapes[#shapes].qty)
+
+    stamp({ itemID = 7, isCommodity = false, qty = 1 }, lot(1)) -- no sales counted: the tone's own words
+    assert.equal(GC.CheckVerdict.TONE_SENTENCE.unverified, d.verdictHead.text)
+
+    stamp({ itemID = 42 }, { status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, reasons = {} })
+    assert.is_true(shapes[#shapes].details)
+    assert.is_true(shapes[#shapes].qty)
+  end)
+
+  -- A cap from a group the player follows is the group's price, not theirs: the panel names the
+  -- group where the tone word goes, and the group's price in the caption.
+  it("names the group a followed cap came from, and its price", function()
+    local _, stamp = load()
+    local note = { text = "" }
+    function note:SetText(t) self.text = t end
+    function note:Show() end
+    local d = fakeDialog({ verdictLabel = fakeVerdictHead(), verdictAmountNote = note })
+    setUpvalue(stamp, "dialog", d)
+    local function cap(followed)
+      return { status = "WATCH", buyable = false, cap = true, followed = followed, quantity = 1,
+        entryTotal = 15770000, entryUnitDisplay = 15770000, capUnit = 7117600000, reasons = {},
+        candidate = { auctionID = 9, buyout = 15770000, quantity = 1 } }
+    end
+
+    stamp({ itemID = 42, isCommodity = false, qty = 1, capGroup = "Plate Transmog" }, cap(true))
+    assert.equal("Plate Transmog", d.verdictLabel.text)
+    assert.is_truthy(note.text:find("at or under the group's price of ", 1, true))
+    assert.equal("From a group you follow on goldcap.gg. Whether it resells is yours to judge.", d.verdictHead.text)
+
+    stamp({ itemID = 42, isCommodity = false, qty = 1, capGroup = "Plate Transmog" }, cap(nil))
+    assert.equal("At your price", d.verdictLabel.text)
+    assert.is_truthy(note.text:find("at or under your price of ", 1, true))
+  end)
+
   it("hides the diagnostic line and contributes no height to it by default", function()
     local _, stamp = load() -- no debug key set -> off
     local d = fakeDialog()
@@ -767,7 +826,7 @@ describe("Sniper buy dialog verdict block", function()
       local layout = section(text, "local function layoutBlocks(shape)", "d.layoutBlocks = layoutBlocks")
       assert.is_truthy(layout:find("d.reasonText:GetStringHeight()", 1, true))
       assert.is_truthy(layout:find("place(gridBlock, gridH,", 1, true))
-      assert.is_truthy(layout:find("d.fixedHeightOpen = above + gridH", 1, true))
+      assert.is_truthy(layout:find("d.fixedHeightOpen = details and (above + gridH)", 1, true))
     end)
 
     it("exposes applyDetailsState on the dialog table for the resize hook to call", function()

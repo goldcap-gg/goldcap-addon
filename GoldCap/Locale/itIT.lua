@@ -662,8 +662,6 @@ GC.Locales.itIT = {
     "sopra il più economico, nel quarto economico · %s unità davanti",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "sopra il più economico, entro la portata del giorno · %s unità davanti",
-  ["against the region's own price for this item, after the 5% cut, if it sells"] =
-    "rispetto al prezzo regionale di questo oggetto, al netto del 5%, se si vende",
   ["age %ss"] = "%ss fa",
   ["another purchase took over: nothing was confirmed"] =
     "un altro acquisto è subentrato: non è stato confermato nulla",
@@ -804,8 +802,6 @@ GC.Locales.itIT = {
     "acquisto di merce precedente chiuso. Premi %s per ricontrollare il prezzo",
   ["price changed after you closed the buy window: nothing was bought"] =
     "il prezzo è cambiato dopo che hai chiuso la finestra di acquisto: non è stato comprato nulla",
-  ["price checked, sale speed unknown. This one is your call"] =
-    "prezzo verificato, velocità di vendita ignota. Questa la decidi tu",
   ["price confirmed. Click Buy to purchase"] = "prezzo confermato. Clicca Buy per comprare",
   ["price rose %.1fx, still safe. Confirm"] = "il prezzo è salito di %.1fx, ancora sicuro, conferma",
   ["price stands %d of %d"] = "il tuo prezzo: %d su %d",
@@ -825,8 +821,6 @@ GC.Locales.itIT = {
     "la quotazione scade tra %d s. Premi Confirm per comprare",
   ["re-checking what remains at a safe price..."] =
     "ricontrollo di ciò che resta a un prezzo sicuro...",
-  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
-    "oggetto di reame, velocità di vendita non verificata · riferimento regionale %s (livello %d)",
   ["recent sales (newest first):"] = "vendite recenti (dalla più nuova):",
   ["region %s · bundled: %d items (%s), imported: %s"] =
     "regione %s · inclusi: %d oggetti (%s), importati: %s",
@@ -1612,4 +1606,11 @@ GC.Locales.itIT = {
   ["Sells on %s in about %d days"] = "Su %s si vende in circa %d giorni",
   ["Sold once in 7 days"] = "Venduto una volta in 7 giorni",
   ["Sold %d times in 7 days"] = "Venduto %d volte in 7 giorni",
+  ["after the 5% cut, if it sells at the region's price"] = "dopo la commissione del 5%, se si vende al prezzo della regione",
+  ["a unit, at or under the group's price of %s"] = "a unità, al prezzo del gruppo di %s o meno",
+  ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "Da un gruppo che segui su goldcap.gg. Se si rivende lo giudichi tu.",
+  ["Region price"] = "Prezzo della regione",
+  ["Group's price"] = "Prezzo del gruppo",
+  ["at or under the group's price. Click Buy to purchase"] = "al prezzo del gruppo o meno. Clicca Buy per acquistare",
+  ["price checked a moment ago. Whether it sells is your call"] = "prezzo verificato un attimo fa. Se si vende lo decidi tu",
 }

@@ -647,8 +647,6 @@ GC.Locales.ukUA = {
     "вище найдешевшого, у дешевій чверті · попереду %s шт.",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "вище найдешевшого, у межах денного розмаху · попереду %s шт.",
-  ["against the region's own price for this item, after the 5% cut, if it sells"] =
-    "проти регіональної ціни цього предмета, за вирахуванням 5%, якщо він продасться",
   ["age %ss"] = "%sс тому",
   ["another purchase took over: nothing was confirmed"] =
     "інша купівля зайняла її місце, нічого не підтверджено",
@@ -787,8 +785,6 @@ GC.Locales.ukUA = {
     "попередню купівлю товару завершено. %s, щоб перевірити ціну ще раз",
   ["price changed after you closed the buy window: nothing was bought"] =
     "ціна змінилася після закриття вікна купівлі: нічого не куплено",
-  ["price checked, sale speed unknown. This one is your call"] =
-    "ціну перевірено, швидкість продажу невідома. Вирішувати вам",
   ["price confirmed. Click Buy to purchase"] =
     "ціну підтверджено. Натисніть Buy, щоб купити",
   ["price rose %.1fx, still safe. Confirm"] = "ціна зросла в %.1fx, усе ще безпечно. Підтвердіть",
@@ -809,8 +805,6 @@ GC.Locales.ukUA = {
     "котирування спливає за %d с. Натисніть Confirm, щоб купити",
   ["re-checking what remains at a safe price..."] =
     "перевіряємо ще раз, що лишилося за безпечною ціною...",
-  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
-    "предмет реалму, швидкість продажу не перевірено · еталон регіону %s (рів. предмета %d)",
   ["recent sales (newest first):"] = "останні продажі (найновіші зверху):",
   ["region %s · bundled: %d items (%s), imported: %s"] =
     "регіон %s · вбудовано: %d предметів (%s), імпортовано: %s",
@@ -1683,4 +1677,11 @@ GC.Locales.ukUA = {
   ["Sells on %s in about %d days"] = "На %s продається приблизно за %d дн.",
   ["Sold once in 7 days"] = "Один продаж за 7 дн.",
   ["Sold %d times in 7 days"] = "Продажів за 7 дн.: %d",
+  ["after the 5% cut, if it sells at the region's price"] = "за вирахуванням 5%, якщо продасться за ціною регіону",
+  ["a unit, at or under the group's price of %s"] = "за штуку, за ціною групи %s або нижче",
+  ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "З групи, на яку ви підписані на goldcap.gg. Чи перепродасться, вирішувати вам.",
+  ["Region price"] = "Ціна регіону",
+  ["Group's price"] = "Ціна групи",
+  ["at or under the group's price. Click Buy to purchase"] = "за ціною групи або дешевше. Натисніть Buy, щоб купити",
+  ["price checked a moment ago. Whether it sells is your call"] = "ціну щойно перевірено. Чи продасться, вирішувати вам",
 }

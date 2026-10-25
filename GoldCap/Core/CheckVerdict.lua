@@ -88,8 +88,10 @@ GC.CheckVerdict.HERO_CAPTION = {
   days = "to clear %d units at %s sold a day, with %s tied up the whole time",
   units = "is what this market absorbs. Past that you are buying stock you will sit on",
   unpriceable = "any figure here would be invented out of the very number being refused",
-  reference = "against the region's own price for this item, after the 5% cut, if it sells",
+  reference = "after the 5% cut, if it sells at the region's price",
   cap = "a unit, at or under your price of %s",
+  -- A cap from a group the player follows (decision.followed): the group's price, not theirs.
+  cap_group = "a unit, at or under the group's price of %s",
   -- WoW: Forever. What a vendor pays is exact, so the profit is sure; a resale at the scan's AH
   -- value is not, and how fast it would sell is not known at all.
   vendor = "sure profit: a vendor pays %s each",
@@ -109,6 +111,7 @@ GC.CheckVerdict.TONE_SENTENCE = {
   -- IS measured then, from the region's sales, and the facts below say where.
   routed = "The price is checked against what this sold for across the region. Where it sells best is below.",
   cap = "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
+  capGroup = "From a group you follow on goldcap.gg. Whether it resells is yours to judge.",
   gold = "Everything else checks out. With more gold on this character, this is a buy.",
   vendor = "Checked against the live auction house a moment ago.",
   market = "Checked against the live auction house a moment ago.",
@@ -143,6 +146,10 @@ GC.CheckVerdict.FACT_LABEL = {
   worstCaseBack = "Worst case back",
   yourMinimum = "Your minimum",
   yourPrice = "Your price",
+  -- What a realm lot or a cap is measured against: the region's price for the item (the
+  -- import's reference, or its market value), and a followed group's own deal price.
+  regionPrice = "Region price",
+  groupPrice = "Group's price",
   -- Where a flip sells (context.route): the realm to sell it on among the player's, whether this
   -- realm is among the five cheapest to buy it on, and a realm with no character that pays more.
   sellOn = "Sell on",
@@ -282,19 +289,14 @@ local function spotFact(id, spot, tone)
   return { id = id, realm = spot.realm, here = spot.here, copper = spot.copper, days = spot.days, tone = tone }
 end
 
--- Where a flip sells, as the two facts a realm lot has room for (context.route, from
--- Core/SellRoute.lua by way of the panel's caller): the realm to sell it on, then that this realm
--- is among the five cheapest to buy it on -- the buy's own question, so it goes first -- or else a
--- realm with no character on it that pays notably more.
+-- Where a flip sells, as facts (context.route, from Core/SellRoute.lua by way of the panel's
+-- caller): the realm to sell it on, that this realm is among the five cheapest to buy it on --
+-- the buy's own question, so it comes next -- and a realm with no character on it that pays
+-- notably more. A realm lot has room for two of them after its own two (`take`'s four).
 local function routeFacts(route)
-  if type(route) ~= "table" then return nil, nil end
-  local second
-  if positive(route.cheapRealms) then
-    second = { id = "cheapRealms", count = route.cheapRealms, tone = "good" }
-  else
-    second = spotFact("betterOn", route.suggest, "muted")
-  end
-  return spotFact("sellOn", route.target, "plain"), second
+  if type(route) ~= "table" then return nil, nil, nil end
+  local cheap = positive(route.cheapRealms) and { id = "cheapRealms", count = route.cheapRealms, tone = "good" } or nil
+  return spotFact("sellOn", route.target, "plain"), cheap, spotFact("betterOn", route.suggest, "muted")
 end
 
 --- Builds the panel's content from a decision and the market snapshot behind it.
@@ -317,6 +319,8 @@ function GC.CheckVerdict.Build(decision, market, context)
   local forever = (context.forever == "vendor" or context.forever == "market") and context.forever or nil
 
   local tone = "refuse"
+  -- A cap from a group the player follows on goldcap.gg: the group's own deal price, named.
+  local followedCap = decision.cap == true and decision.followed == true
   if decision.cap == true then
     -- Live price caps: the player's own rule -- this item at or under this price -- met by a
     -- listing Core/Caps.lua just found. Not the engine's approval ("Clear to buy" would claim
@@ -344,7 +348,7 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- a "+" figure: nothing here sells anything back, and a gold-up hero with the "worst case,
     -- selling all back" caption is exactly the invented profit this tone exists to avoid.
     hero = positive(decision.entryUnitDisplay)
-      and { kind = "cap", copper = decision.entryUnitDisplay, cap = decision.capUnit }
+      and { kind = "cap", copper = decision.entryUnitDisplay, cap = decision.capUnit, group = followedCap or nil }
       or { kind = "unpriceable" }
   elseif tone == "unverified" then
     -- Its own kind, not "gold": the caption for a gold hero is about selling a commodity back
@@ -405,11 +409,12 @@ function GC.CheckVerdict.Build(decision, market, context)
       flat("youPayFlat", "copper", decision.entryTotal),
       flat("worstCaseBack", "copper", decision.stressProfit, "good"))
   elseif tone == "cap" then
-    -- What the player pays and the price they set -- the two numbers the rule is about -- and
-    -- the market's own value beside them when there is one, muted: a reference, not a verdict.
+    -- What the player pays and the price they set, or the followed group's -- the two numbers
+    -- the rule is about -- and the region's price beside them when there is one, muted: a
+    -- reference, not a verdict.
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
-      flat("yourPrice", "copper", decision.capUnit),
-      flat("snapshotValue", "copper", market.marketValue, "muted"))
+      flat(followedCap and "groupPrice" or "yourPrice", "copper", decision.capUnit),
+      flat("regionPrice", "copper", market.marketValue, "muted"))
   elseif tone == "vendor" or tone == "market" or (forever and tone == "gold") then
     -- What the buy costs and what comes back: the vendor's price for it, or its resale after
     -- the cut and deposit. Nothing about a market the scan does not have, the gold it needs
@@ -417,11 +422,11 @@ function GC.CheckVerdict.Build(decision, market, context)
     take(facts, pay, get)
   elseif tone == "unverified" then
     -- Two facts, because two are all a realm item honestly has: what this lot costs, and the
-    -- reference it is being compared with. No sellers, no sell-through, no velocity -- an
+    -- region's price it is being compared with. No sellers, no sell-through, no velocity -- an
     -- import carries none of them for a realm item, and a dash in a row is not a fact. Then,
     -- when goldcap.gg knows, where it sells (routeFacts).
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
-      flat("snapshotValue", "copper", decision.reference, "muted"), routeFacts(context.route))
+      flat("regionPrice", "copper", decision.reference, "muted"), routeFacts(context.route))
   elseif tone == "refuse" and (reason == "stress_profit_below_buffer" or reason == "profit_below_minimum") then
     -- The refusal is a comparison -- what came back against what the player asked for -- so
     -- the floor it fell short of is the third fact, ahead of anything about the market. A WoW:
@@ -434,12 +439,27 @@ function GC.CheckVerdict.Build(decision, market, context)
       flat("snapshotValue", "copper", market.marketValue, "muted"))
   end
 
+  -- How often an unverified realm lot sold this week across the region (context.sold, the
+  -- payload's F facts): the sentence under the hero when goldcap.gg counted any (owner,
+  -- 2026-10-25: the panel said a lot and told nothing). The panel words it.
+  local sold = context.sold
+  sold = tone == "unverified" and type(sold) == "table" and positive(sold.sales7d)
+    and { sales7d = sold.sales7d, realms = sold.realms } or nil
+
   return {
     tone = tone,
     reason = reason,
     -- A TONE_SENTENCE key standing in for the tone's own, or nil: an unverified realm lot whose
-    -- route goldcap.gg knows is measured after all.
-    sentence = tone == "unverified" and type(context.route) == "table" and context.route.target and "routed" or nil,
+    -- route goldcap.gg knows is measured after all, and a followed group's cap is the group's.
+    sentence = followedCap and "capGroup"
+      or tone == "unverified" and type(context.route) == "table" and context.route.target and "routed" or nil,
+    sold = sold,
+    -- The followed group's name, which the panel puts where the tone's word goes.
+    group = followedCap and type(context.group) == "string" and context.group ~= "" and context.group or nil,
+    -- Whether the panel offers SHOW DETAILS: its ten rows are a commodity's (stress exit,
+    -- sell-through, sold a day, source age), and on a realm lot (context.realm) every one of
+    -- them was a dash (owner, 2026-10-25). The facts above are all a realm lot has.
+    details = not context.realm,
     hero = hero,
     facts = facts,
     actionable = tone ~= "refuse" and tone ~= "gold",

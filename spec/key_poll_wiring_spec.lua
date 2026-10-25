@@ -753,6 +753,54 @@ describe("Key poll wiring", function()
         assert.is_nil(text:find(sales, 1, true))
       end)
 
+      -- Hovering a board row shows one window (owner, 2026-10-25: three at once, the item and two
+      -- comparisons with what the character wears). Blizzard's own switch goes on after the owner
+      -- is set and before the item, as ItemUtil.DisplayEquipSlotTooltip does it, and
+      -- GameTooltip_OnTooltipCleared turns it off with the next tooltip. Shift still compares.
+      it("shows a row's item tooltip without the comparison windows", function()
+        local GC = load()
+        local calls = {}
+        local tip = {}
+        function tip:SetItemByID(id) calls[#calls + 1] = "item " .. id end
+        local saved = { _G.GameTooltip, _G.GameTooltip_SuppressAutomaticCompareItem, GC.Theme.ItemTooltipOutside }
+        finally(function()
+          _G.GameTooltip, _G.GameTooltip_SuppressAutomaticCompareItem, GC.Theme.ItemTooltipOutside =
+            saved[1], saved[2], saved[3]
+        end)
+        _G.GameTooltip = tip
+        _G.GameTooltip_SuppressAutomaticCompareItem = function(t)
+          assert.equal(tip, t)
+          calls[#calls + 1] = "suppress"
+        end
+        GC.Theme.ItemTooltipOutside = function() calls[#calls + 1] = "owner" end
+
+        GC.Sniper._ShowItemTooltip({}, 7935)
+        assert.same({ "owner", "suppress", "item 7935" }, calls)
+
+        -- Every item tooltip the Deals board and its Check draw goes through it.
+        local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+        local text = f:read("*a")
+        f:close()
+        assert.equal(1, select(2, text:gsub("GameTooltip:SetItemByID%(", "")))
+        assert.equal(3, select(2, text:gsub("\n%s*GC%.Sniper%._ShowItemTooltip%(", "")))
+      end)
+
+      -- GoldCap's own price block under the item (UI/Tooltip.lua: Vendor, Auction, region price,
+      -- data age) stands aside on the Items board, whose cells already say it, and keeps its place
+      -- on the commodity board.
+      it("keeps GoldCap's price block off an Items board row's tooltip", function()
+        local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+        local text = f:read("*a")
+        f:close()
+        local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+        local enter = text:sub(enterAt)
+        local own = assert(enter:find(
+          'self.goldcapOwnLines = (self.deal and (self.deal.kind == "rare" or GC.Sniper._RealmBoard())) or nil', 1, true))
+        assert.is_true(own < assert(enter:find("GC.Sniper._ShowItemTooltip(self, self.deal.itemID)", 1, true)))
+        -- And the second realm line under the verdict is gone: the Check names the region's price.
+        assert.is_nil(text:find("local realmValue = GC.Sniper._RealmValue(self.deal.itemID)", 1, true))
+      end)
+
       it("pins nothing and opens nothing from a header or a Rare finds row", function()
         local GC = load()
         GC.Sniper._RowPinEvent({ deal = { kind = "rare", itemID = 7935 } }, "down", "RightButton")

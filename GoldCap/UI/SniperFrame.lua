@@ -1755,13 +1755,23 @@ function GC.Sniper._PaintBoardEntry(row, entry)
   row:Show()
 end
 
+-- The game's tooltip for an item the board points at, outside the window, without the tooltips
+-- comparing it with what the character wears (owner, 2026-10-25: three windows at once over the
+-- board). Shift still shows them, as anywhere in the game: Blizzard's own switch, which it sets
+-- before its Set*Item call the same way (ItemUtil.DisplayEquipSlotTooltip) and clears with the
+-- tooltip (GameTooltip_OnTooltipCleared).
+function GC.Sniper._ShowItemTooltip(owner, itemID)
+  Theme.ItemTooltipOutside(owner, frame)
+  if GameTooltip_SuppressAutomaticCompareItem then GameTooltip_SuppressAutomaticCompareItem(GameTooltip) end
+  GameTooltip:SetItemByID(itemID)
+end
+
 -- A Rare finds row's tooltip: the item's own, then what was seen of it. GoldCap's price block
 -- under the item stands aside for the row (`goldcapOwnLines`, set in OnEnter): a rare find has no
 -- price, and that block would print the asks' median as one.
 function GC.Sniper._RareTooltip(row)
   local entry = row.deal
-  Theme.ItemTooltipOutside(row, frame)
-  GameTooltip:SetItemByID(entry.itemID)
+  GC.Sniper._ShowItemTooltip(row, entry.itemID)
   local standing, sales = GC.ItemsBoard.RareLines(entry)
   local dim = Theme.color.fgDim
   GameTooltip:AddLine(" ")
@@ -4955,9 +4965,13 @@ end
 local function drawVerdict(deal, decision, market)
   local CV = GC.CheckVerdict
   -- `forever` routes a WoW: Forever row (Core/ForeverDeals.lua) to its own tone and caption;
-  -- `route` is where the flip sells (GC.Sniper._CheckRoute), which only a realm lot shows.
+  -- `route` is where the flip sells (GC.Sniper._CheckRoute) and `sold` how often it sold this
+  -- week (the payload's F facts), which only a realm lot shows; `group` the alert group a cap
+  -- came from, named when the player follows it.
+  local realm = deal.isCommodity == false
   local verdict = CV.Build(decision, market, { tier = deal.tier, forever = deal.forever, refSource = deal.refSource,
-    route = GC.Sniper._CheckRoute(deal.itemID, decision) })
+    route = GC.Sniper._CheckRoute(deal.itemID, decision), realm = realm,
+    sold = realm and GC.Data.FlipFacts and GC.Data.FlipFacts(deal.itemID) or nil, group = deal.capGroup })
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
@@ -4968,7 +4982,7 @@ local function drawVerdict(deal, decision, market)
 
   if dialog.setHeroTone then dialog.setHeroTone(accent) end
   if dialog.verdictLabel then
-    dialog.verdictLabel:SetText(GC.L[CV.TONE_WORD[tone] or ""])
+    dialog.verdictLabel:SetText(verdict.group or GC.L[CV.TONE_WORD[tone] or ""])
     dialog.verdictLabel:SetTextColor(accent[1], accent[2], accent[3])
   end
 
@@ -5017,7 +5031,7 @@ local function drawVerdict(deal, decision, market)
     -- the player set.
     figure = displayDecisionAmount(hero.copper)
     figureColor = Theme.color.gold
-    caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
+    caption = (GC.L[CV.HERO_CAPTION[hero.group and "cap_group" or "cap"]]):format(displayDecisionAmount(hero.cap))
   elseif hero.kind == "needs" then
     -- A buy only the wallet limit refused: the gold the character must hold for it, unsigned --
     -- a sum to have, not a gain -- rounded up (GC.Util.FormatGoldCeil), the same figure the
@@ -5059,7 +5073,9 @@ local function drawVerdict(deal, decision, market)
 
   -- The sentence. On a refusal it is the reason the engine actually filed -- wrapped now, so
   -- it stops ending in the "…" the owner's screenshot caught.
+  -- A realm lot goldcap.gg counted sales of says how often it sold (Core/ItemsBoard.lua's FlipText).
   local sentence = tone == "refuse" and GC.SniperDecision.ReasonText(verdict.reason)
+    or verdict.sold and GC.ItemsBoard and GC.ItemsBoard.FlipText(verdict.sold)
     or GC.L[CV.TONE_SENTENCE[verdict.sentence or tone] or ""]
   dialog.verdictHead:SetText(sentence)
   if tone == "refuse" then
@@ -5142,7 +5158,11 @@ local function drawVerdict(deal, decision, market)
   end
 
   if dialog.layoutBlocks then
-    dialog.layoutBlocks({ reconcile = verdict.reconcile, actionable = verdict.actionable })
+    -- A realm lot of one item has no quantity to choose: "1 (whole lot)" was a row saying so.
+    local candidate = type(decision.candidate) == "table" and decision.candidate or nil
+    local single = realm and ((candidate and candidate.quantity) or deal.qty or 1) <= 1
+    dialog.layoutBlocks({ reconcile = verdict.reconcile, actionable = verdict.actionable,
+      details = verdict.details, qty = not single })
   end
   return verdict
 end
@@ -6143,6 +6163,15 @@ function GC.Sniper._CapNote(deal)
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
 end
 
+-- The status line over Buy once a cap lot is armed: at or under the player's own price, or the
+-- price of a group they follow (decision.followed, Core/Caps.lua), which is not theirs.
+function GC.Sniper._CapArmText(decision)
+  if type(decision) == "table" and decision.followed then
+    return GC.L["at or under the group's price. Click Buy to purchase"]
+  end
+  return GC.L["at or under your price. Click Buy to purchase"]
+end
+
 -- WoW: Forever rows (Core/ForeverDeals.lua): the kind, the dim instruction after the name, and
 -- the whole sentence. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
 -- (far under the scan's AH value: a resale nobody has measured the speed of).
@@ -6343,7 +6372,7 @@ local function applyRequeryResult(row, itemID, live)
       -- armReady, whose affordance check has the last word on both lines: a Buy held behind a
       -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
-        frame.status:SetText(decision.cap and GC.L["at or under your price. Click Buy to purchase"]
+        frame.status:SetText(decision.cap and GC.Sniper._CapArmText(decision)
           or decision.ceiling and GC.Sniper._ForeverArmText(decision)
           or GC.L["live safety confirmed. Click Buy to purchase"])
       end
@@ -6414,18 +6443,18 @@ local function applyRequeryResult(row, itemID, live)
             setDialogStatus(capMiss, 1, 0.3, 0.3)
           elseif hold then
             armLoudConfirm(row, label, true)
-            setDialogStatus(capLot and GC.L["at or under your price. Click Buy to purchase"]
+            setDialogStatus(capLot and GC.Sniper._CapArmText(decision)
               or ceilingLot and GC.Sniper._ForeverArmText(decision)
-              or GC.L["price checked, sale speed unknown. This one is your call"])
+              or GC.L["price checked a moment ago. Whether it sells is your call"])
           elseif capLot then
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.L["at or under your price. Click Buy to purchase"], 0.25, 0.85, 0.25)
+            setDialogStatus(GC.Sniper._CapArmText(decision), 0.25, 0.85, 0.25)
           elseif ceilingLot then
             dialog.primaryBtn:Enable()
             setDialogStatus(GC.Sniper._ForeverArmText(decision), 0.25, 0.85, 0.25)
           else
             dialog.primaryBtn:Enable()
-            setDialogStatus(GC.L["price checked, sale speed unknown. This one is your call"], 1, 0.82, 0)
+            setDialogStatus(GC.L["price checked a moment ago. Whether it sells is your call"], 1, 0.82, 0)
           end
           -- Last word on a bid that would be lit, now or after its hold: it waits over a confirmed
           -- commodity purchase still owed its answer (the Buy gate, review M2), and says so now
@@ -9862,8 +9891,7 @@ local function createDialog()
     if not dialog.deal then return end
     -- Outside the window, never over it -- the dialog sits on top of the board this tooltip
     -- would otherwise cover (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    Theme.ItemTooltipOutside(self, frame)
-    GameTooltip:SetItemByID(dialog.deal.itemID)
+    GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID)
     GameTooltip:Show()
   end)
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -10226,21 +10254,31 @@ local function createDialog()
     -- Default TRUE: the shape is only known once a decision has been stamped, and before that
     -- the panel is showing a quantity it fully intends to buy.
     local actionable = shape.actionable ~= false
+    -- No transcript to offer (a realm lot, CheckVerdict's `details`): no toggle, and the facts
+    -- stand whatever the saved Details choice is. The choice itself is kept for the next lot.
+    local details = shape.details ~= false
+    local open = details and d.detailsOpen and true or false
+    local qty = actionable and shape.qty ~= false
     place(heroBlock, DG.HERO_H, true)
     place(reconcileBlock, DG.RECONCILE_H, reconcile)
-    place(qtyBlock, DG.QTY_BLOCK_H, actionable)
-    place(factsBlock, DG.FACTS_H, not d.detailsOpen)
+    place(qtyBlock, DG.QTY_BLOCK_H, qty)
+    place(factsBlock, DG.FACTS_H, not open)
     -- The wrapped Reason (above) runs past its own row by whatever its sentence needs; the
     -- transcript takes that much more, and so does every budget measured below.
     local reasonH = d.reasonText:GetStringHeight()
     local gridH = DG.GRID_H + math.max(0, math.ceil((type(reasonH) == "number" and reasonH or 0) - DG.GRID_ROW_H))
-    place(gridBlock, gridH, d.detailsOpen and true or false)
+    place(gridBlock, gridH, open)
 
-    y = y - Theme.pad.xs
-    detailsToggle:ClearAllPoints()
-    detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, y)
-    detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, y)
-    y = y - DG.TOGGLE_H
+    if details then
+      y = y - Theme.pad.xs
+      detailsToggle:ClearAllPoints()
+      detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, y)
+      detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+      detailsToggle:Show()
+      y = y - DG.TOGGLE_H
+    else
+      detailsToggle:Hide()
+    end
 
     -- One number now, not an open/closed pair: this IS the current layout either way.
     -- resizeDialogDiagnostics still falls back to the old pair for the hand-built fakeDialogs
@@ -10249,21 +10287,23 @@ local function createDialog()
     d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
 
     local above = d.headerH + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
-      + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
+      + (qty and DG.QTY_BLOCK_H or 0) + (details and DG.TOGGLE_BLOCK_H or 0) + DG.STATUS_H + DG.CONTROLS_H
     local openBefore = d.fixedHeightOpen
     d.fixedHeightClosed = above + DG.FACTS_H
-    d.fixedHeightOpen = above + gridH
+    -- With no transcript, "open" is the facts too: the fit guard below and applyDetailsState
+    -- measure nothing taller than what is drawn.
+    d.fixedHeightOpen = details and (above + gridH) or d.fixedHeightClosed
     -- Kept in step here too, not only in applyDetailsState: a verdict can drop the quantity
     -- block without the Details state changing at all, and resizeDialogDiagnostics measures
     -- the flowing block below off this number.
-    d.fixedHeight = d.detailsOpen and d.fixedHeightOpen or d.fixedHeightClosed
+    d.fixedHeight = open and d.fixedHeightOpen or d.fixedHeightClosed
     -- A longer Reason grows the open transcript, and the fit guard ran only on a toggle, a
     -- resize and construction (review M1): a three- or four-line Reason pushed an open grid into
     -- the status line and Buy of a docked drawer that cannot grow. Re-run the same guard,
     -- quietly, whenever this layout needs more than the last one did. The preference it
     -- persists is the one already standing (open), and the guard closes only this session's
     -- view; the layout it ends in is not a growth, so this does not recurse.
-    if d.detailsOpen and openBefore and d.fixedHeightOpen > openBefore and d.applyDetailsState then
+    if open and openBefore and d.fixedHeightOpen > openBefore and d.applyDetailsState then
       local quiet = d.detailsQuiet
       d.detailsQuiet = true
       d.applyDetailsState(true)
@@ -11145,16 +11185,16 @@ createRow = function(parent, index)
     self.rail:Show()
     hoveredRow = self
     -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
-    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
-    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
+    -- has no price (GC.Sniper._RareTooltip), and for every row of the Items board, whose cells
+    -- already say what it would (owner, 2026-10-25). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = (self.deal and (self.deal.kind == "rare" or GC.Sniper._RealmBoard())) or nil
     if not self.deal then return end
     GC.Sniper._BeginInspect(self)
     if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self) end
     GC.Sniper._HoverPrewarm(self)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    Theme.ItemTooltipOutside(self, frame)
-    GameTooltip:SetItemByID(self.deal.itemID)
+    GC.Sniper._ShowItemTooltip(self, self.deal.itemID)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.
     local verdict = verdictFor(self.deal)
@@ -11192,16 +11232,10 @@ createRow = function(parent, index)
         self.deal.estProfit)), self.deal.forever == "market" and 0.83 or 0.25,
         self.deal.forever == "market" and 0.64 or 0.85, self.deal.forever == "market" and 0.22 or 0.25, true)
     end
-    -- Sniper phase 2: a realm row's price is measured against the region, not against a
-    -- verified market of its own, and the row's WATCH cell has no room to say so. The
-    -- tooltip does -- with the reference itself and the item level it was measured on, so
-    -- the player can see what the discount is a discount FROM.
-    local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
-    if realmValue then
-      GameTooltip:AddLine(GC.Util.ClientText((GC.L["realm item, sale speed unverified · region reference %s (ilvl %d)"])
-        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0)),
-        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-    elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
+    -- A realm row priced against the region says nothing more about it here: the verdict line
+    -- above says it is a realm item, and the Check names the region's price (owner, 2026-10-25:
+    -- the line read "region reference 77824g (ilvl 0)" under its twin).
+    if not GC.Sniper._RealmValue(self.deal.itemID) and GC.Sniper._RealmNeedsReference(self.deal.itemID) then
       -- A pinned realm item the region has no price for. It is on the board because the player
       -- put it there, and the row cannot say anything about value -- so the tooltip says the
       -- same sentence a Check on it would, rather than leaving the blank cells to be read as

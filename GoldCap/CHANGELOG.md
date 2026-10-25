@@ -61,6 +61,13 @@
   it on, and where it sells for more. When a long name needs both lines, the line under it moves
   to the tooltip too. Rare finds rows say where this realm's price stands, with their sales in
   the tooltip.
+- DEALS, Items board: GoldCap's buy window shows only what GoldCap knows about a realm item: what
+  you pay, its price across the region, how often it sold this week and where it sells for more.
+  SHOW DETAILS is gone there, its rows stayed empty for these items, and a single item has no
+  quantity row. A deal from a group you follow names the group and its price, not your price.
+- DEALS, Items board: hovering a row shows one window. The windows that compare the item with what
+  you wear show only while you hold Shift, as anywhere in the game, and GoldCap's own price lines
+  under the item stay off, since the row already shows them.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A

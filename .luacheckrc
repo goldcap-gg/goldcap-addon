@@ -14,6 +14,8 @@ globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLe
 
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
+  -- A board row's item tooltip without the comparison windows (UI/SniperFrame.lua's _ShowItemTooltip).
+  "GameTooltip_SuppressAutomaticCompareItem",
   -- BUY 2.0 week 2: the merchant (UI/BuyVendorPanel.lua).
   "BuyMerchantItem", "GetMerchantNumItems", "GetMerchantItemID", "GetMerchantItemMaxStack",
   "C_MerchantFrame", "MerchantFrame",

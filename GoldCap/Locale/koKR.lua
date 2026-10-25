@@ -627,8 +627,6 @@ GC.Locales.koKR = {
     "최저가보다 높게, 저가 구간 안 · 앞에 %s개",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "최저가보다 높게, 하루 도달 범위 안 · 앞에 %s개",
-  ["against the region's own price for this item, after the 5% cut, if it sells"] =
-    "이 아이템의 지역 기준가 대비, 수수료 5% 제외, 팔린다면",
   ["age %ss"] = "%s초 전",
   ["another purchase took over: nothing was confirmed"] = "다른 구매가 대신 진행 중입니다. 아무것도 확정하지 않았습니다",
   ["any figure here would be invented out of the very number being refused"] =
@@ -761,8 +759,6 @@ GC.Locales.koKR = {
     "이전 상품 구매가 끝남. %s 버튼으로 가격을 다시 확인하세요",
   ["price changed after you closed the buy window: nothing was bought"] =
     "구매 창을 닫은 뒤 가격이 바뀌었습니다. 아무것도 구매하지 않았습니다",
-  ["price checked, sale speed unknown. This one is your call"] =
-    "가격은 확인했지만 판매 속도는 알 수 없습니다. 판단은 당신 몫입니다",
   ["price confirmed. Click Buy to purchase"] = "가격 확인됨. Buy를 눌러 구매하세요",
   ["price rose %.1fx, still safe. Confirm"] = "가격이 %.1f배 올랐습니다. 여전히 안전합니다, 확정하세요",
   ["price stands %d of %d"] = "가격 순위 %d / %d",
@@ -779,8 +775,6 @@ GC.Locales.koKR = {
     "시세가 만료됨. Refresh로 가격을 다시 확인하세요",
   ["quote expires in %d s. Click Confirm to buy"] = "시세가 %d초 후 만료됨. Confirm을 눌러 구매하세요",
   ["re-checking what remains at a safe price..."] = "안전한 가격에 남은 물량을 다시 확인하는 중...",
-  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
-    "서버 아이템, 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",
   ["recent sales (newest first):"] = "최근 판매 (최신순):",
   ["region %s · bundled: %d items (%s), imported: %s"] =
     "지역 %s · 내장: 아이템 %d개 (%s), 가져옴: %s",
@@ -1549,4 +1543,11 @@ GC.Locales.koKR = {
   ["Sells on %s in about %d days"] = "%s 서버에서 약 %d일 뒤 팔림",
   ["Sold once in 7 days"] = "7일간 1회 판매",
   ["Sold %d times in 7 days"] = "7일간 %d회 판매",
+  ["after the 5% cut, if it sells at the region's price"] = "수수료 5% 제외, 지역 가격에 팔린다면",
+  ["a unit, at or under the group's price of %s"] = "개당 가격, 그룹 가격 %s 이하",
+  ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "goldcap.gg에서 팔로우 중인 그룹의 아이템입니다. 되팔릴지는 직접 판단하세요.",
+  ["Region price"] = "지역 가격",
+  ["Group's price"] = "그룹 가격",
+  ["at or under the group's price. Click Buy to purchase"] = "그룹 가격 이하. Buy를 눌러 구매하세요",
+  ["price checked a moment ago. Whether it sells is your call"] = "방금 가격을 확인했습니다. 팔릴지는 직접 판단하세요",
 }

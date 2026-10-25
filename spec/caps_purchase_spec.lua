@@ -581,6 +581,24 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal("at or under your price. Click Buy to purchase", d.written[#d.written])
     end)
 
+    -- The Check (2026-10-25): a cap from a group the player follows is that group's price, not
+    -- theirs, and the status line over Buy says whose it is.
+    it("says the group's price over Buy for a group the player follows", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      decision.followed = true
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+
+      applyRequeryResult(row, 42, { isCommodity = false, decision = decision })
+
+      assert.equal("ready", row.purchaseStage)
+      assert.equal("at or under the group's price. Click Buy to purchase", d.written[#d.written])
+    end)
+
     -- Caps fixes 5g: the diagnostic Status row read WATCH -- the shape a realm purchase is carried
     -- in (onDialogPrimaryClick buys a realm lot on status WATCH plus a candidate), not what
     -- decided it. It names the player's own price, as the board's own chip does.
@@ -960,6 +978,14 @@ describe("Live price caps -- buying at the player's own price", function()
         function row.tierChip:SetLabel(text) self.text = text end
         getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
         assert.equal("GROUP", row.tierChip.text)
+      end)
+
+      it("_CapArmText names the group's price for a group you follow, else yours", function()
+        local GC = loadSniper()
+        assert.equal("at or under the group's price. Click Buy to purchase",
+          GC.Sniper._CapArmText({ cap = true, followed = true }))
+        assert.equal("at or under your price. Click Buy to purchase", GC.Sniper._CapArmText({ cap = true }))
+        assert.equal("at or under your price. Click Buy to purchase", GC.Sniper._CapArmText(nil))
       end)
 
       it("says in the row's tooltip what YOUR PRICE means, group included", function()

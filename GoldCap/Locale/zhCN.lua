@@ -613,8 +613,6 @@ GC.Locales.zhCN = {
     "高于最低价，处于低价四分位内 · 前面有 %s 件",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "高于最低价，处于当日可达价内 · 前面有 %s 件",
-  ["against the region's own price for this item, after the 5% cut, if it sells"] =
-    "对比该物品的区域价格，扣除 5% 手续费后，前提是能卖掉",
   ["age %ss"] = "%s 秒前",
   ["another purchase took over: nothing was confirmed"] = "另一笔购买已接手：没有确认任何购买",
   ["any figure here would be invented out of the very number being refused"] =
@@ -741,7 +739,6 @@ GC.Locales.zhCN = {
   ["previous commodity purchase settled. %s to re-check the price"] = "上一笔商品购买已结算。按 %s 重新检查价格",
   ["price changed after you closed the buy window: nothing was bought"] =
     "关闭购买窗口后价格变了：没有买到任何东西",
-  ["price checked, sale speed unknown. This one is your call"] = "价格已核对，售出速度未知。这一笔由你决定",
   ["price confirmed. Click Buy to purchase"] = "价格已确认。点击 Buy 购买",
   ["price rose %.1fx, still safe. Confirm"] = "价格上涨 %.1f 倍。仍然安全，请确认",
   ["price stands %d of %d"] = "价格排第 %d / %d",
@@ -757,8 +754,6 @@ GC.Locales.zhCN = {
   ["quote expired. Refresh to re-check the price"] = "报价已过期。按 Refresh 重新检查价格",
   ["quote expires in %d s. Click Confirm to buy"] = "报价将在 %d 秒后过期。按 Confirm 购买",
   ["re-checking what remains at a safe price..."] = "正在重新检查安全价位还剩多少...",
-  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
-    "服务器物品，售出速度未验证 · 区域参考价 %s（物品等级 %d）",
   ["recent sales (newest first):"] = "最近的销售（从新到旧）：",
   ["region %s · bundled: %d items (%s), imported: %s"] =
     "地区 %s · 内置：%d 个物品（%s），导入：%s",
@@ -1515,4 +1510,11 @@ GC.Locales.zhCN = {
   ["Sells on %s in about %d days"] = "%s 约 %d 天售出",
   ["Sold once in 7 days"] = "7 天内售出 1 次",
   ["Sold %d times in 7 days"] = "7 天内售出 %d 次",
+  ["after the 5% cut, if it sells at the region's price"] = "扣除 5% 手续费后，前提是按区域价格卖掉",
+  ["a unit, at or under the group's price of %s"] = "单价，不高于分组价格 %s",
+  ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "来自你在 goldcap.gg 关注的分组。能否转卖由你判断。",
+  ["Region price"] = "区域价格",
+  ["Group's price"] = "分组价格",
+  ["at or under the group's price. Click Buy to purchase"] = "不高于分组价格。点击 Buy 购买",
+  ["price checked a moment ago. Whether it sells is your call"] = "价格刚刚核对过。能否卖掉由你决定",
 }

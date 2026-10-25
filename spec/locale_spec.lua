@@ -534,4 +534,29 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- The Check on an Items lot and on a followed group's deal (owner, 2026-10-25).
+  it("carries the Check panel's realm and group keys in all twelve languages", function()
+    local keys = {
+      "after the 5% cut, if it sells at the region's price",
+      "a unit, at or under the group's price of %s",
+      "From a group you follow on goldcap.gg. Whether it resells is yours to judge.",
+      "Region price", "Group's price",
+      "at or under the group's price. Click Buy to purchase",
+      "price checked a moment ago. Whether it sells is your call",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
 end)

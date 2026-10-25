@@ -712,8 +712,6 @@ GC.Locales.enUS = {
     "resale at your scan's AH value, %s each, after the 5%% cut and deposit; speed unknown",
   ["Checked against the live auction house a moment ago."] =
     "Checked against the live auction house a moment ago.",
-  ["against the region's own price for this item, after the 5% cut, if it sells"] =
-    "against the region's own price for this item, after the 5% cut, if it sells",
   ["alert group · %d hits"] = "alert group · %d hits",
   ["another purchase is in flight"] = "another purchase is in flight",
   ["another purchase took over: nothing was confirmed"] =
@@ -839,8 +837,6 @@ GC.Locales.enUS = {
     "previous commodity purchase settled. %s to re-check the price",
   ["price changed after you closed the buy window: nothing was bought"] =
     "price changed after you closed the buy window: nothing was bought",
-  ["price checked, sale speed unknown. This one is your call"] =
-    "price checked, sale speed unknown. This one is your call",
   ["price confirmed. Click Buy to purchase"] = "price confirmed. Click Buy to purchase",
   ["price moved to %s"] = "price moved to %s",
   ["price rose %.1fx, still safe. Confirm"] = "price rose %.1fx, still safe. Confirm",
@@ -860,8 +856,6 @@ GC.Locales.enUS = {
     "quote expires in %d s. Click Confirm to buy",
   ["..."] = "...",
   ["re-checking what remains at a safe price..."] = "re-checking what remains at a safe price...",
-  ["realm item, sale speed unverified · region reference %s (ilvl %d)"] =
-    "realm item, sale speed unverified · region reference %s (ilvl %d)",
   ["recent sales (newest first):"] = "recent sales (newest first):",
   ["region %s · bundled: %d items (%s), imported: %s"] = "region %s · bundled: %d items (%s), imported: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
@@ -1600,4 +1594,11 @@ GC.Locales.enUS = {
   ["Sells on %s in about %d days"] = "Sells on %s in about %d days",
   ["Sold once in 7 days"] = "Sold once in 7 days",
   ["Sold %d times in 7 days"] = "Sold %d times in 7 days",
+  ["after the 5% cut, if it sells at the region's price"] = "after the 5% cut, if it sells at the region's price",
+  ["a unit, at or under the group's price of %s"] = "a unit, at or under the group's price of %s",
+  ["From a group you follow on goldcap.gg. Whether it resells is yours to judge."] = "From a group you follow on goldcap.gg. Whether it resells is yours to judge.",
+  ["Region price"] = "Region price",
+  ["Group's price"] = "Group's price",
+  ["at or under the group's price. Click Buy to purchase"] = "at or under the group's price. Click Buy to purchase",
+  ["price checked a moment ago. Whether it sells is your call"] = "price checked a moment ago. Whether it sells is your call",
 }
