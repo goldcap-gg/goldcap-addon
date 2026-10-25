@@ -1414,6 +1414,18 @@ GC.Locales.ukUA = {
   ["Everyone's prices are in, from %s ago"] = "Ціни інших гравців отримано %s тому",
   ["No prices from other players for this auction house yet"] =
     "Цін від інших гравців для цього аукціону поки немає",
+  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "У GoldCap немає свіжих цін для вашого світу, тому DEALS не знаходить вигідних лотів. GoldCap Companion принесе їх і сам триматиме свіжими: %s",
+  ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
+    "Вставленим цінам уже %s. GoldCap Companion сам завантажує свіжі кожні 30 хвилин і приносить ваші групи з goldcap.gg: %s",
+  ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
+    "GoldCap Companion не надсилав цін уже %s. Перевірте, що його запущено, його значок поруч із годинником: %s",
+  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "GoldCap не зміг прочитати те, що записав Companion. Оновіть GoldCap і GoldCap Companion: %s",
+  ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
+    "GoldCap Companion додає до ваших сканів скани цього аукціону від усіх гравців GoldCap, тож більше предметів мають ціну і ціни свіжіші: %s",
+  ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =
+    "Цін від інших гравців для цього аукціону поки немає. Якщо GoldCap Companion не запущено, запустіть його: %s",
   ["Nobody has shared a scan of this auction house for %s"] =
     "Ніхто не ділився скануванням цього аукціону вже %s",
   ["Prices from your own scans only"] = "Ціни лише з ваших сканувань",

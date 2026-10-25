@@ -1413,6 +1413,18 @@ GC.Locales.ruRU = {
   ["Everyone's prices are in, from %s ago"] = "Цены других игроков получены %s назад",
   ["No prices from other players for this auction house yet"] =
     "Цен от других игроков для этого аукциона пока нет",
+  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "У GoldCap нет свежих цен для вашего мира, поэтому DEALS не находит выгодных лотов. GoldCap Companion принесёт их и будет сам держать свежими: %s",
+  ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
+    "Вставленным ценам уже %s. GoldCap Companion сам загружает свежие каждые 30 минут и приносит ваши группы с goldcap.gg: %s",
+  ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
+    "GoldCap Companion не присылал цен уже %s. Проверьте, что он запущен, его значок рядом с часами: %s",
+  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "GoldCap не смог прочитать то, что записал Companion. Обновите GoldCap и GoldCap Companion: %s",
+  ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
+    "GoldCap Companion добавляет к вашим сканам сканы этого аукциона от всех игроков GoldCap, так у большего числа предметов есть цена и цены свежее: %s",
+  ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =
+    "Цен от других игроков для этого аукциона пока нет. Если GoldCap Companion не запущен, запустите его: %s",
   ["Nobody has shared a scan of this auction house for %s"] =
     "Никто не делился сканированием этого аукциона уже %s",
   ["Prices from your own scans only"] = "Цены только из ваших сканирований",

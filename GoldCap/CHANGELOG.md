@@ -4,6 +4,9 @@
 
 - Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
   deals show on DEALS with a GROUP tag.
+- Without GoldCap Companion, or with it stopped, one line in chat at login says what it would
+  change for you. Click its link to open the Companion window with the download link ready to
+  copy. Don't remind me in that window turns the line off too.
 - Sell, in retail WoW: items from a group you follow are posted by its rules: how many at a time,
   for how long, never under the group's floor price, and a little cheaper each time a flip comes
   back unsold. The row shows the group, and its tooltip the rule.

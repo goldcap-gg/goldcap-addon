@@ -1249,6 +1249,18 @@ GC.Locales.zhTW = {
   ["The Companion's prices could not be read"] = "無法讀取 Companion 的價格",
   ["Everyone's prices are in, from %s ago"] = "所有人的價格已到，來自 %s前",
   ["No prices from other players for this auction house yet"] = "這個拍賣場還沒有其他玩家的價格",
+  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "GoldCap 沒有你所在伺服器的最新價格，所以 DEALS 找不到撿漏。GoldCap Companion 會帶來價格並自動保持最新：%s",
+  ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
+    "你貼上的價格已經是 %s 前的了。GoldCap Companion 每 30 分鐘取得一次最新價格，還會帶來你在 goldcap.gg 的群組：%s",
+  ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
+    "GoldCap Companion 已經 %s 沒有傳送價格了。請檢查它是否正在執行，它的圖示在時鐘旁邊：%s",
+  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "GoldCap 無法讀取 Companion 寫入的內容。請更新 GoldCap 和 GoldCap Companion：%s",
+  ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
+    "GoldCap Companion 會把所有 GoldCap 玩家對這個拍賣場的掃描加到你的掃描裡，有價格的物品更多，價格也更新：%s",
+  ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =
+    "這個拍賣場還沒有其他玩家的價格。如果 GoldCap Companion 沒有在執行，請啟動它：%s",
   ["Nobody has shared a scan of this auction house for %s"] =
     "已有 %s沒有人分享這個拍賣場的掃描了",
   ["Prices from your own scans only"] = "價格僅來自你自己的掃描",

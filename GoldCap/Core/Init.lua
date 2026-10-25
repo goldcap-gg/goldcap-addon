@@ -348,6 +348,8 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
 -- resolves an id it did not have cached yet. Core/ItemNames.lua.
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+-- Seconds after the first loading screen of a load before the Companion's chat line (UI/WelcomeFrame.lua).
+local LOGIN_LINE_DELAY = 5
 frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 -- Craft capture (Core/CraftCapture.lua). UNIT_SPELLCAST_SENT, not _SUCCEEDED: the materials
 -- leave the bags during the craft, so the snapshot this opens a session with has to be taken
@@ -1107,6 +1109,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
     if GC.ForeverLoot then GC.ForeverLoot.MaybeIntro() end
+    -- The Companion's line in chat (UI/WelcomeFrame.lua), once a load, a few seconds after the
+    -- loading screen so the client's own login lines do not bury it.
+    if not GC._saidAtLogin and GC.WelcomeUI and GC.WelcomeUI.SayAtLogin then
+      GC._saidAtLogin = true
+      C_Timer.After(LOGIN_LINE_DELAY, function() pcall(GC.WelcomeUI.SayAtLogin) end)
+    end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end

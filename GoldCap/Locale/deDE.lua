@@ -1345,6 +1345,18 @@ GC.Locales.deDE = {
   ["Everyone's prices are in, from %s ago"] = "Preise aller Spieler sind da, Stand vor %s",
   ["No prices from other players for this auction house yet"] =
     "Noch keine Preise anderer Spieler für dieses Auktionshaus",
+  ["GoldCap has no fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"] =
+    "GoldCap hat keine frischen Preise für deinen Realm, deshalb findet DEALS keine Angebote. GoldCap Companion bringt sie und hält sie frisch: %s",
+  ["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"] =
+    "Deine eingefügten Preise sind %s alt. GoldCap Companion holt alle 30 Minuten frische und bringt deine Gruppen von goldcap.gg: %s",
+  ["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"] =
+    "GoldCap Companion hat seit %s keine Preise gesendet. Prüfe, ob er läuft, sein Symbol sitzt neben der Uhr: %s",
+  ["GoldCap could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"] =
+    "GoldCap konnte nicht lesen, was der Companion geschrieben hat. Aktualisiere GoldCap und GoldCap Companion: %s",
+  ["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"] =
+    "GoldCap Companion ergänzt deine Scans um die Scans aller Spieler mit GoldCap in diesem Auktionshaus, für mehr Gegenstände mit Preis und neuere Preise: %s",
+  ["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"] =
+    "Für dieses Auktionshaus gibt es noch keine Preise von anderen Spielern. Wenn GoldCap Companion nicht läuft, starte ihn: %s",
   ["Nobody has shared a scan of this auction house for %s"] =
     "Seit %s hat niemand einen Scan dieses Auktionshauses geteilt",
   ["Prices from your own scans only"] = "Preise nur aus deinen eigenen Scans",
