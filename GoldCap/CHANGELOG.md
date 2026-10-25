@@ -9,6 +9,12 @@
 - Without GoldCap Companion, or with it stopped, one line in chat at login says what it would
   change for you. Click its link to open the Companion window with the download link ready to
   copy. Don't remind me in that window turns the line off too.
+- Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
+  price that never came and said "Pricing…" on every press. Once the auction house answers that
+  nothing is listed, Post lists at your price, the one you typed or GoldCap's, and the panel says
+  nothing is listed instead of waiting for an answer.
+- Sell: items the auction house does not accept, such as holiday candy that expires, no longer
+  show up as ready to post. Posting one used to wait a minute for an answer that never came.
 - Sell, in retail WoW: items from a group you follow are posted by its rules: how many at a time,
   for how long, never under the group's floor price, and a little cheaper each time a flip comes
   back unsold. The row shows the group, and its tooltip the rule.
@@ -100,15 +106,6 @@
   in the mailbox. Items another player sent you count once you have opened the mailbox. A line's
   tooltip says how many are in the mailbox. The craft queue counts them too, and under Missing it
   names the reagents that wait in the mailbox, so you can take them out before you craft.
-
-## 0.22.1 (unreleased)
-
-- Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
-  price that never came and said "Pricing…" on every press. Once the auction house answers that
-  nothing is listed, Post lists at your price, the one you typed or GoldCap's, and the panel says
-  nothing is listed instead of waiting for an answer.
-- Sell: items the auction house does not accept, such as holiday candy that expires, no longer
-  show up as ready to post. Posting one used to wait a minute for an answer that never came.
 
 ## 0.22.0 (2026-10-21)
 
