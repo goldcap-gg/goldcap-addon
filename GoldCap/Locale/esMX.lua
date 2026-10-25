@@ -1611,4 +1611,12 @@ GC.Locales.esMX = {
   ["%s never posts under %s"] = "%s nunca se publica por debajo de %s",
   ["Default price"] = "Precio predeterminado",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Cada objeto empieza con este precio. El mínimo de un grupo sigue valiendo, y un precio por debajo de lo que pagaste sigue saliendo en rojo.",
+  ["Sells here within a day"] = "Aquí se vende en menos de un día",
+  ["Sells here in about 1 day"] = "Aquí se vende en 1 día aprox.",
+  ["Sells here in about %d days"] = "Aquí se vende en %d días aprox.",
+  ["Sells on %s within a day"] = "En %s se vende en menos de un día",
+  ["Sells on %s in about 1 day"] = "En %s se vende en 1 día aprox.",
+  ["Sells on %s in about %d days"] = "En %s se vende en %d días aprox.",
+  ["Sold once in 7 days"] = "Vendido una vez en 7 días",
+  ["Sold %d times in 7 days"] = "Vendido %d veces en 7 días",
 }

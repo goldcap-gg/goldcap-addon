@@ -1592,4 +1592,12 @@ GC.Locales.enUS = {
   ["%s never posts under %s"] = "%s never posts under %s",
   ["Default price"] = "Default price",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red.",
+  ["Sells here within a day"] = "Sells here within a day",
+  ["Sells here in about 1 day"] = "Sells here in about 1 day",
+  ["Sells here in about %d days"] = "Sells here in about %d days",
+  ["Sells on %s within a day"] = "Sells on %s within a day",
+  ["Sells on %s in about 1 day"] = "Sells on %s in about 1 day",
+  ["Sells on %s in about %d days"] = "Sells on %s in about %d days",
+  ["Sold once in 7 days"] = "Sold once in 7 days",
+  ["Sold %d times in 7 days"] = "Sold %d times in 7 days",
 }

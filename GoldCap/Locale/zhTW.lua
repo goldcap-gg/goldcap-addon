@@ -1508,4 +1508,12 @@ GC.Locales.zhTW = {
   ["%s never posts under %s"] = "%s 從不低於 %s 上架",
   ["Default price"] = "預設價格",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "每件道具都以這個價格開始。分組底價照樣有效，低於你買入價的價格照樣顯示為紅色。",
+  ["Sells here within a day"] = "本伺服器一天內售出",
+  ["Sells here in about 1 day"] = "本伺服器約 1 天售出",
+  ["Sells here in about %d days"] = "本伺服器約 %d 天售出",
+  ["Sells on %s within a day"] = "%s 一天內售出",
+  ["Sells on %s in about 1 day"] = "%s 約 1 天售出",
+  ["Sells on %s in about %d days"] = "%s 約 %d 天售出",
+  ["Sold once in 7 days"] = "7 天內售出 1 次",
+  ["Sold %d times in 7 days"] = "7 天內售出 %d 次",
 }

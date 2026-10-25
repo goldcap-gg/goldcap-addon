@@ -1607,4 +1607,12 @@ GC.Locales.deDE = {
   ["%s never posts under %s"] = "%s wird nie unter %s eingestellt",
   ["Default price"] = "Standardpreis",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Jeder Gegenstand startet mit diesem Preis. Der Boden einer Gruppe gilt weiter, und ein Preis unter dem, was du bezahlt hast, steht weiter in Rot.",
+  ["Sells here within a day"] = "Verkauft sich hier innerhalb eines Tages",
+  ["Sells here in about 1 day"] = "Verkauft sich hier in etwa 1 Tag",
+  ["Sells here in about %d days"] = "Verkauft sich hier in etwa %d Tagen",
+  ["Sells on %s within a day"] = "Verkauft sich auf %s innerhalb eines Tages",
+  ["Sells on %s in about 1 day"] = "Verkauft sich auf %s in etwa 1 Tag",
+  ["Sells on %s in about %d days"] = "Verkauft sich auf %s in etwa %d Tagen",
+  ["Sold once in 7 days"] = "In 7 Tagen einmal verkauft",
+  ["Sold %d times in 7 days"] = "In 7 Tagen %d-mal verkauft",
 }

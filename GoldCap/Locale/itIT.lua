@@ -1604,4 +1604,12 @@ GC.Locales.itIT = {
   ["%s never posts under %s"] = "%s non va mai in vendita sotto %s",
   ["Default price"] = "Prezzo predefinito",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Ogni oggetto parte da questo prezzo. Il minimo di un gruppo resta valido, e un prezzo sotto quanto hai pagato resta in rosso.",
+  ["Sells here within a day"] = "Qui si vende entro un giorno",
+  ["Sells here in about 1 day"] = "Qui si vende in circa 1 giorno",
+  ["Sells here in about %d days"] = "Qui si vende in circa %d giorni",
+  ["Sells on %s within a day"] = "Su %s si vende entro un giorno",
+  ["Sells on %s in about 1 day"] = "Su %s si vende in circa 1 giorno",
+  ["Sells on %s in about %d days"] = "Su %s si vende in circa %d giorni",
+  ["Sold once in 7 days"] = "Venduto una volta in 7 giorni",
+  ["Sold %d times in 7 days"] = "Venduto %d volte in 7 giorni",
 }

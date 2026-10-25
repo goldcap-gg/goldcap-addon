@@ -512,4 +512,26 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- The Items board's line under a flip's name (owner, 2026-10-25: two lines a row at most).
+  it("carries the Items board row keys in all twelve languages", function()
+    local keys = {
+      "Sells here within a day", "Sells here in about 1 day", "Sells here in about %d days",
+      "Sells on %s within a day", "Sells on %s in about 1 day", "Sells on %s in about %d days",
+      "Sold once in 7 days", "Sold %d times in 7 days",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
 end)

@@ -1541,4 +1541,12 @@ GC.Locales.koKR = {
   ["%s never posts under %s"] = "%s은(는) %s 미만으로 등록하지 않습니다",
   ["Default price"] = "기본 가격",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "모든 아이템이 이 가격으로 시작합니다. 그룹 하한은 그대로 지켜지고, 산 가격보다 낮은 가격은 계속 빨간색으로 표시됩니다.",
+  ["Sells here within a day"] = "이 서버에서 하루 안에 팔림",
+  ["Sells here in about 1 day"] = "이 서버에서 약 1일 뒤 팔림",
+  ["Sells here in about %d days"] = "이 서버에서 약 %d일 뒤 팔림",
+  ["Sells on %s within a day"] = "%s 서버에서 하루 안에 팔림",
+  ["Sells on %s in about 1 day"] = "%s 서버에서 약 1일 뒤 팔림",
+  ["Sells on %s in about %d days"] = "%s 서버에서 약 %d일 뒤 팔림",
+  ["Sold once in 7 days"] = "7일간 1회 판매",
+  ["Sold %d times in 7 days"] = "7일간 %d회 판매",
 }

@@ -1608,4 +1608,12 @@ GC.Locales.frFR = {
   ["%s never posts under %s"] = "%s n'est jamais mis en vente sous %s",
   ["Default price"] = "Prix par défaut",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Chaque objet démarre à ce prix. Le plancher d'un groupe tient toujours, et un prix sous ce que tu as payé reste en rouge.",
+  ["Sells here within a day"] = "Se vend ici en moins d'un jour",
+  ["Sells here in about 1 day"] = "Se vend ici en 1 jour environ",
+  ["Sells here in about %d days"] = "Se vend ici en %d jours environ",
+  ["Sells on %s within a day"] = "Se vend sur %s en moins d'un jour",
+  ["Sells on %s in about 1 day"] = "Se vend sur %s en 1 jour environ",
+  ["Sells on %s in about %d days"] = "Se vend sur %s en %d jours environ",
+  ["Sold once in 7 days"] = "Vendu une fois en 7 jours",
+  ["Sold %d times in 7 days"] = "Vendu %d fois en 7 jours",
 }

@@ -1602,4 +1602,12 @@ GC.Locales.ptBR = {
   ["%s never posts under %s"] = "%s nunca é anunciado abaixo de %s",
   ["Default price"] = "Preço padrão",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Todo item começa neste preço. O piso de um grupo continua valendo, e um preço abaixo do que você pagou continua em vermelho.",
+  ["Sells here within a day"] = "Aqui vende em menos de um dia",
+  ["Sells here in about 1 day"] = "Aqui vende em cerca de 1 dia",
+  ["Sells here in about %d days"] = "Aqui vende em cerca de %d dias",
+  ["Sells on %s within a day"] = "Em %s vende em menos de um dia",
+  ["Sells on %s in about 1 day"] = "Em %s vende em cerca de 1 dia",
+  ["Sells on %s in about %d days"] = "Em %s vende em cerca de %d dias",
+  ["Sold once in 7 days"] = "Vendido uma vez em 7 dias",
+  ["Sold %d times in 7 days"] = "Vendido %d vezes em 7 dias",
 }

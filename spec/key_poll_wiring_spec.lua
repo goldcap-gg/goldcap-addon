@@ -577,11 +577,24 @@ describe("Key poll wiring", function()
         assert.equal("", GC.Sniper._RowNotes(deal(10)))
       end)
 
-      it("says how often a flip sells", function()
+      -- A row is two lines at most (owner, 2026-10-25: "more than two lines is not needed"): the
+      -- name, and one line under it. Everything else is the row's tooltip (GC.Sniper._RowDetails).
+      local function texts(details)
+        local out = {}
+        for _, detail in ipairs(details) do out[#out + 1] = detail.text end
+        return table.concat(out, "\n")
+      end
+
+      it("says how often a flip sold this week under its name, and on how many realms in its tooltip", function()
         local GC = load()
         split(GC, {}, {}, { [10] = { ref = 300000, sales7d = 6, realms = 3 } })
-        assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Sold 6 times in 7 days on 3 realms", 1, true))
+        local notes = GC.Sniper._RowNotes(deal(10))
+        assert.equal("Sold 6 times in 7 days", helper.plain(notes):match("^\n(.*)$"))
+        assert.equal("Sold 6 times in 7 days on 3 realms", texts(GC.Sniper._RowDetails(deal(10))))
         assert.equal("", GC.Sniper._RowNotes(deal(11)))
+        assert.same({}, GC.Sniper._RowDetails(deal(11)))
+        GC.db.settings.sniper.board = "commodities"
+        assert.same({}, GC.Sniper._RowDetails(deal(10)))
       end)
 
       -- Where a flip sells (the payload's C, S and K): this realm is Tarren Mill, the account has a
@@ -604,44 +617,140 @@ describe("Key poll wiring", function()
           return GC
         end
 
+        local function under(GC)
+          return helper.plain(GC.Sniper._RowNotes(deal(10))):match("^\n(.*)$")
+        end
+
         after_each(function() _G.GetRealmName = nil end)
 
-        it("names the player's realm it sells best on, at what list price and how soon", function()
+        it("names the player's realm it sells best on and how soon, the list price in the tooltip", function()
           local GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
             { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
-          local notes = GC.Sniper._RowNotes(deal(10))
-          assert.truthy(notes:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G) .. ", sells in about 2 days", 1, true))
-          assert.truthy(notes:find("Sold 6 times in 7 days on 3 realms", 1, true))
+          assert.equal("Sells on Kazzak in about 2 days", under(GC))
+          local details = texts(GC.Sniper._RowDetails(deal(10)))
+          assert.truthy(details:find("Sell on Kazzak for " .. GC.Util.FormatMoney(2200 * G) .. ", sells in about 2 days", 1, true))
+          assert.truthy(details:find("Sold 6 times in 7 days on 3 realms", 1, true))
         end)
 
         it("calls one of the player's realms by their character's realm, not the payload's name for its market", function()
           local GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 2.4, own = true },
             { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
           GC.Data.RealmName = function(id) return ({ [1084] = "Tarren Mill", [1305] = "Kazzak-Market" })[id] end
-          assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Sell on Kazzak for ", 1, true))
+          assert.equal("Sells on Kazzak in about 2 days", under(GC))
+          assert.truthy(texts(GC.Sniper._RowDetails(deal(10))):find("Sell on Kazzak for ", 1, true))
         end)
 
-        it("says when this realm's lot is among the five cheapest", function()
+        it("says how soon it sells here, and in the tooltip that this realm's lot is among the five cheapest", function()
           local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } }, { floor5th = 100, realms = 24 })
-          local notes = GC.Sniper._RowNotes(deal(10)) -- the lot asks 100 copper
-          assert.truthy(notes:find("Among the 5 cheapest of 24 realms", 1, true))
-          assert.truthy(notes:find("Sell here for " .. GC.Util.FormatMoney(1900 * G), 1, true))
+          assert.equal("Sells here within a day", under(GC)) -- the lot asks 100 copper
+          local details = GC.Sniper._RowDetails(deal(10))
+          assert.equal("Among the 5 cheapest of 24 realms", details[2].text)
+          assert.equal(GC.Theme.color.gold, details[2].color)
+          assert.truthy(texts(details):find("Sell here for " .. GC.Util.FormatMoney(1900 * G), 1, true))
           GC = loadRouted(nil, { floor5th = 99, realms = 24 })
-          assert.falsy(GC.Sniper._RowNotes(deal(10)):find("cheapest", 1, true))
+          assert.falsy(texts(GC.Sniper._RowDetails(deal(10))):find("cheapest", 1, true))
+          assert.equal("Sold 6 times in 7 days", under(GC)) -- no realm to sell on: how often it sold
         end)
 
-        it("names a realm with no character on it only when it pays notably more", function()
+        it("rounds how soon as the tooltip does", function()
+          local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 1.4, own = true } })
+          assert.equal("Sells here in about 1 day", under(GC))
+          GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 2.5, own = true } })
+          assert.equal("Sells here in about 3 days", under(GC))
+        end)
+
+        it("names a realm with no character on it only in the tooltip, when it pays notably more", function()
           local GC = loadRouted({ { realmId = 3391, list = 4000 * G, days = 3, own = false },
             { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
-          assert.truthy(GC.Sniper._RowNotes(deal(10)):find("Pays more on Silvermoon, where you have no character", 1, true))
+          assert.equal("Sells here within a day", under(GC))
+          assert.truthy(texts(GC.Sniper._RowDetails(deal(10))):find("Pays more on Silvermoon, where you have no character", 1, true))
         end)
 
         it("says nothing about where to sell on a realm the payload does not know", function()
           local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 0.6, own = true } })
           _G.GetRealmName = function() return "Nowhere" end
           GC.SellRoute._here = nil
-          assert.falsy(GC.Sniper._RowNotes(deal(10)):find("Sell", 1, true))
+          assert.equal("Sold 6 times in 7 days", under(GC))
+          assert.falsy(texts(GC.Sniper._RowDetails(deal(10))):find("Sell", 1, true))
         end)
+
+        it("hands the tooltip what the row leaves out", function()
+          local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+          local text = f:read("*a")
+          f:close()
+          local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+          local enter = text:sub(enterAt)
+          local at = assert(enter:find("local details = GC.Sniper._RowDetails(self.deal)", 1, true))
+          assert.truthy(enter:find("GameTooltip:AddLine(GC.Util.ClientText(detail.text)", at, true))
+          assert.truthy(at < assert(enter:find("GameTooltip:Show()", 1, true)))
+        end)
+      end)
+
+      -- The item cell, as GC.Sniper._FitRowName writes it: the line under the name goes when the
+      -- name alone takes both lines, and comes back when the row widens. The name is never cut.
+      describe("the item cell's two lines", function()
+        local function cell(linesFor)
+          local text = {}
+          function text:SetText(t) self.text = t end
+          function text:GetNumLines() return linesFor(self.text) end
+          return { nameText = text }
+        end
+
+        it("keeps the line under a name that fits on one line", function()
+          local GC = load()
+          local row = cell(function(t) return select(2, t:gsub("\n", "")) + 1 end)
+          row._nameParts = { "Glaive Tosser x1 of 2", "", "", "\nSells here in about 2 days" }
+          GC.Sniper._FitRowName(row)
+          assert.equal("Glaive Tosser x1 of 2\nSells here in about 2 days", row.nameText.text)
+        end)
+
+        it("leaves the line to the tooltip when the name wraps, and puts it back when the row widens", function()
+          local GC = load()
+          local wide = false
+          local row = cell(function(t)
+            local lines = select(2, t:gsub("\n", "")) + 1
+            return wide and lines or lines + 1 -- narrow: the name takes two lines
+          end)
+          row._nameParts = { "Teebu's Scorching Straight Sword x1 of 2", "", "", "\nSold 39 times in 7 days" }
+          GC.Sniper._FitRowName(row)
+          assert.equal("Teebu's Scorching Straight Sword x1 of 2", row.nameText.text)
+          wide = true
+          GC.Sniper._FitRowName(row)
+          assert.equal("Teebu's Scorching Straight Sword x1 of 2\nSold 39 times in 7 days", row.nameText.text)
+        end)
+
+        it("writes a row with no line under its name as it was", function()
+          local GC = load()
+          local row = cell(function() return 9 end)
+          row._nameParts = { "Section", "", "" }
+          GC.Sniper._FitRowName(row)
+          assert.equal("Section", row.nameText.text)
+        end)
+      end)
+
+      -- A Rare finds row, two lines like a flip's: the name, and where this realm's listing stands.
+      -- The sales seen are its tooltip's (GC.Sniper._RareTooltip).
+      it("draws a Rare finds row with its standing under the name and its sales in the tooltip", function()
+        local GC = load()
+        local function widget()
+          local w = {}
+          for _, name in ipairs({ "Hide", "Disable", "SetTexture", "SetTextColor" }) do w[name] = function() end end
+          function w:SetText(t) self.text = t end
+          function w:SetLabel(t) self.label = t end
+          return w
+        end
+        local row = { buy = widget(), tierChip = widget(), icon = widget(), nameText = widget(), pinBg = widget(),
+          rail = widget(), discountText = widget(), unitText = widget(), priceText = widget(), profitText = widget(),
+          trendText = widget() }
+        function row:Show() self.shown = true end
+        function row:IsShown() return self.shown end
+        function row:SetAlpha() end
+        GC.Sniper._PaintBoardEntry(row, { kind = "rare", itemID = 7935, unitPrice = 31500000, qty = 1,
+          standing = "min", facts = rareFacts() })
+        local standing, sales = GC.ItemsBoard.RareLines({ standing = "min", facts = rareFacts() })
+        local text = helper.plain(row.nameText.text)
+        assert.equal("item 7935\n" .. standing, text)
+        assert.is_nil(text:find(sales, 1, true))
       end)
 
       it("pins nothing and opens nothing from a header or a Rare finds row", function()
@@ -686,7 +795,7 @@ describe("Key poll wiring", function()
       it("marks what the account lacks, an appearance it has elsewhere, and nothing else", function()
         local GC = loadMarked()
         split(GC, {}, {})
-        assert.truthy(GC.Sniper._RowNotes(deal(7935)):find("Not collected", 1, true))
+        assert.equal("\nNot collected", helper.plain(GC.Sniper._RowNotes(deal(7935)))) -- the line under the name
         assert.truthy(GC.Sniper._RowNotes(deal(2553)):find("Not known by this character", 1, true))
         assert.truthy(GC.Sniper._RowNotes(deal(7936)):find("Appearance known", 1, true))
         assert.equal("", GC.Sniper._RowNotes(deal(2589)))

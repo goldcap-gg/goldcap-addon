@@ -55,6 +55,12 @@
   beside the bank opens it again.
 - DEALS: after your own search on the auction house's Buy tab, press SCAN and Auto carries on.
   Until then its button reads AUTO · WAITING: YOUR AH SEARCH and its tooltip says why.
+- DEALS, Items board: a row takes two lines at most. Under the item's name it says how soon the
+  item sells, or how often it sold this week, and Not collected when your account lacks it. Hover
+  the row for the rest: its sales on all realms, whether this realm is among the cheapest to buy
+  it on, and where it sells for more. When a long name needs both lines, the line under it moves
+  to the tooltip too. Rare finds rows say where this realm's price stands, with their sales in
+  the tooltip.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A

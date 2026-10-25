@@ -1675,4 +1675,12 @@ GC.Locales.ukUA = {
   ["%s never posts under %s"] = "%s ніколи не виставляється нижче %s",
   ["Default price"] = "Типова ціна",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Кожен предмет відкривається з цією ціною. Поріг групи й далі діє, а ціна нижча за ціну купівлі й далі світиться червоним.",
+  ["Sells here within a day"] = "Тут продається за день",
+  ["Sells here in about 1 day"] = "Тут продається приблизно за 1 день",
+  ["Sells here in about %d days"] = "Тут продається приблизно за %d дн.",
+  ["Sells on %s within a day"] = "На %s продається за день",
+  ["Sells on %s in about 1 day"] = "На %s продається приблизно за 1 день",
+  ["Sells on %s in about %d days"] = "На %s продається приблизно за %d дн.",
+  ["Sold once in 7 days"] = "Один продаж за 7 дн.",
+  ["Sold %d times in 7 days"] = "Продажів за 7 дн.: %d",
 }

@@ -1516,7 +1516,7 @@ local function setRowDeal(row, deal)
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
-    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix .. GC.Sniper._RowNotes(deal) }
+    row._nameParts = { named .. qtySuffix(deal, qty), capSuffix, watchSuffix, GC.Sniper._RowNotes(deal) }
     GC.Sniper._FitRowName(row)
   end
   GC.Sniper._StampItem(row, deal, stampName)
@@ -1606,24 +1606,43 @@ function GC.Sniper._MarkSuffix(itemID)
   return ("  |cff%s%s|r"):format(state == "missing" and "f7cf5a" or "8c8a85", text)
 end
 
--- What a flip row says under its name on the Items board: its mark, how often it sells when the
--- payload says (F section), in gold when this realm's lot is among the five cheapest realms to buy
--- it on (K), and where to sell it (S, Core/SellRoute.lua). "" anywhere else.
+-- The line under an Items board row's name: `text` dim, then the item's collection mark; "" with
+-- neither. One line (owner, 2026-10-25: "more than two lines is not needed"), the name the other.
+function GC.Sniper._UnderName(text, itemID)
+  local mark = GC.Sniper._MarkSuffix(itemID)
+  if text then return ("\n|cff8c8a85%s|r"):format(text) .. mark end
+  if mark == "" then return "" end
+  return "\n" .. (mark:gsub("^ +", ""))
+end
+
+-- What a flip row says under its name on the Items board: how soon it sells on the realm to sell
+-- it on (S, Core/SellRoute.lua's RowText), else how often it sold this week (F), and its mark. ""
+-- anywhere else. What the line leaves out is the row's tooltip (GC.Sniper._RowDetails).
 function GC.Sniper._RowNotes(deal)
   if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
-  local notes = GC.Sniper._MarkSuffix(deal.itemID)
+  local line = GC.SellRoute and GC.SellRoute.RowText(GC.SellRoute.ForItem(deal.itemID), GC.SellRoute.RealmName)
+  if not line and GC.Data.FlipFacts then line = GC.ItemsBoard.SoldText(GC.Data.FlipFacts(deal.itemID)) end
+  return GC.Sniper._UnderName(line, deal.itemID)
+end
+
+-- What a flip row's tooltip says under the item, each { text, color }: how often it sells and on
+-- how many realms (F), that this realm's lot is among the five cheapest realms to buy it on (K),
+-- in gold, and where to sell it (S, Core/SellRoute.lua's Lines). Empty anywhere else.
+function GC.Sniper._RowDetails(deal)
+  local out = {}
+  if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return out end
   local sells = GC.Data.FlipFacts and GC.ItemsBoard.FlipText(GC.Data.FlipFacts(deal.itemID))
-  if sells then notes = notes .. ("\n|cff8c8a85%s|r"):format(sells) end
+  if sells then out[#out + 1] = { text = sells, color = Theme.color.fgDim } end
   if GC.SellRoute then
     local cheap = GC.Data.CheapRealms and GC.Data.CheapRealms(deal.itemID)
     if GC.SellRoute.IsCheap(deal.unitPrice, cheap) then
-      notes = notes .. ("\n|cfff7cf5a%s|r"):format(GC.SellRoute.CheapText(cheap))
+      out[#out + 1] = { text = GC.SellRoute.CheapText(cheap), color = Theme.color.gold }
     end
     for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID), GC.SellRoute.RealmName)) do
-      notes = notes .. ("\n|cffb8b5b0%s|r"):format(line)
+      out[#out + 1] = { text = line, color = Theme.color.fgMuted }
     end
   end
-  return notes
+  return out
 end
 
 -- Where the flip a Check is about sells, as GC.CheckVerdict.Build's context.route: the realm to sell
@@ -1716,9 +1735,10 @@ function GC.Sniper._PaintBoardEntry(row, entry)
     local fg = Theme.color.fg
     row.unitText:SetText(GC.Util.FormatMoney(entry.unitPrice))
     row.unitText:SetTextColor(fg[1], fg[2], fg[3])
-    local lines = ("\n|cff8c8a85%s\n%s|r"):format(standing, sales)
+    -- Where this realm's listing stands, under the name: the sales seen are the tooltip's
+    -- (GC.Sniper._RareTooltip), a row is two lines at most (GC.Sniper._UnderName).
     GC.Sniper._StampItem(row, entry, function(named)
-      row._nameParts = { named, "", GC.Sniper._MarkSuffix(entry.itemID) .. lines }
+      row._nameParts = { named, "", "", GC.Sniper._UnderName(standing, entry.itemID) }
       GC.Sniper._FitRowName(row)
     end)
   else
@@ -6146,18 +6166,27 @@ function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)
 end
 
 -- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
--- quantity, the cap row's group suffix, the watching suffix), leaving the group out when the cell
--- has no room for it. Asked again by the row's own OnSizeChanged (createRow): decided once at
--- the stamp, the group stayed cut after the window narrowed and never came back after it
--- widened, because a row whose deal did not move skips its repaint (review M6).
+-- quantity, the cap row's group suffix, the watching suffix, and the Items board's line under the
+-- name, which starts with its own newline), leaving the group out when the cell has no room for
+-- it, and the line under the name when the name alone takes both of a row's two lines (owner,
+-- 2026-10-25: "more than two lines is not needed"). The line's facts are in the row's tooltip; a
+-- name is never cut. Asked again by the row's own OnSizeChanged (createRow): decided once at the
+-- stamp, the group stayed cut after the window narrowed and never came back after it widened,
+-- because a row whose deal did not move skips its repaint (review M6).
 function GC.Sniper._FitRowName(row)
   local parts = row and row._nameParts
   if not parts then return end
   local text = row.nameText
-  text:SetText(parts[1] .. parts[2] .. parts[3])
+  local name = parts[1] .. parts[2] .. parts[3]
+  text:SetText(name)
   if parts[2] ~= "" and text.IsTruncated and text:IsTruncated() then
-    text:SetText(parts[1] .. parts[3])
+    name = parts[1] .. parts[3]
+    text:SetText(name)
   end
+  local under = parts[4] or ""
+  if under == "" then return end
+  text:SetText(name .. under)
+  if text.GetNumLines and text:GetNumLines() > 2 then text:SetText(name) end
 end
 
 -- A watched row's market reference, for its tooltip: the figures on the row are measured
@@ -11179,6 +11208,12 @@ createRow = function(parent, index)
       -- "nothing to report".
       GameTooltip:AddLine(GC.Util.ClientText(GC.SniperDecision.ReasonText("realm_no_reference")),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    end
+    -- An Items board flip's facts, which its one line under the name leaves out.
+    local details = GC.Sniper._RowDetails(self.deal)
+    if #details > 0 then GameTooltip:AddLine(" ") end
+    for _, detail in ipairs(details) do
+      GameTooltip:AddLine(GC.Util.ClientText(detail.text), detail.color[1], detail.color[2], detail.color[3], true)
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.

@@ -198,6 +198,26 @@ function GC.SellRoute.Lines(pick, nameOf)
   return lines
 end
 
+--- The one line an Items board row has room for under the name (owner, 2026-10-25: two lines a
+--- row at most): how soon the pick sells on the realm to sell it on (Target), the realm named
+--- when it is not this one. nil without a target, or for one `nameOf` cannot name; the rest of
+--- Lines is the row's tooltip. Rounded as PaceText rounds.
+function GC.SellRoute.RowText(pick, nameOf)
+  local target = GC.SellRoute.Target(pick)
+  if not target then return nil end
+  local n = target.days < 1 and 0 or math.floor(target.days + 0.5)
+  if target == pick.here then
+    if n == 0 then return GC.L["Sells here within a day"] end
+    if n == 1 then return GC.L["Sells here in about 1 day"] end
+    return (GC.L["Sells here in about %d days"]):format(n)
+  end
+  local name = nameOf(target.realmId)
+  if not name then return nil end
+  if n == 0 then return (GC.L["Sells on %s within a day"]):format(name) end
+  if n == 1 then return (GC.L["Sells on %s in about 1 day"]):format(name) end
+  return (GC.L["Sells on %s in about %d days"]):format(name, n)
+end
+
 --- "Among the 5 cheapest of N realms", for a flip whose lot here IsCheap.
 function GC.SellRoute.CheapText(cheap)
   return (GC.L["Among the 5 cheapest of %d realms"]):format(cheap.realms)

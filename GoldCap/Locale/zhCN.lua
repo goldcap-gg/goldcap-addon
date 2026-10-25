@@ -1507,4 +1507,12 @@ GC.Locales.zhCN = {
   ["%s never posts under %s"] = "%s 从不低于 %s 上架",
   ["Default price"] = "默认价格",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "每件物品都以这个价格开始。分组底价照样有效，低于你买入价的价格照样显示为红色。",
+  ["Sells here within a day"] = "本服一天内售出",
+  ["Sells here in about 1 day"] = "本服约 1 天售出",
+  ["Sells here in about %d days"] = "本服约 %d 天售出",
+  ["Sells on %s within a day"] = "%s 一天内售出",
+  ["Sells on %s in about 1 day"] = "%s 约 1 天售出",
+  ["Sells on %s in about %d days"] = "%s 约 %d 天售出",
+  ["Sold once in 7 days"] = "7 天内售出 1 次",
+  ["Sold %d times in 7 days"] = "7 天内售出 %d 次",
 }

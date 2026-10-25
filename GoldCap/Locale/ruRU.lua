@@ -1674,4 +1674,12 @@ GC.Locales.ruRU = {
   ["%s never posts under %s"] = "%s никогда не выставляется ниже %s",
   ["Default price"] = "Цена по умолчанию",
   ["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."] = "Каждый предмет открывается с этой ценой. Порог группы по-прежнему действует, а цена ниже цены покупки по-прежнему горит красным.",
+  ["Sells here within a day"] = "Здесь продаётся за день",
+  ["Sells here in about 1 day"] = "Здесь продаётся примерно за 1 день",
+  ["Sells here in about %d days"] = "Здесь продаётся примерно за %d дн.",
+  ["Sells on %s within a day"] = "На %s продаётся за день",
+  ["Sells on %s in about 1 day"] = "На %s продаётся примерно за 1 день",
+  ["Sells on %s in about %d days"] = "На %s продаётся примерно за %d дн.",
+  ["Sold once in 7 days"] = "Одна продажа за 7 дн.",
+  ["Sold %d times in 7 days"] = "Продаж за 7 дн.: %d",
 }
