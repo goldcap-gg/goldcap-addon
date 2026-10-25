@@ -43,11 +43,21 @@ local M = {
   TIP_ROWS = 12,
 }
 local ORDER = { "pricesUp", "forCrafts", "putAway" }
--- Prices are up in the board's gold, its button the gold fill; the other two on the window's glass,
--- their buttons in a gold tint and ring.
+-- Prices are up in the board's gold, its button the gold fill, while it has something to take out;
+-- the other two, and Prices are up with nothing, on the window's glass, their buttons in a gold
+-- tint and ring.
 local UP_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.08 }
 local UP_RING = { K.gold[1], K.gold[2], K.gold[3], 0.55 }
 local MOVE_RING = { K.gold[1], K.gold[2], K.gold[3], 0.45 }
+-- A button's look at rest (UI/HoardFrame.lua's moveButton), a full tile's and a compact one's, in
+-- Prices are up's gold or as the other two wear it.
+local function fullLook(gold)
+  return gold and { variant = "primary" } or { variant = "active", ring = MOVE_RING }
+end
+local function compactLook(gold)
+  return { variant = gold and "active" or "ghost", ring = gold and UP_RING or K.glassBorder, icon = "caretRight",
+    iconColor = gold and K.goldText or K.text2 }
+end
 -- A tile with nothing to do, or while another press's run goes: the board's 45%.
 local DIM = 0.45
 -- The count a line or a label is measured with besides its own, so a count that changes does not
@@ -312,7 +322,7 @@ local function newFull(f, id)
   t.line = track(owner, wrapping(T.Label(t.card, 9)))
   colour(t.line, K.text3)
   t.cast = HF.List.NewCast(t.card, owner, 9, true)
-  t.button = U.moveButton(t.card, id == "putAway", gold and { variant = "primary" } or { variant = "active", ring = MOVE_RING })
+  t.button = U.moveButton(t.card, id == "putAway", fullLook(gold))
   t.button:SetFrameLevel(t.card:GetFrameLevel() + 5)
   t.button.runId = "tile:" .. id
   t.button.tipLines = TIPS[id]
@@ -329,8 +339,7 @@ local function newCompact(f, id)
   local T, owner = GC.Theme, HF._frame
   local gold = id == "pricesUp"
   local t = { id = id }
-  t.button = U.moveButton(f, id == "putAway", { variant = gold and "active" or "ghost", ring = gold and UP_RING or K.glassBorder,
-    icon = "caretRight", iconColor = gold and K.goldText or K.text2 })
+  t.button = U.moveButton(f, id == "putAway", compactLook(gold))
   t.card = t.button
   t.button.runId = "tile:" .. id
   t.button.tipLines = TIPS[id]
@@ -375,8 +384,31 @@ end
 -- A tile's button for its plan, as a pair of one (UI/HoardList.lua's PaintPair): what it moves, its
 -- Stop while its own run goes; disabled while another press's run goes. The tile dims with nothing
 -- to do and under another run. Answers whether its own run goes.
-local function paintTileButton(t, plan, ctx)
+-- Prices are up wears the board's gold only while it has something to take out, or its run goes.
+-- Empty, it is dimmed as the other two are: gold there still asked for a press that does nothing
+-- (owner 2026-10-25). Worn again only when that changes, and not over its Stop.
+local function wearGold(t, plan, ctx, compact)
+  if t.id ~= "pricesUp" then return end
   local button = t.button
+  local gold = #plan.stacks > 0 or (ctx.runId ~= nil and ctx.runId == button.runId)
+  if t.gold == gold then return end
+  t.gold = gold
+  button.look = compact and compactLook(gold) or fullLook(gold)
+  button.iconColor = button.look.iconColor
+  if not button.stopping then
+    button:SetVariant(button.look.variant)
+    button:SetRing(button.look.ring)
+  end
+  if compact then
+    colour(t.sub, gold and K.goldText or K.text3)
+  else
+    t.card:SetTint(gold and UP_FILL or K.glassTop, gold and UP_RING or K.glassBorder)
+  end
+end
+
+local function paintTileButton(t, plan, ctx, compact)
+  local button = t.button
+  wearGold(t, plan, ctx, compact)
   button.plan, button.bankShown = plan, ctx.bankType
   local own = HF.List.PaintPair({ { button, plan.stacks, titleOf(t.id) } }, ctx.runId, true, ctx.run) == button
   local other = ctx.running and not own
@@ -477,7 +509,7 @@ local function paintCompact(f, plans, ctx, w)
     setText(t.sub, subOf(id, plan))
     t.sub:ClearAllPoints()
     t.sub:SetPoint("TOPLEFT", button, "TOPLEFT", textX, -subY)
-    local own = paintTileButton(t, plan, ctx)
+    local own = paintTileButton(t, plan, ctx, true)
     t.sub:SetShown(not own)
     if own then
       setText(t.cast.count, HF.List.CountText(ctx.run))

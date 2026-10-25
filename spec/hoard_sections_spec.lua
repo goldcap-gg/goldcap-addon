@@ -358,6 +358,8 @@ describe("GoldCap Hoard sections", function()
     assert.equal("Take out " .. helper.money("3640g"), textOf(pricesUp.button.text))
     assert.equal("3 items sell above your usual price", textOf(pricesUp.line))
     assert.equal(1, alpha(pricesUp.card))
+    local glass = W.state(tile("forCrafts").card.bg).vertex
+    assert.are_not.same(glass, W.state(pricesUp.card.bg).vertex) -- the board's gold
     press(pricesUp.button)
     assert.equal("tile:pricesUp", HF.Running())
     ticks()
@@ -367,6 +369,8 @@ describe("GoldCap Hoard sections", function()
     assert.is_false(tileButton("pricesUp"):IsEnabled())
     assert.equal(0.45, alpha(tile("pricesUp").card))
     assert.equal("Nothing sells above your usual price now", textOf(tile("pricesUp").line))
+    -- ...on the glass the other two wear, no longer in gold (owner 2026-10-25).
+    assert.same(glass, W.state(tile("pricesUp").card.bg).vertex)
   end)
 
   it("lists in Prices are up's tooltip what it takes out, each price now and usual, its worth and what comes next", function()
