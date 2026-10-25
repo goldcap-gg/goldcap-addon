@@ -1,13 +1,14 @@
 local _, GC = ...
 
 -- Which stacks one press at a vendor sells, and why the others stay. Pure: the stacks come from
--- Services/VendorBags.lua, the figures from the same ForeverValue verdict the merchant note uses,
--- so the note and this list never claim the same stack.
+-- Services/VendorBags.lua, the figures from the ForeverValue verdict. Only unbound items a vendor
+-- pays as much for as the auction house would after its cut: a grey (poor quality) stack is the
+-- game's own Sell All Junk button's, so the card never repeats that button.
 --
 -- Stack: { bag, slot, itemID, link, count, quality, vendorUnit, ahUnit, ahSource, ahAt, hasNoValue,
 --   isLocked, isBound, isGear, isReagent, refundable, tradeTimer, inSet, excludedBag, selling }.
 -- ahSource and ahAt say where the auction house figure came from and when (UI/MerchantNote.lua's
--- ValueFor). opts: { junk, worth, kept, now }.
+-- ValueFor). opts: { worth, kept, now }.
 GC.VendorSelect = {}
 local V = GC.VendorSelect
 
@@ -26,7 +27,7 @@ V.FRESH_SECONDS = 24 * 3600
 local WHY = {
   EMPTY = "empty", LOCKED = "locked", NO_VALUE = "no_value", NO_PRICE = "no_price",
   REFUNDABLE = "refundable", TRADE_TIMER = "trade_timer", SET = "set", EXCLUDED = "excluded_bag",
-  KEPT = "kept", SELLING = "selling", AH = "ah", JUNK_OFF = "junk_off", BOUND = "bound",
+  KEPT = "kept", SELLING = "selling", AH = "ah", JUNK = "junk", BOUND = "bound",
   REAGENT = "reagent", WORTH_OFF = "worth_off", UNPRICED = "unpriced", STALE = "stale_price",
   NOT_WORTH = "not_worth",
 }
@@ -41,7 +42,7 @@ local function fresh(stack, now)
   return age >= 0 and age <= V.FRESH_SECONDS
 end
 
--- rule ("junk" or "vendor"), or nil and the first reason the stack stays. The order is the contract.
+-- rule ("vendor"), or nil and the first reason the stack stays. The order is the contract.
 function V.Decide(stack, opts)
   opts = opts or {}
   if not stack.itemID or type(stack.count) ~= "number" or stack.count < 1 then return nil, WHY.EMPTY end
@@ -54,14 +55,11 @@ function V.Decide(stack, opts)
   if stack.excludedBag then return nil, WHY.EXCLUDED end
   if opts.kept and opts.kept[stack.itemID] then return nil, WHY.KEPT end
   if stack.selling then return nil, WHY.SELLING end
-  -- The merchant note's "keep for the auction house": never listed twice, grey or not.
+  -- What fetches more on the auction house after its cut stays, by any price, grey or not.
   if not stack.isBound and positive(stack.ahUnit) and math.floor(stack.ahUnit * KEEP) > stack.vendorUnit then
     return nil, WHY.AH
   end
-  if stack.quality == 0 then
-    if opts.junk then return "junk" end
-    return nil, WHY.JUNK_OFF
-  end
+  if stack.quality == 0 then return nil, WHY.JUNK end
   if stack.isBound then return nil, WHY.BOUND end
   if stack.isReagent then return nil, WHY.REAGENT end
   if not opts.worth then return nil, WHY.WORTH_OFF end

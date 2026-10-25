@@ -123,10 +123,9 @@ GC.DEFAULTS = {
       -- default because the measurement says so; off posts at the cheapest ask instead.
       -- ApplyDefaults fills it in on existing saves.
       overcut = true,
-      -- The Sell to vendor card (UI/VendorSellCard.lua, retail only): sell poor-quality items a
-      -- vendor buys, and sell unbound items a vendor pays as much for as the auction house
-      -- would after its cut. Both on; the VENDOR card in Settings turns either off.
-      vendorJunk = true,
+      -- The Sell to vendor card (UI/VendorSellCard.lua, retail only): sell unbound items a vendor
+      -- pays as much for as the auction house would after its cut. On; the VENDOR card in
+      -- Settings turns it off. Grey items are the game's own Sell All Junk button's.
       vendorWorth = true,
       -- Whether the deals list shows rows the background live check has refused. Off by
       -- default: the point of checking in the background is that the list stops offering

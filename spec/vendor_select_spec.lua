@@ -29,10 +29,23 @@ describe("VendorSelect", function()
     if over and over.ahAt == false then s.ahAt = nil end
     return s
   end
-  local ON = { junk = true, worth = true, kept = {}, now = NOW }
+  local ON = { worth = true, kept = {}, now = NOW }
+  -- An unbound item a vendor pays as much for as the auction house would after its cut.
+  local function better(over)
+    local s = stack({ quality = 1, vendorUnit = 95, ahUnit = 100 })
+    for k, v in pairs(over or {}) do s[k] = v end
+    return s
+  end
 
-  it("sells a grey stack the vendor buys", function()
-    assert.equal("junk", (S.Decide(stack({}), { junk = true })))
+  it("sells an unbound item a vendor pays as much for as the auction house would after its cut", function()
+    assert.equal("vendor", (S.Decide(better(), ON)))
+  end)
+
+  -- The vendor window's own Sell All Junk button sells every grey stack; the card never repeats it.
+  it("leaves a grey stack to the game's Sell All Junk button", function()
+    local rule, why = S.Decide(stack({}), ON)
+    assert.is_nil(rule)
+    assert.equal("junk", why)
   end)
 
   describe("never sells", function()
@@ -62,15 +75,17 @@ describe("VendorSelect", function()
     end
 
     it("kept", function()
-      local s = stack({})
-      local rule, why = S.Decide(s, { junk = true, worth = true, kept = { [s.itemID] = true } })
+      local s = better()
+      local rule, why = S.Decide(s, { worth = true, kept = { [s.itemID] = true }, now = NOW })
       assert.is_nil(rule)
       assert.equal("kept", why)
     end)
   end)
 
-  it("still sells bound junk", function()
-    assert.equal("junk", (S.Decide(stack({ isBound = true, quality = 0 }), ON)))
+  it("leaves bound junk to the game too", function()
+    local rule, why = S.Decide(stack({ isBound = true, quality = 0 }), ON)
+    assert.is_nil(rule)
+    assert.equal("junk", why)
   end)
 
   it("keeps a grey item the auction house pays more for", function()
@@ -137,16 +152,18 @@ describe("VendorSelect", function()
       rule, why = d({ ahAt = NOW + 1 })
       assert.is_nil(rule)
       assert.equal("stale_price", why)
-      rule, why = d({}, { junk = true, worth = true, kept = {} })
+      rule, why = d({}, { worth = true, kept = {} })
       assert.is_nil(rule)
       assert.equal("stale_price", why)
     end)
 
-    it("leaves junk alone: an old price still keeps a grey item for the auction house, and never stops a grey sale", function()
+    it("keeps a grey item for the auction house on a price of any age, and leaves any other grey one to the game", function()
       local rule, why = S.Decide(stack({ ahUnit = 100, vendorUnit = 10, ahSource = "bundled", ahAt = 1 }), ON)
       assert.is_nil(rule)
       assert.equal("ah", why)
-      assert.equal("junk", (S.Decide(stack({ ahUnit = 5, vendorUnit = 10, ahSource = "bundled", ahAt = 1 }), ON)))
+      rule, why = S.Decide(stack({ ahUnit = 5, vendorUnit = 10, ahSource = "bundled", ahAt = 1 }), ON)
+      assert.is_nil(rule)
+      assert.equal("junk", why)
     end)
   end)
 
@@ -155,12 +172,10 @@ describe("VendorSelect", function()
     assert.is_nil(rule)
   end)
 
-  it("honours the toggles", function()
-    local _, why = S.Decide(stack({}), { junk = false, worth = true, kept = {} })
-    assert.equal("junk_off", why)
-    _, why = S.Decide(stack({ quality = 1, vendorUnit = 95, ahUnit = 100 }), { junk = true, worth = false, kept = {} })
+  it("honours the Better at vendor toggle", function()
+    local _, why = S.Decide(better(), { worth = false, kept = {}, now = NOW })
     assert.equal("worth_off", why)
-    local pick = S.Pick({ stack({}), stack({ quality = 1, vendorUnit = 95, ahUnit = 100 }) }, { junk = false, worth = false })
+    local pick = S.Pick({ stack({}), better() }, { worth = false, now = NOW })
     assert.same({}, pick.rows)
     assert.equal(0, pick.more)
   end)
@@ -169,16 +184,17 @@ describe("VendorSelect", function()
     it("caps at 12, orders by copper then bag and slot, and counts the rest", function()
       local stacks = {}
       for i = 1, 15 do
-        stacks[#stacks + 1] = stack({ bag = 1, slot = i, vendorUnit = (i % 3) + 1, count = 1 })
+        local unit = (i % 3) + 1
+        stacks[#stacks + 1] = better({ bag = 1, slot = i, vendorUnit = unit, ahUnit = unit, count = 1 })
       end
-      stacks[#stacks + 1] = stack({ locked = true, isLocked = true, slot = 99 })
+      stacks[#stacks + 1] = better({ isLocked = true, slot = 99 })
       local pick = S.Pick(stacks, ON)
       assert.equal(12, #pick.rows)
       assert.equal(3, pick.more)
       local sum = 0
       for i, r in ipairs(pick.rows) do
         sum = sum + r.copper
-        assert.equal("junk", r.rule)
+        assert.equal("vendor", r.rule)
         local p = pick.rows[i - 1]
         if p then
           assert.is_true(p.copper > r.copper or (p.copper == r.copper and (p.bag < r.bag or (p.bag == r.bag and p.slot < r.slot))))
@@ -188,7 +204,7 @@ describe("VendorSelect", function()
     end)
 
     it("multiplies the unit price by the count", function()
-      local pick = S.Pick({ stack({ vendorUnit = 7, count = 5 }) }, ON)
+      local pick = S.Pick({ better({ vendorUnit = 7, ahUnit = 7, count = 5 }) }, ON)
       assert.equal(35, pick.rows[1].copper)
       assert.equal(35, pick.total)
     end)

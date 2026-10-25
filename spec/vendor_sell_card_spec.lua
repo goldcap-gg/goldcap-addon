@@ -3,23 +3,26 @@ local W = require("spec.support.wow_frames")
 
 -- UI/VendorSellCard.lua: the Sell to vendor card in the merchant column. Which stacks one press
 -- sells is Core/VendorSelect.lua's (the real one runs here); the bag read is stubbed except in the
--- one test that puts the card next to the merchant note.
+-- one test that reads real bags with the merchant note's prices.
 describe("vendor sell card", function()
   local GC, C, restore, saved, reads, menus
   local KEYS = { "C_Container", "C_Item", "C_Timer", "GetCursorInfo", "SpellIsTargeting", "MerchantFrame",
     "GetCoinTextureString", "hooksecurefunc", "MenuUtil", "UIParent" }
 
   local nextID = 5000
-  -- An auction house price, where a case gives one, is the import's and a minute old.
+  -- A stack the card sells: unbound, and a vendor pays as much for it as the auction house would
+  -- after its cut, by an import price a minute old (the auction house figure is the vendor's unless
+  -- a case gives one).
   local function stack(over)
     nextID = nextID + 1
     local s = {
-      bag = 0, slot = nextID - 5000, itemID = nextID, link = "item:" .. nextID, count = 1, quality = 0,
-      vendorUnit = 10, ahSource = "import", ahAt = time() - 60, hasNoValue = false, isLocked = false,
+      bag = 0, slot = nextID - 5000, itemID = nextID, link = "item:" .. nextID, count = 1, quality = 1,
+      vendorUnit = 95, ahSource = "import", ahAt = time() - 60, hasNoValue = false, isLocked = false,
       isBound = false, isGear = false, isReagent = false, refundable = false, tradeTimer = false,
       inSet = false, excludedBag = false, selling = false,
     }
     for k, v in pairs(over or {}) do s[k] = v end
+    if s.ahUnit == nil then s.ahUnit = s.vendorUnit end
     return s
   end
 
@@ -66,7 +69,7 @@ describe("vendor sell card", function()
     helper.loadModule("UI/MerchantNote.lua", GC)
     GC.Data = { GetItemValue = function() return nil end }
     GC.BuyVendorPanel = { Refresh = function() end }
-    GC.db = { settings = { sniper = { vendorJunk = true, vendorWorth = true } }, vendorKeep = {} }
+    GC.db = { settings = { sniper = { vendorWorth = true } }, vendorKeep = {} }
     GC.VendorBags = { Read = function() return reads end }
     helper.loadModule("UI/VendorSellCard.lua", GC)
     C = GC.VendorSellCard
@@ -83,19 +86,15 @@ describe("vendor sell card", function()
     return out
   end
 
-  it("lists a grey stack and the cheap item, not a refundable one", function()
-    local grey = stack({ count = 3 })
-    local cheap = stack({ quality = 1, vendorUnit = 95, ahUnit = 100 })
+  it("lists what a vendor pays as much for, not a grey stack or a refundable one", function()
+    local grey = stack({ quality = 0, count = 3 })
+    local cheap = stack({ quality = 1, vendorUnit = 95, ahUnit = 100, count = 2 })
     local refundable = stack({ refundable = true })
     reads = { grey, cheap, refundable }
     C.OnMerchantShow()
     assert.is_true(C._frame:IsShown())
-    assert.equal(2, #C._pick.rows)
-    local text = table.concat(names(), "|")
-    assert.is_truthy(text:find("Item " .. grey.itemID .. " ×3", 1, true))
-    assert.is_truthy(text:find("Item " .. cheap.itemID, 1, true))
-    assert.is_nil(text:find("Item " .. refundable.itemID, 1, true))
-    assert.equal("95c", textOf(C._rows[1].price))
+    assert.same({ "Item " .. cheap.itemID .. " ×2" }, names())
+    assert.equal("190c", textOf(C._rows[1].price))
   end)
 
   it("lists by the value rule on a price under a day old by the clock, not on an older one", function()
@@ -107,17 +106,18 @@ describe("vendor sell card", function()
     assert.equal(fresh.itemID, C._pick.rows[1].itemID)
   end)
 
-  it("shows nothing when the bags hold nothing to sell, and when both toggles are off", function()
-    reads = { stack({ refundable = true }) }
+  -- Grey junk is the game's Sell All Junk button's: bags of junk alone show no card at all.
+  it("shows nothing when the bags hold only junk or nothing to sell, and when Better at vendor is off", function()
+    reads = { stack({ refundable = true }), stack({ quality = 0 }), stack({ quality = 0, count = 20 }) }
     C.OnMerchantShow()
     assert.is_true(C._frame == nil or not C._frame:IsShown())
-    reads = { stack({}), stack({ quality = 1, vendorUnit = 95, ahUnit = 100 }) }
-    GC.db.settings.sniper.vendorJunk, GC.db.settings.sniper.vendorWorth = false, false
+    reads = { stack({}) }
+    GC.db.settings.sniper.vendorWorth = false
     C.OnBagsChanged()
     assert.is_true(C._frame == nil or not C._frame:IsShown())
-    GC.db.settings.sniper.vendorJunk = true
+    GC.db.settings.sniper.vendorWorth = true
     C.OnBagsChanged()
-    assert.equal(1, #C._pick.rows) -- only the enabled kind
+    assert.equal(1, #C._pick.rows)
     assert.is_true(C._frame:IsShown())
   end)
 
@@ -147,15 +147,16 @@ describe("vendor sell card", function()
     assert.is_true(C._frame:GetWidth() >= button:GetWidth() + 2 * 10)
   end)
 
-  it("never lists what the merchant note keeps for the auction house", function()
-    -- The real bag read and the real note over one set of bags.
+  it("never lists what fetches more on the auction house, nor junk", function()
+    -- The real bag read, with the prices the merchant note's ValueFor hands it.
     local bags = {
       [0] = {
-        { itemID = 70, stackCount = 2, quality = 0, hyperlink = "item:70", isBound = false },  -- AH pays more
-        { itemID = 71, stackCount = 4, quality = 0, hyperlink = "item:71", isBound = false },  -- no AH price
+        { itemID = 70, stackCount = 2, quality = 1, hyperlink = "item:70", isBound = false },  -- AH pays more
+        { itemID = 71, stackCount = 4, quality = 0, hyperlink = "item:71", isBound = false },  -- junk
+        { itemID = 72, stackCount = 3, quality = 1, hyperlink = "item:72", isBound = false },  -- vendor pays more
       },
     }
-    local sells = { [70] = 10, [71] = 8 }
+    local sells = { [70] = 10, [71] = 8, [72] = 95 }
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
       GetContainerItemInfo = function(bag, slot)
@@ -179,14 +180,24 @@ describe("vendor sell card", function()
     _G.ItemLocation = nil
     GC.Data = { GetItemValue = function(id)
       if id == 70 then return { mv = 1000, ts = 0, source = "import", kind = "region_commodity" } end
+      if id == 72 then return { mv = 100, ts = time() - 60, source = "import", kind = "region_commodity" } end
     end }
     GC.db.sellMarks = {}
     helper.loadModule("Services/VendorBags.lua", GC)
     C.OnMerchantShow()
-    local note = GC.MerchantNote.Text(GC.ForeverValue.RealBagTotals(GC.MerchantNote.ValueFor))
-    assert.is_not_nil(note) -- the note does count item 70
     assert.equal(1, #C._pick.rows)
-    assert.equal(71, C._pick.rows[1].itemID)
+    assert.equal(72, C._pick.rows[1].itemID)
+  end)
+
+  -- In retail this card stands at the vendor instead of the note: it never lists what the note
+  -- would keep for the auction house, and the game's own button takes the junk.
+  it("keeps the merchant note quiet where this card loads", function()
+    reads = { stack({}) }
+    GC.ForeverValue.RealBagTotals = function() return { gain = 5000, gainItems = 2 } end
+    GC.MerchantNote.OnMerchantShow()
+    assert.is_nil(GC.MerchantNote._frame)
+    GC.MerchantNote.OnBagsChanged()
+    assert.is_nil(GC.MerchantNote._frame)
   end)
 
   describe("placement", function()
@@ -196,7 +207,7 @@ describe("vendor sell card", function()
       return frame
     end
 
-    it("sits under the BUY panel when it is shown, under the note when only the note is, beside the merchant window otherwise", function()
+    it("sits under the BUY panel when it is shown, beside the merchant window otherwise", function()
       reads = { stack({}) }
       C.OnMerchantShow()
       local point = anchorOf(C._frame)
@@ -205,32 +216,25 @@ describe("vendor sell card", function()
       assert.equal("TOPRIGHT", point[3])
       assert.equal(4, point[4])
 
-      local note = shown("MerchantNote")
+      local buy = shown("BuyVendorPanel")
       C._Place()
-      assert.equal(note, anchorOf(C._frame)[2])
+      assert.equal(buy, anchorOf(C._frame)[2])
       assert.equal("BOTTOMLEFT", anchorOf(C._frame)[3])
 
-      local buy = shown("BuyVendorPanel")
-      C._Place()
-      assert.equal(buy, anchorOf(C._frame)[2])
-
       W.state(buy).shown = false
       C._Place()
-      assert.equal(note, anchorOf(C._frame)[2])
+      assert.equal(_G.MerchantFrame, anchorOf(C._frame)[2])
     end)
 
-    it("re-places after the note and the BUY panel refresh", function()
+    it("re-places after the BUY panel refreshes", function()
       reads = { stack({}) }
       C.OnMerchantShow()
-      local note = shown("MerchantNote")
-      GC.MerchantNote.Refresh()
-      assert.equal(note, anchorOf(C._frame)[2])
       local buy = shown("BuyVendorPanel")
       GC.BuyVendorPanel.Refresh()
       assert.equal(buy, anchorOf(C._frame)[2])
       W.state(buy).shown = false
       GC.BuyVendorPanel.Refresh()
-      assert.equal(note, anchorOf(C._frame)[2])
+      assert.equal(_G.MerchantFrame, anchorOf(C._frame)[2])
     end)
 
     it("installs each follow hook once", function()

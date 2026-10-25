@@ -334,7 +334,7 @@ describe("row button labels fit the button", function()
           gutter = gutter, gap = gap, pill = pill, maxScale = maxScale, size = size }) do
         assert.is_number(v, name)
       end
-      assert.equal(2, #keys)
+      assert.same({ "Better at vendor" }, keys)
     end)
 
     for _, code in ipairs(helper.localeCodes()) do

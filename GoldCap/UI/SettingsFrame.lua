@@ -696,13 +696,13 @@ local function build(sniperFrame)
     columns.left[#columns.left + 1] = brakes
   end
 
-  -- VENDOR (the Sell to vendor card's two kinds, and the items kept for good): retail only, as the
-  -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under RISK CHECKS (under
-  -- WHAT COUNTS where that is absent), never on the same anchor. VENDOR is 108 while each of its
-  -- labels holds one line, which spec/button_label_width_spec.lua pins (flowCard).
+  -- VENDOR (whether the Sell to vendor card lists anything, and the items kept for good): retail
+  -- only, as the card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under
+  -- RISK CHECKS (under WHAT COUNTS where that is absent), never on the same anchor. VENDOR is 82
+  -- while its label holds one line, which spec/button_label_width_spec.lua pins (flowCard).
   local vendor
   if not isForeverClient() then
-    vendor = card(content, GC.L["VENDOR"], 3)
+    vendor = card(content, GC.L["VENDOR"], 2)
     vendor:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
     vendor:SetPoint("RIGHT", content, "CENTER", -7, 0)
     columns.left[#columns.left + 1] = vendor
@@ -982,15 +982,13 @@ local function build(sniperFrame)
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 
-  -- VENDOR's labels are short in every language, the whole rule in the hover sentence, and
-  -- spec/button_label_width_spec.lua holds each to one line of its row at the largest font scale
-  -- in the narrowest window. Should one still need more, it wraps like every row (flowCard), and
+  -- VENDOR's label is short in every language, the whole rule in the hover sentence, and
+  -- spec/button_label_width_spec.lua holds it to one line of its row at the largest font scale
+  -- in the narrowest window. Should it still need more, it wraps like every row (flowCard), and
   -- Forget kept items, the card's footer, moves down with it.
   if vendor then
-    toggleRow(vendor, 1, GC.L["Sell junk"], "vendorJunk",
-      GC.L["Sell to vendor lists poor quality items a vendor buys."])
-    toggleRow(vendor, 2, GC.L["Better at vendor"], "vendorWorth",
-      GC.L["Sell to vendor also lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon."])
+    toggleRow(vendor, 1, GC.L["Better at vendor"], "vendorWorth",
+      GC.L["Sell to vendor lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon. Grey items are left to the vendor window's own Sell All Junk button."])
 
     local forget = Theme.Button(vendor, "ghost", "plaque")
     forget:SetHeight(26)

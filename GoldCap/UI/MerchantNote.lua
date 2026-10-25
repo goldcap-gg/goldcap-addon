@@ -5,8 +5,10 @@ local _, GC = ...
 -- Core/ForeverValue.lua's BagTotals (`gain`, `gainItems`) -- the same rule Road to 40, `/gc bags`
 -- and the Sold tab already use: a stack the vendor pays something for, not bound, whose auction
 -- house price after the 5% cut is higher. The price per item is the one its tooltip prints
--- (GC.Tooltip.Headline). Retail and WoW: Forever alike; with no GoldCap price for anything in the
--- bags there is nothing to say and no note. Read-only: it sells nothing.
+-- (GC.Tooltip.Headline). With no GoldCap price for anything in the bags there is nothing to say and
+-- no note. Read-only: it sells nothing. Where the Sell to vendor card loads (UI/VendorSellCard.lua,
+-- retail's TOC alone) the note stays quiet: that card never lists what the note would keep, and
+-- the column holds GoldCap cards with something to do. ValueFor below serves both games.
 GC.MerchantNote = GC.MerchantNote or {}
 local N = GC.MerchantNote
 
@@ -56,7 +58,7 @@ end
 
 -- Counts the bags again and shows the note, or hides it.
 function N.Refresh()
-  if not N._open then return end
+  if not N._open or GC.VendorSellCard then return end
   local host = _G.MerchantFrame
   if type(host) ~= "table" then return end
   local text = N.Text(GC.ForeverValue.RealBagTotals(N.ValueFor))

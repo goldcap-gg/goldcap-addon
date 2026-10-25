@@ -1,10 +1,12 @@
 local _, GC = ...
 
--- At a vendor: the third GoldCap card in the merchant column, under the merchant note and the BUY
--- panel (UI/MerchantNote.lua, UI/BuyVendorPanel.lua). It lists what one press would sell, a line
--- per stack with its price, and the total on its button. Which stacks those are is
--- Core/VendorSelect.lua's Pick; the bags are read by Services/VendorBags.lua. Right click a line
--- to keep that item for good (GC.db.vendorKeep).
+-- At a vendor: a GoldCap card in the merchant column, under the BUY panel (UI/BuyVendorPanel.lua).
+-- It lists what one press would sell, a line per stack with its price, and the total on its
+-- button: unbound items a vendor pays as much for as the auction house would after its cut, never
+-- the grey ones the game's Sell All Junk button already sells, so the card shows only when it has
+-- something of its own. Which stacks those are is Core/VendorSelect.lua's Pick; the bags are read
+-- by Services/VendorBags.lua. Right click a line to keep that item for good (GC.db.vendorKeep).
+-- Where this card loads, the merchant note (UI/MerchantNote.lua) stays quiet.
 --
 -- The one sale call in the addon outside the bank moves (UI/BankRoute.lua's MoveStack) is in this
 -- file: the driver's `use` below, made for the first stack inside the player's own click and for
@@ -27,8 +29,7 @@ local function sniperSettings()
   return GC.db and GC.db.settings and GC.db.settings.sniper or {}
 end
 
--- The lowest card of the column that is up, so the three never overlap: the BUY panel sits under
--- the note while the note is up, and this card sits under whichever is last.
+-- Under the BUY panel while it is up, so the two never overlap, else at the column's top.
 local function isUp(card)
   return type(card) == "table" and card.IsShown and card:IsShown()
 end
@@ -37,11 +38,8 @@ function C._Place()
   if not frame then return end
   frame:ClearAllPoints()
   local buy = GC.BuyVendorPanel and GC.BuyVendorPanel._frame
-  local note = GC.MerchantNote and GC.MerchantNote._frame
   if isUp(buy) then
     frame:SetPoint("TOPLEFT", buy, "BOTTOMLEFT", 0, -LAYOUT.GAP)
-  elseif isUp(note) then
-    frame:SetPoint("TOPLEFT", note, "BOTTOMLEFT", 0, -LAYOUT.GAP)
   elseif _G.MerchantFrame then
     frame:SetPoint("TOPLEFT", _G.MerchantFrame, "TOPRIGHT", LAYOUT.X, 0)
   else
@@ -49,18 +47,16 @@ function C._Place()
   end
 end
 
--- The other two cards refresh on their own events; after each of their refreshes this one is
--- placed again, whichever ran last (the BUY panel hides and shows by its own Refresh). Installed
--- once per card.
+-- The BUY panel refreshes on its own events and hides and shows by its own Refresh; after each of
+-- them this card is placed again, whichever ran last. Installed once.
 local function followColumn()
-  if not hooksecurefunc then return end
-  for _, name in ipairs({ "MerchantNote", "BuyVendorPanel" }) do
-    local card = GC[name]
-    if type(card) == "table" and type(card.Refresh) == "function" and not C["_following" .. name] then
-      C["_following" .. name] = true
-      hooksecurefunc(card, "Refresh", C._Place)
-    end
+  local buy = GC.BuyVendorPanel
+  if C._followingBuyVendorPanel or not hooksecurefunc or type(buy) ~= "table"
+    or type(buy.Refresh) ~= "function" then
+    return
   end
+  C._followingBuyVendorPanel = true
+  hooksecurefunc(buy, "Refresh", C._Place)
 end
 
 -- The button as wide as its label in the player's language, never narrower than BUTTON_MIN_W: a
@@ -259,7 +255,6 @@ function C.Refresh()
   end
   local settings = sniperSettings()
   local opts = {
-    junk = settings.vendorJunk ~= false,
     worth = settings.vendorWorth ~= false,
     kept = GC.db and GC.db.vendorKeep or {},
     now = time(),

@@ -757,14 +757,18 @@ describe("Settings controls", function()
     assert.equal(2, settingsChangedCalls)
   end)
 
-  it("the VENDOR card holds the two sell toggles and Forget kept items, which empties vendorKeep only", function()
-    GC.db.settings.sniper.vendorJunk = true
+  -- Grey junk is the game's own Sell All Junk button's, so the card has no toggle for it.
+  it("the VENDOR card holds the Better at vendor toggle and Forget kept items, which empties vendorKeep only", function()
     GC.db.settings.sniper.vendorWorth = true
     GC.db.vendorKeep = {}
     GC.SettingsUI.Toggle()
     local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
-    assert.is_not_nil(toggleOf(card, "Sell junk"))
     assert.is_not_nil(toggleOf(card, "Better at vendor"))
+    local labels = {}
+    for _, child in ipairs(card.children) do
+      if child.kind == "FontString" and child.textValue then labels[#labels + 1] = child.textValue end
+    end
+    assert.same({ "VENDOR", "Better at vendor" }, labels)
     local forget = buttonIn(card, "Forget kept items")
     assert.is_not_nil(forget)
     assert.is_false(forget.enabled) -- nothing kept yet
@@ -775,7 +779,7 @@ describe("Settings controls", function()
     assert.is_true(forget.enabled)
     forget.scripts.OnClick(forget)
     assert.same({}, GC.db.vendorKeep)
-    assert.is_true(GC.db.settings.sniper.vendorJunk)
+    assert.is_true(GC.db.settings.sniper.vendorWorth)
     assert.is_false(forget.enabled)
   end)
 
@@ -798,23 +802,21 @@ describe("Settings controls", function()
         if p[1] == "TOPLEFT" then return type(p[2]) == "number" and p[3] or p[5] end
       end
     end
-    local junk, worth = labelIn("Sell junk"), labelIn("Better at vendor")
+    local worth = labelIn("Better at vendor")
     local forget = buttonIn(card, "Forget kept items")
-    for _, label in ipairs({ junk, worth }) do
-      assert.is_true(label.wordWrap)
-      for _, p in ipairs(label.points) do assert.not_equal("RIGHT", p[1]) end -- its height is its own
-    end
+    assert.is_true(worth.wordWrap)
+    for _, p in ipairs(worth.points) do assert.not_equal("RIGHT", p[1]) end -- its height is its own
 
     card.width = 259 -- the left column at the 640 minimum
     card.scripts.OnSizeChanged(card, 259, card.height)
-    assert.equal(191, junk.width)
-    assert.same({ -24, -50, -73 }, { top(junk), top(worth), top(forget) })
-    assert.equal(108, card.height)
+    assert.equal(191, worth.width)
+    assert.same({ -24, -47 }, { top(worth), top(forget) })
+    assert.equal(82, card.height)
 
-    card.width = 120 -- 52px of row: each label takes two lines
+    card.width = 120 -- 52px of row: the label takes two lines
     card.scripts.OnSizeChanged(card, 120, card.height)
-    assert.same({ -24, -58, -89 }, { top(junk), top(worth), top(forget) })
-    assert.equal(124, card.height)
+    assert.same({ -24, -55 }, { top(worth), top(forget) })
+    assert.equal(90, card.height)
   end)
 
   -- No Settings label is cut with "..." (group-rules review M11: most labels were, at the 640
@@ -920,14 +922,14 @@ describe("Settings controls", function()
     end)
   end)
 
-  it("writes the sell toggles to settings.sniper", function()
-    GC.db.settings.sniper.vendorJunk = true
+  it("writes the Better at vendor toggle to settings.sniper", function()
+    GC.db.settings.sniper.vendorWorth = true
     GC.db.vendorKeep = {}
     GC.SettingsUI.Toggle()
     local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
-    local toggle = toggleOf(card, "Sell junk")
+    local toggle = toggleOf(card, "Better at vendor")
     toggle.checkButton.scripts.OnClick(toggle.checkButton)
-    assert.is_false(GC.db.settings.sniper.vendorJunk)
+    assert.is_false(GC.db.settings.sniper.vendorWorth)
   end)
 
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()

@@ -13,18 +13,19 @@
 - Sell, in retail WoW: the CANCEL button asks once for the whole queue and shows the deposits you
   lose, then cancels one lot per press. It cancels only the lots you confirmed: one that joins the
   queue later is asked about again.
-- At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists what one
-  press would sell and sells it for you. It sells your junk, and unbound items a vendor pays at
-  least as much for as the auction house would after its cut, going by an auction house price from
-  the last 24 hours that came through the Companion or an import, never by the prices built into
-  the addon. A press sells at most 12 stacks, so everything it sold is still in the vendor's
-  Buyback tab, and the card says how many more are left. While it sells, its button reads Stop.
-  Right click a line and choose Never sell this to keep an item for good. WoW: Forever does not
-  have the card yet.
+- At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists unbound
+  items a vendor pays at least as much for as the auction house would after its cut, and sells them
+  for you. It goes by an auction house price from the last 24 hours that came through the Companion
+  or an import, never by the prices built into the addon. Grey junk stays with the game's own Sell
+  All Junk button, so the card shows only when it has something else to sell. A press sells at
+  most 12 stacks, so everything it sold is still in the vendor's Buyback tab, and the card says how
+  many more are left. While it sells, its button reads Stop. Right click a line and choose Never
+  sell this to keep an item for good. WoW: Forever does not have the card yet.
+- In retail WoW the note beside the vendor window about items that fetch more on the auction house
+  no longer shows: the Sell to vendor card never lists those items.
 - Sell to vendor never sells items you can still return, tradeable raid loot, items in an
   equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
-  or any bound item that is not junk. Crafting reagents, weapons, armor and profession tools go
-  only when they are junk.
+  bound items, crafting reagents, weapons, armor or profession tools.
 - Bank, in retail WoW: GoldCap Hoard, a window beside the bank. It lists the groups you follow on
   goldcap.gg with their items, how many of them are in your bags and in the bank, and what they are
   worth. Store puts a group in the bank and Take out brings it back to your bags; Store all and
@@ -52,7 +53,7 @@
   group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
 - Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by
   more than a set percent.
-- Settings, in retail WoW: the Vendor card turns either kind off, Sell junk or Better at vendor,
+- Settings, in retail WoW: the Vendor card turns the Sell to vendor card off with Better at vendor,
   and forgets the items you kept.
 - Settings: no setting's name is cut short any more. A long one takes a second line in a narrow
   window or at a large font size, and the cards scroll when they do not all fit.
