@@ -24,6 +24,25 @@ local function num(v)
   return v
 end
 
+--- The most a unit of a followed group's item may cost to be one of its deals: the group's own
+--- price `c` (its preset's share of the usual price `u`), and never so much that reselling the
+--- unit at the lower of `u` and the market's price `mv` (nil when the addon has none) loses money
+--- after the auction house's 5% cut. The site prices a group from its usual price; a market that
+--- fell since is what the player would sell into (owner, 2026-10-25: DEALS is for deals).
+function GC.Caps.DealLimit(c, u, mv)
+  local ref = u
+  if mv and (not ref or mv < ref) then ref = mv end
+  if not ref then return c end
+  return math.min(c, math.floor(ref * 0.95) - 1)
+end
+
+-- The market's price for an item, as every row's profit is measured (GC.DealMath.Measure), or nil.
+local function marketOf(itemID)
+  if not (GC.Data and GC.Data.GetItemValue and GC.DealMath and GC.DealMath.Measure) then return nil end
+  local value = GC.Data.GetItemValue(itemID)
+  return GC.DealMath.Measure(1, 1, value) and value.mv or nil
+end
+
 function GC.Caps.Adopt()
   local raw = _G.GoldCap_AppRuns
   local next_caps, next_order = {}, {}
@@ -48,6 +67,9 @@ function GC.Caps.Adopt()
           next_dropped.duplicate = next_dropped.duplicate + 1
         else
           local g = num(entry.g)
+          local followed = (entry.k == true or entry.k == 1) or nil
+          local u = num(entry.u)
+          u = u and u > 0 and math.floor(u) or nil
           next_caps[i] = {
             c = math.floor(c),
             l = math.max(0, math.floor(l)),
@@ -56,8 +78,18 @@ function GC.Caps.Adopt()
             -- A group the player follows on goldcap.gg (`k`: true as the Companion writes it, 1
             -- as the site's wire has it). nil, not false, on an alert cap, so its shape stays
             -- exactly what it was. The DEALS chip reads GROUP for it (Core/BoardRows.lua).
-            followed = (entry.k == true or entry.k == 1) or nil,
+            followed = followed,
+            -- The usual price the site priced the item at (`u`), which a followed group's row is
+            -- measured against beside the market (UI/SniperFrame.lua's buildCapDeal).
+            usual = u,
           }
+          -- A followed group's item: `c` is what every poll, book pass and decision holds a lot
+          -- to, so it becomes the group's price held to a resale that pays (DealLimit), and
+          -- `price` keeps the group's own for the panel to name.
+          if followed then
+            next_caps[i].price = next_caps[i].c
+            next_caps[i].c = GC.Caps.DealLimit(next_caps[i].c, u, marketOf(i))
+          end
           next_order[#next_order + 1] = i
         end
       end
@@ -72,7 +104,7 @@ function GC.Caps.Adopt()
     for id, cap in pairs(next_caps) do
       local old = caps[id]
       if not old or old.c ~= cap.c or old.l ~= cap.l or old.group ~= cap.group or old.manual ~= cap.manual
-          or old.followed ~= cap.followed then
+          or old.followed ~= cap.followed or old.usual ~= cap.usual or old.price ~= cap.price then
         changed = true; break
       end
     end
@@ -188,7 +220,8 @@ function GC.Caps.DecideRealm(cap, lots)
     quantity = quantity,
     entryTotal = best.buyout,
     entryUnitDisplay = bestUnit,
-    capUnit = cap.c,
+    -- The price the panel names: a followed group's own (`price`), the player's for an alert.
+    capUnit = cap.price or cap.c,
     -- A followed group's cap: the board's chip reads GROUP (GC.BoardRows.Label).
     followed = cap.followed,
   }
@@ -257,7 +290,7 @@ function GC.Caps.DecideCommodity(cap, levels, limits, fixedQuantity)
     entryTotal = total,
     entryUnitDisplay = math.floor(total / quantity),
     unit = qualifying[1].unitPrice,
-    capUnit = cap.c,
+    capUnit = cap.price or cap.c,
     followed = cap.followed,
   }
 end

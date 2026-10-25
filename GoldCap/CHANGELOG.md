@@ -3,7 +3,9 @@
 ## 0.23.0 (unreleased)
 
 - Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
-  deals show on DEALS with a GROUP tag.
+  deals show on DEALS with a GROUP tag, their discount and their profit, sorted by profit with your
+  other deals. A group's deal shows only when reselling it makes a profit after the auction house
+  cut, at the group's usual price or the market's price, whichever is lower.
 - Without GoldCap Companion, or with it stopped, one line in chat at login says what it would
   change for you. Click its link to open the Companion window with the download link ready to
   copy. Don't remind me in that window turns the line off too.
@@ -65,6 +67,9 @@
   you pay, its price across the region, how often it sold this week and where it sells for more.
   SHOW DETAILS is gone there, its rows stayed empty for these items, and a single item has no
   quantity row. A deal from a group you follow names the group and its price, not your price.
+- DEALS, Items board: when the lot you buy is the cheapest on your realm, the row no longer gives
+  that same price as the price to sell it at here. It says how soon it sells here, and points you
+  to another of your realms only when that pays more than the region's price.
 - DEALS, Items board: hovering a row shows one window. The windows that compare the item with what
   you wear show only while you hold Shift, as anywhere in the game.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy

@@ -286,7 +286,8 @@ end
 -- takes. The panel words it.
 local function spotFact(id, spot, tone)
   if type(spot) ~= "table" or not positive(spot.copper) or not number(spot.days) then return nil end
-  return { id = id, realm = spot.realm, here = spot.here, copper = spot.copper, days = spot.days, tone = tone }
+  return { id = id, realm = spot.realm, here = spot.here, atLot = spot.atLot, copper = spot.copper, days = spot.days,
+    tone = tone }
 end
 
 -- Where a flip sells, as facts (context.route, from Core/SellRoute.lua by way of the panel's

@@ -91,6 +91,33 @@ function GC.SellRoute.Pick(spots, mine, hereId)
   return pick
 end
 
+--- The spots of a flip for a player looking at buying a lot of it on this realm at `buyingAt` (copper
+--- a unit). goldcap.gg prices a realm down to the cheapest lot hanging there, and on this realm that
+--- lot can be the very one being bought: Glaive Tosser read "Sell here for 24,999g" over a lot bought
+--- for 24,999g at +17,291g (owner, 2026-10-25). Such a spot keeps its pace, is priced at `reference`
+--- for every comparison (the region's price, which the row's PROFIT is figured at) when that is
+--- higher, and is marked `atLot`: no line names its price as this realm's. A copy, best net first
+--- again; `spots` itself, untouched, when no spot is that lot.
+function GC.SellRoute.AtLot(spots, hereId, buyingAt, reference)
+  if type(spots) ~= "table" or type(buyingAt) ~= "number" then return spots end
+  local out, changed = {}, false
+  for i, s in ipairs(spots) do
+    if s.realmId == hereId and s.list <= buyingAt then
+      out[i] = { realmId = s.realmId, days = s.days, own = s.own, atLot = true,
+        list = type(reference) == "number" and reference > s.list and reference or s.list }
+      changed = true
+    else
+      out[i] = s
+    end
+  end
+  if not changed then return spots end
+  table.sort(out, function(a, b)
+    if a.list ~= b.list then return a.list > b.list end
+    return a.realmId < b.realmId
+  end)
+  return out
+end
+
 --- The spot to sell a flip on: the best of the player's realms when it is worth the trip from here
 --- (CARRY_RATIO and CARRY_MIN_COPPER more, or it does not sell here within a week), else here. nil
 --- when none of the player's realms sells it.
@@ -184,7 +211,9 @@ function GC.SellRoute.Lines(pick, nameOf)
   local target = GC.SellRoute.Target(pick)
   if target then
     local money, pace = GC.Util.FormatMoney(target.list), GC.SellRoute.PaceText(target.days)
-    if target == pick.here then
+    if target.atLot then
+      lines[#lines + 1] = GC.SellRoute.RowText(pick, nameOf)
+    elseif target == pick.here then
       lines[#lines + 1] = (GC.L["Sell here for %s, %s"]):format(money, pace)
     elseif nameOf(target.realmId) then
       lines[#lines + 1] = (GC.L["Sell on %s for %s, %s"]):format(nameOf(target.realmId), money, pace)
@@ -239,6 +268,12 @@ function GC.SellRoute.FactText(fact, form)
     return form == 1 and (GC.L["top 5 of %d"]):format(fact.count) or nil
   end
   local realm = fact.here and GC.L["this realm"] or fact.realm
+  -- This realm's price was the lot being bought (AtLot): how soon it sells, and no price.
+  if fact.atLot then
+    if form == 1 then return ("%s · %s"):format(realm, shortPace(fact.days)) end
+    if form == 2 then return realm end
+    return nil
+  end
   if form == 1 then return ("%s · %s · %s"):format(realm, GC.Util.FormatMoney(fact.copper), shortPace(fact.days)) end
   if form == 2 then return ("%s · %s"):format(realm, GC.Util.FormatMoney(fact.copper)) end
   if form == 3 then return realm end
@@ -279,9 +314,14 @@ function GC.SellRoute.RealmName(realmId)
 end
 
 --- Pick's answer for an item from this character's seat, or nil.
-function GC.SellRoute.ForItem(itemID)
+function GC.SellRoute.ForItem(itemID, buyingAt)
   local spots = GC.Data.SellSpots and GC.Data.SellSpots(itemID)
   local here = spots and GC.SellRoute.HereId()
   if not here then return nil end
+  if buyingAt then
+    local value = GC.Data.GetItemValue and GC.Data.GetItemValue(itemID)
+    local reference = value and GC.DealMath and GC.DealMath.Measure(1, 1, value) and value.mv or nil
+    spots = GC.SellRoute.AtLot(spots, here, buyingAt, reference)
+  end
   return GC.SellRoute.Pick(spots, GC.SellRoute.MyRealms(), here)
 end

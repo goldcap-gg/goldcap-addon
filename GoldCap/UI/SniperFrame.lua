@@ -1411,7 +1411,7 @@ local function setRowDeal(row, deal)
   -- that need a number) would otherwise print.
   -- A watched row's figures are estimates off the last price seen, never a verdict, so they
   -- keep the row's dim look (fgMuted); a dash is only for what is genuinely unknown.
-  if deal.pinPlaceholder and not deal.marketKnown then
+  if (deal.pinPlaceholder and not deal.marketKnown) or (deal.cap and deal.mv == nil) then
     row.discountText:SetText("-")
     row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   elseif deal.pinPlaceholder then
@@ -1620,7 +1620,8 @@ end
 -- anywhere else. What the line leaves out is the row's tooltip (GC.Sniper._RowDetails).
 function GC.Sniper._RowNotes(deal)
   if not (GC.ItemsBoard and deal and deal.itemID and GC.Sniper._RealmBoard()) then return "" end
-  local line = GC.SellRoute and GC.SellRoute.RowText(GC.SellRoute.ForItem(deal.itemID), GC.SellRoute.RealmName)
+  local line = GC.SellRoute and GC.SellRoute.RowText(GC.SellRoute.ForItem(deal.itemID, deal.unitPrice),
+    GC.SellRoute.RealmName)
   if not line and GC.Data.FlipFacts then line = GC.ItemsBoard.SoldText(GC.Data.FlipFacts(deal.itemID)) end
   return GC.Sniper._UnderName(line, deal.itemID)
 end
@@ -1638,7 +1639,7 @@ function GC.Sniper._RowDetails(deal)
     if GC.SellRoute.IsCheap(deal.unitPrice, cheap) then
       out[#out + 1] = { text = GC.SellRoute.CheapText(cheap), color = Theme.color.gold }
     end
-    for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID), GC.SellRoute.RealmName)) do
+    for _, line in ipairs(GC.SellRoute.Lines(GC.SellRoute.ForItem(deal.itemID, deal.unitPrice), GC.SellRoute.RealmName)) do
       out[#out + 1] = { text = line, color = Theme.color.fgMuted }
     end
   end
@@ -1651,16 +1652,17 @@ end
 -- when goldcap.gg has no route for the item or this realm is not one the payload names.
 function GC.Sniper._CheckRoute(itemID, decision)
   if not (GC.SellRoute and itemID) then return nil end
-  local pick = GC.SellRoute.ForItem(itemID)
+  local unit = type(decision) == "table" and decision.entryUnitDisplay or nil
+  -- The lot the Check found here is the one being bought (GC.SellRoute.AtLot).
+  local pick = GC.SellRoute.ForItem(itemID, unit)
   if not pick then return nil end
   local function spot(s)
     if not s then return nil end
-    if s == pick.here then return { here = true, copper = s.list, days = s.days } end
+    if s == pick.here then return { here = true, atLot = s.atLot, copper = s.list, days = s.days } end
     local name = GC.SellRoute.RealmName(s.realmId)
     return name and { realm = name, copper = s.list, days = s.days } or nil
   end
   local cheap = GC.Data.CheapRealms(itemID)
-  local unit = type(decision) == "table" and decision.entryUnitDisplay or nil
   return { target = spot(GC.SellRoute.Target(pick)), suggest = spot(pick.suggest),
     cheapRealms = GC.SellRoute.IsCheap(unit, cheap) and cheap.realms or nil }
 end
@@ -6100,6 +6102,13 @@ local function buildCapDeal(itemID, isCommodity, decision, cap)
   -- (setRowDeal).
   local measured = GC.DealMath and GC.DealMath.Measure(unit, decision.quantity, value, decision.entryTotal)
   local mv = measured and value.mv or nil
+  -- A followed group's row is measured against the lower of the group's usual price and the
+  -- market's, the yardstick its price is held to (GC.Caps.DealLimit): DISC and PROFIT then say
+  -- what the deal is worth, where they read 0% and a dash (owner, 2026-10-25).
+  if cap.followed and cap.usual and GC.DealMath and not (mv and mv <= cap.usual) then
+    measured = GC.DealMath.Measure(unit, decision.quantity, { mv = cap.usual }, decision.entryTotal)
+    mv = measured and cap.usual or nil
+  end
   local estProfit = measured and measured.profit or -decision.entryTotal
   return {
     itemID = itemID,
@@ -6109,7 +6118,7 @@ local function buildCapDeal(itemID, isCommodity, decision, cap)
     capTotal = decision.entryTotal,
     auctionID = decision.candidate and decision.candidate.auctionID or nil,
     mv = mv,
-    discount = 0,
+    discount = measured and measured.discount or 0,
     profit = estProfit,
     estProfit = estProfit,
     tier = "WATCH",
@@ -8339,6 +8348,11 @@ local function evaluateLiveItemDeal(itemID)
   local cap = GC.Caps and GC.Caps.For(itemID)
   if cap then
     local capDecision = GC.Caps.DecideRealm(cap, driver.itemLots(itemID))
+    -- A followed group's gear far under its usual price is left off as a flip is
+    -- (GC.Sniper._GearPastReach): the price, not a find. The player's own price is theirs.
+    if capDecision and cap.followed and GC.Sniper._GearPastReach(itemID, capDecision.unit, cap.usual) then
+      capDecision = nil
+    end
     if capDecision then
       local capDeal = buildCapDeal(itemID, false, capDecision, cap)
       GC.Sniper._realmDeals[itemID] = capDeal

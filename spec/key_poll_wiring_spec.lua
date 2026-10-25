@@ -652,6 +652,26 @@ describe("Key poll wiring", function()
           assert.equal("Sold 6 times in 7 days", under(GC)) -- no realm to sell on: how often it sold
         end)
 
+        -- Glaive Tosser (owner, 2026-10-25): "Sell here for 24,999g" over the 24,999g lot the row
+        -- buys. This realm's price was that very lot (GC.SellRoute.AtLot): how soon, no price.
+        it("never names the lot the row buys as this realm's price to sell at", function()
+          local GC = loadRouted({ { realmId = 1084, list = 100, days = 2, own = true } })
+          assert.equal("Sells here in about 2 days", under(GC)) -- the lot asks 100 copper
+          local details = texts(GC.Sniper._RowDetails(deal(10)))
+          assert.falsy(details:find("Sell here for", 1, true))
+          assert.truthy(details:find("Sells here in about 2 days", 1, true))
+          local route = GC.Sniper._CheckRoute(10, { entryUnitDisplay = 100 })
+          assert.is_true(route.target.here)
+          assert.is_true(route.target.atLot)
+          assert.is_nil(GC.Sniper._CheckRoute(10, { entryUnitDisplay = 99 }).target.atLot)
+
+          -- Priced at the region's 3,000g instead, it no longer sends the flip to Kazzak's 2,200g.
+          GC = loadRouted({ { realmId = 1305, list = 2200 * G, days = 1, own = true },
+            { realmId = 1084, list = 100, days = 2, own = true } })
+          values[10] = { mv = 3000 * G }
+          assert.equal("Sells here in about 2 days", under(GC))
+        end)
+
         it("rounds how soon as the tooltip does", function()
           local GC = loadRouted({ { realmId = 1084, list = 1900 * G, days = 1.4, own = true } })
           assert.equal("Sells here in about 1 day", under(GC))

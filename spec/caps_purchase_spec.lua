@@ -1036,6 +1036,78 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal("-", row.profitText.text)
     end)
 
+    -- A followed group's row on DEALS (owner, 2026-10-25: 0% and a dash on every one). It is
+    -- measured against the lower of the group's usual price and the market's, so DISC and PROFIT
+    -- say what the deal is worth; with neither known they say nothing, as a YOUR PRICE row does.
+    it("measures a followed group's row against the lower of its usual price and the market", function()
+      local GC = loadSniper()
+      local function follow(mv)
+        GC.Data.GetItemValue = function() return mv and { mv = mv } or nil end
+        _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+          caps = { { i = 42, c = 1600000, g = 1, k = true, u = 2000000 } } }
+        GC.Caps.Adopt()
+        return GC.Caps.DecideCommodity(GC.Caps.For(42), { { unitPrice = 1000000, quantity = 10 } },
+          { maxQuantity = 10, budget = math.huge })
+      end
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      local build = getUpvalue(evaluate, "buildCapDeal")
+      local setRowDeal = getUpvalue(refreshRowsOf(GC), "setRowDeal")
+
+      -- No market known: the usual price, 200g. 10 x 190g back against 100g each.
+      local row = fakeRow()
+      setRowDeal(row, build(42, true, follow(nil), GC.Caps.For(42)))
+      assert.equal("50%", row.discountText.text)
+      assert.equal("+" .. GC.Util.FormatMoney(10 * 1900000 - 10000000), row.profitText.text)
+
+      -- The market is under it at 150g: that is what the units would sell into.
+      row = fakeRow()
+      setRowDeal(row, build(42, true, follow(1500000), GC.Caps.For(42)))
+      assert.equal("33%", row.discountText.text)
+      assert.equal("+" .. GC.Util.FormatMoney(10 * 1425000 - 10000000), row.profitText.text)
+
+      -- A dearer market changes nothing: the usual price is the lower.
+      row = fakeRow()
+      setRowDeal(row, build(42, true, follow(3000000), GC.Caps.For(42)))
+      assert.equal("50%", row.discountText.text)
+
+      -- The player's own price with no market: nothing to measure, so both cells say nothing.
+      adoptCap(GC, 42, 2000000)
+      GC.Data.GetItemValue = function() return nil end
+      local mine = GC.Caps.DecideCommodity(GC.Caps.For(42), { { unitPrice = 1000000, quantity = 10 } },
+        { maxQuantity = 10, budget = math.huge })
+      row = fakeRow()
+      setRowDeal(row, build(42, true, mine, GC.Caps.For(42)))
+      assert.equal("-", row.discountText.text)
+      assert.equal("-", row.profitText.text)
+    end)
+
+    -- Gear a followed group lists far under its usual price is left off, as a flip is: the price,
+    -- not a find (Rock Furrow Boots at 1,577g against 711,760g, 2026-10-25). The player's own
+    -- price is theirs to keep.
+    it("leaves a followed group's gear more than 80% under its usual price off the board", function()
+      local GC = loadSniper()
+      helper.loadModule("Core/ItemsBoard.lua", GC)
+      _G.C_Item = _G.C_Item or {}
+      local savedInstant = _G.C_Item.GetItemInfoInstant
+      finally(function() _G.C_Item.GetItemInfoInstant = savedInstant end)
+      _G.C_Item.GetItemInfoInstant = function() return 42, nil, nil, "INVTYPE_FEET", nil, 4, 4 end
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Plate Transmog" },
+        caps = { { i = 42, c = 711760000, l = 0, g = 1, k = true, u = 1779400000 } } }
+      GC.Caps.Adopt()
+      local lots = { { auctionID = 9, buyout = 15770000, quantity = 1 } }
+      local evaluate = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+      setUpvalue(evaluate, "driver", {
+        itemResult = function() return {} end,
+        itemLots = function() return lots end,
+      })
+      evaluate(42)
+      assert.is_nil(GC.Sniper._realmDeals[42])
+
+      lots = { { auctionID = 10, buyout = 600000000, quantity = 1 } } -- a third of its usual price
+      evaluate(42)
+      assert.is_truthy(GC.Sniper._realmDeals[42])
+    end)
+
     it("sorts by that same total", function()
       local GC = loadSniper()
       adoptCap(GC, 42, 2000000)
