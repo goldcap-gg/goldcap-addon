@@ -951,7 +951,8 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.is_truthy(text:find('row:SetScript("OnSizeChanged", function(self, width)\n    GC.Sniper._FitRowName(self)', 1, true))
         -- And the tooltip names the group for any cap row, with or without a fresh verdict: the
         -- note is its own branch, never gated on a cap verdict.
-        local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+        -- The row's tooltip is drawRowTooltip, which OnEnter calls and the compare key redraws.
+        local enterAt = assert(text:find("local function drawRowTooltip(self)", 1, true))
         local enter = text:sub(enterAt)
         local note = assert(enter:find("local capNote = GC.Sniper._CapNote(self.deal)", 1, true))
         assert.is_truthy(enter:find("    if capNote then\n", note, true))

@@ -678,7 +678,7 @@ describe("Key poll wiring", function()
           local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
           local text = f:read("*a")
           f:close()
-          local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+          local enterAt = assert(text:find("local function drawRowTooltip(self)", 1, true))
           local enter = text:sub(enterAt)
           local at = assert(enter:find("local details = GC.Sniper._RowDetails(self.deal)", 1, true))
           assert.truthy(enter:find("GameTooltip:AddLine(GC.Util.ClientText(detail.text)", at, true))
@@ -777,12 +777,43 @@ describe("Key poll wiring", function()
         GC.Sniper._ShowItemTooltip({}, 7935)
         assert.same({ "owner", "suppress", "item 7935" }, calls)
 
+        -- Shift pressed over a row already under the cursor (owner, 2026-10-25: it only worked held
+        -- before the hover). The game's tooltip calls owner:UpdateTooltip every 0.2 s; the owner
+        -- draws its tooltip again once per change of the key, so the comparison check runs again
+        -- inside Blizzard's own processing. GoldCap never shows the comparison itself: its call,
+        -- C_TooltipComparison.CompareItem, is protected.
+        local held = false
+        local savedClick = _G.IsModifiedClick
+        finally(function() _G.IsModifiedClick = savedClick end)
+        _G.IsModifiedClick = function(action) return action == "COMPAREITEMS" and held end
+        local owner, draws = {}, 0
+        local function draw(o)
+          draws = draws + 1
+          GC.Sniper._ShowItemTooltip(o, 7935, draw)
+        end
+        draw(owner)
+        owner:UpdateTooltip()
+        assert.equal(1, draws) -- nothing changed: nothing drawn
+        held = true
+        owner:UpdateTooltip()
+        assert.equal(2, draws)
+        owner:UpdateTooltip()
+        assert.equal(2, draws) -- still held: once per change
+        held = false
+        owner:UpdateTooltip()
+        assert.equal(3, draws)
+
         -- Every item tooltip the Deals board and its Check draw goes through it.
         local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
         local text = f:read("*a")
         f:close()
         assert.equal(1, select(2, text:gsub("GameTooltip:SetItemByID%(", "")))
         assert.equal(3, select(2, text:gsub("\n%s*GC%.Sniper%._ShowItemTooltip%(", "")))
+        -- Each names what redraws it: a board row, a Rare finds row, the Check's item icon.
+        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)", 1, true))
+        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)", 1, true))
+        assert.truthy(text:find("return GC.Sniper._RareTooltip(self, drawRowTooltip)", 1, true))
+        assert.truthy(text:find("GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip)", 1, true))
       end)
 
       -- GoldCap's own price block under the item (UI/Tooltip.lua) stays on a flip row's tooltip

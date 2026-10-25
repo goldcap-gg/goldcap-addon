@@ -1755,23 +1755,43 @@ function GC.Sniper._PaintBoardEntry(row, entry)
   row:Show()
 end
 
+local function compareKeyHeld()
+  return IsModifiedClick and IsModifiedClick("COMPAREITEMS") and true or false
+end
+
+-- Shift pressed or let go over a row already under the cursor. The game's tooltip asks its owner
+-- to update every 0.2 s (GameTooltip_OnUpdate calls owner:UpdateTooltip), and a bag slot sets its
+-- item again there, so the comparison check runs again inside Blizzard's own tooltip processing
+-- (TooltipDataHandlerMixin:ProcessInfo, a securecallfunction). GoldCap cannot show the comparison
+-- itself: C_TooltipComparison.CompareItem is a protected function. So the owner draws its tooltip
+-- again, once per change of the key (owner, 2026-10-25: Shift only worked held before the hover).
+local function redrawOnCompareKey(owner)
+  local held = compareKeyHeld()
+  if held ~= owner.goldcapCompareHeld and owner.goldcapDrawTooltip then owner.goldcapDrawTooltip(owner) end
+end
+
 -- The game's tooltip for an item the board points at, outside the window, without the tooltips
 -- comparing it with what the character wears (owner, 2026-10-25: three windows at once over the
 -- board). Shift still shows them, as anywhere in the game: Blizzard's own switch, which it sets
 -- before its Set*Item call the same way (ItemUtil.DisplayEquipSlotTooltip) and clears with the
--- tooltip (GameTooltip_OnTooltipCleared).
-function GC.Sniper._ShowItemTooltip(owner, itemID)
+-- tooltip (GameTooltip_OnTooltipCleared). `draw(owner)` is what draws the whole tooltip, called
+-- again when the compare key changes under the cursor (redrawOnCompareKey).
+function GC.Sniper._ShowItemTooltip(owner, itemID, draw)
   Theme.ItemTooltipOutside(owner, frame)
   if GameTooltip_SuppressAutomaticCompareItem then GameTooltip_SuppressAutomaticCompareItem(GameTooltip) end
   GameTooltip:SetItemByID(itemID)
+  owner.goldcapCompareHeld = compareKeyHeld()
+  owner.goldcapDrawTooltip = draw
+  owner.UpdateTooltip = redrawOnCompareKey
 end
 
 -- A Rare finds row's tooltip: the item's own, then what was seen of it. GoldCap's price block
 -- under the item stands aside for the row (`goldcapOwnLines`, set in OnEnter): a rare find has no
--- price, and that block would print the asks' median as one.
-function GC.Sniper._RareTooltip(row)
+-- price, and that block would print the asks' median as one. `draw` redraws the row's tooltip
+-- when the compare key changes (GC.Sniper._ShowItemTooltip); this one, without it.
+function GC.Sniper._RareTooltip(row, draw)
   local entry = row.deal
-  GC.Sniper._ShowItemTooltip(row, entry.itemID)
+  GC.Sniper._ShowItemTooltip(row, entry.itemID, draw or GC.Sniper._RareTooltip)
   local standing, sales = GC.ItemsBoard.RareLines(entry)
   local dim = Theme.color.fgDim
   GameTooltip:AddLine(" ")
@@ -9887,13 +9907,14 @@ local function createDialog()
   itemHit:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT",
     Theme.pad.s + DG.HEADER_NAME_W, 0)
   itemHit:EnableMouse(true)
-  itemHit:SetScript("OnEnter", function(self)
+  local function showDealTooltip(self)
     if not dialog.deal then return end
     -- Outside the window, never over it -- the dialog sits on top of the board this tooltip
     -- would otherwise cover (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID)
+    GC.Sniper._ShowItemTooltip(self, dialog.deal.itemID, showDealTooltip)
     GameTooltip:Show()
-  end)
+  end
+  itemHit:SetScript("OnEnter", showDealTooltip)
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
   d.itemHit = itemHit
 
@@ -11177,23 +11198,14 @@ createRow = function(parent, index)
       GC.Sniper._QueueRowFit()
     end
   end)
-  row:SetScript("OnEnter", function(self)
-    -- A section header or an empty section's line is a label, not a row to point at: no wash,
-    -- no hold, no tooltip.
-    if self.deal and self.deal.kind and self.deal.kind ~= "rare" then return end
-    self.highlight:Show()
-    self.rail:Show()
-    hoveredRow = self
-    -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
-    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
-    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
-    if not self.deal then return end
-    GC.Sniper._BeginInspect(self)
-    if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self) end
-    GC.Sniper._HoverPrewarm(self)
+  -- The row's tooltip: drawn on enter, and again when the compare key goes down or up under the
+  -- cursor (GC.Sniper._ShowItemTooltip), so it reads the row and does nothing else.
+  local function drawRowTooltip(self)
+    if not self.deal or (self.deal.kind and self.deal.kind ~= "rare") then return end
+    if self.deal.kind == "rare" then return GC.Sniper._RareTooltip(self, drawRowTooltip) end
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
-    GC.Sniper._ShowItemTooltip(self, self.deal.itemID)
+    GC.Sniper._ShowItemTooltip(self, self.deal.itemID, drawRowTooltip)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.
     local verdict = verdictFor(self.deal)
@@ -11264,6 +11276,21 @@ createRow = function(parent, index)
       and GC.L["Right-click to stop watching this item"]
       or GC.L["Right-click to watch this item closely"]), 0.7, 0.7, 0.7)
     GameTooltip:Show()
+  end
+  row:SetScript("OnEnter", function(self)
+    -- A section header or an empty section's line is a label, not a row to point at: no wash,
+    -- no hold, no tooltip.
+    if self.deal and self.deal.kind and self.deal.kind ~= "rare" then return end
+    self.highlight:Show()
+    self.rail:Show()
+    hoveredRow = self
+    -- GoldCap's own price block under the item's tooltip stands aside for a Rare finds row, which
+    -- has no price (GC.Sniper._RareTooltip). Set on every enter: the row is pooled.
+    self.goldcapOwnLines = (self.deal and self.deal.kind == "rare") or nil
+    if not self.deal then return end
+    GC.Sniper._BeginInspect(self)
+    if self.deal.kind ~= "rare" then GC.Sniper._HoverPrewarm(self) end
+    drawRowTooltip(self)
   end)
   row:SetScript("OnLeave", function(self)
     GC.Sniper._EndInspect(self)
