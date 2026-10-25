@@ -1310,10 +1310,21 @@ local function widthFor()
   return width, width - 2 * L.PAD, width - 2 * L.PAD - L.GUTTER
 end
 
+-- The list's one line of text in place of its rows (frame.empty), `cy` down the scroll: answers
+-- where it ends.
+local function showEmpty(text, cy, inner)
+  frame.empty:SetWidth(inner)
+  setText(frame.empty, text)
+  frame.empty:ClearAllPoints()
+  frame.empty:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
+  frame.empty:Show()
+  return cy + math.ceil(heightOf(frame.empty, 12))
+end
+
 -- The window, top to bottom: the header and the switch, fixed; the tiles pinned under them; from
 -- SEARCH_MIN_GROUPS groups the search row, fixed above the list; then in the scroll the groups'
--- heading, the rows the plan lists, the fold line with, opened, the folded rows under it, and the
--- carry cards; under the scroll, at the window's foot, the selection bar's room and under it the
+-- heading, the rows the plan lists, the fold line with, opened, the folded rows under it (with no
+-- followed group, a line saying where groups come from instead), and the carry cards; under the scroll, at the window's foot, the selection bar's room and under it the
 -- pinned footer. Clamped to the screen and never taller than the room under its top, but never so
 -- low that the scroll between the fixed parts shows fewer than ROWS_MIN rows' room (or all there
 -- is, when that is less).
@@ -1326,8 +1337,7 @@ end
 -- the selection bar and the footer at its foot, and a Stop on them, stay where they are through a
 -- run and the bag events of its moves (Make room bringing a folded group up, Put back bringing a
 -- card to carry); outside a run it grows to the least height when it kept less. Laid out, not
--- shown: answers false when it has nothing at all to show (no followed group, and every section
--- empty).
+-- shown.
 local function paint(state, layout)
   local beside = place(frame)
   local width, head, inner = widthFor()
@@ -1381,14 +1391,13 @@ local function paint(state, layout)
     moving = HF._moving, many = searching, visit = HF._visit }
   local wide = wideCtx(ctx, head)
 
-  local shownH = 0
   -- The tiles pinned under the switch, as wide as the header.
   local tilesH = paintSection("tiles", wide, 0)
   if tilesH > 0 then
     local tiles = HF._sections.tiles.frame
     tiles:ClearAllPoints()
     tiles:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -y)
-    y, shownH = y + tilesH + L.SECTION_GAP, shownH + tilesH
+    y = y + tilesH + L.SECTION_GAP
   end
 
   -- The search row, fixed above the list so it never scrolls away.
@@ -1407,12 +1416,7 @@ local function paint(state, layout)
     local nothing = #state.groups == 0 and GC.L["None of your groups' items are in your bags or this bank."]
       or (#result.rows == 0 and result.folded == 0 and GC.L["No group or item matches your search."])
     if nothing then
-      frame.empty:SetWidth(inner)
-      setText(frame.empty, nothing)
-      frame.empty:ClearAllPoints()
-      frame.empty:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
-      frame.empty:Show()
-      cy = cy + math.ceil(heightOf(frame.empty, 12)) + L.ROW_GAP
+      cy = showEmpty(nothing, cy, inner) + L.ROW_GAP
     else
       frame.empty:Hide()
     end
@@ -1425,13 +1429,16 @@ local function paint(state, layout)
     end
     cy = cy - L.ROW_GAP
   else
-    for _, key in ipairs({ "groupsTitle", "storeAll", "takeAll", "empty", "fold" }) do frame[key]:Hide() end
+    for _, key in ipairs({ "groupsTitle", "storeAll", "takeAll", "fold" }) do frame[key]:Hide() end
     for _, entry in ipairs(frame.legend) do entry.swatch:Hide(); entry.text:Hide() end
+    -- No followed group: the window stands all the same (Make room and Put back need none), and
+    -- says where groups come from.
+    cy = showEmpty(GC.L["You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press."], 0, inner)
   end
   for i = index, #HF._rows do HF._rows[i]:Hide() end
   -- The carry cards in the scroll, under the groups.
   local carryH = paintSection("carry", ctx, cy + L.SECTION_GAP)
-  if carryH > 0 then cy, shownH = cy + L.SECTION_GAP + carryH, shownH + carryH end
+  if carryH > 0 then cy = cy + L.SECTION_GAP + carryH end
   -- The window's foot, bottom up: the footer, pinned, then the selection bar's room, once a group's
   -- checkbox has shown in this visit. The scroll ends a SECTION_GAP over them.
   local foot = L.PAD
@@ -1440,9 +1447,8 @@ local function paint(state, layout)
     local footer = HF._sections.footer.frame
     footer:ClearAllPoints()
     footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, foot)
-    foot, shownH = foot + footerH + L.SECTION_GAP, shownH + footerH
+    foot = foot + footerH + L.SECTION_GAP
   end
-  if not groupsUp and shownH == 0 then return false end
 
   cy = math.ceil(math.max(cy, 1))
   frame.content:SetSize(inner, cy)
@@ -1458,7 +1464,6 @@ local function paint(state, layout)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
   frame.scroll:SetSize(inner, math.max(1, height - top - foot))
-  return true
 end
 
 -- Nothing of the window keeps the keyboard once it is gone (UI/HoardList.lua's search box). What it
@@ -1484,17 +1489,16 @@ local function showHandle()
   if not wasUp then restamp(handle) end
 end
 
--- Paints the window, or hides it: with no followed group and no section (then nothing is built and
--- no slot is read), with the bank closed or not the window, with neither bank usable here with a
--- tab, and with nothing at all to show. While the player has closed it, the handle shows in its
--- place, when the window would have. With `read`, or at another bank than its last read's, it reads
+-- Paints the window, or hides it: with the bank closed or not the window, or with neither bank
+-- usable here with a tab. It stands at the bank with no followed group too: Make room and Put back
+-- need none, and it says where groups come from. While the player has closed it, the handle shows
+-- in its place. With `read`, or at another bank than its last read's, it reads
 -- the bags and the banks again (newReading) and tells the stacks sent from that read
 -- (pruneMoving); else it paints from what it last read. `layout`: paint's.
 local function refresh(read, layout)
   local route, character, account = GC.BankRoute, banks()
   if not (route._open and character and account) then return hideAll() end
   local hasGroups = GC.GroupRules ~= nil and GC.GroupRules.HasGroups()
-  if not hasGroups and next(HF._sections) == nil then return hideAll() end
   -- The bank window shows another bank than at the last paint (it opened, or the player clicked its
   -- other tab): the switch goes along. Else the bank stays the one the player chose on the switch.
   local seen = route.ShownBankType()
@@ -1515,8 +1519,8 @@ local function refresh(read, layout)
   HF._paintedType = bankType
   if not usable[bankType] then return hideAll() end
   local closed = closedNow()
-  -- A followed group always makes a window, so its handle needs no reading.
-  if closed and hasGroups then return showHandle() end
+  -- The window always stands at the bank, so its handle needs no reading.
+  if closed then return showHandle() end
   local reading = HF._reading
   if read or not (reading and reading.bankType == bankType) then
     reading = newReading(bankType)
@@ -1531,7 +1535,7 @@ local function refresh(read, layout)
   local state = stateOf(reading, usable, hasGroups)
   if not frame then build() end
   local wasUp = frame:IsShown()
-  if not paint(state, (layout or not wasUp or bankChanged) and HF._runId == nil) then return hideAll() end
+  paint(state, (layout or not wasUp or bankChanged) and HF._runId == nil)
   if closed then return showHandle() end
   if handle then handle:Hide() end
   frame:Show()

@@ -43,7 +43,8 @@
   craft queue is missing, and Put away stores what you are not selling. Hover a tile to see what
   it will move.
 - Bank: Make room puts everything from your bags into the bank, and Put back brings those items
-  back later, even after a reload.
+  back later, even after a reload. Both work with no group followed: the Hoard opens beside the
+  bank all the same and says where to find groups.
 - Bank: pick your bank or the Warband Bank at the top of the Hoard. You can set how many of each
   item stay in your bags, and a stack that has to stay, because that bank does not take it or, for
   the Warband Bank, because you can still return it for a refund, is named with why. The flips to

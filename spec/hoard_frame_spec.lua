@@ -365,26 +365,34 @@ describe("GoldCap Hoard window", function()
     assert.is_false(windowUp())
   end)
 
-  -- Most players follow no group: they see no window at all, and nothing is built or read for it.
-  it("is not there at all when no group is followed: builds nothing and reads no slot", function()
+  -- Most players follow no group yet: the window stands at the bank all the same and says where
+  -- groups come from, with no heading, legend or move buttons, and reads no slot for groups.
+  it("stands at the bank with no followed group and says where groups come from", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     open()
-    assert.is_nil(HF._frame)
+    assert.is_true(windowUp())
+    assert.same({}, rowNames())
+    assert.is_true(shown(HF._frame.empty))
+    assert.equal("You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press.", textOf(HF._frame.empty))
+    for _, key in ipairs({ "groupsTitle", "storeAll", "takeAll", "fold" }) do assert.is_false(shown(HF._frame[key]), key) end
     assert.equal(0, reads)
     bagsChanged()
-    assert.is_nil(HF._frame)
+    assert.is_true(windowUp())
     assert.equal(0, reads)
   end)
 
-  it("hides once the last followed group is gone, and reads no slot for it", function()
+  it("says where groups come from once the last followed group is gone, and reads no slot for it", function()
     open()
     assert.is_true(windowUp())
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     reads = 0
     bagsChanged()
-    assert.is_false(windowUp())
+    assert.is_true(windowUp())
+    assert.same({}, rowNames())
+    assert.equal("You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press.", textOf(HF._frame.empty))
+    assert.is_false(shown(HF._frame.storeAll))
     assert.equal(0, reads)
   end)
 
@@ -502,27 +510,17 @@ describe("GoldCap Hoard window", function()
     assert.is_true(windowUp())
   end)
 
-  -- The handle brings back a window that has something to show: with no followed group, it stands
-  -- only while a section (the carry list, the footer) has something.
-  it("shows the handle only where the window would have shown", function()
+  -- The window stands at the bank with no followed group too, so closed, its handle does.
+  it("keeps its handle beside the bank with no followed group", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     GC.Hoard.SetClosed(GC.db, true)
-    local h = 0
-    HF.AddSection("footer", { build = function() end, paint = function() return h end })
     open()
     assert.is_false(windowUp())
-    assert.is_false(shown(HF._handle))
-    h = 20
-    bagsChanged()
-    assert.is_false(windowUp())
     assert.is_true(shown(HF._handle))
+    assert.equal(0, reads)
     press(HF._handle)
     assert.is_true(windowUp())
-    assert.is_false(shown(HF._handle))
-    h = 0
-    bagsChanged()
-    assert.is_false(windowUp())
     assert.is_false(shown(HF._handle))
   end)
 

@@ -178,12 +178,11 @@ local function makeRoomPlan(room, char, ctx)
 end
 
 -- The two buttons on the footer's first line, then the price line beside them or under them, its
--- room kept for the visit. Answers the footer's height, 0 with neither a followed group nor
--- anything Make room put away.
+-- room kept for the visit. Answers the footer's height: it stands with no followed group too, as
+-- Make room and Put back need none.
 local function paint(f, ctx)
   local char = charNow()
   local room, stacks = roomNow(char, ctx)
-  if not ctx.hasGroups and not room then return 0 end
   if f.visit ~= ctx.visit then f.visit, f.most, f.under = ctx.visit, 0, false end
   local back, backNote = putBackPlan(room, stacks, ctx)
   local make, makeNote = makeRoomPlan(room, char, ctx)

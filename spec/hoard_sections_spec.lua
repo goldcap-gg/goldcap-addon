@@ -591,12 +591,16 @@ describe("GoldCap Hoard sections", function()
     assert.equal("caretRight", glyph(button.icon))
   end)
 
+  -- With no followed group the tiles have nothing to move and stay away; the window reads only the
+  -- bags, once, for Make room.
   it("paints no tile without a followed group, and reads no slot for them", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     open()
-    assert.equal(0, reads)
-    assert.is_true(HF._frame == nil or not HF._frame:IsShown())
+    assert.is_true(HF._frame:IsShown())
+    assert.is_false(shown(section("tiles")))
+    -- The backpack's 20 slots and the reagent bag's 36.
+    assert.equal(20 + 36, reads)
   end)
 
   -- Pressed again and again in one spot: a tile keeps its place and size through a run and after it,
@@ -1066,19 +1070,21 @@ describe("GoldCap Hoard sections", function()
     assert.same(K.warn, W.state(footer().dot).vertex)
   end)
 
-  it("shows the footer only with a followed group, or while Make room has something to bring back", function()
+  -- Make room and Put back need no group: the footer stands with none.
+  it("shows the footer with no followed group", function()
     route()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     open()
     assert.is_true(HF._frame:IsShown())
-    assert.is_false(shown(footer()))
+    assert.is_true(shown(footer()))
+    assert.is_true(footer().makeRoom:IsEnabled())
+    assert.is_false(footer().putBack:IsEnabled())
     assert.equal(2, #cards())
   end)
 
-  -- Unfollowing every group does not strand what Make room put away: the footer stays until Put back
-  -- has brought it back.
-  it("shows the footer without a followed group while Make room has something to bring back", function()
+  -- Unfollowing every group does not strand what Make room put away: Put back brings it back.
+  it("brings back what Make room put away with no followed group", function()
     _G.GoldCap_AppRuns = nil
     GC.GroupRules.Adopt()
     GC.Hoard.SetRoom(GC.db, "Me-Tarren Mill", { bankType = ACCOUNT, at = now, items = { [2] = 100 } })
@@ -1091,7 +1097,8 @@ describe("GoldCap Hoard sections", function()
     ticks()
     assert.same({ { 12, 1, "out" } }, moves())
     assert.is_nil(GC.Hoard.Room(GC.db, "Me-Tarren Mill"))
-    assert.is_false(HF._frame:IsShown())
+    assert.is_true(HF._frame:IsShown())
+    assert.is_false(footer().putBack:IsEnabled())
   end)
 
   -- ---------------------------------------------------------------------------------------------

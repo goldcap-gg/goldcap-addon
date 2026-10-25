@@ -1523,6 +1523,8 @@ GC.Locales.deDE = {
   ["%d in bags, %d in your bank"] = "%d in den Taschen, %d in deiner Bank",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Bleibt in den Taschen: %s ×%d, deine Bank nimmt es nicht",
   ["None of your groups' items are in your bags or this bank."] = "Keine Gegenstände deiner Gruppen sind in deinen Taschen oder in dieser Bank.",
+  ["You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press."] =
+    "Du folgst noch keiner Gruppe. Folge welchen auf goldcap.gg unter Gruppen, und der GoldCap Companion bringt sie hierher: was jede in deinen Taschen und dieser Bank hat, mit einem Klick eingelagert oder herausgenommen.",
   -- GoldCap Hoard, the window beside the bank (UI/HoardFrame.lua, UI/HoardRow.lua).
   ["Hoard"] = "Hort",
   ["Bags %d free"] = "Taschen: %d frei",

@@ -1590,6 +1590,8 @@ GC.Locales.ruRU = {
   ["%d in bags, %d in your bank"] = "%d в сумках, %d в вашем банке",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "Остаётся в сумках: %s ×%d, ваш банк его не принимает",
   ["None of your groups' items are in your bags or this bank."] = "Предметов ваших групп нет ни в сумках, ни в этом банке.",
+  ["You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press."] =
+    "Вы пока не подписаны ни на одну группу. Подпишитесь на goldcap.gg в разделе «Группы», и GoldCap Companion принесёт их сюда: что из каждой лежит в сумках и в этом банке, чтобы убрать или забрать одним нажатием.",
   -- GoldCap Hoard, the window beside the bank (UI/HoardFrame.lua, UI/HoardRow.lua).
   ["Hoard"] = "Клад",
   ["Bags %d free"] = "Сумки: свободно %d",

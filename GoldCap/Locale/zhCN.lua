@@ -1423,6 +1423,8 @@ GC.Locales.zhCN = {
   ["%d in bags, %d in your bank"] = "背包 %d，角色银行 %d",
   ["Stays in bags: %s ×%d, your bank does not take it"] = "留在背包：%s ×%d，角色银行不接受",
   ["None of your groups' items are in your bags or this bank."] = "你的分组物品不在背包或这个银行里。",
+  ["You follow no groups yet. Follow some on goldcap.gg under Groups, and the GoldCap Companion brings them here: what each holds in your bags and this bank, to store or take out in one press."] =
+    "你还没有关注任何分组。在 goldcap.gg 的“分组”里关注一些，GoldCap Companion 会把它们带到这里：每个分组在背包和这个银行里有什么，一键存入或取出。",
   -- GoldCap Hoard, the window beside the bank (UI/HoardFrame.lua, UI/HoardRow.lua).
   ["Hoard"] = "宝库",
   ["Bags %d free"] = "背包空位 %d",
