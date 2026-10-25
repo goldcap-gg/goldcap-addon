@@ -935,9 +935,9 @@ GC.Locales.ptBR = {
   ["AUTO · WAITING FOR YOU"] = "AUTO · ESPERANDO VOCÊ",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Espera enquanto você anuncia, compra ou navega nos painéis da casa de leilões. Começa assim que você parar.",
-  ["AUTO · WAITING: YOUR LIST"] = "AUTO · ESPERA: SUA LISTA",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Espera: sua própria busca está na lista de compra da casa de leilões, e uma varredura a substituiria. Abra a aba do GoldCap na casa de leilões, ou feche a casa de leilões, e o Auto começa.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · ESPERA: SUA BUSCA NO LEILÃO",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Espera para que uma varredura não substitua os resultados da sua própria busca na lista de compra da casa de leilões. Aperte VARRER ou a aba do GoldCap embaixo na casa de leilões, ou feche a casa de leilões, e o Auto começa.",
   ["Market %s · unverified until a live Check"] =
     "Mercado %s · não verificado até uma checagem ao vivo",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =

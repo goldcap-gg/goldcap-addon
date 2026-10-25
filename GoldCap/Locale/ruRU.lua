@@ -908,9 +908,9 @@ GC.Locales.ruRU = {
   ["AUTO · WAITING FOR YOU"] = "АВТО · ЖДЁТ ВАС",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Ждёт, пока вы выставляете, покупаете или смотрите в окнах самого аукциона. Начнёт, как только вы закончите.",
-  ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЖДЁТ: ВАШ СПИСОК",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Ждёт: в списке покупки аукциона ваш собственный поиск, и скан заменил бы его. Откройте вкладку GoldCap на аукционе или закройте аукцион, и Авто начнёт.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "АВТО · ЖДЁТ: ВАШ ПОИСК НА АУКЦИОНЕ",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Ждёт, чтобы скан не заменил результаты вашего поиска в списке покупки аукциона. Нажмите СКАН или вкладку GoldCap внизу окна аукциона, или закройте аукцион, и Авто начнёт.",
   ["Market %s · unverified until a live Check"] = "Рынок %s · не проверено до живой проверки",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "данные всего рынка: товаров %d, с данными о продажах %d, предметов мира %d (возраст %s, %d КБ)",

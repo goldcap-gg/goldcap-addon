@@ -53,6 +53,8 @@
   the Warband Bank, because you can still return it for a refund, is named with why. The flips to
   carry to another realm show in the Hoard too. Close it with the X, and a small Hoard button
   beside the bank opens it again.
+- DEALS: after your own search on the auction house's Buy tab, press SCAN and Auto carries on.
+  Until then its button reads AUTO · WAITING: YOUR AH SEARCH and its tooltip says why.
 - Buying in the auction house's own window goes through on the first press while GoldCap's buy
   window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
 - BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A

@@ -922,9 +922,9 @@ GC.Locales.ukUA = {
   ["AUTO · WAITING FOR YOU"] = "АВТО · ЧЕКАЄ НА ВАС",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Чекає, поки ви виставляєте, купуєте чи переглядаєте у вікнах самого аукціону. Почне, щойно ви закінчите.",
-  ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЧЕКАЄ: ВАШ СПИСОК",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Чекає: у списку купівлі аукціону ваш власний пошук, і скан замінив би його. Відкрийте вкладку GoldCap на аукціоні або закрийте аукціон, і Авто почне.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "АВТО · ЧЕКАЄ: ВАШ ПОШУК НА АУКЦІОНІ",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Чекає, щоб скан не замінив результати вашого пошуку в списку купівлі аукціону. Натисніть СКАН або вкладку GoldCap унизу вікна аукціону, або закрийте аукціон, і Авто почне.",
   ["Market %s · unverified until a live Check"] = "Ринок %s · не перевірено до живої перевірки",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "дані всього ринку: товарів %d, з даними про продажі %d, предметів світу %d (вік %s, %d КБ)",

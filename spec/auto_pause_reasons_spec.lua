@@ -79,7 +79,7 @@ describe("Auto says why it is not scanning", function()
     busy = false
     GC.Sniper._BrowseOwned = function() return true end
     autoScan:Tick(200)
-    assert.equal("AUTO · WAITING: YOUR LIST", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
+    assert.equal("AUTO · WAITING: YOUR AH SEARCH", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
   end)
 
   -- Reported 2026-10-17: a player posted through Auctionator's Selling tab, came back to Deals

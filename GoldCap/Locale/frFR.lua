@@ -938,9 +938,9 @@ GC.Locales.frFR = {
   ["AUTO · WAITING FOR YOU"] = "AUTO · T'ATTEND",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Attend pendant que tu mets en vente, achètes ou parcours les panneaux de l'hôtel des ventes. Démarre dès que tu t'arrêtes.",
-  ["AUTO · WAITING: YOUR LIST"] = "AUTO · ATTEND : TA LISTE",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Attend : ta propre recherche est dans la liste d'achat de l'hôtel des ventes, et un scan la remplacerait. Ouvre l'onglet GoldCap de l'hôtel des ventes, ou ferme l'hôtel des ventes, et Auto démarre.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · ATTEND : TA RECHERCHE À L'HV",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Attend pour qu'un scan ne remplace pas les résultats de ta propre recherche dans la liste d'achat de l'hôtel des ventes. Appuie sur SCAN, clique sur l'onglet GoldCap en bas de l'hôtel des ventes, ou ferme l'hôtel des ventes, et Auto démarre.",
   ["Market %s · unverified until a live Check"] =
     "Marché %s · non vérifié avant une vérification en direct",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =

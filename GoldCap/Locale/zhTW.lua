@@ -861,9 +861,9 @@ GC.Locales.zhTW = {
   ["AUTO · WAITING FOR YOU"] = "自動 · 等你操作完",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "你在拍賣場內建面板上架、購買或瀏覽時會等待。你一停下就開始。",
-  ["AUTO · WAITING: YOUR LIST"] = "自動 · 等待：你的列表",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "等待：拍賣場的購買列表裡是你自己的搜尋，掃描會把它替換掉。打開拍賣場裡的 GoldCap 分頁，或關閉拍賣場，自動就會開始。",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "自動 · 等待：你在拍賣場的搜尋",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "等待，以免掃描替換掉拍賣場購買列表裡你自己的搜尋結果。按掃描、點擊拍賣場底部的 GoldCap 分頁，或關閉拍賣場，自動就會開始。",
   ["Market %s · unverified until a live Check"] = "市場 %s · 即時核對前未經驗證",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "全市場資料：%d 種商品，%d 種有銷售資料，%d 件伺服器物品（%s 前，%d KB）",

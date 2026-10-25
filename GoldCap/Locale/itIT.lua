@@ -938,9 +938,9 @@ GC.Locales.itIT = {
   ["AUTO · WAITING FOR YOU"] = "AUTO · TI ASPETTA",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Aspetta mentre metti all'asta, compri o sfogli nei pannelli della casa d'aste. Parte appena smetti.",
-  ["AUTO · WAITING: YOUR LIST"] = "AUTO · ATTESA: LA TUA LISTA",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Attesa: la tua ricerca è nell'elenco d'acquisto della casa d'aste e una scansione la sostituirebbe. Apri la scheda GoldCap nella casa d'aste, o chiudi la casa d'aste, e Auto parte.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · ATTESA: LA TUA RICERCA ALL'ASTA",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Attende perché una scansione non sostituisca i risultati della tua ricerca nell'elenco d'acquisto della casa d'aste. Premi SCANSIONA o la scheda GoldCap in basso nella casa d'aste, o chiudi la casa d'aste, e Auto parte.",
   ["Market %s · unverified until a live Check"] =
     "Mercato %s · non verificato fino a un controllo dal vivo",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =

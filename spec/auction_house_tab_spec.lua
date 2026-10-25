@@ -701,6 +701,25 @@ describe("Auction House tab", function()
       assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
     end)
 
+    -- The player pressed SCAN, or a pass went out while our tab was up: the list is ours again.
+    it("is given back once a browse query of ours replaces the player's list", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      GC.AuctionHouseTab.addonBrowse = true
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.addonBrowse = false
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      -- ...and the player's next search holds Auto again.
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "herb" })
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is given back when the player presses SCAN", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
     it("is false while another pane, or our own dock, is up", function()
       _G.C_AuctionHouse.SendBrowseQuery({})
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)

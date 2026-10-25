@@ -283,6 +283,10 @@ local function installBrowseHook()
   browseHooked = pcall(hooksecurefunc, api, "SendBrowseQuery", function()
     if GC.AuctionHouseTab.addonBrowse then
       GC.AuctionHouseTab.addonBrowse = false
+      -- Ours replaced the list, so the Buy pane no longer shows the player's search: the SCAN they
+      -- pressed, or a pass while our tab was up. Only the closing auction house cleared it, and Auto
+      -- stood by for the rest of the visit behind a list that was already ours (owner 2026-10-23).
+      playerBrowsed = false
       return
     end
     GC.AuctionHouseTab.NotePlayerBrowse()
@@ -612,6 +616,12 @@ function GC.AuctionHouseTab.PlayerOwnsBrowseList()
   local modes = _G.AuctionHouseFrameDisplayMode
   if not modes or currentMode ~= modes.Buy then return false end
   return not (dock and dock:IsShown())
+end
+
+-- The player pressed SCAN (UI/SniperFrame.lua's onFullScanClick): the list on the Buy pane is
+-- GoldCap's to replace from now on, until their next search there.
+function GC.AuctionHouseTab.ReleaseBrowseList()
+  playerBrowsed = false
 end
 
 function GC.AuctionHouseTab.PlayerIsBusy(now)

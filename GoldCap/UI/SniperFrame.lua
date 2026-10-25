@@ -4305,8 +4305,8 @@ local AUTO_PAUSE_LABEL = {
     "Paused while another auction house tab is open: Sell, Auctions, or another addon's, such as Auctionator's Selling. A scan would replace what that tab shows. Click Buy or the GoldCap tab at the bottom of the auction house and Auto carries on." },
   busy = { "AUTO · WAITING FOR YOU",
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop." },
-  browse = { "AUTO · WAITING: YOUR LIST",
-    "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts." },
+  browse = { "AUTO · WAITING: YOUR AH SEARCH",
+    "Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts." },
 }
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
@@ -4549,6 +4549,9 @@ local function onFullScanClick()
   else
     frame.status:SetText(GC.L["starting full scan..."])
   end
+  -- The player asked for the list to be replaced: their own search on Blizzard's Buy pane stops
+  -- holding the pass and Auto (owner 2026-10-23: only closing the auction house let them go).
+  if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
   startFullScan()
   refreshScanButton()
 end

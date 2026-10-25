@@ -82,7 +82,7 @@ GC.Locales.enUS = {
   ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · PAUSED: YOUR SEARCH",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
   ["AUTO · WAITING FOR YOU"] = "AUTO · WAITING FOR YOU",
-  ["AUTO · WAITING: YOUR LIST"] = "AUTO · WAITING: YOUR LIST",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · WAITING: YOUR AH SEARCH",
   ["AUTOMATION & ALERTS"] = "AUTOMATION & ALERTS",
   ["AVOID"] = "AVOID",
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
@@ -235,8 +235,8 @@ GC.Locales.enUS = {
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts.",
   ["YOUR LISTS"] = "YOUR LISTS",
   ["YOUR LOTS"] = "YOUR LOTS",
   ["You can pay for it now."] = "You can pay for it now.",

@@ -886,9 +886,9 @@ GC.Locales.koKR = {
   ["AUTO · WAITING FOR YOU"] = "자동 · 사용자 대기 중",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "경매장 자체 창에서 등록, 구매, 둘러보기를 하는 동안 기다립니다. 멈추는 즉시 시작합니다.",
-  ["AUTO · WAITING: YOUR LIST"] = "자동 · 대기: 내 목록",
-  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
-    "대기 중: 경매장 구매 목록에 내 검색 결과가 있고, 검색하면 그것을 덮어씁니다. 경매장의 GoldCap 탭을 열거나 경매장을 닫으면 자동이 시작합니다.",
+  ["AUTO · WAITING: YOUR AH SEARCH"] = "자동 · 대기: 경매장 내 검색",
+  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
+    "검색하면 경매장 구매 목록의 내 검색 결과를 덮어쓰므로 기다립니다. 검색 버튼을 누르거나, 경매장 아래쪽의 GoldCap 탭을 누르거나, 경매장을 닫으면 자동이 시작합니다.",
   ["Market %s · unverified until a live Check"] = "시세 %s · 실시간 확인 전까지는 미검증",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "지역 전체 시세: 거래 물품 %d개, 판매 정보 %d개, 서버 아이템 %d개 (경과 %s, %d KB)",
