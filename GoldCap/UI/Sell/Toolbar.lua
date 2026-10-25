@@ -1,6 +1,6 @@
 -- The Sell tab's toolbar: the deck switch (TO POST / MY LOTS), the search box, the two filter chips
--- and REFRESH, whose label carries the pricing walk's progress. Moved from UI/SellFrame.lua as it
--- was.
+-- and REFRESH, whose label carries the pricing walk's progress, and under them the GROUPS row.
+-- Moved from UI/SellFrame.lua as it was.
 local _, GC = ...
 
 local Theme = GC.Theme
@@ -82,18 +82,22 @@ function Toolbar.PaintFilterChips()
   end
 end
 
+-- What can be POSTED, not everything the deck holds. The deck also lists stock that is neither in
+-- the bags nor listed -- folded away under NOT ON HAND, or a purchase not yet identified -- and
+-- counting those read "TO POST 17" over three rows with a Post button (seen in game). The rows
+-- stay where they were; only the number says what it names. Nor what went up whole a moment ago
+-- while the bags still count it (UI/Sell/List.lua's List.DropPostedOut): its row has gone, and the
+-- number goes with it. TO POST and the GROUPS row's chips count by this.
+local function toPost(position)
+  local bags = type(position.bagQty) == "number" and position.bagQty or 0
+  return bags > 0 and S.postedOut[position.positionKey] ~= bags
+end
+
 local function deckCounts()
   local post, listed = 0, 0
   for _, position in ipairs(S.positions) do
-    local bags = type(position.bagQty) == "number" and position.bagQty or 0
     local live = type(position.listedQty) == "number" and position.listedQty or 0
-    -- What can be POSTED, not everything the deck holds. The deck also lists stock that is
-    -- neither in the bags nor listed -- folded away under NOT ON HAND, or a purchase not yet
-    -- identified -- and counting those read "TO POST 17" over three rows with a Post button
-    -- (seen in game). The rows stay where they were; only the number says what it names.
-    -- Nor what went up whole a moment ago while the bags still count it (UI/Sell/List.lua's
-    -- List.DropPostedOut): its row has gone, and the number goes with it.
-    if bags > 0 and S.postedOut[position.positionKey] ~= bags then post = post + 1 end
+    if toPost(position) then post = post + 1 end
     if live > 0 then listed = listed + 1 end
   end
   return post, listed
@@ -113,6 +117,119 @@ function Toolbar.PaintDeckSwitch()
       button:SetLabel(UI.fmt.count(GC.L[DECK_LABELS[slot]], counts[id] or 0))
       button:SetVariant(activeDeck() == id and "active" or "segment")
     end
+  end
+end
+
+-- @localised-keys
+local GROUP_CHIP_LABELS = {
+  "ALL %d", "MY GROUPS %d",
+}
+local GROUP_CHIP_IDS = { "all", "mine" }
+
+-- The GROUPS row's chips, in order: ALL, MY GROUPS, then every followed group with an item on the
+-- posting deck, by name, each { id, label }, and whether the row is up at all. A picked group
+-- keeps its chip at 0, so what is picked is always on screen. No row without a followed group to
+-- post from: WoW: Forever (no GroupRules), no Companion, or nothing of any group in the bags.
+local function groupChips()
+  local counts, names, order = {}, {}, {}
+  local total = { all = 0, mine = 0 }
+  for _, position in ipairs(S.positions) do
+    if toPost(position) then
+      total.all = total.all + 1
+      local key, name = GC.Sell.GroupKeyOf(position.positionKey)
+      if key then
+        total.mine = total.mine + 1
+        if not counts[key] then counts[key], names[key], order[#order + 1] = 0, name or key, key end
+        counts[key] = counts[key] + 1
+      end
+    end
+  end
+  local picked = S.group
+  if picked and picked ~= "mine" and not counts[picked] then
+    counts[picked], names[picked], order[#order + 1] = 0, S.groupName or picked, picked
+  end
+  if not GC.GroupRules or (#order == 0 and picked == nil) then return {}, false end
+  table.sort(order, function(a, b)
+    local x, y = names[a]:lower(), names[b]:lower()
+    if x ~= y then return x < y end
+    return a < b
+  end)
+  local chips = {}
+  for slot, id in ipairs(GROUP_CHIP_IDS) do
+    chips[#chips + 1] = { id = id, label = UI.fmt.count(GC.L[GROUP_CHIP_LABELS[slot]], total[id]) }
+  end
+  local gold = Theme.color.goldHi or Theme.color.gold
+  for _, key in ipairs(order) do
+    chips[#chips + 1] = { id = key, name = names[key],
+      label = GC.Util.Upper(names[key]) .. " " .. GC.Sell._InlineColor(gold, tostring(counts[key])) }
+  end
+  return chips, true
+end
+
+-- The GROUPS row (owner, 2026-10-25: post one group, the way TSM posts a group), under row 1. A
+-- picked chip narrows the posting deck and POST's walk to it (GC.Sell.InPickedGroup,
+-- Core/PostQueue.lua) until the auction house is closed. The chips wrap onto as many lines as the
+-- width needs, each as wide as its words, and the headings, the list and the item panel move down
+-- under them (UI.ListTop). On MY LOTS they dim, as READY and NO COST do: they narrow the posting
+-- deck. Painted with every render: an item posted, or a group followed on goldcap.gg, changes them.
+function Toolbar.PaintGroups()
+  local container = UI.container
+  if not (container and container.groupChips) then return end
+  local G = UI.GROUPS
+  local chips, shown = groupChips()
+  local onPostDeck = S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue"
+  local label = container.groupsLabel
+  local width = UI.rowWidth or 0
+  local x0 = 0
+  if shown then
+    label:Show()
+    x0 = math.ceil(label.GetUnboundedStringWidth and label:GetUnboundedStringWidth() or 60) + G.LABEL_GAP
+  else
+    label:Hide()
+  end
+  local x, line = x0, 0
+  for i, chip in ipairs(chips) do
+    local button = container.groupChips[i]
+    if not button then
+      button = Theme.Button(container, "ghost", "badge")
+      button:SetHeight(G.CHIP_H)
+      button:SetScript("OnClick", function(self)
+        GC.SellPost.WalkAway() -- an armed post is a question; picking a group answers it "no"
+        local id = self.groupId
+        S.group = id ~= "all" and id or nil
+        S.groupName = self.groupName
+        -- A different group is a different list, as a deck change is: settled fresh, the queue
+        -- built again for it, and an item put in the dock from another group let go.
+        S.rowPlaces, S.dockKey = {}, nil
+        GC.SellCompose.Queue()
+        Toolbar.PaintDeckSwitch()
+        UI.List.RenderRows()
+      end)
+      container.groupChips[i] = button
+    end
+    button.groupId, button.groupName = chip.id, chip.name
+    button:SetLabel(chip.label)
+    -- As wide as its words in the player's language, measured by the client (FitLabels); where the
+    -- face cannot be measured, a width a short name fits.
+    button:SetWidth(72)
+    if button.FitLabels then button:FitLabels({ chip.label }, 40) end
+    local w = button.GetWidth and button:GetWidth() or 72
+    if x > x0 and x + w > width then x, line = x0, line + 1 end
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", container, "TOPLEFT", x, -(G.TOP + line * (G.CHIP_H + G.GAP)))
+    x = x + w + G.GAP
+    local picked = (S.group or "all") == chip.id
+    -- SetVariant before Enable/Disable, as everywhere in the kit.
+    button:SetVariant(picked and onPostDeck and "active" or "ghost")
+    if onPostDeck then button:Enable() else button:Disable() end
+    button:Show()
+  end
+  for i = #chips + 1, #container.groupChips do container.groupChips[i]:Hide() end
+  local height = shown and ((line + 1) * (G.CHIP_H + G.GAP) + G.GAP) or 0
+  if UI.groupsHeight ~= height then
+    UI.groupsHeight = height
+    if container.header and container.scroll then UI.List.ApplyListGeometry() end
+    UI.Inspector.Place()
   end
 end
 
@@ -220,6 +337,15 @@ function Toolbar.Build()
   end
   Toolbar.PaintDeckSwitch()
   Toolbar.PaintFilterChips()
+
+  -- The GROUPS row's label; its chips are made as the row first needs them (Toolbar.PaintGroups).
+  local groupsLabel = Theme.Num(container, 9)
+  groupsLabel:SetJustifyH("LEFT")
+  groupsLabel:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(UI.GROUPS.TOP + 4))
+  groupsLabel:SetText(GC.L["GROUPS"])
+  setColor(groupsLabel, Theme.color.fgDim)
+  groupsLabel:Hide()
+  container.groupsLabel, container.groupChips = groupsLabel, {}
 
   -- Search, between the deck switch and the chips. Forty positions is an ordinary posting deck
   -- and finding one of them was a matter of reading down the list. It lives in whatever room

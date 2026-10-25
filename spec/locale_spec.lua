@@ -479,4 +479,37 @@ describe("locale layer", function()
       end
     end
   end)
+
+  -- The Sell tab's GROUPS row and the default price (owner, 2026-10-25).
+  it("carries the Sell groups and default price keys in all twelve languages", function()
+    local keys = {
+      "GROUPS", "ALL %d", "MY GROUPS %d", "MY GROUPS", "Post goes through your groups only",
+      "Post goes through %s only", "Nothing left in this group",
+      "Everything from this group in your bags is posted. Pick ALL to see the rest of your bags.",
+      "Posting your groups: %d of %d done", "Posting %s: %d of %d done", "your default from Settings",
+      "%s never posts under %s", "Default price",
+      "Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red.",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+      -- The empty group names the ALL chip, and the heading the POST button, the way they read.
+      local all = strings["ALL %d"]:gsub("%s*%%d", "")
+      assert.is_truthy(strings["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."]
+        :find(all, 1, true), code .. " names ALL its own way")
+      assert.equal(strings["MY GROUPS"], (strings["MY GROUPS %d"]:gsub("%s*%%d", "")), code .. " MY GROUPS")
+      for _, key in ipairs({ "Post goes through your groups only", "Post goes through %s only" }) do
+        assert.is_truthy(strings[key]:lower():find(strings["POST"]:lower(), 1, true), code .. " names POST its own way: " .. key)
+      end
+    end
+  end)
 end)

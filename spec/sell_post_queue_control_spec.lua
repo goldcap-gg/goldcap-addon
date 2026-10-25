@@ -778,6 +778,136 @@ describe("Sell tab, the posting queue control", function()
       assert.is_false(rowOf("commodity:23427").mark.shown)
       for _, text in ipairs(drawn()) do assert.is_nil(text:find("SELLING", 1, true)) end
     end)
+
+    -- The GROUPS row (owner, 2026-10-25: post one group, the way TSM posts a group). Eternium Ore
+    -- is in the followed group Ores, Widget in none and marked: a pick of Ores leaves it out.
+    describe("with a group to post", function()
+      local groups
+      before_each(function()
+        groups = { [23427] = { "ores", "Ores" } }
+        GC.GroupRules = { GroupOf = function(itemID)
+          local group = groups[itemID]
+          if group then return group[1], group[2] end
+        end }
+        GC.db.sellMarks["commodity:99001"] = true
+        GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      end)
+
+      local function chips()
+        local out = {}
+        for _, button in ipairs(container.groupChips) do
+          if button.shown then out[#out + 1] = helper.plain(button.label) end
+        end
+        return out
+      end
+
+      local function chip(words)
+        for _, button in ipairs(container.groupChips) do
+          if button.shown and helper.plain(button.label) == words then return button end
+        end
+        error("no chip reads " .. words)
+      end
+
+      local function pick(words)
+        local button = chip(words)
+        button.scripts.OnClick(button)
+      end
+
+      it("has no GROUPS row without a followed group to post from", function()
+        groups = {}
+        ready()
+        assert.is_false(container.groupsLabel.shown)
+        assert.same({}, chips())
+        assert.equal(34, GC.SellUI.ListTop())
+        groups = { [23427] = { "ores", "Ores" } }
+        GC.GroupRules = nil -- WoW: Forever, where GroupRules does not load
+        render()
+        assert.same({}, chips())
+      end)
+
+      it("lists ALL, MY GROUPS and each group by what it has to post, and moves the list under them", function()
+        ready()
+        assert.is_true(container.groupsLabel.shown)
+        assert.same({ "ALL 2", "MY GROUPS 1", "ORES 1" }, chips())
+        assert.equal("active", chip("ALL 2").variant) -- nothing picked is ALL
+        assert.equal("ghost", chip("ORES 1").variant)
+        assert.equal(34 + 20 + 4 + 4, GC.SellUI.ListTop()) -- one line of chips
+      end)
+
+      it("narrows the deck and POST's walk to the picked group, which sells without a mark", function()
+        ready()
+        assert.matches("^SELLING 1", helper.plain(drawn()[1])) -- sanity: Widget is what is marked
+        pick("ORES 1")
+        assert.equal("ores", GC.SellState.group)
+        local list = drawn()
+        assert.equal(2, #list)
+        local heading = helper.plain(list[1])
+        assert.matches("^ORES 1", heading)
+        assert.is_truthy(heading:find("Post goes through Ores only", 1, true))
+        assert.equal("commodity:23427", list[2])
+        assert.is_true(container.queueButton.enabled)
+        assert.equal("Eternium Ore", container.queueLabel.text)
+        assert.is_nil(container.dockSub.text:find("Widget", 1, true))
+        assert.is_nil(GC.db.sellMarks["commodity:23427"]) -- the pick is the choice; no mark is written
+        assert.equal("active", chip("ORES 1").variant)
+        assert.equal("ghost", chip("ALL 2").variant)
+      end)
+
+      it("says how far POST has got through the group under the posting row", function()
+        ready()
+        assert.is_false(container.groupProgress.shown)
+        pick("ORES 1")
+        assert.is_true(container.groupProgress.shown)
+        assert.equal("Posting Ores: 0 of 1 done", container.groupProgress.text)
+        assert.is_false(container.groupBarFill.shown)
+        container.skipButton.scripts.OnClick(container.skipButton)
+        assert.equal("Posting Ores: 1 of 1 done", container.groupProgress.text)
+        assert.is_true(container.groupBarFill.shown)
+        pick("ALL 2")
+        assert.is_nil(GC.SellState.group)
+        assert.is_false(container.groupProgress.shown)
+        assert.matches("^SELLING 1", helper.plain(drawn()[1]))
+      end)
+
+      it("posts every followed group's items under MY GROUPS", function()
+        ready()
+        pick("MY GROUPS 1")
+        local heading = helper.plain(drawn()[1])
+        assert.matches("^MY GROUPS 1", heading)
+        assert.is_truthy(heading:find("Post goes through your groups only", 1, true))
+        assert.equal("Posting your groups: 0 of 1 done", container.groupProgress.text)
+      end)
+
+      it("keeps a picked group's chip at 0 and says the group has nothing left", function()
+        ready()
+        pick("ORES 1")
+        groups = {} -- the group unfollowed on goldcap.gg while the auction house is open
+        ready()
+        assert.same({ "ALL 2", "MY GROUPS 0", "ORES 0" }, chips())
+        assert.equal("active", chip("ORES 0").variant)
+        assert.equal("NOTHING LEFT IN THIS GROUP", container.empty.title.text)
+        assert.is_false(container.queueButton.enabled)
+      end)
+
+      it("dims the chips on MY LOTS, as READY and NO COST", function()
+        ready()
+        container.deckButtons.listed.scripts.OnClick(container.deckButtons.listed)
+        for _, button in ipairs(container.groupChips) do
+          if button.shown then
+            assert.is_false(button.enabled)
+            assert.equal("ghost", button.variant)
+          end
+        end
+      end)
+
+      it("forgets the pick when the auction house is closed", function()
+        ready()
+        pick("ORES 1")
+        GC.Sell.Reset()
+        assert.is_nil(GC.SellState.group)
+        assert.is_nil(GC.SellState.groupName)
+      end)
+    end)
   end)
 
   describe("per game", function()

@@ -13,6 +13,14 @@
 - Sell, in retail WoW: the CANCEL button asks once for the whole queue and shows the deposits you
   lose, then cancels one lot per press. It cancels only the lots you confirmed: one that joins the
   queue later is asked about again.
+- Sell, in retail WoW: a GROUPS row under the toolbar lists the groups you follow that have
+  something in your bags to post. Pick one and the list and POST go through that group alone, with
+  every item of it on the list without a mark, and a line under POST counts how many are done. MY
+  GROUPS does every group you follow, and ALL brings back the rest of your bags. The item panel
+  names a group's floor price above its advice.
+- Settings, in retail WoW: Default price in POSTING sets the price every item opens at on Sell:
+  GoldCap's own, the cheapest lot's, a little under it, or the market price. A group's floor price
+  still holds, and a price under what you paid still shows in red.
 - At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists unbound
   items a vendor pays at least as much for as the auction house would after its cut, and sells them
   for you. It goes by an auction house price from the last 24 hours that came through the Companion

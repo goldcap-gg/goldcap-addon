@@ -104,6 +104,17 @@ UI.ROW.MARKS_W = 5 + UI.ROW.MARKS * 3 + (UI.ROW.MARKS - 1) * 2
 -- The selling mark before a TO POST row's icon (Row.Style): its button, and the room it takes.
 UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 
+-- The GROUPS row under the toolbar (UI/Sell/Toolbar.lua's PaintGroups): its chips' height, the gap
+-- between two chips and between two lines of them, and how far down the first line starts.
+UI.GROUPS = { TOP = 34, CHIP_H = 20, GAP = 4, LABEL_GAP = 10 }
+
+-- How far down the column headings start: under the toolbar's row, and under the GROUPS row while
+-- it is up, however many lines its chips wrap onto (PaintGroups sets UI.groupsHeight). The list
+-- starts under the headings, and the item panel beside the list at the same height.
+function UI.ListTop()
+  return 34 + (UI.groupsHeight or 0)
+end
+
 -- The dock along the bottom of the tab (owner, 2026-10-10: post from here, not from every row).
 -- One row H tall (owner, same day: two tiers and a tier for the item over them were crooked and
 -- took the list's room, worst in the auction house). On the posting deck, right to left from POST:
@@ -115,9 +126,11 @@ UI.ROW.MARK, UI.ROW.MARK_W = 16, 20
 -- words in the player's language (Theme.Button's FitLabels), never under POST_W and SKIP_W.
 -- NARROW is the content width under which the ledger keeps only PROCEEDS; under WIDE the posting
 -- row drops YOU GET, which the row already says.
+-- STRIP_H is the line under the posting row while a group is picked, how far POST's walk has got
+-- through it, and BAR_W its bar (UI/Sell/PostPanel.lua).
 UI.DOCK = { H = 56, PAD = 8, NARROW = 700, WIDE = 860, CTRL_Y = 22, MID_Y = 28, GAP = 14,
   BUTTON_H = 28, BOX_H = 24, ICON = 30, POST_W = 72, SKIP_W = 56, PRICE_W = 96, QTY_W = 56,
-  MAX_W = 48, NET_W = 96 }
+  MAX_W = 48, NET_W = 96, STRIP_H = 20, BAR_W = 120 }
 
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
 -- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
@@ -380,8 +393,9 @@ function GC.Sell.Attach(f, geometry)
   -- used to own row 3 were 40px of ACCOUNTING sitting above the work; they are one quiet line
   -- in the footer now, beside the bulk action, where the eye ends rather than where it starts.
   --   row 1 (y   0): [TO POST N][MY LOTS N] ·········· [NO COST][READY][REFRESH]
-  --   row 2 (y -34): column headings for the deck below
-  --   list  (y -52) ......................................................... (to footer)
+  --   GROUPS (y -34, only with a followed group to post): [ALL N][MY GROUPS N][HERBS N]...
+  --   row 2 (y -34, under GROUPS while it is up): column headings for the deck below
+  --   list  (18 under the headings) .......................................... (to footer)
   --   footer (bottom, h32): [POST N] head label ··· held-back · cost / listed / profit
   -- Each row still owns its whole width: the layout this replaced let two anchor chains grow
   -- toward each other on one shared row and collide at ordinary window widths (the queue's head

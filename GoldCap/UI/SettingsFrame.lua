@@ -636,6 +636,14 @@ local function build(sniperFrame)
     c.rows[#c.rows + 1] = { label = label, control = control, width = width or 0, dy = dy or 0 }
   end
 
+  -- A label and a row of buttons, each as wide as its words (flowCard): beside the label at the
+  -- card's right edge while they fit there, else on lines of their own under it, as many as the
+  -- card's width needs. Default price's four fit beside a label in no language at the narrowest
+  -- window.
+  local function addButtonsRow(c, label, buttons)
+    c.rows[#c.rows + 1] = { label = label, buttons = buttons }
+  end
+
   -- Lays a card's rows out from its width (M11: labels were cut with "..." at the smallest
   -- window, in most languages, and at the largest font scale in English too). Every label wraps
   -- in what its control leaves it, a word wider than that breaks rather than being cut, and a row
@@ -649,17 +657,53 @@ local function build(sniperFrame)
     local y = 24
     for _, row in ipairs(c.rows) do
       local label = row.label
-      local room = width - 2 * Theme.pad.m - (row.control and row.width + Theme.pad.s or 0)
-      label:ClearAllPoints()
-      label:SetPoint("TOPLEFT", Theme.pad.m, -y)
-      if room > 0 then label:SetWidth(room) end
-      label:SetWordWrap(true)
-      if label.SetNonSpaceWrap then label:SetNonSpaceWrap(true) end
-      if row.control then
-        row.control:ClearAllPoints()
-        row.control:SetPoint("TOPRIGHT", -Theme.pad.m, -y + row.dy)
+      if row.buttons then
+        local total = 0
+        for i, b in ipairs(row.buttons) do
+          if b.FitLabels then b:FitLabels({ b.label or "" }, 40) end
+          total = total + (b:GetWidth() or 40) + (i > 1 and 2 or 0)
+        end
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+        label:SetWordWrap(true)
+        local words = label.GetUnboundedStringWidth and label:GetUnboundedStringWidth() or 0
+        -- Beside the label, or under it from the card's left edge (before the card has a width,
+        -- beside it until its first OnSizeChanged).
+        local beside = width <= 0 or 2 * Theme.pad.m + words + Theme.pad.s + total <= width
+        local x, labelTop = Theme.pad.m, y
+        if beside then
+          if width > 0 then label:SetWidth(width - 2 * Theme.pad.m - total - Theme.pad.s) end
+          x = width - Theme.pad.m - total
+        else
+          if width > 0 then label:SetWidth(width - 2 * Theme.pad.m) end
+          y = y + math.max(ROW_H, math.ceil(label:GetStringHeight())) + 4
+        end
+        for _, b in ipairs(row.buttons) do
+          local w = b:GetWidth() or 40
+          -- A line further down whenever the next would pass the card's right edge.
+          if not beside and x > Theme.pad.m and x + w > width - Theme.pad.m then
+            x, y = Theme.pad.m, y + ROW_H + 4
+          end
+          b:ClearAllPoints()
+          b:SetPoint("TOPLEFT", x, -y)
+          x = x + w + 2
+        end
+        -- Beside, the row is as tall as its label needs, as every row is; under it, one line of
+        -- buttons more.
+        y = beside and (labelTop + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)) or (y + STEP)
+      else
+        local room = width - 2 * Theme.pad.m - (row.control and row.width + Theme.pad.s or 0)
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+        if room > 0 then label:SetWidth(room) end
+        label:SetWordWrap(true)
+        if label.SetNonSpaceWrap then label:SetNonSpaceWrap(true) end
+        if row.control then
+          row.control:ClearAllPoints()
+          row.control:SetPoint("TOPRIGHT", -Theme.pad.m, -y + row.dy)
+        end
+        y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
       end
-      y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
     end
     if c.footer then
       c.footer:ClearAllPoints()
@@ -905,6 +949,57 @@ local function build(sniperFrame)
     attachExplanation({ label, hShort, hMid, hLong }, GC.L["Duration"],
       GC.L["Default listing length for the Sell tab."],
       GC.L["Default: %s"]:format(defaultHours .. " h"))
+  end
+
+  -- The seller's default price (owner, 2026-10-25): what every item on the Sell tab opens at, the
+  -- item panel's chips chosen once -- GOLDCAP, MATCH, UNDERCUT or MARKET, never COST, which is
+  -- selling for nothing. GC.Sell.DefaultPrice reads it and Core/SellPositions.lua's
+  -- decoratePosition prices by it, a group's floor and GoldCap's own still holding. Retail only,
+  -- beside the groups whose floors it keeps to, and not in GC.DEFAULTS: unset is GoldCap's own
+  -- price (the precedent cancelUndercutPct set). The rule in words under the buttons, as the
+  -- design draws it, and on hover like every row.
+  if not isForeverClient() then
+    local labelText = GC.L["Default price"]
+    local sentence = GC.L["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."]
+    local label = Theme.Label(posting, 12)
+    label:SetJustifyH("LEFT")
+    label:SetText(labelText)
+    local choices = { { "goldcap", GC.L["GOLDCAP"] }, { "match", GC.L["MATCH"] },
+      { "under", GC.L["UNDERCUT"] }, { "market", GC.L["MARKET"] } }
+    local buttons = {}
+    local function paintChoice()
+      local c = cfg()
+      local current = c and c.defaultPrice or "goldcap"
+      for i, b in ipairs(buttons) do b:SetVariant(choices[i][1] == current and "active" or "ghost") end
+    end
+    for i, choice in ipairs(choices) do
+      local b = Theme.Button(posting, "ghost", "badge")
+      b:SetSize(48, ROW_H)
+      b:SetLabel(choice[2])
+      b:SetScript("OnClick", function()
+        local c = cfg()
+        if not c then return end
+        c.defaultPrice = choice[1] ~= "goldcap" and choice[1] or nil
+        paintChoice()
+        -- The Sell tab prices by it at once, where it is built: every row, the dock and the queue.
+        if GC.SellView and GC.SellView.attached and GC.SellView.attached() and GC.SellCompose
+            and GC.SellCompose.Positions then
+          GC.SellCompose.Positions()
+          GC.SellView.render()
+        end
+      end)
+      buttons[i] = b
+    end
+    addButtonsRow(posting, label, buttons)
+    refreshers[#refreshers + 1] = paintChoice
+    local note = Theme.Num(posting, 9)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetText(sentence)
+    addRow(posting, note)
+    local widgets = { label }
+    for _, b in ipairs(buttons) do widgets[#widgets + 1] = b end
+    attachExplanation(widgets, labelText, sentence, GC.L["Default: %s"]:format(GC.L["GOLDCAP"]))
   end
 
   -- Buy runs (Core/AppRuns.lua / Core/BuyRun.lua): how far over a line's usual price the BUY

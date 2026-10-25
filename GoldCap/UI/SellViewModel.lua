@@ -102,7 +102,8 @@ end
 
 --- Positions for one deck, in reading order.
 -- @param deck string  "post" (default) or "listed"
--- @param chips table   optional { ready = boolean, noCost = boolean }
+-- @param chips table   optional { ready = boolean, noCost = boolean, inGroup = function(positionKey) },
+--   `inGroup` the group the GROUPS row picked (GC.Sell.InPickedGroup), nil with none picked
 function GC.SellViewModel.Deck(positions, deck, chips)
   chips = type(chips) == "table" and chips or {}
   local belongs = deck == "listed" and onListedDeck or onPostDeck
@@ -110,10 +111,12 @@ function GC.SellViewModel.Deck(positions, deck, chips)
   for _, position in ipairs(positions or {}) do
     local include = belongs(position)
     -- Both chips ask POST-deck questions: a live lot is already priced and already paid for, so
-    -- neither narrows anything there. Applying them anyway would silently empty the deck.
+    -- neither narrows anything there. Applying them anyway would silently empty the deck. The
+    -- picked group is the posting deck's too: it narrows what POST walks (Core/PostQueue.lua).
     if include and deck ~= "listed" then
       if chips.ready and not isReady(position) then include = false end
       if chips.noCost and not needsCost(position) then include = false end
+      if chips.inGroup and not chips.inGroup(position.positionKey) then include = false end
     end
     if include then picked[#picked + 1] = position end
   end

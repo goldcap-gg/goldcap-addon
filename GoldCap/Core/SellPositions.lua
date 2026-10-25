@@ -272,7 +272,8 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
-local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules)
+local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits, scanProjects, rules,
+    defaultPrice)
   table.sort(position.ownedLots, stableLotOrder)
   -- An item-level variant is priced from a search for its own ItemKey, filed under its own
   -- `quoteKey` (Services/Sell/Quotes.lua); anything else under its itemID, as ever.
@@ -516,6 +517,23 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
         trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
   else
     position.postRecommendation = nil
+  end
+
+  -- The seller's default price (Settings, POSTING; spec/sell_default_price_spec.lua): MATCH,
+  -- UNDERCUT or MARKET in place of GoldCap's own price as what every item opens at, filled exactly
+  -- as the item panel's chips fill (FillUnit). GoldCap's floor and a followed group's still hold
+  -- (postFloor raises it), the step down below starts from it, and a price the seller typed still
+  -- replaces it. Mode "default", which BuildPostPlan lists at as it stands; GoldCap's own price
+  -- stays on as `goldcapUnit`, for the GOLDCAP chip. No default, or nothing to fill from (no ask
+  -- but the player's own, no market value), and GoldCap's own price stands.
+  local baseRec = position.postRecommendation
+  local defaultUnit = type(baseRec) == "table" and fresh and GC.SellPositions.FillUnit(defaultPrice,
+    GC.SellPositions.CheapestCompetingUnit(levels), position.marketValue) or nil
+  if defaultUnit then
+    defaultUnit = GC.Flips.SilverUp(math.max(defaultUnit, position.postFloor or 0)) or defaultUnit
+    baseRec.goldcapUnit, baseRec.unit, baseRec.mode, baseRec.defaultId = baseRec.unit, defaultUnit, "default",
+      defaultPrice
+    baseRec.belowCost = (baseRec.breakeven ~= nil and defaultUnit < baseRec.breakeven) or false
   end
 
   -- Step down ("step-down" in spec/sell_group_rules_spec.lua): a followed group's rule with a step
@@ -924,7 +942,7 @@ function GC.SellPositions.Build(args)
     -- here, and (an old save may hold many) would otherwise sit among the rows a player acts on.
     if not onlyIdleVendorLots(position) then
       decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
-        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules)
+        args.quoteMaxAge, args.chosenUnits, args.scanProjects, args.rules, args.defaultPrice)
       result[#result + 1] = position
     end
   end
@@ -1030,10 +1048,13 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   local ruleRec = position.postRecommendation
   if chosen then
     unit = chosen
-  elseif type(ruleRec) == "table" and ruleRec.mode == "rule" and positive(ruleRec.unit) then
+  elseif type(ruleRec) == "table" and (ruleRec.mode == "rule" or ruleRec.mode == "default")
+      and positive(ruleRec.unit) then
     -- A followed group's step down ("the post plan lists at the rule price under the cheapest
     -- ask"): the price decoratePosition stepped to, already at or over the composed floor. No
-    -- raise above it: the step is the rule's own decision to go under the market.
+    -- raise above it: the step is the rule's own decision to go under the market. The seller's
+    -- default price the same way: decoratePosition filled it and held it to the floor, and the
+    -- seller chose it in Settings.
     unit = ruleRec.unit
   else
     -- The displayed recommendation and the price Post actually used were two
@@ -1191,4 +1212,18 @@ function GC.SellPositions.CheapestCompetingUnit(levels)
     end
   end
   return best
+end
+
+--- The price one of the item panel's fills names (UI/Sell/Inspector.lua), and that the seller's
+-- default price (Settings, POSTING) opens every item at: "match" the cheapest ask that is not the
+-- player's own (`competing`, CheapestCompetingUnit's answer), "under" one step of the auction
+-- house's grid under it, "market" GoldCap's market value. nil for any other id, and with nothing
+-- to fill from: a step under an ask of a step or less is no price at all.
+function GC.SellPositions.FillUnit(id, competing, marketValue)
+  if id == "market" then return positive(marketValue) and marketValue or nil end
+  if id ~= "match" and id ~= "under" then return nil end
+  if not positive(competing) then return nil end
+  if id == "match" then return competing end
+  local step = GC.Flips.PriceStep()
+  return competing > step and competing - step or nil
 end

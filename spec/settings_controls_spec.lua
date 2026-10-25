@@ -130,6 +130,8 @@ describe("Settings controls", function()
         if self.wordWrap and (self.width or 0) > 0 then return math.ceil(n * 6 / self.width) * 14 end
         return 14
       end
+      -- ...and GetUnboundedStringWidth the same way: the text on one line, 6px a character.
+      function r:GetUnboundedStringWidth() return #(self.textValue or "") * 6 end
     end
     return r
   end
@@ -436,14 +438,15 @@ describe("Settings controls", function()
       end)
 
     -- Followed groups (plan 2026-10-22, task 12): the cancel threshold is retail only, and the
-    -- POSTING card keeps its two rows there.
-    it("Forever POSTING has no cancel threshold row", function()
+    -- POSTING card keeps its two rows there. So is the default price (2026-10-25).
+    it("Forever POSTING has no cancel threshold row and no default price", function()
       GC.SettingsUI.Toggle()
       local labels = {}
       walk(_G.GoldCapSniperFrame, function(node)
         if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
       end)
       assert.is_nil(labels["Min. undercut to cancel (%)"])
+      assert.is_nil(labels["Default price"])
       assert.equal(24 + 2 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
     end)
 
@@ -631,7 +634,8 @@ describe("Settings controls", function()
   it("retail POSTING has the cancel threshold row", function()
     GC.SettingsUI.Toggle()
     local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
-    assert.equal(24 + 3 * 26 + 6, posting.height)
+    -- Duration, Default price and the line under it, Buy cap, the cancel threshold.
+    assert.equal(24 + 5 * 26 + 6, posting.height)
     local box = fieldOf(posting, "Min. undercut to cancel (%)")
     assert.equal("0", box.editBox:GetText())
     box.editBox:SetText("25")
@@ -649,6 +653,62 @@ describe("Settings controls", function()
       if node.kind == "FontString" and node.textValue == "Min. undercut to cancel (%)" then label = node end
     end)
     assert.is_true(label.wordWrap)
+  end)
+
+  -- The seller's default price (owner, 2026-10-25): GOLDCAP, MATCH, UNDERCUT or MARKET, beside its
+  -- label while the four fit there, else on lines of their own under it, never cut. Unset is
+  -- GoldCap's own, and GOLDCAP writes nothing.
+  it("retail POSTING picks the default price, its buttons beside the label or under it", function()
+    GC.SettingsUI.Toggle()
+    local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
+    local label
+    walk(posting, function(node)
+      if node.kind == "FontString" and node.textValue == "Default price" then label = node end
+    end)
+    assert.is_not_nil(label)
+    local buttons = {}
+    for _, text in ipairs({ "GOLDCAP", "MATCH", "UNDERCUT", "MARKET" }) do
+      buttons[#buttons + 1] = assert(buttonIn(posting, text), text)
+    end
+    assert.is_nil(buttonIn(posting, "COST"))
+    local function at(node)
+      for _, p in ipairs(node.points) do if p[1] == "TOPLEFT" then return p[2], p[3] end end
+    end
+    assert.equal("active", buttons[1].variant)
+
+    -- Wide: "Default price" (78) and the four (4 x 48 + 3 x 2) fit on its row, at the right edge.
+    posting.width = 400
+    posting.scripts.OnSizeChanged(posting, 400, posting.height)
+    local x, y = at(buttons[1])
+    assert.equal(400 - 12 - 198, x)
+    assert.equal(-(24 + 26), y)
+
+    -- The 640 minimum: under the label, from the card's left edge, on one line.
+    posting.width = 256
+    posting.scripts.OnSizeChanged(posting, 256, posting.height)
+    x, y = at(buttons[1])
+    assert.equal(12, x)
+    assert.equal(-(24 + 26 + 24), y)
+    x, y = at(buttons[4])
+    assert.equal(12 + 3 * 50, x)
+    assert.equal(-(24 + 26 + 24), y)
+
+    -- Narrower still: the line breaks, and nothing is drawn past the edge.
+    posting.width = 150
+    posting.scripts.OnSizeChanged(posting, 150, posting.height)
+    x, y = at(buttons[3])
+    assert.equal(12, x)
+    assert.equal(-(24 + 26 + 24 + 24), y)
+
+    buttons[2].scripts.OnClick(buttons[2])
+    assert.equal("match", GC.db.settings.sniper.defaultPrice)
+    assert.equal("active", buttons[2].variant)
+    assert.equal("ghost", buttons[1].variant)
+    buttons[4].scripts.OnClick(buttons[4])
+    assert.equal("market", GC.db.settings.sniper.defaultPrice)
+    buttons[1].scripts.OnClick(buttons[1])
+    assert.is_nil(GC.db.settings.sniper.defaultPrice)
+    assert.equal("active", buttons[1].variant)
   end)
 
   it("minimumRoi field round-trips UI percent 10..200 to a stored fraction 0.10..2.00, clamped at both ends", function()
@@ -893,11 +953,13 @@ describe("Settings controls", function()
       assert.equal(-(24 + 34 + 34), top(labelIn(display, "Language")))
       assert.equal(24 + 34 + 34 + 26 + 6, display.height)
 
-      -- M7: the cancel threshold's label wraps inside POSTING, which grows for it.
+      -- M7: the cancel threshold's label wraps inside POSTING, which grows for it. Default price
+      -- takes its label's line and a line of buttons under it (24 + 26), and its rule three lines
+      -- (48).
       local posting = cardByTitle(panel, "POSTING")
       layOut(posting, 256)
       assert.equal(256 - 12 - 64 - 8 - 12, labelIn(posting, "Min. undercut to cancel (%)").width)
-      assert.equal(24 + 26 + 26 + 34 + 6, posting.height)
+      assert.equal(24 + 26 + (24 + 26) + 48 + 26 + 34 + 6, posting.height)
 
       -- The scroll child follows the taller column.
       local left, right = 7, 7

@@ -162,7 +162,7 @@ local function skipLess(left, right)
   return (left.positionKey or "") < (right.positionKey or "")
 end
 
---- GC.PostQueue.Selling(position, marks) -> boolean
+--- GC.PostQueue.Selling(position, marks, grouped) -> boolean
 --
 -- The selling list (owner, 2026-10-09): is this position one the player sells through POST and
 -- the post-next key? `marks` is the player's own choice per positionKey, true or false, kept
@@ -171,11 +171,14 @@ end
 -- selling: it was bought to be sold again. Nothing else is: the BUY tab's runs are shopping lists
 -- (what a craft still needs), and a merchant sells reagents as readily as anything. Per position,
 -- not per item: every caged pet is item 82800.
-function GC.PostQueue.Selling(position, marks)
+-- `grouped`: the player picked a group to post (the Sell tab's GROUPS row, owner 2026-10-25), and
+-- every item of it with no choice of its own is selling: picking the group was the choice.
+function GC.PostQueue.Selling(position, marks, grouped)
   local key, choice = position.positionKey, nil
   -- Not `a and b and marks[key] or nil`: a choice of false would read as no choice at all.
   if type(marks) == "table" and type(key) == "string" then choice = marks[key] end
   if choice ~= nil then return choice == true end
+  if grouped then return true end
   local sources = position.sources
   if type(sources) == "table" and type(sources.goldcap) == "number" and sources.goldcap > 0 then return true end
   -- A followed group's flip or gather item is stock to sell too ("flip and gather sell by
@@ -204,13 +207,18 @@ end
 -- Post, so its row still says what is wrong with it; the dock reads the count.
 -- `opts.vendorUnit` is WoW: Forever's (`function(itemID) ...`), read by `evaluate`'s
 -- `below_vendor` case above.
+-- `opts.group`, when set, is the group the Sell tab's GROUPS row picked, and `opts.inGroup(key)`
+-- answers whether a position is in it: one that is not is in none of the three lists, as its row
+-- is not on screen, and one that is sells unless the player unmarked it (Selling's `grouped`).
 function GC.PostQueue.Build(positions, opts)
   local entries, skipped, notSelling = {}, {}, {}
   local marks = opts and opts.marks
+  local grouped = opts ~= nil and opts.group ~= nil and type(opts.inGroup) == "function"
   for _, position in ipairs(positions or {}) do
-    if type(position) == "table" and positive(position.bagQty) then
+    if type(position) == "table" and positive(position.bagQty)
+        and not (grouped and not opts.inGroup(position.positionKey)) then
       local reason, unit, value, postable = evaluate(position, opts)
-      if type(marks) == "table" and not GC.PostQueue.Selling(position, marks) then
+      if type(marks) == "table" and not GC.PostQueue.Selling(position, marks, grouped) then
         notSelling[#notSelling + 1] = { positionKey = position.positionKey, itemID = position.itemID,
           itemName = position.itemName, reason = reason }
       elseif reason then

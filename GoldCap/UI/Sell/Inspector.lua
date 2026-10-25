@@ -129,11 +129,23 @@ local function layoutDrawer(row)
     prev = chip
   end
 
+  -- The group's floor under the chips, when the item has one (INSP.paintHead): the paragraph and
+  -- the book move down by the lines it takes.
+  local floorDrop = 0
+  if postable and row.floorNote:IsShown() then
+    row.floorNote:ClearAllPoints()
+    row.floorNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.REC_Y)
+    row.floorNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
+    row.floorNote:SetText(row.floorNote:GetText() or "") -- laid out at this width before it is measured
+    local h = row.floorNote.GetStringHeight and row.floorNote:GetStringHeight() or 0
+    floorDrop = math.ceil(math.max(h, 12)) + 8
+  end
+
   -- What GoldCap would do and why, in a sentence that is allowed its second line. It lives
   -- HERE because WHAT TO DO is not a column on either deck.
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.PRICE_Y - 18))
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and (DR.REC_Y - floorDrop) or (DR.PRICE_Y - 18))
   row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.subItem:SetWordWrap(true)
   row.subItem:SetMaxLines(2)
@@ -145,7 +157,7 @@ local function layoutDrawer(row)
   local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (UI.rowHeight or 32) or 0
 
   -- ---- the book section, under a rule across the panel
-  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
+  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise - floorDrop
   UI.Book.Layout(row, top)
 end
 
@@ -260,6 +272,13 @@ function Inspector.Decorate(row)
   row.priceNote:SetWordWrap(false)
   row.priceNote:Hide()
 
+  -- Under the chips, a followed group's floor: whatever the price is filled from, Post never goes
+  -- under it (the 2026-10-25 design). Wraps, and what is under it moves down (layoutDrawer).
+  row.floorNote = Theme.Num(row, 10)
+  row.floorNote:SetJustifyH("LEFT")
+  row.floorNote:SetWordWrap(true)
+  row.floorNote:Hide()
+
   -- Five one-click fills, each from a number already on the screen, so the common cases need no
   -- arithmetic. Each writes the price the dock posts at; GOLDCAP gives it back to GoldCap.
   row.priceChips = {}
@@ -293,6 +312,11 @@ function INSP.paintHead(row, p, d)
   -- so nothing about what a typed price does has changed -- only where it is shown.
   local unit, chosen = effectivePostUnit(p)
   local risk = GC.SellPositions.PriceRisk(p, unit)
+  -- The seller's default price, when it is what the item opens at (Core/SellPositions.lua's
+  -- decoratePosition): its chip is the way back, where GOLDCAP is with none.
+  local rec = type(p.postRecommendation) == "table" and p.postRecommendation or nil
+  local defaultId = not chosen and rec and rec.mode == "default" and rec.defaultId or nil
+  local backId = rec and rec.defaultId or "goldcap"
   row.drawerPriceHead:SetText(GC.L["YOUR PRICE"]); row.drawerPriceHead:Show()
   setColor(row.drawerPriceHead, chosen and Theme.color.gold or Theme.color.fgDim)
   if postable then
@@ -311,8 +335,8 @@ function INSP.paintHead(row, p, d)
       setColor(row.priceNote, Theme.color.red)
     elseif unit then
       -- Whose price, and over how many -- the number the dock's POST lists, not the one in the
-      -- bags.
-      local whose = chosen and GC.L["yours"] or GC.L["GoldCap's"]
+      -- bags. The seller's default from Settings is theirs, chosen once for every item.
+      local whose = chosen and GC.L["yours"] or defaultId and GC.L["your default from Settings"] or GC.L["GoldCap's"]
       row.priceNote:SetText(("%s · ×%d"):format(whose, (postQuantity(p))))
       setColor(row.priceNote, Theme.color.fgDim)
     else
@@ -326,28 +350,33 @@ function INSP.paintHead(row, p, d)
     -- truthy in Lua, so the chip enabled itself, stored a price of 0 as the seller's choice,
     -- and effectivePostUnit then refused it -- which emptied the box the player had just
     -- filled. Nothing here may offer a price that is not a price.
-    local step = GC.Flips.PriceStep()
-    local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
-      and book.cheapestCompeting or nil
+    -- The seller's default price fills from the same three (GC.SellPositions.FillUnit), so the
+    -- chip it lights names the price the item opened at.
+    local competing = book and book.cheapestCompeting or nil
     local sources = {
-      match = competing,
-      under = competing and competing > step and (competing - step) or nil,
-      market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
+      match = GC.SellPositions.FillUnit("match", competing, p.marketValue),
+      under = GC.SellPositions.FillUnit("under", competing, p.marketValue),
+      market = GC.SellPositions.FillUnit("market", competing, p.marketValue),
       -- What it cost plus the auction house's 5%, on the silver the auction house takes: the
       -- least that gets the gold back. What it cost alone lost the cut and lit the box red.
       cost = risk.breakeven and GC.Flips.SilverUp(risk.breakeven) or nil,
+      -- With a default price on, GOLDCAP is a fill like the others: GoldCap's own price for the
+      -- item, kept beside the default (goldcapUnit).
+      goldcap = rec and rec.goldcapUnit or nil,
     }
     local key = overrideKey(p)
     local typed = key and S.priceOverrides[key] or nil
     for slot, chip in ipairs(row.priceChips) do
       local id = PRICE_CHIP_IDS[slot]
-      local source = sources[id]
+      local back = id == backId
+      local source = not back and sources[id] or nil
       chip:SetLabel(GC.L[PRICE_CHIP_LABELS[slot]])
-      chip.priceSource, chip.handsBack = source, id == "goldcap"
+      chip.priceSource, chip.handsBack = source, back
       -- The chip the price on screen came from is lit, so the row of five reads as a switch
-      -- with a position rather than as five buttons: GOLDCAP while the price is GoldCap's,
-      -- another while the seller's own price is exactly that chip's. SetVariant BEFORE
-      -- Enable/Disable -- it restores full-brightness text, which would undo a Disable's dim.
+      -- with a position rather than as five buttons: the way back (GOLDCAP, or the seller's
+      -- default from Settings) while the price is GoldCap's or that default, another while the
+      -- seller's own price is exactly that chip's. SetVariant BEFORE Enable/Disable -- it
+      -- restores full-brightness text, which would undo a Disable's dim.
       local lit = (chip.handsBack and not chosen) or (source ~= nil and typed == source)
       if chip.SetVariant then chip:SetVariant(lit and "active" or "ghost") end
       if source or chip.handsBack then chip:Enable() else chip:Disable() end
@@ -357,9 +386,19 @@ function INSP.paintHead(row, p, d)
       if chip.ring then chip.ring:Hide() end
       chip:Show()
     end
+    -- A followed group's floor, in its own words: the chips fill what they fill, and Post still
+    -- never lists under it (Core/SellPositions.lua composes it into postFloor).
+    local rule = p.rule
+    if type(rule) == "table" and rule.name and exact(rule.floorUnit) and rule.floorUnit > 0 then
+      row.floorNote:SetText((GC.L["%s never posts under %s"]):format(rule.name, formatCell(rule.floorUnit)))
+      setColor(row.floorNote, Theme.color.fgDim)
+      row.floorNote:Show()
+    else
+      row.floorNote:Hide()
+    end
   else
     -- Nothing in the bags: there is no price to set. Say why instead.
-    row.priceFigure:Hide(); row.chipsBg:Hide()
+    row.priceFigure:Hide(); row.chipsBg:Hide(); row.floorNote:Hide()
     for _, chip in ipairs(row.priceChips) do chip:Hide() end
     row.priceNote:SetText(GC.L["nothing in your bags to price"])
     setColor(row.priceNote, Theme.color.fgDim)
@@ -523,7 +562,7 @@ end
 -- The price section, put away by whatever kind takes the head's pooled row next (renderRows'
 -- put-away).
 function Inspector.PutAway(row)
-  row.priceFigure:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
+  row.priceFigure:Hide(); row.priceNote:Hide(); row.chipsBg:Hide(); row.floorNote:Hide()
   row.headRules[1]:Hide()
   for _, chip in ipairs(row.priceChips) do chip:Hide() end
 end
@@ -628,9 +667,10 @@ function Inspector.Build()
   detailScroll:SetScrollChild(UI.detailContent)
 end
 
--- Where the panel lives: down the container's right side, from under the toolbar to the dock's top
--- edge, `dx` px right of that while it slides (the kit's slider). Dock.SetHeight re-places it as the
--- dock grows, at whatever offset the slide has reached.
+-- Where the panel lives: down the container's right side, from under the toolbar (and the GROUPS
+-- row while it is up, UI.ListTop) to the dock's top edge, `dx` px right of that while it slides
+-- (the kit's slider). Dock.SetHeight re-places it as the dock grows, and the GROUPS row as it
+-- changes height, at whatever offset the slide has reached.
 function Inspector.Place(dx)
   local container = UI.container
   local inspector = container and container.inspector
@@ -638,7 +678,7 @@ function Inspector.Place(dx)
   if dx then inspector.dx = dx end
   local x = inspector.dx or 0
   inspector:ClearAllPoints()
-  inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", x, -34)
+  inspector:SetPoint("TOPRIGHT", container, "TOPRIGHT", x, -UI.ListTop())
   inspector:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", x, UI.Dock.Height() + 6)
 end
 

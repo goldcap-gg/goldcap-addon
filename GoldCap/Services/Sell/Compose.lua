@@ -100,6 +100,9 @@ function Compose.Positions(skipPaint)
     -- this tab has twice shipped a bug where the price shown and the price sent were two
     -- different numbers.
     chosenUnits = S.priceOverrides,
+    -- The seller's default price (Settings, POSTING): what every item opens at in place of
+    -- GoldCap's own, for the same reason a typed price travels here.
+    defaultPrice = GC.Sell.DefaultPrice(),
     -- WoW: Forever only (Core/SellPositions.lua's decoratePosition): the player's own scan is
     -- the market there, so the projection prices bag stock from it while the live walk is still
     -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
@@ -234,7 +237,8 @@ end
 -- marks)? For the row's mark and the list's two sections. Asked once a row on every render, so
 -- it reads the marks straight from the saved data rather than building _QueueOpts each time.
 function GC.Sell.IsSelling(position)
-  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil)
+  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil,
+    S.group ~= nil)
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

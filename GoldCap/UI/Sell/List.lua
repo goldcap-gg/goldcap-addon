@@ -31,6 +31,11 @@ function GC.Sell._EmptyDeck()
     return "sell", GC.L["No auctions up"],
       GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
   end
+  -- The GROUPS row picked a group with nothing left in the bags (UI/Sell/Toolbar.lua).
+  if S.group then
+    return "bag", GC.L["Nothing left in this group"],
+      GC.L["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."]
+  end
   if UI.chips.ready then
     return "clock", GC.L["Still pricing"],
       GC.L["The auction house is still answering. Items show up here as their prices arrive."]
@@ -304,6 +309,16 @@ function ROW.sectionText(section)
   local hint = ROW.SECTION_HINTS[section.id]
   local text = UI.fmt.count(GC.L[ROW.SECTION_TITLES[section.id]], #section.positions)
     .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
+  -- With a group picked (UI/Sell/Toolbar.lua's GROUPS row), SELLING is that group: its name over
+  -- its items, and POST's walk said to stay in it.
+  if section.id == "selling" and S.group then
+    local gold = GC.Theme.color.goldHi or GC.Theme.color.gold
+    local name = S.group == "mine" and GC.L["MY GROUPS"] or GC.Util.Upper(S.groupName or S.group)
+    local walk = S.group == "mine" and GC.L["Post goes through your groups only"]
+      or (GC.L["Post goes through %s only"]):format(S.groupName or S.group)
+    text = name .. " " .. GC.Sell._InlineColor(gold, tostring(#section.positions))
+      .. "  " .. DIM_HEX .. walk .. "|r"
+  end
   -- SELLING carries the posting deck's totals: the dock is one row there (owner, 2026-10-10).
   local aside = section.id == "selling" and UI.Dock.SellingAside() or ""
   return aside ~= "" and (text .. "  ·  " .. aside) or text
@@ -319,7 +334,9 @@ function ROW.pushWaiting(entries)
   for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
     local name = type(waiting.itemName) == "string" and waiting.itemName ~= "" and waiting.itemName
       or itemName(waiting.itemID)
-    if not UI.chips.search or name:lower():find(UI.chips.search, 1, true) then
+    -- ...and the group the GROUPS row picked, by the item's own ID: such stock has no key yet.
+    local inGroup = GC.Sell.InPickedGroup("item:" .. tostring(waiting.itemID))
+    if inGroup and (not UI.chips.search or name:lower():find(UI.chips.search, 1, true)) then
       shown[#shown + 1] = { kind = "waitItem", name = name, quantity = waiting.quantity,
         position = { itemID = waiting.itemID, itemName = name } }
     end
@@ -615,6 +632,9 @@ local function renderRows()
     paintHeaderText(header, headerDeck)
     layoutCells(header)
   end
+  -- The GROUPS row first: its chips count what this render shows, and its height decides where
+  -- the headings and the list start.
+  UI.Toolbar.PaintGroups()
   local filtered
   if S.filterMode == "cancelqueue" then
     -- The cancel queue's own order, head first -- one row per position however many of its
@@ -632,8 +652,9 @@ local function renderRows()
   else
     -- Deck ends in SellViewModel.Order itself, so there is no second ordering pass here the
     -- way the old single-filter path needed one.
+    -- ...and the group the GROUPS row picked (UI/Sell/Toolbar.lua), as POST's queue is narrowed.
     filtered = GC.SellViewModel.Deck(S.positions, S.filterMode,
-      { ready = UI.chips.ready, noCost = UI.chips.nocost })
+      { ready = UI.chips.ready, noCost = UI.chips.nocost, inGroup = S.group and GC.Sell.InPickedGroup or nil })
     -- Deck ends in Order, which is the right answer for a list being BUILT and the wrong one
     -- for a list already on screen: the pricing walk answers one item at a time, and every
     -- answer re-ranked a row out from under the cursor.
@@ -882,7 +903,8 @@ function List.Build()
   -- comment for why that cannot live in the deck buttons' click handler.
   container.header = header
   container.headerDeck = "post"
-  header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", 0, -34); header:SetHeight(16); header.cells = {}
+  header:SetPoint("TOPLEFT", 0, -UI.ListTop()); header:SetPoint("TOPRIGHT", 0, -UI.ListTop())
+  header:SetHeight(16); header.cells = {}
   header.itemInset = ROW.ICON + 10 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(""); header.cells[column.key] = cell
@@ -918,7 +940,8 @@ function List.Build()
   rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); rule:SetHeight(1)
   paintHeaderText(header, "post")
   layoutCells(header)
-  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -52)
+  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", 0, -(UI.ListTop() + 18))
   container.scroll = scroll
   if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
   -- Stops above the footer instead of running to the container's own bottom edge: the bulk
@@ -956,16 +979,17 @@ end
 
 -- The list's own width follows the panel: docked, it ends where the panel's column begins
 -- (the gap is where the list's scroll bar hangs); as a sheet, it keeps the whole width and
--- the panel covers its right side. Called by renderRows when that changes and by the resize
--- hook, never per render.
+-- the panel covers its right side. Called by renderRows when that changes, by the resize hook and
+-- by the GROUPS row when it changes height (UI.ListTop), never per render.
 function List.ApplyListGeometry()
   local container = UI.container
   local header, scroll = container.header, container.scroll
   local inset = INSP.docked() and (INSP.W + INSP.GAP) or 0
+  local top = UI.ListTop()
   header:ClearAllPoints()
-  header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
+  header:SetPoint("TOPLEFT", 0, -top); header:SetPoint("TOPRIGHT", -inset, -top)
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", 0, -52)
+  scroll:SetPoint("TOPLEFT", 0, -(top + 18))
   scroll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -inset, UI.Dock.Height() + 6)
   UI.content:SetWidth(INSP.listWidth())
   layoutCells(header)
