@@ -1,20 +1,18 @@
 -- An API-shaped double of the client's mailbox. `box.api` carries only names the client has
--- (GetInbox*, TakeInboxMoney, TakeInboxItem, CheckInbox, C_Mail.*); everything a spec steers lives
--- on `box` itself (advance, refuse, setCanCheck, calls ...), so production code can never come to
--- depend on a control only the double has (spec/mail_collect_wiring_spec.lua greps for them).
+-- (GetInbox*, TakeInboxMoney, TakeInboxItem, CheckInbox); everything a spec steers lives
+-- on `box` itself (advance, refreshNow, addRow ...), so production code can never come to
+-- depend on a control only the double has.
 --
 -- A row is { sender, subject, money, cod, daysLeft, canReply, isGM, auction, invoice, items }:
 --   * `invoice` is { invoiceType, itemName, ... } as GetInboxInvoiceInfo answers it, or nil.
 --   * `items` maps a slot (1..16) to { name, itemID, count }.
 --   * `auction` rows are deleted by the server when nothing is left on them, so every later
 --     index shifts; any other mail stays until the player deletes it.
--- A take is a command: IsCommandPending() stays true until box:advance(), which applies it, the
--- way the client answers a take a moment later. A refused item (box:refuse) is never emptied.
+-- A take is a command: it stays pending until box:advance(), which applies it, the
+-- way the client answers a take a moment later.
 -- A take acts on the mail its index named when it was made, as the server does, not on whatever
 -- row that index holds by the time it lands: box:refreshNow can move the rows in between.
 local Mailbox = {}
-
-local SLOTS = 16
 
 local function copyRow(row)
   local items = {}
@@ -38,9 +36,7 @@ function Mailbox.new(rows, opts)
   opts = opts or {}
   local box = {}
   local state = {
-    rows = {}, hidden = {}, pending = nil, canCheck = true, canCheckSeconds = 0,
-    checkAsked = false, refused = {}, takes = {}, opening = false, openingCalls = {},
-    checks = 0,
+    rows = {}, hidden = {}, pending = nil, checkAsked = false,
   }
   for _, row in ipairs(rows or {}) do state.rows[#state.rows + 1] = copyRow(row) end
   for _, row in ipairs(opts.hidden or {}) do state.hidden[#state.hidden + 1] = copyRow(row) end
@@ -76,32 +72,17 @@ function Mailbox.new(rows, opts)
   end
 
   function api.TakeInboxMoney(index)
-    state.takes[#state.takes + 1] = { fn = "TakeInboxMoney", index = index }
     state.pending = { kind = "money", row = state.rows[index] }
   end
 
   function api.TakeInboxItem(index, slot)
-    state.takes[#state.takes + 1] = { fn = "TakeInboxItem", index = index, slot = slot }
     state.pending = { kind = "item", row = state.rows[index], slot = slot }
   end
 
   function api.CheckInbox()
-    state.checks = state.checks + 1
-    if state.canCheck then state.checkAsked = true end
+    state.checkAsked = true
   end
 
-  api.C_Mail = {
-    CanCheckInbox = function() return state.canCheck, state.canCheckSeconds end,
-    IsCommandPending = function() return state.pending ~= nil end,
-    SetOpeningAll = function(flag)
-      state.opening = flag and true or false
-      state.openingCalls[#state.openingCalls + 1] = state.opening
-    end,
-    HasInboxMoney = function(index)
-      local row = state.rows[index]
-      return row ~= nil and row.money > 0
-    end,
-  }
   box.api = api
 
   -- The client answers the pending take: the money or slot empties, an emptied auction mail goes
@@ -119,7 +100,7 @@ function Mailbox.new(rows, opts)
         row.money = 0
       else
         local item = row.items[take.slot]
-        if item and not state.refused[item.itemID] then row.items[take.slot] = nil end
+        if item then row.items[take.slot] = nil end
       end
       if row.auction and row.money == 0 and next(row.items) == nil then
         table.remove(state.rows, at)
@@ -132,23 +113,7 @@ function Mailbox.new(rows, opts)
     end
   end
 
-  -- The flat table Core/MailLoop.lua is given: the mailbox functions under their own names plus
-  -- the four members UI/MailCollect.lua builds from C_Mail and C_Container. `bags.free` is the
-  -- number of free bag slots, steered by the spec.
-  function box:flat(bags)
-    bags = bags or { free = 20 }
-    local flat = {}
-    for name, fn in pairs(api) do
-      if name ~= "C_Mail" then flat[name] = fn end
-    end
-    flat.CanCheckInbox = api.C_Mail.CanCheckInbox
-    flat.IsCommandPending = api.C_Mail.IsCommandPending
-    flat.SetOpeningAll = api.C_Mail.SetOpeningAll
-    flat.FreeBagSlots = function() return bags.free end
-    return flat
-  end
-
-  -- Blizzard's own refresh landing right now, whatever the loop has in flight: MailFrame.lua's
+  -- Blizzard's own refresh landing right now, whatever take is in flight: MailFrame.lua's
   -- InboxFrame_Update calls CheckInbox by itself on every MAIL_INBOX_UPDATE while fewer than
   -- MAX_INBOX_SIZE (100) rows show and more exist. The rows out of view come in at the back, and
   -- `delivered` (mail that arrived since, newest first) comes in at the front, shifting every
@@ -159,46 +124,12 @@ function Mailbox.new(rows, opts)
     state.hidden = {}
   end
 
-  function box:refuse(itemID) state.refused[itemID] = true end
-  function box:setCanCheck(flag, seconds)
-    state.canCheck, state.canCheckSeconds = flag and true or false, seconds or 0
-  end
-  -- The ordered take calls: { fn = "TakeInboxMoney" | "TakeInboxItem", index, slot }.
-  function box:calls() return state.takes end
-  function box:openingCalls() return state.openingCalls end
-  function box:isOpeningAll() return state.opening end
-  function box:checkCalls() return state.checks end
   function box:rowCount() return #state.rows end
   function box:row(index) return state.rows[index] end
-  function box:pendingCommand() return state.pending ~= nil end
   function box:addRow(row) state.rows[#state.rows + 1] = copyRow(row) end
   function box:removeRow(index) table.remove(state.rows, index) end
-  Mailbox.SLOTS = SLOTS
 
   return box
-end
-
--- The ten-mail inbox the specs share: four mails Collect takes (a sale, an expired lot, a won
--- auction, a player's gold) and six it leaves alone (cash on delivery, GM, one still loading,
--- an empty player mail, a quest reward that is neither player nor auction, a sale still pending).
-function Mailbox.tenMail()
-  return {
-    { sender = "Auction House", subject = "Auction successful: Linen Cloth", money = 50000, auction = true,
-      invoice = { invoiceType = "seller", itemName = "Linen Cloth" } },
-    { sender = "Auction House", subject = "Auction expired: Silk Cloth", auction = true,
-      items = { [1] = { itemID = 4306, count = 20 } } },
-    { sender = "Auction House", subject = "Auction won: Wool Cloth", auction = true,
-      invoice = { invoiceType = "buyer", itemName = "Wool Cloth" },
-      items = { [1] = { itemID = 2592, count = 5 } } },
-    { sender = "Friend", subject = "For you", money = 1000, canReply = true },
-    { sender = "Friend", subject = "Pay me", canReply = true, cod = 1000, items = { [1] = { itemID = 1, count = 1 } } },
-    { sender = "GM", subject = "Ticket", isGM = true, money = 5 },
-    { sender = "Auction House", subject = "Retrieving data...", money = 0 },
-    { sender = "Friend", subject = "Hi", canReply = true },
-    { sender = "Quest Giver", subject = "Reward", items = { [1] = { itemID = 5, count = 1 } } },
-    { sender = "Auction House", subject = "Auction successful: Mageweave", money = 0, auction = true,
-      invoice = { invoiceType = "seller_temp_invoice", itemName = "Mageweave" } },
-  }
 end
 
 return Mailbox

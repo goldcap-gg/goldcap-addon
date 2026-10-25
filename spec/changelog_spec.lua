@@ -44,23 +44,20 @@ describe("CHANGELOG.md", function()
   -- What SELL does with the mailbox's returned lots log is told in its own Sell line, never in a
   -- Mail one. And the owner's rule for every player-facing text: no long dashes.
   it("promises no Sell tab behaviour in a Mail bullet, and uses no long dash there", function()
-    local mailBullets = 0
     for _, section in ipairs(sections()) do
       for _, bullet in ipairs(section.bullets) do
         if bullet:find("^%- Mail:") then
-          mailBullets = mailBullets + 1
           assert.is_nil(bullet:find("Sell", 1, true), bullet)
           assert.is_nil(bullet:find("\226\128\148", 1, true), bullet)
           assert.is_nil(bullet:find("\226\128\147", 1, true), bullet)
         end
       end
     end
-    assert.is_true(mailBullets > 0)
   end)
 
   -- WoW: Forever loads none of the files behind these (spec/camelot_toc_spec.lua's RETAIL_ONLY), and
   -- the same post goes to its players. A line about one says "in retail WoW" after its area, or
-  -- follows a line of the same area that does, as the Mail lines do.
+  -- follows a line of the same area that does.
   it("says retail WoW on every line of the newest release about a feature WoW: Forever does not load", function()
     local RETAIL_ONLY = { "a group you follow are posted", "CANCEL button", "POSTING setting", "the Vendor card",
       "^%- Crafting", "^%- Bank" }

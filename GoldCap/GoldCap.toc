@@ -50,7 +50,6 @@ Core/PurchaseCapture.lua
 Core/Ledger.lua
 Core/MailReturns.lua
 Core/MailClassify.lua
-Core/MailLoop.lua
 Core/MailStock.lua
 Core/SoldView.lua
 Core/QuoteCache.lua
@@ -165,7 +164,6 @@ UI/HoardList.lua
 UI/HoardTiles.lua
 UI/HoardCarry.lua
 UI/HoardFooter.lua
-UI/MailCollect.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua
 UI/CraftQueueView.lua

@@ -3,8 +3,7 @@ local Mailbox = require("spec.support.mail_inbox")
 
 -- The lots that came back reach SELL's unsold rounds through the ledger's inbox scan
 -- (Core/Ledger.lua, ScanInbox), which reads every row on MAIL_SHOW and MAIL_INBOX_UPDATE whoever
--- then takes the mail: Blizzard's Open All, Postal, TSM's mailing, a click on the attachment, or
--- GoldCap's Collect with "Returned lots" on or off. A mail read on many scans is logged once, by
+-- then takes the mail: Blizzard's Open All, Postal, TSM's mailing or a click on the attachment. A mail read on many scans is logged once, by
 -- the rule the ledger keeps for an invoice: the same lot in this character's inbox, by item, reason
 -- and expiry, is the same mail until a complete scan no longer holds it.
 describe("Ledger scan, the lots that came back", function()

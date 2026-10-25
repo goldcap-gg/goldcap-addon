@@ -696,26 +696,14 @@ local function build(sniperFrame)
     columns.left[#columns.left + 1] = brakes
   end
 
-  -- MAIL: what the Collect button beside the mailbox takes (UI/MailCollect.lua). That file loads
-  -- on retail only, so GC.MailCollect is the capability check and WoW: Forever never builds the
-  -- card. It stacks under RISK CHECKS (or under WHAT COUNTS where that is absent), which makes
-  -- the left column taller than the drawer at the window's smallest height: the cards scroll.
-  local mail
-  if GC.MailCollect then
-    mail = card(content, GC.L["MAIL"], 4)
-    mail:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
-    mail:SetPoint("RIGHT", content, "CENTER", -7, 0)
-    columns.left[#columns.left + 1] = mail
-  end
-
   -- VENDOR (the Sell to vendor card's two kinds, and the items kept for good): retail only, as the
-  -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under MAIL (under
-  -- RISK CHECKS where MAIL is absent), never on the same anchor. VENDOR is 108 while each of its
+  -- card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under RISK CHECKS (under
+  -- WHAT COUNTS where that is absent), never on the same anchor. VENDOR is 108 while each of its
   -- labels holds one line, which spec/button_label_width_spec.lua pins (flowCard).
   local vendor
   if not isForeverClient() then
     vendor = card(content, GC.L["VENDOR"], 3)
-    vendor:SetPoint("TOPLEFT", mail or brakes, "BOTTOMLEFT", 0, -12)
+    vendor:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
     vendor:SetPoint("RIGHT", content, "CENTER", -7, 0)
     columns.left[#columns.left + 1] = vendor
   end
@@ -992,23 +980,6 @@ local function build(sniperFrame)
   if not isForeverClient() then
     toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
-  end
-
-  -- Short labels, since the card's title already says MAIL: each fits its row on one line at the
-  -- largest font scale and the smallest window, in every language (spec/settings_controls_spec.lua
-  -- measures them in the label face). Should a client draw one wider, it wraps (flowCard).
-  if mail then
-    local rows = {
-      { GC.L["Sales"], "collectSales", GC.L["Take the gold from sold auctions."] },
-      { GC.L["Returned lots"], "collectReturns", GC.L["Take back lots that expired or that you cancelled."] },
-      { GC.L["Purchases"], "collectPurchases",
-        GC.L["Take the items of auctions you won, and the refund of an outbid bid."] },
-      { GC.L["Player mail"], "collectPlayers",
-        GC.L["Take gold and items other players sent you. Cash on delivery mail is never taken."] },
-    }
-    for i, row in ipairs(rows) do
-      toggleRow(mail, i, row[1], row[2], row[3])
-    end
   end
 
   -- VENDOR's labels are short in every language, the whole rule in the hover sentence, and

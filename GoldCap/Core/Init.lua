@@ -243,13 +243,6 @@ GC.DEFAULTS = {
       -- default: a cap firing while the player is away must not open a purchase dialog nobody
       -- asked for.
       capStopAndOpen = false,
-      -- Which mail the Collect button beside the mailbox takes (UI/MailCollect.lua, Enabled; the
-      -- MAIL card in UI/SettingsFrame.lua): sales, lots that came back, purchases, and mail from
-      -- players. All on; a saved false survives ApplyDefaults because it only fills nil.
-      collectSales = true,
-      collectReturns = true,
-      collectPurchases = true,
-      collectPlayers = true,
       -- buyRun: undeclared here on purpose (a nil-valued table field is never actually stored,
       -- so ApplyDefaults' pairs() walk would just skip it either way). The run code last shown
       -- in the Buy Runs panel, so reopening it returns to where the player left off; written by
@@ -1009,11 +1002,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
           outbid = AUCTION_OUTBID_MAIL_SUBJECT },
       }, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
     end
-    -- The Collect button (retail only; GC.MailCollect is nil where its file is not loaded). After the
-    -- ledger scan, in the same handler: a sale is read before the button can take its gold.
-    if GC.MailCollect then
-      if event == "MAIL_SHOW" then GC.MailCollect.OnMailShow() else GC.MailCollect.OnInboxUpdate() end
-    end
     -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
     -- it. Only MAIL_SHOW (not the repeated MAIL_INBOX_UPDATE) -- Auto only needs to know mail
     -- is open, once, the same way OnAuctionHouseShow's ahOpened fires once per AH visit.
@@ -1024,7 +1012,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnMailClosed then
       GC.Sniper.OnMailClosed()
     end
-    if GC.MailCollect then GC.MailCollect.OnMailClosed() end
     -- The visit Core/MailStock.lua counts the mailbox over ends here (retail only).
     if GC.MailStock then GC.MailStock.Closed() end
   elseif event == "PLAYER_MONEY" then

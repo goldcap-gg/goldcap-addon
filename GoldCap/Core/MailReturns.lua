@@ -4,7 +4,7 @@ local _, GC = ...
 -- cancelled by the player). SELL's unsold-rounds count reads it (the groups-in-the-addon design,
 -- section 5). The ledger's inbox scan writes it (Core/Ledger.lua, ScanInbox, through Observe
 -- below): that scan reads every row on MAIL_SHOW and MAIL_INBOX_UPDATE, so a lot is logged when
--- it is seen, however the player then takes it (Collect, Blizzard's Open All, another mail addon,
+-- it is seen, however the player then takes it (Blizzard's Open All, another mail addon,
 -- a click on the attachment) or leaves it.
 --
 -- Entries are exactly { itemID, count, reason = "expired" | "cancelled", at }, one per lot even when

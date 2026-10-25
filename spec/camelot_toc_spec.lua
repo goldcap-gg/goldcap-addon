@@ -35,14 +35,14 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
 
   -- Minus retail's price snapshot, and the carry list at the Warband Bank (UI/BankRoute.lua):
   -- goldcap.gg works out where flips sell for retail realms alone. Minus the followed groups'
-  -- selling rules too: groups are retail only (plan 2026-10-22). The mail collect files
-  -- (Core/Mail*.lua, UI/MailCollect.lua) and the vendor sell files are retail only in this wave:
+  -- selling rules too: groups are retail only (plan 2026-10-22). The mail files
+  -- (Core/Mail*.lua) and the vendor sell files are retail only in this wave:
   -- WoW: Forever must not change. Crafting in the profession window is retail's too: Forever's
   -- professions differ and have a design of their own.
   local RETAIL_ONLY = { ["Data/MarketData.lua"] = true, ["UI/BankRoute.lua"] = true,
     ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
-    ["Core/MailLoop.lua"] = true, ["Core/MailStock.lua"] = true, ["UI/MailCollect.lua"] = true,
+    ["Core/MailStock.lua"] = true,
     ["Core/VendorSelect.lua"] = true, ["Core/VendorPress.lua"] = true,
     ["Services/VendorBags.lua"] = true, ["UI/VendorSellCard.lua"] = true }
   RETAIL_ONLY["Core/CraftMath.lua"] = true

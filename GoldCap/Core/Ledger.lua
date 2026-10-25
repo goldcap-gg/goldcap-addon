@@ -459,8 +459,6 @@ local function noInvoicePatterns(formats)
   end
   return patterns
 end
--- Core/MailClassify.lua (the Collect button) reuses this subject matching rather than a second copy.
-GC.Ledger.NoInvoicePatterns = noInvoicePatterns
 
 -- The two lapsed-auction subjects that bring a lot back, for SELL's unsold rounds
 -- (Core/MailReturns.lua): `subjects` is the scan's noInvoiceSubjects, keyed by the client's own
@@ -580,15 +578,6 @@ local function canRecord(context)
   return db ~= nil and type(context) == "table"
     and type(context.char) == "string" and context.char ~= ""
     and type(context.region) == "string" and context.region ~= ""
-end
-
---- Whether ScanInbox would record the auction invoice at `index` right now: the same guards and
--- the same reading (readInboxMail) it uses, so the answer can never drift from what it records.
--- The Collect button (Core/MailClassify.lua) takes a sale's gold or a won auction's items only
--- when this is true, because once they are taken the invoice is gone with them.
-function GC.Ledger.ReadsInvoice(api, index, context, now)
-  if not canRecord(context) then return false end
-  return readInboxMail(api, index, context, now or time()) ~= nil
 end
 
 -- Whether this mailbox visit has shown any row yet. Mail probe, retail 2026-10-11:

@@ -7,7 +7,7 @@ local _, GC = ...
 -- The client shows the inbox only while the mailbox is open, so this is what a read there found
 -- last, plus what was bought since:
 --   * `items`: every attachment the last read of the inbox found (Observe, from the ledger's scan
---     on MAIL_SHOW, on MAIL_INBOX_UPDATE and before each Collect take), whoever sent it: a won
+--     on MAIL_SHOW and on MAIL_INBOX_UPDATE), whoever sent it: a won
 --     auction, a lot that came back, another player's mail. Cash on delivery mail is left out: it
 --     is not the player's until it is paid for.
 --   * `bought`: units bought at the auction house whose mail no read has found yet (Bought: BUY,
@@ -200,9 +200,8 @@ end
 
 -- What the `shown` rows hold: every attachment by item; the attachments as a list of { prefix =
 -- "itemID:count", itemID, count, bucket, won }; and the mails as a list of { prefix =
--- "sender\1subject", bucket }. nil while a row is not loaded. Core/MailClassify.lua reads a row as
--- the Collect button does (`api` is the ledger scan's own: GetInboxHeaderInfo, GetInboxInvoiceInfo,
--- GetInboxItem). A mail with no subject is loaded: only the client's placeholder subject says it is
+-- "sender\1subject", bucket }. nil while a row is not loaded. Core/MailClassify.lua reads a row
+-- (`api` is the ledger scan's own: GetInboxHeaderInfo, GetInboxInvoiceInfo, GetInboxItem). A mail with no subject is loaded: only the client's placeholder subject says it is
 -- not, so an addon's or a system mail does not hold back every read while it sits in the inbox.
 local function readInbox(api, shown, now)
   local items, list, mails = {}, {}, {}
