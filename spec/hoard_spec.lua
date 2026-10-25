@@ -803,6 +803,13 @@ describe("Hoard", function()
       assert.same({ "0:2", "1:3", "0:1" }, where(stacks))
     end)
 
+    -- The owner, 2026-10-25: the way home stays on the character.
+    it("leaves a hearthstone in the bags", function()
+      local stacks = H.MakeRoom({ stack(6948, 0, 1, 1), stack(140192, 0, 2, 1), stack(110560, 0, 3, 1),
+        stack(2, 0, 4, 5) })
+      assert.same({ "0:4" }, where(stacks))
+    end)
+
     it("has nothing to move from empty bags", function()
       assert.same({}, H.MakeRoom({}))
       assert.same({}, H.MakeRoom(nil))

@@ -47,7 +47,7 @@ local KEYS = {
   "Then log in a character on that realm and open a bank: GoldCap lists what to take out.",
   "Then list it from GoldCap's Sell tab at the auction house.",
   -- The footer: its buttons, their tooltips, and the price line.
-  "Make room", "Put back", "Moves every stack in your bags that %s takes, and remembers what went for Put back.",
+  "Make room", "Put back", "Moves every stack in your bags that %s takes, except a hearthstone, and remembers what went for Put back.",
   "Takes back from %s what Make room put there. It lands wherever your bags have room, not in its old slots.",
   "What Make room put away is in %s: switch to it to put it back.", "Make room has put nothing away to bring back.",
   "Prices from the Companion, %s ago", "You pasted these prices %s ago", "No prices for your region yet",

@@ -519,15 +519,23 @@ function H.Selection(groups, selected, valueOf)
   return out
 end
 
+-- What Make room leaves in the bags: the way home, which a player at the bank still wants on them
+-- (owner 2026-10-25). The Hearthstone, the Dalaran Hearthstone and the Garrison Hearthstone; the
+-- ones that are toys never sit in a bag.
+H.KEEP_IN_BAGS = { [6948] = true, [140192] = true, [110560] = true }
+
 --- Make room: every stack in the bags (`bagStacks`, as the reader marks them against the bank
 --- chosen) that the bank takes, the biggest first, then by bag and slot. Not one that `stays` (the
 --- bank refuses it, or it is still refundable and the bank is the Warband Bank), one the game
---- holds, or one a press has sent (`moving`, optional). Whether a soulbound stack is among them is
---- the reader's to decide: the character's own bank takes one, the Warband Bank none.
+--- holds, one a press has sent (`moving`, optional), or a hearthstone (KEEP_IN_BAGS). Whether a
+--- soulbound stack is among them is the reader's to decide: the character's own bank takes one,
+--- the Warband Bank none.
 function H.MakeRoom(bagStacks, moving)
   local out = {}
   for _, stack in ipairs(bagStacks or {}) do
-    if not stack.stays and free(stack, moving) then out[#out + 1] = stack end
+    if not stack.stays and not H.KEEP_IN_BAGS[stack.itemID] and free(stack, moving) then
+      out[#out + 1] = stack
+    end
   end
   table.sort(out, GC.BankGroups.StackOrder)
   return out

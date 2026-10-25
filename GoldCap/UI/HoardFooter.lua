@@ -5,8 +5,8 @@ local _, GC = ...
 -- UI/HoardList.lua), as the Window board draws it: Make room, Put back, and where the prices come
 -- from.
 -- - Make room moves every stack in the bags (the backpack, the four bags and the reagent bag) that
---   the bank the switch names takes, the biggest first (Core/Hoard.lua's MakeRoom over the stacks
---   the window's paint read, bound ones among them): into the character's own bank a soulbound one
+--   the bank the switch names takes, but a hearthstone, the biggest first (Core/Hoard.lua's
+--   MakeRoom over the stacks the window's paint read, bound ones among them): into the character's own bank a soulbound one
 --   too, into the Warband Bank a Warbound one but not a soulbound one, which it refuses (the
 --   reader marks that one `stays`). When its run is over, what actually left the bags (the
 --   window's run end, HF.Press's onRunEnd, heard once every stack the run sent has landed or been
@@ -174,7 +174,7 @@ local function makeRoomPlan(room, char, ctx)
     return {}, GC.L["What Make room put away is still in %s: put it back first."]:format(U.bankName(room.bankType))
   end
   return GC.Hoard.MakeRoom(ctx.inBags(), ctx.moving),
-    GC.L["Moves every stack in your bags that %s takes, and remembers what went for Put back."]:format(U.bankName(ctx.bankType))
+    GC.L["Moves every stack in your bags that %s takes, except a hearthstone, and remembers what went for Put back."]:format(U.bankName(ctx.bankType))
 end
 
 -- The two buttons on the footer's first line, then the price line beside them or under them, its
