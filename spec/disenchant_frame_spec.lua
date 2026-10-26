@@ -749,14 +749,36 @@ describe("Disenchant window", function()
     put(gear(0, 2, 502))
     slash()
     S.click(button())
-    clock = clock + 4.9
+    clock = clock + 1.4
     event("UNIT_SPELLCAST_START", "player", "Cast-1", 13262)
     nextFrame()
-    clock = clock + 1.5
+    clock = clock + 4
     event("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 13262)
     nextFrame()
     assert.equal("Next", textOf(DF._frame.card.label))
     assert.same({ "spell", 13262, 0, 2 }, armedAt())
+  end)
+
+  -- A cast starts at once or never: a START later than START_SECONDS after the press is a Disenchant
+  -- from elsewhere (the spellbook, another addon's button) after a press that never started (the
+  -- final review's M2), and neither teaches the press's kind nor counts its item done.
+  it("takes no Disenchant that starts 2 s after its press for its own: nothing learned, nothing done", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    clock = clock + 2
+    event("UNIT_SPELLCAST_START", "player", "Cast-9", 13262)
+    nextFrame()
+    assert.equal("Next", textOf(DF._frame.card.label))
+    clock = clock + 1.5
+    event("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-9", 13262)
+    loot = { { DUST, 3 } }
+    event("LOOT_READY", false)
+    nextFrame()
+    assert.is_nil(GC.Disenchant.Yield(GC.db, "q2:x11"))
+    assert.same({ 501, 502 }, listed())
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
   end)
 
   it("names the next item again when its cast never answers", function()

@@ -86,6 +86,10 @@ DF.BINDING = "CLICK GoldCapDisenchantNext:LeftButton"
 -- How long after a press its cast's answer counts as the answer to that press: the cast took about
 -- 1.55 s in probe D1 (CAST_SECONDS, the casting bar's length), with room for the server.
 DF.PENDING_SECONDS = 5
+-- How long after a press a Disenchant that starts is that press's cast: a cast starts at once or
+-- never (probe D1: at once). A later one is from elsewhere, the spellbook or another addon's button,
+-- after a press that never started (the final review's M2).
+DF.START_SECONDS = 1.5
 -- How long after a press "That item is not a valid target." (any item's refusal, for any spell or
 -- item use) still counts as the answer to it, and marks the item for good: the client answers an
 -- invalid target at once, with no cast started (the re-review's T1). Later, it counts for the visit.
@@ -148,15 +152,16 @@ local CAP = math.floor(M.BUTTON_H * CUT + 0.5)
 local PIECES = { { 0, CUT }, { CUT, 1 - CUT }, { 1 - CUT, 1 } }
 
 -- What the window remembers, for the visit (newVisit): skipped, sent anyway and refused items (Plan's
--- skipped and anyway, each the link its slot held, and failed), the items done in it (their plan rows, in order) and their slots with
--- the link each held, until the bags show it gone (gone), the materials got ({ [itemID] = units }),
--- and the room the Next card keeps (only grows). The last plan; what the button points at
--- (`armed`: the row, its slot and link and the item's kind); the press waiting for its cast's answer
--- (`pending`: the row, its item and kind, when, its cast's GUID, `over` once the cast failed); the
--- cast of a press going (`casting`: the row, since when); the loot awaited after a cast succeeded
--- (`loot`: the kind, until when). What combat held: the window's wanted state (`wantShown`), a
--- repaint (`dirty`); a key press asking the window open (`openNext`); a paint asked for on the next
--- frame (`queued`). The lines, pooled by place.
+-- skipped and anyway, each the link its slot held, and failed), the items done in it (their plan
+-- rows, in order) and their slots with the link each held, until the bags show it gone (gone), the
+-- materials got ({ [itemID] = units }), and the room the Next card keeps (only grows). The last
+-- plan; what the button points at (`armed`: the row, its slot and link and the item's kind); the
+-- press waiting for its cast's answer (`pending`: the row, its item and kind, when, its cast's GUID,
+-- `over` once the cast failed or another started too late to be its); the cast of a press going
+-- (`casting`: the row, since when); the loot awaited after a cast succeeded (`loot`: the kind, until
+-- when). What combat held: the window's wanted state (`wantShown`), a repaint (`dirty`); a key press
+-- asking the window open (`openNext`); a paint asked for on the next frame (`queued`). The lines,
+-- pooled by place.
 DF._visit = nil
 DF._plan = nil
 DF._armed, DF._pending, DF._casting, DF._loot = nil, nil, nil, nil
@@ -2008,9 +2013,15 @@ local function castOf(guid)
   return nil
 end
 
+-- A Disenchant that starts within START_SECONDS of the press waiting is its cast. A later one is not:
+-- the press, which never started, is over, so that cast's end and loot are not taken for it.
 local function onCastStart(castGUID)
   local p = pendingNow()
   if not p or p.castGUID or p.over then return end
+  if now() - p.at > DF.START_SECONDS then
+    p.over = true
+    return
+  end
   p.castGUID = plain(castGUID)
   DF._casting = { row = p.row, at = now(), castGUID = p.castGUID, press = p }
   schedule()
