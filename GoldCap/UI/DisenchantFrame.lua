@@ -144,6 +144,9 @@ DF._plan = nil
 DF._armed, DF._pending, DF._casting, DF._loot = nil, nil, nil, nil
 DF._wantShown, DF._dirty, DF._openNext, DF._queued = nil, nil, nil, nil
 DF._rows, DF._leftRows = {}, {}
+-- The items the player keeps that the bags hold, as the last read saw them: in bag order (`list`) and
+-- by slot (`bySlot`), for the Kept menu and for the tooltip.
+DF._kept = { list = {}, bySlot = {} }
 
 local frame, entry
 local refresh
@@ -238,15 +241,20 @@ local function readPlan()
   local visit = DF._visit
   local note = GC.MerchantNote
   local stacks, seen = {}, {}
+  local kept = { list = {}, bySlot = {} }
   for _, stack in ipairs(GC.VendorBags.Read(note and note.ValueFor)) do
     local key = stack.bag .. ":" .. stack.slot
     seen[key] = true
+    if stack.itemID and D.CanDisenchant(stack) and D.Kept(GC.db, stack.itemID) then
+      kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack
+    end
     if visit.gone[key] ~= nil and visit.gone[key] ~= stack.link then visit.gone[key] = nil end
     if visit.gone[key] == nil then stacks[#stacks + 1] = stack end
   end
   for key in pairs(visit.gone) do
     if not seen[key] then visit.gone[key] = nil end
   end
+  DF._kept = kept
   return D.Plan(stacks, { db = GC.db, priceOf = priceOf, inGroup = inGroup, now = time(),
     skipped = visit.skipped, failed = visit.failed, anyway = visit.anyway })
 end
@@ -264,6 +272,8 @@ local function spellIcon()
   local spell = _G.C_Spell
   return spell and ask(spell.GetSpellTexture, D.SPELL) or SPELL_ICON
 end
+
+DF.SpellIcon = spellIcon
 
 local function nameOf(stack)
   local name = C_Item and ask(C_Item.GetItemInfo, stack.link or stack.itemID)
@@ -438,12 +448,94 @@ function DF.Anyway(slotKey)
   refresh()
 end
 
+-- The bag slot an item button stands for: Blizzard's own (ContainerFrameItemButtonMixin:GetBagID, the
+-- engine's GetID), "bag:slot", or nil for any other owner (a merchant's button, a chat link's tooltip).
+local function slotKeyOf(button)
+  if type(button) ~= "table" or type(button.GetBagID) ~= "function" or type(button.GetID) ~= "function" then
+    return nil
+  end
+  local okBag, bag = pcall(button.GetBagID, button)
+  local okSlot, slot = pcall(button.GetID, button)
+  if okBag and okSlot and type(bag) == "number" and type(slot) == "number" then return bag .. ":" .. slot end
+  return nil
+end
+
+--- Where the item in a bag slot stands, from the last plan: { state = "next" | "listed" | "left" |
+--- "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
+--- without Disenchant, for any button that is not a bag slot and for a slot that holds another item.
+function DF.Standing(button, itemID)
+  if not DF.Known() then return nil end
+  local key = slotKeyOf(button)
+  local plan = DF._plan
+  if not key or not plan then return nil end
+  for i, row in ipairs(plan.queue) do
+    if row.slotKey == key and row.stack.itemID == itemID then
+      return { state = i == 1 and "next" or "listed", mats = row.mats, n = row.n or 0 }
+    end
+  end
+  for _, row in ipairs(plan.left) do
+    if row.slotKey == key and row.stack.itemID == itemID then
+      return { state = "left", mats = row.mats, n = row.n or 0 }
+    end
+  end
+  local stack = DF._kept.bySlot[key]
+  if stack and stack.itemID == itemID then
+    local mats, n = D.MatsValue(GC.db, D.KindOf(stack), priceOf)
+    return { state = "kept", mats = mats, n = n }
+  end
+  return nil
+end
+
 local function openKeepMenu(owner, itemID)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return end
   menu.CreateContextMenu(owner, function(_, root)
     root:CreateButton(GC.Util.ClientText(GC.L["Never disenchant this"]), function() DF.Keep(itemID) end)
   end)
+end
+
+-- A kept item's line in the menu: its icon and its name in its quality's colour.
+local function keptLabel(itemID, stack)
+  local quality = stack and stack.quality or (C_Item and ask(C_Item.GetItemQualityByID, itemID))
+  local name = GC.Util.Colored(qualityColour(quality), nameOf({ itemID = itemID, link = stack and stack.link }))
+  local icon = iconOf(itemID)
+  if icon then return ("|T%s:14|t %s"):format(tostring(icon), name) end
+  return name
+end
+
+-- "Never disenchanted": the kept items the bags hold, then, after a divider, the others; each opens
+-- "Disenchant it again" (Unkeep).
+local function fillKeptMenu(root)
+  local text = GC.Util.ClientText
+  root:CreateTitle(text(GC.L["Never disenchanted"]))
+  local held, away = {}, {}
+  for _, stack in ipairs(DF._kept.list) do
+    if not held[stack.itemID] then held[stack.itemID] = stack end
+  end
+  local function addKept(itemID, stack)
+    local item = root:CreateButton(text(keptLabel(itemID, stack)))
+    item:CreateButton(text(GC.L["Disenchant it again"]), function() DF.Unkeep(itemID) end)
+  end
+  local shown = {}
+  for _, stack in ipairs(DF._kept.list) do
+    if not shown[stack.itemID] then
+      shown[stack.itemID] = true
+      addKept(stack.itemID, stack)
+    end
+  end
+  for _, itemID in ipairs(D.KeptIDs(GC.db)) do
+    if not held[itemID] then away[#away + 1] = itemID end
+  end
+  if #away == 0 then return end
+  if next(shown) then root:CreateDivider() end
+  root:CreateTitle(text(GC.L["Not in your bags"]))
+  for _, itemID in ipairs(away) do addKept(itemID, nil) end
+end
+
+local function openKeptMenu(owner)
+  local menu = _G.MenuUtil
+  if not (menu and menu.CreateContextMenu) then return end
+  menu.CreateContextMenu(owner, function(_, root) fillKeptMenu(root) end)
 end
 
 local function onRowClick(row, mouseButton)
@@ -699,6 +791,17 @@ local function build()
   frame.measure:Hide()
   frame.footer = track(frame, wrapping(T.Label(frame, 9)))
   colour(frame.footer, K.text3)
+  -- The way back for the items kept: "Kept: 2 items" and a quiet button that opens their menu.
+  local kept = {}
+  kept.text = track(frame, wrapping(T.Label(frame, 9)))
+  colour(kept.text, K.text3)
+  kept.show = T.Button(frame, U.QUIET.variant, "badge")
+  kept.show:SetGlow(false)
+  kept.show:SetRing(U.QUIET.ring)
+  kept.show:SetHeight(M.ANYWAY_H)
+  kept.show:SetScript("OnClick", function(self) openKeptMenu(self) end)
+  track(frame, kept.show.text)
+  frame.kept = kept
   -- The badge art is round at this size, as the Hoard's footer draws its dot.
   frame.dot = frame:CreateTexture(nil, "ARTWORK")
   frame.dot:SetTexture(T.MEDIA .. "badge.png")
@@ -1176,6 +1279,29 @@ local function paintFooter(w)
   return footH + M.FOOT_GAP + pricesH
 end
 
+-- The Kept line over the footer, `w` wide with its foot `y` above the window's: how many items are
+-- kept and the button that opens them. Answers its height, 0 with none kept.
+local function paintKept(w, y)
+  local kept = frame.kept
+  local n = #D.KeptIDs(GC.db)
+  kept.text:SetShown(n > 0)
+  kept.show:SetShown(n > 0)
+  if n == 0 then return 0 end
+  kept.show:SetLabel(GC.L["Show"])
+  kept.show:FitLabels({ GC.L["Show"] }, M.ANYWAY_MIN / 2)
+  colour(kept.show.text, U.QUIET.textColor)
+  local buttonW = kept.show:GetWidth()
+  kept.text:SetWidth(math.max(1, w - buttonW - M.COL_GAP))
+  setText(kept.text, n == 1 and GC.L["Kept: 1 item"] or GC.L["Kept: %d items"]:format(n))
+  local textH = math.ceil(heightOf(kept.text, 12))
+  local h = math.max(M.ANYWAY_H, textH)
+  kept.text:ClearAllPoints()
+  kept.text:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, y + math.floor((h - textH) / 2))
+  kept.show:ClearAllPoints()
+  kept.show:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD + w - buttonW, y + math.floor((h - M.ANYWAY_H) / 2))
+  return h
+end
+
 -- The most the window may be tall: from its top (the bags' top, as it opened) down to the room the
 -- Hoard leaves above the action bars; the screen less twice that where it stands without the bags.
 local function roomHeight()
@@ -1221,7 +1347,9 @@ local function paint()
   end
   local top = y
   local cy = paintLeft(plan, inner, paintOrder(plan, inner, 0))
-  local foot = L.PAD + paintFooter(head) + M.SECTION_GAP
+  local footH = paintFooter(head)
+  local keptH = paintKept(head, L.PAD + footH + M.FOOT_GAP)
+  local foot = L.PAD + footH + (keptH > 0 and keptH + M.FOOT_GAP or 0) + M.SECTION_GAP
   cy = math.max(1, cy)
   frame.content:SetSize(inner, cy)
   local least = top + math.min(cy, M.ROWS_MIN * (M.ROW_MIN_H + M.ROW_GAP)) + foot
@@ -1230,6 +1358,14 @@ local function paint()
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
   frame.scroll:SetSize(inner, math.max(1, height - top - foot))
+end
+
+-- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn while Blizzard's
+-- bags are open, off otherwise. `bags`: the open bag frame, or nil. `fight`: in combat.
+local function paintMarks(bags, fight)
+  local marks = GC.DisenchantMarks
+  if not marks then return end
+  if bags and DF._plan then marks.Paint(DF._plan, spellIcon(), fight) else marks.Clear() end
 end
 
 -- The entry above the bags' top right, with how many are queued; hidden with the bags closed or
@@ -1307,12 +1443,14 @@ end
 
 -- A character that does not know Disenchant (any more): nothing of the window stands.
 local function hideAll()
+  if GC.DisenchantMarks then GC.DisenchantMarks.Clear() end
   if entry then entry:Hide() end
   if frame and frame:IsShown() and not inCombat() then DF.Close() end
 end
 
 -- In combat: the entry follows the bags with what the last paint read, and nothing else moves.
 local function holdEntry()
+  paintMarks(bagFrame(), true)
   if not entry then return end
   local bags = bagFrame()
   if bags and DF._plan and #DF._plan.queue > 0 then
@@ -1348,10 +1486,11 @@ refresh = function()
   local bags = bagFrame()
   if not (up or bags) then
     if entry then entry:Hide() end
-    return
+    return paintMarks(nil)
   end
   DF._plan = readPlan()
   paintEntry(bags)
+  paintMarks(bags)
   if up then
     paint()
     arm()
@@ -1516,7 +1655,7 @@ function DF.OnEvent(event, ...)
     return prepare()
   elseif event == "SPELLS_CHANGED" then
     prepare()
-    if frame and frame:IsShown() then schedule() end
+    if (frame and frame:IsShown()) or bagFrame() then schedule() end
   elseif event == "BAG_UPDATE_DELAYED" or event == "EQUIPMENT_SETS_CHANGED" then
     if (frame and frame:IsShown()) or (bagFrame() and DF.Known()) then schedule() end
   elseif event == "PLAYER_REGEN_DISABLED" then

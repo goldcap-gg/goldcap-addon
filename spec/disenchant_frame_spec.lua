@@ -9,7 +9,7 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales, fighting
+  local sales, fighting, slotButtons
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
@@ -50,6 +50,35 @@ describe("Disenchant window", function()
   local function attr(name) return button():GetAttribute(name) end
   local function windowUp() return DF._frame ~= nil and DF._frame:IsShown() end
   local function entryUp() return DF._entry ~= nil and DF._entry:IsShown() end
+
+  -- Blizzard's item buttons of a container frame, as ContainerFrameMixin:EnumerateValidItems hands them
+  -- (live ContainerFrame.lua:522-526: index, button) and ContainerFrameItemButtonMixin answers
+  -- GetBagID (:1648) and the engine's GetID the slot.
+  local function giveButtons(container, bag, n)
+    local list = {}
+    for slot = 1, n do
+      local b = CreateFrame("Button", nil, container)
+      b:SetID(slot)
+      b.GetBagID = function() return bag end
+      list[slot] = b
+      slotButtons[bag .. ":" .. slot] = b
+    end
+    function container:EnumerateValidItems()
+      return function(_, i)
+        i = i + 1
+        if list[i] then return i, list[i] end
+      end, self, 0
+    end
+  end
+  -- Our overlay on a bag button: the one child frame it carries, and what is drawn on it.
+  local function overlayOf(key)
+    local b = slotButtons[key]
+    return b and (b:GetChildren())
+  end
+  local function drawn(key, part)
+    local o = overlayOf(key)
+    return o ~= nil and o:IsShown() and o[part]:IsShown()
+  end
 
   local function fire(seconds)
     local n = 0
@@ -112,6 +141,8 @@ describe("Disenchant window", function()
     _G.ContainerFrame1 = CreateFrame("Frame", nil, _G.UIParent)
     _G.ContainerFrame1:Hide()
     bags = _G.ContainerFrameCombinedBags
+    slotButtons = {}
+    giveButtons(bags, 0, 6)
     _G.C_SpellBook = { IsSpellKnown = function(spellID) return knows and spellID == 13262 end }
     _G.C_Spell = { GetSpellTexture = function() return 136244 end }
     _G.C_Container = { GetContainerItemInfo = function(bag, slot) return slots[bag .. ":" .. slot] end }
@@ -147,9 +178,22 @@ describe("Disenchant window", function()
     _G.issecretvalue = nil
     -- The player in combat: from PLAYER_REGEN_DISABLED (a spec sets `fighting`) and through the lockdown.
     _G.UnitAffectingCombat = function(unit) return unit == "player" and (fighting or S.combat) end
+    -- MenuUtil's description (live Blizzard_Menu/MenuUtil.lua:151, BaseMenuDescriptionMixin): titles,
+    -- dividers and buttons, a button taking a submenu of its own.
+    local function node(kind, text, fn)
+      local n = { kind = kind, text = text, fn = fn, buttons = {}, entries = {} }
+      function n:CreateButton(t, f)
+        local c = node("button", t, f)
+        self.buttons[#self.buttons + 1], self.entries[#self.entries + 1] = c, c
+        return c
+      end
+      function n:CreateTitle(t) self.entries[#self.entries + 1] = node("title", t) end
+      function n:CreateDivider() self.entries[#self.entries + 1] = node("divider") end
+      return n
+    end
     _G.MenuUtil = { CreateContextMenu = function(owner, generator)
-      menu = { owner = owner, buttons = {} }
-      function menu:CreateButton(text, fn) self.buttons[#self.buttons + 1] = { text = text, fn = fn } end
+      menu = node("root")
+      menu.owner = owner
       generator(owner, menu)
     end }
     _G.GameTooltip = {
@@ -191,6 +235,7 @@ describe("Disenchant window", function()
     helper.loadModule("UI/HoardList.lua", GC)
     helper.loadModule("UI/HoardFooter.lua", GC)
     helper.loadModule("UI/DisenchantFrame.lua", GC)
+    helper.loadModule("UI/DisenchantMarks.lua", GC)
     DF = GC.DisenchantFrame
   end)
 
@@ -785,5 +830,223 @@ describe("Disenchant window", function()
     nextFrame()
     assert.is_false(windowUp())
     assert.same({}, armedAt())
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- Marks on the bag slots
+  -- ---------------------------------------------------------------------------------------------
+
+  it("marks each queued slot with the spell's icon, the first with a glow, a left-out one with a coin", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    put(gear(0, 3, 503, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    put(gear(0, 4, 504, { quality = 1 }))
+    openBags()
+    assert.is_true(drawn("0:1", "icon"))
+    assert.equal(136244, W.state(overlayOf("0:1").icon).file)
+    assert.is_true(drawn("0:1", "glow"))
+    assert.is_true(drawn("0:2", "icon"))
+    assert.is_false(drawn("0:2", "glow"))
+    assert.is_false(drawn("0:3", "icon"))
+    assert.is_true(drawn("0:3", "coin"))
+    assert.is_false(drawn("0:1", "coin"))
+    assert.is_nil(overlayOf("0:4"))
+    assert.is_nil(overlayOf("0:5"))
+  end)
+
+  it("moves the glow to the next item when one is skipped", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    openBags()
+    slash()
+    press(DF._frame.card.skip)
+    assert.is_false(drawn("0:1", "icon"))
+    assert.is_true(drawn("0:2", "glow"))
+  end)
+
+  it("marks nothing for a character without Disenchant", function()
+    knows = false
+    put(gear(0, 1, 501))
+    openBags()
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_nil(overlayOf("0:1"))
+  end)
+
+  it("takes the marks off when the bags close, and when nothing is left to disenchant", function()
+    local only = put(gear(0, 1, 501))
+    openBags()
+    assert.is_true(drawn("0:1", "icon"))
+    bags:Hide()
+    W.state(bags).hooks.OnHide(bags)
+    nextFrame()
+    assert.is_false(drawn("0:1", "icon"))
+    openBags()
+    assert.is_true(drawn("0:1", "icon"))
+    take(only)
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(drawn("0:1", "icon"))
+    assert.is_false(drawn("0:1", "glow"))
+  end)
+
+  it("takes the marks off a character that no longer knows Disenchant", function()
+    put(gear(0, 1, 501))
+    openBags()
+    knows = false
+    event("SPELLS_CHANGED")
+    nextFrame()
+    assert.is_false(drawn("0:1", "icon"))
+  end)
+
+  it("paints the marks from the plan the window reads: one read of the bags a paint", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    openBags()
+    local before = reads
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.equal(before + 1, reads)
+    slash()
+    before = reads
+    press(DF._frame.card.skip)
+    assert.equal(before + 1, reads)
+  end)
+
+  it("draws on its own overlay, never on Blizzard's button", function()
+    put(gear(0, 1, 501))
+    openBags()
+    local slot = slotButtons["0:1"]
+    assert.is_nil(next(W.state(slot).scripts))
+    assert.is_nil(W.state(slot).hooks)
+    assert.equal(0, #W.state(slot).points)
+    assert.is_true(slot:IsShown())
+    assert.is_false(overlayOf("0:1"):IsMouseEnabled())
+  end)
+
+  it("follows the bags in combat with what it last read, dropping a slot that no longer holds the item", function()
+    local first = put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    openBags()
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    take(first)
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(drawn("0:1", "icon"))
+    assert.is_true(drawn("0:2", "icon"))
+    S.leaveCombat()
+    event("PLAYER_REGEN_ENABLED")
+    nextFrame()
+    assert.is_true(drawn("0:2", "glow"))
+  end)
+
+  it("makes no overlay in combat", function()
+    put(gear(0, 1, 501))
+    openBags()
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    put(gear(0, 2, 502))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_nil(overlayOf("0:2"))
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- Where an item stands (the tooltip's words), and the way back for a kept one
+  -- ---------------------------------------------------------------------------------------------
+
+  it("says where a bag slot's item stands: next, listed, left out or kept", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    put(gear(0, 3, 503, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    put(gear(0, 4, 504))
+    GC.Disenchant.Keep(GC.db, 504)
+    openBags()
+    local function standing(key, itemID) return DF.Standing(slotButtons[key], itemID) end
+    assert.equal("next", standing("0:1", 501).state)
+    assert.equal("listed", standing("0:2", 502).state)
+    assert.equal("left", standing("0:3", 503).state)
+    assert.equal("kept", standing("0:4", 504).state)
+    -- Another item than the slot holds, an empty slot and no slot at all: nothing.
+    assert.is_nil(standing("0:1", 999))
+    assert.is_nil(standing("0:5", 501))
+    assert.is_nil(DF.Standing(nil, 501))
+    knows = false
+    assert.is_nil(standing("0:1", 501))
+  end)
+
+  it("gives what its own disenchants of the kind gave, and says nothing learned before that", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502, { quality = 3 }))
+    GC.Disenchant.Keep(GC.db, 503)
+    put(gear(0, 3, 503))
+    prices[DUST] = 1000
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 4 })
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 2 })
+    openBags()
+    local first, other, kept = DF.Standing(slotButtons["0:1"], 501), DF.Standing(slotButtons["0:2"], 502),
+      DF.Standing(slotButtons["0:3"], 503)
+    assert.equal(3 * math.floor(1000 * GC.VendorSelect.KEEP), first.mats)
+    assert.equal(2, first.n)
+    assert.equal(first.mats, kept.mats)
+    assert.is_nil(other.mats)
+    assert.equal(0, other.n)
+  end)
+
+  it("shows no Kept line with nothing kept", function()
+    put(gear(0, 1, 501))
+    slash()
+    assert.is_false(DF._frame.kept.text:IsShown())
+    assert.is_false(DF._frame.kept.show:IsShown())
+  end)
+
+  it("says how many are kept and lists them in a menu, each with a way back onto the list", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    press(rowOf(501), "RightButton")
+    menu.buttons[1].fn()
+    nextFrame()
+    assert.same({ 502 }, listed())
+    assert.is_true(DF._frame.kept.text:IsShown())
+    assert.equal("Kept: 1 item", textOf(DF._frame.kept.text))
+    press(DF._frame.kept.show)
+    assert.equal("title", menu.entries[1].kind)
+    assert.equal("Never disenchanted", menu.entries[1].text)
+    assert.is_truthy(menu.entries[2].text:find("Item 501", 1, true))
+    assert.equal(1, #menu.entries[2].buttons)
+    assert.equal("Disenchant it again", menu.entries[2].buttons[1].text)
+    menu.entries[2].buttons[1].fn()
+    nextFrame()
+    assert.is_false(GC.Disenchant.Kept(GC.db, 501))
+    assert.same({ 501, 502 }, listed())
+    assert.is_false(DF._frame.kept.text:IsShown())
+  end)
+
+  it("lists a kept item that is not in the bags after a divider, and brings it back too", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 502)
+    GC.Disenchant.Keep(GC.db, 777)
+    put(gear(0, 2, 502))
+    slash()
+    assert.equal("Kept: 2 items", textOf(DF._frame.kept.text))
+    press(DF._frame.kept.show)
+    local kinds = {}
+    for i, e in ipairs(menu.entries) do kinds[i] = e.kind end
+    assert.same({ "title", "button", "divider", "title", "button" }, kinds)
+    assert.equal("Not in your bags", menu.entries[4].text)
+    assert.is_truthy(menu.entries[5].text:find("Item 777", 1, true))
+    menu.entries[5].buttons[1].fn()
+    assert.is_false(GC.Disenchant.Kept(GC.db, 777))
+    assert.is_true(GC.Disenchant.Kept(GC.db, 502))
+  end)
+
+  it("keeps the Kept line inside the window, above the footer", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    slash()
+    local kept, footer = at(DF._frame.kept.text), at(DF._frame.footer)
+    assert.is_true(kept[5] > footer[5])
   end)
 end)

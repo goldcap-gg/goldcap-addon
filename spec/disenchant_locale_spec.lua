@@ -3,7 +3,7 @@ local helper = require("spec.spec_helper")
 -- The Disenchant window (UI/DisenchantFrame.lua): its words in all twelve languages, each really
 -- translated, and none written with a dash, an ellipsis or a middle dot (the owner's rule: plain
 -- punctuation in everything a player reads). "Next", "Skip", "Vendor" and "%d of %d" are older keys
--- the window shares, so they are not listed here.
+-- the window shares, so they are not listed here. The tooltip's lines and the Kept menu (Task 3b) are here too.
 local KEYS = {
   -- The window's name, its button's word and the key binding's label.
   "Disenchant", "Disenchant next",
@@ -22,6 +22,14 @@ local KEYS = {
     "Right-click a line to keep an item.",
   -- The entry's tooltip and /gc disenchant on a character without the spell.
   "GoldCap Disenchant, 1 item", "GoldCap Disenchant, %d items", "This character does not know Disenchant.",
+  -- The item tooltip's lines: where the item stands, and what its kind gave.
+  "GoldCap: next to disenchant", "GoldCap: on the Disenchant list",
+  "GoldCap: left out of Disenchant, the auction house pays more",
+  "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
+  "Disenchant: about %s in mats, from your %d disenchants of such items",
+  "Disenchant: GoldCap learns what this gives the first time.",
+  -- The way back for a kept item: the window's line and its menu.
+  "Kept: 1 item", "Kept: %d items", "Show", "Never disenchanted", "Disenchant it again", "Not in your bags",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

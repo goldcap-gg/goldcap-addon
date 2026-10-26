@@ -263,6 +263,45 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   end
 end
 
+-- The Disenchant colour of the status line (UI/DisenchantFrame.lua's accent) and the mats line's grey.
+local DISENCHANT_COLOR, MATS_COLOR = { 176 / 255, 100 / 255, 240 / 255 }, { 0.78, 0.78, 0.78 }
+
+local function standingText(state)
+  if state == "next" then return GC.L["GoldCap: next to disenchant"] end
+  if state == "listed" then return GC.L["GoldCap: on the Disenchant list"] end
+  if state == "left" then return GC.L["GoldCap: left out of Disenchant, the auction house pays more"] end
+  if state == "kept" then return GC.L["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] end
+  return nil
+end
+
+-- A bag item's place in the Disenchant window (GC.DisenchantFrame.Standing's answer: { state, mats,
+-- n }) as two lines: the status, and what its kind gave when GoldCap has learned that with prices,
+-- else that it learns it. Nothing for no standing. No auction house figure: the lines above are the
+-- tooltip's own.
+function GC.Tooltip.DisenchantLines(standing)
+  local status = type(standing) == "table" and standingText(standing.state) or nil
+  if not status then return nil end
+  local lines = { { text = status, color = DISENCHANT_COLOR } }
+  if type(standing.mats) == "number" and (standing.n or 0) > 0 then
+    lines[2] = { color = MATS_COLOR,
+      text = (GC.L["Disenchant: about %s in mats, from your %d disenchants of such items"]):format(
+        GC.Util.CoinText(standing.mats), standing.n) }
+  else
+    lines[2] = { text = GC.L["Disenchant: GoldCap learns what this gives the first time."], color = MATS_COLOR }
+  end
+  return lines
+end
+
+local function addDisenchant(tooltip, owner, itemID)
+  local frame = GC.DisenchantFrame
+  if type(owner) ~= "table" or not (frame and frame.Standing) then return end
+  local lines = GC.Tooltip.DisenchantLines(frame.Standing(owner, itemID))
+  if not lines then return end
+  for _, ln in ipairs(lines) do
+    tooltip:AddLine(GC.Util.ClientText(ln.text), ln.color[1], ln.color[2], ln.color[3])
+  end
+end
+
 local function onTooltip(tooltip, data)
   if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
   if not (GC.db and GC.db.settings and GC.db.settings.tooltip) then return end
@@ -316,6 +355,7 @@ local function onTooltip(tooltip, data)
   else
     addBlock(tooltip, itemID, now, nil, shown)
   end
+  addDisenchant(tooltip, owner, itemID)
 end
 
 -- Guarded so the file also loads under busted (no WoW globals there)

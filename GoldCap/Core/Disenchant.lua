@@ -124,6 +124,19 @@ function D.Unkeep(db, itemID)
   keep.items[itemID] = nil
 end
 
+-- Every item the player keeps, lowest id first.
+function D.KeptIDs(db)
+  local keep = type(db) == "table" and db.deKeep
+  local ids = {}
+  if type(keep) == "table" and type(keep.items) == "table" then
+    for id, kept in pairs(keep.items) do
+      if kept == true and type(id) == "number" then ids[#ids + 1] = id end
+    end
+  end
+  table.sort(ids)
+  return ids
+end
+
 -- The stack stays off the list whatever the figures say.
 local function leftOut(s, opts)
   if not s.itemID or not D.CanDisenchant(s) then return true end
