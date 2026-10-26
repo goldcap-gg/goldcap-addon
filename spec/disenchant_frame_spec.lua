@@ -13,7 +13,8 @@ describe("Disenchant window", function()
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
-    "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "INVTYPE_WAIST", "INVTYPE_CHEST",
+    "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
+    "ContainerFrame4", "ContainerFrame5", "ContainerFrame6", "NUM_CONTAINER_FRAMES", "INVTYPE_WAIST", "INVTYPE_CHEST",
     "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat" }
   local NOW = 1800000000
   local DUST, SHARD = 9001, 9002
@@ -138,8 +139,12 @@ describe("Disenchant window", function()
     _G.UIParent = CreateFrame("Frame")
     _G.ContainerFrameCombinedBags = CreateFrame("Frame", nil, _G.UIParent)
     _G.ContainerFrameCombinedBags:Hide()
-    _G.ContainerFrame1 = CreateFrame("Frame", nil, _G.UIParent)
-    _G.ContainerFrame1:Hide()
+    -- Blizzard's separate bags, the reagent bag the last (ContainerFrame.xml:283-288), all closed.
+    _G.NUM_CONTAINER_FRAMES = 6
+    for i = 1, 6 do
+      _G["ContainerFrame" .. i] = CreateFrame("Frame", nil, _G.UIParent)
+      _G["ContainerFrame" .. i]:Hide()
+    end
     bags = _G.ContainerFrameCombinedBags
     slotButtons = {}
     giveButtons(bags, 0, 6)
@@ -1048,5 +1053,103 @@ describe("Disenchant window", function()
     slash()
     local kept, footer = at(DF._frame.kept.text), at(DF._frame.footer)
     assert.is_true(kept[5] > footer[5])
+  end)
+  -- ---------------------------------------------------------------------------------------------
+  -- Where it stands, and how tall (the owner's screenshot, 2026-10-26)
+  -- ---------------------------------------------------------------------------------------------
+
+  -- Where a frame stands on the screen, as the client answers it: its left and top edges and its
+  -- effective scale.
+  local function standAt(f, left, top, scale)
+    function f:GetLeft() return left end
+    function f:GetTop() return top end
+    function f:GetEffectiveScale() return scale or 1 end
+  end
+
+  local function screen(w, h)
+    _G.UIParent:SetSize(w, h)
+    function _G.UIParent:GetEffectiveScale() return 1 end
+  end
+
+  it("stands above the action bars and Blizzard's bags, under menus and tooltips", function()
+    put(gear(0, 1, 501))
+    slash()
+    assert.equal("HIGH", W.state(DF._frame).strata)
+  end)
+
+  it("opens left of the leftmost bag that shows, level with the highest, and moves when one shows or hides", function()
+    screen(1920, 1080)
+    standAt(bags, 1300, 1000)
+    local reagent = _G.ContainerFrame6
+    standAt(reagent, 1050, 600)
+    put(gear(0, 1, 501))
+    openBags()
+    reagent:Show()
+    slash()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1046, 1000 }, at(DF._frame))
+    reagent:Hide()
+    W.state(reagent).hooks.OnHide(reagent)
+    nextFrame()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1296, 1000 }, at(DF._frame))
+    reagent:Show()
+    W.state(reagent).hooks.OnShow(reagent)
+    nextFrame()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1046, 1000 }, at(DF._frame))
+  end)
+
+  it("moves in combat only once the fight is over", function()
+    screen(1920, 1080)
+    standAt(bags, 1300, 1000)
+    local reagent = _G.ContainerFrame6
+    standAt(reagent, 1050, 600)
+    put(gear(0, 1, 501))
+    openBags()
+    slash()
+    S.enterCombat()
+    reagent:Show()
+    W.state(reagent).hooks.OnShow(reagent)
+    nextFrame()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1296, 1000 }, at(DF._frame))
+    S.leaveCombat()
+    event("PLAYER_REGEN_ENABLED")
+    nextFrame()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1046, 1000 }, at(DF._frame))
+  end)
+
+  it("stays where it is when the last bag closes", function()
+    screen(1920, 1080)
+    standAt(bags, 1300, 1000)
+    put(gear(0, 1, 501))
+    openBags()
+    slash()
+    bags:Hide()
+    W.state(bags).hooks.OnHide(bags)
+    nextFrame()
+    assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1296, 1000 }, at(DF._frame))
+  end)
+
+  -- Sixteen and more items: the window keeps to about 85% of the screen's height, "In this order"
+  -- scrolls, and the card, the strip, "Left out" and the footer stand outside the scroll.
+  it("keeps to 85% of the screen with a long queue, its lines scrolling and the rest in view", function()
+    -- Text measured as the client does, so a line is as tall as one line of words and a money figure
+    -- as wide as its digits and coin.
+    W.CLIENT_METRICS = true
+    finally(function() W.CLIENT_METRICS = false end)
+    screen(1920, 1000)
+    standAt(bags, 1300, 1000)
+    for slot = 1, 30 do put(gear(1, slot, 600 + slot)) end
+    put(gear(0, 1, 501, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    openBags()
+    slash()
+    local f = DF._frame
+    assert.is_true(f:GetHeight() <= 850, ("the window is %d tall"):format(f:GetHeight()))
+    assert.is_true(f.content:GetHeight() > f.scroll:GetHeight())
+    assert.is_true(f.scroll:GetHeight() >= 28)
+    local left = DF._leftRows[1]
+    assert.is_true(left:IsShown())
+    local p = left
+    while p and p ~= f.content and p ~= f do p = p:GetParent() end
+    assert.equal(f, p)
+    assert.equal(f, f.orderTitle:GetParent())
   end)
 end)

@@ -82,6 +82,8 @@ DF.PENDING_SECONDS = 5
 DF.CAST_SECONDS = 1.55
 -- How long after the cast succeeds its loot is waited for.
 DF.LOOT_SECONDS = 3
+-- The most of the screen's height the window takes.
+DF.HEIGHT_SHARE = 0.85
 
 -- In UI units; the approved boards are drawn at twice that. The window is the Hoard's width with its
 -- margins and gutter (L). CARD_PAD: the Next card's margin; ICON: its item, BADGE the spell's mark
@@ -721,7 +723,7 @@ end
 -- Disenchant anyway.
 local function newLeftRow()
   local T = GC.Theme
-  local row = CreateFrame("Frame", nil, frame.content)
+  local row = CreateFrame("Frame", nil, frame.leftBox)
   row:EnableMouse(true)
   row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
   row.bg:SetAllPoints()
@@ -754,11 +756,17 @@ local function onCloseClick()
   DF.Close()
 end
 
--- The window: its glass, the Hoard's header ("Disenchant" beside the brand, and the X), the Next
--- card, the yield strip, the kit's scroll whose child holds the two lists, and the footer.
+-- The window: its glass, the Hoard's header ("GoldCap" over "Disenchant", and the X), the Next
+-- card, the yield strip, "In this order" with its column heads over the kit's scroll whose child
+-- holds its lines, "Left out" under the scroll (`leftBox`), and the footer. HIGH strata: above
+-- Blizzard's bags (ContainerFrame.xml:218, :290, MEDIUM) and action bars (MultiActionBars.xml,
+-- MEDIUM; MainActionBar.xml:29, UIParent's MEDIUM at frame level 50), below a menu
+-- (Blizzard_Menu/Menu.lua:2142, FULLSCREEN_DIALOG) and a tooltip (SharedTooltipTemplates.xml:95,
+-- TOOLTIP). Set here, out of combat, before the secure button stands under it.
 local function build()
   local T = GC.Theme
   frame = CreateFrame("Frame", nil, UIParent)
+  frame:SetFrameStrata("HIGH")
   frame:SetSize(L.WIDTH, L.MIN_H)
   frame:EnableMouse(true)
   frame:SetClampedToScreen(true)
@@ -774,17 +782,18 @@ local function build()
   content:SetSize(L.WIDTH - 2 * L.PAD - L.GUTTER, 1)
   scroll:SetScrollChild(content)
   frame.scroll, frame.content = scroll, content
-  frame.orderTitle = track(frame, T.Heading(content, 9))
+  frame.orderTitle = track(frame, T.Heading(frame, 9))
   frame.orderTitle:SetWordWrap(false)
   colour(frame.orderTitle, K.text3)
-  frame.matsHead = track(frame, T.Heading(content, 8))
-  frame.vendorHead = track(frame, T.Heading(content, 8))
+  frame.matsHead = track(frame, T.Heading(frame, 8))
+  frame.vendorHead = track(frame, T.Heading(frame, 8))
   for _, head in ipairs({ frame.matsHead, frame.vendorHead }) do
     head:SetWordWrap(false)
     head:SetJustifyH("RIGHT")
     colour(head, K.text3)
   end
-  frame.leftTitle = track(frame, wrapping(T.Heading(content, 9)))
+  frame.leftBox = CreateFrame("Frame", nil, frame)
+  frame.leftTitle = track(frame, wrapping(T.Heading(frame.leftBox, 9)))
   colour(frame.leftTitle, K.text3)
   -- Measures what a column must hold; never shown.
   frame.measure = T.Num(content, 10, true)
@@ -1137,9 +1146,10 @@ local function columnWidth(rows)
   return widest
 end
 
--- "In this order" from `cy` in the scroll: the items done this visit, then the queue. Answers the y
--- under it.
-local function paintOrder(plan, inner, cy)
+-- "In this order": its heading and column heads `top` down the window, over the scroll, and its
+-- lines in the scroll: the items done this visit, then the queue. Answers the heading's height and
+-- the lines' (0 and 0 with none).
+local function paintOrder(plan, inner, top)
   local visit, casting = DF._visit, castingNow()
   local lines = {}
   for _, data in ipairs(visit.done) do lines[#lines + 1] = { data = data, state = "done" } end
@@ -1149,7 +1159,7 @@ local function paintOrder(plan, inner, cy)
   end
   local any = #lines > 0
   for _, part in ipairs({ frame.orderTitle, frame.matsHead, frame.vendorHead }) do part:SetShown(any) end
-  local index = 1
+  local index, headH, cy = 1, 0, 0
   if any then
     setText(frame.orderTitle, GC.Util.Upper(GC.L["In this order"]))
     setText(frame.matsHead, GC.Util.Upper(GC.L["Mats"]))
@@ -1158,13 +1168,13 @@ local function paintOrder(plan, inner, cy)
     for i, line in ipairs(lines) do datas[i] = line.data end
     local colW = columnWidth(datas)
     frame.orderTitle:ClearAllPoints()
-    frame.orderTitle:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
+    frame.orderTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
     for i, head in ipairs({ frame.vendorHead, frame.matsHead }) do
       head:SetWidth(colW)
       head:ClearAllPoints()
-      head:SetPoint("TOPRIGHT", frame.content, "TOPLEFT", inner - M.ROW_PAD - (i - 1) * (colW + M.COL_GAP), -cy)
+      head:SetPoint("TOPRIGHT", frame, "TOPLEFT", L.PAD + inner - M.ROW_PAD - (i - 1) * (colW + M.COL_GAP), -top)
     end
-    cy = cy + math.ceil(heightOf(frame.orderTitle, 11)) + M.HEADING_GAP
+    headH = math.ceil(heightOf(frame.orderTitle, 11)) + M.HEADING_GAP
     for _, line in ipairs(lines) do
       local row = DF._rows[index] or newRow()
       DF._rows[index] = row
@@ -1179,7 +1189,7 @@ local function paintOrder(plan, inner, cy)
     cy = cy - M.ROW_GAP
   end
   for i = index, #DF._rows do DF._rows[i]:Hide() end
-  return cy
+  return headH, cy
 end
 
 -- A line of "Left out". Answers its height.
@@ -1229,24 +1239,25 @@ local function paintLeftRow(row, data, inner)
   return h
 end
 
--- "Left out: the auction house pays more" from `cy`, when there is any. Answers the y under it.
-local function paintLeft(plan, inner, cy)
+-- "Left out: the auction house pays more", when there is any, in its own box under the scroll (the
+-- caller places the box). Answers the box's height, 0 with none.
+local function paintLeft(plan, inner)
   local any = #plan.left > 0
   frame.leftTitle:SetShown(any)
-  local index = 1
+  frame.leftBox:SetShown(any)
+  local index, cy = 1, 0
   if any then
-    if cy > 0 then cy = cy + M.SECTION_GAP end
     frame.leftTitle:SetWidth(inner)
     setText(frame.leftTitle, GC.Util.Upper(GC.L["Left out: the auction house pays more"]))
     frame.leftTitle:ClearAllPoints()
-    frame.leftTitle:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
+    frame.leftTitle:SetPoint("TOPLEFT", frame.leftBox, "TOPLEFT", 0, 0)
     cy = cy + math.ceil(heightOf(frame.leftTitle, 11)) + M.HEADING_GAP
     for _, data in ipairs(plan.left) do
       local row = DF._leftRows[index] or newLeftRow()
       DF._leftRows[index] = row
       local wasUp = row:IsShown()
       row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -cy)
+      row:SetPoint("TOPLEFT", frame.leftBox, "TOPLEFT", 0, -cy)
       row:Show()
       cy = cy + paintLeftRow(row, data, inner) + M.ROW_GAP
       if not wasUp and frame:IsShown() then restamp(row) end
@@ -1302,16 +1313,21 @@ local function paintKept(w, y)
   return h
 end
 
--- The most the window may be tall: from its top (the bags' top, as it opened) down to the room the
--- Hoard leaves above the action bars; the screen less twice that where it stands without the bags.
+-- The most the window may be tall: from its top (the bags' top) down to the room the Hoard leaves
+-- above the action bars, or the screen less twice that where it stands without the bags; and never
+-- more than HEIGHT_SHARE of the screen (the owner, 2026-10-26: sixteen items made it the screen's
+-- full height).
 local function roomHeight()
-  if DF._top then return math.max(L.MIN_H, DF._top - L.SCREEN_GAP) end
-  return U.maxHeight(nil)
+  local room = DF._top and math.max(L.MIN_H, DF._top - L.SCREEN_GAP) or U.maxHeight(nil)
+  local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
+  if type(screen) == "number" and screen > 0 then room = math.min(room, math.floor(screen * DF.HEIGHT_SHARE)) end
+  return room
 end
 
--- The window, top to bottom: the header, the Next card and the yield strip, fixed; the two lists in
--- the scroll; the footer at the window's foot. Never taller than roomHeight, never so low that the
--- scroll shows fewer than ROWS_MIN lines' room (or all there is). Laid out, not shown.
+-- The window, top to bottom: the header, the Next card, the yield strip and "In this order"'s
+-- heading, fixed; its lines in the scroll; "Left out" under the scroll and the footer at the
+-- window's foot, fixed. Never taller than roomHeight while the scroll keeps one line's room: the
+-- lines scroll, everything else stays in view. Laid out, not shown.
 local function paint()
   local plan = DF._plan
   local width = L.WIDTH
@@ -1345,19 +1361,27 @@ local function paint()
     frame.strip:SetSize(head, stripH)
     y = y + stripH + M.SECTION_GAP
   end
-  local top = y
-  local cy = paintLeft(plan, inner, paintOrder(plan, inner, 0))
+  local orderH, rowsH = paintOrder(plan, inner, y)
+  local top = y + orderH
+  local leftH = paintLeft(plan, inner)
+  local leftBlock = leftH > 0 and (M.SECTION_GAP + leftH) or 0
   local footH = paintFooter(head)
   local keptH = paintKept(head, L.PAD + footH + M.FOOT_GAP)
   local foot = L.PAD + footH + (keptH > 0 and keptH + M.FOOT_GAP or 0) + M.SECTION_GAP
-  cy = math.max(1, cy)
-  frame.content:SetSize(inner, cy)
-  local least = top + math.min(cy, M.ROWS_MIN * (M.ROW_MIN_H + M.ROW_GAP)) + foot
-  local height = math.min(top + cy + foot, math.max(least, roomHeight()))
+  frame.content:SetSize(inner, math.max(1, rowsH))
+  local fixed = top + leftBlock + foot
+  local least = fixed + math.min(rowsH, M.ROW_MIN_H)
+  local height = math.min(fixed + rowsH, math.max(least, roomHeight()))
+  local scrollH = math.max(1, height - fixed)
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
-  frame.scroll:SetSize(inner, math.max(1, height - top - foot))
+  frame.scroll:SetSize(inner, scrollH)
+  if leftH > 0 then
+    frame.leftBox:ClearAllPoints()
+    frame.leftBox:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -(top + scrollH + M.SECTION_GAP))
+    frame.leftBox:SetSize(inner, leftH)
+  end
 end
 
 -- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn while Blizzard's
@@ -1397,30 +1421,58 @@ end
 -- Opening, closing, refreshing
 -- ---------------------------------------------------------------------------------------------
 
--- Beside the bags, to their left, its top level with theirs, at the coordinates they have now; with
--- no bags of Blizzard's open, in the middle of the screen. Only as it opens: it never moves under
--- the cursor.
-local function place()
-  frame:ClearAllPoints()
-  DF._top = nil
-  local bags = bagFrame()
-  local left = bags and bags.GetLeft and bags:GetLeft()
-  local top = bags and bags.GetTop and bags:GetTop()
-  local scale = bags and bags.GetEffectiveScale and bags:GetEffectiveScale()
-  local ui = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
-  if type(left) == "number" and type(top) == "number" and type(scale) == "number" and type(ui) == "number" and ui > 0 then
-    local k = scale / ui
-    frame:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", left * k - L.X, top * k)
-    DF._top = top * k
-    return
+-- Blizzard's bag frames: the combined backpack and each separate bag, the reagent bag's too
+-- (ContainerFrame.xml:283-290; NUM_CONTAINER_FRAMES, ContainerFrame.lua:5).
+local function bagNames()
+  local names = { "ContainerFrameCombinedBags" }
+  for i = 1, tonumber(_G.NUM_CONTAINER_FRAMES) or 6 do names[#names + 1] = "ContainerFrame" .. i end
+  return names
+end
+
+-- The left edge of the leftmost of Blizzard's bag frames that show and the top of the highest, in
+-- UIParent's units; nil with none showing (or none laid out yet).
+local function bagEdges()
+  local ui = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+  if type(ui) ~= "number" or ui <= 0 then return nil end
+  local left, top
+  for _, name in ipairs(bagNames()) do
+    local f = _G[name]
+    if type(f) == "table" and f.IsVisible and f:IsVisible() then
+      local l = f.GetLeft and f:GetLeft()
+      local t = f.GetTop and f:GetTop()
+      local scale = f.GetEffectiveScale and f:GetEffectiveScale()
+      if type(l) == "number" and type(t) == "number" and type(scale) == "number" then
+        local k = scale / ui
+        left = math.min(left or math.huge, l * k)
+        top = math.max(top or -math.huge, t * k)
+      end
+    end
   end
-  frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  return left, top
+end
+
+-- Left of the leftmost bag frame that shows, its top level with the highest, at the coordinates
+-- they have now (the engine keeps it on the screen: SetClampedToScreen). With no bags of Blizzard's
+-- open: in the middle of the screen as it opens (`opening`), else where it stands. Out of combat
+-- only: as it opens, and when a bag frame shows or hides while it is open (`replace`).
+local function place(opening)
+  local left, top = bagEdges()
+  if left then
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", left - L.X, top)
+    DF._top = top
+  elseif opening then
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    DF._top = nil
+  end
 end
 
 local function openNow()
   if not frame then build() end
   newVisit()
-  place()
+  DF._replace = nil
+  place(true)
   DF._plan = readPlan()
   paint()
   frame:Show()
@@ -1483,6 +1535,8 @@ refresh = function()
     DF.Close()
     up = false
   end
+  if up and DF._replace then place(false) end
+  DF._replace = nil
   local bags = bagFrame()
   if not (up or bags) then
     if entry then entry:Hide() end
@@ -1682,14 +1736,16 @@ function DF.OnEvent(event, ...)
   end
 end
 
--- Blizzard's bags opening or closing show or hide the entry: a post-hook on their own show and hide
--- (Blizzard_UIPanels_Game/Mainline/ContainerFrame.xml's ContainerFrameCombinedBags and
--- ContainerFrame1), which only paints, on the next frame.
-for _, name in ipairs({ "ContainerFrameCombinedBags", "ContainerFrame1" }) do
+-- Blizzard's bags opening or closing show or hide the entry and move an open window beside them: a
+-- post-hook on each bag frame's own show and hide (Blizzard_UIPanels_Game/Mainline/ContainerFrame.xml),
+-- which only marks the move (`replace`) and paints, on the next frame (in combat, once it is over).
+for _, name in ipairs(bagNames()) do
   local bags = _G[name]
   if type(bags) == "table" and type(bags.HookScript) == "function" then
     local function changed()
-      if DF.Known() then schedule() end
+      if not DF.Known() then return end
+      DF._replace = true
+      schedule()
     end
     pcall(bags.HookScript, bags, "OnShow", changed)
     pcall(bags.HookScript, bags, "OnHide", changed)
