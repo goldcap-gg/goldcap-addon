@@ -91,9 +91,9 @@ end
 
 --- Draws the marks for `plan` (the queue and the left-out rows of Core/Disenchant.lua's Plan) on the
 --- slots of `frames` (the container frames that show), and takes them off every other overlay.
---- `spellTexture`: the spell's icon. A plan with an empty queue marks nothing.
+--- `spellTexture`: the spell's icon. A plan with an empty queue still marks its left-out rows.
 function M.Paint(plan, spellTexture, frames)
-  local want = type(plan) == "table" and #(plan.queue or {}) > 0 and wanted(plan) or {}
+  local want = wanted(plan)
   local visited = {}
   for _, container in ipairs(frames or {}) do
     local ok = pcall(function()

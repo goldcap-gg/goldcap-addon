@@ -1539,10 +1539,30 @@ describe("Disenchant window", function()
     assert.is_true((second:GetChildren()):IsShown())
   end)
 
-  it("takes the coins off when nothing is queued", function()
+  -- The marks follow the entry's rule (the owner's E1): drawn whenever Blizzard's bags are open for a
+  -- character that knows Disenchant, queue or not, so a left-out item keeps its coin with nothing
+  -- queued; in combat too, from the last plan.
+  it("keeps the coins with nothing queued, in combat too, and takes them off once Disenchant is not known", function()
     put(gear(0, 1, 503, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
     openBags()
-    assert.is_nil(overlayOf("0:1"))
+    assert.equal(0, #DF._plan.queue)
+    assert.is_true(drawn("0:1", "coin"))
+    assert.is_false(drawn("0:1", "icon"))
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    bags:Hide()
+    W.state(bags).hooks.OnHide(bags)
+    nextFrame()
+    assert.is_false(drawn("0:1", "coin"))
+    openBags()
+    assert.is_true(drawn("0:1", "coin"))
+    S.leaveCombat()
+    event("PLAYER_REGEN_ENABLED")
+    nextFrame()
+    knows = false
+    event("SPELLS_CHANGED")
+    nextFrame()
+    assert.is_false(drawn("0:1", "coin"))
   end)
 
   it("answers no standing once neither the window nor the bags are open, or when the slot holds another link", function()

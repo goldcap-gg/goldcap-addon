@@ -1801,12 +1801,14 @@ local function paint()
   frame.scroll:SetSize(inner, math.max(1, height - fixed))
 end
 
--- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn while Blizzard's
--- bags are open, off otherwise or with an empty queue. `bags`: an open bag frame, or nil.
+-- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn whenever
+-- Blizzard's bags are open, queue or not, as the entry is (the owner, 2026-10-26: a left-out item
+-- keeps its coin with nothing queued); off with them closed. The caller has checked that the
+-- character knows Disenchant. `bags`: an open bag frame, or nil.
 local function paintMarks(bags)
   local marks = GC.DisenchantMarks
   if not marks then return end
-  if bags and DF._plan and #DF._plan.queue > 0 then marks.Paint(DF._plan, spellIcon(), shownBags())
+  if bags and DF._plan then marks.Paint(DF._plan, spellIcon(), shownBags())
   else marks.Clear() end
 end
 
