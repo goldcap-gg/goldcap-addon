@@ -71,6 +71,15 @@
   sent, and bound items and items you can still return for a refund stay in your bags. Close it
   with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
   yet.
+- Disenchant, in retail WoW, for an enchanter: a GoldCap button above your open bags shows how many
+  pieces of gear could be disenchanted and opens a window that names the next one and disenchants it
+  with one press. Bind a key to it in Key Bindings, GoldCap, Disenchant next. Each line says whether
+  the mats or a vendor pays more, and an item the auction house pays more for is left out, with
+  Disenchant anyway beside it. Mats is what your own disenchants of such items gave, at today's
+  prices, so the window learns as you go. Never on the list: items in an equipment set, items you
+  can still return or trade, items in a group you follow, and items you keep (right click a line).
+  Your bags mark what goes next, and the item tooltip says where an item stands. In combat the
+  button does nothing.
 - DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
   your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
   Auto carries on at once, on the Items board too, with what you typed still in the search box.
