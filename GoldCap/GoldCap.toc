@@ -104,6 +104,7 @@ Core/SellRounds.lua
 Core/BankGroups.lua
 Core/Alts.lua
 Core/MailGroups.lua
+Core/MailPress.lua
 Core/Hoard.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
