@@ -264,6 +264,7 @@ function W.CreateFrame(kind, _, parent)
     function f:SetPushedTexture(t) s.pushed = t end
     function f:GetPushedTexture() return s.pushed end
     function f:IsEnabled() return s.enabled end
+    function f:SetMotionScriptsWhileDisabled(on) s.motionWhileDisabled = on and true or false end
     function f:Enable()
       if s.enabled then return end
       s.enabled = true

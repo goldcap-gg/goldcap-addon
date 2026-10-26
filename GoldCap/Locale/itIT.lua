@@ -1615,4 +1615,12 @@ GC.Locales.itIT = {
     "La casa d'aste mostra le ricerche di GoldCap in questo elenco, quindi cambia da solo. Per usarlo tu, cerca, scegli una categoria o clicca sulla stella. GoldCap poi te lo lascia finché non clicchi AUTO o SCANSIONA.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "Nell'elenco oggetti, Auto continua a controllare gli oggetti che l'elenco segue, giro dopo giro. Passa alle merci e torna a scansionare il mercato delle merci.",
+  ["Craft %d"] = "Crea %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Crea %d ora, uno dopo l'altro, con i reagenti che userebbe la finestra della professione. Muoversi lo interrompe.",
+  ["Open %s to craft it here."] = "Apri %s per crearlo qui.",
+  ["Open this recipe's profession to craft it here."] =
+    "Apri la professione di questa ricetta per crearla qui.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Reagenti insufficienti per una creazione. Sotto, Manca dice cosa procurarti.",
 }

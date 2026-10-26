@@ -115,6 +115,23 @@ describe("craft client", function()
     assert.same({ 1, 2823 }, TS.callsOf("IsRecipeInSkillLine")[1].args)
   end)
 
+  -- Probe A3 (retail 12.1.5, 2026-10-26): CraftRecipe with the window shut crafts nothing and says
+  -- nothing. A recipe is craftable here only on the player's own window, on its skill line.
+  it("says a recipe is craftable here only on the player's own window, on its skill line", function()
+    local other = potion()
+    other.inSkillLine = false
+    other.professionName = "Midnight Tailoring"
+    load({ recipes = { [1] = potion(), [3] = other }, filtered = { 1, 3 }, professionID = 2823 })
+    assert.is_true(CC.CraftableHere(1))
+    assert.same({ false, "Midnight Tailoring" }, { CC.CraftableHere(3) })
+
+    TS.frame:Hide()
+    assert.is_false((CC.CraftableHere(1)))
+    TS.frame:Show()
+    TS.opts.external = { linked = true }
+    assert.is_false((CC.CraftableHere(1)))
+  end)
+
   it("lists a ranked recipe once, at the highest rank the character learned", function()
     -- Ranks 1 to 3 of one recipe (11, 12, 13), chained by previousRecipeID and nextRecipeID;
     -- the character knows ranks 1 and 2. Blizzard's list shows the chain once.

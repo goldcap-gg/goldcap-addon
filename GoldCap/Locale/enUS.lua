@@ -1603,4 +1603,12 @@ GC.Locales.enUS = {
     "The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again.",
+  ["Craft %d"] = "Craft %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it.",
+  ["Open %s to craft it here."] = "Open %s to craft it here.",
+  ["Open this recipe's profession to craft it here."] =
+    "Open this recipe's profession to craft it here.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Not enough reagents for one craft. Missing below says what to get.",
 }

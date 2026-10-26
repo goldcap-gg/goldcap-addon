@@ -1685,4 +1685,12 @@ GC.Locales.ruRU = {
     "Аукцион показывает в этом списке поиски GoldCap, поэтому список меняется сам. Чтобы пользоваться им самому, введите поиск, выберите категорию или нажмите звёздочку. Тогда GoldCap не тронет список, пока вы не нажмёте АВТО или СКАН.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "На доске предметов Авто раз за разом проверяет предметы, за которыми следит эта доска. Переключитесь на товары, и оно снова будет сканировать рынок товаров.",
+  ["Craft %d"] = "Скрафтить %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Скрафтит %d сейчас, одно за другим, из тех реагентов, что взяло бы окно профессии. Движение прерывает крафт.",
+  ["Open %s to craft it here."] = "Откройте %s, чтобы скрафтить здесь.",
+  ["Open this recipe's profession to craft it here."] =
+    "Откройте профессию этого рецепта, чтобы скрафтить здесь.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Реагентов не хватает даже на один крафт. Что докупить, написано ниже, в «Не хватает».",
 }

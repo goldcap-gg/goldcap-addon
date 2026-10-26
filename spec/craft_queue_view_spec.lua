@@ -238,6 +238,76 @@ describe("craft queue view", function()
     assert.equal(7, QV._rows[1].crafts)
   end)
 
+  -- Probe A (retail 12.1.5, 2026-10-26): CraftRecipe with a count crafts that many one after another
+  -- from the player's own press with the window open; from a timer the client blocks it. A line's
+  -- Craft button is that press.
+  describe("a line's Craft button", function()
+    local function craft(i) return QV._rows[i].widget end
+
+    it("crafts in one press what the reagents allow of what is left", function()
+      local r = recipes()
+      r[3].craftable = 2
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      showQueue()
+      local line = craft(1)
+      assert.equal(GC.L["Craft %d"]:format(2), line.craft.label)
+      assert.is_true(line.craft:IsEnabled())
+      assert.is_true(W.state(line.craft).motionWhileDisabled)
+
+      line.craft:GetScript("OnClick")(line.craft)
+
+      local calls = TS.callsOf("CraftRecipe")
+      assert.equal(1, #calls)
+      assert.same({ 3, 2, {}, nil, nil, false }, calls[1].args)
+    end)
+
+    it("crafts all that is left when the reagents allow more", function()
+      local r = recipes()
+      r[3].craftable = 9
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      showQueue()
+      assert.equal(GC.L["Craft %d"]:format(3), craft(1).craft.label)
+    end)
+
+    it("is dimmed, with what is left, and says why when the reagents do not make one", function()
+      load()
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      showQueue()
+      local line = craft(1)
+      assert.equal(GC.L["Craft %d"]:format(3), line.craft.label)
+      assert.is_false(line.craft:IsEnabled())
+      assert.equal(GC.L["Not enough reagents for one craft. Missing below says what to get."], line.craftWhy)
+      line.craft:GetScript("OnClick")(line.craft)
+      assert.equal(0, #TS.callsOf("CraftRecipe"))
+    end)
+
+    it("is dimmed for a recipe of another skill line, and names it", function()
+      local r = recipes()
+      r[5].craftable = 4
+      r[5].inSkillLine = false
+      r[5].professionName = "Midnight Tailoring"
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
+      showQueue()
+      local line = craft(1)
+      assert.is_false(line.craft:IsEnabled())
+      assert.equal(GC.L["Open %s to craft it here."]:format("Midnight Tailoring"), line.craftWhy)
+    end)
+
+    it("is not there for a restock that holds enough", function()
+      local r = recipes()
+      r[5].craftable = 4
+      load({ recipes = r, counts = { [905] = 3 } })
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 2)
+      GC.CraftQueue.FoldListed("Name-Realm", {}, time())
+      showQueue()
+      assert.equal(0, QV._rows[1].crafts)
+      assert.is_false(craft(1).craft:IsShown())
+    end)
+  end)
+
   it("says the queue is empty", function()
     load()
     local v = showQueue()
@@ -776,7 +846,19 @@ describe("craft queue view", function()
     assert.is_nil(src:find(":RegisterEvent%("))
     assert.is_nil(src:find(":RegisterUnitEvent%("))
     assert.is_truthy(src:find('pcall%(events%.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player"%)'))
-    assert.is_nil(src:find("CraftRecipe", 1, true))
     assert.is_nil(src:find("hooksecurefunc", 1, true))
+  end)
+
+  -- The craft is the player's press and nothing else's: one CraftRecipe in the file, inside the
+  -- Craft button's own OnClick (probe A4: from a timer the client blocks it).
+  it("crafts only inside the Craft button's click", function()
+    local file = assert(io.open("GoldCap/UI/CraftQueueView.lua", "r"))
+    local src = file:read("*a"):gsub("%-%-[^\n]*", "")
+    file:close()
+    local _, count = src:gsub("CraftRecipe", "")
+    assert.equal(1, count)
+    local from = assert(src:find('line.craft:SetScript("OnClick", function()', 1, true))
+    local to = assert(src:find("\n  end)", from, true))
+    assert.is_truthy(src:sub(from, to):find("C_TradeSkillUI.CraftRecipe(", 1, true))
   end)
 end)

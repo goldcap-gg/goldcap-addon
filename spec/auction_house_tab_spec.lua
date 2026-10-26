@@ -720,6 +720,21 @@ describe("Auction House tab", function()
       assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
     end)
 
+    -- Owner 2026-10-26: AUTO pressed right after a search read AUTO · WAITING FOR YOU for a few
+    -- seconds before it scanned: the search box's ten-second grace still held it.
+    it("ends the search box's grace with it, unless the box still has the cursor", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.NoteSearchFocus(false)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(clock))
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsSearching(clock))
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(clock))
+    end)
+
     it("is false while another pane, or our own dock, is up", function()
       _G.C_AuctionHouse.SendBrowseQuery({})
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)

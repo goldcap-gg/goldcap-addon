@@ -63,8 +63,8 @@
   beside the bank opens it again.
 - DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
   your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
-  Auto carries on, on the Items board too, with what you typed still in the search box. Switching
-  Auto on carries on the same way.
+  Auto carries on at once, on the Items board too, with what you typed still in the search box.
+  Switching Auto on carries on the same way.
 - DEALS: while GoldCap checks prices, the list on the auction house's Buy tab shows its searches
   and changes on its own. A panel over that list now says so. Search, pick a category or click the
   star to use the list yourself, and GoldCap leaves it to you until you click AUTO or SCAN.
@@ -108,6 +108,10 @@
   a vendor sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take
   off changes it, so BUY never buys again what a craft already used. Each character keeps its own
   queue and its own list, named after the character.
+- Crafting, in retail WoW: each line of the craft queue has a Craft button while that recipe's
+  profession window is open. One press crafts as many as your reagents allow, up to what the line
+  still needs, one after another, and moving stops it. When the button is greyed out, hover it to
+  see why.
 - BUY, in retail WoW: what waits in your mailbox counts as what you have. What you buy at the
   auction house counts from the moment you buy it, so BUY does not offer it again while it waits
   in the mailbox. Items another player sent you count once you have opened the mailbox. A line's

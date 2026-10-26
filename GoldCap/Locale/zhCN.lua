@@ -1519,4 +1519,11 @@ GC.Locales.zhCN = {
     "拍卖行会把 GoldCap 的搜索结果显示在这个列表里，所以它会自己变化。想自己使用这个列表，就搜索、选择一个分类或点击星标。之后在你点击自动或扫描之前，GoldCap 都不会再动它。",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "在物品面板上，自动会一轮又一轮地检查这个面板关注的物品。切换到商品，它会重新扫描商品市场。",
+  ["Craft %d"] = "制造 %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "现在依次制造 %d 次，使用专业窗口会选用的材料。移动会打断。",
+  ["Open %s to craft it here."] = "打开%s即可在这里制造。",
+  ["Open this recipe's profession to craft it here."] = "打开这个配方所属的专业即可在这里制造。",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "材料不够制造一次。下方“缺少”列出了要准备的东西。",
 }

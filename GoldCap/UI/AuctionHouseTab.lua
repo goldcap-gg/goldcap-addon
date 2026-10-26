@@ -688,10 +688,14 @@ function GC.AuctionHouseTab.PlayerOwnsBrowseList()
   return not (dock and dock:IsShown())
 end
 
--- The player pressed SCAN (UI/SniperFrame.lua's onFullScanClick): the list on the Buy pane is
--- GoldCap's to replace from now on, until their next search there.
+-- The player pressed SCAN (UI/SniperFrame.lua's onFullScanClick), or AUTO while it waited for their
+-- search: the list on the Buy pane is GoldCap's to replace from now on, until their next search
+-- there. The search box's grace ends with it, unless the box still has the cursor: it guards their
+-- results while they read them, and the press says they are done. Kept, it held the scan they asked
+-- for under AUTO · WAITING FOR YOU for up to ten seconds after the search (owner, 2026-10-26).
 function GC.AuctionHouseTab.ReleaseBrowseList()
   playerBrowsed = false
+  if not searchFocused then searchLostFocusAt = nil end
 end
 
 function GC.AuctionHouseTab.PlayerIsBusy(now)

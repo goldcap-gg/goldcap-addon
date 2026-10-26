@@ -1552,4 +1552,11 @@ GC.Locales.koKR = {
     "경매장이 GoldCap의 검색 결과를 이 목록에 보여 주므로 목록이 저절로 바뀝니다. 직접 쓰려면 검색하거나, 분류를 고르거나, 별을 누르세요. 그러면 자동이나 검색 버튼을 누를 때까지 GoldCap이 목록을 건드리지 않습니다.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "아이템 목록에서는 자동이 이 목록이 지켜보는 아이템을 계속 차례로 확인합니다. 재료로 전환하면 다시 재료 시장을 검색합니다.",
+  ["Craft %d"] = "%d개 제작",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "지금 %d개를 차례로 제작합니다. 전문 기술 창이 고를 재료를 씁니다. 움직이면 멈춥니다.",
+  ["Open %s to craft it here."] = "여기서 제작하려면 %s 창을 여세요.",
+  ["Open this recipe's profession to craft it here."] = "여기서 제작하려면 이 제조법의 전문 기술 창을 여세요.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "한 번 제작할 재료가 부족합니다. 아래 부족 항목에서 필요한 것을 확인하세요.",
 }

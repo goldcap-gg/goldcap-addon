@@ -1613,4 +1613,12 @@ GC.Locales.ptBR = {
     "A casa de leilões mostra as buscas do GoldCap nesta lista, por isso ela muda sozinha. Para usar a lista você mesmo, faça uma busca, escolha uma categoria ou clique na estrela. O GoldCap deixa a lista com você até você clicar em AUTO ou VARRER.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "Na lista de itens, o Auto continua conferindo os itens que essa lista acompanha, rodada após rodada. Mude para Mercadorias e ele volta a varrer o mercado de mercadorias.",
+  ["Craft %d"] = "Produzir %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Produz %d agora, um após o outro, com os reagentes que a janela da profissão usaria. Mover-se interrompe.",
+  ["Open %s to craft it here."] = "Abra %s para produzir aqui.",
+  ["Open this recipe's profession to craft it here."] =
+    "Abra a profissão desta receita para produzir aqui.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Reagentes insuficientes para uma produção. Abaixo, em Faltando, veja o que conseguir.",
 }

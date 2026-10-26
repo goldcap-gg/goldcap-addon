@@ -1618,4 +1618,12 @@ GC.Locales.deDE = {
     "Das Auktionshaus zeigt die Suchen von GoldCap in dieser Liste, deshalb ändert sie sich von selbst. Um die Liste selbst zu nutzen, such etwas, wähl eine Kategorie oder klick auf den Stern. GoldCap überlässt sie dir dann, bis du auf AUTO oder SCAN klickst.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "In der Items-Liste prüft Auto die Items, die diese Liste beobachtet, Runde um Runde. Wechsle zu Waren, dann scannt es wieder den Warenmarkt.",
+  ["Craft %d"] = "Herstellen %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Stellt jetzt %d nacheinander her, mit den Reagenzien, die das Berufsfenster nehmen würde. Bewegung bricht es ab.",
+  ["Open %s to craft it here."] = "Öffne %s, um es hier herzustellen.",
+  ["Open this recipe's profession to craft it here."] =
+    "Öffne den Beruf dieses Rezepts, um es hier herzustellen.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Die Reagenzien reichen für keine Herstellung. Unter Fehlt steht, was dir fehlt.",
 }

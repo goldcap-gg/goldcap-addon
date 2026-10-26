@@ -263,6 +263,24 @@ function CC.Craftable(recipeID, level)
   return ok and type(n) == "number" and n or 0
 end
 
+--- Whether a recipe can be crafted from the window as it stands: the player's own profession window
+--- is up on the skill line the recipe is in, the same reading KnownRecipes makes. With the window
+--- shut, C_TradeSkillUI.CraftRecipe crafts nothing and says nothing (probe A3, retail 12.1.5,
+--- 2026-10-26). When it cannot, the second value names that skill line, for a sentence.
+function CC.CraftableHere(recipeID)
+  local frame = _G.ProfessionsFrame
+  if type(frame) == "table" and frame.IsShown and frame:IsShown() and CC.IsOwnList() then
+    local okP, prof = call("GetChildProfessionInfo")
+    local line = okP and type(prof) == "table" and prof.professionID or nil
+    local okL, inLine = false, false
+    if type(line) == "number" then okL, inLine = call("IsRecipeInSkillLine", recipeID, line) end
+    if okL and inLine == true then return true end
+  end
+  local okI, info = call("GetProfessionInfoByRecipeID", recipeID)
+  local name = okI and type(info) == "table" and info.professionName or nil
+  return false, (type(name) == "string" and name ~= "") and name or nil
+end
+
 --- A reagent or crafted item by name, for a sentence: { itemID } or { currencyID }.
 function CC.MissingName(m)
   if type(m) ~= "table" then return "" end

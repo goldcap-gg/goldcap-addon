@@ -3,8 +3,9 @@ local _, GC = ...
 -- The craft panel's Queue view (retail, beside the profession window): this character's queued
 -- recipes with what is left to craft, the reagents the queue is short of, and Make a BUY list,
 -- which writes what the queue needs into the character's one Craft queue list for the BUY tab at
--- the auction house. Nothing is bought here, and nothing is crafted here: a craft from Blizzard's
--- own button takes one off a counted line all the same (UNIT_SPELLCAST_SUCCEEDED).
+-- the auction house. Nothing is bought here. A line's Craft button crafts what the reagents allow
+-- of what is left, in one press (newLine); a craft from Blizzard's own button takes one off a
+-- counted line all the same (UNIT_SPELLCAST_SUCCEEDED).
 --
 -- That list follows the queue: every change to the queue, and to what a restock holds, rewrites
 -- its lines (SyncBuyList), so BUY never buys again what a craft already used. It is known by the
@@ -19,7 +20,7 @@ GC.CraftQueueView = GC.CraftQueueView or {}
 local QV = GC.CraftQueueView
 
 local LAYOUT = { GAP = 6, LINE_GAP = 2, NAME = 11, SMALL = 10, HEAD = 12, ROW_PAD = 4, BAR = 16,
-  BUTTON_H = 24, BUTTON_MIN = 72 }
+  BUTTON_H = 24, BUTTON_MIN = 72, CRAFT_H = 20, CRAFT_MIN = 56 }
 
 local function bodyWidth()
   return GC.CraftPanel and GC.CraftPanel.BODY_W or 280
@@ -167,12 +168,43 @@ function QV.OpenLineMenu(owner, entry)
   return true
 end
 
+-- What the Craft button's tooltip says: what a press does, or why it cannot.
+local function craftTooltip(line)
+  local tip = _G.GameTooltip
+  if not tip then return end
+  tip:SetOwner(line.craft, "ANCHOR_RIGHT")
+  local text = line.craftWhy
+    or GC.L["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."]:format(line.craftCount or 0)
+  tip:SetText(GC.Util.ClientText(text), 1, 1, 1, 1, true)
+  tip:Show()
+end
+
 local function newLine(v)
   local T = GC.Theme
   local width = bodyWidth() - LAYOUT.BAR
   local frame = CreateFrame("Button", nil, v.content)
   frame:SetWidth(width)
   local line = { frame = frame }
+  -- Craft: what the reagents allow of what is left, in one press. CraftRecipe with a count crafts
+  -- that many one after another, and only from the player's own press: from a timer the client
+  -- blocks it (probe A2 and A4, retail 12.1.5, 2026-10-26). So the press is the call, with nothing
+  -- before it but reading what the line was painted with, and nothing after: each finished cast
+  -- takes one off the line (QV.OnEvent). The reagents are the ones Blizzard's own Create would use
+  -- (an empty list, as the probe crafted with).
+  line.craft = T.Button(frame, "ghost", "plaque")
+  line.craft:SetSize(LAYOUT.CRAFT_MIN, LAYOUT.CRAFT_H)
+  line.craft:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -LAYOUT.ROW_PAD)
+  line.craft:FitLabels({ GC.L["Craft %d"]:format(9999) }, LAYOUT.CRAFT_MIN)
+  line.craft:SetScript("OnClick", function()
+    local e, n = line.entry, line.craftCount
+    if not (e and n) then return end
+    C_TradeSkillUI.CraftRecipe(e.recipe.recipeID, n, {}, nil, nil, false)
+  end)
+  -- A disabled button says why on hover: the client sends a disabled button no hover otherwise.
+  if line.craft.SetMotionScriptsWhileDisabled then line.craft:SetMotionScriptsWhileDisabled(true) end
+  line.craft:HookScript("OnEnter", function() craftTooltip(line) end)
+  line.craft:HookScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
+  width = width - line.craft:GetWidth() - LAYOUT.GAP
   line.name = wrapped(frame, LAYOUT.NAME, width)
   line.name:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -LAYOUT.ROW_PAD)
   setColor(line.name, T.color.fg)
@@ -230,6 +262,34 @@ local function stack(v, region, y, gap)
   return y + gap + region:GetHeight()
 end
 
+-- The line's Craft button: hidden with nothing left to craft; live with how many a press makes,
+-- the fewer of what is left and what the reagents allow; dimmed with what is left, saying why on
+-- hover, when the window is on another profession or the reagents do not make one.
+local function paintCraft(line, row)
+  local CC = GC.CraftClient
+  local left = row.crafts or 0
+  line.craftCount, line.craftWhy = nil, nil
+  if left <= 0 then
+    line.craft:Hide()
+    return
+  end
+  local recipeID = row.entry.recipe.recipeID
+  local here, where = CC.CraftableHere(recipeID)
+  local n = here and math.min(left, CC.Craftable(recipeID)) or 0
+  if not here then
+    line.craftWhy = where and GC.L["Open %s to craft it here."]:format(where)
+      or GC.L["Open this recipe's profession to craft it here."]
+  elseif n <= 0 then
+    line.craftWhy = GC.L["Not enough reagents for one craft. Missing below says what to get."]
+  else
+    line.craftCount = n
+  end
+  line.craft:SetLabel(GC.L["Craft %d"]:format(n > 0 and n or left))
+  line.craft:SetVariant(n > 0 and "primary" or "ghost")
+  if n > 0 then line.craft:Enable() else line.craft:Disable() end
+  line.craft:Show()
+end
+
 local function paintLine(line, row, listedAt)
   local e = row.entry
   line.entry = e
@@ -251,7 +311,8 @@ local function paintLine(line, row, listedAt)
   else
     line.note:Hide()
   end
-  line.frame:SetHeight(height + LAYOUT.ROW_PAD)
+  paintCraft(line, row)
+  line.frame:SetHeight(math.max(height, LAYOUT.ROW_PAD + LAYOUT.CRAFT_H) + LAYOUT.ROW_PAD)
 end
 
 local function missingText(row)

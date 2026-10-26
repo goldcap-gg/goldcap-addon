@@ -1620,4 +1620,12 @@ GC.Locales.esES = {
     "La casa de subastas muestra las búsquedas de GoldCap en esta lista, así que cambia sola. Para usarla tú, busca, elige una categoría o pulsa la estrella. GoldCap te la deja hasta que pulses AUTO o ESCANEAR.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "En la lista de objetos, Auto sigue comprobando los objetos que vigila, ronda tras ronda. Cambia a Materiales y vuelve a escanear el mercado de materiales.",
+  ["Craft %d"] = "Crear %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Crea %d ahora, uno tras otro, con los componentes que usaría la ventana de profesión. Moverte lo detiene.",
+  ["Open %s to craft it here."] = "Abre %s para crearlo aquí.",
+  ["Open this recipe's profession to craft it here."] =
+    "Abre la profesión de esta receta para crearla aquí.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "No hay componentes para una creación. Abajo, en Falta, ves qué conseguir.",
 }

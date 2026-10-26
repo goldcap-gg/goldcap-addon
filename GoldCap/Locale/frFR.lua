@@ -1619,4 +1619,12 @@ GC.Locales.frFR = {
     "L'hôtel des ventes affiche les recherches de GoldCap dans cette liste, elle change donc toute seule. Pour t'en servir, fais une recherche, choisis une catégorie ou clique sur l'étoile. GoldCap te la laisse ensuite jusqu'à ce que tu cliques sur AUTO ou SCAN.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "Sur le tableau Objets, Auto vérifie les objets que ce tableau suit, tour après tour. Passe aux Marchandises et il scanne de nouveau le marché des marchandises.",
+  ["Craft %d"] = "Fabriquer %d",
+  ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
+    "Fabrique %d maintenant, l'un après l'autre, avec les composants que prendrait la fenêtre de métier. Bouger l'interrompt.",
+  ["Open %s to craft it here."] = "Ouvre %s pour le fabriquer ici.",
+  ["Open this recipe's profession to craft it here."] =
+    "Ouvre le métier de cette recette pour la fabriquer ici.",
+  ["Not enough reagents for one craft. Missing below says what to get."] =
+    "Pas assez de composants pour une fabrication. Manquant, plus bas, dit quoi trouver.",
 }

@@ -15,7 +15,8 @@
 --   TS.install(opts) -> restore
 --   opts = {
 --     recipes = { [recipeID] = { info = TradeSkillRecipeInfo, schematic = CraftingRecipeSchematic,
---       inSkillLine = bool (default true), craftable = n, quality = { itemID, ... } } },
+--       inSkillLine = bool (default true), craftable = n, quality = { itemID, ... },
+--       professionName = name (GetProfessionInfoByRecipeID) } },
 --     filtered = { recipeID, ... }, all = { recipeID, ... } | nil, professionID = n,
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
 --       recraft = bool (the transaction's IsRecraft) } | nil,
@@ -119,6 +120,13 @@ function TS.install(opts)
       return r ~= nil and r.inSkillLine ~= false and skillLineID == opts.professionID
     end,
     GetChildProfessionInfo = function() return { professionID = opts.professionID or 0 } end,
+    -- ProfessionInfo for the skill line a recipe is in: `professionName` from the recipe's own
+    -- entry, as the client names a line ("Midnight Alchemy").
+    GetProfessionInfoByRecipeID = function(id)
+      record("GetProfessionInfoByRecipeID", id)
+      local r = recipes[id]
+      return { professionID = opts.professionID or 0, professionName = r and r.professionName or "" }
+    end,
     GetRecipeOutputItemData = function(id, reagents, guid, qualityID)
       record("GetRecipeOutputItemData", id, reagents, guid, qualityID)
       local r = recipes[id]
