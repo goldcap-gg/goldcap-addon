@@ -22,17 +22,11 @@ local KEYS = {
     "Click a line to disenchant it next. Right-click a line to keep an item.",
   -- The entry's tooltip and /gc disenchant on a character without the spell.
   "GoldCap Disenchant, 1 item", "GoldCap Disenchant, %d items", "This character does not know Disenchant.",
-  -- The item tooltip's lines: where the item stands, and what its kind gave.
-  "GoldCap: next to disenchant", "GoldCap: on the Disenchant list",
-  "GoldCap: left out of Disenchant, the auction house pays more",
-  "GoldCap: left out of Disenchant, a vendor pays more",
-  "GoldCap: this item cannot be disenchanted",
-  "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
-  "Disenchant: about %s in mats, from your %d disenchants of such items",
-  "Disenchant: about %s in mats, from your 1 disenchant of such an item",
-  "Disenchant: GoldCap learns what this gives the first time.",
+  -- The item tooltip's one line beside "Disenchant": what its kind gives and where it stands.
+  "%s, next", "%s, AH pays more", "%s, vendor pays more", "kept", "cannot be disenchanted", "not learned yet",
+  "no price yet",
   -- The way back for a kept item: the window's line and its menu.
-  "Kept: 1 item", "Kept: %d items", "Show", "Never disenchanted", "Disenchant it again", "Not in your bags",
+  "Kept: 1 item", "Kept: %d items", "Show", "Never disenchanted", "Disenchant it again",
   -- The items the client refused for good, in the same menu.
   "GoldCap could not disenchant these", "Try again",
 }

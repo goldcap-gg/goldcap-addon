@@ -22,13 +22,48 @@ D.KEEP_VERSION = 1
 
 local function positive(n) return type(n) == "number" and n > 0 end
 
-function D.CanDisenchant(stack)
+-- The gear the game will not disenchant (Data/NoDisenchant.lua, generated from its own tables:
+-- ItemSparse Flags_0 0x8000; the client refuses one with "That item is not a valid target."), as a
+-- set, decoded on first use: the ids go in sorted runs, each the base 36 step from the last id of the
+-- run before and, after "+", how many more follow one by one. Empty without the file.
+local noDisenchant
+
+--- Whether the game's own data says `itemID` is never disenchanted.
+function D.NoDisenchant(itemID)
+  if not noDisenchant then
+    noDisenchant = {}
+    local data = GC.NoDisenchant
+    local text = type(data) == "table" and data.ids
+    if type(text) == "string" then
+      local last = 0
+      for token in text:gmatch("[^,]+") do
+        local step, more = token:match("^(%w+)%+?(%w*)$")
+        last = last + (tonumber(step, 36) or 0)
+        noDisenchant[last] = true
+        for _ = 1, tonumber(more, 36) or 0 do
+          last = last + 1
+          noDisenchant[last] = true
+        end
+      end
+    end
+  end
+  return noDisenchant[itemID] == true
+end
+
+--- Gear of a kind disenchanting takes: armor, weapons and profession tools of quality 2 to 4, not a
+--- shirt, a tabard or cosmetic armor; whatever the game's own list says of the item.
+function D.Eligible(stack)
   local class, quality = stack.classID, stack.quality
   if class ~= ARMOR and class ~= WEAPON and class ~= PROFESSION then return false end
   if quality ~= 2 and quality ~= 3 and quality ~= 4 then return false end
   if stack.equipLoc == "INVTYPE_BODY" or stack.equipLoc == "INVTYPE_TABARD" then return false end
   if class == ARMOR and stack.subclassID == COSMETIC then return false end
   return true
+end
+
+--- Gear of such a kind that the game's own list does not refuse.
+function D.CanDisenchant(stack)
+  return D.Eligible(stack) and not D.NoDisenchant(stack.itemID)
 end
 
 -- Loot of one quality and expansion alike: "q3:x10"; an expansion the reader could not tell is "x?".
@@ -182,6 +217,11 @@ local function before(a, b)
   if ga == 1 then
     local da, db = a.mats - (a.vendor or 0), b.mats - (b.vendor or 0)
     if da ~= db then return da > db end
+  elseif ga == 2 then
+    -- An unknown kind: the cheapest piece first, so the kind is learned on it (a dear one of the
+    -- kind then moves to "a vendor pays more" once its mats are known).
+    local va, vb = a.vendor or 0, b.vendor or 0
+    if va ~= vb then return va < vb end
   elseif ga == 3 then
     local da, db = a.vendor - a.mats, b.vendor - b.mats
     if da ~= db then return da < db end
@@ -191,10 +231,10 @@ local function before(a, b)
 end
 
 -- The result: queue: mats rows (gain over the vendor largest first), mats unknown (how GoldCap
--- learns), then rows whose mats pay just what a vendor does; left: what the auction house pays more
--- for; leftVendor: what a vendor pays more for than its known mats (smallest loss first). The chosen
--- item (`first`) stands first in the queue wherever it would be, while its slot holds the item
--- chosen. A row's `vendor` is nil for an item no vendor buys.
+-- learns; the cheapest to a vendor first), then rows whose mats pay just what a vendor does; left:
+-- what the auction house pays more for; leftVendor: what a vendor pays more for than its known mats
+-- (smallest loss first). The chosen item (`first`) stands first in the queue wherever it would be,
+-- while its slot holds the item chosen. A row's `vendor` is nil for an item no vendor buys.
 -- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [slotKey] },
 -- failed = { [itemID] }, anyway = { [slotKey] }, first = { slotKey, link } }. A row: { stack,
 -- slotKey, mats, n, vendor, ah, best }.

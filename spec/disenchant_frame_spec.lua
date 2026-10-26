@@ -235,6 +235,7 @@ describe("Disenchant window", function()
       end
       function n:CreateTitle(t) self.entries[#self.entries + 1] = node("title", t) end
       function n:CreateDivider() self.entries[#self.entries + 1] = node("divider") end
+      function n:SetScrollMode(extent) self.scroll = extent end
       return n
     end
     _G.MenuUtil = { CreateContextMenu = function(owner, generator)
@@ -246,8 +247,9 @@ describe("Disenchant window", function()
     -- supportsItemComparison, so Blizzard compares an item shown through its accessors itself.
     _G.GameTooltip = {
       lines = {},
-      SetOwner = function(self, owner, anchor)
-        self.owner, self.anchor, self.lines, self.bag, self.slot, self.link = owner, anchor, {}, nil, nil, nil
+      SetOwner = function(self, owner, anchor, x, y)
+        self.owner, self.anchor, self.x, self.y = owner, anchor, x, y
+        self.lines, self.bag, self.slot, self.link, self.point = {}, nil, nil, nil, nil
       end,
       ClearAllPoints = function(self) self.point = nil end,
       SetPoint = function(self, ...) self.point = { ... } end,
@@ -528,25 +530,12 @@ describe("Disenchant window", function()
     assert.same({ "title", "button" }, kinds)
     assert.equal("GoldCap could not disenchant these", title)
     assert.is_truthy(item.text:find("Item 501", 1, true))
-    assert.equal("Try again", item.buttons[1].text)
-    item.buttons[1].fn()
+    assert.is_truthy(item.text:find("Try again", 1, true))
+    assert.same({}, item.buttons)
+    item.fn()
     nextFrame()
     assert.is_false(GC.Disenchant.Cant(GC.db, 501))
     assert.same({ 501, 502 }, listed())
-  end)
-
-  it("lists the refused items after the kept ones, under their own title", function()
-    put(gear(0, 1, 501))
-    GC.Disenchant.Keep(GC.db, 777)
-    GC.Disenchant.MarkCant(GC.db, 888)
-    slash()
-    assert.equal("Kept: 2 items", textOf(DF._frame.kept.text))
-    press(DF._frame.kept.show)
-    local kinds = {}
-    for i, e in ipairs(menu.entries) do kinds[i] = e.kind end
-    assert.same({ "title", "title", "button", "divider", "title", "button" }, kinds)
-    assert.equal("GoldCap could not disenchant these", menu.entries[5].text)
-    assert.is_truthy(menu.entries[6].text:find("Item 888", 1, true))
   end)
 
   it("leaves out for this visit only an item the Enchanting skill is too low for", function()
@@ -742,6 +731,29 @@ describe("Disenchant window", function()
     nextFrame()
     assert.same({ 503, 504, 501 }, listed())
     assert.is_false(f.vendorBox:IsShown())
+  end)
+
+  -- Valdrakken Guards Belt carries the game's NO_DISENCHANT flag; the client refused it with "That
+  -- item is not a valid target." after Disenchant anyway (the owner, 2026-10-26).
+  it("never offers gear the game will not disenchant: no line, no mark, and its tooltip says so", function()
+    helper.loadModule("Data/NoDisenchant.lua", GC)
+    learned()
+    put(gear(0, 1, 199762, { quality = 3, vendorUnit = 100 }))
+    put(gear(0, 2, 199762, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    put(gear(0, 3, 199762, { vendorUnit = 190000 }))
+    put(gear(0, 4, 501))
+    openBags()
+    slash()
+    assert.same({ 501 }, listed())
+    assert.is_false(DF._frame.leftBox:IsShown())
+    assert.is_false(DF._frame.vendorBox:IsShown())
+    for slot = 1, 3 do
+      assert.is_false(drawn("0:" .. slot, "icon"))
+      assert.is_false(drawn("0:" .. slot, "coin"))
+      assert.equal("cant", DF.Standing(slotButtons["0:" .. slot], 199762).state)
+    end
+    -- Nothing to try again: the Kept line does not count it.
+    assert.is_false(DF._frame.kept.text:IsShown())
   end)
 
   it("names no vendor figure for an item a vendor will not buy", function()
@@ -1282,52 +1294,6 @@ describe("Disenchant window", function()
     assert.is_nil(DF.Standing(slotButtons["0:1"], 501))
   end)
 
-  it("waits for the client to name a kept item that is not in the bags before it opens the menu", function()
-    put(gear(0, 1, 501))
-    GC.Disenchant.Keep(GC.db, 777)
-    uncached[777] = true
-    slash()
-    menu = nil
-    press(DF._frame.kept.show)
-    assert.same({ 777 }, requested)
-    assert.is_nil(menu)
-    uncached[777] = nil
-    event("ITEM_DATA_LOAD_RESULT", 777, true)
-    assert.is_not_nil(menu)
-    assert.is_truthy(menu.entries[3].text:find("Item 777", 1, true))
-  end)
-
-  it("does not open a menu that waited for names once the window was closed meanwhile", function()
-    put(gear(0, 1, 501))
-    GC.Disenchant.Keep(GC.db, 777)
-    uncached[777] = true
-    slash()
-    menu = nil
-    press(DF._frame.kept.show)
-    assert.is_nil(menu)
-    slash()
-    assert.is_false(windowUp())
-    uncached[777] = nil
-    event("ITEM_DATA_LOAD_RESULT", 777, true)
-    fire(DF.NAME_SECONDS)
-    assert.is_nil(menu)
-  end)
-
-  it("opens the menu after a moment when the client never answers, once", function()
-    put(gear(0, 1, 501))
-    GC.Disenchant.Keep(GC.db, 777)
-    uncached[777] = true
-    slash()
-    menu = nil
-    press(DF._frame.kept.show)
-    assert.is_nil(menu)
-    assert.equal(1, fire(DF.NAME_SECONDS))
-    assert.is_not_nil(menu)
-    local first = menu
-    event("ITEM_DATA_LOAD_RESULT", 777, false)
-    assert.equal(first, menu)
-  end)
-
   -- ---------------------------------------------------------------------------------------------
   -- Where an item stands (the tooltip's words), and the way back for a kept one
   -- ---------------------------------------------------------------------------------------------
@@ -1391,35 +1357,68 @@ describe("Disenchant window", function()
     assert.equal("title", menu.entries[1].kind)
     assert.equal("Never disenchanted", menu.entries[1].text)
     assert.is_truthy(menu.entries[2].text:find("Item 501", 1, true))
-    assert.equal(1, #menu.entries[2].buttons)
-    assert.equal("Disenchant it again", menu.entries[2].buttons[1].text)
-    menu.entries[2].buttons[1].fn()
+    assert.is_truthy(menu.entries[2].text:find("Disenchant it again", 1, true))
+    assert.same({}, menu.entries[2].buttons)
+    menu.entries[2].fn()
     nextFrame()
     assert.is_false(GC.Disenchant.Kept(GC.db, 501))
     assert.same({ 501, 502 }, listed())
     assert.is_false(DF._frame.kept.text:IsShown())
   end)
 
-  it("lists a kept item that is not in the bags after a divider, and brings it back too", function()
+  -- After days of play the stored sets hold many items the bags no longer do (the owner,
+  -- 2026-10-26): the line and its menu are about the bags as they are.
+  it("counts and lists only the kept and refused items the bags hold, each set apart, the store kept whole", function()
     put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    put(gear(0, 3, 503))
     GC.Disenchant.Keep(GC.db, 502)
     GC.Disenchant.Keep(GC.db, 777)
-    put(gear(0, 2, 502))
+    GC.Disenchant.MarkCant(GC.db, 503)
+    GC.Disenchant.MarkCant(GC.db, 888)
     slash()
     assert.equal("Kept: 2 items", textOf(DF._frame.kept.text))
     press(DF._frame.kept.show)
-    local kinds = {}
-    for i, e in ipairs(menu.entries) do kinds[i] = e.kind end
+    local kinds, texts = {}, {}
+    for i, e in ipairs(menu.entries) do kinds[i], texts[i] = e.kind, e.text end
     assert.same({ "title", "button", "divider", "title", "button" }, kinds)
-    assert.equal("Not in your bags", menu.entries[4].text)
-    assert.is_truthy(menu.entries[5].text:find("Item 777", 1, true))
-    menu.entries[5].buttons[1].fn()
-    assert.is_false(GC.Disenchant.Kept(GC.db, 777))
-    assert.is_true(GC.Disenchant.Kept(GC.db, 502))
+    assert.equal("Never disenchanted", texts[1])
+    assert.is_truthy(texts[2]:find("Item 502", 1, true))
+    assert.equal("GoldCap could not disenchant these", texts[4])
+    assert.is_truthy(texts[5]:find("Item 503", 1, true))
+    assert.same({ 502, 777 }, GC.Disenchant.KeptIDs(GC.db))
+    assert.same({ 503, 888 }, GC.Disenchant.CantIDs(GC.db))
+  end)
+
+  it("hides the Kept line while the bags hold none of the kept items, and shows it once one is back", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    GC.Disenchant.MarkCant(GC.db, 888)
+    slash()
+    assert.is_false(DF._frame.kept.text:IsShown())
+    assert.is_false(DF._frame.kept.show:IsShown())
+    put(gear(0, 2, 777))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_true(DF._frame.kept.text:IsShown())
+    assert.equal("Kept: 1 item", textOf(DF._frame.kept.text))
+  end)
+
+  it("scrolls the Kept menu past about twelve lines, so it never runs off the screen", function()
+    for slot = 1, 20 do
+      put(gear(1, slot, 600 + slot))
+      GC.Disenchant.Keep(GC.db, 600 + slot)
+    end
+    put(gear(0, 1, 501))
+    slash()
+    press(DF._frame.kept.show)
+    assert.equal(DF.MENU_ROWS * DF.MENU_ROW_H, menu.scroll)
+    assert.equal(21, #menu.entries)
   end)
 
   it("keeps the Kept line inside the window, above the footer", function()
     put(gear(0, 1, 501))
+    put(gear(0, 2, 777))
     GC.Disenchant.Keep(GC.db, 777)
     slash()
     local kept, footer = at(DF._frame.kept.text), at(DF._frame.footer)
@@ -1512,6 +1511,7 @@ describe("Disenchant window", function()
     for slot = 1, 20 do
       put(gear(2, slot, 700 + slot, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
     end
+    put(gear(3, 1, 999))
     GC.Disenchant.Keep(GC.db, 999)
     openBags()
     slash()
@@ -1676,10 +1676,9 @@ describe("Disenchant window", function()
     assert.is_false(tip:IsShown())
     assert.is_true(game:IsOwned(row))
     assert.is_true(game:IsShown())
-    assert.equal("ANCHOR_NONE", game.anchor)
+    assert.equal("ANCHOR_BOTTOMRIGHT", game.anchor)
     assert.equal(0, game.bag)
     assert.equal(1, game.slot)
-    assert.equal(DF._frame, game.point[2])
     shift = false
     event("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
     assert.is_false(game:IsOwned(row))
@@ -1699,6 +1698,28 @@ describe("Disenchant window", function()
     assert.same({}, blocked)
     assert.same({}, compared)
     assert.same({}, cleared)
+  end)
+
+  -- Owned with ANCHOR_NONE, Blizzard's comparison took the side with more room, over the list (the
+  -- re-review's S1: TooltipComparisonManager.lua:91-100 keeps to an owner's LEFT or RIGHT anchor).
+  it("opens Blizzard's tooltip with Shift on the side away from the bags, where its own stands", function()
+    screen(1920, 1080)
+    standAt(bags, 1300, 1000)
+    put(gear(0, 1, 501))
+    openBags()
+    slash()
+    local row = rowOf(501)
+    standAt(DF._frame, 900, 1000)
+    function row:GetLeft() return 916 end
+    shift = true
+    W.state(row).scripts.OnEnter(row)
+    local game = _G.GameTooltip
+    assert.is_true(game:IsOwned(row))
+    assert.equal("ANCHOR_BOTTOMLEFT", game.anchor)
+    -- Its top right 8 left of the window, level with the line's top: as the window's own tooltip.
+    assert.equal(900 - 8 - 916, game.x)
+    assert.equal(row:GetHeight(), game.y)
+    assert.is_nil(game.point)
   end)
 
   -- GameTooltip_ShowCompareItem reaches C_TooltipComparison.CompareItem, protected in live and

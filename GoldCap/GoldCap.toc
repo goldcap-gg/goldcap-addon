@@ -90,6 +90,7 @@ Core/BuyLots.lua
 Core/BuyVendor.lua
 Core/VendorBuys.lua
 Core/VendorSelect.lua
+Data/NoDisenchant.lua
 Core/Disenchant.lua
 Core/VendorPress.lua
 Core/BuyRecents.lua

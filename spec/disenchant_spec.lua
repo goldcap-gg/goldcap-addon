@@ -158,6 +158,51 @@ describe("Disenchant", function()
     end)
   end)
 
+  -- Data/NoDisenchant.lua, generated from the game's own tables (ItemSparse Flags_0 0x8000).
+  describe("the game's list of gear it will not disenchant", function()
+    it("decodes every id the generated file counts, the belt the client refused among them", function()
+      helper.loadModule("Data/NoDisenchant.lua", GC)
+      assert.is_true(D.NoDisenchant(199762))   -- Valdrakken Guards Belt: "That item is not a valid target."
+      assert.is_false(D.NoDisenchant(201759))  -- Torc of Passed Time: no flag, refused all the same
+      local n = 0
+      for id = 1, 400000 do
+        if D.NoDisenchant(id) then n = n + 1 end
+      end
+      assert.equal(GC.NoDisenchant.count, n)
+      assert.truthy(GC.NoDisenchant.build:match("^%d+%.%d+%.%d+%.%d+$"))
+    end)
+    it("loads in retail before Core/Disenchant.lua, and not in WoW: Forever", function()
+      local function files(toc)
+        local out = {}
+        for line in io.lines(toc) do
+          if not line:match("^#") and line:match("%S") then out[#out + 1] = line:gsub("%s+$", "") end
+        end
+        return out
+      end
+      local retail, at, core = files("GoldCap/GoldCap.toc"), nil, nil
+      for i, f in ipairs(retail) do
+        if f == "Data/NoDisenchant.lua" then at = i end
+        if f == "Core/Disenchant.lua" then core = i end
+      end
+      assert.is_truthy(at and core and at < core)
+      for _, f in ipairs(files("GoldCap/GoldCap_Camelot.toc")) do assert.not_equal("Data/NoDisenchant.lua", f) end
+    end)
+    it("knows no id without the file", function()
+      assert.is_false(D.NoDisenchant(199762))
+    end)
+    it("never lists such gear, whatever pays more", function()
+      helper.loadModule("Data/NoDisenchant.lua", GC)
+      local belt = gear({ itemID = 199762, quality = 3, vendorUnit = 100 })
+      assert.is_false(D.CanDisenchant(belt))
+      local rich = gear({ itemID = 199762, quality = 3, ahUnit = 1240 * 10000 })
+      local dear = gear({ itemID = 199762, quality = 2, vendorUnit = 999999 })
+      local plan = D.Plan({ belt, rich, dear }, opts({ anyway = { ["0:" .. dear.slot] = true } }))
+      assert.same({}, plan.queue)
+      assert.same({}, plan.left)
+      assert.same({}, plan.leftVendor)
+    end)
+  end)
+
   describe("Plan", function()
     local DUST, SHARD = 9001, 9002
     local prices = { [DUST] = 150, [SHARD] = 350 }
@@ -264,6 +309,13 @@ describe("Disenchant", function()
       assert.same({ rich.itemID }, ids(plan.left))
       assert.is_nil(plan.left[1].vendor)
       assert.equal("ah", plan.left[1].best)
+    end)
+    it("puts the cheapest piece of an unknown kind first, so GoldCap learns the kind on it", function()
+      local dear = gear({ bag = 0, slot = 1, quality = 4, vendorUnit = 610000 })
+      local cheap = gear({ bag = 0, slot = 2, quality = 4, vendorUnit = 400 })
+      local none = gear({ bag = 1, slot = 3, quality = 4, vendorUnit = 0 })
+      local plan = D.Plan({ dear, cheap, none }, opts())
+      assert.same({ none.itemID, cheap.itemID, dear.itemID }, ids(plan.queue))
     end)
     it("breaks ties by bag, then slot", function()
       local a = gear({ bag = 1, slot = 2 })

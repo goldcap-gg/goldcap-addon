@@ -263,42 +263,43 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   end
 end
 
--- The Disenchant colour of the status line (UI/DisenchantFrame.lua's accent) and the mats line's grey.
-local DISENCHANT_COLOR, MATS_COLOR = { 176 / 255, 100 / 255, 240 / 255 }, { 0.78, 0.78, 0.78 }
-
-local function standingText(state)
-  if state == "next" then return GC.L["GoldCap: next to disenchant"] end
-  if state == "listed" then return GC.L["GoldCap: on the Disenchant list"] end
-  if state == "left" then return GC.L["GoldCap: left out of Disenchant, the auction house pays more"] end
-  if state == "leftVendor" then return GC.L["GoldCap: left out of Disenchant, a vendor pays more"] end
-  if state == "cant" then return GC.L["GoldCap: this item cannot be disenchanted"] end
-  if state == "kept" then return GC.L["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] end
-  return nil
+-- What a kind's mats fetch, roughly: whole gold from a gold up, whole silver under it, "~" for an
+-- estimate (the window's Mats column reads so too).
+local function roughMats(copper)
+  if copper >= 10000 then
+    copper = math.floor(copper / 10000) * 10000
+  elseif copper >= 100 then
+    copper = math.floor(copper / 100) * 100
+  end
+  return "~" .. GC.Util.Money(copper)
 end
 
 -- A bag item's place in the Disenchant window (GC.DisenchantFrame.Standing's answer: { state, mats,
--- n }) as two lines: the status, and what its kind gave when GoldCap has learned that with prices,
--- else that it learns it. Nothing for no standing. No auction house figure: the lines above are the
--- tooltip's own.
+-- n }) as one line in GoldCap's two columns: "Disenchant", and what its kind gives with where it
+-- stands ("~10g, next"; "kept"; "cannot be disenchanted"; "not learned yet", "no price yet" before
+-- there is a figure). Nothing for no standing. No auction house figure: the lines above are the
+-- tooltip's own; where Mats comes from, the window's footer says.
 function GC.Tooltip.DisenchantLines(standing)
-  local status = type(standing) == "table" and standingText(standing.state) or nil
-  if not status then return nil end
-  local lines = { { text = status, color = DISENCHANT_COLOR } }
-  -- One the client refused for good gives nothing: no line of mats.
-  if standing.state == "cant" then return lines end
-  local n = standing.n or 0
-  if type(standing.mats) == "number" and n > 0 then
-    local gold = GC.Util.CoinText(standing.mats)
-    lines[2] = { color = MATS_COLOR, text = n == 1
-      and (GC.L["Disenchant: about %s in mats, from your 1 disenchant of such an item"]):format(gold)
-      or (GC.L["Disenchant: about %s in mats, from your %d disenchants of such items"]):format(gold, n) }
-  elseif n > 0 then
-    -- Learned, but a material has no price yet: the window's own words for it.
-    lines[2] = { text = GC.L["GoldCap has no price yet for what this gives."], color = MATS_COLOR }
+  local state = type(standing) == "table" and standing.state or nil
+  local value
+  if state == "kept" then
+    value = GC.L["kept"]
+  elseif state == "cant" then
+    value = GC.L["cannot be disenchanted"]
+  elseif state == "next" or state == "listed" or state == "left" or state == "leftVendor" then
+    if type(standing.mats) == "number" then
+      value = roughMats(standing.mats)
+    else
+      value = (standing.n or 0) > 0 and GC.L["no price yet"] or GC.L["not learned yet"]
+    end
+    -- What follows for where the item stands in the window: next, or why it is left out.
+    local why = state == "next" and GC.L["%s, next"] or state == "left" and GC.L["%s, AH pays more"]
+      or state == "leftVendor" and GC.L["%s, vendor pays more"] or nil
+    if why then value = why:format(value) end
   else
-    lines[2] = { text = GC.L["Disenchant: GoldCap learns what this gives the first time."], color = MATS_COLOR }
+    return nil
   end
-  return lines
+  return { { left = GC.L["Disenchant"], right = value } }
 end
 
 local function addDisenchant(tooltip, owner, itemID)
@@ -306,8 +307,9 @@ local function addDisenchant(tooltip, owner, itemID)
   if type(owner) ~= "table" or not (frame and frame.Standing) then return end
   local lines = GC.Tooltip.DisenchantLines(frame.Standing(owner, itemID))
   if not lines then return end
+  local tip = GC.Util.ClientText
   for _, ln in ipairs(lines) do
-    tooltip:AddLine(GC.Util.ClientText(ln.text), ln.color[1], ln.color[2], ln.color[3], true)
+    tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
   end
 end
 

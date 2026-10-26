@@ -86,8 +86,9 @@ DF.PENDING_SECONDS = 5
 DF.CAST_SECONDS = 1.55
 -- How long after the cast succeeds its loot is waited for.
 DF.LOOT_SECONDS = 3
--- How long the Kept menu waits for the client to name the kept items that are not in the bags.
-DF.NAME_SECONDS = 2
+-- The Kept menu scrolls past this many lines of this height (Blizzard_Menu's buttons: their text is
+-- 20 high, MenuTemplates.lua:363), so a long one never runs off the screen.
+DF.MENU_ROWS, DF.MENU_ROW_H = 12, 20
 -- The most of the screen's height the window takes.
 DF.HEIGHT_SHARE = 0.85
 
@@ -291,14 +292,18 @@ local function readPlan()
   local visit = DF._visit
   local note = GC.MerchantNote
   local stacks, seen = {}, {}
-  -- The kept items the bags hold, and the refused ones (`cant`), each by slot too.
+  -- The kept items the bags hold and the ones the client refused (`cant`), each by slot too; by slot
+  -- also the gear the game's own list refuses (Core/Disenchant.lua's NoDisenchant), which no menu
+  -- offers to try again.
   local kept = { list = {}, bySlot = {}, cant = {}, cantBySlot = {} }
   for _, stack in ipairs(GC.VendorBags.Read(note and note.ValueFor)) do
     local key = stack.bag .. ":" .. stack.slot
     seen[key] = true
-    if stack.itemID and D.CanDisenchant(stack) then
-      if D.Kept(GC.db, stack.itemID) then kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack end
-      if D.Cant(GC.db, stack.itemID) then kept.cant[#kept.cant + 1], kept.cantBySlot[key] = stack, stack end
+    if stack.itemID and D.Eligible(stack) then
+      local id = stack.itemID
+      if D.Kept(GC.db, id) then kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack end
+      if D.Cant(GC.db, id) then kept.cant[#kept.cant + 1] = stack end
+      if D.Cant(GC.db, id) or D.NoDisenchant(id) then kept.cantBySlot[key] = stack end
     end
     if visit.gone[key] ~= nil and visit.gone[key] ~= stack.link then visit.gone[key] = nil end
     if visit.gone[key] == nil then stacks[#stacks + 1] = stack end
@@ -633,109 +638,52 @@ local function keptLabel(itemID, stack)
   return name
 end
 
--- "Never disenchanted": the kept items the bags hold, then, after a divider, the others; each opens
--- "Disenchant it again" (Unkeep).
-local function fillKept(root)
-  local text = GC.Util.ClientText
-  root:CreateTitle(text(GC.L["Never disenchanted"]))
-  local held, away = {}, {}
-  for _, stack in ipairs(DF._kept.list) do
-    if not held[stack.itemID] then held[stack.itemID] = stack end
-  end
-  local function addKept(itemID, stack)
-    local item = root:CreateButton(text(keptLabel(itemID, stack)))
-    item:CreateButton(text(GC.L["Disenchant it again"]), function() DF.Unkeep(itemID) end)
-  end
-  local shown = {}
-  for _, stack in ipairs(DF._kept.list) do
-    if not shown[stack.itemID] then
-      shown[stack.itemID] = true
-      addKept(stack.itemID, stack)
+-- Each item of `stacks` once, in bag order.
+local function distinct(stacks)
+  local out, seen = {}, {}
+  for _, stack in ipairs(stacks) do
+    if not seen[stack.itemID] then
+      seen[stack.itemID] = true
+      out[#out + 1] = stack
     end
   end
-  for _, itemID in ipairs(D.KeptIDs(GC.db)) do
-    if not held[itemID] then away[#away + 1] = itemID end
-  end
-  if #away == 0 then return end
-  if next(shown) then root:CreateDivider() end
-  root:CreateTitle(text(GC.L["Not in your bags"]))
-  for _, itemID in ipairs(away) do addKept(itemID, nil) end
+  return out
 end
 
--- "GoldCap could not disenchant these": every item the client refused for good, each opening
--- "Try again" (Uncant).
-local function fillCant(root)
+-- A menu line that acts on one click: the item, and what the click does in grey after it.
+local function addAct(root, stack, act, fn)
   local text = GC.Util.ClientText
-  root:CreateTitle(text(GC.L["GoldCap could not disenchant these"]))
-  local held = {}
-  for _, stack in ipairs(DF._kept.cant) do
-    if not held[stack.itemID] then held[stack.itemID] = stack end
-  end
-  for _, itemID in ipairs(D.CantIDs(GC.db)) do
-    local item = root:CreateButton(text(keptLabel(itemID, held[itemID])))
-    item:CreateButton(text(GC.L["Try again"]), function() DF.Uncant(itemID) end)
-  end
+  root:CreateButton(text(keptLabel(stack.itemID, stack) .. "  " .. GC.Util.Colored(K.text3, act)), fn)
 end
 
--- The Kept menu: the kept items ("Never disenchanted", see fillKept) and, after a divider, the
--- refused ones (fillCant), each part only when it has an item.
+--- The Kept menu, of the items the bags hold now (the stored sets keep the others, and an item shows
+--- again once it is back): "Never disenchanted", the kept ones, each line "Disenchant it again"
+--- (Unkeep) on a click; after a divider "GoldCap could not disenchant these", the ones the client
+--- refused, each "Try again" (Uncant). Each part only with an item; scrolling past MENU_ROWS lines
+--- (rootDescription:SetScrollMode, live Blizzard_Menu/Menu.lua:227).
 local function fillKeptMenu(root)
-  local kept, cant = #D.KeptIDs(GC.db) > 0, #D.CantIDs(GC.db) > 0
-  if kept then fillKept(root) end
-  if kept and cant then root:CreateDivider() end
-  if cant then fillCant(root) end
+  local text = GC.Util.ClientText
+  local kept, cant = distinct(DF._kept.list), distinct(DF._kept.cant)
+  if root.SetScrollMode then root:SetScrollMode(DF.MENU_ROWS * DF.MENU_ROW_H) end
+  if #kept > 0 then
+    root:CreateTitle(text(GC.L["Never disenchanted"]))
+    for _, stack in ipairs(kept) do
+      addAct(root, stack, GC.L["Disenchant it again"], function() DF.Unkeep(stack.itemID) end)
+    end
+  end
+  if #kept > 0 and #cant > 0 then root:CreateDivider() end
+  if #cant > 0 then
+    root:CreateTitle(text(GC.L["GoldCap could not disenchant these"]))
+    for _, stack in ipairs(cant) do
+      addAct(root, stack, GC.L["Try again"], function() DF.Uncant(stack.itemID) end)
+    end
+  end
 end
 
-local function showKeptMenu(owner)
+local function openKeptMenu(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return end
   menu.CreateContextMenu(owner, function(_, root) fillKeptMenu(root) end)
-end
-
--- The kept items the bags do not hold, whose names the client may not have: asks it for those it
--- lacks (C_Item.RequestLoadItemDataByID; the answer is ITEM_DATA_LOAD_RESULT) and answers them.
-local function requestAway()
-  local held, pending = {}, {}
-  for _, stack in ipairs(DF._kept.list) do held[stack.itemID] = true end
-  for _, stack in ipairs(DF._kept.cant) do held[stack.itemID] = true end
-  local item = _G.C_Item
-  if type(item) ~= "table" or type(item.RequestLoadItemDataByID) ~= "function" then return pending end
-  for _, ids in ipairs({ D.KeptIDs(GC.db), D.CantIDs(GC.db) }) do
-    for _, itemID in ipairs(ids) do
-      if not held[itemID] and not pending[itemID] and ask(item.IsItemDataCachedByID, itemID) == false then
-        ask(item.RequestLoadItemDataByID, itemID)
-        pending[itemID] = true
-      end
-    end
-  end
-  return pending
-end
-
--- Show: the menu at once when every name is known, else when the client has answered for the ones it
--- lacked (ITEM_DATA_LOAD_RESULT), or after a moment, so a name that never comes shows as its number.
-local function openKeptMenu(owner)
-  local pending = requestAway()
-  if not next(pending) then return showKeptMenu(owner) end
-  local wait = { owner = owner, pending = pending }
-  DF._menuWait = wait
-  -- Not when the menu was asked for again meanwhile (`wait` is no longer the one waiting), nor once
-  -- the window, and the button with it, was closed.
-  local function finish()
-    if DF._menuWait ~= wait then return end
-    DF._menuWait = nil
-    if not (owner.IsVisible and owner:IsVisible()) then return end
-    showKeptMenu(owner)
-  end
-  wait.finish = finish
-  if C_Timer and C_Timer.After then C_Timer.After(DF.NAME_SECONDS, finish) else finish() end
-end
-
--- The client has answered for an item asked for: the menu opens once it has for all.
-local function onItemData(itemID)
-  local wait = DF._menuWait
-  if not wait or not wait.pending[itemID] then return end
-  wait.pending[itemID] = nil
-  if not next(wait.pending) then wait.finish() end
 end
 
 -- A line's clicks: the left one makes its item the next (DF.Choose), the right one keeps it.
@@ -790,20 +738,37 @@ local function tipSide()
   return "right"
 end
 
--- `owner`'s item in `tip`, beside the window and level with `owner`: the bag item itself while its
--- slot still holds it (C_Container's hyperlink matches), so the game and GoldCap draw it as over the
--- bag slot, else its link (an item disenchanted this visit).
-local function fillTip(tip, owner)
+-- How far `a` minus `b`, when both are numbers; 0 else.
+local function gap(a, b)
+  return (type(a) == "number" and type(b) == "number") and a - b or 0
+end
+
+-- `owner`'s item in `tip`, beside the window on the side away from the bags (tipSide), its top
+-- level with `owner`'s: the bag item itself while its slot still holds it (C_Container's hyperlink
+-- matches), so the game and GoldCap draw it as over the bag slot, else its link (an item
+-- disenchanted this visit). The window's own tooltip is pinned to the window (ANCHOR_NONE).
+-- Blizzard's (`game`) is owned with that side's corner anchor, ANCHOR_BOTTOMLEFT (its top right at
+-- the owner's bottom left) or ANCHOR_BOTTOMRIGHT, moved by the offsets to the same place: its
+-- comparison then opens on that side too, as TooltipComparisonManager.lua:91-100 keeps to an
+-- owner's left or right anchor; owned with ANCHOR_NONE it took the side with more room, over the
+-- list (the re-review's S1).
+local function fillTip(tip, owner, game)
   local stack = owner.stack
-  tip:SetOwner(owner, "ANCHOR_NONE")
-  tip:ClearAllPoints()
-  local y = 0
-  local ownerTop, frameTop = owner.GetTop and owner:GetTop(), frame.GetTop and frame:GetTop()
-  if type(ownerTop) == "number" and type(frameTop) == "number" then y = ownerTop - frameTop end
-  if tipSide() == "left" then
-    tip:SetPoint("TOPRIGHT", frame, "TOPLEFT", -8, y)
+  local left = tipSide() == "left"
+  if game then
+    local ownerH = owner.GetHeight and owner:GetHeight() or 0
+    local x = left and gap(frame.GetLeft and frame:GetLeft(), owner.GetLeft and owner:GetLeft()) - 8
+      or gap(frame.GetRight and frame:GetRight(), owner.GetRight and owner:GetRight()) + 8
+    tip:SetOwner(owner, left and "ANCHOR_BOTTOMLEFT" or "ANCHOR_BOTTOMRIGHT", x, ownerH)
   else
-    tip:SetPoint("TOPLEFT", frame, "TOPRIGHT", 8, y)
+    tip:SetOwner(owner, "ANCHOR_NONE")
+    tip:ClearAllPoints()
+    local y = gap(owner.GetTop and owner:GetTop(), frame.GetTop and frame:GetTop())
+    if left then
+      tip:SetPoint("TOPRIGHT", frame, "TOPLEFT", -8, y)
+    else
+      tip:SetPoint("TOPLEFT", frame, "TOPRIGHT", 8, y)
+    end
   end
   local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
   local held = not owner.done and type(info) == "table" and info.hyperlink == stack.link
@@ -829,10 +794,10 @@ local function showItemTip(owner)
   local game = _G.GameTooltip
   if comparing() and type(game) == "table" and game.SetBagItem then
     if DF._tip then DF._tip:Hide() end
-    fillTip(game, owner)
+    fillTip(game, owner, true)
   else
     if type(game) == "table" and game.IsOwned and game:IsOwned(owner) then game:Hide() end
-    fillTip(itemTip(), owner)
+    fillTip(itemTip(), owner, false)
   end
 end
 
@@ -1646,12 +1611,13 @@ end
 -- kept and the button that opens them. Answers its height, 0 with none kept.
 local function paintKept(w, y)
   local kept = frame.kept
-  -- The kept items and the refused ones, each once.
-  local ids = {}
-  for _, id in ipairs(D.KeptIDs(GC.db)) do ids[id] = true end
-  for _, id in ipairs(D.CantIDs(GC.db)) do ids[id] = true end
-  local n = 0
-  for _ in pairs(ids) do n = n + 1 end
+  -- The kept items and the refused ones the bags hold, each once.
+  local ids, n = {}, 0
+  for _, list in ipairs({ DF._kept.list, DF._kept.cant }) do
+    for _, stack in ipairs(list) do
+      if not ids[stack.itemID] then ids[stack.itemID], n = true, n + 1 end
+    end
+  end
   kept.text:SetShown(n > 0)
   kept.show:SetShown(n > 0)
   if n == 0 then return 0 end
@@ -1829,7 +1795,6 @@ end
 --- Closes the window, its button pointed at nothing. Out of combat only (onCloseClick, Toggle).
 function DF.Close()
   setArmed(nil)
-  DF._menuWait = nil
   hideItemTip()
   if frame then frame:Hide() end
 end
@@ -2080,7 +2045,6 @@ function DF.OnEvent(event, ...)
     if ours(unit, spellID) then onCastFailed(castGUID) end
   elseif event == "ITEM_DATA_LOAD_RESULT" then
     local itemID, loaded = ...
-    onItemData(itemID)
     -- A material the prices asked the client about: priced on the next paint. One that failed to
     -- load stays asked, so it is not asked again on every paint.
     if loaded and bindAsked[itemID] and bindOf[itemID] == nil then
