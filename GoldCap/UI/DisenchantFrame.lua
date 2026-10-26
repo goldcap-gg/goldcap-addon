@@ -1231,9 +1231,9 @@ end
 
 -- The Disenchant button's look: "ready" (the gradient and dark words), "casting" (the fill at 22% and
 -- light purple words) or "idle", nothing to press: the kit's disabled look (UI/Kit/Button.lua's
--- OnDisable: the fill at DIM of its alpha, grey words, no wash under the cursor), by its textures
--- alone, never Disable(): the button is secure, and its look changes only in a paint, out of combat.
--- As wide as `width`, its icon and word centred.
+-- OnDisable: the fill at DIM of its alpha, grey words, no wash under the cursor), and no pressed
+-- shade, by its textures alone, never Disable(): the button is secure, and its look changes only in
+-- a paint, out of combat. As wide as `width`, its icon and word centred.
 local function paintCast(look, width)
   local b = frame.card.cast
   local low, high = FILL_BOTTOM, FILL_TOP
@@ -1248,6 +1248,8 @@ local function paintCast(look, width)
   colour(b.text, c)
   b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5)
   b.wash:SetShown(look ~= "idle")
+  -- The engine still shows an enabled button's pushed texture under a click: none while idle.
+  b.held:SetAlpha(look == "idle" and 0 or 1)
   b:SetSize(width, M.BUTTON_H)
   local textW = math.ceil(b.text:GetStringWidth() or 0)
   local x = math.max(M.BUTTON_PAD, math.floor((width - M.BUTTON_ICON - 6 - textW) / 2))
@@ -1836,6 +1838,25 @@ local function paintPill()
   entry.count:SetPoint("CENTER", entry.pill, "CENTER", 0, 0)
 end
 
+-- Stands the entry above the top right of the highest bag that shows. A full column of separate
+-- bags reaches the screen's top (UpdateContainerFrameAnchors, ContainerFrame.lua:1212-1240, subtracts
+-- frame heights only), and there the clamp would push it down onto that bag's close button: with no
+-- room above, it stands left of the bag's top left instead (the re-review's N1).
+local function anchorEntry()
+  local bag = topBag()
+  local top = bag.GetTop and bag:GetTop()
+  local scale = bag.GetEffectiveScale and bag:GetEffectiveScale()
+  local ui = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+  local screen = UIParent.GetHeight and UIParent:GetHeight()
+  entry:ClearAllPoints()
+  if type(top) == "number" and type(scale) == "number" and type(ui) == "number" and ui > 0
+    and type(screen) == "number" and screen > 0 and top * scale / ui + M.ENTRY_GAP + M.ENTRY > screen then
+    entry:SetPoint("TOPRIGHT", bag, "TOPLEFT", -M.ENTRY_GAP, 0)
+  else
+    entry:SetPoint("BOTTOMRIGHT", bag, "TOPRIGHT", 0, M.ENTRY_GAP)
+  end
+end
+
 -- The entry above the top right of the highest bag that shows, with its count; shown whenever
 -- Blizzard's bags are open for a character that knows Disenchant (the owner, 2026-10-26 23:21),
 -- hidden with them closed. `bags`: an open bag frame, or nil.
@@ -1845,8 +1866,7 @@ local function paintEntry(bags)
     return
   end
   if not entry then buildEntry() end
-  entry:ClearAllPoints()
-  entry:SetPoint("BOTTOMRIGHT", topBag(), "TOPRIGHT", 0, M.ENTRY_GAP)
+  anchorEntry()
   paintPill()
   local wasUp = entry:IsShown()
   entry:Show()
@@ -1917,8 +1937,7 @@ local function holdEntry()
   paintMarks(bagFrame())
   if not entry then return end
   if bagFrame() then
-    entry:ClearAllPoints()
-    entry:SetPoint("BOTTOMRIGHT", topBag(), "TOPRIGHT", 0, M.ENTRY_GAP)
+    anchorEntry()
     paintPill()
     local wasUp = entry:IsShown()
     entry:Show()

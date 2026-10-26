@@ -1159,6 +1159,9 @@ describe("Disenchant window", function()
     b = button()
     assert.same(rgb(K.text3), rgb(W.state(b.text).color))
     assert.is_false(b.wash:IsShown())
+    -- No pressed shade under a click either (the re-review's N4): the engine still shows the pushed
+    -- texture of an enabled button.
+    assert.equal(0, W.state(b.held).alpha)
     assert.is_true(b:IsEnabled())
     assert.is_false(DF._frame.card.skip:IsEnabled())
     put(gear(0, 1, 501))
@@ -1166,6 +1169,7 @@ describe("Disenchant window", function()
     nextFrame()
     assert.are_not.same(rgb(K.text3), rgb(W.state(b.text).color))
     assert.is_true(b.wash:IsShown())
+    assert.equal(1, W.state(b.held).alpha)
     assert.is_true(b:IsEnabled())
     assert.is_true(DF._frame.card.skip:IsEnabled())
   end)
@@ -1803,6 +1807,34 @@ describe("Disenchant window", function()
     W.state(second).hooks.OnHide(second)
     nextFrame()
     assert.same({ "BOTTOMRIGHT", backpack, "TOPRIGHT", 0, 4 }, at(DF._entry))
+  end)
+
+  -- A full column of separate bags reaches the screen's top (UpdateContainerFrameAnchors,
+  -- ContainerFrame.lua:1212-1240, subtracts frame heights only): with no room above the highest bag
+  -- the clamp would push the entry onto its close button, so it stands left of that bag's top left
+  -- (the re-review's N1); in combat too.
+  it("stands the entry left of the highest bag when the screen leaves no room above it", function()
+    screen(1920, 1080)
+    local backpack, second = _G.ContainerFrame1, _G.ContainerFrame2
+    standAt(backpack, 1500, 700)
+    standAt(second, 1500, 1060)
+    put(gear(0, 1, 501))
+    backpack:Show()
+    second:Show()
+    W.state(second).hooks.OnShow(second)
+    nextFrame()
+    assert.is_true(entryUp())
+    assert.same({ "TOPRIGHT", second, "TOPLEFT", -4, 0 }, at(DF._entry))
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    second:Hide()
+    W.state(second).hooks.OnHide(second)
+    nextFrame()
+    assert.same({ "BOTTOMRIGHT", backpack, "TOPRIGHT", 0, 4 }, at(DF._entry))
+    second:Show()
+    W.state(second).hooks.OnShow(second)
+    nextFrame()
+    assert.same({ "TOPRIGHT", second, "TOPLEFT", -4, 0 }, at(DF._entry))
   end)
 
   -- Sixteen and more items: the window keeps to about 85% of the screen's height, "In this order"
