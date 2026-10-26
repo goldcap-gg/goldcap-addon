@@ -1695,4 +1695,32 @@ GC.Locales.deDE = {
   ["Postage is %s and this character has %s."] = "Das Porto beträgt %s, dieser Charakter hat %s.",
   ["Your other characters show here once each has logged in with GoldCap."] =
     "Deine anderen Charaktere erscheinen hier, sobald sich jeder einmal mit GoldCap eingeloggt hat.",
+  ["Disenchant"] = "Entzaubern",
+  ["Disenchant next"] = "Nächsten Gegenstand entzaubern",
+  ["Now"] = "Jetzt",
+  ["Mats pay more: about %s against %s from a vendor."] =
+    "Das Material bringt mehr: etwa %s gegenüber %s beim Händler.",
+  ["A vendor pays more: %s against about %s in mats."] = "Der Händler zahlt mehr: %s gegenüber etwa %s an Material.",
+  ["GoldCap learns what this gives the first time."] = "GoldCap lernt beim ersten Mal, was das ergibt.",
+  ["GoldCap has no price yet for what this gives."] = "GoldCap hat noch keinen Preis für das, was das ergibt.",
+  ["The auction house pays more: %s after its cut."] = "Das Auktionshaus zahlt mehr: %s nach seiner Gebühr.",
+  ["Disenchanting"] = "Wird entzaubert",
+  ["One press, one item. A key works too: %s, GoldCap, %s."] =
+    "Ein Druck, ein Gegenstand. Eine Taste geht auch: %s, GoldCap, %s.",
+  ["You get about"] = "Du bekommst etwa",
+  ["Got so far"] = "Bisher bekommen",
+  ["GoldCap learns what these give as you disenchant."] = "GoldCap lernt beim Entzaubern, was diese ergeben.",
+  ["In this order"] = "In dieser Reihenfolge",
+  ["Mats"] = "Material",
+  ["Never disenchant this"] = "Nie entzaubern",
+  ["Left out: the auction house pays more"] = "Ausgelassen: Das Auktionshaus zahlt mehr",
+  ["Mats: about %s"] = "Material: etwa %s",
+  ["Disenchant anyway"] = "Trotzdem entzaubern",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
+    "Material ist, was deine eigenen Entzauberungen solcher Gegenstände ergaben, zu heutigen Preisen. Nie auf der Liste: Gegenstände in einem Ausrüstungsset, Gegenstände, die du noch zurückgeben oder handeln kannst, Gegenstände in einer Gruppe, der du folgst, und Gegenstände, die du behältst. Rechtsklick auf eine Zeile behält den Gegenstand.",
+  ["GoldCap Disenchant, 1 item"] = "GoldCap Entzaubern, 1 Gegenstand",
+  ["GoldCap Disenchant, %d items"] = "GoldCap Entzaubern, %d Gegenstände",
+  ["Nothing in your bags to disenchant."] = "Nichts in deinen Taschen zum Entzaubern.",
+  ["This character does not know Disenchant."] = "Dieser Charakter beherrscht Entzaubern nicht.",
+  ["item level %d"] = "Gegenstandsstufe %d",
 }

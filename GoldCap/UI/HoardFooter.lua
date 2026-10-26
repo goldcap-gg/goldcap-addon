@@ -139,6 +139,9 @@ local function pricesNow()
   return pricesText(origin, age), known and age < HFF.FRESH_SECONDS or false
 end
 
+-- The Disenchant window's footer (UI/DisenchantFrame.lua) says the same line under the same dot.
+HFF.PricesNow = pricesNow
+
 -- Every line the price line can say in this visit: each source at each widest age, and none.
 local function pricesVariants(text)
   local out = { text, pricesText("none") }

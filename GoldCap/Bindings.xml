@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  The posting queue's keybinding.
+  GoldCap's keybindings: the posting queue's, and the Disenchant window's.
 
   Auto-loaded by the client, deliberately NOT listed in GoldCap.toc, which is how a
   Bindings.xml file is meant to be shipped.
@@ -22,11 +22,21 @@
   comment. Writing one the way Lua starts a comment makes the whole file fail to parse with
   "not well-formed (invalid token)", the keybinding silently never registers, and the client
   throws a Lua Warning on load. spec/bindings_xml_spec.lua now fails the build for it.
+
+  Disenchant next (UI/DisenchantFrame.lua) is a CLICK binding: the client hands the key to the
+  secure button GoldCapDisenchantNext as clicks of its left button, so the cast is the button's
+  own (its template's OnClick) and no code of ours runs here; its body stays empty. The button
+  acts on the key's release only (useOnKeyDown false, RegisterForClicks LeftButtonUp), so one
+  key press is one disenchant. Its label is BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton,
+  set in the player's language at PLAYER_LOGIN. It has no header of its own: a header opens a
+  group and the bindings after it stand under it, as Blizzard_Commentator/Bindings.xml writes it.
 -->
 <Bindings>
   <Binding name="GOLDCAP_POST_NEXT" header="GOLDCAP">
     if GoldCapSniperFrame and GoldCapSniperFrame.GoldCapPostNext then
       GoldCapSniperFrame.GoldCapPostNext()
     end
+  </Binding>
+  <Binding name="CLICK GoldCapDisenchantNext:LeftButton">
   </Binding>
 </Bindings>

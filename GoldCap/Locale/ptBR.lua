@@ -1690,4 +1690,32 @@ GC.Locales.ptBR = {
   ["Postage is %s and this character has %s."] = "A postagem é de %s e este personagem tem %s.",
   ["Your other characters show here once each has logged in with GoldCap."] =
     "Seus outros personagens aparecem aqui depois que cada um entrar no jogo com o GoldCap.",
+  ["Disenchant"] = "Desencantar",
+  ["Disenchant next"] = "Desencantar o próximo",
+  ["Now"] = "Agora",
+  ["Mats pay more: about %s against %s from a vendor."] =
+    "Os materiais rendem mais: cerca de %s contra %s do vendedor.",
+  ["A vendor pays more: %s against about %s in mats."] = "O vendedor paga mais: %s contra cerca de %s em materiais.",
+  ["GoldCap learns what this gives the first time."] = "O GoldCap aprende na primeira vez o que isto dá.",
+  ["GoldCap has no price yet for what this gives."] = "O GoldCap ainda não tem preço para o que isto dá.",
+  ["The auction house pays more: %s after its cut."] = "A casa de leilões paga mais: %s depois da taxa.",
+  ["Disenchanting"] = "Desencantando",
+  ["One press, one item. A key works too: %s, GoldCap, %s."] =
+    "Um clique, um item. Uma tecla também serve: %s, GoldCap, %s.",
+  ["You get about"] = "Você recebe cerca de",
+  ["Got so far"] = "Obtido até agora",
+  ["GoldCap learns what these give as you disenchant."] = "O GoldCap aprende o que eles dão enquanto você desencanta.",
+  ["In this order"] = "Nesta ordem",
+  ["Mats"] = "Materiais",
+  ["Never disenchant this"] = "Nunca desencantar",
+  ["Left out: the auction house pays more"] = "Fora da lista: a casa de leilões paga mais",
+  ["Mats: about %s"] = "Materiais: cerca de %s",
+  ["Disenchant anyway"] = "Desencantar mesmo assim",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
+    "Materiais é o que seus próprios desencantamentos de itens assim deram, a preços de hoje. Nunca na lista: itens de um conjunto de equipamento, itens que você ainda pode devolver ou negociar, itens de um grupo que você segue e itens que você guarda. Clique com o botão direito numa linha para guardar o item.",
+  ["GoldCap Disenchant, 1 item"] = "GoldCap Desencantar, 1 item",
+  ["GoldCap Disenchant, %d items"] = "GoldCap Desencantar, %d itens",
+  ["Nothing in your bags to disenchant."] = "Nada para desencantar nas suas bolsas.",
+  ["This character does not know Disenchant."] = "Este personagem não conhece Desencantar.",
+  ["item level %d"] = "nível de item %d",
 }

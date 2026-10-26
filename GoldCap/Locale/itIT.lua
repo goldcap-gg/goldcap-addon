@@ -1692,4 +1692,32 @@ GC.Locales.itIT = {
   ["Postage is %s and this character has %s."] = "L'affrancatura è di %s e questo personaggio ha %s.",
   ["Your other characters show here once each has logged in with GoldCap."] =
     "Gli altri tuoi personaggi compaiono qui dopo che ognuno ha effettuato l'accesso con GoldCap.",
+  ["Disenchant"] = "Disincantare",
+  ["Disenchant next"] = "Disincanta il prossimo",
+  ["Now"] = "Ora",
+  ["Mats pay more: about %s against %s from a vendor."] =
+    "I materiali rendono di più: circa %s contro %s dal venditore.",
+  ["A vendor pays more: %s against about %s in mats."] = "Il venditore paga di più: %s contro circa %s in materiali.",
+  ["GoldCap learns what this gives the first time."] = "GoldCap impara la prima volta cosa dà.",
+  ["GoldCap has no price yet for what this gives."] = "GoldCap non ha ancora un prezzo per ciò che dà.",
+  ["The auction house pays more: %s after its cut."] = "La casa d'aste paga di più: %s al netto della commissione.",
+  ["Disenchanting"] = "Disincanto in corso",
+  ["One press, one item. A key works too: %s, GoldCap, %s."] =
+    "Un clic, un oggetto. Va bene anche un tasto: %s, GoldCap, %s.",
+  ["You get about"] = "Ottieni circa",
+  ["Got so far"] = "Ottenuto finora",
+  ["GoldCap learns what these give as you disenchant."] = "GoldCap impara cosa danno mentre disincanti.",
+  ["In this order"] = "In quest'ordine",
+  ["Mats"] = "Materiali",
+  ["Never disenchant this"] = "Non disincantare mai",
+  ["Left out: the auction house pays more"] = "Esclusi: la casa d'aste paga di più",
+  ["Mats: about %s"] = "Materiali: circa %s",
+  ["Disenchant anyway"] = "Disincanta comunque",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
+    "Materiali è ciò che hanno dato i tuoi disincantamenti di oggetti simili, ai prezzi di oggi. Mai nella lista: oggetti di un set di equipaggiamento, oggetti che puoi ancora rendere o scambiare, oggetti di un gruppo che segui e oggetti che tieni. Clic destro su una riga per tenere l'oggetto.",
+  ["GoldCap Disenchant, 1 item"] = "GoldCap Disincantare, 1 oggetto",
+  ["GoldCap Disenchant, %d items"] = "GoldCap Disincantare, %d oggetti",
+  ["Nothing in your bags to disenchant."] = "Niente da disincantare nelle tue borse.",
+  ["This character does not know Disenchant."] = "Questo personaggio non conosce Disincantare.",
+  ["item level %d"] = "livello oggetto %d",
 }

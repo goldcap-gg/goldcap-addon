@@ -1697,4 +1697,33 @@ GC.Locales.frFR = {
   ["Postage is %s and this character has %s."] = "Les frais de port sont de %s et ce personnage a %s.",
   ["Your other characters show here once each has logged in with GoldCap."] =
     "Tes autres personnages apparaissent ici dès que chacun s'est connecté avec GoldCap.",
+  ["Disenchant"] = "Désenchanter",
+  ["Disenchant next"] = "Désenchanter le suivant",
+  ["Now"] = "En cours",
+  ["Mats pay more: about %s against %s from a vendor."] =
+    "Les compos rapportent plus : environ %s contre %s chez un marchand.",
+  ["A vendor pays more: %s against about %s in mats."] = "Un marchand paie plus : %s contre environ %s en compos.",
+  ["GoldCap learns what this gives the first time."] = "GoldCap apprend la première fois ce que cela donne.",
+  ["GoldCap has no price yet for what this gives."] = "GoldCap n'a pas encore de prix pour ce que cela donne.",
+  ["The auction house pays more: %s after its cut."] = "L'hôtel des ventes paie plus : %s après sa commission.",
+  ["Disenchanting"] = "Désenchantement",
+  ["One press, one item. A key works too: %s, GoldCap, %s."] =
+    "Un clic, un objet. Une touche marche aussi : %s, GoldCap, %s.",
+  ["You get about"] = "Tu obtiens environ",
+  ["Got so far"] = "Obtenu jusqu'ici",
+  ["GoldCap learns what these give as you disenchant."] =
+    "GoldCap apprend ce qu'ils donnent au fil de tes désenchantements.",
+  ["In this order"] = "Dans cet ordre",
+  ["Mats"] = "Compos",
+  ["Never disenchant this"] = "Ne jamais désenchanter",
+  ["Left out: the auction house pays more"] = "Écartés : l'hôtel des ventes paie plus",
+  ["Mats: about %s"] = "Compos : environ %s",
+  ["Disenchant anyway"] = "Désenchanter quand même",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
+    "Compos, c'est ce que tes propres désenchantements de tels objets ont donné, aux prix du jour. Jamais dans la liste : les objets d'un ensemble d'équipement, ceux que tu peux encore rendre ou échanger, ceux d'un groupe que tu suis et ceux que tu gardes. Clic droit sur une ligne pour garder l'objet.",
+  ["GoldCap Disenchant, 1 item"] = "GoldCap Désenchanter, 1 objet",
+  ["GoldCap Disenchant, %d items"] = "GoldCap Désenchanter, %d objets",
+  ["Nothing in your bags to disenchant."] = "Rien à désenchanter dans tes sacs.",
+  ["This character does not know Disenchant."] = "Ce personnage ne connaît pas Désenchanter.",
+  ["item level %d"] = "niveau d'objet %d",
 }

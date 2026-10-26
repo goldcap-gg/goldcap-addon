@@ -46,15 +46,41 @@ describe("Bindings.xml", function()
     end
   end)
 
-  it("declares at least one binding, with a name and a header", function()
+  -- A header opens a group in the client's Keybindings list and the bindings after it stand under
+  -- it until the next header, as Blizzard's own files write it (live
+  -- Blizzard_Commentator/Bindings.xml:7-10: COMMENTATORMOVESPEEDINCREASE carries
+  -- header="COMMENTATORCAMERA", the bindings after it none). So the first binding names GOLDCAP's
+  -- header and every binding has a name.
+  it("declares at least one binding, each with a name, the first under GoldCap's header", function()
     local text = source()
     local found = 0
     for attrs in text:gmatch("<Binding%s([^>]*)>") do
       assert.is_not_nil(attrs:find('name="'), "a Binding has no name attribute")
-      assert.is_not_nil(attrs:find('header="'), "a Binding has no header attribute")
       found = found + 1
+      if found == 1 then
+        assert.is_not_nil(attrs:find('header="GOLDCAP"', 1, true), "the first Binding opens no GOLDCAP header")
+      end
     end
     assert.is_true(found > 0, "Bindings.xml declares no bindings at all")
+  end)
+
+  -- The Disenchant window's key: a CLICK binding, which hands the key to the secure button itself
+  -- (its press and release as clicks), so the cast is the button's own and no Lua of ours runs in
+  -- the binding. Its body stays empty, and UI/DisenchantFrame.lua must create the button by that
+  -- global name, or the binding points at nothing.
+  it("binds a key to the Disenchant button by a CLICK binding with no code of its own", function()
+    local text = source()
+    local body = text:match('<Binding%s+name="CLICK GoldCapDisenchantNext:LeftButton"%s*>(.-)</Binding>')
+    assert.is_not_nil(body, "Bindings.xml has no CLICK GoldCapDisenchantNext:LeftButton binding")
+    assert.is_nil(body:find("%S"), "the CLICK binding carries code: the click is the button's own")
+
+    local file = assert(io.open("GoldCap/UI/DisenchantFrame.lua", "r"))
+    local lua = file:read("*a")
+    file:close()
+    assert.is_not_nil(lua:find('DF.BUTTON = "GoldCapDisenchantNext"', 1, true),
+      "UI/DisenchantFrame.lua does not name its button GoldCapDisenchantNext")
+    assert.is_not_nil(lua:find('CreateFrame("Button", DF.BUTTON, card, "SecureActionButtonTemplate")', 1, true),
+      "UI/DisenchantFrame.lua does not create GoldCapDisenchantNext from SecureActionButtonTemplate")
   end)
 
   -- The design forbids reaching the post through Button:Click(), which would carry this chunk's

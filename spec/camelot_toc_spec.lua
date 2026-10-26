@@ -66,6 +66,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   RETAIL_ONLY["UI/HoardFooter.lua"] = true
   -- Send to alts beside the mailbox: retail only, as the Hoard it is built from.
   RETAIL_ONLY["UI/MailAltsFrame.lua"] = true
+  -- The Disenchant window beside the bags: retail only, as the Hoard it is drawn with.
+  RETAIL_ONLY["UI/DisenchantFrame.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

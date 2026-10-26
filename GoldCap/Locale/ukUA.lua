@@ -1763,4 +1763,32 @@ GC.Locales.ukUA = {
   ["Postage is %s and this character has %s."] = "Вартість пересилання: %s, а в цього персонажа %s.",
   ["Your other characters show here once each has logged in with GoldCap."] =
     "Інші ваші персонажі з'являться тут, коли кожен із них зайде в гру з GoldCap.",
+  ["Disenchant"] = "Розпилення",
+  ["Disenchant next"] = "Розпилити наступний",
+  ["Now"] = "Зараз",
+  ["Mats pay more: about %s against %s from a vendor."] = "Матеріали вигідніші: близько %s проти %s у торговця.",
+  ["A vendor pays more: %s against about %s in mats."] =
+    "Торговець платить більше: %s проти приблизно %s за матеріали.",
+  ["GoldCap learns what this gives the first time."] = "GoldCap дізнається, що це дає, з першого разу.",
+  ["GoldCap has no price yet for what this gives."] = "У GoldCap ще немає ціни на те, що це дає.",
+  ["The auction house pays more: %s after its cut."] = "Аукціон платить більше: %s після комісії.",
+  ["Disenchanting"] = "Розпилюється",
+  ["One press, one item. A key works too: %s, GoldCap, %s."] =
+    "Одне натискання, один предмет. Можна й клавішею: %s, GoldCap, %s.",
+  ["You get about"] = "Ви отримаєте приблизно",
+  ["Got so far"] = "Уже отримано",
+  ["GoldCap learns what these give as you disenchant."] = "GoldCap дізнається, що вони дають, під час розпилення.",
+  ["In this order"] = "У такому порядку",
+  ["Mats"] = "Матеріали",
+  ["Never disenchant this"] = "Ніколи не розпилювати",
+  ["Left out: the auction house pays more"] = "Пропущено: аукціон платить більше",
+  ["Mats: about %s"] = "Матеріали: близько %s",
+  ["Disenchant anyway"] = "Однаково розпилити",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
+    "Матеріали: що дало вам розпилення таких предметів, за сьогоднішніми цінами. Ніколи не потрапляють до списку: предмети з комплекту спорядження, предмети, які ще можна повернути чи передати, предмети з групи, на яку ви підписані, і предмети, які ви залишаєте. Правий клік по рядку залишить предмет.",
+  ["GoldCap Disenchant, 1 item"] = "GoldCap Розпилення, 1 предмет",
+  ["GoldCap Disenchant, %d items"] = "GoldCap Розпилення, предметів: %d",
+  ["Nothing in your bags to disenchant."] = "У сумках нічого розпилювати.",
+  ["This character does not know Disenchant."] = "Цей персонаж не володіє Розпиленням.",
+  ["item level %d"] = "рівень предмета %d",
 }
