@@ -1706,7 +1706,7 @@ GC.Locales.ruRU = {
     "На доске предметов Авто раз за разом проверяет предметы, за которыми следит эта доска. Переключитесь на товары, и оно снова будет сканировать рынок товаров.",
   ["Craft %d"] = "Скрафтить %d",
   ["Crafting"] = "Идёт крафт",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap крафтит %s. Дождитесь, пока закончит.",
+  ["Crafting %s now. Wait for it to finish."] = "Идёт крафт: %s. Дождитесь, пока он закончится.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Скрафтит %d сейчас, одно за другим, из тех реагентов, что взяло бы окно профессии. Движение прерывает крафт.",
   ["Open %s to craft it here."] = "Откройте %s, чтобы скрафтить здесь.",

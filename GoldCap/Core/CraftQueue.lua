@@ -261,14 +261,16 @@ end
 
 --- What `missing` (Missing's rows) costs to buy: for each row of items, the item BuyLines buys at
 --- the price BUY pays (`vendorOf`'s when a vendor sells it, else `unitOf`'s) times what is missing.
---- Returns costs, total, unpriced: `costs[k]` copper for row k, nil for a row with no price or a
---- currency row; `total` the sum of those; `unpriced` how many rows of items have no price (a
---- currency is not sold on the auction house and is not counted).
+--- Returns costs, total, unpriced, items: `costs[k]` copper for row k, nil for a row with no price
+--- or a currency row; `total` the sum of those; `unpriced` how many rows of items have no price (a
+--- currency is not sold on the auction house and is not counted); `items[k]` the item BuyLines buys
+--- for row k, priced or not, nil for a currency row.
 function Q.MissingCost(missing, unitOf, vendorOf)
-  local costs, total, unpriced = {}, 0, 0
+  local costs, total, unpriced, items = {}, 0, 0, {}
   for k, row in ipairs(type(missing) == "table" and missing or {}) do
     if not row.currency and type(row.ids) == "table" and row.ids[1] then
       local i = chosen(row.ids, unitOf)
+      items[k] = i
       local vu = vendorOf and tonumber(vendorOf(i)) or nil
       local unit = vu and vu > 0 and vu or (unitOf and tonumber(unitOf(i)))
       if unit then
@@ -279,7 +281,7 @@ function Q.MissingCost(missing, unitOf, vendorOf)
       end
     end
   end
-  return costs, total, unpriced
+  return costs, total, unpriced, items
 end
 
 --- The code of this character's craft queue BUY list, or nil (none yet, or a newer store).

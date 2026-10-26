@@ -1643,7 +1643,7 @@ GC.Locales.esMX = {
     "En la lista de objetos, Auto sigue revisando los objetos que vigila, ronda tras ronda. Cambia a Materiales y vuelve a escanear el mercado de materiales.",
   ["Craft %d"] = "Fabricar %d",
   ["Crafting"] = "Fabricando",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap está fabricando %s. Espera a que termine.",
+  ["Crafting %s now. Wait for it to finish."] = "Se está fabricando %s. Espera a que termine.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Fabrica %d ahora, uno tras otro, con los componentes que usaría la ventana de profesión. Moverte lo detiene.",
   ["Open %s to craft it here."] = "Abre %s para fabricarlo aquí.",

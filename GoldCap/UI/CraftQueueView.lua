@@ -8,9 +8,9 @@ local _, GC = ...
 --   its Craft button, which crafts what the reagents allow of what is left in one press (newLine).
 --   Dimmed, the line says why under its bar. While the client crafts a queued recipe (a run of
 --   them, from this button or Blizzard's own), that line is busy: gold, "Crafting", what the run
---   has made and has left; every other line's Craft waits. A click on a line opens its recipe in
---   Blizzard's window, a right click offers the queue. A craft from Blizzard's own button takes one
---   off a counted line all the same (UNIT_SPELLCAST_SUCCEEDED);
+--   has made and has left; while it crafts any recipe, every other line's Craft waits. A click on
+--   a line opens its recipe in Blizzard's window, a right click offers the queue. A craft from
+--   Blizzard's own button takes one off a counted line all the same (UNIT_SPELLCAST_SUCCEEDED);
 -- - Missing: what the reagents the queue is short of cost to buy, a cell per reagent with what is
 --   still to get into the bags, what of it waits in the mailbox and what the rest costs; a currency
 --   named as not sold on the auction house; and Make a BUY list, which writes what the queue needs
@@ -71,9 +71,10 @@ end
 
 local function textWidth(fs) return GC.CraftPanel.ui.textWidth(fs) end
 
-local function after(fn)
+-- `fn` once `seconds` have passed (the next frame for 0), or now on a client without timers.
+local function after(fn, seconds)
   local timer = _G.C_Timer
-  if type(timer) == "table" and type(timer.After) == "function" then timer.After(0, fn) else fn() end
+  if type(timer) == "table" and type(timer.After) == "function" then timer.After(seconds or 0, fn) else fn() end
 end
 
 -- How many of an item `char` holds, its mailbox included (Services/CraftClient.lua's CountOf), for
@@ -84,22 +85,23 @@ local function counter(char)
 end
 
 -- What the queue needs that waits in the mailbox (Core/MailStock.lua, retail only), one row per
--- reagent ({ ids, n }, `ids` the need's own): held, so not missing, but Blizzard's Create takes
--- reagents from the bags and the banks alone. `n` is what the bags and the banks do not cover of
--- the need.
+-- reagent ({ ids, n, itemID }, `ids` the need's own): held, so not missing, but Blizzard's Create
+-- takes reagents from the bags and the banks alone. `n` is what the bags and the banks do not
+-- cover of the need, `itemID` the quality the mailbox holds most of.
 local function inMailbox(needs, char, countOf)
   local stock = GC.MailStock
   local out = {}
   if not stock then return out end
   for _, row in ipairs(needs) do
-    local mail, held = 0, 0
+    local mail, held, itemID, most = 0, 0, nil, 0
     for _, id in ipairs(row.ids or {}) do
       local m = stock.Count(char, id)
       mail = mail + m
       held = held + countOf(id) - m
+      if m > most then itemID, most = id, m end
     end
     local n = math.min(mail, row.q - held)
-    if n > 0 then out[#out + 1] = { ids = row.ids, n = n } end
+    if n > 0 then out[#out + 1] = { ids = row.ids, n = n, itemID = itemID } end
   end
   return out
 end
@@ -216,28 +218,19 @@ end
 -- A running craft
 -- ---------------------------------------------------------------------------------------------
 
--- The run of crafts the client is making (CraftClient.Repeating) as this view counts it: its recipe
--- and how many casts it is. The client says only how many are left, so a run is as long as the most
--- this view saw left of it: all of it when the view saw it begin (TRADE_SKILL_CRAFT_BEGIN repaints
--- it), what was left when it first saw it otherwise. Forgotten where CraftClient ends a run
--- (QV.OnEvent), so a run that ended while the view was away is not taken for the next one.
-local run
-
--- What is being crafted, when it is a queued recipe: { busy = recipeID, name, left, count }, the
--- casts left (this one included) and the run's length. An empty table otherwise.
+-- What the client is crafting (CraftClient.Repeating, which counts the run whether or not this view
+-- is on screen, and takes a press of Craft for crafting until the client begins it): { running =
+-- recipeID, name, left, count }, the casts left (this one included) and the run's length, with
+-- `busy` the same recipe when it is queued. An empty table when nothing is.
 local function runOf(rows)
-  local id, left = GC.CraftClient.Repeating()
-  if not id then
-    run = nil
-    return {}
-  end
-  if not (run and run.recipeID == id) then run = { recipeID = id, count = left } end
-  run.count = math.max(run.count, left)
+  local CC = GC.CraftClient
+  local id, left, count = CC.Repeating()
+  if not id then return {} end
   for _, row in ipairs(rows) do
     local recipe = row.entry.recipe
-    if recipe.recipeID == id then return { busy = id, name = recipe.name, left = left, count = run.count } end
+    if recipe.recipeID == id then return { running = id, busy = id, name = recipe.name, left = left, count = count } end
   end
-  return {}
+  return { running = id, name = CC.RecipeName(id), left = left, count = count }
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -277,10 +270,13 @@ local function newLine(v)
   -- Craft: what the reagents allow of what is left, in one press. CraftRecipe with a count crafts
   -- that many one after another, and only from the player's own press: from a timer the client
   -- blocks it (probe A2 and A4, retail 12.1.5, 2026-10-26). So the press is the call, with nothing
-  -- before it but reading what the line was painted with, and nothing after: each finished cast
-  -- takes one off the line (QV.OnEvent), and the run's own events paint the line busy. The reagents
-  -- are the ones Blizzard's own Create would use (an empty list, as the probe crafted with). A busy
-  -- line's button and a dimmed one carry no count, so a press of them calls nothing.
+  -- before it but reading what the line was painted with. After it, bookkeeping only: the line
+  -- drops its count, so a second press before the next paint calls nothing, and CraftClient takes
+  -- the recipe for crafting until the client begins it (CC.Started), so the line paints busy from
+  -- the next frame and repaints when that hold lapses. Each finished cast takes one off the line
+  -- (QV.OnEvent). The reagents are the ones Blizzard's own Create would use (an empty list, as the
+  -- probe crafted with). A busy line's button and a dimmed one carry no count, so a press of them
+  -- calls nothing. The press never disables the button: the busy look keeps it enabled.
   line.craft = T.Button(frame, "ghost", "badge")
   line.craft:SetGlow(false)
   line.craft:SetUppercase(true)
@@ -290,6 +286,10 @@ local function newLine(v)
     local e, n = line.entry, line.craftCount
     if not (e and n) then return end
     C_TradeSkillUI.CraftRecipe(e.recipe.recipeID, n, {}, nil, nil, false)
+    line.craftCount = nil
+    GC.CraftClient.Started(e.recipe.recipeID, n)
+    QV.Queue()
+    after(QV.Queue, GC.CraftClient.PENDING)
   end)
   -- A disabled button says why on hover: the client sends a disabled button no hover otherwise.
   if line.craft.SetMotionScriptsWhileDisabled then line.craft:SetMotionScriptsWhileDisabled(true) end
@@ -319,18 +319,19 @@ end
 
 -- The line's Craft button, by its state:
 -- - busy while the client crafts the line's recipe: "Crafting", ringed in gold, saying on hover that
---   GoldCap crafts it;
+--   it is being crafted;
 -- - hidden with nothing left to craft;
 -- - live with how many a press makes, the fewer of what is left and what the reagents allow;
 -- - dimmed with what is left, saying why on hover: the window is on another profession or the
---   reagents do not make one (the reason the line says under its bar too), or another line is busy.
+--   reagents do not make one (the reason the line says under its bar too), or the client is
+--   crafting another recipe, queued or not (a press would reach it mid-cast).
 -- Enabled before its variant is set and disabled after: a button already dim keeps its dim words.
 -- Answers that reason, or nil, and how many the reagents allow.
 local function paintCraft(line, row, ctx)
   local CC = GC.CraftClient
   local b = line.craft
   local recipeID = row.entry.recipe.recipeID
-  local busyWhy = ctx.busy and GC.L["GoldCap is crafting %s. Wait for it to finish."]:format(ctx.name)
+  local busyWhy = ctx.running and GC.L["Crafting %s now. Wait for it to finish."]:format(ctx.name)
   line.craftCount, line.craftWhy = nil, nil
   if recipeID == ctx.busy then
     line.craftWhy = busyWhy
@@ -373,7 +374,7 @@ end
 local function detailText(row, ctx, allowed)
   local e = row.entry
   if e.recipe.recipeID == ctx.busy then
-    return GC.L["%d crafted, %d to go"]:format(ctx.count - ctx.left, ctx.left)
+    return GC.L["%d crafted, %d to go"]:format(math.max(0, ctx.count - ctx.left), ctx.left)
   end
   if e.restock then
     if row.crafts == 1 then return GC.L["Restock to %d: you hold %d, 1 craft"]:format(e.restock, row.held or 0) end
@@ -490,30 +491,33 @@ end
 
 -- One cell per reagent the bags and the banks are short of for the queue, in the order the queue
 -- needs them: what is still to buy (Missing's row and its price, nil without one) and what waits in
--- the mailbox ({ itemID, buy, cost, mail }). A currency is not a cell: it is not sold on the auction
--- house, and a line under the cells says so.
-local function cellsOf(needs, missing, costs, mailed)
+-- the mailbox ({ itemID, buy, cost, mail }). The cell is the quality the BUY list buys (`items`,
+-- Core/CraftQueue.lua's MissingCost), or, for a reagent only in the mailbox, the one there. A
+-- currency is not a cell: it is not sold on the auction house, and a line under the cells says so.
+local function cellsOf(needs, missing, costs, items, mailed)
   local buy, mail = {}, {}
   for k, row in ipairs(missing) do
-    if row.ids then buy[row.ids] = { n = row.missing, cost = costs[k] } end
+    if row.ids then buy[row.ids] = { n = row.missing, cost = costs[k], itemID = items[k] } end
   end
-  for _, row in ipairs(mailed) do mail[row.ids] = row.n end
+  for _, row in ipairs(mailed) do mail[row.ids] = row end
   local cells = {}
   for _, need in ipairs(needs) do
     local ids = need.ids
-    local b, m = ids and buy[ids], ids and mail[ids] or 0
-    if b or m > 0 then
-      cells[#cells + 1] = { itemID = ids[1], buy = b and b.n or 0, cost = b and b.cost, mail = m }
+    local b, m = ids and buy[ids], ids and mail[ids]
+    if b or m then
+      cells[#cells + 1] = { itemID = b and b.itemID or m.itemID or ids[1], buy = b and b.n or 0, cost = b and b.cost,
+        mail = m and m.n or 0 }
     end
   end
   return cells
 end
 
--- A cell `width` wide: its icon and count, and its words wrapped right of the icon, the mailbox's
--- and the price's lines hung under the name. Answers how tall the words stand.
+-- A cell `width` wide: its icon with its crafting quality and count, and its words wrapped right of
+-- the icon, the mailbox's and the price's lines hung under the name. Answers how tall the words
+-- stand.
 local function paintCell(cell, data, width)
   local CC = GC.CraftClient
-  HF.Row.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail)
+  HF.Row.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail, nil, { pip = true })
   cell:SetWidth(width)
   local textW = width - CELL_TEXT_X - LAYOUT.CELL_PAD
   setText(cell.name, CC.MissingName({ itemID = data.itemID }))
@@ -624,7 +628,7 @@ local function paintMissing(v, missing, needs, mailed)
   local CC, Q = GC.CraftClient, GC.CraftQueue
   local card = v.missing
   local inner = contentWidth() - 2 * LAYOUT.M_PAD
-  local costs, total, unpriced = Q.MissingCost(missing, CC.UnitOf, CC.VendorOf)
+  local costs, total, unpriced, items = Q.MissingCost(missing, CC.UnitOf, CC.VendorOf)
   local y = LAYOUT.M_PAD + paintHead(v, total, unpriced, inner)
   if #missing == 0 then
     setText(v.none, GC.L["Nothing is missing for the queue"])
@@ -635,7 +639,7 @@ local function paintMissing(v, missing, needs, mailed)
   end
 
   -- Two to a row, each row as tall as its taller cell.
-  local cells = cellsOf(needs, missing, costs, mailed)
+  local cells = cellsOf(needs, missing, costs, items, mailed)
   local cellW = math.floor((inner - LAYOUT.CELL_GAP) / 2)
   for i = 1, #cells, 2 do
     local row, inside = {}, LAYOUT.CELL_ICON
@@ -816,10 +820,12 @@ local function mailboxOpen()
   return true
 end
 
--- Where Services/CraftClient.lua ends a run of crafts (Blizzard_ProfessionsCrafting.lua's crafting
--- page ends it there too): the player's cast interrupted or failed, the window closed, and the cast
--- stopped, which a scrap's stop is not (its first argument).
-local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = true, TRADE_SKILL_CLOSE = true }
+-- Where Services/CraftClient.lua may end a run of crafts: the player's cast interrupted or failed
+-- (when it is the run's own cast, which CraftClient tells), the window closed, and the cast stopped.
+-- The view paints what CraftClient says on the next frame, so the order the client hands the event
+-- to the two of them is no matter.
+local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = true, TRADE_SKILL_CLOSE = true,
+  UPDATE_TRADESKILL_CAST_STOPPED = true }
 
 --- UNIT_SPELLCAST_SUCCEEDED: a craft of a counted recipe takes one off its line, the window open
 --- or not. OWNED_AUCTIONS_UPDATED: what this character has up on the auction house, for restocks.
@@ -827,7 +833,8 @@ local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = tr
 --- the bags. MAIL_CLOSED: what waits in the mailbox, as the visit's last read of the inbox left it
 --- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
 --- brings the craft queue list in step (SyncBuyList), and the panel's top with the view.
---- TRADE_SKILL_CRAFT_BEGIN and the run's ends: the line being crafted, busy or live again.
+--- TRADE_SKILL_CRAFT_BEGIN, each finished cast and the run's ends: the line being crafted, what its
+--- run has made, busy or live again.
 ---
 --- While the mailbox is open the bags are not counted: a take can reach the bags before the read of
 --- the inbox that sees it gone, and for that moment the units count twice. The list would shrink
@@ -846,9 +853,9 @@ function QV.OnEvent(event, ...)
     end)
     if ok and changed then
       QV.SyncBuyList()
-      QV.Queue()
       panelChanged()
     end
+    QV.Queue()
   elseif event == "OWNED_AUCTIONS_UPDATED" then
     if GC.CraftClient.ReadListed() then
       QV.SyncBuyList()
@@ -864,10 +871,7 @@ function QV.OnEvent(event, ...)
     QV.SyncBuyList()
     QV.Queue()
     panelChanged()
-  elseif event == "TRADE_SKILL_CRAFT_BEGIN" then
-    QV.Queue()
-  elseif RUN_ENDS[event] or (event == "UPDATE_TRADESKILL_CAST_STOPPED" and not (...)) then
-    run = nil
+  elseif event == "TRADE_SKILL_CRAFT_BEGIN" or RUN_ENDS[event] then
     QV.Queue()
   end
 end

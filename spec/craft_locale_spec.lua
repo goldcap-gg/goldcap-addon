@@ -26,7 +26,7 @@ local KEYS = {
   "Remove from queue", "The queue is empty. Add a recipe from This recipe.",
   -- A line's Craft and the run of crafts it starts.
   "Craft %d", "Crafting", "%d crafted, %d to go", "Crafting %d one after another. Moving stops it.",
-  "GoldCap is crafting %s. Wait for it to finish.",
+  "Crafting %s now. Wait for it to finish.",
   "Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it.",
   "Open %s to craft it here.", "Open this recipe's profession to craft it here.",
   "Not enough reagents for one craft. Missing below says what to get.",

@@ -1640,7 +1640,7 @@ GC.Locales.frFR = {
     "Sur le tableau Objets, Auto vérifie les objets que ce tableau suit, tour après tour. Passe aux Marchandises et il scanne de nouveau le marché des marchandises.",
   ["Craft %d"] = "Fabriquer %d",
   ["Crafting"] = "Fabrication",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap fabrique %s. Attends que ce soit fini.",
+  ["Crafting %s now. Wait for it to finish."] = "Fabrication en cours : %s. Attends que ce soit fini.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Fabrique %d maintenant, l'un après l'autre, avec les composants que prendrait la fenêtre de métier. Bouger l'interrompt.",
   ["Open %s to craft it here."] = "Ouvre %s pour le fabriquer ici.",

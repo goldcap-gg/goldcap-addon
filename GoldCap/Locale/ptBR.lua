@@ -1634,7 +1634,7 @@ GC.Locales.ptBR = {
     "Na lista de itens, o Auto continua conferindo os itens que essa lista acompanha, rodada após rodada. Mude para Mercadorias e ele volta a varrer o mercado de mercadorias.",
   ["Craft %d"] = "Produzir %d",
   ["Crafting"] = "Produzindo",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "O GoldCap está produzindo %s. Espere terminar.",
+  ["Crafting %s now. Wait for it to finish."] = "Produzindo %s agora. Espere terminar.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Produz %d agora, um após o outro, com os reagentes que a janela da profissão usaria. Mover-se interrompe.",
   ["Open %s to craft it here."] = "Abra %s para produzir aqui.",

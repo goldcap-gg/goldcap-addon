@@ -508,8 +508,9 @@ describe("craft queue view", function()
     end)
   end)
 
-  -- Blizzard's crafting page (Services/CraftClient.lua's Repeating): TRADE_SKILL_CRAFT_BEGIN starts
-  -- each cast of a run, GetRemainingRecasts says how many come after it, and
+  -- Blizzard's crafting page and the player's casts (Services/CraftClient.lua's Repeating):
+  -- TRADE_SKILL_CRAFT_BEGIN starts each cast of a run, GetRemainingRecasts says how many come after
+  -- the first, each finished cast is the player's UNIT_SPELLCAST_SUCCEEDED of the recipe, and
   -- UPDATE_TRADESKILL_CAST_STOPPED ends the run.
   describe("while the client crafts", function()
     local function begin(recipeID, left)
@@ -517,10 +518,13 @@ describe("craft queue view", function()
       fire("TRADE_SKILL_CRAFT_BEGIN", recipeID)
     end
 
+    -- A cast of the player's, as the client fires it (UnitDocumentation.lua's payload).
+    local function cast(event, guid, spellID) fire(event, "player", guid, spellID) end
+
     local function stopped() fire("UPDATE_TRADESKILL_CAST_STOPPED", false) end
 
-    local function queued()
-      local r = recipes()
+    local function queued(r)
+      r = r or recipes()
       r[3].craftable, r[5].craftable = 9, 9
       load({ recipes = r })
       GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
@@ -528,27 +532,36 @@ describe("craft queue view", function()
       return showQueue()
     end
 
+    local function press(i)
+      local b = line(i).craft
+      b:GetScript("OnClick")(b)
+    end
+
+    local function run(n) return GC.L["Crafting %d one after another. Moving stops it."]:format(n) end
+
     it("shows the line being crafted as Crafting, in gold, with what this run has made and has left", function()
       queued()
-      local l = line(1)
-      l.craft:GetScript("OnClick")(l.craft)
+      press(1)
       assert.same({ 3, 5, {}, nil, nil, false }, TS.callsOf("CraftRecipe")[1].args)
+      cast("UNIT_SPELLCAST_START", "Cast-1", 3)
       begin(3, 5)
-      l = line(1)
+      local l = line(1)
       assert.equal(GC.L["Crafting"], l.craft.label)
       assert.is_true(l.craft:IsEnabled())
       assert.same(same(K.goldText), rgb(l.craft.text))
       assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.07 }, vertex(l.frame.fill))
       assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.6 }, vertex(l.frame.ring))
-      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 5),
-        GC.L["Crafting %d one after another. Moving stops it."]:format(5) }, lineTexts(1))
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 5), run(5) }, lineTexts(1))
       assert.same(same(K.text2), rgb(l.note))
-      -- One cast made: one off the line, and the run says so.
-      fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 3)
-      begin(3, 4)
-      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(1, 4),
-        GC.L["Crafting %d one after another. Moving stops it."]:format(5) }, lineTexts(1))
+      -- One cast made: one off the line, and the run says so before the next cast begins, whatever
+      -- the client's count of casts to come says then.
+      TS.opts.recasts = 4
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 3)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(1, 4), run(5) }, lineTexts(1))
       assert.equal("1 / 5", line(1).count:GetText())
+      cast("UNIT_SPELLCAST_START", "Cast-2", 3)
+      begin(3, 4)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(1, 4), run(5) }, lineTexts(1))
       -- The run stops (the player moved): the line is live again with what is left.
       stopped()
       l = line(1)
@@ -556,6 +569,52 @@ describe("craft queue view", function()
       assert.same(same(K.onGold), rgb(l.craft.text))
       assert.same(K.glassTop, vertex(l.frame.fill))
       assert.same({ "Potion", GC.L["%d to craft"]:format(4) }, lineTexts(1))
+    end)
+
+    it("is busy from the press on, so a second press before the craft begins calls nothing", function()
+      queued()
+      -- A double click: both presses before a frame passes.
+      press(1)
+      press(1)
+      assert.equal(1, #TS.callsOf("CraftRecipe"))
+      TS.runTimers()
+      assert.equal(GC.L["Crafting"], line(1).craft.label)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 5), run(5) }, lineTexts(1))
+      assert.is_false(line(2).craft:IsEnabled())
+      press(1)
+      press(2)
+      assert.equal(1, #TS.callsOf("CraftRecipe"))
+    end)
+
+    it("is live again about a second after a press when no craft began", function()
+      queued()
+      press(1)
+      TS.runTimers()
+      assert.equal(GC.L["Crafting"], line(1).craft.label)
+      TS.now = 0.5
+      TS.runTimers()
+      assert.equal(GC.L["Crafting"], line(1).craft.label)
+      TS.now = 1.5
+      TS.runTimers()
+      assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
+      assert.is_true(line(1).craft:IsEnabled())
+      assert.is_true(line(2).craft:IsEnabled())
+    end)
+
+    it("stays busy through a cast the client refuses while it crafts", function()
+      queued()
+      press(1)
+      cast("UNIT_SPELLCAST_START", "Cast-1", 3)
+      begin(3, 5)
+      -- An action refused mid-cast (another key, Blizzard's own Create) fails with its own GUID.
+      cast("UNIT_SPELLCAST_FAILED", "Cast-2", 3)
+      assert.equal(GC.L["Crafting"], line(1).craft.label)
+      assert.is_false(line(2).craft:IsEnabled())
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 3)
+      cast("UNIT_SPELLCAST_START", "Cast-3", 3)
+      begin(3, 4)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(1, 4), run(5) }, lineTexts(1))
+      assert.equal("1 / 5", line(1).count:GetText())
     end)
 
     it("shows one craft going as Crafting too, without calling it a run", function()
@@ -569,14 +628,15 @@ describe("craft queue view", function()
       queued()
       begin(3, 5)
       local busy, other = line(1), line(2)
+      local why = GC.L["Crafting %s now. Wait for it to finish."]:format("Potion")
       assert.is_false(other.craft:IsEnabled())
       assert.equal(GC.L["Craft %d"]:format(2), other.craft.label)
-      assert.equal(GC.L["GoldCap is crafting %s. Wait for it to finish."]:format("Potion"), other.craftWhy)
+      assert.equal(why, other.craftWhy)
       assert.same({ "Flask", GC.L["%d to craft"]:format(2) }, lineTexts(2))
       local tip, put = tooltip()
       finally(put)
       hover(other.craft)
-      assert.equal(GC.Util.ClientText(GC.L["GoldCap is crafting %s. Wait for it to finish."]:format("Potion")), tip.text)
+      assert.equal(GC.Util.ClientText(why), tip.text)
       busy.craft:GetScript("OnClick")(busy.craft)
       other.craft:GetScript("OnClick")(other.craft)
       assert.equal(0, #TS.callsOf("CraftRecipe"))
@@ -585,33 +645,55 @@ describe("craft queue view", function()
       assert.equal(GC.L["Craft %d"]:format(2), line(2).craft.label)
     end)
 
-    it("counts a run Blizzard's own Create started from what is left when it is first seen", function()
+    it("dims every line's Craft while a recipe not in the queue is crafting, and names it", function()
+      local r = recipes()
+      r[11] = { info = TS.info(11, "Bandage") }
+      queued(r)
+      begin(11, 4)
+      local why = GC.L["Crafting %s now. Wait for it to finish."]:format("Bandage")
+      for i = 1, 2 do
+        assert.is_false(line(i).craft:IsEnabled())
+        assert.equal(why, line(i).craftWhy)
+      end
+      assert.same({ "Potion", GC.L["%d to craft"]:format(5) }, lineTexts(1))
+      press(1)
+      assert.equal(0, #TS.callsOf("CraftRecipe"))
+      stopped()
+      assert.is_true(line(1).craft:IsEnabled())
+      assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
+    end)
+
+    it("counts a run Blizzard's own Create started from its first cast", function()
       queued()
       begin(3, 3)
-      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 3),
-        GC.L["Crafting %d one after another. Moving stops it."]:format(3) }, lineTexts(1))
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 3), run(3) }, lineTexts(1))
     end)
 
-    it("forgets a run that ended while the view was away", function()
+    it("counts a run while the view is away, and forgets one that ended then", function()
       local v = queued()
       local f = P._frame
+      local function away()
+        f.switch.worth:GetScript("OnClick")(f.switch.worth)
+        TS.runTimers()
+        assert.is_false(v:IsShown())
+      end
+      local function back()
+        f.switch.queue:GetScript("OnClick")(f.switch.queue)
+        TS.runTimers()
+      end
+      away()
       begin(3, 5)
-      f.switch.worth:GetScript("OnClick")(f.switch.worth)
-      TS.runTimers()
-      assert.is_false(v:IsShown())
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 3)
+      begin(3, 4)
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-2", 3)
+      back()
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(2, 3), run(5) }, lineTexts(1))
+      assert.equal("2 / 5", line(1).count:GetText())
+      away()
       stopped()
       begin(3, 2)
-      f.switch.queue:GetScript("OnClick")(f.switch.queue)
-      TS.runTimers()
-      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 2),
-        GC.L["Crafting %d one after another. Moving stops it."]:format(2) }, lineTexts(1))
-    end)
-
-    it("leaves every line as it is for a craft that is not in the queue", function()
-      queued()
-      begin(11, 4)
-      assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
-      assert.is_true(line(1).craft:IsEnabled())
+      back()
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 2), run(2) }, lineTexts(1))
     end)
 
     it("repaints as a run begins and ends", function()
@@ -623,8 +705,9 @@ describe("craft queue view", function()
       end
       assert.same({ "player" }, W.state(ev).unitEvents.UNIT_SPELLCAST_INTERRUPTED)
       assert.same({ "player" }, W.state(ev).unitEvents.UNIT_SPELLCAST_FAILED)
+      cast("UNIT_SPELLCAST_START", "Cast-1", 3)
       begin(3, 5)
-      fire("UNIT_SPELLCAST_INTERRUPTED", "player", "Cast-3", 3)
+      cast("UNIT_SPELLCAST_INTERRUPTED", "Cast-1", 3)
       assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
       -- A scrap's stop is not a craft's.
       begin(3, 5)
@@ -644,7 +727,8 @@ describe("craft queue view", function()
     end)
 
     it("shows a cell for what is short, summed across recipes, with its icon and what it costs", function()
-      load({ counts = { [101] = 4, [103] = 1 } })
+      load({ counts = { [101] = 4, [103] = 1 }, icons = { [101] = 1101, [102] = 1102, [103] = 1103 },
+        tiers = { [101] = 1, [102] = 2, [103] = 3 } })
       VALUES[101], VALUES[102], VALUES[103] = commodity(500), commodity(450), commodity(400)
       GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
       GC.CraftQueue.Add("Name-Realm", snapshot(5), 3)
@@ -653,7 +737,10 @@ describe("craft queue view", function()
       assert.same(same(K.warn), rgb(v.heading))
       -- 7 of Item A in all, 5 held: 2 to buy, at 400 each (the cheapest quality BUY buys).
       assert.same({ { name = "Item A", count = "2", price = GC.L["about %s"]:format(GC.Util.Money(800)) } }, cellsOf(v))
-      assert.equal(1101, W.state(v.cells[1].slot.icon).file)
+      -- The cell draws the quality BUY buys, with its pip.
+      assert.equal(1103, W.state(v.cells[1].slot.icon).file)
+      assert.is_true(v.cells[1].slot.pip:IsShown())
+      assert.equal("Professions-Icon-Quality-Tier3-Small", W.state(v.cells[1].slot.pip).atlas)
       assert.equal(GC.L["about %s to buy"]:format(GC.Util.Colored(K.goldText, GC.Util.Money(800))), v.cost:GetText())
       assert.is_true(v.cost:IsShown())
       assert.is_false(v.unpriced:IsShown())
@@ -696,6 +783,21 @@ describe("craft queue view", function()
       assert.same(same(K.yours), rgb(cell.mail))
       assert.is_true(cell.mailIcon:IsShown())
       assert.same(same(K.text3), rgb(cell.price))
+    end)
+
+    it("draws a reagent that waits only in the mailbox as the item there, with its pip", function()
+      load({ counts = {}, icons = { [101] = 1101, [102] = 1102 }, tiers = { [101] = 1, [102] = 2 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+      local box = Mailbox.new({
+        { sender = "Friend", subject = "Mats", canReply = true, items = { [1] = { itemID = 102, count = 10 } } },
+      })
+      readMailbox(box, true)
+      mailClosed()
+      local v = showQueue()
+      assert.same({ { name = "Item A", count = "10", mail = GC.L["%d in your mailbox"]:format(10) } }, cellsOf(v))
+      assert.equal(1102, W.state(v.cells[1].slot.icon).file)
+      assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(v.cells[1].slot.pip).atlas)
+      assert.is_true(v.cells[1].slot.pip:IsShown())
     end)
 
     -- The Tonic's Item A (three qualities) and Item B, then the Elixir's Item A of one quality: a

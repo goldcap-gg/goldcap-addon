@@ -1636,7 +1636,7 @@ GC.Locales.itIT = {
     "Nell'elenco oggetti, Auto continua a controllare gli oggetti che l'elenco segue, giro dopo giro. Passa alle merci e torna a scansionare il mercato delle merci.",
   ["Craft %d"] = "Crea %d",
   ["Crafting"] = "In creazione",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap sta creando %s. Aspetta che finisca.",
+  ["Crafting %s now. Wait for it to finish."] = "Creazione di %s in corso. Aspetta che finisca.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Crea %d ora, uno dopo l'altro, con i reagenti che userebbe la finestra della professione. Muoversi lo interrompe.",
   ["Open %s to craft it here."] = "Apri %s per crearlo qui.",

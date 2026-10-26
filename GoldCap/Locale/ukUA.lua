@@ -1707,7 +1707,7 @@ GC.Locales.ukUA = {
     "На дошці предметів Авто раз у раз перевіряє предмети, за якими стежить ця дошка. Перемкніться на товари, і воно знову скануватиме ринок товарів.",
   ["Craft %d"] = "Скрафтити %d",
   ["Crafting"] = "Іде крафт",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap крафтить %s. Зачекайте, доки закінчить.",
+  ["Crafting %s now. Wait for it to finish."] = "Триває крафт: %s. Зачекайте, доки він закінчиться.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Скрафтить %d зараз, одне за одним, з тих реагентів, що взяло б вікно професії. Рух перериває крафт.",
   ["Open %s to craft it here."] = "Відкрийте %s, щоб скрафтити тут.",

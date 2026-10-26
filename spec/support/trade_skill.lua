@@ -40,7 +40,7 @@ local W = require("spec.support.wow_frames")
 local TS = { calls = {} }
 
 local GLOBALS = { "C_TradeSkillUI", "ProfessionsFrame", "EventRegistry", "C_Item", "C_CurrencyInfo",
-  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString", "C_TooltipInfo", "CreateColor" }
+  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString", "C_TooltipInfo", "CreateColor", "GetTime" }
 
 local function strict(label, t, absent)
   return setmetatable(t, { __index = function(_, key)
@@ -275,9 +275,14 @@ function TS.install(opts)
   _G.C_AuctionHouse = strict("C_AuctionHouse", {
     GetOwnedAuctions = function() record("GetOwnedAuctions"); return opts.owned or {} end,
   })
-  -- C_Timer.After(0, fn) runs fn on the next frame: here, when the spec says (TS.runTimers).
-  TS.timers = {}
-  _G.C_Timer = strict("C_Timer", { After = function(_, fn) TS.timers[#TS.timers + 1] = fn end })
+  -- C_Timer.After(seconds, fn) runs fn once that long has passed, on the next frame for 0: here,
+  -- when the spec says (TS.runTimers), and only once GetTime has reached it. GetTime is the
+  -- client's clock in seconds, TS.now, which a spec moves on.
+  TS.timers, TS.now = {}, 0
+  _G.GetTime = function() return TS.now end
+  _G.C_Timer = strict("C_Timer", { After = function(seconds, fn)
+    TS.timers[#TS.timers + 1] = { at = TS.now + (tonumber(seconds) or 0), fn = fn }
+  end })
   _G.GetCoinTextureString = function(copper) return tostring(copper) .. "c" end
   _G.Enum = {
     TradeskillRecipeType = { Item = 1, Salvage = 2, Enchant = 3, Gathering = 4 },
@@ -301,13 +306,18 @@ function TS.layout(region, left, top, width, height)
   function region:GetBottom() return top - height end
 end
 
---- Runs the timers queued so far (one frame passing), and any they queue in turn.
+--- Runs the timers that are due (one frame passing at TS.now), and any due ones they queue in
+--- turn. A timer for later stays queued.
 function TS.runTimers()
   local guard = 0
-  while #TS.timers > 0 do
-    local due = TS.timers
-    TS.timers = {}
-    for _, fn in ipairs(due) do fn() end
+  while true do
+    local due, later = {}, {}
+    for _, t in ipairs(TS.timers) do
+      if t.at <= TS.now then due[#due + 1] = t else later[#later + 1] = t end
+    end
+    if #due == 0 then return end
+    TS.timers = later
+    for _, t in ipairs(due) do t.fn() end
     guard = guard + 1
     assert(guard < 50, "timers keep queueing timers")
   end

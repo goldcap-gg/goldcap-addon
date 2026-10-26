@@ -225,10 +225,12 @@ describe("craft queue", function()
       local needs = { { ids = { 101, 102, 103 }, q = 6 } }
       local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })
       local missing = Q.Missing(needs, counts({ [103] = 1 }))
-      local costs, total, unpriced = Q.MissingCost(missing, prices)
+      local costs, total, unpriced, items = Q.MissingCost(missing, prices)
       assert.same({ 5 * 400 }, costs)
       assert.same({ 2000, 0 }, { total, unpriced })
       assert.equal(103, Q.BuyLines(needs, prices, counts({ [103] = 1 }))[1].i)
+      -- And says which item that is, for a cell to draw.
+      assert.same({ 103 }, items)
     end)
 
     it("prices a vendor item at the vendor's price", function()
@@ -248,16 +250,18 @@ describe("craft queue", function()
         { ids = { 201, 202 }, need = 3, have = 1, missing = 2 },
         { currency = 3008, need = 5, have = 0, missing = 5 },
       }
-      local costs, total, unpriced = Q.MissingCost(missing, unit({ [101] = 70 }))
+      local costs, total, unpriced, items = Q.MissingCost(missing, unit({ [101] = 70 }))
       assert.same({ 140 }, costs)
       assert.is_nil(costs[2])
       assert.is_nil(costs[3])
       assert.same({ 140, 1 }, { total, unpriced })
+      -- An unpriced row still names what BUY would buy of it: its lowest quality.
+      assert.same({ 101, 201 }, items)
     end)
 
     it("answers nothing priced for nothing missing", function()
-      assert.same({ {}, 0, 0 }, { Q.MissingCost({}, unit({})) })
-      assert.same({ {}, 0, 0 }, { Q.MissingCost(nil, unit({})) })
+      assert.same({ {}, 0, 0, {} }, { Q.MissingCost({}, unit({})) })
+      assert.same({ {}, 0, 0, {} }, { Q.MissingCost(nil, unit({})) })
     end)
   end)
 

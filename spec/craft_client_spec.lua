@@ -323,16 +323,22 @@ describe("craft client", function()
     assert.equal(1, #TS.callsOf("OpenRecipe"))
   end)
 
+  -- The run of crafts the client is making, as GoldCap counts it. Blizzard's crafting page
+  -- (Blizzard_ProfessionsCrafting.lua) begins each cast of a run with TRADE_SKILL_CRAFT_BEGIN and
+  -- ends the run with UPDATE_TRADESKILL_CAST_STOPPED; the player's casts carry the unit, the cast's
+  -- GUID and its spell (UnitDocumentation.lua), a recipe's spell being the recipe.
   describe("Repeating", function()
     local function fire(event, ...)
       local ev = CC._events
       ev:GetScript("OnEvent")(ev, event, ...)
     end
 
-    it("listens for the events Blizzard's crafting page ends a run on", function()
+    local function cast(event, guid, spellID) fire(event, "player", guid, spellID) end
+
+    it("listens for the events Blizzard's crafting page ends a run on, and the player's casts", function()
       load({})
       for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE",
-          "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED" }) do
+          "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED" }) do
         assert.is_true(CC._events:IsEventRegistered(event), event)
       end
     end)
@@ -342,30 +348,120 @@ describe("craft client", function()
       assert.is_nil(CC.Repeating())
     end)
 
-    it("follows a run: the cast that began, the casts left, then the stop", function()
+    it("counts a run by its own finished casts, whatever moment GetRemainingRecasts drops", function()
       load({})
       TS.opts.recasts = 2
+      cast("UNIT_SPELLCAST_START", "Cast-1", 7)
       fire("TRADE_SKILL_CRAFT_BEGIN", 7)
-      assert.same({ 7, 3 }, { CC.Repeating() })
+      assert.same({ 7, 3, 3 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 7)
+      assert.same({ 7, 2, 3 }, { CC.Repeating() })
+      -- The next cast: the client's count may drop before it, as it begins, or later.
+      TS.opts.recasts = 0
+      cast("UNIT_SPELLCAST_START", "Cast-2", 7)
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 2, 3 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-2", 7)
       TS.opts.recasts = 1
       fire("TRADE_SKILL_CRAFT_BEGIN", 7)
-      assert.same({ 7, 2 }, { CC.Repeating() })
-      TS.opts.recasts = 0
-      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
-      assert.same({ 7, 1 }, { CC.Repeating() })
+      assert.same({ 7, 1, 3 }, { CC.Repeating() })
+      -- Another spell's cast is none of the run's.
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-9", 99)
+      assert.same({ 7, 1, 3 }, { CC.Repeating() })
+      -- The last cast made: the run is over before the client says it stopped.
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-3", 7)
+      assert.is_nil(CC.Repeating())
       fire("UPDATE_TRADESKILL_CAST_STOPPED", false)
+      assert.is_nil(CC.Repeating())
+      -- The next run of the same recipe is a run of its own.
+      TS.opts.recasts = 1
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 2, 2 }, { CC.Repeating() })
+    end)
+
+    it("sizes a run Blizzard's own Create started by the casts the client says it has", function()
+      load({})
+      TS.opts.recasts = 3
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 4, 4 }, { CC.Repeating() })
+    end)
+
+    it("sizes a run GoldCap's press started by the press, and holds the press as crafting until it begins", function()
+      load({})
+      TS.now = 10
+      CC.Started(7, 5)
+      assert.same({ 7, 5, 5 }, { CC.Repeating() })
+      TS.now = 10.9
+      assert.same({ 7, 5, 5 }, { CC.Repeating() })
+      TS.opts.recasts = 2
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      TS.now = 20
+      assert.same({ 7, 5, 5 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 7)
+      assert.same({ 7, 4, 5 }, { CC.Repeating() })
+    end)
+
+    it("lets a press go when no craft begins within about a second, or when the craft ends first", function()
+      load({})
+      TS.now = 10
+      CC.Started(7, 5)
+      TS.now = 11.1
+      assert.is_nil(CC.Repeating())
+      for _, ending in ipairs({ { "UPDATE_TRADESKILL_CAST_STOPPED", false }, { "TRADE_SKILL_CLOSE" },
+          { "UNIT_SPELLCAST_FAILED", "player", "Cast-1", 7 }, { "UNIT_SPELLCAST_INTERRUPTED", "player", "Cast-1", 7 } }) do
+        CC.Started(7, 5)
+        fire(ending[1], ending[2], ending[3], ending[4])
+        assert.is_nil(CC.Repeating(), ending[1])
+      end
+      -- Another spell failing is not the press.
+      CC.Started(7, 5)
+      cast("UNIT_SPELLCAST_FAILED", "Cast-2", 99)
+      assert.same({ 7, 5, 5 }, { CC.Repeating() })
+      -- Blizzard's own Create of another recipe began first: that is the run.
+      TS.opts.recasts = 0
+      fire("TRADE_SKILL_CRAFT_BEGIN", 8)
+      assert.same({ 8, 1, 1 }, { CC.Repeating() })
+    end)
+
+    it("ends a run on a failed or interrupted cast only when it is the running cast", function()
+      load({})
+      TS.opts.recasts = 2
+      cast("UNIT_SPELLCAST_START", "Cast-1", 7)
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      -- A press refused while the craft is cast (another action is in progress) fails with a GUID
+      -- of its own, as Blizzard's cast bar knows (CastingBarFrame.lua, HandleInterruptOrSpellFailed).
+      cast("UNIT_SPELLCAST_FAILED", "Cast-2", 7)
+      cast("UNIT_SPELLCAST_INTERRUPTED", "Cast-3", 99)
+      assert.same({ 7, 3, 3 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_FAILED", "Cast-1", 7)
+      assert.is_nil(CC.Repeating())
+      cast("UNIT_SPELLCAST_START", "Cast-4", 7)
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      cast("UNIT_SPELLCAST_INTERRUPTED", "Cast-4", 7)
       assert.is_nil(CC.Repeating())
     end)
 
-    it("ends on an interrupted or failed cast of the player, and on the window closing", function()
+    it("ends a run on a failed or interrupted cast of the player when it cannot tell the run's cast", function()
       load({})
+      -- The run's cast never seen begin.
       for _, event in ipairs({ "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED" }) do
         fire("TRADE_SKILL_CRAFT_BEGIN", 7)
-        fire(event, "player", "Cast-1", 7)
+        cast(event, "Cast-1", 7)
         assert.is_nil(CC.Repeating(), event)
       end
       fire("TRADE_SKILL_CRAFT_BEGIN", 7)
       fire("TRADE_SKILL_CLOSE")
+      assert.is_nil(CC.Repeating())
+      -- A secret GUID, which addon code may not compare, nor count a finished cast by.
+      local SECRET, saved = {}, _G.issecretvalue
+      _G.issecretvalue = function(v) return v == SECRET end
+      finally(function() _G.issecretvalue = saved end)
+      TS.opts.recasts = 1
+      cast("UNIT_SPELLCAST_START", "Cast-2", 7)
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-2", SECRET)
+      assert.same({ 7, 2, 2 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_FAILED", SECRET, SECRET)
       assert.is_nil(CC.Repeating())
     end)
 
@@ -373,14 +469,24 @@ describe("craft client", function()
       load({})
       fire("TRADE_SKILL_CRAFT_BEGIN", 7)
       fire("UNIT_SPELLCAST_INTERRUPTED", "target", "Cast-1", 7)
+      fire("UNIT_SPELLCAST_SUCCEEDED", "target", "Cast-1", 7)
       fire("UPDATE_TRADESKILL_CAST_STOPPED", true)
-      assert.same({ 7, 1 }, { CC.Repeating() })
+      assert.same({ 7, 1, 1 }, { CC.Repeating() })
     end)
 
     it("registers the player's casts only", function()
       load({})
-      assert.same({ "player" }, W.state(CC._events).unitEvents.UNIT_SPELLCAST_FAILED)
+      for _, event in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED",
+          "UNIT_SPELLCAST_INTERRUPTED" }) do
+        assert.same({ "player" }, W.state(CC._events).unitEvents[event], event)
+      end
     end)
+  end)
+
+  it("names a recipe as the client does, by its id when the client has no name for it", function()
+    load({ recipes = { [7] = potion() } })
+    assert.equal("Potion", CC.RecipeName(7))
+    assert.equal("12", CC.RecipeName(12))
   end)
 
   it("folds the owned auctions into this character's store", function()

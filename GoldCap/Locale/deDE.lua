@@ -1639,7 +1639,7 @@ GC.Locales.deDE = {
     "In der Items-Liste prüft Auto die Items, die diese Liste beobachtet, Runde um Runde. Wechsle zu Waren, dann scannt es wieder den Warenmarkt.",
   ["Craft %d"] = "Herstellen %d",
   ["Crafting"] = "Stellt her",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap stellt gerade %s her. Warte, bis es fertig ist.",
+  ["Crafting %s now. Wait for it to finish."] = "%s wird gerade hergestellt. Warte, bis es fertig ist.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Stellt jetzt %d nacheinander her, mit den Reagenzien, die das Berufsfenster nehmen würde. Bewegung bricht es ab.",
   ["Open %s to craft it here."] = "Öffne %s, um es hier herzustellen.",

@@ -1624,7 +1624,7 @@ GC.Locales.enUS = {
     "On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again.",
   ["Craft %d"] = "Craft %d",
   ["Crafting"] = "Crafting",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap is crafting %s. Wait for it to finish.",
+  ["Crafting %s now. Wait for it to finish."] = "Crafting %s now. Wait for it to finish.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it.",
   ["Open %s to craft it here."] = "Open %s to craft it here.",

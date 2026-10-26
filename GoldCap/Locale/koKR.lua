@@ -1573,7 +1573,7 @@ GC.Locales.koKR = {
     "아이템 목록에서는 자동이 이 목록이 지켜보는 아이템을 계속 차례로 확인합니다. 재료로 전환하면 다시 재료 시장을 검색합니다.",
   ["Craft %d"] = "%d개 제작",
   ["Crafting"] = "제작 중",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap이 %s을(를) 제작하는 중입니다. 끝날 때까지 기다리세요.",
+  ["Crafting %s now. Wait for it to finish."] = "%s 제작 중입니다. 끝날 때까지 기다리세요.",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "지금 %d개를 차례로 제작합니다. 전문 기술 창이 고를 재료를 씁니다. 움직이면 멈춥니다.",
   ["Open %s to craft it here."] = "여기서 제작하려면 %s 창을 여세요.",

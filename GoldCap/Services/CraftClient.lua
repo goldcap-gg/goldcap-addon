@@ -304,34 +304,121 @@ function CC.Open(recipeID)
   return (call("OpenRecipe", recipeID))
 end
 
--- The recipe of the cast Blizzard's crafting page is repeating (TRADE_SKILL_CRAFT_BEGIN's
--- recipeSpellID), nil when no run is going. Ended where the page ends one: the cast stopped
--- (not a scrap), the player's cast interrupted or failed, the window closed
--- (Blizzard_ProfessionsCrafting.lua, ProfessionsCraftingPageMixin:OnEvent).
-local running
+--- A recipe's name as the client gives it, else its id as text.
+function CC.RecipeName(recipeID)
+  local ok, info = call("GetRecipeInfo", recipeID)
+  local name = ok and type(info) == "table" and info.name or nil
+  return (type(name) == "string" and name ~= "") and name or tostring(recipeID)
+end
+
+-- The run of crafts the client is making, as GoldCap counts it: { recipeID, count, done }, the
+-- casts it was asked for and those finished. Blizzard's crafting page begins each cast of a run
+-- with TRADE_SKILL_CRAFT_BEGIN (recipeSpellID) and ends the run where its page cleans up
+-- (Blizzard_ProfessionsCrafting.lua, ProfessionsCraftingPageMixin:OnEvent): the cast stopped
+-- (not a scrap), the window closed, or the player's cast interrupted or failed. Only the run's
+-- own cast's failure is taken, as Blizzard's cast bar takes it (CastingBarFrame.lua,
+-- HandleInterruptOrSpellFailed: castID == self.castID): a press refused while the craft is cast
+-- fails with a GUID of its own. Finished casts are the player's UNIT_SPELLCAST_SUCCEEDED of the
+-- recipe (a recipe's spell is the recipe), so what is made and what is left never wait for the
+-- client's own count. A run GoldCap's press started is as long as the press asked for
+-- (CC.Started); one Blizzard's Create started, as long as the client says at its first cast
+-- (GetRemainingRecasts counts the casts after this one, Blizzard_ProfessionsCrafting.lua:667).
+local run
+
+-- A press GoldCap made that the client has not begun yet: { recipeID, count, at }, held for
+-- CC.PENDING seconds of GetTime at most.
+local pending
+
+-- The player's last cast that began (UNIT_SPELLCAST_START): { guid, spellID }.
+local began
+
+--- How long a press is taken for a craft that is about to begin, in seconds.
+CC.PENDING = 1
+
+local function now()
+  local clock = _G.GetTime
+  return type(clock) == "function" and clock() or 0
+end
+
+-- In a restricted context the client hands secret values, which addon code may not compare.
+local function readable(v)
+  local secret = _G.issecretvalue
+  if type(secret) ~= "function" then return true end
+  local ok, yes = pcall(secret, v)
+  return ok and not yes
+end
+
+local function held()
+  if pending and now() - pending.at >= CC.PENDING then pending = nil end
+  return pending
+end
+
+local function ended()
+  run, pending = nil, nil
+end
+
+-- Whether a failed or interrupted cast is the run's own: one with the GUID of the run's cast. A cast
+-- GoldCap cannot tell (its beginning never seen, or a secret GUID) is taken for it, as Blizzard's
+-- crafting page takes any.
+local function ownCast(guid, spellID)
+  if run then
+    if not (began and began.spellID == run.recipeID) or not readable(guid) then return true end
+    return guid == began.guid
+  end
+  -- A press not begun: its own cast failed, before it ever began.
+  return not readable(spellID) or spellID == pending.recipeID
+end
+
+--- The player pressed a Craft of GoldCap's for `count` crafts of a recipe, after the call that
+--- crafts them: until the client begins the craft (about a second at most), the recipe is taken
+--- for crafting, so a second press calls nothing.
+function CC.Started(recipeID, count)
+  if type(recipeID) ~= "number" or type(count) ~= "number" or count < 1 then return end
+  pending = { recipeID = recipeID, count = count, at = now() }
+end
 
 function CC.OnEvent(event, ...)
   if event == "TRADE_SKILL_CRAFT_BEGIN" then
     local recipeSpellID = ...
-    running = type(recipeSpellID) == "number" and recipeSpellID or nil
+    if type(recipeSpellID) ~= "number" then return end
+    -- The next cast of the run going.
+    if run and run.recipeID == recipeSpellID then return end
+    local press = held()
+    local count = press and press.recipeID == recipeSpellID and press.count or nil
+    if not count then
+      local ok, remaining = call("GetRemainingRecasts")
+      count = (ok and type(remaining) == "number" and remaining or 0) + 1
+    end
+    run, pending = { recipeID = recipeSpellID, count = count, done = 0 }, nil
   elseif event == "UPDATE_TRADESKILL_CAST_STOPPED" then
     local isScrapping = ...
-    if not isScrapping then running = nil end
-  elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
-    if (...) == "player" then running = nil end
+    if not isScrapping then ended() end
   elseif event == "TRADE_SKILL_CLOSE" then
-    running = nil
+    ended()
+  else
+    local unit, guid, spellID = ...
+    if readable(unit) and unit ~= "player" then return end
+    if event == "UNIT_SPELLCAST_START" then
+      began = readable(guid) and readable(spellID) and { guid = guid, spellID = spellID } or nil
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+      if run and readable(spellID) and spellID == run.recipeID then
+        run.done = run.done + 1
+        if run.done >= run.count then run = nil end
+      end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+      if (run or held()) and ownCast(guid, spellID) then ended() end
+    end
   end
 end
 
---- The recipe being crafted and the crafts left of the run, this one included
---- (GetRemainingRecasts counts only those after it, Blizzard_ProfessionsCrafting.lua:667), while a
---- craft the player started is going; nil otherwise.
+--- The recipe being crafted, the crafts of the run still to make (the one being cast included) and
+--- the run's length, while a craft is going or a press of GoldCap's is about to begin one; nil
+--- otherwise.
 function CC.Repeating()
-  if not running then return nil end
-  local ok, remaining = call("GetRemainingRecasts")
-  if not ok or type(remaining) ~= "number" then return nil end
-  return running, remaining + 1
+  if run then return run.recipeID, run.count - run.done, run.count end
+  local press = held()
+  if press then return press.recipeID, press.count, press.count end
+  return nil
 end
 
 if type(CreateFrame) == "function" then
@@ -339,8 +426,10 @@ if type(CreateFrame) == "function" then
   for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
     pcall(events.RegisterEvent, events, event)
   end
-  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_INTERRUPTED", "player")
-  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_FAILED", "player")
+  for _, event in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_SPELLCAST_FAILED" }) do
+    pcall(events.RegisterUnitEvent, events, event, "player")
+  end
   events:SetScript("OnEvent", function(_, event, ...) CC.OnEvent(event, ...) end)
   CC._events = events
 end

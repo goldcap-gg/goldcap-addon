@@ -1541,7 +1541,7 @@ GC.Locales.zhTW = {
     "在物品面板上，自動會一輪又一輪地檢查這個面板關注的物品。切換到商品，它會重新掃描商品市場。",
   ["Craft %d"] = "製造 %d",
   ["Crafting"] = "製造中",
-  ["GoldCap is crafting %s. Wait for it to finish."] = "GoldCap 正在製造 %s。請等它完成。",
+  ["Crafting %s now. Wait for it to finish."] = "正在製造 %s。請等它完成。",
   ["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."] =
     "現在依次製造 %d 次，使用專業視窗會選用的材料。移動會打斷。",
   ["Open %s to craft it here."] = "打開%s即可在這裡製造。",
