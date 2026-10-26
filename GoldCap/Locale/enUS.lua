@@ -1703,9 +1703,14 @@ GC.Locales.enUS = {
   ["Disenchant anyway"] = "Disenchant anyway",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Disenchant, 1 item",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Disenchant, %d items",
   ["Nothing in your bags to disenchant."] = "Nothing in your bags to disenchant.",
+  ["Worth disenchanting: %d"] = "Worth disenchanting: %d",
+  ["The auction house pays more: %d"] = "The auction house pays more: %d",
+  ["A vendor pays more: %d"] = "A vendor pays more: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Nothing worth disenchanting now: a vendor pays more for everything below.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Nothing worth disenchanting now: everything below sells for more.",
   ["This character does not know Disenchant."] = "This character does not know Disenchant.",
   ["item level %d"] = "item level %d",
   ["%s, next"] = "%s, next",

@@ -20,8 +20,11 @@ local KEYS = {
   "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an " ..
     "equipment set, items you can still return or trade, items in a group you follow, and items you keep. " ..
     "Click a line to disenchant it next. Right-click a line to keep an item.",
-  -- The entry's tooltip and /gc disenchant on a character without the spell.
-  "GoldCap Disenchant, 1 item", "GoldCap Disenchant, %d items", "This character does not know Disenchant.",
+  -- The entry's tooltip, the card with everything left out, and /gc disenchant on a character
+  -- without the spell.
+  "Worth disenchanting: %d", "The auction house pays more: %d", "A vendor pays more: %d",
+  "Nothing worth disenchanting now: a vendor pays more for everything below.",
+  "Nothing worth disenchanting now: everything below sells for more.", "This character does not know Disenchant.",
   -- The item tooltip's one line beside "Disenchant": what its kind gives and where it stands.
   "%s, next", "%s, AH pays more", "%s, vendor pays more", "kept", "cannot be disenchanted", "not learned yet",
   "no price yet",

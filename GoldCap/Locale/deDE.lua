@@ -1720,9 +1720,14 @@ GC.Locales.deDE = {
   ["Disenchant anyway"] = "Trotzdem entzaubern",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Material ist, was deine eigenen Entzauberungen solcher Gegenstände ergaben, zu heutigen Preisen. Nie auf der Liste: Gegenstände in einem Ausrüstungsset, Gegenstände, die du noch zurückgeben oder handeln kannst, Gegenstände in einer Gruppe, der du folgst, und Gegenstände, die du behältst. Klick auf eine Zeile entzaubert den Gegenstand als Nächstes. Rechtsklick auf eine Zeile behält den Gegenstand.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Entzaubern, 1 Gegenstand",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Entzaubern, %d Gegenstände",
   ["Nothing in your bags to disenchant."] = "Nichts in deinen Taschen zum Entzaubern.",
+  ["Worth disenchanting: %d"] = "Entzaubern lohnt sich: %d",
+  ["The auction house pays more: %d"] = "Das Auktionshaus zahlt mehr: %d",
+  ["A vendor pays more: %d"] = "Ein Händler zahlt mehr: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Gerade lohnt sich kein Entzaubern: Für alles unten zahlt ein Händler mehr.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Gerade lohnt sich kein Entzaubern: Alles unten bringt verkauft mehr ein.",
   ["This character does not know Disenchant."] = "Dieser Charakter beherrscht Entzaubern nicht.",
   ["item level %d"] = "Gegenstandsstufe %d",
   ["%s, next"] = "%s, als Nächstes",

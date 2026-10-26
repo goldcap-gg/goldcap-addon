@@ -1715,9 +1715,14 @@ GC.Locales.ptBR = {
   ["Disenchant anyway"] = "Desencantar mesmo assim",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Materiais é o que seus próprios desencantamentos de itens assim deram, a preços de hoje. Nunca na lista: itens de um conjunto de equipamento, itens que você ainda pode devolver ou negociar, itens de um grupo que você segue e itens que você guarda. Clique numa linha para desencantar o item em seguida. Clique com o botão direito numa linha para guardar o item.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Desencantar, 1 item",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Desencantar, %d itens",
   ["Nothing in your bags to disenchant."] = "Nada para desencantar nas suas bolsas.",
+  ["Worth disenchanting: %d"] = "Vale desencantar: %d",
+  ["The auction house pays more: %d"] = "A casa de leilões paga mais: %d",
+  ["A vendor pays more: %d"] = "Um vendedor paga mais: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Nada vale a pena desencantar agora: um vendedor paga mais por tudo abaixo.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Nada vale a pena desencantar agora: tudo abaixo vende por mais.",
   ["This character does not know Disenchant."] = "Este personagem não conhece Desencantar.",
   ["item level %d"] = "nível de item %d",
   ["%s, next"] = "%s, o próximo",

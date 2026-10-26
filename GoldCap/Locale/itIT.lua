@@ -1717,9 +1717,14 @@ GC.Locales.itIT = {
   ["Disenchant anyway"] = "Disincanta comunque",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Materiali è ciò che hanno dato i tuoi disincantamenti di oggetti simili, ai prezzi di oggi. Mai nella lista: oggetti di un set di equipaggiamento, oggetti che puoi ancora rendere o scambiare, oggetti di un gruppo che segui e oggetti che tieni. Clic su una riga per rendere l'oggetto il prossimo da disincantare. Clic destro su una riga per tenere l'oggetto.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Disincantare, 1 oggetto",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Disincantare, %d oggetti",
   ["Nothing in your bags to disenchant."] = "Niente da disincantare nelle tue borse.",
+  ["Worth disenchanting: %d"] = "Conviene disincantare: %d",
+  ["The auction house pays more: %d"] = "La casa d'aste paga di più: %d",
+  ["A vendor pays more: %d"] = "Un venditore paga di più: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Per ora non conviene disincantare nulla: un venditore paga di più per tutto quello qui sotto.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Per ora non conviene disincantare nulla: tutto quello qui sotto rende di più se venduto.",
   ["This character does not know Disenchant."] = "Questo personaggio non conosce Disincantare.",
   ["item level %d"] = "livello oggetto %d",
   ["%s, next"] = "%s, il prossimo",

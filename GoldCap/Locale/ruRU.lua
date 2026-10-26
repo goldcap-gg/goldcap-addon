@@ -1786,9 +1786,14 @@ GC.Locales.ruRU = {
   ["Disenchant anyway"] = "Всё равно распылить",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Материалы: что дало вам распыление таких предметов, по сегодняшним ценам. Никогда не попадают в список: предметы из комплекта экипировки, предметы, которые ещё можно вернуть или передать, предметы из группы, на которую вы подписаны, и предметы, которые вы оставляете. Клик по строке поставит предмет следующим на распыление. Правый клик по строке оставит предмет.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Распыление, 1 предмет",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Распыление, предметов: %d",
   ["Nothing in your bags to disenchant."] = "В сумках нечего распылять.",
+  ["Worth disenchanting: %d"] = "Стоит распылить: %d",
+  ["The auction house pays more: %d"] = "Аукцион платит больше: %d",
+  ["A vendor pays more: %d"] = "Торговец платит больше: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Сейчас нечего выгодно распылять: за всё ниже торговец платит больше.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Сейчас нечего выгодно распылять: всё ниже выгоднее продать.",
   ["This character does not know Disenchant."] = "Этот персонаж не владеет Распылением.",
   ["item level %d"] = "уровень предмета %d",
   ["%s, next"] = "%s, следующий",

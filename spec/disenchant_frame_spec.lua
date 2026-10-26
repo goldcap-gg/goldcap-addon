@@ -357,18 +357,67 @@ describe("Disenchant window", function()
     assert.is_false(windowUp())
   end)
 
-  it("keeps the entry hidden with nothing to disenchant, and with the bags closed", function()
+  -- The owner, 2026-10-26 23:15-23:21: with everything left out the entry hid, and Left out, Kept and
+  -- Got so far could be reached only by /gc disenchant. It shows with the bags for an enchanter.
+  it("shows the entry with the bags whatever is queued, with no count when nothing can be disenchanted", function()
     put(gear(0, 1, 501, { quality = 1 }))
     openBags()
-    assert.is_false(entryUp())
+    assert.is_true(entryUp())
+    assert.is_false(DF._entry.pill:IsShown())
+    assert.is_false(DF._entry.count:IsShown())
     put(gear(0, 2, 502))
     event("BAG_UPDATE_DELAYED")
     nextFrame()
     assert.is_true(entryUp())
+    assert.is_true(DF._entry.pill:IsShown())
+    assert.equal("1", textOf(DF._entry.count))
     bags:Hide()
     W.state(bags).hooks.OnHide(bags)
     nextFrame()
     assert.is_false(entryUp())
+  end)
+
+  -- The owner, 23:22: a number beside it, so the player sees how many can be disenchanted: the queue
+  -- in gold; with none queued, what is left out in grey; kept items not counted.
+  it("counts the queue on the entry in gold, and with none queued what is left out in grey", function()
+    local K = GC.Kit.Tokens.color
+    local function rgb(c) return { c[1], c[2], c[3] } end
+    learned()
+    put(gear(0, 1, 501, { vendorUnit = 190000 }))
+    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    local kept = put(gear(0, 4, 504, { vendorUnit = 190000 }))
+    GC.Disenchant.Keep(GC.db, kept.itemID)
+    openBags()
+    assert.is_true(entryUp())
+    assert.equal("2", textOf(DF._entry.count))
+    assert.same(rgb(K.text5), rgb(W.state(DF._entry.pill).vertex))
+    assert.same(rgb(K.text2), rgb(W.state(DF._entry.count).color))
+    put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.equal("1", textOf(DF._entry.count))
+    assert.same(rgb(K.gold), rgb(W.state(DF._entry.pill).vertex))
+    assert.same(rgb(K.onGold), rgb(W.state(DF._entry.count).color))
+  end)
+
+  it("says in the entry's tooltip how many are worth disenchanting and how many pay more elsewhere", function()
+    learned()
+    local function hover()
+      W.state(DF._entry).scripts.OnEnter(DF._entry)
+      return _G.GameTooltip.lines
+    end
+    openBags()
+    assert.same({ "GoldCap Disenchant", "Nothing in your bags to disenchant." }, hover())
+    put(gear(0, 1, 501, { vendorUnit = 190000 }))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.same({ "GoldCap Disenchant", "Worth disenchanting: 0", "A vendor pays more: 1" }, hover())
+    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.same({ "GoldCap Disenchant", "Worth disenchanting: 1", "The auction house pays more: 1",
+      "A vendor pays more: 1" }, hover())
   end)
 
   it("toggles with /gc disenchant, for bag addons that replace Blizzard's bags", function()
@@ -1080,6 +1129,47 @@ describe("Disenchant window", function()
     assert.equal("Mats: about 9g", coins(DF._frame.card.verdict))
   end)
 
+  -- The owner, 23:19: after the mail, all seven items a vendor paid more for, and the card said
+  -- there was nothing in the bags to disenchant.
+  it("says why nothing is queued when everything is left out", function()
+    learned()
+    put(gear(0, 1, 501, { vendorUnit = 190000 }))
+    slash()
+    assert.equal("Nothing worth disenchanting now: a vendor pays more for everything below.",
+      textOf(DF._frame.card.name))
+    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.equal("Nothing worth disenchanting now: everything below sells for more.", textOf(DF._frame.card.name))
+    take(DF._plan.left[1].stack)
+    take(DF._plan.leftVendor[1].stack)
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.equal("Nothing in your bags to disenchant.", textOf(DF._frame.card.name))
+  end)
+
+  -- The owner, 23:19: with nothing to press, Disenchant looked live. It takes the kit's disabled look
+  -- (UI/Kit/Button.lua: grey words, no wash under the cursor), never by Disable(), and Skip is
+  -- disabled.
+  it("makes Disenchant look disabled with nothing to press, and disables Skip", function()
+    local K = GC.Kit.Tokens.color
+    local function rgb(c) return { c[1], c[2], c[3] } end
+    local b
+    slash()
+    b = button()
+    assert.same(rgb(K.text3), rgb(W.state(b.text).color))
+    assert.is_false(b.wash:IsShown())
+    assert.is_true(b:IsEnabled())
+    assert.is_false(DF._frame.card.skip:IsEnabled())
+    put(gear(0, 1, 501))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.are_not.same(rgb(K.text3), rgb(W.state(b.text).color))
+    assert.is_true(b.wash:IsShown())
+    assert.is_true(b:IsEnabled())
+    assert.is_true(DF._frame.card.skip:IsEnabled())
+  end)
+
   it("says GoldCap learns it the first time with nothing learned, and invents no mats", function()
     put(gear(0, 1, 501))
     slash()
@@ -1670,6 +1760,29 @@ describe("Disenchant window", function()
     W.state(bags).hooks.OnHide(bags)
     nextFrame()
     assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1296, 1000 }, at(DF._frame))
+  end)
+
+  -- Separate bags stack 8 apart (ContainerFrame.lua:10, :1236): the entry stands above the highest
+  -- that shows, so it covers no slot of the bag above the first (the final review's M3); in combat
+  -- too, as it follows the bags.
+  it("stands the entry above the highest of the bags that show", function()
+    screen(1920, 1080)
+    local backpack, second = _G.ContainerFrame1, _G.ContainerFrame2
+    standAt(backpack, 1500, 400)
+    standAt(second, 1500, 700)
+    put(gear(0, 1, 501))
+    backpack:Show()
+    second:Show()
+    W.state(second).hooks.OnShow(second)
+    nextFrame()
+    assert.is_true(entryUp())
+    assert.same({ "BOTTOMRIGHT", second, "TOPRIGHT", 0, 4 }, at(DF._entry))
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    second:Hide()
+    W.state(second).hooks.OnHide(second)
+    nextFrame()
+    assert.same({ "BOTTOMRIGHT", backpack, "TOPRIGHT", 0, 4 }, at(DF._entry))
   end)
 
   -- Sixteen and more items: the window keeps to about 85% of the screen's height, "In this order"

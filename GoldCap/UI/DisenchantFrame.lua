@@ -13,9 +13,9 @@ local _, GC = ...
 --   an item off the list for good;
 -- - "Left out: the auction house pays more", each with Disenchant anyway for this visit;
 -- - the footer: what Mats means and what never comes on the list, and where the prices come from.
--- A small button above the top right of Blizzard's open bags (ContainerFrameCombinedBags, else
--- ContainerFrame1) shows how many items are queued and opens and closes the window; /gc disenchant
--- does the same for a bag addon that replaces Blizzard's bags.
+-- A small button above the top right of the highest of Blizzard's open bag frames, there whenever
+-- they are open, opens and closes the window and counts what is queued (gold), else what is left
+-- out (grey); /gc disenchant does the same for a bag addon that replaces Blizzard's bags.
 --
 -- The Disenchant button is GoldCapDisenchantNext, a SecureActionButtonTemplate button, and it is the
 -- only thing in GoldCap that casts: addon code never calls a cast. Built as probe D1 measured it
@@ -140,6 +140,8 @@ local ROW_CAST_RING = { PURPLE[1], PURPLE[2], PURPLE[3], 0.6 }
 local BAR_TRACK = { 1, 1, 1, 0.08 }
 -- The shade the engine lays over a held button (UI/Kit/Button.lua's PRESSED).
 local PRESSED = { 0, 0, 0, 0.28 }
+-- A disabled button's fill, at this share of its own alpha (UI/Kit/Button.lua's DIM).
+local DIM = 0.45
 -- A line done this visit.
 local DONE_ALPHA = 0.55
 -- The Disenchant spell's icon, where the client will not say it.
@@ -373,6 +375,21 @@ end
 
 local function bagFrame()
   return shownBags()[1]
+end
+
+-- The highest of Blizzard's bag frames that show (by its top on the screen), else the first: the
+-- entry stands above it, so it covers no slot of a bag above (separate bags stack 8 apart,
+-- ContainerFrame.lua:10, :1236; the final review's M3).
+local function topBag()
+  local best, bestTop
+  for _, f in ipairs(shownBags()) do
+    local t = f.GetTop and f:GetTop()
+    local scale = f.GetEffectiveScale and f:GetEffectiveScale()
+    if type(t) == "number" and type(scale) == "number" and (bestTop == nil or t * scale > bestTop) then
+      best, bestTop = f, t * scale
+    end
+  end
+  return best or bagFrame()
 end
 
 local function spellIcon()
@@ -872,13 +889,31 @@ local function showRowTip(row)
   showItemTip(row)
 end
 
+-- How many the last plan queued, and left out for the auction house and for a vendor (kept and
+-- refused items are not counted).
+local function counts()
+  local plan = DF._plan
+  if not plan then return 0, 0, 0 end
+  return #plan.queue, #plan.left, #(plan.leftVendor or {})
+end
+
+-- The entry's tooltip: its name; then how many are worth disenchanting and, when some, how many the
+-- auction house and a vendor pay more for; with none of them, that nothing is in the bags.
 local function showEntryTip(button)
   local tooltip = _G.GameTooltip
   if not tooltip then return end
   tooltip:SetOwner(button, "ANCHOR_LEFT")
-  local n = DF._plan and #DF._plan.queue or 0
-  local text = n == 1 and GC.L["GoldCap Disenchant, 1 item"] or GC.L["GoldCap Disenchant, %d items"]:format(n)
-  tooltip:AddLine(GC.Util.ClientText(text), K.goldText[1], K.goldText[2], K.goldText[3])
+  local text = GC.Util.ClientText
+  tooltip:AddLine(text("GoldCap " .. GC.L["Disenchant"]), K.goldText[1], K.goldText[2], K.goldText[3])
+  local n, ah, vendor = counts()
+  local c = K.text1
+  if n + ah + vendor == 0 then
+    tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
+  else
+    tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(n)), c[1], c[2], c[3])
+    if ah > 0 then tooltip:AddLine(text(GC.L["The auction house pays more: %d"]:format(ah)), c[1], c[2], c[3]) end
+    if vendor > 0 then tooltip:AddLine(text(GC.L["A vendor pays more: %d"]:format(vendor)), c[1], c[2], c[3]) end
+  end
   tooltip:Show()
 end
 
@@ -1180,11 +1215,9 @@ local function buildEntry()
   entry.pill = entry:CreateTexture(nil, "ARTWORK", nil, 2)
   entry.pill:SetTexture(T.MEDIA .. "badge.png")
   entry.pill:SetTextureSliceMargins(T.SLICE.badge, T.SLICE.badge, T.SLICE.badge, T.SLICE.badge)
-  entry.pill:SetVertexColor(PURPLE[1], PURPLE[2], PURPLE[3], 1)
   entry.count = track(entry, T.Num(entry, 9, true))
   entry.count:SetWordWrap(false)
   entry.count:SetJustifyH("CENTER")
-  colour(entry.count, K.text1)
   entry:SetScript("OnClick", function() DF.Toggle() end)
   entry:SetScript("OnEnter", showEntryTip)
   entry:SetScript("OnLeave", U.hideTip)
@@ -1196,19 +1229,25 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- The Disenchant button's look: "ready" (the gradient and dark words), "casting" or "idle" (the fill
--- at 22% and light purple words: nothing to press), as wide as `width`, its icon and word centred.
+-- The Disenchant button's look: "ready" (the gradient and dark words), "casting" (the fill at 22% and
+-- light purple words) or "idle", nothing to press: the kit's disabled look (UI/Kit/Button.lua's
+-- OnDisable: the fill at DIM of its alpha, grey words, no wash under the cursor), by its textures
+-- alone, never Disable(): the button is secure, and its look changes only in a paint, out of combat.
+-- As wide as `width`, its icon and word centred.
 local function paintCast(look, width)
   local b = frame.card.cast
   local low, high = FILL_BOTTOM, FILL_TOP
-  if look ~= "ready" then low, high = CASTING_FILL, CASTING_FILL end
+  if look == "casting" then low, high = CASTING_FILL, CASTING_FILL end
+  local a = look == "idle" and DIM or 1
   for _, t in ipairs(b.fill) do
-    t:SetGradient("VERTICAL", CreateColor(low[1], low[2], low[3], low[4]), CreateColor(high[1], high[2], high[3], high[4]))
+    t:SetGradient("VERTICAL", CreateColor(low[1], low[2], low[3], low[4] * a),
+      CreateColor(high[1], high[2], high[3], high[4] * a))
   end
-  local c = look == "ready" and ON_PURPLE or CASTING_TEXT
+  local c = look == "ready" and ON_PURPLE or (look == "casting" and CASTING_TEXT or K.text3)
   setText(b.text, GC.L["Disenchant"])
   colour(b.text, c)
   b.icon:SetVertexColor(1, 1, 1, look == "ready" and 1 or 0.5)
+  b.wash:SetShown(look ~= "idle")
   b:SetSize(width, M.BUTTON_H)
   local textW = math.ceil(b.text:GetStringWidth() or 0)
   local x = math.max(M.BUTTON_PAD, math.floor((width - M.BUTTON_ICON - 6 - textW) / 2))
@@ -1274,7 +1313,14 @@ local function paintCard(plan, w)
     card.verdict:Hide()
     card.mark:Hide()
     card.name:SetWidth(inner)
-    setText(card.name, GC.L["Nothing in your bags to disenchant."])
+    -- With items left out, why none is queued (the owner, 2026-10-26 23:19).
+    local empty = GC.L["Nothing in your bags to disenchant."]
+    if #plan.left > 0 then
+      empty = GC.L["Nothing worth disenchanting now: everything below sells for more."]
+    elseif #(plan.leftVendor or {}) > 0 then
+      empty = GC.L["Nothing worth disenchanting now: a vendor pays more for everything below."]
+    end
+    setText(card.name, empty)
     colour(card.name, K.text2)
     nameH = math.ceil(heightOf(card.name, 12))
   end
@@ -1764,24 +1810,42 @@ local function paintMarks(bags)
   else marks.Clear() end
 end
 
--- The entry above the bags' top right, with how many are queued; hidden with the bags closed or
--- nothing queued. `bags`: the open bag frame, or nil.
-local function paintEntry(bags)
-  local n = DF._plan and #DF._plan.queue or 0
-  if not bags or n == 0 then
-    if entry then entry:Hide() end
-    return
+-- The entry's count from the last plan: the queue's in gold; with none queued, what is left out in
+-- grey (the kit's muted text); none with neither (the owner, 2026-10-26 23:22).
+local function paintPill()
+  local n, ah, vendor = counts()
+  local count, fill, ink
+  if n > 0 then
+    count, fill, ink = n, K.gold, K.onGold
+  elseif ah + vendor > 0 then
+    count, fill, ink = ah + vendor, K.text5, K.text2
   end
-  if not entry then buildEntry() end
-  entry:ClearAllPoints()
-  entry:SetPoint("BOTTOMRIGHT", bags, "TOPRIGHT", 0, M.ENTRY_GAP)
-  setText(entry.count, tostring(n))
+  entry.pill:SetShown(count ~= nil)
+  entry.count:SetShown(count ~= nil)
+  if not count then return end
+  setText(entry.count, tostring(count))
+  colour(entry.count, ink)
+  entry.pill:SetVertexColor(fill[1], fill[2], fill[3], 1)
   local pillW = math.max(M.ENTRY_COUNT, math.ceil(entry.count:GetStringWidth() or 0) + 6)
   entry.pill:ClearAllPoints()
   entry.pill:SetPoint("CENTER", entry, "TOPRIGHT", -3, -3)
   entry.pill:SetSize(pillW, M.ENTRY_COUNT)
   entry.count:ClearAllPoints()
   entry.count:SetPoint("CENTER", entry.pill, "CENTER", 0, 0)
+end
+
+-- The entry above the top right of the highest bag that shows, with its count; shown whenever
+-- Blizzard's bags are open for a character that knows Disenchant (the owner, 2026-10-26 23:21),
+-- hidden with them closed. `bags`: an open bag frame, or nil.
+local function paintEntry(bags)
+  if not bags then
+    if entry then entry:Hide() end
+    return
+  end
+  if not entry then buildEntry() end
+  entry:ClearAllPoints()
+  entry:SetPoint("BOTTOMRIGHT", topBag(), "TOPRIGHT", 0, M.ENTRY_GAP)
+  paintPill()
   local wasUp = entry:IsShown()
   entry:Show()
   if not wasUp then restamp(entry) end
@@ -1850,11 +1914,13 @@ end
 local function holdEntry()
   paintMarks(bagFrame())
   if not entry then return end
-  local bags = bagFrame()
-  if bags and DF._plan and #DF._plan.queue > 0 then
+  if bagFrame() then
     entry:ClearAllPoints()
-    entry:SetPoint("BOTTOMRIGHT", bags, "TOPRIGHT", 0, M.ENTRY_GAP)
+    entry:SetPoint("BOTTOMRIGHT", topBag(), "TOPRIGHT", 0, M.ENTRY_GAP)
+    paintPill()
+    local wasUp = entry:IsShown()
     entry:Show()
+    if not wasUp then restamp(entry) end
   else
     entry:Hide()
   end

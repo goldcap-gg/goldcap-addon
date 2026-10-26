@@ -1646,9 +1646,14 @@ GC.Locales.koKR = {
   ["Disenchant anyway"] = "그래도 추출",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "재료는 이런 아이템을 직접 마력 추출해서 얻은 것을 오늘 가격으로 계산한 값입니다. 목록에 넣지 않는 것: 장비 구성에 든 아이템, 아직 환불하거나 거래할 수 있는 아이템, 팔로우 중인 그룹의 아이템, 보관하는 아이템. 줄을 클릭하면 그 아이템을 다음에 추출합니다. 줄을 우클릭하면 그 아이템을 보관합니다.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap 마력 추출, 아이템 1개",
-  ["GoldCap Disenchant, %d items"] = "GoldCap 마력 추출, 아이템 %d개",
   ["Nothing in your bags to disenchant."] = "가방에 마력 추출할 것이 없습니다.",
+  ["Worth disenchanting: %d"] = "마력 추출이 이득: %d",
+  ["The auction house pays more: %d"] = "경매장이 더 이득: %d",
+  ["A vendor pays more: %d"] = "상점이 더 이득: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "지금은 마력 추출할 만한 것이 없습니다: 아래는 모두 상점이 더 이득입니다.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "지금은 마력 추출할 만한 것이 없습니다: 아래는 모두 파는 편이 더 이득입니다.",
   ["This character does not know Disenchant."] = "이 캐릭터는 마력 추출을 모릅니다.",
   ["item level %d"] = "아이템 레벨 %d",
   ["%s, next"] = "%s, 다음",

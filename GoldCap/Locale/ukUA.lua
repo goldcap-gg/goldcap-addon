@@ -1788,9 +1788,14 @@ GC.Locales.ukUA = {
   ["Disenchant anyway"] = "Однаково розпилити",
   ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
     "Матеріали: що дало вам розпилення таких предметів, за сьогоднішніми цінами. Ніколи не потрапляють до списку: предмети з комплекту спорядження, предмети, які ще можна повернути чи передати, предмети з групи, на яку ви підписані, і предмети, які ви залишаєте. Клік по рядку поставить предмет наступним на розпилення. Правий клік по рядку залишить предмет.",
-  ["GoldCap Disenchant, 1 item"] = "GoldCap Розпилення, 1 предмет",
-  ["GoldCap Disenchant, %d items"] = "GoldCap Розпилення, предметів: %d",
   ["Nothing in your bags to disenchant."] = "У сумках нічого розпилювати.",
+  ["Worth disenchanting: %d"] = "Варто розпилити: %d",
+  ["The auction house pays more: %d"] = "Аукціон платить більше: %d",
+  ["A vendor pays more: %d"] = "Торговець платить більше: %d",
+  ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
+    "Зараз нічого вигідно розпилювати: за все нижче торговець платить більше.",
+  ["Nothing worth disenchanting now: everything below sells for more."] =
+    "Зараз нічого вигідно розпилювати: все нижче вигідніше продати.",
   ["This character does not know Disenchant."] = "Цей персонаж не володіє Розпиленням.",
   ["item level %d"] = "рівень предмета %d",
   ["%s, next"] = "%s, наступний",
