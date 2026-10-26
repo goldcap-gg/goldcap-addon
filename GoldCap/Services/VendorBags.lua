@@ -93,7 +93,7 @@ end
 -- The item's own GUID (C_Item.GetItemGUID(itemLocation), live ItemDocumentation.lua, forever too):
 -- it follows the item wherever a sort of the bags moves it and tells apart two items with one link,
 -- as Blizzard follows a reagent by it (Item:CreateFromItemGUID, Blizzard_ProfessionsCrafting.lua).
--- Nil where the client will not say.
+-- Nil where the client will not say. B.GuidOf: the same for the window's press and the bag marks.
 local function guidOf(bag, slot)
   if not (_G.ItemLocation and ItemLocation.CreateFromBagAndSlot and C_Item and C_Item.GetItemGUID) then return nil end
   local ok, guid = try(function() return C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot)) end)
@@ -138,6 +138,8 @@ local function vendorUnitOf(itemID, link)
   end
   return GC.ForeverValue.VendorUnit(itemID)
 end
+
+B.GuidOf = guidOf
 
 function B.Read(valueFor)
   local stacks = {}

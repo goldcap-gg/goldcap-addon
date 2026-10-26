@@ -495,7 +495,7 @@ local function setArmed(row)
     b:SetAttribute("target-bag", stack.bag)
     b:SetAttribute("target-slot", stack.slot)
     DF._armed = { row = row, bag = stack.bag, slot = stack.slot, link = stack.link, itemID = stack.itemID,
-      kind = D.KindOf(stack), slotKey = row.slotKey, id = row.id }
+      kind = D.KindOf(stack), slotKey = row.slotKey, id = row.id, guid = stack.guid }
   else
     for _, key in ipairs({ "type", "spell", "target-bag", "target-slot" }) do b:SetAttribute(key, nil) end
     DF._armed = nil
@@ -534,9 +534,11 @@ function DF._PreClick(_, _, down)
   end
   local info = C_Container and ask(C_Container.GetContainerItemInfo, armed.bag, armed.slot)
   local link = type(info) == "table" and info.hyperlink or nil
-  -- Moved, or locked (on the cursor, in a trade): the client would refuse it, and the refusal would
-  -- read as the item's own.
-  if link ~= armed.link or (type(info) == "table" and info.isLocked == true) then
+  -- Moved (an identical twin with the same link told apart by the item's own GUID, where it has
+  -- one: one client call a press), or locked (on the cursor, in a trade): the client would refuse
+  -- it, and the refusal would read as the item's own.
+  local moved = link ~= armed.link or (armed.guid ~= nil and GC.VendorBags.GuidOf(armed.bag, armed.slot) ~= armed.guid)
+  if moved or (type(info) == "table" and info.isLocked == true) then
     setArmed(nil)
     return schedule()
   end

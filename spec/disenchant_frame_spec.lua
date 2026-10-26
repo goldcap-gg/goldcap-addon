@@ -35,7 +35,8 @@ describe("Disenchant window", function()
   end
   local function put(s)
     stacks[#stacks + 1] = s
-    slots[s.bag .. ":" .. s.slot] = { itemID = s.itemID, hyperlink = s.link, stackCount = s.count, isLocked = false }
+    slots[s.bag .. ":" .. s.slot] = { itemID = s.itemID, hyperlink = s.link, stackCount = s.count, isLocked = false,
+      guid = s.guid }
     return s
   end
   local function take(s)
@@ -287,11 +288,15 @@ describe("Disenchant window", function()
     GC.Data = { GetItemValue = function() return nil end, OriginState = function() return "app" end }
     GC.Print = function(msg) printed[#printed + 1] = msg end
     GC.slashHandlers = {}
+    -- The bag reader's GuidOf answers the GUID of the item a slot holds now (C_Item.GetItemGUID).
     GC.VendorBags = { Read = function()
       reads = reads + 1
       local copy = {}
       for i, s in ipairs(stacks) do copy[i] = s end
       return copy
+    end, GuidOf = function(bag, slot)
+      local info = slots[bag .. ":" .. slot]
+      return info and info.guid or nil
     end }
     GC.MerchantNote = { ValueFor = function(itemID)
       local p = prices[itemID]
@@ -474,6 +479,20 @@ describe("Disenchant window", function()
     assert.same({}, armedAt())
     nextFrame()
     assert.same({ "spell", 13262, 0, 2 }, armedAt())
+  end)
+
+  -- A sort that moves an identical twin (one link) into the armed slot before the window repaints:
+  -- the link still matches, the item's own GUID does not, so the press casts nothing.
+  it("casts nothing when an identical twin stands in the armed slot, by the item's GUID", function()
+    put(gear(0, 1, 601, { guid = "Item-A" }))
+    put(gear(0, 2, 601, { guid = "Item-B" }))
+    slash()
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
+    slots["0:1"].guid, slots["0:2"].guid = "Item-B", "Item-A"
+    S.click(button())
+    assert.same({}, S.casts)
+    assert.same({}, armedAt())
+    assert.is_nil(DF._pending)
   end)
 
   it("arms the next item when Skip is pressed", function()
