@@ -1686,12 +1686,17 @@ GC.Locales.esMX = {
   ["Type a character name"] = "Escribe un nombre de personaje",
   ["Mail goes only to a character on this realm or a connected one."] =
     "El correo solo llega a personajes de este reino o de uno conectado.",
-  ["The mail did not go: what was attached is back in your bags."] =
-    "El correo no salió: lo adjunto volvió a tus bolsas.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "El buzón no respondió. Revisa tus bolsas y la pestaña Enviar correo.",
   ["Stopped: something is on your cursor."] = "Detenido: tienes algo en el cursor.",
   ["Stopped: the Send Mail tab already holds items."] = "Detenido: la pestaña Enviar correo ya tiene objetos.",
   ["Stopped: %s would not go into the mail."] = "Detenido: %s no entró en el correo.",
   ["Stopped."] = "Detenido.",
+  ["The Send Mail tab was closed."] = "La pestaña Enviar correo se cerró.",
+  ["Sent 1 mail."] = "1 correo enviado.",
+  ["Sent %d mails."] = "%d correos enviados.",
+  ["The mail to %s did not go."] = "El correo para %s no salió.",
+  ["Postage is %s and this character has %s."] = "El franqueo es de %s y este personaje tiene %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "Tus otros personajes aparecerán aquí cuando cada uno entre al juego con GoldCap.",
 }

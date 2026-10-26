@@ -1750,11 +1750,17 @@ GC.Locales.ukUA = {
   ["Type a character name"] = "Введіть ім'я персонажа",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Лист можна надіслати лише персонажу цього реалму або пов'язаного з ним.",
-  ["The mail did not go: what was attached is back in your bags."] = "Лист не пішов: вкладення повернулися в сумки.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Поштова скринька не відповіла. Перевірте сумки та вкладку «Надіслати лист».",
   ["Stopped: something is on your cursor."] = "Зупинено: на курсорі щось є.",
   ["Stopped: the Send Mail tab already holds items."] = "Зупинено: у вкладці «Надіслати лист» уже є предмети.",
   ["Stopped: %s would not go into the mail."] = "Зупинено: %s не вдалося вкласти в лист.",
   ["Stopped."] = "Зупинено.",
+  ["The Send Mail tab was closed."] = "Вкладка «Надіслати лист» закрилася.",
+  ["Sent 1 mail."] = "Надіслано 1 лист.",
+  ["Sent %d mails."] = "Надіслано листів: %d.",
+  ["The mail to %s did not go."] = "Пошта для %s не пішла.",
+  ["Postage is %s and this character has %s."] = "Вартість пересилання: %s, а в цього персонажа %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "Інші ваші персонажі з'являться тут, коли кожен із них зайде в гру з GoldCap.",
 }

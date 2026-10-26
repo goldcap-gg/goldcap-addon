@@ -13,21 +13,28 @@ describe("Send to alts window", function()
     "SpellIsTargeting", "GetCursorInfo", "ClearCursor", "CreateColor", "GameTooltip", "ClickSendMailItemButton",
     "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail", "MailFrame", "SendMailFrame",
     "SendMailNameEditBox", "MailFrameTab_OnClick", "GetAutoCompleteRealms", "UnitName", "GetNormalizedRealmName",
-    "UnitClass", "UnitLevel", "UnitFactionGroup", "GetClassAtlas", "GetClassColor", "MenuUtil", "OpenMailFrame" }
+    "UnitClass", "UnitLevel", "UnitFactionGroup", "GetClassAtlas", "GetClassColor", "MenuUtil", "OpenMailFrame",
+    "GetMoney", "C_PlayerInteractionManager" }
 
-  -- Herbs: Bloom (1, 2); Ore: Bismuth (3); Potions: Tonic (5); Cloth: Weavercloth (4), never in the
-  -- bags here. Item 9 is in no followed group.
+  -- Herbs: Bloom (1, 2); Ore: Bismuth (3); Potions: Tonic (5) and Draught 1 to 7 (21 to 27), the
+  -- draughts in the bags only where a spec puts them; Cloth: Weavercloth (4), never in the bags
+  -- here. Item 9 is in no followed group.
   local FILE = {
     v = 3, generatedAt = 1, runs = {}, groups = { "G" },
     caps = {
       { i = 1, c = 700, u = 1000, r = 1, k = true }, { i = 2, c = 700, u = 1000, r = 1, k = true },
       { i = 3, c = 700, u = 1000, r = 2, k = true }, { i = 5, c = 700, u = 1000, r = 3, k = true },
       { i = 4, c = 700, u = 1000, r = 4, k = true },
+      { i = 21, c = 700, u = 1000, r = 3, k = true }, { i = 22, c = 700, u = 1000, r = 3, k = true },
+      { i = 23, c = 700, u = 1000, r = 3, k = true }, { i = 24, c = 700, u = 1000, r = 3, k = true },
+      { i = 25, c = 700, u = 1000, r = 3, k = true }, { i = 26, c = 700, u = 1000, r = 3, k = true },
+      { i = 27, c = 700, u = 1000, r = 3, k = true },
     },
     rules = { { n = "Herbs", p = "gather", d = 24, fp = 80 }, { n = "Ore", p = "gather", d = 24, fp = 80 },
       { n = "Potions", p = "craft", d = 24, fp = 80 }, { n = "Cloth", p = "craft", d = 24, fp = 80 } },
   }
   local NAMES = { [1] = "Bloom", [2] = "Bloom", [3] = "Bismuth", [4] = "Weavercloth", [5] = "Tonic", [9] = "Linen Cloth" }
+  for i = 1, 7 do NAMES[20 + i] = "Draught " .. i end
   local DAY = 86400
 
   local function info(itemID, count, over)
@@ -154,6 +161,9 @@ describe("Send to alts window", function()
       _G[name] = api[name]
     end
     _G.SpellIsTargeting = function() return false end
+    -- A hundred gold: every press here can pay its postage, but the one that says it cannot.
+    _G.GetMoney = function() return 1000000 end
+    _G.C_PlayerInteractionManager = nil
     _G.Enum = { BankType = { Character = 0, Account = 2 } }
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.UIParent = W.CreateFrame("Frame")
@@ -279,6 +289,57 @@ describe("Send to alts window", function()
     letter:Hide()
     W.state(letter).hooks.OnHide(letter)
     assert.equal(_G.MailFrame, at(MA._handle)[2])
+  end)
+
+  -- Walking from the mailbox straight to an auctioneer can end the visit with no MAIL_CLOSED (in
+  -- game 2026-09-23, UI/CraftQueueView.lua's mailboxOpen): the mail frame's own hide, whose
+  -- Blizzard OnHide calls CloseMail, ends it for the window too.
+  it("goes with the mail frame when it hides with no MAIL_CLOSED, and a later bag change shows nothing", function()
+    event("MAIL_SHOW")
+    assert.is_true(windowUp())
+    _G.MailFrame:Hide()
+    W.state(_G.MailFrame).hooks.OnHide(_G.MailFrame)
+    assert.is_false(windowUp())
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(windowUp())
+    assert.is_false(shown(MA._handle))
+  end)
+
+  it("takes its handle with the mail frame's hide too", function()
+    event("MAIL_SHOW")
+    press(MA._frame.close)
+    assert.is_true(shown(MA._handle))
+    _G.MailFrame:Hide()
+    W.state(_G.MailFrame).hooks.OnHide(_G.MailFrame)
+    assert.is_false(shown(MA._handle))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(shown(MA._handle))
+    assert.is_false(windowUp())
+  end)
+
+  it("stops a run and closes its popups when the mail frame hides", function()
+    event("MAIL_SHOW")
+    local keep = rowOf("Herbs").keep
+    press(top().send)
+    assert.is_true(MA.machine:IsRunning())
+    _G.MailFrame:Hide()
+    W.state(_G.MailFrame).hooks.OnHide(_G.MailFrame)
+    assert.is_false(MA.machine:IsRunning())
+    assert.is_true(closedFor[keep])
+  end)
+
+  it("paints nothing on a bag change once the client says the mailbox is gone", function()
+    _G.Enum.PlayerInteractionType = { MailInfo = 17 }
+    local open = true
+    _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function(kind) return kind == 17 and open end }
+    event("MAIL_SHOW")
+    assert.is_true(windowUp())
+    open = false
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(windowUp())
   end)
 
   it("remembers this character as the mailbox opens", function()
@@ -419,7 +480,9 @@ describe("Send to alts window", function()
   -- ---------------------------------------------------------------------------------------------
 
   it("attaches and sends the first mail inside the click, gold set to none before SendMail", function()
+    -- The player opened the Send Mail tab: Blizzard's MailFrameTab_OnClick set its mode.
     _G.SendMailFrame:Show()
+    _G.SendMailFrame.sendMode = "send"
     event("MAIL_SHOW")
     press(top().send)
     assert.same({
@@ -459,6 +522,40 @@ describe("Send to alts window", function()
     assert.equal("PickupContainerItem", names[2])
   end)
 
+  -- After Reply on a letter the Send Mail tab shows in "reply" mode (Blizzard_MailFrame's
+  -- OpenMail_Reply), and Blizzard turns back to the inbox after the first mail it sends then
+  -- (MailFrame_OnEvent's MAIL_SEND_SUCCESS): the press opens the tab anew, as a send.
+  it("opens the Send Mail tab anew when it shows for a reply", function()
+    _G.SendMailFrame:Show()
+    _G.SendMailFrame.sendMode = "reply"
+    event("MAIL_SHOW")
+    press(top().send)
+    assert.equal("MailFrameTab_OnClick", post:names()[1])
+    assert.equal(2, post:calls("MailFrameTab_OnClick")[1][2])
+    assert.equal("send", _G.SendMailFrame.sendMode)
+    assert.equal(1, #post:calls("SendMail"))
+  end)
+
+  it("stops, saying so, when the Send Mail tab closes mid-run", function()
+    event("MAIL_SHOW")
+    press(top().send)
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    -- The player clicks the Inbox tab.
+    _G.MailFrameTab_OnClick(nil, 1)
+    fire(GC.MailPress.STEP)
+    assert.equal(1, #post:calls("SendMail"))
+    assert.is_false(MA.machine:IsRunning())
+    assert.equal("The Send Mail tab was closed.", textOf(top().note))
+  end)
+
+  it("wears the kit's paper plane on Send all and on a group's Send", function()
+    event("MAIL_SHOW")
+    local plane = { GC.Theme.IconCoords("send") }
+    assert.same(plane, W.state(top().send.icon).texCoord)
+    assert.same(plane, W.state(rowOf("Herbs").send.icon).texCoord)
+  end)
+
   it("shows the run: Sending, Next and Sent on the rows, the mail in flight and Stop on top", function()
     event("MAIL_SHOW")
     press(top().send)
@@ -495,10 +592,28 @@ describe("Send to alts window", function()
     assert.equal("Nothing to send now", textOf(top().title))
   end)
 
+  -- A double click on Send all: its second click lands on the Stop the first one put there, and
+  -- must not stop the run it started.
+  it("refuses a press on Stop for ARM_HOLD after the run starts", function()
+    event("MAIL_SHOW")
+    press(top().send)
+    assert.equal("Stop", top().send.label)
+    assert.is_false(top().send:IsEnabled())
+    press(top().send)
+    assert.is_true(MA.machine:IsRunning())
+    assert.is_false(shown(top().note))
+    fire(MA.ARM_HOLD)
+    assert.is_true(top().send:IsEnabled())
+    press(top().send)
+    assert.is_false(MA.machine:IsRunning())
+    assert.equal("Stopped.", textOf(top().note))
+  end)
+
   -- The mail already handed to SendMail is the server's: it still goes, and nothing after it.
   it("stops on a second press of Send all, its Stop", function()
     event("MAIL_SHOW")
     press(top().send)
+    fire(MA.ARM_HOLD)
     press(top().send)
     assert.is_false(MA.machine:IsRunning())
     assert.equal("Stopped.", textOf(top().note))
@@ -528,20 +643,97 @@ describe("Send to alts window", function()
     assert.same({ "0:1", "0:2" }, post:pending().items)
   end)
 
-  it("puts the attachments back on MAIL_FAILED and says the run stopped", function()
+  -- A typo'd or deleted name, or a full mailbox, refuses one character's mail (MAIL_FAILED): the
+  -- others' groups still go, and the end names whose did not.
+  it("puts a refused mail's attachments back and goes on with the next character", function()
+    sendTo("Ore", "Kaz-Kazzak")
     event("MAIL_SHOW")
-    press(top().send)
-    assert.equal(3, post:attached())
+    press(top().send) -- mail 1: Herbs to Mirelle
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    fire(GC.MailPress.STEP) -- mail 2: Ore to Kaz-Kazzak
+    assert.equal("Kaz-Kazzak", post:calls("SendMail")[2][1])
+    assert.equal(1, post:attached())
     post:fail()
     event("MAIL_FAILED")
     assert.equal(0, post:attached())
-    for _, slot in ipairs({ { 0, 1 }, { 0, 2 }, { 5, 1 } }) do
-      assert.is_false(post.bags[slot[1]][slot[2]].isLocked)
-    end
+    assert.is_false(post.bags[5][1].isLocked)
+    assert.is_true(MA.machine:IsRunning())
+    -- Ore went nowhere: no longer "Sending", nor "Next".
+    assert.is_false(shown(rowOf("Ore").status))
+    assert.is_true(shown(rowOf("Ore").send))
+    assert.is_false(rowOf("Ore").send:IsEnabled())
+    fire(GC.MailPress.STEP) -- mail 3: Potions to Thornwick
+    assert.equal("Thornwick", post:calls("SendMail")[3][1])
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
     assert.is_false(MA.machine:IsRunning())
-    assert.equal("The mail did not go: what was attached is back in your bags.", textOf(top().note))
+    assert.equal("Sent 2 mails. The mail to Kaz-Kazzak did not go.", textOf(top().note))
     assert.is_true(shown(top().note))
     assert.equal("Send all", top().send.label)
+  end)
+
+  it("names whom it failed for when no mail went", function()
+    event("MAIL_SHOW")
+    press(rowOf("Potions").send)
+    post:fail()
+    event("MAIL_FAILED")
+    assert.is_false(MA.machine:IsRunning())
+    assert.equal(0, post:attached())
+    assert.equal("The mail to Thornwick did not go.", textOf(top().note))
+  end)
+
+  it("says one mail went in the singular", function()
+    event("MAIL_SHOW")
+    press(top().send) -- mail 1: Herbs and Ore to Mirelle
+    post:fail()
+    event("MAIL_FAILED")
+    fire(GC.MailPress.STEP) -- mail 2: Potions to Thornwick
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    assert.equal("Sent 1 mail. The mail to Mirelle did not go.", textOf(top().note))
+  end)
+
+  it("does not start when this character cannot pay the postage, and says so", function()
+    _G.GetMoney = function() return 50 end
+    event("MAIL_SHOW")
+    press(top().send)
+    assert.equal(0, #post:calls("PickupContainerItem"))
+    assert.equal(0, #post:calls("SendMail"))
+    assert.is_false(MA.machine:IsRunning())
+    assert.equal(helper.plain(("Postage is %s and this character has %s."):format(GC.Util.Money(4 * GC.MailGroups.POSTAGE),
+      GC.Util.Money(50))), textOf(top().note))
+    assert.equal("Send all", top().send.label)
+    -- One group's own Send costs one stack's postage, which it can pay.
+    press(rowOf("Potions").send)
+    assert.equal(1, #post:calls("SendMail"))
+  end)
+
+  -- Gold never goes: a mail whose COD or money could not be set to none is not sent.
+  for _, call in ipairs({ "SetSendMailCOD", "SetSendMailMoney" }) do
+    it("sends nothing and gives the attachments back when " .. call .. " fails", function()
+      _G[call] = function() error("the client refused") end
+      event("MAIL_SHOW")
+      press(top().send)
+      assert.equal(0, #post:calls("SendMail"))
+      assert.equal(0, post:attached())
+      assert.is_nil(post:holding())
+      assert.is_false(MA.machine:IsRunning())
+      assert.equal("Stopped.", textOf(top().note))
+    end)
+  end
+
+  -- A stack that merged with another of its item between two mails would take what the group
+  -- keeps: it stays, and a mail with nothing left is not sent.
+  it("leaves out a stack that grew since the bags were read", function()
+    event("MAIL_SHOW")
+    press(top().send)
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    post.bags[0][4].stackCount = 40
+    fire(GC.MailPress.STEP)
+    assert.equal(1, #post:calls("SendMail"))
+    assert.is_false(MA.machine:IsRunning())
   end)
 
   -- The server may still have taken the mail it never answered for: the window does not say where
@@ -631,6 +823,77 @@ describe("Send to alts window", function()
     assert.equal(1, #post:calls("SendMail"))
   end)
 
+  -- One deleted or renamed since may have had its name taken: a character not seen for 30 days is
+  -- asked about once, as a typed name is.
+  it("asks once before mailing a character of yours not seen for 30 days", function()
+    record("Oldie", "Tarren", "MAGE", "Alliance", now - 31 * DAY)
+    sendTo("Potions", "Oldie-Tarren")
+    event("MAIL_SHOW")
+    press(rowOf("Potions").send)
+    assert.equal(0, #post:calls("SendMail"))
+    assert.equal("Send to Oldie? Press again", rowOf("Potions").send.label)
+    fire(MA.ARM_HOLD)
+    press(rowOf("Potions").send)
+    assert.equal(1, #post:calls("SendMail"))
+    assert.is_true(GC.MailGroups.Trusted(GC.db, "Oldie-Tarren"))
+  end)
+
+  -- The ask is long, and longer in other languages: on a card it takes a line of its own under the
+  -- icons, as wide as the card, never over them; the line and the "+N" wait under it.
+  it("puts an armed Send on its own line under the icons, as wide as the card", function()
+    sendTo("Potions", "Stranger-Tarren")
+    for i = 1, 7 do post.bags[1][i] = info(20 + i, 5) end
+    event("MAIL_SHOW")
+    local potions = rowOf("Potions")
+    local before = potions:GetHeight()
+    assert.is_true(shown(potions.line))
+    assert.is_true(shown(potions.more))
+    press(potions.send)
+    assert.equal("Send to Stranger? Press again", potions.send.label)
+    assert.is_false(shown(potions.line))
+    assert.is_false(shown(potions.more))
+    assert.equal(potions:GetWidth() - 2 * 7, potions.send:GetWidth())
+    local button, icon = at(potions.send), at(potions.icons[1].edge)
+    assert.same({ "TOPLEFT", potions, "TOPLEFT", 7 }, { button[1], button[2], button[3], button[4] })
+    assert.is_true(-button[5] >= -icon[5] + 24, "the button stands under the icons")
+    assert.is_true(potions:GetHeight() > before)
+    fire(MA.ARM_SECONDS)
+    assert.equal("Send", potions.send.label)
+    assert.is_true(shown(potions.line))
+    assert.is_true(shown(potions.more))
+    assert.equal(before, potions:GetHeight())
+  end)
+
+  -- Ukrainian says the ask in the most letters, and a connected realm's name can be long: the words
+  -- wrap inside a taller button rather than being cut, on a card and on the top card alike.
+  it("wraps a long ask inside a taller button, never cutting it", function()
+    helper.loadModule("Locale/ukUA.lua", GC)
+    GC.ActivateLocale("ukUA")
+    _G.GetAutoCompleteRealms = function() return { "Kazzak", "TwistingNether" } end
+    local to = "Thornwickson-TwistingNether"
+    sendTo("Potions", to)
+    event("MAIL_SHOW")
+    local ask = GC.L["Send to %s? Press again"]:format(to)
+    local function wrapsWhole(button, least)
+      local text = button.text
+      assert.equal(ask, button.label)
+      assert.is_true(text:GetUnboundedStringWidth() > button:GetWidth(), "this ask is longer than one line")
+      assert.is_true(W.state(text).wordWrap)
+      assert.is_true(text:GetWidth() <= button:GetWidth())
+      assert.is_true(button:GetHeight() > least)
+      assert.is_true(button:GetHeight() >= text:GetStringHeight())
+    end
+    press(rowOf("Potions").send)
+    wrapsWhole(rowOf("Potions").send, 20)
+    fire(MA.ARM_SECONDS)
+    assert.is_false(W.state(rowOf("Potions").send.text).wordWrap)
+    assert.equal(20, rowOf("Potions").send:GetHeight())
+    press(top().send)
+    wrapsWhole(top().send, 24)
+    local card = top()
+    assert.is_true(card:GetHeight() >= -at(card.send)[5] + card.send:GetHeight())
+  end)
+
   -- ---------------------------------------------------------------------------------------------
   -- Who sells a group
   -- ---------------------------------------------------------------------------------------------
@@ -650,6 +913,18 @@ describe("Send to alts window", function()
         assert.truthy(child.text:find("|cff40c7eb", 1, true))
       end
     end
+  end)
+
+  -- Right after the update only the characters that have logged in since are known.
+  it("says where the other characters come from while none is known yet", function()
+    GC.db.alts = nil
+    event("MAIL_SHOW")
+    local m = openMenu(rowOf("Herbs"))
+    assert.same({
+      "title: Who sells Herbs?", "title: Your other characters show here once each has logged in with GoldCap.",
+      "This character", "Type a name", "Nobody yet",
+    }, menuTexts(m))
+    assert.truthy(m.children[2].title:find("|c", 1, true), "the hint is grey")
   end)
 
   it("saves the character chosen for this realm, and sends there", function()
@@ -674,6 +949,10 @@ describe("Send to alts window", function()
     assert.equal("Type a character name", asked.opts.invalid)
     assert.equal("Stranger-Tarren", asked.opts.read("  stranger  "))
     assert.equal("Kaz-Kazzak", asked.opts.read("kaz-Kazzak"))
+    -- A realm and a name in any case: the client's and the recorded spelling.
+    assert.equal("Kaz-Kazzak", asked.opts.read("KAZ-kazzak"))
+    assert.equal("Someone-Kazzak", asked.opts.read("someone-KAZZAK"))
+    assert.equal("Mirelle-Tarren", asked.opts.read("MIRELLE"))
     assert.is_nil(asked.opts.read("two words"))
     assert.is_nil(asked.opts.read(""))
     assert.equal("Me-Tarren", asked.opts.read("me"))

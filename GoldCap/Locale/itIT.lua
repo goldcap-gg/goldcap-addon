@@ -1679,12 +1679,17 @@ GC.Locales.itIT = {
   ["Type a character name"] = "Scrivi il nome di un personaggio",
   ["Mail goes only to a character on this realm or a connected one."] =
     "La posta arriva solo ai personaggi di questo reame o di uno collegato.",
-  ["The mail did not go: what was attached is back in your bags."] =
-    "La lettera non è partita: gli allegati sono tornati nelle borse.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La cassetta postale non ha risposto. Controlla le borse e la scheda Invia posta.",
   ["Stopped: something is on your cursor."] = "Interrotto: hai qualcosa sul cursore.",
   ["Stopped: the Send Mail tab already holds items."] = "Interrotto: la scheda Invia posta contiene già oggetti.",
   ["Stopped: %s would not go into the mail."] = "Interrotto: %s non è entrato nella lettera.",
   ["Stopped."] = "Interrotto.",
+  ["The Send Mail tab was closed."] = "La scheda Invia posta è stata chiusa.",
+  ["Sent 1 mail."] = "1 lettera inviata.",
+  ["Sent %d mails."] = "%d lettere inviate.",
+  ["The mail to %s did not go."] = "La lettera a %s non è partita.",
+  ["Postage is %s and this character has %s."] = "L'affrancatura è di %s e questo personaggio ha %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "Gli altri tuoi personaggi compaiono qui dopo che ognuno ha effettuato l'accesso con GoldCap.",
 }

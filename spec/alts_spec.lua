@@ -86,6 +86,31 @@ describe("alts", function()
       assert.are.equal("Abel-Draenor", r[2].full)
       assert.are.equal("Kael-Draenor", r[3].full)
     end)
+
+    -- A save written by hand or by another tool can lack `seen`: it sorts as never seen.
+    it("sorts a saved character with no seen last, as never seen", function()
+      db.alts.chars["Abel-Draenor"] = { name = "Abel", realm = "Draenor", class = "MAGE", level = 70, faction = "Alliance" }
+      local r = M.Recipients(db, me, nil)
+      assert.are.equal(3, #r)
+      assert.are.equal("Abel-Draenor", r[3].full)
+    end)
+  end)
+
+  -- A character deleted or renamed long ago may have had its name taken by someone else: mail to
+  -- one not seen for 30 days is asked about again.
+  describe("Recent", function()
+    it("is true for a character seen within 30 days, and false after, unrecorded or never seen", function()
+      local now = 1000 * 86400
+      M.Record(db, other("Kael", "Draenor"), now - 29 * 86400)
+      M.Record(db, other("Old", "Draenor"), now - 31 * 86400)
+      db.alts.chars["Bare-Draenor"] = { name = "Bare", realm = "Draenor", class = "MAGE", level = 70, faction = "Alliance" }
+      assert.equal(30 * 86400, M.RECENT)
+      assert.is_true(M.Recent(db, "Kael-Draenor", now))
+      assert.is_false(M.Recent(db, "Old-Draenor", now))
+      assert.is_false(M.Recent(db, "Bare-Draenor", now))
+      assert.is_false(M.Recent(db, "Nobody-Draenor", now))
+      assert.is_false(M.Recent({}, "Kael-Draenor", now))
+    end)
   end)
 
   describe("MailName", function()
@@ -109,18 +134,87 @@ describe("alts", function()
     end)
   end)
 
+  -- Lua's own upper and lower stop at ASCII: a name typed in lower case in Russian or French keeps
+  -- its first letter small. The fold covers the letters of the realms GoldCap's languages play on.
+  describe("Lower and UpperFirst", function()
+    local PAIRS = {
+      { "A", "a" }, { "Z", "z" },
+      -- Latin-1 Supplement: U+00C0 to U+00DE and U+0020 above.
+      { "À", "à" }, { "É", "é" }, { "Ö", "ö" }, { "Ø", "ø" }, { "Þ", "þ" },
+      -- Latin Extended-A: upper even then lower odd, and from U+0139 and U+0179 the other way.
+      { "Ā", "ā" }, { "Į", "į" }, { "Ĳ", "ĳ" }, { "Ķ", "ķ" }, { "Ĺ", "ĺ" }, { "Ň", "ň" }, { "Ŋ", "ŋ" },
+      { "Œ", "œ" }, { "Ŷ", "ŷ" }, { "Ź", "ź" }, { "Ž", "ž" },
+      -- Cyrillic: U+0410 to U+042F and U+0400 to U+040F.
+      { "А", "а" }, { "Я", "я" }, { "П", "п" }, { "Р", "р" }, { "Ё", "ё" }, { "Ѐ", "ѐ" }, { "Є", "є" }, { "І", "і" },
+      { "Ї", "ї" }, { "Џ", "џ" },
+    }
+
+    it("folds each letter's two cases into one another", function()
+      for _, p in ipairs(PAIRS) do
+        assert.equal(p[2], M.Lower(p[1]), p[1])
+        assert.equal(p[2], M.Lower(p[2]), p[2])
+        assert.equal(p[1], M.UpperFirst(p[2]), p[2])
+        assert.equal(p[1], M.UpperFirst(p[1]), p[1])
+      end
+    end)
+
+    it("leaves letters with no pair in these ranges, and other scripts, as they are", function()
+      for _, s in ipairs({ "×", "÷", "ß", "ÿ", "İ", "ı", "ĸ", "ŉ", "ſ", "가", "金", "1" }) do
+        assert.equal(s, M.Lower(s), s)
+        assert.equal(s, M.UpperFirst(s), s)
+      end
+    end)
+
+    it("lowers a whole name, and raises only the first letter", function()
+      assert.equal("мирелла", M.Lower("МиРеЛЛа"))
+      assert.equal("Мирелла", M.UpperFirst("мирелла"))
+      assert.equal("Élise", M.UpperFirst("élise"))
+      assert.equal("ÉLISE", M.UpperFirst("éLISE"))
+      assert.equal("", M.UpperFirst(""))
+    end)
+  end)
+
   describe("Full", function()
     it("completes and normalizes a typed name", function()
-      assert.are.equal("Mirelle-Draenor", M.Full("mirelle", me))
-      assert.are.equal("Kael-TwistingNether", M.Full("Kael-Twisting Nether", me))
+      assert.are.equal("Mirelle-Draenor", M.Full(db, "mirelle", me))
+      assert.are.equal("Kael-TwistingNether", M.Full(db, "Kael-Twisting Nether", me))
     end)
 
     it("rejects an empty or malformed name", function()
-      assert.is_nil(M.Full("", me))
-      assert.is_nil(M.Full("a b", me))
-      assert.is_nil(M.Full("Kael-", me))
-      assert.is_nil(M.Full("-Draenor", me))
-      assert.is_nil(M.Full(nil, me))
+      assert.is_nil(M.Full(db, "", me))
+      assert.is_nil(M.Full(db, "a b", me))
+      assert.is_nil(M.Full(db, "Kael-", me))
+      assert.is_nil(M.Full(db, "-Draenor", me))
+      assert.is_nil(M.Full(db, nil, me))
+    end)
+
+    it("raises a first letter in any of its languages", function()
+      assert.are.equal("Мирелла-Draenor", M.Full(db, "мирелла", me))
+      assert.are.equal("Élise-Draenor", M.Full(db, "élise", me))
+    end)
+
+    -- Typed in whatever case, one of the player's characters is that character, as recorded.
+    it("takes a recorded character's own spelling", function()
+      M.Record(db, other("Mirelle", "Draenor"), 100)
+      M.Record(db, other("Мирелла", "Draenor"), 100)
+      M.Record(db, other("Élise", "TwistingNether"), 100)
+      assert.are.equal("Mirelle-Draenor", M.Full(db, "MIRELLE", me))
+      assert.are.equal("Мирелла-Draenor", M.Full(db, "мИРЕЛЛА", me))
+      assert.are.equal("Élise-TwistingNether", M.Full(db, "ÉLISE-twistingnether", me, { "TwistingNether" }))
+    end)
+
+    -- The realm as the client spells it, whatever the case, spaces, hyphens or apostrophes typed.
+    it("matches a typed realm to this one or a connected one, in the list's spelling", function()
+      local connected = { "Draenor", "TwistingNether", "AzjolNerub", "Mal'Ganis" }
+      assert.are.equal("Kael-TwistingNether", M.Full(db, "Kael-twistingnether", me, connected))
+      assert.are.equal("Kael-TwistingNether", M.Full(db, "Kael-twisting nether", me, connected))
+      assert.are.equal("Name-AzjolNerub", M.Full(db, "Name-Azjol-Nerub", me, connected))
+      assert.are.equal("Name-AzjolNerub", M.Full(db, "Name-AzjolNerub", me, connected))
+      assert.are.equal("Name-AzjolNerub", M.Full(db, "name-azjol nerub", me, connected))
+      assert.are.equal("Kael-Mal'Ganis", M.Full(db, "Kael-malganis", me, connected))
+      assert.are.equal("Kael-Draenor", M.Full(db, "Kael-DRAENOR", me))
+      -- A realm in neither list stays as typed, without spaces, for MailName to refuse.
+      assert.are.equal("Far-Silvermoon", M.Full(db, "Far-Silver moon", me, connected))
     end)
   end)
 end)

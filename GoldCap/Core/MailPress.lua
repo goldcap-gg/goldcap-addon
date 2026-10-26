@@ -9,21 +9,27 @@ local _, GC = ...
 -- OnSendResult(false), MAIL_CLOSED OnClosed.
 --
 -- driver = {
---   open() -> boolean,             -- the mailbox is still open
+--   open() -> boolean, reason,     -- the mail can still go; when not, why ("closed" if none given)
 --   cursorBusy() -> boolean,       -- an item on the cursor, or a spell waiting for an item target
---   slot(bag, slot) -> { link, isLocked } | nil,
+--   slot(bag, slot) -> { link, isLocked, count } | nil,
 --   attach(stack) -> boolean,      -- picks the stack up and drops it into the Send Mail slots
 --   attached() -> number,          -- how many Send Mail slots hold an item
 --   clear(),                       -- sends what is attached back to the bags
---   send(to, subject),             -- SetSendMailCOD(0), SetSendMailMoney(0), SendMail(to, subject, "")
+--   send(to, subject) -> false?,   -- SetSendMailCOD(0), SetSendMailMoney(0), SendMail(to, subject, "");
+--                                  -- false when no gold could be made sure of, and nothing was sent
 --   after(seconds, fn)             -- a timer
 --   progress({ index, total, mail }),  -- right before each mail that gets attached
---   report({ sent, mails, stopped, why }),  -- once per run; stopped is nil for a finished run,
---                                           -- why is the stack that would not attach ("refused")
+--   report({ sent, mails, stopped, why, failed }),  -- once per run; stopped is nil for a finished
+--                                  -- run, why the stack that would not attach ("refused"), failed
+--                                  -- the recipients (mail.to) whose mail the server refused, in order
 -- }
 --
--- A stack whose slot no longer shows the same link, or is locked, is skipped: never a different
--- item attached in its place. A mail with nothing left to attach is skipped, not sent empty.
+-- A stack whose slot no longer shows the same link, is locked, or holds more than was read (it
+-- merged with another of its item, and would take what the group keeps) is skipped: never a
+-- different item, or more of it, attached in its place. A mail with nothing left to attach is
+-- skipped, not sent empty. A mail the server refuses goes back to the bags, and its recipient gets
+-- nothing more in this run (a name that no longer exists, or a mailbox that is full): the run goes
+-- on with the next recipient.
 GC.MailPress = {}
 local P = GC.MailPress
 
@@ -49,22 +55,30 @@ local function stop(self, reason, why)
   self.run = nil
   self.token = self.token + 1
   if run.loaded and not run.issued then self.driver.clear() end
-  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = reason, why = why })
+  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = reason, why = why, failed = run.failedTo })
 end
 
 local function finish(self)
   local run = self.run
   self.run = nil
   self.token = self.token + 1
-  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = nil })
+  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = nil, failed = run.failedTo })
 end
 
--- The stacks of a mail that still sit where they were read.
+-- Moves run.idx past the mails of recipients whose mail the server refused in this run.
+local function skipFailed(run)
+  while run.idx <= #run.mails and run.failed[run.mails[run.idx].to] do run.idx = run.idx + 1 end
+end
+
+-- The stacks of a mail that still sit where they were read, no bigger than they were.
 local function present(driver, mail)
   local out = {}
   for _, stack in ipairs(mail.stacks) do
     local info = driver.slot(stack.bag, stack.slot)
-    if info and not info.isLocked and info.link == stack.link then out[#out + 1] = stack end
+    if info and not info.isLocked and info.link == stack.link
+      and not (type(info.count) == "number" and type(stack.count) == "number" and info.count > stack.count) then
+      out[#out + 1] = stack
+    end
   end
   return out
 end
@@ -84,8 +98,10 @@ end
 attempt = function(self)
   local run, d = self.run, self.driver
   while true do
+    skipFailed(run)
     if run.idx > #run.mails then return finish(self) end
-    if not d.open() then return stop(self, "closed") end
+    local open, why = d.open()
+    if not open then return stop(self, why or "closed") end
     if d.cursorBusy() then return stop(self, "cursor") end
     -- Not ours: left in the slots by the player, so it is neither sent nor cleared.
     if d.attached() > 0 then return stop(self, "busy") end
@@ -95,7 +111,7 @@ attempt = function(self)
     if #stacks > 0 then
       run.shown = run.shown + 1
       d.progress({ index = run.shown, total = #run.mails, mail = mail })
-      run.loaded, run.issued = true, false
+      run.loaded, run.issued, run.mail = true, false, mail
       for _, stack in ipairs(stacks) do
         if not d.attach(stack) then return stop(self, "refused", stack) end
       end
@@ -104,7 +120,11 @@ attempt = function(self)
       -- Marked in flight before the call: the driver may deliver the answer from inside send, and
       -- an answer for a mail not yet in flight is ignored.
       run.issued = true
-      d.send(mail.to, mail.subject)
+      if d.send(mail.to, mail.subject) == false then
+        -- Nothing was sent: what is attached goes back (stop clears a loaded mail not in flight).
+        run.issued = false
+        return stop(self, "refused")
+      end
       -- Wait only when that same mail is still unanswered (an inline answer ended or moved on).
       if self.run == run and token == self.token and run.mailId == id and run.issued then
         d.after(P.SEND_WAIT, function() timeout(self, token, id) end)
@@ -118,7 +138,8 @@ function Machine:Press(mails)
   if self.run then return stop(self, "pressed") end
   if not mails or #mails == 0 then return end
   self.token = self.token + 1
-  self.run = { mails = mails, idx = 1, sent = 0, shown = 0, mailId = 0, loaded = false, issued = false }
+  self.run = { mails = mails, idx = 1, sent = 0, shown = 0, mailId = 0, loaded = false, issued = false,
+    failed = {}, failedTo = {} }
   attempt(self)
 end
 
@@ -128,14 +149,20 @@ function Machine:OnSendResult(ok)
   if not run or not run.issued then return end
   run.issued = false
   run.mailId = run.mailId + 1 -- the SEND_WAIT timer of this mail no longer matches
-  if not ok then
-    -- MAIL_FAILED: the attachments are still in the Send Mail slots.
-    self.driver.clear()
-    run.loaded = false
-    return stop(self, "failed")
-  end
   run.loaded = false
-  run.sent = run.sent + 1
+  if ok then
+    run.sent = run.sent + 1
+  else
+    -- MAIL_FAILED: the attachments are still in the Send Mail slots. Its recipient gets nothing
+    -- more in this run.
+    self.driver.clear()
+    local to = run.mail.to
+    if not run.failed[to] then
+      run.failed[to] = true
+      run.failedTo[#run.failedTo + 1] = to
+    end
+  end
+  skipFailed(run)
   if run.idx > #run.mails then return finish(self) end
   local token = self.token
   self.driver.after(P.STEP, function()

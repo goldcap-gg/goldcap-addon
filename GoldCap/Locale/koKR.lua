@@ -1611,10 +1611,16 @@ GC.Locales.koKR = {
     "내 캐릭터가 아닌 이름은 첫 우편을 보내기 전에 한 번 확인합니다.",
   ["Type a character name"] = "캐릭터 이름을 입력하세요",
   ["Mail goes only to a character on this realm or a connected one."] = "우편은 이 서버나 연결된 서버의 캐릭터에게만 보낼 수 있습니다.",
-  ["The mail did not go: what was attached is back in your bags."] = "우편이 발송되지 않았습니다. 첨부한 아이템은 가방으로 돌아왔습니다.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "우편함이 응답하지 않았습니다. 가방과 우편 보내기 탭을 확인하세요.",
   ["Stopped: something is on your cursor."] = "중지됨: 커서에 무언가 들려 있습니다.",
   ["Stopped: the Send Mail tab already holds items."] = "중지됨: 우편 보내기 탭에 이미 아이템이 있습니다.",
   ["Stopped: %s would not go into the mail."] = "중지됨: %s을(를) 우편에 넣을 수 없었습니다.",
   ["Stopped."] = "중지됨.",
+  ["The Send Mail tab was closed."] = "우편 보내기 탭이 닫혔습니다.",
+  ["Sent 1 mail."] = "우편 1통을 보냈습니다.",
+  ["Sent %d mails."] = "우편 %d통을 보냈습니다.",
+  ["The mail to %s did not go."] = "%s에게 보낸 우편은 발송되지 않았습니다.",
+  ["Postage is %s and this character has %s."] = "우편 요금: %s, 이 캐릭터의 소지금: %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "다른 캐릭터는 각자 GoldCap을 켜고 한 번 접속하면 여기에 표시됩니다.",
 }

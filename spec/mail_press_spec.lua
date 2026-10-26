@@ -37,9 +37,12 @@ describe("MailPress", function()
     helper.loadModule("Core/MailPress.lua", GC)
     P = GC.MailPress
     bags, log, timers, reports, progresses = {}, {}, {}, {}, {}
-    state = { open = true, cursor = false, refuse = nil, attached = 0 }
+    state = { open = true, why = nil, cursor = false, refuse = nil, attached = 0, unsafe = false }
     machine = P.New({
-      open = function() return state.open end,
+      open = function()
+        if state.open then return true end
+        return false, state.why
+      end,
       cursorBusy = function() return state.cursor end,
       slot = function(b, s) return bags[key(b, s)] end,
       attach = function(stack)
@@ -51,6 +54,7 @@ describe("MailPress", function()
       attached = function() return state.attached end,
       clear = function() state.attached = 0; log[#log + 1] = { "clear" } end,
       send = function(to, subject)
+        if state.unsafe then return false end
         state.attached = 0
         log[#log + 1] = { "send", to, subject }
       end,
@@ -153,12 +157,74 @@ describe("MailPress", function()
     assert.are.equal(m[1].stacks[2], reports[1].why)
   end)
 
-  it("clears and reports failed when the send is refused", function()
-    machine:Press(mails(2))
+  -- A mail the server refuses (MAIL_FAILED) is given back to the bags; its recipient gets nothing
+  -- more in this run, and the run goes on with the next one.
+  it("clears a refused mail, skips that recipient's other mails and goes on with the next", function()
+    local m = mails(3)
+    m[2].to = m[1].to
+    machine:Press(m)
     machine:OnSendResult(false)
     assert.are.equal(1, count("clear"))
-    assert.are.equal("failed", reports[1].stopped)
+    assert.is_true(machine:IsRunning())
+    assert.are.equal(P.STEP, timers[#timers].seconds)
+    fire() -- the SEND_WAIT timer of mail 1, now stale
+    fire() -- STEP
+    assert.are.same({ "send", "Alt3-Realm", "Mail 3" }, log[#log])
+    assert.are.equal(2, count("send"))
+    machine:OnSendResult(true)
+    assert.are.equal(1, #reports)
+    assert.is_nil(reports[1].stopped)
+    assert.are.equal(1, reports[1].sent)
+    assert.are.same({ "Alt1-Realm" }, reports[1].failed)
+  end)
+
+  it("finishes at once when every mail left is to a recipient that failed", function()
+    local m = mails(2)
+    m[2].to = m[1].to
+    machine:Press(m)
+    machine:OnSendResult(false)
+    assert.is_false(machine:IsRunning())
+    assert.are.equal(1, count("send"))
+    assert.is_nil(reports[1].stopped)
     assert.are.equal(0, reports[1].sent)
+    assert.are.same({ "Alt1-Realm" }, reports[1].failed)
+  end)
+
+  it("reports no failed recipient for a run that had none", function()
+    machine:Press(mails(1))
+    machine:OnSendResult(true)
+    assert.are.same({}, reports[1].failed)
+  end)
+
+  -- The driver could not set COD and money to none: the mail is not sent, and goes back.
+  it("sends nothing, clears and reports refused when the mail could not be made safe", function()
+    state.unsafe = true
+    machine:Press(mails(2))
+    assert.are.equal(0, count("send"))
+    assert.are.equal(1, count("clear"))
+    assert.are.equal("refused", reports[1].stopped)
+    assert.is_nil(reports[1].why)
+    assert.are.equal(0, #timers)
+    assert.is_false(machine:IsRunning())
+  end)
+
+  -- A stack that grew (merged with another of its item) since it was read would take more than
+  -- the group's keep leaves: it stays. A smaller one goes.
+  it("skips a stack whose count grew since it was read", function()
+    local m = mails(1)
+    bags[key(0, 1)].count = 5
+    bags[key(0, 2)].count = 1
+    machine:Press(m)
+    assert.are.same({ { "attach", 2 }, { "send", "Alt1-Realm", "Mail 1" } }, log)
+  end)
+
+  it("stops with the driver's reason when it says the mail cannot go on", function()
+    machine:Press(mails(2))
+    machine:OnSendResult(true)
+    state.open, state.why = false, "tab"
+    fire(); fire()
+    assert.are.equal("tab", reports[1].stopped)
+    assert.are.equal(1, count("send"))
   end)
 
   it("clears and reports timeout when no answer comes", function()
@@ -230,7 +296,7 @@ describe("MailPress", function()
     assert.are.equal(1, #reports)
   end)
 
-  it("keeps a failure delivered from inside send: clears and reports failed", function()
+  it("keeps a failure delivered from inside send: clears, and goes on after STEP", function()
     local drv = machine.driver
     local send = drv.send
     drv.send = function(to, subject)
@@ -239,8 +305,13 @@ describe("MailPress", function()
     end
     machine:Press(mails(2))
     assert.are.equal(1, count("clear"))
-    assert.are.equal("failed", reports[1].stopped)
-    assert.are.equal(0, #timers)
+    assert.are.equal(0, #reports)
+    assert.are.equal(1, #timers)
+    assert.are.equal(P.STEP, timers[1].seconds)
+    fire()
+    assert.are.equal(2, count("send"))
     assert.are.equal(1, #reports)
+    assert.is_nil(reports[1].stopped)
+    assert.are.same({ "Alt1-Realm", "Alt2-Realm" }, reports[1].failed)
   end)
 end)

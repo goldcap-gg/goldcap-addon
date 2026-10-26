@@ -1667,12 +1667,17 @@ GC.Locales.enUS = {
   ["Type a character name"] = "Type a character name",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Mail goes only to a character on this realm or a connected one.",
-  ["The mail did not go: what was attached is back in your bags."] =
-    "The mail did not go: what was attached is back in your bags.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "The mailbox did not answer. Check your bags and the Send Mail tab.",
   ["Stopped: something is on your cursor."] = "Stopped: something is on your cursor.",
   ["Stopped: the Send Mail tab already holds items."] = "Stopped: the Send Mail tab already holds items.",
   ["Stopped: %s would not go into the mail."] = "Stopped: %s would not go into the mail.",
   ["Stopped."] = "Stopped.",
+  ["The Send Mail tab was closed."] = "The Send Mail tab was closed.",
+  ["Sent 1 mail."] = "Sent 1 mail.",
+  ["Sent %d mails."] = "Sent %d mails.",
+  ["The mail to %s did not go."] = "The mail to %s did not go.",
+  ["Postage is %s and this character has %s."] = "Postage is %s and this character has %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "Your other characters show here once each has logged in with GoldCap.",
 }

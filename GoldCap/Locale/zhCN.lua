@@ -1578,10 +1578,16 @@ GC.Locales.zhCN = {
     "如果名字不是你的角色，寄出第一封邮件前会确认一次。",
   ["Type a character name"] = "请输入角色名",
   ["Mail goes only to a character on this realm or a connected one."] = "邮件只能寄给本服务器或互通服务器的角色。",
-  ["The mail did not go: what was attached is back in your bags."] = "邮件没有寄出：附件已回到背包。",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "邮箱没有响应。请检查背包和发送邮件标签。",
   ["Stopped: something is on your cursor."] = "已停止：光标上有东西。",
   ["Stopped: the Send Mail tab already holds items."] = "已停止：发送邮件标签里已有物品。",
   ["Stopped: %s would not go into the mail."] = "已停止：%s 放不进邮件。",
   ["Stopped."] = "已停止。",
+  ["The Send Mail tab was closed."] = "发送邮件标签已关闭。",
+  ["Sent 1 mail."] = "已寄出 1 封邮件。",
+  ["Sent %d mails."] = "已寄出 %d 封邮件。",
+  ["The mail to %s did not go."] = "寄给 %s 的邮件没有寄出。",
+  ["Postage is %s and this character has %s."] = "邮资为 %s，这个角色有 %s。",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "你的其他角色各自启用 GoldCap 登录一次后，就会显示在这里。",
 }

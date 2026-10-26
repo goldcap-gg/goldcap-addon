@@ -431,11 +431,14 @@ local function settleEndings(gaveUp)
   return heard
 end
 
--- What the press machine (Core/VendorPress.lua) reads of a slot: the item it holds, and whether
--- it is locked.
+-- What the press machine (Core/VendorPress.lua, and the mailbox's Core/MailPress.lua) reads of a
+-- slot: the item it holds, whether it is locked, and how many it holds (the mail's, which leaves a
+-- stack that grew alone).
 local function slotNow(bag, slot)
   local info = C_Container.GetContainerItemInfo(bag, slot)
-  if type(info) == "table" then return { link = info.hyperlink, isLocked = info.isLocked == true } end
+  if type(info) == "table" then
+    return { link = info.hyperlink, isLocked = info.isLocked == true, count = info.stackCount }
+  end
   return nil
 end
 

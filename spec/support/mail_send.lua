@@ -16,9 +16,11 @@
 -- Shapes as Blizzard_MailFrame/MailFrame.lua uses them: ClickSendMailItemButton() drops the cursor's
 -- item into the first free attachment (SendMailAttachmentButton_OnDropAny),
 -- ClickSendMailItemButton(index, true) takes attachment `index` back to the bags (a right click,
--- SendMailAttachmentButton_OnClick), and MailFrameTab_OnClick(nil, 2) shows the Send Mail tab, 1 the
--- inbox. SendMail hands the mail to the server: its attachments stay until the server answers
--- (post:succeed, after which the window hears MAIL_SEND_SUCCESS; post:fail, MAIL_FAILED).
+-- SendMailAttachmentButton_OnClick), and MailFrameTab_OnClick(nil, 2) shows the Send Mail tab and
+-- sets its `sendMode` to "send" (the field Blizzard's Lua keeps on SendMailFrame, "reply" after
+-- OpenMail_Reply), 1 the inbox. SendMail hands the mail to the server: its attachments stay until
+-- the server answers (post:succeed, after which the window hears MAIL_SEND_SUCCESS; post:fail,
+-- MAIL_FAILED).
 local W = require("spec.support.wow_frames")
 
 local Post = {}
@@ -153,7 +155,12 @@ function Post.new(opts)
 
   function api.MailFrameTab_OnClick(self, tabID)
     log("MailFrameTab_OnClick", self, tabID)
-    if tabID == 2 then api.SendMailFrame:Show() else api.SendMailFrame:Hide() end
+    if tabID == 2 then
+      api.SendMailFrame:Show()
+      api.SendMailFrame.sendMode = "send"
+    else
+      api.SendMailFrame:Hide()
+    end
   end
 
   post.api = api

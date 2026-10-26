@@ -217,6 +217,22 @@ describe("mail groups", function()
       assert.equal("GoldCap: Dragonflight Herbs 1, Dragonflight Herbs 10 and 8 more", subject)
     end)
 
+    -- A group's name has no cap on goldcap.gg, and a subgroup's is "Parent: Child": a name too long
+    -- for the subject even alone, or with " and N more", is not cut; the subject counts the groups.
+    it("counts the groups when even one name is over 64 letters", function()
+      local long = ("Gloomshroom and Luredrop from the Hall of Awakening for Potions "):rep(2):sub(1, 70)
+      assert.equal(70, letters(long))
+      local group = { [101] = long, [102] = "Ore" }
+      local function groupOf(id) return group[id], group[id] end
+      local alone = plan({ stack(101, 0, 1, 10) }, { [long] = "Mule-Tarren" }, nil, { groupOf = groupOf })
+      assert.equal("GoldCap: 1 group", alone.mails[1].subject)
+      local two = plan({ stack(101, 0, 1, 10), stack(102, 0, 2, 10) }, { [long] = "Mule-Tarren", Ore = "Mule-Tarren" },
+        nil, { groupOf = groupOf })
+      assert.equal(1, #two.mails)
+      assert.equal("GoldCap: 2 groups", two.mails[1].subject)
+      assert.equal("GoldCap: 1 group", M.MailsFor(two, long)[1].subject)
+    end)
+
     it("counts a subject's letters, not its bytes", function()
       local bags, to, group = {}, {}, {}
       for i = 1, 6 do

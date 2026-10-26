@@ -1683,8 +1683,6 @@ GC.Locales.frFR = {
   ["Type a character name"] = "Saisis un nom de personnage",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Le courrier ne va qu'à un personnage de ce royaume ou d'un royaume connecté.",
-  ["The mail did not go: what was attached is back in your bags."] =
-    "Le courrier n'est pas parti : les pièces jointes sont revenues dans tes sacs.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La boîte aux lettres n'a pas répondu. Vérifie tes sacs et l'onglet Envoyer un message.",
   ["Stopped: something is on your cursor."] = "Arrêté : tu as quelque chose sur le curseur.",
@@ -1692,4 +1690,11 @@ GC.Locales.frFR = {
     "Arrêté : l'onglet Envoyer un message contient déjà des objets.",
   ["Stopped: %s would not go into the mail."] = "Arrêté : %s n'a pas pu être joint au courrier.",
   ["Stopped."] = "Arrêté.",
+  ["The Send Mail tab was closed."] = "L'onglet Envoyer un message a été fermé.",
+  ["Sent 1 mail."] = "1 courrier envoyé.",
+  ["Sent %d mails."] = "%d courriers envoyés.",
+  ["The mail to %s did not go."] = "Le courrier pour %s n'est pas parti.",
+  ["Postage is %s and this character has %s."] = "Les frais de port sont de %s et ce personnage a %s.",
+  ["Your other characters show here once each has logged in with GoldCap."] =
+    "Tes autres personnages apparaissent ici dès que chacun s'est connecté avec GoldCap.",
 }

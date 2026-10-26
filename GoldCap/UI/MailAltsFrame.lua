@@ -25,19 +25,25 @@ local _, GC = ...
 -- with the Send Mail tab open. Opening that tab from code (MailFrameTab_OnClick(nil, 2)) was not
 -- measured: it is one call, in openSendTab, made inside the press before the first attach.
 --
--- A name typed by hand that is not one of the player's characters is asked about once: the first
--- press that would mail it arms its button ("Send to <name>? Press again") for ARM_SECONDS, as the
--- Sniper's loud confirm does (UI/SniperFrame.lua's armLoudConfirm): disabled for its first
--- ARM_HOLD, so a double click's second click cannot confirm it, then the second press trusts it
--- (GC.MailGroups.Trust) and sends.
+-- A name typed by hand that is not one of the player's characters, and one of them not seen for 30
+-- days (Core/Alts.lua's Recent: it may have been deleted and its name taken), is asked about once:
+-- the first press that would mail it arms its button ("Send to <name>? Press again") for
+-- ARM_SECONDS, as the Sniper's loud confirm does (UI/SniperFrame.lua's armLoudConfirm): disabled for
+-- its first ARM_HOLD, so a double click's second click cannot confirm it, then the second press
+-- trusts it (GC.MailGroups.Trust) and sends. The Stop a press puts in Send all's place refuses
+-- presses for its first ARM_HOLD the same way, so a double click never stops the run it started. A
+-- press this character cannot pay the postage of does not start, and says so.
 --
 -- While a run goes the window shows the plan it was pressed with, so nothing on it moves while the
--- bags change under the run; a group a run sent in full says Sent for the rest of the visit. The
--- window shows at every visit to the mailbox, with nothing to send too (it then says why), unless the
--- player closed it with its X: remembered for the account in GC.db.mailAlts = { v = 1, closed = true
--- }, made lazily and not through DEFAULTS (a newer `v` is read-only, and the X then closes it for this
--- session), and a small handle at the mail frame's right edge brings it back. Its own event frame (at
--- the end) hears the mailbox and the bags. GoldCap_Camelot.toc does not load this file.
+-- bags change under the run; a group a run sent in full says Sent for the rest of the visit. A mail
+-- the server refuses goes back to the bags and the run goes on with the next character; its end
+-- names whose mail did not go. The window shows at every visit to the mailbox, with nothing to send
+-- too (it then says why), unless the player closed it with its X: remembered for the account in
+-- GC.db.mailAlts = { v = 1, closed = true }, made lazily and not through DEFAULTS (a newer `v` is
+-- read-only, and the X then closes it for this session), and a small handle at the mail frame's
+-- right edge brings it back. It goes with the mailbox: at MAIL_CLOSED, and at the mail frame's own
+-- hide, which can come with no MAIL_CLOSED. Its own event frame (at the end) hears the mailbox and
+-- the bags. GoldCap_Camelot.toc does not load this file.
 GC.MailAlts = {}
 local MA = GC.MailAlts
 local HF = GC.HoardFrame
@@ -62,11 +68,12 @@ MA.ARM_HOLD = 1.5
 -- the gold bar. ROW_PAD: a group card's margin, ROW_GAP between two; ICON: an item icon, ICONS the
 -- most a card shows; CHIP_H: who sells it, CLASS its class icon, CHIP_PAD its margins; BUTTON_H and
 -- BUTTON_PAD: a card's Send; NAME_MIN: the least room a group's name gets beside the chips before
--- they go under it; LINE_TOP between a card's two lines; LOCK: a staying stack's lock; ROW_LEAST: a
--- card's least height, for the scroll's least room (ROWS_MIN cards).
+-- they go under it; LINE_TOP between a card's two lines (and above an armed Send's own); LOCK: a
+-- staying stack's lock; ROW_LEAST: a card's least height, for the scroll's least room (ROWS_MIN
+-- cards). WRAP_PAD: above and below a Send's words when they wrap.
 local M = {
   CARD_PAD = 9, LETTER = 26, LETTER_GAP = 9, POSTAGE_GAP = 10, LINE_GAP = 2, NOTE_GAP = 4, BUTTON_GAP = 8,
-  SEND_H = 24, STOP_MIN = 64, CAST_GAP = 6, FILL_H = 3,
+  SEND_H = 24, STOP_MIN = 64, CAST_GAP = 6, FILL_H = 3, WRAP_PAD = 4,
   ROW_PAD = 7, ROW_GAP = 5, ICON = 24, ICON_GAP = 4, ICONS = 6, CHIP_H = 16, CLASS = 12, CHIP_PAD = 6, CHEVRON = 8,
   CHIP_GAP = 5, COL_GAP = 6, BLOCK_GAP = 4, BUTTON_H = 20, BUTTON_PAD = 8, BUTTON_ICON = 10, NAME_MIN = 60,
   LINE_TOP = 6, LOCK = 12, SECTION_GAP = 10, HEADING_GAP = 6, ROWS_MIN = 3, ROW_LEAST = 56,
@@ -93,10 +100,12 @@ local PICK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
 local FILL_TRACK = { 1, 1, 1, 0.08 }
 local SELF_ALPHA = 0.6
 
--- Whether the mailbox is open (MAIL_SHOW until MAIL_CLOSED). What the last paint read (readBags): the
--- plan, the item icons, this character, its connected realms and the characters it can mail. The
--- run that goes (pressMails): { id, mails, plan (the one it was pressed with), done = { [mail] = true
--- }, current (the mail in flight), shown, index, total (the last mail the machine announced) }. The
+-- Whether the mailbox is open (MAIL_SHOW until MAIL_CLOSED or the mail frame's hide). What the last
+-- paint read (readBags): the plan, the item icons, this character, its connected realms and the
+-- characters it can mail. The run that goes (pressMails): { id, mails, plan (the one it was pressed
+-- with), done = { [mail] = true }, failed = { [recipient] = true } (whose mail the server refused),
+-- current (the mail in flight), shown, index, total (the last mail the machine announced), held
+-- (its Stop refusing presses, for ARM_HOLD from its start) }. The
 -- groups a run sent in full in this visit, by key, as the run's plan had them; why the last run
 -- stopped, in words; the button armed for a typed name ({ id, full, to, token }); the names trusted
 -- for this session that a newer GoldCap's save could not keep; the X for this session while
@@ -297,7 +306,8 @@ local function plannedLine(mails, names)
 end
 
 -- How a group stands in `run`: "sending" while a mail of it is in flight, "sent" once every mail of
--- it has gone, "next" before; nil for a group the run does not send.
+-- it has gone, "next" before; nil for a group the run does not send, or no longer does (the server
+-- refused a mail to its character).
 local function runStatus(run, key)
   local inRun, all = false, true
   for _, mail in ipairs(run.mails) do
@@ -305,7 +315,10 @@ local function runStatus(run, key)
       if k == key then
         inRun = true
         if run.current == mail then return "sending" end
-        if not run.done[mail] then all = false end
+        if not run.done[mail] then
+          if run.failed[mail.to] then return nil end
+          all = false
+        end
       end
     end
   end
@@ -353,7 +366,7 @@ end
 local function stopText(result)
   local reason = result.stopped
   if reason == nil or reason == "closed" then return nil end
-  if reason == "failed" then return GC.L["The mail did not go: what was attached is back in your bags."] end
+  if reason == "tab" then return GC.L["The Send Mail tab was closed."] end
   if reason == "timeout" then return GC.L["The mailbox did not answer. Check your bags and the Send Mail tab."] end
   if reason == "cursor" then return GC.L["Stopped: something is on your cursor."] end
   if reason == "busy" then return GC.L["Stopped: the Send Mail tab already holds items."] end
@@ -361,6 +374,24 @@ local function stopText(result)
     return GC.L["Stopped: %s would not go into the mail."]:format(U.itemName(result.why))
   end
   return GC.L["Stopped."]
+end
+
+-- What the end of a run says, in words, or nil: with a mail the server refused, how many went and
+-- whose did not ("Sent 3 mails. The mail to Thornwick did not go."); then why it stopped.
+local function endText(result)
+  local parts = {}
+  local failed = result.failed or {}
+  if #failed > 0 then
+    if result.sent == 1 then
+      parts[#parts + 1] = GC.L["Sent 1 mail."]
+    elseif (result.sent or 0) > 1 then
+      parts[#parts + 1] = GC.L["Sent %d mails."]:format(result.sent)
+    end
+    parts[#parts + 1] = GC.L["The mail to %s did not go."]:format(listOf(failed))
+  end
+  parts[#parts + 1] = stopText(result)
+  if #parts == 0 then return nil end
+  return table.concat(parts, " ")
 end
 
 -- When `seen` was, as the recipient menu says it.
@@ -384,6 +415,20 @@ local function mailboxOpen()
     local ok, open = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
     if ok and open == false then return false end
   end
+  return true
+end
+
+-- Whether Blizzard's Send Mail tab shows.
+local function sendTabShown()
+  local tab = SendMailFrame
+  return type(tab) == "table" and type(tab.IsShown) == "function" and tab:IsShown() == true
+end
+
+-- Whether the next mail can go: the mailbox open (else "closed") and its Send Mail tab showing (else
+-- "tab": the player went to the inbox, or Blizzard did after a reply's mail).
+local function sendable()
+  if not mailboxOpen() then return false, "closed" end
+  if not sendTabShown() then return false, "tab" end
   return true
 end
 
@@ -421,10 +466,11 @@ local function clearAttached()
   end
 end
 
--- The mail: no gold asked for and none sent, set right before every SendMail; no text.
+-- The mail: no gold asked for and none sent, set right before every SendMail; no text. False, and
+-- no SendMail, when either could not be set: the client may still hold what the player typed for a
+-- mail of their own.
 local function send(to, subject)
-  pcall(SetSendMailCOD, 0)
-  pcall(SetSendMailMoney, 0)
+  if not (pcall(SetSendMailCOD, 0) and pcall(SetSendMailMoney, 0)) then return false end
   pcall(SendMail, to, subject, "")
 end
 
@@ -446,7 +492,8 @@ local function onProgress(p)
 end
 
 -- A run is over, however it ended: the groups it sent in full say Sent for the rest of the visit, a
--- stop says why, the name box lets go, and the window reads the bags again.
+-- refused mail and a stop say what happened, the name box lets go, and the window reads the bags
+-- again.
 local function onReport(result)
   local run = MA._run
   MA._run = nil
@@ -465,7 +512,7 @@ local function onReport(result)
       if whole[row.key] then MA._sent[row.key] = row end
     end
   end
-  MA._stopped = stopText(result)
+  MA._stopped = endText(result)
   letGoOfNameBox()
   if C_Timer and C_Timer.After then C_Timer.After(0, letGoOfNameBox) end
   if MA._open then MA.Refresh(true) end
@@ -474,7 +521,7 @@ end
 function MA._Machine()
   if not MA.machine then
     MA.machine = GC.MailPress.New({
-      open = mailboxOpen,
+      open = sendable,
       cursorBusy = GC.Util.CursorBusy,
       slot = U.slotNow,
       attach = attach,
@@ -489,12 +536,13 @@ function MA._Machine()
   return MA.machine
 end
 
--- The first name `mails` go to that is neither one of the player's characters nor trusted yet, with
--- what SendMail takes for it; nil when there is none.
+-- The first name `mails` go to that is neither one of the player's characters seen within 30 days
+-- (Core/Alts.lua's Recent) nor trusted yet, with what SendMail takes for it; nil when there is none.
 local function untrusted(mails)
+  local now = time()
   for _, mail in ipairs(mails) do
     local full = mail.full
-    if not (GC.Alts.IsMine(GC.db, full) or GC.MailGroups.Trusted(GC.db, full) or MA._trustedHere[full]) then
+    if not (GC.Alts.Recent(GC.db, full, now) or GC.MailGroups.Trusted(GC.db, full) or MA._trustedHere[full]) then
       return full, mail.to
     end
   end
@@ -521,27 +569,38 @@ local function arm(id, full, to)
   end)
 end
 
--- Blizzard's Send Mail tab, when the mailbox shows the inbox: probe B measured attaching and sending
--- with that tab open, and the mailbox opens on the inbox (MailFrame_Show). Not measured itself: kept
--- to this one call so it can go if the in-game check shows a problem.
+-- Blizzard's Send Mail tab, as a send: when the mailbox shows the inbox, and when the tab shows for
+-- a reply. Probe B measured attaching and sending with that tab open; the mailbox opens on the inbox
+-- (MailFrame_Show); and a reply's tab (OpenMail_Reply's sendMode "reply") turns back to the inbox
+-- after the first mail it sends (MailFrame_OnEvent's MAIL_SEND_SUCCESS), where MailFrameTab_OnClick
+-- sets sendMode "send". Not measured itself: kept to this one call so it can go if the in-game check
+-- shows a problem.
 local function openSendTab()
-  local tab = SendMailFrame
-  if type(tab) == "table" and tab.IsShown and tab:IsShown() then return end
+  if sendTabShown() and SendMailFrame.sendMode == "send" then return end
   if type(MailFrameTab_OnClick) == "function" then pcall(MailFrameTab_OnClick, nil, 2) end
 end
 
 -- The one way the window sends: a press of the button `id` ("all", or "row:<group key>") over
 -- `mails`, inside the player's click, which attaches and sends the first mail before it returns. A
--- press while a run goes is that run's Stop. A press that would mail a name not yet trusted arms
--- instead; a second press inside ARM_HOLD does nothing (its button is disabled then, so in the
--- client it never arrives), and one after it, within ARM_SECONDS, trusts the name.
+-- press while a run goes is that run's Stop, but for ARM_HOLD from its start (a double click's second
+-- click, which its button refuses then). A press this character cannot pay the postage of says so
+-- and sends nothing. A press that would mail a name not yet trusted arms instead; a second press
+-- inside ARM_HOLD does nothing (its button is disabled then, so in the client it never arrives), and
+-- one after it, within ARM_SECONDS, trusts the name.
 local function pressMails(id, mails)
   local machine = MA._Machine()
   if machine:IsRunning() then
+    if MA._run and MA._run.held then return end
     machine:Stop("pressed")
     return paint()
   end
   if not mails or #mails == 0 then return end
+  local postage, money = GC.MailGroups.POSTAGE * stacksOf(mails), ask(GetMoney)
+  if type(money) == "number" and money < postage then
+    MA._armed = nil
+    MA._stopped = GC.L["Postage is %s and this character has %s."]:format(GC.Util.Money(postage), GC.Util.Money(money))
+    return paint()
+  end
   local full, to = untrusted(mails)
   if full then
     local armed = MA._armed
@@ -559,8 +618,17 @@ local function pressMails(id, mails)
   end
   MA._armed, MA._stopped = nil, nil
   openSendTab()
-  MA._run = { id = id, mails = mails, plan = MA._reading.plan, done = {} }
+  local run = { id = id, mails = mails, plan = MA._reading.plan, done = {}, failed = {}, held = true }
+  MA._run = run
   machine:Press(mails)
+  if MA._run == run then
+    C_Timer.After(MA.ARM_HOLD, function()
+      if MA._run == run then
+        run.held = nil
+        paint()
+      end
+    end)
+  end
   paint()
 end
 
@@ -596,9 +664,10 @@ local function setRecipient(key, full)
   MA.Refresh(true)
 end
 
--- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character. A realm
--- this character cannot mail (Core/Alts.lua's MailName) is refused there, saying so, rather than
--- saved and then ringed on its card as if no one were chosen.
+-- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character, in any
+-- case (Core/Alts.lua's Full takes the client's spelling of the realm and the recorded one of a
+-- character of the player's). A realm this character cannot mail (Core/Alts.lua's MailName) is
+-- refused there, saying so, rather than saved and then ringed on its card as if no one were chosen.
 local function askName(chip, row)
   if not GC.BuyCapEditor then return end
   GC.BuyCapEditor.Open(chip, {
@@ -606,10 +675,10 @@ local function askName(chip, row)
       .. GC.L["A name that is not one of your characters is asked about once, before the first mail goes."],
     text = "",
     read = function(text)
-      local me = meNow()
-      local full = me and GC.Alts.Full((text or ""):match("^%s*(.-)%s*$"), me)
+      local me, connected = meNow(), connectedNow()
+      local full = me and GC.Alts.Full(GC.db, (text or ""):match("^%s*(.-)%s*$"), me, connected)
       if not full then return nil end
-      if full ~= me.full and not GC.Alts.MailName(full, me, connectedNow()) then
+      if full ~= me.full and not GC.Alts.MailName(full, me, connected) then
         return nil, GC.L["Mail goes only to a character on this realm or a connected one."]
       end
       return full
@@ -650,7 +719,8 @@ local function altLine(alt, reading)
 end
 
 -- Who sells a group, from its chip: the characters this one can mail, this character, a name typed
--- by hand, or nobody yet; saved for this realm.
+-- by hand, or nobody yet; saved for this realm. With none of the others known yet (each is recorded
+-- as it logs in with GoldCap), a grey line says so.
 local function fillMenu(root, chip, row)
   local reading = MA._reading
   root:CreateTitle(GC.Util.ClientText(GC.L["Who sells %s?"]:format(row.name)))
@@ -659,6 +729,9 @@ local function fillMenu(root, chip, row)
     for _, alt in ipairs(reading.alts) do
       root:CreateButton(GC.Util.ClientText(altLine(alt, reading)), function() setRecipient(row.key, alt.full) end)
     end
+  else
+    root:CreateTitle(GC.Util.ClientText(GC.Util.Colored(K.text3,
+      GC.L["Your other characters show here once each has logged in with GoldCap."])))
   end
   root:CreateDivider()
   local me = reading.me
@@ -708,10 +781,12 @@ end
 -- Building
 -- ---------------------------------------------------------------------------------------------
 
--- A Send: the kit's mail glyph before its words, left-justified so paintSend can centre the two.
+-- A Send: the kit's paper plane before its words, left-justified so paintSend can centre the two;
+-- `look.height` tall.
 local function sendButton(parent, variant, art, look)
   local b = GC.Theme.Button(parent, variant, art)
   b.look = look
+  b:SetHeight(look.height)
   b.icon = b:CreateTexture(nil, "OVERLAY")
   b.icon:SetSize(M.BUTTON_ICON, M.BUTTON_ICON)
   b.text:SetJustifyH("LEFT")
@@ -742,8 +817,7 @@ local function buildTop()
   card.postage:SetWordWrap(false)
   card.postage:SetJustifyH("RIGHT")
   colour(card.postage, K.goldText)
-  card.send = sendButton(card, "primary", "plaque", { variant = "primary", iconColor = K.onGold })
-  card.send:SetHeight(M.SEND_H)
+  card.send = sendButton(card, "primary", "plaque", { variant = "primary", iconColor = K.onGold, height = M.SEND_H })
   card.send:SetScript("OnClick", onSendAllClick)
   track(frame, card.send.text)
   card.cast = { label = track(frame, wrapping(T.Label(card, 9))), count = track(frame, T.Num(card, 9)),
@@ -813,8 +887,8 @@ local function newRow()
   colour(row.more, K.text2)
   row.line = track(row, wrapping(T.Label(row, 10)))
   colour(row.line, K.text3)
-  row.send = sendButton(row, "active", "badge", { variant = "active", ring = SEND_RING, iconColor = K.goldText })
-  row.send:SetHeight(M.BUTTON_H)
+  row.send = sendButton(row, "active", "badge",
+    { variant = "active", ring = SEND_RING, iconColor = K.goldText, height = M.BUTTON_H })
   row.send:SetScript("OnClick", onRowSendClick)
   track(row, row.send.text)
   row.status = track(row, T.Heading(row, 10))
@@ -877,9 +951,11 @@ local function place(widget)
   return nil
 end
 
--- A Send's look and words: "send", its own look with the mail glyph; "armed", the loud look and its
+-- A Send's look and words: "send", its own look with the paper plane; "armed", the loud look and its
 -- question alone; "stop", the Hoard's Stop. As wide as `width`, or as its words need with nil; the
--- glyph and the words centred together. Answers its width.
+-- glyph and the words centred together. Words wider than the button (an ask in a long language, for
+-- a name on a connected realm) wrap inside it, centred, and it grows to hold them: never cut.
+-- Answers its width and height.
 local function paintSend(button, mode, label, width)
   local look = button.look
   if mode == "stop" then
@@ -894,22 +970,38 @@ local function paintSend(button, mode, label, width)
   end
   local glyph = mode == "send"
   button.icon:SetShown(glyph)
-  if glyph then GC.Theme.SetIcon(button.icon, "mail", look.iconColor) end
+  if glyph then GC.Theme.SetIcon(button.icon, "send", look.iconColor) end
   button:SetLabel(label)
-  local textW = math.ceil(button.text:GetUnboundedStringWidth() or 0)
+  local text = button.text
+  local textW = math.ceil(text:GetUnboundedStringWidth() or 0)
   local iconRoom = glyph and (M.BUTTON_ICON + 4) or 0
   width = width or math.max(mode == "stop" and M.STOP_MIN or 0, M.BUTTON_PAD + iconRoom + textW + M.BUTTON_PAD)
   button:SetWidth(width)
-  local x = math.max(M.BUTTON_PAD, math.floor((width - iconRoom - textW) / 2))
+  local room = width - 2 * M.BUTTON_PAD - iconRoom
+  local wraps = textW > room
+  local x = wraps and M.BUTTON_PAD or math.max(M.BUTTON_PAD, math.floor((width - iconRoom - textW) / 2))
   if glyph then
     button.icon:ClearAllPoints()
     button.icon:SetPoint("LEFT", button, "LEFT", x, 0)
   end
   -- After SetLabel, which bounds the words by the button's own edges again.
-  button.text:ClearAllPoints()
-  button.text:SetPoint("LEFT", button, "LEFT", x + iconRoom, 0)
-  button.text:SetPoint("RIGHT", button, "RIGHT", -M.BUTTON_PAD, 0)
-  return width
+  text:ClearAllPoints()
+  text:SetWordWrap(wraps)
+  text:SetMaxLines(wraps and 0 or 1)
+  local height = look.height
+  if wraps then
+    text:SetJustifyH("CENTER")
+    text:SetWidth(room)
+    text:SetPoint("LEFT", button, "LEFT", x + iconRoom, 0)
+    height = math.max(height, math.ceil(heightOf(text, look.height)) + 2 * M.WRAP_PAD)
+  else
+    text:SetJustifyH("LEFT")
+    text:SetWidth(0)
+    text:SetPoint("LEFT", button, "LEFT", x + iconRoom, 0)
+    text:SetPoint("RIGHT", button, "RIGHT", -M.BUTTON_PAD, 0)
+  end
+  button:SetHeight(height)
+  return width, height
 end
 
 -- A Send live or refusing presses. paintSend's SetVariant has just painted it live, and the kit
@@ -1012,7 +1104,7 @@ local function paintTop(reading, width)
   if run then
     y = y + M.BUTTON_GAP
     local stopW = paintSend(button, "stop", GC.L["Stop"])
-    setEnabled(button, true)
+    setEnabled(button, not run.held)
     local castH = paintCast(card, run, names, M.CARD_PAD, y, inner - stopW - M.CAST_GAP)
     local rowH = math.max(M.SEND_H, castH)
     button:ClearAllPoints()
@@ -1023,16 +1115,17 @@ local function paintTop(reading, width)
     y = y + M.BUTTON_GAP
     hideCast(card)
     local armed = MA._armed and MA._armed.id == "all" and MA._armed or nil
+    local _, buttonH
     if armed then
-      paintSend(button, "armed", GC.L["Send to %s? Press again"]:format(armed.to), inner)
+      _, buttonH = paintSend(button, "armed", GC.L["Send to %s? Press again"]:format(armed.to), inner)
     else
-      paintSend(button, "send", GC.L["Send all"], inner)
+      _, buttonH = paintSend(button, "send", GC.L["Send all"], inner)
     end
     setEnabled(button, not (armed and armed.held))
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", card, "TOPLEFT", M.CARD_PAD, -y)
     button:Show()
-    y = y + M.SEND_H
+    y = y + buttonH
   else
     hideCast(card)
     button:Hide()
@@ -1097,10 +1190,11 @@ local function lineOf(row)
   return GC.L["Nothing to send beyond what it keeps."]
 end
 
--- A card's right end on its second line: its Send (armed for a typed name, disabled while another
--- run goes), or the run's word for it (Sent in green, Sending in gold, Next in grey). Answers its
--- width.
-local function paintAction(row, data, status)
+-- A card's right end on its second line: its Send (disabled while another run goes), or the run's
+-- word for it (Sent in green, Sending in gold, Next in grey). Its Send armed for a typed name stands
+-- on a line of its own under the icons instead, `inner` wide. Answers its width, its height and
+-- whether it stands on that line of its own.
+local function paintAction(row, data, status, inner)
   if status then
     row.send:Hide()
     local word, c = GC.L["Next"], K.text3
@@ -1109,20 +1203,24 @@ local function paintAction(row, data, status)
     setText(row.status, word)
     colour(row.status, c)
     row.status:Show()
-    return math.ceil(row.status:GetStringWidth() or 0)
+    return math.ceil(row.status:GetStringWidth() or 0), 0, false
   end
   row.status:Hide()
   if data.state ~= "send" then
     row.send:Hide()
-    return 0
+    return 0, 0, false
   end
   local armed = MA._armed and MA._armed.id == "row:" .. data.key and MA._armed or nil
   row.send.key = data.key
-  local width = armed and paintSend(row.send, "armed", GC.L["Send to %s? Press again"]:format(armed.to))
-    or paintSend(row.send, "send", GC.L["Send"])
+  local width, height
+  if armed then
+    width, height = paintSend(row.send, "armed", GC.L["Send to %s? Press again"]:format(armed.to), inner)
+  else
+    width, height = paintSend(row.send, "send", GC.L["Send"])
+  end
   setEnabled(row.send, not (MA._run or (armed and armed.held)))
   row.send:Show()
-  return width
+  return width, height, armed ~= nil
 end
 
 -- The icons of a card: what goes (checked once it has gone, `sent`), then what stays, each with its
@@ -1201,7 +1299,9 @@ end
 
 -- One card, `width` wide, for `view` ({ row, status }): its top line (paintHead), then the icons of
 -- what goes and what stays ("+N" for the rest), the line, and the Send or the run's word at the
--- right. Answers its height.
+-- right. A Send armed for a typed name takes a line of its own under the icons, as wide as the card,
+-- the line and the "+N" hidden while it asks: its question is long, and never covers the icons nor
+-- squeezes the line. Answers its height.
 local function paintRow(row, view, reading, width)
   local data, status = view.row, view.status
   row.data = data
@@ -1209,9 +1309,10 @@ local function paintRow(row, view, reading, width)
   local lineY = M.ROW_PAD + paintHead(row, data, reading, width) + M.LINE_TOP
   local entries = iconEntries(data, status == "sent")
   local n = math.min(#entries, M.ICONS)
-  local actionW = paintAction(row, data, status)
+  local actionW, actionH, below = paintAction(row, data, status, width - 2 * M.ROW_PAD)
+  local besideW = below and 0 or actionW
   local moreW = 0
-  if #entries > n then
+  if #entries > n and not below then
     setText(row.more, "+" .. (#entries - n))
     moreW = math.ceil(row.more:GetStringWidth() or 0) + M.ICON_GAP
     row.more:Show()
@@ -1220,10 +1321,14 @@ local function paintRow(row, view, reading, width)
   end
   local iconsW = n * M.ICON + math.max(0, n - 1) * M.ICON_GAP
   local lineX = x + iconsW + moreW + (n > 0 and M.COL_GAP or 0)
-  row.line:SetWidth(math.max(1, width - M.ROW_PAD - actionW - (actionW > 0 and M.COL_GAP or 0) - lineX))
-  setText(row.line, lineOf(data))
-  local lineH = math.ceil(heightOf(row.line, 12))
-  local bottomH = math.max(n > 0 and M.ICON or 0, actionW > 0 and M.BUTTON_H or 0, lineH)
+  local lineH = 0
+  row.line:SetShown(not below)
+  if not below then
+    row.line:SetWidth(math.max(1, width - M.ROW_PAD - besideW - (besideW > 0 and M.COL_GAP or 0) - lineX))
+    setText(row.line, lineOf(data))
+    lineH = math.ceil(heightOf(row.line, 12))
+  end
+  local bottomH = math.max(n > 0 and M.ICON or 0, besideW > 0 and M.BUTTON_H or 0, lineH)
   for i = 1, math.max(n, #row.icons) do
     local slot, entry = row.icons[i], i <= n and entries[i] or nil
     if entry then
@@ -1248,23 +1353,33 @@ local function paintRow(row, view, reading, width)
     row.more:ClearAllPoints()
     row.more:SetPoint("LEFT", row, "TOPLEFT", x + iconsW + M.ICON_GAP, -(lineY + bottomH / 2))
   end
-  row.line:ClearAllPoints()
-  row.line:SetPoint("TOPLEFT", row, "TOPLEFT", lineX, -(lineY + math.floor((bottomH - lineH) / 2)))
+  if not below then
+    row.line:ClearAllPoints()
+    row.line:SetPoint("TOPLEFT", row, "TOPLEFT", lineX, -(lineY + math.floor((bottomH - lineH) / 2)))
+  end
   local mid = -(lineY + bottomH / 2)
+  local height = lineY + bottomH + M.ROW_PAD
   if status then
     row.status:ClearAllPoints()
     row.status:SetPoint("RIGHT", row, "TOPLEFT", width - M.ROW_PAD, mid)
+  elseif below then
+    local y = lineY + bottomH + (bottomH > 0 and M.LINE_TOP or 0)
+    row.send:ClearAllPoints()
+    row.send:SetPoint("TOPLEFT", row, "TOPLEFT", x, -y)
+    height = y + actionH + M.ROW_PAD
   elseif row.send:IsShown() then
     row.send:ClearAllPoints()
     row.send:SetPoint("RIGHT", row, "TOPLEFT", width - M.ROW_PAD, mid)
   end
+  -- The line and the "+N" back after the ask, or gone for it: redrawn whole.
+  if below ~= (row.below == true) then restamp(row) end
+  row.below = below
   -- Its glass: gold while a mail of it is in flight; a group this character sells, faded.
   local fill, ring = K.glassBottom, K.hairline
   if status == "sending" then fill, ring = RUN_FILL, RUN_RING end
   row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
   row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
   row:SetAlpha(data.state == "self" and not status and SELF_ALPHA or 1)
-  local height = lineY + bottomH + M.ROW_PAD
   row:SetHeight(height)
   return height
 end
@@ -1384,10 +1499,10 @@ local function showHandle()
 end
 
 --- Paints the window, or its handle while the player has it closed, or hides both with the mailbox
---- closed. With `again`, or with nothing read yet in this visit, it reads the bags first (readBags);
---- else it paints from what it last read.
+--- closed (mailboxOpen: the client is asked too). With `again`, or with nothing read yet in this
+--- visit, it reads the bags first (readBags); else it paints from what it last read.
 function MA.Refresh(again)
-  if not MA._open then return hideAll() end
+  if not mailboxOpen() then return hideAll() end
   if closedNow() then return showHandle() end
   if again or not MA._reading then MA._reading = readBags() end
   if not frame then build() end
@@ -1410,15 +1525,25 @@ local function newVisit()
 end
 
 -- BAG_UPDATE_DELAYED: the window reads and paints once on the next frame, never inside the client's
--- event.
+-- event; only while the mailbox is open, which Refresh asks the client too (a mailbox gone with no
+-- MAIL_CLOSED hides the window there instead).
 local function onBagsChanged()
   if not MA._open or MA._queued then return end
   if not (C_Timer and C_Timer.After) then return MA.Refresh(true) end
   MA._queued = true
   C_Timer.After(0, function()
     MA._queued = nil
-    if MA._open then MA.Refresh(true) end
+    MA.Refresh(true)
   end)
+end
+
+-- The end of a visit, at MAIL_CLOSED or the mail frame's own hide: a run stops, the popups the window
+-- opened close, and the window and its handle go.
+local function endVisit()
+  MA._open = false
+  if MA.machine then MA.machine:OnClosed() end
+  closePopups()
+  hideAll()
 end
 
 -- The open letter's own show and hide move the window and its handle (place). Hooked at the first
@@ -1436,11 +1561,26 @@ local function hookLetter()
   pcall(letter.HookScript, letter, "OnHide", moved)
 end
 
+-- The mail frame's own hide ends the visit as MAIL_CLOSED does: Blizzard's OnHide for it calls
+-- CloseMail (Blizzard_MailFrame's MailFrame.xml), and walking from the mailbox straight to an
+-- auctioneer can close the mailbox with no MAIL_CLOSED (in game 2026-09-23, UI/CraftQueueView.lua's
+-- mailboxOpen), which left the window standing over the auction house. Hooked at the first visit,
+-- as the open letter is.
+local mailHooked
+local function hookMailFrame()
+  local mail = _G.MailFrame
+  if mail == mailHooked or type(mail) ~= "table" or type(mail.HookScript) ~= "function" then return end
+  mailHooked = mail
+  pcall(mail.HookScript, mail, "OnHide", function()
+    if MA._open then endVisit() end
+  end)
+end
+
 --- The window's events, as its own event frame below hears them. MAIL_SHOW: this character is
 --- remembered (Core/Alts.lua's OnEvent, which keeps its `seen` fresh) and a visit starts.
---- MAIL_CLOSED: a run stops and the window and its popups go. MAIL_SEND_SUCCESS and MAIL_FAILED: the
---- server's answer to the mail in flight, for the press machine. BAG_UPDATE_DELAYED: a paint on the
---- next frame.
+--- MAIL_CLOSED: the visit ends (endVisit, as at the mail frame's hide). MAIL_SEND_SUCCESS and
+--- MAIL_FAILED: the server's answer to the mail in flight, for the press machine; a refused one marks
+--- its character's groups out of the run. BAG_UPDATE_DELAYED: a paint on the next frame.
 function MA.OnEvent(event)
   if event == "MAIL_SHOW" then
     if not GC.db then return end
@@ -1448,12 +1588,10 @@ function MA.OnEvent(event)
     newVisit()
     MA._open = true
     hookLetter()
+    hookMailFrame()
     MA.Refresh(true)
   elseif event == "MAIL_CLOSED" then
-    MA._open = false
-    if MA.machine then MA.machine:OnClosed() end
-    closePopups()
-    hideAll()
+    endVisit()
   elseif event == "MAIL_SEND_SUCCESS" then
     local run = MA._run
     if run and run.current then
@@ -1463,7 +1601,13 @@ function MA.OnEvent(event)
     if MA.machine then MA.machine:OnSendResult(true) end
     if MA._run and frame and frame:IsShown() then paint() end
   elseif event == "MAIL_FAILED" then
+    local run = MA._run
+    if run and run.current then
+      run.failed[run.current.to] = true
+      run.current = nil
+    end
     if MA.machine then MA.machine:OnSendResult(false) end
+    if MA._run and frame and frame:IsShown() then paint() end
   elseif event == "BAG_UPDATE_DELAYED" then
     onBagsChanged()
   end

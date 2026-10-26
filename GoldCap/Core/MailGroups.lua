@@ -123,20 +123,21 @@ end
 local PREFIX = "GoldCap: "
 
 -- The subject of a mail for groups called `names`, in order: all of them when they fit in
--- SUBJECT_MAX letters, else as many first names as fit and " and N more" (one name at least; a
--- name is never cut, so a single name past the limit stays whole).
+-- SUBJECT_MAX letters, else as many first names as fit and " and N more". A name is never cut: when
+-- not even the first fits, alone or with " and N more", the subject counts the groups ("GoldCap: 1
+-- group", "GoldCap: 3 groups"), as a group's name has no cap on goldcap.gg.
 local function subjectOf(names)
   local all = PREFIX .. table.concat(names, ", ")
-  if letters(all) <= M.SUBJECT_MAX or #names == 1 then return all end
+  if letters(all) <= M.SUBJECT_MAX then return all end
   local best
   for k = 1, #names - 1 do
     local head = {}
     for i = 1, k do head[i] = names[i] end
     local subject = PREFIX .. table.concat(head, ", ") .. " and " .. (#names - k) .. " more"
-    if k > 1 and letters(subject) > M.SUBJECT_MAX then break end
+    if letters(subject) > M.SUBJECT_MAX then break end
     best = subject
   end
-  return best
+  return best or (PREFIX .. (#names == 1 and "1 group" or (#names .. " groups")))
 end
 
 -- The mails for `parts` = { { key, name, stack }, ... } (a stack with the group it came from) to
