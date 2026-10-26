@@ -41,6 +41,8 @@ local ICON_EDGE = { 0, 0, 0, 0.75 }
 -- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
 -- the board draws it.
 local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
+-- A dim icon: desaturated, and this grey on top of it.
+local DIM_TINT = 0.5
 -- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
 -- folder with any group checked.
 local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
@@ -197,18 +199,26 @@ local function newIcon(row, size, counted)
   mark:SetSize(L.MARK, L.MARK)
   mark:SetPoint("CENTER", edge, "CENTER", 0, 0)
   T.SetIcon(mark, "check", K.profit)
-  local slot = { edge = edge, icon = icon, count = count, ring = ring, shade = shade, mark = mark, size = size }
-  for _, part in ipairs({ ring, shade, mark }) do part:Hide() end
+  local pip = row:CreateTexture(nil, "OVERLAY", nil, 2)
+  pip:SetSize(math.floor(size / 3), math.floor(size / 3))
+  pip:SetPoint("TOPLEFT", edge, "TOPLEFT", 0, 0)
+  local slot = { edge = edge, icon = icon, count = count, ring = ring, shade = shade, mark = mark, pip = pip, size = size }
+  for _, part in ipairs({ ring, shade, mark, pip }) do part:Hide() end
   return slot
 end
 
--- `mark`: the run's for the item (UI/HoardList.lua's RunState), "moving", "moved" or nil.
-local function paintIcon(slot, itemID, file, count, mark)
+-- `mark`: the run's for the item (UI/HoardList.lua's RunState), "moving", "moved" or nil. `opts`
+-- (optional): `pip`, the item's crafting quality top left over the icon, nothing for an item
+-- without one; `dim`, the icon shaded as a disabled one, apart from the moved shade.
+local function paintIcon(slot, itemID, file, count, mark, opts)
   local quality = GC.Theme.QualityColor(itemID)
   local c = quality and { quality.r, quality.g, quality.b, 1 } or ICON_EDGE
   if mark == "moving" then c = K.goldText end
   slot.edge:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
   slot.icon:SetTexture(file or 134400) -- the question mark, while the client has no icon for it yet
+  local dim = opts and opts.dim
+  slot.icon:SetDesaturated(dim and true or false)
+  slot.icon:SetVertexColor(dim and DIM_TINT or 1, dim and DIM_TINT or 1, dim and DIM_TINT or 1, 1)
   slot.edge:Show()
   slot.icon:Show()
   if slot.count then
@@ -218,10 +228,13 @@ local function paintIcon(slot, itemID, file, count, mark)
   slot.ring:SetShown(mark == "moving")
   slot.shade:SetShown(mark == "moved")
   slot.mark:SetShown(mark == "moved")
+  local atlas = opts and opts.pip and GC.Theme.QualityAtlas(itemID)
+  if atlas then slot.pip:SetAtlas(atlas) end
+  slot.pip:SetShown(atlas ~= nil)
 end
 
 local function hideIcon(slot)
-  for _, part in ipairs({ slot.edge, slot.icon, slot.ring, slot.shade, slot.mark }) do part:Hide() end
+  for _, part in ipairs({ slot.edge, slot.icon, slot.ring, slot.shade, slot.mark, slot.pip }) do part:Hide() end
   if slot.count then slot.count:Hide() end
 end
 

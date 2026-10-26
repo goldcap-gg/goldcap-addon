@@ -339,15 +339,21 @@ local function atlasForQuality(itemID)
   return atlas
 end
 
+--- The atlas the client draws for `itemID`'s crafting quality, or nil when the item has no
+-- quality tier (most items do) or the client will not say what to draw.
+function T.QualityAtlas(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
+  if not api then return nil end
+  local ok, quality = pcall(api, itemID)
+  if not ok or type(quality) ~= "number" then return nil end
+  return atlasForQuality(itemID)
+end
+
 --- The quality of `itemID` as an inline atlas escape, or "" when the item has no
 -- quality tier (most items do not) or the client will not say what to draw.
 function T.QualityMarkup(itemID, size)
-  if type(itemID) ~= "number" then return "" end
-  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
-  if not api then return "" end
-  local ok, quality = pcall(api, itemID)
-  if not ok or type(quality) ~= "number" then return "" end
-  local atlas = atlasForQuality(itemID)
+  local atlas = T.QualityAtlas(itemID)
   if not atlas then return "" end
   size = size or 14
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)

@@ -105,6 +105,7 @@ function W.Texture(parent)
   function t:SetColorTexture(...) s.color = { ... } end
   function t:SetTextureSliceMargins(...) s.slice = { ... } end
   function t:SetVertexColor(...) s.vertex = { ... } end
+  function t:SetDesaturated(flag) s.desaturated = flag and true or false end
   function t:SetBlendMode(mode) s.blend = mode end
   function t:SetTexCoord(...) s.texCoord = { ... } end
   function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end

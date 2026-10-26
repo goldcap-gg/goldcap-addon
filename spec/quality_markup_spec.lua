@@ -133,4 +133,20 @@ describe("Reagent quality markup", function()
       assert.equal("Ore", GC.Theme.WithQuality("Ore", 1))
     end)
   end)
+
+  it("names the atlas itself for a caller that draws it, from the same cache", function()
+    local reads = 0
+    _G.C_TooltipInfo = { GetItemByID = function() reads = reads + 1
+      return { lines = { { leftText = "|A:quality-mark-2:20:20|a" } } } end }
+    assert.equal("quality-mark-2", GC.Theme.QualityAtlas(1))
+    assert.equal("|A:quality-mark-2:14:14|a", GC.Theme.QualityMarkup(1))
+    assert.equal(1, reads)
+  end)
+
+  it("names no atlas for an item without a quality tier", function()
+    tooltip({ { leftText = "|A:quality-mark-2:20:20|a" } })
+    _G.C_TradeSkillUI.GetItemReagentQualityByItemInfo = function() return nil end
+    assert.is_nil(GC.Theme.QualityAtlas(1))
+    assert.is_nil(GC.Theme.QualityAtlas("x"))
+  end)
 end)
