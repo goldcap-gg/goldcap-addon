@@ -1651,7 +1651,7 @@ GC.Locales.koKR = {
   ["item level %d"] = "아이템 레벨 %d",
   ["GoldCap: next to disenchant"] = "GoldCap: 다음 마력 추출 대상",
   ["GoldCap: on the Disenchant list"] = "GoldCap: 마력 추출 목록에 있음",
-  ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: 마력 추출 제외, 경매장이 더 비쌈",
+  ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: 마력 추출 제외, 경매장 판매가 더 이득",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: 보관 중, 마력 추출하지 않음. 마력 추출 창에서 되돌릴 수 있습니다.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "마력 추출: 재료로 약 %s, 비슷한 아이템 %d회 마력 추출 기준",
   ["Disenchant: GoldCap learns what this gives the first time."] = "마력 추출: GoldCap이 처음 추출할 때 결과를 학습합니다.",
@@ -1661,4 +1661,5 @@ GC.Locales.koKR = {
   ["Never disenchanted"] = "마력 추출하지 않음",
   ["Disenchant it again"] = "다시 마력 추출",
   ["Not in your bags"] = "가방에 없음",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "마력 추출: 재료로 약 %s, 비슷한 아이템 1회 마력 추출 기준",
 }

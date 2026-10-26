@@ -1628,4 +1628,5 @@ GC.Locales.zhCN = {
   ["Never disenchanted"] = "永不分解",
   ["Disenchant it again"] = "重新分解",
   ["Not in your bags"] = "不在背包中",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "分解：材料约 %s，根据你对此类物品的 1 次分解",
 }

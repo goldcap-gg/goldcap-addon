@@ -9,7 +9,7 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales, fighting, slotButtons
+  local sales, fighting, slotButtons, uncached, requested
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
@@ -70,6 +70,7 @@ describe("Disenchant window", function()
         if list[i] then return i, list[i] end
       end, self, 0
     end
+    return list
   end
   -- Our overlay on a bag button: the one child frame it carries, and what is drawn on it.
   local function overlayOf(key)
@@ -146,7 +147,7 @@ describe("Disenchant window", function()
       _G["ContainerFrame" .. i]:Hide()
     end
     bags = _G.ContainerFrameCombinedBags
-    slotButtons = {}
+    slotButtons, uncached, requested = {}, {}, {}
     giveButtons(bags, 0, 6)
     _G.C_SpellBook = { IsSpellKnown = function(spellID) return knows and spellID == 13262 end }
     _G.C_Spell = { GetSpellTexture = function() return 136244 end }
@@ -158,6 +159,8 @@ describe("Disenchant window", function()
       end,
       GetItemNameByID = function(id) return "Item " .. id end,
       GetItemIconByID = function(id) return 1000 + id end,
+      IsItemDataCachedByID = function(id) return not uncached[id] end,
+      RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end,
       GetDetailedItemLevelInfo = function() return 201 end,
     }
     _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
@@ -946,15 +949,122 @@ describe("Disenchant window", function()
     assert.is_true(drawn("0:2", "glow"))
   end)
 
-  it("makes no overlay in combat", function()
+  it("makes an overlay in combat for a bag frame that opens then: the item button is not protected", function()
     put(gear(0, 1, 501))
     openBags()
     S.enterCombat()
     event("PLAYER_REGEN_DISABLED")
-    put(gear(0, 2, 502))
-    event("BAG_UPDATE_DELAYED")
+    local list = giveButtons(_G.ContainerFrame1, 0, 3)
+    _G.ContainerFrame1:Show()
+    W.state(_G.ContainerFrame1).hooks.OnShow(_G.ContainerFrame1)
     nextFrame()
-    assert.is_nil(overlayOf("0:2"))
+    assert.is_true((list[1]:GetChildren()):IsShown())
+  end)
+
+  it("puts the ring back on the first item when the window opens again after a Skip", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    openBags()
+    slash()
+    press(DF._frame.card.skip)
+    assert.is_true(drawn("0:2", "glow"))
+    slash()
+    assert.is_false(windowUp())
+    slash()
+    assert.is_true(windowUp())
+    assert.is_true(drawn("0:1", "glow"))
+    assert.is_false(drawn("0:2", "glow"))
+    assert.equal("next", DF.Standing(slotButtons["0:1"], 501).state)
+  end)
+
+  -- A bag frame and its buttons that Blizzard hands to another bag (ContainerFrame_GetOpenFrame).
+  local function reusedFrame(container, bagOf)
+    local slotButton = CreateFrame("Button", nil, container)
+    slotButton:SetID(1)
+    slotButton.GetBagID = function() return bagOf() end
+    function container:EnumerateValidItems()
+      return function(_, i) if i == 0 then return 1, slotButton end end, self, 0
+    end
+    return slotButton
+  end
+  local function shows(container)
+    container:Show()
+    W.state(container).hooks.OnShow(container)
+    nextFrame()
+  end
+
+  it("leaves no mark on a bag frame Blizzard reuses for another bag", function()
+    put(gear(2, 1, 502))
+    put(gear(4, 1, 504, { quality = 1 }))
+    put(gear(0, 1, 501))
+    local bag = 2
+    local second = reusedFrame(_G.ContainerFrame2, function() return bag end)
+    giveButtons(_G.ContainerFrame1, 0, 2)
+    shows(_G.ContainerFrame1)
+    shows(_G.ContainerFrame2)
+    assert.is_true((second:GetChildren()):IsShown())
+    _G.ContainerFrame2:Hide()
+    W.state(_G.ContainerFrame2).hooks.OnHide(_G.ContainerFrame2)
+    nextFrame()
+    bag = 4
+    shows(_G.ContainerFrame2)
+    assert.is_false((second:GetChildren()):IsShown())
+  end)
+
+  it("marks a bag opened alone, without the backpack", function()
+    put(gear(2, 1, 502))
+    local second = reusedFrame(_G.ContainerFrame2, function() return 2 end)
+    shows(_G.ContainerFrame2)
+    assert.is_true((second:GetChildren()):IsShown())
+  end)
+
+  it("takes the coins off when nothing is queued", function()
+    put(gear(0, 1, 503, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    openBags()
+    assert.is_nil(overlayOf("0:1"))
+  end)
+
+  it("answers no standing once neither the window nor the bags are open, or when the slot holds another link", function()
+    local item = put(gear(0, 1, 501))
+    openBags()
+    assert.equal("next", DF.Standing(slotButtons["0:1"], 501).state)
+    slots["0:1"] = { itemID = 501, hyperlink = "|Hitem:501:other|h[Item 501]|h", stackCount = 1, isLocked = false }
+    assert.is_nil(DF.Standing(slotButtons["0:1"], 501))
+    slots["0:1"] = { itemID = 501, hyperlink = item.link, stackCount = 1, isLocked = false }
+    bags:Hide()
+    W.state(bags).hooks.OnHide(bags)
+    nextFrame()
+    assert.is_nil(DF.Standing(slotButtons["0:1"], 501))
+  end)
+
+  it("waits for the client to name a kept item that is not in the bags before it opens the menu", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    uncached[777] = true
+    slash()
+    menu = nil
+    press(DF._frame.kept.show)
+    assert.same({ 777 }, requested)
+    assert.is_nil(menu)
+    uncached[777] = nil
+    event("ITEM_DATA_LOAD_RESULT", 777, true)
+    assert.is_not_nil(menu)
+    assert.is_truthy(menu.entries[3].text:find("Item 777", 1, true))
+  end)
+
+  it("opens the menu after a moment when the client never answers, once", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    uncached[777] = true
+    slash()
+    menu = nil
+    press(DF._frame.kept.show)
+    assert.is_nil(menu)
+    assert.equal(1, fire(DF.NAME_SECONDS))
+    assert.is_not_nil(menu)
+    local first = menu
+    event("ITEM_DATA_LOAD_RESULT", 777, false)
+    assert.equal(first, menu)
   end)
 
   -- ---------------------------------------------------------------------------------------------

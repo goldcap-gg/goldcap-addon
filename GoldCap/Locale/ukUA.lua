@@ -1795,7 +1795,7 @@ GC.Locales.ukUA = {
   ["GoldCap: on the Disenchant list"] = "GoldCap: у списку на розпилення",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: виключено з розпилення, аукціон платить більше",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: залишено, ніколи не розпилюється. Скасувати можна у вікні розпилення.",
-  ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Розпилення: близько %s у матеріалах, за вашими %d розпиленнями таких предметів",
+  ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Розпилення: близько %s у матеріалах, за вашими розпиленнями таких предметів: %d",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Розпилення: GoldCap дізнається, що це дає, під час першого розпилення.",
   ["Kept: 1 item"] = "Залишено предметів: 1",
   ["Kept: %d items"] = "Залишено предметів: %d",
@@ -1803,4 +1803,5 @@ GC.Locales.ukUA = {
   ["Never disenchanted"] = "Ніколи не розпилюються",
   ["Disenchant it again"] = "Розпилювати знову",
   ["Not in your bags"] = "Немає у сумках",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Розпилення: близько %s у матеріалах, за вашим 1 розпиленням такого предмета",
 }

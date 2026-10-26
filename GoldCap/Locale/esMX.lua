@@ -1738,4 +1738,5 @@ GC.Locales.esMX = {
   ["Never disenchanted"] = "Nunca se desencantan",
   ["Disenchant it again"] = "Desencantar de nuevo",
   ["Not in your bags"] = "No están en tus bolsas",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Desencantar: unos %s en materiales, según tu 1 desencantamiento de un objeto así",
 }

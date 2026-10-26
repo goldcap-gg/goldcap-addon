@@ -8,15 +8,18 @@ local _, GC = ...
 --
 -- Everything is drawn on one frame of ours per item button, made once and reused: a child of the
 -- button, level with it plus a little, taking no mouse. Blizzard's button gets no script, no hook and
--- no anchor from here, and none of its own regions is shown or hidden. Nothing here is protected, so
--- it runs in combat too; but a frame made in combat would anchor to a protected button, so a fight
--- only shows and hides the overlays that already stand.
+-- no anchor from here, and none of its own regions is shown or hidden. Nothing here is protected (the
+-- item button is not a protected frame: ContainerFrame.xml:77, ItemButtonTemplate.xml:4), so it runs in
+-- combat too, making an overlay included.
 --
--- The buttons are the open container frames' (ContainerFrameCombinedBags, or the separate bags
--- ContainerFrame1 to NUM_CONTAINER_FRAMES), listed as Blizzard lists them, EnumerateValidItems
--- (Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:522-526: index, button), each with its bag
--- (ContainerFrameItemButtonMixin:GetBagID, :1648) and slot (GetID). A mark is drawn only while the
--- slot still holds the item the plan read there, so a bag that changed in a fight carries no stale one.
+-- The buttons are those of the container frames that show, which the window hands in (it already lists
+-- them for placing itself beside the bags: ContainerFrameCombinedBags and ContainerFrame1 to
+-- NUM_CONTAINER_FRAMES, a bag opened alone too). Each is listed as Blizzard lists them,
+-- EnumerateValidItems (Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:522-526: index, button),
+-- with its bag (ContainerFrameItemButtonMixin:GetBagID, :1648) and slot (GetID). A mark is drawn only
+-- while the slot still holds the item the plan read there, and every overlay a pass did not visit is
+-- hidden: Blizzard reuses a bag frame and its buttons for another bag (ContainerFrame_GetOpenFrame,
+-- :383-397), so a mark never outlives the slot it was drawn for.
 GC.DisenchantMarks = {}
 local M = GC.DisenchantMarks
 
@@ -33,18 +36,6 @@ local function ask(fn, ...)
   local ok, value = pcall(fn, ...)
   if ok then return value end
   return nil
-end
-
--- The open container frames.
-local function containers()
-  local out = {}
-  local names = { "ContainerFrameCombinedBags" }
-  for i = 1, tonumber(_G.NUM_CONTAINER_FRAMES) or 6 do names[#names + 1] = "ContainerFrame" .. i end
-  for _, name in ipairs(names) do
-    local f = _G[name]
-    if type(f) == "table" and type(f.EnumerateValidItems) == "function" and f:IsShown() then out[#out + 1] = f end
-  end
-  return out
 end
 
 -- What the plan marks: "bag:slot" -> { row, first = true | nil, coin = true | nil }.
@@ -86,10 +77,9 @@ local function hide(button)
   if o then o:Hide() end
 end
 
-local function paintOne(button, mark, spellTexture, fight)
+local function paintOne(button, mark, spellTexture)
   local o = overlays[button]
   if not o then
-    if fight then return end
     o = build(button, spellTexture)
     overlays[button] = o
   end
@@ -100,19 +90,26 @@ local function paintOne(button, mark, spellTexture, fight)
 end
 
 --- Draws the marks for `plan` (the queue and the left-out rows of Core/Disenchant.lua's Plan) on the
---- open bags' slots, and takes them off every other. `spellTexture`: the spell's icon; `fight`: in
---- combat (no overlay is made then).
-function M.Paint(plan, spellTexture, fight)
-  local want = wanted(plan)
-  for _, container in ipairs(containers()) do
+--- slots of `frames` (the container frames that show), and takes them off every other overlay.
+--- `spellTexture`: the spell's icon. A plan with an empty queue marks nothing.
+function M.Paint(plan, spellTexture, frames)
+  local want = type(plan) == "table" and #(plan.queue or {}) > 0 and wanted(plan) or {}
+  local visited = {}
+  for _, container in ipairs(frames or {}) do
     local ok = pcall(function()
       for _, button in container:EnumerateValidItems() do
         local bag, slot = ask(button.GetBagID, button), ask(button.GetID, button)
         local mark = type(bag) == "number" and type(slot) == "number" and want[bag .. ":" .. slot] or nil
-        if mark and holds(mark.row) then paintOne(button, mark, spellTexture, fight) else hide(button) end
+        if mark and holds(mark.row) then
+          visited[button] = true
+          paintOne(button, mark, spellTexture)
+        end
       end
     end)
     if not ok then return M.Clear() end
+  end
+  for button in pairs(overlays) do
+    if not visited[button] then hide(button) end
   end
 end
 

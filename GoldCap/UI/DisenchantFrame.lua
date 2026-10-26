@@ -82,6 +82,8 @@ DF.PENDING_SECONDS = 5
 DF.CAST_SECONDS = 1.55
 -- How long after the cast succeeds its loot is waited for.
 DF.LOOT_SECONDS = 3
+-- How long the Kept menu waits for the client to name the kept items that are not in the bags.
+DF.NAME_SECONDS = 2
 -- The most of the screen's height the window takes.
 DF.HEIGHT_SHARE = 0.85
 
@@ -261,13 +263,27 @@ local function readPlan()
     skipped = visit.skipped, failed = visit.failed, anyway = visit.anyway })
 end
 
--- Blizzard's open bags: the combined backpack when it shows, else the separate bags' backpack.
-local function bagFrame()
-  for _, name in ipairs({ "ContainerFrameCombinedBags", "ContainerFrame1" }) do
+-- Blizzard's bag frames: the combined backpack and each separate bag, the reagent bag's too
+-- (ContainerFrame.xml:283-290; NUM_CONTAINER_FRAMES, ContainerFrame.lua:5).
+local function bagNames()
+  local names = { "ContainerFrameCombinedBags" }
+  for i = 1, tonumber(_G.NUM_CONTAINER_FRAMES) or 6 do names[#names + 1] = "ContainerFrame" .. i end
+  return names
+end
+
+-- Blizzard's bag frames that show, the combined backpack first (a separate bag opened alone counts):
+-- what the entry stands above, what the marks are drawn on and where the window is placed beside.
+local function shownBags()
+  local out = {}
+  for _, name in ipairs(bagNames()) do
     local f = _G[name]
-    if type(f) == "table" and f.IsVisible and f:IsVisible() then return f end
+    if type(f) == "table" and f.IsVisible and f:IsVisible() then out[#out + 1] = f end
   end
-  return nil
+  return out
+end
+
+local function bagFrame()
+  return shownBags()[1]
 end
 
 local function spellIcon()
@@ -464,24 +480,32 @@ end
 
 --- Where the item in a bag slot stands, from the last plan: { state = "next" | "listed" | "left" |
 --- "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
---- without Disenchant, for any button that is not a bag slot and for a slot that holds another item.
+--- without Disenchant, while neither the window nor Blizzard's bags are open (the plan is then old), for
+--- any button that is not a bag slot and for a slot that no longer holds the item the plan read there
+--- (the marks' rule).
 function DF.Standing(button, itemID)
   if not DF.Known() then return nil end
+  if not ((frame and frame:IsShown()) or bagFrame()) then return nil end
   local key = slotKeyOf(button)
   local plan = DF._plan
   if not key or not plan then return nil end
+  local function holds(stack)
+    if stack.itemID ~= itemID then return false end
+    local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
+    return type(info) == "table" and info.hyperlink == stack.link
+  end
   for i, row in ipairs(plan.queue) do
-    if row.slotKey == key and row.stack.itemID == itemID then
+    if row.slotKey == key and holds(row.stack) then
       return { state = i == 1 and "next" or "listed", mats = row.mats, n = row.n or 0 }
     end
   end
   for _, row in ipairs(plan.left) do
-    if row.slotKey == key and row.stack.itemID == itemID then
+    if row.slotKey == key and holds(row.stack) then
       return { state = "left", mats = row.mats, n = row.n or 0 }
     end
   end
   local stack = DF._kept.bySlot[key]
-  if stack and stack.itemID == itemID then
+  if stack and holds(stack) then
     local mats, n = D.MatsValue(GC.db, D.KindOf(stack), priceOf)
     return { state = "kept", mats = mats, n = n }
   end
@@ -534,10 +558,50 @@ local function fillKeptMenu(root)
   for _, itemID in ipairs(away) do addKept(itemID, nil) end
 end
 
-local function openKeptMenu(owner)
+local function showKeptMenu(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return end
   menu.CreateContextMenu(owner, function(_, root) fillKeptMenu(root) end)
+end
+
+-- The kept items the bags do not hold, whose names the client may not have: asks it for those it
+-- lacks (C_Item.RequestLoadItemDataByID; the answer is ITEM_DATA_LOAD_RESULT) and answers them.
+local function requestAway()
+  local held, pending = {}, {}
+  for _, stack in ipairs(DF._kept.list) do held[stack.itemID] = true end
+  local item = _G.C_Item
+  if type(item) ~= "table" or type(item.RequestLoadItemDataByID) ~= "function" then return pending end
+  for _, itemID in ipairs(D.KeptIDs(GC.db)) do
+    if not held[itemID] and ask(item.IsItemDataCachedByID, itemID) == false then
+      ask(item.RequestLoadItemDataByID, itemID)
+      pending[itemID] = true
+    end
+  end
+  return pending
+end
+
+-- Show: the menu at once when every name is known, else when the client has answered for the ones it
+-- lacked (ITEM_DATA_LOAD_RESULT), or after a moment, so a name that never comes shows as its number.
+local function openKeptMenu(owner)
+  local pending = requestAway()
+  if not next(pending) then return showKeptMenu(owner) end
+  local wait = { owner = owner, pending = pending }
+  DF._menuWait = wait
+  local function finish()
+    if DF._menuWait ~= wait then return end
+    DF._menuWait = nil
+    showKeptMenu(owner)
+  end
+  wait.finish = finish
+  if C_Timer and C_Timer.After then C_Timer.After(DF.NAME_SECONDS, finish) else finish() end
+end
+
+-- The client has answered for an item asked for: the menu opens once it has for all.
+local function onItemData(itemID)
+  local wait = DF._menuWait
+  if not wait or not wait.pending[itemID] then return end
+  wait.pending[itemID] = nil
+  if not next(wait.pending) then wait.finish() end
 end
 
 local function onRowClick(row, mouseButton)
@@ -1385,11 +1449,12 @@ local function paint()
 end
 
 -- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn while Blizzard's
--- bags are open, off otherwise. `bags`: the open bag frame, or nil. `fight`: in combat.
-local function paintMarks(bags, fight)
+-- bags are open, off otherwise or with an empty queue. `bags`: an open bag frame, or nil.
+local function paintMarks(bags)
   local marks = GC.DisenchantMarks
   if not marks then return end
-  if bags and DF._plan then marks.Paint(DF._plan, spellIcon(), fight) else marks.Clear() end
+  if bags and DF._plan and #DF._plan.queue > 0 then marks.Paint(DF._plan, spellIcon(), shownBags())
+  else marks.Clear() end
 end
 
 -- The entry above the bags' top right, with how many are queued; hidden with the bags closed or
@@ -1420,14 +1485,6 @@ end
 -- ---------------------------------------------------------------------------------------------
 -- Opening, closing, refreshing
 -- ---------------------------------------------------------------------------------------------
-
--- Blizzard's bag frames: the combined backpack and each separate bag, the reagent bag's too
--- (ContainerFrame.xml:283-290; NUM_CONTAINER_FRAMES, ContainerFrame.lua:5).
-local function bagNames()
-  local names = { "ContainerFrameCombinedBags" }
-  for i = 1, tonumber(_G.NUM_CONTAINER_FRAMES) or 6 do names[#names + 1] = "ContainerFrame" .. i end
-  return names
-end
 
 -- The left edge of the leftmost of Blizzard's bag frames that show and the top of the highest, in
 -- UIParent's units; nil with none showing (or none laid out yet).
@@ -1485,6 +1542,7 @@ local function openNow()
   end
   arm()
   paintEntry(bagFrame())
+  paintMarks(bagFrame())
 end
 
 --- Closes the window, its button pointed at nothing. Out of combat only (onCloseClick, Toggle).
@@ -1502,7 +1560,7 @@ end
 
 -- In combat: the entry follows the bags with what the last paint read, and nothing else moves.
 local function holdEntry()
-  paintMarks(bagFrame(), true)
+  paintMarks(bagFrame())
   if not entry then return end
   local bags = bagFrame()
   if bags and DF._plan and #DF._plan.queue > 0 then
@@ -1728,6 +1786,8 @@ function DF.OnEvent(event, ...)
   elseif event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
     local unit, castGUID, spellID = ...
     if ours(unit, spellID) then onCastFailed(castGUID) end
+  elseif event == "ITEM_DATA_LOAD_RESULT" then
+    onItemData((...))
   elseif event == "LOOT_READY" then
     onLootReady()
   elseif event == "UI_ERROR_MESSAGE" then
@@ -1755,7 +1815,8 @@ end
 if type(CreateFrame) == "function" then
   local events = CreateFrame("Frame")
   for _, name in ipairs({ "PLAYER_LOGIN", "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "EQUIPMENT_SETS_CHANGED",
-    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "LOOT_READY", "UI_ERROR_MESSAGE" }) do
+    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "LOOT_READY", "UI_ERROR_MESSAGE",
+    "ITEM_DATA_LOAD_RESULT" }) do
     pcall(events.RegisterEvent, events, name)
   end
   for _, name in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED",

@@ -27,6 +27,7 @@ local KEYS = {
   "GoldCap: left out of Disenchant, the auction house pays more",
   "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
   "Disenchant: about %s in mats, from your %d disenchants of such items",
+  "Disenchant: about %s in mats, from your 1 disenchant of such an item",
   "Disenchant: GoldCap learns what this gives the first time.",
   -- The way back for a kept item: the window's line and its menu.
   "Kept: 1 item", "Kept: %d items", "Show", "Never disenchanted", "Disenchant it again", "Not in your bags",

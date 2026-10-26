@@ -1732,4 +1732,5 @@ GC.Locales.itIT = {
   ["Never disenchanted"] = "Mai disincantati",
   ["Disenchant it again"] = "Disincanta di nuovo",
   ["Not in your bags"] = "Non nelle tue borse",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Disincantare: circa %s in materiali, dal tuo 1 disincantamento di un oggetto simile",
 }

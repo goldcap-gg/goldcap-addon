@@ -282,10 +282,15 @@ function GC.Tooltip.DisenchantLines(standing)
   local status = type(standing) == "table" and standingText(standing.state) or nil
   if not status then return nil end
   local lines = { { text = status, color = DISENCHANT_COLOR } }
-  if type(standing.mats) == "number" and (standing.n or 0) > 0 then
-    lines[2] = { color = MATS_COLOR,
-      text = (GC.L["Disenchant: about %s in mats, from your %d disenchants of such items"]):format(
-        GC.Util.CoinText(standing.mats), standing.n) }
+  local n = standing.n or 0
+  if type(standing.mats) == "number" and n > 0 then
+    local gold = GC.Util.CoinText(standing.mats)
+    lines[2] = { color = MATS_COLOR, text = n == 1
+      and (GC.L["Disenchant: about %s in mats, from your 1 disenchant of such an item"]):format(gold)
+      or (GC.L["Disenchant: about %s in mats, from your %d disenchants of such items"]):format(gold, n) }
+  elseif n > 0 then
+    -- Learned, but a material has no price yet: the window's own words for it.
+    lines[2] = { text = GC.L["GoldCap has no price yet for what this gives."], color = MATS_COLOR }
   else
     lines[2] = { text = GC.L["Disenchant: GoldCap learns what this gives the first time."], color = MATS_COLOR }
   end
@@ -298,7 +303,7 @@ local function addDisenchant(tooltip, owner, itemID)
   local lines = GC.Tooltip.DisenchantLines(frame.Standing(owner, itemID))
   if not lines then return end
   for _, ln in ipairs(lines) do
-    tooltip:AddLine(GC.Util.ClientText(ln.text), ln.color[1], ln.color[2], ln.color[3])
+    tooltip:AddLine(GC.Util.ClientText(ln.text), ln.color[1], ln.color[2], ln.color[3], true)
   end
 end
 

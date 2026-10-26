@@ -1718,4 +1718,5 @@ GC.Locales.enUS = {
   ["Never disenchanted"] = "Never disenchanted",
   ["Disenchant it again"] = "Disenchant it again",
   ["Not in your bags"] = "Not in your bags",
+  ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Disenchant: about %s in mats, from your 1 disenchant of such an item",
 }

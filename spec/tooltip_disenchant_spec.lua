@@ -5,19 +5,22 @@ local helper = require("spec.spec_helper")
 -- tooltip already had and add no auction house figure of their own. The standing is
 -- GC.DisenchantFrame.Standing's, a seam here (spec/disenchant_frame_spec.lua tests it).
 describe("Tooltip on a bag item for an enchanter", function()
-  local GC, postCall, lines, values, standing, asked, owner
+  local GC, postCall, lines, values, standing, asked, owner, wraps
 
   local ITEM = 501
   local LINK = "|cnIQ2:|Hitem:501::::::::80:::::|h[Belt]|h|r"
 
   before_each(function()
-    postCall, lines, values, standing, asked = nil, {}, {}, nil, {}
+    postCall, lines, values, standing, asked, wraps = nil, {}, {}, nil, {}, {}
     owner = { name = "bag button" }
     _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
     _G.Enum = { TooltipDataType = { Item = 0 } }
     _G.GameTooltip = {
       GetOwner = function() return owner end,
-      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddLine = function(_, text, _, _, _, wrap)
+        lines[#lines + 1] = text
+        wraps[#lines] = wrap
+      end,
       AddDoubleLine = function(_, left, right) lines[#lines + 1] = left .. " = " .. right end,
     }
     _G.C_Item = { GetItemInfoInstant = function(link)
@@ -83,10 +86,23 @@ describe("Tooltip on a bag item for an enchanter", function()
     }, lines)
   end)
 
-  it("says GoldCap learns it when the kind is learned but a material has no price", function()
+  it("says it has no price yet, not that it learns it, when the kind is learned but a material has none", function()
     standing = { state = "listed", mats = nil, n = 5 }
     hover()
-    assert.equal("Disenchant: GoldCap learns what this gives the first time.", lines[2])
+    assert.equal("GoldCap has no price yet for what this gives.", lines[2])
+  end)
+
+  it("says one disenchant in the singular", function()
+    standing = { state = "listed", mats = 3800, n = 1 }
+    hover()
+    assert.equal("Disenchant: about 3800 in mats, from your 1 disenchant of such an item", lines[2])
+  end)
+
+  it("lets a long line wrap, so it does not widen the tooltip", function()
+    standing = { state = "left", n = 0 }
+    hover()
+    assert.is_true(wraps[1])
+    assert.is_true(wraps[2])
   end)
 
   it("comes after GoldCap's own lines and adds no auction house figure", function()
