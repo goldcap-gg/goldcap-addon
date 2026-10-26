@@ -175,6 +175,83 @@ describe("craft queue", function()
     assert.same({ { currency = 3008 } }, notBuyable)
   end)
 
+  it("counts the crafts asked for since the entry was made, which a craft does not lower", function()
+    Q.Add("A-R", recipe(1), 3)
+    Q.Add("A-R", recipe(1), 2)
+    local e = Q.Entries("A-R")[1]
+    assert.same({ 5, 5 }, { e.count, e.total })
+    Q.OnCraftSucceeded("A-R", 1)
+    assert.same({ 4, 5 }, { e.count, e.total })
+    Q.Add("A-R", recipe(1), 1)
+    assert.same({ 5, 6 }, { e.count, e.total })
+  end)
+
+  it("starts the total at the count over a restock target", function()
+    Q.Restock("A-R", recipe(1), 20)
+    local e = Q.Add("A-R", recipe(1), 3)
+    assert.same({ 3, 3, nil }, { e.count, e.total, e.restock })
+    assert.same({ e }, Q.Entries("A-R"))
+  end)
+
+  it("reads an entry an older save made without a total as total = count", function()
+    GC.db.craft = { v = 1, chars = { ["A-R"] = { entries = { { recipe = recipe(1), count = 4 } }, listed = {} } } }
+    assert.same({ 0, 4 }, { Q.Progress(Q.Entries("A-R")[1], 0) })
+    Q.Add("A-R", recipe(1), 2)
+    local e = Q.Entries("A-R")[1]
+    assert.same({ 6, 6 }, { e.count, e.total })
+    GC.db.craft.chars["A-R"].entries[1] = { recipe = recipe(1), count = 4 }
+    Q.OnCraftSucceeded("A-R", 1)
+    assert.same({ 1, 4 }, { Q.Progress(Q.Entries("A-R")[1], 0) })
+  end)
+
+  it("reports progress: crafts made of a count, held against a restock target", function()
+    assert.same({ 2, 5 }, { Q.Progress({ recipe = recipe(1), count = 3, total = 5 }, 99) })
+    assert.same({ 0, 5 }, { Q.Progress({ recipe = recipe(1), count = 5 }, 0) })
+    assert.same({ 7, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 7) })
+    assert.same({ 20, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 31) })
+  end)
+
+  describe("MissingCost", function()
+    it("prices the item BuyLines would buy, times what is missing", function()
+      local needs = { { ids = { 101, 102, 103 }, q = 6 } }
+      local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })
+      local missing = Q.Missing(needs, counts({ [103] = 1 }))
+      local costs, total, unpriced = Q.MissingCost(missing, prices)
+      assert.same({ 5 * 400 }, costs)
+      assert.same({ 2000, 0 }, { total, unpriced })
+      assert.equal(103, Q.BuyLines(needs, prices, counts({ [103] = 1 }))[1].i)
+    end)
+
+    it("prices a vendor item at the vendor's price", function()
+      local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 } }
+      local costs, total = Q.MissingCost(missing, unit({ [101] = 900, [102] = 800 }),
+        function(id) return id == 102 and 50 or nil end)
+      assert.same({ 200 }, costs)
+      assert.equal(200, total)
+      -- A vendor that sells the item the auction house has no price for.
+      costs = Q.MissingCost(missing, unit({}), function(id) return id == 101 and 30 or nil end)
+      assert.same({ 120 }, costs)
+    end)
+
+    it("leaves an unpriced row out of the total and counts it, and ignores a currency", function()
+      local missing = {
+        { ids = { 101 }, need = 2, have = 0, missing = 2 },
+        { ids = { 201, 202 }, need = 3, have = 1, missing = 2 },
+        { currency = 3008, need = 5, have = 0, missing = 5 },
+      }
+      local costs, total, unpriced = Q.MissingCost(missing, unit({ [101] = 70 }))
+      assert.same({ 140 }, costs)
+      assert.is_nil(costs[2])
+      assert.is_nil(costs[3])
+      assert.same({ 140, 1 }, { total, unpriced })
+    end)
+
+    it("answers nothing priced for nothing missing", function()
+      assert.same({ {}, 0, 0 }, { Q.MissingCost({}, unit({})) })
+      assert.same({ {}, 0, 0 }, { Q.MissingCost(nil, unit({})) })
+    end)
+  end)
+
   it("remembers each character's craft queue BUY list", function()
     assert.is_nil(Q.BuyList("A-R"))
     assert.is_nil(GC.db.craft)

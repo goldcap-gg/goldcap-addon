@@ -1,5 +1,6 @@
 local helper = require("spec.spec_helper")
 local TS = require("spec.support.trade_skill")
+local W = require("spec.support.wow_frames")
 
 -- Services/CraftClient.lua: the one reader of the profession window. Recipes become snapshots,
 -- the open recipe's allocation and crafted item are read as the window shows them, and prices,
@@ -282,6 +283,97 @@ describe("craft client", function()
     assert.equal(0, CC.CurrencyCount(3010))
     assert.equal(0, CC.CurrencyCount(4040))
     assert.equal(0, CC.CurrencyCount(nil))
+  end)
+
+  it("names the profession whose window is open, with its icon", function()
+    load({ professionID = 171, professionName = "Midnight Alchemy", professionTexture = 136240 })
+    assert.same({ "Midnight Alchemy", 136240 }, { CC.Profession() })
+    assert.same({ 171 }, TS.callsOf("GetTradeSkillTexture")[1].args)
+  end)
+
+  it("falls back to the base profession, and knows none when the client has none", function()
+    load({ professionID = 0, baseProfession = { professionID = 164, professionName = "Blacksmithing" },
+      professionTexture = 136241 })
+    assert.same({ "Blacksmithing", 136241 }, { CC.Profession() })
+    restore()
+    load({})
+    assert.is_nil(CC.Profession())
+    restore()
+    load({ professionID = 171, professionName = "Alchemy", absent = { GetTradeSkillTexture = true } })
+    assert.same({ "Alchemy", nil }, { CC.Profession() })
+  end)
+
+  it("opens a recipe of the open profession in the window, and no other", function()
+    load({ professionID = 171, recipes = { [7] = potion(), [8] = potion() } })
+    TS.opts.recipes[8].inSkillLine = false
+    TS.frame:Show()
+    CC.Open(7)
+    CC.Open(8)
+    assert.equal(1, #TS.callsOf("OpenRecipe"))
+    assert.same({ 7 }, TS.callsOf("OpenRecipe")[1].args)
+    TS.frame:Hide()
+    CC.Open(7)
+    assert.equal(1, #TS.callsOf("OpenRecipe"))
+  end)
+
+  describe("Repeating", function()
+    local function fire(event, ...)
+      local ev = CC._events
+      ev:GetScript("OnEvent")(ev, event, ...)
+    end
+
+    it("listens for the events Blizzard's crafting page ends a run on", function()
+      load({})
+      for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE",
+          "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED" }) do
+        assert.is_true(CC._events:IsEventRegistered(event), event)
+      end
+    end)
+
+    it("is nothing before a craft begins", function()
+      load({})
+      assert.is_nil(CC.Repeating())
+    end)
+
+    it("follows a run: the cast that began, the casts left, then the stop", function()
+      load({})
+      TS.opts.recasts = 2
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 3 }, { CC.Repeating() })
+      TS.opts.recasts = 1
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 2 }, { CC.Repeating() })
+      TS.opts.recasts = 0
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      assert.same({ 7, 1 }, { CC.Repeating() })
+      fire("UPDATE_TRADESKILL_CAST_STOPPED", false)
+      assert.is_nil(CC.Repeating())
+    end)
+
+    it("ends on an interrupted or failed cast of the player, and on the window closing", function()
+      load({})
+      for _, event in ipairs({ "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED" }) do
+        fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+        fire(event, "player", "Cast-1", 7)
+        assert.is_nil(CC.Repeating(), event)
+      end
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      fire("TRADE_SKILL_CLOSE")
+      assert.is_nil(CC.Repeating())
+    end)
+
+    it("is not ended by another unit's cast or by a scrapping stop", function()
+      load({})
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      fire("UNIT_SPELLCAST_INTERRUPTED", "target", "Cast-1", 7)
+      fire("UPDATE_TRADESKILL_CAST_STOPPED", true)
+      assert.same({ 7, 1 }, { CC.Repeating() })
+    end)
+
+    it("registers the player's casts only", function()
+      load({})
+      assert.same({ "player" }, W.state(CC._events).unitEvents.UNIT_SPELLCAST_FAILED)
+    end)
   end)
 
   it("folds the owned auctions into this character's store", function()

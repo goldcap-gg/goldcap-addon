@@ -281,6 +281,70 @@ function CC.CraftableHere(recipeID)
   return false, (type(name) == "string" and name ~= "") and name or nil
 end
 
+--- The name and icon of the profession whose window is open (the child profession, else the base
+--- one, as ProfessionInfo names it), the icon the way Blizzard_ProfessionsFrame.lua sets its
+--- portrait. nil when the client names none; the icon alone is nil when the client has none.
+function CC.Profession()
+  for _, name in ipairs({ "GetChildProfessionInfo", "GetBaseProfessionInfo" }) do
+    local ok, prof = call(name)
+    if ok and type(prof) == "table" and type(prof.professionID) == "number" and prof.professionID > 0
+        and type(prof.professionName) == "string" and prof.professionName ~= "" then
+      local okT, icon = call("GetTradeSkillTexture", prof.professionID)
+      return prof.professionName, okT and icon or nil
+    end
+  end
+  return nil
+end
+
+--- Opens a recipe in Blizzard's profession window, as its recipe tracker does
+--- (Blizzard_ProfessionsRecipeTracker.lua). Call it straight from the player's click. Nothing
+--- happens for a recipe the open window cannot craft (CC.CraftableHere). True when it was asked.
+function CC.Open(recipeID)
+  if type(recipeID) ~= "number" or not CC.CraftableHere(recipeID) then return false end
+  return (call("OpenRecipe", recipeID))
+end
+
+-- The recipe of the cast Blizzard's crafting page is repeating (TRADE_SKILL_CRAFT_BEGIN's
+-- recipeSpellID), nil when no run is going. Ended where the page ends one: the cast stopped
+-- (not a scrap), the player's cast interrupted or failed, the window closed
+-- (Blizzard_ProfessionsCrafting.lua, ProfessionsCraftingPageMixin:OnEvent).
+local running
+
+function CC.OnEvent(event, ...)
+  if event == "TRADE_SKILL_CRAFT_BEGIN" then
+    local recipeSpellID = ...
+    running = type(recipeSpellID) == "number" and recipeSpellID or nil
+  elseif event == "UPDATE_TRADESKILL_CAST_STOPPED" then
+    local isScrapping = ...
+    if not isScrapping then running = nil end
+  elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+    if (...) == "player" then running = nil end
+  elseif event == "TRADE_SKILL_CLOSE" then
+    running = nil
+  end
+end
+
+--- The recipe being crafted and the crafts left of the run, this one included
+--- (GetRemainingRecasts counts only those after it, Blizzard_ProfessionsCrafting.lua:667), while a
+--- craft the player started is going; nil otherwise.
+function CC.Repeating()
+  if not running then return nil end
+  local ok, remaining = call("GetRemainingRecasts")
+  if not ok or type(remaining) ~= "number" then return nil end
+  return running, remaining + 1
+end
+
+if type(CreateFrame) == "function" then
+  local events = CreateFrame("Frame")
+  for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
+    pcall(events.RegisterEvent, events, event)
+  end
+  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_INTERRUPTED", "player")
+  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_FAILED", "player")
+  events:SetScript("OnEvent", function(_, event, ...) CC.OnEvent(event, ...) end)
+  CC._events = events
+end
+
 --- A reagent or crafted item by name, for a sentence: { itemID } or { currencyID }.
 function CC.MissingName(m)
   if type(m) ~= "table" then return "" end

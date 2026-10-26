@@ -18,6 +18,9 @@
 --       inSkillLine = bool (default true), craftable = n, quality = { itemID, ... },
 --       professionName = name (GetProfessionInfoByRecipeID) } },
 --     filtered = { recipeID, ... }, all = { recipeID, ... } | nil, professionID = n,
+--     professionName = name (GetChildProfessionInfo), professionTexture = fileID (GetTradeSkillTexture),
+--     baseProfession = { professionID, professionName } (GetBaseProfessionInfo), recasts = n
+--     (GetRemainingRecasts, a spec sets TS.opts.recasts as a run goes on),
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
 --       recraft = bool (the transaction's IsRecraft) } | nil,
 --     counts = { [itemID] = n }, names = { [itemID] = name }, currencies = { [currencyID] = name },
@@ -119,7 +122,22 @@ function TS.install(opts)
       local r = recipes[id]
       return r ~= nil and r.inSkillLine ~= false and skillLineID == opts.professionID
     end,
-    GetChildProfessionInfo = function() return { professionID = opts.professionID or 0 } end,
+    GetChildProfessionInfo = function()
+      return { professionID = opts.professionID or 0, professionName = opts.professionName or "" }
+    end,
+    -- ProfessionInfo of the base profession; the client answers professionID 0 for none.
+    GetBaseProfessionInfo = function()
+      local base = opts.baseProfession or {}
+      return { professionID = base.professionID or 0, professionName = base.professionName or "" }
+    end,
+    -- Undocumented; Blizzard_ProfessionsFrame.lua:242 sets its portrait from it.
+    GetTradeSkillTexture = function(professionID)
+      record("GetTradeSkillTexture", professionID)
+      return opts.professionTexture
+    end,
+    -- The casts still to come after the current one (Blizzard_ProfessionsCrafting.lua:667).
+    GetRemainingRecasts = function() return opts.recasts or 0 end,
+    OpenRecipe = function(recipeID) record("OpenRecipe", recipeID) end,
     -- ProfessionInfo for the skill line a recipe is in: `professionName` from the recipe's own
     -- entry, as the client names a line ("Midnight Alchemy").
     GetProfessionInfoByRecipeID = function(id)

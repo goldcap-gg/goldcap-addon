@@ -8,7 +8,9 @@ local _, GC = ...
 --   listed = { [itemID] = quantity }, listedAt = time() or nil, buyList = code or nil } } }
 -- `buyList` is the code of the character's one craft queue BUY list in GC.db.runs (the list
 -- UI/CraftQueueView.lua keeps in step with the queue).
--- Entry: { recipe = Recipe, count = n } or { recipe = Recipe, restock = n }. Recipe is the
+-- Entry: { recipe = Recipe, count = n, total = n } or { recipe = Recipe, restock = n }. `total` is
+-- the crafts asked for since the entry was made (`count` is what is left of them); an entry
+-- without it, from an older save, reads total = count. Recipe is the
 -- snapshot Services/CraftClient.lua makes (Core/CraftMath.lua names its shape), stored whole so
 -- the queue reads without the profession window open.
 --
@@ -91,8 +93,8 @@ function Q.Entries(char)
   return out
 end
 
---- Adds `count` crafts of `recipe`: summed into a count the recipe already has, in place of a
---- restock target it had. The stored snapshot becomes `recipe`. Returns the entry, or nil.
+--- Adds `count` crafts of `recipe`: summed into a count (and a total) the recipe already has, in
+--- place of a restock target it had, with the total starting at the count. The stored snapshot becomes `recipe`. Returns the entry, or nil.
 function Q.Add(char, recipe, count)
   if not validRecipe(recipe) or not isWhole(count, 1) then return nil end
   local c = charOf(char, true)
@@ -100,11 +102,12 @@ function Q.Add(char, recipe, count)
   local i = indexOf(c, recipe.recipeID)
   local e = i and c.entries[i] or nil
   if e and type(e.count) == "number" then
+    e.total = math.min(C.MAX_COUNT, (tonumber(e.total) or e.count) + count)
     e.count = math.min(C.MAX_COUNT, e.count + count)
     e.recipe = recipe
     return e
   end
-  e = { recipe = recipe, count = count }
+  e = { recipe = recipe, count = count, total = count }
   if i then c.entries[i] = e else c.entries[#c.entries + 1] = e end
   return e
 end
@@ -154,6 +157,18 @@ function Q.CraftsNeeded(entry, held)
   if type(entry.restock) ~= "number" then return 0 end
   local per = math.max(1, type(entry.recipe) == "table" and tonumber(entry.recipe.per) or 1)
   return math.ceil(math.max(0, entry.restock - (tonumber(held) or 0)) / per)
+end
+
+--- How far an entry is: crafts made of the crafts asked for (a count), or what is held against the
+--- target (a restock, `held` capped at it). Returns done, total.
+function Q.Progress(entry, held)
+  if type(entry) ~= "table" then return 0, 0 end
+  if type(entry.count) == "number" then
+    local total = math.max(entry.count, tonumber(entry.total) or entry.count)
+    return total - entry.count, total
+  end
+  local target = tonumber(entry.restock) or 0
+  return math.min(tonumber(held) or 0, target), target
 end
 
 local function slotKey(slot)
@@ -209,6 +224,11 @@ function Q.Missing(needs, countOf, currencyOf)
   return out
 end
 
+-- The item of a reagent row that is bought: the cheapest priced quality, else the lowest.
+local function chosen(ids, unitOf)
+  return GC.CraftMath.SlotChoice({ ids = ids }, unitOf) or ids[1]
+end
+
 --- The craft queue's BUY lines ({ i, q }), from `needs` (Needs' rows): one per reagent, the
 --- cheapest priced quality, else the lowest, asking for the whole need less what is held of the
 --- reagent's other qualities. BUY buys a line's `q` less what it sees held of that one item
@@ -222,7 +242,7 @@ function Q.BuyLines(needs, unitOf, countOf, vendorOf)
     if row.currency then
       notBuyable[#notBuyable + 1] = { currency = row.currency }
     elseif type(row.ids) == "table" and row.ids[1] then
-      local i = GC.CraftMath.SlotChoice({ ids = row.ids }, unitOf) or row.ids[1]
+      local i = chosen(row.ids, unitOf)
       local q = tonumber(row.q) or 0
       for _, id in ipairs(row.ids) do
         if id ~= i then q = q - (tonumber(countOf(id)) or 0) end
@@ -236,6 +256,29 @@ function Q.BuyLines(needs, unitOf, countOf, vendorOf)
     end
   end
   return lines, notBuyable
+end
+
+--- What `missing` (Missing's rows) costs to buy: for each row of items, the item BuyLines buys at
+--- the price BUY pays (`vendorOf`'s when a vendor sells it, else `unitOf`'s) times what is missing.
+--- Returns costs, total, unpriced: `costs[k]` copper for row k, nil for a row with no price or a
+--- currency row; `total` the sum of those; `unpriced` how many rows of items have no price (a
+--- currency is not sold on the auction house and is not counted).
+function Q.MissingCost(missing, unitOf, vendorOf)
+  local costs, total, unpriced = {}, 0, 0
+  for k, row in ipairs(type(missing) == "table" and missing or {}) do
+    if not row.currency and type(row.ids) == "table" and row.ids[1] then
+      local i = chosen(row.ids, unitOf)
+      local vu = vendorOf and tonumber(vendorOf(i)) or nil
+      local unit = vu and vu > 0 and vu or (unitOf and tonumber(unitOf(i)))
+      if unit then
+        costs[k] = unit * (tonumber(row.missing) or 0)
+        total = total + costs[k]
+      else
+        unpriced = unpriced + 1
+      end
+    end
+  end
+  return costs, total, unpriced
 end
 
 --- The code of this character's craft queue BUY list, or nil (none yet, or a newer store).
@@ -288,6 +331,8 @@ function Q.OnCraftSucceeded(char, spellID)
   local i = indexOf(c, spellID)
   local e = i and c.entries[i] or nil
   if not (e and type(e.count) == "number") then return false end
+  -- An entry from an older save has no total: it is what the count was before this craft.
+  e.total = tonumber(e.total) or e.count
   e.count = e.count - 1
   if e.count <= 0 then table.remove(c.entries, i) end
   return true
