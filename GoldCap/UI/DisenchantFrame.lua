@@ -39,9 +39,11 @@ local _, GC = ...
 -- the probe did. A frame a protected one stands under is protected too, so the window, its card and
 -- the button are never shown, hidden, moved, sized or armed in combat: what the player asks for then
 -- (open, close, a repaint the bags asked for) waits for PLAYER_REGEN_ENABLED, and the window keeps
--- naming exactly the item the button still points at. A key still clicks the hidden button, so as
--- the fight begins (PLAYER_REGEN_DISABLED, while the client still allows it) the button is pointed
--- at nothing until the fight is over. The window stands at absolute coordinates on
+-- naming exactly the item the button still points at. A key still clicks the hidden button, so in
+-- combat two secure attribute drivers make its left click's type and target slot nothing (buildCast):
+-- a press then casts nothing, whatever the slot holds by then. As a second guard the button is
+-- pointed at nothing as the fight begins (PLAYER_REGEN_DISABLED, while the client still allows it),
+-- and nothing arms it again until the fight is over. The window stands at absolute coordinates on
 -- UIParent, beside the bags as it opens, never anchored to Blizzard's bag frame, which a protected
 -- frame anchored to it would make protected in turn. The entry button holds nothing protected and
 -- follows the bags in combat too.
@@ -97,7 +99,7 @@ local M = {
   VERDICT_ICON = 10, VERDICT_GAP = 5, BAR_H = 3, BUTTON_H = 28, BUTTON_ICON = 14, BUTTON_PAD = 10, SKIP_MIN = 64,
   BUTTON_GAP = 6, STRIP_PAD = 8, MAT_ICON = 16, MAT_GAP = 10, MAT_LINE = 4, ROW_PAD = 5, ROW_ICON = 18,
   ROW_GAP = 3, ROW_MIN_H = 28, COL_MIN = 44, COL_GAP = 8, ANYWAY_H = 18, ANYWAY_MIN = 70, SECTION_GAP = 10,
-  HEADING_GAP = 5, DOT = 6, DOT_GAP = 5, FOOT_GAP = 6, ENTRY = 32, ENTRY_LOGO = 20, ENTRY_SPELL = 13,
+  HEADING_GAP = 5, TITLE_GAP = 1, DOT = 6, DOT_GAP = 5, FOOT_GAP = 6, ENTRY = 32, ENTRY_LOGO = 20, ENTRY_SPELL = 13,
   ENTRY_COUNT = 14, ENTRY_GAP = 4, ROWS_MIN = 3,
 }
 
@@ -166,8 +168,29 @@ local function now()
   return ask(GetTime) or 0
 end
 
+-- In combat: the client's lockdown, or the fight as this window heard it begin (PLAYER_REGEN_DISABLED
+-- to PLAYER_REGEN_ENABLED, `fight`), so that nothing arms the button between that event and the
+-- lockdown.
 local function inCombat()
-  return type(InCombatLockdown) == "function" and InCombatLockdown() == true
+  return DF._fight == true or (type(InCombatLockdown) == "function" and InCombatLockdown() == true)
+end
+
+-- This button's press, while its cast's answer still counts as the answer to it.
+local function pendingNow()
+  local p = DF._pending
+  if p and now() - p.at <= DF.PENDING_SECONDS then return p end
+  return nil
+end
+
+-- The cast of a press going, until its answer is overdue (CAST_SECONDS and PENDING_SECONDS after it
+-- started: a cast that ended in a way this window does not hear, a loading screen); then forgotten.
+local function castingNow()
+  local casting = DF._casting
+  if casting and now() - casting.at > DF.CAST_SECONDS + DF.PENDING_SECONDS then
+    DF._casting = nil
+    return nil
+  end
+  return casting
 end
 
 --- Whether this character knows Disenchant: nothing of the window is built, read or shown otherwise.
@@ -334,7 +357,7 @@ end
 -- After a paint: the queue's first item while the window shows and no cast of its own goes.
 local function arm()
   local row
-  if frame and frame:IsShown() and not DF._casting and DF._plan then row = DF._plan.queue[1] end
+  if frame and frame:IsShown() and not castingNow() and DF._plan then row = DF._plan.queue[1] end
   setArmed(row)
 end
 
@@ -346,13 +369,16 @@ local function schedule()
 end
 
 --- The button's PreClick, before the template's OnClick casts: the press's half that acts is the
---- release (useOnKeyDown off), so a half with `down` changes nothing. The slot the button points at
---- is read again; when it no longer holds the item the window names, the button is cleared, so this
---- press casts nothing, and the window repaints on the next frame. Nothing pointed at: a press while
---- the window is closed opens it on the next frame. Else this press is remembered for its cast's
---- answer. In combat the button cannot be cleared; the window then still names what it points at.
+--- release (useOnKeyDown off), so a half with `down` changes nothing. In combat the secure drivers
+--- make the press cast nothing (buildCast), so it is neither remembered nor allowed to open the
+--- window when the fight is over. The slot the button points at is read again; when it no longer
+--- holds the item the window names, the button is cleared, so this press casts nothing, and the
+--- window repaints on the next frame. Nothing pointed at: a press while the window is closed opens
+--- it on the next frame. Else this press is remembered for its cast's answer, unless an earlier
+--- press of the same item still waits for one (a double click before the cast starts: the second
+--- fails, the first one's cast is the one to follow).
 function DF._PreClick(_, _, down)
-  if down then return end
+  if down or inCombat() then return end
   local armed = DF._armed
   if not armed then
     if not (frame and frame:IsShown()) then DF._openNext = true end
@@ -361,9 +387,11 @@ function DF._PreClick(_, _, down)
   local info = C_Container and ask(C_Container.GetContainerItemInfo, armed.bag, armed.slot)
   local link = type(info) == "table" and info.hyperlink or nil
   if link ~= armed.link then
-    if not inCombat() then setArmed(nil) end
+    setArmed(nil)
     return schedule()
   end
+  local p = pendingNow()
+  if p and not p.over and p.slotKey == armed.slotKey and p.link == armed.link then return end
   DF._pending = { row = armed.row, itemID = armed.itemID, kind = armed.kind, slotKey = armed.slotKey,
     link = armed.link, at = now() }
 end
@@ -375,7 +403,7 @@ end
 --- Skip: the item named next is left for this visit, and the next one armed.
 function DF.Skip()
   local row = DF._plan and DF._plan.queue[1]
-  if not row or DF._casting then return end
+  if not row or castingNow() then return end
   DF._visit.skipped[row.slotKey] = true
   refresh()
 end
@@ -471,6 +499,17 @@ local function buildCast(card)
   b.text:SetWordWrap(false)
   b:SetScript("PreClick", DF._PreClick)
   _G.RegisterStateDriver(b, "visibility", "[combat] hide; show")
+  -- In combat a key still clicks the hidden button, and PreClick can no longer clear it: the secure
+  -- manager then sets the left click's type and target slot to ATTRIBUTE_NOOP (""), so that click
+  -- casts nothing and aims no waiting spell at a bag slot, whatever the slot holds by then. Live
+  -- Blizzard_RestrictedAddOnEnvironment/SecureStateDriver.lua:97-118 (resolveDriver: an empty
+  -- action sets "", "nil" sets nil and only over another value) and Blizzard_FrameXML/
+  -- SecureTemplates.lua:22-27, :119-137 (ATTRIBUTE_NOOP; "*type1" is found before "type" and ""
+  -- reads as nil), :762-781 (the target slot is read whatever the type). Out of combat both resolve
+  -- to nil and leave setArmed's own "type" and "target-slot" alone; the manager rescans on
+  -- PLAYER_REGEN_DISABLED and PLAYER_REGEN_ENABLED (:193-194), from secure code, in combat too.
+  _G.RegisterAttributeDriver(b, "*type1", "[combat] ; nil")
+  _G.RegisterAttributeDriver(b, "*target-slot1", "[combat] ; nil")
   DF._button = b
   return b
 end
@@ -503,8 +542,9 @@ local function buildCard()
   bar.track = T.Solid(bar, "ARTWORK", BAR_TRACK)
   bar.fill = T.Solid(bar, "OVERLAY", PURPLE)
   bar:SetScript("OnUpdate", function(self)
-    local casting = DF._casting
-    if not casting then return end
+    if not DF._casting then return end
+    local casting = castingNow()
+    if not casting then return schedule() end
     local share = math.min(1, math.max(0, (now() - casting.at) / DF.CAST_SECONDS))
     self.fill:SetWidth(math.max(1, (self:GetWidth() or 0) * share))
   end)
@@ -722,7 +762,7 @@ end
 -- bar, Disenchant and Skip, and the key line. Its lines keep, for the visit, the room the tallest of
 -- the queue's items needs, so Disenchant stands still from one press to the next. Answers its height.
 local function paintCard(plan, w)
-  local card, visit, casting = frame.card, DF._visit, DF._casting
+  local card, visit, casting = frame.card, DF._visit, castingNow()
   local row = casting and casting.row or plan.queue[1]
   local x, inner = M.CARD_PAD, w - 2 * M.CARD_PAD
   local total = #visit.done + #plan.queue
@@ -985,7 +1025,7 @@ end
 -- "In this order" from `cy` in the scroll: the items done this visit, then the queue. Answers the y
 -- under it.
 local function paintOrder(plan, inner, cy)
-  local visit, casting = DF._visit, DF._casting
+  local visit, casting = DF._visit, castingNow()
   local lines = {}
   for _, data in ipairs(visit.done) do lines[#lines + 1] = { data = data, state = "done" } end
   for _, data in ipairs(plan.queue) do
@@ -1045,10 +1085,19 @@ local function paintLeftRow(row, data, inner)
   row.name:SetWidth(nameW)
   setText(row.name, nameOf(stack))
   colour(row.name, qualityColour(stack.quality))
+  -- The note: what its mats would give, and how many sell a day or that it sells slowly, as the
+  -- craft panel says it (UI/CraftPanel.lua's paintRow: never both).
+  local notes = {}
+  if data.mats then notes[#notes + 1] = GC.L["Mats: about %s"]:format(money(data.mats)) end
+  local sold = select(2, GC.CraftClient.SellOf(stack.itemID))
+  if type(sold) == "number" then
+    notes[#notes + 1] = GC.CraftMath.IsSlow(sold) and GC.L["Slow seller"]
+      or GC.L["Sells about %s a day"]:format(GC.Util.Grouped(sold))
+  end
   row.note:SetWidth(nameW)
-  setText(row.note, data.mats and GC.L["Mats: about %s"]:format(money(data.mats)) or "")
-  row.note:SetShown(data.mats ~= nil)
-  local textH = math.ceil(heightOf(row.name, 12)) + (data.mats and (2 + math.ceil(heightOf(row.note, 11))) or 0)
+  setText(row.note, table.concat(notes, "\n"))
+  row.note:SetShown(#notes > 0)
+  local textH = math.ceil(heightOf(row.name, 12)) + (#notes > 0 and (2 + math.ceil(heightOf(row.note, 11))) or 0)
   local rightH = math.ceil(heightOf(row.price, 12)) + 4 + M.ANYWAY_H
   local h = math.max(M.ROW_MIN_H, textH + 2 * M.ROW_PAD, rightH + 2 * M.ROW_PAD)
   row.slot.edge:ClearAllPoints()
@@ -1132,9 +1181,20 @@ local function paint()
   frame:SetWidth(width)
   setText(frame.brand, "GoldCap")
   setText(frame.title, GC.L["Disenchant"])
+  -- The approved board's header: "Disenchant" under "GoldCap", the two beside the mark and level
+  -- with its middle, the X level with it too.
+  local brandH, titleH = math.ceil(heightOf(frame.brand, 18)), math.ceil(heightOf(frame.title, 14))
+  local nameH = brandH + M.TITLE_GAP + titleH
+  local headH = math.max(L.HEAD_H, nameH)
+  frame.logo:ClearAllPoints()
+  frame.logo:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -(L.PAD + math.floor((headH - L.LOGO) / 2)))
+  frame.brand:ClearAllPoints()
+  frame.brand:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD + L.LOGO + 7, -(L.PAD + math.floor((headH - nameH) / 2)))
+  frame.title:ClearAllPoints()
+  frame.title:SetPoint("TOPLEFT", frame.brand, "BOTTOMLEFT", 0, -M.TITLE_GAP)
   frame.close:ClearAllPoints()
-  frame.close:SetPoint("TOPRIGHT", frame, "TOPLEFT", L.PAD + head, -(L.PAD + (L.HEAD_H - L.CLOSE) / 2))
-  local y = L.PAD + L.HEAD_H + M.SECTION_GAP
+  frame.close:SetPoint("TOPRIGHT", frame, "TOPLEFT", L.PAD + head, -(L.PAD + math.floor((headH - L.CLOSE) / 2)))
+  local y = L.PAD + headH + M.SECTION_GAP
   local cardH = paintCard(plan, head)
   frame.card:ClearAllPoints()
   frame.card:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -y)
@@ -1327,13 +1387,6 @@ local function refused(message)
   return false
 end
 
--- This button's press, while its cast's answer still counts as the answer to it.
-local function pendingNow()
-  local p = DF._pending
-  if p and now() - p.at <= DF.PENDING_SECONDS then return p end
-  return nil
-end
-
 local function ours(unit, spellID)
   return plain(unit) == "player" and plain(spellID) == D.SPELL
 end
@@ -1375,7 +1428,7 @@ end
 
 local function onCastStart(castGUID)
   local p = pendingNow()
-  if not p or p.castGUID then return end
+  if not p or p.castGUID or p.over then return end
   p.castGUID = plain(castGUID)
   DF._casting = { row = p.row, at = now() }
   schedule()
@@ -1384,21 +1437,23 @@ end
 local function onCastSucceeded(castGUID)
   local p = pendingNow()
   local guid = plain(castGUID)
-  if p and not p.over and (p.castGUID == nil or p.castGUID == guid) then
-    local visit = DF._visit
-    DF._loot = { kind = p.kind, untilT = now() + DF.LOOT_SECONDS }
-    visit.done[#visit.done + 1] = p.row
-    visit.gone[p.slotKey] = p.link
-    DF._pending = nil
-  end
-  DF._casting = nil
+  if not (p and not p.over and (p.castGUID == nil or p.castGUID == guid)) then return end
+  local visit = DF._visit
+  DF._loot = { kind = p.kind, untilT = now() + DF.LOOT_SECONDS }
+  visit.done[#visit.done + 1] = p.row
+  visit.gone[p.slotKey] = p.link
+  DF._pending, DF._casting = nil, nil
   schedule()
 end
 
+-- Only the cast this window saw start answers its press. A failure before any start can be a second
+-- press's ("Another action is in progress"), so it is left alone: the press then waits out
+-- PENDING_SECONDS, and an item the client refuses is still dropped by its words (onError).
 local function onCastFailed(castGUID)
   local p = DF._pending
   local guid = plain(castGUID)
-  if p and (p.castGUID == nil or p.castGUID == guid) then p.over = true end
+  if not (p and p.castGUID ~= nil and p.castGUID == guid) then return end
+  p.over = true
   DF._casting = nil
   schedule()
 end
@@ -1429,8 +1484,10 @@ end
 --- built for an enchanter. SPELLS_CHANGED: built once Disenchant is learned; with the window open,
 --- a paint, which closes it once the spell is gone. BAG_UPDATE_DELAYED: a paint on the next frame.
 --- PLAYER_REGEN_DISABLED: the button pointed at nothing while the client still allows it (see
---- disarmForCombat). PLAYER_REGEN_ENABLED: what combat held, and the window built for an enchanter
---- who logged in during a fight. The spell's events and LOOT_READY and UI_ERROR_MESSAGE: what this
+--- disarmForCombat), and the fight remembered. PLAYER_REGEN_ENABLED: what combat held, a paint of an
+--- open window (the button is armed again), and the window built for an enchanter who logged in
+--- during a fight. EQUIPMENT_SETS_CHANGED: a paint, as for the bags (an item saved into a set leaves
+--- the list). The spell's events and LOOT_READY and UI_ERROR_MESSAGE: what this
 --- button's press did.
 function DF.OnEvent(event, ...)
   if event == "PLAYER_LOGIN" then
@@ -1439,13 +1496,15 @@ function DF.OnEvent(event, ...)
   elseif event == "SPELLS_CHANGED" then
     prepare()
     if frame and frame:IsShown() then schedule() end
-  elseif event == "BAG_UPDATE_DELAYED" then
+  elseif event == "BAG_UPDATE_DELAYED" or event == "EQUIPMENT_SETS_CHANGED" then
     if (frame and frame:IsShown()) or (bagFrame() and DF.Known()) then schedule() end
   elseif event == "PLAYER_REGEN_DISABLED" then
     disarmForCombat()
+    DF._fight = true
   elseif event == "PLAYER_REGEN_ENABLED" then
+    DF._fight = nil
     prepare()
-    if DF._dirty or DF._wantShown ~= nil then schedule() end
+    if DF._dirty or DF._wantShown ~= nil or (frame and frame:IsShown()) then schedule() end
   elseif event == "UNIT_SPELLCAST_START" then
     local unit, castGUID, spellID = ...
     if ours(unit, spellID) then onCastStart(castGUID) end
@@ -1479,8 +1538,8 @@ end
 
 if type(CreateFrame) == "function" then
   local events = CreateFrame("Frame")
-  for _, name in ipairs({ "PLAYER_LOGIN", "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "PLAYER_REGEN_DISABLED",
-    "PLAYER_REGEN_ENABLED", "LOOT_READY", "UI_ERROR_MESSAGE" }) do
+  for _, name in ipairs({ "PLAYER_LOGIN", "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "EQUIPMENT_SETS_CHANGED",
+    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "LOOT_READY", "UI_ERROR_MESSAGE" }) do
     pcall(events.RegisterEvent, events, name)
   end
   for _, name in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED",
