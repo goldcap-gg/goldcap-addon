@@ -1006,6 +1006,8 @@ describe("Disenchant window", function()
     _G.ContainerFrame2:Hide()
     W.state(_G.ContainerFrame2).hooks.OnHide(_G.ContainerFrame2)
     nextFrame()
+    -- The pass that no longer visits the closed bag takes its mark off (DisenchantMarks.Paint's sweep).
+    assert.is_false((second:GetChildren()):IsShown())
     bag = 4
     shows(_G.ContainerFrame2)
     assert.is_false((second:GetChildren()):IsShown())
@@ -1050,6 +1052,22 @@ describe("Disenchant window", function()
     event("ITEM_DATA_LOAD_RESULT", 777, true)
     assert.is_not_nil(menu)
     assert.is_truthy(menu.entries[3].text:find("Item 777", 1, true))
+  end)
+
+  it("does not open a menu that waited for names once the window was closed meanwhile", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    uncached[777] = true
+    slash()
+    menu = nil
+    press(DF._frame.kept.show)
+    assert.is_nil(menu)
+    slash()
+    assert.is_false(windowUp())
+    uncached[777] = nil
+    event("ITEM_DATA_LOAD_RESULT", 777, true)
+    fire(DF.NAME_SECONDS)
+    assert.is_nil(menu)
   end)
 
   it("opens the menu after a moment when the client never answers, once", function()
@@ -1240,6 +1258,48 @@ describe("Disenchant window", function()
 
   -- Sixteen and more items: the window keeps to about 85% of the screen's height, "In this order"
   -- scrolls, and the card, the strip, "Left out" and the footer stand outside the scroll.
+  -- Twenty queued and twenty left out on a 768-high screen: the two lists share the scroll, and the
+  -- card with its Disenchant button, the Kept line and the footer stay on the screen.
+  it("keeps to 85% of a small screen with many items left out, the two lists sharing the scroll", function()
+    W.CLIENT_METRICS = true
+    finally(function() W.CLIENT_METRICS = false end)
+    screen(1366, 768)
+    standAt(bags, 1000, 740)
+    for slot = 1, 20 do put(gear(1, slot, 600 + slot)) end
+    for slot = 1, 20 do
+      put(gear(2, slot, 700 + slot, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    end
+    GC.Disenchant.Keep(GC.db, 999)
+    openBags()
+    slash()
+    local f = DF._frame
+    local height = f:GetHeight()
+    assert.is_true(height <= math.floor(768 * 0.85), ("the window is %d tall"):format(height))
+    -- The window hangs from the bags' top: its foot stays on the screen.
+    local top = at(f)[5]
+    assert.is_true(top <= 768 and top - height >= 0)
+    -- The card, with the Disenchant button in it, stands inside the window.
+    local card = at(f.card)
+    assert.is_true(-card[5] + f.card:GetHeight() <= height)
+    local cast = at(f.card.cast)
+    assert.is_true(-cast[5] + f.card.cast:GetHeight() <= f.card:GetHeight())
+    -- The Kept line and the footer, from the window's foot.
+    local kept = at(f.kept.text)
+    assert.is_true(f.kept.text:IsShown() and kept[5] + f.kept.text:GetHeight() <= height)
+    assert.is_true(at(f.footer)[5] + f.footer:GetHeight() <= height)
+    -- Both lists in the scroll's child, the last "Left out" line inside it.
+    local last = DF._leftRows[20]
+    assert.is_true(last:IsShown())
+    local y, p = 0, last
+    while p and p ~= f.content do
+      y = y - (at(p)[5] or 0)
+      p = p:GetParent()
+    end
+    assert.equal(f.content, p)
+    assert.is_true(y + last:GetHeight() <= f.content:GetHeight())
+    assert.is_true(f.content:GetHeight() > f.scroll:GetHeight())
+  end)
+
   it("keeps to 85% of the screen with a long queue, its lines scrolling and the rest in view", function()
     -- Text measured as the client does, so a line is as tall as one line of words and a money figure
     -- as wide as its digits and coin.
@@ -1259,7 +1319,7 @@ describe("Disenchant window", function()
     assert.is_true(left:IsShown())
     local p = left
     while p and p ~= f.content and p ~= f do p = p:GetParent() end
-    assert.equal(f, p)
+    assert.equal(f.content, p)
     assert.equal(f, f.orderTitle:GetParent())
   end)
 end)

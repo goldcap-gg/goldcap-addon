@@ -587,9 +587,12 @@ local function openKeptMenu(owner)
   if not next(pending) then return showKeptMenu(owner) end
   local wait = { owner = owner, pending = pending }
   DF._menuWait = wait
+  -- Not when the menu was asked for again meanwhile (`wait` is no longer the one waiting), nor once
+  -- the window, and the button with it, was closed.
   local function finish()
     if DF._menuWait ~= wait then return end
     DF._menuWait = nil
+    if not (owner.IsVisible and owner:IsVisible()) then return end
     showKeptMenu(owner)
   end
   wait.finish = finish
@@ -822,7 +825,7 @@ end
 
 -- The window: its glass, the Hoard's header ("GoldCap" over "Disenchant", and the X), the Next
 -- card, the yield strip, "In this order" with its column heads over the kit's scroll whose child
--- holds its lines, "Left out" under the scroll (`leftBox`), and the footer. HIGH strata: above
+-- holds its lines and, under them, "Left out" (`leftBox`), and the footer. HIGH strata: above
 -- Blizzard's bags (ContainerFrame.xml:218, :290, MEDIUM) and action bars (MultiActionBars.xml,
 -- MEDIUM; MainActionBar.xml:29, UIParent's MEDIUM at frame level 50), below a menu
 -- (Blizzard_Menu/Menu.lua:2142, FULLSCREEN_DIALOG) and a tooltip (SharedTooltipTemplates.xml:95,
@@ -856,7 +859,7 @@ local function build()
     head:SetJustifyH("RIGHT")
     colour(head, K.text3)
   end
-  frame.leftBox = CreateFrame("Frame", nil, frame)
+  frame.leftBox = CreateFrame("Frame", nil, content)
   frame.leftTitle = track(frame, wrapping(T.Heading(frame.leftBox, 9)))
   colour(frame.leftTitle, K.text3)
   -- Measures what a column must hold; never shown.
@@ -1303,8 +1306,8 @@ local function paintLeftRow(row, data, inner)
   return h
 end
 
--- "Left out: the auction house pays more", when there is any, in its own box under the scroll (the
--- caller places the box). Answers the box's height, 0 with none.
+-- "Left out: the auction house pays more", when there is any, in its own box in the scroll under
+-- the queue's lines (the caller places the box). Answers the box's height, 0 with none.
 local function paintLeft(plan, inner)
   local any = #plan.left > 0
   frame.leftTitle:SetShown(any)
@@ -1389,9 +1392,11 @@ local function roomHeight()
 end
 
 -- The window, top to bottom: the header, the Next card, the yield strip and "In this order"'s
--- heading, fixed; its lines in the scroll; "Left out" under the scroll and the footer at the
--- window's foot, fixed. Never taller than roomHeight while the scroll keeps one line's room: the
--- lines scroll, everything else stays in view. Laid out, not shown.
+-- heading, fixed; the queue's lines and, under them, "Left out" in the one scroll; the Kept line and
+-- the footer at the window's foot, fixed. Never taller than roomHeight while the scroll keeps one
+-- line's room: the two lists scroll, the card with its Disenchant button, the strip, the Kept line
+-- and the footer stay in view (the owner, 2026-10-26; "Left out" in a fixed box of its own ran the
+-- window off a 768-high screen with twenty items left out). Laid out, not shown.
 local function paint()
   local plan = DF._plan
   local width = L.WIDTH
@@ -1428,24 +1433,24 @@ local function paint()
   local orderH, rowsH = paintOrder(plan, inner, y)
   local top = y + orderH
   local leftH = paintLeft(plan, inner)
-  local leftBlock = leftH > 0 and (M.SECTION_GAP + leftH) or 0
+  local leftY = rowsH > 0 and rowsH + M.SECTION_GAP or 0
+  local listH = leftH > 0 and leftY + leftH or rowsH
+  if leftH > 0 then
+    frame.leftBox:ClearAllPoints()
+    frame.leftBox:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -leftY)
+    frame.leftBox:SetSize(inner, leftH)
+  end
   local footH = paintFooter(head)
   local keptH = paintKept(head, L.PAD + footH + M.FOOT_GAP)
   local foot = L.PAD + footH + (keptH > 0 and keptH + M.FOOT_GAP or 0) + M.SECTION_GAP
-  frame.content:SetSize(inner, math.max(1, rowsH))
-  local fixed = top + leftBlock + foot
-  local least = fixed + math.min(rowsH, M.ROW_MIN_H)
-  local height = math.min(fixed + rowsH, math.max(least, roomHeight()))
-  local scrollH = math.max(1, height - fixed)
+  frame.content:SetSize(inner, math.max(1, listH))
+  local fixed = top + foot
+  local least = fixed + math.min(listH, M.ROW_MIN_H)
+  local height = math.min(fixed + listH, math.max(least, roomHeight()))
   frame:SetHeight(height)
   frame.scroll:ClearAllPoints()
   frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -top)
-  frame.scroll:SetSize(inner, scrollH)
-  if leftH > 0 then
-    frame.leftBox:ClearAllPoints()
-    frame.leftBox:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -(top + scrollH + M.SECTION_GAP))
-    frame.leftBox:SetSize(inner, leftH)
-  end
+  frame.scroll:SetSize(inner, math.max(1, height - fixed))
 end
 
 -- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn while Blizzard's
@@ -1548,6 +1553,7 @@ end
 --- Closes the window, its button pointed at nothing. Out of combat only (onCloseClick, Toggle).
 function DF.Close()
   setArmed(nil)
+  DF._menuWait = nil
   if frame then frame:Hide() end
 end
 
