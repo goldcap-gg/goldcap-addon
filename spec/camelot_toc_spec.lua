@@ -54,6 +54,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- The Hoard: the followed groups at a bank are retail only, and so is the bank route they move
   -- through.
   RETAIL_ONLY["Core/BankGroups.lua"] = true
+  RETAIL_ONLY["Core/Alts.lua"] = true
   RETAIL_ONLY["Core/Hoard.lua"] = true
   RETAIL_ONLY["UI/HoardFrame.lua"] = true
   RETAIL_ONLY["UI/HoardRow.lua"] = true

@@ -76,6 +76,8 @@ read_globals = {
   -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is
   -- keyed by, alongside region and realm.
   "UnitFactionGroup",
+  -- The account's characters (Core/Alts.lua): who is logged in, read at login and a level up.
+  "GetNormalizedRealmName", "UnitClass", "UnitLevel",
   -- A purchase click's plan runs fenced off from the call it answers (Core/PurchaseCall.lua),
   -- and /gc taint reports whether that click stayed secure.
   "securecallfunction", "issecure",
