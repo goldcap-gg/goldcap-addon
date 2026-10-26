@@ -33,5 +33,6 @@ GC.Kit.Icons = {
     arrowUp = 25,
     pencil = 26,
     bank = 27,
+    send = 28,
   },
 }
