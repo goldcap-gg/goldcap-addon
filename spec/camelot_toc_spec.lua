@@ -43,7 +43,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
     ["Core/GroupRules.lua"] = true, ["Core/SellRounds.lua"] = true, ["Core/CancelRun.lua"] = true,
     ["Core/MailReturns.lua"] = true, ["Core/MailClassify.lua"] = true,
     ["Core/MailStock.lua"] = true,
-    ["Core/VendorSelect.lua"] = true, ["Core/VendorPress.lua"] = true,
+    ["Core/VendorSelect.lua"] = true, ["Core/Disenchant.lua"] = true, ["Core/VendorPress.lua"] = true,
     ["Services/VendorBags.lua"] = true, ["UI/VendorSellCard.lua"] = true }
   RETAIL_ONLY["Core/CraftMath.lua"] = true
   RETAIL_ONLY["Core/CraftQueue.lua"] = true

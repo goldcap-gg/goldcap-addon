@@ -17,6 +17,7 @@ V.MAX_STACKS = 12
 
 -- What the auction house leaves the seller; the same factor ForeverValue.Verdict applies.
 local KEEP = 0.95
+V.KEEP = KEEP
 
 -- The value rule sells for good on one auction house figure, so only on one GoldCap fetched lately:
 -- the import or the region payload (GC.Data.GetItemValue's sources), at most a day old by the
@@ -41,6 +42,9 @@ local function fresh(stack, now)
   local age = now - stack.ahAt
   return age >= 0 and age <= V.FRESH_SECONDS
 end
+
+-- Core/Disenchant.lua asks the same question of a stack's auction house figure.
+V.Fresh = fresh
 
 -- rule ("vendor"), or nil and the first reason the stack stays. The order is the contract.
 function V.Decide(stack, opts)
