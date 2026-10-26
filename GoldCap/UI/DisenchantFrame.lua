@@ -170,9 +170,17 @@ end
 
 -- In combat: the client's lockdown, or the fight as this window heard it begin (PLAYER_REGEN_DISABLED
 -- to PLAYER_REGEN_ENABLED, `fight`), so that nothing arms the button between that event and the
--- lockdown.
+-- lockdown. The fight is over, though PLAYER_REGEN_ENABLED was not heard, once neither the lockdown
+-- nor UnitAffectingCombat("player") says it goes on (true from PLAYER_REGEN_DISABLED on).
 local function inCombat()
-  return DF._fight == true or (type(InCombatLockdown) == "function" and InCombatLockdown() == true)
+  if type(InCombatLockdown) == "function" and InCombatLockdown() == true then return true end
+  if not DF._fight then return false end
+  local affecting = _G.UnitAffectingCombat
+  if type(affecting) == "function" and affecting("player") ~= true then
+    DF._fight = nil
+    return false
+  end
+  return true
 end
 
 -- This button's press, while its cast's answer still counts as the answer to it.
@@ -391,7 +399,11 @@ function DF._PreClick(_, _, down)
     return schedule()
   end
   local p = pendingNow()
-  if p and not p.over and p.slotKey == armed.slotKey and p.link == armed.link then return end
+  if p and not p.over and p.slotKey == armed.slotKey and p.link == armed.link then
+    -- Its cast's answer counts from this press now: the earlier one may have failed before it started.
+    p.at = now()
+    return
+  end
   DF._pending = { row = armed.row, itemID = armed.itemID, kind = armed.kind, slotKey = armed.slotKey,
     link = armed.link, at = now() }
 end
@@ -1426,17 +1438,27 @@ local function disarmForCombat()
   DF._dirty = true
 end
 
+-- The cast START bound to a press (`casting`, its GUID and its press), when `guid` is that cast's.
+local function castOf(guid)
+  local casting = DF._casting
+  if casting and casting.castGUID ~= nil and casting.castGUID == guid then return casting end
+  return nil
+end
+
 local function onCastStart(castGUID)
   local p = pendingNow()
   if not p or p.castGUID or p.over then return end
   p.castGUID = plain(castGUID)
-  DF._casting = { row = p.row, at = now() }
+  DF._casting = { row = p.row, at = now(), castGUID = p.castGUID, press = p }
   schedule()
 end
 
+-- The cast START bound answers its press however long the press waited; else a press still waiting
+-- whose cast was not seen to start.
 local function onCastSucceeded(castGUID)
-  local p = pendingNow()
   local guid = plain(castGUID)
+  local casting = castOf(guid)
+  local p = casting and casting.press or pendingNow()
   if not (p and not p.over and (p.castGUID == nil or p.castGUID == guid)) then return end
   local visit = DF._visit
   DF._loot = { kind = p.kind, untilT = now() + DF.LOOT_SECONDS }
@@ -1450,10 +1472,9 @@ end
 -- press's ("Another action is in progress"), so it is left alone: the press then waits out
 -- PENDING_SECONDS, and an item the client refuses is still dropped by its words (onError).
 local function onCastFailed(castGUID)
-  local p = DF._pending
-  local guid = plain(castGUID)
-  if not (p and p.castGUID ~= nil and p.castGUID == guid) then return end
-  p.over = true
+  local casting = castOf(plain(castGUID))
+  if not casting then return end
+  casting.press.over = true
   DF._casting = nil
   schedule()
 end

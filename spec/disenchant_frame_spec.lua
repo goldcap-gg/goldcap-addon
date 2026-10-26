@@ -9,12 +9,12 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales
+  local sales, fighting
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
     "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "INVTYPE_WAIST", "INVTYPE_CHEST",
-    "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue" }
+    "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat" }
   local NOW = 1800000000
   local DUST, SHARD = 9001, 9002
 
@@ -103,7 +103,7 @@ describe("Disenchant window", function()
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = S.install()
     timers, stacks, slots, reads, prices, groups, printed, loot, sales = {}, {}, {}, 0, {}, {}, {}, {}, {}
-    knows, clock = true, 1000
+    knows, clock, fighting = true, 1000, false
     _G.time = function() return NOW end
     _G.GetTime = function() return clock end
     _G.UIParent = CreateFrame("Frame")
@@ -145,6 +145,8 @@ describe("Disenchant window", function()
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.hooksecurefunc = nil
     _G.issecretvalue = nil
+    -- The player in combat: from PLAYER_REGEN_DISABLED (a spec sets `fighting`) and through the lockdown.
+    _G.UnitAffectingCombat = function(unit) return unit == "player" and (fighting or S.combat) end
     _G.MenuUtil = { CreateContextMenu = function(owner, generator)
       menu = { owner = owner, buttons = {} }
       function menu:CreateButton(text, fn) self.buttons[#self.buttons + 1] = { text = text, fn = fn } end
@@ -448,6 +450,48 @@ describe("Disenchant window", function()
     assert.equal(3, y[DUST])
   end)
 
+  -- The first click is refused before any cast starts (the player was moving: no START, a FAILED);
+  -- the second, 3.5 s later, is kept as that press's, and its cast succeeds 5.2 s after the first.
+  it("learns a cast that answers a kept press late, and names the next item right after", function()
+    local first = put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UNIT_SPELLCAST_FAILED", "player", "Cast-1", 13262)
+    clock = clock + 3.5
+    S.click(button())
+    event("UNIT_SPELLCAST_START", "player", "Cast-2", 13262)
+    nextFrame()
+    assert.equal("Now", textOf(DF._frame.card.label))
+    clock = clock + 1.7
+    event("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 13262)
+    loot = { { DUST, 3 } }
+    event("LOOT_READY", false)
+    nextFrame()
+    local y, n = GC.Disenchant.Yield(GC.db, "q2:x11")
+    assert.equal(1, n)
+    assert.equal(3, y[DUST])
+    assert.equal("Next", textOf(DF._frame.card.label))
+    assert.same({ "spell", 13262, 0, 2 }, armedAt())
+    take(first)
+  end)
+
+  -- The cast this window bound at START ends it, by its GUID, even after its press stopped waiting.
+  it("ends its own cast by the cast's GUID once the press has stopped waiting", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    clock = clock + 4.9
+    event("UNIT_SPELLCAST_START", "player", "Cast-1", 13262)
+    nextFrame()
+    clock = clock + 1.5
+    event("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 13262)
+    nextFrame()
+    assert.equal("Next", textOf(DF._frame.card.label))
+    assert.same({ "spell", 13262, 0, 2 }, armedAt())
+  end)
+
   it("names the next item again when its cast never answers", function()
     put(gear(0, 1, 501))
     slash()
@@ -673,12 +717,29 @@ describe("Disenchant window", function()
     put(gear(0, 1, 501))
     slash()
     event("BAG_UPDATE_DELAYED")
+    fighting = true
     event("PLAYER_REGEN_DISABLED")
     nextFrame()
     assert.same({}, armedAt())
     S.enterCombat()
     S.key(button())
     assert.same({}, S.casts)
+  end)
+
+  -- A fight that ended without the PLAYER_REGEN_ENABLED this window heard (not measured: across a
+  -- loading screen, say): once neither the client's lockdown nor the player's combat says it goes
+  -- on, a bag change paints and arms again.
+  it("takes a fight as over once the client says so, though PLAYER_REGEN_ENABLED never came", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    fighting = true
+    event("PLAYER_REGEN_DISABLED")
+    assert.same({}, armedAt())
+    fighting = false
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
   end)
 
   it("records no press in combat, so a cast then is not taken for its own", function()
