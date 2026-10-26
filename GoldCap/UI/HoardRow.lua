@@ -209,7 +209,7 @@ end
 
 -- `mark`: the run's for the item (UI/HoardList.lua's RunState), "moving", "moved" or nil. `opts`
 -- (optional): `pip`, the item's crafting quality top left over the icon, nothing for an item
--- without one; `dim`, the icon shaded as a disabled one, apart from the moved shade.
+-- without one; `dim`, the icon and its pip shaded as a disabled one, apart from the moved shade.
 local function paintIcon(slot, itemID, file, count, mark, opts)
   local quality = GC.Theme.QualityColor(itemID)
   local c = quality and { quality.r, quality.g, quality.b, 1 } or ICON_EDGE
@@ -217,8 +217,11 @@ local function paintIcon(slot, itemID, file, count, mark, opts)
   slot.edge:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
   slot.icon:SetTexture(file or 134400) -- the question mark, while the client has no icon for it yet
   local dim = opts and opts.dim
-  slot.icon:SetDesaturated(dim and true or false)
-  slot.icon:SetVertexColor(dim and DIM_TINT or 1, dim and DIM_TINT or 1, dim and DIM_TINT or 1, 1)
+  local tint = dim and DIM_TINT or 1
+  for _, part in ipairs({ slot.icon, slot.pip }) do
+    part:SetDesaturated(dim and true or false)
+    part:SetVertexColor(tint, tint, tint, 1)
+  end
   slot.edge:Show()
   slot.icon:Show()
   if slot.count then

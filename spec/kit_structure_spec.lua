@@ -26,11 +26,7 @@ end
 describe("UI/Kit", function()
   it("loads in helper.KIT_FILES order right before UI/Theme.lua in both TOCs", function()
     for _, toc in ipairs({ "GoldCap/GoldCap.toc", "GoldCap/GoldCap_Camelot.toc" }) do
-      -- Bar.lua is retail only (the craft panel's), loaded after Chip in GoldCap.toc alone.
-      local entries, at = {}, nil
-      for _, entry in ipairs(tocEntries(toc)) do
-        if entry ~= "UI/Kit/Bar.lua" then entries[#entries + 1] = entry end
-      end
+      local entries, at = tocEntries(toc), nil
       for i, entry in ipairs(entries) do
         if entry == "UI/Theme.lua" then at = i end
       end
