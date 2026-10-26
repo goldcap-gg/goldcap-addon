@@ -90,6 +90,17 @@ local function isRefundable(bag, slot)
   return not okInfo and not okLoc
 end
 
+-- The item's own GUID (C_Item.GetItemGUID(itemLocation), live ItemDocumentation.lua, forever too):
+-- it follows the item wherever a sort of the bags moves it and tells apart two items with one link,
+-- as Blizzard follows a reagent by it (Item:CreateFromItemGUID, Blizzard_ProfessionsCrafting.lua).
+-- Nil where the client will not say.
+local function guidOf(bag, slot)
+  if not (_G.ItemLocation and ItemLocation.CreateFromBagAndSlot and C_Item and C_Item.GetItemGUID) then return nil end
+  local ok, guid = try(function() return C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot)) end)
+  if ok and type(guid) == "string" and guid ~= "" then return guid end
+  return nil
+end
+
 -- ExcludeJunkSell: the backpack has its own call (ContainerFrame.lua), the other bags a slot flag.
 local function isExcluded(bag)
   local ok, answer
@@ -157,6 +168,8 @@ function B.Read(valueFor)
           hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
           isBound = info.isBound == true, isGear = gear, isReagent = reagent == true,
           classID = classID, subclassID = subclassID, equipLoc = equipLoc, expansion = expansion,
+          -- Gear only: the Disenchant window, which holds its choices by it, plans nothing else.
+          guid = gear and guidOf(bag, slot) or nil,
           refundable = isRefundable(bag, slot),
           -- grey junk, or bound gear of quality 2 to 4 (raid loot that is still tradeable)
           tradeTimer = info.isBound == true and (quality == 0 or (gear and quality ~= nil and quality >= 2 and quality <= 4))

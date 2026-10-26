@@ -154,16 +154,16 @@ local CAP = math.floor(M.BUTTON_H * CUT + 0.5)
 local PIECES = { { 0, CUT }, { CUT, 1 - CUT }, { 1 - CUT, 1 } }
 
 -- What the window remembers, for the visit (newVisit): skipped, sent anyway and refused items (Plan's
--- skipped and anyway, each the link its slot held, and failed), the items done in it (their plan
--- rows, in order) and their slots with the link each held, until the bags show it gone (gone), the
--- materials got ({ [itemID] = units }), and the room the Next card keeps (only grows). The last
--- plan; what the button points at (`armed`: the row, its slot and link and the item's kind); the
--- press waiting for its cast's answer (`pending`: the row, its item and kind, when, its cast's GUID,
--- `over` once the cast failed or another started too late to be its); the cast of a press going
--- (`casting`: the row, since when); the loot awaited after a cast succeeded (`loot`: the kind, until
--- when). What combat held: the window's wanted state (`wantShown`), a repaint (`dirty`); a key press
--- asking the window open (`openNext`); a paint asked for on the next frame (`queued`). The lines,
--- pooled by place.
+-- skipped and anyway, each by Core/Disenchant.lua's IdOf, and failed), the item chosen to go next
+-- (`first`, by IdOf), the items done in it (their plan rows, in order) and, by IdOf, until the bags
+-- no longer show them (gone), the materials got ({ [itemID] = units }), and the room the Next card
+-- keeps (only grows). The last plan; what the button points at (`armed`: the row, its slot, link and
+-- IdOf and the item's kind); the press waiting for its cast's answer (`pending`: the row, its item
+-- and kind, when, its cast's GUID, `over` once the cast failed or another started too late to be
+-- its); the cast of a press going (`casting`: the row, since when); the loot awaited after a cast
+-- succeeded (`loot`: the kind, until when). What combat held: the window's wanted state
+-- (`wantShown`), a repaint (`dirty`); a key press asking the window open (`openNext`); a paint asked
+-- for on the next frame (`queued`). The lines, pooled by place.
 DF._visit = nil
 DF._plan = nil
 DF._armed, DF._pending, DF._casting, DF._loot = nil, nil, nil, nil
@@ -301,9 +301,9 @@ local function inGroup(itemID)
 end
 
 -- The bags as Services/VendorBags.lua reads them, planned (Core/Disenchant.lua's Plan) with what
--- this visit skipped, refused, sent anyway and chose to go next. An item done this visit whose slot still shows it (the
--- bags have not told the change yet) stays off the list; its slot is forgotten once it holds
--- anything else or nothing.
+-- this visit skipped, refused, sent anyway and chose to go next, each held by Core/Disenchant.lua's
+-- IdOf (the item's GUID, else its slot and link). An item done this visit that the bags still show
+-- (they have not told the change yet) stays off the list; it is forgotten once they no longer do.
 local function readPlan()
   local visit = DF._visit
   local note = GC.MerchantNote
@@ -314,18 +314,18 @@ local function readPlan()
   local kept = { list = {}, bySlot = {}, cant = {}, cantBySlot = {} }
   for _, stack in ipairs(GC.VendorBags.Read(note and note.ValueFor)) do
     local key = stack.bag .. ":" .. stack.slot
-    seen[key] = true
     if stack.itemID and D.Eligible(stack) then
       local id = stack.itemID
       if D.Kept(GC.db, id) then kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack end
       if D.Cant(GC.db, id) then kept.cant[#kept.cant + 1] = stack end
       if D.Cant(GC.db, id) or D.NoDisenchant(id) then kept.cantBySlot[key] = stack end
     end
-    if visit.gone[key] ~= nil and visit.gone[key] ~= stack.link then visit.gone[key] = nil end
-    if visit.gone[key] == nil then stacks[#stacks + 1] = stack end
+    local id = D.IdOf(stack)
+    seen[id] = true
+    if not visit.gone[id] then stacks[#stacks + 1] = stack end
   end
-  for key in pairs(visit.gone) do
-    if not seen[key] then visit.gone[key] = nil end
+  for id in pairs(visit.gone) do
+    if not seen[id] then visit.gone[id] = nil end
   end
   DF._kept = kept
   return D.Plan(stacks, { db = GC.db, priceOf = priceOf, inGroup = inGroup, now = time(),
@@ -495,7 +495,7 @@ local function setArmed(row)
     b:SetAttribute("target-bag", stack.bag)
     b:SetAttribute("target-slot", stack.slot)
     DF._armed = { row = row, bag = stack.bag, slot = stack.slot, link = stack.link, itemID = stack.itemID,
-      kind = D.KindOf(stack), slotKey = row.slotKey }
+      kind = D.KindOf(stack), slotKey = row.slotKey, id = row.id }
   else
     for _, key in ipairs({ "type", "spell", "target-bag", "target-slot" }) do b:SetAttribute(key, nil) end
     DF._armed = nil
@@ -541,13 +541,13 @@ function DF._PreClick(_, _, down)
     return schedule()
   end
   local p = pendingNow()
-  if p and not p.over and p.slotKey == armed.slotKey and p.link == armed.link then
+  if p and not p.over and p.id == armed.id then
     -- Its cast's answer counts from this press now: the earlier one may have failed before it started.
     p.at, p.closed = now(), nil
     return
   end
   DF._pending = { row = armed.row, itemID = armed.itemID, kind = armed.kind, slotKey = armed.slotKey,
-    link = armed.link, at = now() }
+    link = armed.link, id = armed.id, at = now() }
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -559,8 +559,8 @@ function DF.Skip()
   local row = DF._plan and DF._plan.queue[1]
   if not row or castingNow() then return end
   local visit = DF._visit
-  visit.skipped[row.slotKey] = row.stack.link
-  if visit.first and visit.first.slotKey == row.slotKey then visit.first = nil end
+  visit.skipped[row.id] = true
+  if visit.first == row.id then visit.first = nil end
   refresh()
 end
 
@@ -583,21 +583,23 @@ function DF.Uncant(itemID)
 end
 
 --- Disenchant anyway: an item the auction house or a vendor pays more for joins the queue for this
---- visit, while its slot holds it (`link`).
-function DF.Anyway(slotKey, link)
-  DF._visit.anyway[slotKey] = link
+--- visit. `id`: the item, by Core/Disenchant.lua's IdOf.
+function DF.Anyway(id)
+  if type(id) ~= "string" then return end
+  DF._visit.anyway[id] = true
   refresh()
 end
 
---- A click on a line: its item goes next (Plan's `first`) for this visit, until it is disenchanted,
---- skipped or another is chosen; the card names it, the button points at it and its bag slot gets
---- the ring. A left-out item joins the queue as with Disenchant anyway. Nothing in combat: the
---- button's attributes cannot change there, and the click is not kept for after the fight.
-function DF.Choose(slotKey, link, leftOut)
-  if inCombat() or type(slotKey) ~= "string" then return end
+--- A click on a line: its item (`id`, by Core/Disenchant.lua's IdOf) goes next (Plan's `first`) for
+--- this visit, wherever a sort of the bags moves it, until it is disenchanted, skipped or another is
+--- chosen; the card names it, the button points at it and its bag slot gets the ring. A left-out
+--- item joins the queue as with Disenchant anyway. Nothing in combat: the button's attributes
+--- cannot change there, and the click is not kept for after the fight.
+function DF.Choose(id, leftOut)
+  if inCombat() or type(id) ~= "string" then return end
   local visit = DF._visit
-  visit.first = { slotKey = slotKey, link = link }
-  if leftOut then visit.anyway[slotKey] = link end
+  visit.first = id
+  if leftOut then visit.anyway[id] = true end
   refresh()
 end
 
@@ -724,7 +726,7 @@ local function onRowClick(row, mouseButton)
   if not row.itemID or row.done then return end
   if mouseButton == "RightButton" then return openKeepMenu(row, row.itemID) end
   if mouseButton == "LeftButton" and row.stack then
-    DF.Choose(row.stack.bag .. ":" .. row.stack.slot, row.stack.link, row.leftOut)
+    DF.Choose(D.IdOf(row.stack), row.leftOut)
   end
 end
 
@@ -1106,7 +1108,7 @@ local function newLeftRow(box)
   row.anyway:SetGlow(false)
   row.anyway:SetRing(U.QUIET.ring)
   row.anyway:SetHeight(M.ANYWAY_H)
-  row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.slotKey, self.link) end)
+  row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.id) end)
   track(row, row.anyway.text)
   row:SetScript("OnClick", onRowClick)
   row:SetScript("OnEnter", showRowTip)
@@ -1545,7 +1547,7 @@ local function paintOrder(plan, inner, top)
   local lines = {}
   for _, data in ipairs(visit.done) do lines[#lines + 1] = { data = data, state = "done" } end
   for _, data in ipairs(plan.queue) do
-    local state = casting and casting.row.slotKey == data.slotKey and "casting" or nil
+    local state = casting and casting.row.id == data.id and "casting" or nil
     lines[#lines + 1] = { data = data, state = state }
   end
   local any = #lines > 0
@@ -1596,7 +1598,7 @@ local function paintLeftRow(row, data, inner, vendor)
   row.price:SetShown(not vendor)
   local priceW = vendor and 0 or math.ceil(row.price:GetStringWidth() or 0)
   local anyway = row.anyway
-  anyway.slotKey, anyway.link = data.slotKey, data.stack.link
+  anyway.id = data.id
   anyway:SetLabel(GC.L["Disenchant anyway"])
   anyway:FitLabels({ GC.L["Disenchant anyway"] }, M.ANYWAY_MIN)
   colour(anyway.text, U.QUIET.textColor)
@@ -2124,7 +2126,7 @@ local function onCastSucceeded(castGUID)
   local visit = DF._visit
   DF._loot = { kind = p.kind, untilT = now() + DF.LOOT_SECONDS }
   visit.done[#visit.done + 1] = p.row
-  visit.gone[p.slotKey] = p.link
+  visit.gone[p.id] = true
   DF._pending, DF._casting = nil, nil
   schedule()
 end

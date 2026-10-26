@@ -205,7 +205,7 @@ describe("Disenchant", function()
       assert.is_false(D.CanDisenchant(belt))
       local rich = gear({ itemID = 199762, quality = 3, ahUnit = 1240 * 10000 })
       local dear = gear({ itemID = 199762, quality = 2, vendorUnit = 999999 })
-      local plan = D.Plan({ belt, rich, dear }, opts({ anyway = { ["0:" .. dear.slot] = dear.link } }))
+      local plan = D.Plan({ belt, rich, dear }, opts({ anyway = { [D.IdOf(dear)] = true } }))
       assert.same({}, plan.queue)
       assert.same({}, plan.left)
       assert.same({}, plan.leftVendor)
@@ -282,27 +282,27 @@ describe("Disenchant", function()
     it("moves a row a vendor pays more for into the queue when the player says anyway", function()
       local green = gear({ bag = 3, slot = 5, quality = 2, vendorUnit = 1900 })
       local plan = D.Plan({ green }, opts({ db = learned(), priceOf = function(id) return prices[id] end,
-        anyway = { ["3:5"] = green.link } }))
+        anyway = { [D.IdOf(green)] = true } }))
       assert.same({ green.itemID }, ids(plan.queue))
       assert.same({}, plan.leftVendor)
       assert.equal("vendor", plan.queue[1].best)
     end)
-    it("puts the chosen item first, from the queue or a left list, while its slot holds the item chosen", function()
+    it("puts the chosen item first, from the queue or a left list", function()
       local db, p = learned(), function(id) return prices[id] end
       local a = gear({ bag = 0, slot = 1, quality = 3, vendorUnit = 100 })
       local b = gear({ bag = 0, slot = 2, quality = 3, vendorUnit = 300 })
       local v = gear({ bag = 0, slot = 3, quality = 2, vendorUnit = 1900 })
       local h = gear({ bag = 0, slot = 4, quality = 2, vendorUnit = 300, ahUnit = 1240 * 10000 })
       local function plan(first) return D.Plan({ a, b, v, h }, opts({ db = db, priceOf = p, first = first })) end
-      assert.same({ b.itemID, a.itemID }, ids(plan({ slotKey = "0:2", link = b.link }).queue))
-      local fromVendor = plan({ slotKey = "0:3", link = v.link })
+      assert.same({ b.itemID, a.itemID }, ids(plan(D.IdOf(b)).queue))
+      local fromVendor = plan(D.IdOf(v))
       assert.same({ v.itemID, a.itemID, b.itemID }, ids(fromVendor.queue))
       assert.same({}, fromVendor.leftVendor)
-      local fromAH = plan({ slotKey = "0:4", link = h.link })
+      local fromAH = plan(D.IdOf(h))
       assert.same({ h.itemID, a.itemID, b.itemID }, ids(fromAH.queue))
       assert.same({}, fromAH.left)
       -- Another item in that slot now: the choice is not its.
-      assert.same({ a.itemID, b.itemID }, ids(plan({ slotKey = "0:2", link = "item:777" }).queue))
+      assert.same({ a.itemID, b.itemID }, ids(plan(D.IdOf({ bag = 0, slot = 2, link = "item:777" })).queue))
     end)
     it("names no vendor figure for an item a vendor will not buy, and never calls it for the vendor", function()
       local db, p = learned(), function(id) return prices[id] end
@@ -352,7 +352,7 @@ describe("Disenchant", function()
         db = db,
         inGroup = function(id) return id == grouped.itemID end,
         failed = { [failed.itemID] = true },
-        skipped = { ["2:2"] = skipped.link },
+        skipped = { [D.IdOf(skipped)] = true },
       }))
       assert.same({}, plan.queue)
       assert.same({}, plan.left)
@@ -360,24 +360,66 @@ describe("Disenchant", function()
     end)
     it("moves a left row into the queue when the player says anyway", function()
       local rich = gear({ bag = 3, slot = 4, vendorUnit = 300, ahUnit = 1240 * 10000 })
-      local plan = D.Plan({ rich }, opts({ anyway = { ["3:4"] = rich.link } }))
+      local plan = D.Plan({ rich }, opts({ anyway = { [D.IdOf(rich)] = true } }))
       assert.equal(1, #plan.queue)
       assert.same({}, plan.left)
       assert.equal("3:4", plan.queue[1].slotKey)
       assert.equal("ah", plan.queue[1].best)
     end)
-    -- Disenchant anyway and Skip follow the item, not its bag slot (the final review's I2): a sort of
-    -- the bags must never queue an item the player did not choose, or drop one they did not skip.
-    it("leaves out an item that moved into a slot sent anyway, the choice being another item's", function()
-      local other = gear({ bag = 0, slot = 5, vendorUnit = 300, ahUnit = 1240 * 10000 })
-      local plan = D.Plan({ other }, opts({ anyway = { ["0:5"] = "item:777" } }))
-      assert.same({}, plan.queue)
-      assert.same({ other.itemID }, ids(plan.left))
+    -- The visit's choices (Disenchant anyway, Skip, the chosen item) hold an item by its GUID, the
+    -- bag reader's `guid`, which follows it through a sort of the bags and tells apart two items with
+    -- one link (the owner, 2026-10-27: Disenchant anyway on two of four identical slippers, one
+    -- disenchanted, a sort, and the queue held the other three); without a GUID, by its slot and link.
+    local function guids(rows)
+      local out = {}
+      for i, r in ipairs(rows) do out[i] = r.stack.guid end
+      return out
+    end
+    -- Two items with one link, A at 0:5 and B at 0:6; a sort swaps them.
+    local function twins(over)
+      local a = gear({ bag = 0, slot = 5, guid = "Item-A" })
+      local b = gear({ bag = 0, slot = 6, itemID = a.itemID, link = a.link, guid = "Item-B" })
+      for k, v in pairs(over or {}) do a[k], b[k] = v, v end
+      local function sorted()
+        a.slot, b.slot = 6, 5
+        return { b, a }
+      end
+      return a, b, sorted
+    end
+    it("holds Disenchant anyway by the item's GUID: its twin never inherits it, wherever a sort moves them", function()
+      local a, b, sorted = twins({ vendorUnit = 300, ahUnit = 1240 * 10000 })
+      local anyway = { [D.IdOf(a)] = true }
+      assert.same({ "Item-A" }, guids(D.Plan({ a, b }, opts({ anyway = anyway })).queue))
+      local plan = D.Plan(sorted(), opts({ anyway = anyway }))
+      assert.same({ "Item-A" }, guids(plan.queue))
+      assert.equal("0:6", plan.queue[1].slotKey)
+      assert.same({ "Item-B" }, guids(plan.left))
     end)
-    it("queues an item that moved into a skipped slot, the skip being another item's", function()
-      local other = gear({ bag = 0, slot = 5 })
-      local plan = D.Plan({ other }, opts({ skipped = { ["0:5"] = "item:777" } }))
-      assert.same({ other.itemID }, ids(plan.queue))
+    it("holds a skip by the item's GUID: its twin stays queued, wherever a sort moves them", function()
+      local a, b, sorted = twins()
+      local skipped = { [D.IdOf(a)] = true }
+      assert.same({ "Item-B" }, guids(D.Plan({ a, b }, opts({ skipped = skipped })).queue))
+      assert.same({ "Item-B" }, guids(D.Plan(sorted(), opts({ skipped = skipped })).queue))
+    end)
+    it("holds the chosen item by its GUID: first wherever a sort moves it, its twin not", function()
+      local a, b, sorted = twins()
+      local first = D.IdOf(b)
+      assert.same({ "Item-B", "Item-A" }, guids(D.Plan({ a, b }, opts({ first = first })).queue))
+      assert.same({ "Item-B", "Item-A" }, guids(D.Plan(sorted(), opts({ first = first })).queue))
+    end)
+    it("holds a stack without a GUID by its slot and link", function()
+      local a = gear({ bag = 0, slot = 5, vendorUnit = 300, ahUnit = 1240 * 10000 })
+      local key = D.IdOf(a)
+      assert.same({ a.itemID }, ids(D.Plan({ a }, opts({ anyway = { [key] = true } })).queue))
+      assert.same({}, D.Plan({ a }, opts({ skipped = { [key] = true } })).left)
+      -- Moved to another slot: no longer the one chosen.
+      a.slot = 6
+      assert.same({ a.itemID }, ids(D.Plan({ a }, opts({ anyway = { [key] = true } })).left))
+      -- Another item in that slot: neither chosen nor skipped.
+      local other = gear({ bag = 0, slot = 5, vendorUnit = 300, ahUnit = 1240 * 10000 })
+      assert.same({ other.itemID }, ids(D.Plan({ other }, opts({ anyway = { [key] = true } })).left))
+      local plain = gear({ bag = 0, slot = 5 })
+      assert.same({ plain.itemID }, ids(D.Plan({ plain }, opts({ skipped = { [key] = true } })).queue))
     end)
     it("leaves a stack out when its fresh auction figure beats both the vendor and the learned mats", function()
       local blue = gear({ quality = 3, vendorUnit = 100, ahUnit = 1000 })

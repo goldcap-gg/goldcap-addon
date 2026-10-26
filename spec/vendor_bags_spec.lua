@@ -224,6 +224,27 @@ describe("VendorBags", function()
     assert.is_false(out[3].selling)
   end)
 
+  -- The item's own GUID (C_Item.GetItemGUID(itemLocation), ItemDocumentation.lua, live and forever)
+  -- follows it wherever a sort of the bags moves it, and tells apart two items with one link: the
+  -- Disenchant window holds its choices by it. Read for gear only, the window's only items.
+  it("reads a gear stack's own GUID through its item location, and none for other stacks or a silent client", function()
+    put(0, 1, 50, { quality = 2 }); put(0, 2, 51, { quality = 2 }); put(0, 3, 52, { quality = 2 })
+    items[50], items[51], items[52] = { sell = 5, class = 4 }, { sell = 5, class = 15 }, { sell = 5, class = 2 }
+    local asked = {}
+    _G.C_Item.GetItemGUID = function(loc)
+      asked[#asked + 1] = loc.bag .. ":" .. loc.slot
+      if loc.slot == 3 then error("no item") end
+      return "Item-1-0-" .. loc.bag .. loc.slot
+    end
+    local out = B.Read()
+    assert.equal("Item-1-0-01", out[1].guid)
+    assert.is_nil(out[2].guid)
+    assert.is_nil(out[3].guid)
+    assert.same({ "0:1", "0:3" }, asked)
+    _G.C_Item.GetItemGUID = nil
+    assert.is_nil(B.Read()[1].guid)
+  end)
+
   it("leaves vendorUnit nil for an uncached item", function()
     put(0, 1, 50)
     local s = one()

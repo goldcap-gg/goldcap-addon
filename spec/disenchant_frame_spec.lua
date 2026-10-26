@@ -910,6 +910,78 @@ describe("Disenchant window", function()
     assert.same({ 501, 503 }, left)
   end)
 
+  -- The owner, 2026-10-27 00:2x: Disenchant anyway on two of four identical slippers (one link), one
+  -- of them disenchanted, the bags sorted: the queue then held the other three. The visit's choices
+  -- hold an item by its GUID (the bag reader's `guid`), so a twin never inherits one.
+  local function guids(rows)
+    local out = {}
+    for i, r in ipairs(rows) do out[i] = r.stack.guid end
+    return out
+  end
+  local function vendorLine(guid)
+    for _, row in ipairs(DF._vendorRows) do
+      if row:IsShown() and row.stack and row.stack.guid == guid then return row end
+    end
+  end
+  -- Moves each stack to the slot given, as a sort of the bags does: { [stack] = slot }.
+  local function sortBags(moves)
+    for stack in pairs(moves) do slots[stack.bag .. ":" .. stack.slot] = nil end
+    for stack, slot in pairs(moves) do
+      stack.slot = slot
+      slots[stack.bag .. ":" .. slot] = { itemID = stack.itemID, hyperlink = stack.link, stackCount = 1, isLocked = false }
+    end
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+  end
+
+  it("keeps Disenchant anyway on the identical items chosen, by their GUIDs, through a disenchant and a sort", function()
+    learned()
+    local slippers = {}
+    for i = 1, 4 do slippers[i] = put(gear(0, i, 601, { vendorUnit = 190000, guid = "Item-S" .. i })) end
+    slash()
+    assert.same({}, listed())
+    press(vendorLine("Item-S2").anyway)
+    nextFrame()
+    press(vendorLine("Item-S4").anyway)
+    nextFrame()
+    assert.same({ "Item-S2", "Item-S4" }, guids(DF._plan.queue))
+    S.click(button())
+    disenchant("Cast-1", { { DUST, 3 } })
+    take(slippers[2])
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    sortBags({ [slippers[4]] = 1, [slippers[1]] = 2, [slippers[3]] = 4 })
+    assert.same({ "Item-S4" }, guids(DF._plan.queue))
+    assert.equal("0:1", DF._plan.queue[1].slotKey)
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
+    local left = guids(DF._plan.leftVendor)
+    table.sort(left)
+    assert.same({ "Item-S1", "Item-S3" }, left)
+  end)
+
+  it("keeps a skip and a chosen line on the identical item, by its GUID, through a sort", function()
+    local a = put(gear(0, 1, 601, { guid = "Item-A" }))
+    local b = put(gear(0, 2, 601, { guid = "Item-B" }))
+    local c = put(gear(0, 3, 601, { guid = "Item-C" }))
+    slash()
+    press(DF._frame.card.skip)
+    nextFrame()
+    assert.same({ "Item-B", "Item-C" }, guids(DF._plan.queue))
+    sortBags({ [a] = 2, [b] = 1 })
+    assert.same({ "Item-B", "Item-C" }, guids(DF._plan.queue))
+    -- Item-C chosen to go next, then a sort puts it last: still first.
+    local line
+    for _, row in ipairs(DF._rows) do
+      if row:IsShown() and row.stack and row.stack.guid == "Item-C" and not row.done then line = row end
+    end
+    press(line)
+    nextFrame()
+    assert.same({ "Item-C", "Item-B" }, guids(DF._plan.queue))
+    sortBags({ [c] = 1, [b] = 3 })
+    assert.same({ "Item-C", "Item-B" }, guids(DF._plan.queue))
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
+  end)
+
   it("follows the item skipped, not its slot: another item there is listed", function()
     local a = put(gear(0, 1, 501))
     put(gear(0, 2, 502))
