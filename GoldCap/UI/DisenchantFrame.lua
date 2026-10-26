@@ -53,9 +53,12 @@ local _, GC = ...
 -- window in which the first LOOT_READY is read (GetNumLootItems, GetLootSlotLink, GetLootSlotInfo's
 -- quantity, as Blizzard_UIPanels_Game/Mainline/LootFrame.lua reads them) and learned for the kind
 -- of the item pressed. Loot outside it (a mob's, a chest's, a disenchant from the spellbook) is never
--- read. An item the client refuses, as UI_ERROR_MESSAGE carries it after a press of this button,
--- leaves the list and the next is armed: for good (Core/Disenchant.lua's MarkCant, until the Kept
--- menu's Try again) when the client will never disenchant it ("Item cannot be disenchanted":
+-- read. An item the client refuses, as UI_ERROR_MESSAGE carries it after a press of this button
+-- (named by GetGameMessageInfo where the client says, else by its words), leaves the list and the
+-- next is armed (nothing once a cast of the player's started or another spell of theirs was sent):
+-- for good (Core/Disenchant.lua's MarkCant, until the Kept menu's Try again; within REFUSAL_SECONDS
+-- of the press, later for the visit) when the client will never disenchant it ("Item cannot be
+-- disenchanted":
 -- ERR_CANT_BE_DISENCHANTED, SPELL_FAILED_CANT_BE_DISENCHANTED; "That item is not a valid target.":
 -- ERR_INVALID_ITEM_TARGET, SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED, the owner's Torc of Passed Time,
 -- 2026-10-26), for the visit when the Enchanting skill is too low (SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL:
@@ -83,6 +86,12 @@ DF.BINDING = "CLICK GoldCapDisenchantNext:LeftButton"
 -- How long after a press its cast's answer counts as the answer to that press: the cast took about
 -- 1.55 s in probe D1 (CAST_SECONDS, the casting bar's length), with room for the server.
 DF.PENDING_SECONDS = 5
+-- How long after a press "That item is not a valid target." (any item's refusal, for any spell or
+-- item use) still counts as the answer to it, and marks the item for good: the client answers an
+-- invalid target at once, with no cast started (the re-review's T1). Later, it counts for the visit.
+DF.REFUSAL_SECONDS = 1
+-- How wide an item tooltip is taken to be, at least, when room is measured for the comparison.
+DF.TIP_W = 300
 DF.CAST_SECONDS = 1.55
 -- How long after the cast succeeds its loot is waited for.
 DF.LOOT_SECONDS = 3
@@ -503,14 +512,16 @@ function DF._PreClick(_, _, down)
   end
   local info = C_Container and ask(C_Container.GetContainerItemInfo, armed.bag, armed.slot)
   local link = type(info) == "table" and info.hyperlink or nil
-  if link ~= armed.link then
+  -- Moved, or locked (on the cursor, in a trade): the client would refuse it, and the refusal would
+  -- read as the item's own.
+  if link ~= armed.link or (type(info) == "table" and info.isLocked == true) then
     setArmed(nil)
     return schedule()
   end
   local p = pendingNow()
   if p and not p.over and p.slotKey == armed.slotKey and p.link == armed.link then
     -- Its cast's answer counts from this press now: the earlier one may have failed before it started.
-    p.at = now()
+    p.at, p.closed = now(), nil
     return
   end
   DF._pending = { row = armed.row, itemID = armed.itemID, kind = armed.kind, slotKey = armed.slotKey,
@@ -743,8 +754,32 @@ local function gap(a, b)
   return (type(a) == "number" and type(b) == "number") and a - b or 0
 end
 
--- `owner`'s item in `tip`, beside the window on the side away from the bags (tipSide), its top
--- level with `owner`'s: the bag item itself while its slot still holds it (C_Container's hyperlink
+-- The gear Blizzard compares with two equipped items (both rings, both trinkets, both hands).
+local TWO_SLOTS = { INVTYPE_FINGER = true, INVTYPE_TRINKET = true, INVTYPE_WEAPON = true }
+
+-- The side of the window Blizzard's tooltip opens on while the compare modifier is held: the one
+-- tipSide names while the tooltip and the equipped items beside it fit there (as wide as the
+-- window's own item tooltip each, TIP_W at least), else the other side when they fit there, else
+-- the side with more room. Where they do not fit, Blizzard slides them with SetAnchorType(anchor,
+-- slide, 0) (TooltipComparisonManager.lua:103-117), which drops the offsets and lays the tooltip at
+-- the line's corner, over the window's edge (the re-review's T2).
+local function compareSide(stack)
+  local near = tipSide()
+  local left, right = frame.GetLeft and frame:GetLeft(), frame.GetRight and frame:GetRight()
+  local screen = UIParent and UIParent.GetWidth and UIParent:GetWidth()
+  if type(left) ~= "number" or type(right) ~= "number" or type(screen) ~= "number" then return near end
+  local width = DF._tip and DF._tip.GetWidth and DF._tip:GetWidth()
+  width = math.max(type(width) == "number" and width or 0, DF.TIP_W)
+  local need = width * (TWO_SLOTS[stack.equipLoc] and 3 or 2) + 8
+  local room = { left = left, right = screen - right }
+  local far = near == "left" and "right" or "left"
+  if room[near] >= need then return near end
+  if room[far] >= need then return far end
+  return room.left >= room.right and "left" or "right"
+end
+
+-- `owner`'s item in `tip`, beside the window on the side away from the bags (tipSide; for
+-- Blizzard's, the side its comparison fits on: compareSide), its top level with `owner`'s: the bag item itself while its slot still holds it (C_Container's hyperlink
 -- matches), so the game and GoldCap draw it as over the bag slot, else its link (an item
 -- disenchanted this visit). The window's own tooltip is pinned to the window (ANCHOR_NONE).
 -- Blizzard's (`game`) is owned with that side's corner anchor, ANCHOR_BOTTOMLEFT (its top right at
@@ -754,7 +789,7 @@ end
 -- list (the re-review's S1).
 local function fillTip(tip, owner, game)
   local stack = owner.stack
-  local left = tipSide() == "left"
+  local left = (game and compareSide(stack) or tipSide()) == "left"
   if game then
     local ownerH = owner.GetHeight and owner:GetHeight() or 0
     local x = left and gap(frame.GetLeft and frame:GetLeft(), owner.GetLeft and owner:GetLeft()) - 8
@@ -1894,12 +1929,32 @@ GC.slashHandlers.disenchant = function() DF.Toggle() end
 -- skill is too low; nil for anything else.
 local NEVER = { "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED", "ERR_INVALID_ITEM_TARGET",
   "SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED" }
-local function refusal(message)
-  if type(message) ~= "string" then return nil end
-  for _, name in ipairs(NEVER) do
-    if _G[name] == message then return "never" end
+local SKILL = "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL"
+
+-- The global an error's first argument names (GetGameMessageInfo, live GameErrorDocumentation.lua,
+-- as UIErrorsFrame.lua:150 reads it), or nil where the client does not say (or the index is secret).
+local function errorName(messageType)
+  local index = plain(messageType)
+  if type(index) ~= "number" or type(_G.GetGameMessageInfo) ~= "function" then return nil end
+  local ok, name = pcall(_G.GetGameMessageInfo, index)
+  name = ok and plain(name) or nil
+  return type(name) == "string" and name or nil
+end
+
+-- By the error's own name where the client gives it, else by its words.
+local function refusal(messageType, message)
+  local name = errorName(messageType)
+  if name then
+    for _, never in ipairs(NEVER) do
+      if never == name then return "never" end
+    end
+    return name == SKILL and "skill" or nil
   end
-  if _G.SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL == message then return "skill" end
+  if type(message) ~= "string" then return nil end
+  for _, never in ipairs(NEVER) do
+    if _G[never] == message then return "never" end
+  end
+  if _G[SKILL] == message then return "skill" end
   return nil
 end
 
@@ -1996,16 +2051,27 @@ local function onLootReady()
   schedule()
 end
 
--- A refusal of the press waiting: its item leaves the list (for good, or for the visit, see
--- `refusal`) and the next is armed on the next frame's paint.
-local function onError(message)
+-- A refusal of the press waiting: its item leaves the list and the next is armed on the next
+-- frame's paint. For good (see `refusal`) only as the press's own answer: within REFUSAL_SECONDS of
+-- it, before any cast of the player's started or another spell of theirs was sent (`closed`); later,
+-- for the visit. After that, the words are someone else's and change nothing.
+local function onError(messageType, message)
   local p = pendingNow()
-  local why = p and refusal(plain(message))
+  if not p or p.closed then return end
+  local why = refusal(messageType, plain(message))
   if not why then return end
-  if why == "never" then D.MarkCant(GC.db, p.itemID) end
+  if why == "never" and now() - p.at <= DF.REFUSAL_SECONDS then D.MarkCant(GC.db, p.itemID) end
   DF._visit.failed[p.itemID] = true
   DF._pending, DF._casting = nil, nil
   schedule()
+end
+
+-- A cast of the player's started, or another spell of theirs was sent: an error from now on is not
+-- the waiting press's refusal. Disenchant's own SENT leaves it open: the server's refusal of the
+-- press comes after it.
+local function closeRefusals()
+  local p = DF._pending
+  if p then p.closed = true end
 end
 
 --- The window's events, as its own event frame below hears them. PLAYER_LOGIN: the key binding's
@@ -2036,7 +2102,11 @@ function DF.OnEvent(event, ...)
     if DF._dirty or DF._wantShown ~= nil or (frame and frame:IsShown()) then schedule() end
   elseif event == "UNIT_SPELLCAST_START" then
     local unit, castGUID, spellID = ...
+    if plain(unit) == "player" then closeRefusals() end
     if ours(unit, spellID) then onCastStart(castGUID) end
+  elseif event == "UNIT_SPELLCAST_SENT" then
+    local unit, _, _, spellID = ...
+    if plain(unit) == "player" and plain(spellID) ~= D.SPELL then closeRefusals() end
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
     local unit, castGUID, spellID = ...
     if ours(unit, spellID) then onCastSucceeded(castGUID) end
@@ -2056,8 +2126,7 @@ function DF.OnEvent(event, ...)
   elseif event == "LOOT_READY" then
     onLootReady()
   elseif event == "UI_ERROR_MESSAGE" then
-    local _, message = ...
-    onError(message)
+    onError(...)
   end
 end
 
@@ -2084,8 +2153,8 @@ if type(CreateFrame) == "function" then
     "ITEM_DATA_LOAD_RESULT", "MODIFIER_STATE_CHANGED" }) do
     pcall(events.RegisterEvent, events, name)
   end
-  for _, name in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED",
-    "UNIT_SPELLCAST_INTERRUPTED" }) do
+  for _, name in ipairs({ "UNIT_SPELLCAST_SENT", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }) do
     if type(events.RegisterUnitEvent) == "function" then
       pcall(events.RegisterUnitEvent, events, name, "player")
     else

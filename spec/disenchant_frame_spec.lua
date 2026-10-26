@@ -16,7 +16,8 @@ describe("Disenchant window", function()
     "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
     "ContainerFrame4", "ContainerFrame5", "ContainerFrame6", "NUM_CONTAINER_FRAMES", "INVTYPE_WAIST", "INVTYPE_CHEST",
     "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat", "Enum", "IsModifiedClick",
-    "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "GoldCapDisenchantTooltip", "C_TooltipComparison" }
+    "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "GoldCapDisenchantTooltip", "C_TooltipComparison",
+    "GetGameMessageInfo" }
   local NOW = 1800000000
   local DUST, SHARD, ESSENCE = 9001, 9002, 9003
 
@@ -536,6 +537,81 @@ describe("Disenchant window", function()
     nextFrame()
     assert.is_false(GC.Disenchant.Cant(GC.db, 501))
     assert.same({ 501, 502 }, listed())
+  end)
+
+  -- "That item is not a valid target." is any item's refusal, so it marks an item for good only as
+  -- the answer to a press: within REFUSAL_SECONDS of it and before any cast of the player's starts
+  -- or another spell of theirs is sent (the re-review's T1).
+  it("marks nothing for good when the refusal comes 2 s after the press, and drops the item for the visit only", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    clock = clock + 2
+    event("UI_ERROR_MESSAGE", 1, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 502 }, listed())
+    DF.Close()
+    slash()
+    assert.same({ 501, 502 }, listed())
+  end)
+
+  it("ignores a refusal once the press's cast started", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UNIT_SPELLCAST_START", "player", "Cast-1", 13262)
+    event("UI_ERROR_MESSAGE", 1, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 501, 502 }, listed())
+  end)
+
+  it("ignores a refusal once another spell of the player's was sent after the press", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UNIT_SPELLCAST_SENT", "player", "", "Cast-9", 6603)
+    event("UI_ERROR_MESSAGE", 1, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 501, 502 }, listed())
+  end)
+
+  it("casts nothing and waits for no answer on a press while the item is on the cursor", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    slots["0:1"].isLocked = true
+    S.click(button())
+    assert.same({}, S.casts)
+    assert.is_nil(DF._pending)
+    event("UI_ERROR_MESSAGE", 1, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+  end)
+
+  -- UI_ERROR_MESSAGE's first argument names the error (GetGameMessageInfo, live
+  -- GameErrorDocumentation.lua; UIErrorsFrame.lua:150): the name decides, the text only without it.
+  it("names a refusal by its global through GetGameMessageInfo, whatever its words", function()
+    _G.GetGameMessageInfo = function(index)
+      return ({ [52] = "ERR_INVALID_ITEM_TARGET", [53] = "ERR_GENERIC_NO_TARGET" })[index]
+    end
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UI_ERROR_MESSAGE", 53, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 501, 502 }, listed())
+    event("UI_ERROR_MESSAGE", 52, "Ce n'est pas une cible valide.")
+    nextFrame()
+    assert.is_true(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 502 }, listed())
   end)
 
   it("leaves out for this visit only an item the Enchanting skill is too low for", function()
@@ -1710,6 +1786,7 @@ describe("Disenchant window", function()
     slash()
     local row = rowOf(501)
     standAt(DF._frame, 900, 1000)
+    function DF._frame:GetRight() return 1290 end
     function row:GetLeft() return 916 end
     shift = true
     W.state(row).scripts.OnEnter(row)
@@ -1720,6 +1797,53 @@ describe("Disenchant window", function()
     assert.equal(900 - 8 - 916, game.x)
     assert.equal(row:GetHeight(), game.y)
     assert.is_nil(game.point)
+  end)
+
+  -- With no room for the comparison left of the window, Blizzard would slide it with
+  -- SetAnchorType(anchor, slide, 0), dropping the offsets, over the window's edge (the re-review's
+  -- T2): the item opens on the window's other side, clear of the list and on the screen.
+  it("opens Blizzard's tooltip with Shift on the other side when the comparison has no room on the near one", function()
+    screen(1920, 1080)
+    standAt(bags, 700, 1000)
+    put(gear(0, 1, 501))
+    openBags()
+    slash()
+    local row = rowOf(501)
+    standAt(DF._frame, 300, 1000)
+    function DF._frame:GetRight() return 690 end
+    function row:GetLeft() return 316 end
+    function row:GetRight() return 674 end
+    shift = true
+    W.state(row).scripts.OnEnter(row)
+    local game = _G.GameTooltip
+    assert.equal("ANCHOR_BOTTOMRIGHT", game.anchor)
+    assert.equal(690 + 8 - 674, game.x)
+    -- The window's own tooltip, without Shift, keeps to the side away from the bags.
+    W.state(row).scripts.OnLeave(row)
+    shift = false
+    W.state(row).scripts.OnEnter(row)
+    assert.equal("TOPRIGHT", W.state(ourTip()).points[1][1])
+  end)
+
+  -- A ring, a trinket or a one-hand weapon is compared with both equipped ones: room for three.
+  it("counts two equipped items beside a ring, so it turns where a belt still fits", function()
+    screen(2560, 1440)
+    standAt(bags, 1150, 1000)
+    put(gear(0, 1, 501, { equipLoc = "INVTYPE_FINGER" }))
+    put(gear(0, 2, 502))
+    openBags()
+    slash()
+    standAt(DF._frame, 800, 1000)
+    function DF._frame:GetRight() return 1140 end
+    shift = true
+    for _, id in ipairs({ 501, 502 }) do
+      local row = rowOf(id)
+      function row:GetLeft() return 816 end
+      function row:GetRight() return 1124 end
+      W.state(row).scripts.OnEnter(row)
+      assert.equal(id == 501 and "ANCHOR_BOTTOMRIGHT" or "ANCHOR_BOTTOMLEFT", _G.GameTooltip.anchor)
+      W.state(row).scripts.OnLeave(row)
+    end
   end)
 
   -- GameTooltip_ShowCompareItem reaches C_TooltipComparison.CompareItem, protected in live and
