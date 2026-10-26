@@ -1624,6 +1624,8 @@ GC.Locales.zhCN = {
   ["Click for GoldCap. Drag to move it."] = "点击打开 GoldCap。拖动可移动它。",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "小地图旁的 GoldCap 按钮已隐藏。输入 /gc minimap 可重新显示。",
+  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
+    "/goldcap minimap：显示或隐藏小地图旁的 GoldCap 按钮。",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] = "现在没有值得分解的：下面的都是卖给商人更值钱。",
   ["Nothing worth disenchanting now: everything below sells for more."] = "现在没有值得分解的：下面的都是卖掉更值钱。",
   ["This character does not know Disenchant."] = "这个角色不会分解。",

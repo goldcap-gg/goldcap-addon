@@ -326,6 +326,19 @@ describe("TOC load order", function()
       GC.Sniper.Toggle = realToggle
       assert.equal(2, toggleCalls)
     end
+    -- A word GoldCap does not know prints the help line; in retail a second line names /goldcap
+    -- minimap (UI/MinimapButton.lua, retail only: the Forever TOC does not load it), the only other
+    -- place a player learns how to bring a hidden minimap button back.
+    do
+      local said = {}
+      local realPrint = GC.Print
+      GC.Print = function(msg) said[#said + 1] = msg end
+      GC.OnSlash("nonsense")
+      GC.Print = realPrint
+      local retail = tocPath == "GoldCap/GoldCap.toc"
+      assert.equal(retail and 2 or 1, #said)
+      if retail then assert.truthy(said[2]:find("/goldcap minimap", 1, true)) end
+    end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --
     -- the button that does the same job lives inside the window it would rescue. Both go

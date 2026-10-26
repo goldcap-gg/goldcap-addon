@@ -6,7 +6,10 @@ local _, GC = ...
 -- on the first (the one the window names, the button points at) and dimmed (RING_DIM) on the rest,
 -- and the Disenchant spell's icon on a dark round badge with a purple ring in its top left corner; a
 -- slot the auction house pays more for carries the coin on the same badge in its top right (the
--- owner, 2026-10-27 00:30: the bare icon was almost invisible on the item's art).
+-- owner, 2026-10-27 00:30: the bare icon was almost invisible on the item's art). The badges are
+-- true circles: a purple disc and a smaller dark one on it, each, and the spell's icon, cut round by
+-- the client's own round mask (CIRCLE, the one Blizzard's round portraits use: live
+-- Blizzard_PVPUI/Mainline/Blizzard_PVPUI.xml:346, a MaskTexture clamped to black additive).
 --
 -- Everything is drawn on one frame of ours per item button, made once and reused: a child of the
 -- button, level with it plus a little, taking no mouse. Blizzard's button gets no script, no hook and
@@ -26,13 +29,15 @@ local _, GC = ...
 GC.DisenchantMarks = {}
 local M = GC.DisenchantMarks
 
--- In UI units: the badge (the kit's badge.png, its 1px ring badge_ring.png on the same radius), the
--- spell's icon and the coin on it, and how far out of its corner a badge stands; how far the overlay
--- stands above its button. RING_DIM: the ring's alpha on a queued slot other than the first.
-local BADGE, ICON, COIN, OUT, LIFT = 18, 12, 11, 2, 4
+-- In UI units: the badge (its purple disc), its dark disc (RING less on every side, the ring being
+-- what shows between them), the spell's icon and the coin on it, and how far out of its corner a
+-- badge stands; how far the overlay stands above its button. RING_DIM: the slot ring's alpha on a
+-- queued slot other than the first.
+local BADGE, RING, ICON, COIN, OUT, LIFT = 18, 1.5, 12, 11, 2, 4
 local RING_DIM = 0.55
 local PURPLE = { 176 / 255, 100 / 255, 240 / 255, 1 }
 local COIN_TEXTURE = "Interface\\MoneyFrame\\UI-GoldIcon"
+local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 
 local overlays = setmetatable({}, { __mode = "k" })
 
@@ -52,21 +57,29 @@ local function wanted(plan)
   return want
 end
 
+-- Cuts `texture` round: a mask of the overlay's, on exactly the texture's own rectangle.
+local function round(o, texture)
+  local mask = o:CreateMaskTexture()
+  mask:SetTexture(CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+  mask:SetAllPoints(texture)
+  texture:AddMaskTexture(mask)
+end
+
 -- A dark round badge with a purple ring at a corner of the overlay ("TOPLEFT" or "TOPRIGHT"),
--- standing OUT units out of it: its fill under what sits on it, its ring over it.
+-- standing OUT units out of it: the purple disc, the dark disc on it, what sits on them above both.
 local function badge(o, corner)
-  local T = GC.Theme
   local dark = GC.Kit.Tokens.color.windowBottom
   local x = corner == "TOPLEFT" and -OUT or OUT
-  local back = o:CreateTexture(nil, "OVERLAY", nil, 1)
-  back:SetTexture(T.MEDIA .. "badge.png")
-  back:SetVertexColor(dark[1], dark[2], dark[3], 0.92)
-  back:SetSize(BADGE, BADGE)
-  back:SetPoint(corner, o, corner, x, OUT)
-  local ring = o:CreateTexture(nil, "OVERLAY", nil, 3)
-  ring:SetTexture(T.MEDIA .. "badge_ring.png")
-  ring:SetVertexColor(PURPLE[1], PURPLE[2], PURPLE[3], 1)
-  ring:SetAllPoints(back)
+  local ring = o:CreateTexture(nil, "OVERLAY", nil, 1)
+  ring:SetColorTexture(PURPLE[1], PURPLE[2], PURPLE[3], 1)
+  ring:SetSize(BADGE, BADGE)
+  ring:SetPoint(corner, o, corner, x, OUT)
+  round(o, ring)
+  local back = o:CreateTexture(nil, "OVERLAY", nil, 2)
+  back:SetColorTexture(dark[1], dark[2], dark[3], 1)
+  back:SetSize(BADGE - 2 * RING, BADGE - 2 * RING)
+  back:SetPoint("CENTER", ring, "CENTER", 0, 0)
+  round(o, back)
   return back, ring
 end
 
@@ -79,13 +92,14 @@ local function build(button, spellTexture)
   o.glow = T.SlicedTexture(o, "OVERLAY", T.MEDIA .. "plaque_ring.png", PURPLE, T.SLICE.plaque)
   o.glow:SetAllPoints(o)
   o.iconBadge, o.iconRing = badge(o, "TOPLEFT")
-  o.icon = o:CreateTexture(nil, "OVERLAY", nil, 2)
+  o.icon = o:CreateTexture(nil, "OVERLAY", nil, 3)
   o.icon:SetSize(ICON, ICON)
   o.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   o.icon:SetTexture(spellTexture)
   o.icon:SetPoint("CENTER", o.iconBadge, "CENTER", 0, 0)
+  round(o, o.icon)
   o.coinBadge, o.coinRing = badge(o, "TOPRIGHT")
-  o.coin = o:CreateTexture(nil, "OVERLAY", nil, 2)
+  o.coin = o:CreateTexture(nil, "OVERLAY", nil, 3)
   o.coin:SetSize(COIN, COIN)
   o.coin:SetTexture(COIN_TEXTURE)
   o.coin:SetPoint("CENTER", o.coinBadge, "CENTER", 0, 0)

@@ -83,6 +83,13 @@ describe("Disenchant window", function()
     local o = overlayOf(key)
     return o ~= nil and o:IsShown() and o[part]:IsShown()
   end
+  -- Cut round by the client's round mask (MaskTexture, Texture:AddMaskTexture).
+  local function round(texture)
+    local masks = W.state(texture).masks
+    local mask = masks and masks[1]
+    return mask ~= nil and W.state(mask).file == "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+      and W.state(mask).allPoints == texture
+  end
 
   local function fire(seconds)
     local n = 0
@@ -366,6 +373,22 @@ describe("Disenchant window", function()
     assert.is_nil(DF.Counts())
   end)
 
+  -- Before any plan was read (at login, before the first paint) the window claims no count: asked
+  -- to (the button's tooltip and menu), it reads one now out of combat; in combat it answers nil.
+  it("answers no count before a plan was read, and reads one when asked out of combat", function()
+    GC.MinimapButton = { Refresh = function() end, Shown = function() return false end }
+    put(gear(0, 1, 501))
+    assert.is_nil(DF.Counts())
+    S.enterCombat()
+    assert.is_nil(DF.Counts(true))
+    assert.equal(0, reads)
+    S.leaveCombat()
+    assert.same({ 1, 0, 0 }, { DF.Counts(true) })
+    assert.equal(1, reads)
+    assert.same({ 1, 0, 0 }, { DF.Counts(true) })
+    assert.equal(1, reads)
+  end)
+
   -- With Blizzard's bags closed (or a bag addon's in their place) the button still counts: while it
   -- shows, a change in the bags reads them for an enchanter, out of combat, and never for anyone else.
   it("reads the bags for the minimap button's count while it shows, with the bags closed", function()
@@ -425,6 +448,21 @@ describe("Disenchant window", function()
     assert.same({ { spell = 13262, bag = 0, slot = 1 } }, S.casts)
     S.key(button())
     assert.equal(2, #S.casts)
+  end)
+
+  -- PreClick reads the armed slot once: its link, its lock and (by GuidOf) its GUID come from it.
+  it("reads the armed slot once a press", function()
+    put(gear(0, 1, 501, { guid = "Item-A" }))
+    slash()
+    local read = 0
+    local info = _G.C_Container.GetContainerItemInfo
+    _G.C_Container.GetContainerItemInfo = function(...)
+      read = read + 1
+      return info(...)
+    end
+    S.click(button())
+    assert.equal(1, read)
+    assert.same({ { spell = 13262, bag = 0, slot = 1 } }, S.casts)
   end)
 
   it("clears the button in PreClick when the slot no longer holds the item, so that click casts nothing", function()
@@ -1437,12 +1475,17 @@ describe("Disenchant window", function()
     assert.equal(0.55, W.state(overlayOf("0:2").glow).alpha)
     local o = overlayOf("0:1")
     for _, part in ipairs({ "iconBadge", "iconRing" }) do assert.is_true(drawn("0:1", part)) end
-    assert.equal(GC.Theme.MEDIA .. "badge.png", W.state(o.iconBadge).file)
-    assert.equal(GC.Theme.MEDIA .. "badge_ring.png", W.state(o.iconRing).file)
-    assert.equal(18, o.iconBadge:GetWidth())
-    assert.equal(18, o.iconBadge:GetHeight())
-    assert.equal("TOPLEFT", W.state(o.iconBadge).points[1][1])
-    local dark, purple = W.state(o.iconBadge).vertex, W.state(o.iconRing).vertex
+    -- True circles: a purple disc, a smaller dark one on it (the ring is what shows between them),
+    -- each and the spell's icon cut round by the client's own round mask (the one Blizzard's round
+    -- portraits use: Blizzard_PVPUI.xml's CircleMask, TempPortraitAlphaMask).
+    assert.equal(18, o.iconRing:GetWidth())
+    assert.equal(18, o.iconRing:GetHeight())
+    assert.equal("TOPLEFT", W.state(o.iconRing).points[1][1])
+    assert.equal(15, o.iconBadge:GetWidth())
+    assert.equal("CENTER", W.state(o.iconBadge).points[1][1])
+    assert.equal(o.iconRing, W.state(o.iconBadge).points[1][2])
+    for _, part in ipairs({ "iconRing", "iconBadge", "icon" }) do assert.is_true(round(o[part]), part) end
+    local dark, purple = W.state(o.iconBadge).color, W.state(o.iconRing).color
     assert.is_true(dark[1] < 0.2 and dark[2] < 0.2 and dark[3] < 0.2)
     assert.is_true(purple[3] > purple[2] and purple[1] > purple[2])
     assert.is_false(drawn("0:1", "coinBadge"))
@@ -1452,9 +1495,10 @@ describe("Disenchant window", function()
     assert.is_true(drawn("0:3", "coin"))
     local coin = overlayOf("0:3")
     for _, part in ipairs({ "coinBadge", "coinRing" }) do assert.is_true(drawn("0:3", part)) end
-    assert.equal(GC.Theme.MEDIA .. "badge.png", W.state(coin.coinBadge).file)
-    assert.equal(18, coin.coinBadge:GetWidth())
-    assert.equal("TOPRIGHT", W.state(coin.coinBadge).points[1][1])
+    assert.equal(18, coin.coinRing:GetWidth())
+    assert.equal("TOPRIGHT", W.state(coin.coinRing).points[1][1])
+    assert.equal(15, coin.coinBadge:GetWidth())
+    for _, part in ipairs({ "coinRing", "coinBadge" }) do assert.is_true(round(coin[part]), part) end
     assert.is_false(drawn("0:1", "coin"))
     assert.is_nil(overlayOf("0:4"))
     assert.is_nil(overlayOf("0:5"))

@@ -196,14 +196,18 @@ local function now()
 end
 
 -- Whether a bag slot still holds the stack the plan read there (`stack`: its bag, slot, link and, for
--- gear, the GUID the bag reader gave it): the same link and, where the stack has a GUID, the same
--- GUID, so an identical twin moved into the slot is another item (Core/Disenchant.lua's IdOf). The
--- one rule for the button's press, the marks and where an item stands; the GUID costs one client
--- call (Services/VendorBags.lua's GuidOf).
-local function holds(stack)
-  local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
+-- gear, the GUID the bag reader gave it), given what the slot holds now (`info`, the slot's
+-- C_Container.GetContainerItemInfo): the same link and, where the stack has a GUID, the same GUID, so
+-- an identical twin moved into the slot is another item (Core/Disenchant.lua's IdOf). The one rule
+-- for the button's press, the marks and where an item stands; the GUID costs one client call
+-- (Services/VendorBags.lua's GuidOf).
+local function holdsWith(stack, info)
   if not (type(info) == "table" and info.hyperlink == stack.link) then return false end
   return stack.guid == nil or GC.VendorBags.GuidOf(stack.bag, stack.slot) == stack.guid
+end
+
+local function holds(stack)
+  return holdsWith(stack, C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot))
 end
 
 -- In combat: the client's lockdown, or the fight as this window heard it begin (PLAYER_REGEN_DISABLED
@@ -529,9 +533,9 @@ function DF._PreClick(_, _, down)
   end
   local info = C_Container and ask(C_Container.GetContainerItemInfo, armed.bag, armed.slot)
   -- Moved (an identical twin with the same link told apart by the item's own GUID, where it has
-  -- one: `holds`), or locked (on the cursor, in a trade): the client would refuse it, and the
-  -- refusal would read as the item's own.
-  if not holds(armed) or (type(info) == "table" and info.isLocked == true) then
+  -- one: `holdsWith`, on the one read of the slot), or locked (on the cursor, in a trade): the client
+  -- would refuse it, and the refusal would read as the item's own.
+  if not holdsWith(armed, info) or (type(info) == "table" and info.isLocked == true) then
     setArmed(nil)
     return schedule()
   end
@@ -884,20 +888,20 @@ local function showRowTip(row)
   showItemTip(row)
 end
 
--- How many the last plan queued, and left out for the auction house and for a vendor (kept and
--- refused items are not counted).
-local function counts()
-  local plan = DF._plan
-  if not plan then return 0, 0, 0 end
-  return #plan.queue, #plan.left, #(plan.leftVendor or {})
-end
-
 --- What the last plan counts, for the GoldCap minimap button (UI/MinimapButton.lua): the items
 --- worth disenchanting, and those left out for the auction house and for a vendor; nil for a
---- character that does not know Disenchant.
-function DF.Counts()
+--- character that does not know Disenchant, and while no plan was read (at login, before the first
+--- paint), so that nothing is claimed of bags not read. `readNow` (the button's tooltip and menu):
+--- with none read yet, one is read now, out of combat only.
+function DF.Counts(readNow)
   if not DF.Known() then return nil end
-  return counts()
+  if not DF._plan then
+    if not readNow or inCombat() then return nil end
+    DF._plan = readPlan()
+  end
+  -- Kept and refused items are not counted.
+  local plan = DF._plan
+  return #plan.queue, #plan.left, #(plan.leftVendor or {})
 end
 
 -- The GoldCap minimap button, told whenever the plan was read or the character's spells changed.

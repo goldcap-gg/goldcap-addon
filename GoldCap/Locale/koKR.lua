@@ -1657,6 +1657,8 @@ GC.Locales.koKR = {
   ["Click for GoldCap. Drag to move it."] = "클릭하면 GoldCap이 열립니다. 끌어서 옮길 수 있습니다.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "미니맵 옆 GoldCap 버튼을 숨겼습니다. 다시 표시하려면 /gc minimap을 입력하세요.",
+  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
+    "/goldcap minimap: 미니맵 옆 GoldCap 버튼을 표시하거나 숨깁니다.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "지금은 마력 추출할 만한 것이 없습니다: 아래는 모두 상점이 더 이득입니다.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

@@ -8,7 +8,7 @@ local W = require("spec.support.wow_frames")
 -- enchanter it counts what is worth disenchanting. The Disenchant window is a seam here
 -- (GC.DisenchantFrame: Known, Counts, Toggle; spec/disenchant_frame_spec.lua tests it).
 describe("GoldCap minimap button", function()
-  local GC, MB, restore, saved, menu, printed, toggled, knows, counts, cursor, tip, repainted
+  local GC, MB, restore, saved, menu, printed, toggled, knows, counts, cursor, tip, repainted, planned, fighting
   local KEYS = { "Minimap", "GetCursorPosition", "GetMinimapShape", "MenuUtil", "GameTooltip", "UIParent" }
 
   local function button() return MB._button end
@@ -16,6 +16,12 @@ describe("GoldCap minimap button", function()
   local function near(want, got) assert.is_true(math.abs(want - got) < 0.01, ("%s ~= %s"):format(want, got)) end
   local function login() MB.OnEvent("PLAYER_LOGIN") end
   local function click() W.state(button()).scripts.OnClick(button(), "LeftButton", false) end
+  local function hover() W.state(button()).scripts.OnEnter(button()) end
+  local function tipTexts()
+    local out = {}
+    for i, l in ipairs(tip.lines) do out[i] = l.text end
+    return out
+  end
   local function entries()
     local out = {}
     for _, e in ipairs(menu.entries) do out[#out + 1] = e.kind .. ":" .. tostring(e.text) end
@@ -32,6 +38,7 @@ describe("GoldCap minimap button", function()
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = W.install()
     printed, toggled, knows, counts, cursor, repainted = {}, {}, true, { 0, 0, 0 }, { 0, 0 }, 0
+    planned, fighting = true, false
     _G.UIParent = CreateFrame("Frame")
     -- The minimap: 140 wide, its centre at (500, 400) on the screen, at scale 1.
     _G.Minimap = CreateFrame("Frame", nil, _G.UIParent)
@@ -60,11 +67,15 @@ describe("GoldCap minimap button", function()
       generator(owner, menu)
     end }
     tip = { lines = {} }
+    -- GameTooltip: SetOwner, AddLine, Show, Hide, IsShown and IsOwned (live InputUtil.lua:41 asks
+    -- IsOwned so).
     _G.GameTooltip = {
       SetOwner = function(_, owner, anchor) tip.owner, tip.anchor, tip.lines = owner, anchor, {} end,
       AddLine = function(_, text, r, g, b) tip.lines[#tip.lines + 1] = { text = text, r = r, g = g, b = b } end,
       Show = function() tip.shown = true end,
       Hide = function() tip.shown = false end,
+      IsShown = function() return tip.shown == true end,
+      IsOwned = function(_, owner) return tip.owner == owner end,
     }
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("UI/Theme.lua", GC)
@@ -74,8 +85,12 @@ describe("GoldCap minimap button", function()
     GC.Sniper = { Toggle = function() toggled[#toggled + 1] = "deals" end }
     GC.DisenchantFrame = {
       Known = function() return knows end,
-      Counts = function()
+      -- Nil for a character without Disenchant, and while no plan was read: asked to (`readNow`),
+      -- the window reads one then, out of combat.
+      Counts = function(readNow)
         if not knows then return nil end
+        if not planned and readNow and not fighting then planned = true end
+        if not planned then return nil end
         return counts[1], counts[2], counts[3]
       end,
       Toggle = function() toggled[#toggled + 1] = "disenchant" end,
@@ -197,6 +212,39 @@ describe("GoldCap minimap button", function()
     assert.is_true(button():IsShown())
     assert.is_true(MB.Shown())
     assert.equal(1, repainted)
+  end)
+
+  -- Before the window read any plan (at login, or the button shown again) the tooltip and the menu
+  -- ask for one: out of combat it is read then; in combat they say only what the button is.
+  it("asks for a plan on hover before any was read, and claims no count while none can be read", function()
+    planned, fighting = false, true
+    login()
+    hover()
+    assert.same({ "GoldCap", "Click for GoldCap. Drag to move it." }, tipTexts())
+    click()
+    assert.same({ "title:GoldCap", "button:Deals board", "button:Disenchant", "divider:nil",
+      "button:Hide this button" }, entries())
+    assert.is_false(button().pill:IsShown())
+    fighting = false
+    hover()
+    assert.same({ "GoldCap", "Nothing in your bags to disenchant.", "Click for GoldCap. Drag to move it." }, tipTexts())
+  end)
+
+  -- The old entry's tooltip was painted again on every paint; so is this one, while it shows.
+  it("repaints its tooltip when the count changes while it shows, and leaves a hidden one hidden", function()
+    counts = { 2, 0, 0 }
+    login()
+    hover()
+    counts = { 5, 1, 0 }
+    MB.Refresh()
+    assert.same({ "GoldCap", "Worth disenchanting: 5", "The auction house pays more: 1",
+      "Click for GoldCap. Drag to move it." }, tipTexts())
+    assert.is_true(tip.shown)
+    W.state(button()).scripts.OnLeave(button())
+    counts = { 1, 0, 0 }
+    MB.Refresh()
+    assert.is_false(tip.shown)
+    assert.equal("Worth disenchanting: 5", tipTexts()[2])
   end)
 
   it("says in its tooltip what is worth disenchanting and how to use it", function()

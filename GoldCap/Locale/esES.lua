@@ -1732,6 +1732,8 @@ GC.Locales.esES = {
   ["Click for GoldCap. Drag to move it."] = "Haz clic para abrir GoldCap. Arrastra para moverlo.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "El botón de GoldCap junto al minimapa está oculto. Escribe /gc minimap para recuperarlo.",
+  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
+    "/goldcap minimap muestra u oculta el botón de GoldCap junto al minimapa.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Ahora no compensa desencantar nada: un vendedor paga más por todo lo de abajo.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

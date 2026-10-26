@@ -109,7 +109,18 @@ function W.Texture(parent)
   function t:SetTexCoord(...) s.texCoord = { ... } end
   function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
   function t:SetAlpha(a) s.alpha = a end
+  -- Texture:AddMaskTexture(mask) (SimpleTextureAPIDocumentation.lua): the mask's alpha cuts what
+  -- the texture draws.
+  function t:AddMaskTexture(mask) s.masks = s.masks or {}; s.masks[#s.masks + 1] = mask end
   return t
+end
+
+-- A MaskTexture (Frame:CreateMaskTexture, SimpleFrameAPIDocumentation.lua): placed like any region,
+-- its file and wrap modes set by SetTexture(file, wrapModeHorizontal, wrapModeVertical).
+function W.MaskTexture(parent)
+  local m, s = region("MaskTexture", parent)
+  function m:SetTexture(file, wrapH, wrapV) s.file, s.wrapH, s.wrapV = file, wrapH, wrapV end
+  return m
 end
 
 function W.FontString(parent, inherits)
@@ -203,6 +214,12 @@ function W.CreateFrame(kind, _, parent)
     STATE[t].layer = layer
     STATE[t].sublevel = sublevel
     return t
+  end
+  function f:CreateMaskTexture(_, layer, _, sublevel)
+    local m = W.MaskTexture(f)
+    STATE[m].layer = layer
+    STATE[m].sublevel = sublevel
+    return m
   end
   -- A window's own placement: dragging, staying on screen, coming to the front.
   function f:SetToplevel(v) s.toplevel = v and true or false end

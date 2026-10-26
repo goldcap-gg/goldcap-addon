@@ -1139,6 +1139,11 @@ function GC.OnSlash(msg)
     handler(rest)
   else
     GC.Print("v" .. GC.version .. GC.L[" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
+    -- Where the minimap button is loaded (UI/MinimapButton.lua, retail only), how to show or hide
+    -- it: besides the line printed as it hides, the only place a player learns the command.
+    if GC.slashHandlers.minimap then
+      GC.Print(GC.L["/goldcap minimap shows or hides the GoldCap button by the minimap."])
+    end
   end
 end
 

@@ -1799,6 +1799,8 @@ GC.Locales.ukUA = {
   ["Click for GoldCap. Drag to move it."] = "Натисніть, щоб відкрити GoldCap. Перетягніть, щоб пересунути.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Кнопку GoldCap біля мінікарти сховано. Щоб повернути її, введіть /gc minimap.",
+  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
+    "/goldcap minimap показує або ховає кнопку GoldCap біля мінікарти.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Зараз нічого вигідно розпилювати: за все нижче торговець платить більше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

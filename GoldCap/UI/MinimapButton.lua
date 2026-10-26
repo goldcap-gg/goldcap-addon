@@ -81,10 +81,17 @@ local function cursorAngle()
   return math.deg(atan2(cy / scale - my, cx / scale - mx)) % 360
 end
 
-local function counts()
+-- The Disenchant window's counts (nil for a character without Disenchant, and while no plan was
+-- read); `readNow`: with none read yet, the window reads one now, out of combat.
+local function counts(readNow)
   local DF = GC.DisenchantFrame
   if not (DF and DF.Counts) then return nil end
-  return DF.Counts()
+  return DF.Counts(readNow)
+end
+
+local function knows()
+  local DF = GC.DisenchantFrame
+  return DF ~= nil and DF.Known ~= nil and DF.Known() == true
 end
 
 local function onDragUpdate()
@@ -110,7 +117,8 @@ end
 
 -- Its tooltip: GoldCap; for an enchanter how many are worth disenchanting and, when some, how many
 -- the auction house and a vendor pay more for (with none of them, that nothing is in the bags); then
--- how to use it, in grey.
+-- how to use it, in grey. Before any plan was read the window reads one (out of combat); in combat
+-- then, no count is claimed.
 local function showTip(self)
   local tooltip = _G.GameTooltip
   if not tooltip then return end
@@ -118,7 +126,7 @@ local function showTip(self)
   local text = GC.Util.ClientText
   local K = GC.Kit.Tokens.color
   tooltip:AddLine("GoldCap", K.goldText[1], K.goldText[2], K.goldText[3])
-  local n, ah, vendor = counts()
+  local n, ah, vendor = counts(true)
   local c = K.text1
   if n and n + ah + vendor == 0 then
     tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
@@ -159,9 +167,9 @@ local function openMenu(self)
     local text = GC.Util.ClientText
     root:CreateTitle("GoldCap")
     root:CreateButton(text(GC.L["Deals board"]), function() GC.Sniper.Toggle() end)
-    local n = counts()
-    if n then
-      local label = n > 0 and GC.L["Disenchant (%d)"]:format(n) or GC.L["Disenchant"]
+    if knows() then
+      local n = counts(true)
+      local label = n and n > 0 and GC.L["Disenchant (%d)"]:format(n) or GC.L["Disenchant"]
       root:CreateButton(text(label), function() GC.DisenchantFrame.Toggle() end)
     end
     root:CreateDivider()
@@ -224,10 +232,17 @@ function MB.Shown()
   return button ~= nil and button:IsShown()
 end
 
+-- Its tooltip again, while it shows for this button: the counts it names changed.
+local function repaintTip()
+  local tooltip = _G.GameTooltip
+  if tooltip and tooltip.IsOwned and tooltip:IsOwned(button) and tooltip:IsShown() then showTip(button) end
+end
+
 --- Paints the count from the Disenchant window's last plan: the items worth disenchanting, for a
---- character that knows Disenchant, only above 0.
+--- character that knows Disenchant, only above 0; and the tooltip again while it shows.
 function MB.Refresh()
   if not button then return end
+  repaintTip()
   local n = counts()
   local on = type(n) == "number" and n > 0
   button.pill:SetShown(on)

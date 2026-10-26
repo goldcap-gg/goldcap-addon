@@ -1797,6 +1797,8 @@ GC.Locales.ruRU = {
   ["Click for GoldCap. Drag to move it."] = "Нажмите, чтобы открыть GoldCap. Перетащите, чтобы передвинуть.",
   ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
     "Кнопка GoldCap у миникарты скрыта. Чтобы вернуть её, введите /gc minimap.",
+  ["/goldcap minimap shows or hides the GoldCap button by the minimap."] =
+    "/goldcap minimap показывает или скрывает кнопку GoldCap у миникарты.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Сейчас нечего выгодно распылять: за всё ниже торговец платит больше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =
