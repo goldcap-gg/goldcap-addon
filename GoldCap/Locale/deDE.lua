@@ -1727,7 +1727,7 @@ GC.Locales.deDE = {
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Gerade lohnt sich kein Entzaubern: Für alles unten zahlt ein Händler mehr.",
   ["Nothing worth disenchanting now: everything below sells for more."] =
-    "Gerade lohnt sich kein Entzaubern: Alles unten bringt verkauft mehr ein.",
+    "Gerade lohnt sich kein Entzaubern: Alles unten bringt beim Verkauf mehr ein.",
   ["This character does not know Disenchant."] = "Dieser Charakter beherrscht Entzaubern nicht.",
   ["item level %d"] = "Gegenstandsstufe %d",
   ["%s, next"] = "%s, als Nächstes",
