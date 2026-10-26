@@ -307,8 +307,13 @@ local function addDisenchant(tooltip, owner, itemID)
   end
 end
 
+-- Tooltips of GoldCap's own windows that carry its lines as GameTooltip does, their owner read
+-- the same way (UI/DisenchantFrame.lua's item tooltip, which never compares on its own).
+GC.Tooltip.Carriers = {}
+
 local function onTooltip(tooltip, data)
-  if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
+  local carrier = GC.Tooltip.Carriers[tooltip] == true
+  if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip and not carrier then return end
   if not (GC.db and GC.db.settings and GC.db.settings.tooltip) then return end
   -- Three ways a tooltip names its item, tried in that order. A hyperlink (or a bag item's
   -- guid) is the usual one -- but an AUCTION HOUSE item-group row, the browse list's single
@@ -330,7 +335,7 @@ local function onTooltip(tooltip, data)
   -- is none for this one -- so this says the same, rather than print the merged one under it.
   -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept
   -- outlived a row hidden under the cursor, and every item tooltip after it lost its value.
-  local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
+  local owner = (tooltip == GameTooltip or carrier) and tooltip.GetOwner and tooltip:GetOwner() or nil
   -- A BUY line's row draws GoldCap's lines for its item itself (UI/BuyFrame.lua's showLineTooltip):
   -- the market figure that line is priced and capped against, and whose it is. This block's figure
   -- is not always that one, and its Source line would say the same thing twice. Read off the owner

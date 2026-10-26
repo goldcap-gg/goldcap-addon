@@ -9,15 +9,16 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales, fighting, slotButtons, uncached, requested
+  local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
     "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
     "ContainerFrame4", "ContainerFrame5", "ContainerFrame6", "NUM_CONTAINER_FRAMES", "INVTYPE_WAIST", "INVTYPE_CHEST",
-    "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat" }
+    "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat", "Enum", "IsModifiedClick",
+    "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "GoldCapDisenchantTooltip" }
   local NOW = 1800000000
-  local DUST, SHARD = 9001, 9002
+  local DUST, SHARD, ESSENCE = 9001, 9002, 9003
 
   -- A piece of gear in the bags: unbound green armour of the current expansion, a vendor paying
   -- `vendorUnit`, no auction house figure unless a case gives one.
@@ -133,8 +134,26 @@ describe("Disenchant window", function()
     saved = {}
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     restore = S.install()
+    -- A GameTooltip made from GameTooltipTemplate: the widget's own methods a window uses on it.
+    local create = _G.CreateFrame
+    _G.CreateFrame = function(kind, name, parent, template)
+      local f = create(kind, name, parent, template)
+      if kind == "GameTooltip" then
+        local tip = { template = template }
+        tips[#tips + 1] = { frame = f, state = tip }
+        function f:SetOwner(owner, anchor) tip.owner, tip.anchor = owner, anchor end
+        function f:GetOwner() return tip.owner end
+        function f:IsOwned(owner) return tip.owner == owner end
+        function f:SetBagItem(bag, slot) tip.bag, tip.slot, tip.link = bag, slot, nil end
+        function f:SetHyperlink(link) tip.link, tip.bag, tip.slot = link, nil, nil end
+      end
+      return f
+    end
     timers, stacks, slots, reads, prices, groups, printed, loot, sales = {}, {}, {}, 0, {}, {}, {}, {}, {}
     knows, clock, fighting = true, 1000, false
+    -- What C_Item.GetItemInfo's 14th answer (bindType, Enum.ItemBind) says of an item; 0 (None) else.
+    binds = { [ESSENCE] = 1 }
+    shift, compared, cleared, tips = false, {}, {}, {}
     _G.time = function() return NOW end
     _G.GetTime = function() return clock end
     _G.UIParent = CreateFrame("Frame")
@@ -155,7 +174,9 @@ describe("Disenchant window", function()
     _G.C_Item = {
       GetItemInfo = function(item)
         local id = tonumber(tostring(item):match("item:(%d+)")) or item
-        return "Item " .. id, nil, 2, 201, 0, "Armor", "Plate", 1, "INVTYPE_WAIST"
+        if uncached[id] then return nil end
+        return "Item " .. id, nil, 2, 201, 0, "Armor", "Plate", 1, "INVTYPE_WAIST", 1000 + id, 10000, 4, 4,
+          binds[id] or 0, 11
       end,
       GetItemNameByID = function(id) return "Item " .. id end,
       GetItemIconByID = function(id) return 1000 + id end,
@@ -184,6 +205,13 @@ describe("Disenchant window", function()
     _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
     _G.hooksecurefunc = nil
     _G.issecretvalue = nil
+    _G.Enum = { ItemBind = { None = 0, OnAcquire = 1, OnEquip = 2, OnUse = 3, Quest = 4, ToWoWAccount = 7,
+      ToBnetAccount = 8, ToBnetAccountUntilEquipped = 9 } }
+    -- The compare modifier (Shift unless the player bound it elsewhere), and Blizzard's comparison:
+    -- GameTooltip_ShowCompareItem shows the equipped item beside a tooltip, the manager clears it.
+    _G.IsModifiedClick = function(action) return action == "COMPAREITEMS" and shift end
+    _G.GameTooltip_ShowCompareItem = function(tooltip) compared[#compared + 1] = tooltip end
+    _G.TooltipComparisonManager = { Clear = function(_, tooltip) cleared[#cleared + 1] = tooltip end }
     -- The player in combat: from PLAYER_REGEN_DISABLED (a spec sets `fighting`) and through the lockdown.
     _G.UnitAffectingCombat = function(unit) return unit == "player" and (fighting or S.combat) end
     -- MenuUtil's description (live Blizzard_Menu/MenuUtil.lua:151, BaseMenuDescriptionMixin): titles,
@@ -1321,5 +1349,153 @@ describe("Disenchant window", function()
     while p and p ~= f.content and p ~= f do p = p:GetParent() end
     assert.equal(f.content, p)
     assert.equal(f, f.orderTitle:GetParent())
+  end)
+  -- ---------------------------------------------------------------------------------------------
+  -- Materials nobody can sell, and the counts the strip writes (the owner's screenshots, 2026-10-26)
+  -- ---------------------------------------------------------------------------------------------
+
+  -- Swirling Arcane Essence binds on pickup: it adds nothing to what a disenchant is worth, and the
+  -- total stays known.
+  it("counts a material that binds on pickup as worth nothing, not unknown", function()
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 2, [ESSENCE] = 1 })
+    prices[DUST] = 10000
+    put(gear(0, 1, 501))
+    slash()
+    assert.equal(2 * 9500, DF._plan.queue[1].mats)
+  end)
+
+  it("keeps a tradeable material with no price unknown", function()
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 2, [SHARD] = 1 })
+    prices[DUST] = 10000
+    put(gear(0, 1, 501))
+    slash()
+    assert.is_nil(DF._plan.queue[1].mats)
+  end)
+
+  it("asks the client about a material it has not loaded yet, and prices it once it has", function()
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 2, [ESSENCE] = 1 })
+    prices[DUST] = 10000
+    uncached[ESSENCE] = true
+    put(gear(0, 1, 501))
+    slash()
+    assert.is_nil(DF._plan.queue[1].mats)
+    assert.is_truthy(table.concat(requested, ","):find(tostring(ESSENCE), 1, true))
+    uncached[ESSENCE] = nil
+    event("ITEM_DATA_LOAD_RESULT", ESSENCE, true)
+    nextFrame()
+    assert.equal(2 * 9500, DF._plan.queue[1].mats)
+  end)
+
+  it("asks once about a material the client fails to load, and keeps it unknown", function()
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 2, [ESSENCE] = 1 })
+    prices[DUST] = 10000
+    uncached[ESSENCE] = true
+    put(gear(0, 1, 501))
+    slash()
+    event("ITEM_DATA_LOAD_RESULT", ESSENCE, false)
+    nextFrame()
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    local asked = 0
+    for _, id in ipairs(requested) do
+      if id == ESSENCE then asked = asked + 1 end
+    end
+    assert.equal(1, asked)
+    assert.is_nil(DF._plan.queue[1].mats)
+  end)
+
+  it("writes whole counts in the strip: ~1 for half a material, <1 for less", function()
+    GC.Disenchant.Learn(GC.db, "q2:x11", { [DUST] = 1 })
+    for _ = 1, 3 do GC.Disenchant.Learn(GC.db, "q2:x11", { [SHARD] = 1 }) end
+    put(gear(0, 1, 501))
+    slash()
+    local chips = DF._frame.strip.chips
+    assert.equal("<1", textOf(chips[1].count))
+    assert.equal("~1", textOf(chips[2].count))
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- The item's tooltip, over a line and over the card (the owner's screenshots, 2026-10-26)
+  -- ---------------------------------------------------------------------------------------------
+
+  local function ourTip()
+    for _, t in ipairs(tips) do
+      if t.state.template == "GameTooltipTemplate" then return t.frame, t.state end
+    end
+  end
+
+  it("shows a line's own bag item in GoldCap's tooltip, beside the window away from the bags, with no comparison", function()
+    screen(1920, 1080)
+    standAt(bags, 1300, 1000)
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    openBags()
+    slash()
+    local row = rowOf(502)
+    W.state(row).scripts.OnEnter(row)
+    local tip, st = ourTip()
+    assert.is_not_nil(tip)
+    assert.equal(row, st.owner)
+    assert.equal(0, st.bag)
+    assert.equal(2, st.slot)
+    local p = W.state(tip).points[1]
+    assert.equal("TOPRIGHT", p[1])
+    assert.equal(DF._frame, p[2])
+    assert.equal("TOPLEFT", p[3])
+    assert.same({}, compared)
+    -- GoldCap's lines (the Disenchant status among them) read the line as the bag slot it stands for.
+    assert.equal("listed", DF.Standing(row, 502).state)
+  end)
+
+  it("compares with the equipped item only while Shift is held", function()
+    put(gear(0, 1, 501))
+    slash()
+    local row = rowOf(501)
+    W.state(row).scripts.OnEnter(row)
+    local tip = ourTip()
+    assert.same({}, compared)
+    shift = true
+    event("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
+    assert.same({ tip }, compared)
+    shift = false
+    event("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
+    assert.equal(tip, cleared[#cleared])
+    -- Hovered with Shift already held: compared at once.
+    W.state(row).scripts.OnLeave(row)
+    shift = true
+    W.state(row).scripts.OnEnter(row)
+    assert.equal(2, #compared)
+  end)
+
+  it("shows the Next item's tooltip over the card's icon and name, and leaves the Disenchant button alone", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    local hit = DF._frame.card.hit
+    W.state(hit).scripts.OnEnter(hit)
+    local _, st = ourTip()
+    assert.equal(0, st.bag)
+    assert.equal(1, st.slot)
+    assert.is_nil(W.state(button()).scripts.OnEnter)
+    assert.is_nil(W.state(button()).scripts.OnLeave)
+  end)
+
+  it("shows a line done this visit by its link, its slot holding something else now", function()
+    local first = put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    disenchant("Cast-1", { { DUST, 3 } })
+    take(first)
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    local done
+    for _, row in ipairs(DF._rows) do
+      if row:IsShown() and row.done then done = row end
+    end
+    W.state(done).scripts.OnEnter(done)
+    local _, st = ourTip()
+    assert.equal(first.link, st.link)
+    assert.is_nil(st.bag)
   end)
 end)

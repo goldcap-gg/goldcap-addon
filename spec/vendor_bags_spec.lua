@@ -95,6 +95,21 @@ describe("VendorBags", function()
     }, s)
   end)
 
+  -- Gear sells by its own item level and bonuses: C_Item.GetItemInfo with the stack's hyperlink
+  -- answers that price (61g for an item level 198 axe whose base item sells for 2g, the owner's
+  -- screenshot 2026-10-26), with the item's id its base price.
+  it("reads a stack's vendor price from its own link, else from its item", function()
+    local link = "|Hitem:60::::::::90:::2:10354:1:|h[Axe]|h"
+    put(0, 1, 60, { hyperlink = link, quality = 3 })
+    items[60] = { sell = 20000, class = 2 }
+    items[link] = { sell = 610411, class = 2 }
+    put(0, 2, 61, { hyperlink = "|Hitem:61::::::::90:::1:999:1:|h[Mace]|h", quality = 3 })
+    items[61] = { sell = 500, class = 2 }
+    local out = B.Read()
+    assert.equal(610411, out[1].vendorUnit)
+    assert.equal(500, out[2].vendorUnit)
+  end)
+
   it("marks a refundable stack from either source", function()
     put(0, 1, 50); put(0, 2, 51)
     items[50], items[51] = { sell = 5 }, { sell = 5 }

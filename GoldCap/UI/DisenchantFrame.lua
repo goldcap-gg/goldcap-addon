@@ -223,14 +223,56 @@ newVisit()
 -- Reading
 -- ---------------------------------------------------------------------------------------------
 
--- What a material fetches: its price as its tooltip prints it (UI/MerchantNote.lua's ValueFor),
--- after the auction house's 5% cut, as Plan takes an item's own auction house figure.
+-- The bindings that keep an item off the auction house and out of a trade (Enum.ItemBind, live
+-- ItemConstantsDocumentation.lua:245-254): on pickup, a quest item, the account's and the Battle.net
+-- account's. A material bound so (Swirling Arcane Essence binds on pickup, the owner's screenshot
+-- 2026-10-26) fetches nothing.
+local function unsellableBinds()
+  local bind = type(_G.Enum) == "table" and _G.Enum.ItemBind or {}
+  return { [bind.OnAcquire or 1] = true, [bind.Quest or 4] = true, [bind.ToWoWAccount or 7] = true,
+    [bind.ToBnetAccount or 8] = true }
+end
+local UNSELLABLE
+-- What each material binds as, once the client has said (it never changes), and the ones asked for
+-- (C_Item.RequestLoadItemDataByID; the answer is ITEM_DATA_LOAD_RESULT, which paints again).
+local bindOf, bindAsked = {}, {}
+
+-- Whether nobody can sell `itemID`: true or false once the client knows the item, nil while it does
+-- not (then it is asked for, never taken as bound).
+local function unsellable(itemID)
+  if bindOf[itemID] ~= nil then return bindOf[itemID] end
+  local item = _G.C_Item
+  if type(item) ~= "table" then return nil end
+  local cached = ask(item.IsItemDataCachedByID, itemID)
+  local bind
+  if cached ~= false then
+    local ok, got = pcall(function() return select(14, item.GetItemInfo(itemID)) end)
+    if ok then bind = got end
+  end
+  if type(bind) ~= "number" then
+    if not bindAsked[itemID] then
+      bindAsked[itemID] = true
+      ask(item.RequestLoadItemDataByID, itemID)
+    end
+    return nil
+  end
+  UNSELLABLE = UNSELLABLE or unsellableBinds()
+  bindOf[itemID] = UNSELLABLE[bind] == true
+  return bindOf[itemID]
+end
+
+-- What a material fetches, for the window, the bag marks and the tooltip lines alike (all of them
+-- read Plan's and Standing's figures, priced here): its price as its tooltip prints it
+-- (UI/MerchantNote.lua's ValueFor) after the auction house's 5% cut, as Plan takes an item's own
+-- auction house figure; with no price, 0 for one nobody can sell and nil (unknown) for a tradeable
+-- one or one the client has not loaded yet.
 local function priceOf(itemID)
   local note = GC.MerchantNote
   local value = note and note.ValueFor and note.ValueFor(itemID)
   local unit = type(value) == "table" and value.mv or nil
-  if type(unit) ~= "number" or unit <= 0 then return nil end
-  return math.floor(unit * GC.VendorSelect.KEEP)
+  if type(unit) == "number" and unit > 0 then return math.floor(unit * GC.VendorSelect.KEEP) end
+  if unsellable(itemID) then return 0 end
+  return nil
 end
 
 local function inGroup(itemID)
@@ -269,6 +311,28 @@ local function bagNames()
   local names = { "ContainerFrameCombinedBags" }
   for i = 1, tonumber(_G.NUM_CONTAINER_FRAMES) or 6 do names[#names + 1] = "ContainerFrame" .. i end
   return names
+end
+
+-- The left edge of the leftmost of Blizzard's bag frames that show and the top of the highest, in
+-- UIParent's units; nil with none showing (or none laid out yet).
+local function bagEdges()
+  local ui = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+  if type(ui) ~= "number" or ui <= 0 then return nil end
+  local left, top
+  for _, name in ipairs(bagNames()) do
+    local f = _G[name]
+    if type(f) == "table" and f.IsVisible and f:IsVisible() then
+      local l = f.GetLeft and f:GetLeft()
+      local t = f.GetTop and f:GetTop()
+      local scale = f.GetEffectiveScale and f:GetEffectiveScale()
+      if type(l) == "number" and type(t) == "number" and type(scale) == "number" then
+        local k = scale / ui
+        left = math.min(left or math.huge, l * k)
+        top = math.max(top or -math.huge, t * k)
+      end
+    end
+  end
+  return left, top
 end
 
 -- Blizzard's bag frames that show, the combined backpack first (a separate bag opened alone counts):
@@ -360,11 +424,13 @@ local function worthOf(mats)
 end
 
 -- How many of a material, as the strip writes it: exact for what was got, "~" and the average for
--- what the queue would give (a tenth under one).
+-- what the queue would give, always whole ("~1" for half of one), and "<1" for an average that
+-- rounds to none.
 local function unitsText(units, exact)
-  if exact then return tostring(math.floor(units + 0.5)) end
-  if units < 1 then return ("~%.1f"):format(units) end
-  return "~" .. tostring(math.floor(units + 0.5))
+  local whole = math.floor(units + 0.5)
+  if exact then return tostring(whole) end
+  if whole == 0 and units > 0 then return "<1" end
+  return "~" .. tostring(whole)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -612,12 +678,102 @@ local function onRowClick(row, mouseButton)
 end
 
 -- A line's item, beside the window.
+-- The window's own item tooltip (GameTooltipTemplate), made on the first hover. Blizzard's
+-- GameTooltip compares an item with the equipped one whenever the alwaysCompareItems CVar is on
+-- (TooltipUtil.ShouldDoItemComparison, live Blizzard_SharedXMLGame/Tooltip/TooltipUtil.lua:4-7,
+-- for a tooltip carrying supportsItemComparison, TooltipDataRules.lua:168-174, which only
+-- GameTooltip does: GameTooltip.xml:249-252), and the comparison landed over the window's list (the
+-- owner, 2026-10-26). This one does not carry it, so it compares only when this file asks: while
+-- the compare modifier is held (IsModifiedClick("COMPAREITEMS"), Shift unless the player bound it
+-- elsewhere), through GameTooltip_ShowCompareItem (GameTooltip.lua:483-490) and
+-- TooltipComparisonManager:Clear. Neither Blizzard's tooltip nor the player's CVar is touched. It
+-- carries GoldCap's own lines (UI/Tooltip.lua's carriers).
+local function itemTip()
+  if DF._tip then return DF._tip end
+  local tip = CreateFrame("GameTooltip", "GoldCapDisenchantTooltip", UIParent, "GameTooltipTemplate")
+  if GC.Tooltip and GC.Tooltip.Carriers then GC.Tooltip.Carriers[tip] = true end
+  DF._tip = tip
+  return tip
+end
+
+-- The compare modifier is held: the equipped item beside the tooltip, else none.
+local function compareTip()
+  local tip = DF._tip
+  if not (tip and DF._tipOwner) then return end
+  local held = type(_G.IsModifiedClick) == "function" and _G.IsModifiedClick("COMPAREITEMS") == true
+  if held then
+    if type(_G.GameTooltip_ShowCompareItem) == "function" then pcall(_G.GameTooltip_ShowCompareItem, tip) end
+  else
+    local manager = _G.TooltipComparisonManager
+    if type(manager) == "table" and type(manager.Clear) == "function" then pcall(manager.Clear, manager, tip) end
+  end
+end
+
+-- The side of the window away from Blizzard's bags, so the tooltip never covers the list it
+-- describes: the left while bags show (the window stands left of them: `place`, below), else the
+-- side of the screen with more room.
+local function tipSide()
+  if bagEdges() then return "left" end
+  local left, right = frame.GetLeft and frame:GetLeft(), frame.GetRight and frame:GetRight()
+  local width = UIParent and UIParent.GetWidth and UIParent:GetWidth()
+  if type(left) == "number" and type(right) == "number" and type(width) == "number"
+    and left + right > width then
+    return "left"
+  end
+  return "right"
+end
+
+--- The item `owner` stands for, in the window's own tooltip beside the window, level with `owner`:
+--- the bag item itself while its slot still holds it (C_Container's hyperlink matches), so the game
+--- and GoldCap draw it as over the bag slot, else its link (an item disenchanted this visit). The
+--- equipped item beside it only while the compare modifier is held.
+local function showItemTip(owner)
+  local stack = owner and owner.stack
+  if not (stack and frame) then return end
+  local tip = itemTip()
+  tip:SetOwner(owner, "ANCHOR_NONE")
+  tip:ClearAllPoints()
+  local y = 0
+  local ownerTop, frameTop = owner.GetTop and owner:GetTop(), frame.GetTop and frame:GetTop()
+  if type(ownerTop) == "number" and type(frameTop) == "number" then y = ownerTop - frameTop end
+  if tipSide() == "left" then
+    tip:SetPoint("TOPRIGHT", frame, "TOPLEFT", -8, y)
+  else
+    tip:SetPoint("TOPLEFT", frame, "TOPRIGHT", 8, y)
+  end
+  local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
+  local held = not owner.done and type(info) == "table" and info.hyperlink == stack.link
+  if held then
+    tip:SetBagItem(stack.bag, stack.slot)
+  elseif stack.link then
+    tip:SetHyperlink(stack.link)
+  end
+  tip:Show()
+  DF._tipOwner = owner
+  compareTip()
+end
+
+local function hideItemTip()
+  local tip = DF._tip
+  if not tip then return end
+  local manager = _G.TooltipComparisonManager
+  if type(manager) == "table" and type(manager.Clear) == "function" then pcall(manager.Clear, manager, tip) end
+  DF._tipOwner = nil
+  tip:Hide()
+end
+
+-- A line, or the card's item, as the bag slot it stands for (Blizzard's item buttons answer
+-- GetBagID and GetID; DF.Standing reads a tooltip's owner so), with the stack it shows.
+local function standFor(owner, stack)
+  owner.stack = stack
+  owner.bagID = stack and stack.bag or nil
+  if owner.SetID then owner:SetID(stack and stack.slot or 0) end
+end
+
+local function bagIDOf(owner) return owner.bagID end
+
 local function showRowTip(row)
-  local tooltip = _G.GameTooltip
-  if not (tooltip and row.link and tooltip.SetHyperlink) then return end
-  GC.Theme.ItemTooltipOutside(row, frame)
-  tooltip:SetHyperlink(row.link)
-  tooltip:Show()
+  showItemTip(row)
 end
 
 local function showEntryTip(button)
@@ -696,6 +852,12 @@ local function buildCard()
   card.badge:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   card.badge:SetTexture(spellIcon())
   card.badge:SetPoint("CENTER", card.slot.edge, "BOTTOMRIGHT", -3, 3)
+  -- Over the item's icon and its lines, never the button under them: hovering shows its tooltip.
+  card.hit = CreateFrame("Frame", nil, card)
+  card.hit:EnableMouse(true)
+  card.hit.GetBagID = bagIDOf
+  card.hit:SetScript("OnEnter", showItemTip)
+  card.hit:SetScript("OnLeave", hideItemTip)
   card.label = track(frame, T.Heading(card, 9))
   card.label:SetWordWrap(false)
   card.name = track(frame, wrapping(T.Label(card, 12)))
@@ -782,7 +944,8 @@ local function newRow()
   row.vendor:SetWordWrap(false)
   row:SetScript("OnClick", onRowClick)
   row:SetScript("OnEnter", showRowTip)
-  row:SetScript("OnLeave", U.hideTip)
+  row:SetScript("OnLeave", hideItemTip)
+  row.GetBagID = bagIDOf
   return row
 end
 
@@ -810,7 +973,8 @@ local function newLeftRow()
   row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.slotKey) end)
   track(row, row.anyway.text)
   row:SetScript("OnEnter", showRowTip)
-  row:SetScript("OnLeave", U.hideTip)
+  row:SetScript("OnLeave", hideItemTip)
+  row.GetBagID = bagIDOf
   return row
 end
 
@@ -1011,6 +1175,11 @@ local function paintCard(plan, w)
   end
   local textH = labelH + M.LINE_GAP + nameH + (kindH > 0 and (M.LINE_GAP + kindH) or 0)
   visit.topH = math.max(visit.topH, row and math.max(M.ICON, textH) or nameH)
+  standFor(card.hit, row and row.stack or nil)
+  card.hit:ClearAllPoints()
+  card.hit:SetPoint("TOPLEFT", card, "TOPLEFT", x, -M.CARD_PAD)
+  card.hit:SetSize(textX - x + textW, visit.topH)
+  card.hit:SetShown(row ~= nil)
 
   local y = M.CARD_PAD
   card.slot.edge:ClearAllPoints()
@@ -1164,6 +1333,7 @@ end
 local function paintRow(row, data, state, inner, colW)
   local stack = data.stack
   row.itemID, row.link, row.done = stack.itemID, stack.link, state == "done"
+  standFor(row, stack)
   HF.Row.PaintIcon(row.slot, stack.itemID, iconOf(stack.itemID), nil, state == "done" and "moved" or nil)
   local nameX = M.ROW_PAD + M.ROW_ICON + 6
   local nameW = inner - nameX - 2 * colW - M.COL_GAP - M.ROW_PAD - 6
@@ -1263,6 +1433,7 @@ end
 local function paintLeftRow(row, data, inner)
   local stack = data.stack
   row.itemID, row.link = stack.itemID, stack.link
+  standFor(row, stack)
   HF.Row.PaintIcon(row.slot, stack.itemID, iconOf(stack.itemID), nil, nil)
   setText(row.price, money(data.ah))
   local priceW = math.ceil(row.price:GetStringWidth() or 0)
@@ -1491,28 +1662,6 @@ end
 -- Opening, closing, refreshing
 -- ---------------------------------------------------------------------------------------------
 
--- The left edge of the leftmost of Blizzard's bag frames that show and the top of the highest, in
--- UIParent's units; nil with none showing (or none laid out yet).
-local function bagEdges()
-  local ui = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
-  if type(ui) ~= "number" or ui <= 0 then return nil end
-  local left, top
-  for _, name in ipairs(bagNames()) do
-    local f = _G[name]
-    if type(f) == "table" and f.IsVisible and f:IsVisible() then
-      local l = f.GetLeft and f:GetLeft()
-      local t = f.GetTop and f:GetTop()
-      local scale = f.GetEffectiveScale and f:GetEffectiveScale()
-      if type(l) == "number" and type(t) == "number" and type(scale) == "number" then
-        local k = scale / ui
-        left = math.min(left or math.huge, l * k)
-        top = math.max(top or -math.huge, t * k)
-      end
-    end
-  end
-  return left, top
-end
-
 -- Left of the leftmost bag frame that shows, its top level with the highest, at the coordinates
 -- they have now (the engine keeps it on the screen: SetClampedToScreen). With no bags of Blizzard's
 -- open: in the middle of the screen as it opens (`opening`), else where it stands. Out of combat
@@ -1554,6 +1703,7 @@ end
 function DF.Close()
   setArmed(nil)
   DF._menuWait = nil
+  hideItemTip()
   if frame then frame:Hide() end
 end
 
@@ -1793,7 +1943,17 @@ function DF.OnEvent(event, ...)
     local unit, castGUID, spellID = ...
     if ours(unit, spellID) then onCastFailed(castGUID) end
   elseif event == "ITEM_DATA_LOAD_RESULT" then
-    onItemData((...))
+    local itemID, loaded = ...
+    onItemData(itemID)
+    -- A material the prices asked the client about: priced on the next paint. One that failed to
+    -- load stays asked, so it is not asked again on every paint.
+    if loaded and bindAsked[itemID] and bindOf[itemID] == nil then
+      bindAsked[itemID] = nil
+      schedule()
+    end
+  elseif event == "MODIFIER_STATE_CHANGED" then
+    local tip = DF._tip
+    if tip and tip:IsShown() then compareTip() end
   elseif event == "LOOT_READY" then
     onLootReady()
   elseif event == "UI_ERROR_MESSAGE" then
@@ -1822,7 +1982,7 @@ if type(CreateFrame) == "function" then
   local events = CreateFrame("Frame")
   for _, name in ipairs({ "PLAYER_LOGIN", "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "EQUIPMENT_SETS_CHANGED",
     "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "LOOT_READY", "UI_ERROR_MESSAGE",
-    "ITEM_DATA_LOAD_RESULT" }) do
+    "ITEM_DATA_LOAD_RESULT", "MODIFIER_STATE_CHANGED" }) do
     pcall(events.RegisterEvent, events, name)
   end
   for _, name in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED",

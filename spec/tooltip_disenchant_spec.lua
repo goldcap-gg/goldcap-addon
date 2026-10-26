@@ -50,6 +50,23 @@ describe("Tooltip on a bag item for an enchanter", function()
     assert.same({ { owner, ITEM } }, asked)
   end)
 
+  it("draws them on the Disenchant window's own tooltip, read off its owner, and on no other tooltip", function()
+    standing = { state = "listed", n = 0 }
+    local row = { name = "window line" }
+    local own = {
+      GetOwner = function() return row end,
+      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddDoubleLine = function(_, left, right) lines[#lines + 1] = left .. " = " .. right end,
+    }
+    local other = { GetOwner = own.GetOwner, AddLine = own.AddLine, AddDoubleLine = own.AddDoubleLine }
+    GC.Tooltip.Carriers[own] = true
+    postCall(other, { hyperlink = LINK })
+    assert.same({}, lines)
+    postCall(own, { hyperlink = LINK })
+    assert.same({ { row, ITEM } }, asked)
+    assert.equal("GoldCap: on the Disenchant list", lines[1])
+  end)
+
   it("says the item is next, when it is, and that GoldCap learns the kind the first time", function()
     standing = { state = "next", n = 0 }
     hover()

@@ -105,6 +105,9 @@ describe("Disenchant", function()
       v, n = D.MatsValue(db, "k", function(id) return id == 1 and 100 or nil end)
       assert.is_nil(v)
       assert.equal(1, n)
+      -- A material nobody can sell is priced at 0 copper: it adds nothing, and the total is known.
+      v = D.MatsValue(db, "k", function(id) return id == 1 and 100 or 0 end)
+      assert.equal(200, v)
     end)
   end)
 

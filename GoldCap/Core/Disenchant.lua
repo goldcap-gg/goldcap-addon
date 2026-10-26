@@ -92,14 +92,15 @@ function D.Yield(db, kind)
 end
 
 -- Copper one cast of `kind` is worth at priceOf(itemID), and the casts behind it. Nil when nothing
--- is learned or a material has no price: a total never counts an unpriced material as nothing.
+-- is learned or a material has no price: a total never counts an unpriced material as nothing. A
+-- material priced at 0 (one nobody can sell, UI/DisenchantFrame.lua's priceOf) adds nothing.
 function D.MatsValue(db, kind, priceOf)
   local avg, n = D.Yield(db, kind)
   if not avg then return nil, 0 end
   local total = 0
   for id, units in pairs(avg) do
     local price = priceOf(id)
-    if not positive(price) then return nil, n end
+    if type(price) ~= "number" or price < 0 then return nil, n end
     total = total + units * price
   end
   return math.floor(total + 0.5), n

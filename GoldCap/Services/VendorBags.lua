@@ -114,6 +114,18 @@ local function isSelling(info, bag, slot)
   return false
 end
 
+-- What a vendor pays for one of a stack: its own link's price (C_Item.GetItemInfo's sellPrice, the
+-- 11th answer, for the hyperlink: gear sells by its own item level and bonuses, 61g for an item
+-- level 198 axe whose base item sells for 2g, the owner's screenshot 2026-10-26), else the item's
+-- (GC.ForeverValue.VendorUnit, by id). This file is retail only; Forever's price is untouched.
+local function vendorUnitOf(itemID, link)
+  if type(link) == "string" and link ~= "" and C_Item and C_Item.GetItemInfo then
+    local ok, sell = pcall(function() return select(11, C_Item.GetItemInfo(link)) end)
+    if ok and type(sell) == "number" and sell > 0 then return sell end
+  end
+  return GC.ForeverValue.VendorUnit(itemID)
+end
+
 function B.Read(valueFor)
   local stacks = {}
   if type(_G.C_Container) ~= "table" then return stacks end
@@ -138,7 +150,7 @@ function B.Read(valueFor)
         local quality = info.quality
         stacks[#stacks + 1] = {
           bag = bag, slot = slot, itemID = itemID, link = info.hyperlink, count = info.stackCount,
-          quality = quality, vendorUnit = GC.ForeverValue.VendorUnit(itemID),
+          quality = quality, vendorUnit = vendorUnitOf(itemID, info.hyperlink),
           ahUnit = value.mv, ahSource = value.source, ahAt = value.at,
           hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
           isBound = info.isBound == true, isGear = gear, isReagent = reagent == true,
