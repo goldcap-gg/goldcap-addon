@@ -64,6 +64,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   RETAIL_ONLY["UI/HoardTiles.lua"] = true
   RETAIL_ONLY["UI/HoardCarry.lua"] = true
   RETAIL_ONLY["UI/HoardFooter.lua"] = true
+  -- Send to alts beside the mailbox: retail only, as the Hoard it is built from.
+  RETAIL_ONLY["UI/MailAltsFrame.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

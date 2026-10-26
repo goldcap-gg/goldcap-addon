@@ -78,22 +78,30 @@ end
 -- The clicks that move nothing
 -- ---------------------------------------------------------------------------------------------
 
--- The keep count, asked in the kit's popup (UI/BuyCapEditor.lua) and saved for the account, by the
--- group's key; the question names the group.
-local function askKeep(button)
-  local key = button.group
+GC.HoardRow = {}
+
+--- The keep count of the group `key` (named `name` in the question), asked in the kit's popup
+--- (UI/BuyCapEditor.lua) under `button` and saved for the account (Core/BankGroups.lua's SetKeep);
+--- then onSaved(n). One count a group, whichever window asks it: a row of the Hoard, or a group's
+--- Keep at the mailbox (UI/MailAltsFrame.lua).
+function GC.HoardRow.AskKeep(button, key, name, onSaved)
   if not key then return end
   GC.BuyCapEditor.Open(button, {
-    title = GC.L["How many of each item in %s to keep in your bags?"]:format(button.groupName or key),
+    title = GC.L["How many of each item in %s to keep in your bags?"]:format(name or key),
     text = tostring(GC.BankGroups.KeepFor(GC.db, key)),
     read = function(text) return GC.CraftQueue.ParseCount(text, true) end,
     invalid = GC.L["Type a whole number"],
     setLabel = GC.L["Save"],
     onCommit = function(n)
       GC.BankGroups.SetKeep(GC.db, key, n)
-      HF.Refresh()
+      if onSaved then onSaved(n) end
     end,
   })
+end
+
+-- A row's keep chip: the count of its group, and the Hoard painted again with it.
+local function askKeep(button)
+  GC.HoardRow.AskKeep(button, button.group, button.groupName, function() HF.Refresh() end)
 end
 
 -- A row's own click, on its top line: a folder opens or closes, remembered for the account
@@ -147,13 +155,13 @@ local function countText(parent, size)
   return fs
 end
 
--- A count drawn inside its icon, in from the icon's 1px edge: at the largest of COUNT_SIZES it fits
--- at, else in whole thousands ("1k" for 1.2k) at the smallest, else not at all (the opened row
--- still says it in full).
-local function fitCount(fs, count)
+-- A count drawn inside its icon, `iconSize` wide, in from the icon's 1px edge: at the largest of
+-- COUNT_SIZES it fits at, else in whole thousands ("1k" for 1.2k) at the smallest, else not at all
+-- (the opened row still says it in full).
+local function fitCount(fs, count, iconSize)
   local T = GC.Theme
   local text = count and GC.Util.FormatCount(count) or ""
-  local room = L.ICON - 2
+  local room = iconSize - 2
   for _, candidate in ipairs({ text, (text:gsub("%.%d", "")) }) do
     for _, size in ipairs(COUNT_SIZES) do
       fs:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "OUTLINE")
@@ -189,7 +197,7 @@ local function newIcon(row, size, counted)
   mark:SetSize(L.MARK, L.MARK)
   mark:SetPoint("CENTER", edge, "CENTER", 0, 0)
   T.SetIcon(mark, "check", K.profit)
-  local slot = { edge = edge, icon = icon, count = count, ring = ring, shade = shade, mark = mark }
+  local slot = { edge = edge, icon = icon, count = count, ring = ring, shade = shade, mark = mark, size = size }
   for _, part in ipairs({ ring, shade, mark }) do part:Hide() end
   return slot
 end
@@ -204,7 +212,7 @@ local function paintIcon(slot, itemID, file, count, mark)
   slot.edge:Show()
   slot.icon:Show()
   if slot.count then
-    fitCount(slot.count, count)
+    fitCount(slot.count, count, slot.size)
     slot.count:Show()
   end
   slot.ring:SetShown(mark == "moving")
@@ -218,13 +226,14 @@ local function hideIcon(slot)
 end
 
 -- The keep count's chip: a quiet badge with its words in the second text colour and the kit's
--- pencil at its right, as the board draws it: a click asks the count.
-local function keepChip(row)
+-- pencil at its right, as the board draws it: a click asks the count (`onClick`, the Hoard's own
+-- askKeep unless another window names its own).
+local function keepChip(row, onClick)
   local T = GC.Theme
   local keep = T.Button(row, "ghost", "badge")
   keep:SetHeight(L.KEEP_H)
   keep:SetRing(K.windowBorder)
-  keep:SetScript("OnClick", askKeep)
+  keep:SetScript("OnClick", onClick or askKeep)
   keep.pencil = keep:CreateTexture(nil, "OVERLAY")
   keep.pencil:SetSize(L.PENCIL, L.PENCIL)
   keep.pencil:SetPoint("RIGHT", keep, "RIGHT", -L.KEEP_PAD, 0)
@@ -291,15 +300,20 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- The keep count's chip at `x`, `y`: its words, then the pencil, as wide as the words need.
-local function paintKeep(keep, count, x, y)
-  keep:SetLabel(GC.L["Keep in bags: %d of each"]:format(count))
+-- A keep chip's words `label`, then the pencil, the chip as wide as the words need.
+local function fitKeep(keep, label)
+  keep:SetLabel(label)
   local textW = math.ceil(keep.text:GetUnboundedStringWidth() or 0)
   keep:SetWidth(L.KEEP_PAD + textW + 3 + L.PENCIL + L.KEEP_PAD)
   -- After SetLabel, which bounds the words by the button's own edges again.
   keep.text:SetPoint("LEFT", keep, "LEFT", L.KEEP_PAD, 0)
   keep.text:SetPoint("RIGHT", keep, "RIGHT", -(L.KEEP_PAD + L.PENCIL + 3), 0)
   colour(keep.text, K.text2)
+end
+
+-- The keep count's chip at `x`, `y`.
+local function paintKeep(keep, count, x, y)
+  fitKeep(keep, GC.L["Keep in bags: %d of each"]:format(count))
   keep:ClearAllPoints()
   keep:SetPoint("TOPLEFT", keep:GetParent(), "TOPLEFT", x, -y)
   keep:Show()
@@ -602,5 +616,7 @@ local function paintRow(row, data, ctx)
 end
 
 -- A row, and an item's icon as a row draws it, for the window's other parts (UI/HoardTiles.lua's
--- tiles, UI/HoardCarry.lua's cards).
-HF.Row = { New = newRow, Paint = paintRow, NewIcon = newIcon, PaintIcon = paintIcon, HideIcon = hideIcon }
+-- tiles, UI/HoardCarry.lua's cards); and a play's words and colour and the keep chip, which the
+-- mailbox's Send to alts (UI/MailAltsFrame.lua) draws its groups with too.
+HF.Row = { New = newRow, Paint = paintRow, NewIcon = newIcon, PaintIcon = paintIcon, HideIcon = hideIcon,
+  PlayLabel = playLabel, PLAY_COLOR = PLAY_COLOR, KeepChip = keepChip, FitKeep = fitKeep }

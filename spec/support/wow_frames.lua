@@ -100,6 +100,8 @@ end
 function W.Texture(parent)
   local t, s = region("Texture", parent)
   function t:SetTexture(file) s.file = file end
+  -- TextureBase:SetAtlas(atlas [, useAtlasSize]): the game's own art by its atlas name.
+  function t:SetAtlas(atlas, useAtlasSize) s.atlas, s.useAtlasSize = atlas, useAtlasSize end
   function t:SetColorTexture(...) s.color = { ... } end
   function t:SetTextureSliceMargins(...) s.slice = { ... } end
   function t:SetVertexColor(...) s.vertex = { ... } end

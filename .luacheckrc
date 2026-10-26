@@ -85,4 +85,9 @@ read_globals = {
   -- announces a selected recipe and a changed allocation through, the window itself, and a
   -- currency reagent's name.
   "EventRegistry", "ProfessionsFrame", "C_CurrencyInfo",
+  -- Send to alts (UI/MailAltsFrame.lua): the Send Mail calls and frames, the cursor it empties,
+  -- the connected realms the name box completes, and a character's class icon and colour.
+  "ClickSendMailItemButton", "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail",
+  "ClearCursor", "SendMailFrame", "SendMailNameEditBox", "MailFrameTab_OnClick",
+  "GetAutoCompleteRealms", "C_AutoComplete", "GetClassAtlas", "GetClassColor",
 }

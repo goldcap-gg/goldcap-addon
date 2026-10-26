@@ -167,6 +167,7 @@ UI/HoardList.lua
 UI/HoardTiles.lua
 UI/HoardCarry.lua
 UI/HoardFooter.lua
+UI/MailAltsFrame.lua
 UI/CraftStrip.lua
 UI/CraftPanel.lua
 UI/CraftQueueView.lua

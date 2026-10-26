@@ -786,6 +786,36 @@ local function freeChip(glyph)
   return chip
 end
 
+-- A window's header on `f`, as the Hoard and the mailbox's Send to alts (UI/MailAltsFrame.lua) draw
+-- it: the GoldCap mark, the brand in its face, the window's name (f.title, its words set at paint)
+-- and the X, whose click is `onClose`; the paint places the X at the header's right.
+local function newHeader(f, onClose)
+  local T = GC.Theme
+  -- The GoldCap mark, full colour, as the rail and the welcome window draw it.
+  f.logo = f:CreateTexture(nil, "ARTWORK")
+  f.logo:SetTexture(T.MEDIA .. "GoldCap")
+  f.logo:SetSize(L.LOGO, L.LOGO)
+  f.logo:SetPoint("TOPLEFT", f, "TOPLEFT", L.PAD, -(L.PAD + (L.HEAD_H - L.LOGO) / 2))
+  -- The brand in the condensed heavy face whatever the language: it is the name, written in Latin.
+  f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
+  f.brand:SetFont(T.FONT_HEAD_HEAVY, 16 * T.Scale(), "")
+  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = 16 })
+  f.brand:SetWordWrap(false)
+  colour(f.brand, K.goldText)
+  f.brand:SetPoint("LEFT", f.logo, "RIGHT", 7, 0)
+  f.title = track(f, semibold(f, 12))
+  colour(f.title, K.text2)
+  f.title:SetPoint("BOTTOMLEFT", f.brand, "BOTTOMRIGHT", 6, 1)
+  f.close = T.Button(f, "ghost", "badge")
+  f.close:SetSize(L.CLOSE, L.CLOSE)
+  f.close:SetRing(K.glassBorder)
+  f.close.icon = f.close:CreateTexture(nil, "OVERLAY")
+  f.close.icon:SetSize(L.CLOSE_ICON, L.CLOSE_ICON)
+  f.close.icon:SetPoint("CENTER", f.close, "CENTER", 0, 0)
+  T.SetIcon(f.close.icon, "close", K.text2)
+  f.close:SetScript("OnClick", onClose)
+end
+
 -- The window: its glass, the header (the GoldCap mark, its name in the brand's face, "Hoard" and
 -- the X), the bank switch with the free slots, then the kit's scroll (UIPanelScrollFrameTemplate
 -- under Theme.QuietScrollBar, its bar hidden while everything fits), whose child holds the
@@ -797,29 +827,7 @@ local function build()
   frame:EnableMouse(true)
   frame:SetClampedToScreen(true)
   frame.glass = T.Window(frame)
-  -- The GoldCap mark, full colour, as the rail and the welcome window draw it.
-  frame.logo = frame:CreateTexture(nil, "ARTWORK")
-  frame.logo:SetTexture(T.MEDIA .. "GoldCap")
-  frame.logo:SetSize(L.LOGO, L.LOGO)
-  frame.logo:SetPoint("TOPLEFT", frame, "TOPLEFT", L.PAD, -(L.PAD + (L.HEAD_H - L.LOGO) / 2))
-  -- The brand in the condensed heavy face whatever the language: it is the name, written in Latin.
-  frame.brand = track(frame, frame:CreateFontString(nil, "OVERLAY"))
-  frame.brand:SetFont(T.FONT_HEAD_HEAVY, 16 * T.Scale(), "")
-  T.TrackFont(frame.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = 16 })
-  frame.brand:SetWordWrap(false)
-  colour(frame.brand, K.goldText)
-  frame.brand:SetPoint("LEFT", frame.logo, "RIGHT", 7, 0)
-  frame.title = track(frame, semibold(frame, 12))
-  colour(frame.title, K.text2)
-  frame.title:SetPoint("BOTTOMLEFT", frame.brand, "BOTTOMRIGHT", 6, 1)
-  frame.close = T.Button(frame, "ghost", "badge")
-  frame.close:SetSize(L.CLOSE, L.CLOSE)
-  frame.close:SetRing(K.glassBorder)
-  frame.close.icon = frame.close:CreateTexture(nil, "OVERLAY")
-  frame.close.icon:SetSize(L.CLOSE_ICON, L.CLOSE_ICON)
-  frame.close.icon:SetPoint("CENTER", frame.close, "CENTER", 0, 0)
-  T.SetIcon(frame.close.icon, "close", K.text2)
-  frame.close:SetScript("OnClick", onCloseClick)
+  newHeader(frame, onCloseClick)
 
   -- The bank switch, the other bank bare text and the bank chosen in the gold fill the board gives
   -- it (no halo: it is a choice, not the window's main action). In the bank window's order.
@@ -874,24 +882,36 @@ local function build()
   HF._frame = frame
 end
 
--- The small handle that stays beside the bank window while the window is closed: the mark and its
--- name, on the window's own glass so it reads over the world.
-local function buildHandle()
+-- The small handle that stays beside a window GoldCap stands by (the bank's, the mailbox's) while
+-- GoldCap's own window there is closed: the mark and its name, on the window's own glass so it reads
+-- over the world; its click `onClick`. Hidden until shown; paintHandle writes its name.
+local function newHandle(onClick)
   local T = GC.Theme
-  handle = plate(UIParent, K.windowBorder, "plaque")
-  handle:SetHeight(L.HANDLE_H)
-  handle:SetClampedToScreen(true)
-  handle.bg = T.SlicedTexture(handle, "BACKGROUND", T.MEDIA .. "plaque.png", K.windowTop, T.SLICE.plaque)
-  handle.bg:SetAllPoints()
-  handle.logo = handle:CreateTexture(nil, "ARTWORK")
-  handle.logo:SetTexture(T.MEDIA .. "GoldCap")
-  handle.logo:SetSize(L.HANDLE_LOGO, L.HANDLE_LOGO)
-  handle.logo:SetPoint("LEFT", handle, "LEFT", 6, 0)
-  handle.text = track(handle, semibold(handle, 12))
-  colour(handle.text, K.text2)
-  handle.text:SetPoint("LEFT", handle.logo, "RIGHT", 5, 0)
-  handle:SetScript("OnClick", onHandleClick)
-  handle:Hide()
+  local h = plate(UIParent, K.windowBorder, "plaque")
+  h:SetHeight(L.HANDLE_H)
+  h:SetClampedToScreen(true)
+  h.bg = T.SlicedTexture(h, "BACKGROUND", T.MEDIA .. "plaque.png", K.windowTop, T.SLICE.plaque)
+  h.bg:SetAllPoints()
+  h.logo = h:CreateTexture(nil, "ARTWORK")
+  h.logo:SetTexture(T.MEDIA .. "GoldCap")
+  h.logo:SetSize(L.HANDLE_LOGO, L.HANDLE_LOGO)
+  h.logo:SetPoint("LEFT", h, "LEFT", 6, 0)
+  h.text = track(h, semibold(h, 12))
+  colour(h.text, K.text2)
+  h.text:SetPoint("LEFT", h.logo, "RIGHT", 5, 0)
+  h:SetScript("OnClick", onClick)
+  h:Hide()
+  return h
+end
+
+-- A handle's name, and the handle as wide as the mark and the name need.
+local function paintHandle(h, text)
+  setText(h.text, text)
+  h:SetWidth(6 + L.HANDLE_LOGO + 5 + math.ceil(h.text:GetStringWidth() or 0) + 10)
+end
+
+local function buildHandle()
+  handle = newHandle(onHandleClick)
   HF._handle = handle
 end
 
@@ -1184,13 +1204,16 @@ local function paintHeading(y, inner, ctx, running)
 end
 
 -- What a row of the list (UI/HoardRow.lua, loaded after this file) is built and painted with: the
--- window's measures and slate, and the helpers both files draw with.
+-- window's measures and slate, and the helpers both files draw with. The mailbox's Send to alts
+-- (UI/MailAltsFrame.lua) builds its header, its handle and its height from the same ones, and reads
+-- a slot for its press machine the way the Hoard's does (slotNow).
 HF.ui = {
   L = L, SLATE = SLATE, QUIET = QUIET, setText = setText, colour = colour, wrapping = wrapping, heightOf = heightOf,
   tallest = tallest, itemName = itemName, worthText = worthText, stacksInto = stacksInto, plate = plate,
   moveButton = moveButton, quietMove = quietMove, newSwitch = newSwitch, paintMove = paintMove,
   showMoveTip = showMoveTip, hideTip = hideTip, track = track, restamp = restamp, closeKeep = closeKeep,
-  bankName = bankName,
+  bankName = bankName, newHeader = newHeader, newHandle = newHandle, paintHandle = paintHandle,
+  maxHeight = maxHeight, slotNow = slotNow,
 }
 
 -- The rows of `list` from `y` in the scroll, from the pool's `first`; answers the y under them and
@@ -1500,8 +1523,7 @@ local function showHandle()
   if not handle then buildHandle() end
   local wasUp = handle:IsShown()
   place(handle)
-  setText(handle.text, GC.L["Hoard"])
-  handle:SetWidth(6 + L.HANDLE_LOGO + 5 + math.ceil(handle.text:GetStringWidth() or 0) + 10)
+  paintHandle(handle, GC.L["Hoard"])
   handle:Show()
   if not wasUp then restamp(handle) end
 end
