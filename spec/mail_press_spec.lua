@@ -207,4 +207,40 @@ describe("MailPress", function()
     fire() -- old SEND_WAIT
     assert.is_true(machine:IsRunning())
   end)
+
+  it("keeps an answer delivered from inside send: success moves on, no timeout", function()
+    local drv = machine.driver
+    local send = drv.send
+    local first = true
+    drv.send = function(to, subject)
+      send(to, subject)
+      if first then first = false; machine:OnSendResult(true) end
+    end
+    machine:Press(mails(2))
+    assert.are.equal(1, count("send"))
+    assert.are.equal(P.STEP, timers[1].seconds)
+    assert.are.equal(1, #timers)
+    fire()
+    assert.are.equal(2, count("send"))
+    assert.are.equal(0, #reports)
+    machine:OnSendResult(true)
+    assert.is_nil(reports[1].stopped)
+    assert.are.equal(2, reports[1].sent)
+    fire()
+    assert.are.equal(1, #reports)
+  end)
+
+  it("keeps a failure delivered from inside send: clears and reports failed", function()
+    local drv = machine.driver
+    local send = drv.send
+    drv.send = function(to, subject)
+      send(to, subject)
+      machine:OnSendResult(false)
+    end
+    machine:Press(mails(2))
+    assert.are.equal(1, count("clear"))
+    assert.are.equal("failed", reports[1].stopped)
+    assert.are.equal(0, #timers)
+    assert.are.equal(1, #reports)
+  end)
 end)

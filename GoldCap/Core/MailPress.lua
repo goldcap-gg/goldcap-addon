@@ -101,9 +101,14 @@ attempt = function(self)
       end
       run.mailId = run.mailId + 1
       local token, id = self.token, run.mailId
-      d.send(mail.to, mail.subject)
+      -- Marked in flight before the call: the driver may deliver the answer from inside send, and
+      -- an answer for a mail not yet in flight is ignored.
       run.issued = true
-      d.after(P.SEND_WAIT, function() timeout(self, token, id) end)
+      d.send(mail.to, mail.subject)
+      -- Wait only when that same mail is still unanswered (an inline answer ended or moved on).
+      if self.run == run and token == self.token and run.mailId == id and run.issued then
+        d.after(P.SEND_WAIT, function() timeout(self, token, id) end)
+      end
       return
     end
   end
