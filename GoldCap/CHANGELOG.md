@@ -66,10 +66,11 @@
   characters sells each group, and GoldCap remembers it for this realm. Keep is the same count as
   in the Hoard, and what it keeps stays in your bags. Send all sends everything in one press, and
   the groups for one character share mails of up to 12 stacks. The postage shows first. A name you
-  type that is not one of your characters is asked about once before the first mail goes. Gold is
-  never sent, and bound items and items you can still return for a refund stay in your bags. Close
-  it with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have
-  it yet.
+  type that is not one of your characters is asked about once before the first mail goes. If one
+  character's mail does not go, the others' still do, and GoldCap says whose did not. Gold is never
+  sent, and bound items and items you can still return for a refund stay in your bags. Close it
+  with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
+  yet.
 - DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
   your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
   Auto carries on at once, on the Items board too, with what you typed still in the search box.
