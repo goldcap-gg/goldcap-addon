@@ -72,9 +72,10 @@
   with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
   yet.
 - Disenchant, in retail WoW, for an enchanter: a GoldCap button above your open bags shows how many
-  pieces of gear could be disenchanted and opens a window that names the next one and disenchants it
-  with one press. Bind a key to it in Key Bindings, GoldCap, Disenchant next. Click a line to
-  disenchant that item next. Each line says whether the mats or a vendor pays more, and an item the
+  pieces of gear are worth disenchanting (in grey, how many pay more elsewhere) and opens a window
+  that names the next one and disenchants it with one press. Bind a key to it in Key Bindings,
+  GoldCap, Disenchant next. With a bag addon, open it with /gc disenchant or the key. Click a line
+  to disenchant that item next. Each line says whether the mats or a vendor pays more, and an item the
   auction house or a vendor pays more for is left out, with Disenchant anyway beside it. Mats is
   what your own disenchants of such items gave, at today's prices, so the window learns as you go.
   Never on the list: items in an equipment set, items you can still return or trade, items in a
