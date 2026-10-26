@@ -3,23 +3,28 @@ local W = require("spec.support.wow_frames")
 local TS = require("spec.support.trade_skill")
 local Mailbox = require("spec.support.mail_inbox")
 
--- UI/CraftQueueView.lua: the panel's Queue view. Each queued recipe with what is left to craft, the
--- reagents the queue is short of, and Make a BUY list, which writes what the queue needs into the
--- character's one Craft queue list, the list the queue then keeps in step with itself.
+-- UI/CraftQueueView.lua: the panel's Queue view, as the owner approved it (canvas version 17). A
+-- line per queued recipe with its item, what is left, how far along it is and Craft N, live, dimmed
+-- or busy while the client crafts it; then Missing, a cell per reagent the queue is short of with
+-- what waits in the mailbox and what the rest costs, and Make a BUY list, which writes what the
+-- queue needs into the character's one Craft queue list, the list the queue then keeps in step
+-- with itself.
 describe("craft queue view", function()
-  local GC, P, QV, restore, VALUES, printed, selected, refreshed, buyTab
+  local GC, P, QV, K, restore, VALUES, printed, selected, refreshed, buyTab
 
   local function commodity(mv, sold)
     return { mv = mv, sold = sold, ts = 0, source = "import", kind = "region_commodity" }
   end
 
   -- Recipe 3 (Potion) makes 903 from two of Item A; recipe 5 (Flask) makes 905 from one. Item A
-  -- comes in three qualities, 101 to 103.
+  -- comes in three qualities, 101 to 103. Recipe 7 (Elixir) takes a currency too, recipe 9 (Tonic)
+  -- one of Item A and one of Item B (111), which has no price.
   local function recipes()
     return {
       [3] = { info = TS.info(3, "Potion"), schematic = TS.schematic(3, 903, { TS.slot(1, 2, TS.items(101, 102, 103)) }) },
       [5] = { info = TS.info(5, "Flask"), schematic = TS.schematic(5, 905, { TS.slot(1, 1, TS.items(101, 102, 103)) }) },
       [7] = { info = TS.info(7, "Elixir"), schematic = TS.schematic(7, 907, { TS.slot(1, 1, TS.items(101)), TS.slot(2, 2, { { currencyID = 3008 } }) }) },
+      [9] = { info = TS.info(9, "Tonic"), schematic = TS.schematic(9, 909, { TS.slot(1, 1, TS.items(101, 102, 103)), TS.slot(2, 1, TS.items(111)) }) },
     }
   end
 
@@ -29,7 +34,8 @@ describe("craft queue view", function()
     opts.filtered = opts.filtered or { 3, 5 }
     opts.professionID = 2823
     opts.open = opts.open or { recipeID = 3, allocations = {} }
-    opts.names = opts.names or { [101] = "Item A", [102] = "Item A", [103] = "Item A" }
+    opts.names = opts.names or { [101] = "Item A", [102] = "Item A", [103] = "Item A", [111] = "Item B" }
+    opts.icons = opts.icons or { [101] = 1101, [111] = 1111, [903] = 1903, [905] = 1905 }
     opts.currencies = { [3008] = "Valorstones" }
     restore = TS.install(opts)
     -- BUY asks the client what the character owns and what it carries, and counts the difference
@@ -41,6 +47,7 @@ describe("craft queue view", function()
       return includeBank and n or 0
     end
     GC = TS.craftGC()
+    K = GC.Kit.Tokens.color
     VALUES = {}
     GC.Data = { GetItemValue = function(id) return VALUES[id] end }
     GC.db = {}
@@ -70,6 +77,15 @@ describe("craft queue view", function()
 
   local function snapshot(id) return GC.CraftClient.Snapshot(id) end
 
+  -- An event as the client delivers it: to every frame registered for it (Services/CraftClient.lua's,
+  -- the panel's and this view's), then a frame passes.
+  local function fire(event, ...)
+    for _, ev in ipairs({ GC.CraftClient._events, P._events, QV._events }) do
+      if ev:IsEventRegistered(event) then ev:GetScript("OnEvent")(ev, event, ...) end
+    end
+    TS.runTimers()
+  end
+
   -- Opens the window, then the Queue view.
   local function showQueue()
     local ev = P._events
@@ -81,17 +97,48 @@ describe("craft queue view", function()
     return QV._frame
   end
 
+  local function line(i) return QV._rows[i].widget end
+
+  -- A line's name and what it says, then the notes it shows under its bar.
   local function lineTexts(i)
-    local w = QV._rows[i].widget
+    local w = line(i)
     local out = { w.name:GetText(), w.detail:GetText() }
-    if w.note:IsShown() then out[#out + 1] = w.note:GetText() end
+    for _, fs in ipairs({ w.note, w.listed }) do
+      if fs:IsShown() then out[#out + 1] = fs:GetText() end
+    end
     return out
   end
 
-  local function missingTexts(v)
+  -- What Missing shows: a cell per reagent ({ name, count, mail, price }, a field left out where the
+  -- cell says nothing of it).
+  local function cellsOf(v)
     local out = {}
-    for _, fs in ipairs(v.missingLines) do if fs:IsShown() then out[#out + 1] = fs:GetText() end end
+    for _, cell in ipairs(v.cells) do
+      if cell:IsShown() then
+        out[#out + 1] = { name = cell.name:GetText(), count = cell.slot.count:GetText(),
+          mail = cell.mail:IsShown() and cell.mail:GetText() or nil,
+          price = cell.price:IsShown() and cell.price:GetText() or nil }
+      end
+    end
     return out
+  end
+
+  local function currenciesOf(v)
+    local out = {}
+    for _, fs in ipairs(v.currencies) do if fs:IsShown() then out[#out + 1] = fs:GetText() end end
+    return out
+  end
+
+  local function rgb(fs)
+    local r, g, b = fs:GetTextColor()
+    return { r, g, b }
+  end
+
+  local function same(c) return { c[1], c[2], c[3] } end
+
+  local function vertex(t)
+    local c = W.state(t).vertex
+    return { c[1], c[2], c[3], c[4] }
   end
 
   local function codes()
@@ -103,7 +150,7 @@ describe("craft queue view", function()
 
   local function linesOf(run)
     local out = {}
-    for n, line in ipairs(run.lines) do out[n] = { line.i, line.q } end
+    for n, l in ipairs(run.lines) do out[n] = { l.i, l.q } end
     return out
   end
 
@@ -121,7 +168,7 @@ describe("craft queue view", function()
     buyTab.SelectRun(run.code)
     local r = buyTab.CurrentRun()
     local out = {}
-    for _, line in ipairs(r:Lines()) do out[line.itemID] = line.buy end
+    for _, l in ipairs(r:Lines()) do out[l.itemID] = l.buy end
     return out, r
   end
 
@@ -173,7 +220,7 @@ describe("craft queue view", function()
     mailClosed()
   end
 
-  -- A finished cast of `spellID`, as the client fires it.
+  -- A finished cast of `spellID`, as the client fires it at this view.
   local function crafted(spellID, times)
     local ev = QV._events
     for _ = 1, times or 1 do
@@ -192,70 +239,186 @@ describe("craft queue view", function()
         CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
       })
     end }
-    local line = QV._rows[i].widget.frame
-    line:GetScript("OnClick")(line, "RightButton")
+    local frame = line(i).frame
+    frame:GetScript("OnClick")(frame, "RightButton")
     _G.MenuUtil = saved
     return entries
   end
 
-  after_each(function() if restore then restore() end end)
+  -- GameTooltip as the Craft button's hover uses it: the owner and the text.
+  local function tooltip()
+    local saved = _G.GameTooltip
+    local tip = {}
+    _G.GameTooltip = {
+      SetOwner = function(_, owner) tip.owner = owner end,
+      SetText = function(_, text) tip.text = text end,
+      Show = function() tip.shown = true end,
+      Hide = function() tip.shown = false end,
+    }
+    return tip, function() _G.GameTooltip = saved end
+  end
 
-  it("lists each queued recipe with what is left to craft", function()
-    load({ counts = { [905] = 3 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
-    GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
-    GC.CraftQueue.FoldListed("Name-Realm", { { itemKey = { itemID = 905 }, quantity = 1, status = 0 } }, time())
-    showQueue()
-    assert.equal(2, #QV._rows)
-    assert.same({ "Potion", GC.L["%d to craft"]:format(3) }, lineTexts(1))
-    assert.same({ "Flask", GC.L["Restock to %d: %d held"]:format(10, 4) }, lineTexts(2))
-    assert.equal(3, QV._rows[1].crafts)
-    assert.equal(6, QV._rows[2].crafts)
+  local function hover(button) W.state(button).hooks.OnEnter(button) end
+
+  after_each(function()
+    if restore then restore() end
+    W.unknownEvents = {}
   end)
 
-  it("says listings are not counted until the auction house is seen", function()
-    load({ counts = { [905] = 3 }, owned = { { auctionID = 1, itemKey = { itemID = 905 }, quantity = 2, status = 0 },
-      { auctionID = 2, itemKey = { itemID = 905 }, quantity = 5, status = 1 } } })
-    GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
-    showQueue()
-    assert.same({ "Flask", GC.L["Restock to %d: %d held"]:format(10, 3),
-      GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"] }, lineTexts(1))
-    local ev = QV._events
-    assert.is_true(ev:IsEventRegistered("OWNED_AUCTIONS_UPDATED"))
-    ev:GetScript("OnEvent")(ev, "OWNED_AUCTIONS_UPDATED")
-    TS.runTimers()
-    assert.same({ "Flask", GC.L["Restock to %d: %d held"]:format(10, 5) }, lineTexts(1))
-  end)
+  describe("a line", function()
+    -- Reagents for every line, so no line says why it cannot craft.
+    local function stocked()
+      local r = recipes()
+      r[3].craftable, r[5].craftable = 9, 9
+      return r
+    end
 
-  it("stops counting auctions read more than 48 hours ago, and says so", function()
-    load({ counts = { [905] = 3 } })
-    GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
-    GC.CraftQueue.FoldListed("Name-Realm", { { itemKey = { itemID = 905 }, quantity = 2, status = 0 } },
-      time() - 48 * 3600 - 60)
-    showQueue()
-    assert.same({ "Flask", GC.L["Restock to %d: %d held"]:format(10, 3),
-      GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"] }, lineTexts(1))
-    assert.equal(7, QV._rows[1].crafts)
+    it("shows each queued recipe's item, its name and what is left to craft", function()
+      load({ recipes = stocked(), counts = { [905] = 3 }, tiers = { [903] = 2 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+      GC.CraftQueue.FoldListed("Name-Realm", { { itemKey = { itemID = 905 }, quantity = 1, status = 0 } }, time())
+      local v = showQueue()
+      assert.equal(2, #QV._rows)
+      assert.same({ "Potion", GC.L["%d to craft"]:format(3) }, lineTexts(1))
+      assert.same({ "Flask", GC.L["Restock to %d: you hold %d, %d crafts"]:format(10, 4, 6) }, lineTexts(2))
+      assert.equal(3, QV._rows[1].crafts)
+      assert.equal(6, QV._rows[2].crafts)
+      -- What the recipe makes, with its crafting quality top left where it has one.
+      assert.equal(1903, W.state(line(1).slot.icon).file)
+      assert.is_true(line(1).slot.pip:IsShown())
+      assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(line(1).slot.pip).atlas)
+      assert.equal(1905, W.state(line(2).slot.icon).file)
+      assert.is_false(line(2).slot.pip:IsShown())
+      -- Each a card on the glass, one under the other in the view's scroll.
+      assert.same(K.glassTop, vertex(line(1).frame.fill))
+      assert.same(K.glassBorder, vertex(line(1).frame.ring))
+      assert.equal(v.content, line(1).frame:GetParent())
+      local _, _, _, _, y = line(2).frame:GetPoint(1)
+      assert.is_true(-y >= line(1).frame:GetHeight())
+    end)
+
+    it("says a restock that needs one craft in its own words", function()
+      load({ recipes = stocked(), counts = { [905] = 9 } })
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+      GC.CraftQueue.FoldListed("Name-Realm", {}, time())
+      showQueue()
+      assert.same({ "Flask", GC.L["Restock to %d: you hold %d, 1 craft"]:format(10, 9) }, lineTexts(1))
+    end)
+
+    it("says listings are not counted until the auction house is seen", function()
+      load({ recipes = stocked(), counts = { [905] = 3 }, owned = { { auctionID = 1, itemKey = { itemID = 905 }, quantity = 2, status = 0 },
+        { auctionID = 2, itemKey = { itemID = 905 }, quantity = 5, status = 1 } } })
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+      showQueue()
+      assert.same({ "Flask", GC.L["Restock to %d: you hold %d, %d crafts"]:format(10, 3, 7),
+        GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"] }, lineTexts(1))
+      local ev = QV._events
+      assert.is_true(ev:IsEventRegistered("OWNED_AUCTIONS_UPDATED"))
+      ev:GetScript("OnEvent")(ev, "OWNED_AUCTIONS_UPDATED")
+      TS.runTimers()
+      assert.same({ "Flask", GC.L["Restock to %d: you hold %d, %d crafts"]:format(10, 5, 5) }, lineTexts(1))
+    end)
+
+    it("stops counting auctions read more than 48 hours ago, and says so", function()
+      load({ recipes = stocked(), counts = { [905] = 3 } })
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+      GC.CraftQueue.FoldListed("Name-Realm", { { itemKey = { itemID = 905 }, quantity = 2, status = 0 } },
+        time() - 48 * 3600 - 60)
+      showQueue()
+      assert.same({ "Flask", GC.L["Restock to %d: you hold %d, %d crafts"]:format(10, 3, 7),
+        GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"] }, lineTexts(1))
+      assert.equal(7, QV._rows[1].crafts)
+    end)
+
+    -- The bar: crafts made of the crafts asked for, gold; a restock's held of its target, blue.
+    it("draws how far each line is under it, with the figures at its right", function()
+      load({ counts = { [905] = 12, [903] = 4 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+      crafted(3, 2)
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 10)
+      GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+      GC.CraftQueue.FoldListed("Name-Realm", {}, time())
+      showQueue()
+      local count, restock, fresh = line(1), line(2), line(3)
+      assert.equal("2 / 5", count.count:GetText())
+      assert.same(K.gold, W.state(count.bar.fill).color)
+      assert.is_true(count.bar:GetWidth() > 0)
+      assert.equal(math.floor(count.bar:GetWidth() * 0.4 + 0.5), W.state(count.bar.fill).width)
+      -- Held above the target reads full, not past it.
+      assert.equal("10 / 10", restock.count:GetText())
+      assert.same(K.yours, W.state(restock.bar.fill).color)
+      assert.equal(restock.bar:GetWidth(), W.state(restock.bar.fill).width)
+      assert.equal("0 / 1", fresh.count:GetText())
+      assert.is_false(W.state(fresh.bar.fill).shown)
+      -- A finished craft moves it.
+      crafted(3)
+      assert.equal("3 / 5", line(1).count:GetText())
+    end)
+
+    it("wraps a long name and what it says in its language, never cuts them, and grows for them", function()
+      local long = "Phiole der unerschütterlichen Konzentrationsfähigkeitssteigerungsmeisterschaft"
+      local reagent = "Пыльца неувядающей безмятежности серебристолунных садов"
+      local r = recipes()
+      r[3].info = TS.info(3, long)
+      load({ recipes = r, names = { [101] = reagent, [102] = reagent, [103] = reagent } })
+      for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+      GC.ActivateLocale("deDE")
+      finally(function() GC.ActivateLocale(nil) end)
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 3)
+      local v = showQueue()
+      local wide, short = line(1), line(2)
+      assert.equal(long, wide.name:GetText())
+      for _, fs in ipairs({ wide.name, wide.detail, wide.note, wide.listed, v.cells[1].name, v.cells[1].mail,
+        v.cells[1].price, v.cost, v.unpriced, v.none, v.buyNote, v.empty }) do
+        assert.is_true(W.state(fs).wordWrap)
+        assert.is_true(W.state(fs).nonSpaceWrap)
+        assert.is_nil(W.state(fs).maxLines)
+      end
+      assert.is_true(wide.name:GetStringHeight() > short.name:GetStringHeight())
+      assert.is_true(wide.frame:GetHeight() > short.frame:GetHeight())
+      -- The reagent's cell grows past its icon and margins (30) for the name.
+      assert.is_true(v.cells[1]:GetHeight() > 30)
+      -- Craft is as wide as the longest of its words in German, Crafting among them.
+      local b = wide.craft
+      for _, label in ipairs({ GC.L["Craft %d"]:format(3), GC.L["Crafting"] }) do
+        b:SetLabel(label)
+        assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth(), label)
+      end
+    end)
+
+    it("opens its recipe in Blizzard's window on a left click, inside the click", function()
+      load()
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+      showQueue()
+      local frame = line(1).frame
+      frame:GetScript("OnClick")(frame, "LeftButton")
+      local calls = TS.callsOf("OpenRecipe")
+      assert.equal(1, #calls)
+      assert.same({ 5 }, calls[1].args)
+      assert.equal(0, #TS.timers)
+    end)
   end)
 
   -- Probe A (retail 12.1.5, 2026-10-26): CraftRecipe with a count crafts that many one after another
   -- from the player's own press with the window open; from a timer the client blocks it. A line's
   -- Craft button is that press.
   describe("a line's Craft button", function()
-    local function craft(i) return QV._rows[i].widget end
-
-    it("crafts in one press what the reagents allow of what is left", function()
+    it("crafts in one press what the reagents allow of what is left, and says when that is fewer", function()
       local r = recipes()
       r[3].craftable = 2
       load({ recipes = r })
       GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
       showQueue()
-      local line = craft(1)
-      assert.equal(GC.L["Craft %d"]:format(2), line.craft.label)
-      assert.is_true(line.craft:IsEnabled())
-      assert.is_true(W.state(line.craft).motionWhileDisabled)
+      local l = line(1)
+      assert.same({ "Potion", GC.L["%d to craft. Reagents for %d now"]:format(3, 2) }, lineTexts(1))
+      assert.equal(GC.L["Craft %d"]:format(2), l.craft.label)
+      assert.is_true(l.craft:IsEnabled())
+      assert.same(same(K.onGold), rgb(l.craft.text))
+      assert.is_true(W.state(l.craft).motionWhileDisabled)
 
-      line.craft:GetScript("OnClick")(line.craft)
+      l.craft:GetScript("OnClick")(l.craft)
 
       local calls = TS.callsOf("CraftRecipe")
       assert.equal(1, #calls)
@@ -268,18 +431,38 @@ describe("craft queue view", function()
       load({ recipes = r })
       GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
       showQueue()
-      assert.equal(GC.L["Craft %d"]:format(3), craft(1).craft.label)
+      assert.equal(GC.L["Craft %d"]:format(3), line(1).craft.label)
+      assert.same({ "Potion", GC.L["%d to craft"]:format(3) }, lineTexts(1))
     end)
 
-    it("is dimmed, with what is left, and says why when the reagents do not make one", function()
+    it("says on hover what a press does", function()
+      local r = recipes()
+      r[3].craftable = 9
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      showQueue()
+      local tip, put = tooltip()
+      finally(put)
+      hover(line(1).craft)
+      assert.equal(line(1).craft, tip.owner)
+      assert.equal(GC.Util.ClientText(GC.L["Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it."]:format(3)), tip.text)
+    end)
+
+    it("is dimmed, with what is left, and says why on hover and under the bar when the reagents do not make one", function()
       load()
       GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
       showQueue()
-      local line = craft(1)
-      assert.equal(GC.L["Craft %d"]:format(3), line.craft.label)
-      assert.is_false(line.craft:IsEnabled())
-      assert.equal(GC.L["Not enough reagents for one craft. Missing below says what to get."], line.craftWhy)
-      line.craft:GetScript("OnClick")(line.craft)
+      local l = line(1)
+      local why = GC.L["Not enough reagents for one craft. Missing below says what to get."]
+      assert.equal(GC.L["Craft %d"]:format(3), l.craft.label)
+      assert.is_false(l.craft:IsEnabled())
+      assert.same({ "Potion", GC.L["%d to craft"]:format(3), why }, lineTexts(1))
+      assert.same(same(K.warn), rgb(l.note))
+      local tip, put = tooltip()
+      finally(put)
+      hover(l.craft)
+      assert.equal(GC.Util.ClientText(why), tip.text)
+      l.craft:GetScript("OnClick")(l.craft)
       assert.equal(0, #TS.callsOf("CraftRecipe"))
     end)
 
@@ -291,9 +474,26 @@ describe("craft queue view", function()
       load({ recipes = r })
       GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
       showQueue()
-      local line = craft(1)
-      assert.is_false(line.craft:IsEnabled())
-      assert.equal(GC.L["Open %s to craft it here."]:format("Midnight Tailoring"), line.craftWhy)
+      local l = line(1)
+      assert.is_false(l.craft:IsEnabled())
+      assert.equal(GC.L["Open %s to craft it here."]:format("Midnight Tailoring"), l.craftWhy)
+      assert.same({ "Flask", GC.L["%d to craft"]:format(2), GC.L["Open %s to craft it here."]:format("Midnight Tailoring") },
+        lineTexts(1))
+    end)
+
+    it("draws a line dimmed again in the dim colours, and a live one again live", function()
+      local r = recipes()
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+      showQueue()
+      QV.Refresh()
+      assert.is_false(line(1).craft:IsEnabled())
+      assert.same(same(K.text3), rgb(line(1).craft.text))
+      r[3].craftable = 3
+      QV.Refresh()
+      assert.is_true(line(1).craft:IsEnabled())
+      assert.same(same(K.onGold), rgb(line(1).craft.text))
+      assert.is_false(line(1).note:IsShown())
     end)
 
     it("is not there for a restock that holds enough", function()
@@ -304,26 +504,286 @@ describe("craft queue view", function()
       GC.CraftQueue.FoldListed("Name-Realm", {}, time())
       showQueue()
       assert.equal(0, QV._rows[1].crafts)
-      assert.is_false(craft(1).craft:IsShown())
+      assert.is_false(line(1).craft:IsShown())
     end)
   end)
 
-  it("says the queue is empty", function()
-    load()
-    local v = showQueue()
-    assert.equal(0, #QV._rows)
-    assert.is_true(v.empty:IsShown())
-    assert.equal(GC.L["The queue is empty. Add a recipe from This recipe."], v.empty:GetText())
+  -- Blizzard's crafting page (Services/CraftClient.lua's Repeating): TRADE_SKILL_CRAFT_BEGIN starts
+  -- each cast of a run, GetRemainingRecasts says how many come after it, and
+  -- UPDATE_TRADESKILL_CAST_STOPPED ends the run.
+  describe("while the client crafts", function()
+    local function begin(recipeID, left)
+      TS.opts.recasts = left - 1
+      fire("TRADE_SKILL_CRAFT_BEGIN", recipeID)
+    end
+
+    local function stopped() fire("UPDATE_TRADESKILL_CAST_STOPPED", false) end
+
+    local function queued()
+      local r = recipes()
+      r[3].craftable, r[5].craftable = 9, 9
+      load({ recipes = r })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
+      return showQueue()
+    end
+
+    it("shows the line being crafted as Crafting, in gold, with what this run has made and has left", function()
+      queued()
+      local l = line(1)
+      l.craft:GetScript("OnClick")(l.craft)
+      assert.same({ 3, 5, {}, nil, nil, false }, TS.callsOf("CraftRecipe")[1].args)
+      begin(3, 5)
+      l = line(1)
+      assert.equal(GC.L["Crafting"], l.craft.label)
+      assert.is_true(l.craft:IsEnabled())
+      assert.same(same(K.goldText), rgb(l.craft.text))
+      assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.07 }, vertex(l.frame.fill))
+      assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.6 }, vertex(l.frame.ring))
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 5),
+        GC.L["Crafting %d one after another. Moving stops it."]:format(5) }, lineTexts(1))
+      assert.same(same(K.text2), rgb(l.note))
+      -- One cast made: one off the line, and the run says so.
+      fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 3)
+      begin(3, 4)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(1, 4),
+        GC.L["Crafting %d one after another. Moving stops it."]:format(5) }, lineTexts(1))
+      assert.equal("1 / 5", line(1).count:GetText())
+      -- The run stops (the player moved): the line is live again with what is left.
+      stopped()
+      l = line(1)
+      assert.equal(GC.L["Craft %d"]:format(4), l.craft.label)
+      assert.same(same(K.onGold), rgb(l.craft.text))
+      assert.same(K.glassTop, vertex(l.frame.fill))
+      assert.same({ "Potion", GC.L["%d to craft"]:format(4) }, lineTexts(1))
+    end)
+
+    it("shows one craft going as Crafting too, without calling it a run", function()
+      queued()
+      begin(5, 1)
+      assert.equal(GC.L["Crafting"], line(2).craft.label)
+      assert.same({ "Flask", GC.L["%d crafted, %d to go"]:format(0, 1) }, lineTexts(2))
+    end)
+
+    it("dims every other line's Craft while one is crafting, saying why, and a press of either calls nothing", function()
+      queued()
+      begin(3, 5)
+      local busy, other = line(1), line(2)
+      assert.is_false(other.craft:IsEnabled())
+      assert.equal(GC.L["Craft %d"]:format(2), other.craft.label)
+      assert.equal(GC.L["GoldCap is crafting %s. Wait for it to finish."]:format("Potion"), other.craftWhy)
+      assert.same({ "Flask", GC.L["%d to craft"]:format(2) }, lineTexts(2))
+      local tip, put = tooltip()
+      finally(put)
+      hover(other.craft)
+      assert.equal(GC.Util.ClientText(GC.L["GoldCap is crafting %s. Wait for it to finish."]:format("Potion")), tip.text)
+      busy.craft:GetScript("OnClick")(busy.craft)
+      other.craft:GetScript("OnClick")(other.craft)
+      assert.equal(0, #TS.callsOf("CraftRecipe"))
+      stopped()
+      assert.is_true(line(2).craft:IsEnabled())
+      assert.equal(GC.L["Craft %d"]:format(2), line(2).craft.label)
+    end)
+
+    it("counts a run Blizzard's own Create started from what is left when it is first seen", function()
+      queued()
+      begin(3, 3)
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 3),
+        GC.L["Crafting %d one after another. Moving stops it."]:format(3) }, lineTexts(1))
+    end)
+
+    it("forgets a run that ended while the view was away", function()
+      local v = queued()
+      local f = P._frame
+      begin(3, 5)
+      f.switch.worth:GetScript("OnClick")(f.switch.worth)
+      TS.runTimers()
+      assert.is_false(v:IsShown())
+      stopped()
+      begin(3, 2)
+      f.switch.queue:GetScript("OnClick")(f.switch.queue)
+      TS.runTimers()
+      assert.same({ "Potion", GC.L["%d crafted, %d to go"]:format(0, 2),
+        GC.L["Crafting %d one after another. Moving stops it."]:format(2) }, lineTexts(1))
+    end)
+
+    it("leaves every line as it is for a craft that is not in the queue", function()
+      queued()
+      begin(11, 4)
+      assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
+      assert.is_true(line(1).craft:IsEnabled())
+    end)
+
+    it("repaints as a run begins and ends", function()
+      queued()
+      local ev = QV._events
+      for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE",
+        "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED" }) do
+        assert.is_true(ev:IsEventRegistered(event), event)
+      end
+      assert.same({ "player" }, W.state(ev).unitEvents.UNIT_SPELLCAST_INTERRUPTED)
+      assert.same({ "player" }, W.state(ev).unitEvents.UNIT_SPELLCAST_FAILED)
+      begin(3, 5)
+      fire("UNIT_SPELLCAST_INTERRUPTED", "player", "Cast-3", 3)
+      assert.equal(GC.L["Craft %d"]:format(5), line(1).craft.label)
+      -- A scrap's stop is not a craft's.
+      begin(3, 5)
+      fire("UPDATE_TRADESKILL_CAST_STOPPED", true)
+      assert.equal(GC.L["Crafting"], line(1).craft.label)
+    end)
   end)
 
-  it("lists only what is short, summed across recipes", function()
-    load({ counts = { [101] = 4, [103] = 1 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
-    GC.CraftQueue.Add("Name-Realm", snapshot(5), 3)
-    local v = showQueue()
-    assert.equal(GC.L["Missing"], v.missingHeading:GetText())
-    assert.same({ GC.L["%d %s"]:format(2, "Item A") }, missingTexts(v))
-    assert.is_false(v.none:IsShown())
+  describe("Missing", function()
+    it("says the queue is empty, with no Missing under it", function()
+      load()
+      local v = showQueue()
+      assert.equal(0, #QV._rows)
+      assert.is_true(v.empty:IsShown())
+      assert.equal(GC.L["The queue is empty. Add a recipe from This recipe."], v.empty:GetText())
+      assert.is_false(v.missing:IsShown())
+    end)
+
+    it("shows a cell for what is short, summed across recipes, with its icon and what it costs", function()
+      load({ counts = { [101] = 4, [103] = 1 } })
+      VALUES[101], VALUES[102], VALUES[103] = commodity(500), commodity(450), commodity(400)
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 3)
+      local v = showQueue()
+      assert.equal(GC.Util.Upper(GC.L["Missing"]), v.heading:GetText())
+      assert.same(same(K.warn), rgb(v.heading))
+      -- 7 of Item A in all, 5 held: 2 to buy, at 400 each (the cheapest quality BUY buys).
+      assert.same({ { name = "Item A", count = "2", price = GC.L["about %s"]:format(GC.Util.Money(800)) } }, cellsOf(v))
+      assert.equal(1101, W.state(v.cells[1].slot.icon).file)
+      assert.equal(GC.L["about %s to buy"]:format(GC.Util.Colored(K.goldText, GC.Util.Money(800))), v.cost:GetText())
+      assert.is_true(v.cost:IsShown())
+      assert.is_false(v.unpriced:IsShown())
+      assert.is_false(v.none:IsShown())
+      assert.equal(v.content, v.missing:GetParent())
+    end)
+
+    it("totals what has a price and counts what has none, one and many", function()
+      load({ filtered = { 9 } })
+      VALUES[101] = commodity(400)
+      GC.CraftQueue.Add("Name-Realm", snapshot(9), 2)
+      local v = showQueue()
+      assert.same({ { name = "Item A", count = "2", price = GC.L["about %s"]:format(GC.Util.Money(800)) },
+        { name = "Item B", count = "2" } }, cellsOf(v))
+      assert.equal(GC.L["about %s to buy"]:format(GC.Util.Colored(K.goldText, GC.Util.Money(800))), v.cost:GetText())
+      assert.is_true(v.unpriced:IsShown())
+      assert.equal(GC.L["1 has no price yet"], v.unpriced:GetText())
+      -- Nothing priced: no total, only how many have no price.
+      VALUES[101] = nil
+      QV.Refresh()
+      assert.is_false(v.cost:IsShown())
+      assert.equal(GC.L["%d have no price yet"]:format(2), v.unpriced:GetText())
+    end)
+
+    it("shows a reagent to buy and the same reagent waiting in the mailbox in one cell", function()
+      load({ counts = {} })
+      VALUES[101], VALUES[102], VALUES[103] = commodity(400), commodity(450), commodity(500)
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+      local box = Mailbox.new({
+        { sender = "Friend", subject = "Mats", canReply = true,
+          items = { [1] = { itemID = 101, count = 4 }, [2] = { itemID = 102, count = 3 } } },
+      })
+      readMailbox(box, true)
+      mailClosed()
+      local v = showQueue()
+      -- 10 needed: 7 in the mailbox, 3 to buy at 400. The icon counts all ten the bags still need.
+      assert.same({ { name = "Item A", count = "10", mail = GC.L["%d in your mailbox"]:format(7),
+        price = GC.L["about %s"]:format(GC.Util.Money(1200)) } }, cellsOf(v))
+      local cell = v.cells[1]
+      assert.same(same(K.yours), rgb(cell.mail))
+      assert.is_true(cell.mailIcon:IsShown())
+      assert.same(same(K.text3), rgb(cell.price))
+    end)
+
+    -- The Tonic's Item A (three qualities) and Item B, then the Elixir's Item A of one quality: a
+    -- reagent is one need only for slots that take the same qualities (Core/CraftQueue.lua's Needs).
+    it("puts the cells two to a row, as tall as each other", function()
+      load({ filtered = { 7, 9 }, counts = {} })
+      GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+      GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
+      local v = showQueue()
+      assert.same({ "Item A", "Item B", "Item A" }, { cellsOf(v)[1].name, cellsOf(v)[2].name, cellsOf(v)[3].name })
+      local first, second, third = v.cells[1], v.cells[2], v.cells[3]
+      local _, _, _, x1, y1 = first:GetPoint(1)
+      local _, _, _, x2, y2 = second:GetPoint(1)
+      local _, _, _, x3, y3 = third:GetPoint(1)
+      assert.equal(y1, y2)
+      assert.is_true(x2 >= x1 + first:GetWidth())
+      assert.equal(first:GetHeight(), second:GetHeight())
+      assert.equal(x1, x3)
+      assert.is_true(-y3 >= -y1 + first:GetHeight())
+    end)
+
+    it("leaves a currency off the BUY list and says it is not on the auction house", function()
+      load({ filtered = { 7 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
+      local v = showQueue()
+      assert.same({ { name = "Item A", count = "1" } }, cellsOf(v))
+      assert.same({ GC.L["%s is not sold on the auction house"]:format("Valorstones") }, currenciesOf(v))
+      local run = QV.MakeBuyList()
+      assert.same({ { 101, 1 } }, { { run.lines[1].i, run.lines[1].q } })
+      assert.equal(1, #run.lines)
+    end)
+
+    it("names a currency only when the player holds too little of it, and can say nothing is missing", function()
+      load({ filtered = { 7 }, counts = { [101] = 1 }, currencyHeld = { [3008] = 2 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
+      local v = showQueue()
+      assert.same({}, cellsOf(v))
+      assert.same({}, currenciesOf(v))
+      assert.is_true(v.none:IsShown())
+      assert.equal(GC.L["Nothing is missing for the queue"], v.none:GetText())
+      restore()
+      load({ filtered = { 7 }, counts = { [101] = 1 }, currencyHeld = { [3008] = 1 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
+      v = showQueue()
+      assert.same({ GC.L["%s is not sold on the auction house"]:format("Valorstones") }, currenciesOf(v))
+      assert.is_false(v.none:IsShown())
+    end)
+
+    it("disables Make a BUY list when nothing is missing, and says what the list does", function()
+      load({ counts = { [101] = 10 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+      local v = showQueue()
+      assert.same({}, cellsOf(v))
+      assert.is_true(v.none:IsShown())
+      assert.equal(GC.L["Nothing is missing for the queue"], v.none:GetText())
+      assert.is_false(v.cost:IsShown())
+      assert.equal(GC.L["Make a BUY list"], v.buy.label)
+      assert.is_false(v.buy:IsEnabled())
+      assert.is_nil(QV.MakeBuyList())
+      assert.equal(GC.L["The BUY tab at the auction house buys what is missing, and the list follows the queue."],
+        v.buyNote:GetText())
+      assert.equal(v.missing, v.buy:GetParent())
+    end)
+
+    it("a bag change repaints what is missing", function()
+      load({ counts = { [101] = 1 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+      local v = showQueue()
+      assert.same({ { name = "Item A", count = "3" } }, cellsOf(v))
+      TS.opts.counts[101] = 4
+      local ev = P._events
+      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+      TS.runTimers()
+      assert.same({}, cellsOf(v))
+      assert.is_true(v.none:IsShown())
+    end)
+
+    it("scrolls the lines and Missing together, Missing under the last line", function()
+      load({ counts = {} })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+      GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
+      local v = showQueue()
+      local _, _, _, _, y = v.missing:GetPoint(1)
+      local _, _, _, _, last = line(2).frame:GetPoint(1)
+      assert.is_true(-y >= -last + line(2).frame:GetHeight())
+      assert.equal(-y + v.missing:GetHeight(), v.content:GetHeight())
+      assert.equal(v.content, v.scroll:GetScrollChild())
+    end)
   end)
 
   -- The GoldCap Hoard's For your crafts tile reads the queue the way this view does: what each
@@ -418,7 +878,7 @@ describe("craft queue view", function()
     assert.same({ { 101, 5 } }, linesOf(run))
     -- The Flask taken off from its line's menu.
     TS.runTimers()
-    assert.equal("Flask", QV._rows[2].widget.name:GetText())
+    assert.equal("Flask", line(2).name:GetText())
     lineMenu(2)[3].fn()
     TS.runTimers()
     assert.same({ { 101, 4 } }, linesOf(run))
@@ -489,24 +949,24 @@ describe("craft queue view", function()
     assert.same({ { 101, 6 } }, linesOf(run))
     assert.equal(0, buyRun(run)[101])
     -- The queue says the same: nothing missing, and Make a BUY list has nothing to add. What waits
-    -- in the mailbox is named under Missing, since a craft takes reagents from the bags.
+    -- in the mailbox has its cell under Missing, since a craft takes reagents from the bags.
     local v = showQueue()
-    assert.same({ "6 Item A in the mailbox" }, missingTexts(v))
+    assert.same({ { name = "Item A", count = "6", mail = GC.L["%d in your mailbox"]:format(6) } }, cellsOf(v))
     assert.equal("Nothing is missing for the queue", v.none:GetText())
     assert.is_false(v.buy:IsEnabled())
   end)
 
   -- Under Missing, only what the bags and the banks do not cover.
-  it("names under Missing what the queue needs from the mailbox, no more", function()
+  it("shows under Missing what the queue needs from the mailbox, no more", function()
     boughtIntoMailbox()
     local v = showQueue()
-    assert.same({ "6 Item A in the mailbox" }, missingTexts(v))
+    assert.same({ { name = "Item A", count = "6", mail = GC.L["%d in your mailbox"]:format(6) } }, cellsOf(v))
     TS.opts.counts[101] = 8
     QV.Refresh()
-    assert.same({ "2 Item A in the mailbox" }, missingTexts(v))
+    assert.same({ { name = "Item A", count = "2", mail = GC.L["%d in your mailbox"]:format(2) } }, cellsOf(v))
     TS.opts.counts[101] = 10
     QV.Refresh()
-    assert.same({}, missingTexts(v))
+    assert.same({}, cellsOf(v))
   end)
 
   -- I1 at the queue: a mailbox opened soon after the purchase can list what the client held before
@@ -591,7 +1051,8 @@ describe("craft queue view", function()
     assert.same({ { 101, 7 } }, linesOf(run))
     assert.equal(3, buyRun(run)[101])
     local v = showQueue()
-    assert.same({ "3 Item A", "7 Item A in the mailbox" }, missingTexts(v))
+    assert.same({ { name = "Item A", count = "10", mail = GC.L["%d in your mailbox"]:format(7),
+      price = GC.L["about %s"]:format(GC.Util.Money(1200)) } }, cellsOf(v))
   end)
 
   -- M1: a take can reach the bags before the read of the inbox that sees it gone. Counted then, the
@@ -687,7 +1148,9 @@ describe("craft queue view", function()
       lines = { { i = 101, q = 3, v = false } } } }
     local craft, runs = copy(GC.db.craft), copy(GC.db.runs)
     local v = showQueue()
-    assert.is_false(v.buy:IsEnabled())
+    -- It reads as an empty queue: no Missing, so no Make a BUY list.
+    assert.is_true(v.empty:IsShown())
+    assert.is_false(v.missing:IsShown())
     assert.is_nil(QV.MakeBuyList())
     crafted(3)
     local ev = QV._events
@@ -698,65 +1161,17 @@ describe("craft queue view", function()
     assert.same(runs, GC.db.runs)
   end)
 
-  it("puts a reagent a vendor sells on the BUY list as a vendor stop", function()
+  it("puts a reagent a vendor sells on the BUY list as a vendor stop, and prices it at the vendor's price", function()
     load({ counts = { [101] = 1 } })
     -- A list the player holds says a vendor sells Item A for 50 (Core/AppRuns.lua's VendorUnitFor).
     GC.db.runs = { vendor = { code = "vendor", updatedAt = 1, lines = { { i = 101, q = 1, v = true, vu = 50 } } } }
+    VALUES[101] = commodity(400)
     GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
-    showQueue()
+    local v = showQueue()
+    assert.same({ { name = "Item A", count = "3", price = GC.L["about %s"]:format(GC.Util.Money(150)) } }, cellsOf(v))
     local run = QV.MakeBuyList()
     assert.equal(1, #run.lines)
     assert.same({ 101, 4, true, 50 }, { run.lines[1].i, run.lines[1].q, run.lines[1].v, run.lines[1].vu })
-  end)
-
-  it("leaves a currency off the BUY list and says it is not on the auction house", function()
-    load({ filtered = { 7 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
-    local v = showQueue()
-    assert.same({ GC.L["%d %s"]:format(1, "Item A"), GC.L["%s is not sold on the auction house"]:format("Valorstones") },
-      missingTexts(v))
-    local run = QV.MakeBuyList()
-    assert.same({ { 101, 1 } }, { { run.lines[1].i, run.lines[1].q } })
-    assert.equal(1, #run.lines)
-  end)
-
-  it("names a currency only when the player holds too little of it, and can say nothing is missing", function()
-    load({ filtered = { 7 }, counts = { [101] = 1 }, currencyHeld = { [3008] = 2 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
-    local v = showQueue()
-    assert.same({}, missingTexts(v))
-    assert.is_true(v.none:IsShown())
-    assert.equal(GC.L["Nothing is missing for the queue"], v.none:GetText())
-    restore()
-    load({ filtered = { 7 }, counts = { [101] = 1 }, currencyHeld = { [3008] = 1 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
-    v = showQueue()
-    assert.same({ GC.L["%s is not sold on the auction house"]:format("Valorstones") }, missingTexts(v))
-    assert.is_false(v.none:IsShown())
-  end)
-
-  it("disables Make a BUY list when nothing is missing", function()
-    load({ counts = { [101] = 10 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
-    local v = showQueue()
-    assert.same({}, missingTexts(v))
-    assert.is_true(v.none:IsShown())
-    assert.equal(GC.L["Nothing is missing for the queue"], v.none:GetText())
-    assert.is_false(v.buy:IsEnabled())
-    assert.is_nil(QV.MakeBuyList())
-  end)
-
-  it("a bag change repaints what is missing", function()
-    load({ counts = { [101] = 1 } })
-    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
-    local v = showQueue()
-    assert.same({ GC.L["%d %s"]:format(3, "Item A") }, missingTexts(v))
-    TS.opts.counts[101] = 4
-    local ev = P._events
-    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
-    TS.runTimers()
-    assert.same({}, missingTexts(v))
-    assert.is_true(v.none:IsShown())
   end)
 
   it("a finished craft takes one off its line", function()
@@ -767,10 +1182,10 @@ describe("craft queue view", function()
     assert.is_true(ev:IsEventRegistered("UNIT_SPELLCAST_SUCCEEDED"))
     ev:GetScript("OnEvent")(ev, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1234-5678-9-3-ABCDEF", 3)
     TS.runTimers()
-    assert.same({ "Potion", GC.L["%d to craft"]:format(2) }, lineTexts(1))
+    assert.equal(GC.L["%d to craft"]:format(2), line(1).detail:GetText())
     ev:GetScript("OnEvent")(ev, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1234-5678-9-133-ABCDEF", 133)
     TS.runTimers()
-    assert.same({ "Potion", GC.L["%d to craft"]:format(2) }, lineTexts(1))
+    assert.equal(GC.L["%d to craft"]:format(2), line(1).detail:GetText())
   end)
 
   it("counts a craft while the window is closed too", function()
@@ -809,17 +1224,7 @@ describe("craft queue view", function()
     GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
     GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
     showQueue()
-    local entries = {}
-    local saved = _G.MenuUtil
-    _G.MenuUtil = { CreateContextMenu = function(_, generator)
-      generator(nil, {
-        CreateTitle = function() end,
-        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
-      })
-    end }
-    local line = QV._rows[1].widget.frame
-    line:GetScript("OnClick")(line, "RightButton")
-    _G.MenuUtil = saved
+    local entries = lineMenu(1)
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text end
     assert.same({ GC.Util.ClientText(GC.L["Add to queue"]), GC.Util.ClientText(GC.L["Restock to"]),
@@ -827,7 +1232,39 @@ describe("craft queue view", function()
     entries[3].fn()
     TS.runTimers()
     assert.equal(1, #QV._rows)
-    assert.equal("Flask", QV._rows[1].widget.name:GetText())
+    assert.equal("Flask", line(1).name:GetText())
+  end)
+
+  -- The panel's top counts the queue's lines and says how the queue holds the open recipe
+  -- (UI/CraftPanel.lua's QueueOpen).
+  it("redraws the panel's top after it changes the queue or what a restock holds", function()
+    load()
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 3)
+    GC.CraftQueue.Add("Name-Realm", snapshot(5), 1)
+    showQueue()
+    local f = P._frame
+    assert.equal("2", f.switch.badge.text:GetText())
+    local asked = 0
+    local real = P.QueueOpen
+    P.QueueOpen = function(...)
+      asked = asked + 1
+      return real(...)
+    end
+    lineMenu(2)[3].fn()
+    TS.runTimers()
+    assert.equal(1, asked)
+    assert.equal("1", f.switch.badge.text:GetText())
+    local ev = QV._events
+    for _, event in ipairs({ "OWNED_AUCTIONS_UPDATED", "MAIL_CLOSED" }) do
+      asked = 0
+      ev:GetScript("OnEvent")(ev, event)
+      TS.runTimers()
+      assert.equal(1, asked, event)
+    end
+    asked = 0
+    crafted(3)
+    assert.equal(1, asked)
+    assert.equal(GC.L["In queue: %d"]:format(2), f.card.queued.text:GetText())
   end)
 
   it("repaints when the panel adds to the queue", function()
@@ -837,6 +1274,81 @@ describe("craft queue view", function()
     GC.CraftQueue.Add("Name-Realm", snapshot(5), 2)
     P.OnQueueChanged()
     assert.equal(1, #QV._rows)
+  end)
+
+  describe("coming back", function()
+    -- docs/addon/AGENTS.md "Text": a one-line label whose frame or a parent was hidden and shown
+    -- again can come back blank, and SetText with the text it holds does not redraw it. The cure
+    -- is clear, set, hide, show, on every re-show.
+    local function watch(logs, fs)
+      local log = {}
+      local set, hide, showIt = fs.SetText, fs.Hide, fs.Show
+      fs.SetText = function(self, text, ...)
+        log[#log + 1] = "set " .. tostring(text)
+        return set(self, text, ...)
+      end
+      fs.Hide = function(self) log[#log + 1] = "hide"; return hide(self) end
+      fs.Show = function(self) log[#log + 1] = "show"; return showIt(self) end
+      logs[fs] = log
+    end
+
+    local function restamped(logs, fs)
+      local log, n = logs[fs], #logs[fs]
+      return n >= 4 and log[n - 3] == "set " and log[n - 2] == "set " .. tostring(fs:GetText()) and log[n - 1] == "hide"
+        and log[n] == "show"
+    end
+
+    local function watchAll(logs, owners)
+      for _, owner in ipairs(owners) do
+        for _, fs in ipairs(owner.texts or {}) do watch(logs, fs) end
+      end
+    end
+
+    it("redraws every line it shows when it shows again", function()
+      load({ counts = {}, filtered = { 7 } })
+      VALUES[101] = commodity(400)
+      GC.CraftQueue.Restock("Name-Realm", snapshot(5), 4)
+      GC.CraftQueue.Add("Name-Realm", snapshot(7), 1)
+      local v = showQueue()
+      local logs = {}
+      local owners = { v }
+      for _, l in ipairs(v.lines) do owners[#owners + 1] = l end
+      for _, cell in ipairs(v.cells) do owners[#owners + 1] = cell end
+      watchAll(logs, owners)
+      local first, cell = line(1), v.cells[1]
+      for _, fs in ipairs({ v.heading, v.cost, v.buy.text, v.buyNote, v.currencies[1], first.name, first.detail,
+        first.craft.text, first.count, first.note, first.listed, cell.name, cell.slot.count, cell.price }) do
+        assert.is_truthy(logs[fs])
+      end
+      v:GetScript("OnShow")(v)
+      local checked = 0
+      for fs in pairs(logs) do
+        if fs:IsShown() and fs:GetText() ~= nil then
+          assert.is_true(restamped(logs, fs), tostring(fs:GetText()))
+          checked = checked + 1
+        end
+      end
+      assert.is_true(checked >= 14)
+    end)
+
+    it("redraws a line and a cell a shorter queue hid, when a longer one shows them again", function()
+      load({ counts = {}, filtered = { 9 } })
+      GC.CraftQueue.Add("Name-Realm", snapshot(3), 1)
+      GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+      local v = showQueue()
+      local l, cell = v.lines[2], v.cells[2]
+      GC.CraftQueue.Remove("Name-Realm", 9)
+      QV.Refresh()
+      assert.is_false(l.frame:IsShown())
+      assert.is_false(cell:IsShown())
+      local logs = {}
+      watch(logs, l.name)
+      watch(logs, cell.name)
+      GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+      QV.Refresh()
+      assert.is_true(restamped(logs, l.name))
+      assert.is_true(restamped(logs, cell.name))
+    end)
   end)
 
   it("registers its events through pcall", function()
@@ -850,7 +1362,8 @@ describe("craft queue view", function()
   end)
 
   -- The craft is the player's press and nothing else's: one CraftRecipe in the file, inside the
-  -- Craft button's own OnClick (probe A4: from a timer the client blocks it).
+  -- Craft button's own OnClick (probe A4: from a timer the client blocks it), the first thing it
+  -- calls, the button never disabled before it.
   it("crafts only inside the Craft button's click", function()
     local file = assert(io.open("GoldCap/UI/CraftQueueView.lua", "r"))
     local src = file:read("*a"):gsub("%-%-[^\n]*", "")
@@ -859,6 +1372,9 @@ describe("craft queue view", function()
     assert.equal(1, count)
     local from = assert(src:find('line.craft:SetScript("OnClick", function()', 1, true))
     local to = assert(src:find("\n  end)", from, true))
-    assert.is_truthy(src:sub(from, to):find("C_TradeSkillUI.CraftRecipe(", 1, true))
+    local body = src:sub(from, to)
+    local call = assert(body:find("C_TradeSkillUI.CraftRecipe(", 1, true))
+    assert.is_nil(body:sub(1, call):find("Disable", 1, true))
+    assert.is_nil(body:sub(1, call):find("SetText", 1, true))
   end)
 end)

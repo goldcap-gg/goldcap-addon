@@ -1,11 +1,21 @@
 local _, GC = ...
 
--- The craft panel's Queue view (retail, beside the profession window): this character's queued
--- recipes with what is left to craft, the reagents the queue is short of, and Make a BUY list,
--- which writes what the queue needs into the character's one Craft queue list for the BUY tab at
--- the auction house. Nothing is bought here. A line's Craft button crafts what the reagents allow
--- of what is left, in one press (newLine); a craft from Blizzard's own button takes one off a
--- counted line all the same (UNIT_SPELLCAST_SUCCEEDED).
+-- The craft panel's Queue view (retail, beside the profession window), as the owner approved it
+-- (canvas version 17, 2026-10-26). In one scroll:
+-- - a line per queued recipe: the icon of what it makes with its crafting quality, its name, what
+--   is left ("5 to craft. Reagents for 3 now", "Restock to 40: you hold 20, 4 crafts"), a bar of how
+--   far it is (crafts made of those asked for in gold, a restock's held of its target in blue) and
+--   its Craft button, which crafts what the reagents allow of what is left in one press (newLine).
+--   Dimmed, the line says why under its bar. While the client crafts a queued recipe (a run of
+--   them, from this button or Blizzard's own), that line is busy: gold, "Crafting", what the run
+--   has made and has left; every other line's Craft waits. A click on a line opens its recipe in
+--   Blizzard's window, a right click offers the queue. A craft from Blizzard's own button takes one
+--   off a counted line all the same (UNIT_SPELLCAST_SUCCEEDED);
+-- - Missing: what the reagents the queue is short of cost to buy, a cell per reagent with what is
+--   still to get into the bags, what of it waits in the mailbox and what the rest costs; a currency
+--   named as not sold on the auction house; and Make a BUY list, which writes what the queue needs
+--   into the character's one Craft queue list for the BUY tab at the auction house. Nothing is
+--   bought here.
 --
 -- That list follows the queue: every change to the queue, and to what a restock holds, rewrites
 -- its lines (SyncBuyList), so BUY never buys again what a craft already used. It is known by the
@@ -15,29 +25,55 @@ local _, GC = ...
 --
 -- Its events are its own, each registered under pcall (Core/Collection.lua's shape), so
 -- Core/Init.lua is not touched. The arithmetic is Core/CraftQueue.lua's; every count and price
--- comes through Services/CraftClient.lua.
+-- comes through Services/CraftClient.lua. Item icons, the bar and the lines are drawn with the
+-- GoldCap Hoard's and the panel's helpers (UI/HoardRow.lua's icon, UI/Kit/Bar.lua, HF.ui,
+-- UI/CraftPanel.lua's P.ui), and every line it draws is drawn again whenever it shows again
+-- (docs/addon/AGENTS.md "Text").
 GC.CraftQueueView = GC.CraftQueueView or {}
 local QV = GC.CraftQueueView
+local HF = GC.HoardFrame
+local U = HF.ui
+local K = GC.Kit.Tokens.color
+local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
+  U.restamp
 
-local LAYOUT = { GAP = 6, LINE_GAP = 2, NAME = 11, SMALL = 10, HEAD = 12, ROW_PAD = 4, BAR = 16,
-  BUTTON_H = 24, BUTTON_MIN = 72, CRAFT_H = 20, CRAFT_MIN = 56 }
+-- In UI units; the approved board is drawn at twice that. A line: PAD its margin, ICON its item,
+-- COL_GAP between its columns, BLOCK_GAP between its top, its bar and its notes, LINE_GAP between
+-- lines of text; CRAFT_H and CRAFT_MIN its Craft button, BAR_H its bar; LINE_SPACE between lines.
+-- GAP between the lines and Missing. Missing: M_PAD its margin, M_GAP between its parts, CELL_GAP
+-- between its cells, CELL_PAD a cell's margin, CELL_ICON its item; MAIL the mailbox glyph, MAIL_GAP
+-- right of it, MAIL_Y down from its line's top, level with the letters; BUTTON_H Make a BUY list.
+-- BAR: the scroll's bar right of them all. The rest are font sizes.
+local LAYOUT = {
+  PAD = 6, ICON = 24, COL_GAP = 6, BLOCK_GAP = 5, LINE_GAP = 2, CRAFT_H = 21, CRAFT_MIN = 56, BAR_H = 4,
+  LINE_SPACE = 4, GAP = 8,
+  M_PAD = 7, M_GAP = 6, CELL_GAP = 4, CELL_PAD = 4, CELL_ICON = 22, MAIL = 8, MAIL_GAP = 3, MAIL_Y = 1,
+  BUTTON_H = 24, BAR = 16,
+  NAME = 11, SMALL = 9, KICKER = 9, NOTE = 10, CELL_NAME = 10,
+}
+-- Where a cell's words start: right of its icon.
+local CELL_TEXT_X = LAYOUT.CELL_PAD + LAYOUT.CELL_ICON + LAYOUT.COL_GAP
 
-local function bodyWidth()
-  return GC.CraftPanel and GC.CraftPanel.BODY_W or 280
+-- The board's colours, from the kit's tokens: a line on the glass in its faint edge, the busy one in
+-- the gold This recipe wears; Crafting ringed in gold; a dimmed Craft in a faint white outline,
+-- drawn at the kit's disabled share of it (0.45: the board's 0.12); Missing's cells on the window's
+-- dark.
+local BUSY_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
+local BUSY_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
+local GOLD_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
+local DIM_RING = { 1, 1, 1, 0.27 }
+local CELL_FILL, NO_RING = { 0, 0, 0, 0.25 }, { 0, 0, 0, 0 }
+
+-- How wide the view's content is: the panel's body less the scroll's bar.
+local function contentWidth()
+  return (GC.CraftPanel and GC.CraftPanel.BODY_W or 280) - LAYOUT.BAR
 end
+
+local function textWidth(fs) return GC.CraftPanel.ui.textWidth(fs) end
 
 local function after(fn)
   local timer = _G.C_Timer
   if type(timer) == "table" and type(timer.After) == "function" then timer.After(0, fn) else fn() end
-end
-
-local function setColor(fs, c) fs:SetTextColor(c[1], c[2], c[3]) end
-
-local function wrapped(parent, size, width)
-  local fs = GC.Theme.Label(parent, size)
-  fs:SetWordWrap(true)
-  fs:SetWidth(width)
-  return fs
 end
 
 -- How many of an item `char` holds, its mailbox included (Services/CraftClient.lua's CountOf), for
@@ -48,22 +84,22 @@ local function counter(char)
 end
 
 -- What the queue needs that waits in the mailbox (Core/MailStock.lua, retail only), one row per
--- reagent ({ itemID, n }): held, so not missing, but Blizzard's Create takes reagents from the
--- bags and the banks alone. `n` is what the bags and the banks do not cover of the need.
+-- reagent ({ ids, n }, `ids` the need's own): held, so not missing, but Blizzard's Create takes
+-- reagents from the bags and the banks alone. `n` is what the bags and the banks do not cover of
+-- the need.
 local function inMailbox(needs, char, countOf)
   local stock = GC.MailStock
   local out = {}
   if not stock then return out end
   for _, row in ipairs(needs) do
-    local mail, held, named = 0, 0, nil
+    local mail, held = 0, 0
     for _, id in ipairs(row.ids or {}) do
       local m = stock.Count(char, id)
-      if m > 0 and not named then named = id end
       mail = mail + m
       held = held + countOf(id) - m
     end
     local n = math.min(mail, row.q - held)
-    if named and n > 0 then out[#out + 1] = { itemID = named, n = n } end
+    if n > 0 then out[#out + 1] = { ids = row.ids, n = n } end
   end
   return out
 end
@@ -147,6 +183,13 @@ function QV.SyncBuyList()
   return run
 end
 
+-- The panel's top counts the queue's lines and says how it holds the open recipe
+-- (UI/CraftPanel.lua): drawn again after this view changed the queue or what a restock holds.
+local function panelChanged()
+  local P = GC.CraftPanel
+  if P and P.QueueOpen then P.QueueOpen() end
+end
+
 --- A queue line's right click: more crafts, a restock target, or off the queue.
 function QV.OpenLineMenu(owner, entry)
   local menu = _G.MenuUtil
@@ -163,10 +206,43 @@ function QV.OpenLineMenu(owner, entry)
       if char then GC.CraftQueue.Remove(char, recipe.recipeID) end
       QV.SyncBuyList()
       QV.Queue()
+      panelChanged()
     end)
   end)
   return true
 end
+
+-- ---------------------------------------------------------------------------------------------
+-- A running craft
+-- ---------------------------------------------------------------------------------------------
+
+-- The run of crafts the client is making (CraftClient.Repeating) as this view counts it: its recipe
+-- and how many casts it is. The client says only how many are left, so a run is as long as the most
+-- this view saw left of it: all of it when the view saw it begin (TRADE_SKILL_CRAFT_BEGIN repaints
+-- it), what was left when it first saw it otherwise. Forgotten where CraftClient ends a run
+-- (QV.OnEvent), so a run that ended while the view was away is not taken for the next one.
+local run
+
+-- What is being crafted, when it is a queued recipe: { busy = recipeID, name, left, count }, the
+-- casts left (this one included) and the run's length. An empty table otherwise.
+local function runOf(rows)
+  local id, left = GC.CraftClient.Repeating()
+  if not id then
+    run = nil
+    return {}
+  end
+  if not (run and run.recipeID == id) then run = { recipeID = id, count = left } end
+  run.count = math.max(run.count, left)
+  for _, row in ipairs(rows) do
+    local recipe = row.entry.recipe
+    if recipe.recipeID == id then return { busy = id, name = recipe.name, left = left, count = run.count } end
+  end
+  return {}
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- A line
+-- ---------------------------------------------------------------------------------------------
 
 -- What the Craft button's tooltip says: what a press does, or why it cannot.
 local function craftTooltip(line)
@@ -179,22 +255,37 @@ local function craftTooltip(line)
   tip:Show()
 end
 
+local function wrapped(owner, parent, size, c)
+  local fs = track(owner, wrapping(GC.Theme.Label(parent, size)))
+  if c then colour(fs, c) end
+  return fs
+end
+
+-- A card on the glass in its faint edge, with the engine's gold wash under the cursor (HF.ui.plate),
+-- as a Worth crafting row is: the item, the name over what is left, Craft at the right; under them
+-- the bar with its figures; under that the notes.
 local function newLine(v)
   local T = GC.Theme
-  local width = bodyWidth() - LAYOUT.BAR
-  local frame = CreateFrame("Button", nil, v.content)
-  frame:SetWidth(width)
+  local frame = U.plate(v.content, K.glassBorder, "plaque")
+  frame:SetWidth(contentWidth())
+  frame.fill = T.SlicedTexture(frame, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassTop, T.SLICE.plaque)
+  frame.fill:SetAllPoints()
   local line = { frame = frame }
+  line.slot = HF.Row.NewIcon(frame, LAYOUT.ICON)
+  line.name = wrapped(line, frame, LAYOUT.NAME, K.text1)
+  line.detail = wrapped(line, frame, LAYOUT.SMALL, K.text3)
   -- Craft: what the reagents allow of what is left, in one press. CraftRecipe with a count crafts
   -- that many one after another, and only from the player's own press: from a timer the client
   -- blocks it (probe A2 and A4, retail 12.1.5, 2026-10-26). So the press is the call, with nothing
   -- before it but reading what the line was painted with, and nothing after: each finished cast
-  -- takes one off the line (QV.OnEvent). The reagents are the ones Blizzard's own Create would use
-  -- (an empty list, as the probe crafted with).
-  line.craft = T.Button(frame, "ghost", "plaque")
-  line.craft:SetSize(LAYOUT.CRAFT_MIN, LAYOUT.CRAFT_H)
-  line.craft:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -LAYOUT.ROW_PAD)
-  line.craft:FitLabels({ GC.L["Craft %d"]:format(9999) }, LAYOUT.CRAFT_MIN)
+  -- takes one off the line (QV.OnEvent), and the run's own events paint the line busy. The reagents
+  -- are the ones Blizzard's own Create would use (an empty list, as the probe crafted with). A busy
+  -- line's button and a dimmed one carry no count, so a press of them calls nothing.
+  line.craft = T.Button(frame, "ghost", "badge")
+  line.craft:SetGlow(false)
+  line.craft:SetUppercase(true)
+  line.craft:SetHeight(LAYOUT.CRAFT_H)
+  line.craft:FitLabels({ GC.L["Craft %d"]:format(9999), GC.L["Crafting"] }, LAYOUT.CRAFT_MIN)
   line.craft:SetScript("OnClick", function()
     local e, n = line.entry, line.craftCount
     if not (e and n) then return end
@@ -203,124 +294,440 @@ local function newLine(v)
   -- A disabled button says why on hover: the client sends a disabled button no hover otherwise.
   if line.craft.SetMotionScriptsWhileDisabled then line.craft:SetMotionScriptsWhileDisabled(true) end
   line.craft:HookScript("OnEnter", function() craftTooltip(line) end)
-  line.craft:HookScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
-  width = width - line.craft:GetWidth() - LAYOUT.GAP
-  line.name = wrapped(frame, LAYOUT.NAME, width)
-  line.name:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -LAYOUT.ROW_PAD)
-  setColor(line.name, T.color.fg)
-  line.detail = wrapped(frame, LAYOUT.SMALL, width)
-  line.detail:SetPoint("TOPLEFT", line.name, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
-  setColor(line.detail, T.color.fgMuted)
-  line.note = wrapped(frame, LAYOUT.SMALL, width)
-  line.note:SetPoint("TOPLEFT", line.detail, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
-  setColor(line.note, T.color.fgDim)
-  frame:RegisterForClicks("RightButtonUp")
+  line.craft:HookScript("OnLeave", U.hideTip)
+  track(line, line.craft.text)
+  line.bar = T.Bar(frame, LAYOUT.BAR_H)
+  line.count = track(line, T.Num(frame, LAYOUT.SMALL))
+  line.count:SetWordWrap(false)
+  colour(line.count, K.text3)
+  line.note = wrapped(line, frame, LAYOUT.SMALL)
+  line.listed = wrapped(line, frame, LAYOUT.SMALL, K.text4)
+  -- A click opens the line's recipe in Blizzard's window, called from the click itself as
+  -- Blizzard's recipe tracker does (CraftClient.Open); a right click offers the queue.
+  frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnClick", function(self, button)
-    if button == "RightButton" and line.entry then QV.OpenLineMenu(self, line.entry) end
+    local e = line.entry
+    if not e then return end
+    if button == "RightButton" then
+      QV.OpenLineMenu(self, e)
+    else
+      GC.CraftClient.Open(e.recipe.recipeID)
+    end
   end)
   return line
+end
+
+-- The line's Craft button, by its state:
+-- - busy while the client crafts the line's recipe: "Crafting", ringed in gold, saying on hover that
+--   GoldCap crafts it;
+-- - hidden with nothing left to craft;
+-- - live with how many a press makes, the fewer of what is left and what the reagents allow;
+-- - dimmed with what is left, saying why on hover: the window is on another profession or the
+--   reagents do not make one (the reason the line says under its bar too), or another line is busy.
+-- Enabled before its variant is set and disabled after: a button already dim keeps its dim words.
+-- Answers that reason, or nil, and how many the reagents allow.
+local function paintCraft(line, row, ctx)
+  local CC = GC.CraftClient
+  local b = line.craft
+  local recipeID = row.entry.recipe.recipeID
+  local busyWhy = ctx.busy and GC.L["GoldCap is crafting %s. Wait for it to finish."]:format(ctx.name)
+  line.craftCount, line.craftWhy = nil, nil
+  if recipeID == ctx.busy then
+    line.craftWhy = busyWhy
+    b:SetLabel(GC.L["Crafting"])
+    b:Enable()
+    b:SetVariant("active")
+    b:SetRing(GOLD_RING)
+    b:Show()
+    return nil, 0
+  end
+  local left = row.crafts or 0
+  if left <= 0 then
+    b:Hide()
+    return nil, 0
+  end
+  local here, where = CC.CraftableHere(recipeID)
+  local n = here and math.min(left, CC.Craftable(recipeID)) or 0
+  local reason
+  if not here then
+    reason = where and GC.L["Open %s to craft it here."]:format(where)
+      or GC.L["Open this recipe's profession to craft it here."]
+  elseif n <= 0 then
+    reason = GC.L["Not enough reagents for one craft. Missing below says what to get."]
+  end
+  line.craftWhy = reason or busyWhy
+  if not line.craftWhy then line.craftCount = n end
+  local live = line.craftCount ~= nil
+  b:SetLabel(GC.L["Craft %d"]:format(n > 0 and n or left))
+  b:Enable()
+  b:SetVariant(live and "primary" or "ghost")
+  b:SetRing(not live and DIM_RING or nil)
+  if not live then b:Disable() end
+  b:Show()
+  return reason, n
+end
+
+-- What the line says under its name: a busy line what this run has made and has left; a count what
+-- is left, and what the reagents allow now (`allowed`) when that is fewer but some; a restock its
+-- target, what is held and the crafts that bring it to the target.
+local function detailText(row, ctx, allowed)
+  local e = row.entry
+  if e.recipe.recipeID == ctx.busy then
+    return GC.L["%d crafted, %d to go"]:format(ctx.count - ctx.left, ctx.left)
+  end
+  if e.restock then
+    if row.crafts == 1 then return GC.L["Restock to %d: you hold %d, 1 craft"]:format(e.restock, row.held or 0) end
+    return GC.L["Restock to %d: you hold %d, %d crafts"]:format(e.restock, row.held or 0, row.crafts)
+  end
+  if allowed > 0 and allowed < e.count then return GC.L["%d to craft. Reagents for %d now"]:format(e.count, allowed) end
+  return GC.L["%d to craft"]:format(e.count)
+end
+
+-- Under the bar, each across the card: why Craft is dimmed, in the board's amber, or the run a busy
+-- line is making (when it is more than one craft); and for a restock, that what is up on the auction
+-- house is not counted yet. A restock counts what is up there too, and that is read only there,
+-- when something asks the auction house for the character's own auctions: in GoldCap, the Sell tab
+-- (Services/Sell/Owned.lua). Until then, it says so rather than craft more than is needed without a
+-- word.
+local function paintNotes(line, row, ctx, reason)
+  local note, tone = reason, K.warn
+  if row.entry.recipe.recipeID == ctx.busy and ctx.count > 1 then
+    note, tone = GC.L["Crafting %d one after another. Moving stops it."]:format(ctx.count), K.text2
+  end
+  if note then
+    setText(line.note, note)
+    colour(line.note, tone)
+  end
+  line.note:SetShown(note ~= nil)
+  if row.entry.restock and ctx.listedAt == nil then
+    setText(line.listed, GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"])
+    line.listed:Show()
+  else
+    line.listed:Hide()
+  end
+end
+
+-- One line, top to bottom: the item, the name over what is left and Craft, each centred on the top;
+-- the bar across what its figures leave; the notes. Answers its height, as tall as its wrapped text.
+local function paintLine(line, row, ctx)
+  local e = row.entry
+  local recipe, frame = e.recipe, line.frame
+  line.entry = e
+  local busy = recipe.recipeID == ctx.busy
+  local fill, ring = busy and BUSY_FILL or K.glassTop, busy and BUSY_RING or K.glassBorder
+  frame.fill:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
+  frame.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
+  HF.Row.PaintIcon(line.slot, recipe.output, GC.CraftClient.IconOf(recipe.output), nil, nil, { pip = true })
+  setText(line.name, recipe.name)
+  local reason, allowed = paintCraft(line, row, ctx)
+  setText(line.detail, detailText(row, ctx, allowed))
+  paintNotes(line, row, ctx, reason)
+
+  local inner = contentWidth() - 2 * LAYOUT.PAD
+  local craftW = line.craft:IsShown() and (line.craft:GetWidth() + LAYOUT.COL_GAP) or 0
+  local textX = LAYOUT.PAD + LAYOUT.ICON + LAYOUT.COL_GAP
+  local textW = inner - LAYOUT.ICON - LAYOUT.COL_GAP - craftW
+  line.name:SetWidth(textW)
+  line.detail:SetWidth(textW)
+  local textH = heightOf(line.name, 14) + LAYOUT.LINE_GAP + heightOf(line.detail, 12)
+  local topH = math.max(LAYOUT.ICON, LAYOUT.CRAFT_H, textH)
+  local y = LAYOUT.PAD
+  line.slot.edge:ClearAllPoints()
+  line.slot.edge:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(y + math.floor((topH - LAYOUT.ICON) / 2)))
+  line.name:ClearAllPoints()
+  line.name:SetPoint("TOPLEFT", frame, "TOPLEFT", textX, -(y + math.floor((topH - textH) / 2)))
+  line.detail:ClearAllPoints()
+  line.detail:SetPoint("TOPLEFT", line.name, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+  line.craft:ClearAllPoints()
+  line.craft:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -LAYOUT.PAD, -(y + math.floor((topH - LAYOUT.CRAFT_H) / 2)))
+  y = y + topH + LAYOUT.BLOCK_GAP
+
+  local done, total = GC.CraftQueue.Progress(e, row.held)
+  setText(line.count, ("%d / %d"):format(done, total))
+  local countH = heightOf(line.count, 11)
+  line.count:ClearAllPoints()
+  line.count:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -LAYOUT.PAD, -y)
+  line.bar:SetColor(e.restock and K.yours or K.gold)
+  line.bar:SetWidth(math.max(1, inner - textWidth(line.count) - LAYOUT.BLOCK_GAP))
+  line.bar:SetShare(total > 0 and done / total or 0)
+  line.bar:ClearAllPoints()
+  line.bar:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(y + math.floor((countH - LAYOUT.BAR_H) / 2)))
+  y = y + countH
+
+  local gap = LAYOUT.BLOCK_GAP
+  for _, fs in ipairs({ line.note, line.listed }) do
+    if fs:IsShown() then
+      fs:SetWidth(inner)
+      fs:ClearAllPoints()
+      fs:SetPoint("TOPLEFT", frame, "TOPLEFT", LAYOUT.PAD, -(y + gap))
+      y = y + gap + heightOf(fs, 12)
+      gap = LAYOUT.LINE_GAP
+    end
+  end
+  local height = y + LAYOUT.PAD
+  frame:SetHeight(height)
+  return height
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Missing
+-- ---------------------------------------------------------------------------------------------
+
+-- A cell on the window's dark: the reagent's icon with what the bags still need of it, its name,
+-- what waits in the mailbox beside the kit's envelope, in the "yours" blue, and what the rest costs.
+local function newCell(card)
+  local T = GC.Theme
+  local cell = T.Card(card, CELL_FILL, NO_RING, true)
+  cell.slot = HF.Row.NewIcon(cell, LAYOUT.CELL_ICON, true)
+  cell.name = wrapped(cell, cell, LAYOUT.CELL_NAME, K.text1)
+  cell.mailIcon = cell:CreateTexture(nil, "OVERLAY")
+  cell.mailIcon:SetSize(LAYOUT.MAIL, LAYOUT.MAIL)
+  T.SetIcon(cell.mailIcon, "mail", K.yours)
+  cell.mail = wrapped(cell, cell, LAYOUT.SMALL, K.yours)
+  cell.price = wrapped(cell, cell, LAYOUT.SMALL, K.text3)
+  return cell
+end
+
+-- One cell per reagent the bags and the banks are short of for the queue, in the order the queue
+-- needs them: what is still to buy (Missing's row and its price, nil without one) and what waits in
+-- the mailbox ({ itemID, buy, cost, mail }). A currency is not a cell: it is not sold on the auction
+-- house, and a line under the cells says so.
+local function cellsOf(needs, missing, costs, mailed)
+  local buy, mail = {}, {}
+  for k, row in ipairs(missing) do
+    if row.ids then buy[row.ids] = { n = row.missing, cost = costs[k] } end
+  end
+  for _, row in ipairs(mailed) do mail[row.ids] = row.n end
+  local cells = {}
+  for _, need in ipairs(needs) do
+    local ids = need.ids
+    local b, m = ids and buy[ids], ids and mail[ids] or 0
+    if b or m > 0 then
+      cells[#cells + 1] = { itemID = ids[1], buy = b and b.n or 0, cost = b and b.cost, mail = m }
+    end
+  end
+  return cells
+end
+
+-- A cell `width` wide: its icon and count, and its words wrapped right of the icon, the mailbox's
+-- and the price's lines hung under the name. Answers how tall the words stand.
+local function paintCell(cell, data, width)
+  local CC = GC.CraftClient
+  HF.Row.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail)
+  cell:SetWidth(width)
+  local textW = width - CELL_TEXT_X - LAYOUT.CELL_PAD
+  setText(cell.name, CC.MissingName({ itemID = data.itemID }))
+  cell.name:SetWidth(textW)
+  -- How far under the name the next line starts.
+  local below = 0
+  cell.mail:SetShown(data.mail > 0)
+  cell.mailIcon:SetShown(data.mail > 0)
+  if data.mail > 0 then
+    setText(cell.mail, GC.L["%d in your mailbox"]:format(data.mail))
+    cell.mail:SetWidth(textW - LAYOUT.MAIL - LAYOUT.MAIL_GAP)
+    cell.mailIcon:ClearAllPoints()
+    cell.mailIcon:SetPoint("TOPLEFT", cell.name, "BOTTOMLEFT", 0, -(LAYOUT.LINE_GAP + LAYOUT.MAIL_Y))
+    cell.mail:ClearAllPoints()
+    cell.mail:SetPoint("TOPLEFT", cell.name, "BOTTOMLEFT", LAYOUT.MAIL + LAYOUT.MAIL_GAP, -LAYOUT.LINE_GAP)
+    below = LAYOUT.LINE_GAP + math.max(LAYOUT.MAIL, heightOf(cell.mail, 11))
+  end
+  cell.price:SetShown(data.cost ~= nil)
+  if data.cost then
+    setText(cell.price, GC.L["about %s"]:format(GC.Util.Money(data.cost)))
+    cell.price:SetWidth(textW)
+    cell.price:ClearAllPoints()
+    cell.price:SetPoint("TOPLEFT", cell.name, "BOTTOMLEFT", 0, -(below + LAYOUT.LINE_GAP))
+    below = below + LAYOUT.LINE_GAP + heightOf(cell.price, 11)
+  end
+  return heightOf(cell.name, 13) + below
+end
+
+-- The cell as tall as the tallest of its row (`inside` within its margins), its icon and its words
+-- (`textH` tall, from paintCell) each centred down it.
+local function placeCell(cell, textH, inside)
+  cell.name:ClearAllPoints()
+  cell.name:SetPoint("TOPLEFT", cell, "TOPLEFT", CELL_TEXT_X, -(LAYOUT.CELL_PAD + math.floor((inside - textH) / 2)))
+  cell.slot.edge:ClearAllPoints()
+  cell.slot.edge:SetPoint("TOPLEFT", cell, "TOPLEFT", LAYOUT.CELL_PAD,
+    -(LAYOUT.CELL_PAD + math.floor((inside - LAYOUT.CELL_ICON) / 2)))
+  cell:SetHeight(inside + 2 * LAYOUT.CELL_PAD)
+end
+
+-- Missing's card: its heading and what the rest costs, the cells, the currencies, Make a BUY list
+-- and what the list does.
+local function buildMissing(v)
+  local T = GC.Theme
+  local card = T.Card(v.content, K.glassTop, K.glassBorder)
+  card:SetWidth(contentWidth())
+  v.missing = card
+  v.heading = track(v, wrapping(T.Heading(card, LAYOUT.KICKER)))
+  colour(v.heading, K.warn)
+  v.cost = wrapped(v, card, LAYOUT.NOTE, K.text2)
+  v.unpriced = wrapped(v, card, LAYOUT.SMALL, K.text3)
+  v.none = wrapped(v, card, LAYOUT.NOTE, K.text2)
+  v.buy = GC.CraftPanel.ui.glyphButton(card, "primary", "buy", K.onGold)
+  v.buy:SetHeight(LAYOUT.BUTTON_H)
+  v.buy:SetScript("OnClick", function() QV.MakeBuyList() end)
+  track(v, v.buy.text)
+  v.buyNote = wrapped(v, card, LAYOUT.SMALL, K.text3)
+end
+
+-- The heading at the left and, at the right, what the rest costs to buy ("about 486g to buy", the
+-- figure in gold) over how many reagents have no price; under the heading when the two do not fit
+-- side by side. The cost only when something has a price. Answers its height.
+local function paintHead(v, total, unpriced, inner)
+  local card = v.missing
+  setText(v.heading, GC.Util.Upper(GC.L["Missing"]))
+  local right = {}
+  if total > 0 then
+    setText(v.cost, GC.L["about %s to buy"]:format(GC.Util.Colored(K.goldText, GC.Util.Money(total))))
+    right[#right + 1] = v.cost
+  end
+  v.cost:SetShown(total > 0)
+  if unpriced > 0 then
+    setText(v.unpriced, unpriced == 1 and GC.L["1 has no price yet"] or GC.L["%d have no price yet"]:format(unpriced))
+    right[#right + 1] = v.unpriced
+  end
+  v.unpriced:SetShown(unpriced > 0)
+  local a, b = textWidth(v.heading) + 1, 0
+  for _, fs in ipairs(right) do b = math.max(b, textWidth(fs) + 1) end
+  local beside = #right > 0 and a + LAYOUT.M_GAP + b <= inner
+  v.heading:SetWidth((beside or #right == 0) and a or inner)
+  v.heading:ClearAllPoints()
+  v.heading:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.M_PAD, -LAYOUT.M_PAD)
+  local y = beside and 0 or (heightOf(v.heading, 11) + LAYOUT.LINE_GAP)
+  for i, fs in ipairs(right) do
+    if i > 1 then y = y + LAYOUT.LINE_GAP end
+    fs:SetWidth(beside and b or inner)
+    fs:SetJustifyH(beside and "RIGHT" or "LEFT")
+    fs:ClearAllPoints()
+    if beside then
+      fs:SetPoint("TOPRIGHT", card, "TOPRIGHT", -LAYOUT.M_PAD, -(LAYOUT.M_PAD + y))
+    else
+      fs:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.M_PAD, -(LAYOUT.M_PAD + y))
+    end
+    y = y + heightOf(fs, 12)
+  end
+  return math.max(heightOf(v.heading, 11), y)
+end
+
+-- Places `fs` across the card at `y` and answers the y under it.
+local function stack(card, fs, y)
+  fs:ClearAllPoints()
+  fs:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.M_PAD, -y)
+  fs:Show()
+  return y + heightOf(fs, 12)
+end
+
+-- The whole card from the queue as it stands. Answers its height.
+local function paintMissing(v, missing, needs, mailed)
+  local CC, Q = GC.CraftClient, GC.CraftQueue
+  local card = v.missing
+  local inner = contentWidth() - 2 * LAYOUT.M_PAD
+  local costs, total, unpriced = Q.MissingCost(missing, CC.UnitOf, CC.VendorOf)
+  local y = LAYOUT.M_PAD + paintHead(v, total, unpriced, inner)
+  if #missing == 0 then
+    setText(v.none, GC.L["Nothing is missing for the queue"])
+    v.none:SetWidth(inner)
+    y = stack(card, v.none, y + LAYOUT.M_GAP)
+  else
+    v.none:Hide()
+  end
+
+  -- Two to a row, each row as tall as its taller cell.
+  local cells = cellsOf(needs, missing, costs, mailed)
+  local cellW = math.floor((inner - LAYOUT.CELL_GAP) / 2)
+  for i = 1, #cells, 2 do
+    local row, inside = {}, LAYOUT.CELL_ICON
+    for j = i, math.min(i + 1, #cells) do
+      local cell = v.cells[j] or newCell(card)
+      v.cells[j] = cell
+      local wasUp = cell:IsShown()
+      local textH = paintCell(cell, cells[j], cellW)
+      row[#row + 1] = { cell, textH }
+      inside = math.max(inside, textH)
+      cell:Show()
+      -- A pooled cell a shorter list hid, shown again: drawn again whole.
+      if not wasUp and v:IsShown() then restamp(cell) end
+    end
+    y = y + (i == 1 and LAYOUT.M_GAP or LAYOUT.CELL_GAP)
+    for k, part in ipairs(row) do
+      local cell = part[1]
+      placeCell(cell, part[2], inside)
+      cell:ClearAllPoints()
+      cell:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.M_PAD + (k - 1) * (cellW + LAYOUT.CELL_GAP), -y)
+    end
+    y = y + inside + 2 * LAYOUT.CELL_PAD
+  end
+  for i = #cells + 1, #v.cells do v.cells[i]:Hide() end
+
+  local shown = 0
+  for _, row in ipairs(missing) do
+    if row.currency then
+      shown = shown + 1
+      local fs = v.currencies[shown] or wrapped(v, card, LAYOUT.NOTE, K.text2)
+      v.currencies[shown] = fs
+      setText(fs, GC.L["%s is not sold on the auction house"]:format(CC.MissingName({ currencyID = row.currency })))
+      fs:SetWidth(inner)
+      y = stack(card, fs, y + (shown == 1 and LAYOUT.M_GAP or LAYOUT.LINE_GAP))
+    end
+  end
+  for i = shown + 1, #v.currencies do v.currencies[i]:Hide() end
+
+  local b = v.buy
+  b:SetLabel(GC.L["Make a BUY list"])
+  GC.CraftPanel.ui.fitGlyph(b, inner)
+  if buyable(missing) then b:Enable() else b:Disable() end
+  local glyph = b:IsEnabled() and K.onGold or K.text3
+  b.glyph:SetVertexColor(glyph[1], glyph[2], glyph[3], 1)
+  b:ClearAllPoints()
+  b:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.M_PAD, -(y + LAYOUT.M_GAP))
+  y = y + LAYOUT.M_GAP + LAYOUT.BUTTON_H
+  setText(v.buyNote, GC.L["The BUY tab at the auction house buys what is missing, and the list follows the queue."])
+  v.buyNote:SetWidth(inner)
+  y = stack(card, v.buyNote, y + 2 * LAYOUT.LINE_GAP)
+  local height = y + LAYOUT.M_PAD
+  card:SetHeight(height)
+  return height
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- The view
+-- ---------------------------------------------------------------------------------------------
+
+-- docs/addon/AGENTS.md "Text": shown again (its tab picked, the recipes page back), the view draws
+-- again each line it shows, as the panel does its own.
+local function restampAll(v)
+  restamp(v)
+  for _, line in ipairs(v.lines) do
+    if line.frame:IsShown() then restamp(line) end
+  end
+  for _, cell in ipairs(v.cells) do
+    if cell:IsShown() then restamp(cell) end
+  end
 end
 
 --- Builds the view in the panel's body (UI/CraftPanel.lua calls this once, hidden until picked).
 function QV.Build(host)
   if QV._frame then return QV._frame end
   local T = GC.Theme
-  local width = bodyWidth() - LAYOUT.BAR
   local v = CreateFrame("Frame", nil, host)
   v:SetAllPoints(host)
-  v.buy = T.Button(v, "primary", "plaque")
-  v.buy:SetHeight(LAYOUT.BUTTON_H)
-  v.buy:SetPoint("BOTTOMLEFT", v, "BOTTOMLEFT", 0, 0)
-  v.buy:SetScript("OnClick", function() QV.MakeBuyList() end)
   v.scroll = CreateFrame("ScrollFrame", nil, v, "UIPanelScrollFrameTemplate")
-  if T.QuietScrollBar then T.QuietScrollBar(v.scroll) end
+  T.QuietScrollBar(v.scroll)
   v.scroll:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0)
-  v.scroll:SetPoint("BOTTOMRIGHT", v, "BOTTOMRIGHT", -LAYOUT.BAR, LAYOUT.BUTTON_H + LAYOUT.GAP)
+  v.scroll:SetPoint("BOTTOMRIGHT", v, "BOTTOMRIGHT", -LAYOUT.BAR, 0)
   v.content = CreateFrame("Frame", nil, v.scroll)
-  v.content:SetSize(width, 1)
+  v.content:SetSize(contentWidth(), 1)
   v.scroll:SetScrollChild(v.content)
-  v.empty = wrapped(v.content, LAYOUT.NAME, width)
-  setColor(v.empty, T.color.fgMuted)
-  v.missingHeading = T.Heading(v.content, LAYOUT.HEAD)
-  v.missingHeading:SetJustifyH("LEFT")
-  v.missingHeading:SetWordWrap(true)
-  v.missingHeading:SetWidth(width)
-  setColor(v.missingHeading, T.color.gold)
-  v.none = wrapped(v.content, LAYOUT.SMALL, width)
-  setColor(v.none, T.color.fgMuted)
-  v.lines, v.missingLines = {}, {}
+  v.empty = wrapped(v, v.content, LAYOUT.NOTE, K.text2)
+  v.empty:SetWidth(contentWidth())
+  buildMissing(v)
+  v.lines, v.cells, v.currencies = {}, {}, {}
+  v:SetScript("OnShow", restampAll)
   v:Hide()
   QV._frame = v
   return v
-end
-
--- Places `region` at `y` down the content and answers the y under it.
-local function stack(v, region, y, gap)
-  region:ClearAllPoints()
-  region:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, -(y + gap))
-  region:Show()
-  return y + gap + region:GetHeight()
-end
-
--- The line's Craft button: hidden with nothing left to craft; live with how many a press makes,
--- the fewer of what is left and what the reagents allow; dimmed with what is left, saying why on
--- hover, when the window is on another profession or the reagents do not make one.
-local function paintCraft(line, row)
-  local CC = GC.CraftClient
-  local left = row.crafts or 0
-  line.craftCount, line.craftWhy = nil, nil
-  if left <= 0 then
-    line.craft:Hide()
-    return
-  end
-  local recipeID = row.entry.recipe.recipeID
-  local here, where = CC.CraftableHere(recipeID)
-  local n = here and math.min(left, CC.Craftable(recipeID)) or 0
-  if not here then
-    line.craftWhy = where and GC.L["Open %s to craft it here."]:format(where)
-      or GC.L["Open this recipe's profession to craft it here."]
-  elseif n <= 0 then
-    line.craftWhy = GC.L["Not enough reagents for one craft. Missing below says what to get."]
-  else
-    line.craftCount = n
-  end
-  line.craft:SetLabel(GC.L["Craft %d"]:format(n > 0 and n or left))
-  line.craft:SetVariant(n > 0 and "primary" or "ghost")
-  if n > 0 then line.craft:Enable() else line.craft:Disable() end
-  line.craft:Show()
-end
-
-local function paintLine(line, row, listedAt)
-  local e = row.entry
-  line.entry = e
-  line.name:SetText(e.recipe.name)
-  if e.count then
-    line.detail:SetText(GC.L["%d to craft"]:format(e.count))
-  else
-    line.detail:SetText(GC.L["Restock to %d: %d held"]:format(e.restock, row.held or 0))
-  end
-  local height = LAYOUT.ROW_PAD + line.name:GetHeight() + LAYOUT.LINE_GAP + line.detail:GetHeight()
-  -- A restock counts what is up on the auction house too, and that is read only there, when
-  -- something asks the auction house for the character's own auctions: in GoldCap, the Sell tab
-  -- (Services/Sell/Owned.lua). Until then, say so rather than craft more than is needed without
-  -- a word.
-  if e.restock and listedAt == nil then
-    line.note:SetText(GC.L["Auctions not counted yet: open GoldCap's Sell tab at the auction house"])
-    line.note:Show()
-    height = height + LAYOUT.LINE_GAP + line.note:GetHeight()
-  else
-    line.note:Hide()
-  end
-  paintCraft(line, row)
-  line.frame:SetHeight(math.max(height, LAYOUT.ROW_PAD + LAYOUT.CRAFT_H) + LAYOUT.ROW_PAD)
-end
-
-local function missingText(row)
-  local CC = GC.CraftClient
-  if row.currency then
-    return GC.L["%s is not sold on the auction house"]:format(CC.MissingName({ currencyID = row.currency }))
-  end
-  return GC.L["%d %s"]:format(row.missing, CC.MissingName({ itemID = row.ids[1] }))
 end
 
 --- Reads the queue again and repaints the view, while it is on screen.
@@ -329,63 +736,46 @@ function QV.Refresh()
   local v = QV._frame
   if not (v and v:IsVisible()) then return end
   local char = GC.CraftClient.Char()
-  local rows, missing, listedAt, _, mailed = work(char)
+  local rows, missing, listedAt, needs, mailed = work(char)
   QV._rows = rows
+  local ctx = runOf(rows)
+  ctx.listedAt = listedAt
   local y = 0
   for i, row in ipairs(rows) do
     local line = v.lines[i] or newLine(v)
     v.lines[i] = line
-    paintLine(line, row, listedAt)
+    local wasUp = line.frame:IsShown()
+    local height = paintLine(line, row, ctx)
+    line.frame:ClearAllPoints()
+    line.frame:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, -y)
+    line.frame:Show()
+    -- A pooled line a shorter queue hid, shown again: drawn again whole.
+    if not wasUp and v:IsShown() then restamp(line) end
     row.widget = line
-    y = stack(v, line.frame, y, 0)
+    y = y + height + LAYOUT.LINE_SPACE
   end
   for i = #rows + 1, #v.lines do
     v.lines[i].frame:Hide()
     v.lines[i].entry = nil
   end
 
-  local width = bodyWidth() - LAYOUT.BAR
   if #rows == 0 then
-    v.empty:SetText(GC.L["The queue is empty. Add a recipe from This recipe."])
-    y = stack(v, v.empty, y, LAYOUT.ROW_PAD)
-    v.missingHeading:Hide()
-    v.none:Hide()
+    setText(v.empty, GC.L["The queue is empty. Add a recipe from This recipe."])
+    v.empty:ClearAllPoints()
+    v.empty:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
+    v.empty:Show()
+    v.missing:Hide()
+    y = heightOf(v.empty, 12)
   else
     v.empty:Hide()
-    v.missingHeading:SetText(GC.L["Missing"])
-    y = stack(v, v.missingHeading, y, 2 * LAYOUT.GAP)
-    if #missing == 0 then
-      v.none:SetText(GC.L["Nothing is missing for the queue"])
-      y = stack(v, v.none, y, LAYOUT.LINE_GAP)
-    else
-      v.none:Hide()
-    end
+    y = y - LAYOUT.LINE_SPACE + LAYOUT.GAP
+    local height = paintMissing(v, missing, needs, mailed)
+    v.missing:ClearAllPoints()
+    v.missing:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, -y)
+    v.missing:Show()
+    y = y + height
   end
-  -- Under Missing, what is held but waits in the mailbox: take it out before crafting.
-  local texts = {}
-  if #rows > 0 then
-    for _, row in ipairs(missing) do texts[#texts + 1] = missingText(row) end
-    for _, row in ipairs(mailed) do
-      texts[#texts + 1] = GC.L["%d %s in the mailbox"]:format(row.n, GC.CraftClient.MissingName({ itemID = row.itemID }))
-    end
-  end
-  local shown = #texts
-  for i = 1, shown do
-    local fs = v.missingLines[i]
-    if not fs then
-      fs = wrapped(v.content, LAYOUT.SMALL, width)
-      setColor(fs, GC.Theme.color.fg)
-      v.missingLines[i] = fs
-    end
-    fs:SetText(texts[i])
-    y = stack(v, fs, y, LAYOUT.LINE_GAP)
-  end
-  for i = shown + 1, #v.missingLines do v.missingLines[i]:Hide() end
-  v.content:SetHeight(math.max(1, y + LAYOUT.ROW_PAD))
-
-  v.buy:SetLabel(GC.L["Make a BUY list"])
-  v.buy:FitLabels({ v.buy.label }, LAYOUT.BUTTON_MIN)
-  if buyable(missing) then v.buy:Enable() else v.buy:Disable() end
+  v.content:SetHeight(math.max(1, y))
 end
 
 --- One repaint on the next frame, however many times this is asked for before then.
@@ -403,13 +793,13 @@ function QV.MakeBuyList()
   if not char then return nil end
   local _, missing, _, needs = work(char)
   if not buyable(missing) then return nil end
-  local run = writeList(char, needs)
-  if not run then return nil end
-  GC.AppRuns.SetArchived(run.code, false)
-  if GC.Buy and GC.Buy.SelectRun then GC.Buy.SelectRun(run.code) end
+  local list = writeList(char, needs)
+  if not list then return nil end
+  GC.AppRuns.SetArchived(list.code, false)
+  if GC.Buy and GC.Buy.SelectRun then GC.Buy.SelectRun(list.code) end
   if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
-  GC.Print(GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.AppRuns.Label(run)))
-  return run
+  GC.Print(GC.L["BUY list %s is ready in the BUY tab at the auction house"]:format(GC.AppRuns.Label(list)))
+  return list
 end
 
 -- Whether a visit to the mailbox is going on (Core/MailStock.lua, retail only). The client is
@@ -426,12 +816,18 @@ local function mailboxOpen()
   return true
 end
 
+-- Where Services/CraftClient.lua ends a run of crafts (Blizzard_ProfessionsCrafting.lua's crafting
+-- page ends it there too): the player's cast interrupted or failed, the window closed, and the cast
+-- stopped, which a scrap's stop is not (its first argument).
+local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = true, TRADE_SKILL_CLOSE = true }
+
 --- UNIT_SPELLCAST_SUCCEEDED: a craft of a counted recipe takes one off its line, the window open
 --- or not. OWNED_AUCTIONS_UPDATED: what this character has up on the auction house, for restocks.
 --- BAG_UPDATE_DELAYED: what a restock holds, which a craft of it adds to only once the item is in
 --- the bags. MAIL_CLOSED: what waits in the mailbox, as the visit's last read of the inbox left it
 --- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
---- brings the craft queue list in step (SyncBuyList).
+--- brings the craft queue list in step (SyncBuyList), and the panel's top with the view.
+--- TRADE_SKILL_CRAFT_BEGIN and the run's ends: the line being crafted, busy or live again.
 ---
 --- While the mailbox is open the bags are not counted: a take can reach the bags before the read of
 --- the inbox that sees it gone, and for that moment the units count twice. The list would shrink
@@ -451,11 +847,13 @@ function QV.OnEvent(event, ...)
     if ok and changed then
       QV.SyncBuyList()
       QV.Queue()
+      panelChanged()
     end
   elseif event == "OWNED_AUCTIONS_UPDATED" then
     if GC.CraftClient.ReadListed() then
       QV.SyncBuyList()
       QV.Queue()
+      panelChanged()
     end
   elseif event == "BAG_UPDATE_DELAYED" then
     if not mailboxOpen() then QV.SyncBuyList() end
@@ -465,15 +863,24 @@ function QV.OnEvent(event, ...)
     if GC.MailStock then GC.MailStock.Closed() end
     QV.SyncBuyList()
     QV.Queue()
+    panelChanged()
+  elseif event == "TRADE_SKILL_CRAFT_BEGIN" then
+    QV.Queue()
+  elseif RUN_ENDS[event] or (event == "UPDATE_TRADESKILL_CAST_STOPPED" and not (...)) then
+    run = nil
+    QV.Queue()
   end
 end
 
 if type(CreateFrame) == "function" then
   local events = CreateFrame("Frame")
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
-  pcall(events.RegisterEvent, events, "OWNED_AUCTIONS_UPDATED")
-  pcall(events.RegisterEvent, events, "BAG_UPDATE_DELAYED")
-  pcall(events.RegisterEvent, events, "MAIL_CLOSED")
+  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_INTERRUPTED", "player")
+  pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_FAILED", "player")
+  for _, event in ipairs({ "OWNED_AUCTIONS_UPDATED", "BAG_UPDATE_DELAYED", "MAIL_CLOSED", "TRADE_SKILL_CRAFT_BEGIN",
+    "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
+    pcall(events.RegisterEvent, events, event)
+  end
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)
   QV._events = events
 end

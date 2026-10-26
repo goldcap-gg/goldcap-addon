@@ -313,16 +313,16 @@ function TS.runTimers()
   end
 end
 
---- GoldCap as the client loads it for crafting: prices, the craft modules and the kit, in TOC order,
---- with the Hoard's look the panel draws its item icons and its price line with (UI/HoardFrame.lua,
---- UI/HoardRow.lua, UI/HoardFooter.lua) and the strip, whose lines This recipe says a missing
---- price with.
+--- GoldCap as the client loads it for crafting: prices, the craft modules and the kit (the Queue
+--- view's bar among it), in TOC order, with the Hoard's look the panel draws its item icons and its
+--- price line with (UI/HoardFrame.lua, UI/HoardRow.lua, UI/HoardFooter.lua) and the strip, whose
+--- lines This recipe says a missing price with.
 function TS.craftGC()
   local helper = require("spec.spec_helper")
   local GC = helper.loadModule("Core/Util.lua")
   for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/CraftMath.lua", "Core/CraftQueue.lua",
-    "Services/CraftClient.lua", "UI/Theme.lua", "UI/Tooltip.lua", "UI/HoardFrame.lua", "UI/HoardRow.lua",
-    "UI/HoardFooter.lua", "UI/CraftStrip.lua" }) do
+    "Services/CraftClient.lua", "UI/Theme.lua", "UI/Kit/Bar.lua", "UI/Tooltip.lua", "UI/HoardFrame.lua",
+    "UI/HoardRow.lua", "UI/HoardFooter.lua", "UI/CraftStrip.lua" }) do
     helper.loadModule(path, GC)
   end
   return GC

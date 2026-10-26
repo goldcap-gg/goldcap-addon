@@ -21,9 +21,19 @@ local KEYS = {
   "Restock to",
   "How many crafts of %s?", "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
   -- The Queue view.
-  "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",
-  "Remove from queue", "The queue is empty. Add a recipe from This recipe.", "Missing", "%d %s",
-  "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list", "Craft queue",
+  "Queue", "%d to craft", "%d to craft. Reagents for %d now", "Restock to %d: you hold %d, %d crafts",
+  "Restock to %d: you hold %d, 1 craft", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",
+  "Remove from queue", "The queue is empty. Add a recipe from This recipe.",
+  -- A line's Craft and the run of crafts it starts.
+  "Craft %d", "Crafting", "%d crafted, %d to go", "Crafting %d one after another. Moving stops it.",
+  "GoldCap is crafting %s. Wait for it to finish.",
+  "Crafts %d now, one after another, with the reagents the profession window would use. Moving stops it.",
+  "Open %s to craft it here.", "Open this recipe's profession to craft it here.",
+  "Not enough reagents for one craft. Missing below says what to get.",
+  -- Missing.
+  "Missing", "about %s to buy", "%d have no price yet", "1 has no price yet", "%d in your mailbox", "about %s",
+  "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list",
+  "The BUY tab at the auction house buys what is missing, and the list follows the queue.", "Craft queue",
   "BUY list %s is ready in the BUY tab at the auction house", "Currency %d",
 }
 

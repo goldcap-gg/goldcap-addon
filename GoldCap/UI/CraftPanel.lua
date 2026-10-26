@@ -564,6 +564,16 @@ local function glyphWidth(b)
   return 2 * LAYOUT.BUTTON_PAD + LAYOUT.GLYPH + LAYOUT.GLYPH_GAP + textWidth(b.text)
 end
 
+-- A glyph button `width` wide, its glyph and its words centred together in it. After SetLabel.
+local function fitGlyph(b, width)
+  b:SetWidth(width)
+  centreIn(b, { { b.glyph, LAYOUT.GLYPH }, { b.text, textWidth(b.text) } }, LAYOUT.GLYPH_GAP)
+end
+
+-- What the Queue view (UI/CraftQueueView.lua) draws as this panel does: how wide a line of text is,
+-- and Make a BUY list, a glyph button as Add to queue is.
+P.ui = { textWidth = textWidth, glyphButton = glyphButton, fitGlyph = fitGlyph }
+
 -- Add to queue and Restock to from `y` down the card, `inner` wide, as wide as each other: side by
 -- side when the wider fits half the card in the player's language, else one under the other across
 -- it. Answers their height.
@@ -582,8 +592,7 @@ local function paintButtons(card, inner, y)
     restock:SetPoint("TOPLEFT", add, "BOTTOMLEFT", 0, -LAYOUT.BUTTON_GAP)
   end
   for _, b in ipairs({ add, restock }) do
-    b:SetWidth(beside and half or inner)
-    centreIn(b, { { b.glyph, LAYOUT.GLYPH }, { b.text, textWidth(b.text) } }, LAYOUT.GLYPH_GAP)
+    fitGlyph(b, beside and half or inner)
     b:Show()
   end
   return beside and LAYOUT.BUTTON_H or (2 * LAYOUT.BUTTON_H + LAYOUT.BUTTON_GAP)
