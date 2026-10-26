@@ -187,6 +187,15 @@ describe("Disenchant", function()
       assert.is_truthy(at and core and at < core)
       for _, f in ipairs(files("GoldCap/GoldCap_Camelot.toc")) do assert.not_equal("Data/NoDisenchant.lua", f) end
     end)
+    -- The ids are held as one sorted array and searched by halves (the re-review's N2): every id of
+    -- a run and between runs, the first and the last, and none outside them.
+    it("finds each id of the runs and none between or outside them", function()
+      GC.NoDisenchant = { build = "1.0.0.1", count = 5, ids = "a,5+2,z" }
+      local want = { [10] = true, [15] = true, [16] = true, [17] = true, [52] = true }
+      for id = 1, 60 do assert.equal(want[id] == true, D.NoDisenchant(id), tostring(id)) end
+      assert.is_false(D.NoDisenchant(nil))
+      assert.is_false(D.NoDisenchant("15"))
+    end)
     it("knows no id without the file", function()
       assert.is_false(D.NoDisenchant(199762))
     end)

@@ -23,31 +23,48 @@ D.KEEP_VERSION = 1
 local function positive(n) return type(n) == "number" and n > 0 end
 
 -- The gear the game will not disenchant (Data/NoDisenchant.lua, generated from its own tables:
--- ItemSparse Flags_0 0x8000; the client refuses one with "That item is not a valid target."), as a
--- set, decoded on first use: the ids go in sorted runs, each the base 36 step from the last id of the
--- run before and, after "+", how many more follow one by one. Empty without the file.
-local noDisenchant
+-- ItemSparse Flags_0 0x8000; the client refuses one with "That item is not a valid target."),
+-- decoded on first use into one sorted array, searched by halves: the ids go in sorted runs, each
+-- the base 36 step from the last id of the run before and, after "+", how many more follow one by
+-- one. The client's table.create sizes the array to the file's count up front (Lua 5.1: 16 bytes an
+-- id, about 270 KB for 17,116; a set of them took a hash of 32,768 nodes of 40, about 1.3 MB: the
+-- re-review's N2). Empty without the file.
+local noDisenchant, noDisenchantN
 
---- Whether the game's own data says `itemID` is never disenchanted.
-function D.NoDisenchant(itemID)
-  if not noDisenchant then
-    noDisenchant = {}
-    local data = GC.NoDisenchant
-    local text = type(data) == "table" and data.ids
-    if type(text) == "string" then
-      local last = 0
-      for token in text:gmatch("[^,]+") do
-        local step, more = token:match("^(%w+)%+?(%w*)$")
-        last = last + (tonumber(step, 36) or 0)
-        noDisenchant[last] = true
-        for _ = 1, tonumber(more, 36) or 0 do
-          last = last + 1
-          noDisenchant[last] = true
-        end
+local function decodeNoDisenchant()
+  local data = type(GC.NoDisenchant) == "table" and GC.NoDisenchant or {}
+  local count = tonumber(data.count) or 0
+  local create = rawget(table, "create")
+  local ids = type(create) == "function" and count > 0 and create(count) or {}
+  local n, last = 0, 0
+  if type(data.ids) == "string" then
+    for token in data.ids:gmatch("[^,]+") do
+      local step, more = token:match("^(%w+)%+?(%w*)$")
+      last = last + (tonumber(step, 36) or 0)
+      n = n + 1
+      ids[n] = last
+      for _ = 1, tonumber(more, 36) or 0 do
+        last = last + 1
+        n = n + 1
+        ids[n] = last
       end
     end
   end
-  return noDisenchant[itemID] == true
+  return ids, n
+end
+
+--- Whether the game's own data says `itemID` is never disenchanted.
+function D.NoDisenchant(itemID)
+  if not noDisenchant then noDisenchant, noDisenchantN = decodeNoDisenchant() end
+  if type(itemID) ~= "number" then return false end
+  local lo, hi = 1, noDisenchantN
+  while lo <= hi do
+    local mid = math.floor((lo + hi) / 2)
+    local id = noDisenchant[mid]
+    if id == itemID then return true end
+    if id < itemID then lo = mid + 1 else hi = mid - 1 end
+  end
+  return false
 end
 
 --- Gear of a kind disenchanting takes: armor, weapons and profession tools of quality 2 to 4, not a
