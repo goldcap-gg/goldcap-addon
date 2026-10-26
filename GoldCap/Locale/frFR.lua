@@ -1482,6 +1482,7 @@ GC.Locales.frFR = {
   ["No recipe here makes a profit now"] = "Aucune recette ici ne rapporte de profit pour l'instant",
   ["This recipe"] = "Cette recette",
   ["In queue: %d"] = "Dans la file : %d",
+  ["Restock to %d"] = "Compléter à %d",
   ["Reagents"] = "Composants",
   ["Sells for, after cut"] = "Vente après commission",
   ["Profit a craft"] = "Profit par fabrication",

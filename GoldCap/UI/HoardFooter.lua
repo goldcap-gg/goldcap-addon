@@ -103,17 +103,23 @@ local function onPutBack(moved)
   GC.Hoard.SetRoom(GC.db, char, GC.Hoard.Unreturned(GC.Hoard.Room(GC.db, char), moved))
 end
 
-local function build(f)
+--- The price line on `f`: its dot (f.dot) and its words (f.prices, wrapping, among `owner`'s lines
+--- for the re-show), as the Hoard's footer, the Disenchant window's and the crafting panel's draw it.
+function HFF.NewPriceLine(f, owner)
   local T = GC.Theme
-  f.makeRoom = U.quietMove(f, true, "footer:makeRoom")
-  f.putBack = U.quietMove(f, false, "footer:putBack")
-  f.makeRoom.onRunEnd, f.putBack.onRunEnd = onRoomMade, onPutBack
   -- The badge art is round at this size (T.LiveDot draws its light the same way).
   f.dot = f:CreateTexture(nil, "ARTWORK")
   f.dot:SetTexture(T.MEDIA .. "badge.png")
   f.dot:SetSize(M.DOT, M.DOT)
-  f.prices = track(HF._frame, wrapping(T.Label(f, 9)))
+  f.prices = track(owner, wrapping(T.Label(f, 9)))
   colour(f.prices, K.text3)
+end
+
+local function build(f)
+  f.makeRoom = U.quietMove(f, true, "footer:makeRoom")
+  f.putBack = U.quietMove(f, false, "footer:putBack")
+  f.makeRoom.onRunEnd, f.putBack.onRunEnd = onRoomMade, onPutBack
+  HFF.NewPriceLine(f, HF._frame)
 end
 
 -- The price line's words for `origin` ("app", "manual" or "none") and an age in seconds.
@@ -141,6 +147,24 @@ end
 
 -- The Disenchant window's footer (UI/DisenchantFrame.lua) says the same line under the same dot.
 HFF.PricesNow = pricesNow
+
+--- The price line NewPriceLine built on `f`, along f's foot from `x` in and `y` up, `w` wide with
+--- its dot: the words wrapped right of the dot, the dot level with their first line in the kit's
+--- green while the prices are fresh, amber after or with none. The Disenchant window's foot and the
+--- crafting panel's. Answers its height.
+function HFF.PaintPriceLine(f, x, y, w)
+  local text, fresh = pricesNow()
+  f.prices:SetWidth(w - M.DOT - M.DOT_GAP)
+  setText(f.prices, text)
+  local c = fresh and K.profit or K.warn
+  f.dot:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+  local h = math.ceil(heightOf(f.prices, 12))
+  f.prices:ClearAllPoints()
+  f.prices:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x + M.DOT + M.DOT_GAP, y)
+  f.dot:ClearAllPoints()
+  f.dot:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x, y + math.floor((math.min(h, 12) - M.DOT) / 2))
+  return h
+end
 
 -- Every line the price line can say in this visit: each source at each widest age, and none.
 local function pricesVariants(text)

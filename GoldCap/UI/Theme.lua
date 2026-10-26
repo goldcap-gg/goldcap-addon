@@ -339,14 +339,30 @@ local function atlasForQuality(itemID)
   return atlas
 end
 
---- The atlas the client draws for `itemID`'s crafting quality, or nil when the item has no
--- quality tier (most items do) or the client will not say what to draw.
+-- The client's calls for an item's crafting quality, in the order asked: a reagent's (the auction
+-- house's commodity rows ask it, Blizzard_AuctionHouseSharedTemplates.lua), then crafted gear's,
+-- which the first has no number for (the customer orders form asks it,
+-- Blizzard_ProfessionsCustomerOrdersForm.lua).
+local QUALITY_CALLS = { "GetItemReagentQualityByItemInfo", "GetItemCraftedQualityByItemInfo" }
+
+-- Whether one of those gives `itemID` a quality: one that is missing or throws answers nothing.
+local function hasQuality(itemID)
+  local api = C_TradeSkillUI
+  if type(api) ~= "table" then return false end
+  for _, name in ipairs(QUALITY_CALLS) do
+    local call = api[name]
+    if call then
+      local ok, quality = pcall(call, itemID)
+      if ok and type(quality) == "number" then return true end
+    end
+  end
+  return false
+end
+
+--- The atlas the client draws for `itemID`'s crafting quality, a reagent's or crafted gear's, or nil
+-- when the item has no quality tier (most items do not) or the client will not say what to draw.
 function T.QualityAtlas(itemID)
-  if type(itemID) ~= "number" then return nil end
-  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
-  if not api then return nil end
-  local ok, quality = pcall(api, itemID)
-  if not ok or type(quality) ~= "number" then return nil end
+  if type(itemID) ~= "number" or not hasQuality(itemID) then return nil end
   return atlasForQuality(itemID)
 end
 

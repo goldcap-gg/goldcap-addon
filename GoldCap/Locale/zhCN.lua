@@ -1382,6 +1382,7 @@ GC.Locales.zhCN = {
   ["No recipe here makes a profit now"] = "这里现在没有能赚到利润的配方",
   ["This recipe"] = "当前配方",
   ["In queue: %d"] = "队列中：%d",
+  ["Restock to %d"] = "补货至 %d",
   ["Reagents"] = "材料",
   ["Sells for, after cut"] = "扣除手续费后售价",
   ["Profit a craft"] = "单次制作利润",

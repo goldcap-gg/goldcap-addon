@@ -79,6 +79,7 @@ describe("craft panel", function()
   after_each(function()
     if restore then restore() end
     W.unknownEvents = {}
+    W.CLIENT_METRICS = false
   end)
 
   it("opens beside the profession window on its recipes page, as tall as the window", function()
@@ -118,6 +119,8 @@ describe("craft panel", function()
       assert.equal("Alchemy", chip.text:GetText())
       assert.equal(4620669, W.state(chip.icon).file)
       assert.is_true(chip.icon:IsShown())
+      -- Round, as the board draws it: through the mask Blizzard's portraits use.
+      assert.equal("Interface\\CharacterFrame\\TempPortraitAlphaMask", W.state(chip.icon).mask)
       local point, relative, relativePoint = chip:GetPoint(1)
       assert.same({ "RIGHT", f.header, "RIGHT" }, { point, relative, relativePoint })
       -- As wide as its icon and its name: a name is never cut.
@@ -156,6 +159,11 @@ describe("craft panel", function()
       assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(first.slot.pip).atlas)
       assert.equal(5002, W.state(second.slot.icon).file)
       assert.is_false(second.slot.pip:IsShown())
+      -- Crafted gear's quality comes from the crafted-quality call, the reagent call having none.
+      TS.opts.crafted = { [902] = 3 }
+      P.Refresh()
+      assert.is_true(second.slot.pip:IsShown())
+      assert.equal("Professions-Icon-Quality-Tier3-Small", W.state(second.slot.pip).atlas)
       -- How fast it sells: green with how many a day, amber under one a day, nothing unknown.
       assert.is_true(first.pace:IsShown())
       assert.equal(GC.L["about %s a day"]:format("12"), first.pace.text:GetText())
@@ -343,6 +351,27 @@ describe("craft panel", function()
       assert.same({ "BOTTOMRIGHT", v }, { point, relative })
       assert.is_true(y >= v.unpriced:GetHeight())
     end)
+
+    it("puts the heading's two parts side by side when they fit, else one under the other", function()
+      -- Measured as the client draws a 9-point face (spec/support/wow_frames.lua).
+      W.CLIENT_METRICS = true
+      load()
+      prices()
+      local f = show()
+      local v = f.worth
+      local point, relative, relativePoint = v.cheapest:GetPoint(1)
+      assert.same({ "TOPRIGHT", v, "TOPRIGHT" }, { point, relative, relativePoint })
+      local listTop = select(5, v.scroll:GetPoint(1))
+      -- Words too long to share the line: the second under the first, across the panel, and the
+      -- list lower for it.
+      GC.L = setmetatable({}, { __index = function(_, key) return key .. " " .. string.rep("w", 14) end })
+      P.Refresh()
+      point, relative, relativePoint = v.cheapest:GetPoint(1)
+      assert.same({ "TOPLEFT", v.heading, "BOTTOMLEFT" }, { point, relative, relativePoint })
+      assert.equal(320 - 2 * 11, v.heading:GetWidth())
+      assert.equal(320 - 2 * 11, v.cheapest:GetWidth())
+      assert.is_true(select(5, v.scroll:GetPoint(1)) < listTop)
+    end)
   end)
 
   describe("putting recipes in the queue", function()
@@ -437,7 +466,7 @@ describe("craft panel", function()
       assert.is_true(card.add:IsShown())
     end)
 
-    it("says how many crafts the queue has left of the open recipe", function()
+    it("says how the queue holds the open recipe: crafts to make, or the target it restocks to", function()
       local f = loadOpen({ counts = { [902] = 5 } })
       local card, char = f.card, "Name-Realm"
       assert.is_false(card.queued:IsShown())
@@ -447,10 +476,15 @@ describe("craft panel", function()
       assert.equal(GC.L["In queue: %d"]:format(3), card.queued.text:GetText())
       assert.same(same(K.yours), rgb(card.queued.text))
       assert.is_true(card.queued:GetWidth() >= card.queued.text:GetUnboundedStringWidth())
-      -- A restock: the crafts that bring the 5 held up to 12.
+      -- A restock says its target, whatever the bags hold: the Queue's line says how far along.
       GC.CraftQueue.Restock(char, snapshot(2), 12)
       P.Refresh()
-      assert.equal(GC.L["In queue: %d"]:format(7), card.queued.text:GetText())
+      assert.equal(GC.L["Restock to %d"]:format(12), card.queued.text:GetText())
+      assert.same(same(K.yours), rgb(card.queued.text))
+      assert.is_true(card.queued:GetWidth() >= card.queued.text:GetUnboundedStringWidth())
+      TS.opts.counts[902] = 20
+      P.Refresh()
+      assert.equal(GC.L["Restock to %d"]:format(12), card.queued.text:GetText())
       GC.CraftQueue.Remove(char, 2)
       P.Refresh()
       assert.is_false(card.queued:IsShown())
@@ -664,9 +698,21 @@ describe("craft panel", function()
       -- Each half of the track: the two fill the panel's width.
       assert.equal(sw.worth:GetWidth(), sw.queue:GetWidth())
       assert.equal(320 - 2 * 11, sw:GetWidth())
+      local beside = sw:GetHeight()
+      -- Words too long for half the track: one tab under the other, each across it.
+      GC.L = setmetatable({}, { __index = function(_, key) return key .. " " .. string.rep("w", 14) end })
+      P.Refresh()
+      local point, relative, relativePoint = sw.queue:GetPoint(1)
+      assert.same({ "TOPLEFT", sw.worth, "BOTTOMLEFT" }, { point, relative, relativePoint })
+      assert.equal(320 - 2 * 11 - 2 * 2, sw.worth:GetWidth())
+      assert.equal(sw.worth:GetWidth(), sw.queue:GetWidth())
+      for _, b in ipairs({ sw.worth, sw.queue }) do
+        assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth())
+      end
+      assert.is_true(sw:GetHeight() > beside)
     end)
 
-    it("count the queue's lines on the Queue tab, and follow a finished craft and the bags", function()
+    it("count the queue's lines on the Queue tab, and follow a finished craft", function()
       load({ open = { recipeID = 2, allocations = {} }, counts = { [902] = 5 } })
       prices()
       local char = "Name-Realm"
@@ -687,15 +733,24 @@ describe("craft panel", function()
       TS.runTimers()
       assert.equal("1", badge.text:GetText())
       assert.is_false(f.card.queued:IsShown())
-      -- A restock of what is open counts what the bags hold.
-      GC.CraftQueue.Restock(char, snapshot(2), 12)
-      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
-      TS.runTimers()
-      assert.equal(GC.L["In queue: %d"]:format(7), f.card.queued.text:GetText())
-      TS.opts.counts[902] = 10
-      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
-      TS.runTimers()
-      assert.equal(GC.L["In queue: %d"]:format(2), f.card.queued.text:GetText())
+    end)
+
+    it("keep a count of two or three figures clear of the badge's edges", function()
+      -- A chip bounds its words 4px in from each side and cuts what does not fit: the count is
+      -- centred in the badge on its own instead, as wide as its figures, with room either side.
+      local recipes, filtered = {}, {}
+      for id = 1, 12 do
+        recipes[id] = recipe(id, "R" .. id)
+        filtered[id] = id
+      end
+      load({ recipes = recipes, filtered = filtered })
+      prices()
+      for id = 1, 12 do GC.CraftQueue.Add("Name-Realm", snapshot(id), 1) end
+      local badge = show().switch.badge
+      assert.equal("12", badge.text:GetText())
+      assert.equal(1, badge.text:GetNumPoints())
+      assert.same({ "CENTER", badge, "CENTER", 0, 0 }, { badge.text:GetPoint(1) })
+      assert.is_true(badge:GetWidth() >= badge.text:GetUnboundedStringWidth() + 2 * 4)
     end)
   end)
 
@@ -719,6 +774,151 @@ describe("craft panel", function()
       -- The view ends above it.
       local _, _, _, _, y = f.body:GetPoint(2)
       assert.is_true(y > f.prices:GetHeight())
+    end)
+  end)
+
+  it("leaves the list room for three rows under the tallest top it can have", function()
+    -- A long name, every word long enough to wrap or stack: This recipe's buttons one under the
+    -- other, the tabs one under the other, the heading's two parts too, and the price line wrapped,
+    -- measured as the client draws each face's size (spec/support/wow_frames.lua).
+    W.CLIENT_METRICS = true
+    local long = "Phiole der unerschütterlichen Konzentrationsfähigkeitssteigerungsmeisterschaft"
+    load({ open = { recipeID = 1, allocations = {} },
+      recipes = { [1] = recipe(1, long), [2] = recipe(2, "B"), [3] = recipe(3, "C"), [4] = recipe(4, "D") } })
+    prices()
+    local f = show()
+    GC.L = setmetatable({}, { __index = function(_, key) return key .. " " .. string.rep("w", 14) end })
+    P.Refresh()
+    local _, above = f.card.restock:GetPoint(1)
+    assert.equal(f.card.add, above)
+    _, above = f.switch.queue:GetPoint(1)
+    assert.equal(f.switch.worth, above)
+    local function down(region) return -select(5, region:GetPoint(1)) end
+    local top = down(f.header) + f.header:GetHeight() + down(f.card) + f.card:GetHeight() + down(f.switch)
+      + f.switch:GetHeight() + down(f.body)
+    local body = f:GetHeight() - top - select(5, f.body:GetPoint(2))
+    local v = f.worth
+    local listTop = -select(5, v.scroll:GetPoint(1))
+    local listFoot = select(5, v.scroll:GetPoint(2))
+    local rows = 0
+    for i = 1, 3 do rows = rows + P._rows[i].widget.frame:GetHeight() + (i > 1 and 3 or 0) end
+    assert.is_true(body - listTop - listFoot >= rows, ("%s left for %s"):format(body - listTop - listFoot, rows))
+  end)
+
+  describe("coming back", function()
+    -- docs/addon/AGENTS.md "Text": a one-line label whose frame or a parent was hidden and shown
+    -- again can come back blank, and SetText with the text it holds does not redraw it. The cure
+    -- is clear, set, hide, show, on every re-show. The recipes page hides on every close and tab.
+    local function watch(logs, fs)
+      local log = {}
+      local set, hide, showIt = fs.SetText, fs.Hide, fs.Show
+      fs.SetText = function(self, text, ...)
+        log[#log + 1] = "set " .. tostring(text)
+        return set(self, text, ...)
+      end
+      fs.Hide = function(self) log[#log + 1] = "hide"; return hide(self) end
+      fs.Show = function(self) log[#log + 1] = "show"; return showIt(self) end
+      logs[fs] = log
+    end
+
+    local function restamped(logs, fs)
+      local log, n = logs[fs], #logs[fs]
+      return n >= 4 and log[n - 3] == "set " and log[n - 2] == "set " .. tostring(fs:GetText()) and log[n - 1] == "hide"
+        and log[n] == "show"
+    end
+
+    local function watchAll(logs, owners)
+      for _, owner in ipairs(owners) do
+        for _, fs in ipairs(owner.texts or {}) do watch(logs, fs) end
+      end
+    end
+
+    it("redraws every line it shows when the recipes page shows again, then repaints what changed", function()
+      load({ open = { recipeID = 2, allocations = {} } })
+      prices()
+      local f = show()
+      local first = P._rows[1].widget
+      local logs = {}
+      local owners = { f, f.worth }
+      for _, row in ipairs(f.worth.rows) do owners[#owners + 1] = row end
+      watchAll(logs, owners)
+      -- Each named one is among them.
+      for _, fs in ipairs({ f.brand, f.profession.text, f.card.kicker, f.card.name, f.card.queued.text,
+        f.card.cells[1].label, f.card.cells[3].value, f.card.add.text, f.card.restock.text, f.switch.worth.text,
+        f.switch.queue.text, f.switch.badge.text, f.worth.heading, f.worth.cheapest, f.prices, first.name, first.math,
+        first.profit, first.pace.text }) do
+        assert.is_truthy(logs[fs])
+      end
+      -- Away, the queue changes (a craft from the Orders page): the panel reads nothing meanwhile.
+      TS.page:Hide()
+      GC.CraftQueue.Add("Name-Realm", snapshot(2), 2)
+      TS.page:Show()
+      -- The client runs the panel's OnShow as its page shows again.
+      f:GetScript("OnShow")(f)
+      local checked = 0
+      for fs in pairs(logs) do
+        if fs:IsShown() and fs:GetText() ~= nil then
+          assert.is_true(restamped(logs, fs), tostring(fs:GetText()))
+          checked = checked + 1
+        end
+      end
+      assert.is_true(checked >= 18)
+      -- And one repaint on the next frame: the Queue's count and This recipe's chip as they are now.
+      assert.equal(1, #TS.timers)
+      TS.runTimers()
+      assert.equal("1", f.switch.badge.text:GetText())
+      assert.equal(GC.L["In queue: %d"]:format(2), f.card.queued.text:GetText())
+    end)
+
+    it("asks for no second repaint when its own repaint shows it", function()
+      load({ external = { guild = true } })
+      prices()
+      local f = show()
+      assert.is_false(f:IsShown())
+      TS.opts.external = {}
+      local shows = 0
+      local onShow = f:GetScript("OnShow")
+      local showIt = f.Show
+      f.Show = function(self)
+        shows = shows + 1
+        showIt(self)
+        onShow(self)
+      end
+      P.Refresh()
+      assert.equal(1, shows)
+      assert.equal(0, #TS.timers)
+    end)
+
+    it("redraws Worth crafting when its tab is picked again, and a row the list shows again", function()
+      load()
+      prices()
+      GC.CraftQueueView = {
+        Build = function(host) GC.CraftQueueView._frame = W.CreateFrame("Frame", nil, host) end,
+        Refresh = function() end,
+      }
+      local f = show()
+      local v = f.worth
+      f.switch.queue:GetScript("OnClick")(f.switch.queue)
+      assert.is_false(v:IsShown())
+      local logs = {}
+      local owners = { v }
+      for _, row in ipairs(v.rows) do owners[#owners + 1] = row end
+      watchAll(logs, owners)
+      f.switch.worth:GetScript("OnClick")(f.switch.worth)
+      assert.is_true(v:IsShown())
+      for _, fs in ipairs({ v.heading, v.cheapest, P._rows[1].widget.name, P._rows[1].widget.profit }) do
+        assert.is_true(restamped(logs, fs), tostring(fs:GetText()))
+      end
+      -- A row a shorter list hid, shown again by a longer one.
+      TS.opts.filtered = { 1 }
+      P.Refresh()
+      local row = v.rows[2]
+      assert.is_false(row.frame:IsShown())
+      watch(logs, row.name)
+      TS.opts.filtered = { 1, 2 }
+      P.Refresh()
+      assert.is_true(row.frame:IsShown())
+      assert.is_true(restamped(logs, row.name))
     end)
   end)
 

@@ -1466,6 +1466,7 @@ GC.Locales.enUS = {
   ["No recipe here makes a profit now"] = "No recipe here makes a profit now",
   ["This recipe"] = "This recipe",
   ["In queue: %d"] = "In queue: %d",
+  ["Restock to %d"] = "Restock to %d",
   ["Reagents"] = "Reagents",
   ["Sells for, after cut"] = "Sells for, after cut",
   ["Profit a craft"] = "Profit a craft",

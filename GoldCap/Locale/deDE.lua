@@ -1481,6 +1481,7 @@ GC.Locales.deDE = {
   ["No recipe here makes a profit now"] = "Hier bringt gerade kein Rezept Gewinn",
   ["This recipe"] = "Dieses Rezept",
   ["In queue: %d"] = "In der Warteschlange: %d",
+  ["Restock to %d"] = "Auffüllen auf %d",
   ["Reagents"] = "Reagenzien",
   ["Sells for, after cut"] = "Verkauf nach Gebühr",
   ["Profit a craft"] = "Gewinn pro Herstellung",

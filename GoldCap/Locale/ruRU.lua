@@ -1548,6 +1548,7 @@ GC.Locales.ruRU = {
   ["No recipe here makes a profit now"] = "Здесь сейчас нет рецептов с прибылью",
   ["This recipe"] = "Этот рецепт",
   ["In queue: %d"] = "В очереди: %d",
+  ["Restock to %d"] = "Пополнить до %d",
   ["Reagents"] = "Реагенты",
   ["Sells for, after cut"] = "Продажа за вычетом комиссии",
   ["Profit a craft"] = "Прибыль за крафт",

@@ -27,6 +27,8 @@
 --     currencyHeld = { [currencyID] = quantity }, icons = { [itemID] = fileID } (GetItemIconByID),
 --     qualities = { [itemID] = Enum.ItemQuality } (GetItemQualityByID), tiers = { [itemID] = crafting
 --     quality } (GetItemReagentQualityByItemInfo, and the tier's atlas on the item's tooltip line),
+--     crafted = { [itemID] = crafting quality } (GetItemCraftedQualityByItemInfo: crafted gear, which
+--     the reagent call has no number for; its atlas on the tooltip line too),
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
 --     absent = { [name] = true },
@@ -158,8 +160,10 @@ function TS.install(opts)
       return r and r.schematic and { itemID = r.schematic.outputItemID } or nil
     end,
     GetRecipeQualityItemIDs = function(id) return recipes[id] and recipes[id].quality or nil end,
-    -- An item's crafting quality (1 to 3 here); nil for an item without one.
+    -- An item's crafting quality (1 to 3 here): a reagent's, and crafted gear's of the second
+    -- call; nil for an item without one.
     GetItemReagentQualityByItemInfo = function(id) return (opts.tiers or {})[id] end,
+    GetItemCraftedQualityByItemInfo = function(id) return (opts.crafted or {})[id] end,
     GetCraftableCount = function(id, level)
       record("GetCraftableCount", id, level)
       return recipes[id] and recipes[id].craftable or 0
@@ -249,7 +253,7 @@ function TS.install(opts)
   -- atlas in a line's text, which UI/Theme.lua's QualityAtlas reads.
   _G.C_TooltipInfo = strict("C_TooltipInfo", {
     GetItemByID = function(id)
-      local tier = (opts.tiers or {})[id]
+      local tier = (opts.tiers or {})[id] or (opts.crafted or {})[id]
       local lines = {}
       if tier then lines[1] = { leftText = ("|A:Professions-Icon-Quality-Tier%d-Small:20:20|a"):format(tier) } end
       return { lines = lines }

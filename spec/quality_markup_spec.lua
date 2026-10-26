@@ -95,6 +95,59 @@ describe("Reagent quality markup", function()
     assert.equal("|A:new-expansion-quality-mark:14:14|a", GC.Theme.QualityMarkup(1))
   end)
 
+  -- Blizzard asks a reagent's quality of GetItemReagentQualityByItemInfo (the auction house's
+  -- commodity rows, Blizzard_AuctionHouseSharedTemplates.lua) and crafted gear's of
+  -- GetItemCraftedQualityByItemInfo (Blizzard_ProfessionsCustomerOrdersForm.lua): an item the
+  -- first has no number for is asked of the second.
+  describe("an item crafted at a quality", function()
+    it("draws the pip the crafted-quality call answers for when the reagent call has none", function()
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return nil end,
+        GetItemCraftedQualityByItemInfo = function() return 3 end,
+      }
+      tooltip({ { leftText = "Quality: |A:crafted-quality-3:20:20|a" } })
+      assert.equal("crafted-quality-3", GC.Theme.QualityAtlas(1))
+      assert.equal("|A:crafted-quality-3:14:14|a", GC.Theme.QualityMarkup(1))
+    end)
+
+    it("asks the crafted-quality call when the reagent call throws", function()
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() error("nope") end,
+        GetItemCraftedQualityByItemInfo = function() return 2 end,
+      }
+      tooltip({ { leftText = "Quality: |A:crafted-quality-2:20:20|a" } })
+      assert.equal("crafted-quality-2", GC.Theme.QualityAtlas(1))
+    end)
+
+    it("keeps the reagent call's answer and never asks the other one for a reagent", function()
+      local asked = 0
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return 1 end,
+        GetItemCraftedQualityByItemInfo = function() asked = asked + 1; return nil end,
+      }
+      tooltip({ { leftText = "Quality: |A:reagent-quality-1:20:20|a" } })
+      assert.equal("reagent-quality-1", GC.Theme.QualityAtlas(1))
+      assert.equal(0, asked)
+    end)
+
+    it("says nothing when neither call has a number, or the crafted one is missing or throws", function()
+      tooltip({ { leftText = "Quality: |A:quality-mark-2:20:20|a" } })
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return nil end,
+        GetItemCraftedQualityByItemInfo = function() return nil end,
+      }
+      assert.is_nil(GC.Theme.QualityAtlas(1))
+      _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() return nil end }
+      assert.is_nil(GC.Theme.QualityAtlas(2))
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return nil end,
+        GetItemCraftedQualityByItemInfo = function() error("nope") end,
+      }
+      assert.is_nil(GC.Theme.QualityAtlas(3))
+      assert.equal("", GC.Theme.QualityMarkup(3))
+    end)
+  end)
+
   it("survives an API that throws rather than taking the row down with it", function()
     _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() error("nope") end }
     assert.equal("", GC.Theme.QualityMarkup(1))

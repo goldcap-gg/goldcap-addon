@@ -1476,6 +1476,7 @@ GC.Locales.ptBR = {
   ["No recipe here makes a profit now"] = "Nenhuma receita aqui dá lucro agora",
   ["This recipe"] = "Esta receita",
   ["In queue: %d"] = "Na fila: %d",
+  ["Restock to %d"] = "Repor até %d",
   ["Reagents"] = "Reagentes",
   ["Sells for, after cut"] = "Venda após a taxa",
   ["Profit a craft"] = "Lucro por fabricação",

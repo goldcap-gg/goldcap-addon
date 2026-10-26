@@ -708,16 +708,22 @@ local function quietMove(parent, into, runId)
   return button
 end
 
--- A two-way switch, the bank switch's and the search row's filter (UI/HoardList.lua), as the
--- crafting panel's view switch is built (UI/CraftPanel.lua): a sunken track in the glass's border,
--- and a kit segment for each of `values`, carrying it as `side[field]`, its click `onClick`.
-local function newSwitch(parent, field, values, onClick)
+-- A switch's sunken track in the glass's border, over the whole of `switch`: the Hoard's switches
+-- below and the crafting panel's tabs (UI/CraftPanel.lua).
+local function sunkenTrack(switch)
   local T = GC.Theme
-  local switch = CreateFrame("Frame", nil, parent)
   switch.track = T.SlicedTexture(switch, "BACKGROUND", T.MEDIA .. "plaque.png", SWITCH_TRACK, T.SLICE.plaque)
   switch.track:SetAllPoints(switch)
   switch.edge = T.SlicedTexture(switch, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
   switch.edge:SetAllPoints(switch)
+end
+
+-- A two-way switch, the bank switch's and the search row's filter (UI/HoardList.lua): the sunken
+-- track, and a kit segment for each of `values`, carrying it as `side[field]`, its click `onClick`.
+local function newSwitch(parent, field, values, onClick)
+  local T = GC.Theme
+  local switch = CreateFrame("Frame", nil, parent)
+  sunkenTrack(switch)
   switch.sides = {}
   for i, value in ipairs(values) do
     local side = T.Button(switch, "segment", "plaque")
@@ -789,23 +795,30 @@ local function freeChip(glyph)
   return chip
 end
 
+-- The GoldCap mark on `f` (f.logo, `logo` square, full colour as the rail and the welcome window
+-- draw it) and the brand `gap` right of it (f.brand, `size` points, among f's lines for the
+-- re-show), in the condensed heavy face whatever the language: it is the name, written in Latin.
+-- The caller places the mark: a window's header, below, and the crafting panel's (UI/CraftPanel.lua).
+local function newBrand(f, logo, size, gap)
+  local T = GC.Theme
+  f.logo = f:CreateTexture(nil, "ARTWORK")
+  f.logo:SetTexture(T.MEDIA .. "GoldCap")
+  f.logo:SetSize(logo, logo)
+  f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
+  f.brand:SetFont(T.FONT_HEAD_HEAVY, size * T.Scale(), "")
+  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = size })
+  f.brand:SetWordWrap(false)
+  colour(f.brand, K.goldText)
+  f.brand:SetPoint("LEFT", f.logo, "RIGHT", gap, 0)
+end
+
 -- A window's header on `f`, as the Hoard and the mailbox's Send to alts (UI/MailAltsFrame.lua) draw
 -- it: the GoldCap mark, the brand in its face, the window's name (f.title, its words set at paint)
 -- and the X, whose click is `onClose`; the paint places the X at the header's right.
 local function newHeader(f, onClose)
   local T = GC.Theme
-  -- The GoldCap mark, full colour, as the rail and the welcome window draw it.
-  f.logo = f:CreateTexture(nil, "ARTWORK")
-  f.logo:SetTexture(T.MEDIA .. "GoldCap")
-  f.logo:SetSize(L.LOGO, L.LOGO)
+  newBrand(f, L.LOGO, 16, 7)
   f.logo:SetPoint("TOPLEFT", f, "TOPLEFT", L.PAD, -(L.PAD + (L.HEAD_H - L.LOGO) / 2))
-  -- The brand in the condensed heavy face whatever the language: it is the name, written in Latin.
-  f.brand = track(f, f:CreateFontString(nil, "OVERLAY"))
-  f.brand:SetFont(T.FONT_HEAD_HEAVY, 16 * T.Scale(), "")
-  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = 16 })
-  f.brand:SetWordWrap(false)
-  colour(f.brand, K.goldText)
-  f.brand:SetPoint("LEFT", f.logo, "RIGHT", 7, 0)
   f.title = track(f, semibold(f, 12))
   colour(f.title, K.text2)
   f.title:SetPoint("BOTTOMLEFT", f.brand, "BOTTOMRIGHT", 6, 1)
@@ -1209,14 +1222,15 @@ end
 -- What a row of the list (UI/HoardRow.lua, loaded after this file) is built and painted with: the
 -- window's measures and slate, and the helpers both files draw with. The mailbox's Send to alts
 -- (UI/MailAltsFrame.lua) builds its header, its handle and its height from the same ones, and reads
--- a slot for its press machine the way the Hoard's does (slotNow).
+-- a slot for its press machine the way the Hoard's does (slotNow). The crafting panel
+-- (UI/CraftPanel.lua) draws its brand, its tabs' track and its lines with them too.
 HF.ui = {
   L = L, SLATE = SLATE, QUIET = QUIET, setText = setText, colour = colour, wrapping = wrapping, heightOf = heightOf,
   tallest = tallest, itemName = itemName, worthText = worthText, stacksInto = stacksInto, plate = plate,
   moveButton = moveButton, quietMove = quietMove, newSwitch = newSwitch, paintMove = paintMove,
   showMoveTip = showMoveTip, hideTip = hideTip, track = track, restamp = restamp, closeKeep = closeKeep,
-  bankName = bankName, newHeader = newHeader, newHandle = newHandle, paintHandle = paintHandle,
-  maxHeight = maxHeight, slotNow = slotNow,
+  bankName = bankName, newHeader = newHeader, newBrand = newBrand, sunkenTrack = sunkenTrack, newHandle = newHandle,
+  paintHandle = paintHandle, maxHeight = maxHeight, slotNow = slotNow,
 }
 
 -- The rows of `list` from `y` in the scroll, from the pool's `first`; answers the y under them and

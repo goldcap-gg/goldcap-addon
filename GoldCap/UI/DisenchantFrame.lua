@@ -113,15 +113,15 @@ DF.HEIGHT_SHARE = 0.85
 -- Disenchant and Skip buttons, BUTTON_ICON the spell's icon on Disenchant, SKIP_MIN Skip's least
 -- width. STRIP_PAD: the yield strip's margin; MAT_ICON, MAT_GAP and MAT_LINE: a material, the room
 -- after it and between lines of them. ROW_*: a line of the lists; COL_MIN the least width of the
--- Mats and Vendor columns, COL_GAP between them; ANYWAY_H and ANYWAY_MIN: Disenchant anyway. DOT and
--- DOT_GAP: the price line's dot; FOOT_GAP between the footer's two parts. ROWS_MIN: the fewest lines
--- the scroll keeps room for.
+-- Mats and Vendor columns, COL_GAP between them; ANYWAY_H and ANYWAY_MIN: Disenchant anyway.
+-- FOOT_GAP: between the footer's two parts (the price line is the Hoard's, HF.Footer). ROWS_MIN:
+-- the fewest lines the scroll keeps room for.
 local M = {
   CARD_PAD = 10, ICON = 36, BADGE = 16, TEXT_GAP = 10, COUNTER_GAP = 8, LINE_GAP = 2, BLOCK_GAP = 8,
   VERDICT_ICON = 10, VERDICT_GAP = 5, BAR_H = 3, BUTTON_H = 28, BUTTON_ICON = 14, BUTTON_PAD = 10, SKIP_MIN = 64,
   BUTTON_GAP = 6, STRIP_PAD = 8, MAT_ICON = 16, MAT_GAP = 10, MAT_LINE = 4, ROW_PAD = 5, ROW_ICON = 18,
   ROW_GAP = 3, ROW_MIN_H = 28, COL_MIN = 44, COL_GAP = 8, ANYWAY_H = 18, ANYWAY_MIN = 70, SECTION_GAP = 10,
-  HEADING_GAP = 5, TITLE_GAP = 1, DOT = 6, DOT_GAP = 5, FOOT_GAP = 6, ROWS_MIN = 3,
+  HEADING_GAP = 5, TITLE_GAP = 1, FOOT_GAP = 6, ROWS_MIN = 3,
 }
 
 -- The boards' colours: the Disenchant purple; the main button's gradient and its dark words; the
@@ -1182,12 +1182,7 @@ local function build()
   kept.show:SetScript("OnClick", function(self) openKeptMenu(self) end)
   track(frame, kept.show.text)
   frame.kept = kept
-  -- The badge art is round at this size, as the Hoard's footer draws its dot.
-  frame.dot = frame:CreateTexture(nil, "ARTWORK")
-  frame.dot:SetTexture(T.MEDIA .. "badge.png")
-  frame.dot:SetSize(M.DOT, M.DOT)
-  frame.prices = track(frame, wrapping(T.Label(frame, 9)))
-  colour(frame.prices, K.text3)
+  HF.Footer.NewPriceLine(frame, frame)
   -- A frame made from Lua starts shown: hidden until a paint shows it, so its first show is a re-show
   -- like any other (restamp).
   frame:Hide()
@@ -1579,8 +1574,8 @@ local function paintLeftRow(row, data, inner, vendor)
   if vendor then
     notes[1] = GC.L["Vendor %s, mats about %s"]:format(money(data.vendor), money(data.mats))
   else
-    -- What its mats would give, and how many sell a day or that it sells slowly, as the craft
-    -- panel says it (UI/CraftPanel.lua's paintRow: never both).
+    -- What its mats would give, and how many sell a day or that it sells slowly, never both, as
+    -- the craft panel's pace chip says it (UI/CraftPanel.lua's paceOf) in words of its own.
     if data.mats then notes[#notes + 1] = GC.L["Mats: about %s"]:format(money(data.mats)) end
     local sold = select(2, GC.CraftClient.SellOf(stack.itemID))
     if type(sold) == "number" then
@@ -1648,17 +1643,8 @@ end
 local function paintFooter(w)
   frame.footer:SetWidth(w)
   setText(frame.footer, GC.L["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."])
-  local text, fresh = HF.Footer.PricesNow()
-  frame.prices:SetWidth(w - M.DOT - M.DOT_GAP)
-  setText(frame.prices, text)
-  local c = fresh and K.profit or K.warn
-  frame.dot:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
   local footH = math.ceil(heightOf(frame.footer, 12))
-  local pricesH = math.ceil(heightOf(frame.prices, 12))
-  frame.prices:ClearAllPoints()
-  frame.prices:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD + M.DOT + M.DOT_GAP, L.PAD)
-  frame.dot:ClearAllPoints()
-  frame.dot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, L.PAD + math.floor((math.min(pricesH, 12) - M.DOT) / 2))
+  local pricesH = HF.Footer.PaintPriceLine(frame, L.PAD, L.PAD, w)
   frame.footer:ClearAllPoints()
   frame.footer:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", L.PAD, L.PAD + pricesH + M.FOOT_GAP)
   return footH + M.FOOT_GAP + pricesH

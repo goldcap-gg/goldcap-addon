@@ -17,7 +17,8 @@ local KEYS = {
   -- How fast a crafted item sells, in Disenchant's notes (UI/DisenchantFrame.lua), once the panel's.
   "Sells about %s a day",
   -- This recipe, and the two questions it asks (BUY's popup: Add and Save are BUY's own keys).
-  "This recipe", "In queue: %d", "Reagents", "Sells for, after cut", "Profit a craft", "Add to queue", "Restock to",
+  "This recipe", "In queue: %d", "Restock to %d", "Reagents", "Sells for, after cut", "Profit a craft", "Add to queue",
+  "Restock to",
   "How many crafts of %s?", "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
   -- The Queue view.
   "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",

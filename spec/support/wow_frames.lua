@@ -108,6 +108,8 @@ function W.Texture(parent)
   function t:SetDesaturated(flag) s.desaturated = flag and true or false end
   function t:SetBlendMode(mode) s.blend = mode end
   function t:SetTexCoord(...) s.texCoord = { ... } end
+  -- Texture:SetMask(file): drawn through the file's alpha (a portrait's round mask).
+  function t:SetMask(file) s.mask = file end
   function t:SetGradient(orientation, minColor, maxColor) s.gradient = { orientation, minColor, maxColor } end
   function t:SetAlpha(a) s.alpha = a end
   -- Texture:AddMaskTexture(mask) (SimpleTextureAPIDocumentation.lua): the mask's alpha cuts what

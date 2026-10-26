@@ -1415,6 +1415,7 @@ GC.Locales.koKR = {
   ["No recipe here makes a profit now"] = "지금 수익이 나는 레시피가 여기에는 없습니다",
   ["This recipe"] = "이 레시피",
   ["In queue: %d"] = "대기열: %d",
+  ["Restock to %d"] = "목표 %d개",
   ["Reagents"] = "재료",
   ["Sells for, after cut"] = "수수료 제외 판매가",
   ["Profit a craft"] = "1회 제작 수익",

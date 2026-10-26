@@ -1478,6 +1478,7 @@ GC.Locales.itIT = {
   ["No recipe here makes a profit now"] = "Nessuna ricetta qui dà profitto ora",
   ["This recipe"] = "Questa ricetta",
   ["In queue: %d"] = "In coda: %d",
+  ["Restock to %d"] = "Rifornisci fino a %d",
   ["Reagents"] = "Componenti",
   ["Sells for, after cut"] = "Vendita al netto della commissione",
   ["Profit a craft"] = "Profitto per creazione",

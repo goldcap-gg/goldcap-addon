@@ -1549,6 +1549,7 @@ GC.Locales.ukUA = {
   ["No recipe here makes a profit now"] = "Тут зараз немає рецептів із прибутком",
   ["This recipe"] = "Цей рецепт",
   ["In queue: %d"] = "У черзі: %d",
+  ["Restock to %d"] = "Поповнити до %d",
   ["Reagents"] = "Реагенти",
   ["Sells for, after cut"] = "Продаж за вирахуванням комісії",
   ["Profit a craft"] = "Прибуток за крафт",

@@ -4,11 +4,11 @@ local _, GC = ...
 -- it (canvas version 17, 2026-10-26). Top to bottom:
 -- - the header: the GoldCap mark and brand, and a chip with the open profession's icon and name;
 -- - This recipe: the recipe the window shows, the icon of what it makes with its crafting quality,
---   how many crafts the queue has left of it, and three figures: what the reagents the player
---   picked cost (a slot with nothing allocated at its cheapest priced quality), what one craft
---   sells for after the auction house cut, and the profit. A reagent or a crafted item with no
---   GoldCap price is named instead, as the strip names it (UI/CraftStrip.lua). Add to queue and
---   Restock to under them;
+--   how the queue holds it (crafts to make, or the target a restock keeps), and three figures:
+--   what the reagents the player picked cost (a slot with nothing allocated at its cheapest priced
+--   quality), what one craft sells for after the auction house cut, and the profit. A reagent or a
+--   crafted item with no GoldCap price is named instead, as the strip names it (UI/CraftStrip.lua).
+--   Add to queue and Restock to under them;
 -- - the tabs: Worth crafting, and the Queue (UI/CraftQueueView.lua) with how many lines it has;
 -- - Worth crafting: the recipes this character knows in the open profession that make a profit, by
 --   profit per craft, each reagent at its cheapest priced quality. A row: the icon of what the
@@ -18,39 +18,41 @@ local _, GC = ...
 --   window, a right click offers the queue. A recipe that makes no profit, and one GoldCap cannot
 --   price (a reagent or what it makes has no price), are each counted under the list, never listed;
 -- - the foot: where the prices come from and how old they are, as the Disenchant window says it.
--- Item icons and the price line are the GoldCap Hoard's (UI/HoardRow.lua's icon, UI/HoardFooter.lua's
--- PricesNow, UI/HoardFrame.lua's helpers), loaded before this file.
+-- Item icons, the brand, the tabs' track and the price line are the GoldCap Hoard's (UI/HoardRow.lua's
+-- icon, UI/HoardFooter.lua's price line, UI/HoardFrame.lua's helpers), loaded before this file.
 --
 -- The panel is a frame of its own, a child of the crafting page so it goes with the page, and it
 -- leaves Blizzard's frames as they are: no hook, no method replaced. It shows only for the
 -- character's own recipes, never a guild's, a linked list or an NPC's. Its events are its own
 -- (Core/Collection.lua's shape: each registered under pcall), so Core/Init.lua is not touched.
+-- Every line it draws is drawn again whenever it shows again (docs/addon/AGENTS.md "Text").
 GC.CraftPanel = GC.CraftPanel or {}
 local P = GC.CraftPanel
 local HF = GC.HoardFrame
 local U = HF.ui
 local K = GC.Kit.Tokens.color
-local setText, colour, wrapping, heightOf = U.setText, U.colour, U.wrapping, U.heightOf
+local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour, U.wrapping, U.heightOf, U.track,
+  U.restamp
 
 -- In UI units; the approved board is drawn at twice that (640 wide). PAD: the panel's margin, GAP
--- between its blocks, LINE_GAP between the lines of one. HEAD_H, LOGO, BRAND: the header, the
--- GoldCap mark and the brand's size. CHIP_H, CHIP_ICON, CHIP_PAD: a chip, the profession's icon in
--- it and the room either side of a chip's words. CARD_PAD: This recipe's margin, ICON its item,
--- ICON_GAP right of the item, BLOCK_GAP between its parts; CELL_GAP, CELL_PAD, CELL_PAD_Y: its three
--- figures; BUTTON_H, BUTTON_GAP, BUTTON_PAD, GLYPH, GLYPH_GAP: its two buttons and their glyphs.
--- SEG_H, SEG_PAD: a tab and the track round the two; BADGE_H, BADGE_GAP: the Queue's count after
--- its word. A Worth crafting row: ROW_PAD and ROW_PAD_Y its margins, ROW_GAP between rows,
--- ROW_ICON its item, COL_GAP between its columns, ADD and ADD_ICON the "+", PACE_H the pace chip,
--- NAME_MIN the least room its name gets; BAR: the scroll's bar right of the list. DOT, DOT_GAP:
--- the price line's dot. The rest are font sizes.
+-- between its blocks, LINE_GAP between the lines of one. HEAD_H, LOGO, BRAND, BRAND_GAP: the
+-- header, the GoldCap mark, the brand's size and the room between them. CHIP_H, CHIP_ICON,
+-- CHIP_PAD: a chip, the profession's icon in it and the room either side of a chip's words.
+-- CARD_PAD: This recipe's margin, ICON its item, ICON_GAP right of the item, BLOCK_GAP between its
+-- parts; CELL_GAP, CELL_PAD, CELL_PAD_Y: its three figures; BUTTON_H, BUTTON_GAP, BUTTON_PAD,
+-- GLYPH, GLYPH_GAP: its two buttons and their glyphs. SEG_H, SEG_PAD: a tab and the track round the
+-- two; BADGE_H, BADGE_PAD, BADGE_GAP: the Queue's count after its word, the room either side of its
+-- figures. A Worth crafting row: ROW_PAD and ROW_PAD_Y its margins, ROW_GAP between rows, ROW_ICON
+-- its item, COL_GAP between its columns, ADD and ADD_ICON the "+", PACE_H the pace chip, NAME_MIN
+-- the least room its name gets; BAR: the scroll's bar right of the list. The rest are font sizes.
 local LAYOUT = {
   WIDTH = 320, PAD = 11, GAP = 8, LINE_GAP = 2,
-  HEAD_H = 24, LOGO = 20, BRAND = 15, CHIP_H = 18, CHIP_ICON = 13, CHIP_PAD = 6,
+  HEAD_H = 24, LOGO = 20, BRAND = 15, BRAND_GAP = 6, CHIP_H = 18, CHIP_ICON = 13, CHIP_PAD = 6,
   CARD_PAD = 8, ICON = 28, ICON_GAP = 7, BLOCK_GAP = 7, CELL_GAP = 4, CELL_PAD = 6, CELL_PAD_Y = 5,
   BUTTON_H = 22, BUTTON_GAP = 5, BUTTON_PAD = 8, GLYPH = 10, GLYPH_GAP = 5,
-  SEG_H = 21, SEG_PAD = 2, BADGE_H = 13, BADGE_GAP = 5,
+  SEG_H = 21, SEG_PAD = 2, BADGE_H = 13, BADGE_PAD = 4, BADGE_GAP = 5,
   ROW_PAD = 6, ROW_PAD_Y = 5, ROW_GAP = 3, ROW_ICON = 24, COL_GAP = 6, ADD = 18, ADD_ICON = 9, PACE_H = 14,
-  NAME_MIN = 80, BAR = 16, DOT = 6, DOT_GAP = 5,
+  NAME_MIN = 80, BAR = 16,
   KICKER = 9, NAME = 12, LABEL = 9, FIGURE = 11, ROW_NAME = 11, SMALL = 9, NOTE = 10,
 }
 LAYOUT.INNER = LAYOUT.WIDTH - 2 * LAYOUT.PAD
@@ -62,17 +64,15 @@ local function tint(c, a) return { c[1], c[2], c[3], a } end
 -- The board's colours, from the kit's tokens: This recipe on a faint gold wash in a gold ring; a
 -- figure on the window's dark, the profit on a wash and a ring of its own colour; a Worth crafting
 -- row on the glass in a hairline, the open recipe's on This recipe's gold; Restock to and the "+"
--- ringed in gold; the tabs' sunken track, as the Hoard's switch draws it.
+-- ringed in gold.
 local CARD_FILL, CARD_RING = tint(K.gold, 0.07), tint(K.gold, 0.5)
 local CELL_FILL, NO_RING = { 0, 0, 0, 0.3 }, { 0, 0, 0, 0 }
 local OPEN_FILL, OPEN_RING = tint(K.gold, 0.07), tint(K.gold, 0.45)
 local GOLD_RING = tint(K.gold, 0.5)
-local TRACK = { 0, 0, 0, 0.35 }
 
 -- What changes the list: the window opening, its recipe list refreshed, a recipe learned. Bags
--- changing moves nothing in Worth crafting, but the queue reads them (UI/CraftQueueView.lua): a
--- bag change repaints that view alone, and This recipe and the tabs (a restock counts the bags),
--- never the whole list, which fires on every craft of a Create All.
+-- changing moves nothing here, but the queue reads them (UI/CraftQueueView.lua): a bag change
+-- repaints that view alone, never the whole list, which fires on every craft of a Create All.
 local EVENTS = { "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED", "BAG_UPDATE_DELAYED" }
 
 -- What changes This recipe's figures and nothing else: another reagent picked, the transaction
@@ -190,15 +190,14 @@ function P.OpenRowMenu(owner, recipe)
   return true
 end
 
--- How many crafts of `recipeID` `char`'s queue has left, or nil when it is not queued: a count as it
--- stands, a restock as the crafts that bring what is held up to its target (Core/CraftQueue.lua's
--- CraftsNeeded), held as the Queue view counts it: every quality, the mailbox and live auctions.
-local function craftsLeft(char, recipeID)
-  local Q, CC = GC.CraftQueue, GC.CraftClient
+-- How `char`'s queue holds `recipeID`, or nil when it does not: the crafts a count has left to make,
+-- or the target a restock keeps. How far along a restock is, the Queue's line says
+-- (UI/CraftQueueView.lua), the one place that counts what is held.
+local function queuedText(char, recipeID)
   local e = entryOf(char, recipeID)
   if not e then return nil end
-  local held = e.restock and Q.Held(e, function(id) return CC.CountOf(id, char) end, (Q.Listed(char, time()))) or 0
-  return Q.CraftsNeeded(e, held)
+  if e.restock then return GC.L["Restock to %d"]:format(e.restock) end
+  return GC.L["In queue: %d"]:format(GC.CraftQueue.CraftsNeeded(e))
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -209,15 +208,15 @@ local function buildWorth(body)
   local T = GC.Theme
   local v = CreateFrame("Frame", nil, body)
   v:SetAllPoints(body)
-  v.heading = wrapping(T.Heading(v, LAYOUT.KICKER))
+  v.heading = track(v, wrapping(T.Heading(v, LAYOUT.KICKER)))
   colour(v.heading, K.text3)
-  v.cheapest = wrapping(T.Label(v, LAYOUT.SMALL))
+  v.cheapest = track(v, wrapping(T.Label(v, LAYOUT.SMALL)))
   colour(v.cheapest, K.text4)
-  v.empty = wrapping(T.Label(v, LAYOUT.NOTE))
+  v.empty = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   v.empty:SetWidth(LAYOUT.INNER)
   colour(v.empty, K.text2)
-  v.unprofitable = wrapping(T.Label(v, LAYOUT.NOTE))
-  v.unpriced = wrapping(T.Label(v, LAYOUT.NOTE))
+  v.unprofitable = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
+  v.unpriced = track(v, wrapping(T.Label(v, LAYOUT.NOTE)))
   for _, fs in ipairs({ v.unprofitable, v.unpriced }) do
     fs:SetWidth(LAYOUT.INNER)
     colour(fs, K.text3)
@@ -229,6 +228,15 @@ local function buildWorth(body)
   v.scroll:SetScrollChild(v.content)
   v.rows = {}
   return v
+end
+
+-- Worth crafting shown again (the panel's page, or its tab): its lines and every row it shows drawn
+-- again.
+local function restampWorth(v)
+  restamp(v)
+  for _, row in ipairs(v.rows) do
+    if row.frame:IsShown() then restamp(row) end
+  end
 end
 
 -- The "+"'s tooltip: what a press does.
@@ -251,16 +259,17 @@ local function newRow(v)
   local row = { frame = frame }
   row.slot = HF.Row.NewIcon(frame, LAYOUT.ROW_ICON)
   row.slot.edge:SetPoint("LEFT", frame, "LEFT", LAYOUT.ROW_PAD, 0)
-  row.name = wrapping(T.Label(frame, LAYOUT.ROW_NAME))
+  row.name = track(row, wrapping(T.Label(frame, LAYOUT.ROW_NAME)))
   colour(row.name, K.text1)
-  row.math = wrapping(T.Label(frame, LAYOUT.SMALL))
+  row.math = track(row, wrapping(T.Label(frame, LAYOUT.SMALL)))
   colour(row.math, K.text3)
   -- The profit is one line and never cut: a FontString with no width of its own is as wide as its
   -- text (coins included), and the name wraps in what is left beside it.
-  row.profit = T.Num(frame, LAYOUT.FIGURE, true)
+  row.profit = track(row, T.Num(frame, LAYOUT.FIGURE, true))
   row.profit:SetWordWrap(false)
   row.pace = T.Chip(frame)
   row.pace:SetHeight(LAYOUT.PACE_H)
+  track(row, row.pace.text)
   row.add = T.Button(frame, "active", "badge")
   row.add:SetSize(LAYOUT.ADD, LAYOUT.ADD)
   row.add:SetRing(GOLD_RING)
@@ -399,7 +408,10 @@ function P.PaintWorth()
   for i, data in ipairs(ranked) do
     local row = v.rows[i] or newRow(v)
     v.rows[i] = row
+    local wasUp = row.frame:IsShown()
     local height = paintRow(row, data, ctx)
+    -- A pooled row a shorter list hid, shown again: drawn again whole.
+    if not wasUp and v:IsShown() then restamp(row) end
     row.frame:ClearAllPoints()
     if i == 1 then
       row.frame:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
@@ -482,33 +494,36 @@ local function buildCard(f)
   local card = T.Card(f, CARD_FILL, CARD_RING)
   card:SetWidth(LAYOUT.INNER)
   card.slot = HF.Row.NewIcon(card, LAYOUT.ICON)
-  card.kicker = wrapping(T.Heading(card, LAYOUT.KICKER))
+  card.kicker = track(f, wrapping(T.Heading(card, LAYOUT.KICKER)))
   colour(card.kicker, K.text3)
-  card.name = wrapping(T.Label(card, LAYOUT.NAME))
+  card.name = track(f, wrapping(T.Label(card, LAYOUT.NAME)))
   colour(card.name, K.text1)
   card.queued = T.Chip(card)
   card.queued:SetHeight(LAYOUT.CHIP_H)
+  track(f, card.queued.text)
   -- Reagents, Sells for after cut, Profit a craft: each label wrapped in its cell, the figure on one
   -- line along the cell's foot, so the three figures stand level whatever their labels need.
   card.cells = {}
   for i = 1, 3 do
     local cell = T.Card(card, CELL_FILL, NO_RING, true)
-    cell.label = wrapping(T.Label(cell, LAYOUT.LABEL))
+    cell.label = track(f, wrapping(T.Label(cell, LAYOUT.LABEL)))
     cell.label:SetPoint("TOPLEFT", cell, "TOPLEFT", LAYOUT.CELL_PAD, -LAYOUT.CELL_PAD_Y)
     colour(cell.label, K.text3)
-    cell.value = T.Num(cell, LAYOUT.FIGURE, true)
+    cell.value = track(f, T.Num(cell, LAYOUT.FIGURE, true))
     cell.value:SetJustifyH("LEFT")
     cell.value:SetWordWrap(false)
     cell.value:SetPoint("BOTTOMLEFT", cell, "BOTTOMLEFT", LAYOUT.CELL_PAD, LAYOUT.CELL_PAD_Y)
     card.cells[i] = cell
   end
-  card.missing = wrapping(T.Label(card, LAYOUT.NOTE))
+  card.missing = track(f, wrapping(T.Label(card, LAYOUT.NOTE)))
   colour(card.missing, K.text1)
   card.add = glyphButton(card, "primary", "plus", K.onGold)
   card.add:SetScript("OnClick", function(self) if card.recipe then P.AskCount(self, card.recipe) end end)
   card.restock = glyphButton(card, "active", "refresh", K.goldText)
   card.restock:SetRing(GOLD_RING)
   card.restock:SetScript("OnClick", function(self) if card.recipe then P.AskRestock(self, card.recipe) end end)
+  track(f, card.add.text)
+  track(f, card.restock.text)
   card:Hide()
   return card
 end
@@ -597,17 +612,17 @@ local function paintCard(f)
   HF.Row.PaintIcon(card.slot, item, CC.IconOf(item), nil, nil, { pip = true })
   setText(card.kicker, GC.Util.Upper(GC.L["This recipe"]))
   setText(card.name, recipe.name)
-  local left = char and craftsLeft(char, recipe.recipeID) or nil
-  if left then fitChip(card.queued, GC.L["In queue: %d"]:format(left), K.yours) end
-  card.queued:SetShown(left ~= nil)
+  local queued = char and queuedText(char, recipe.recipeID) or nil
+  if queued then fitChip(card.queued, queued, K.yours) end
+  card.queued:SetShown(queued ~= nil)
   -- The top line: the item, the kicker over the name (wrapped in what the item and the chip leave),
   -- the chip at the right, each centred on the line.
   local textX = LAYOUT.CARD_PAD + LAYOUT.ICON + LAYOUT.ICON_GAP
-  local textW = inner - LAYOUT.ICON - LAYOUT.ICON_GAP - (left and (card.queued:GetWidth() + LAYOUT.ICON_GAP) or 0)
+  local textW = inner - LAYOUT.ICON - LAYOUT.ICON_GAP - (queued and (card.queued:GetWidth() + LAYOUT.ICON_GAP) or 0)
   card.kicker:SetWidth(textW)
   card.name:SetWidth(textW)
   local textH = heightOf(card.kicker, 11) + LAYOUT.LINE_GAP + heightOf(card.name, 14)
-  local lineH = math.max(LAYOUT.ICON, textH, left and LAYOUT.CHIP_H or 0)
+  local lineH = math.max(LAYOUT.ICON, textH, queued and LAYOUT.CHIP_H or 0)
   local y = LAYOUT.CARD_PAD
   card.slot.edge:ClearAllPoints()
   card.slot.edge:SetPoint("TOPLEFT", card, "TOPLEFT", LAYOUT.CARD_PAD, -(y + math.floor((lineH - LAYOUT.ICON) / 2)))
@@ -654,15 +669,13 @@ function P.View()
   return "worth"
 end
 
--- A segmented control in a sunken track, as the Hoard's switch draws it: the view on screen filled
--- gold, the other bare words; the Queue with a round count of its lines after its word.
+-- A segmented control in the sunken track the Hoard's switches have (HF.ui.sunkenTrack): the view
+-- on screen filled gold, the other bare words; the Queue with a round count of its lines after its
+-- word.
 local function buildSwitch(f)
   local T = GC.Theme
   local sw = CreateFrame("Frame", nil, f)
-  sw.track = T.SlicedTexture(sw, "BACKGROUND", T.MEDIA .. "plaque.png", TRACK, T.SLICE.plaque)
-  sw.track:SetAllPoints(sw)
-  sw.edge = T.SlicedTexture(sw, "BORDER", T.MEDIA .. "plaque_ring.png", K.glassBorder, T.SLICE.plaque)
-  sw.edge:SetAllPoints(sw)
+  U.sunkenTrack(sw)
   for _, id in ipairs({ "worth", "queue" }) do
     local b = T.Button(sw, "segment", "badge")
     b:SetGlow(false)
@@ -673,9 +686,15 @@ local function buildSwitch(f)
       P.Refresh()
     end)
     sw[id] = b
+    track(f, b.text)
   end
   sw.badge = T.Chip(sw.queue)
   sw.badge:SetHeight(LAYOUT.BADGE_H)
+  -- The count centred on its own, as wide as its figures (the chip bounds its words 4px in from
+  -- each side and cuts what does not fit); the badge is BADGE_PAD wider either side.
+  sw.badge.text:ClearAllPoints()
+  sw.badge.text:SetPoint("CENTER", sw.badge, "CENTER", 0, 0)
+  track(f, sw.badge.text)
   return sw
 end
 
@@ -690,7 +709,7 @@ local function paintSwitch(f)
   sw.queue:SetLabel(GC.L["Queue"])
   if lines > 0 then
     badge:SetLabel(tostring(lines), view == "queue" and K.onGold or K.goldText)
-    badge:SetWidth(math.max(LAYOUT.BADGE_H, textWidth(badge.text) + 8))
+    badge:SetWidth(math.max(LAYOUT.BADGE_H, textWidth(badge.text) + 2 * LAYOUT.BADGE_PAD))
   end
   badge:SetShown(lines > 0)
   local parts = {
@@ -729,25 +748,16 @@ end
 -- The header and the foot
 -- ---------------------------------------------------------------------------------------------
 
--- The GoldCap mark and the brand, as the Hoard's header draws them (HF.ui.newHeader, whose window
--- name and X the panel has no use for), and the open profession's chip at the right.
+-- The GoldCap mark and the brand as the Hoard's header draws them (HF.ui.newBrand), and the open
+-- profession's chip at the right, its icon round as Blizzard's portraits are.
 local function buildHeader(f)
   local T = GC.Theme
   local head = CreateFrame("Frame", nil, f)
   head:SetSize(LAYOUT.INNER, LAYOUT.HEAD_H)
   head:SetPoint("TOPLEFT", f, "TOPLEFT", LAYOUT.PAD, -LAYOUT.PAD)
   f.header = head
-  f.logo = head:CreateTexture(nil, "ARTWORK")
-  f.logo:SetTexture(T.MEDIA .. "GoldCap")
-  f.logo:SetSize(LAYOUT.LOGO, LAYOUT.LOGO)
+  U.newBrand(f, LAYOUT.LOGO, LAYOUT.BRAND, LAYOUT.BRAND_GAP)
   f.logo:SetPoint("LEFT", head, "LEFT", 0, 0)
-  -- The brand in the condensed heavy face whatever the language: it is the name, written in Latin.
-  f.brand = head:CreateFontString(nil, "OVERLAY")
-  f.brand:SetFont(T.FONT_HEAD_HEAVY, LAYOUT.BRAND * T.Scale(), "")
-  T.TrackFont(f.brand, { role = "brand", path = T.FONT_HEAD_HEAVY, size = LAYOUT.BRAND })
-  f.brand:SetWordWrap(false)
-  colour(f.brand, K.goldText)
-  f.brand:SetPoint("LEFT", f.logo, "RIGHT", 6, 0)
   f.brand:SetText("GoldCap")
   local chip = T.Chip(head)
   chip:SetHeight(LAYOUT.CHIP_H)
@@ -756,6 +766,8 @@ local function buildHeader(f)
   chip.icon:SetSize(LAYOUT.CHIP_ICON, LAYOUT.CHIP_ICON)
   chip.icon:SetPoint("LEFT", chip, "LEFT", 3, 0)
   chip.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  chip.icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+  track(f, chip.text)
   f.profession = chip
 end
 
@@ -778,31 +790,11 @@ local function paintHeader(f)
   chip:Show()
 end
 
-local function buildFoot(f)
-  local T = GC.Theme
-  -- The badge art is round at this size, as the Hoard's footer draws its dot.
-  f.dot = f:CreateTexture(nil, "ARTWORK")
-  f.dot:SetTexture(T.MEDIA .. "badge.png")
-  f.dot:SetSize(LAYOUT.DOT, LAYOUT.DOT)
-  f.prices = wrapping(T.Label(f, LAYOUT.SMALL))
-  f.prices:SetWidth(LAYOUT.INNER - LAYOUT.DOT - LAYOUT.DOT_GAP)
-  f.prices:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", LAYOUT.PAD + LAYOUT.DOT + LAYOUT.DOT_GAP, LAYOUT.PAD)
-  colour(f.prices, K.text3)
-end
-
--- Where the prices come from and how old they are (HF.Footer.PricesNow), beside a dot in the kit's
--- green while they are fresh, amber after or with none, as the Disenchant window's foot says it.
--- Keeps its height for the layout.
+-- Where the prices come from and how old they are, beside a dot in the kit's green while they are
+-- fresh, amber after or with none: the Hoard's price line (HF.Footer), as the Disenchant window's
+-- foot draws it. Keeps its height for the layout.
 local function paintFoot(f)
-  local text, fresh = HF.Footer.PricesNow()
-  setText(f.prices, text)
-  local c = fresh and K.profit or K.warn
-  f.dot:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
-  local height = math.ceil(heightOf(f.prices, 12))
-  f.dot:ClearAllPoints()
-  f.dot:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", LAYOUT.PAD,
-    LAYOUT.PAD + math.floor((math.min(height, 12) - LAYOUT.DOT) / 2))
-  f.footH = height
+  f.footH = HF.Footer.PaintPriceLine(f, LAYOUT.PAD, LAYOUT.PAD, LAYOUT.INNER)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -823,11 +815,20 @@ local function build(frame)
   buildHeader(f)
   f.card = buildCard(f)
   f.switch = buildSwitch(f)
-  buildFoot(f)
+  HF.Footer.NewPriceLine(f, f)
   f.body = CreateFrame("Frame", nil, f)
   f.worth = buildWorth(f.body)
   -- UI/CraftQueueView.lua loads after this file; by the time the window opens it is there.
   if GC.CraftQueueView and GC.CraftQueueView.Build then GC.CraftQueueView.Build(f.body) end
+  -- The recipes page hides on every close and every other tab, and the panel with it. On its way
+  -- back every line it shows is drawn again, and one repaint on the next frame shows what changed
+  -- meanwhile (the queue, crafted from the Orders page; the prices): none when the panel's own
+  -- repaint shows it (P.Refresh).
+  f:SetScript("OnShow", function(self)
+    restamp(self)
+    if self.worth:IsShown() then restampWorth(self.worth) end
+    if not P._showing then P.Queue() end
+  end)
   return f
 end
 
@@ -891,7 +892,9 @@ function P.Refresh()
     return
   end
   f:SetHeight(frame:GetHeight())
+  P._showing = true
   f:Show()
+  P._showing = false
   paintTop(f)
   local qv = GC.CraftQueueView
   if P.View() == "queue" then
@@ -900,8 +903,10 @@ function P.Refresh()
     qv.Refresh()
   else
     if qv and qv._frame then qv._frame:Hide() end
+    local back = not f.worth:IsShown()
     f.worth:Show()
     P.PaintWorth()
+    if back then restampWorth(f.worth) end
   end
 end
 
@@ -940,11 +945,11 @@ if type(CreateFrame) == "function" then
     -- Blizzard's own handler opens the window first: the panel attaches a frame later.
     if event == "TRADE_SKILL_SHOW" then
       after(P.Attach)
-    elseif event == "BAG_UPDATE_DELAYED" or event == "UNIT_SPELLCAST_SUCCEEDED" then
-      if not P._frame then return end
-      P.QueueOpen()
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+      if P._frame then P.QueueOpen() end
+    elseif event == "BAG_UPDATE_DELAYED" then
       local qv = GC.CraftQueueView
-      if event == "BAG_UPDATE_DELAYED" and P.View() == "queue" and qv and qv.Queue then qv.Queue() end
+      if P._frame and P.View() == "queue" and qv and qv.Queue then qv.Queue() end
     else
       P.Queue()
     end

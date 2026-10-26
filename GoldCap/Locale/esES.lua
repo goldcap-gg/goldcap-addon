@@ -1483,6 +1483,7 @@ GC.Locales.esES = {
   ["No recipe here makes a profit now"] = "Aquí ninguna receta da beneficio ahora",
   ["This recipe"] = "Esta receta",
   ["In queue: %d"] = "En cola: %d",
+  ["Restock to %d"] = "Reponer hasta %d",
   ["Reagents"] = "Componentes",
   ["Sells for, after cut"] = "Venta tras comisión",
   ["Profit a craft"] = "Beneficio por fabricación",
