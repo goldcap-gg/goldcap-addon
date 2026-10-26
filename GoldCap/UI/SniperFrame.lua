@@ -4349,8 +4349,9 @@ local AUTO_PAUSE_LABEL = {
     "Paused while the mailbox is open. Close it and Auto carries on." },
   sell = { "AUTO · PAUSED: SELL TAB",
     "Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on." },
-  items = { "AUTO · PAUSED: ITEMS BOARD",
-    "Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on." },
+  -- Not a pause the player sees: see itemsBoardHold below.
+  items = { "AUTO · SCANNING",
+    "On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again." },
   buy = { "AUTO · PAUSED: BUY TAB",
     "Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on." },
   aside = { "AUTO · PAUSED: OTHER TAB",
@@ -4364,15 +4365,37 @@ local AUTO_PAUSE_LABEL = {
 -- while the player's own search was already live) -- "buying" wins because it's the most
 -- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
 -- deliberately absent -- per spec they render as plain "AUTO", not a paused chip, since
--- neither reflects something the player is actively DOING right now.
-local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "aside", "sell", "items", "buy" }
+-- neither reflects something the player is actively DOING right now. `items` is absent too:
+-- itemsBoardHold says what it means.
+local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "aside", "sell", "buy" }
+
+-- On the Items board Auto's own pass stands aside (the "items" pause) and the board's poll does the
+-- asking, round after round (GC.Sniper._TrySendKeysBatch). "AUTO · PAUSED: ITEMS BOARD" in amber
+-- over a board that kept searching, and a Buy list beside it changing every few seconds, read as a
+-- contradiction (owner, 2026-10-26). So the items pause alone reads as Auto at work, unless what
+-- holds every keys batch (_TrySendKeysBatchFor) holds the poll: the player's own search on the Buy
+-- list, or the player busy on the auction house's own panes. Returns the AUTO_PAUSE_LABEL key to
+-- show, or nil when it is not the items pause alone.
+local function itemsBoardHold(reasons)
+  if not reasons.items or reasons.ah or reasons.tab then return nil end
+  for _, reason in ipairs(AUTO_PAUSE_ORDER) do
+    if reasons[reason] then return nil end
+  end
+  if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then return "browse" end
+  local tab = GC.AuctionHouseTab
+  if tab and tab.PlayerIsBusy and tab.PlayerIsBusy() then return "busy" end
+  return "items"
+end
 
 -- The mode, not each pass: Auto running reads "AUTO · SCANNING" between its passes too. On a small
 -- auction house a pass comes and goes every second, and the chip blinked with it (owner, WoW:
 -- Forever, 2026-10-09); the status line beside it says each pass. A pause or a hold still speaks:
--- those are the player's to act on. The second value is true when the label names one.
+-- those are the player's to act on. The second value is true when the label names one, the third
+-- when a paused Auto is at work all the same (the Items board's poll).
 local function autoButtonText(state, reasons)
   if state == "PAUSED" then
+    local items = itemsBoardHold(reasons)
+    if items then return GC.L[AUTO_PAUSE_LABEL[items][1]], items ~= "items", items == "items" end
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]], true end
     end
@@ -4391,6 +4414,8 @@ function GC.Sniper._AutoHelp()
   local state = autoScan:State()
   if state == "PAUSED" then
     local reasons = autoScan:PauseReasons()
+    local items = itemsBoardHold(reasons)
+    if items then return { GC.L[AUTO_PAUSE_LABEL[items][2]] } end
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then lines[#lines + 1] = GC.L[AUTO_PAUSE_LABEL[reason][2]] end
     end
@@ -4435,8 +4460,8 @@ refreshAutoButton = function(targetFrame)
   -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
   -- button. `active` carries the on-state in gold text, which cannot become unreadable.
   f.autoBtn:SetVariant(on and "active" or "ghost")
-  local text, held = GC.L["AUTO"], false
-  if on then text, held = autoButtonText(state, autoScan:PauseReasons()) end
+  local text, held, working = GC.L["AUTO"], false, false
+  if on then text, held, working = autoButtonText(state, autoScan:PauseReasons()) end
   f.autoBtn:SetLabel(text)
   -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
   -- rather than cutting it, and the status line anchored to its right edge moves with it.
@@ -4458,6 +4483,8 @@ refreshAutoButton = function(targetFrame)
       light = nil
     elseif held then
       light = "held"
+    elseif working then
+      light = "live"
     elseif state == "OFF" or state == "PAUSED" then
       light = GC.Sniper.ScanActive() and "live" or nil
     else
@@ -4582,6 +4609,11 @@ local function onFullScanClick()
   -- pass here, which filled the other board, held this one's checks back until it ended, and lit
   -- SCANNING over a board that did not move (owner, retail 2026-10-11).
   if GC.Sniper._Board() == "items" then
+    -- It takes the Buy list back from the player's own search, as on Commodities below: that
+    -- search held every batch of this board's until the auction house closed, so SCAN here, which
+    -- the waiting label tells them to press, did nothing.
+    local tab = GC.AuctionHouseTab
+    if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
     GC.Sniper._LookAtItemsAgain()
     refreshScanButton()
     return
@@ -7798,6 +7830,8 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   trace("keys: SearchForItemKeys x" .. #keys .. " (" .. who .. ")")
   if GC.BuyWaitDiag then GC.BuyWaitDiag.Note("keys", "armed", ("owner=%s x%d"):format(who, #keys)) end
   C_AuctionHouse.SearchForItemKeys(keys, {})
+  -- Its answer is what the Buy pane's list shows next: the veil says so (UI/AuctionHouseTab.lua).
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonBrowse then GC.AuctionHouseTab.NoteAddonBrowse() end
   return true
 end
 

@@ -846,9 +846,6 @@ GC.Locales.zhCN = {
   ["AUTO · PAUSED: SELL TAB"] = "自动 · 已暂停：出售标签页",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "出售标签页打开时暂停：它用同一个搜索为你的背包定价。回到交易页，自动会继续。",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "自动 · 已暂停：物品面板",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "显示物品面板时暂停：它用同一个搜索向拍卖行查询。切换到商品，自动会继续。",
   ["AUTO · PAUSED: BUY TAB"] = "自动 · 已暂停：BUY 标签页",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "BUY 标签页打开时暂停：它用同一个搜索查询价格。回到交易页，自动会继续。",
@@ -1517,4 +1514,9 @@ GC.Locales.zhCN = {
   ["Group's price"] = "分组价格",
   ["at or under the group's price. Click Buy to purchase"] = "不高于分组价格。点击 Buy 购买",
   ["price checked a moment ago. Whether it sells is your call"] = "价格刚刚核对过。能否卖掉由你决定",
+  ["GoldCap is checking prices here"] = "GoldCap 正在这里查价",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "拍卖行会把 GoldCap 的搜索结果显示在这个列表里，所以它会自己变化。想自己使用这个列表，就搜索、选择一个分类或点击星标。之后在你按扫描之前，GoldCap 都不会再动它。",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "在物品面板上，自动会一轮又一轮地检查这个面板关注的物品。切换到商品，它会重新扫描商品市场。",
 }

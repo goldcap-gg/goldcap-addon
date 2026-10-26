@@ -923,9 +923,6 @@ GC.Locales.itIT = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · IN PAUSA: SCHEDA VENDI",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "In pausa finché la scheda Vendi è aperta: prezza le tue borse con la stessa ricerca. Torna alle offerte e Auto riprende.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · IN PAUSA: ELENCO OGGETTI",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "In pausa finché è mostrato l'elenco oggetti: interroga la casa d'aste con la stessa ricerca. Passa alle merci e Auto riprende.",
   ["AUTO · PAUSED: BUY TAB"] = "AUTO · IN PAUSA: SCHEDA BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "In pausa finché la scheda BUY è aperta: cerca i prezzi con la stessa ricerca. Torna alle offerte e Auto riprende.",
@@ -1613,4 +1610,9 @@ GC.Locales.itIT = {
   ["Group's price"] = "Prezzo del gruppo",
   ["at or under the group's price. Click Buy to purchase"] = "al prezzo del gruppo o meno. Clicca Buy per acquistare",
   ["price checked a moment ago. Whether it sells is your call"] = "prezzo verificato un attimo fa. Se si vende lo decidi tu",
+  ["GoldCap is checking prices here"] = "GoldCap sta controllando i prezzi qui",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "La casa d'aste mostra le ricerche di GoldCap in questo elenco, quindi cambia da solo. Per usarlo tu, cerca, scegli una categoria o clicca sulla stella. GoldCap poi te lo lascia finché non premi SCANSIONA.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "Nell'elenco oggetti, Auto continua a controllare gli oggetti che l'elenco segue, giro dopo giro. Passa alle merci e torna a scansionare il mercato delle merci.",
 }

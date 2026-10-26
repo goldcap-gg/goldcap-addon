@@ -65,6 +65,11 @@ local browseHooked, favouritesHooked = false, false
 -- Set by our own sender for the length of its own SendBrowseQuery call (UI/SniperFrame.lua's book
 -- pass), so the hook below does not count it. A field, so that sender can reach it.
 GC.AuctionHouseTab.addonBrowse = false
+-- Whether the Buy pane's list is showing GoldCap's own searches, and the veil that says so over
+-- it (NoteAddonBrowse below). Cleared by the player's own browse and by the auction house closing.
+local listOurs = false
+local veil = nil
+local VEIL = { WIDTH = 330, GAP = 6, TITLE = 14, BODY = 12, LEVEL = 50, ALPHA = 0.96 }
 
 -- Blizzard's tabs are `AuctionHouseFrame.Tabs` on current builds and globals named
 -- AuctionHouseFrameTab1..N on older ones. Walk whichever exists; the last one is the anchor.
@@ -287,6 +292,7 @@ local function installBrowseHook()
       -- pressed, or a pass while our tab was up. Only the closing auction house cleared it, and Auto
       -- stood by for the rest of the visit behind a list that was already ours (owner 2026-10-23).
       playerBrowsed = false
+      GC.AuctionHouseTab.NoteAddonBrowse()
       return
     end
     GC.AuctionHouseTab.NotePlayerBrowse()
@@ -329,10 +335,74 @@ local function installFavouritesHooks(ah)
   favouritesHooked = barHooked or sortHooked
 end
 
+-- The veil over the Buy pane's list while that list shows GoldCap's searches. Every keys batch and
+-- every browse query of ours answers into the one buffer Blizzard's list draws from, and the list
+-- redraws on every answer whoever asked (Blizzard_AuctionHouseBrowseResultsFrame.lua, read
+-- verbatim), so beside the floating window it changed by itself every few seconds while the window
+-- read PAUSED (owner, 2026-10-26). A child of that list, so it shows only where the list does. It
+-- takes the pointer and the wheel: a click on a row under it opens a page for an item nobody
+-- picked, and a scroll pages GoldCap's query from Blizzard's list. The search box, the categories
+-- and the Favorites star stay free, and any of them gives the list back (NotePlayerBrowse).
+local function buildVeil(results)
+  local T = GC.Theme
+  local v = T.Card(results, { T.color.bg[1], T.color.bg[2], T.color.bg[3], VEIL.ALPHA }, T.color.border)
+  v:SetAllPoints(results)
+  v:SetFrameLevel(results:GetFrameLevel() + VEIL.LEVEL)
+  v:EnableMouse(true)
+  v:EnableMouseWheel(true)
+  v:SetScript("OnMouseWheel", function() end)
+  v.title = T.Label(v, VEIL.TITLE)
+  v.title:SetWidth(VEIL.WIDTH)
+  v.title:SetJustifyH("CENTER")
+  v.title:SetTextColor(T.color.gold[1], T.color.gold[2], T.color.gold[3])
+  v.body = T.Label(v, VEIL.BODY)
+  v.body:SetPoint("TOP", v.title, "BOTTOM", 0, -VEIL.GAP)
+  v.body:SetWidth(VEIL.WIDTH)
+  v.body:SetJustifyH("CENTER")
+  v.body:SetWordWrap(true)
+  v.body:SetTextColor(T.color.fgMuted[1], T.color.fgMuted[2], T.color.fgMuted[3])
+  return v
+end
+
+local function paintVeil()
+  if not listOurs then
+    if veil then veil:Hide() end
+    return
+  end
+  local ah = _G.AuctionHouseFrame
+  local results = ah and ah.BrowseResultsFrame
+  if not (results and CreateFrame and GC.Theme and GC.Theme.Card) then return end
+  if not veil then
+    local ok, built = pcall(buildVeil, results)
+    if not ok then return end
+    veil = built
+  end
+  -- Set on every show: the player can switch GoldCap's language mid-session.
+  veil.title:SetText(GC.L["GoldCap is checking prices here"])
+  veil.body:SetText(GC.L["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."])
+  -- The two lines sit as one block in the middle, however many lines the sentence wraps to.
+  veil.title:ClearAllPoints()
+  veil.title:SetPoint("TOP", veil, "CENTER", 0, (veil.title:GetHeight() + VEIL.GAP + veil.body:GetHeight()) / 2)
+  veil:Show()
+end
+
+-- A keys batch or a browse query of ours just went out: the Buy pane's list now shows its answer.
+function GC.AuctionHouseTab.NoteAddonBrowse()
+  listOurs = true
+  paintVeil()
+end
+
+-- Test seam: whether the veil is up over the Buy pane's list.
+function GC.AuctionHouseTab._VeilShown()
+  return veil ~= nil and veil:IsShown() == true
+end
+
 -- The player (or another addon) just sent a browse query. The Sniper gives up a keys batch still
 -- out under it: that batch's answer went with it, and the answer coming is not the batch's.
 function GC.AuctionHouseTab.NotePlayerBrowse()
   playerBrowsed = true
+  listOurs = false
+  paintVeil()
   local sniper = GC.Sniper
   if sniper and sniper._OnPlayerBrowse then pcall(sniper._OnPlayerBrowse) end
 end
@@ -663,6 +733,8 @@ end
 -- window with its saved geometry, hidden, so the next `/goldcap` opens it normally.
 function GC.AuctionHouseTab.OnAuctionHouseClosed()
   playerBrowsed = false
+  listOurs = false
+  paintVeil()
   if dock and dock:IsShown() then dock:Hide() end
   if GC.Sniper and GC.Sniper.SetDocked then pcall(GC.Sniper.SetDocked, nil) end
   GC.AuctionHouseTab.Refresh()

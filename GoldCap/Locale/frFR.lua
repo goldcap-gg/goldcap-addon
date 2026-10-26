@@ -923,9 +923,6 @@ GC.Locales.frFR = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · EN PAUSE : ONGLET VENTE",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "En pause tant que l'onglet Vente est ouvert : il estime tes sacs par la même recherche. Reviens aux affaires et Auto reprend.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · EN PAUSE : TABLEAU OBJETS",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "En pause tant que le tableau Objets est affiché : il interroge l'hôtel des ventes par la même recherche. Passe aux Marchandises et Auto reprend.",
   ["AUTO · PAUSED: BUY TAB"] = "AUTO · EN PAUSE : ONGLET BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "En pause tant que l'onglet BUY est ouvert : il cherche les prix par la même recherche. Reviens aux affaires et Auto reprend.",
@@ -1617,4 +1614,9 @@ GC.Locales.frFR = {
   ["Group's price"] = "Prix du groupe",
   ["at or under the group's price. Click Buy to purchase"] = "au prix du groupe ou en dessous. Clique sur Buy pour acheter",
   ["price checked a moment ago. Whether it sells is your call"] = "prix vérifié à l'instant. À toi de juger s'il se vend",
+  ["GoldCap is checking prices here"] = "GoldCap vérifie les prix ici",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "L'hôtel des ventes affiche les recherches de GoldCap dans cette liste, elle change donc toute seule. Pour t'en servir, fais une recherche, choisis une catégorie ou clique sur l'étoile. GoldCap te la laisse ensuite jusqu'à ce que tu appuies sur SCAN.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "Sur le tableau Objets, Auto vérifie les objets que ce tableau suit, tour après tour. Passe aux Marchandises et il scanne de nouveau le marché des marchandises.",
 }

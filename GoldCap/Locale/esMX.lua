@@ -927,9 +927,6 @@ GC.Locales.esMX = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · EN PAUSA: PESTAÑA VENDER",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "En pausa mientras la pestaña Vender está abierta: pone precio a tus bolsas con la misma búsqueda. Regresa a Ofertas y Auto sigue.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · EN PAUSA: LISTA DE OBJETOS",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "En pausa mientras se muestra la lista de objetos: consulta la casa de subastas con la misma búsqueda. Cambia a Materiales y Auto sigue.",
   ["AUTO · PAUSED: BUY TAB"] = "AUTO · EN PAUSA: PESTAÑA BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "En pausa mientras la pestaña BUY está abierta: consulta precios con la misma búsqueda. Regresa a Ofertas y Auto sigue.",
@@ -1620,4 +1617,9 @@ GC.Locales.esMX = {
   ["Group's price"] = "Precio del grupo",
   ["at or under the group's price. Click Buy to purchase"] = "al precio del grupo o por debajo. Pulsa Buy para comprar",
   ["price checked a moment ago. Whether it sells is your call"] = "precio comprobado hace un momento. Si se vende, lo decides tú",
+  ["GoldCap is checking prices here"] = "GoldCap está revisando precios aquí",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "La casa de subastas muestra las búsquedas de GoldCap en esta lista, así que cambia sola. Para usarla tú, busca, elige una categoría o haz clic en la estrella. GoldCap te la deja hasta que presiones ESCANEAR.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "En la lista de objetos, Auto sigue revisando los objetos que vigila, ronda tras ronda. Cambia a Materiales y vuelve a escanear el mercado de materiales.",
 }

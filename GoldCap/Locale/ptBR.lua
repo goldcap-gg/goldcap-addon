@@ -920,9 +920,6 @@ GC.Locales.ptBR = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSADO: ABA VENDER",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "Pausado enquanto a aba Vender está aberta: ela precifica suas bolsas pela mesma busca. Volte às ofertas e o Auto continua.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · PAUSADO: LISTA DE ITENS",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "Pausado enquanto a lista de itens está à mostra: ela consulta a casa de leilões pela mesma busca. Mude para Mercadorias e o Auto continua.",
   ["AUTO · PAUSED: BUY TAB"] = "AUTO · PAUSADO: ABA BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "Pausado enquanto a aba BUY está aberta: ela consulta preços pela mesma busca. Volte às ofertas e o Auto continua.",
@@ -1611,4 +1608,9 @@ GC.Locales.ptBR = {
   ["Group's price"] = "Preço do grupo",
   ["at or under the group's price. Click Buy to purchase"] = "no preço do grupo ou abaixo. Clique em Buy para comprar",
   ["price checked a moment ago. Whether it sells is your call"] = "preço conferido agora há pouco. Se vende, é sua decisão",
+  ["GoldCap is checking prices here"] = "O GoldCap está conferindo preços aqui",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "A casa de leilões mostra as buscas do GoldCap nesta lista, por isso ela muda sozinha. Para usar a lista você mesmo, faça uma busca, escolha uma categoria ou clique na estrela. O GoldCap deixa a lista com você até você apertar VARRER.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "Na lista de itens, o Auto continua conferindo os itens que essa lista acompanha, rodada após rodada. Mude para Mercadorias e ele volta a varrer o mercado de mercadorias.",
 }

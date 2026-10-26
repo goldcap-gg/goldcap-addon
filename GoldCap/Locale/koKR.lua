@@ -871,9 +871,6 @@ GC.Locales.koKR = {
   ["AUTO · PAUSED: SELL TAB"] = "자동 · 일시중지: 판매 탭",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "판매 탭이 열려 있는 동안 일시중지됩니다. 같은 검색으로 가방 시세를 매기기 때문입니다. 딜로 돌아가면 자동이 이어집니다.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "자동 · 일시중지: 아이템 목록",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "아이템 목록이 표시되는 동안 일시중지됩니다. 같은 검색으로 경매장에 묻기 때문입니다. 재료로 전환하면 자동이 이어집니다.",
   ["AUTO · PAUSED: BUY TAB"] = "자동 · 일시중지: BUY 탭",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "BUY 탭이 열려 있는 동안 일시중지됩니다. 같은 검색으로 가격을 조회하기 때문입니다. 딜로 돌아가면 자동이 이어집니다.",
@@ -1550,4 +1547,9 @@ GC.Locales.koKR = {
   ["Group's price"] = "그룹 가격",
   ["at or under the group's price. Click Buy to purchase"] = "그룹 가격 이하. Buy를 눌러 구매하세요",
   ["price checked a moment ago. Whether it sells is your call"] = "방금 가격을 확인했습니다. 팔릴지는 직접 판단하세요",
+  ["GoldCap is checking prices here"] = "GoldCap이 여기서 가격을 확인하는 중입니다",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "경매장이 GoldCap의 검색 결과를 이 목록에 보여 주므로 목록이 저절로 바뀝니다. 직접 쓰려면 검색하거나, 분류를 고르거나, 별을 누르세요. 그러면 검색 버튼을 누를 때까지 GoldCap이 목록을 건드리지 않습니다.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "아이템 목록에서는 자동이 이 목록이 지켜보는 아이템을 계속 차례로 확인합니다. 재료로 전환하면 다시 재료 시장을 검색합니다.",
 }

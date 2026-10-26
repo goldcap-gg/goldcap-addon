@@ -924,9 +924,6 @@ GC.Locales.deDE = {
   ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSIERT: VERKAUFEN-TAB",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "Pausiert, solange der Verkaufen-Tab offen ist: Er bepreist deine Taschen über dieselbe Suche. Geh zurück zu den Deals, dann läuft Auto weiter.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · PAUSIERT: ITEMS-LISTE",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "Pausiert, solange die Items-Liste angezeigt wird: Sie fragt das Auktionshaus über dieselbe Suche. Wechsle zu Waren, dann läuft Auto weiter.",
   ["AUTO · PAUSED: BUY TAB"] = "AUTO · PAUSIERT: BUY-TAB",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "Pausiert, solange der BUY-Tab offen ist: Er schlägt Preise über dieselbe Suche nach. Geh zurück zu den Deals, dann läuft Auto weiter.",
@@ -1616,4 +1613,9 @@ GC.Locales.deDE = {
   ["Group's price"] = "Gruppenpreis",
   ["at or under the group's price. Click Buy to purchase"] = "zu oder unter dem Gruppenpreis. Buy klicken zum Kaufen",
   ["price checked a moment ago. Whether it sells is your call"] = "Preis gerade eben geprüft. Ob er sich verkauft, entscheidest du",
+  ["GoldCap is checking prices here"] = "GoldCap prüft hier Preise",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "Das Auktionshaus zeigt die Suchen von GoldCap in dieser Liste, deshalb ändert sie sich von selbst. Um die Liste selbst zu nutzen, such etwas, wähl eine Kategorie oder klick auf den Stern. GoldCap überlässt sie dir dann, bis du SCAN drückst.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "In der Items-Liste prüft Auto die Items, die diese Liste beobachtet, Runde um Runde. Wechsle zu Waren, dann scannt es wieder den Warenmarkt.",
 }

@@ -907,9 +907,6 @@ GC.Locales.ukUA = {
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖ",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "Пауза, поки відкрита вкладка Продаж: вона оцінює ваші сумки через той самий пошук. Поверніться до угод, і Авто продовжить.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "АВТО · ПАУЗА: ДОШКА ПРЕДМЕТІВ",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "Пауза, поки показана дошка предметів: вона запитує аукціон через той самий пошук. Перемкніться на товари, і Авто продовжить.",
   ["AUTO · PAUSED: BUY TAB"] = "АВТО · ПАУЗА: ВКЛАДКА BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "Пауза, поки відкрита вкладка BUY: вона дізнається ціни через той самий пошук. Поверніться до угод, і Авто продовжить.",
@@ -1684,4 +1681,9 @@ GC.Locales.ukUA = {
   ["Group's price"] = "Ціна групи",
   ["at or under the group's price. Click Buy to purchase"] = "за ціною групи або дешевше. Натисніть Buy, щоб купити",
   ["price checked a moment ago. Whether it sells is your call"] = "ціну щойно перевірено. Чи продасться, вирішувати вам",
+  ["GoldCap is checking prices here"] = "GoldCap перевіряє тут ціни",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "Аукціон показує в цьому списку пошуки GoldCap, тому список змінюється сам. Щоб користуватися ним самому, введіть пошук, виберіть категорію або натисніть зірочку. Тоді GoldCap не чіпатиме список, доки ви не натиснете СКАН.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "На дошці предметів Авто раз у раз перевіряє предмети, за якими стежить ця дошка. Перемкніться на товари, і воно знову скануватиме ринок товарів.",
 }

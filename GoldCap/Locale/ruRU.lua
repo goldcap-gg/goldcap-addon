@@ -893,9 +893,6 @@ GC.Locales.ruRU = {
   ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖА",
   ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
     "Пауза, пока открыта вкладка Продажа: она оценивает ваши сумки через тот же поиск. Вернитесь к сделкам, и Авто продолжит.",
-  ["AUTO · PAUSED: ITEMS BOARD"] = "АВТО · ПАУЗА: ДОСКА ПРЕДМЕТОВ",
-  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
-    "Пауза, пока показана доска предметов: она спрашивает аукцион через тот же поиск. Переключитесь на товары, и Авто продолжит.",
   ["AUTO · PAUSED: BUY TAB"] = "АВТО · ПАУЗА: ВКЛАДКА BUY",
   ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
     "Пауза, пока открыта вкладка BUY: она узнаёт цены через тот же поиск. Вернитесь к сделкам, и Авто продолжит.",
@@ -1683,4 +1680,9 @@ GC.Locales.ruRU = {
   ["Group's price"] = "Цена группы",
   ["at or under the group's price. Click Buy to purchase"] = "по цене группы или дешевле. Нажмите Buy, чтобы купить",
   ["price checked a moment ago. Whether it sells is your call"] = "цена только что проверена. Продастся ли, решать вам",
+  ["GoldCap is checking prices here"] = "GoldCap проверяет здесь цены",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
+    "Аукцион показывает в этом списке поиски GoldCap, поэтому список меняется сам. Чтобы пользоваться им самому, введите поиск, выберите категорию или нажмите звёздочку. Тогда GoldCap не тронет список, пока вы не нажмёте СКАН.",
+  ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
+    "На доске предметов Авто раз за разом проверяет предметы, за которыми следит эта доска. Переключитесь на товары, и оно снова будет сканировать рынок товаров.",
 }

@@ -82,6 +82,54 @@ describe("Auto says why it is not scanning", function()
     assert.equal("AUTO · WAITING: YOUR AH SEARCH", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
   end)
 
+  -- Owner 2026-10-26: "AUTO · PAUSED: ITEMS BOARD" in amber while the Items board kept searching,
+  -- and the Buy list beside it changed every few seconds. On that board Auto's pass stands aside
+  -- and the board's own poll does the asking, so the chip says Auto is at work, or what holds the
+  -- poll, and its tooltip says what Auto does there.
+  describe("on the Items board", function()
+    local GC, feedAuto, autoScan, autoButtonText
+    before_each(function()
+      GC, feedAuto, autoScan, autoButtonText = loadSniper()
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+      feedAuto("toggleOn")
+      feedAuto("pause:items")
+    end)
+
+    it("reads as Auto at work, with the live light, not as a pause", function()
+      assert.equal("PAUSED", autoScan:State())
+      local text, held, working = autoButtonText(autoScan:State(), autoScan:PauseReasons())
+      assert.equal("AUTO · SCANNING", text)
+      assert.is_false(held)
+      assert.is_true(working)
+      assert.same({ GC.L["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] },
+        GC.Sniper._AutoHelp())
+    end)
+
+    it("says what holds the board's poll: the player's own search, or the player at work", function()
+      GC.Sniper._BrowseOwned = function() return true end
+      local text, held = autoButtonText(autoScan:State(), autoScan:PauseReasons())
+      assert.equal("AUTO · WAITING: YOUR AH SEARCH", text)
+      assert.is_true(held)
+      assert.equal(GC.L["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."],
+        GC.Sniper._AutoHelp()[1])
+
+      GC.Sniper._BrowseOwned = function() return false end
+      GC.AuctionHouseTab.PlayerIsBusy = function() return true end
+      assert.equal("AUTO · WAITING FOR YOU", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+    end)
+
+    it("names any other pause first, and reads a closed auction house as plain AUTO", function()
+      feedAuto("pause:mail")
+      assert.equal("AUTO · PAUSED: MAILBOX OPEN", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+      feedAuto("resume:mail")
+      feedAuto("pause:buy")
+      assert.equal("AUTO · PAUSED: BUY TAB", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+      feedAuto("resume:buy")
+      feedAuto("ahClosed")
+      assert.equal("AUTO", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+    end)
+  end)
+
   -- Reported 2026-10-17: a player posted through Auctionator's Selling tab, came back to Deals
   -- in the floating window, and AUTO and SCAN did nothing until /reload. In game the same day
   -- the button read "AUTO · WAITING FOR YOU" over that tab, and clicking GoldCap's own tab left
