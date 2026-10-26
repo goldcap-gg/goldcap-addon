@@ -2,29 +2,37 @@ local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 local TS = require("spec.support.trade_skill")
 
--- UI/CraftPanel.lua: GoldCap's panel beside the profession window. Worth crafting lists the
--- character's known recipes of the open profession that make a profit by profit
--- per craft, with how many sell a day where that is known, and marks slow sellers; a recipe that
--- makes no profit, and one GoldCap cannot price, are counted, never listed.
+-- UI/CraftPanel.lua: GoldCap's panel beside the profession window, as the owner approved it
+-- (canvas version 17). The header with the open profession, This recipe with its three figures,
+-- the Worth crafting and Queue tabs, and Worth crafting: the character's known recipes of the open
+-- profession that make a profit, by profit per craft, each with its icon, the craft's math, the
+-- profit, how fast it sells and a quick add; a recipe that makes no profit, and one GoldCap cannot
+-- price, are counted, never listed. At the foot, where the prices come from.
 describe("craft panel", function()
-  local GC, P, restore, VALUES
+  local GC, P, K, restore, VALUES
 
   local function commodity(mv, sold)
     return { mv = mv, sold = sold, ts = 0, source = "import", kind = "region_commodity" }
   end
 
-  -- Recipe id makes item 900 + id from one of item 100 + id.
-  local function recipe(id, name, extra)
-    return { info = TS.info(id, name, extra), schematic = TS.schematic(id, 900 + id, { TS.slot(1, 1, TS.items(100 + id)) }) }
+  -- Recipe id makes item 900 + id from one of item 100 + id; `schematic` adds to its schematic.
+  local function recipe(id, name, extra, schematic)
+    return { info = TS.info(id, name, extra),
+      schematic = TS.schematic(id, 900 + id, { TS.slot(1, 1, TS.items(100 + id)) }, schematic) }
   end
 
   -- A, B and C at 900, 500 and 200 a craft (each sells for 1,900 after the cut), selling 12, an
-  -- unknown number and half a time a day; D has no price for its reagent.
+  -- unknown number and half a time a day; D has no price for its reagent. Alchemy is open; A's
+  -- flask is of the second crafting quality.
   local function world(opts)
     opts = opts or {}
     opts.recipes = opts.recipes or { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [3] = recipe(3, "C"), [4] = recipe(4, "D") }
     opts.filtered = opts.filtered or { 3, 4, 1, 2 }
     opts.professionID = 2823
+    if opts.professionName == nil then opts.professionName = "Alchemy" end
+    if opts.professionTexture == nil then opts.professionTexture = 4620669 end
+    opts.icons = opts.icons or { [901] = 5001, [902] = 5002, [903] = 5003, [904] = 5004 }
+    opts.tiers = opts.tiers or { [901] = 2 }
     return opts
   end
 
@@ -36,6 +44,7 @@ describe("craft panel", function()
   local function load(opts)
     restore = TS.install(world(opts))
     GC = TS.craftGC()
+    K = GC.Kit.Tokens.color
     VALUES = {}
     GC.Data = { GetItemValue = function(id) return VALUES[id] end }
     GC.AppRuns = { VendorUnitFor = function() return nil end }
@@ -52,17 +61,32 @@ describe("craft panel", function()
     return P._frame
   end
 
+  local function rgb(fs)
+    local r, g, b = fs:GetTextColor()
+    return { r, g, b }
+  end
+
+  local function same(c) return { c[1], c[2], c[3] } end
+
+  local function ids()
+    local out = {}
+    for _, row in ipairs(P._rows) do out[#out + 1] = row.recipeID end
+    return out
+  end
+
+  local function snapshot(id) return GC.CraftClient.Snapshot(id) end
+
   after_each(function()
     if restore then restore() end
     W.unknownEvents = {}
   end)
 
-  it("opens beside the profession window on its recipes page", function()
+  it("opens beside the profession window on its recipes page, as tall as the window", function()
     load()
     local f = show()
     assert.equal(TS.page, f:GetParent())
     assert.same({ "TOPLEFT", TS.frame, "TOPRIGHT", 0, 0 }, { f:GetPoint(1) })
-    assert.equal(300, f:GetWidth())
+    assert.equal(320, f:GetWidth())
     assert.equal(TS.frame:GetHeight(), f:GetHeight())
     assert.is_true(f:IsShown())
   end)
@@ -82,176 +106,243 @@ describe("craft panel", function()
     end)
   end
 
-  it("lists known recipes that make a profit by profit per craft, with sales a day where known", function()
-    load()
-    prices()
-    local f = show()
-    local ids = {}
-    for _, row in ipairs(P._rows) do ids[#ids + 1] = row.recipeID end
-    assert.same({ 1, 2, 3 }, ids)
-    assert.equal(GC.L["Worth crafting"], f.worth.heading:GetText())
-    local first, second, third = P._rows[1].widget, P._rows[2].widget, P._rows[3].widget
-    assert.equal("A", first.name:GetText())
-    assert.equal(GC.Util.Money(900), first.profit:GetText())
-    assert.equal(GC.L["Sells about %s a day"]:format("12"), first.pace:GetText())
-    assert.is_true(first.pace:IsShown())
-    assert.is_false(first.slow:IsShown())
-    assert.is_false(second.pace:IsShown())
-    assert.is_false(second.slow:IsShown())
-    assert.is_true(third.slow:IsShown())
-    assert.is_false(third.pace:IsShown())
-    assert.equal(GC.L["Slow seller"], third.slow:GetText())
-    -- Rows stack in that order, each under the one before.
-    local _, above = third.frame:GetPoint(1)
-    assert.equal(second.frame, above)
+  describe("the header", function()
+    it("says GoldCap and names the open profession with its icon in a chip at the right", function()
+      load()
+      local f = show()
+      assert.equal("GoldCap", f.brand:GetText())
+      assert.same({ "LEFT", f.header, "LEFT", 0, 0 }, { f.logo:GetPoint(1) })
+      assert.equal(f.logo, select(2, f.brand:GetPoint(1)))
+      local chip = f.profession
+      assert.is_true(chip:IsShown())
+      assert.equal("Alchemy", chip.text:GetText())
+      assert.equal(4620669, W.state(chip.icon).file)
+      assert.is_true(chip.icon:IsShown())
+      local point, relative, relativePoint = chip:GetPoint(1)
+      assert.same({ "RIGHT", f.header, "RIGHT" }, { point, relative, relativePoint })
+      -- As wide as its icon and its name: a name is never cut.
+      assert.is_true(chip:GetWidth() >= chip.icon:GetWidth() + chip.text:GetUnboundedStringWidth())
+    end)
+
+    it("leaves the icon out when the client has none, and the chip when it names no profession", function()
+      load({ professionTexture = false })
+      local f = show()
+      assert.is_true(f.profession:IsShown())
+      assert.is_false(f.profession.icon:IsShown())
+      restore()
+      load({ professionName = "" })
+      f = show()
+      assert.is_false(f.profession:IsShown())
+    end)
   end)
 
-  it("paints profit green", function()
-    load()
-    prices()
-    show()
-    local r, g, b = P._rows[1].widget.profit:GetTextColor()
-    assert.same(GC.Theme.color.green, { r, g, b })
-  end)
+  describe("Worth crafting", function()
+    it("ranks the recipes that make a profit with the icon, the math, the profit and the pace", function()
+      load()
+      prices()
+      local f = show()
+      assert.same({ 1, 2, 3 }, ids())
+      local v = f.worth
+      assert.equal(GC.Util.Upper(GC.L["Best profit a craft"]), v.heading:GetText())
+      assert.equal(GC.L["reagents at their cheapest quality"], v.cheapest:GetText())
+      local first, second, third = P._rows[1].widget, P._rows[2].widget, P._rows[3].widget
+      assert.equal("A", first.name:GetText())
+      assert.equal(GC.L["Costs %s, sells for %s"]:format(GC.Util.Money(1000), GC.Util.Money(1900)), first.math:GetText())
+      assert.equal("+" .. GC.Util.Money(900), first.profit:GetText())
+      assert.same(same(K.profit), rgb(first.profit))
+      -- What the recipe makes: its icon, with its crafting quality top left where it has one.
+      assert.equal(5001, W.state(first.slot.icon).file)
+      assert.is_true(first.slot.pip:IsShown())
+      assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(first.slot.pip).atlas)
+      assert.equal(5002, W.state(second.slot.icon).file)
+      assert.is_false(second.slot.pip:IsShown())
+      -- How fast it sells: green with how many a day, amber under one a day, nothing unknown.
+      assert.is_true(first.pace:IsShown())
+      assert.equal(GC.L["about %s a day"]:format("12"), first.pace.text:GetText())
+      assert.same(same(K.profit), rgb(first.pace.text))
+      assert.is_false(second.pace:IsShown())
+      assert.is_true(third.pace:IsShown())
+      assert.equal(GC.L["Slow seller"], third.pace.text:GetText())
+      assert.same(same(K.warn), rgb(third.pace.text))
+      -- Rows stack in that order, each under the one before, in the list's scroll.
+      local _, above = third.frame:GetPoint(1)
+      assert.equal(second.frame, above)
+      assert.equal(v.content, first.frame:GetParent())
+    end)
 
-  it("lists only recipes that make a profit and counts the rest under the list", function()
-    load()
-    prices()
-    local f = show()
-    assert.is_false(f.worth.unprofitable:IsShown())
-    VALUES[102] = commodity(5000) -- B loses 3,100 a craft
-    P.Refresh()
-    local ids = {}
-    for _, row in ipairs(P._rows) do ids[#ids + 1] = row.recipeID end
-    assert.same({ 1, 3 }, ids)
-    assert.equal(GC.L["1 recipe makes no profit now"], f.worth.unprofitable:GetText())
-    assert.is_true(f.worth.unprofitable:IsShown())
-    -- Stacked above the unpriced line (D), which sits above the note.
-    local _, relative = f.worth.unprofitable:GetPoint(1)
-    assert.equal(f.worth.unpriced, relative)
-    VALUES[103] = commodity(1900) -- C makes exactly 0
-    P.Refresh()
-    assert.equal(GC.L["%d recipes make no profit now"]:format(2), f.worth.unprofitable:GetText())
-    VALUES[104] = commodity(1900) -- D priced, makes 0
-    P.Refresh()
-    assert.is_false(f.worth.unpriced:IsShown())
-    assert.equal(GC.L["%d recipes make no profit now"]:format(3), f.worth.unprofitable:GetText())
-    _, relative = f.worth.unprofitable:GetPoint(1)
-    assert.equal(f.worth.note, relative)
-  end)
+    it("says how many a day sell: rounded and grouped", function()
+      load()
+      prices()
+      VALUES[901], VALUES[902], VALUES[903] = commodity(2000, 2.6), commodity(2000, 1234), commodity(2000, 1)
+      show()
+      local text = {}
+      for _, row in ipairs(P._rows) do text[row.recipeID] = row.widget.pace.text:GetText() end
+      assert.equal(GC.L["about %s a day"]:format("3"), text[1])
+      assert.equal(GC.L["about %s a day"]:format(GC.Util.Grouped(1234)), text[2])
+      assert.equal(GC.L["about %s a day"]:format("1"), text[3])
+    end)
 
-  it("says no recipe makes a profit when every priced recipe loses, and no price when none is priced", function()
-    load()
-    prices()
-    VALUES[101], VALUES[102], VALUES[103] = commodity(5000), commodity(5000), commodity(5000)
-    local f = show()
-    assert.same({}, P._rows)
-    assert.is_true(f.worth.empty:IsShown())
-    assert.equal(GC.L["No recipe here makes a profit now"], f.worth.empty:GetText())
-    assert.is_false(f.worth.unprofitable:IsShown()) -- the empty line says it already
-    VALUES = {}
-    P.Refresh()
-    assert.equal(GC.L["No recipe here has a GoldCap price yet"], f.worth.empty:GetText())
-    assert.is_false(f.worth.unprofitable:IsShown())
-  end)
+    it("says how many one craft makes when it makes more than one", function()
+      load({ recipes = { [1] = recipe(1, "A", nil, { quantityMin = 5 }) }, filtered = { 1 } })
+      VALUES[101], VALUES[901] = commodity(1000), commodity(2000)
+      show()
+      local sells = math.floor(2000 * 0.95) * 5
+      assert.equal(GC.L["%d a craft. Costs %s, sells for %s"]:format(5, GC.Util.Money(1000), GC.Util.Money(sells)),
+        P._rows[1].widget.math:GetText())
+    end)
 
-  it("says how many sell a day: rounded, grouped, and Slow seller alone under one a day", function()
-    load()
-    prices()
-    VALUES[901], VALUES[902], VALUES[903] = commodity(2000, 2.6), commodity(2000, 1234), commodity(2000, 1)
-    show()
-    local text = {}
-    for _, row in ipairs(P._rows) do
-      local w = row.widget
-      text[row.recipeID] = w.pace:IsShown() and w.pace:GetText() or false
-      assert.is_false(w.slow:IsShown())
-    end
-    assert.equal(GC.L["Sells about %s a day"]:format("3"), text[1])
-    assert.equal(GC.L["Sells about %s a day"]:format(GC.Util.Grouped(1234)), text[2])
-    assert.equal(GC.L["Sells about %s a day"]:format("1"), text[3])
-    VALUES[901], VALUES[902], VALUES[903] = commodity(2000, 0.9), commodity(2000, 0), commodity(2000)
-    P.Refresh()
-    for _, row in ipairs(P._rows) do
-      local w = row.widget
-      assert.is_false(w.pace:IsShown())
-      assert.equal(row.recipeID ~= 3, w.slow:IsShown())
-    end
-  end)
+    it("counts under the list what makes no profit and what has no price, one and many", function()
+      load()
+      prices()
+      local v = show().worth
+      assert.is_false(v.unprofitable:IsShown())
+      assert.is_true(v.unpriced:IsShown())
+      assert.equal(GC.L["1 has no GoldCap price for a reagent or what it makes."], v.unpriced:GetText())
+      assert.same({ "BOTTOMLEFT", v, "BOTTOMLEFT", 0, 0 }, { v.unpriced:GetPoint(1) })
+      VALUES[102] = commodity(5000) -- B loses 3,100 a craft
+      P.Refresh()
+      assert.same({ 1, 3 }, ids())
+      assert.is_true(v.unprofitable:IsShown())
+      assert.equal(GC.L["1 more recipe makes no profit now."], v.unprofitable:GetText())
+      -- Over the unpriced line, at the foot of the view.
+      local _, relative = v.unprofitable:GetPoint(1)
+      assert.equal(v.unpriced, relative)
+      VALUES[103] = commodity(1900) -- C makes exactly 0
+      P.Refresh()
+      assert.equal(GC.L["%d more recipes make no profit now."]:format(2), v.unprofitable:GetText())
+      VALUES[902] = nil -- B's flask has no price now
+      P.Refresh()
+      assert.equal(GC.L["%d have no GoldCap price for a reagent or what they make."]:format(2), v.unpriced:GetText())
+      VALUES[902], VALUES[104] = commodity(2000), commodity(1900) -- B loses again, D makes 0
+      P.Refresh()
+      assert.is_false(v.unpriced:IsShown())
+      assert.equal(GC.L["%d more recipes make no profit now."]:format(3), v.unprofitable:GetText())
+      assert.same({ "BOTTOMLEFT", v, "BOTTOMLEFT", 0, 0 }, { v.unprofitable:GetPoint(1) })
+    end)
 
-  it("counts recipes with no price in the footer, never as rows", function()
-    load()
-    prices()
-    local f = show()
-    for _, row in ipairs(P._rows) do assert.is_not.equal(4, row.recipeID) end
-    assert.equal(GC.L["1 recipe has no GoldCap price for a reagent or what it makes"], f.worth.unpriced:GetText())
-    assert.is_true(f.worth.unpriced:IsShown())
-    assert.equal(GC.L["Each reagent at its cheapest quality"], f.worth.note:GetText())
-    VALUES[101] = nil
-    P.Refresh()
-    assert.equal(GC.L["%d recipes have no GoldCap price for a reagent or what it makes"]:format(2), f.worth.unpriced:GetText())
-    VALUES[101], VALUES[104] = commodity(1000), commodity(100)
-    P.Refresh()
-    assert.is_false(f.worth.unpriced:IsShown())
-  end)
+    it("says no recipe makes a profit when every priced recipe loses, and no price when none is priced", function()
+      load()
+      prices()
+      VALUES[101], VALUES[102], VALUES[103] = commodity(5000), commodity(5000), commodity(5000)
+      local v = show().worth
+      assert.same({}, P._rows)
+      assert.is_true(v.empty:IsShown())
+      assert.is_false(v.scroll:IsShown())
+      assert.equal(GC.L["No recipe here makes a profit now"], v.empty:GetText())
+      assert.is_false(v.unprofitable:IsShown()) -- the empty line says it already
+      VALUES = {}
+      P.Refresh()
+      assert.equal(GC.L["No recipe here has a GoldCap price yet"], v.empty:GetText())
+      assert.is_false(v.unprofitable:IsShown())
+      prices()
+      P.Refresh()
+      assert.is_false(v.empty:IsShown())
+      assert.is_true(v.scroll:IsShown())
+    end)
 
-  it("shows the empty sentence when nothing can be priced", function()
-    load()
-    local f = show()
-    assert.same({}, P._rows)
-    assert.is_true(f.worth.empty:IsShown())
-    assert.equal(GC.L["No recipe here has a GoldCap price yet"], f.worth.empty:GetText())
-    prices()
-    P.Refresh()
-    assert.is_false(f.worth.empty:IsShown())
-  end)
+    it("wraps a long German name in its row, never cuts it, and the row grows for it", function()
+      local long = "Phiole der unerschütterlichen Konzentrationsfähigkeitssteigerungsmeisterschaft"
+      load({ recipes = { [1] = recipe(1, long), [2] = recipe(2, "B") }, filtered = { 1, 2 } })
+      for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
+      GC.ActivateLocale("deDE")
+      prices()
+      show()
+      local row, short = P._rows[1].widget, P._rows[2].widget
+      assert.equal(long, row.name:GetText())
+      for _, fs in ipairs({ row.name, row.math }) do
+        assert.is_true(W.state(fs).wordWrap)
+        assert.is_true(W.state(fs).nonSpaceWrap)
+        assert.is_nil(W.state(fs).maxLines)
+      end
+      assert.is_true(row.name:GetStringHeight() > short.name:GetStringHeight())
+      assert.is_true(row.frame:GetHeight() > short.frame:GetHeight())
+      -- The pace chip is as wide as its words in German.
+      assert.equal(GC.L["about %s a day"]:format("12"), row.pace.text:GetText())
+      assert.is_true(row.pace:GetWidth() >= row.pace.text:GetUnboundedStringWidth())
+      GC.ActivateLocale(nil)
+    end)
 
-  it("gives each row the height its wrapped name needs", function()
-    load({ recipes = { [1] = recipe(1, string.rep("Long name ", 12)), [2] = recipe(2, "B") }, filtered = { 1, 2 } })
-    prices()
-    show()
-    local long, short = P._rows[1].widget, P._rows[2].widget
-    assert.is_true(W.state(long.name).wordWrap)
-    assert.is_nil(W.state(long.name).maxLines)
-    assert.is_true(long.frame:GetHeight() > short.frame:GetHeight())
-  end)
+    it("tints the row of the recipe open in Blizzard's window gold, with a gold border", function()
+      load({ open = { recipeID = 2, allocations = {} } })
+      prices()
+      show()
+      local open, other = P._rows[2].widget, P._rows[1].widget
+      assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.07 }, W.state(open.frame.fill).vertex)
+      assert.same({ K.gold[1], K.gold[2], K.gold[3], 0.45 }, W.state(open.frame.ring).vertex)
+      assert.same(K.glassTop, W.state(other.frame.fill).vertex)
+      assert.same(K.hairline, W.state(other.frame.ring).vertex)
+    end)
 
-  it("repaints on a list update and a learned recipe, once per frame", function()
-    load({ filtered = { 1 } })
-    prices()
-    show()
-    assert.equal(1, #P._rows)
-    local ev = P._events
-    for _, event in ipairs({ "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED", "BAG_UPDATE_DELAYED" }) do
-      assert.is_true(ev:IsEventRegistered(event), event)
-    end
-    TS.opts.filtered = { 1, 2 }
-    ev:GetScript("OnEvent")(ev, "NEW_RECIPE_LEARNED", 2)
-    ev:GetScript("OnEvent")(ev, "TRADE_SKILL_LIST_UPDATE")
-    TS.trigger("ProfessionsRecipeListMixin.Event.OnRecipeSelected", TS.info(2, "B"))
-    assert.equal(1, #TS.timers)
-    TS.runTimers()
-    assert.equal(2, #P._rows)
-  end)
+    it("opens a row's recipe in Blizzard's window on a left click, inside the click", function()
+      load()
+      prices()
+      show()
+      local row = P._rows[2].widget
+      assert.same({ "LeftButtonUp", "RightButtonUp" }, W.state(row.frame).clicks)
+      row.frame:GetScript("OnClick")(row.frame, "LeftButton")
+      local calls = TS.callsOf("OpenRecipe")
+      assert.equal(1, #calls)
+      assert.same({ 2 }, calls[1].args)
+      -- Nothing of it waits for a later frame.
+      assert.equal(0, #TS.timers)
+    end)
 
-  it("never reprices Worth crafting for a bag change: nothing in it depends on the bags", function()
-    load()
-    prices()
-    show()
-    local asked = #TS.callsOf("GetFilteredRecipeIDs")
-    local ev = P._events
-    ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
-    TS.runTimers()
-    assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
-  end)
+    it("repaints on a list update and a learned recipe, once per frame", function()
+      load({ filtered = { 1 } })
+      prices()
+      show()
+      assert.equal(1, #P._rows)
+      local ev = P._events
+      for _, event in ipairs({ "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED", "BAG_UPDATE_DELAYED" }) do
+        assert.is_true(ev:IsEventRegistered(event), event)
+      end
+      TS.opts.filtered = { 1, 2 }
+      ev:GetScript("OnEvent")(ev, "NEW_RECIPE_LEARNED", 2)
+      ev:GetScript("OnEvent")(ev, "TRADE_SKILL_LIST_UPDATE")
+      TS.trigger("ProfessionsRecipeListMixin.Event.OnRecipeSelected", TS.info(2, "B"))
+      assert.equal(1, #TS.timers)
+      TS.runTimers()
+      assert.equal(2, #P._rows)
+    end)
 
-  it("reads nothing while the recipes page is not on screen", function()
-    load()
-    prices()
-    show()
-    TS.page:Hide()
-    local asked = #TS.callsOf("GetFilteredRecipeIDs")
-    P.Refresh()
-    assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
+    it("never reprices Worth crafting for a bag change, a craft or another reagent picked", function()
+      load({ open = { recipeID = 2, allocations = {} } })
+      prices()
+      show()
+      local asked = #TS.callsOf("GetFilteredRecipeIDs")
+      local ev = P._events
+      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+      ev:GetScript("OnEvent")(ev, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 2)
+      TS.trigger("Professions.AllocationUpdated")
+      TS.trigger("Professions.TransactionUpdated")
+      TS.runTimers()
+      assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
+    end)
+
+    it("reads nothing while the recipes page is not on screen", function()
+      load()
+      prices()
+      show()
+      TS.page:Hide()
+      local asked = #TS.callsOf("GetFilteredRecipeIDs")
+      P.Refresh()
+      assert.equal(asked, #TS.callsOf("GetFilteredRecipeIDs"))
+    end)
+
+    it("scrolls inside the panel's height, between its heading and the lines under it", function()
+      load()
+      prices()
+      local f = show()
+      local v = f.worth
+      assert.equal(f.body, v:GetParent())
+      assert.equal(v.content, v.scroll:GetScrollChild())
+      local top, on, _, _, below = v.scroll:GetPoint(1)
+      assert.same({ "TOPLEFT", v }, { top, on })
+      assert.is_true(-below > v.heading:GetStringHeight())
+      local point, relative, _, _, y = v.scroll:GetPoint(2)
+      assert.same({ "BOTTOMRIGHT", v }, { point, relative })
+      assert.is_true(y >= v.unpriced:GetHeight())
+    end)
   end)
 
   describe("putting recipes in the queue", function()
@@ -283,19 +374,86 @@ describe("craft panel", function()
       editor().set:GetScript("OnClick")(editor().set)
     end
 
-    it("shows the open recipe with Add to queue and Restock to", function()
-      local f = loadOpen()
+    local function values(card)
+      local out = {}
+      for i, cell in ipairs(card.cells) do out[i] = cell.value:GetText() end
+      return out
+    end
+
+    it("shows the open recipe with its icon, its quality and its three figures", function()
+      local f = loadOpen({ open = { recipeID = 1, allocations = {} } })
       local card = f.card
       assert.is_true(card:IsShown())
-      assert.equal(GC.L["This recipe"], card.heading:GetText())
-      assert.equal("B", card.name:GetText())
+      assert.equal(GC.Util.Upper(GC.L["This recipe"]), card.kicker:GetText())
+      assert.equal("A", card.name:GetText())
+      assert.is_true(W.state(card.name).wordWrap)
+      assert.equal(5001, W.state(card.slot.icon).file)
+      assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(card.slot.pip).atlas)
+      local labels = {}
+      for i, cell in ipairs(card.cells) do labels[i] = cell.label:GetText() end
+      assert.same({ GC.L["Reagents"], GC.L["Sells for, after cut"], GC.L["Profit a craft"] }, labels)
+      assert.same({ GC.Util.Money(1000), GC.Util.Money(1900), "+" .. GC.Util.Money(900) }, values(card))
+      assert.same(same(K.profit), rgb(card.cells[3].value))
+      assert.same({ K.profit[1], K.profit[2], K.profit[3], 0.3 }, W.state(card.cells[3].ring).vertex)
+      assert.is_false(card.missing:IsShown())
+      assert.is_false(card.queued:IsShown())
       assert.equal(GC.L["Add to queue"], card.add.label)
       assert.equal(GC.L["Restock to"], card.restock.label)
-      -- The view switch sits under the card, and the list under the switch.
+      -- The tabs sit under the card, and the view under the tabs.
       local _, above = f.switch:GetPoint(1)
       assert.equal(card, above)
       _, above = f.body:GetPoint(1)
       assert.equal(f.switch, above)
+    end)
+
+    it("prices the reagents the player picked, and follows another pick", function()
+      local f = loadOpen({ recipes = { [2] = { info = TS.info(2, "B"),
+        schematic = TS.schematic(2, 902, { TS.slot(1, 1, TS.items(102, 112)) }) } }, filtered = { 2 } })
+      VALUES[112] = commodity(1500)
+      assert.same({ GC.Util.Money(1400), GC.Util.Money(1900), "+" .. GC.Util.Money(500) }, values(f.card))
+      TS.opts.open.allocations = { [1] = { { itemID = 112, q = 1 } } }
+      TS.trigger("Professions.AllocationUpdated")
+      TS.runTimers()
+      assert.same({ GC.Util.Money(1500), GC.Util.Money(1900), "+" .. GC.Util.Money(400) }, values(f.card))
+    end)
+
+    it("paints a loss in red, with no plus sign", function()
+      local f = loadOpen()
+      VALUES[102] = commodity(5000)
+      P.Refresh()
+      assert.equal(GC.Util.Money(-3100), f.card.cells[3].value:GetText())
+      assert.same(same(K.loss), rgb(f.card.cells[3].value))
+    end)
+
+    it("names what has no price instead of figures, as the strip does", function()
+      local f = loadOpen({ names = { [902] = "Flask B" } })
+      VALUES[902] = nil
+      P.Refresh()
+      local card = f.card
+      assert.is_true(card.missing:IsShown())
+      assert.equal(GC.L["No GoldCap price for %s"]:format("Flask B"), card.missing:GetText())
+      assert.is_true(W.state(card.missing).wordWrap)
+      for _, cell in ipairs(card.cells) do assert.is_false(cell:IsShown()) end
+      assert.is_true(card.add:IsShown())
+    end)
+
+    it("says how many crafts the queue has left of the open recipe", function()
+      local f = loadOpen({ counts = { [902] = 5 } })
+      local card, char = f.card, "Name-Realm"
+      assert.is_false(card.queued:IsShown())
+      GC.CraftQueue.Add(char, snapshot(2), 3)
+      P.Refresh()
+      assert.is_true(card.queued:IsShown())
+      assert.equal(GC.L["In queue: %d"]:format(3), card.queued.text:GetText())
+      assert.same(same(K.yours), rgb(card.queued.text))
+      assert.is_true(card.queued:GetWidth() >= card.queued.text:GetUnboundedStringWidth())
+      -- A restock: the crafts that bring the 5 held up to 12.
+      GC.CraftQueue.Restock(char, snapshot(2), 12)
+      P.Refresh()
+      assert.equal(GC.L["In queue: %d"]:format(7), card.queued.text:GetText())
+      GC.CraftQueue.Remove(char, 2)
+      P.Refresh()
+      assert.is_false(card.queued:IsShown())
     end)
 
     it("Add to queue asks how many and adds that many crafts", function()
@@ -350,6 +508,7 @@ describe("craft panel", function()
       assert.equal("B", row.name:GetText())
       row.frame:GetScript("OnClick")(row.frame, "RightButton")
       assert.equal(row.frame, owner)
+      assert.equal(0, #TS.callsOf("OpenRecipe"))
       local texts = {}
       for _, e in ipairs(entries) do if e.text then texts[#texts + 1] = e.text end end
       assert.same({ GC.Util.ClientText(GC.L["Add to queue"]), GC.Util.ClientText(GC.L["Restock to"]) }, texts)
@@ -359,34 +518,94 @@ describe("craft panel", function()
       assert.equal(2, GC.CraftQueue.Entries("Name-Realm")[1].recipe.recipeID)
     end)
 
-    it("hides This recipe for a recipe GoldCap does not price, and when the store is newer", function()
+    it("adds one craft at once with a row's +, as Add to queue does, and the Queue tab counts it", function()
+      local f = loadOpen()
+      local changed = 0
+      P.OnQueueChanged = function() changed = changed + 1 end
+      local badge = f.switch.badge
+      assert.is_false(badge:IsShown())
+      local row = P._rows[2].widget
+      assert.is_true(row.add:IsShown())
+      assert.same({ GC.Theme.IconCoords("plus") }, W.state(row.add.glyph).texCoord)
+      row.add:GetScript("OnClick")(row.add)
+      local entries = GC.CraftQueue.Entries("Name-Realm")
+      assert.equal(1, #entries)
+      assert.equal(2, entries[1].recipe.recipeID)
+      assert.equal(1, entries[1].count)
+      -- At once: no question first.
+      assert.is_falsy(editor() and editor():IsShown())
+      assert.equal(1, changed)
+      assert.equal(1, #TS.timers)
+      TS.runTimers()
+      assert.is_true(badge:IsShown())
+      assert.equal("1", badge.text:GetText())
+      assert.equal(GC.L["In queue: %d"]:format(1), f.card.queued.text:GetText())
+      -- A second press adds to the same line.
+      P._rows[2].widget.add:GetScript("OnClick")(P._rows[2].widget.add)
+      TS.runTimers()
+      assert.equal(2, GC.CraftQueue.Entries("Name-Realm")[1].count)
+      assert.equal("1", badge.text:GetText())
+      P._rows[1].widget.add:GetScript("OnClick")(P._rows[1].widget.add)
+      TS.runTimers()
+      assert.equal("2", badge.text:GetText())
+    end)
+
+    it("says on the + what a press does", function()
+      loadOpen()
+      local saved = _G.GameTooltip
+      finally(function() _G.GameTooltip = saved end)
+      local tip = {}
+      _G.GameTooltip = {
+        SetOwner = function(_, owner, anchor) tip.owner, tip.anchor = owner, anchor end,
+        SetText = function(_, text) tip.text = text end,
+        Show = function() tip.shown = true end,
+        Hide = function() tip.shown = false end,
+      }
+      local add = P._rows[1].widget.add
+      add:GetScript("OnEnter")(add)
+      assert.equal(add, tip.owner)
+      assert.equal(GC.Util.ClientText(GC.L["Add one craft to the queue"]), tip.text)
+      assert.is_true(tip.shown)
+      add:GetScript("OnLeave")(add)
+      assert.is_false(tip.shown)
+    end)
+
+    it("offers no + and no buttons while the store is a newer GoldCap's, and keeps the figures", function()
+      local f = loadOpen()
+      GC.db.craft = { v = 2, chars = {} }
+      P.Refresh()
+      assert.is_true(f.card:IsShown())
+      for _, cell in ipairs(f.card.cells) do assert.is_true(cell:IsShown()) end
+      assert.is_false(f.card.add:IsShown())
+      assert.is_false(f.card.restock:IsShown())
+      for _, row in ipairs(P._rows) do assert.is_false(row.widget.add:IsShown()) end
+    end)
+
+    it("hides This recipe for a recipe GoldCap does not price", function()
       local f = loadOpen({ open = { recipeID = 9, allocations = {} },
         recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [9] = recipe(9, "Salvage", { isSalvageRecipe = true }) },
         filtered = { 1, 2 } })
       assert.is_false(f.card:IsShown())
       local _, above = f.switch:GetPoint(1)
-      assert.equal(f.title, above)
-      restore()
-      f = loadOpen()
-      GC.db.craft = { v = 2, chars = {} }
-      P.Refresh()
-      assert.is_false(f.card:IsShown())
+      assert.equal(f.header, above)
     end)
 
-    it("hides This recipe for a recipe the character has not learned: it can never be queued", function()
+    it("shows an unlearned recipe's figures without a way to queue it", function()
       -- Blizzard's list shows unlearned recipes too, and selecting one fills the form.
       local f = loadOpen({ open = { recipeID = 9, allocations = {} },
         recipes = { [1] = recipe(1, "A"), [2] = recipe(2, "B"), [9] = recipe(9, "Unlearned", { learned = false }) },
         filtered = { 1, 2, 9 } })
-      assert.is_false(f.card:IsShown())
+      VALUES[109], VALUES[909] = commodity(1000), commodity(2000)
+      P.Refresh()
+      assert.is_true(f.card:IsShown())
+      assert.equal("Unlearned", f.card.name:GetText())
+      assert.same({ GC.Util.Money(1000), GC.Util.Money(1900), "+" .. GC.Util.Money(900) }, values(f.card))
+      assert.is_false(f.card.add:IsShown())
+      assert.is_false(f.card.restock:IsShown())
       assert.is_nil(f.card.recipe)
-      local _, above = f.switch:GetPoint(1)
-      assert.equal(f.title, above)
-      -- Nothing reaches the queue from it.
-      assert.same({}, GC.CraftQueue.Entries("Name-Realm"))
     end)
 
-    it("sizes each button to its label in every locale, stacking them when they do not fit", function()
+    it("sizes the two buttons to their words and glyphs in every locale, one under the other when they do not fit", function()
       local f = loadOpen()
       for _, code in ipairs(helper.localeCodes()) do helper.loadModule("Locale/" .. code .. ".lua", GC) end
       local inner = f.card:GetWidth() - 2 * 8
@@ -396,12 +615,20 @@ describe("craft panel", function()
         P.Refresh()
         local add, restock = f.card.add, f.card.restock
         for _, b in ipairs({ add, restock }) do
-          assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth(), code .. ": " .. tostring(b.label))
+          assert.is_true(b:GetWidth() >= b.glyph:GetWidth() + b.text:GetUnboundedStringWidth(), code .. ": " .. tostring(b.label))
           assert.is_true(b:GetWidth() <= inner, code .. ": " .. tostring(b.label))
+          -- The glyph, then the words, centred together.
+          local _, on, _, glyphX = b.glyph:GetPoint(1)
+          local _, textOn, _, textX = b.text:GetPoint(1)
+          assert.same({ b, b }, { on, textOn }, code)
+          assert.is_true(textX > glyphX + b.glyph:GetWidth(), code)
+          local right = b:GetWidth() - (textX + b.text:GetUnboundedStringWidth())
+          assert.is_true(math.abs(glyphX - right) <= 1, code)
         end
+        assert.equal(add:GetWidth(), restock:GetWidth(), code)
         local point, relative, relativePoint = restock:GetPoint(1)
         assert.equal(add, relative, code)
-        if add:GetWidth() + 8 + restock:GetWidth() > inner then
+        if add:GetWidth() == inner then
           assert.same({ "TOPLEFT", "BOTTOMLEFT" }, { point, relativePoint }, code)
         else
           assert.same({ "LEFT", "RIGHT" }, { point, relativePoint }, code)
@@ -421,19 +648,96 @@ describe("craft panel", function()
     end)
   end)
 
-  it("registers each event through pcall", function()
+  describe("the tabs", function()
+    it("switch between Worth crafting and the Queue, the one on screen filled gold", function()
+      load()
+      prices()
+      local f = show()
+      local sw = f.switch
+      assert.equal(GC.L["Worth crafting"], sw.worth.label)
+      assert.equal(GC.L["Queue"], sw.queue.label)
+      assert.same(same(K.onGold), rgb(sw.worth.text))
+      assert.same(same(K.text3), rgb(sw.queue.text))
+      for _, b in ipairs({ sw.worth, sw.queue }) do
+        assert.is_true(b:GetWidth() >= b.text:GetUnboundedStringWidth())
+      end
+      -- Each half of the track: the two fill the panel's width.
+      assert.equal(sw.worth:GetWidth(), sw.queue:GetWidth())
+      assert.equal(320 - 2 * 11, sw:GetWidth())
+    end)
+
+    it("count the queue's lines on the Queue tab, and follow a finished craft and the bags", function()
+      load({ open = { recipeID = 2, allocations = {} }, counts = { [902] = 5 } })
+      prices()
+      local char = "Name-Realm"
+      GC.CraftQueue.Add(char, snapshot(2), 1)
+      GC.CraftQueue.Restock(char, snapshot(1), 12)
+      local f = show()
+      local badge = f.switch.badge
+      assert.equal("2", badge.text:GetText())
+      assert.is_true(badge:GetWidth() >= badge.text:GetUnboundedStringWidth())
+      -- The badge sits right of the tab's words.
+      local _, left = badge:GetPoint(1)
+      assert.equal(f.switch.queue, left)
+      assert.equal(GC.L["In queue: %d"]:format(1), f.card.queued.text:GetText())
+      -- The craft finishes (UI/CraftQueueView.lua takes it off the queue on this event).
+      GC.CraftQueue.OnCraftSucceeded(char, 2)
+      local ev = P._events
+      ev:GetScript("OnEvent")(ev, "UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 2)
+      TS.runTimers()
+      assert.equal("1", badge.text:GetText())
+      assert.is_false(f.card.queued:IsShown())
+      -- A restock of what is open counts what the bags hold.
+      GC.CraftQueue.Restock(char, snapshot(2), 12)
+      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+      TS.runTimers()
+      assert.equal(GC.L["In queue: %d"]:format(7), f.card.queued.text:GetText())
+      TS.opts.counts[902] = 10
+      ev:GetScript("OnEvent")(ev, "BAG_UPDATE_DELAYED")
+      TS.runTimers()
+      assert.equal(GC.L["In queue: %d"]:format(2), f.card.queued.text:GetText())
+    end)
+  end)
+
+  describe("the foot", function()
+    it("says where the prices come from and how old they are, under a dot in their colour", function()
+      load()
+      prices()
+      GC.Data.OriginState = function() return "app" end
+      GC.db.imported = { ts = time() - 720 }
+      local f = show()
+      local text, fresh = GC.HoardFrame.Footer.PricesNow()
+      assert.equal(text, f.prices:GetText())
+      assert.is_true(fresh)
+      assert.same({ K.profit[1], K.profit[2], K.profit[3], 1 }, W.state(f.dot).vertex)
+      assert.is_true(W.state(f.prices).wordWrap)
+      local point, relative, relativePoint = f.prices:GetPoint(1)
+      assert.same({ "BOTTOMLEFT", f, "BOTTOMLEFT" }, { point, relative, relativePoint })
+      GC.db.imported.ts = time() - 3 * 3600
+      P.Refresh()
+      assert.same({ K.warn[1], K.warn[2], K.warn[3], 1 }, W.state(f.dot).vertex)
+      -- The view ends above it.
+      local _, _, _, _, y = f.body:GetPoint(2)
+      assert.is_true(y > f.prices:GetHeight())
+    end)
+  end)
+
+  it("registers each event through pcall, and a cast for the player alone", function()
     W.unknownEvents = { NEW_RECIPE_LEARNED = true }
     load()
     local ev = P._events
     assert.is_false(ev:IsEventRegistered("NEW_RECIPE_LEARNED"))
-    for _, event in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED" }) do
+    for _, event in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "UNIT_SPELLCAST_SUCCEEDED" }) do
       assert.is_true(ev:IsEventRegistered(event), event)
     end
+    assert.same({ "player" }, W.state(ev).unitEvents.UNIT_SPELLCAST_SUCCEEDED)
     local file = assert(io.open("GoldCap/UI/CraftPanel.lua", "r"))
     local src = file:read("*a"):gsub("%-%-[^\n]*", "")
     file:close()
     assert.is_nil(src:find(":RegisterEvent%("))
+    assert.is_nil(src:find(":RegisterUnitEvent%("))
     assert.is_truthy(src:find("pcall%(events%.RegisterEvent, events,"))
+    assert.is_truthy(src:find('pcall%(events%.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player"%)'))
     assert.is_nil(src:find("hooksecurefunc", 1, true))
   end)
 end)

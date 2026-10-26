@@ -9,13 +9,16 @@ local KEYS = {
   "Reagents cost %s", "One craft sells for %s after the auction house cut", "Profit %s",
   "No GoldCap price for %s",
   -- The panel's Worth crafting list.
-  "Worth crafting", "Sells about %s a day", "Slow seller",
-  "1 recipe makes no profit now", "%d recipes make no profit now", "No recipe here makes a profit now", "1 recipe has no GoldCap price for a reagent or what it makes",
-  "%d recipes have no GoldCap price for a reagent or what it makes", "Each reagent at its cheapest quality",
+  "Worth crafting", "Best profit a craft", "reagents at their cheapest quality", "Costs %s, sells for %s",
+  "%d a craft. Costs %s, sells for %s", "about %s a day", "Slow seller", "Add one craft to the queue",
+  "1 more recipe makes no profit now.", "%d more recipes make no profit now.", "No recipe here makes a profit now",
+  "1 has no GoldCap price for a reagent or what it makes.", "%d have no GoldCap price for a reagent or what they make.",
   "No recipe here has a GoldCap price yet",
+  -- How fast a crafted item sells, in Disenchant's notes (UI/DisenchantFrame.lua), once the panel's.
+  "Sells about %s a day",
   -- This recipe, and the two questions it asks (BUY's popup: Add and Save are BUY's own keys).
-  "This recipe", "Add to queue", "Restock to", "How many crafts of %s?",
-  "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
+  "This recipe", "In queue: %d", "Reagents", "Sells for, after cut", "Profit a craft", "Add to queue", "Restock to",
+  "How many crafts of %s?", "Restock %s to how many? 0 takes it off the queue.", "Type a whole number", "Add", "Save",
   -- The Queue view.
   "Queue", "%d to craft", "Restock to %d: %d held", "Auctions not counted yet: open GoldCap's Sell tab at the auction house",
   "Remove from queue", "The queue is empty. Add a recipe from This recipe.", "Missing", "%d %s",

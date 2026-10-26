@@ -277,6 +277,13 @@ describe("craft client", function()
     assert.equal("Currency 3010", CC.MissingName({ currencyID = 3010 }))
   end)
 
+  it("reads an item's icon, and none for an item the client has none for", function()
+    load({ icons = { [900] = 4639565 } })
+    assert.equal(4639565, CC.IconOf(900))
+    assert.is_nil(CC.IconOf(901))
+    assert.is_nil(CC.IconOf(nil))
+  end)
+
   it("counts what the character holds of a currency, and none of one the client does not know", function()
     load({ currencies = { [3008] = "Valorstones", [3010] = "Crests" }, currencyHeld = { [3008] = 120 } })
     assert.equal(120, CC.CurrencyCount(3008))

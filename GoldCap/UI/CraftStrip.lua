@@ -16,8 +16,8 @@ local _, GC = ...
 -- end above the "Use Best Quality Reagents" checkbox and the form's bottom edge (the page's Create
 -- buttons are under it), and left of the Details column where that reaches down beside it. A
 -- recipe with many slots, Auctionator's strip, or the minimized window can leave no such room:
--- then the strip hides and the panel's This recipe card shows the same lines
--- (UI/CraftPanel.lua, through S.Folded).
+-- then the strip hides. The panel's This recipe card (UI/CraftPanel.lua) shows the same three
+-- figures whether the strip shows or not, and names what has no price in the strip's words (S.Lines).
 GC.CraftStrip = GC.CraftStrip or {}
 local S = GC.CraftStrip
 
@@ -169,29 +169,6 @@ local function paint(f, lines)
   return #lines
 end
 
--- What the strip hands This recipe: { recipeID, lines }, or nil while it shows its own lines.
-local function fold(value)
-  local before, after = S._folded, value
-  S._folded = value
-  local changed = (before == nil) ~= (after == nil)
-  if before and after then
-    changed = before.recipeID ~= after.recipeID or #before.lines ~= #after.lines
-    for i = 1, #after.lines do
-      if not changed and before.lines[i].text ~= after.lines[i].text then changed = true end
-    end
-  end
-  local panel = GC.CraftPanel
-  if changed and panel and panel.PaintOpen then panel.PaintOpen() end
-end
-
---- The strip's lines for `recipeID` when there was no room for them under the reagents, for the
---- panel's This recipe card to show; nil while the strip shows them itself.
-function S.Folded(recipeID)
-  local folded = S._folded
-  if folded and folded.recipeID == recipeID then return folded.lines end
-  return nil
-end
-
 --- Reads the open recipe again and repaints the strip, or hides it.
 function S.Refresh()
   S._pending = false
@@ -201,7 +178,6 @@ function S.Refresh()
   local recipe = open and GC.CraftClient.Snapshot(open.recipeID) or nil
   if not recipe then
     f:Hide()
-    fold(nil)
     return
   end
   local form = GC.CraftClient.Form()
@@ -213,13 +189,7 @@ function S.Refresh()
   local height = LAYOUT.PAD + f.title:GetHeight() + LAYOUT.GAP + LAYOUT.PAD
   for i = 1, shown do height = height + f.lines[i]:GetHeight() + (i > 1 and LAYOUT.LINE_GAP or 0) end
   f:SetHeight(height)
-  if ok and space and space.top - height >= space.floor then
-    f:Show()
-    fold(nil)
-  else
-    f:Hide()
-    fold({ recipeID = open.recipeID, lines = lines })
-  end
+  f:SetShown(ok and space ~= nil and space.top - height >= space.floor)
 end
 
 --- One repaint on the next frame, however many times this is asked for before then.

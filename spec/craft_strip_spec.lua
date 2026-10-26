@@ -1,4 +1,3 @@
-local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 local TS = require("spec.support.trade_skill")
 
@@ -25,7 +24,6 @@ describe("craft strip", function()
     VALUES = {}
     GC.Data = { GetItemValue = function(id) return VALUES[id] end }
     GC.AppRuns = { VendorUnitFor = function() return nil end }
-    helper.loadModule("UI/CraftStrip.lua", GC)
     S = GC.CraftStrip
   end
 
@@ -166,32 +164,13 @@ describe("craft strip", function()
     assert.same({ "TOPLEFT", form.Concentrate, "BOTTOMLEFT", -100, -8 }, { f:GetPoint(1) })
   end)
 
+  -- With no room under the reagents the strip hides: the panel's This recipe shows the same
+  -- figures whether the strip shows or not (spec/craft_panel_spec.lua).
   describe("when there is no room under the reagents", function()
-    local P
-
-    -- The strip and the panel beside the window, both attached.
-    local function loadBoth(opts)
+    local function priced(opts)
       load(opts)
-      GC.Ledger = { Context = function() return { char = "Name-Realm" } end }
-      GC.db = {}
-      helper.loadModule("UI/CraftPanel.lua", GC)
-      P = GC.CraftPanel
       VALUES[101], VALUES[103], VALUES[900] = commodity(500), commodity(400), commodity(10000)
       return opts
-    end
-
-    local function showBoth()
-      for _, ev in ipairs({ S._events, P._events }) do ev:GetScript("OnEvent")(ev, "TRADE_SKILL_SHOW") end
-      TS.runTimers()
-      return S._frame, P._frame.card
-    end
-
-    local function cardFigures(card)
-      local out = {}
-      for _, fs in ipairs(card.figures or {}) do
-        if fs:IsShown() then out[#out + 1] = fs:GetText() end
-      end
-      return out
     end
 
     -- A recipe with many slots: four rows of reagents, an optional row, down to just above the
@@ -201,32 +180,14 @@ describe("craft strip", function()
       TS.layout(TS.form.OptionalReagents, 328, 410, 180, 60)
     end
 
-    it("draws nothing over Use Best Quality Reagents: the figures go to This recipe", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+    it("draws nothing over Use Best Quality Reagents", function()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
       crowd()
-      local f, card = showBoth()
-      assert.is_false(f:IsShown())
-      assert.is_true(card:IsShown())
-      assert.equal("Potion", card.name:GetText())
-      local cost, sells = 1200, math.floor(10000 * 0.95)
-      assert.same({
-        GC.L["Reagents cost %s"]:format(GC.Util.Money(cost)),
-        GC.L["One craft sells for %s after the auction house cut"]:format(GC.Util.Money(sells)),
-        GC.L["Profit %s"]:format(GC.Util.Money(sells - cost)),
-      }, cardFigures(card))
-      local r, g, b = card.figures[3]:GetTextColor()
-      assert.same(GC.Theme.color.green, { r, g, b })
-      -- The figures wrap in the card, never cut, and the buttons sit under them.
-      for _, fs in ipairs(card.figures) do
-        assert.is_true(W.state(fs).wordWrap)
-        assert.is_nil(W.state(fs).maxLines)
-      end
-      assert.is_true(card.add:IsShown())
-      assert.same({ "TOPLEFT", card.figures[3], "BOTTOMLEFT", 0, -6 }, { card.add:GetPoint(1) })
+      assert.is_false(show():IsShown())
     end)
 
-    it("folds in the small window when it would run past the form's bottom edge", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+    it("hides in the small window when it would run past the form's bottom edge", function()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
       -- Minimized: the form is 395 wide, no checkbox; Finishing under Reagents and the
       -- Concentrate button beside it reach down to 330, the form's bottom is at 247.
       TS.layout(TS.form, 300, 800, 395, 553)
@@ -236,35 +197,30 @@ describe("craft strip", function()
       TS.form.FinishingReagents:Show()
       TS.layout(TS.form.Concentrate, 428, 440, 120, 110)
       TS.form.Concentrate:Show()
-      local f, card = showBoth()
+      local f = show()
       assert.is_false(f:IsShown())
-      assert.equal(3, #cardFigures(card))
       -- Without the Concentrate button and Finishing there is room under the reagents.
       TS.form.FinishingReagents:Hide()
       TS.form.Concentrate:Hide()
       S.Refresh()
-      TS.runTimers()
       assert.is_true(f:IsShown())
-      assert.same({}, cardFigures(card))
     end)
 
-    it("folds under Auctionator's strip when the two do not fit", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
-      local f, card = showBoth()
+    it("hides under Auctionator's strip when the two do not fit", function()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+      local f = show()
       assert.is_true(f:IsShown())
       local auctionator = W.CreateFrame("Frame", nil, TS.form)
       TS.layout(auctionator, 328, 452, 300, 80)
       _G.AuctionatorCraftingInfoProfessionsFrame = auctionator
       S.Refresh()
-      TS.runTimers()
       assert.is_false(f:IsShown())
-      assert.equal(3, #cardFigures(card))
     end)
 
-    it("keeps clear of the Details column beside it, and folds when that leaves too little width", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+    it("keeps clear of the Details column beside it, and hides when that leaves too little width", function()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
       TS.layout(TS.form.Reagents, 328, 650, 365, 110)
-      local f = showBoth()
+      local f = show()
       assert.is_true(f:IsShown())
       -- Details reaches down to 375, below the strip's top: the strip ends 4 short of it.
       assert.equal(665 - 4 - 328, f:GetWidth())
@@ -275,43 +231,18 @@ describe("craft strip", function()
       assert.equal(360, f:GetWidth())
       TS.layout(TS.form.Details, 560, 675, 263, 300)
       S.Refresh()
-      TS.runTimers()
       assert.is_false(f:IsShown())
     end)
 
-    it("folds when the client has not laid the blocks out: it never draws over what it cannot see", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+    it("hides when the client has not laid the blocks out: it never draws over what it cannot see", function()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
       function TS.form.OptionalReagents:GetBottom() return nil end
-      local f, card = showBoth()
-      assert.is_false(f:IsShown())
-      assert.equal(3, #cardFigures(card))
-    end)
-
-    it("follows the reagents the player picks while the figures are in This recipe", function()
-      local opts = loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
-      crowd()
-      local _, card = showBoth()
-      opts.open.allocations = { [1] = { { itemID = 101, q = 3 } } }
-      TS.trigger("Professions.AllocationUpdated")
-      TS.runTimers()
-      assert.equal(GC.L["Reagents cost %s"]:format(GC.Util.Money(1500)), cardFigures(card)[1])
-    end)
-
-    it("shows an unlearned recipe's figures in This recipe without a way to queue it", function()
-      loadBoth({ recipes = { [7] = potion({ learned = false }) }, open = { recipeID = 7, allocations = {} } })
-      crowd()
-      local f, card = showBoth()
-      assert.is_false(f:IsShown())
-      assert.is_true(card:IsShown())
-      assert.equal(3, #cardFigures(card))
-      assert.is_false(card.add:IsShown())
-      assert.is_false(card.restock:IsShown())
-      assert.is_nil(card.recipe)
+      assert.is_false(show():IsShown())
     end)
 
     it("repaints when the form changes size, as when the window is minimized", function()
-      loadBoth({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
-      showBoth()
+      priced({ recipes = { [7] = potion() }, open = { recipeID = 7, allocations = {} } })
+      show()
       local watch = S._watch
       assert.equal(TS.form, watch:GetParent())
       assert.equal(TS.form, W.state(watch).allPoints)

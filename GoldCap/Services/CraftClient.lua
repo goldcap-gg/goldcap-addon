@@ -362,6 +362,15 @@ function CC.MissingName(m)
   return GC.L["Item %d"]:format(tonumber(m.itemID) or 0)
 end
 
+--- An item's icon, a file id (C_Item.GetItemIconByID); nil while the client has none for it.
+function CC.IconOf(itemID)
+  local item = _G.C_Item
+  local fn = type(item) == "table" and item.GetItemIconByID or nil
+  if type(fn) ~= "function" or type(itemID) ~= "number" then return nil end
+  local ok, icon = pcall(fn, itemID)
+  return ok and icon or nil
+end
+
 -- Blizzard's Professions.IsViewingExternalCraftingList (a guild's, a guild member's or a linked
 -- list) plus an NPC's crafting and runeforging: none of these is the character's own to craft from.
 local EXTERNAL = { "IsTradeSkillGuild", "IsTradeSkillGuildMember", "IsTradeSkillLinked", "IsNPCCrafting", "IsRuneforging" }

@@ -24,7 +24,9 @@
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
 --       recraft = bool (the transaction's IsRecraft) } | nil,
 --     counts = { [itemID] = n }, names = { [itemID] = name }, currencies = { [currencyID] = name },
---     currencyHeld = { [currencyID] = quantity },
+--     currencyHeld = { [currencyID] = quantity }, icons = { [itemID] = fileID } (GetItemIconByID),
+--     qualities = { [itemID] = Enum.ItemQuality } (GetItemQualityByID), tiers = { [itemID] = crafting
+--     quality } (GetItemReagentQualityByItemInfo, and the tier's atlas on the item's tooltip line),
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
 --     absent = { [name] = true },
@@ -36,7 +38,7 @@ local W = require("spec.support.wow_frames")
 local TS = { calls = {} }
 
 local GLOBALS = { "C_TradeSkillUI", "ProfessionsFrame", "EventRegistry", "C_Item", "C_CurrencyInfo",
-  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString" }
+  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString", "C_TooltipInfo", "CreateColor" }
 
 local function strict(label, t, absent)
   return setmetatable(t, { __index = function(_, key)
@@ -156,6 +158,8 @@ function TS.install(opts)
       return r and r.schematic and { itemID = r.schematic.outputItemID } or nil
     end,
     GetRecipeQualityItemIDs = function(id) return recipes[id] and recipes[id].quality or nil end,
+    -- An item's crafting quality (1 to 3 here); nil for an item without one.
+    GetItemReagentQualityByItemInfo = function(id) return (opts.tiers or {})[id] end,
     GetCraftableCount = function(id, level)
       record("GetCraftableCount", id, level)
       return recipes[id] and recipes[id].craftable or 0
@@ -238,7 +242,22 @@ function TS.install(opts)
       return (opts.counts or {})[id] or 0
     end,
     GetItemNameByID = function(id) return (opts.names or {})[id] end,
+    GetItemIconByID = function(id) return (opts.icons or {})[id] end,
+    GetItemQualityByID = function(id) return (opts.qualities or {})[id] end,
   })
+  -- TooltipData (TooltipInfoDocumentation.lua): an item of a crafting quality carries its tier's
+  -- atlas in a line's text, which UI/Theme.lua's QualityAtlas reads.
+  _G.C_TooltipInfo = strict("C_TooltipInfo", {
+    GetItemByID = function(id)
+      local tier = (opts.tiers or {})[id]
+      local lines = {}
+      if tier then lines[1] = { leftText = ("|A:Professions-Icon-Quality-Tier%d-Small:20:20|a"):format(tier) } end
+      return { lines = lines }
+    end,
+  })
+  -- Blizzard_SharedXMLBase/Color.lua: a ColorMixin carrying r, g, b, a (the window's glass
+  -- gradient, UI/Kit/Card.lua's T.Window, hands two of them to SetGradient).
+  _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a or 1 } end
   -- CurrencyInfo (CurrencyInfoDocumentation.lua): `quantity` is what the character holds, the
   -- count Blizzard's ProfessionsUtil.GetReagentQuantityInPossession reads for a currency reagent.
   -- An id the client does not know answers nothing (MayReturnNothing).
@@ -290,12 +309,16 @@ function TS.runTimers()
   end
 end
 
---- GoldCap as the client loads it for crafting: prices, the craft modules and the kit, in TOC order.
+--- GoldCap as the client loads it for crafting: prices, the craft modules and the kit, in TOC order,
+--- with the Hoard's look the panel draws its item icons and its price line with (UI/HoardFrame.lua,
+--- UI/HoardRow.lua, UI/HoardFooter.lua) and the strip, whose lines This recipe says a missing
+--- price with.
 function TS.craftGC()
   local helper = require("spec.spec_helper")
   local GC = helper.loadModule("Core/Util.lua")
   for _, path in ipairs({ "Core/Trigger.lua", "Core/CraftCapture.lua", "Core/CraftMath.lua", "Core/CraftQueue.lua",
-    "Services/CraftClient.lua", "UI/Theme.lua", "UI/Tooltip.lua" }) do
+    "Services/CraftClient.lua", "UI/Theme.lua", "UI/Tooltip.lua", "UI/HoardFrame.lua", "UI/HoardRow.lua",
+    "UI/HoardFooter.lua", "UI/CraftStrip.lua" }) do
     helper.loadModule(path, GC)
   end
   return GC
