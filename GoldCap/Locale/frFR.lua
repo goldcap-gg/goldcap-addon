@@ -1732,6 +1732,7 @@ GC.Locales.frFR = {
   ["GoldCap: on the Disenchant list"] = "GoldCap : dans la liste de désenchantement",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap : exclu du désenchantement, l'hôtel des ventes paie plus",
   ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap : exclu du désenchantement, un marchand paie plus",
+  ["GoldCap: this item cannot be disenchanted"] = "GoldCap : cet objet ne peut pas être désenchanté",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap : conservé, jamais désenchanté. À annuler dans la fenêtre Désenchanter.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Désenchanter : environ %s en composants, d'après %d de vos désenchantements d'objets similaires",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Désenchanter : GoldCap apprend ce que cela donne la première fois.",
@@ -1740,6 +1741,8 @@ GC.Locales.frFR = {
   ["Show"] = "Afficher",
   ["Never disenchanted"] = "Jamais désenchantés",
   ["Disenchant it again"] = "Désenchanter de nouveau",
+  ["GoldCap could not disenchant these"] = "GoldCap n'a pas pu désenchanter ceux-ci",
+  ["Try again"] = "Réessayer",
   ["Not in your bags"] = "Absents de vos sacs",
   ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Désenchanter : environ %s en composants, d'après 1 de vos désenchantements d'un objet similaire",
 }

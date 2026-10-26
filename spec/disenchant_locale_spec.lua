@@ -26,12 +26,15 @@ local KEYS = {
   "GoldCap: next to disenchant", "GoldCap: on the Disenchant list",
   "GoldCap: left out of Disenchant, the auction house pays more",
   "GoldCap: left out of Disenchant, a vendor pays more",
+  "GoldCap: this item cannot be disenchanted",
   "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
   "Disenchant: about %s in mats, from your %d disenchants of such items",
   "Disenchant: about %s in mats, from your 1 disenchant of such an item",
   "Disenchant: GoldCap learns what this gives the first time.",
   -- The way back for a kept item: the window's line and its menu.
   "Kept: 1 item", "Kept: %d items", "Show", "Never disenchanted", "Disenchant it again", "Not in your bags",
+  -- The items the client refused for good, in the same menu.
+  "GoldCap could not disenchant these", "Try again",
 }
 
 local BANNED = { "\226\128\148", "\226\128\147", "\226\128\166", "\194\183", "..." } -- em dash, en dash, ellipsis, middle dot

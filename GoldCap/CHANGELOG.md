@@ -78,8 +78,9 @@
   auction house or a vendor pays more for is left out, with Disenchant anyway beside it. Mats is
   what your own disenchants of such items gave, at today's prices, so the window learns as you go.
   Never on the list: items in an equipment set, items you can still return or trade, items in a
-  group you follow, and items you keep (right click a line). Your bags mark what goes next, and the
-  item tooltip says where an item stands. In combat the button does nothing.
+  group you follow, items you keep (right click a line), and items the game would not disenchant.
+  Your bags mark what goes next, and the item tooltip says where an item stands. In combat the
+  button does nothing.
 - DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
   your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
   Auto carries on at once, on the Items board too, with what you typed still in the search box.

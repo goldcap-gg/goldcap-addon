@@ -106,43 +106,56 @@ function D.MatsValue(db, kind, priceOf)
   return math.floor(total + 0.5), n
 end
 
--- Items the player keeps (right click).
-function D.Kept(db, itemID)
+-- The keep store (db.deKeep, D.KEEP_VERSION): `items`, what the player keeps (right click), and
+-- `cant`, what the client refused to disenchant at all ("Item cannot be disenchanted", "That item is
+-- not a valid target."), until the player says Try again. Each set is { [itemID] = true }, made
+-- when its first item comes.
+local function marked(db, set, itemID)
   local keep = type(db) == "table" and db.deKeep
-  return type(keep) == "table" and type(keep.items) == "table" and keep.items[itemID] == true
+  return type(keep) == "table" and type(keep[set]) == "table" and keep[set][itemID] == true
 end
 
-function D.Keep(db, itemID)
+local function mark(db, set, itemID)
   if type(db) ~= "table" or type(itemID) ~= "number" or not writable(db.deKeep, D.KEEP_VERSION) then return end
-  if type(db.deKeep) ~= "table" then db.deKeep = { v = D.KEEP_VERSION, items = {} } end
-  if type(db.deKeep.items) ~= "table" then db.deKeep.items = {} end
-  db.deKeep.items[itemID] = true
+  if type(db.deKeep) ~= "table" then db.deKeep = { v = D.KEEP_VERSION } end
+  if type(db.deKeep[set]) ~= "table" then db.deKeep[set] = {} end
+  db.deKeep[set][itemID] = true
 end
 
-function D.Unkeep(db, itemID)
+local function unmark(db, set, itemID)
   local keep = type(db) == "table" and db.deKeep
-  if type(keep) ~= "table" or type(keep.items) ~= "table" or not writable(keep, D.KEEP_VERSION) then return end
-  keep.items[itemID] = nil
+  if type(keep) ~= "table" or type(keep[set]) ~= "table" or not writable(keep, D.KEEP_VERSION) then return end
+  keep[set][itemID] = nil
 end
 
--- Every item the player keeps, lowest id first.
-function D.KeptIDs(db)
+-- Every item of a set, lowest id first.
+local function idsOf(db, set)
   local keep = type(db) == "table" and db.deKeep
   local ids = {}
-  if type(keep) == "table" and type(keep.items) == "table" then
-    for id, kept in pairs(keep.items) do
-      if kept == true and type(id) == "number" then ids[#ids + 1] = id end
+  if type(keep) == "table" and type(keep[set]) == "table" then
+    for id, on in pairs(keep[set]) do
+      if on == true and type(id) == "number" then ids[#ids + 1] = id end
     end
   end
   table.sort(ids)
   return ids
 end
 
+function D.Kept(db, itemID) return marked(db, "items", itemID) end
+function D.Keep(db, itemID) mark(db, "items", itemID) end
+function D.Unkeep(db, itemID) unmark(db, "items", itemID) end
+function D.KeptIDs(db) return idsOf(db, "items") end
+
+function D.Cant(db, itemID) return marked(db, "cant", itemID) end
+function D.MarkCant(db, itemID) mark(db, "cant", itemID) end
+function D.Uncant(db, itemID) unmark(db, "cant", itemID) end
+function D.CantIDs(db) return idsOf(db, "cant") end
+
 -- The stack stays off the list whatever the figures say.
 local function leftOut(s, opts)
   if not s.itemID or not D.CanDisenchant(s) then return true end
   if s.isLocked or s.refundable or s.tradeTimer or s.inSet or s.selling then return true end
-  if D.Kept(opts.db, s.itemID) or opts.inGroup(s.itemID) then return true end
+  if D.Kept(opts.db, s.itemID) or D.Cant(opts.db, s.itemID) or opts.inGroup(s.itemID) then return true end
   if opts.failed[s.itemID] or opts.skipped[s.bag .. ":" .. s.slot] then return true end
   return false
 end

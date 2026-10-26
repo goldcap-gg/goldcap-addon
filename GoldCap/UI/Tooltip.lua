@@ -271,6 +271,7 @@ local function standingText(state)
   if state == "listed" then return GC.L["GoldCap: on the Disenchant list"] end
   if state == "left" then return GC.L["GoldCap: left out of Disenchant, the auction house pays more"] end
   if state == "leftVendor" then return GC.L["GoldCap: left out of Disenchant, a vendor pays more"] end
+  if state == "cant" then return GC.L["GoldCap: this item cannot be disenchanted"] end
   if state == "kept" then return GC.L["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] end
   return nil
 end
@@ -283,6 +284,8 @@ function GC.Tooltip.DisenchantLines(standing)
   local status = type(standing) == "table" and standingText(standing.state) or nil
   if not status then return nil end
   local lines = { { text = status, color = DISENCHANT_COLOR } }
+  -- One the client refused for good gives nothing: no line of mats.
+  if standing.state == "cant" then return lines end
   local n = standing.n or 0
   if type(standing.mats) == "number" and n > 0 then
     local gold = GC.Util.CoinText(standing.mats)

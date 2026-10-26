@@ -94,6 +94,12 @@ describe("Tooltip on a bag item for an enchanter", function()
     assert.equal("GoldCap: left out of Disenchant, a vendor pays more", lines[1])
   end)
 
+  it("says the client will not disenchant a refused item, and nothing of its mats", function()
+    standing = { state = "cant", n = 3, mats = 1000 }
+    hover()
+    assert.same({ "GoldCap: this item cannot be disenchanted" }, lines)
+  end)
+
   it("says a kept item is never disenchanted, and where to undo it", function()
     standing = { state = "kept", n = 0 }
     hover()

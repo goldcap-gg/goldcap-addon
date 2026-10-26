@@ -12,7 +12,7 @@ describe("Disenchant window", function()
   local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested, blocked
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
-    "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
+    "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "ERR_INVALID_ITEM_TARGET", "SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
     "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
     "ContainerFrame4", "ContainerFrame5", "ContainerFrame6", "NUM_CONTAINER_FRAMES", "INVTYPE_WAIST", "INVTYPE_CHEST",
     "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat", "Enum", "IsModifiedClick",
@@ -198,6 +198,9 @@ describe("Disenchant window", function()
     _G.ERR_CANT_BE_DISENCHANTED = "Item cannot be disenchanted"
     _G.SPELL_FAILED_CANT_BE_DISENCHANTED = "Item cannot be disenchanted"
     _G.SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL = "Your Enchanting skill is not high enough to disenchant that"
+    -- Two globals with the one English text (live enUS; frFR spells them apart).
+    _G.ERR_INVALID_ITEM_TARGET = "That item is not a valid target."
+    _G.SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED = "That item is not a valid target."
     _G.SETTINGS_KEYBINDINGS_LABEL = "Keybindings"
     _G.INVTYPE_WAIST, _G.INVTYPE_CHEST = "Waist", "Chest"
     _G.ITEM_QUALITY_COLORS = { [2] = { r = 0.12, g = 1, b = 0 }, [3] = { r = 0, g = 0.44, b = 0.87 },
@@ -492,6 +495,73 @@ describe("Disenchant window", function()
     nextFrame()
     assert.same({ "spell", 13262, 0, 2 }, armedAt())
     assert.same({ 502 }, listed())
+    assert.is_true(GC.Disenchant.Cant(GC.db, 501))
+  end)
+
+  -- Torc of Passed Time, a neck the client refused with "That item is not a valid target." and the
+  -- window kept naming (the owner, 2026-10-26 22:35): every press after failed the same way.
+  it("leaves out for good an item the client says is not a valid target, arms the next, and Try again brings it back", function()
+    put(gear(0, 1, 501, { quality = 4, subclassID = 0, equipLoc = "INVTYPE_NECK" }))
+    put(gear(0, 2, 502))
+    slash()
+    assert.same({ "spell", 13262, 0, 1 }, armedAt())
+    S.click(button())
+    event("UI_ERROR_MESSAGE", 1, _G.ERR_INVALID_ITEM_TARGET)
+    nextFrame()
+    assert.same({ 502 }, listed())
+    assert.same({ "spell", 13262, 0, 2 }, armedAt())
+    assert.equal("Item 502", textOf(DF._frame.card.name))
+    assert.equal("Next", textOf(DF._frame.card.label))
+    -- A new visit, as after /reload: what the saved store holds is all that remains.
+    DF.Close()
+    slash()
+    assert.same({ 502 }, listed())
+    assert.equal("cant", DF.Standing(slotButtons["0:1"], 501).state)
+    assert.equal("Kept: 1 item", textOf(DF._frame.kept.text))
+    press(DF._frame.kept.show)
+    local kinds, title, item = {}, nil, nil
+    for i, e in ipairs(menu.entries) do
+      kinds[i] = e.kind
+      if e.kind == "title" then title = e.text end
+      if e.kind == "button" then item = e end
+    end
+    assert.same({ "title", "button" }, kinds)
+    assert.equal("GoldCap could not disenchant these", title)
+    assert.is_truthy(item.text:find("Item 501", 1, true))
+    assert.equal("Try again", item.buttons[1].text)
+    item.buttons[1].fn()
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 501, 502 }, listed())
+  end)
+
+  it("lists the refused items after the kept ones, under their own title", function()
+    put(gear(0, 1, 501))
+    GC.Disenchant.Keep(GC.db, 777)
+    GC.Disenchant.MarkCant(GC.db, 888)
+    slash()
+    assert.equal("Kept: 2 items", textOf(DF._frame.kept.text))
+    press(DF._frame.kept.show)
+    local kinds = {}
+    for i, e in ipairs(menu.entries) do kinds[i] = e.kind end
+    assert.same({ "title", "title", "button", "divider", "title", "button" }, kinds)
+    assert.equal("GoldCap could not disenchant these", menu.entries[5].text)
+    assert.is_truthy(menu.entries[6].text:find("Item 888", 1, true))
+  end)
+
+  it("leaves out for this visit only an item the Enchanting skill is too low for", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UI_ERROR_MESSAGE", 1, _G.SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL)
+    nextFrame()
+    assert.same({ 502 }, listed())
+    assert.same({ "spell", 13262, 0, 2 }, armedAt())
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    DF.Close()
+    slash()
+    assert.same({ 501, 502 }, listed())
   end)
 
   it("drops it too when the cast's failure comes before the client's words", function()

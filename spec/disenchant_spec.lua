@@ -135,6 +135,26 @@ describe("Disenchant", function()
       assert.is_false(D.Writable(db))
       D.Keep(db, 7)
       assert.is_nil(db.deKeep.items[7])
+      D.MarkCant(db, 7)
+      assert.is_nil(db.deKeep.cant)
+    end)
+    it("remembers in the same store an item the client will not disenchant, until Try again", function()
+      local db = {}
+      assert.is_false(D.Cant(db, 7))
+      assert.is_nil(db.deKeep)
+      D.MarkCant(db, 30)
+      D.MarkCant(db, 7)
+      assert.is_true(D.Cant(db, 7))
+      assert.same({ v = D.KEEP_VERSION, cant = { [7] = true, [30] = true } }, db.deKeep)
+      assert.is_false(D.Kept(db, 7))
+      assert.same({}, D.KeptIDs(db))
+      assert.same({ 7, 30 }, D.CantIDs(db))
+      D.Uncant(db, 30)
+      assert.same({ 7 }, D.CantIDs(db))
+      -- Next to what the player keeps, apart from it.
+      D.Keep(db, 12)
+      assert.same({ 12 }, D.KeptIDs(db))
+      assert.same({ 7 }, D.CantIDs(db))
     end)
   end)
 
@@ -264,6 +284,9 @@ describe("Disenchant", function()
         gear({ inSet = true }), gear({ refundable = true }), gear({ tradeTimer = true }),
         gear({ isLocked = true }), gear({ selling = true }), gear({ quality = 1 }),
       }
+      local cant = gear({})
+      D.MarkCant(db, cant.itemID)
+      all[#all + 1] = cant
       local plan = D.Plan(all, opts({
         db = db,
         inGroup = function(id) return id == grouped.itemID end,

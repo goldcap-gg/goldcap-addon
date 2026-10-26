@@ -1712,6 +1712,7 @@ GC.Locales.enUS = {
   ["GoldCap: on the Disenchant list"] = "GoldCap: on the Disenchant list",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: left out of Disenchant, the auction house pays more",
   ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: left out of Disenchant, a vendor pays more",
+  ["GoldCap: this item cannot be disenchanted"] = "GoldCap: this item cannot be disenchanted",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Disenchant: about %s in mats, from your %d disenchants of such items",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Disenchant: GoldCap learns what this gives the first time.",
@@ -1720,6 +1721,8 @@ GC.Locales.enUS = {
   ["Show"] = "Show",
   ["Never disenchanted"] = "Never disenchanted",
   ["Disenchant it again"] = "Disenchant it again",
+  ["GoldCap could not disenchant these"] = "GoldCap could not disenchant these",
+  ["Try again"] = "Try again",
   ["Not in your bags"] = "Not in your bags",
   ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Disenchant: about %s in mats, from your 1 disenchant of such an item",
 }

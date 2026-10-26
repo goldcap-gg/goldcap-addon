@@ -53,11 +53,15 @@ local _, GC = ...
 -- window in which the first LOOT_READY is read (GetNumLootItems, GetLootSlotLink, GetLootSlotInfo's
 -- quantity, as Blizzard_UIPanels_Game/Mainline/LootFrame.lua reads them) and learned for the kind
 -- of the item pressed. Loot outside it (a mob's, a chest's, a disenchant from the spellbook) is never
--- read. An item the client refuses ("Item cannot be disenchanted": ERR_CANT_BE_DISENCHANTED and
--- SPELL_FAILED_CANT_BE_DISENCHANTED, or the skill's SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL, as
--- UI_ERROR_MESSAGE carries it after a press of this button) is left out for the visit and the next
--- armed; a cast that was moved, interrupted or failed for any other reason keeps its item. Which
--- of UI_ERROR_MESSAGE and UNIT_SPELLCAST_FAILED comes first is not measured: either order counts.
+-- read. An item the client refuses, as UI_ERROR_MESSAGE carries it after a press of this button,
+-- leaves the list and the next is armed: for good (Core/Disenchant.lua's MarkCant, until the Kept
+-- menu's Try again) when the client will never disenchant it ("Item cannot be disenchanted":
+-- ERR_CANT_BE_DISENCHANTED, SPELL_FAILED_CANT_BE_DISENCHANTED; "That item is not a valid target.":
+-- ERR_INVALID_ITEM_TARGET, SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED, the owner's Torc of Passed Time,
+-- 2026-10-26), for the visit when the Enchanting skill is too low (SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL:
+-- the skill can rise). A cast that was moved, interrupted or failed for any other reason keeps its
+-- item. Which of UI_ERROR_MESSAGE and UNIT_SPELLCAST_FAILED comes first is not measured: either
+-- order counts.
 --
 -- A visit is from the window's opening to its closing: what was skipped, sent anyway, refused, done
 -- and got. For a character that does not know Disenchant (C_SpellBook.IsSpellKnown(13262)) nothing
@@ -287,12 +291,14 @@ local function readPlan()
   local visit = DF._visit
   local note = GC.MerchantNote
   local stacks, seen = {}, {}
-  local kept = { list = {}, bySlot = {} }
+  -- The kept items the bags hold, and the refused ones (`cant`), each by slot too.
+  local kept = { list = {}, bySlot = {}, cant = {}, cantBySlot = {} }
   for _, stack in ipairs(GC.VendorBags.Read(note and note.ValueFor)) do
     local key = stack.bag .. ":" .. stack.slot
     seen[key] = true
-    if stack.itemID and D.CanDisenchant(stack) and D.Kept(GC.db, stack.itemID) then
-      kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack
+    if stack.itemID and D.CanDisenchant(stack) then
+      if D.Kept(GC.db, stack.itemID) then kept.list[#kept.list + 1], kept.bySlot[key] = stack, stack end
+      if D.Cant(GC.db, stack.itemID) then kept.cant[#kept.cant + 1], kept.cantBySlot[key] = stack, stack end
     end
     if visit.gone[key] ~= nil and visit.gone[key] ~= stack.link then visit.gone[key] = nil end
     if visit.gone[key] == nil then stacks[#stacks + 1] = stack end
@@ -532,6 +538,12 @@ function DF.Unkeep(itemID)
   refresh()
 end
 
+--- Try again: an item the client refused comes back on the list.
+function DF.Uncant(itemID)
+  D.Uncant(GC.db, itemID)
+  refresh()
+end
+
 --- Disenchant anyway: an item the auction house or a vendor pays more for joins the queue for this
 --- visit.
 function DF.Anyway(slotKey)
@@ -564,7 +576,7 @@ local function slotKeyOf(button)
 end
 
 --- Where the item in a bag slot stands, from the last plan: { state = "next" | "listed" | "left" |
---- "leftVendor" | "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
+--- "leftVendor" | "cant" | "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
 --- without Disenchant, while neither the window nor Blizzard's bags are open (the plan is then old), for
 --- any button that is not a bag slot and for a slot that no longer holds the item the plan read there
 --- (the marks' rule).
@@ -594,6 +606,8 @@ function DF.Standing(button, itemID)
       return { state = "leftVendor", mats = row.mats, n = row.n or 0 }
     end
   end
+  local refusedStack = DF._kept.cantBySlot[key]
+  if refusedStack and holds(refusedStack) then return { state = "cant", n = 0 } end
   local stack = DF._kept.bySlot[key]
   if stack and holds(stack) then
     local mats, n = D.MatsValue(GC.db, D.KindOf(stack), priceOf)
@@ -621,7 +635,7 @@ end
 
 -- "Never disenchanted": the kept items the bags hold, then, after a divider, the others; each opens
 -- "Disenchant it again" (Unkeep).
-local function fillKeptMenu(root)
+local function fillKept(root)
   local text = GC.Util.ClientText
   root:CreateTitle(text(GC.L["Never disenchanted"]))
   local held, away = {}, {}
@@ -648,6 +662,30 @@ local function fillKeptMenu(root)
   for _, itemID in ipairs(away) do addKept(itemID, nil) end
 end
 
+-- "GoldCap could not disenchant these": every item the client refused for good, each opening
+-- "Try again" (Uncant).
+local function fillCant(root)
+  local text = GC.Util.ClientText
+  root:CreateTitle(text(GC.L["GoldCap could not disenchant these"]))
+  local held = {}
+  for _, stack in ipairs(DF._kept.cant) do
+    if not held[stack.itemID] then held[stack.itemID] = stack end
+  end
+  for _, itemID in ipairs(D.CantIDs(GC.db)) do
+    local item = root:CreateButton(text(keptLabel(itemID, held[itemID])))
+    item:CreateButton(text(GC.L["Try again"]), function() DF.Uncant(itemID) end)
+  end
+end
+
+-- The Kept menu: the kept items ("Never disenchanted", see fillKept) and, after a divider, the
+-- refused ones (fillCant), each part only when it has an item.
+local function fillKeptMenu(root)
+  local kept, cant = #D.KeptIDs(GC.db) > 0, #D.CantIDs(GC.db) > 0
+  if kept then fillKept(root) end
+  if kept and cant then root:CreateDivider() end
+  if cant then fillCant(root) end
+end
+
 local function showKeptMenu(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return end
@@ -659,12 +697,15 @@ end
 local function requestAway()
   local held, pending = {}, {}
   for _, stack in ipairs(DF._kept.list) do held[stack.itemID] = true end
+  for _, stack in ipairs(DF._kept.cant) do held[stack.itemID] = true end
   local item = _G.C_Item
   if type(item) ~= "table" or type(item.RequestLoadItemDataByID) ~= "function" then return pending end
-  for _, itemID in ipairs(D.KeptIDs(GC.db)) do
-    if not held[itemID] and ask(item.IsItemDataCachedByID, itemID) == false then
-      ask(item.RequestLoadItemDataByID, itemID)
-      pending[itemID] = true
+  for _, ids in ipairs({ D.KeptIDs(GC.db), D.CantIDs(GC.db) }) do
+    for _, itemID in ipairs(ids) do
+      if not held[itemID] and not pending[itemID] and ask(item.IsItemDataCachedByID, itemID) == false then
+        ask(item.RequestLoadItemDataByID, itemID)
+        pending[itemID] = true
+      end
     end
   end
   return pending
@@ -1605,7 +1646,12 @@ end
 -- kept and the button that opens them. Answers its height, 0 with none kept.
 local function paintKept(w, y)
   local kept = frame.kept
-  local n = #D.KeptIDs(GC.db)
+  -- The kept items and the refused ones, each once.
+  local ids = {}
+  for _, id in ipairs(D.KeptIDs(GC.db)) do ids[id] = true end
+  for _, id in ipairs(D.CantIDs(GC.db)) do ids[id] = true end
+  local n = 0
+  for _ in pairs(ids) do n = n + 1 end
   kept.text:SetShown(n > 0)
   kept.show:SetShown(n > 0)
   if n == 0 then return 0 end
@@ -1876,15 +1922,20 @@ GC.slashHandlers.disenchant = function() DF.Toggle() end
 -- Events
 -- ---------------------------------------------------------------------------------------------
 
--- The client's words for an item it will not disenchant (GlobalStrings), as UI_ERROR_MESSAGE
--- carries them.
-local function refused(message)
-  if type(message) ~= "string" then return false end
-  for _, name in ipairs({ "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
-    "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL" }) do
-    if _G[name] == message then return true end
+-- The client's words for an item it will not disenchant (GlobalStrings, live enUS: Ketho's
+-- BlizzardInterfaceResources), as UI_ERROR_MESSAGE carries them, matched by the global, never by the
+-- English: "never" for an item it never will ("Item cannot be disenchanted"; "That item is not a
+-- valid target.", which two globals carry, spelled apart in frFR), "skill" while the Enchanting
+-- skill is too low; nil for anything else.
+local NEVER = { "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED", "ERR_INVALID_ITEM_TARGET",
+  "SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED" }
+local function refusal(message)
+  if type(message) ~= "string" then return nil end
+  for _, name in ipairs(NEVER) do
+    if _G[name] == message then return "never" end
   end
-  return false
+  if _G.SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL == message then return "skill" end
+  return nil
 end
 
 local function ours(unit, spellID)
@@ -1980,9 +2031,13 @@ local function onLootReady()
   schedule()
 end
 
+-- A refusal of the press waiting: its item leaves the list (for good, or for the visit, see
+-- `refusal`) and the next is armed on the next frame's paint.
 local function onError(message)
   local p = pendingNow()
-  if not p or not refused(plain(message)) then return end
+  local why = p and refusal(plain(message))
+  if not why then return end
+  if why == "never" then D.MarkCant(GC.db, p.itemID) end
   DF._visit.failed[p.itemID] = true
   DF._pending, DF._casting = nil, nil
   schedule()

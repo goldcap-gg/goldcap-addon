@@ -1622,6 +1622,7 @@ GC.Locales.zhCN = {
   ["GoldCap: on the Disenchant list"] = "GoldCap：在分解列表中",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap：不分解，拍卖行出价更高",
   ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap：不分解，卖给商人更值钱",
+  ["GoldCap: this item cannot be disenchanted"] = "GoldCap：此物品无法分解",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap：已保留，永不分解。可在分解窗口中撤销。",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "分解：材料约 %s，根据你对此类物品的 %d 次分解",
   ["Disenchant: GoldCap learns what this gives the first time."] = "分解：GoldCap 会在你第一次分解时学习它的产出。",
@@ -1630,6 +1631,8 @@ GC.Locales.zhCN = {
   ["Show"] = "显示",
   ["Never disenchanted"] = "永不分解",
   ["Disenchant it again"] = "重新分解",
+  ["GoldCap could not disenchant these"] = "GoldCap 无法分解这些物品",
+  ["Try again"] = "重试",
   ["Not in your bags"] = "不在背包中",
   ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "分解：材料约 %s，根据你对此类物品的 1 次分解",
 }

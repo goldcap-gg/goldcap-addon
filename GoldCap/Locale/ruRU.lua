@@ -1795,6 +1795,7 @@ GC.Locales.ruRU = {
   ["GoldCap: on the Disenchant list"] = "GoldCap: в списке на распыление",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: исключён из распыления, аукцион платит больше",
   ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: исключён из распыления, торговец платит больше",
+  ["GoldCap: this item cannot be disenchanted"] = "GoldCap: этот предмет нельзя распылить",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: оставлен, никогда не распыляется. Отменить можно в окне распыления.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Распыление: около %s в материалах, по вашим распылениям таких предметов: %d",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Распыление: GoldCap узнает, что это даёт, при первом распылении.",
@@ -1803,6 +1804,8 @@ GC.Locales.ruRU = {
   ["Show"] = "Показать",
   ["Never disenchanted"] = "Никогда не распыляются",
   ["Disenchant it again"] = "Распылять снова",
+  ["GoldCap could not disenchant these"] = "GoldCap не смог распылить эти предметы",
+  ["Try again"] = "Попробовать снова",
   ["Not in your bags"] = "Нет в сумках",
   ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Распыление: около %s в материалах, по вашему 1 распылению такого предмета",
 }

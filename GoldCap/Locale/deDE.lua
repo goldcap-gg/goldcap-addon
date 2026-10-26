@@ -1729,6 +1729,7 @@ GC.Locales.deDE = {
   ["GoldCap: on the Disenchant list"] = "GoldCap: auf der Entzauberliste",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: vom Entzaubern ausgenommen, das Auktionshaus zahlt mehr",
   ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: vom Entzaubern ausgenommen, ein Händler zahlt mehr",
+  ["GoldCap: this item cannot be disenchanted"] = "GoldCap: Dieser Gegenstand kann nicht entzaubert werden",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: behalten, wird nie entzaubert. Rückgängig im Entzaubern-Fenster.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Entzaubern: etwa %s an Material, aus deinen %d Entzauberungen solcher Gegenstände",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Entzaubern: GoldCap lernt beim ersten Mal, was das ergibt.",
@@ -1737,6 +1738,8 @@ GC.Locales.deDE = {
   ["Show"] = "Anzeigen",
   ["Never disenchanted"] = "Nie entzaubert",
   ["Disenchant it again"] = "Wieder entzaubern",
+  ["GoldCap could not disenchant these"] = "GoldCap konnte diese nicht entzaubern",
+  ["Try again"] = "Erneut versuchen",
   ["Not in your bags"] = "Nicht in deinen Taschen",
   ["Disenchant: about %s in mats, from your 1 disenchant of such an item"] = "Entzaubern: etwa %s an Material, aus deiner 1 Entzauberung eines solchen Gegenstands",
 }
