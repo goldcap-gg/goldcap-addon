@@ -1790,6 +1790,13 @@ GC.Locales.ruRU = {
   ["Worth disenchanting: %d"] = "Стоит распылить: %d",
   ["The auction house pays more: %d"] = "Аукцион платит больше: %d",
   ["A vendor pays more: %d"] = "Торговец платит больше: %d",
+  -- GoldCap's button on the minimap (UI/MinimapButton.lua).
+  ["Deals board"] = "Доска сделок",
+  ["Disenchant (%d)"] = "Распыление (%d)",
+  ["Hide this button"] = "Скрыть эту кнопку",
+  ["Click for GoldCap. Drag to move it."] = "Нажмите, чтобы открыть GoldCap. Перетащите, чтобы передвинуть.",
+  ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
+    "Кнопка GoldCap у миникарты скрыта. Чтобы вернуть её, введите /gc minimap.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Сейчас нечего выгодно распылять: за всё ниже торговец платит больше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

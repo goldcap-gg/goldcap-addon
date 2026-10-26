@@ -1707,6 +1707,13 @@ GC.Locales.enUS = {
   ["Worth disenchanting: %d"] = "Worth disenchanting: %d",
   ["The auction house pays more: %d"] = "The auction house pays more: %d",
   ["A vendor pays more: %d"] = "A vendor pays more: %d",
+  -- GoldCap's button on the minimap (UI/MinimapButton.lua).
+  ["Deals board"] = "Deals board",
+  ["Disenchant (%d)"] = "Disenchant (%d)",
+  ["Hide this button"] = "Hide this button",
+  ["Click for GoldCap. Drag to move it."] = "Click for GoldCap. Drag to move it.",
+  ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
+    "The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Nothing worth disenchanting now: a vendor pays more for everything below.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

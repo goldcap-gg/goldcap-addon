@@ -1617,6 +1617,13 @@ GC.Locales.zhCN = {
   ["Worth disenchanting: %d"] = "值得分解：%d",
   ["The auction house pays more: %d"] = "拍卖行更值钱：%d",
   ["A vendor pays more: %d"] = "卖给商人更值钱：%d",
+  -- GoldCap's button on the minimap (UI/MinimapButton.lua).
+  ["Deals board"] = "交易面板",
+  ["Disenchant (%d)"] = "分解 (%d)",
+  ["Hide this button"] = "隐藏此按钮",
+  ["Click for GoldCap. Drag to move it."] = "点击打开 GoldCap。拖动可移动它。",
+  ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
+    "小地图旁的 GoldCap 按钮已隐藏。输入 /gc minimap 可重新显示。",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] = "现在没有值得分解的：下面的都是卖给商人更值钱。",
   ["Nothing worth disenchanting now: everything below sells for more."] = "现在没有值得分解的：下面的都是卖掉更值钱。",
   ["This character does not know Disenchant."] = "这个角色不会分解。",

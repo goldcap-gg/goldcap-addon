@@ -70,6 +70,8 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- The Disenchant window beside the bags: retail only, as the Hoard it is drawn with.
   RETAIL_ONLY["UI/DisenchantFrame.lua"] = true
   RETAIL_ONLY["UI/DisenchantMarks.lua"] = true
+  -- GoldCap's button on the minimap, which counts what is worth disenchanting: retail only for now.
+  RETAIL_ONLY["UI/MinimapButton.lua"] = true
 
   it("loads the same files in the same order, minus the retail-only files", function()
     local expected = {}

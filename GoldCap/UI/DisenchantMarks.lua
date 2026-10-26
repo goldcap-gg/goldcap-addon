@@ -2,9 +2,11 @@ local _, GC = ...
 
 -- The marks on Blizzard's bag slots for what the Disenchant window will disenchant (retail only,
 -- like UI/DisenchantFrame.lua, which calls Paint and Clear with the plan it read for its own paint:
--- one read of the bags a paint). A queued slot carries the Disenchant spell's icon in its top left
--- corner, the first (the one the window names, the button points at) also a purple ring around the
--- slot, and a slot the auction house pays more for a coin in its top right.
+-- one read of the bags a paint). A queued slot carries a purple ring round the slot, at full strength
+-- on the first (the one the window names, the button points at) and dimmed (RING_DIM) on the rest,
+-- and the Disenchant spell's icon on a dark round badge with a purple ring in its top left corner; a
+-- slot the auction house pays more for carries the coin on the same badge in its top right (the
+-- owner, 2026-10-27 00:30: the bare icon was almost invisible on the item's art).
 --
 -- Everything is drawn on one frame of ours per item button, made once and reused: a child of the
 -- button, level with it plus a little, taking no mouse. Blizzard's button gets no script, no hook and
@@ -17,15 +19,18 @@ local _, GC = ...
 -- NUM_CONTAINER_FRAMES, a bag opened alone too). Each is listed as Blizzard lists them,
 -- EnumerateValidItems (Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:522-526: index, button),
 -- with its bag (ContainerFrameItemButtonMixin:GetBagID, :1648) and slot (GetID). A mark is drawn only
--- while the slot still holds the item the plan read there, and every overlay a pass did not visit is
+-- while the slot still holds the item the plan read there (the window's `holds`: its link, and its
+-- GUID where it has one), and every overlay a pass did not visit is
 -- hidden: Blizzard reuses a bag frame and its buttons for another bag (ContainerFrame_GetOpenFrame,
 -- :383-397), so a mark never outlives the slot it was drawn for.
 GC.DisenchantMarks = {}
 local M = GC.DisenchantMarks
 
--- In UI units: the spell's icon and the coin, and how far each sits in from its corner; how far the
--- overlay stands above its button.
-local ICON, COIN, INSET, LIFT = 14, 12, 2, 4
+-- In UI units: the badge (the kit's badge.png, its 1px ring badge_ring.png on the same radius), the
+-- spell's icon and the coin on it, and how far out of its corner a badge stands; how far the overlay
+-- stands above its button. RING_DIM: the ring's alpha on a queued slot other than the first.
+local BADGE, ICON, COIN, OUT, LIFT = 18, 12, 11, 2, 4
+local RING_DIM = 0.55
 local PURPLE = { 176 / 255, 100 / 255, 240 / 255, 1 }
 local COIN_TEXTURE = "Interface\\MoneyFrame\\UI-GoldIcon"
 
@@ -47,9 +52,22 @@ local function wanted(plan)
   return want
 end
 
-local function holds(row)
-  local info = _G.C_Container and ask(C_Container.GetContainerItemInfo, row.stack.bag, row.stack.slot)
-  return type(info) == "table" and info.hyperlink == row.stack.link
+-- A dark round badge with a purple ring at a corner of the overlay ("TOPLEFT" or "TOPRIGHT"),
+-- standing OUT units out of it: its fill under what sits on it, its ring over it.
+local function badge(o, corner)
+  local T = GC.Theme
+  local dark = GC.Kit.Tokens.color.windowBottom
+  local x = corner == "TOPLEFT" and -OUT or OUT
+  local back = o:CreateTexture(nil, "OVERLAY", nil, 1)
+  back:SetTexture(T.MEDIA .. "badge.png")
+  back:SetVertexColor(dark[1], dark[2], dark[3], 0.92)
+  back:SetSize(BADGE, BADGE)
+  back:SetPoint(corner, o, corner, x, OUT)
+  local ring = o:CreateTexture(nil, "OVERLAY", nil, 3)
+  ring:SetTexture(T.MEDIA .. "badge_ring.png")
+  ring:SetVertexColor(PURPLE[1], PURPLE[2], PURPLE[3], 1)
+  ring:SetAllPoints(back)
+  return back, ring
 end
 
 local function build(button, spellTexture)
@@ -60,15 +78,17 @@ local function build(button, spellTexture)
   o:EnableMouse(false)
   o.glow = T.SlicedTexture(o, "OVERLAY", T.MEDIA .. "plaque_ring.png", PURPLE, T.SLICE.plaque)
   o.glow:SetAllPoints(o)
+  o.iconBadge, o.iconRing = badge(o, "TOPLEFT")
   o.icon = o:CreateTexture(nil, "OVERLAY", nil, 2)
   o.icon:SetSize(ICON, ICON)
   o.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   o.icon:SetTexture(spellTexture)
-  o.icon:SetPoint("TOPLEFT", o, "TOPLEFT", INSET, -INSET)
+  o.icon:SetPoint("CENTER", o.iconBadge, "CENTER", 0, 0)
+  o.coinBadge, o.coinRing = badge(o, "TOPRIGHT")
   o.coin = o:CreateTexture(nil, "OVERLAY", nil, 2)
   o.coin:SetSize(COIN, COIN)
   o.coin:SetTexture(COIN_TEXTURE)
-  o.coin:SetPoint("TOPRIGHT", o, "TOPRIGHT", -INSET, -INSET)
+  o.coin:SetPoint("CENTER", o.coinBadge, "CENTER", 0, 0)
   return o
 end
 
@@ -83,16 +103,23 @@ local function paintOne(button, mark, spellTexture)
     o = build(button, spellTexture)
     overlays[button] = o
   end
-  o.icon:SetShown(not mark.coin)
-  o.glow:SetShown(mark.first == true)
-  o.coin:SetShown(mark.coin == true)
+  local queued, coin = not mark.coin, mark.coin == true
+  o.glow:SetShown(queued)
+  o.glow:SetAlpha(mark.first and 1 or RING_DIM)
+  o.icon:SetShown(queued)
+  o.iconBadge:SetShown(queued)
+  o.iconRing:SetShown(queued)
+  o.coin:SetShown(coin)
+  o.coinBadge:SetShown(coin)
+  o.coinRing:SetShown(coin)
   o:Show()
 end
 
 --- Draws the marks for `plan` (the queue and the left-out rows of Core/Disenchant.lua's Plan) on the
 --- slots of `frames` (the container frames that show), and takes them off every other overlay.
---- `spellTexture`: the spell's icon. A plan with an empty queue still marks its left-out rows.
-function M.Paint(plan, spellTexture, frames)
+--- `spellTexture`: the spell's icon. `holds(stack)`: whether its slot still holds that stack (the
+--- window's rule). A plan with an empty queue still marks its left-out rows.
+function M.Paint(plan, spellTexture, frames, holds)
   local want = wanted(plan)
   local visited = {}
   for _, container in ipairs(frames or {}) do
@@ -100,7 +127,7 @@ function M.Paint(plan, spellTexture, frames)
       for _, button in container:EnumerateValidItems() do
         local bag, slot = ask(button.GetBagID, button), ask(button.GetID, button)
         local mark = type(bag) == "number" and type(slot) == "number" and want[bag .. ":" .. slot] or nil
-        if mark and holds(mark.row) then
+        if mark and holds(mark.row.stack) then
           visited[button] = true
           paintOne(button, mark, spellTexture)
         end

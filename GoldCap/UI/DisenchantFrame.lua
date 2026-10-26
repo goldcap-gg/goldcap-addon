@@ -13,9 +13,10 @@ local _, GC = ...
 --   an item off the list for good;
 -- - "Left out: the auction house pays more", each with Disenchant anyway for this visit;
 -- - the footer: what Mats means and what never comes on the list, and where the prices come from.
--- A small button above the top right of the highest of Blizzard's open bag frames, there whenever
--- they are open, opens and closes the window and counts what is queued (gold), else what is left
--- out (grey); /gc disenchant does the same for a bag addon that replaces Blizzard's bags.
+-- GoldCap's button on the minimap (UI/MinimapButton.lua) opens and closes the window from its menu
+-- and counts what is worth disenchanting (DF.Counts, told on every paint); while it shows, a change
+-- in the bags reads them for that count, Blizzard's bags open or not. /gc disenchant and the key
+-- open it too (the owner, 2026-10-27 00:30: the button that stood above the bags blended in).
 --
 -- The Disenchant button is GoldCapDisenchantNext, a SecureActionButtonTemplate button, and it is the
 -- only thing in GoldCap that casts: addon code never calls a cast. Built as probe D1 measured it
@@ -45,8 +46,8 @@ local _, GC = ...
 -- pointed at nothing as the fight begins (PLAYER_REGEN_DISABLED, while the client still allows it),
 -- and nothing arms it again until the fight is over. The window stands at absolute coordinates on
 -- UIParent, beside the bags as it opens, never anchored to Blizzard's bag frame, which a protected
--- frame anchored to it would make protected in turn. The entry button holds nothing protected and
--- follows the bags in combat too.
+-- frame anchored to it would make protected in turn. The GoldCap minimap button (UI/MinimapButton.lua)
+-- holds nothing protected and is told the plan's counts in combat too.
 --
 -- What disenchanting gives is learned from the player's own presses only (Core/Disenchant.lua's
 -- Learn): UNIT_SPELLCAST_SUCCEEDED of spell 13262 for a press of this button opens a LOOT_SECONDS
@@ -113,16 +114,14 @@ DF.HEIGHT_SHARE = 0.85
 -- width. STRIP_PAD: the yield strip's margin; MAT_ICON, MAT_GAP and MAT_LINE: a material, the room
 -- after it and between lines of them. ROW_*: a line of the lists; COL_MIN the least width of the
 -- Mats and Vendor columns, COL_GAP between them; ANYWAY_H and ANYWAY_MIN: Disenchant anyway. DOT and
--- DOT_GAP: the price line's dot; FOOT_GAP between the footer's two parts. ENTRY: the button beside
--- the bags, its GoldCap mark (ENTRY_LOGO), the spell's icon on it (ENTRY_SPELL) and its count's
--- badge (ENTRY_COUNT), ENTRY_GAP above the bags. ROWS_MIN: the fewest lines the scroll keeps room for.
+-- DOT_GAP: the price line's dot; FOOT_GAP between the footer's two parts. ROWS_MIN: the fewest lines
+-- the scroll keeps room for.
 local M = {
   CARD_PAD = 10, ICON = 36, BADGE = 16, TEXT_GAP = 10, COUNTER_GAP = 8, LINE_GAP = 2, BLOCK_GAP = 8,
   VERDICT_ICON = 10, VERDICT_GAP = 5, BAR_H = 3, BUTTON_H = 28, BUTTON_ICON = 14, BUTTON_PAD = 10, SKIP_MIN = 64,
   BUTTON_GAP = 6, STRIP_PAD = 8, MAT_ICON = 16, MAT_GAP = 10, MAT_LINE = 4, ROW_PAD = 5, ROW_ICON = 18,
   ROW_GAP = 3, ROW_MIN_H = 28, COL_MIN = 44, COL_GAP = 8, ANYWAY_H = 18, ANYWAY_MIN = 70, SECTION_GAP = 10,
-  HEADING_GAP = 5, TITLE_GAP = 1, DOT = 6, DOT_GAP = 5, FOOT_GAP = 6, ENTRY = 32, ENTRY_LOGO = 20, ENTRY_SPELL = 13,
-  ENTRY_COUNT = 14, ENTRY_GAP = 4, ROWS_MIN = 3,
+  HEADING_GAP = 5, TITLE_GAP = 1, DOT = 6, DOT_GAP = 5, FOOT_GAP = 6, ROWS_MIN = 3,
 }
 
 -- The boards' colours: the Disenchant purple; the main button's gradient and its dark words; the
@@ -173,7 +172,7 @@ DF._rows, DF._leftRows, DF._vendorRows = {}, {}, {}
 -- by slot (`bySlot`), for the Kept menu and for the tooltip.
 DF._kept = { list = {}, bySlot = {} }
 
-local frame, entry
+local frame
 local refresh
 
 -- One guarded client call: its first answer, or nil when it is missing or fails.
@@ -194,6 +193,17 @@ end
 
 local function now()
   return ask(GetTime) or 0
+end
+
+-- Whether a bag slot still holds the stack the plan read there (`stack`: its bag, slot, link and, for
+-- gear, the GUID the bag reader gave it): the same link and, where the stack has a GUID, the same
+-- GUID, so an identical twin moved into the slot is another item (Core/Disenchant.lua's IdOf). The
+-- one rule for the button's press, the marks and where an item stands; the GUID costs one client
+-- call (Services/VendorBags.lua's GuidOf).
+local function holds(stack)
+  local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
+  if not (type(info) == "table" and info.hyperlink == stack.link) then return false end
+  return stack.guid == nil or GC.VendorBags.GuidOf(stack.bag, stack.slot) == stack.guid
 end
 
 -- In combat: the client's lockdown, or the fight as this window heard it begin (PLAYER_REGEN_DISABLED
@@ -363,7 +373,7 @@ local function bagEdges()
 end
 
 -- Blizzard's bag frames that show, the combined backpack first (a separate bag opened alone counts):
--- what the entry stands above, what the marks are drawn on and where the window is placed beside.
+-- what the marks are drawn on and where the window is placed beside.
 local function shownBags()
   local out = {}
   for _, name in ipairs(bagNames()) do
@@ -375,21 +385,6 @@ end
 
 local function bagFrame()
   return shownBags()[1]
-end
-
--- The highest of Blizzard's bag frames that show (by its top on the screen), else the first: the
--- entry stands above it, so it covers no slot of a bag above (separate bags stack 8 apart,
--- ContainerFrame.lua:10, :1236; the final review's M3).
-local function topBag()
-  local best, bestTop
-  for _, f in ipairs(shownBags()) do
-    local t = f.GetTop and f:GetTop()
-    local scale = f.GetEffectiveScale and f:GetEffectiveScale()
-    if type(t) == "number" and type(scale) == "number" and (bestTop == nil or t * scale > bestTop) then
-      best, bestTop = f, t * scale
-    end
-  end
-  return best or bagFrame()
 end
 
 local function spellIcon()
@@ -533,12 +528,10 @@ function DF._PreClick(_, _, down)
     return schedule()
   end
   local info = C_Container and ask(C_Container.GetContainerItemInfo, armed.bag, armed.slot)
-  local link = type(info) == "table" and info.hyperlink or nil
   -- Moved (an identical twin with the same link told apart by the item's own GUID, where it has
-  -- one: one client call a press), or locked (on the cursor, in a trade): the client would refuse
-  -- it, and the refusal would read as the item's own.
-  local moved = link ~= armed.link or (armed.guid ~= nil and GC.VendorBags.GuidOf(armed.bag, armed.slot) ~= armed.guid)
-  if moved or (type(info) == "table" and info.isLocked == true) then
+  -- one: `holds`), or locked (on the cursor, in a trade): the client would refuse it, and the
+  -- refusal would read as the item's own.
+  if not holds(armed) or (type(info) == "table" and info.isLocked == true) then
     setArmed(nil)
     return schedule()
   end
@@ -621,37 +614,35 @@ end
 --- "leftVendor" | "cant" | "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
 --- without Disenchant, while neither the window nor Blizzard's bags are open (the plan is then old), for
 --- any button that is not a bag slot and for a slot that no longer holds the item the plan read there
---- (the marks' rule).
+--- (`holds`, the marks' rule).
 function DF.Standing(button, itemID)
   if not DF.Known() then return nil end
   if not ((frame and frame:IsShown()) or bagFrame()) then return nil end
   local key = slotKeyOf(button)
   local plan = DF._plan
   if not key or not plan then return nil end
-  local function holds(stack)
-    if stack.itemID ~= itemID then return false end
-    local info = C_Container and ask(C_Container.GetContainerItemInfo, stack.bag, stack.slot)
-    return type(info) == "table" and info.hyperlink == stack.link
+  local function standsHere(stack)
+    return stack.itemID == itemID and holds(stack)
   end
   for i, row in ipairs(plan.queue) do
-    if row.slotKey == key and holds(row.stack) then
+    if row.slotKey == key and standsHere(row.stack) then
       return { state = i == 1 and "next" or "listed", mats = row.mats, n = row.n or 0 }
     end
   end
   for _, row in ipairs(plan.left) do
-    if row.slotKey == key and holds(row.stack) then
+    if row.slotKey == key and standsHere(row.stack) then
       return { state = "left", mats = row.mats, n = row.n or 0 }
     end
   end
   for _, row in ipairs(plan.leftVendor or {}) do
-    if row.slotKey == key and holds(row.stack) then
+    if row.slotKey == key and standsHere(row.stack) then
       return { state = "leftVendor", mats = row.mats, n = row.n or 0 }
     end
   end
   local refusedStack = DF._kept.cantBySlot[key]
-  if refusedStack and holds(refusedStack) then return { state = "cant", n = 0 } end
+  if refusedStack and standsHere(refusedStack) then return { state = "cant", n = 0 } end
   local stack = DF._kept.bySlot[key]
-  if stack and holds(stack) then
+  if stack and standsHere(stack) then
     local mats, n = D.MatsValue(GC.db, D.KindOf(stack), priceOf)
     return { state = "kept", mats = mats, n = n }
   end
@@ -901,24 +892,25 @@ local function counts()
   return #plan.queue, #plan.left, #(plan.leftVendor or {})
 end
 
--- The entry's tooltip: its name; then how many are worth disenchanting and, when some, how many the
--- auction house and a vendor pay more for; with none of them, that nothing is in the bags.
-local function showEntryTip(button)
-  local tooltip = _G.GameTooltip
-  if not tooltip then return end
-  tooltip:SetOwner(button, "ANCHOR_LEFT")
-  local text = GC.Util.ClientText
-  tooltip:AddLine(text("GoldCap " .. GC.L["Disenchant"]), K.goldText[1], K.goldText[2], K.goldText[3])
-  local n, ah, vendor = counts()
-  local c = K.text1
-  if n + ah + vendor == 0 then
-    tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
-  else
-    tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(n)), c[1], c[2], c[3])
-    if ah > 0 then tooltip:AddLine(text(GC.L["The auction house pays more: %d"]:format(ah)), c[1], c[2], c[3]) end
-    if vendor > 0 then tooltip:AddLine(text(GC.L["A vendor pays more: %d"]:format(vendor)), c[1], c[2], c[3]) end
-  end
-  tooltip:Show()
+--- What the last plan counts, for the GoldCap minimap button (UI/MinimapButton.lua): the items
+--- worth disenchanting, and those left out for the auction house and for a vendor; nil for a
+--- character that does not know Disenchant.
+function DF.Counts()
+  if not DF.Known() then return nil end
+  return counts()
+end
+
+-- The GoldCap minimap button, told whenever the plan was read or the character's spells changed.
+local function tellButton()
+  local button = GC.MinimapButton
+  if button and button.Refresh then button.Refresh() end
+end
+
+-- Whether the GoldCap minimap button shows: then the bags are read for its count, Blizzard's bags
+-- open or not.
+local function counting()
+  local button = GC.MinimapButton
+  return button ~= nil and button.Shown ~= nil and button.Shown() == true
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1196,37 +1188,6 @@ local function build()
   -- like any other (restamp).
   frame:Hide()
   DF._frame = frame
-end
-
--- The button above the bags: the GoldCap mark on the window's glass, the spell's icon on it and a
--- purple badge with how many items are queued.
-local function buildEntry()
-  local T = GC.Theme
-  entry = U.plate(UIParent, K.windowBorder, "plaque")
-  entry:SetSize(M.ENTRY, M.ENTRY)
-  entry:SetClampedToScreen(true)
-  entry.bg = T.SlicedTexture(entry, "BACKGROUND", T.MEDIA .. "plaque.png", K.windowTop, T.SLICE.plaque)
-  entry.bg:SetAllPoints()
-  entry.logo = entry:CreateTexture(nil, "ARTWORK")
-  entry.logo:SetTexture(T.MEDIA .. "GoldCap")
-  entry.logo:SetSize(M.ENTRY_LOGO, M.ENTRY_LOGO)
-  entry.logo:SetPoint("CENTER", entry, "CENTER", 0, 1)
-  entry.spell = entry:CreateTexture(nil, "ARTWORK", nil, 1)
-  entry.spell:SetSize(M.ENTRY_SPELL, M.ENTRY_SPELL)
-  entry.spell:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  entry.spell:SetTexture(spellIcon())
-  entry.spell:SetPoint("BOTTOMLEFT", entry, "BOTTOMLEFT", 2, 2)
-  entry.pill = entry:CreateTexture(nil, "ARTWORK", nil, 2)
-  entry.pill:SetTexture(T.MEDIA .. "badge.png")
-  entry.pill:SetTextureSliceMargins(T.SLICE.badge, T.SLICE.badge, T.SLICE.badge, T.SLICE.badge)
-  entry.count = track(entry, T.Num(entry, 9, true))
-  entry.count:SetWordWrap(false)
-  entry.count:SetJustifyH("CENTER")
-  entry:SetScript("OnClick", function() DF.Toggle() end)
-  entry:SetScript("OnEnter", showEntryTip)
-  entry:SetScript("OnLeave", U.hideTip)
-  entry:Hide()
-  DF._entry = entry
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1808,75 +1769,14 @@ local function paint()
 end
 
 -- The marks on the bag slots, from the plan just read (UI/DisenchantMarks.lua): drawn whenever
--- Blizzard's bags are open, queue or not, as the entry is (the owner, 2026-10-26: a left-out item
--- keeps its coin with nothing queued); off with them closed. The caller has checked that the
+-- Blizzard's bags are open, queue or not (the owner, 2026-10-26: a left-out item keeps its coin
+-- with nothing queued); off with them closed. The caller has checked that the
 -- character knows Disenchant. `bags`: an open bag frame, or nil.
 local function paintMarks(bags)
   local marks = GC.DisenchantMarks
   if not marks then return end
-  if bags and DF._plan then marks.Paint(DF._plan, spellIcon(), shownBags())
+  if bags and DF._plan then marks.Paint(DF._plan, spellIcon(), shownBags(), holds)
   else marks.Clear() end
-end
-
--- The entry's count from the last plan: the queue's in gold; with none queued, what is left out in
--- grey (the kit's muted text); none with neither (the owner, 2026-10-26 23:22).
-local function paintPill()
-  local n, ah, vendor = counts()
-  local count, fill, ink
-  if n > 0 then
-    count, fill, ink = n, K.gold, K.onGold
-  elseif ah + vendor > 0 then
-    count, fill, ink = ah + vendor, K.text5, K.text2
-  end
-  entry.pill:SetShown(count ~= nil)
-  entry.count:SetShown(count ~= nil)
-  if not count then return end
-  setText(entry.count, tostring(count))
-  colour(entry.count, ink)
-  entry.pill:SetVertexColor(fill[1], fill[2], fill[3], 1)
-  local pillW = math.max(M.ENTRY_COUNT, math.ceil(entry.count:GetStringWidth() or 0) + 6)
-  entry.pill:ClearAllPoints()
-  entry.pill:SetPoint("CENTER", entry, "TOPRIGHT", -3, -3)
-  entry.pill:SetSize(pillW, M.ENTRY_COUNT)
-  entry.count:ClearAllPoints()
-  entry.count:SetPoint("CENTER", entry.pill, "CENTER", 0, 0)
-end
-
--- Stands the entry above the top right of the highest bag that shows. A full column of separate
--- bags reaches the screen's top (UpdateContainerFrameAnchors, ContainerFrame.lua:1212-1240, subtracts
--- frame heights only), and there the clamp would push it down onto that bag's close button: with no
--- room above, it stands left of the bag's top left instead (the re-review's N1).
-local function anchorEntry()
-  local bag = topBag()
-  local top = bag.GetTop and bag:GetTop()
-  local scale = bag.GetEffectiveScale and bag:GetEffectiveScale()
-  local ui = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
-  local screen = UIParent.GetHeight and UIParent:GetHeight()
-  entry:ClearAllPoints()
-  if type(top) == "number" and type(scale) == "number" and type(ui) == "number" and ui > 0
-    and type(screen) == "number" and screen > 0 and top * scale / ui + M.ENTRY_GAP + M.ENTRY > screen then
-    entry:SetPoint("TOPRIGHT", bag, "TOPLEFT", -M.ENTRY_GAP, 0)
-  else
-    entry:SetPoint("BOTTOMRIGHT", bag, "TOPRIGHT", 0, M.ENTRY_GAP)
-  end
-end
-
--- The entry above the top right of the highest bag that shows, with its count; shown whenever
--- Blizzard's bags are open for a character that knows Disenchant (the owner, 2026-10-26 23:21),
--- hidden with them closed. `bags`: an open bag frame, or nil.
-local function paintEntry(bags)
-  if not bags then
-    if entry then entry:Hide() end
-    return
-  end
-  if not entry then buildEntry() end
-  anchorEntry()
-  paintPill()
-  local wasUp = entry:IsShown()
-  entry:Show()
-  if not wasUp then restamp(entry) end
-  local tooltip = _G.GameTooltip
-  if tooltip and tooltip.IsOwned and tooltip:IsOwned(entry) then showEntryTip(entry) end
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1918,8 +1818,8 @@ local function openNow()
     end
   end
   arm()
-  paintEntry(bagFrame())
   paintMarks(bagFrame())
+  tellButton()
 end
 
 --- Closes the window, its button pointed at nothing. Out of combat only (onCloseClick, Toggle).
@@ -1929,38 +1829,31 @@ function DF.Close()
   if frame then frame:Hide() end
 end
 
--- A character that does not know Disenchant (any more): nothing of the window stands.
+-- A character that does not know Disenchant (any more): nothing of the window stands, and the
+-- minimap button counts nothing.
 local function hideAll()
   if GC.DisenchantMarks then GC.DisenchantMarks.Clear() end
-  if entry then entry:Hide() end
   if frame and frame:IsShown() and not inCombat() then DF.Close() end
+  tellButton()
 end
 
--- In combat: the entry follows the bags with what the last paint read, and nothing else moves.
-local function holdEntry()
+-- In combat: the marks follow the bags and the minimap button its count, with what the last paint
+-- read, and nothing else moves.
+local function holdMarks()
   paintMarks(bagFrame())
-  if not entry then return end
-  if bagFrame() then
-    anchorEntry()
-    paintPill()
-    local wasUp = entry:IsShown()
-    entry:Show()
-    if not wasUp then restamp(entry) end
-  else
-    entry:Hide()
-  end
+  tellButton()
 end
 
--- Reads the bags and paints the window and the entry, or hides them. In combat only the entry
--- follows the bags; the rest waits for PLAYER_REGEN_ENABLED (`dirty`), and with it the window's
--- opening or closing asked for meanwhile (`wantShown`). With neither the window nor Blizzard's bags
--- open nothing is read.
+-- Reads the bags and paints the window, the marks and the minimap button's count, or hides them. In
+-- combat only the marks and the count follow; the rest waits for PLAYER_REGEN_ENABLED (`dirty`), and
+-- with it the window's opening or closing asked for meanwhile (`wantShown`). With neither the window
+-- nor Blizzard's bags open, nor the minimap button shown, nothing is read.
 refresh = function()
   DF._queued = nil
   if not DF.Known() then return hideAll() end
   if inCombat() then
     DF._dirty = true
-    return holdEntry()
+    return holdMarks()
   end
   DF._dirty = nil
   local up = frame ~= nil and frame:IsShown()
@@ -1975,26 +1868,25 @@ refresh = function()
   if up and DF._replace then place(false) end
   DF._replace = nil
   local bags = bagFrame()
-  if not (up or bags) then
-    if entry then entry:Hide() end
-    return paintMarks(nil)
-  end
+  if not (up or bags or counting()) then return paintMarks(nil) end
   DF._plan = readPlan()
-  paintEntry(bags)
   paintMarks(bags)
+  tellButton()
   if up then
     paint()
     arm()
   end
 end
 
---- Paints the window and the entry again now (a click's paint); in combat, once the fight is over.
+--- Paints the window, the marks and the minimap button's count again now (a click's paint, the
+--- minimap button shown again); in combat, once the fight is over.
 function DF.Refresh()
   refresh()
 end
 
---- Opens or closes the window: the entry's click and /gc disenchant. In combat the window cannot be
---- shown or hidden: it then does so once the fight is over. A character without Disenchant is told so.
+--- Opens or closes the window: the minimap button's menu, the key and /gc disenchant. In combat the
+--- window cannot be shown or hidden: it then does so once the fight is over. A character without
+--- Disenchant is told so.
 function DF.Toggle()
   if not DF.Known() then
     GC.Print(GC.L["This character does not know Disenchant."])
@@ -2181,9 +2073,11 @@ local function closeRefusals()
 end
 
 --- The window's events, as its own event frame below hears them. PLAYER_LOGIN: the key binding's
---- label in the player's language (chosen at ADDON_LOADED, after every file loaded), and the window
---- built for an enchanter. SPELLS_CHANGED: built once Disenchant is learned; with the window open,
---- a paint, which closes it once the spell is gone. BAG_UPDATE_DELAYED: a paint on the next frame.
+--- label in the player's language (chosen at ADDON_LOADED, after every file loaded), the window
+--- built for an enchanter, and a paint on the next frame (the minimap button's count). SPELLS_CHANGED:
+--- built once Disenchant is learned; a paint, which closes the window once the spell is gone.
+--- BAG_UPDATE_DELAYED: a paint on the next frame, while the window, Blizzard's bags or the minimap
+--- button show.
 --- PLAYER_REGEN_DISABLED: the button pointed at nothing while the client still allows it (see
 --- disarmForCombat), and the fight remembered. PLAYER_REGEN_ENABLED: what combat held, a paint of an
 --- open window (the button is armed again), and the window built for an enchanter who logged in
@@ -2193,12 +2087,13 @@ end
 function DF.OnEvent(event, ...)
   if event == "PLAYER_LOGIN" then
     _G["BINDING_NAME_" .. DF.BINDING] = GC.L["Disenchant next"]
-    return prepare()
+    prepare()
+    if DF.Known() then schedule() end
   elseif event == "SPELLS_CHANGED" then
     prepare()
-    if (frame and frame:IsShown()) or bagFrame() then schedule() end
+    if (frame and frame:IsShown()) or bagFrame() or counting() then schedule() end
   elseif event == "BAG_UPDATE_DELAYED" or event == "EQUIPMENT_SETS_CHANGED" then
-    if (frame and frame:IsShown()) or (bagFrame() and DF.Known()) then schedule() end
+    if (frame and frame:IsShown()) or ((bagFrame() or counting()) and DF.Known()) then schedule() end
   elseif event == "PLAYER_REGEN_DISABLED" then
     disarmForCombat()
     DF._fight = true
@@ -2236,7 +2131,7 @@ function DF.OnEvent(event, ...)
   end
 end
 
--- Blizzard's bags opening or closing show or hide the entry and move an open window beside them: a
+-- Blizzard's bags opening or closing show or hide the marks and move an open window beside them: a
 -- post-hook on each bag frame's own show and hide (Blizzard_UIPanels_Game/Mainline/ContainerFrame.xml),
 -- which only marks the move (`replace`) and paints, on the next frame (in combat, once it is over).
 for _, name in ipairs(bagNames()) do

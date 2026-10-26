@@ -71,17 +71,21 @@
   sent, and bound items and items you can still return for a refund stay in your bags. Close it
   with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
   yet.
-- Disenchant, in retail WoW, for an enchanter: a GoldCap button above your open bags shows how many
-  pieces of gear are worth disenchanting (in grey, how many pay more elsewhere) and opens a window
-  that names the next one and disenchants it with one press. Bind a key to it in Key Bindings,
-  GoldCap, Disenchant next. With a bag addon, open it with /gc disenchant or the key. Click a line
+- In retail WoW, a GoldCap button by the minimap opens the deals board and, for an enchanter,
+  Disenchant, and counts the gear worth disenchanting. Drag it to move it round the minimap. Hide
+  this button in its menu hides it, and /gc minimap brings it back. WoW: Forever does not have it
+  yet.
+- Disenchant, in retail WoW, for an enchanter: a window that names the next piece of gear worth
+  disenchanting and disenchants it with one press. Open it from the GoldCap button by the minimap,
+  with /gc disenchant, or with a key: bind one in Key Bindings, GoldCap, Disenchant next. Click a line
   to disenchant that item next. Each line says whether the mats or a vendor pays more, and an item the
   auction house or a vendor pays more for is left out, with Disenchant anyway beside it. Mats is
   what your own disenchants of such items gave, at today's prices, so the window learns as you go.
   Never on the list: items in an equipment set, items you can still return or trade, items in a
   group you follow, items you keep (right click a line), and items the game would not disenchant.
-  Your bags mark what goes next, and the item tooltip says where an item stands. In combat the
-  button does nothing.
+  In your bags a purple ring marks each item on the list, the next one brightest, a coin marks one
+  the auction house pays more for, and the item tooltip says where an item stands. In combat the
+  Disenchant button and its key do nothing.
 - DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
   your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
   Auto carries on at once, on the Items board too, with what you typed still in the search box.

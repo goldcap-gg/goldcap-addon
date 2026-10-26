@@ -1792,6 +1792,13 @@ GC.Locales.ukUA = {
   ["Worth disenchanting: %d"] = "Варто розпилити: %d",
   ["The auction house pays more: %d"] = "Аукціон платить більше: %d",
   ["A vendor pays more: %d"] = "Торговець платить більше: %d",
+  -- GoldCap's button on the minimap (UI/MinimapButton.lua).
+  ["Deals board"] = "Дошка угод",
+  ["Disenchant (%d)"] = "Розпилення (%d)",
+  ["Hide this button"] = "Сховати цю кнопку",
+  ["Click for GoldCap. Drag to move it."] = "Натисніть, щоб відкрити GoldCap. Перетягніть, щоб пересунути.",
+  ["The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back."] =
+    "Кнопку GoldCap біля мінікарти сховано. Щоб повернути її, введіть /gc minimap.",
   ["Nothing worth disenchanting now: a vendor pays more for everything below."] =
     "Зараз нічого вигідно розпилювати: за все нижче торговець платить більше.",
   ["Nothing worth disenchanting now: everything below sells for more."] =

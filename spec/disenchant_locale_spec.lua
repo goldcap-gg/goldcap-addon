@@ -3,7 +3,8 @@ local helper = require("spec.spec_helper")
 -- The Disenchant window (UI/DisenchantFrame.lua): its words in all twelve languages, each really
 -- translated, and none written with a dash, an ellipsis or a middle dot (the owner's rule: plain
 -- punctuation in everything a player reads). "Next", "Skip", "Vendor" and "%d of %d" are older keys
--- the window shares, so they are not listed here. The tooltip's lines and the Kept menu (Task 3b) are here too.
+-- the window shares, so they are not listed here. The tooltip's lines, the Kept menu (Task 3b) and the
+-- minimap button are here too.
 local KEYS = {
   -- The window's name, its button's word and the key binding's label.
   "Disenchant", "Disenchant next",
@@ -20,9 +21,13 @@ local KEYS = {
   "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an " ..
     "equipment set, items you can still return or trade, items in a group you follow, and items you keep. " ..
     "Click a line to disenchant it next. Right-click a line to keep an item.",
-  -- The entry's tooltip, the card with everything left out, and /gc disenchant on a character
-  -- without the spell.
+  -- The minimap button's tooltip, the card with everything left out, and /gc disenchant on a
+  -- character without the spell.
   "Worth disenchanting: %d", "The auction house pays more: %d", "A vendor pays more: %d",
+  -- GoldCap's button on the minimap (UI/MinimapButton.lua): its menu, its tooltip's last line and
+  -- what it says once hidden.
+  "Deals board", "Disenchant (%d)", "Hide this button", "Click for GoldCap. Drag to move it.",
+  "The GoldCap button by the minimap is hidden. Type /gc minimap to bring it back.",
   "Nothing worth disenchanting now: a vendor pays more for everything below.",
   "Nothing worth disenchanting now: everything below sells for more.", "This character does not know Disenchant.",
   -- The item tooltip's one line beside "Disenchant": what its kind gives and where it stands.

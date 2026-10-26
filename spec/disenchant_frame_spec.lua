@@ -2,9 +2,9 @@ local helper = require("spec.spec_helper")
 local W = require("spec.support.wow_frames")
 local S = require("spec.support.secure_button")
 
--- UI/DisenchantFrame.lua: the Disenchant window, its one secure button, the entry beside the bags,
--- the loot it learns from and the refusals it drops (retail only). The real Theme and kit, the real
--- planner (Core/Disenchant.lua over Core/VendorSelect.lua's freshness rule) and the Hoard's helpers;
+-- UI/DisenchantFrame.lua: the Disenchant window, its one secure button, the counts it hands the
+-- GoldCap minimap button, the loot it learns from and the refusals it drops (retail only). The real
+-- Theme and kit, the real planner (Core/Disenchant.lua over Core/VendorSelect.lua's freshness rule) and the Hoard's helpers;
 -- the bag reader is a seam (GC.VendorBags.Read hands the stacks a spec puts), the slots the button
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
@@ -53,7 +53,6 @@ describe("Disenchant window", function()
   local function button() return _G.GoldCapDisenchantNext end
   local function attr(name) return button():GetAttribute(name) end
   local function windowUp() return DF._frame ~= nil and DF._frame:IsShown() end
-  local function entryUp() return DF._entry ~= nil and DF._entry:IsShown() end
 
   -- Blizzard's item buttons of a container frame, as ContainerFrameMixin:EnumerateValidItems hands them
   -- (live ContainerFrame.lua:522-526: index, button) and ContainerFrameItemButtonMixin answers
@@ -339,90 +338,52 @@ describe("Disenchant window", function()
     event("BAG_UPDATE_DELAYED")
     nextFrame()
     slash()
-    assert.is_false(entryUp())
     assert.is_false(windowUp())
     assert.is_nil(_G.GoldCapDisenchantNext)
     assert.equal(0, reads)
     assert.same({ "This character does not know Disenchant." }, printed)
   end)
 
-  it("shows the entry beside the open bags with how many are queued, and toggles the window", function()
+  -- The GoldCap minimap button (UI/MinimapButton.lua, a seam here) counts what is worth
+  -- disenchanting: the window hands it the last plan's counts, and tells it whenever it paints.
+  it("hands the minimap button the plan's counts, and tells it on every paint", function()
+    local told = 0
+    GC.MinimapButton = { Refresh = function() told = told + 1 end, Shown = function() return false end }
+    learned()
+    put(gear(0, 1, 501, { vendorUnit = 190000 }))
+    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
+    put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
+    openBags()
+    assert.is_true(told > 0)
+    assert.same({ 1, 1, 1 }, { DF.Counts() })
+    local before = told
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_true(told > before)
+    knows = false
+    assert.is_nil(DF.Counts())
+  end)
+
+  -- With Blizzard's bags closed (or a bag addon's in their place) the button still counts: while it
+  -- shows, a change in the bags reads them for an enchanter, out of combat, and never for anyone else.
+  it("reads the bags for the minimap button's count while it shows, with the bags closed", function()
+    local shown = true
+    GC.MinimapButton = { Refresh = function() end, Shown = function() return shown end }
     put(gear(0, 1, 501))
-    put(gear(0, 2, 502))
-    openBags()
-    assert.is_true(entryUp())
-    assert.equal("2", textOf(DF._entry.count))
-    local point = at(DF._entry)
-    assert.equal(bags, point[2])
-    press(DF._entry)
+    event("PLAYER_LOGIN")
     nextFrame()
-    assert.is_true(windowUp())
-    press(DF._entry)
-    nextFrame()
-    assert.is_false(windowUp())
-  end)
-
-  -- The owner, 2026-10-26 23:15-23:21: with everything left out the entry hid, and Left out, Kept and
-  -- Got so far could be reached only by /gc disenchant. It shows with the bags for an enchanter.
-  it("shows the entry with the bags whatever is queued, with no count when nothing can be disenchanted", function()
-    put(gear(0, 1, 501, { quality = 1 }))
-    openBags()
-    assert.is_true(entryUp())
-    assert.is_false(DF._entry.pill:IsShown())
-    assert.is_false(DF._entry.count:IsShown())
+    assert.same({ 1, 0, 0 }, { DF.Counts() })
     put(gear(0, 2, 502))
     event("BAG_UPDATE_DELAYED")
     nextFrame()
-    assert.is_true(entryUp())
-    assert.is_true(DF._entry.pill:IsShown())
-    assert.equal("1", textOf(DF._entry.count))
-    bags:Hide()
-    W.state(bags).hooks.OnHide(bags)
-    nextFrame()
-    assert.is_false(entryUp())
-  end)
-
-  -- The owner, 23:22: a number beside it, so the player sees how many can be disenchanted: the queue
-  -- in gold; with none queued, what is left out in grey; kept items not counted.
-  it("counts the queue on the entry in gold, and with none queued what is left out in grey", function()
-    local K = GC.Kit.Tokens.color
-    local function rgb(c) return { c[1], c[2], c[3] } end
-    learned()
-    put(gear(0, 1, 501, { vendorUnit = 190000 }))
-    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
-    local kept = put(gear(0, 4, 504, { vendorUnit = 190000 }))
-    GC.Disenchant.Keep(GC.db, kept.itemID)
-    openBags()
-    assert.is_true(entryUp())
-    assert.equal("2", textOf(DF._entry.count))
-    assert.same(rgb(K.text5), rgb(W.state(DF._entry.pill).vertex))
-    assert.same(rgb(K.text2), rgb(W.state(DF._entry.count).color))
-    put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
+    assert.same({ 2, 0, 0 }, { DF.Counts() })
+    shown = false
+    local before = reads
     event("BAG_UPDATE_DELAYED")
     nextFrame()
-    assert.equal("1", textOf(DF._entry.count))
-    assert.same(rgb(K.gold), rgb(W.state(DF._entry.pill).vertex))
-    assert.same(rgb(K.onGold), rgb(W.state(DF._entry.count).color))
-  end)
-
-  it("says in the entry's tooltip how many are worth disenchanting and how many pay more elsewhere", function()
-    learned()
-    local function hover()
-      W.state(DF._entry).scripts.OnEnter(DF._entry)
-      return _G.GameTooltip.lines
-    end
-    openBags()
-    assert.same({ "GoldCap Disenchant", "Nothing in your bags to disenchant." }, hover())
-    put(gear(0, 1, 501, { vendorUnit = 190000 }))
-    event("BAG_UPDATE_DELAYED")
-    nextFrame()
-    assert.same({ "GoldCap Disenchant", "Worth disenchanting: 0", "A vendor pays more: 1" }, hover())
-    put(gear(0, 2, 502, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
-    put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
-    event("BAG_UPDATE_DELAYED")
-    nextFrame()
-    assert.same({ "GoldCap Disenchant", "Worth disenchanting: 1", "The auction house pays more: 1",
-      "A vendor pays more: 1" }, hover())
+    assert.equal(before, reads)
   end)
 
   it("toggles with /gc disenchant, for bag addons that replace Blizzard's bags", function()
@@ -1094,8 +1055,8 @@ describe("Disenchant window", function()
     assert.equal("Item 501", textOf(DF._frame.card.name))
     assert.equal("1 of 2", textOf(DF._frame.card.counter))
     assert.same({ "spell", 13262, 0, 1 }, armedAt())
-    assert.is_true(drawn("0:1", "glow"))
-    assert.is_false(drawn("0:2", "glow"))
+    assert.equal(1, W.state(overlayOf("0:1").glow).alpha)
+    assert.equal(0.55, W.state(overlayOf("0:2").glow).alpha)
     assert.equal("next", DF.Standing(slotButtons["0:1"], 501).state)
     assert.same({}, S.casts)
     assert.is_nil(menu)
@@ -1458,7 +1419,10 @@ describe("Disenchant window", function()
   -- Marks on the bag slots
   -- ---------------------------------------------------------------------------------------------
 
-  it("marks each queued slot with the spell's icon, the first with a glow, a left-out one with a coin", function()
+  -- The owner, 2026-10-27 00:30: the icon on the bag items was almost invisible. Every queued slot
+  -- now carries the purple ring, the first (Next) at full strength and the rest at about 55%; the
+  -- spell's icon and the auction house's coin each sit on a dark round badge with a purple ring.
+  it("rings every queued slot, the first at full strength, and sets the spell's icon on a dark badge, a left-out one's coin too", function()
     put(gear(0, 1, 501))
     put(gear(0, 2, 502))
     put(gear(0, 3, 503, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }))
@@ -1467,13 +1431,49 @@ describe("Disenchant window", function()
     assert.is_true(drawn("0:1", "icon"))
     assert.equal(136244, W.state(overlayOf("0:1").icon).file)
     assert.is_true(drawn("0:1", "glow"))
+    assert.equal(1, W.state(overlayOf("0:1").glow).alpha)
     assert.is_true(drawn("0:2", "icon"))
-    assert.is_false(drawn("0:2", "glow"))
+    assert.is_true(drawn("0:2", "glow"))
+    assert.equal(0.55, W.state(overlayOf("0:2").glow).alpha)
+    local o = overlayOf("0:1")
+    for _, part in ipairs({ "iconBadge", "iconRing" }) do assert.is_true(drawn("0:1", part)) end
+    assert.equal(GC.Theme.MEDIA .. "badge.png", W.state(o.iconBadge).file)
+    assert.equal(GC.Theme.MEDIA .. "badge_ring.png", W.state(o.iconRing).file)
+    assert.equal(18, o.iconBadge:GetWidth())
+    assert.equal(18, o.iconBadge:GetHeight())
+    assert.equal("TOPLEFT", W.state(o.iconBadge).points[1][1])
+    local dark, purple = W.state(o.iconBadge).vertex, W.state(o.iconRing).vertex
+    assert.is_true(dark[1] < 0.2 and dark[2] < 0.2 and dark[3] < 0.2)
+    assert.is_true(purple[3] > purple[2] and purple[1] > purple[2])
+    assert.is_false(drawn("0:1", "coinBadge"))
     assert.is_false(drawn("0:3", "icon"))
+    assert.is_false(drawn("0:3", "iconBadge"))
+    assert.is_false(drawn("0:3", "glow"))
     assert.is_true(drawn("0:3", "coin"))
+    local coin = overlayOf("0:3")
+    for _, part in ipairs({ "coinBadge", "coinRing" }) do assert.is_true(drawn("0:3", part)) end
+    assert.equal(GC.Theme.MEDIA .. "badge.png", W.state(coin.coinBadge).file)
+    assert.equal(18, coin.coinBadge:GetWidth())
+    assert.equal("TOPRIGHT", W.state(coin.coinBadge).points[1][1])
     assert.is_false(drawn("0:1", "coin"))
     assert.is_nil(overlayOf("0:4"))
     assert.is_nil(overlayOf("0:5"))
+  end)
+
+  -- The plan's rule (Core/Disenchant.lua's IdOf): a slot holds the item while it holds its link and,
+  -- where the item has one, its GUID; an identical twin moved into the slot is another item.
+  it("marks a slot only while it holds the item itself, told by its GUID from an identical twin", function()
+    put(gear(0, 1, 601, { guid = "Item-A" }))
+    openBags()
+    assert.is_true(drawn("0:1", "icon"))
+    assert.equal("next", DF.Standing(slotButtons["0:1"], 601).state)
+    slots["0:1"].guid = "Item-B"
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.is_false(drawn("0:1", "icon"))
+    assert.is_nil(DF.Standing(slotButtons["0:1"], 601))
   end)
 
   it("moves the glow to the next item when one is skipped", function()
@@ -1484,6 +1484,7 @@ describe("Disenchant window", function()
     press(DF._frame.card.skip)
     assert.is_false(drawn("0:1", "icon"))
     assert.is_true(drawn("0:2", "glow"))
+    assert.equal(1, W.state(overlayOf("0:2").glow).alpha)
   end)
 
   it("marks nothing for a character without Disenchant", function()
@@ -1586,8 +1587,8 @@ describe("Disenchant window", function()
     assert.is_false(windowUp())
     slash()
     assert.is_true(windowUp())
-    assert.is_true(drawn("0:1", "glow"))
-    assert.is_false(drawn("0:2", "glow"))
+    assert.equal(1, W.state(overlayOf("0:1").glow).alpha)
+    assert.equal(0.55, W.state(overlayOf("0:2").glow).alpha)
     assert.equal("next", DF.Standing(slotButtons["0:1"], 501).state)
   end)
 
@@ -1634,7 +1635,7 @@ describe("Disenchant window", function()
     assert.is_true((second:GetChildren()):IsShown())
   end)
 
-  -- The marks follow the entry's rule (the owner's E1): drawn whenever Blizzard's bags are open for a
+  -- The marks follow the old entry's rule (the owner's E1): drawn whenever Blizzard's bags are open for a
   -- character that knows Disenchant, queue or not, so a left-out item keeps its coin with nothing
   -- queued; in combat too, from the last plan.
   it("keeps the coins with nothing queued, in combat too, and takes them off once Disenchant is not known", function()
@@ -1875,57 +1876,6 @@ describe("Disenchant window", function()
     W.state(bags).hooks.OnHide(bags)
     nextFrame()
     assert.same({ "TOPRIGHT", _G.UIParent, "BOTTOMLEFT", 1296, 1000 }, at(DF._frame))
-  end)
-
-  -- Separate bags stack 8 apart (ContainerFrame.lua:10, :1236): the entry stands above the highest
-  -- that shows, so it covers no slot of the bag above the first (the final review's M3); in combat
-  -- too, as it follows the bags.
-  it("stands the entry above the highest of the bags that show", function()
-    screen(1920, 1080)
-    local backpack, second = _G.ContainerFrame1, _G.ContainerFrame2
-    standAt(backpack, 1500, 400)
-    standAt(second, 1500, 700)
-    put(gear(0, 1, 501))
-    backpack:Show()
-    second:Show()
-    W.state(second).hooks.OnShow(second)
-    nextFrame()
-    assert.is_true(entryUp())
-    assert.same({ "BOTTOMRIGHT", second, "TOPRIGHT", 0, 4 }, at(DF._entry))
-    S.enterCombat()
-    event("PLAYER_REGEN_DISABLED")
-    second:Hide()
-    W.state(second).hooks.OnHide(second)
-    nextFrame()
-    assert.same({ "BOTTOMRIGHT", backpack, "TOPRIGHT", 0, 4 }, at(DF._entry))
-  end)
-
-  -- A full column of separate bags reaches the screen's top (UpdateContainerFrameAnchors,
-  -- ContainerFrame.lua:1212-1240, subtracts frame heights only): with no room above the highest bag
-  -- the clamp would push the entry onto its close button, so it stands left of that bag's top left
-  -- (the re-review's N1); in combat too.
-  it("stands the entry left of the highest bag when the screen leaves no room above it", function()
-    screen(1920, 1080)
-    local backpack, second = _G.ContainerFrame1, _G.ContainerFrame2
-    standAt(backpack, 1500, 700)
-    standAt(second, 1500, 1060)
-    put(gear(0, 1, 501))
-    backpack:Show()
-    second:Show()
-    W.state(second).hooks.OnShow(second)
-    nextFrame()
-    assert.is_true(entryUp())
-    assert.same({ "TOPRIGHT", second, "TOPLEFT", -4, 0 }, at(DF._entry))
-    S.enterCombat()
-    event("PLAYER_REGEN_DISABLED")
-    second:Hide()
-    W.state(second).hooks.OnHide(second)
-    nextFrame()
-    assert.same({ "BOTTOMRIGHT", backpack, "TOPRIGHT", 0, 4 }, at(DF._entry))
-    second:Show()
-    W.state(second).hooks.OnShow(second)
-    nextFrame()
-    assert.same({ "TOPRIGHT", second, "TOPLEFT", -4, 0 }, at(DF._entry))
   end)
 
   -- Sixteen and more items: the window keeps to about 85% of the screen's height, "In this order"
