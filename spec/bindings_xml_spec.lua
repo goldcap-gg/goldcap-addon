@@ -100,3 +100,42 @@ describe("Bindings.xml", function()
       "Bindings.xml calls GoldCapPostNext but UI/Sell/Dock.lua never assigns it")
   end)
 end)
+
+-- WoW Forever ships its own bindings file by the flavor's suffix (Forever's Blizzard_FrameXML holds
+-- Bindings_Camelot.xml where retail's holds Bindings_Standard.xml), and GoldCap_Camelot.toc loads no
+-- Disenchant window: there the CLICK binding would stand as a raw line in Key Bindings with nothing
+-- behind it (the final review's M1). Bindings_Camelot.xml is Bindings.xml without it. Whether the
+-- client reads an addon's flavor-suffixed bindings file in place of Bindings.xml is not measured.
+describe("Bindings_Camelot.xml", function()
+  local function read(path)
+    local file = assert(io.open(path, "r"), path .. " is missing")
+    local text = file:read("*a")
+    file:close()
+    return text
+  end
+  local function bindings(text)
+    local out = {}
+    for attrs, body in text:gmatch("<Binding%s([^>]*)>(.-)</Binding>") do
+      out[#out + 1] = { attrs = attrs, body = body }
+    end
+    return out
+  end
+
+  it("has no double hyphen inside an XML comment", function()
+    local text = read("GoldCap/Bindings_Camelot.xml")
+    for body in text:gmatch("<!%-%-(.-)%-%->") do
+      assert.is_nil(body:find("%-%-"), "an XML comment contains '--', which XML forbids")
+    end
+  end)
+
+  it("is Bindings.xml without the Disenchant window's CLICK binding", function()
+    local forever = bindings(read("GoldCap/Bindings_Camelot.xml"))
+    local retail = {}
+    for _, b in ipairs(bindings(read("GoldCap/Bindings.xml"))) do
+      if not b.attrs:find("CLICK GoldCapDisenchantNext", 1, true) then retail[#retail + 1] = b end
+    end
+    assert.is_true(#forever > 0)
+    assert.same(retail, forever)
+    assert.is_not_nil(forever[1].attrs:find('header="GOLDCAP"', 1, true))
+  end)
+end)

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GoldCap's keybindings on WoW Forever: Bindings.xml's, without the Disenchant window's.
+
+  Bindings.xml says how each binding works. GoldCap_Camelot.toc loads no Disenchant window (it is
+  retail only), so its CLICK binding has no button and no label there: Key Bindings would show the
+  raw line "CLICK GoldCapDisenchantNext:LeftButton" under GoldCap, and a key bound to it would do
+  nothing. Forever's own Blizzard_FrameXML ships its bindings as Bindings_Camelot.xml, where
+  retail's ships Bindings_Standard.xml; this file is meant to stand in for Bindings.xml there the
+  same way. Whether the client reads an addon's flavor-suffixed bindings file is not measured: the
+  owner checks Key Bindings on Forever. Keep the two files' other bindings the same
+  (spec/bindings_xml_spec.lua checks it).
+
+  XML forbids a double hyphen anywhere inside a comment, as Bindings.xml explains.
+-->
+<Bindings>
+  <Binding name="GOLDCAP_POST_NEXT" header="GOLDCAP">
+    if GoldCapSniperFrame and GoldCapSniperFrame.GoldCapPostNext then
+      GoldCapSniperFrame.GoldCapPostNext()
+    end
+  </Binding>
+</Bindings>
