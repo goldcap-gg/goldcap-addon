@@ -204,11 +204,20 @@ describe("craft queue", function()
     assert.same({ 1, 4 }, { Q.Progress(Q.Entries("A-R")[1], 0) })
   end)
 
+  it("keeps the total at least the count when an older GoldCap raised the count past it", function()
+    GC.db.craft = { v = 1, chars = { ["A-R"] = { entries = { { recipe = recipe(1), count = 7, total = 5 } }, listed = {} } } }
+    local e = Q.Add("A-R", recipe(1), 2)
+    assert.same({ 9, 9 }, { e.count, e.total })
+  end)
+
   it("reports progress: crafts made of a count, held against a restock target", function()
     assert.same({ 2, 5 }, { Q.Progress({ recipe = recipe(1), count = 3, total = 5 }, 99) })
     assert.same({ 0, 5 }, { Q.Progress({ recipe = recipe(1), count = 5 }, 0) })
     assert.same({ 7, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 7) })
     assert.same({ 20, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 31) })
+    -- A count raised past its total by an older GoldCap: nothing done yet, the count is the total.
+    assert.same({ 0, 7 }, { Q.Progress({ recipe = recipe(1), count = 7, total = 5 }, 0) })
+    assert.same({ 0, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, nil) })
   end)
 
   describe("MissingCost", function()

@@ -10,9 +10,9 @@ local _, GC = ...
 -- UI/CraftQueueView.lua keeps in step with the queue).
 -- Entry: { recipe = Recipe, count = n, total = n } or { recipe = Recipe, restock = n }. `total` is
 -- the crafts asked for since the entry was made (`count` is what is left of them); an entry
--- without it, from an older save, reads total = count. Recipe is the
--- snapshot Services/CraftClient.lua makes (Core/CraftMath.lua names its shape), stored whole so
--- the queue reads without the profession window open.
+-- without it, from an older save, reads total = count. Recipe is the snapshot
+-- Services/CraftClient.lua makes (Core/CraftMath.lua names its shape), stored whole so the queue
+-- reads without the profession window open.
 --
 -- The store is made on the first write and never by a read. A store a newer GoldCap wrote
 -- (v above this file's) is left exactly as it is: every write answers nil and reads see nothing.
@@ -94,7 +94,8 @@ function Q.Entries(char)
 end
 
 --- Adds `count` crafts of `recipe`: summed into a count (and a total) the recipe already has, in
---- place of a restock target it had, with the total starting at the count. The stored snapshot becomes `recipe`. Returns the entry, or nil.
+--- place of a restock target it had, with the total starting at the count. The stored snapshot
+--- becomes `recipe`. Returns the entry, or nil.
 function Q.Add(char, recipe, count)
   if not validRecipe(recipe) or not isWhole(count, 1) then return nil end
   local c = charOf(char, true)
@@ -102,7 +103,7 @@ function Q.Add(char, recipe, count)
   local i = indexOf(c, recipe.recipeID)
   local e = i and c.entries[i] or nil
   if e and type(e.count) == "number" then
-    e.total = math.min(C.MAX_COUNT, (tonumber(e.total) or e.count) + count)
+    e.total = math.min(C.MAX_COUNT, math.max(tonumber(e.total) or e.count, e.count) + count)
     e.count = math.min(C.MAX_COUNT, e.count + count)
     e.recipe = recipe
     return e
