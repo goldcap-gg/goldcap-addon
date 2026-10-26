@@ -9,7 +9,7 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested, blocked
+  local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested, blocked, errors
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "ERR_INVALID_ITEM_TARGET", "SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
@@ -202,6 +202,18 @@ describe("Disenchant window", function()
     -- Two globals with the one English text (live enUS; frFR spells them apart).
     _G.ERR_INVALID_ITEM_TARGET = "That item is not a valid target."
     _G.SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED = "That item is not a valid target."
+    -- UI_ERROR_MESSAGE's first argument is a game error's index, and GetGameMessageInfo answers its
+    -- name, sound kit and voice (live GameErrorDocumentation.lua; UIErrorsFrame.lua:150 reads it).
+    -- The client always has it. The indices are the client's own, in no source: these stand for
+    -- them. A spell's failure with no game error of its own comes as ERR_SPELL_FAILED_S ("%s"), its
+    -- words the spell's (UIErrorsFrame.lua:60 throttles that type): "Interrupted", the skill's
+    -- refusal, "That item is not a valid target." as SPELL_FAILED_WRONG_ARTIFACT_EQUIPPED.
+    errors = { [1] = "ERR_SPELL_FAILED_S", [50] = "ERR_SPELL_FAILED_S", [52] = "ERR_CANT_BE_DISENCHANTED",
+      [53] = "ERR_GENERIC_NO_TARGET", [54] = "ERR_INVALID_ITEM_TARGET" }
+    _G.GetGameMessageInfo = function(index)
+      local name = errors[index]
+      if name then return name, nil, nil end
+    end
     _G.SETTINGS_KEYBINDINGS_LABEL = "Keybindings"
     _G.INVTYPE_WAIST, _G.INVTYPE_CHEST = "Waist", "Chest"
     _G.ITEM_QUALITY_COLORS = { [2] = { r = 0.12, g = 1, b = 0 }, [3] = { r = 0, g = 0.44, b = 0.87 },
@@ -594,24 +606,49 @@ describe("Disenchant window", function()
     assert.is_false(GC.Disenchant.Cant(GC.db, 501))
   end)
 
-  -- UI_ERROR_MESSAGE's first argument names the error (GetGameMessageInfo, live
-  -- GameErrorDocumentation.lua; UIErrorsFrame.lua:150): the name decides, the text only without it.
-  it("names a refusal by its global through GetGameMessageInfo, whatever its words", function()
-    _G.GetGameMessageInfo = function(index)
-      return ({ [52] = "ERR_INVALID_ITEM_TARGET", [53] = "ERR_GENERIC_NO_TARGET" })[index]
-    end
+  -- UI_ERROR_MESSAGE's first argument names the error (GetGameMessageInfo): a name of ours decides
+  -- whatever the words, and any other name leaves the words to decide.
+  it("takes a refusal named by GetGameMessageInfo whatever its words, and no other error", function()
     put(gear(0, 1, 501))
     put(gear(0, 2, 502))
     slash()
     S.click(button())
-    event("UI_ERROR_MESSAGE", 53, _G.ERR_INVALID_ITEM_TARGET)
+    event("UI_ERROR_MESSAGE", 53, "You have no target.")
     nextFrame()
     assert.is_false(GC.Disenchant.Cant(GC.db, 501))
     assert.same({ 501, 502 }, listed())
-    event("UI_ERROR_MESSAGE", 52, "Ce n'est pas une cible valide.")
+    event("UI_ERROR_MESSAGE", 54, "Ce n'est pas une cible valide.")
     nextFrame()
     assert.is_true(GC.Disenchant.Cant(GC.db, 501))
     assert.same({ 502 }, listed())
+  end)
+
+  -- In the client the name of a spell's failure is the carrier ERR_SPELL_FAILED_S, whose words are
+  -- the spell's own (the final review's I1): there the words decide.
+  it("marks an item for good on 'Item cannot be disenchanted' carried as a spell's failure", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UI_ERROR_MESSAGE", 1, "Item cannot be disenchanted")
+    nextFrame()
+    assert.is_true(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 502 }, listed())
+    assert.same({ "spell", 13262, 0, 2 }, armedAt())
+  end)
+
+  it("drops for the visit an item the skill is too low for, its words carried as a spell's failure", function()
+    put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    S.click(button())
+    event("UI_ERROR_MESSAGE", 1, "Your Enchanting skill is not high enough to disenchant that")
+    nextFrame()
+    assert.is_false(GC.Disenchant.Cant(GC.db, 501))
+    assert.same({ 502 }, listed())
+    DF.Close()
+    slash()
+    assert.same({ 501, 502 }, listed())
   end)
 
   it("leaves out for this visit only an item the Enchanting skill is too low for", function()

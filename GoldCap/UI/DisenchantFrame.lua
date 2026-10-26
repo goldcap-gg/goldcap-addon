@@ -54,7 +54,7 @@ local _, GC = ...
 -- quantity, as Blizzard_UIPanels_Game/Mainline/LootFrame.lua reads them) and learned for the kind
 -- of the item pressed. Loot outside it (a mob's, a chest's, a disenchant from the spellbook) is never
 -- read. An item the client refuses, as UI_ERROR_MESSAGE carries it after a press of this button
--- (named by GetGameMessageInfo where the client says, else by its words), leaves the list and the
+-- (by its words, or by GetGameMessageInfo's name when the name is one of these), leaves the list and the
 -- next is armed (nothing once a cast of the player's started or another spell of theirs was sent):
 -- for good (Core/Disenchant.lua's MarkCant, until the Kept menu's Try again; within REFUSAL_SECONDS
 -- of the press, later for the visit) when the client will never disenchant it ("Item cannot be
@@ -1941,14 +1941,18 @@ local function errorName(messageType)
   return type(name) == "string" and name or nil
 end
 
--- By the error's own name where the client gives it, else by its words.
+-- By the error's own name when it is one of ours, else by its words. A name is evidence only for:
+-- a spell's failure that has no game error of its own (the skill's refusal, "Item cannot be
+-- disenchanted" and "That item is not a valid target." as spell results) comes named
+-- ERR_SPELL_FAILED_S, its words the spell's, so any other name leaves the words to decide (the
+-- final review's I1). Which name the client gives each of ours is not measured.
 local function refusal(messageType, message)
   local name = errorName(messageType)
   if name then
     for _, never in ipairs(NEVER) do
       if never == name then return "never" end
     end
-    return name == SKILL and "skill" or nil
+    if name == SKILL then return "skill" end
   end
   if type(message) ~= "string" then return nil end
   for _, never in ipairs(NEVER) do
