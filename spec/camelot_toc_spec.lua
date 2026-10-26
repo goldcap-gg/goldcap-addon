@@ -55,6 +55,7 @@ describe("GoldCap_Camelot.toc (WoW: Forever)", function()
   -- through.
   RETAIL_ONLY["Core/BankGroups.lua"] = true
   RETAIL_ONLY["Core/Alts.lua"] = true
+  RETAIL_ONLY["Core/MailGroups.lua"] = true
   RETAIL_ONLY["Core/Hoard.lua"] = true
   RETAIL_ONLY["UI/HoardFrame.lua"] = true
   RETAIL_ONLY["UI/HoardRow.lua"] = true

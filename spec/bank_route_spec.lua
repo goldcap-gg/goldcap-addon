@@ -209,6 +209,24 @@ describe("bank route", function()
     assert.is_nil(panel().ReadStacks({ 0 }, false, all, ACCOUNT)[1].stays)
   end)
 
+  -- A reader that feeds no bank (the mailbox's) hands its own answer: it replaces the bank's for the
+  -- stacks in the bags and is given the stack as read, bound and wue marks included.
+  it("lets opts.staysWhy answer why a stack in the bags stays, in place of the bank's answer", function()
+    refused["0:1"] = true
+    panel().OnBankOpened()
+    local all = function() return true end
+    local seen = {}
+    local inBags = panel().ReadStacks({ 0 }, false, all, ACCOUNT, { staysWhy = function(loc, s)
+      seen[#seen + 1] = loc.bag .. ":" .. loc.slot .. "=" .. tostring(s.itemID)
+      return loc.slot == 2 and "bound" or nil
+    end })
+    assert.is_nil(inBags[1].stays)
+    assert.equal("bound", inBags[2].stays)
+    assert.same({ "0:1=100", "0:2=500" }, seen)
+    assert.is_nil(panel().ReadStacks({ 12 }, true, all, ACCOUNT, { staysWhy = function() return "bound" end })[1].stays)
+    refused["0:1"] = nil
+  end)
+
   -- Blizzard asks before a deposit into the Warband Bank ends a refund, and deposits into the
   -- character's own bank without asking (BankFrame.lua's BankUtil_IsAccountBankDepositRefundable,
   -- ContainerFrame.lua's right click): toward the character's bank a refundable stack may go, and

@@ -114,7 +114,7 @@ end
 -- Warbound-until-equipped one is marked `wue`, a stack in the bags `bankType`'s bank must not take
 -- `stays` (with why, staysWhy above), and one the game holds (on the cursor, or on its way)
 -- `locked`.
-local function readStack(bag, slot, inBank, wanted, bankType, soulbound)
+local function readStack(bag, slot, inBank, wanted, bankType, soulbound, whyStays)
   local info = C_Container.GetContainerItemInfo(bag, slot)
   if not (info and info.itemID and (wanted == nil or wanted(info.itemID))) then return nil end
   local loc = locationOf(bag, slot)
@@ -122,9 +122,17 @@ local function readStack(bag, slot, inBank, wanted, bankType, soulbound)
   local wue = ask(C_Item.IsBoundToAccountUntilEquip, loc) == true
   local bound = info.isBound and not wue
   if bound and not soulbound then return nil end
-  return { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
+  local stack = { itemID = info.itemID, bag = bag, slot = slot, count = info.stackCount or 1, name = info.itemName,
     link = info.hyperlink, icon = info.iconFileID, ilvl = ask(C_Item.GetCurrentItemLevel, loc), wue = wue or nil,
-    stays = (not inBank and staysWhy(loc, bankType)) or nil, locked = info.isLocked or nil, bound = bound or nil }
+    locked = info.isLocked or nil, bound = bound or nil }
+  if not inBank then
+    if whyStays then
+      stack.stays = whyStays(loc, stack)
+    else
+      stack.stays = staysWhy(loc, bankType)
+    end
+  end
+  return stack
 end
 
 --- Every stack of `bags` whose item `wanted(itemID)` takes (every stack, `wanted` nil), read as
@@ -136,13 +144,16 @@ end
 --- the Warband Bank refuses a soulbound one and takes a Warbound one, so in the bags against it
 --- what it refuses `stays`, refused: that bank's answer (C_Bank.IsItemAllowedInBankType, which
 --- Blizzard's own bags ask to dim what the bank shown will not take, Blizzard_FrameXMLUtil's
---- ItemUtil.lua).
+--- ItemUtil.lua). `opts.staysWhy(loc, stack)` answers why a stack in the bags stays (a reason or
+--- nil) in place of the bank's own answer, for a reader that is not feeding a bank: the mailbox's
+--- (Core/MailGroups.lua's StaysWhy).
 function P.ReadStacks(bags, inBank, wanted, bankType, opts)
   local soulbound = type(opts) == "table" and opts.soulbound == true
+  local whyStays = type(opts) == "table" and type(opts.staysWhy) == "function" and opts.staysWhy or nil
   local stacks = {}
   for _, bag in ipairs(bags) do
     for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
-      local stack = readStack(bag, slot, inBank, wanted, bankType, soulbound)
+      local stack = readStack(bag, slot, inBank, wanted, bankType, soulbound, whyStays)
       if stack then stacks[#stacks + 1] = stack end
     end
   end
