@@ -61,12 +61,13 @@
   the Warband Bank, because you can still return it for a refund, is named with why. The flips to
   carry to another realm show in the Hoard too. Close it with the X, and a small Hoard button
   beside the bank opens it again.
-- DEALS: after your own search on the auction house's Buy tab, press SCAN and Auto carries on,
-  on the Items board too. Until then its button reads AUTO · WAITING: YOUR AH SEARCH and its
-  tooltip says why.
+- DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
+  your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
+  Auto carries on, on the Items board too, with what you typed still in the search box. Switching
+  Auto on carries on the same way.
 - DEALS: while GoldCap checks prices, the list on the auction house's Buy tab shows its searches
   and changes on its own. A panel over that list now says so. Search, pick a category or click the
-  star to use the list yourself, and GoldCap leaves it to you until you press SCAN.
+  star to use the list yourself, and GoldCap leaves it to you until you click AUTO or SCAN.
 - DEALS, Items board: the AUTO button no longer says it is paused while the board keeps checking
   its items. It says Auto is scanning, or what holds it.
 - DEALS, Items board: a row takes two lines at most. Under the item's name it says how soon the

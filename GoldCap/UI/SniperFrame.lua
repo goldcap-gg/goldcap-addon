@@ -4359,7 +4359,7 @@ local AUTO_PAUSE_LABEL = {
   busy = { "AUTO · WAITING FOR YOU",
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop." },
   browse = { "AUTO · WAITING: YOUR AH SEARCH",
-    "Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts." },
+    "Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on." },
 }
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
@@ -4424,6 +4424,26 @@ function GC.Sniper._AutoHelp()
     if held then lines[1] = GC.L[held[2]] end
   end
   return lines
+end
+
+-- A click on AUTO while it reads AUTO · WAITING: YOUR AH SEARCH carries on instead of switching
+-- Auto off: the Buy list goes back to GoldCap, as SCAN gives it back, and the search box keeps
+-- what the player typed. Before, that click switched Auto off, a second one back on behind the
+-- same search, and the owner found no way to start it again short of closing the auction house
+-- (2026-10-26). Returns whether the click was that.
+function GC.Sniper._CarryOnPastPlayerSearch()
+  local state = autoScan:State()
+  local waits
+  if state == "PAUSED" then
+    waits = itemsBoardHold(autoScan:PauseReasons()) == "browse"
+  else
+    waits = (state == "WAITING" or state == "IDLE") and GC.Sniper._autoHeld == "browse"
+  end
+  if not waits then return false end
+  local tab = GC.AuctionHouseTab
+  if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
+  if refreshAutoButton then refreshAutoButton() end
+  return true
 end
 
 -- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
@@ -11914,6 +11934,10 @@ local function createFrame()
     if autoScan:State() == "OFF" then
       if scanning then stopScanning() end
       if cfg then cfg.auto = true end
+      -- Switching Auto on asks for scans: it takes the Buy list back from the player's own search,
+      -- as SCAN does, rather than starting behind it in AUTO · WAITING: YOUR AH SEARCH.
+      local tab = GC.AuctionHouseTab
+      if tab and tab.ReleaseBrowseList then tab.ReleaseBrowseList() end
       feedAuto("toggleOn")
       -- (fix round 1, I4) toggleOn always arms with a clean reason set (AutoScan.lua wipes
       -- `reasons` on toggleOn), so re-seed "tab" immediately if the window isn't actually up
@@ -11928,7 +11952,7 @@ local function createFrame()
       if view == "sell" then feedAuto("pause:sell") end
       if view == "buy" then feedAuto("pause:buy") end -- same standing reason as sell above
       if GC.Sniper._Board() == "items" then feedAuto("pause:items") end -- same standing reason, see _SetBoard
-    else
+    elseif not GC.Sniper._CarryOnPastPlayerSearch() then
       if cfg then cfg.auto = false end
       feedAuto("toggleOff")
     end

@@ -927,8 +927,8 @@ GC.Locales.ptBR = {
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Espera enquanto você anuncia, compra ou navega nos painéis da casa de leilões. Começa assim que você parar.",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · ESPERA: SUA BUSCA NO LEILÃO",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "Espera para que uma varredura não substitua os resultados da sua própria busca na lista de compra da casa de leilões. Aperte VARRER ou a aba do GoldCap embaixo na casa de leilões, ou feche a casa de leilões, e o Auto começa.",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "Espera para que uma varredura não substitua os resultados da sua própria busca na lista de compra da casa de leilões. Clique em AUTO ou VARRER e ele continua.",
   ["Market %s · unverified until a live Check"] =
     "Mercado %s · não verificado até uma checagem ao vivo",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
@@ -1609,8 +1609,8 @@ GC.Locales.ptBR = {
   ["at or under the group's price. Click Buy to purchase"] = "no preço do grupo ou abaixo. Clique em Buy para comprar",
   ["price checked a moment ago. Whether it sells is your call"] = "preço conferido agora há pouco. Se vende, é sua decisão",
   ["GoldCap is checking prices here"] = "O GoldCap está conferindo preços aqui",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "A casa de leilões mostra as buscas do GoldCap nesta lista, por isso ela muda sozinha. Para usar a lista você mesmo, faça uma busca, escolha uma categoria ou clique na estrela. O GoldCap deixa a lista com você até você apertar VARRER.",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "A casa de leilões mostra as buscas do GoldCap nesta lista, por isso ela muda sozinha. Para usar a lista você mesmo, faça uma busca, escolha uma categoria ou clique na estrela. O GoldCap deixa a lista com você até você clicar em AUTO ou VARRER.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "Na lista de itens, o Auto continua conferindo os itens que essa lista acompanha, rodada após rodada. Mude para Mercadorias e ele volta a varrer o mercado de mercadorias.",
 }

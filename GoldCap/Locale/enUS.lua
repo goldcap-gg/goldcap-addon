@@ -232,8 +232,8 @@ GC.Locales.enUS = {
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts.",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on.",
   ["YOUR LISTS"] = "YOUR LISTS",
   ["YOUR LOTS"] = "YOUR LOTS",
   ["You can pay for it now."] = "You can pay for it now.",
@@ -1599,8 +1599,8 @@ GC.Locales.enUS = {
   ["at or under the group's price. Click Buy to purchase"] = "at or under the group's price. Click Buy to purchase",
   ["price checked a moment ago. Whether it sells is your call"] = "price checked a moment ago. Whether it sells is your call",
   ["GoldCap is checking prices here"] = "GoldCap is checking prices here",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN.",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again.",
 }

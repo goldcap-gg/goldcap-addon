@@ -379,7 +379,7 @@ local function paintVeil()
   end
   -- Set on every show: the player can switch GoldCap's language mid-session.
   veil.title:SetText(GC.L["GoldCap is checking prices here"])
-  veil.body:SetText(GC.L["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."])
+  veil.body:SetText(GC.L["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."])
   -- The two lines sit as one block in the middle, however many lines the sentence wraps to.
   veil.title:ClearAllPoints()
   veil.title:SetPoint("TOP", veil, "CENTER", 0, (veil.title:GetHeight() + VEIL.GAP + veil.body:GetHeight()) / 2)

@@ -878,8 +878,8 @@ GC.Locales.koKR = {
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "경매장 자체 창에서 등록, 구매, 둘러보기를 하는 동안 기다립니다. 멈추는 즉시 시작합니다.",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "자동 · 대기: 경매장 내 검색",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "검색하면 경매장 구매 목록의 내 검색 결과를 덮어쓰므로 기다립니다. 검색 버튼을 누르거나, 경매장 아래쪽의 GoldCap 탭을 누르거나, 경매장을 닫으면 자동이 시작합니다.",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "검색하면 경매장 구매 목록의 내 검색 결과를 덮어쓰므로 기다립니다. 자동이나 검색 버튼을 누르면 이어집니다.",
   ["Market %s · unverified until a live Check"] = "시세 %s · 실시간 확인 전까지는 미검증",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "지역 전체 시세: 거래 물품 %d개, 판매 정보 %d개, 서버 아이템 %d개 (경과 %s, %d KB)",
@@ -1548,8 +1548,8 @@ GC.Locales.koKR = {
   ["at or under the group's price. Click Buy to purchase"] = "그룹 가격 이하. Buy를 눌러 구매하세요",
   ["price checked a moment ago. Whether it sells is your call"] = "방금 가격을 확인했습니다. 팔릴지는 직접 판단하세요",
   ["GoldCap is checking prices here"] = "GoldCap이 여기서 가격을 확인하는 중입니다",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "경매장이 GoldCap의 검색 결과를 이 목록에 보여 주므로 목록이 저절로 바뀝니다. 직접 쓰려면 검색하거나, 분류를 고르거나, 별을 누르세요. 그러면 검색 버튼을 누를 때까지 GoldCap이 목록을 건드리지 않습니다.",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "경매장이 GoldCap의 검색 결과를 이 목록에 보여 주므로 목록이 저절로 바뀝니다. 직접 쓰려면 검색하거나, 분류를 고르거나, 별을 누르세요. 그러면 자동이나 검색 버튼을 누를 때까지 GoldCap이 목록을 건드리지 않습니다.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "아이템 목록에서는 자동이 이 목록이 지켜보는 아이템을 계속 차례로 확인합니다. 재료로 전환하면 다시 재료 시장을 검색합니다.",
 }

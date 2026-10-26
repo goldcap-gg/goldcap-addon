@@ -853,8 +853,8 @@ GC.Locales.zhCN = {
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "你在拍卖行自带的面板里上架、购买或浏览时会等待。你一停下就开始。",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "自动 · 等待：你在拍卖行的搜索",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "等待，以免扫描替换掉拍卖行购买列表里你自己的搜索结果。按扫描、点击拍卖行底部的 GoldCap 标签页，或关闭拍卖行，自动就会开始。",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "等待，以免扫描替换掉拍卖行购买列表里你自己的搜索结果。点击自动或扫描即可继续。",
   ["Market %s · unverified until a live Check"] = "市场 %s · 实时核对前未经验证",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "全市场数据：%d 种商品，%d 种有销售数据，%d 件服务器物品（%s 前，%d KB）",
@@ -1515,8 +1515,8 @@ GC.Locales.zhCN = {
   ["at or under the group's price. Click Buy to purchase"] = "不高于分组价格。点击 Buy 购买",
   ["price checked a moment ago. Whether it sells is your call"] = "价格刚刚核对过。能否卖掉由你决定",
   ["GoldCap is checking prices here"] = "GoldCap 正在这里查价",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "拍卖行会把 GoldCap 的搜索结果显示在这个列表里，所以它会自己变化。想自己使用这个列表，就搜索、选择一个分类或点击星标。之后在你按扫描之前，GoldCap 都不会再动它。",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "拍卖行会把 GoldCap 的搜索结果显示在这个列表里，所以它会自己变化。想自己使用这个列表，就搜索、选择一个分类或点击星标。之后在你点击自动或扫描之前，GoldCap 都不会再动它。",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "在物品面板上，自动会一轮又一轮地检查这个面板关注的物品。切换到商品，它会重新扫描商品市场。",
 }

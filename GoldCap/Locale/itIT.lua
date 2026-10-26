@@ -930,8 +930,8 @@ GC.Locales.itIT = {
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Aspetta mentre metti all'asta, compri o sfogli nei pannelli della casa d'aste. Parte appena smetti.",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "AUTO · ATTESA: LA TUA RICERCA ALL'ASTA",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "Attende perché una scansione non sostituisca i risultati della tua ricerca nell'elenco d'acquisto della casa d'aste. Premi SCANSIONA o la scheda GoldCap in basso nella casa d'aste, o chiudi la casa d'aste, e Auto parte.",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "Attende perché una scansione non sostituisca i risultati della tua ricerca nell'elenco d'acquisto della casa d'aste. Clicca AUTO o SCANSIONA e riprende.",
   ["Market %s · unverified until a live Check"] =
     "Mercato %s · non verificato fino a un controllo dal vivo",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
@@ -1611,8 +1611,8 @@ GC.Locales.itIT = {
   ["at or under the group's price. Click Buy to purchase"] = "al prezzo del gruppo o meno. Clicca Buy per acquistare",
   ["price checked a moment ago. Whether it sells is your call"] = "prezzo verificato un attimo fa. Se si vende lo decidi tu",
   ["GoldCap is checking prices here"] = "GoldCap sta controllando i prezzi qui",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "La casa d'aste mostra le ricerche di GoldCap in questo elenco, quindi cambia da solo. Per usarlo tu, cerca, scegli una categoria o clicca sulla stella. GoldCap poi te lo lascia finché non premi SCANSIONA.",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "La casa d'aste mostra le ricerche di GoldCap in questo elenco, quindi cambia da solo. Per usarlo tu, cerca, scegli una categoria o clicca sulla stella. GoldCap poi te lo lascia finché non clicchi AUTO o SCANSIONA.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "Nell'elenco oggetti, Auto continua a controllare gli oggetti che l'elenco segue, giro dopo giro. Passa alle merci e torna a scansionare il mercato delle merci.",
 }

@@ -914,8 +914,8 @@ GC.Locales.ukUA = {
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Чекає, поки ви виставляєте, купуєте чи переглядаєте у вікнах самого аукціону. Почне, щойно ви закінчите.",
   ["AUTO · WAITING: YOUR AH SEARCH"] = "АВТО · ЧЕКАЄ: ВАШ ПОШУК НА АУКЦІОНІ",
-  ["Waiting so that a scan does not replace your own search results on the auction house's Buy list. Press SCAN, click the GoldCap tab at the bottom of the auction house, or close the auction house, and Auto starts."] =
-    "Чекає, щоб скан не замінив результати вашого пошуку в списку купівлі аукціону. Натисніть СКАН або вкладку GoldCap унизу вікна аукціону, або закрийте аукціон, і Авто почне.",
+  ["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."] =
+    "Чекає, щоб скан не замінив результати вашого пошуку в списку купівлі аукціону. Натисніть АВТО або СКАН, і він продовжить.",
   ["Market %s · unverified until a live Check"] = "Ринок %s · не перевірено до живої перевірки",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
     "дані всього ринку: товарів %d, з даними про продажі %d, предметів світу %d (вік %s, %d КБ)",
@@ -1682,8 +1682,8 @@ GC.Locales.ukUA = {
   ["at or under the group's price. Click Buy to purchase"] = "за ціною групи або дешевше. Натисніть Buy, щоб купити",
   ["price checked a moment ago. Whether it sells is your call"] = "ціну щойно перевірено. Чи продасться, вирішувати вам",
   ["GoldCap is checking prices here"] = "GoldCap перевіряє тут ціни",
-  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you press SCAN."] =
-    "Аукціон показує в цьому списку пошуки GoldCap, тому список змінюється сам. Щоб користуватися ним самому, введіть пошук, виберіть категорію або натисніть зірочку. Тоді GoldCap не чіпатиме список, доки ви не натиснете СКАН.",
+  ["The auction house shows GoldCap's searches in this list, so it changes on its own. To use the list yourself, search, pick a category or click the star. GoldCap then leaves it to you until you click AUTO or SCAN."] =
+    "Аукціон показує в цьому списку пошуки GoldCap, тому список змінюється сам. Щоб користуватися ним самому, введіть пошук, виберіть категорію або натисніть зірочку. Тоді GoldCap не чіпатиме список, доки ви не натиснете АВТО або СКАН.",
   ["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] =
     "На дошці предметів Авто раз у раз перевіряє предмети, за якими стежить ця дошка. Перемкніться на товари, і воно знову скануватиме ринок товарів.",
 }
