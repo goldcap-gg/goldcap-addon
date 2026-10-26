@@ -148,15 +148,18 @@ local function leftOut(s, opts)
 end
 
 -- Which figure pays most. Unknown mats name no verdict, unless the auction house is the better of
--- the two figures there are.
+-- the two figures there are. A vendor that will not buy the item (`vendor` nil) never pays most.
 local function bestOf(mats, vendor, ah)
-  if mats == nil then return (ah and ah > vendor) and "ah" or nil end
-  if ah and ah > vendor and ah > mats then return "ah" end
+  if mats == nil then return (ah and ah > (vendor or 0)) and "ah" or nil end
+  if ah and ah > (vendor or 0) and ah > mats then return "ah" end
+  if vendor == nil then return "mats" end
   return mats > vendor and "mats" or "vendor"
 end
 
+-- 1: the mats pay more (or no vendor buys it); 2: mats unknown; 3: the vendor pays as much or more.
 local function group(row)
   if row.mats == nil then return 2 end
+  if row.vendor == nil then return 1 end
   return row.mats > row.vendor and 1 or 3
 end
 
@@ -164,7 +167,7 @@ local function before(a, b)
   local ga, gb = group(a), group(b)
   if ga ~= gb then return ga < gb end
   if ga == 1 then
-    local da, db = a.mats - a.vendor, b.mats - b.vendor
+    local da, db = a.mats - (a.vendor or 0), b.mats - (b.vendor or 0)
     if da ~= db then return da > db end
   elseif ga == 3 then
     local da, db = a.vendor - a.mats, b.vendor - b.mats
@@ -174,10 +177,14 @@ local function before(a, b)
   return a.stack.slot < b.stack.slot
 end
 
--- The result: queue: mats rows (gain over the vendor largest first), mats unknown, then vendor rows
--- (loss smallest first); left: what the auction house pays more for.
+-- The result: queue: mats rows (gain over the vendor largest first), mats unknown (how GoldCap
+-- learns), then rows whose mats pay just what a vendor does; left: what the auction house pays more
+-- for; leftVendor: what a vendor pays more for than its known mats (smallest loss first). The chosen
+-- item (`first`) stands first in the queue wherever it would be, while its slot holds the item
+-- chosen. A row's `vendor` is nil for an item no vendor buys.
 -- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [slotKey] },
--- failed = { [itemID] }, anyway = { [slotKey] } }. A row: { stack, slotKey, mats, n, vendor, ah, best }.
+-- failed = { [itemID] }, anyway = { [slotKey] }, first = { slotKey, link } }. A row: { stack,
+-- slotKey, mats, n, vendor, ah, best }.
 function D.Plan(stacks, opts)
   opts = opts or {}
   local o = {
@@ -186,18 +193,24 @@ function D.Plan(stacks, opts)
     inGroup = opts.inGroup or function() return false end,
     skipped = opts.skipped or {}, failed = opts.failed or {}, anyway = opts.anyway or {},
   }
-  local queue, left = {}, {}
+  local first = type(opts.first) == "table" and opts.first or nil
+  local queue, left, leftVendor, chosen = {}, {}, {}, nil
   for _, s in ipairs(stacks or {}) do
     if not leftOut(s, o) then
       local row = { stack = s, slotKey = s.bag .. ":" .. s.slot }
       row.mats, row.n = D.MatsValue(o.db, D.KindOf(s), o.priceOf)
-      row.vendor = positive(s.vendorUnit) and s.vendorUnit * (s.count or 1) or 0
+      row.vendor = positive(s.vendorUnit) and s.vendorUnit * (s.count or 1) or nil
       if positive(s.ahUnit) and GC.VendorSelect.Fresh(s, o.now) then
         row.ah = math.floor(s.ahUnit * GC.VendorSelect.KEEP) * (s.count or 1)
       end
       row.best = bestOf(row.mats, row.vendor, row.ah)
-      if row.ah and row.ah > row.vendor and row.ah > (row.mats or 0) and not o.anyway[row.slotKey] then
+      local anyway = o.anyway[row.slotKey]
+      if first and first.slotKey == row.slotKey and first.link == s.link then
+        chosen = row
+      elseif row.ah and row.ah > (row.vendor or 0) and row.ah > (row.mats or 0) and not anyway then
         left[#left + 1] = row
+      elseif row.mats and row.vendor and row.vendor > row.mats and not anyway then
+        leftVendor[#leftVendor + 1] = row
       else
         queue[#queue + 1] = row
       end
@@ -205,11 +218,13 @@ function D.Plan(stacks, opts)
   end
   table.sort(queue, before)
   table.sort(left, before)
+  table.sort(leftVendor, before)
+  if chosen then table.insert(queue, 1, chosen) end
   local yields, matsTotal = {}, 0
   for _, row in ipairs(queue) do
     local avg = D.Yield(o.db, D.KindOf(row.stack))
     for id, units in pairs(avg or {}) do yields[id] = (yields[id] or 0) + units end
     matsTotal = matsTotal and row.mats and matsTotal + row.mats or nil
   end
-  return { queue = queue, left = left, yields = yields, matsTotal = matsTotal }
+  return { queue = queue, left = left, leftVendor = leftVendor, yields = yields, matsTotal = matsTotal }
 end

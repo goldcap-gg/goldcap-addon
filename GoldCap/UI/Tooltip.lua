@@ -270,6 +270,7 @@ local function standingText(state)
   if state == "next" then return GC.L["GoldCap: next to disenchant"] end
   if state == "listed" then return GC.L["GoldCap: on the Disenchant list"] end
   if state == "left" then return GC.L["GoldCap: left out of Disenchant, the auction house pays more"] end
+  if state == "leftVendor" then return GC.L["GoldCap: left out of Disenchant, a vendor pays more"] end
   if state == "kept" then return GC.L["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] end
   return nil
 end

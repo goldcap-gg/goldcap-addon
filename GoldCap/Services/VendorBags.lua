@@ -115,9 +115,11 @@ local function isSelling(info, bag, slot)
 end
 
 -- What a vendor pays for one of a stack: its own link's price (C_Item.GetItemInfo's sellPrice, the
--- 11th answer, for the hyperlink: gear sells by its own item level and bonuses, 61g for an item
--- level 198 axe whose base item sells for 2g, the owner's screenshot 2026-10-26), else the item's
--- (GC.ForeverValue.VendorUnit, by id). This file is retail only; Forever's price is untouched.
+-- 11th answer, for the hyperlink), else the item's (GC.ForeverValue.VendorUnit, by id). Gear sells
+-- by its own item level and bonuses: Blizzard's source does not say the link's answer is scaled,
+-- but measured in the game it is (the owner's screenshots, 2026-10-26: an item level 198 axe whose
+-- base item sells for 2g read 61g, as the game's own Sell Price line). This file is retail only;
+-- Forever's price is untouched.
 local function vendorUnitOf(itemID, link)
   if type(link) == "string" and link ~= "" and C_Item and C_Item.GetItemInfo then
     local ok, sell = pcall(function() return select(11, C_Item.GetItemInfo(link)) end)

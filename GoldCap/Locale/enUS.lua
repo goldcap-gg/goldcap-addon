@@ -1697,10 +1697,12 @@ GC.Locales.enUS = {
   ["Mats"] = "Mats",
   ["Never disenchant this"] = "Never disenchant this",
   ["Left out: the auction house pays more"] = "Left out: the auction house pays more",
+  ["Left out: a vendor pays more"] = "Left out: a vendor pays more",
   ["Mats: about %s"] = "Mats: about %s",
+  ["Vendor %s, mats about %s"] = "Vendor %s, mats about %s",
   ["Disenchant anyway"] = "Disenchant anyway",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Disenchant, 1 item",
   ["GoldCap Disenchant, %d items"] = "GoldCap Disenchant, %d items",
   ["Nothing in your bags to disenchant."] = "Nothing in your bags to disenchant.",
@@ -1709,6 +1711,7 @@ GC.Locales.enUS = {
   ["GoldCap: next to disenchant"] = "GoldCap: next to disenchant",
   ["GoldCap: on the Disenchant list"] = "GoldCap: on the Disenchant list",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: left out of Disenchant, the auction house pays more",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: left out of Disenchant, a vendor pays more",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Disenchant: about %s in mats, from your %d disenchants of such items",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Disenchant: GoldCap learns what this gives the first time.",

@@ -1607,10 +1607,12 @@ GC.Locales.zhCN = {
   ["Mats"] = "材料",
   ["Never disenchant this"] = "永不分解",
   ["Left out: the auction house pays more"] = "未列入：拍卖行更值钱",
+  ["Left out: a vendor pays more"] = "未列入：卖给商人更值钱",
   ["Mats: about %s"] = "材料：约 %s",
+  ["Vendor %s, mats about %s"] = "商人 %s，材料约 %s",
   ["Disenchant anyway"] = "仍然分解",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "材料是你亲自分解这类物品所得，按今天的价格计算。永远不会列入：装备方案中的物品、还能退还或交易的物品、你关注的分组里的物品，以及你保留的物品。右键点击一行即可保留该物品。",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "材料是你亲自分解这类物品所得，按今天的价格计算。永远不会列入：装备方案中的物品、还能退还或交易的物品、你关注的分组里的物品，以及你保留的物品。点击一行即可把该物品排到下一个分解。右键点击一行即可保留该物品。",
   ["GoldCap Disenchant, 1 item"] = "GoldCap 分解，1 件物品",
   ["GoldCap Disenchant, %d items"] = "GoldCap 分解，%d 件物品",
   ["Nothing in your bags to disenchant."] = "背包里没有可分解的物品。",
@@ -1619,6 +1621,7 @@ GC.Locales.zhCN = {
   ["GoldCap: next to disenchant"] = "GoldCap：下一个分解",
   ["GoldCap: on the Disenchant list"] = "GoldCap：在分解列表中",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap：不分解，拍卖行出价更高",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap：不分解，卖给商人更值钱",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap：已保留，永不分解。可在分解窗口中撤销。",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "分解：材料约 %s，根据你对此类物品的 %d 次分解",
   ["Disenchant: GoldCap learns what this gives the first time."] = "分解：GoldCap 会在你第一次分解时学习它的产出。",

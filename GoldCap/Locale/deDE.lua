@@ -1714,10 +1714,12 @@ GC.Locales.deDE = {
   ["Mats"] = "Material",
   ["Never disenchant this"] = "Nie entzaubern",
   ["Left out: the auction house pays more"] = "Ausgelassen: Das Auktionshaus zahlt mehr",
+  ["Left out: a vendor pays more"] = "Ausgelassen: Ein Händler zahlt mehr",
   ["Mats: about %s"] = "Material: etwa %s",
+  ["Vendor %s, mats about %s"] = "Händler %s, Material etwa %s",
   ["Disenchant anyway"] = "Trotzdem entzaubern",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Material ist, was deine eigenen Entzauberungen solcher Gegenstände ergaben, zu heutigen Preisen. Nie auf der Liste: Gegenstände in einem Ausrüstungsset, Gegenstände, die du noch zurückgeben oder handeln kannst, Gegenstände in einer Gruppe, der du folgst, und Gegenstände, die du behältst. Rechtsklick auf eine Zeile behält den Gegenstand.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Material ist, was deine eigenen Entzauberungen solcher Gegenstände ergaben, zu heutigen Preisen. Nie auf der Liste: Gegenstände in einem Ausrüstungsset, Gegenstände, die du noch zurückgeben oder handeln kannst, Gegenstände in einer Gruppe, der du folgst, und Gegenstände, die du behältst. Klick auf eine Zeile entzaubert den Gegenstand als Nächstes. Rechtsklick auf eine Zeile behält den Gegenstand.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Entzaubern, 1 Gegenstand",
   ["GoldCap Disenchant, %d items"] = "GoldCap Entzaubern, %d Gegenstände",
   ["Nothing in your bags to disenchant."] = "Nichts in deinen Taschen zum Entzaubern.",
@@ -1726,6 +1728,7 @@ GC.Locales.deDE = {
   ["GoldCap: next to disenchant"] = "GoldCap: als Nächstes entzaubern",
   ["GoldCap: on the Disenchant list"] = "GoldCap: auf der Entzauberliste",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: vom Entzaubern ausgenommen, das Auktionshaus zahlt mehr",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: vom Entzaubern ausgenommen, ein Händler zahlt mehr",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: behalten, wird nie entzaubert. Rückgängig im Entzaubern-Fenster.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Entzaubern: etwa %s an Material, aus deinen %d Entzauberungen solcher Gegenstände",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Entzaubern: GoldCap lernt beim ersten Mal, was das ergibt.",

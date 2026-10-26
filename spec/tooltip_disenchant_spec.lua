@@ -88,6 +88,12 @@ describe("Tooltip on a bag item for an enchanter", function()
     assert.equal("GoldCap: left out of Disenchant, the auction house pays more", lines[1])
   end)
 
+  it("says a vendor pays more for a left-out item", function()
+    standing = { state = "leftVendor", n = 0 }
+    hover()
+    assert.equal("GoldCap: left out of Disenchant, a vendor pays more", lines[1])
+  end)
+
   it("says a kept item is never disenchanted, and where to undo it", function()
     standing = { state = "kept", n = 0 }
     hover()

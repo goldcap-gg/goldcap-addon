@@ -16,15 +16,16 @@ local KEYS = {
   "You get about", "Got so far", "GoldCap learns what these give as you disenchant.",
   -- The lists, the right-click menu and the footer.
   "In this order", "Mats", "Never disenchant this", "Left out: the auction house pays more", "Mats: about %s",
-  "Disenchant anyway",
+  "Disenchant anyway", "Left out: a vendor pays more", "Vendor %s, mats about %s",
   "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an " ..
     "equipment set, items you can still return or trade, items in a group you follow, and items you keep. " ..
-    "Right-click a line to keep an item.",
+    "Click a line to disenchant it next. Right-click a line to keep an item.",
   -- The entry's tooltip and /gc disenchant on a character without the spell.
   "GoldCap Disenchant, 1 item", "GoldCap Disenchant, %d items", "This character does not know Disenchant.",
   -- The item tooltip's lines: where the item stands, and what its kind gave.
   "GoldCap: next to disenchant", "GoldCap: on the Disenchant list",
   "GoldCap: left out of Disenchant, the auction house pays more",
+  "GoldCap: left out of Disenchant, a vendor pays more",
   "GoldCap: kept, never disenchanted. Undo it in the Disenchant window.",
   "Disenchant: about %s in mats, from your %d disenchants of such items",
   "Disenchant: about %s in mats, from your 1 disenchant of such an item",

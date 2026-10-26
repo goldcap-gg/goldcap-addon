@@ -1782,10 +1782,12 @@ GC.Locales.ukUA = {
   ["Mats"] = "Матеріали",
   ["Never disenchant this"] = "Ніколи не розпилювати",
   ["Left out: the auction house pays more"] = "Пропущено: аукціон платить більше",
+  ["Left out: a vendor pays more"] = "Пропущено: торговець платить більше",
   ["Mats: about %s"] = "Матеріали: близько %s",
+  ["Vendor %s, mats about %s"] = "Торговець %s, матеріали близько %s",
   ["Disenchant anyway"] = "Однаково розпилити",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Матеріали: що дало вам розпилення таких предметів, за сьогоднішніми цінами. Ніколи не потрапляють до списку: предмети з комплекту спорядження, предмети, які ще можна повернути чи передати, предмети з групи, на яку ви підписані, і предмети, які ви залишаєте. Правий клік по рядку залишить предмет.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Матеріали: що дало вам розпилення таких предметів, за сьогоднішніми цінами. Ніколи не потрапляють до списку: предмети з комплекту спорядження, предмети, які ще можна повернути чи передати, предмети з групи, на яку ви підписані, і предмети, які ви залишаєте. Клік по рядку поставить предмет наступним на розпилення. Правий клік по рядку залишить предмет.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Розпилення, 1 предмет",
   ["GoldCap Disenchant, %d items"] = "GoldCap Розпилення, предметів: %d",
   ["Nothing in your bags to disenchant."] = "У сумках нічого розпилювати.",
@@ -1794,6 +1796,7 @@ GC.Locales.ukUA = {
   ["GoldCap: next to disenchant"] = "GoldCap: наступний на розпилення",
   ["GoldCap: on the Disenchant list"] = "GoldCap: у списку на розпилення",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: виключено з розпилення, аукціон платить більше",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: виключено з розпилення, торговець платить більше",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: залишено, ніколи не розпилюється. Скасувати можна у вікні розпилення.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Розпилення: близько %s у матеріалах, за вашими розпиленнями таких предметів: %d",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Розпилення: GoldCap дізнається, що це дає, під час першого розпилення.",

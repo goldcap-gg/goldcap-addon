@@ -1640,10 +1640,12 @@ GC.Locales.koKR = {
   ["Mats"] = "재료",
   ["Never disenchant this"] = "마력 추출하지 않기",
   ["Left out: the auction house pays more"] = "제외: 경매장이 더 이득",
+  ["Left out: a vendor pays more"] = "제외: 상점이 더 이득",
   ["Mats: about %s"] = "재료: 약 %s",
+  ["Vendor %s, mats about %s"] = "상점 %s, 재료 약 %s",
   ["Disenchant anyway"] = "그래도 추출",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "재료는 이런 아이템을 직접 마력 추출해서 얻은 것을 오늘 가격으로 계산한 값입니다. 목록에 넣지 않는 것: 장비 구성에 든 아이템, 아직 환불하거나 거래할 수 있는 아이템, 팔로우 중인 그룹의 아이템, 보관하는 아이템. 줄을 우클릭하면 그 아이템을 보관합니다.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "재료는 이런 아이템을 직접 마력 추출해서 얻은 것을 오늘 가격으로 계산한 값입니다. 목록에 넣지 않는 것: 장비 구성에 든 아이템, 아직 환불하거나 거래할 수 있는 아이템, 팔로우 중인 그룹의 아이템, 보관하는 아이템. 줄을 클릭하면 그 아이템을 다음에 추출합니다. 줄을 우클릭하면 그 아이템을 보관합니다.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap 마력 추출, 아이템 1개",
   ["GoldCap Disenchant, %d items"] = "GoldCap 마력 추출, 아이템 %d개",
   ["Nothing in your bags to disenchant."] = "가방에 마력 추출할 것이 없습니다.",
@@ -1652,6 +1654,7 @@ GC.Locales.koKR = {
   ["GoldCap: next to disenchant"] = "GoldCap: 다음 마력 추출 대상",
   ["GoldCap: on the Disenchant list"] = "GoldCap: 마력 추출 목록에 있음",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: 마력 추출 제외, 경매장 판매가 더 이득",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: 마력 추출 제외, 상점 판매가 더 이득",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: 보관 중, 마력 추출하지 않음. 마력 추출 창에서 되돌릴 수 있습니다.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "마력 추출: 재료로 약 %s, 비슷한 아이템 %d회 마력 추출 기준",
   ["Disenchant: GoldCap learns what this gives the first time."] = "마력 추출: GoldCap이 처음 추출할 때 결과를 학습합니다.",

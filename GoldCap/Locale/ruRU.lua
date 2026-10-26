@@ -1780,10 +1780,12 @@ GC.Locales.ruRU = {
   ["Mats"] = "Материалы",
   ["Never disenchant this"] = "Никогда не распылять",
   ["Left out: the auction house pays more"] = "Пропущены: аукцион платит больше",
+  ["Left out: a vendor pays more"] = "Пропущены: торговец платит больше",
   ["Mats: about %s"] = "Материалы: около %s",
+  ["Vendor %s, mats about %s"] = "Торговец %s, материалы около %s",
   ["Disenchant anyway"] = "Всё равно распылить",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Материалы: что дало вам распыление таких предметов, по сегодняшним ценам. Никогда не попадают в список: предметы из комплекта экипировки, предметы, которые ещё можно вернуть или передать, предметы из группы, на которую вы подписаны, и предметы, которые вы оставляете. Правый клик по строке оставит предмет.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Материалы: что дало вам распыление таких предметов, по сегодняшним ценам. Никогда не попадают в список: предметы из комплекта экипировки, предметы, которые ещё можно вернуть или передать, предметы из группы, на которую вы подписаны, и предметы, которые вы оставляете. Клик по строке поставит предмет следующим на распыление. Правый клик по строке оставит предмет.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Распыление, 1 предмет",
   ["GoldCap Disenchant, %d items"] = "GoldCap Распыление, предметов: %d",
   ["Nothing in your bags to disenchant."] = "В сумках нечего распылять.",
@@ -1792,6 +1794,7 @@ GC.Locales.ruRU = {
   ["GoldCap: next to disenchant"] = "GoldCap: следующий на распыление",
   ["GoldCap: on the Disenchant list"] = "GoldCap: в списке на распыление",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: исключён из распыления, аукцион платит больше",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: исключён из распыления, торговец платит больше",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: оставлен, никогда не распыляется. Отменить можно в окне распыления.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Распыление: около %s в материалах, по вашим распылениям таких предметов: %d",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Распыление: GoldCap узнает, что это даёт, при первом распылении.",

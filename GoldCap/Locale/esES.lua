@@ -1715,10 +1715,12 @@ GC.Locales.esES = {
   ["Mats"] = "Materiales",
   ["Never disenchant this"] = "No desencantar nunca",
   ["Left out: the auction house pays more"] = "Fuera de la lista: la casa de subastas paga más",
+  ["Left out: a vendor pays more"] = "Fuera de la lista: un vendedor paga más",
   ["Mats: about %s"] = "Materiales: unos %s",
+  ["Vendor %s, mats about %s"] = "Vendedor %s, materiales unos %s",
   ["Disenchant anyway"] = "Desencantar igualmente",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Materiales es lo que te dieron tus propios desencantamientos de objetos así, a precios de hoy. Nunca en la lista: objetos de un conjunto de equipo, objetos que aún puedes devolver o comerciar, objetos de un grupo que sigues y objetos que guardas. Haz clic derecho en una línea para guardar el objeto.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Materiales es lo que te dieron tus propios desencantamientos de objetos así, a precios de hoy. Nunca en la lista: objetos de un conjunto de equipo, objetos que aún puedes devolver o comerciar, objetos de un grupo que sigues y objetos que guardas. Haz clic en una línea para desencantar el objeto a continuación. Haz clic derecho en una línea para guardar el objeto.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Desencantar, 1 objeto",
   ["GoldCap Disenchant, %d items"] = "GoldCap Desencantar, %d objetos",
   ["Nothing in your bags to disenchant."] = "No hay nada en tus bolsas para desencantar.",
@@ -1727,6 +1729,7 @@ GC.Locales.esES = {
   ["GoldCap: next to disenchant"] = "GoldCap: el siguiente para desencantar",
   ["GoldCap: on the Disenchant list"] = "GoldCap: en la lista de Desencantar",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: fuera de Desencantar, la casa de subastas paga más",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: fuera de Desencantar, un vendedor paga más",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: conservado, nunca se desencanta. Deshazlo en la ventana de Desencantar.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Desencantar: unos %s en materiales, según tus %d desencantamientos de objetos así",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Desencantar: GoldCap aprende lo que da la primera vez.",

@@ -1711,10 +1711,12 @@ GC.Locales.itIT = {
   ["Mats"] = "Materiali",
   ["Never disenchant this"] = "Non disincantare mai",
   ["Left out: the auction house pays more"] = "Esclusi: la casa d'aste paga di più",
+  ["Left out: a vendor pays more"] = "Esclusi: un venditore paga di più",
   ["Mats: about %s"] = "Materiali: circa %s",
+  ["Vendor %s, mats about %s"] = "Venditore %s, materiali circa %s",
   ["Disenchant anyway"] = "Disincanta comunque",
-  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."] =
-    "Materiali è ciò che hanno dato i tuoi disincantamenti di oggetti simili, ai prezzi di oggi. Mai nella lista: oggetti di un set di equipaggiamento, oggetti che puoi ancora rendere o scambiare, oggetti di un gruppo che segui e oggetti che tieni. Clic destro su una riga per tenere l'oggetto.",
+  ["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."] =
+    "Materiali è ciò che hanno dato i tuoi disincantamenti di oggetti simili, ai prezzi di oggi. Mai nella lista: oggetti di un set di equipaggiamento, oggetti che puoi ancora rendere o scambiare, oggetti di un gruppo che segui e oggetti che tieni. Clic su una riga per rendere l'oggetto il prossimo da disincantare. Clic destro su una riga per tenere l'oggetto.",
   ["GoldCap Disenchant, 1 item"] = "GoldCap Disincantare, 1 oggetto",
   ["GoldCap Disenchant, %d items"] = "GoldCap Disincantare, %d oggetti",
   ["Nothing in your bags to disenchant."] = "Niente da disincantare nelle tue borse.",
@@ -1723,6 +1725,7 @@ GC.Locales.itIT = {
   ["GoldCap: next to disenchant"] = "GoldCap: il prossimo da disincantare",
   ["GoldCap: on the Disenchant list"] = "GoldCap: nell'elenco di Disincantare",
   ["GoldCap: left out of Disenchant, the auction house pays more"] = "GoldCap: escluso da Disincantare, la casa d'aste paga di più",
+  ["GoldCap: left out of Disenchant, a vendor pays more"] = "GoldCap: escluso da Disincantare, un venditore paga di più",
   ["GoldCap: kept, never disenchanted. Undo it in the Disenchant window."] = "GoldCap: tenuto, mai disincantato. Annullalo nella finestra Disincantare.",
   ["Disenchant: about %s in mats, from your %d disenchants of such items"] = "Disincantare: circa %s in materiali, dai tuoi %d disincantamenti di oggetti simili",
   ["Disenchant: GoldCap learns what this gives the first time."] = "Disincantare: GoldCap impara cosa dà la prima volta.",

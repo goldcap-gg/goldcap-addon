@@ -147,7 +147,7 @@ DF._visit = nil
 DF._plan = nil
 DF._armed, DF._pending, DF._casting, DF._loot = nil, nil, nil, nil
 DF._wantShown, DF._dirty, DF._openNext, DF._queued = nil, nil, nil, nil
-DF._rows, DF._leftRows = {}, {}
+DF._rows, DF._leftRows, DF._vendorRows = {}, {}, {}
 -- The items the player keeps that the bags hold, as the last read saw them: in bag order (`list`) and
 -- by slot (`bySlot`), for the Kept menu and for the tooltip.
 DF._kept = { list = {}, bySlot = {} }
@@ -280,7 +280,7 @@ local function inGroup(itemID)
 end
 
 -- The bags as Services/VendorBags.lua reads them, planned (Core/Disenchant.lua's Plan) with what
--- this visit skipped, refused and sent anyway. An item done this visit whose slot still shows it (the
+-- this visit skipped, refused, sent anyway and chose to go next. An item done this visit whose slot still shows it (the
 -- bags have not told the change yet) stays off the list; its slot is forgotten once it holds
 -- anything else or nothing.
 local function readPlan()
@@ -302,7 +302,7 @@ local function readPlan()
   end
   DF._kept = kept
   return D.Plan(stacks, { db = GC.db, priceOf = priceOf, inGroup = inGroup, now = time(),
-    skipped = visit.skipped, failed = visit.failed, anyway = visit.anyway })
+    skipped = visit.skipped, failed = visit.failed, anyway = visit.anyway, first = visit.first })
 end
 
 -- Blizzard's bag frames: the combined backpack and each separate bag, the reagent bag's too
@@ -403,6 +403,10 @@ local function verdictOf(row)
   if row.mats == nil then
     if (row.n or 0) == 0 then return GC.L["GoldCap learns what this gives the first time."], K.text3, "info" end
     return GC.L["GoldCap has no price yet for what this gives."], K.text3, "info"
+  end
+  if row.best == "mats" and row.vendor == nil then
+    -- No vendor buys it: the mats alone.
+    return GC.L["Mats: about %s"]:format(money(row.mats)), MATS_C, "check"
   end
   if row.best == "mats" then
     return GC.L["Mats pay more: about %s against %s from a vendor."]:format(money(row.mats), money(row.vendor)),
@@ -510,7 +514,9 @@ end
 function DF.Skip()
   local row = DF._plan and DF._plan.queue[1]
   if not row or castingNow() then return end
-  DF._visit.skipped[row.slotKey] = true
+  local visit = DF._visit
+  visit.skipped[row.slotKey] = true
+  if visit.first and visit.first.slotKey == row.slotKey then visit.first = nil end
   refresh()
 end
 
@@ -526,9 +532,22 @@ function DF.Unkeep(itemID)
   refresh()
 end
 
---- Disenchant anyway: an item the auction house pays more for joins the queue for this visit.
+--- Disenchant anyway: an item the auction house or a vendor pays more for joins the queue for this
+--- visit.
 function DF.Anyway(slotKey)
   DF._visit.anyway[slotKey] = true
+  refresh()
+end
+
+--- A click on a line: its item goes next (Plan's `first`) for this visit, until it is disenchanted,
+--- skipped or another is chosen; the card names it, the button points at it and its bag slot gets
+--- the ring. A left-out item joins the queue as with Disenchant anyway. Nothing in combat: the
+--- button's attributes cannot change there, and the click is not kept for after the fight.
+function DF.Choose(slotKey, link, leftOut)
+  if inCombat() or type(slotKey) ~= "string" then return end
+  local visit = DF._visit
+  visit.first = { slotKey = slotKey, link = link }
+  if leftOut then visit.anyway[slotKey] = true end
   refresh()
 end
 
@@ -545,7 +564,7 @@ local function slotKeyOf(button)
 end
 
 --- Where the item in a bag slot stands, from the last plan: { state = "next" | "listed" | "left" |
---- "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
+--- "leftVendor" | "kept", mats = copper its kind gave or nil, n = the disenchants behind it }. Nil for a character
 --- without Disenchant, while neither the window nor Blizzard's bags are open (the plan is then old), for
 --- any button that is not a bag slot and for a slot that no longer holds the item the plan read there
 --- (the marks' rule).
@@ -568,6 +587,11 @@ function DF.Standing(button, itemID)
   for _, row in ipairs(plan.left) do
     if row.slotKey == key and holds(row.stack) then
       return { state = "left", mats = row.mats, n = row.n or 0 }
+    end
+  end
+  for _, row in ipairs(plan.leftVendor or {}) do
+    if row.slotKey == key and holds(row.stack) then
+      return { state = "leftVendor", mats = row.mats, n = row.n or 0 }
     end
   end
   local stack = DF._kept.bySlot[key]
@@ -673,8 +697,22 @@ local function onItemData(itemID)
   if not next(wait.pending) then wait.finish() end
 end
 
+-- A line's clicks: the left one makes its item the next (DF.Choose), the right one keeps it.
 local function onRowClick(row, mouseButton)
-  if mouseButton == "RightButton" and row.itemID and not row.done then openKeepMenu(row, row.itemID) end
+  if not row.itemID or row.done then return end
+  if mouseButton == "RightButton" then return openKeepMenu(row, row.itemID) end
+  if mouseButton == "LeftButton" and row.stack then
+    DF.Choose(row.stack.bag .. ":" .. row.stack.slot, row.stack.link, row.leftOut)
+  end
+end
+
+-- A line lit while the cursor is on it (the engine shows the HIGHLIGHT layer of a button under
+-- it), as the card's button is: a line can be clicked.
+local function hoverWash(row)
+  local T = GC.Theme
+  row.hover = T.SlicedTexture(row, "HIGHLIGHT", T.MEDIA .. "plaque.png", K.hoverWash, T.SLICE.plaque)
+  row.hover:SetAllPoints()
+  row.hover:SetBlendMode("ADD")
 end
 
 -- The window's own item tooltip (GameTooltipTemplate), made on the first hover. Blizzard's
@@ -938,16 +976,17 @@ local function chipAt(i)
   return chip
 end
 
--- A line of "In this order": a right click keeps its item.
+-- A line of "In this order": a left click makes its item the next, a right click keeps it.
 local function newRow()
   local T = GC.Theme
   local row = CreateFrame("Button", nil, frame.content)
-  row:RegisterForClicks("RightButtonUp")
+  row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row:EnableMouse(true)
   row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
   row.bg:SetAllPoints()
   row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
   row.ring:SetAllPoints()
+  hoverWash(row)
   row.slot = HF.Row.NewIcon(row, M.ROW_ICON)
   row.name = track(row, wrapping(T.Label(row, 11)))
   row.mats = track(row, T.Num(row, 10))
@@ -961,16 +1000,20 @@ local function newRow()
   return row
 end
 
--- A line of "Left out": its item, what its mats would give, what the auction house pays, and
--- Disenchant anyway.
-local function newLeftRow()
+-- A line of a "Left out" list, in `box`: its item, what its mats would give and what the auction
+-- house or a vendor pays, and Disenchant anyway. A left click makes its item the next, a right
+-- click keeps it.
+local function newLeftRow(box)
   local T = GC.Theme
-  local row = CreateFrame("Frame", nil, frame.leftBox)
+  local row = CreateFrame("Button", nil, box)
+  row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row:EnableMouse(true)
+  row.leftOut = true
   row.bg = T.SlicedTexture(row, "BACKGROUND", T.MEDIA .. "plaque.png", K.glassBottom, T.SLICE.plaque)
   row.bg:SetAllPoints()
   row.ring = T.SlicedTexture(row, "BORDER", T.MEDIA .. "plaque_ring.png", K.hairline, T.SLICE.plaque)
   row.ring:SetAllPoints()
+  hoverWash(row)
   row.slot = HF.Row.NewIcon(row, M.ROW_ICON)
   row.name = track(row, wrapping(T.Label(row, 11)))
   row.note = track(row, wrapping(T.Label(row, 9)))
@@ -984,6 +1027,7 @@ local function newLeftRow()
   row.anyway:SetHeight(M.ANYWAY_H)
   row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.slotKey) end)
   track(row, row.anyway.text)
+  row:SetScript("OnClick", onRowClick)
   row:SetScript("OnEnter", showRowTip)
   row:SetScript("OnLeave", hideItemTip)
   row.GetBagID = bagIDOf
@@ -1038,6 +1082,9 @@ local function build()
   frame.leftBox = CreateFrame("Frame", nil, content)
   frame.leftTitle = track(frame, wrapping(T.Heading(frame.leftBox, 9)))
   colour(frame.leftTitle, K.text3)
+  frame.vendorBox = CreateFrame("Frame", nil, content)
+  frame.vendorTitle = track(frame, wrapping(T.Heading(frame.vendorBox, 9)))
+  colour(frame.vendorTitle, K.text3)
   -- Measures what a column must hold; never shown.
   frame.measure = T.Num(content, 10, true)
   frame.measure:Hide()
@@ -1359,7 +1406,7 @@ local function paintRow(row, data, state, inner, colW)
   row.name:SetPoint("LEFT", row, "LEFT", nameX, 0)
   local best = data.best
   setText(row.mats, data.mats and ("~" .. money(data.mats)) or "?")
-  setText(row.vendor, money(data.vendor))
+  setText(row.vendor, data.vendor and money(data.vendor) or "")
   setBold(row.mats, best == "mats")
   setBold(row.vendor, best == "vendor")
   colour(row.mats, best == "mats" and MATS_C or LOSER_C)
@@ -1374,6 +1421,7 @@ local function paintRow(row, data, state, inner, colW)
   row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4] or 1)
   row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4] or 1)
   row:SetAlpha(state == "done" and DONE_ALPHA or 1)
+  row.hover:SetShown(state ~= "done")
   row:SetSize(inner, h)
   return h
 end
@@ -1387,7 +1435,7 @@ local function columnWidth(rows)
   end
   for _, data in ipairs(rows) do
     measure(data.mats and ("~" .. money(data.mats)) or "?")
-    measure(money(data.vendor))
+    measure(data.vendor and money(data.vendor) or "")
   end
   for _, head in ipairs({ frame.matsHead, frame.vendorHead }) do
     widest = math.max(widest, math.ceil(head:GetStringWidth() or 0))
@@ -1441,14 +1489,18 @@ local function paintOrder(plan, inner, top)
   return headH, cy
 end
 
--- A line of "Left out". Answers its height.
-local function paintLeftRow(row, data, inner)
+-- A line of a "Left out" list. The auction house's (`vendor` false): its price after the cut at the
+-- top right, and a note under the name with what its mats would give and how many sell a day. A
+-- vendor's: the note says what the vendor pays and what the mats would give, and nothing stands at
+-- the top right. Disenchant anyway at the bottom right. Answers its height.
+local function paintLeftRow(row, data, inner, vendor)
   local stack = data.stack
   row.itemID, row.link = stack.itemID, stack.link
   standFor(row, stack)
   HF.Row.PaintIcon(row.slot, stack.itemID, iconOf(stack.itemID), nil, nil)
-  setText(row.price, money(data.ah))
-  local priceW = math.ceil(row.price:GetStringWidth() or 0)
+  setText(row.price, vendor and "" or money(data.ah))
+  row.price:SetShown(not vendor)
+  local priceW = vendor and 0 or math.ceil(row.price:GetStringWidth() or 0)
   local anyway = row.anyway
   anyway.slotKey = data.slotKey
   anyway:SetLabel(GC.L["Disenchant anyway"])
@@ -1460,20 +1512,24 @@ local function paintLeftRow(row, data, inner)
   row.name:SetWidth(nameW)
   setText(row.name, nameOf(stack))
   colour(row.name, qualityColour(stack.quality))
-  -- The note: what its mats would give, and how many sell a day or that it sells slowly, as the
-  -- craft panel says it (UI/CraftPanel.lua's paintRow: never both).
   local notes = {}
-  if data.mats then notes[#notes + 1] = GC.L["Mats: about %s"]:format(money(data.mats)) end
-  local sold = select(2, GC.CraftClient.SellOf(stack.itemID))
-  if type(sold) == "number" then
-    notes[#notes + 1] = GC.CraftMath.IsSlow(sold) and GC.L["Slow seller"]
-      or GC.L["Sells about %s a day"]:format(GC.Util.Grouped(sold))
+  if vendor then
+    notes[1] = GC.L["Vendor %s, mats about %s"]:format(money(data.vendor), money(data.mats))
+  else
+    -- What its mats would give, and how many sell a day or that it sells slowly, as the craft
+    -- panel says it (UI/CraftPanel.lua's paintRow: never both).
+    if data.mats then notes[#notes + 1] = GC.L["Mats: about %s"]:format(money(data.mats)) end
+    local sold = select(2, GC.CraftClient.SellOf(stack.itemID))
+    if type(sold) == "number" then
+      notes[#notes + 1] = GC.CraftMath.IsSlow(sold) and GC.L["Slow seller"]
+        or GC.L["Sells about %s a day"]:format(GC.Util.Grouped(sold))
+    end
   end
   row.note:SetWidth(nameW)
   setText(row.note, table.concat(notes, "\n"))
   row.note:SetShown(#notes > 0)
   local textH = math.ceil(heightOf(row.name, 12)) + (#notes > 0 and (2 + math.ceil(heightOf(row.note, 11))) or 0)
-  local rightH = math.ceil(heightOf(row.price, 12)) + 4 + M.ANYWAY_H
+  local rightH = (vendor and 0 or math.ceil(heightOf(row.price, 12)) + 4) + M.ANYWAY_H
   local h = math.max(M.ROW_MIN_H, textH + 2 * M.ROW_PAD, rightH + 2 * M.ROW_PAD)
   row.slot.edge:ClearAllPoints()
   row.slot.edge:SetPoint("TOPLEFT", row, "TOPLEFT", M.ROW_PAD, -M.ROW_PAD)
@@ -1489,33 +1545,38 @@ local function paintLeftRow(row, data, inner)
   return h
 end
 
--- "Left out: the auction house pays more", when there is any, in its own box in the scroll under
--- the queue's lines (the caller places the box). Answers the box's height, 0 with none.
-local function paintLeft(plan, inner)
-  local any = #plan.left > 0
-  frame.leftTitle:SetShown(any)
-  frame.leftBox:SetShown(any)
+-- A "Left out" list, when it has any line, in its own box in the scroll (the caller places the
+-- box): "Left out: the auction house pays more" (`vendor` false: plan.left in frame.leftBox) or
+-- "Left out: a vendor pays more" (plan.leftVendor in frame.vendorBox). Answers the box's height,
+-- 0 with none.
+local function paintLeft(plan, inner, vendor)
+  local box, title = vendor and frame.vendorBox or frame.leftBox, vendor and frame.vendorTitle or frame.leftTitle
+  local rows, list = vendor and DF._vendorRows or DF._leftRows, (vendor and plan.leftVendor or plan.left) or {}
+  local any = #list > 0
+  title:SetShown(any)
+  box:SetShown(any)
   local index, cy = 1, 0
   if any then
-    frame.leftTitle:SetWidth(inner)
-    setText(frame.leftTitle, GC.Util.Upper(GC.L["Left out: the auction house pays more"]))
-    frame.leftTitle:ClearAllPoints()
-    frame.leftTitle:SetPoint("TOPLEFT", frame.leftBox, "TOPLEFT", 0, 0)
-    cy = cy + math.ceil(heightOf(frame.leftTitle, 11)) + M.HEADING_GAP
-    for _, data in ipairs(plan.left) do
-      local row = DF._leftRows[index] or newLeftRow()
-      DF._leftRows[index] = row
+    title:SetWidth(inner)
+    setText(title, GC.Util.Upper(vendor and GC.L["Left out: a vendor pays more"]
+      or GC.L["Left out: the auction house pays more"]))
+    title:ClearAllPoints()
+    title:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
+    cy = cy + math.ceil(heightOf(title, 11)) + M.HEADING_GAP
+    for _, data in ipairs(list) do
+      local row = rows[index] or newLeftRow(box)
+      rows[index] = row
       local wasUp = row:IsShown()
       row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", frame.leftBox, "TOPLEFT", 0, -cy)
+      row:SetPoint("TOPLEFT", box, "TOPLEFT", 0, -cy)
       row:Show()
-      cy = cy + paintLeftRow(row, data, inner) + M.ROW_GAP
+      cy = cy + paintLeftRow(row, data, inner, vendor) + M.ROW_GAP
       if not wasUp and frame:IsShown() then restamp(row) end
       index = index + 1
     end
     cy = cy - M.ROW_GAP
   end
-  for i = index, #DF._leftRows do DF._leftRows[i]:Hide() end
+  for i = index, #rows do rows[i]:Hide() end
   return cy
 end
 
@@ -1523,7 +1584,7 @@ end
 -- the Hoard's price line under its dot. Answers its height.
 local function paintFooter(w)
   frame.footer:SetWidth(w)
-  setText(frame.footer, GC.L["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Right-click a line to keep an item."])
+  setText(frame.footer, GC.L["Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item."])
   local text, fresh = HF.Footer.PricesNow()
   frame.prices:SetWidth(w - M.DOT - M.DOT_GAP)
   setText(frame.prices, text)
@@ -1575,9 +1636,9 @@ local function roomHeight()
 end
 
 -- The window, top to bottom: the header, the Next card, the yield strip and "In this order"'s
--- heading, fixed; the queue's lines and, under them, "Left out" in the one scroll; the Kept line and
--- the footer at the window's foot, fixed. Never taller than roomHeight while the scroll keeps one
--- line's room: the two lists scroll, the card with its Disenchant button, the strip, the Kept line
+-- heading, fixed; the queue's lines and, under them, the "Left out" lists in the one scroll; the Kept
+-- line and the footer at the window's foot, fixed. Never taller than roomHeight while the scroll
+-- keeps one line's room: the lists scroll, the card with its Disenchant button, the strip, the Kept line
 -- and the footer stay in view (the owner, 2026-10-26; "Left out" in a fixed box of its own ran the
 -- window off a 768-high screen with twenty items left out). Laid out, not shown.
 local function paint()
@@ -1615,13 +1676,19 @@ local function paint()
   end
   local orderH, rowsH = paintOrder(plan, inner, y)
   local top = y + orderH
-  local leftH = paintLeft(plan, inner)
-  local leftY = rowsH > 0 and rowsH + M.SECTION_GAP or 0
-  local listH = leftH > 0 and leftY + leftH or rowsH
-  if leftH > 0 then
-    frame.leftBox:ClearAllPoints()
-    frame.leftBox:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -leftY)
-    frame.leftBox:SetSize(inner, leftH)
+  -- Under the queue's lines, each "Left out" list that has a line: the auction house's, then the
+  -- vendor's.
+  local listH = rowsH
+  for _, vendor in ipairs({ false, true }) do
+    local boxH = paintLeft(plan, inner, vendor)
+    if boxH > 0 then
+      local box = vendor and frame.vendorBox or frame.leftBox
+      local boxY = listH > 0 and listH + M.SECTION_GAP or 0
+      box:ClearAllPoints()
+      box:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -boxY)
+      box:SetSize(inner, boxH)
+      listH = boxY + boxH
+    end
   end
   local footH = paintFooter(head)
   local keptH = paintKept(head, L.PAD + footH + M.FOOT_GAP)
@@ -1703,8 +1770,10 @@ local function openNow()
   for _, row in ipairs(DF._rows) do
     if row:IsShown() then restamp(row) end
   end
-  for _, row in ipairs(DF._leftRows) do
-    if row:IsShown() then restamp(row) end
+  for _, rows in ipairs({ DF._leftRows, DF._vendorRows }) do
+    for _, row in ipairs(rows) do
+      if row:IsShown() then restamp(row) end
+    end
   end
   arm()
   paintEntry(bagFrame())
