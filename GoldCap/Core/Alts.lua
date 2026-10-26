@@ -115,9 +115,12 @@ end
 -- ASCII; Latin-1 Supplement (U+00C0 to U+00DE and U+0020 above, but × and ÷); Latin Extended-A,
 -- whose pairs are an upper case even and its lower case odd, but from U+0139 to U+0148 and U+0179
 -- to U+017E the other way round (ı, İ, ĸ, ŉ, ſ have no pair there); and Cyrillic (U+0410 to U+042F
--- and U+0020 above, U+0400 to U+040F and U+0050 above). Lua's own upper and lower stop at ASCII,
--- and the client has no UTF-8 case of its own (strcmputf8i compares, nothing upper-cases).
-local EVEN_UPPER = { { 0x0100, 0x012F }, { 0x0132, 0x0137 }, { 0x014A, 0x0177 } }
+-- and U+0020 above, U+0400 to U+040F and U+0050 above, and the pairs from U+0490, Ukrainian Ґ, to
+-- U+04BF, upper even). Lua's own upper and lower stop at ASCII. The client documents C_Intl.ToLower
+-- and ToUpper in both games, locale-dependent and allowed to return nothing, and nothing measured
+-- them; a name compared on one character and typed on another must fold the same way, so this
+-- table is the one rule.
+local EVEN_UPPER = { { 0x0100, 0x012F }, { 0x0132, 0x0137 }, { 0x014A, 0x0177 }, { 0x0490, 0x04BF } }
 local ODD_UPPER = { { 0x0139, 0x0148 }, { 0x0179, 0x017E } }
 
 local function within(code, ranges)

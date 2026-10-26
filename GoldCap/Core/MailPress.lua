@@ -18,7 +18,8 @@ local _, GC = ...
 --   send(to, subject) -> false?,   -- SetSendMailCOD(0), SetSendMailMoney(0), SendMail(to, subject, "");
 --                                  -- false when no gold could be made sure of, and nothing was sent
 --   after(seconds, fn)             -- a timer
---   progress({ index, total, mail }),  -- right before each mail that gets attached
+--   progress({ index, total, mail }),  -- right before each mail that gets attached; total leaves
+--                                  -- out mails skipped as empty and a refused recipient's later ones
 --   report({ sent, mails, stopped, why, failed }),  -- once per run; stopped is nil for a finished
 --                                  -- run, why the stack that would not attach ("refused"), failed
 --                                  -- the recipients (mail.to) whose mail the server refused, in order
@@ -108,9 +109,10 @@ attempt = function(self)
     local mail = run.mails[run.idx]
     run.idx = run.idx + 1
     local stacks = present(d, mail)
+    if #stacks == 0 then run.dropped = run.dropped + 1 end
     if #stacks > 0 then
       run.shown = run.shown + 1
-      d.progress({ index = run.shown, total = #run.mails, mail = mail })
+      d.progress({ index = run.shown, total = #run.mails - run.dropped, mail = mail })
       run.loaded, run.issued, run.mail = true, false, mail
       for _, stack in ipairs(stacks) do
         if not d.attach(stack) then return stop(self, "refused", stack) end
@@ -138,8 +140,8 @@ function Machine:Press(mails)
   if self.run then return stop(self, "pressed") end
   if not mails or #mails == 0 then return end
   self.token = self.token + 1
-  self.run = { mails = mails, idx = 1, sent = 0, shown = 0, mailId = 0, loaded = false, issued = false,
-    failed = {}, failedTo = {} }
+  self.run = { mails = mails, idx = 1, sent = 0, shown = 0, dropped = 0, mailId = 0, loaded = false,
+    issued = false, failed = {}, failedTo = {} }
   attempt(self)
 end
 
@@ -160,6 +162,10 @@ function Machine:OnSendResult(ok)
     if not run.failed[to] then
       run.failed[to] = true
       run.failedTo[#run.failedTo + 1] = to
+      -- Its later mails will not go: they leave "Mail N of M" now.
+      for i = run.idx, #run.mails do
+        if run.mails[i].to == to then run.dropped = run.dropped + 1 end
+      end
     end
   end
   skipFailed(run)

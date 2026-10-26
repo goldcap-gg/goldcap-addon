@@ -1033,7 +1033,8 @@ local function paintCast(card, run, names, x, y, width)
   cast.track:ClearAllPoints()
   cast.track:SetPoint("TOPLEFT", card, "TOPLEFT", x, -barY)
   cast.track:SetSize(width, M.FILL_H)
-  local fillW = #run.mails > 0 and math.floor(width * done / #run.mails + 0.5) or 0
+  local total = run.total or #run.mails
+  local fillW = total > 0 and math.floor(width * math.min(done, total) / total + 0.5) or 0
   cast.fill:ClearAllPoints()
   cast.fill:SetPoint("TOPLEFT", card, "TOPLEFT", x, -barY)
   cast.fill:SetSize(math.max(fillW, 1), M.FILL_H)
@@ -1499,10 +1500,12 @@ local function showHandle()
 end
 
 --- Paints the window, or its handle while the player has it closed, or hides both with the mailbox
---- closed (mailboxOpen: the client is asked too). With `again`, or with nothing read yet in this
---- visit, it reads the bags first (readBags); else it paints from what it last read.
-function MA.Refresh(again)
-  if not mailboxOpen() then return hideAll() end
+--- closed (mailboxOpen: the client is asked too, except with `atShow`, MAIL_SHOW's own paint). With
+--- `again`, or with nothing read yet in this visit, it reads the bags first (readBags); else it
+--- paints from what it last read.
+function MA.Refresh(again, atShow)
+  -- At MAIL_SHOW the mailbox is opening: the client's interaction state is not asked then.
+  if not (atShow and MA._open) and not mailboxOpen() then return hideAll() end
   if closedNow() then return showHandle() end
   if again or not MA._reading then MA._reading = readBags() end
   if not frame then build() end
@@ -1589,7 +1592,7 @@ function MA.OnEvent(event)
     MA._open = true
     hookLetter()
     hookMailFrame()
-    MA.Refresh(true)
+    MA.Refresh(true, true)
   elseif event == "MAIL_CLOSED" then
     endVisit()
   elseif event == "MAIL_SEND_SUCCESS" then

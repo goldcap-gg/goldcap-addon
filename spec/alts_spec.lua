@@ -147,6 +147,8 @@ describe("alts", function()
       -- Cyrillic: U+0410 to U+042F and U+0400 to U+040F.
       { "А", "а" }, { "Я", "я" }, { "П", "п" }, { "Р", "р" }, { "Ё", "ё" }, { "Ѐ", "ѐ" }, { "Є", "є" }, { "І", "і" },
       { "Ї", "ї" }, { "Џ", "џ" },
+      -- Cyrillic Extended pairs, upper even: Ukrainian Ґ, and the rest from U+0490 to U+04BF.
+      { "Ґ", "ґ" }, { "Ғ", "ғ" }, { "Ү", "ү" }, { "Ҿ", "ҿ" },
     }
 
     it("folds each letter's two cases into one another", function()

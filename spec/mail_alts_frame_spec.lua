@@ -330,6 +330,15 @@ describe("Send to alts window", function()
     assert.is_true(closedFor[keep])
   end)
 
+  -- MAIL_SHOW is the mailbox opening: the window does not wait for the client's interaction state
+  -- to agree (unmeasured at that moment); later paints ask it.
+  it("shows at MAIL_SHOW even while the client does not yet say a mailbox is open", function()
+    _G.Enum.PlayerInteractionType = { MailInfo = 17 }
+    _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return false end }
+    event("MAIL_SHOW")
+    assert.is_true(windowUp())
+  end)
+
   it("paints nothing on a bag change once the client says the mailbox is gone", function()
     _G.Enum.PlayerInteractionType = { MailInfo = 17 }
     local open = true

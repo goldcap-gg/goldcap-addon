@@ -178,6 +178,18 @@ describe("MailPress", function()
     assert.are.same({ "Alt1-Realm" }, reports[1].failed)
   end)
 
+  -- "Mail N of M" counts only mails that can still go: a refused recipient's later ones leave it.
+  it("counts a refused recipient's later mails out of the total", function()
+    local m = mails(3)
+    m[2].to = m[1].to
+    machine:Press(m)
+    assert.are.equal(3, progresses[1].total)
+    machine:OnSendResult(false)
+    fire() -- the SEND_WAIT timer of mail 1, now stale
+    fire() -- STEP
+    assert.are.same({ index = 2, total = 2 }, { index = progresses[2].index, total = progresses[2].total })
+  end)
+
   it("finishes at once when every mail left is to a recipient that failed", function()
     local m = mails(2)
     m[2].to = m[1].to
