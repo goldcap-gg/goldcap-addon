@@ -9,14 +9,14 @@ local S = require("spec.support.secure_button")
 -- re-reads are C_Container's, and the secure parts are spec/support/secure_button.lua's.
 describe("Disenchant window", function()
   local GC, DF, restore, saved, timers, stacks, slots, reads, prices, groups, loot, printed, menu, knows, clock, bags
-  local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested
+  local sales, fighting, binds, shift, compared, cleared, tips, slotButtons, uncached, requested, blocked
   local KEYS = { "UIParent", "C_SpellBook", "C_Spell", "C_Container", "C_Item", "C_Timer", "GetTime", "time",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "ERR_CANT_BE_DISENCHANTED", "SPELL_FAILED_CANT_BE_DISENCHANTED",
     "SPELL_FAILED_CANT_BE_DISENCHANTED_SKILL", "MenuUtil", "GameTooltip", "ITEM_QUALITY_COLORS", "SETTINGS_KEYBINDINGS_LABEL",
     "CreateColor", "hooksecurefunc", "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
     "ContainerFrame4", "ContainerFrame5", "ContainerFrame6", "NUM_CONTAINER_FRAMES", "INVTYPE_WAIST", "INVTYPE_CHEST",
     "BINDING_NAME_CLICK GoldCapDisenchantNext:LeftButton", "issecretvalue", "UnitAffectingCombat", "Enum", "IsModifiedClick",
-    "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "GoldCapDisenchantTooltip" }
+    "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "GoldCapDisenchantTooltip", "C_TooltipComparison" }
   local NOW = 1800000000
   local DUST, SHARD, ESSENCE = 9001, 9002, 9003
 
@@ -153,7 +153,7 @@ describe("Disenchant window", function()
     knows, clock, fighting = true, 1000, false
     -- What C_Item.GetItemInfo's 14th answer (bindType, Enum.ItemBind) says of an item; 0 (None) else.
     binds = { [ESSENCE] = 1 }
-    shift, compared, cleared, tips = false, {}, {}, {}
+    shift, compared, cleared, tips, blocked = false, {}, {}, {}, {}
     _G.time = function() return NOW end
     _G.GetTime = function() return clock end
     _G.UIParent = CreateFrame("Frame")
@@ -208,9 +208,16 @@ describe("Disenchant window", function()
     _G.Enum = { ItemBind = { None = 0, OnAcquire = 1, OnEquip = 2, OnUse = 3, Quest = 4, ToWoWAccount = 7,
       ToBnetAccount = 8, ToBnetAccountUntilEquipped = 9 } }
     -- The compare modifier (Shift unless the player bound it elsewhere), and Blizzard's comparison:
-    -- GameTooltip_ShowCompareItem shows the equipped item beside a tooltip, the manager clears it.
+    -- GameTooltip_ShowCompareItem (GameTooltip.lua:483-490) calls C_TooltipComparison.CompareItem,
+    -- a protected function in live and Forever (TooltipComparisonDocumentation.lua:11-14). Called
+    -- from addon code the client blocks it (ADDON_ACTION_BLOCKED) and compares nothing; here every
+    -- caller is addon code, so every call is blocked.
     _G.IsModifiedClick = function(action) return action == "COMPAREITEMS" and shift end
-    _G.GameTooltip_ShowCompareItem = function(tooltip) compared[#compared + 1] = tooltip end
+    _G.C_TooltipComparison = { CompareItem = function() blocked[#blocked + 1] = "C_TooltipComparison.CompareItem" end }
+    _G.GameTooltip_ShowCompareItem = function(tooltip)
+      compared[#compared + 1] = tooltip
+      _G.C_TooltipComparison.CompareItem()
+    end
     _G.TooltipComparisonManager = { Clear = function(_, tooltip) cleared[#cleared + 1] = tooltip end }
     -- The player in combat: from PLAYER_REGEN_DISABLED (a spec sets `fighting`) and through the lockdown.
     _G.UnitAffectingCombat = function(unit) return unit == "player" and (fighting or S.combat) end
@@ -232,14 +239,21 @@ describe("Disenchant window", function()
       menu.owner = owner
       generator(owner, menu)
     end }
+    -- Blizzard's GameTooltip: the methods a window calls on it, each recorded. It carries
+    -- supportsItemComparison, so Blizzard compares an item shown through its accessors itself.
     _G.GameTooltip = {
       lines = {},
-      SetOwner = function(self, owner) self.owner, self.lines = owner, {} end,
-      ClearAllPoints = function() end,
-      SetPoint = function() end,
+      SetOwner = function(self, owner, anchor)
+        self.owner, self.anchor, self.lines, self.bag, self.slot, self.link = owner, anchor, {}, nil, nil, nil
+      end,
+      ClearAllPoints = function(self) self.point = nil end,
+      SetPoint = function(self, ...) self.point = { ... } end,
       AddLine = function(self, text) self.lines[#self.lines + 1] = text end,
-      Show = function() end,
-      Hide = function(self) self.owner = nil end,
+      SetBagItem = function(self, bag, slot) self.bag, self.slot = bag, slot end,
+      SetHyperlink = function(self, link) self.link = link end,
+      Show = function(self) self.shown = true end,
+      Hide = function(self) self.owner, self.shown = nil, false end,
+      IsShown = function(self) return self.shown == true end,
       IsOwned = function(self, owner) return self.owner == owner end,
     }
     GC = helper.loadModule("Core/Util.lua")
@@ -1447,24 +1461,58 @@ describe("Disenchant window", function()
     assert.equal("listed", DF.Standing(row, 502).state)
   end)
 
-  it("compares with the equipped item only while Shift is held", function()
+  it("hands the item to Blizzard's GameTooltip while Shift is held, so Blizzard compares it, and calls no comparison itself", function()
     put(gear(0, 1, 501))
     slash()
     local row = rowOf(501)
+    local game = _G.GameTooltip
     W.state(row).scripts.OnEnter(row)
     local tip = ourTip()
-    assert.same({}, compared)
+    assert.is_true(tip:IsShown())
+    assert.is_false(game:IsOwned(row))
     shift = true
     event("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
-    assert.same({ tip }, compared)
+    assert.is_false(tip:IsShown())
+    assert.is_true(game:IsOwned(row))
+    assert.is_true(game:IsShown())
+    assert.equal("ANCHOR_NONE", game.anchor)
+    assert.equal(0, game.bag)
+    assert.equal(1, game.slot)
+    assert.equal(DF._frame, game.point[2])
     shift = false
     event("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
-    assert.equal(tip, cleared[#cleared])
-    -- Hovered with Shift already held: compared at once.
+    assert.is_false(game:IsOwned(row))
+    assert.is_true(tip:IsShown())
+    -- Hovered with Shift already held: Blizzard's tooltip at once; leaving hides it.
     W.state(row).scripts.OnLeave(row)
     shift = true
     W.state(row).scripts.OnEnter(row)
-    assert.equal(2, #compared)
+    assert.is_true(game:IsOwned(row))
+    assert.is_false(tip:IsShown())
+    W.state(row).scripts.OnLeave(row)
+    assert.is_false(game:IsOwned(row))
+    -- The card's item too.
+    local hit = DF._frame.card.hit
+    W.state(hit).scripts.OnEnter(hit)
+    assert.is_true(game:IsOwned(hit))
+    assert.same({}, blocked)
+    assert.same({}, compared)
+    assert.same({}, cleared)
+  end)
+
+  -- GameTooltip_ShowCompareItem reaches C_TooltipComparison.CompareItem, protected in live and
+  -- Forever; TooltipComparisonManager is Blizzard's to drive. No GoldCap path calls either.
+  it("names no comparison function of Blizzard's anywhere in GoldCap", function()
+    local listing = assert(io.popen("find GoldCap -name '*.lua'"))
+    for path in listing:lines() do
+      local f = assert(io.open(path, "r"))
+      local text = f:read("*a"):gsub("%-%-[^\n]*", "")
+      f:close()
+      for _, name in ipairs({ "GameTooltip_ShowCompareItem", "TooltipComparisonManager", "C_TooltipComparison" }) do
+        assert.is_nil(text:find(name, 1, true), path .. " names " .. name)
+      end
+    end
+    listing:close()
   end)
 
   it("shows the Next item's tooltip over the card's icon and name, and leaves the Disenchant button alone", function()

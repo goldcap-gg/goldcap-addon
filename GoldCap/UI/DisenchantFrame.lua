@@ -677,17 +677,13 @@ local function onRowClick(row, mouseButton)
   if mouseButton == "RightButton" and row.itemID and not row.done then openKeepMenu(row, row.itemID) end
 end
 
--- A line's item, beside the window.
 -- The window's own item tooltip (GameTooltipTemplate), made on the first hover. Blizzard's
 -- GameTooltip compares an item with the equipped one whenever the alwaysCompareItems CVar is on
 -- (TooltipUtil.ShouldDoItemComparison, live Blizzard_SharedXMLGame/Tooltip/TooltipUtil.lua:4-7,
 -- for a tooltip carrying supportsItemComparison, TooltipDataRules.lua:168-174, which only
 -- GameTooltip does: GameTooltip.xml:249-252), and the comparison landed over the window's list (the
--- owner, 2026-10-26). This one does not carry it, so it compares only when this file asks: while
--- the compare modifier is held (IsModifiedClick("COMPAREITEMS"), Shift unless the player bound it
--- elsewhere), through GameTooltip_ShowCompareItem (GameTooltip.lua:483-490) and
--- TooltipComparisonManager:Clear. Neither Blizzard's tooltip nor the player's CVar is touched. It
--- carries GoldCap's own lines (UI/Tooltip.lua's carriers).
+-- owner, 2026-10-26). This one does not carry it, so it never compares. It carries GoldCap's own
+-- lines (UI/Tooltip.lua's carriers).
 local function itemTip()
   if DF._tip then return DF._tip end
   local tip = CreateFrame("GameTooltip", "GoldCapDisenchantTooltip", UIParent, "GameTooltipTemplate")
@@ -696,17 +692,9 @@ local function itemTip()
   return tip
 end
 
--- The compare modifier is held: the equipped item beside the tooltip, else none.
-local function compareTip()
-  local tip = DF._tip
-  if not (tip and DF._tipOwner) then return end
-  local held = type(_G.IsModifiedClick) == "function" and _G.IsModifiedClick("COMPAREITEMS") == true
-  if held then
-    if type(_G.GameTooltip_ShowCompareItem) == "function" then pcall(_G.GameTooltip_ShowCompareItem, tip) end
-  else
-    local manager = _G.TooltipComparisonManager
-    if type(manager) == "table" and type(manager.Clear) == "function" then pcall(manager.Clear, manager, tip) end
-  end
+-- Whether the compare modifier is held (Shift unless the player bound it elsewhere).
+local function comparing()
+  return type(_G.IsModifiedClick) == "function" and _G.IsModifiedClick("COMPAREITEMS") == true
 end
 
 -- The side of the window away from Blizzard's bags, so the tooltip never covers the list it
@@ -723,14 +711,11 @@ local function tipSide()
   return "right"
 end
 
---- The item `owner` stands for, in the window's own tooltip beside the window, level with `owner`:
---- the bag item itself while its slot still holds it (C_Container's hyperlink matches), so the game
---- and GoldCap draw it as over the bag slot, else its link (an item disenchanted this visit). The
---- equipped item beside it only while the compare modifier is held.
-local function showItemTip(owner)
-  local stack = owner and owner.stack
-  if not (stack and frame) then return end
-  local tip = itemTip()
+-- `owner`'s item in `tip`, beside the window and level with `owner`: the bag item itself while its
+-- slot still holds it (C_Container's hyperlink matches), so the game and GoldCap draw it as over the
+-- bag slot, else its link (an item disenchanted this visit).
+local function fillTip(tip, owner)
+  local stack = owner.stack
   tip:SetOwner(owner, "ANCHOR_NONE")
   tip:ClearAllPoints()
   local y = 0
@@ -749,17 +734,44 @@ local function showItemTip(owner)
     tip:SetHyperlink(stack.link)
   end
   tip:Show()
+end
+
+--- The item `owner` stands for, beside the window: in the window's own tooltip, or, while the
+--- compare modifier is held, in Blizzard's GameTooltip, through its own accessors, so Blizzard
+--- compares it with the equipped item in its own path. GoldCap never calls the comparison itself:
+--- GameTooltip_ShowCompareItem (GameTooltip.lua:483-490) reaches C_TooltipComparison.CompareItem,
+--- protected in live and Forever (TooltipComparisonDocumentation.lua:11-14), and called on this
+--- window's tooltip it raised "TooltipComparisonManager.lua:26: bad argument #1 to 'ipairs'" (the
+--- owner, 2026-10-26: the tooltip has no shoppingTooltips). No field of GameTooltip's and no CVar
+--- is written.
+local function showItemTip(owner)
+  if not (owner and owner.stack and frame) then return end
   DF._tipOwner = owner
-  compareTip()
+  local game = _G.GameTooltip
+  if comparing() and type(game) == "table" and game.SetBagItem then
+    if DF._tip then DF._tip:Hide() end
+    fillTip(game, owner)
+  else
+    if type(game) == "table" and game.IsOwned and game:IsOwned(owner) then game:Hide() end
+    fillTip(itemTip(), owner)
+  end
 end
 
 local function hideItemTip()
-  local tip = DF._tip
-  if not tip then return end
-  local manager = _G.TooltipComparisonManager
-  if type(manager) == "table" and type(manager.Clear) == "function" then pcall(manager.Clear, manager, tip) end
+  local owner = DF._tipOwner
   DF._tipOwner = nil
-  tip:Hide()
+  if DF._tip then DF._tip:Hide() end
+  local game = _G.GameTooltip
+  if owner and type(game) == "table" and game.IsOwned and game:IsOwned(owner) then game:Hide() end
+end
+
+-- The compare modifier went down or up over a line or the card: the item moves to the tooltip
+-- that now fits. Nothing while no item of the window is hovered, or its line is gone.
+local function onModifier()
+  local owner = DF._tipOwner
+  if not owner then return end
+  if owner.IsVisible and not owner:IsVisible() then return hideItemTip() end
+  showItemTip(owner)
 end
 
 -- A line, or the card's item, as the bag slot it stands for (Blizzard's item buttons answer
@@ -1952,8 +1964,7 @@ function DF.OnEvent(event, ...)
       schedule()
     end
   elseif event == "MODIFIER_STATE_CHANGED" then
-    local tip = DF._tip
-    if tip and tip:IsShown() then compareTip() end
+    onModifier()
   elseif event == "LOOT_READY" then
     onLootReady()
   elseif event == "UI_ERROR_MESSAGE" then
