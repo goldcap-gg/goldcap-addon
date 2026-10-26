@@ -1684,10 +1684,12 @@ GC.Locales.esMX = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Si el nombre no es de uno de tus personajes, se pregunta una vez, antes de enviar el primer correo.",
   ["Type a character name"] = "Escribe un nombre de personaje",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "El correo solo llega a personajes de este reino o de uno conectado.",
   ["The mail did not go: what was attached is back in your bags."] =
     "El correo no salió: lo adjunto volvió a tus bolsas.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "El buzón no respondió: lo adjunto volvió a tus bolsas.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "El buzón no respondió. Revisa tus bolsas y la pestaña Enviar correo.",
   ["Stopped: something is on your cursor."] = "Detenido: tienes algo en el cursor.",
   ["Stopped: the Send Mail tab already holds items."] = "Detenido: la pestaña Enviar correo ya tiene objetos.",
   ["Stopped: %s would not go into the mail."] = "Detenido: %s no entró en el correo.",

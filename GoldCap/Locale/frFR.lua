@@ -1681,10 +1681,12 @@ GC.Locales.frFR = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Pour un nom qui n'est pas l'un de tes personnages, GoldCap demande une fois, avant le premier courrier.",
   ["Type a character name"] = "Saisis un nom de personnage",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "Le courrier ne va qu'à un personnage de ce royaume ou d'un royaume connecté.",
   ["The mail did not go: what was attached is back in your bags."] =
     "Le courrier n'est pas parti : les pièces jointes sont revenues dans tes sacs.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "La boîte aux lettres n'a pas répondu : les pièces jointes sont revenues dans tes sacs.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "La boîte aux lettres n'a pas répondu. Vérifie tes sacs et l'onglet Envoyer un message.",
   ["Stopped: something is on your cursor."] = "Arrêté : tu as quelque chose sur le curseur.",
   ["Stopped: the Send Mail tab already holds items."] =
     "Arrêté : l'onglet Envoyer un message contient déjà des objets.",

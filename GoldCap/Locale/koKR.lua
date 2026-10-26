@@ -1610,8 +1610,9 @@ GC.Locales.koKR = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "내 캐릭터가 아닌 이름은 첫 우편을 보내기 전에 한 번 확인합니다.",
   ["Type a character name"] = "캐릭터 이름을 입력하세요",
+  ["Mail goes only to a character on this realm or a connected one."] = "우편은 이 서버나 연결된 서버의 캐릭터에게만 보낼 수 있습니다.",
   ["The mail did not go: what was attached is back in your bags."] = "우편이 발송되지 않았습니다. 첨부한 아이템은 가방으로 돌아왔습니다.",
-  ["The mailbox did not answer: what was attached is back in your bags."] = "우편함이 응답하지 않았습니다. 첨부한 아이템은 가방으로 돌아왔습니다.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "우편함이 응답하지 않았습니다. 가방과 우편 보내기 탭을 확인하세요.",
   ["Stopped: something is on your cursor."] = "중지됨: 커서에 무언가 들려 있습니다.",
   ["Stopped: the Send Mail tab already holds items."] = "중지됨: 우편 보내기 탭에 이미 아이템이 있습니다.",
   ["Stopped: %s would not go into the mail."] = "중지됨: %s을(를) 우편에 넣을 수 없었습니다.",

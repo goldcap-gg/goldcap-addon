@@ -30,7 +30,7 @@ function Post.new(opts)
   opts = opts or {}
   local post = {}
   local state = { bags = opts.bags or {}, sizes = opts.sizes or {}, cursor = nil, attachments = {}, log = {},
-    refused = {}, pending = nil, realms = opts.realms or {} }
+    refused = {}, ignored = {}, pending = nil, realms = opts.realms or {} }
   post.bags = state.bags
 
   local function log(name, ...)
@@ -73,7 +73,7 @@ function Post.new(opts)
       return
     end
     local info = state.bags[bag] and state.bags[bag][slot]
-    if not info or info.isLocked then return end
+    if not info or info.isLocked or state.ignored[bag .. ":" .. slot] then return end
     info.isLocked = true
     state.cursor = { bag = bag, slot = slot, itemID = info.itemID, link = info.hyperlink }
   end
@@ -180,6 +180,11 @@ function Post.new(opts)
   -- The Send Mail tab will not take the stack in `bag`, `slot`: it stays on the cursor.
   function post:refuse(bag, slot)
     state.refused[bag .. ":" .. slot] = true
+  end
+
+  -- The client drops a pickup of the stack in `bag`, `slot` without a word: the cursor stays empty.
+  function post:ignore(bag, slot)
+    state.ignored[bag .. ":" .. slot] = true
   end
 
   -- Every call a name was logged under, in order, each { name, n, args ... }; or all of them.

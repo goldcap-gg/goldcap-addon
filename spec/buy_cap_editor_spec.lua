@@ -186,6 +186,26 @@ describe("BuyCapEditor", function()
       assert.is_false(f:IsShown())
     end)
 
+    -- The Send to alts window's typed name: read answers nil and why, and the popup says that why;
+    -- nil alone keeps the popup's own invalid text.
+    it("stays open on the reason read gives for refusing a name", function()
+      local named = "untouched"
+      GC.BuyCapEditor.Open(region("Frame"), { text = "", invalid = "Type a name",
+        read = function(text)
+          if text == "Far" then return nil, "Not from here" end
+          if text == "" then return nil end
+          return text
+        end,
+        onCommit = function(text) named = text end })
+      local f = GC.BuyCapEditor._frame
+      f.box:SetText("Far"); f.box.scripts.OnEnterPressed(f.box)
+      assert.equal("Not from here", f.preview:GetText())
+      assert.is_true(f:IsShown())
+      f.box:SetText(""); f.box.scripts.OnEnterPressed(f.box)
+      assert.equal("Type a name", f.preview:GetText())
+      assert.equal("untouched", named)
+    end)
+
     it("keeps the name as it was on Escape", function()
       local named = "untouched"
       GC.BuyCapEditor.Open(region("Frame"), { text = "List 2", onCommit = function(text) named = text end })

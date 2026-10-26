@@ -1747,9 +1747,11 @@ GC.Locales.ruRU = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Если имя не принадлежит вашему персонажу, GoldCap один раз переспросит перед первым письмом.",
   ["Type a character name"] = "Введите имя персонажа",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "Письмо можно отправить только персонажу этого реалма или связанного с ним.",
   ["The mail did not go: what was attached is back in your bags."] = "Письмо не ушло: вложения вернулись в сумки.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "Почтовый ящик не ответил: вложения вернулись в сумки.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "Почтовый ящик не ответил. Проверьте сумки и вкладку «Отправить письмо».",
   ["Stopped: something is on your cursor."] = "Остановлено: на курсоре что-то есть.",
   ["Stopped: the Send Mail tab already holds items."] = "Остановлено: во вкладке «Отправить письмо» уже есть предметы.",
   ["Stopped: %s would not go into the mail."] = "Остановлено: %s не удалось вложить в письмо.",

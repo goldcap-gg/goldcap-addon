@@ -1665,10 +1665,12 @@ GC.Locales.enUS = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "A name that is not one of your characters is asked about once, before the first mail goes.",
   ["Type a character name"] = "Type a character name",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "Mail goes only to a character on this realm or a connected one.",
   ["The mail did not go: what was attached is back in your bags."] =
     "The mail did not go: what was attached is back in your bags.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "The mailbox did not answer: what was attached is back in your bags.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "The mailbox did not answer. Check your bags and the Send Mail tab.",
   ["Stopped: something is on your cursor."] = "Stopped: something is on your cursor.",
   ["Stopped: the Send Mail tab already holds items."] = "Stopped: the Send Mail tab already holds items.",
   ["Stopped: %s would not go into the mail."] = "Stopped: %s would not go into the mail.",

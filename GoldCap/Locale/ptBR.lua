@@ -1675,10 +1675,12 @@ GC.Locales.ptBR = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Um nome que não é de um dos seus personagens é confirmado uma vez, antes do primeiro correio.",
   ["Type a character name"] = "Digite um nome de personagem",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "O correio só vai para personagens deste reino ou de um reino conectado.",
   ["The mail did not go: what was attached is back in your bags."] =
     "O correio não saiu: o que estava anexado voltou para as bolsas.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "A caixa de correio não respondeu: o que estava anexado voltou para as bolsas.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "A caixa de correio não respondeu. Confira as bolsas e a aba Enviar Correio.",
   ["Stopped: something is on your cursor."] = "Parado: há algo no cursor.",
   ["Stopped: the Send Mail tab already holds items."] = "Parado: a aba Enviar Correio já tem itens.",
   ["Stopped: %s would not go into the mail."] = "Parado: %s não entrou no correio.",

@@ -1748,9 +1748,11 @@ GC.Locales.ukUA = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Якщо ім'я не належить вашому персонажу, GoldCap один раз перепитає перед першим листом.",
   ["Type a character name"] = "Введіть ім'я персонажа",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "Лист можна надіслати лише персонажу цього реалму або пов'язаного з ним.",
   ["The mail did not go: what was attached is back in your bags."] = "Лист не пішов: вкладення повернулися в сумки.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "Поштова скринька не відповіла: вкладення повернулися в сумки.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "Поштова скринька не відповіла. Перевірте сумки та вкладку «Надіслати лист».",
   ["Stopped: something is on your cursor."] = "Зупинено: на курсорі щось є.",
   ["Stopped: the Send Mail tab already holds items."] = "Зупинено: у вкладці «Надіслати лист» уже є предмети.",
   ["Stopped: %s would not go into the mail."] = "Зупинено: %s не вдалося вкласти в лист.",

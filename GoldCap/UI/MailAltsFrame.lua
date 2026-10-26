@@ -27,7 +27,8 @@ local _, GC = ...
 --
 -- A name typed by hand that is not one of the player's characters is asked about once: the first
 -- press that would mail it arms its button ("Send to <name>? Press again") for ARM_SECONDS, as the
--- Sniper's loud confirm does (UI/SniperFrame.lua's armLoudConfirm), and the second press trusts it
+-- Sniper's loud confirm does (UI/SniperFrame.lua's armLoudConfirm): disabled for its first
+-- ARM_HOLD, so a double click's second click cannot confirm it, then the second press trusts it
 -- (GC.MailGroups.Trust) and sends.
 --
 -- While a run goes the window shows the plan it was pressed with, so nothing on it moves while the
@@ -49,6 +50,10 @@ local setText, colour, wrapping, heightOf, track, restamp = U.setText, U.colour,
 MA.VERSION = 1
 -- How long a press that asks about a typed name waits for the second one.
 MA.ARM_SECONDS = 5
+-- How long, from that first press, its button refuses the second: long enough that a click already
+-- on its way (a double click's second) lands on a disabled button (UI/SniperFrame.lua's
+-- LIM.REQUOTE_ARM_SECONDS).
+MA.ARM_HOLD = 1.5
 
 -- In UI units; the approved boards are drawn at twice that. The window is the Hoard's width (L.WIDTH)
 -- with its margins (L.PAD) and the scroll's gutter (L.GUTTER). CARD_PAD: the top card's margin;
@@ -349,7 +354,7 @@ local function stopText(result)
   local reason = result.stopped
   if reason == nil or reason == "closed" then return nil end
   if reason == "failed" then return GC.L["The mail did not go: what was attached is back in your bags."] end
-  if reason == "timeout" then return GC.L["The mailbox did not answer: what was attached is back in your bags."] end
+  if reason == "timeout" then return GC.L["The mailbox did not answer. Check your bags and the Send Mail tab."] end
   if reason == "cursor" then return GC.L["Stopped: something is on your cursor."] end
   if reason == "busy" then return GC.L["Stopped: the Send Mail tab already holds items."] end
   if reason == "refused" and type(result.why) == "table" then
@@ -392,15 +397,21 @@ local function attachedCount()
 end
 
 -- One stack into the Send Mail tab: picked up, then dropped into its first free slot, as Blizzard's
--- own drop on the tab does (Blizzard_MailFrame's SendMailAttachmentButton_OnDropAny). False, with the
--- cursor emptied again, when the stack is still on the cursor: the tab would not take it.
+-- own drop on the tab does (Blizzard_MailFrame's SendMailAttachmentButton_OnDropAny). True only when
+-- the cursor is empty again and the tab holds one more item than before: a stack still on the
+-- cursor (the tab would not take it; the cursor is emptied again) and a pickup the client dropped
+-- without a word (nothing on the cursor, nothing new in the tab) are both not attached, so the
+-- machine stops and a mail with nothing in it never goes.
 local function attach(stack)
+  local before = attachedCount()
   pcall(C_Container.PickupContainerItem, stack.bag, stack.slot)
   pcall(ClickSendMailItemButton)
   local ok, kind = pcall(GetCursorInfo)
-  if ok and kind == nil then return true end
-  pcall(ClearCursor)
-  return false
+  if not (ok and kind == nil) then
+    pcall(ClearCursor)
+    return false
+  end
+  return attachedCount() == before + 1
 end
 
 -- Every attachment back to the bags, the last slot first, as a right click on it does.
@@ -490,11 +501,18 @@ local function untrusted(mails)
   return nil
 end
 
--- Arms the button `id` for `full` until ARM_SECONDS pass or another arm takes over.
+-- Arms the button `id` for `full` until ARM_SECONDS pass or another arm takes over; `held` (the
+-- button disabled) for its first ARM_HOLD.
 local function arm(id, full, to)
   armSeq = armSeq + 1
   local token = armSeq
-  MA._armed = { id = id, full = full, to = to, token = token }
+  MA._armed = { id = id, full = full, to = to, token = token, held = true }
+  C_Timer.After(MA.ARM_HOLD, function()
+    if MA._armed and MA._armed.token == token then
+      MA._armed.held = nil
+      paint()
+    end
+  end)
   C_Timer.After(MA.ARM_SECONDS, function()
     if MA._armed and MA._armed.token == token then
       MA._armed = nil
@@ -515,7 +533,8 @@ end
 -- The one way the window sends: a press of the button `id` ("all", or "row:<group key>") over
 -- `mails`, inside the player's click, which attaches and sends the first mail before it returns. A
 -- press while a run goes is that run's Stop. A press that would mail a name not yet trusted arms
--- instead; the second press within ARM_SECONDS trusts it.
+-- instead; a second press inside ARM_HOLD does nothing (its button is disabled then, so in the
+-- client it never arrives), and one after it, within ARM_SECONDS, trusts the name.
 local function pressMails(id, mails)
   local machine = MA._Machine()
   if machine:IsRunning() then
@@ -530,6 +549,7 @@ local function pressMails(id, mails)
       arm(id, full, to)
       return paint()
     end
+    if armed.held then return end
     if not GC.MailGroups.Trust(GC.db, full) then MA._trustedHere[full] = true end
     full, to = untrusted(mails)
     if full then
@@ -576,7 +596,9 @@ local function setRecipient(key, full)
   MA.Refresh(true)
 end
 
--- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character.
+-- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character. A realm
+-- this character cannot mail (Core/Alts.lua's MailName) is refused there, saying so, rather than
+-- saved and then ringed on its card as if no one were chosen.
 local function askName(chip, row)
   if not GC.BuyCapEditor then return end
   GC.BuyCapEditor.Open(chip, {
@@ -585,7 +607,12 @@ local function askName(chip, row)
     text = "",
     read = function(text)
       local me = meNow()
-      return me and GC.Alts.Full((text or ""):match("^%s*(.-)%s*$"), me) or nil
+      local full = me and GC.Alts.Full((text or ""):match("^%s*(.-)%s*$"), me)
+      if not full then return nil end
+      if full ~= me.full and not GC.Alts.MailName(full, me, connectedNow()) then
+        return nil, GC.L["Mail goes only to a character on this realm or a connected one."]
+      end
+      return full
     end,
     invalid = GC.L["Type a character name"],
     setLabel = GC.L["Save"],
@@ -829,14 +856,22 @@ end
 -- Painting
 -- ---------------------------------------------------------------------------------------------
 
--- Beside Blizzard's mail frame, its top level with the frame's; with no mail frame, at the screen's
--- left. Answers the frame it stands beside, or nil.
+-- Blizzard's open letter (Blizzard_MailFrame's OpenMailFrame, a UIChildWindow anchored at the
+-- inbox's right edge) while it shows: it opens on the very spot beside the mail frame.
+local function letterShown()
+  local letter = _G.OpenMailFrame
+  if type(letter) == "table" and letter.IsVisible and letter:IsVisible() then return letter end
+  return nil
+end
+
+-- Beside Blizzard's mail frame, or past its open letter while that shows, its top level with that
+-- frame's; with no mail frame, at the screen's left. Answers the frame it stands beside, or nil.
 local function place(widget)
   widget:ClearAllPoints()
-  local mail = MailFrame
-  if type(mail) == "table" then
-    widget:SetPoint("TOPLEFT", mail, "TOPRIGHT", L.X, 0)
-    return mail
+  local beside = letterShown() or MailFrame
+  if type(beside) == "table" then
+    widget:SetPoint("TOPLEFT", beside, "TOPRIGHT", L.X, 0)
+    return beside
   end
   widget:SetPoint("LEFT", UIParent, "LEFT", 20, 0)
   return nil
@@ -875,6 +910,14 @@ local function paintSend(button, mode, label, width)
   button.text:SetPoint("LEFT", button, "LEFT", x + iconRoom, 0)
   button.text:SetPoint("RIGHT", button, "RIGHT", -M.BUTTON_PAD, 0)
   return width
+end
+
+-- A Send live or refusing presses. paintSend's SetVariant has just painted it live, and the kit
+-- dims a button in its OnDisable, so one already disabled is enabled and disabled again to dim it.
+local function setEnabled(button, on)
+  if on then return button:Enable() end
+  if not button:IsEnabled() then button:Enable() end
+  button:Disable()
 end
 
 -- The run's words, count and gold bar left of Stop, `width` wide at `x`, `y` in the card. Answers
@@ -969,6 +1012,7 @@ local function paintTop(reading, width)
   if run then
     y = y + M.BUTTON_GAP
     local stopW = paintSend(button, "stop", GC.L["Stop"])
+    setEnabled(button, true)
     local castH = paintCast(card, run, names, M.CARD_PAD, y, inner - stopW - M.CAST_GAP)
     local rowH = math.max(M.SEND_H, castH)
     button:ClearAllPoints()
@@ -984,6 +1028,7 @@ local function paintTop(reading, width)
     else
       paintSend(button, "send", GC.L["Send all"], inner)
     end
+    setEnabled(button, not (armed and armed.held))
     button:ClearAllPoints()
     button:SetPoint("TOPLEFT", card, "TOPLEFT", M.CARD_PAD, -y)
     button:Show()
@@ -1075,7 +1120,7 @@ local function paintAction(row, data, status)
   row.send.key = data.key
   local width = armed and paintSend(row.send, "armed", GC.L["Send to %s? Press again"]:format(armed.to))
     or paintSend(row.send, "send", GC.L["Send"])
-  if MA._run then row.send:Disable() else row.send:Enable() end
+  setEnabled(row.send, not (MA._run or (armed and armed.held)))
   row.send:Show()
   return width
 end
@@ -1376,6 +1421,21 @@ local function onBagsChanged()
   end)
 end
 
+-- The open letter's own show and hide move the window and its handle (place). Hooked at the first
+-- visit rather than at load, as the mail frame's code may load after this file; a post-hook on a
+-- frame nothing protected goes through, and the window only paints.
+local letterHooked
+local function hookLetter()
+  local letter = _G.OpenMailFrame
+  if letter == letterHooked or type(letter) ~= "table" or type(letter.HookScript) ~= "function" then return end
+  letterHooked = letter
+  local function moved()
+    if MA._open then MA.Refresh() end
+  end
+  pcall(letter.HookScript, letter, "OnShow", moved)
+  pcall(letter.HookScript, letter, "OnHide", moved)
+end
+
 --- The window's events, as its own event frame below hears them. MAIL_SHOW: this character is
 --- remembered (Core/Alts.lua's OnEvent, which keeps its `seen` fresh) and a visit starts.
 --- MAIL_CLOSED: a run stops and the window and its popups go. MAIL_SEND_SUCCESS and MAIL_FAILED: the
@@ -1387,6 +1447,7 @@ function MA.OnEvent(event)
     if GC.Alts and GC.Alts.OnEvent then GC.Alts.OnEvent() end
     newVisit()
     MA._open = true
+    hookLetter()
     MA.Refresh(true)
   elseif event == "MAIL_CLOSED" then
     MA._open = false

@@ -13,7 +13,7 @@ describe("Send to alts window", function()
     "SpellIsTargeting", "GetCursorInfo", "ClearCursor", "CreateColor", "GameTooltip", "ClickSendMailItemButton",
     "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail", "MailFrame", "SendMailFrame",
     "SendMailNameEditBox", "MailFrameTab_OnClick", "GetAutoCompleteRealms", "UnitName", "GetNormalizedRealmName",
-    "UnitClass", "UnitLevel", "UnitFactionGroup", "GetClassAtlas", "GetClassColor", "MenuUtil" }
+    "UnitClass", "UnitLevel", "UnitFactionGroup", "GetClassAtlas", "GetClassColor", "MenuUtil", "OpenMailFrame" }
 
   -- Herbs: Bloom (1, 2); Ore: Bismuth (3); Potions: Tonic (5); Cloth: Weavercloth (4), never in the
   -- bags here. Item 9 is in no followed group.
@@ -254,6 +254,31 @@ describe("Send to alts window", function()
     assert.same({ "Herbs", "Ore", "Potions" }, rowKeys())
     event("MAIL_CLOSED")
     assert.is_false(windowUp())
+  end)
+
+  -- Blizzard's open letter (OpenMailFrame, a UIChildWindow at the inbox's right edge) opens where
+  -- the window stands: while it shows, the window and its handle stand past it.
+  it("steps past an open letter while it shows, and back beside the mail frame when it closes", function()
+    local letter = W.CreateFrame("Frame")
+    letter:Hide()
+    _G.OpenMailFrame = letter
+    event("MAIL_SHOW")
+    assert.equal(_G.MailFrame, at(MA._frame)[2])
+    letter:Show()
+    W.state(letter).hooks.OnShow(letter)
+    local point = at(MA._frame)
+    assert.same({ "TOPLEFT", letter, "TOPRIGHT" }, { point[1], point[2], point[3] })
+    letter:Hide()
+    W.state(letter).hooks.OnHide(letter)
+    point = at(MA._frame)
+    assert.same({ "TOPLEFT", _G.MailFrame, "TOPRIGHT" }, { point[1], point[2], point[3] })
+    letter:Show()
+    W.state(letter).hooks.OnShow(letter)
+    press(MA._frame.close)
+    assert.equal(letter, at(MA._handle)[2])
+    letter:Hide()
+    W.state(letter).hooks.OnHide(letter)
+    assert.equal(_G.MailFrame, at(MA._handle)[2])
   end)
 
   it("remembers this character as the mailbox opens", function()
@@ -519,6 +544,27 @@ describe("Send to alts window", function()
     assert.equal("Send all", top().send.label)
   end)
 
+  -- The server may still have taken the mail it never answered for: the window does not say where
+  -- the items are, only where to look.
+  it("stops when the mailbox does not answer, and says where to look", function()
+    event("MAIL_SHOW")
+    press(top().send)
+    fire(GC.MailPress.SEND_WAIT)
+    assert.is_false(MA.machine:IsRunning())
+    assert.equal("The mailbox did not answer. Check your bags and the Send Mail tab.", textOf(top().note))
+  end)
+
+  -- A pickup the client drops without a word leaves the cursor empty and the Send Mail tab as it
+  -- was: that stack counts as refused, and a mail with nothing in it is never sent.
+  it("sends no mail when a stack it picked up never reached the Send Mail tab", function()
+    post:ignore(0, 4)
+    event("MAIL_SHOW")
+    press(rowOf("Potions").send)
+    assert.equal(0, #post:calls("SendMail"))
+    assert.equal(0, post:attached())
+    assert.equal("Stopped: Tonic would not go into the mail.", textOf(top().note))
+  end)
+
   it("stops when the mailbox closes mid-run, and sends nothing after", function()
     event("MAIL_SHOW")
     press(top().send)
@@ -553,6 +599,14 @@ describe("Send to alts window", function()
     assert.equal(0, #post:calls("SendMail"))
     assert.equal(0, #post:calls("PickupContainerItem"))
     assert.equal("Send to Stranger? Press again", top().send.label)
+    -- A double click's second click lands while the armed button still refuses it.
+    assert.is_false(top().send:IsEnabled())
+    press(top().send)
+    assert.equal(0, #post:calls("SendMail"))
+    assert.is_falsy(GC.MailGroups.Trusted(GC.db, "Stranger-Tarren"))
+    fire(MA.ARM_HOLD)
+    assert.is_true(top().send:IsEnabled())
+    assert.equal("Send to Stranger? Press again", top().send.label)
     press(top().send)
     assert.equal(1, #post:calls("SendMail"))
     assert.is_true(GC.MailGroups.Trusted(GC.db, "Stranger-Tarren"))
@@ -563,6 +617,7 @@ describe("Send to alts window", function()
     event("MAIL_SHOW")
     press(rowOf("Potions").send)
     assert.equal("Send to Stranger? Press again", rowOf("Potions").send.label)
+    assert.is_false(rowOf("Potions").send:IsEnabled())
     fire(5)
     assert.equal("Send", rowOf("Potions").send.label)
     press(rowOf("Potions").send)
@@ -621,6 +676,11 @@ describe("Send to alts window", function()
     assert.equal("Kaz-Kazzak", asked.opts.read("kaz-Kazzak"))
     assert.is_nil(asked.opts.read("two words"))
     assert.is_nil(asked.opts.read(""))
+    assert.equal("Me-Tarren", asked.opts.read("me"))
+    -- A realm this character cannot mail: refused, saying why.
+    local full, why = asked.opts.read("Far-Silvermoon")
+    assert.is_nil(full)
+    assert.equal("Mail goes only to a character on this realm or a connected one.", why)
     asked.opts.onCommit("Stranger-Tarren")
     assert.equal("Stranger-Tarren", GC.MailGroups.RecipientOf(GC.db, "Tarren", "Potions"))
     assert.equal("Stranger", textOf(rowOf("Potions").to.text))

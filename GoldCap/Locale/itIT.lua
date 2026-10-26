@@ -1677,10 +1677,12 @@ GC.Locales.itIT = {
   ["A name that is not one of your characters is asked about once, before the first mail goes."] =
     "Per un nome che non è di un tuo personaggio, GoldCap chiede conferma una volta, prima della prima lettera.",
   ["Type a character name"] = "Scrivi il nome di un personaggio",
+  ["Mail goes only to a character on this realm or a connected one."] =
+    "La posta arriva solo ai personaggi di questo reame o di uno collegato.",
   ["The mail did not go: what was attached is back in your bags."] =
     "La lettera non è partita: gli allegati sono tornati nelle borse.",
-  ["The mailbox did not answer: what was attached is back in your bags."] =
-    "La cassetta postale non ha risposto: gli allegati sono tornati nelle borse.",
+  ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
+    "La cassetta postale non ha risposto. Controlla le borse e la scheda Invia posta.",
   ["Stopped: something is on your cursor."] = "Interrotto: hai qualcosa sul cursore.",
   ["Stopped: the Send Mail tab already holds items."] = "Interrotto: la scheda Invia posta contiene già oggetti.",
   ["Stopped: %s would not go into the mail."] = "Interrotto: %s non è entrato nella lettera.",
