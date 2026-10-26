@@ -141,8 +141,6 @@ local function bestOf(mats, vendor, ah)
   return mats > vendor and "mats" or "vendor"
 end
 
--- queue: mats rows (gain over the vendor largest first), mats unknown, then vendor rows (loss
--- smallest first); left: what the auction house pays more for.
 local function group(row)
   if row.mats == nil then return 2 end
   return row.mats > row.vendor and 1 or 3
@@ -162,6 +160,8 @@ local function before(a, b)
   return a.stack.slot < b.stack.slot
 end
 
+-- The result: queue: mats rows (gain over the vendor largest first), mats unknown, then vendor rows
+-- (loss smallest first); left: what the auction house pays more for.
 -- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [slotKey] },
 -- failed = { [itemID] }, anyway = { [slotKey] } }. A row: { stack, slotKey, mats, n, vendor, ah, best }.
 function D.Plan(stacks, opts)

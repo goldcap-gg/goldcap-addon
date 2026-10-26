@@ -11,7 +11,8 @@ local B = GC.VendorBags
 -- (Blizzard_FrameXMLBase/Constants.lua): a set's location is a real place only above 1.
 local LAST_SENTINEL = 1
 
--- C_Item.GetItemInfo returns: classID is the 12th value, isCraftingReagent the 17th. Gear is a
+-- C_Item.GetItemInfo returns: itemEquipLoc is the 9th value, classID the 12th, subclassID the 13th,
+-- expansionID the 15th, isCraftingReagent the 17th. Gear is a
 -- weapon (2), armor (4) or profession equipment (19; Enum.ItemClass, live
 -- ItemConstantsDocumentation.lua): each comes in ranks or levels under one id, so its auction house
 -- figure is the cheapest version's and the value rule never sells it.
@@ -126,10 +127,10 @@ function B.Read(valueFor)
       if okI and type(info) == "table" and info.itemID then
         if excluded == nil then excluded = isExcluded(bag) end
         local itemID = info.itemID
-        local classID, reagent
+        local classID, subclassID, equipLoc, expansion, reagent
         if C_Item and C_Item.GetItemInfo then
           local okG, got = pcall(function() return { C_Item.GetItemInfo(itemID) } end)
-          if okG then classID, reagent = got[12], got[17] end
+          if okG then classID, subclassID, equipLoc, expansion, reagent = got[12], got[13], got[9], got[15], got[17] end
         end
         local gear = GEAR_CLASS[classID] == true
         local value = type(valueFor) == "function" and valueFor(itemID) or nil
@@ -141,8 +142,11 @@ function B.Read(valueFor)
           ahUnit = value.mv, ahSource = value.source, ahAt = value.at,
           hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
           isBound = info.isBound == true, isGear = gear, isReagent = reagent == true,
+          classID = classID, subclassID = subclassID, equipLoc = equipLoc, expansion = expansion,
           refundable = isRefundable(bag, slot),
-          tradeTimer = info.isBound == true and quality == 0 and hasTradeTimer(bag, slot) or false,
+          -- grey junk, or bound gear of quality 2 to 4 (raid loot that is still tradeable)
+          tradeTimer = info.isBound == true and (quality == 0 or (gear and quality ~= nil and quality >= 2 and quality <= 4))
+            and hasTradeTimer(bag, slot) or false,
           inSet = (places == nil and gear) or (places ~= nil and places[bag .. ":" .. slot] == true),
           excludedBag = excluded, selling = isSelling(info, bag, slot),
         }

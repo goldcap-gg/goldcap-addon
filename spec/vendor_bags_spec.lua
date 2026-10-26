@@ -45,7 +45,7 @@ describe("VendorBags", function()
         boom("itemInfo")
         local it = items[id]
         if not it then return nil end
-        return "Item " .. id, "link", it.quality or 0, 1, 1, "t", "s", 20, "", 1, it.sell, it.class or 15, 0, 0, 0, nil, it.reagent == true
+        return "Item " .. id, "link", it.quality or 0, 1, 1, "t", "s", 20, it.equip or "", 1, it.sell, it.class or 15, it.subclass or 0, 0, it.expansion or 0, nil, it.reagent == true
       end,
       CanBeRefunded = function(loc) boom("refund"); return refundable[loc.bag .. ":" .. loc.slot] == true end,
     }
@@ -83,13 +83,15 @@ describe("VendorBags", function()
 
   it("reads a stack with its vendor price, quality and the auction house figure, its source and time", function()
     put(1, 2, 50, { stackCount = 7, quality = 2, isBound = true, isLocked = true, hasNoValue = true })
-    items[50] = { quality = 2, sell = 40, class = 4, reagent = true }
+    items[50] = { quality = 2, sell = 40, class = 4, subclass = 1, equip = "INVTYPE_CHEST", expansion = 10, reagent = true }
+    tooltips["1:2"] = { lines = { { leftText = "Soulbound" } } }
     local s = one()
     assert.same({
       bag = 1, slot = 2, itemID = 50, link = "|Hitem:50|h", count = 7, quality = 2, vendorUnit = 40,
       ahUnit = 400, ahSource = "region", ahAt = 1700000000, hasNoValue = true, isLocked = true,
       isBound = true, isGear = true, isReagent = true, refundable = false, tradeTimer = false,
       inSet = false, excludedBag = false, selling = false,
+      classID = 4, subclassID = 1, equipLoc = "INVTYPE_CHEST", expansion = 10,
     }, s)
   end)
 
@@ -174,11 +176,24 @@ describe("VendorBags", function()
       assert.is_true((one()).tradeTimer)
     end)
 
-    it("never reads a tooltip for an unbound or non-grey stack", function()
+    it("never reads a tooltip for an unbound stack, or a bound one that is neither grey nor gear", function()
       put(0, 1, 50, { isBound = false }); put(0, 2, 51, { isBound = true, quality = 1 })
+      put(0, 3, 52, { isBound = false, quality = 2 })
       items[50], items[51] = { sell = 5 }, { sell = 5 }
+      items[52] = { sell = 5, class = 4 }
       B.Read()
       assert.equal(0, tipReads)
+    end)
+
+    it("marks bound epic gear with the trade timer line, and not without it", function()
+      put(0, 1, 50, { isBound = true, quality = 4 }); put(0, 2, 51, { isBound = true, quality = 4 })
+      items[50], items[51] = { quality = 4, class = 2 }, { quality = 4, class = 2 }
+      tooltips["0:1"] = { lines = { { leftText = "You may trade this item with players that were also eligible to loot this item for the next 1 hour." } } }
+      tooltips["0:2"] = { lines = { { leftText = "Soulbound" } } }
+      local out = B.Read()
+      assert.is_true(out[1].tradeTimer)
+      assert.is_false(out[2].tradeTimer)
+      assert.equal(2, tipReads)
     end)
   end)
 
