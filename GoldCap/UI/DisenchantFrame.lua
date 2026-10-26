@@ -148,7 +148,7 @@ local CAP = math.floor(M.BUTTON_H * CUT + 0.5)
 local PIECES = { { 0, CUT }, { CUT, 1 - CUT }, { 1 - CUT, 1 } }
 
 -- What the window remembers, for the visit (newVisit): skipped, sent anyway and refused items (Plan's
--- skipped, anyway and failed), the items done in it (their plan rows, in order) and their slots with
+-- skipped and anyway, each the link its slot held, and failed), the items done in it (their plan rows, in order) and their slots with
 -- the link each held, until the bags show it gone (gone), the materials got ({ [itemID] = units }),
 -- and the room the Next card keeps (only grows). The last plan; what the button points at
 -- (`armed`: the row, its slot and link and the item's kind); the press waiting for its cast's answer
@@ -537,7 +537,7 @@ function DF.Skip()
   local row = DF._plan and DF._plan.queue[1]
   if not row or castingNow() then return end
   local visit = DF._visit
-  visit.skipped[row.slotKey] = true
+  visit.skipped[row.slotKey] = row.stack.link
   if visit.first and visit.first.slotKey == row.slotKey then visit.first = nil end
   refresh()
 end
@@ -561,9 +561,9 @@ function DF.Uncant(itemID)
 end
 
 --- Disenchant anyway: an item the auction house or a vendor pays more for joins the queue for this
---- visit.
-function DF.Anyway(slotKey)
-  DF._visit.anyway[slotKey] = true
+--- visit, while its slot holds it (`link`).
+function DF.Anyway(slotKey, link)
+  DF._visit.anyway[slotKey] = link
   refresh()
 end
 
@@ -575,7 +575,7 @@ function DF.Choose(slotKey, link, leftOut)
   if inCombat() or type(slotKey) ~= "string" then return end
   local visit = DF._visit
   visit.first = { slotKey = slotKey, link = link }
-  if leftOut then visit.anyway[slotKey] = true end
+  if leftOut then visit.anyway[slotKey] = link end
   refresh()
 end
 
@@ -1066,7 +1066,7 @@ local function newLeftRow(box)
   row.anyway:SetGlow(false)
   row.anyway:SetRing(U.QUIET.ring)
   row.anyway:SetHeight(M.ANYWAY_H)
-  row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.slotKey) end)
+  row.anyway:SetScript("OnClick", function(self) DF.Anyway(self.slotKey, self.link) end)
   track(row, row.anyway.text)
   row:SetScript("OnClick", onRowClick)
   row:SetScript("OnEnter", showRowTip)
@@ -1543,7 +1543,7 @@ local function paintLeftRow(row, data, inner, vendor)
   row.price:SetShown(not vendor)
   local priceW = vendor and 0 or math.ceil(row.price:GetStringWidth() or 0)
   local anyway = row.anyway
-  anyway.slotKey = data.slotKey
+  anyway.slotKey, anyway.link = data.slotKey, data.stack.link
   anyway:SetLabel(GC.L["Disenchant anyway"])
   anyway:FitLabels({ GC.L["Disenchant anyway"] }, M.ANYWAY_MIN)
   colour(anyway.text, U.QUIET.textColor)

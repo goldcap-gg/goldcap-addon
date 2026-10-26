@@ -186,12 +186,18 @@ function D.MarkCant(db, itemID) mark(db, "cant", itemID) end
 function D.Uncant(db, itemID) unmark(db, "cant", itemID) end
 function D.CantIDs(db) return idsOf(db, "cant") end
 
+-- Whether `bySlot` ({ [slotKey] = link }) names `s`: its slot, while the slot holds that link.
+local function holds(bySlot, s, slotKey)
+  local link = bySlot[slotKey]
+  return link ~= nil and link == s.link
+end
+
 -- The stack stays off the list whatever the figures say.
 local function leftOut(s, opts)
   if not s.itemID or not D.CanDisenchant(s) then return true end
   if s.isLocked or s.refundable or s.tradeTimer or s.inSet or s.selling then return true end
   if D.Kept(opts.db, s.itemID) or D.Cant(opts.db, s.itemID) or opts.inGroup(s.itemID) then return true end
-  if opts.failed[s.itemID] or opts.skipped[s.bag .. ":" .. s.slot] then return true end
+  if opts.failed[s.itemID] or holds(opts.skipped, s, s.bag .. ":" .. s.slot) then return true end
   return false
 end
 
@@ -234,10 +240,12 @@ end
 -- learns; the cheapest to a vendor first), then rows whose mats pay just what a vendor does; left:
 -- what the auction house pays more for; leftVendor: what a vendor pays more for than its known mats
 -- (smallest loss first). The chosen item (`first`) stands first in the queue wherever it would be,
--- while its slot holds the item chosen. A row's `vendor` is nil for an item no vendor buys.
--- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [slotKey] },
--- failed = { [itemID] }, anyway = { [slotKey] }, first = { slotKey, link } }. A row: { stack,
--- slotKey, mats, n, vendor, ah, best }.
+-- while its slot holds the item chosen; so do a skip and Disenchant anyway (`skipped`, `anyway`: the
+-- link each slot held), so a sort of the bags never moves them to another item. A row's `vendor` is
+-- nil for an item no vendor buys.
+-- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [slotKey] =
+-- link }, failed = { [itemID] }, anyway = { [slotKey] = link }, first = { slotKey, link } }. A row:
+-- { stack, slotKey, mats, n, vendor, ah, best }.
 function D.Plan(stacks, opts)
   opts = opts or {}
   local o = {
@@ -257,7 +265,7 @@ function D.Plan(stacks, opts)
         row.ah = math.floor(s.ahUnit * GC.VendorSelect.KEEP) * (s.count or 1)
       end
       row.best = bestOf(row.mats, row.vendor, row.ah)
-      local anyway = o.anyway[row.slotKey]
+      local anyway = holds(o.anyway, s, row.slotKey)
       if first and first.slotKey == row.slotKey and first.link == s.link then
         chosen = row
       elseif row.ah and row.ah > (row.vendor or 0) and row.ah > (row.mats or 0) and not anyway then

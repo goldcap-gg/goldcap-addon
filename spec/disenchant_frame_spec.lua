@@ -814,6 +814,45 @@ describe("Disenchant window", function()
     assert.same({ "spell", 13262, 0, 1 }, armedAt())
   end)
 
+  -- Disenchant anyway and Skip follow the item, never its bag slot (the final review's I2): the bags
+  -- sorted, the item sent anyway moves on and another the auction house pays as much for lands in
+  -- its slot; the skipped item leaves and another takes its slot.
+  it("follows the item sent anyway, not its slot, when the bags are sorted", function()
+    local function dear(slot, itemID) return gear(0, slot, itemID, { ahUnit = 12400000, ahSource = "region", ahAt = NOW - 600 }) end
+    local x = put(dear(5, 501))
+    put(gear(0, 2, 502))
+    slash()
+    press(DF._leftRows[1].anyway)
+    nextFrame()
+    assert.same({ 502, 501 }, listed())
+    take(x)
+    put(dear(7, 501))
+    put(dear(5, 503))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.same({ 502 }, listed())
+    local left = {}
+    for _, row in ipairs(DF._leftRows) do
+      if row:IsShown() then left[#left + 1] = row.itemID end
+    end
+    table.sort(left)
+    assert.same({ 501, 503 }, left)
+  end)
+
+  it("follows the item skipped, not its slot: another item there is listed", function()
+    local a = put(gear(0, 1, 501))
+    put(gear(0, 2, 502))
+    slash()
+    press(DF._frame.card.skip)
+    nextFrame()
+    assert.same({ 502 }, listed())
+    take(a)
+    put(gear(0, 1, 503))
+    event("BAG_UPDATE_DELAYED")
+    nextFrame()
+    assert.same({ 503, 502 }, listed())
+  end)
+
   -- A green whose mats are worth about 2g that a vendor pays 19g for (the owner, 2026-10-26: a 61g
   -- axe for 2g of dust was one key press away).
   it("leaves out what a vendor pays more for than its mats, under its own heading after the auction house's", function()
