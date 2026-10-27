@@ -898,6 +898,26 @@ describe("Auction House tab", function()
       assert.is_false(GC.AuctionHouseTab._VeilShown())
     end)
 
+    it("is up only while the GoldCap window shows, and back when it opens over a list still ours", function()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+      GC.Sniper.shown = false
+      GC.AuctionHouseTab.OnWindowHidden()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+      GC.Sniper.shown = true
+      GC.AuctionHouseTab.OnWindowShown()
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+      -- The player's own search meanwhile gave the list back: opening the window brings no veil.
+      ah.SearchBar:StartFavoritesSearch()
+      GC.Sniper.shown = false
+      GC.AuctionHouseTab.OnWindowHidden()
+      GC.Sniper.shown = true
+      GC.AuctionHouseTab.OnWindowShown()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+    end)
+
     it("builds once however many searches go out", function()
       GC.AuctionHouseTab.NoteAddonBrowse()
       GC.AuctionHouseTab.NoteAddonBrowse()

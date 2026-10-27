@@ -364,8 +364,11 @@ local function buildVeil(results)
   return v
 end
 
+-- Only while the GoldCap window shows: with it closed nothing of ours searches (Auto runs only while
+-- it shows), and the veil only hid the player's list (owner, 2026-10-27).
 local function paintVeil()
-  if not listOurs then
+  local sniper = GC.Sniper
+  if not (listOurs and sniper and sniper.IsWindowShown and sniper.IsWindowShown()) then
     if veil then veil:Hide() end
     return
   end
@@ -705,10 +708,17 @@ function GC.AuctionHouseTab.PlayerIsBusy(now)
     or GC.AuctionHouseTab.PlayerIsBrowsing()
 end
 
+-- Called from the window's own OnShow (see UI/SniperFrame.lua): the veil again over a list that
+-- still shows GoldCap's searches.
+function GC.AuctionHouseTab.OnWindowShown()
+  paintVeil()
+end
+
 -- Called from the window's own OnHide (see UI/SniperFrame.lua): the player closed the docked
 -- window with its X or with Escape, so hand the auction house back to Blizzard's Buy tab --
 -- leaving our empty mode up would show a hollowed-out auction house.
 function GC.AuctionHouseTab.OnWindowHidden()
+  paintVeil()
   local ah = _G.AuctionHouseFrame
   if not ah or not dock or not dock:IsShown() then return end
   -- Both paths now leave AuctionHouseFrame.displayMode nil while our tab is selected -- the

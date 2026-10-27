@@ -92,8 +92,9 @@
   Auto carries on at once, on the Items board too, with what you typed still in the search box.
   Switching Auto on carries on the same way.
 - DEALS: while GoldCap checks prices, the list on the auction house's Buy tab shows its searches
-  and changes on its own. A panel over that list now says so. Search, pick a category or click the
-  star to use the list yourself, and GoldCap leaves it to you until you click AUTO or SCAN.
+  and changes on its own. A panel over that list now says so while the GoldCap window is open.
+  Search, pick a category or click the star to use the list yourself, and GoldCap leaves it to you
+  until you click AUTO or SCAN.
 - DEALS, Items board: the AUTO button no longer says it is paused while the board keeps checking
   its items. It says Auto is scanning, or what holds it.
 - DEALS, Items board: a row takes two lines at most. Under the item's name it says how soon the
