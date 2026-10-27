@@ -200,6 +200,7 @@ describe("Send to alts window", function()
     _G.GoldCap_AppRuns = FILE
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("UI/Theme.lua", GC)
+    helper.loadModule("UI/Kit/Bar.lua", GC)
     helper.loadModule("Core/NameMatch.lua", GC)
     helper.loadModule("Core/GroupRules.lua", GC)
     helper.loadModule("Core/CraftQueue.lua", GC)
@@ -563,6 +564,32 @@ describe("Send to alts window", function()
     local plane = { GC.Theme.IconCoords("send") }
     assert.same(plane, W.state(top().send.icon).texCoord)
     assert.same(plane, W.state(rowOf("Herbs").send.icon).texCoord)
+  end)
+
+  -- The run's bar under its words: the kit's quiet track, and a gold share of the mails sent, none
+  -- before the first.
+  it("draws the run's bar: a quiet track under its words and a gold share of the mails sent", function()
+    local K = GC.Kit.Tokens.color
+    -- Where the bar sits against the run's words, its size and colours, and its fill (the kit's bar:
+    -- the track fills it, the fill runs its height from its left edge).
+    local function sendBar()
+      local c = top().cast
+      local bar = c.bar
+      local _, _, _, x, y = bar:GetPoint(1)
+      local _, _, _, lx, ly = c.label:GetPoint(1)
+      return { dx = x - lx, below = ly - y - math.ceil(GC.HoardFrame.ui.heightOf(c.label, 11)),
+        w = bar:GetWidth(), h = bar:GetHeight(), track = W.state(bar.track).color,
+        fill = W.state(bar.fill).color, fillShown = W.state(bar.fill).shown == true,
+        fillW = W.state(bar.fill).shown and W.state(bar.fill).width or nil, fillH = bar:GetHeight() }
+    end
+    event("MAIL_SHOW")
+    press(top().send)
+    assert.same({ dx = 0, below = 2, w = 270, h = 3, track = { 1, 1, 1, 0.08 }, fill = K.gold, fillShown = false,
+      fillH = 3 }, sendBar())
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    assert.same({ dx = 0, below = 2, w = 270, h = 3, track = { 1, 1, 1, 0.08 }, fill = K.gold, fillShown = true,
+      fillW = 135, fillH = 3 }, sendBar())
   end)
 
   it("shows the run: Sending, Next and Sent on the rows, the mail in flight and Stop on top", function()

@@ -88,8 +88,7 @@ local LOCK_ICON, LOCK_EDGE = "Interface\\LFGFrame\\UI-LFG-ICON-LOCK", 28 / 32
 
 -- The boards' colours, from the kit's tokens: the top card's gold tint and ring; a card's Send in a
 -- gold outline; Stop's ring in the loss colour, as the Hoard's Stop wears it; the card in flight in
--- the Hoard's run gold; "Who sells it?" ringed in gold; the bar's track; a card this character sells
--- at SELF_ALPHA.
+-- the Hoard's run gold; "Who sells it?" ringed in gold; a card this character sells at SELF_ALPHA.
 local CARD_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.06 }
 local CARD_RING = { K.gold[1], K.gold[2], K.gold[3], 0.35 }
 local SEND_RING = { K.gold[1], K.gold[2], K.gold[3], 0.5 }
@@ -97,7 +96,6 @@ local STOP_RING = { K.loss[1], K.loss[2], K.loss[3], 0.5 }
 local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
 local RUN_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
 local PICK_RING = { K.gold[1], K.gold[2], K.gold[3], 0.6 }
-local FILL_TRACK = { 1, 1, 1, 0.08 }
 local SELF_ALPHA = 0.6
 
 -- Whether the mailbox is open (MAIL_SHOW until MAIL_CLOSED or the mail frame's hide). What the last
@@ -794,7 +792,7 @@ local function sendButton(parent, variant, art, look)
 end
 
 -- The top card: the letter, the title, the line, a stop's words, the postage, Send all (its Stop
--- while a run goes) and the run's words, count and gold bar.
+-- while a run goes) and the run's words, count and gold bar (the kit's, UI/Kit/Bar.lua).
 local function buildTop()
   local T = GC.Theme
   local card = T.Card(frame, CARD_FILL, CARD_RING, true)
@@ -821,7 +819,7 @@ local function buildTop()
   card.send:SetScript("OnClick", onSendAllClick)
   track(frame, card.send.text)
   card.cast = { label = track(frame, wrapping(T.Label(card, 9))), count = track(frame, T.Num(card, 9)),
-    track = T.Solid(card, "ARTWORK", FILL_TRACK), fill = T.Solid(card, "OVERLAY", K.gold) }
+    bar = T.Bar(card, M.FILL_H, K.gold) }
   colour(card.cast.label, K.goldText)
   colour(card.cast.count, K.text2)
   card.cast.count:SetWordWrap(false)
@@ -1029,22 +1027,17 @@ local function paintCast(card, run, names, x, y, width)
   cast.count:ClearAllPoints()
   cast.count:SetPoint("TOPRIGHT", card, "TOPLEFT", x + width, -y)
   local labelH = math.ceil(heightOf(cast.label, 11))
-  local barY = y + labelH + 2
-  cast.track:ClearAllPoints()
-  cast.track:SetPoint("TOPLEFT", card, "TOPLEFT", x, -barY)
-  cast.track:SetSize(width, M.FILL_H)
   local total = run.total or #run.mails
-  local fillW = total > 0 and math.floor(width * math.min(done, total) / total + 0.5) or 0
-  cast.fill:ClearAllPoints()
-  cast.fill:SetPoint("TOPLEFT", card, "TOPLEFT", x, -barY)
-  cast.fill:SetSize(math.max(fillW, 1), M.FILL_H)
-  for _, part in ipairs({ cast.label, cast.count, cast.track }) do part:Show() end
-  cast.fill:SetShown(fillW > 0)
+  cast.bar:ClearAllPoints()
+  cast.bar:SetPoint("TOPLEFT", card, "TOPLEFT", x, -(y + labelH + 2))
+  cast.bar:SetWidth(width)
+  cast.bar:SetShare(total > 0 and math.min(done, total) / total or 0)
+  for _, part in ipairs({ cast.label, cast.count, cast.bar }) do part:Show() end
   return labelH + 2 + M.FILL_H
 end
 
 local function hideCast(card)
-  for _, part in ipairs({ card.cast.label, card.cast.count, card.cast.track, card.cast.fill }) do part:Hide() end
+  for _, part in ipairs({ card.cast.label, card.cast.count, card.cast.bar }) do part:Hide() end
 end
 
 -- The top card, `width` wide: the title, the line and a stop's words beside the letter, the postage
