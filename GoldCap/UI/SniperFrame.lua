@@ -9189,17 +9189,11 @@ end
 -- time, and opening this one closed the other. In game 2026-09-23 `/gc board` showed Auto paused
 -- on "mail" at the auction house -- a MAIL_SHOW with no MAIL_CLOSED after it, which is how the
 -- mailbox left by walking straight to an auctioneer can look, and nothing but an auction house
--- CLOSE let go of it, so it held Auto for the whole visit. Asked of the client first, and open
--- only when it says so (a missing or failing call reads as shut): a broken read must never
--- hold Auto.
+-- CLOSE let go of it, so it held Auto for the whole visit. Asked of the client first
+-- (Core/Util.lua's MailboxOpen), and open only when it says so (a missing or failing call reads as
+-- shut): a broken read must never hold Auto.
 function GC.Sniper._ClearStaleMailPause()
-  local open = false
-  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
-  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
-    local ok, answer = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
-    open = ok and answer == true
-  end
-  if not open then feedAuto("resume:mail") end
+  if GC.Util.MailboxOpen() ~= true then feedAuto("resume:mail") end
 end
 
 -- AutoScan pause hooks for the buy-confirmation dialog (spec §3's throttle-priority rule).

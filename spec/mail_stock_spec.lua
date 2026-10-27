@@ -656,6 +656,26 @@ describe("MailStock", function()
     assert.is_false(GC.MailStock.IsOpen())
   end)
 
+  -- Walking from the mailbox straight to an auctioneer can shut it with no MAIL_CLOSED (in game
+  -- 2026-09-23): IsOpenNow asks the client too (Core/Util.lua's MailboxOpen), and trusts the events
+  -- where the client cannot say.
+  it("says the mailbox is open now only while a visit goes on and the client does not say it shut", function()
+    local saved = { _G.Enum, _G.C_PlayerInteractionManager }
+    local interacting = true
+    _G.Enum = { PlayerInteractionType = { MailInfo = 17 } }
+    _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function(kind) return kind == 17 and interacting end }
+    assert.is_false(GC.MailStock.IsOpenNow())
+    show({ won(101, 6) })
+    assert.is_true(GC.MailStock.IsOpenNow())
+    interacting = false
+    assert.is_false(GC.MailStock.IsOpenNow())
+    _G.C_PlayerInteractionManager = nil
+    assert.is_true(GC.MailStock.IsOpenNow())
+    close()
+    assert.is_false(GC.MailStock.IsOpenNow())
+    _G.Enum, _G.C_PlayerInteractionManager = saved[1], saved[2]
+  end)
+
   it("changes nothing while a row is not loaded: an attachment unnamed, or the subject still loading", function()
     GC.MailStock.Bought("A-B", 105, 2)
     inbox({ won(101, 6), player(102, 4) })

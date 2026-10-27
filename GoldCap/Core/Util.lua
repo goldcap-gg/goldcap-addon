@@ -23,6 +23,21 @@ function GC.Util.Ask(fn, ...)
   return nil
 end
 
+--- Whether the client says the mailbox is open now (C_PlayerInteractionManager's
+--- IsInteractingWithNpcOfType(Enum.PlayerInteractionType.MailInfo), in both games): true or false,
+--- nil where it cannot say. Walking from the mailbox straight to an auctioneer can shut it with no
+--- MAIL_CLOSED (in game 2026-09-23), so whoever acts on the mail events asks this too, and decides
+--- what an unknown answer means (Core/MailStock.lua's IsOpenNow, UI/MailAltsFrame.lua, the Deals
+--- board's mail pause in UI/SniperFrame.lua). Here, not in Core/MailStock.lua, because the Deals
+--- board runs in WoW: Forever too, which does not load that file.
+function GC.Util.MailboxOpen()
+  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
+  if not (type(manager) == "table" and type(kinds) == "table" and kinds.MailInfo ~= nil) then return nil end
+  local open = GC.Util.Ask(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
+  if type(open) ~= "boolean" then return nil end
+  return open
+end
+
 function GC.Util.IntText(n)
   return ("%.0f"):format(n)
 end

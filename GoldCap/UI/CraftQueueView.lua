@@ -857,18 +857,11 @@ function QV.MakeBuyList()
   return list
 end
 
--- Whether a visit to the mailbox is going on (Core/MailStock.lua, retail only). The client is
--- asked as well, as UI/SniperFrame.lua's _ClearStaleMailPause asks it: walking from the mailbox
--- straight to an auctioneer can shut it with no MAIL_CLOSED (in game 2026-09-23), and a visit left
--- open would keep the bags uncounted. A client that cannot say leaves it to the events.
+-- Whether a visit to the mailbox is going on (Core/MailStock.lua, retail only), the client asked as
+-- well (IsOpenNow): walking from the mailbox straight to an auctioneer can shut it with no
+-- MAIL_CLOSED (in game 2026-09-23), and a visit left open would keep the bags uncounted.
 local function mailboxOpen()
-  if not (GC.MailStock and GC.MailStock.IsOpen()) then return false end
-  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
-  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
-    local ok, open = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
-    if ok and open == false then return false end
-  end
-  return true
+  return GC.MailStock ~= nil and GC.MailStock.IsOpenNow()
 end
 
 -- Where Services/CraftClient.lua may end a run of crafts: the player's cast interrupted or failed

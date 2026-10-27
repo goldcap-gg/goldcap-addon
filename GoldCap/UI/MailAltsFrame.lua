@@ -399,16 +399,11 @@ end
 -- The press
 -- ---------------------------------------------------------------------------------------------
 
--- Whether the mailbox is open: between MAIL_SHOW and MAIL_CLOSED, and the client agrees (walking away
--- can end the visit with no MAIL_CLOSED, as UI/CraftQueueView.lua's mailboxOpen notes).
+-- Whether the mailbox is open: between MAIL_SHOW and MAIL_CLOSED, and the client does not say it
+-- shut (Core/Util.lua's MailboxOpen: walking away can end the visit with no MAIL_CLOSED; a client
+-- that cannot say leaves it to the events).
 local function mailboxOpen()
-  if not MA._open then return false end
-  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
-  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
-    local ok, open = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
-    if ok and open == false then return false end
-  end
-  return true
+  return MA._open and GC.Util.MailboxOpen() ~= false
 end
 
 -- Whether Blizzard's Send Mail tab shows.

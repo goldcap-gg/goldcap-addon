@@ -193,9 +193,15 @@ end
 
 --- Whether a visit to the mailbox is going on: from the opening pass to MAIL_CLOSED. Walking from
 --- the mailbox straight to an auctioneer can shut it with no MAIL_CLOSED (in game 2026-09-23), so a
---- caller that acts on this asks the client too (UI/CraftQueueView.lua).
+--- caller that acts on it asks IsOpenNow.
 function MS.IsOpen()
   return visit ~= nil
+end
+
+--- Whether the mailbox is open now: a visit goes on and the client does not say it shut
+--- (Core/Util.lua's MailboxOpen; a client that cannot say leaves it to the events).
+function MS.IsOpenNow()
+  return visit ~= nil and GC.Util.MailboxOpen() ~= false
 end
 
 -- What the `shown` rows hold: every attachment by item; the attachments as a list of { prefix =

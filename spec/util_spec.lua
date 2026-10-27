@@ -20,6 +20,33 @@ describe("Util", function()
     end)
   end)
 
+  -- The client's own answer whether the mailbox is open (C_PlayerInteractionManager's
+  -- IsInteractingWithNpcOfType(Enum.PlayerInteractionType.MailInfo), live and forever): true or
+  -- false, nil where it cannot say. One copy for the Send to alts window, the craft queue and the
+  -- Deals board's mail pause, which each decide what an unknown answer means.
+  describe("MailboxOpen", function()
+    local saved
+    before_each(function() saved = { _G.Enum, _G.C_PlayerInteractionManager } end)
+    after_each(function() _G.Enum, _G.C_PlayerInteractionManager = saved[1], saved[2] end)
+
+    it("answers the client, and nil where it cannot", function()
+      local U = GC.Util
+      local open = true
+      _G.Enum = { PlayerInteractionType = { MailInfo = 17 } }
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function(kind) return kind == 17 and open end }
+      assert.is_true(U.MailboxOpen())
+      open = false
+      assert.is_false(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() error("no") end }
+      assert.is_nil(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = nil
+      assert.is_nil(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return true end }
+      _G.Enum = {}
+      assert.is_nil(U.MailboxOpen())
+    end)
+  end)
+
   describe("ApplyDefaults", function()
     it("fills missing keys recursively without clobbering existing", function()
       local dst = { settings = { tooltip = false } }
