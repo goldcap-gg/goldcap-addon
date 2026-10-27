@@ -8,6 +8,11 @@
 -- `post` itself (succeed, fail, refuse, calls, attached ...), so production code can never come to
 -- depend on a control only the double has.
 --
+-- A split, as the client does it: SplitContainerItem(bag, slot, n) puts `n` of the stack on the cursor,
+-- and PickupContainerItem on an empty slot drops them there (the source keeps the rest). GetContainerNumFreeSlots
+-- answers numFreeSlots and bagFamily (0, a plain bag). `post:delaySplits()` makes the dropped part show only
+-- once `post:landSplits()` runs, as when the server has not answered yet.
+--
 -- The bags are `bags[bag][slot] = info`, as GetContainerItemInfo answers it ({ itemID, itemName,
 -- stackCount, iconFileID, hyperlink, isBound, isLocked }); `false` is an empty slot that still
 -- counts toward the bag's size. As in the client, a stack picked up onto the cursor or attached to
@@ -32,7 +37,7 @@ function Post.new(opts)
   opts = opts or {}
   local post = {}
   local state = { bags = opts.bags or {}, sizes = opts.sizes or {}, cursor = nil, attachments = {}, log = {},
-    refused = {}, ignored = {}, pending = nil, realms = opts.realms or {} }
+    refused = {}, ignored = {}, pending = nil, realms = opts.realms or {}, landing = {} }
   post.bags = state.bags
 
   local function log(name, ...)
@@ -67,6 +72,21 @@ function Post.new(opts)
   function api.PickupContainerItem(bag, slot)
     log("PickupContainerItem", bag, slot)
     local held = state.cursor
+    if held and held.split then
+      local target = state.bags[bag] and state.bags[bag][slot]
+      if target or state.ignored[bag .. ":" .. slot] then return end
+      local source = state.bags[held.bag][held.slot]
+      local part = copy(source)
+      part.stackCount = held.n
+      source.stackCount = source.stackCount - held.n
+      state.cursor = nil
+      if state.delayed then
+        state.landing[#state.landing + 1] = { bag = bag, slot = slot, info = part }
+      else
+        state.bags[bag][slot] = part
+      end
+      return
+    end
     if held then
       if held.bag == bag and held.slot == slot then
         setLocked(bag, slot, false)
@@ -78,6 +98,21 @@ function Post.new(opts)
     if not info or info.isLocked or state.ignored[bag .. ":" .. slot] then return end
     info.isLocked = true
     state.cursor = { bag = bag, slot = slot, itemID = info.itemID, link = info.hyperlink }
+  end
+
+  function api.GetContainerNumFreeSlots(bag)
+    local free = 0
+    for slot = 1, api.GetContainerNumSlots(bag) do
+      if not (state.bags[bag] and state.bags[bag][slot]) then free = free + 1 end
+    end
+    return free, 0
+  end
+
+  function api.SplitContainerItem(bag, slot, n)
+    log("SplitContainerItem", bag, slot, n)
+    local info = state.bags[bag] and state.bags[bag][slot]
+    if not info or state.cursor or info.isLocked or n >= info.stackCount then return end
+    state.cursor = { split = true, bag = bag, slot = slot, n = n, itemID = info.itemID, link = info.hyperlink }
   end
 
   function api.ClickSendMailItemButton(index, clearItem)
@@ -139,7 +174,7 @@ function Post.new(opts)
   function api.ClearCursor()
     log("ClearCursor")
     local held = state.cursor
-    if held then setLocked(held.bag, held.slot, false) end
+    if held and not held.split then setLocked(held.bag, held.slot, false) end
     state.cursor = nil
   end
 
@@ -217,6 +252,14 @@ function Post.new(opts)
       if state.attachments[i] then n = n + 1 end
     end
     return n
+  end
+
+  -- A dropped split part shows in its slot only after post:landSplits().
+  function post:delaySplits() state.delayed = true end
+
+  function post:landSplits()
+    for _, part in ipairs(state.landing) do state.bags[part.bag][part.slot] = part.info end
+    state.landing = {}
   end
 
   function post:holding() return state.cursor end

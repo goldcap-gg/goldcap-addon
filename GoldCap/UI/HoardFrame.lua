@@ -30,7 +30,11 @@ local _, GC = ...
 -- the cursor is empty, the slot still holds the stack, unlocked, and the bank may take it
 -- (spec/bank_route_spec.lua audits the call sites). The press is the vendor card's machine
 -- (Core/VendorPress.lua): the first move inside the player's click, the rest 0.2 s apart from its
--- timers, each once the one before has left its slot. One run at a time, for the whole window
+-- timers, each once the one before has left its slot. Keep leaves exactly its count: a row of the
+-- plan with `split` is a part of a stack, moved in two steps (Core/VendorPress.lua): split into an
+-- empty slot of a plain bag (BankRoute.SplitStack) inside the click or a timer, and moved from there
+-- once that slot shows it. Its slot and its source are marked in HF._moving meanwhile. A split with no
+-- empty slot is said once in the chat when the run ends. One run at a time, for the whole window
 -- (Press), known by what it moves (its button's run id: a group's Store, a folder's Take out) and
 -- not by the widget pressed, as rows are pooled by place and a folder opened mid-run draws another
 -- group on the running row's widget. A second press of what runs stops it, a press of anything
@@ -361,6 +365,13 @@ local function leftOf(slotKey, sent, reading)
   return math.max(0, sent.count - count)
 end
 
+-- Where a row's stack is now: its source slot, or the slot its split part went to.
+local function rowKey(row)
+  if row.dest then return row.dest.bag .. ":" .. row.dest.slot end
+  return row.bag .. ":" .. row.slot
+end
+HF.RowKey = rowKey
+
 -- Whether a slot can be told from a move now: a bag's always, a bank tab's only while the bank is
 -- open (closed, its slots answer nothing that could be told from a move).
 local function readable(slotKey)
@@ -373,10 +384,15 @@ end
 -- hands its button (report).
 local function pruneMoving(reading)
   for slotKey, sent in pairs(HF._moving) do
-    local left = readable(slotKey) and leftOf(slotKey, sent, reading) or 0
-    if left > 0 then
-      HF._moving[slotKey] = nil
-      HF._moved[slotKey] = left
+    if sent.split then
+      -- The source of a split stays what it is; its mark goes with the part's.
+      if HF._moving[sent.split] == nil then HF._moving[slotKey] = nil end
+    elseif not sent.pending then -- a split part the slot does not show yet would read as moved
+      local left = readable(slotKey) and leftOf(slotKey, sent, reading) or 0
+      if left > 0 then
+        HF._moving[slotKey] = nil
+        HF._moved[slotKey] = left
+      end
     end
   end
 end
@@ -408,7 +424,7 @@ local function settleEndings(gaveUp)
   while i <= #HF._endings do
     local ending = HF._endings[i]
     for slotKey, sent in pairs(ending.flying) do
-      local left = readable(slotKey) and leftOf(slotKey, sent) or 0
+      local left = readable(slotKey) and not sent.pending and leftOf(slotKey, sent) or 0
       if left > 0 then
         ending.flying[slotKey], ending.landed[slotKey] = nil, left
       elseif ending == gaveUp then
@@ -419,7 +435,7 @@ local function settleEndings(gaveUp)
       table.remove(HF._endings, i)
       local moved = {}
       for _, row in ipairs(ending.rows) do
-        local left = ending.landed[row.bag .. ":" .. row.slot]
+        local left = ending.landed[rowKey(row)]
         if left then moved[#moved + 1] = leftPart(row.stack, left) end
       end
       ending.done(moved, ending.bank, ending.result)
@@ -442,19 +458,64 @@ local function slotNow(bag, slot)
   return nil
 end
 
--- The machine's call: one stack, through the bank route's MoveStack, the way and the bank the
--- press named. A stack sent is on its way (HF._moving) until its slot shows the move or the settle
--- timer gives up on it. False when MoveStack made no call: the machine goes on with the next.
-local function moveRow(_, _, row)
-  local stack = row.stack
-  if not GC.BankRoute.MoveStack(row.stack, row.into, row.bankType) then return false end
-  HF._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count }
+-- A stack sent is on its way until the settle timer gives up on it (HF._Settle).
+local function startSettle()
   settleSeq = settleSeq + 1
   local token = settleSeq
   if C_Timer and C_Timer.After then
     C_Timer.After(GC.BankRoute.SETTLE_SECONDS, function() HF._Settle(token) end)
   end
+end
+
+-- The machine's call for a split row (Core/BankGroups.lua's Plan: Keep leaves exactly its count):
+-- the first part, the part split off into an empty slot of a plain bag. The part's slot is on its
+-- way from now (`pending` until it shows the part, so a repaint between the parts never reads it
+-- as moved or as a stack of its own), and the source slot is held too (`split`), so it is not
+-- offered or split again. False, and why, when no call was made.
+local function splitRow(row)
+  local stack = row.stack
+  local dest, why = GC.BankRoute.SplitStack(stack)
+  if not dest then return false, why end
+  row.dest = dest
+  HF._moving[rowKey(row)] = { itemID = stack.itemID, count = stack.count, pending = true }
+  HF._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count, split = rowKey(row) }
+  startSettle()
   return true
+end
+
+-- The machine's call: one stack, through the bank route's MoveStack, the way and the bank the
+-- press named. A stack sent is on its way (HF._moving) until its slot shows the move or the settle
+-- timer gives up on it. False when MoveStack made no call: the machine goes on with the next.
+local function moveRow(_, _, row)
+  if row.split then return splitRow(row) end
+  local stack = row.stack
+  if not GC.BankRoute.MoveStack(row.stack, row.into, row.bankType) then return false end
+  HF._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count }
+  startSettle()
+  return true
+end
+
+-- The row that moves a split row's part once it shows in its slot: a stack of its own, from the
+-- slot it landed in, which the machine moves as any row.
+local function splitPartRow(row)
+  local part = {}
+  for k, v in pairs(row.stack) do part[k] = v end
+  part.bag, part.slot, part.split = row.dest.bag, row.dest.slot, nil
+  return { bag = part.bag, slot = part.slot, link = row.link, itemID = row.itemID, stack = part, into = row.into,
+    bankType = row.bankType, name = row.name }
+end
+
+local function splitLanded(row)
+  if not GC.BankRoute.SplitLanded(row.dest, row.stack) then return false end
+  local mark = HF._moving[rowKey(row)]
+  if mark then mark.pending = nil end
+  return true
+end
+
+local function splitAbandoned(row)
+  GC.BankRoute.AbandonSplit()
+  HF._moving[rowKey(row)] = nil
+  HF._moving[row.bag .. ":" .. row.slot] = nil
 end
 
 -- A run over: the button it was pressed with learns which of its stacks left their slots (its
@@ -468,13 +529,21 @@ end
 -- remembered too.
 local function report(result)
   local rows, bank, done = HF._runRows, HF._runBank, HF._runEnd
+  -- A split that found no empty slot of a plain bag: more of the item stays than its keep.
+  local said = {}
+  for _, name in ipairs(result.noRoom or {}) do
+    if not said[name] then
+      said[name] = true
+      GC.Print(GC.L["No free bag slot to split %s, so more of it stays than its keep."]:format(name))
+    end
+  end
   HF._runId, HF._runBank, HF._runSwitch = nil, nil, nil
   HF._runInto, HF._runRows, HF._runEnd = nil, nil, nil
   if done then
     pruneMoving()
     local ending = { done = done, bank = bank, result = result, rows = rows or {}, landed = {}, flying = {} }
     for _, row in ipairs(ending.rows) do
-      local slotKey = row.bag .. ":" .. row.slot
+      local slotKey = rowKey(row)
       if HF._moved[slotKey] then
         ending.landed[slotKey] = HF._moved[slotKey]
       elseif HF._moving[slotKey] then
@@ -501,6 +570,9 @@ function HF._Machine()
       slot = slotNow,
       cursorBusy = GC.Util.CursorBusy,
       use = moveRow,
+      landed = splitLanded,
+      part = splitPartRow,
+      abandon = splitAbandoned,
       after = function(seconds, fn) C_Timer.After(seconds, fn) end,
       report = report,
     })
@@ -530,7 +602,7 @@ function HF.Press(button, stacks, into, bankType)
   local rows = {}
   for i, stack in ipairs(stacks or {}) do
     rows[i] = { bag = stack.bag, slot = stack.slot, link = stack.link, itemID = stack.itemID, stack = stack,
-      into = into, bankType = bankType }
+      split = stack.split, name = stack.name, into = into, bankType = bankType }
   end
   local id = button.runId or button
   HF._movers[button] = true

@@ -421,6 +421,84 @@ describe("bank route", function()
     assert.is_false(panel()._open)
   end)
 
+  -- The first part of moving a split (Core/BankGroups.lua's Plan): SplitContainerItem, then the part
+  -- dropped into an empty slot of a plain bag. The bags are faked as the client's: GetContainerNumFreeSlots
+  -- answers its free count and bagFamily (0 for a plain bag).
+  describe("SplitStack", function()
+    local calls, families, picked
+
+    before_each(function()
+      calls, picked = {}, nil
+      families = {}
+      -- The backpack holds a stack of 10 in slot 1; slot 2 is empty.
+      bags = { [0] = { info(7, "Bloom", { stackCount = 10 }), nil }, [1] = {}, [2] = {}, [3] = {}, [4] = {} }
+      _G.C_Container.GetContainerNumSlots = function(bag) return bag == 0 and 2 or (bags[bag] and 4 or 0) end
+      _G.C_Container.GetContainerNumFreeSlots = function(bag)
+        local n = 0
+        for slot = 1, _G.C_Container.GetContainerNumSlots(bag) do
+          if not bags[bag][slot] then n = n + 1 end
+        end
+        return n, families[bag] or 0
+      end
+      _G.C_Container.SplitContainerItem = function(bag, slot, n) calls[#calls + 1] = { "split", bag, slot, n } end
+      _G.C_Container.PickupContainerItem = function(bag, slot) calls[#calls + 1] = { "pickup", bag, slot } end
+      _G.ClearCursor = function() picked = "cleared" end
+    end)
+
+    after_each(function() _G.ClearCursor = nil end)
+
+    local function part() return { itemID = 7, bag = 0, slot = 1, count = 4, split = 10 } end
+
+    it("splits the surplus off and drops it into the first empty slot of a plain bag", function()
+      local dest = panel().SplitStack(part())
+      assert.same({ bag = 0, slot = 2 }, dest)
+      assert.same({ { "split", 0, 1, 4 }, { "pickup", 0, 2 } }, calls)
+    end)
+
+    it("leaves the reagent bag and a profession bag alone", function()
+      bags[0][2] = info(8, "Linen Cloth")
+      families[1] = 512 -- a profession bag
+      assert.same({ bag = 2, slot = 1 }, panel().SplitStack(part()))
+      bags[2] = { info(1, "a"), info(1, "b"), info(1, "c"), info(1, "d") }
+      bags[3] = { info(1, "a"), info(1, "b"), info(1, "c"), info(1, "d") }
+      bags[4] = { info(1, "a"), info(1, "b"), info(1, "c"), info(1, "d") }
+      calls = {}
+      local dest, why = panel().SplitStack(part())
+      assert.is_nil(dest)
+      assert.equal("room", why)
+      assert.same({}, calls)
+    end)
+
+    it("makes no call when the cursor is busy or the source is no longer the stack that was read", function()
+      cursor = "item"
+      local dest, why = panel().SplitStack(part())
+      assert.is_nil(dest)
+      assert.equal("cursor", why)
+      cursor = nil
+      bags[0][1].stackCount = 11
+      dest, why = panel().SplitStack(part())
+      assert.is_nil(dest)
+      assert.equal("gone", why)
+      bags[0][1].stackCount, bags[0][1].isLocked = 10, true
+      assert.equal("gone", select(2, panel().SplitStack(part())))
+      assert.same({}, calls)
+      assert.equal("gone", select(2, panel().SplitStack({ itemID = 7, bag = 0, slot = 1, count = 4 })))
+    end)
+
+    it("knows when the part shows in its slot, and gives it back", function()
+      local dest = { bag = 0, slot = 2 }
+      assert.is_false(panel().SplitLanded(dest, part()))
+      bags[0][2] = info(7, "Bloom", { stackCount = 4, isLocked = true })
+      assert.is_false(panel().SplitLanded(dest, part()))
+      bags[0][2].isLocked = false
+      assert.is_true(panel().SplitLanded(dest, part()))
+      bags[0][2].stackCount = 3
+      assert.is_false(panel().SplitLanded(dest, part()))
+      panel().AbandonSplit()
+      assert.equal("cleared", picked)
+    end)
+  end)
+
   describe("/gc route", function()
     local printed
     before_each(function()

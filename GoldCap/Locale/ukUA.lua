@@ -1787,6 +1787,7 @@ GC.Locales.ukUA = {
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Поштова скринька не відповіла. Перевірте сумки та вкладку «Надіслати лист».",
   ["Stopped: something is on your cursor."] = "Зупинено: на курсорі щось є.",
+  ["No free bag slot to split %s, so more of it stays than its keep."] = "Немає вільної комірки в сумках, щоб розділити %s, тому його лишається більше, ніж потрібно залишити.",
   ["Stopped: the Send Mail tab already holds items."] = "Зупинено: у вкладці «Надіслати лист» уже є предмети.",
   ["Stopped: %s would not go into the mail."] = "Зупинено: %s не вдалося вкласти в лист.",
   ["Stopped."] = "Зупинено.",

@@ -1704,6 +1704,7 @@ GC.Locales.enUS = {
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "The mailbox did not answer. Check your bags and the Send Mail tab.",
   ["Stopped: something is on your cursor."] = "Stopped: something is on your cursor.",
+  ["No free bag slot to split %s, so more of it stays than its keep."] = "No free bag slot to split %s, so more of it stays than its keep.",
   ["Stopped: the Send Mail tab already holds items."] = "Stopped: the Send Mail tab already holds items.",
   ["Stopped: %s would not go into the mail."] = "Stopped: %s would not go into the mail.",
   ["Stopped."] = "Stopped.",

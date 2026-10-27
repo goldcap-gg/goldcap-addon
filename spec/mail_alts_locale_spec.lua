@@ -18,6 +18,8 @@ local KEYS = {
   "Don't send this group", "Send this group again", "Not sent", "Not sent from this realm.",
   "Show 1 group not sent", "Show %d groups not sent", "Hide the groups not sent",
   "Every group here is set not to be sent.",
+  -- Keep leaves exactly its count: a split with no empty slot of a plain bag to go to.
+  "No free bag slot to split %s, so more of it stays than its keep.",
 }
 
 -- A refused mail no longer stops the run: its old stop text is gone from every language.

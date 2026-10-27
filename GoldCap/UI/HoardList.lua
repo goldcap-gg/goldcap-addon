@@ -110,7 +110,7 @@ function HL.RunState()
   if HF._runId == nil or not rows then return nil, {} end
   local done, items = 0, {}
   for _, row in ipairs(rows) do
-    local slotKey = row.bag .. ":" .. row.slot
+    local slotKey = HF.RowKey(row)
     local item = items[row.itemID] or { total = 0, moved = 0, moving = false }
     item.total = item.total + 1
     if HF._moved[slotKey] then

@@ -326,4 +326,122 @@ describe("MailPress", function()
     assert.is_nil(reports[1].stopped)
     assert.are.same({ "Alt1-Realm", "Alt2-Realm" }, reports[1].failed)
   end)
+
+  -- A stack with `split` is the part of a bigger one (Keep leaves exactly its count): split into an
+  -- empty slot inside the click, then attached and sent from a timer once the slot shows it.
+  describe("a split part", function()
+    local free, landedAfter, splitLog, cursorCleared
+
+    local function splitMachine()
+      return P.New({
+        open = function() return true end,
+        cursorBusy = function() return state.cursor end,
+        slot = function(b, s) return bags[key(b, s)] end,
+        attach = function(stack)
+          state.attached = state.attached + 1
+          log[#log + 1] = { "attach", stack.bag, stack.slot, stack.count }
+          return true
+        end,
+        split = function(stack)
+          if not free then return nil, "room" end
+          splitLog[#splitLog + 1] = { stack.slot, stack.count }
+          return { bag = 1, slot = 5 }
+        end,
+        landed = function() return landedAfter ~= nil and #timers >= 0 and landedAfter <= 0 end,
+        abandon = function() cursorCleared = true end,
+        attached = function() return state.attached end,
+        clear = function() state.attached = 0; log[#log + 1] = { "clear" } end,
+        send = function(to, subject)
+          state.attached = 0
+          log[#log + 1] = { "send", to, subject }
+        end,
+        after = function(seconds, fn)
+          timers[#timers + 1] = { seconds = seconds, fn = function()
+            if landedAfter then landedAfter = landedAfter - 1 end
+            fn()
+          end }
+        end,
+        progress = function(p) progresses[#progresses + 1] = p end,
+        report = function(r) reports[#reports + 1] = r end,
+      })
+    end
+
+    local function splitMail()
+      bags[key(0, 1)] = { link = "item:1", isLocked = false, count = 4 }
+      bags[key(0, 2)] = { link = "item:2", isLocked = false, count = 1 }
+      return { { to = "Alt-Realm", subject = "S", stacks = {
+        { itemID = 1, bag = 0, slot = 1, count = 3, split = 4, link = "item:1" },
+        { itemID = 2, bag = 0, slot = 2, count = 1, link = "item:2" },
+      } } }
+    end
+
+    before_each(function()
+      free, landedAfter, splitLog, cursorCleared = true, 2, {}, false
+      machine = splitMachine()
+    end)
+
+    it("splits inside the click and attaches and sends from a timer once the slot holds the part", function()
+      machine:Press(splitMail())
+      assert.same({ { 1, 3 } }, splitLog)
+      assert.same({}, log)
+      assert.is_true(machine:IsRunning())
+      assert.equal(P.SPLIT_STEP, timers[1].seconds)
+      table.remove(timers, 1).fn() -- the slot does not show it yet
+      assert.same({}, log)
+      table.remove(timers, 1).fn() -- now it does
+      -- The part is attached from the slot it landed in, the other stack from where it was.
+      assert.same({ { "attach", 1, 5, 3 }, { "attach", 0, 2, 1 }, { "send", "Alt-Realm", "S" } }, log)
+      machine:OnSendResult(true)
+      assert.equal(1, reports[1].sent)
+      assert.is_nil(reports[1].stopped)
+      assert.is_nil(reports[1].noRoom)
+    end)
+
+    it("does not take the source growing past what the split was read from for a merge", function()
+      local m = splitMail()
+      bags[key(0, 1)].count = 5
+      machine:Press(m)
+      -- The source holds more than it was read with: skipped, only the plain stack is left.
+      assert.same({}, splitLog)
+      assert.same({ { "attach", 0, 2, 1 }, { "send", "Alt-Realm", "S" } }, log)
+    end)
+
+    it("skips a part with no empty slot, names it, and sends the rest", function()
+      free = false
+      machine:Press(splitMail())
+      assert.same({ { "attach", 0, 2, 1 }, { "send", "Alt-Realm", "S" } }, log)
+      machine:OnSendResult(true)
+      assert.same({ "#1" }, reports[1].noRoom)
+    end)
+
+    it("sends nothing and moves on when every part of a mail found no room", function()
+      free = false
+      local m = splitMail()
+      m[1].stacks[2] = nil
+      machine:Press(m)
+      assert.same({}, log)
+      assert.is_false(machine:IsRunning())
+      assert.same({ "#1" }, reports[1].noRoom)
+      assert.is_nil(reports[1].stopped)
+    end)
+
+    it("gives the part back and stops when the slot never fills within SPLIT_TICKS", function()
+      landedAfter = 1000
+      machine:Press(splitMail())
+      for _ = 1, P.SPLIT_TICKS + 1 do
+        if #timers > 0 then table.remove(timers, 1).fn() end
+      end
+      assert.is_true(cursorCleared)
+      assert.is_false(machine:IsRunning())
+      assert.equal("split", reports[1].stopped)
+      assert.equal(0, count("attach") + count("send"))
+    end)
+
+    it("stops for something on the cursor before it splits", function()
+      state.cursor = true
+      machine:Press(splitMail())
+      assert.same({}, splitLog)
+      assert.equal("cursor", reports[1].stopped)
+    end)
+  end)
 end)

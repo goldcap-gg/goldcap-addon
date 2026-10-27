@@ -157,7 +157,8 @@ describe("Send to alts window", function()
     })
     local api = post.api
     _G.C_Container = { GetContainerNumSlots = api.GetContainerNumSlots, GetContainerItemInfo = api.GetContainerItemInfo,
-      PickupContainerItem = api.PickupContainerItem }
+      PickupContainerItem = api.PickupContainerItem,
+      GetContainerNumFreeSlots = api.GetContainerNumFreeSlots, SplitContainerItem = api.SplitContainerItem }
     for _, name in ipairs({ "ClickSendMailItemButton", "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail",
       "GetCursorInfo", "ClearCursor", "MailFrameTab_OnClick", "GetAutoCompleteRealms", "MailFrame", "SendMailFrame",
       "SendMailNameEditBox" }) do
@@ -506,6 +507,70 @@ describe("Send to alts window", function()
     }, sequence({ "PickupContainerItem", "ClickSendMailItemButton", "SetSendMailCOD", "SetSendMailMoney", "SendMail" }))
     assert.same({ "0:1", "0:2", "5:1" }, post:pending().items)
     assert.equal(0, #post:calls("MailFrameTab_OnClick"))
+  end)
+
+  -- Keep leaves exactly its count: Herbs keeps 30 of its 220 Bloom, so the 20 goes whole and 170 is
+  -- split off the 200 into an empty slot of a plain bag (bag 0, slot 5), attached from a timer once
+  -- that slot shows it.
+  describe("a split", function()
+    local function stepUntilIdle(n)
+      for _ = 1, n or 40 do fire(GC.MailPress.SPLIT_STEP) end
+    end
+
+    before_each(function()
+      GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
+      _G.SendMailFrame:Show()
+      _G.SendMailFrame.sendMode = "send"
+    end)
+
+    it("splits inside the click, then attaches and sends from a timer once the slot holds the part", function()
+      post:delaySplits()
+      event("MAIL_SHOW")
+      press(top().send)
+      assert.same({ { "SplitContainerItem", 0, 1, 170 }, { "PickupContainerItem", 0, 5 } },
+        sequence({ "SplitContainerItem", "PickupContainerItem" }))
+      assert.equal(0, #post:calls("SendMail"))
+      assert.equal(0, #post:calls("ClickSendMailItemButton"))
+      assert.is_nil(post:holding())
+      -- The slot does not show it yet: still waiting.
+      fire(GC.MailPress.SPLIT_STEP)
+      assert.equal(0, #post:calls("SendMail"))
+      post:landSplits()
+      fire(GC.MailPress.SPLIT_STEP)
+      stepUntilIdle(1)
+      assert.equal(1, #post:calls("SendMail"))
+      assert.same({ "0:2", "0:5", "5:1" }, post:pending().items)
+      assert.equal(30, post.bags[0][1].stackCount)
+    end)
+
+    it("names a split with no empty slot of a plain bag and sends the rest", function()
+      post.bags[0][5] = nil
+      -- Bag 0 is full: 4 slots, all held.
+      local api = post.api
+      local sized = api.GetContainerNumSlots
+      api.GetContainerNumSlots = function(bag) if bag == 0 then return 4 end return sized(bag) end
+      event("MAIL_SHOW")
+      press(top().send)
+      assert.equal(0, #post:calls("SplitContainerItem"))
+      assert.same({ "0:2", "5:1" }, post:pending().items)
+      post:succeed()
+      event("MAIL_SEND_SUCCESS")
+      fire(GC.MailPress.STEP)
+      post:succeed()
+      event("MAIL_SEND_SUCCESS")
+      assert.equal("No free bag slot to split Bloom, so more of it stays than its keep.", MA._stopped)
+    end)
+
+    it("gives the part back and stops when its slot never shows it within three seconds", function()
+      post:delaySplits()
+      event("MAIL_SHOW")
+      press(top().send)
+      stepUntilIdle()
+      assert.is_true(#post:calls("ClearCursor") >= 1)
+      assert.equal(0, #post:calls("SendMail"))
+      assert.equal("The mailbox did not answer. Check your bags and the Send Mail tab.", MA._stopped)
+      assert.is_nil(post:holding())
+    end)
   end)
 
   it("sends the second mail only after MAIL_SEND_SUCCESS and the press machine's step", function()

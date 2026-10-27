@@ -10,12 +10,16 @@ local _, GC = ...
 -- the group's id on goldcap.gg, which a follow in another language or a renamed list keeps, else
 -- its name (Core/GroupRules.lua's GroupOf): two groups named alike are two groups.
 --
--- A press moves its button's list in order, a stack at a time and each whole: the game cannot
--- split a stack in one call. So Store lists a stack of an item only while the bags keep at least
--- the group's keep count of that item without it, the biggest stack first, and Take out lists every
--- stack of the group. A stack a press has
--- sent and the bags do not show moved yet (`moving`) is on its way: it is offered to no press, and
--- it no longer counts toward what the bags keep. A stack in the bags the bank must not take
+-- A press moves its button's list in order, a stack at a time. Store lists whole stacks of an item
+-- only while the bags keep at least the group's keep count of that item without them, the biggest
+-- first, and then, when the bags still hold more than the keep count, one more entry: a split of
+-- exactly that surplus from the smallest stack left (`split` = the count that stack holds), so Keep N
+-- leaves exactly N of each item in the bags. Keep 0 never splits. The press makes the split, by
+-- moving it into an empty slot of a plain bag first (UI/BankRoute.lua's SplitStack). Take out lists
+-- every stack of the group. A stack a press has sent and the bags do not show moved yet (`moving`)
+-- is on its way: it is offered to no press, and it no longer counts toward what the bags keep,
+-- except the source of a split (its mark is a table with `split`), which still holds what it keeps.
+-- A stack in the bags the bank must not take
 -- (`stays`: refused by it, or still refundable and the bank is the Warband Bank) is counted and
 -- kept, and named with why, so the Hoard can say which stack stays and why instead of counting it
 -- silently.
@@ -99,7 +103,9 @@ end
 --- Stacks are UI/BankRoute.lua's: { itemID, bag, slot, count, name, locked, stays }. Each group
 --- also carries what no press can raise, for the Hoard to size itself once: `items`, every item of
 --- the group here { itemID, name, count } with its count in the bags and the bank together, and
---- `stackCount`, its stacks in both (a stack moves whole, and landing on another only merges them).
+--- `stackCount`, its stacks in both (landing on another stack only merges them). A `toBank` entry
+--- that is a split is a copy of its source stack with `count` the surplus and `split` the count the
+--- source holds; every other entry is a stack as read.
 --- Each group also has `parentKey`, `parentName` and `shortName` (nil for a top group), as
 --- `opts.groupOf(itemID)` answers them after the key and the name (Core/GroupRules.lua's GroupOf).
 --- `opts.keepFor(key)` answers a group's keep count, and `opts.moving[bag .. ":" .. slot]` marks a
@@ -147,7 +153,8 @@ function M.Plan(bagStacks, bankStacks, opts)
       group.inBags = group.inBags + stack.count
       local item = itemIn(group.bagItems, stack)
       -- What the bags hold once the stacks already sent have left.
-      if not moving[M.SlotKey(stack)] then item.kept = item.kept + stack.count end
+      local mark = moving[M.SlotKey(stack)]
+      if not mark or (type(mark) == "table" and mark.split) then item.kept = item.kept + stack.count end
       if stack.stays then
         local why = stack.itemID .. ":" .. stack.stays
         local entry = group.staysBy[why]
@@ -180,12 +187,22 @@ function M.Plan(bagStacks, bankStacks, opts)
   for _, group in ipairs(groups) do
     for _, item in ipairs(sortedItems(group.bagItems)) do
       table.sort(item.stacks, M.StackOrder)
-      local left = item.kept
+      local left, rest = item.kept, nil
       for _, stack in ipairs(item.stacks) do
         if left - stack.count >= group.keep then
           group.toBank[#group.toBank + 1] = stack
           left = left - stack.count
+        else
+          rest = stack -- sorted biggest first: the last one left is the smallest
         end
+      end
+      -- What the bags still hold above the keep count comes out of the smallest stack left, which
+      -- is bigger than it (else it would be listed whole).
+      if group.keep > 0 and rest and left > group.keep then
+        local part = {}
+        for k, v in pairs(rest) do part[k] = v end
+        part.count, part.split = left - group.keep, rest.count
+        group.toBank[#group.toBank + 1] = part
       end
     end
     for _, item in ipairs(sortedItems(group.bankItems)) do

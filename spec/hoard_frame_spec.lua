@@ -941,6 +941,83 @@ describe("GoldCap Hoard window", function()
     assert.same({ { n = 5, 0, 1, nil, ACCOUNT, false } }, used)
   end)
 
+  -- Keep leaves exactly its count: what is over it that no whole stack covers is split off the smallest
+  -- stack left into an empty slot of a plain bag, and moved from there once it shows.
+  describe("a split", function()
+    local function serverSplits()
+      local pending
+      local C = _G.C_Container
+      C.SplitContainerItem = function(bag, slot, n) pending = { bag = bag, slot = slot, n = n } end
+      C.PickupContainerItem = function(bag, slot)
+        local source = bags[pending.bag][pending.slot]
+        local rest = {}
+        for k, v in pairs(source) do rest[k] = v end
+        rest.stackCount = source.stackCount - pending.n
+        bags[pending.bag][pending.slot] = rest
+        bags[bag][slot] = info(source.itemID, pending.n)
+        pending = nil
+      end
+    end
+
+    it("splits the surplus into an empty slot inside the click, then stores it from a timer", function()
+      landing = true
+      serverSplits()
+      bags[0] = { info(1, 200), info(9, 20) }
+      GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
+      open()
+      press(row("Herbs").store)
+      -- Inside the click the split is made and nothing goes to the bank yet.
+      assert.same({}, used)
+      assert.equal(30, bags[0][1].stackCount)
+      assert.equal(170, bags[0][3].stackCount)
+      assert.same({ itemID = 1, count = 170, pending = true }, HF._moving["0:3"])
+      assert.equal("0:3", HF._moving["0:1"].split)
+      ticks()
+      assert.same({ { n = 5, 0, 3, nil, ACCOUNT, false } }, used)
+      assert.is_nil(HF.Running())
+      bagsChanged()
+      -- The marks go once the bags show the part gone; the bags keep their 30.
+      assert.is_nil(next(HF._moving))
+      assert.equal(30, bags[0][1].stackCount)
+      assert.is_false(row("Herbs").store:IsEnabled())
+    end)
+
+    it("gives the part back and stops when its slot never shows it", function()
+      landing = true
+      serverSplits()
+      local picked = _G.C_Container.PickupContainerItem
+      _G.C_Container.PickupContainerItem = function() end
+      local cleared = false
+      _G.ClearCursor = function() cleared = true end
+      bags[0] = { info(1, 200), info(9, 20) }
+      GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
+      open()
+      press(row("Herbs").store)
+      ticks()
+      assert.is_true(cleared)
+      assert.same({}, used)
+      assert.is_nil(HF.Running())
+      assert.is_nil(HF._moving["0:1"])
+      _G.ClearCursor, _G.C_Container.PickupContainerItem = nil, picked
+    end)
+
+    it("skips a split with no empty slot of a plain bag and says so once", function()
+      landing = true
+      serverSplits()
+      sizes[0] = 2
+      bags[0] = { info(1, 200), info(9, 20) }
+      GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
+      local said = {}
+      GC.Print = function(text) said[#said + 1] = text end
+      open()
+      press(row("Herbs").store)
+      ticks()
+      assert.same({}, used)
+      assert.equal(200, bags[0][1].stackCount)
+      assert.same({ "No free bag slot to split Bloom, so more of it stays than its keep." }, said)
+    end)
+  end)
+
   -- The bank route's own guards, reused: the same call equips gear with no bank open (which binds
   -- it) and sells to an open vendor.
   it("moves nothing once the bank has closed, while a vendor is open, or with the bank out of reach", function()
@@ -1170,7 +1247,7 @@ describe("GoldCap Hoard window", function()
     assert.equal("Kräuter", textOf(herbs.name))
     assert.equal("Keep in bags: 30 of each", herbs.keep.label)
     W.state(herbs.store).scripts.OnEnter(herbs.store)
-    assert.same({ "Store", "Bloom ×20 (1 left)" }, tip.lines)
+    assert.same({ "Store", "Bloom ×20 (2 left)" }, tip.lines)
     press(herbs.keep)
     assert.equal("How many of each item in Kräuter to keep in your bags?", asked.opts.title)
     assert.equal("30", asked.opts.text)
@@ -1190,9 +1267,9 @@ describe("GoldCap Hoard window", function()
     assert.same({ v = GC.BankGroups.VERSION, groups = { Herbs = 30 } }, GC.db.bankKeep)
     local herbs = row("Herbs")
     assert.equal("Keep in bags: 30 of each", herbs.keep.label)
-    -- 220 Bloom: the 200 would leave 20, under 30; the 20 leaves 200.
+    -- 220 Bloom: the 200 would leave 20, under 30; the 20 leaves 200, then 170 of the 200 split off.
     W.state(herbs.store).scripts.OnEnter(herbs.store)
-    assert.same({ "Store", "Bloom ×20 (1 left)" }, tip.lines)
+    assert.same({ "Store", "Bloom ×20 (2 left)" }, tip.lines)
     asked.opts.onCommit(300)
     assert.is_false(row("Herbs").store:IsEnabled())
   end)

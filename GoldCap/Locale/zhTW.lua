@@ -1615,6 +1615,7 @@ GC.Locales.zhTW = {
   ["Every group here is set not to be sent."] = "這裡的所有分組都已設為不寄出。",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "信箱沒有回應。請檢查背包和寄送郵件分頁。",
   ["Stopped: something is on your cursor."] = "已停止：游標上有東西。",
+  ["No free bag slot to split %s, so more of it stays than its keep."] = "背包沒有空位可拆分%s，所以留下的數量會多於保留數。",
   ["Stopped: the Send Mail tab already holds items."] = "已停止：寄送郵件分頁裡已有物品。",
   ["Stopped: %s would not go into the mail."] = "已停止：%s 放不進郵件。",
   ["Stopped."] = "已停止。",

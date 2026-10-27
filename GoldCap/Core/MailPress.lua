@@ -13,6 +13,11 @@ local _, GC = ...
 --   cursorBusy() -> boolean,       -- an item on the cursor, or a spell waiting for an item target
 --   slot(bag, slot) -> { link, isLocked, count } | nil,
 --   attach(stack) -> boolean,      -- picks the stack up and drops it into the Send Mail slots
+--   split(stack) -> { bag, slot }?, why?,  -- (stacks with `split`) the first part of a split: splits
+--                                  -- stack.count off the source into an empty slot of a plain bag;
+--                                  -- nil and "room" (no empty slot), "cursor" or "gone" otherwise
+--   landed(stack, dest) -> boolean, -- the split part shows in dest, whole and not locked
+--   abandon(stack, dest),          -- it never did: the cursor gives the part back
 --   attached() -> number,          -- how many Send Mail slots hold an item
 --   clear(),                       -- sends what is attached back to the bags
 --   send(to, subject) -> false?,   -- SetSendMailCOD(0), SetSendMailMoney(0), SendMail(to, subject, "");
@@ -20,10 +25,17 @@ local _, GC = ...
 --   after(seconds, fn)             -- a timer
 --   progress({ index, total, mail }),  -- right before each mail that gets attached; total leaves
 --                                  -- out mails skipped as empty and a refused recipient's later ones
---   report({ sent, mails, stopped, why, failed }),  -- once per run; stopped is nil for a finished
+--   report({ sent, mails, stopped, why, failed, noRoom }),  -- once per run; stopped is nil for a finished
 --                                  -- run, why the stack that would not attach ("refused"), failed
 --                                  -- the recipients (mail.to) whose mail the server refused, in order
 -- }
+--
+-- A stack with `split` (Core/BankGroups.lua's Plan: Keep leaves exactly its count) is the part of
+-- a bigger stack: before its mail is attached, `split` puts that part in an empty slot of a plain bag
+-- (inside the player's click when it is the first mail's) and the machine waits for `landed`, at
+-- most SPLIT_TICKS ticks of SPLIT_STEP, then attaches and sends the mail from a timer, the part from
+-- the slot it landed in. A part that never lands is given back (`abandon`) and the run stops,
+-- "split". With no empty slot (`split` answers "room") the stack is skipped, named in `noRoom`.
 --
 -- A stack whose slot no longer shows the same link, is locked, or holds more than was read (it
 -- merged with another of its item, and would take what the group keeps) is skipped: never a
@@ -38,6 +50,9 @@ local P = GC.MailPress
 P.STEP = 0.5
 -- Seconds to wait for the answer to a send before the run gives up.
 P.SEND_WAIT = 15
+-- A split part is looked for every SPLIT_STEP seconds, SPLIT_TICKS times (3 s).
+P.SPLIT_STEP = 0.2
+P.SPLIT_TICKS = 15
 
 local Machine = {}
 Machine.__index = Machine
@@ -56,14 +71,16 @@ local function stop(self, reason, why)
   self.run = nil
   self.token = self.token + 1
   if run.loaded and not run.issued then self.driver.clear() end
-  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = reason, why = why, failed = run.failedTo })
+  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = reason, why = why, failed = run.failedTo,
+    noRoom = #run.noRoom > 0 and run.noRoom or nil })
 end
 
 local function finish(self)
   local run = self.run
   self.run = nil
   self.token = self.token + 1
-  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = nil, failed = run.failedTo })
+  self.driver.report({ sent = run.sent, mails = #run.mails, stopped = nil, failed = run.failedTo,
+    noRoom = #run.noRoom > 0 and run.noRoom or nil })
 end
 
 -- Moves run.idx past the mails of recipients whose mail the server refused in this run.
@@ -77,14 +94,13 @@ local function present(driver, mail)
   for _, stack in ipairs(mail.stacks) do
     local info = driver.slot(stack.bag, stack.slot)
     if info and not info.isLocked and info.link == stack.link
-      and not (type(info.count) == "number" and type(stack.count) == "number" and info.count > stack.count) then
+      and not (type(info.count) == "number" and type(stack.count) == "number"
+        and info.count > (stack.split or stack.count)) then
       out[#out + 1] = stack
     end
   end
   return out
 end
-
-local attempt
 
 -- The answer to a send did not come: give the attachments back and stop.
 local function timeout(self, token, id)
@@ -93,6 +109,86 @@ local function timeout(self, token, id)
   self.driver.clear()
   run.loaded = false
   stop(self, "timeout")
+end
+
+-- Attaches `stacks` as the mail in flight and sends it, then waits for the answer.
+local function go(self, mail, stacks)
+  local run, d = self.run, self.driver
+  for _, stack in ipairs(stacks) do
+    if not d.attach(stack) then return stop(self, "refused", stack) end
+  end
+  run.mailId = run.mailId + 1
+  local token, id = self.token, run.mailId
+  -- Marked in flight before the call: the driver may deliver the answer from inside send, and
+  -- an answer for a mail not yet in flight is ignored.
+  run.issued = true
+  if d.send(mail.to, mail.subject) == false then
+    -- Nothing was sent: what is attached goes back (stop clears a loaded mail not in flight).
+    run.issued = false
+    return stop(self, "refused")
+  end
+  -- Wait only when that same mail is still unanswered (an inline answer ended or moved on).
+  if self.run == run and token == self.token and run.mailId == id and run.issued then
+    d.after(P.SEND_WAIT, function() timeout(self, token, id) end)
+  end
+end
+
+local attempt
+
+-- Splits the parts a mail holds (stacks with `split`), one at a time, each waiting for its slot to
+-- show it; then attaches and sends the mail with the parts in the slots they landed in. Called
+-- inside the click for the first split, from a timer after.
+local function prepare(self, token, prep)
+  local run, d = self.run, self.driver
+  if not run or token ~= self.token or run.prep ~= prep then return end
+  while true do
+    local stack = prep.stacks[prep.idx]
+    if not stack then break end
+    if not stack.split then
+      prep.list[#prep.list + 1] = stack
+      prep.idx = prep.idx + 1
+    else
+      local open, why = d.open()
+      if not open then return stop(self, why or "closed") end
+      if d.cursorBusy() then return stop(self, "cursor") end
+      local dest, reason = d.split(stack)
+      if not dest then
+        if reason == "cursor" then return stop(self, "cursor") end
+        if reason == "room" then run.noRoom[#run.noRoom + 1] = stack.name or ("#" .. tostring(stack.itemID)) end
+        prep.idx = prep.idx + 1
+      else
+        prep.dest, prep.ticks = dest, 0
+        local function poll()
+          if not self.run or token ~= self.token or run.prep ~= prep then return end
+          if d.landed(stack, dest) then
+            prep.list[#prep.list + 1] = { itemID = stack.itemID, bag = dest.bag, slot = dest.slot, name = stack.name,
+              count = stack.count, link = stack.link, icon = stack.icon }
+            prep.idx, prep.dest = prep.idx + 1, nil
+            return prepare(self, token, prep)
+          end
+          prep.ticks = prep.ticks + 1
+          if prep.ticks >= P.SPLIT_TICKS then
+            d.abandon(stack, dest)
+            return stop(self, "split", stack)
+          end
+          d.after(P.SPLIT_STEP, poll)
+        end
+        return d.after(P.SPLIT_STEP, poll)
+      end
+    end
+  end
+  run.prep = nil
+  if #prep.list == 0 then
+    -- Every part found no room: nothing to send in this mail.
+    run.dropped, run.loaded = run.dropped + 1, false
+    return attempt(self)
+  end
+  -- From a timer: what the click checked is checked again.
+  local open, why = d.open()
+  if not open then return stop(self, why or "closed") end
+  if d.cursorBusy() then return stop(self, "cursor") end
+  if d.attached() > 0 then return stop(self, "busy") end
+  go(self, prep.mail, prep.list)
 end
 
 -- Attaches and sends mails from run.idx on, until one is in flight or the list ends.
@@ -114,24 +210,14 @@ attempt = function(self)
       run.shown = run.shown + 1
       d.progress({ index = run.shown, total = #run.mails - run.dropped, mail = mail })
       run.loaded, run.issued, run.mail = true, false, mail
-      for _, stack in ipairs(stacks) do
-        if not d.attach(stack) then return stop(self, "refused", stack) end
+      local splits = false
+      for _, stack in ipairs(stacks) do splits = splits or stack.split ~= nil end
+      if splits then
+        local prep = { mail = mail, stacks = stacks, idx = 1, list = {}, ticks = 0 }
+        run.prep = prep
+        return prepare(self, self.token, prep)
       end
-      run.mailId = run.mailId + 1
-      local token, id = self.token, run.mailId
-      -- Marked in flight before the call: the driver may deliver the answer from inside send, and
-      -- an answer for a mail not yet in flight is ignored.
-      run.issued = true
-      if d.send(mail.to, mail.subject) == false then
-        -- Nothing was sent: what is attached goes back (stop clears a loaded mail not in flight).
-        run.issued = false
-        return stop(self, "refused")
-      end
-      -- Wait only when that same mail is still unanswered (an inline answer ended or moved on).
-      if self.run == run and token == self.token and run.mailId == id and run.issued then
-        d.after(P.SEND_WAIT, function() timeout(self, token, id) end)
-      end
-      return
+      return go(self, mail, stacks)
     end
   end
 end
@@ -141,7 +227,7 @@ function Machine:Press(mails)
   if not mails or #mails == 0 then return end
   self.token = self.token + 1
   self.run = { mails = mails, idx = 1, sent = 0, shown = 0, dropped = 0, mailId = 0, loaded = false,
-    issued = false, failed = {}, failedTo = {} }
+    issued = false, failed = {}, failedTo = {}, noRoom = {} }
   attempt(self)
 end
 

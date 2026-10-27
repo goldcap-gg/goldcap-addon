@@ -257,6 +257,56 @@ function P.MoveStack(stack, into, bankType)
   return true
 end
 
+--- The first empty slot of a plain bag, the backpack or bags 1 to 4 (never the reagent bag or a
+--- profession bag: a bag whose second answer of GetContainerNumFreeSlots, its bagFamily, is not 0),
+--- as bag, slot; nil when there is none. Read at the moment of the split, not planned ahead.
+function P.FreePlainSlot()
+  for _, bag in ipairs(BAGS) do
+    local free, family = C_Container.GetContainerNumFreeSlots(bag)
+    if (free or 0) > 0 and family == 0 then
+      for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
+        if not C_Container.GetContainerItemInfo(bag, slot) then return bag, slot end
+      end
+    end
+  end
+  return nil
+end
+
+--- The first part of moving a split (Core/BankGroups.lua's Plan: `stack.split` is what the source
+--- slot holds, `stack.count` what leaves it): splits `stack.count` off the source and drops it into
+--- an empty slot of a plain bag, the way Blizzard's own split does (SplitContainerItem, then
+--- PickupContainerItem; neither has restrictions). Answers { bag, slot } of the slot the part goes
+--- to, which shows it once the server answers (SplitLanded); or nil and why: "cursor" (something is
+--- on it), "gone" (the source no longer holds the stack as it was read), "room" (no empty slot of a
+--- plain bag). It makes no call in any of those cases, so nothing is left on the cursor.
+function P.SplitStack(stack)
+  if type(stack) ~= "table" or type(stack.split) ~= "number" then return nil, "gone" end
+  if GC.Util.CursorBusy() then return nil, "cursor" end
+  local info = C_Container.GetContainerItemInfo(stack.bag, stack.slot)
+  if not (info and info.itemID == stack.itemID) or info.isLocked or info.stackCount ~= stack.split then
+    return nil, "gone"
+  end
+  local bag, slot = P.FreePlainSlot()
+  if not bag then return nil, "room" end
+  C_Container.SplitContainerItem(stack.bag, stack.slot, stack.count)
+  C_Container.PickupContainerItem(bag, slot)
+  return { bag = bag, slot = slot }
+end
+
+--- Whether the part of `stack` split off into `dest` ({ bag, slot }) shows there: the item, exactly
+--- `stack.count` of it, not locked.
+function P.SplitLanded(dest, stack)
+  local info = C_Container.GetContainerItemInfo(dest.bag, dest.slot)
+  return type(info) == "table" and info.itemID == stack.itemID and info.stackCount == stack.count
+    and not info.isLocked
+end
+
+--- The part never showed in its slot: whatever the split left on the cursor goes back to where it
+--- came from (ClearCursor returns a split part to its source).
+function P.AbandonSplit()
+  if ClearCursor then pcall(ClearCursor) end
+end
+
 --- Where a carry row's item goes, in words: for which realm, at what list price and how soon
 --- ("in", put in for another realm), here ("out", take out to sell here), or why the auction house
 --- refuses it ("stuck"). The Hoard's carry cards and /gc route say it the same way.

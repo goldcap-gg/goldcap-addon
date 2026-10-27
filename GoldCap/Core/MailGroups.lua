@@ -7,8 +7,9 @@ local _, GC = ...
 --
 -- What a group sends is what GC.BankGroups.Plan puts in its `toBank` list: the stacks that leave
 -- the bags while the bags still keep the group's keep count of each item (the same "Keep N" as the
--- GoldCap Hoard), the biggest stack first, a stack a press has already sent (`moving`) or the game
--- holds (`locked`) left out. A stack the mail must not take (`stays`: bound, Warbound until
+-- GoldCap Hoard), the biggest stack first, then one split of what is still over the count from the
+-- smallest stack left (an entry with `split`, which counts as a stack of its own: postage, one of the
+-- attachments), a stack a press has already sent (`moving`) or the game holds (`locked`) left out. A stack the mail must not take (`stays`: bound, Warbound until
 -- equipped, or still refundable, see StaysWhy) is kept and named with why, never attached.
 --
 -- A mail carries at most MAX_ATTACH stacks. The mails of one alt are cut from all their groups'

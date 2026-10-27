@@ -57,14 +57,16 @@
   brings those items back later, even after a reload. Both work with no group followed: the Hoard
   opens beside the bank all the same and says where to find groups.
 - Bank: pick your bank or the Warband Bank at the top of the Hoard. You can set how many of each
-  item stay in your bags, and a stack that has to stay, because that bank does not take it or, for
+  item stay in your bags, and Store leaves exactly that many, splitting a stack when it has to,
+  which needs one free bag slot. A stack that has to stay, because that bank does not take it or, for
   the Warband Bank, because you can still return it for a refund, is named with why. The flips to
   carry to another realm show in the Hoard too. Close it with the X, and a small Hoard button
   beside the bank opens it again.
 - Mail, in retail WoW: Send to alts, a GoldCap window beside the mail frame at a mailbox. It lists
   the groups you follow on goldcap.gg that have something in your bags. Pick once which of your
   characters sells each group, and GoldCap remembers it for this realm and faction. Keep is the same
-  count as in the Hoard, and what it keeps stays in your bags. Send all sends everything in one
+  count as in the Hoard: exactly that many of each item stay in your bags, and GoldCap splits a stack
+  to send the rest, which needs one free bag slot. Send all sends everything in one
   press, and the groups for one character share mails of up to 12 stacks. The postage shows first. A
   name you type that is not one of your characters is asked about once before the first mail goes.
   If one character's mail does not go, the others' still do, and GoldCap says whose did not. Gold is

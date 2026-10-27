@@ -17,7 +17,9 @@ local _, GC = ...
 -- What goes in which mail is Core/MailGroups.lua's Plan over the bag reader's stacks
 -- (UI/BankRoute.lua's ReadStacks, a bound or refundable stack marked `stays` through StaysWhy); who
 -- the player's characters are and which of them this one can mail, Core/Alts.lua's; the press,
--- Core/MailPress.lua's machine over the driver below, which makes every mail call there is: the
+-- Core/MailPress.lua's machine over the driver below, which makes every mail call there is (a stack
+-- of the plan with `split` is first split into an empty slot of a plain bag, and its mail goes from
+-- a timer once that slot shows it): the
 -- first mail attached and sent inside the player's click, the rest from the machine's timers once the
 -- server has answered the one before. Gold never goes: SetSendMailCOD(0) and SetSendMailMoney(0)
 -- right before every SendMail. Measured in retail 12.1.5 (probe B, 2026-10-26): PickupContainerItem
@@ -113,6 +115,8 @@ MA._open = false
 MA._reading = nil
 MA._run = nil
 MA._sent = {}
+-- The slots a split of this run has used (splitPart), "bag:slot" -> { itemID, count, split? }, until its end.
+MA._moving = {}
 MA._stopped = nil
 MA._armed = nil
 MA._trustedHere = {}
@@ -212,6 +216,7 @@ local function readBags()
     recipientOf = function(key) return home and GC.MailGroups.RecipientOf(GC.db, home, key, me.faction) or nil end,
     mailName = function(full) return me and GC.Alts.MailName(full, me, connected) or nil end,
     isMe = function(full) return me ~= nil and full == me.full end,
+    moving = MA._moving,
     skipped = function(key) return home ~= nil and GC.MailGroups.Skipped(GC.db, home, key, me.faction) end,
   })
   return reading
@@ -365,7 +370,7 @@ local function stopText(result)
   local reason = result.stopped
   if reason == nil or reason == "closed" then return nil end
   if reason == "tab" then return GC.L["The Send Mail tab was closed."] end
-  if reason == "timeout" then return GC.L["The mailbox did not answer. Check your bags and the Send Mail tab."] end
+  if reason == "timeout" or reason == "split" then return GC.L["The mailbox did not answer. Check your bags and the Send Mail tab."] end
   if reason == "cursor" then return GC.L["Stopped: something is on your cursor."] end
   if reason == "busy" then return GC.L["Stopped: the Send Mail tab already holds items."] end
   if reason == "refused" and type(result.why) == "table" then
@@ -386,6 +391,13 @@ local function endText(result)
       parts[#parts + 1] = GC.L["Sent %d mails."]:format(result.sent)
     end
     parts[#parts + 1] = GC.L["The mail to %s did not go."]:format(listOf(failed))
+  end
+  local said = {}
+  for _, name in ipairs(result.noRoom or {}) do
+    if not said[name] then
+      said[name] = true
+      parts[#parts + 1] = GC.L["No free bag slot to split %s, so more of it stays than its keep."]:format(name)
+    end
   end
   parts[#parts + 1] = stopText(result)
   if #parts == 0 then return nil end
@@ -452,6 +464,28 @@ local function attach(stack)
   return attachedCount() == before + 1
 end
 
+-- A stack that is the part of a bigger one (Core/BankGroups.lua's Plan: Keep leaves exactly its
+-- count): the first part of its move, the part split off into an empty slot of a plain bag. The
+-- part's slot and its source are marked `moving` (MA._moving, read by the next plan) until the run
+-- is over, so a repaint between the parts never plans the part as a stack of its own nor splits the
+-- source twice.
+local function splitPart(stack)
+  local dest, why = GC.BankRoute.SplitStack(stack)
+  if not dest then return nil, why end
+  local destKey = dest.bag .. ":" .. dest.slot
+  MA._moving[destKey] = { itemID = stack.itemID, count = stack.count }
+  MA._moving[stack.bag .. ":" .. stack.slot] = { itemID = stack.itemID, count = stack.count, split = destKey }
+  return dest
+end
+
+local function splitLanded(stack, dest)
+  return GC.BankRoute.SplitLanded(dest, stack)
+end
+
+local function splitAbandoned()
+  GC.BankRoute.AbandonSplit()
+end
+
 -- Every attachment back to the bags, the last slot first, as a right click on it does.
 local function clearAttached()
   for i = GC.MailGroups.MAX_ATTACH, 1, -1 do
@@ -506,6 +540,7 @@ local function onReport(result)
     end
   end
   MA._stopped = endText(result)
+  MA._moving = {}
   letGoOfNameBox()
   if C_Timer and C_Timer.After then C_Timer.After(0, letGoOfNameBox) end
   if MA._open then MA.Refresh(true) end
@@ -518,6 +553,9 @@ function MA._Machine()
       cursorBusy = GC.Util.CursorBusy,
       slot = U.slotNow,
       attach = attach,
+      split = splitPart,
+      landed = splitLanded,
+      abandon = splitAbandoned,
       attached = attachedCount,
       clear = clearAttached,
       send = send,
@@ -1610,6 +1648,7 @@ end
 local function newVisit()
   if MA.machine and MA.machine:IsRunning() then MA.machine:Stop("closed") end
   MA._run, MA._sent, MA._stopped, MA._armed, MA._reading = nil, {}, nil, nil, nil
+  MA._moving = {}
   MA._showSkipped = false
 end
 

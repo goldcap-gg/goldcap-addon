@@ -95,15 +95,81 @@ describe("bank by group", function()
       assert.same({ "12:1", "13:7" }, where(herbs.toBags))
     end)
 
-    -- A stack is moved whole: the game cannot split one in a single call. So To bank moves a stack
-    -- only while the bags keep at least the count of that item without it.
-    it("keeps at least the keep count of each item in the bags", function()
+    -- Whole stacks go while the bags keep at least the count of that item without them; what is
+    -- still above the count comes out of the smallest stack left, as a split.
+    it("leaves exactly the keep count of each item in the bags", function()
       local herbs = plan({ stack(1, 0, 1, 200), stack(1, 0, 2, 5), stack(2, 1, 1, 30) }, {}, { Herbs = 10 })[1]
-      -- Bloom (1): 205 in the bags. The 200 would leave 5, under 10: it stays; the 5 leaves 200.
-      -- Bloom (2) is another item: its 30 alone would leave nothing, so it stays.
-      assert.same({ "0:2" }, where(herbs.toBank))
+      -- Bloom (1): 205 in the bags. The 200 would leave 5, under 10: the 5 leaves 200, then 190 of
+      -- the 200 split off. Bloom (2) is another item: 20 of its 30 split off.
+      assert.same({ "0:2", "0:1", "1:1" }, where(herbs.toBank))
+      assert.same({ 5, 190, 20 }, { herbs.toBank[1].count, herbs.toBank[2].count, herbs.toBank[3].count })
+      assert.same({ nil, 200, 30 }, { herbs.toBank[1].split, herbs.toBank[2].split, herbs.toBank[3].split })
       assert.equal(10, herbs.keep)
       assert.equal(235, herbs.inBags)
+    end)
+
+    describe("a split", function()
+      local function counts(stacks)
+        local out = {}
+        for _, s in ipairs(stacks) do out[#out + 1] = s.count .. (s.split and ("/" .. s.split) or "") end
+        return out
+      end
+
+      it("sends whole stacks and splits nothing when they add up to the surplus", function()
+        local herbs = plan({ stack(1, 0, 1, 2), stack(1, 0, 2, 2), stack(1, 0, 3, 2) }, {}, { Herbs = 2 })[1]
+        assert.same({ "2", "2" }, counts(herbs.toBank))
+      end)
+
+      it("lists a whole stack and a split of 1 for two stacks of 2 with a keep of 1", function()
+        local herbs = plan({ stack(1, 0, 1, 2), stack(1, 0, 2, 2) }, {}, { Herbs = 1 })[1]
+        -- 4 in the bags, 1 kept: 3 leave, 2 whole and 1 split off the other 2.
+        assert.same({ "2", "1/2" }, counts(herbs.toBank))
+        assert.same({ "0:1", "0:2" }, where(herbs.toBank))
+      end)
+
+      it("sends 20, 3 whole and 15 of the other 20 for 20, 20, 3 with a keep of 5", function()
+        local herbs = plan({ stack(1, 0, 1, 20), stack(1, 0, 2, 20), stack(1, 0, 3, 3) }, {}, { Herbs = 5 })[1]
+        assert.same({ "20", "3", "15/20" }, counts(herbs.toBank))
+        assert.same({ "0:1", "0:3", "0:2" }, where(herbs.toBank))
+        local total = 0
+        for _, s in ipairs(herbs.toBank) do total = total + s.count end
+        assert.equal(38, total)
+      end)
+
+      it("splits 150 off one stack of 200 with a keep of 50, as a copy of the source", function()
+        local herbs = plan({ stack(1, 0, 4, 200, { link = "item:1" }) }, {}, { Herbs = 50 })[1]
+        assert.same({ "150/200" }, counts(herbs.toBank))
+        local part = herbs.toBank[1]
+        assert.equal(1, part.itemID)
+        assert.equal(0, part.bag)
+        assert.equal(4, part.slot)
+        assert.equal("Bloom", part.name)
+        assert.equal("item:1", part.link)
+      end)
+
+      it("never splits with a keep of 0", function()
+        local herbs = plan({ stack(1, 0, 1, 200), stack(1, 0, 2, 5) }, {}, {})[1]
+        assert.same({ "200", "5" }, counts(herbs.toBank))
+      end)
+
+      it("never takes a locked or sent stack as the source of a split", function()
+        local bags = { stack(1, 0, 1, 20, { locked = true }), stack(1, 0, 2, 30) }
+        local herbs = plan(bags, {}, { Herbs = 25 })[1]
+        -- 50 in the bags, 25 kept: the 30 is the only free stack, and 25 of it can go.
+        assert.same({ "25/30" }, counts(herbs.toBank))
+        assert.equal(2, herbs.toBank[1].slot)
+        herbs = plan({ stack(1, 0, 1, 20) }, {}, { Herbs = 10 }, { ["0:1"] = true })[1]
+        assert.same({}, herbs.toBank)
+        -- The source of a split in flight still holds what it keeps, and is not offered again.
+        herbs = plan({ stack(1, 0, 1, 10), stack(1, 0, 2, 5) }, {}, { Herbs = 10 },
+          { ["0:1"] = { split = "0:2" }, ["0:2"] = true })[1]
+        assert.same({}, herbs.toBank)
+      end)
+
+      it("leaves Take out whole", function()
+        local herbs = plan({}, { stack(1, 12, 1, 200) }, { Herbs = 50 })[1]
+        assert.same({ "200" }, counts(herbs.toBags))
+      end)
     end)
 
     it("moves down to exactly the keep count when the stacks allow it", function()
@@ -129,8 +195,11 @@ describe("bank by group", function()
       -- Keep 20: the sent 100 has left, so the 50 may go and leave the locked 20.
       ore = plan(bags, {}, { Ore = 20 }, { ["0:1"] = true })[1]
       assert.same({ "0:2" }, where(ore.toBank))
+      -- Keep 21: the sent 100 has left; 49 of the 50 split off, leaving the 1 and the locked 20.
       ore = plan(bags, {}, { Ore = 21 }, { ["0:1"] = true })[1]
-      assert.same({}, ore.toBank)
+      assert.same({ "0:2" }, where(ore.toBank))
+      assert.equal(49, ore.toBank[1].count)
+      assert.equal(50, ore.toBank[1].split)
     end)
 
     -- A stack the Warband Bank must not take (still refundable, or refused) stays in the bags: it is

@@ -298,4 +298,86 @@ describe("VendorPress", function()
       assert.same({ sold = 3, copper = 60, stopped = nil }, calls.report[2])
     end)
   end)
+
+  -- A row with `split` moves a part of a stack in two parts: the split inside the click, the move
+  -- from a timer once the part shows in its slot.
+  describe("a split row", function()
+    local landed, ticksToLand, abandoned, noRoom
+
+    before_each(function()
+      landed, ticksToLand, abandoned, noRoom = false, 1, false, false
+      calls.part = {}
+      bags[key(0, 1)] = { link = "item:1", isLocked = false, count = 10 }
+      machine = P.New({
+        open = function() return open end,
+        slot = function(b, s)
+          local x = bags[key(b, s)]
+          return x and { link = x.link, isLocked = x.isLocked, count = x.count } or nil
+        end,
+        cursorBusy = function() return cursor end,
+        use = function(b, s, row)
+          calls.use[#calls.use + 1] = { b, s, split = row.split }
+          if row.split then
+            if noRoom then return false, "room" end
+            row.dest = { bag = 2, slot = 3 }
+            return true
+          end
+          bags[key(b, s)] = nil
+        end,
+        landed = function(row)
+          if landed then return true end
+          ticksToLand = ticksToLand - 1
+          if ticksToLand < 0 then
+            bags[key(row.dest.bag, row.dest.slot)] = { link = row.link, isLocked = false, count = 4 }
+            landed = true
+          end
+          return landed
+        end,
+        part = function(row)
+          return { bag = row.dest.bag, slot = row.dest.slot, link = row.link, itemID = row.itemID }
+        end,
+        abandon = function() abandoned = true end,
+        after = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end,
+        report = function(r) calls.report[#calls.report + 1] = r end,
+      })
+    end)
+
+    local function row()
+      return { bag = 0, slot = 1, link = "item:1", itemID = 1, split = 10, name = "Bloom" }
+    end
+
+    it("splits in the click, then moves the part from a timer once its slot shows it", function()
+      machine:Press({ row() })
+      assert.same({ { 0, 1, split = 10 } }, calls.use)
+      drain()
+      assert.same({ { 0, 1, split = 10 }, { 2, 3 } }, calls.use)
+      assert.same({ sold = 1, copper = 0, stopped = nil }, calls.report[1])
+    end)
+
+    it("skips a row whose source holds another count than it was read with", function()
+      bags[key(0, 1)].count = 11
+      machine:Press({ row() })
+      assert.same({}, calls.use)
+    end)
+
+    it("names a split with no empty slot and goes on with the next row", function()
+      noRoom = true
+      bags[key(0, 2)] = { link = "item:2", isLocked = false, count = 1 }
+      machine:Press({ row(), { bag = 0, slot = 2, link = "item:2", itemID = 2 } })
+      drain()
+      assert.same({ { 0, 1, split = 10 }, { 0, 2 } }, calls.use)
+      assert.same({ "Bloom" }, calls.report[1].noRoom)
+      assert.equal(1, calls.report[1].sold)
+    end)
+
+    it("gives the part back and stops after CONFIRM_TICKS when the slot never fills", function()
+      ticksToLand = 1000
+      machine:Press({ row() })
+      drain()
+      assert.is_true(abandoned)
+      assert.equal("split", calls.report[1].stopped)
+      assert.equal(0, calls.report[1].sold)
+      assert.equal(1, #calls.use)
+    end)
+  end)
 end)
