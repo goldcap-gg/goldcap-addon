@@ -266,6 +266,13 @@ describe("GoldCap minimap button", function()
     for i, l in ipairs(tip.lines) do texts[i] = l.text end
     assert.same({ "GoldCap", "Worth disenchanting: 2", "Not learned yet: 3", "The auction house pays more: 1",
       "A vendor pays more: 3", "Click for GoldCap. Drag to move it." }, texts)
+    -- Nothing learned yet: no "Worth disenchanting: 0" beside it.
+    counts = { 3, 0, 0, 0, 3 }
+    W.state(b).scripts.OnEnter(b)
+    texts = {}
+    for i, l in ipairs(tip.lines) do texts[i] = l.text end
+    assert.same({ "GoldCap", "Not learned yet: 3", "Click for GoldCap. Drag to move it." }, texts)
+    counts = { 6, 1, 3, 2, 3 }
     click()
     assert.is_not_nil(buttonNamed("Disenchant (6)"))
     local last = tip.lines[#tip.lines]

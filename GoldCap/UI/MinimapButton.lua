@@ -149,7 +149,10 @@ local function showTip(self)
   if n and n + ah + vendor == 0 then
     tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
   elseif n then
-    tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(worth)), c[1], c[2], c[3])
+    -- "Worth disenchanting: 0" beside what is not learned yet says nothing (the re-review, 2026-10-27).
+    if worth > 0 or learning == 0 then
+      tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(worth)), c[1], c[2], c[3])
+    end
     if learning > 0 then tooltip:AddLine(text(GC.L["Not learned yet: %d"]:format(learning)), c[1], c[2], c[3]) end
     if ah > 0 then tooltip:AddLine(text(GC.L["The auction house pays more: %d"]:format(ah)), c[1], c[2], c[3]) end
     if vendor > 0 then tooltip:AddLine(text(GC.L["A vendor pays more: %d"]:format(vendor)), c[1], c[2], c[3]) end

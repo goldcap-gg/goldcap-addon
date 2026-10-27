@@ -135,9 +135,12 @@ local function kindsOf(db, create)
   return db.deYields.kinds
 end
 
--- One more cast of `kind`; mats = { [itemID] = units }. False when the store is a newer one's.
+-- One more cast of `kind`; mats = { [itemID] = units }. False when the store is a newer one's, and
+-- for a kind the reader could not tell ("x?", "i?"): such a cast would teach every item that could
+-- not be told what one of them gave (the code review's re-review, 2026-10-27).
 function D.Learn(db, kind, mats)
   if type(db) ~= "table" or type(kind) ~= "string" or type(mats) ~= "table" then return false end
+  if kind:find("?", 1, true) then return false end
   if not writable(db.deYields, D.YIELDS_VERSION) then return false end
   local kinds = kindsOf(db, true)
   local k = kinds[kind]

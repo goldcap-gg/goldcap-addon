@@ -404,10 +404,10 @@ describe("Disenchant window", function()
   end)
 
   -- With Blizzard's bags and the window closed (or a bag addon's bags in their place) the button
-  -- still counts, but at most once every COUNT_SECONDS, one timer for every change meanwhile; at once
-  -- when its tooltip or menu asks (Counts' readNow) or Blizzard's bags open; never in combat; and
-  -- never while it is hidden (the code review, 2026-10-27).
-  it("counts with the bags closed at most once every 10 seconds, at once when asked, never in combat", function()
+  -- counts on the frame after login, then at most once every COUNT_SECONDS, one timer for every
+  -- change meanwhile; at once when its tooltip or menu asks (Counts' readNow) or Blizzard's bags
+  -- open; never in combat; and never while it is hidden (the code review, 2026-10-27).
+  it("counts after login at once, with the bags closed at most once every 10 seconds, at once when asked, never in combat", function()
     local shown = true
     GC.MinimapButton = { Refresh = function() end, Shown = function() return shown end }
     local function waiting()
@@ -420,10 +420,10 @@ describe("Disenchant window", function()
     assert.equal(10, DF.COUNT_SECONDS)
     put(gear(0, 1, 501))
     event("PLAYER_LOGIN")
-    nextFrame()
     assert.equal(0, reads)
-    fire(DF.COUNT_SECONDS)
+    nextFrame()
     assert.equal(1, reads)
+    assert.equal(0, waiting())
     assert.same({ 1, 0, 0, 0, 1 }, { DF.Counts() })
     put(gear(0, 2, 502))
     event("BAG_UPDATE_DELAYED")

@@ -118,6 +118,13 @@ describe("Disenchant", function()
       y = D.Yield(db, "k")
       assert.is_true(math.abs(y[1] - 3) < 1e-9)
     end)
+    it("learns nothing of a kind the reader could not tell", function()
+      local db = {}
+      assert.is_false(D.Learn(db, "q2:x?:a", { [1] = 2 }))
+      assert.is_false(D.Learn(db, "q2:x7:w:i?", { [1] = 2 }))
+      assert.is_nil(db.deYields)
+      assert.equal("q2:x7:w:i?", D.KindOf({ quality = 2, expansion = 7, classID = 2 }))
+    end)
     it("does not write to a store a newer GoldCap wrote", function()
       local db = { deYields = { v = 2, kinds = {} } }
       assert.is_false(D.Learn(db, "k", { [1] = 1 }))

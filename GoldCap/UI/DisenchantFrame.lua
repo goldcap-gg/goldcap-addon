@@ -2081,7 +2081,8 @@ end
 
 --- The window's events, as its own event frame below hears them. PLAYER_LOGIN: the key binding's
 --- label in the player's language (chosen at ADDON_LOADED, after every file loaded), the window
---- built for an enchanter, and the minimap button's first count (countSoon). SPELLS_CHANGED: built
+--- built for an enchanter, and the minimap button's first count on the next frame, once every
+--- file built its frames (the code review's re-review, 2026-10-27: not 10 s late). SPELLS_CHANGED: built
 --- once Disenchant is learned; a paint, which closes the window once the spell is gone (with only
 --- the minimap button counting, its count told at once and read by countSoon). BAG_UPDATE_DELAYED:
 --- a paint on the next frame while the window or Blizzard's bags show; while only the minimap
@@ -2096,7 +2097,7 @@ function DF.OnEvent(event, ...)
   if event == "PLAYER_LOGIN" then
     _G["BINDING_NAME_" .. DF.BINDING] = GC.L["Disenchant next"]
     prepare()
-    if DF.Known() then countSoon() end
+    if DF.Known() then schedule() end
   elseif event == "SPELLS_CHANGED" then
     prepare()
     if (frame and frame:IsShown()) or bagFrame() then

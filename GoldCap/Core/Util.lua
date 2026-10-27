@@ -2,17 +2,6 @@ local _, GC = ...
 
 GC.Util = {}
 
--- WoW's string.format converts a %d/%i/%x/%c argument to a 32-bit integer and raises "integer
--- overflow attempting to store N" for anything outside +-2^31 (2,147,483,647 copper is about
--- 214,748g, and retail prices pass that routinely) -- a 1.5M-gold Forever troll listing crashed
--- a live scan on exactly this (Core/ForeverFold.lua's Encode). busted's own Lua has no such
--- ceiling, which is how it shipped behind a green suite; spec/support/wow_format.lua's shim is
--- what makes a spec able to catch it. %.0f has no ceiling either: it prints the same digits as
--- %d for any integer up to 2^53, the largest a Lua double still represents exactly -- more than
--- enough for any amount of copper this addon ever handles. Every %d/%i/%x whose argument can be
--- a copper amount, a price, a total, a deposit, or any other sum that can pass 214,748g goes
--- through this, not a bare string.format; counts, levels, percentages and indexes stay on %d,
--- since none of those can reach that range.
 --- One guarded client call: its first answer (false kept as false), or nil when `fn` is not a
 --- function or raises. The one copy for every file that reads the client so (the code review,
 --- 2026-10-27).
@@ -38,6 +27,17 @@ function GC.Util.MailboxOpen()
   return open
 end
 
+-- WoW's string.format converts a %d/%i/%x/%c argument to a 32-bit integer and raises "integer
+-- overflow attempting to store N" for anything outside +-2^31 (2,147,483,647 copper is about
+-- 214,748g, and retail prices pass that routinely) -- a 1.5M-gold Forever troll listing crashed
+-- a live scan on exactly this (Core/ForeverFold.lua's Encode). busted's own Lua has no such
+-- ceiling, which is how it shipped behind a green suite; spec/support/wow_format.lua's shim is
+-- what makes a spec able to catch it. %.0f has no ceiling either: it prints the same digits as
+-- %d for any integer up to 2^53, the largest a Lua double still represents exactly -- more than
+-- enough for any amount of copper this addon ever handles. Every %d/%i/%x whose argument can be
+-- a copper amount, a price, a total, a deposit, or any other sum that can pass 214,748g goes
+-- through this, not a bare string.format; counts, levels, percentages and indexes stay on %d,
+-- since none of those can reach that range.
 function GC.Util.IntText(n)
   return ("%.0f"):format(n)
 end
