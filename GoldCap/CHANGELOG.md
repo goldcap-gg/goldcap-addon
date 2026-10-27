@@ -123,21 +123,22 @@
 - Crafting, in retail WoW: under a recipe's reagents, GoldCap shows what the reagents you picked
   cost, what one craft sells for after the auction house cut, and the profit. A reagent GoldCap
   has no price for is named instead of a number.
-- Crafting: a GoldCap panel beside the profession window names the profession you have open. This
-  recipe shows the recipe you picked with its item and crafting quality, what its reagents cost,
-  what one craft sells for after the cut and its profit, also when the window is minimized. Worth
-  crafting lists the recipes you know that make a profit, best profit per craft first, each with
-  its item's icon and crafting quality and about how many sell a day, or Slow seller when it sells
-  less than once a day. Click a recipe to open it in the profession window, or press + to add one
-  craft to the queue. Under the list it counts the recipes that make no profit now.
-- Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
-  bags, bank, mailbox and on the auction house. Each line of the Queue shows the item with its
-  crafting quality and a bar of how far along it is. Missing shows each reagent the queue still
-  needs with its icon and about what it costs to buy, with the total at the top. Make a BUY list
-  puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor sells
-  under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off changes it,
-  so BUY never buys again what a craft already used. Each character keeps its own queue and its own
-  list, named after the character.
+- Crafting, in retail WoW: a GoldCap panel beside the profession window names the profession you
+  have open. This recipe shows the recipe you picked with its item and crafting quality, what its
+  reagents cost, what one craft sells for after the cut and its profit, also when the window is
+  minimized. Worth crafting lists the recipes you know that make a profit, best profit per craft
+  first, each with its item's icon and crafting quality and about how many sell a day, or Slow
+  seller when it sells less than once a day. Click a recipe to open it in the profession window, or
+  press + to add one craft to the queue. Under the list it counts the recipes that make no profit
+  now.
+- Crafting, in retail WoW: add a recipe to a craft queue with a count, or restock it to a number you
+  hold in your bags, bank, mailbox and on the auction house. Each line of the Queue shows the item
+  with its crafting quality and a bar of how far along it is. Missing shows each reagent the queue
+  still needs with its icon and about what it costs to buy, with the total at the top. Make a BUY
+  list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor
+  sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off changes
+  it, so BUY never buys again what a craft already used. Each character keeps its own queue and its
+  own list, named after the character.
 - Crafting, in retail WoW: each line of the craft queue has a Craft button while that recipe's
   profession window is open. One press crafts as many as your reagents allow, up to what the line
   still needs, one after another, and moving stops it. While it crafts, the line reads Crafting
