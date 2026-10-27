@@ -11,8 +11,8 @@ local B = GC.VendorBags
 -- (Blizzard_FrameXMLBase/Constants.lua): a set's location is a real place only above 1.
 local LAST_SENTINEL = 1
 
--- C_Item.GetItemInfo returns: itemEquipLoc is the 9th value, classID the 12th, subclassID the 13th,
--- expansionID the 15th, isCraftingReagent the 17th. Gear is a
+-- C_Item.GetItemInfo returns: itemEquipLoc is the 9th value, sellPrice the 11th, classID the 12th,
+-- subclassID the 13th, expansionID the 15th, isCraftingReagent the 17th. Gear is a
 -- weapon (2), armor (4) or profession equipment (19; Enum.ItemClass, live
 -- ItemConstantsDocumentation.lua): each comes in ranks or levels under one id, so its auction house
 -- figure is the cheapest version's and the value rule never sells it.
@@ -59,18 +59,45 @@ end
 
 -- A bound stack may still be tradeable raid loot, which a scripted sale turns into a confirm on
 -- the cursor item. C_TooltipInfo.GetBagItem (TooltipInfoDocumentation.lua) carries the line.
+-- Answers whether it has the line, and whether the tooltip was read at all: where it cannot be, the
+-- stack is taken to have one (fail closed), and that is no answer to keep.
 local function hasTradeTimer(bag, slot)
   local tooltip = _G.C_TooltipInfo
   local pattern = tradeTimerPattern()
-  if type(tooltip) ~= "table" or not pattern then return true end
+  if type(tooltip) ~= "table" or not pattern then return true, false end
   local ok, data = try(tooltip.GetBagItem, bag, slot)
-  if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return true end
+  if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return true, false end
   for _, line in ipairs(data.lines) do
     if type(line) == "table" and type(line.leftText) == "string" and line.leftText:find(pattern) then
-      return true
+      return true, true
     end
   end
-  return false
+  -- Only a tooltip with more than the item's name is an answer: a bound item's has its binding line.
+  return false, #data.lines >= 2
+end
+
+-- Trade timers read before, by the item's own GUID (the code review, 2026-10-27: every pass read a
+-- tooltip per bound piece of gear): false for an item read without one, which never gets one (the
+-- timer starts as the item drops), for good; else the time (GetTime) until which its timer is taken
+-- as running, TRADE_RECHECK seconds after it was read (the line's remaining time is the client's
+-- words, not read). Gear without a GUID, and grey junk, are read on every pass.
+local tradeSeen = {}
+B.TRADE_RECHECK = 60
+
+local function tradeTimerOf(bag, slot, guid)
+  local seen = guid and tradeSeen[guid]
+  local now = GC.Util.Ask(_G.GetTime)
+  if seen == false then return false end
+  if type(seen) == "number" and type(now) == "number" and now < seen then return true end
+  local has, read = hasTradeTimer(bag, slot)
+  if guid and read then
+    if not has then
+      tradeSeen[guid] = false
+    elseif type(now) == "number" then
+      tradeSeen[guid] = now + B.TRADE_RECHECK
+    end
+  end
+  return has
 end
 
 -- Refundable by either source: C_Container.GetContainerItemPurchaseInfo (ItemPurchaseInfo.refundSeconds)
@@ -125,18 +152,29 @@ local function isSelling(info, bag, slot)
   return false
 end
 
--- What a vendor pays for one of a stack: its own link's price (C_Item.GetItemInfo's sellPrice, the
--- 11th answer, for the hyperlink), else the item's (GC.ForeverValue.VendorUnit, by id). Gear sells
--- by its own item level and bonuses: Blizzard's source does not say the link's answer is scaled,
--- but measured in the game it is (the owner's screenshots, 2026-10-26: an item level 198 axe whose
--- base item sells for 2g read 61g, as the game's own Sell Price line). This file is retail only;
+-- What the client says of a stack's item, in one C_Item.GetItemInfo by its own link (by its id
+-- without one): the equip location, the sell price, the class and subclass, the expansion and
+-- whether it is a crafting reagent. The sell price is what a vendor pays for one: gear sells by its
+-- own item level and bonuses, and Blizzard's source does not say the link's answer is scaled, but
+-- measured in the game it is (the owner's screenshots, 2026-10-26: an item level 198 axe whose base
+-- item sells for 2g read 61g, as the game's own Sell Price line). This file is retail only;
 -- Forever's price is untouched.
-local function vendorUnitOf(itemID, link)
-  if type(link) == "string" and link ~= "" and C_Item and C_Item.GetItemInfo then
-    local ok, sell = pcall(function() return select(11, C_Item.GetItemInfo(link)) end)
-    if ok and type(sell) == "number" and sell > 0 then return sell end
-  end
-  return GC.ForeverValue.VendorUnit(itemID)
+local function itemInfoOf(itemID, link)
+  if not (C_Item and C_Item.GetItemInfo) then return nil end
+  local of = type(link) == "string" and link ~= "" and link or itemID
+  local ok, _, _, _, _, _, _, _, _, equipLoc, _, sell, classID, subclassID, _, expansion, _, reagent =
+    pcall(C_Item.GetItemInfo, of)
+  if not ok then return nil end
+  return equipLoc, type(sell) == "number" and sell > 0 and sell or nil, classID, subclassID, expansion, reagent
+end
+
+-- The item level of gear from before Dragonflight (ItemSparse ExpansionID below 9), which what
+-- disenchanting it gives depends on (Core/Disenchant.lua's KindOf): C_Item.GetDetailedItemLevelInfo's
+-- actual item level, for the stack's own link. Nil for anything else, or where the client will not say.
+local function oldGearLevel(gear, expansion, link)
+  if not (gear and type(expansion) == "number" and expansion < 9 and type(link) == "string") then return nil end
+  local level = C_Item and GC.Util.Ask(C_Item.GetDetailedItemLevelInfo, link)
+  return type(level) == "number" and level > 0 and level or nil
 end
 
 B.GuidOf = guidOf
@@ -154,28 +192,26 @@ function B.Read(valueFor)
       if okI and type(info) == "table" and info.itemID then
         if excluded == nil then excluded = isExcluded(bag) end
         local itemID = info.itemID
-        local classID, subclassID, equipLoc, expansion, reagent
-        if C_Item and C_Item.GetItemInfo then
-          local okG, got = pcall(function() return { C_Item.GetItemInfo(itemID) } end)
-          if okG then classID, subclassID, equipLoc, expansion, reagent = got[12], got[13], got[9], got[15], got[17] end
-        end
+        local equipLoc, sell, classID, subclassID, expansion, reagent = itemInfoOf(itemID, info.hyperlink)
         local gear = GEAR_CLASS[classID] == true
+        local guid = gear and guidOf(bag, slot) or nil
         local value = type(valueFor) == "function" and valueFor(itemID) or nil
         if type(value) ~= "table" then value = {} end
         local quality = info.quality
         stacks[#stacks + 1] = {
           bag = bag, slot = slot, itemID = itemID, link = info.hyperlink, count = info.stackCount,
-          quality = quality, vendorUnit = vendorUnitOf(itemID, info.hyperlink),
+          quality = quality, vendorUnit = sell,
           ahUnit = value.mv, ahSource = value.source, ahAt = value.at,
           hasNoValue = info.hasNoValue == true, isLocked = info.isLocked == true,
           isBound = info.isBound == true, isGear = gear, isReagent = reagent == true,
           classID = classID, subclassID = subclassID, equipLoc = equipLoc, expansion = expansion,
+          itemLevel = oldGearLevel(gear, expansion, info.hyperlink),
           -- Gear only: the Disenchant window, which holds its choices by it, plans nothing else.
-          guid = gear and guidOf(bag, slot) or nil,
+          guid = guid,
           refundable = isRefundable(bag, slot),
           -- grey junk, or bound gear of quality 2 to 4 (raid loot that is still tradeable)
           tradeTimer = info.isBound == true and (quality == 0 or (gear and quality ~= nil and quality >= 2 and quality <= 4))
-            and hasTradeTimer(bag, slot) or false,
+            and tradeTimerOf(bag, slot, guid) or false,
           inSet = (places == nil and gear) or (places ~= nil and places[bag .. ":" .. slot] == true),
           excludedBag = excluded, selling = isSelling(info, bag, slot),
         }

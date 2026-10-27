@@ -6,8 +6,9 @@ local helper = require("spec.spec_helper")
 -- EquipmentManager_GetLocationData result), checked with wowsrc.py on live 12.1.5 and forever.
 describe("VendorBags", function()
   local GC, B, saved, bags, items, flags, purchase, refundable, sets, setsFail, tooltips, tipReads, errors
+  local infoAsked, levels, clock
   local KEYS = { "C_Container", "C_Item", "C_EquipmentSet", "EquipmentManager_GetLocationData",
-    "C_TooltipInfo", "Enum", "ItemLocation", "BIND_TRADE_TIME_REMAINING" }
+    "C_TooltipInfo", "Enum", "ItemLocation", "BIND_TRADE_TIME_REMAINING", "GetTime" }
 
   local function put(bag, slot, id, over)
     local info = { iconFileID = 1, stackCount = 1, isLocked = false, quality = 0, isReadable = false,
@@ -24,7 +25,8 @@ describe("VendorBags", function()
     saved = {}
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     bags, items, flags, purchase, refundable, sets, setsFail, tooltips, errors = {}, {}, {}, {}, {}, {}, false, {}, {}
-    tipReads = 0
+    tipReads, infoAsked, levels, clock = 0, {}, {}, 1000
+    _G.GetTime = function() return clock end
     _G.Enum = { BagSlotFlags = { ExcludeJunkSell = 64 } }
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
     _G.C_Container = {
@@ -40,14 +42,23 @@ describe("VendorBags", function()
       end,
       GetBackpackSellJunkDisabled = function() boom("backpack"); return flags[0] == true end,
     }
+    -- C_Item.GetItemInfo(itemInfo) takes an id or a link; a link the fake has no answer of its own
+    -- for answers as its item (the client's answer for an unscaled link).
     _G.C_Item = {
       GetItemInfo = function(id)
         boom("itemInfo")
+        infoAsked[#infoAsked + 1] = id
         local it = items[id]
+        if not it and type(id) == "string" then it = items[tonumber(id:match("item:(%d+)"))] end
         if not it then return nil end
         return "Item " .. id, "link", it.quality or 0, 1, 1, "t", "s", 20, it.equip or "", 1, it.sell, it.class or 15, it.subclass or 0, 0, it.expansion or 0, nil, it.reagent == true
       end,
       CanBeRefunded = function(loc) boom("refund"); return refundable[loc.bag .. ":" .. loc.slot] == true end,
+      -- ItemDocumentation.lua: actualItemLevel, previewLevel, sparseItemLevel; MayReturnNothing.
+      GetDetailedItemLevelInfo = function(link)
+        local level = levels[link]
+        if level then return level, false, level end
+      end,
     }
     _G.C_EquipmentSet = {
       GetEquipmentSetIDs = function() boom("setIDs"); return setsFail and error("x") or { 1 } end,
@@ -97,8 +108,8 @@ describe("VendorBags", function()
 
   -- Gear sells by its own item level and bonuses: C_Item.GetItemInfo with the stack's hyperlink
   -- answers that price (61g for an item level 198 axe whose base item sells for 2g, the owner's
-  -- screenshot 2026-10-26), with the item's id its base price.
-  it("reads a stack's vendor price from its own link, else from its item", function()
+  -- screenshot 2026-10-26); a link with no bonuses answers its item's base price.
+  it("reads a stack's vendor price from its own link", function()
     local link = "|Hitem:60::::::::90:::2:10354:1:|h[Axe]|h"
     put(0, 1, 60, { hyperlink = link, quality = 3 })
     items[60] = { sell = 20000, class = 2 }
@@ -156,6 +167,36 @@ describe("VendorBags", function()
   -- ItemConstantsDocumentation.lua) come in ranks under one id, like weapons and armor, so their
   -- auction house figure is the cheapest rank's: gear, never sold by the value rule, and in a set
   -- when the set API cannot say.
+  -- One C_Item.GetItemInfo a stack, by its link: the class fields, the expansion and the link's
+  -- own (scaled) sell price all come from that one answer (the code review, 2026-10-27).
+  it("asks C_Item.GetItemInfo once a stack, by its link", function()
+    local link = "|Hitem:60::::::::90:::2:10354:1:|h[Axe]|h"
+    put(0, 1, 60, { hyperlink = link, quality = 3 }); put(0, 2, 61, { quality = 1 })
+    items[link] = { sell = 610411, class = 2, subclass = 7, equip = "INVTYPE_WEAPON", expansion = 10 }
+    items[61] = { sell = 5, class = 7 }
+    local out = B.Read()
+    assert.same({ link, "|Hitem:61|h" }, infoAsked)
+    assert.same({ 2, 7, "INVTYPE_WEAPON", 10, 610411 },
+      { out[1].classID, out[1].subclassID, out[1].equipLoc, out[1].expansion, out[1].vendorUnit })
+    assert.equal(7, out[2].classID)
+  end)
+
+  -- What disenchanting gear of an expansion before Dragonflight gives depends on its item level
+  -- (Core/Disenchant.lua's KindOf): the stack carries it, read for such gear only.
+  it("reads the item level of gear from before Dragonflight, and of nothing else", function()
+    put(0, 1, 70, { quality = 3, hyperlink = "|Hitem:70|h" })
+    put(0, 2, 71, { quality = 3, hyperlink = "|Hitem:71|h" })
+    put(0, 3, 72, { quality = 1, hyperlink = "|Hitem:72|h" })
+    items[70] = { class = 4, expansion = 7, sell = 5 }
+    items[71] = { class = 2, expansion = 9, sell = 5 }
+    items[72] = { class = 7, expansion = 7, sell = 5 }
+    levels["|Hitem:70|h"], levels["|Hitem:71|h"], levels["|Hitem:72|h"] = 342, 400, 50
+    local out = B.Read()
+    assert.equal(342, out[1].itemLevel)
+    assert.is_nil(out[2].itemLevel)
+    assert.is_nil(out[3].itemLevel)
+  end)
+
   it("counts profession equipment as gear", function()
     put(0, 1, 50, { quality = 2 }); put(0, 2, 51, { quality = 2 })
     items[50], items[51] = { sell = 5, class = 19 }, { sell = 5, class = 15 }
@@ -208,6 +249,47 @@ describe("VendorBags", function()
       local out = B.Read()
       assert.is_true(out[1].tradeTimer)
       assert.is_false(out[2].tradeTimer)
+      assert.equal(2, tipReads)
+    end)
+
+    -- By the item's own GUID (the code review, 2026-10-27): an item read without a trade timer
+    -- never gets one, so its tooltip is read once; one with a timer is read again after
+    -- TRADE_RECHECK seconds; gear without a GUID, and grey junk, are read on every pass.
+    it("reads a gear item's trade timer once when it has none, and again a minute later while it has one", function()
+      _G.C_Item.GetItemGUID = function(loc) return loc.slot <= 2 and ("Item-" .. loc.slot) or nil end
+      put(0, 1, 50, { isBound = true, quality = 4 }); put(0, 2, 51, { isBound = true, quality = 4 })
+      put(0, 3, 52, { isBound = true, quality = 4 }); put(0, 4, 53, { isBound = true })
+      items[50], items[51], items[52], items[53] = { class = 2 }, { class = 2 }, { class = 2 }, { sell = 5 }
+      local timer = { leftText = "You may trade this item with players that were also eligible to loot this item for the next 1 hour." }
+      tooltips["0:1"] = { lines = { { leftText = "Item 50" }, { leftText = "Soulbound" } } }
+      tooltips["0:2"] = { lines = { { leftText = "Item 51" }, { leftText = "Soulbound" }, timer } }
+      tooltips["0:3"] = { lines = { { leftText = "Item 52" }, { leftText = "Soulbound" } } }
+      tooltips["0:4"] = { lines = { { leftText = "Item 53" }, { leftText = "Soulbound" } } }
+      B.Read()
+      assert.equal(4, tipReads)
+      clock = clock + 30
+      local out = B.Read()
+      assert.equal(6, tipReads)
+      assert.same({ false, true, false, false },
+        { out[1].tradeTimer, out[2].tradeTimer, out[3].tradeTimer, out[4].tradeTimer })
+      clock = clock + B.TRADE_RECHECK
+      tooltips["0:2"] = { lines = { { leftText = "Item 51" }, { leftText = "Soulbound" } } }
+      out = B.Read()
+      assert.equal(9, tipReads)
+      assert.is_false(out[2].tradeTimer)
+      B.Read()
+      assert.equal(11, tipReads)
+    end)
+
+    -- A read that could not see the tooltip (fail closed) is no answer: it is never kept.
+    it("keeps no answer it could not read", function()
+      _G.C_Item.GetItemGUID = function() return "Item-1" end
+      put(0, 1, 50, { isBound = true, quality = 4 })
+      items[50] = { class = 2 }
+      tooltips["0:1"] = nil
+      assert.is_true((one()).tradeTimer)
+      tooltips["0:1"] = { lines = { { leftText = "Item 50" }, { leftText = "Soulbound" } } }
+      assert.is_false((one()).tradeTimer)
       assert.equal(2, tipReads)
     end)
   end)

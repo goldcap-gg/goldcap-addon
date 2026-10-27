@@ -170,8 +170,10 @@ describe("vendor sell card", function()
       GetBagSlotFlag = function() return false end,
       GetBackpackSellJunkDisabled = function() return false end,
     }
+    -- C_Item.GetItemInfo takes an id or a link (the bag reader asks by the stack's link).
     _G.C_Item = {
       GetItemInfo = function(id)
+        if type(id) == "string" then id = tonumber(id:match("item:(%d+)")) end
         return "Item " .. id, "link", 0, 1, 1, "t", "s", 20, "", 1, sells[id], 15, 0, 0, 0, nil, false
       end,
       GetItemIconByID = function() return 1 end,
