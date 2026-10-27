@@ -1722,6 +1722,7 @@ GC.Locales.esES = {
     "El buzón no respondió. Revisa tus bolsas y la pestaña Enviar correo.",
   ["Stopped: something is on your cursor."] = "Detenido: tienes algo en el cursor.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "No hay hueco libre en las bolsas para dividir %s, así que se queda más de lo que querías conservar.",
+  ["The split did not show up in your bags in time and was put back."] = "La parte dividida no apareció a tiempo en tus bolsas y se devolvió a su sitio.",
   ["Stopped: the Send Mail tab already holds items."] = "Detenido: la pestaña Enviar correo ya tiene objetos.",
   ["Stopped: %s would not go into the mail."] = "Detenido: %s no entró en el correo.",
   ["Stopped."] = "Detenido.",

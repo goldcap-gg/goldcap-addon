@@ -982,23 +982,112 @@ describe("GoldCap Hoard window", function()
       assert.is_false(row("Herbs").store:IsEnabled())
     end)
 
-    it("gives the part back and stops when its slot never shows it", function()
+    -- The split is made and the server has not answered: the part is not in its slot yet, and the
+    -- client still holds it on the cursor (`held`).
+    local held, cleared, said
+    local function waiting()
       landing = true
       serverSplits()
-      local picked = _G.C_Container.PickupContainerItem
       _G.C_Container.PickupContainerItem = function() end
-      local cleared = false
-      _G.ClearCursor = function() cleared = true end
+      held, cleared, said = false, false, {}
+      _G.GetCursorInfo = function()
+        if held then return "item", 1 end
+        return nil
+      end
+      _G.ClearCursor = function() cleared, held = true, false end
+      GC.Print = function(text) said[#said + 1] = text end
       bags[0] = { info(1, 200), info(9, 20) }
       GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
       open()
       press(row("Herbs").store)
-      ticks()
+      held = true
+      assert.is_not_nil(HF._moving["0:1"])
+      assert.is_true(HF._moving["0:3"].pending)
+    end
+    local function givenBack()
       assert.is_true(cleared)
-      assert.same({}, used)
       assert.is_nil(HF.Running())
-      assert.is_nil(HF._moving["0:1"])
-      _G.ClearCursor, _G.C_Container.PickupContainerItem = nil, picked
+      assert.is_nil(next(HF._moving))
+      assert.same({}, used)
+    end
+
+    after_each(function() _G.ClearCursor = nil end)
+
+    it("says so and stops after three seconds when the slot never shows the part", function()
+      waiting()
+      ticks()
+      assert.is_false(held)
+      assert.is_nil(HF.Running())
+      assert.is_nil(next(HF._moving))
+      assert.same({}, used)
+      assert.same({ "The split did not show up in your bags in time and was put back." }, said)
+    end)
+
+    it("puts a part the client kept on the cursor back at once, and stops", function()
+      landing = true
+      serverSplits()
+      -- The drop is refused: the part stays on the cursor.
+      local cursorKind
+      _G.C_Container.PickupContainerItem = function() cursorKind = "item" end
+      _G.GetCursorInfo = function() return cursorKind end
+      cleared = false
+      _G.ClearCursor = function() cleared, cursorKind = true, nil end
+      said = {}
+      GC.Print = function(text) said[#said + 1] = text end
+      bags[0] = { info(1, 200), info(9, 20) }
+      GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
+      open()
+      press(row("Herbs").store)
+      assert.is_true(cleared)
+      assert.is_nil(HF.Running())
+      assert.is_nil(next(HF._moving))
+      assert.equal(1, #said)
+    end)
+
+    it("gives the part back when a second press stops the run while it waits", function()
+      waiting()
+      press(row("Herbs").store)
+      givenBack()
+    end)
+
+    it("gives the part back when another button's press stops the run while it waits", function()
+      waiting()
+      press(row("Ore").store)
+      assert.is_true(cleared)
+      assert.equal("group:Ore:in", HF.Running())
+      assert.is_nil(HF._moving["0:3"])
+    end)
+
+    it("gives the part back when the bank closes while it waits", function()
+      waiting()
+      close()
+      givenBack()
+    end)
+
+    it("gives the part back when the X hides the window while it waits", function()
+      waiting()
+      press(HF._frame.close)
+      givenBack()
+    end)
+
+    it("gives the part back when the bank switch moves while it waits", function()
+      waiting()
+      choose(CHARACTER)
+      givenBack()
+    end)
+
+    it("gives the part back when a new bank visit drops the run", function()
+      waiting()
+      HF.machine:OnShown()
+      assert.is_true(cleared)
+      assert.is_false(HF.machine:IsRunning())
+    end)
+
+    it("never clears something the player picked up since", function()
+      waiting()
+      _G.GetCursorInfo = function() return "item", 999 end
+      press(row("Herbs").store)
+      assert.is_false(cleared)
     end)
 
     it("skips a split with no empty slot of a plain bag and says so once", function()
@@ -1007,7 +1096,7 @@ describe("GoldCap Hoard window", function()
       sizes[0] = 2
       bags[0] = { info(1, 200), info(9, 20) }
       GC.BankGroups.SetKeep(GC.db, "Herbs", 30)
-      local said = {}
+      said = {}
       GC.Print = function(text) said[#said + 1] = text end
       open()
       press(row("Herbs").store)

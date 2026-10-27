@@ -2,9 +2,11 @@ local _, GC = ...
 
 -- One press that sends a run of mails, as a state machine over a driver, so every client call
 -- stays in the UI file that owns the player's click (the Send to alts window). The first mail is
--- attached and sent synchronously by Press (inside the click); the rest follow from timers, each
--- after re-checking that the mailbox is still open, the cursor is free, the Send Mail slots are
--- empty and each stack still sits where it was read. A mail is sent only when the server has
+-- attached and sent synchronously by Press (inside the click), unless it holds a split part (below),
+-- whose mail is attached and sent from a timer once the part has landed; the rest follow from
+-- timers, each after re-checking that the mailbox is still open, the cursor is free, the Send Mail
+-- slots are empty and each stack still sits where it was read (a mail with a split part checks its
+-- stacks again right before it attaches them). A mail is sent only when the server has
 -- answered the one before: MAIL_SEND_SUCCESS reaches OnSendResult(true), MAIL_FAILED
 -- OnSendResult(false), MAIL_CLOSED OnClosed.
 --
@@ -17,7 +19,8 @@ local _, GC = ...
 --                                  -- stack.count off the source into an empty slot of a plain bag;
 --                                  -- nil and "room" (no empty slot), "cursor" or "gone" otherwise
 --   landed(stack, dest) -> boolean, -- the split part shows in dest, whole and not locked
---   abandon(stack, dest),          -- it never did: the cursor gives the part back
+--   abandon(stack, dest),          -- it never did, or the run ended while it waited: the cursor gives
+--                                  -- the part back (never left on it)
 --   attached() -> number,          -- how many Send Mail slots hold an item
 --   clear(),                       -- sends what is attached back to the bags
 --   send(to, subject) -> false?,   -- SetSendMailCOD(0), SetSendMailMoney(0), SendMail(to, subject, "");
@@ -35,7 +38,10 @@ local _, GC = ...
 -- (inside the player's click when it is the first mail's) and the machine waits for `landed`, at
 -- most SPLIT_TICKS ticks of SPLIT_STEP, then attaches and sends the mail from a timer, the part from
 -- the slot it landed in. A part that never lands is given back (`abandon`) and the run stops,
--- "split". With no empty slot (`split` answers "room") the stack is skipped, named in `noRoom`.
+-- "split"; so does a run that ends in any other way while a part waits, or `split` answering "stuck"
+-- (the part stayed on the cursor, put back). With no empty slot (`split` answers "room") the stack is
+-- skipped, named in `noRoom`. Nothing is attached before the mail goes, so a stop while a part waits
+-- clears nothing from the Send Mail tab (what is there is the player's).
 --
 -- A stack whose slot no longer shows the same link, is locked, or holds more than was read (it
 -- merged with another of its item, and would take what the group keeps) is skipped: never a
@@ -70,6 +76,10 @@ local function stop(self, reason, why)
   if not run then return end
   self.run = nil
   self.token = self.token + 1
+  if run.prep and run.prep.dest then
+    self.driver.abandon(run.prep.stack, run.prep.dest)
+    run.prep.dest = nil
+  end
   if run.loaded and not run.issued then self.driver.clear() end
   self.driver.report({ sent = run.sent, mails = #run.mails, stopped = reason, why = why, failed = run.failedTo,
     noRoom = #run.noRoom > 0 and run.noRoom or nil })
@@ -88,10 +98,10 @@ local function skipFailed(run)
   while run.idx <= #run.mails and run.failed[run.mails[run.idx].to] do run.idx = run.idx + 1 end
 end
 
--- The stacks of a mail that still sit where they were read, no bigger than they were.
-local function present(driver, mail)
+-- The `stacks` that still sit where they were read, no bigger than they were.
+local function present(driver, stacks)
   local out = {}
-  for _, stack in ipairs(mail.stacks) do
+  for _, stack in ipairs(stacks) do
     local info = driver.slot(stack.bag, stack.slot)
     if info and not info.isLocked and info.link == stack.link
       and not (type(info.count) == "number" and type(stack.count) == "number"
@@ -111,9 +121,14 @@ local function timeout(self, token, id)
   stop(self, "timeout")
 end
 
--- Attaches `stacks` as the mail in flight and sends it, then waits for the answer.
+-- Attaches `stacks` as the mail in flight and sends it, then waits for the answer. Only from here
+-- is anything of the Send Mail tab this run's (`loaded`), so a stop clears what it attached and
+-- nothing the player put there.
 local function go(self, mail, stacks)
   local run, d = self.run, self.driver
+  run.shown = run.shown + 1
+  d.progress({ index = run.shown, total = #run.mails - run.dropped, mail = mail })
+  run.loaded, run.issued, run.mail = true, false, mail
   for _, stack in ipairs(stacks) do
     if not d.attach(stack) then return stop(self, "refused", stack) end
   end
@@ -137,7 +152,9 @@ local attempt
 
 -- Splits the parts a mail holds (stacks with `split`), one at a time, each waiting for its slot to
 -- show it; then attaches and sends the mail with the parts in the slots they landed in. Called
--- inside the click for the first split, from a timer after.
+-- inside the click for the first split, from a timer after. `prep.list` holds { stack, from } in
+-- the mail's order: the stack to attach (a part is a stack of its own, in its own slot) and the
+-- stack of the mail it stands for.
 local function prepare(self, token, prep)
   local run, d = self.run, self.driver
   if not run or token ~= self.token or run.prep ~= prep then return end
@@ -145,7 +162,7 @@ local function prepare(self, token, prep)
     local stack = prep.stacks[prep.idx]
     if not stack then break end
     if not stack.split then
-      prep.list[#prep.list + 1] = stack
+      prep.list[#prep.list + 1] = { stack = stack, from = stack }
       prep.idx = prep.idx + 1
     else
       local open, why = d.open()
@@ -154,23 +171,22 @@ local function prepare(self, token, prep)
       local dest, reason = d.split(stack)
       if not dest then
         if reason == "cursor" then return stop(self, "cursor") end
+        if reason == "stuck" then return stop(self, "split", stack) end
         if reason == "room" then run.noRoom[#run.noRoom + 1] = stack.name or ("#" .. tostring(stack.itemID)) end
         prep.idx = prep.idx + 1
       else
-        prep.dest, prep.ticks = dest, 0
+        prep.stack, prep.dest, prep.ticks = stack, dest, 0
         local function poll()
           if not self.run or token ~= self.token or run.prep ~= prep then return end
           if d.landed(stack, dest) then
-            prep.list[#prep.list + 1] = { itemID = stack.itemID, bag = dest.bag, slot = dest.slot, name = stack.name,
-              count = stack.count, link = stack.link, icon = stack.icon }
+            prep.list[#prep.list + 1] = { from = stack, stack = { itemID = stack.itemID, bag = dest.bag,
+              slot = dest.slot, name = stack.name, count = stack.count, link = stack.link, icon = stack.icon } }
             prep.idx, prep.dest = prep.idx + 1, nil
             return prepare(self, token, prep)
           end
           prep.ticks = prep.ticks + 1
-          if prep.ticks >= P.SPLIT_TICKS then
-            d.abandon(stack, dest)
-            return stop(self, "split", stack)
-          end
+          -- stop gives the part back (it is still pending in prep.dest).
+          if prep.ticks >= P.SPLIT_TICKS then return stop(self, "split", stack) end
           d.after(P.SPLIT_STEP, poll)
         end
         return d.after(P.SPLIT_STEP, poll)
@@ -178,17 +194,25 @@ local function prepare(self, token, prep)
     end
   end
   run.prep = nil
-  if #prep.list == 0 then
-    -- Every part found no room: nothing to send in this mail.
-    run.dropped, run.loaded = run.dropped + 1, false
-    return attempt(self)
-  end
-  -- From a timer: what the click checked is checked again.
+  -- From a timer: what the click checked is checked again. A stack the player set not to be sent
+  -- meanwhile is no longer in the mail (its group's skip), and every stack must still be the item
+  -- and no bigger, unlocked, as present() has it; one that changed is left out.
   local open, why = d.open()
   if not open then return stop(self, why or "closed") end
   if d.cursorBusy() then return stop(self, "cursor") end
   if d.attached() > 0 then return stop(self, "busy") end
-  go(self, prep.mail, prep.list)
+  local inMail, kept = {}, {}
+  for _, stack in ipairs(prep.mail.stacks) do inMail[stack] = true end
+  for _, entry in ipairs(prep.list) do
+    if inMail[entry.from] then kept[#kept + 1] = entry.stack end
+  end
+  local list = present(d, kept)
+  if #list == 0 then
+    -- Every part found no room, or nothing is left of the mail: nothing to send in it.
+    run.dropped = run.dropped + 1
+    return attempt(self)
+  end
+  go(self, prep.mail, list)
 end
 
 -- Attaches and sends mails from run.idx on, until one is in flight or the list ends.
@@ -204,17 +228,14 @@ attempt = function(self)
     if d.attached() > 0 then return stop(self, "busy") end
     local mail = run.mails[run.idx]
     run.idx = run.idx + 1
-    local stacks = present(d, mail)
+    local stacks = present(d, mail.stacks)
     if #stacks == 0 then run.dropped = run.dropped + 1 end
     if #stacks > 0 then
-      run.shown = run.shown + 1
-      d.progress({ index = run.shown, total = #run.mails - run.dropped, mail = mail })
-      run.loaded, run.issued, run.mail = true, false, mail
       local splits = false
       for _, stack in ipairs(stacks) do splits = splits or stack.split ~= nil end
       if splits then
         local prep = { mail = mail, stacks = stacks, idx = 1, list = {}, ticks = 0 }
-        run.prep = prep
+        run.prep, run.mail = prep, mail
         return prepare(self, self.token, prep)
       end
       return go(self, mail, stacks)

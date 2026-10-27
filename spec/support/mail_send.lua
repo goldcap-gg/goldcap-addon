@@ -81,7 +81,7 @@ function Post.new(opts)
       source.stackCount = source.stackCount - held.n
       state.cursor = nil
       if state.delayed then
-        state.landing[#state.landing + 1] = { bag = bag, slot = slot, info = part }
+        state.landing[#state.landing + 1] = { bag = bag, slot = slot, info = part, held = held }
       else
         state.bags[bag][slot] = part
       end
@@ -260,6 +260,11 @@ function Post.new(opts)
   function post:landSplits()
     for _, part in ipairs(state.landing) do state.bags[part.bag][part.slot] = part.info end
     state.landing = {}
+  end
+
+  -- The client still holds the dropped, unanswered split part on the cursor.
+  function post:regrab()
+    state.cursor = assert(state.landing[1], "no split in flight").held
   end
 
   function post:holding() return state.cursor end

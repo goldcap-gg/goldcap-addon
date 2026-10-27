@@ -15,7 +15,8 @@ local _, GC = ...
 --   landed(row) -> boolean         -- (rows with `split`) the split part shows in row.dest, whole
 --   part(row) -> row               -- (rows with `split`) the row that moves the part in row.dest,
 --                                  -- which `use` then moves as any row
---   abandon(row)                   -- (rows with `split`) the part never showed: give it back
+--   abandon(row)                   -- (rows with `split`) the part never showed, or the run ended
+--                                  -- while it waited: give it back (never leave it on the cursor)
 --   after(seconds, fn)             -- a timer
 --   report({ sold, copper, stopped, noRoom })  -- once per run; stopped is nil for a finished run,
 --                                  -- noRoom the names (row.name) of splits that found no empty slot
@@ -27,7 +28,9 @@ local _, GC = ...
 -- splits it into an empty slot (and sets row.dest = { bag, slot }), then the machine waits for
 -- `landed`, at most CONFIRM_TICKS ticks of STEP, and moves `part`'s row with `use` from a timer; the
 -- part is then confirmed as any stack is, by its slot in row.dest. A part that never lands is given back
--- (`abandon`) and the run stops, "split". `use` answering false and "room" means no empty slot to
+-- (`abandon`) and the run stops, "split"; so does a run that ends in any other way while the part
+-- waits. `use` answering false and "stuck" (the part stayed on the cursor, put back) stops the run
+-- the same way; false and "room" means no empty slot to
 -- split into: the row is skipped and its name is reported in noRoom.
 --
 -- `slowFallback` is the vendor's: whether a sale made from a timer is honoured was not measured
@@ -70,9 +73,18 @@ local function settle(self, run)
   end
 end
 
+-- Gives a split part that has not shown yet back, once.
+local function giveBack(self, run)
+  if run.splitting and run.cur then
+    run.splitting = false
+    self.driver.abandon(run.cur)
+  end
+end
+
 local function stop(self, reason)
   local run = self.run
   if not run then return end
+  giveBack(self, run)
   settle(self, run)
   self.run = nil
   self.token = self.token + 1
@@ -108,10 +120,7 @@ local function tick(self, token)
       return d.after(P.STEP, function() tick(self, token) end)
     end
     run.ticks = run.ticks + 1
-    if run.ticks >= P.CONFIRM_TICKS then
-      d.abandon(row)
-      return stop(self, "split")
-    end
+    if run.ticks >= P.CONFIRM_TICKS then return stop(self, "split") end
     return d.after(P.STEP, function() tick(self, token) end)
   end
   if hasLeft(self.driver, row) then
@@ -152,6 +161,8 @@ attempt = function(self, fromTimer)
         return
       elseif why == "room" then
         run.noRoom[#run.noRoom + 1] = row.name or ("#" .. tostring(row.itemID))
+      elseif why == "stuck" then
+        return stop(self, "split")
       end
     end
   end
@@ -183,6 +194,7 @@ end
 -- A new visit: forget the one-per-press mode and drop any run without a report.
 function Machine:OnShown()
   self.oneAtATime = false
+  if self.run then giveBack(self, self.run) end
   self.run = nil
   self.token = self.token + 1
 end

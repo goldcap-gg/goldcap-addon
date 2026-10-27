@@ -1721,6 +1721,7 @@ GC.Locales.frFR = {
     "La boîte aux lettres n'a pas répondu. Vérifie tes sacs et l'onglet Envoyer un message.",
   ["Stopped: something is on your cursor."] = "Arrêté : tu as quelque chose sur le curseur.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "Aucun emplacement libre pour diviser %s : il en reste donc plus que le nombre à garder.",
+  ["The split did not show up in your bags in time and was put back."] = "La part divisée n'est pas apparue à temps dans tes sacs et a été remise à sa place.",
   ["Stopped: the Send Mail tab already holds items."] =
     "Arrêté : l'onglet Envoyer un message contient déjà des objets.",
   ["Stopped: %s would not go into the mail."] = "Arrêté : %s n'a pas pu être joint au courrier.",

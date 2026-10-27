@@ -1715,6 +1715,7 @@ GC.Locales.ptBR = {
     "A caixa de correio não respondeu. Confira as bolsas e a aba Enviar Correio.",
   ["Stopped: something is on your cursor."] = "Parado: há algo no cursor.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "Sem espaço livre na bolsa para dividir %s, então fica mais do que o mínimo a manter.",
+  ["The split did not show up in your bags in time and was put back."] = "A parte dividida não apareceu a tempo nas suas bolsas e foi devolvida ao lugar.",
   ["Stopped: the Send Mail tab already holds items."] = "Parado: a aba Enviar Correio já tem itens.",
   ["Stopped: %s would not go into the mail."] = "Parado: %s não entrou no correio.",
   ["Stopped."] = "Parado.",

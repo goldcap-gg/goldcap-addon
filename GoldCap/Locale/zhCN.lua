@@ -1615,6 +1615,7 @@ GC.Locales.zhCN = {
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "邮箱没有响应。请检查背包和发送邮件标签。",
   ["Stopped: something is on your cursor."] = "已停止：光标上有东西。",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "背包没有空位来拆分%s，所以留下的数量会多于保留数。",
+  ["The split did not show up in your bags in time and was put back."] = "拆分出的部分没有及时出现在背包里，已放回原处。",
   ["Stopped: the Send Mail tab already holds items."] = "已停止：发送邮件标签里已有物品。",
   ["Stopped: %s would not go into the mail."] = "已停止：%s 放不进邮件。",
   ["Stopped."] = "已停止。",

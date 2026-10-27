@@ -1648,6 +1648,7 @@ GC.Locales.koKR = {
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "우편함이 응답하지 않았습니다. 가방과 우편 보내기 탭을 확인하세요.",
   ["Stopped: something is on your cursor."] = "중지됨: 커서에 무언가 들려 있습니다.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "%s을(를) 나눌 빈 가방 칸이 없어 보관 수량보다 더 많이 남습니다.",
+  ["The split did not show up in your bags in time and was put back."] = "나눈 수량이 제때 가방에 나타나지 않아 원래 자리로 돌려놓았습니다.",
   ["Stopped: the Send Mail tab already holds items."] = "중지됨: 우편 보내기 탭에 이미 아이템이 있습니다.",
   ["Stopped: %s would not go into the mail."] = "중지됨: %s을(를) 우편에 넣을 수 없었습니다.",
   ["Stopped."] = "중지됨.",

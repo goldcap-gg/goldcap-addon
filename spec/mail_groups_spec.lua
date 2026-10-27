@@ -98,6 +98,26 @@ describe("mail groups", function()
       assert.equal("Mule", r.mailName)
     end)
 
+    it("counts a split as one stack: one of the 12 attachments, postage once, its count in the items", function()
+      local p = plan({ stack(1, 0, 1, 100), stack(1, 0, 2, 50), stack(1, 0, 3, 30) },
+        { Herbs = "Mule-Tarren" }, { Herbs = 20 })
+      assert.equal(3, p.stacks)
+      assert.equal(3 * M.POSTAGE, p.postage)
+      assert.equal(1, #p.mails)
+      assert.equal(3, #p.mails[1].stacks)
+      assert.equal(10, p.mails[1].stacks[3].count)
+      assert.equal(30, p.mails[1].stacks[3].split)
+      -- Thirteen stacks need two mails; a split is one of them like any other.
+      local bags = {}
+      for i = 1, 12 do bags[i] = stack(1, 0, i, 100) end
+      bags[13] = stack(1, 0, 13, 7)
+      p = plan(bags, { Herbs = "Mule-Tarren" }, { Herbs = 20 })
+      -- 1207 in the bags, 20 kept: 11 whole 100s and the 7 go, then 80 split off the last 100.
+      assert.equal(13, p.stacks)
+      assert.same({ 12, 1 }, { #p.mails[1].stacks, #p.mails[2].stacks })
+      assert.equal(13 * M.POSTAGE, p.postage)
+    end)
+
     it("never sends a bound, a Warbound-until-equipped or a refundable stack, and says why it stays", function()
       local p = plan({
         stack(1, 0, 1, 10, { stays = "bound" }), stack(1, 0, 2, 10, { stays = "refund" }),

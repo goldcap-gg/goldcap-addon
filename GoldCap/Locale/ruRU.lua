@@ -1786,7 +1786,8 @@ GC.Locales.ruRU = {
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Почтовый ящик не ответил. Проверьте сумки и вкладку «Отправить письмо».",
   ["Stopped: something is on your cursor."] = "Остановлено: на курсоре что-то есть.",
-  ["No free bag slot to split %s, so more of it stays than its keep."] = "Нет свободной ячейки в сумках, чтобы разделить %s, поэтому его остаётся больше, чем нужно оставить.",
+  ["No free bag slot to split %s, so more of it stays than its keep."] = "Нет свободной ячейки в сумках, чтобы разделить %s, поэтому этого предмета остаётся больше, чем нужно оставить.",
+  ["The split did not show up in your bags in time and was put back."] = "Отделённая часть не появилась в сумках вовремя и была возвращена на место.",
   ["Stopped: the Send Mail tab already holds items."] = "Остановлено: во вкладке «Отправить письмо» уже есть предметы.",
   ["Stopped: %s would not go into the mail."] = "Остановлено: %s не удалось вложить в письмо.",
   ["Stopped."] = "Остановлено.",

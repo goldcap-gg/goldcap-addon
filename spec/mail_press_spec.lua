@@ -330,7 +330,7 @@ describe("MailPress", function()
   -- A stack with `split` is the part of a bigger one (Keep leaves exactly its count): split into an
   -- empty slot inside the click, then attached and sent from a timer once the slot shows it.
   describe("a split part", function()
-    local free, landedAfter, splitLog, cursorCleared
+    local free, landedAfter, splitLog, cursorCleared, stuck, lockPart
 
     local function splitMachine()
       return P.New({
@@ -343,11 +343,16 @@ describe("MailPress", function()
           return true
         end,
         split = function(stack)
+          if stuck then return nil, "stuck" end
           if not free then return nil, "room" end
           splitLog[#splitLog + 1] = { stack.slot, stack.count }
           return { bag = 1, slot = 5 }
         end,
-        landed = function() return landedAfter ~= nil and #timers >= 0 and landedAfter <= 0 end,
+        landed = function(stack)
+          if landedAfter == nil or landedAfter > 0 then return false end
+          bags[key(1, 5)] = { link = stack.link, isLocked = lockPart, count = stack.count }
+          return true
+        end,
         abandon = function() cursorCleared = true end,
         attached = function() return state.attached end,
         clear = function() state.attached = 0; log[#log + 1] = { "clear" } end,
@@ -376,7 +381,7 @@ describe("MailPress", function()
     end
 
     before_each(function()
-      free, landedAfter, splitLog, cursorCleared = true, 2, {}, false
+      free, landedAfter, splitLog, cursorCleared, stuck, lockPart = true, 2, {}, false, false, false
       machine = splitMachine()
     end)
 
@@ -435,6 +440,98 @@ describe("MailPress", function()
       assert.is_false(machine:IsRunning())
       assert.equal("split", reports[1].stopped)
       assert.equal(0, count("attach") + count("send"))
+    end)
+
+    it("announces a mail only once it goes, so a mail that found no room is not counted", function()
+      free = false
+      local m = splitMail()
+      m[1].stacks[2] = nil
+      machine:Press(m)
+      assert.equal(0, #progresses)
+      -- And one that goes is announced when it is attached, not when the split starts.
+      free = true
+      reports, log = {}, {}
+      machine = splitMachine()
+      machine:Press(splitMail())
+      assert.equal(0, #progresses)
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.equal(1, #progresses)
+      assert.same({ index = 1, total = 1 }, { index = progresses[1].index, total = progresses[1].total })
+    end)
+
+    it("gives the part back and clears nothing of the player's when the run ends while it waits", function()
+      local ends = {
+        function() machine:Stop("pressed") end,
+        function() machine:OnClosed() end,
+        function() machine:Press(splitMail()) end,
+      }
+      for i, ending in ipairs(ends) do
+        cursorCleared, log, reports = false, {}, {}
+        landedAfter = 1000
+        machine:Press(splitMail())
+        assert.is_true(machine:IsRunning(), i)
+        state.attached = 1 -- the player puts an item of their own in the Send Mail tab
+        ending()
+        assert.is_true(cursorCleared, i)
+        assert.is_false(machine:IsRunning(), i)
+        assert.equal(0, count("clear"), i)
+        state.attached = 0
+      end
+    end)
+
+    it("stops busy, clearing nothing of the player's, when they fill the Send Mail tab during the wait", function()
+      machine:Press(splitMail())
+      state.attached = 1
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.equal("busy", reports[1].stopped)
+      assert.equal(0, count("clear"))
+      assert.equal(0, count("attach"))
+    end)
+
+    it("leaves out a stack that changed during the wait, and attaches the rest", function()
+      machine:Press(splitMail())
+      -- Another item in slot 2, and more than was read in the part's own slot is checked too.
+      bags[key(0, 2)] = { link = "item:other", isLocked = false, count = 1 }
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.same({ { "attach", 1, 5, 3 }, { "send", "Alt-Realm", "S" } }, log)
+    end)
+
+    it("leaves out a stack that grew or locked during the wait", function()
+      machine:Press(splitMail())
+      bags[key(0, 2)].count = 5
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.same({ { "attach", 1, 5, 3 }, { "send", "Alt-Realm", "S" } }, log)
+    end)
+
+    it("sends nothing for a mail whose stacks all changed during the wait", function()
+      lockPart = true
+      machine:Press(splitMail())
+      bags[key(0, 2)].isLocked = true
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.equal(0, count("send"))
+      assert.equal(0, count("attach"))
+    end)
+
+    it("takes out of the mail a stack removed from it during the wait", function()
+      local m = splitMail()
+      machine:Press(m)
+      -- The group of the plain stack was set not to be sent (UI/MailAltsFrame.lua's setSkipped).
+      m[1].stacks[2] = nil
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.same({ { "attach", 1, 5, 3 }, { "send", "Alt-Realm", "S" } }, log)
+    end)
+
+    it("stops and puts the part back when the split leaves it on the cursor", function()
+      stuck = true
+      machine:Press(splitMail())
+      assert.equal("split", reports[1].stopped)
+      assert.same({}, log)
     end)
 
     it("stops for something on the cursor before it splits", function()

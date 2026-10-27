@@ -469,6 +469,21 @@ describe("bank route", function()
       assert.same({}, calls)
     end)
 
+    it("puts the part back and answers stuck when the drop left it on the cursor, or a call errors", function()
+      local kind
+      _G.C_Container.PickupContainerItem = function() kind = "item" end
+      _G.GetCursorInfo = function() return kind end
+      local dest, why = panel().SplitStack(part())
+      assert.is_nil(dest)
+      assert.equal("stuck", why)
+      assert.equal("cleared", picked)
+      picked, kind = nil, nil
+      _G.C_Container.SplitContainerItem = function() error("taint") end
+      dest, why = panel().SplitStack(part())
+      assert.is_nil(dest)
+      assert.equal("stuck", why)
+    end)
+
     it("makes no call when the cursor is busy or the source is no longer the stack that was read", function()
       cursor = "item"
       local dest, why = panel().SplitStack(part())
@@ -494,7 +509,12 @@ describe("bank route", function()
       assert.is_true(panel().SplitLanded(dest, part()))
       bags[0][2].stackCount = 3
       assert.is_false(panel().SplitLanded(dest, part()))
-      panel().AbandonSplit()
+      -- Only the part's own item on the cursor goes back; the player's own pick stays.
+      _G.GetCursorInfo = function() return "item", 999 end
+      panel().AbandonSplit(part())
+      assert.is_nil(picked)
+      _G.GetCursorInfo = function() return "item", 7 end
+      panel().AbandonSplit(part())
       assert.equal("cleared", picked)
     end)
   end)

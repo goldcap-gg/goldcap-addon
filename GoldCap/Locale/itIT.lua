@@ -1717,6 +1717,7 @@ GC.Locales.itIT = {
     "La cassetta postale non ha risposto. Controlla le borse e la scheda Invia posta.",
   ["Stopped: something is on your cursor."] = "Interrotto: hai qualcosa sul cursore.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "Nessuno slot libero per dividere %s, quindi ne resta più di quanto vuoi tenere.",
+  ["The split did not show up in your bags in time and was put back."] = "La parte divisa non è comparsa in tempo nelle tue borse ed è stata rimessa a posto.",
   ["Stopped: the Send Mail tab already holds items."] = "Interrotto: la scheda Invia posta contiene già oggetti.",
   ["Stopped: %s would not go into the mail."] = "Interrotto: %s non è entrato nella lettera.",
   ["Stopped."] = "Interrotto.",

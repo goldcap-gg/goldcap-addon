@@ -482,8 +482,8 @@ local function splitLanded(stack, dest)
   return GC.BankRoute.SplitLanded(dest, stack)
 end
 
-local function splitAbandoned()
-  GC.BankRoute.AbandonSplit()
+local function splitAbandoned(stack)
+  GC.BankRoute.AbandonSplit(stack)
 end
 
 -- Every attachment back to the bags, the last slot first, as a right click on it does.
@@ -612,7 +612,9 @@ local function openSendTab()
 end
 
 -- The one way the window sends: a press of the button `id` ("all", or "row:<group key>") over
--- `mails`, inside the player's click, which attaches and sends the first mail before it returns. A
+-- `mails`, inside the player's click, which attaches and sends the first mail before it returns,
+-- unless that mail holds a split part: the click makes the split and the mail goes from a timer once
+-- the part has landed (Core/MailPress.lua). A
 -- press while a run goes is that run's Stop, but for ARM_HOLD from its start (a double click's second
 -- click, which its button refuses then). A press this character cannot pay the postage of says so
 -- and sends nothing. A press that would mail a name not yet trusted arms instead; a second press
@@ -698,8 +700,9 @@ end
 
 -- The group `key` is set not to be sent from this realm (`on`) or sent again. A skip made while a run
 -- goes takes the group out of the mails still to go: its stacks leave them, a mail left with none is
--- skipped by the machine as empty, and the one in flight and those sent are as they were. The window
--- reads again.
+-- skipped by the machine as empty, and the one in flight and those sent are as they were. A mail
+-- still being prepared (a split waiting to land, nothing attached yet) is not in flight, so it loses
+-- the group's stacks too. The window reads again.
 local function setSkipped(key, on)
   local me = MA._reading and MA._reading.me
   if not (me and me.faction) then return end

@@ -1720,6 +1720,7 @@ GC.Locales.deDE = {
     "Der Briefkasten hat nicht geantwortet. Sieh in deinen Taschen und im Reiter Brief senden nach.",
   ["Stopped: something is on your cursor."] = "Gestoppt: Du hast etwas am Mauszeiger.",
   ["No free bag slot to split %s, so more of it stays than its keep."] = "Kein freier Taschenplatz, um %s zu teilen, deshalb bleibt mehr davon übrig, als du behalten willst.",
+  ["The split did not show up in your bags in time and was put back."] = "Der geteilte Teil erschien nicht rechtzeitig in deinen Taschen und wurde zurückgelegt.",
   ["Stopped: the Send Mail tab already holds items."] = "Gestoppt: Im Reiter Brief senden liegen schon Gegenstände.",
   ["Stopped: %s would not go into the mail."] = "Gestoppt: %s ließ sich nicht anhängen.",
   ["Stopped."] = "Gestoppt.",

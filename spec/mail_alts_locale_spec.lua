@@ -20,6 +20,8 @@ local KEYS = {
   "Every group here is set not to be sent.",
   -- Keep leaves exactly its count: a split with no empty slot of a plain bag to go to.
   "No free bag slot to split %s, so more of it stays than its keep.",
+  -- A split part that never showed in the bags (the Hoard says it in the chat).
+  "The split did not show up in your bags in time and was put back.",
 }
 
 -- A refused mail no longer stops the run: its old stop text is gone from every language.

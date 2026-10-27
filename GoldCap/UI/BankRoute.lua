@@ -278,7 +278,8 @@ end
 --- PickupContainerItem; neither has restrictions). Answers { bag, slot } of the slot the part goes
 --- to, which shows it once the server answers (SplitLanded); or nil and why: "cursor" (something is
 --- on it), "gone" (the source no longer holds the stack as it was read), "room" (no empty slot of a
---- plain bag). It makes no call in any of those cases, so nothing is left on the cursor.
+--- plain bag), "stuck" (a call failed or the client kept the part on the cursor: it is put back).
+--- In the first three it makes no call; in none does it leave the part on the cursor.
 function P.SplitStack(stack)
   if type(stack) ~= "table" or type(stack.split) ~= "number" then return nil, "gone" end
   if GC.Util.CursorBusy() then return nil, "cursor" end
@@ -288,8 +289,14 @@ function P.SplitStack(stack)
   end
   local bag, slot = P.FreePlainSlot()
   if not bag then return nil, "room" end
-  C_Container.SplitContainerItem(stack.bag, stack.slot, stack.count)
-  C_Container.PickupContainerItem(bag, slot)
+  local ok = pcall(C_Container.SplitContainerItem, stack.bag, stack.slot, stack.count)
+    and pcall(C_Container.PickupContainerItem, bag, slot)
+  -- The drop did not take: the part is still on the cursor, and goes back to its source.
+  local read, kind = pcall(GetCursorInfo)
+  if not ok or not read or kind ~= nil then
+    if ClearCursor then pcall(ClearCursor) end
+    return nil, "stuck"
+  end
   return { bag = bag, slot = slot }
 end
 
@@ -301,10 +308,13 @@ function P.SplitLanded(dest, stack)
     and not info.isLocked
 end
 
---- The part never showed in its slot: whatever the split left on the cursor goes back to where it
---- came from (ClearCursor returns a split part to its source).
-function P.AbandonSplit()
-  if ClearCursor then pcall(ClearCursor) end
+--- The part never showed in its slot, or the run ended while it waited: whatever the split left on
+--- the cursor goes back to where it came from (ClearCursor returns a split part to its source), but
+--- only when the cursor holds this stack's item, never something the player picked up since.
+function P.AbandonSplit(stack)
+  if not ClearCursor then return end
+  local ok, kind, itemID = pcall(GetCursorInfo)
+  if ok and kind == "item" and (stack == nil or itemID == stack.itemID) then pcall(ClearCursor) end
 end
 
 --- Where a carry row's item goes, in words: for which realm, at what list price and how soon

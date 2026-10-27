@@ -513,7 +513,7 @@ local function splitLanded(row)
 end
 
 local function splitAbandoned(row)
-  GC.BankRoute.AbandonSplit()
+  GC.BankRoute.AbandonSplit(row.stack)
   HF._moving[rowKey(row)] = nil
   HF._moving[row.bag .. ":" .. row.slot] = nil
 end
@@ -529,6 +529,9 @@ end
 -- remembered too.
 local function report(result)
   local rows, bank, done = HF._runRows, HF._runBank, HF._runEnd
+  if result.stopped == "split" then
+    GC.Print(GC.L["The split did not show up in your bags in time and was put back."])
+  end
   -- A split that found no empty slot of a plain bag: more of the item stays than its keep.
   local said = {}
   for _, name in ipairs(result.noRoom or {}) do

@@ -370,6 +370,42 @@ describe("VendorPress", function()
       assert.equal(1, calls.report[1].sold)
     end)
 
+    it("gives the part back when the run ends any other way while the part waits", function()
+      local ends = {
+        function() machine:Stop("switched") end,
+        function() machine:OnClosed() end,
+        function() machine:Press({ row() }) end, -- a second press
+        function() machine:OnShown() end,
+      }
+      for i, ending in ipairs(ends) do
+        abandoned, ticksToLand, landed = false, 1000, false
+        calls.report = {}
+        machine:Press({ row() })
+        assert.is_true(machine:IsRunning(), i)
+        ending()
+        assert.is_true(abandoned, i)
+        assert.is_false(machine:IsRunning(), i)
+      end
+    end)
+
+    it("does not give a part back that has landed", function()
+      machine:Press({ row() })
+      table.remove(timers, 1).fn() -- the first tick: not there yet
+      table.remove(timers, 1).fn() -- landed, the part is moving
+      machine:Stop("switched")
+      assert.is_false(abandoned)
+    end)
+
+    it("stops when the split left the part on the cursor", function()
+      local use = machine.driver.use
+      machine.driver.use = function(b, s, r)
+        if r.split then return false, "stuck" end
+        return use(b, s, r)
+      end
+      machine:Press({ row() })
+      assert.equal("split", calls.report[1].stopped)
+    end)
+
     it("gives the part back and stops after CONFIRM_TICKS when the slot never fills", function()
       ticksToLand = 1000
       machine:Press({ row() })
