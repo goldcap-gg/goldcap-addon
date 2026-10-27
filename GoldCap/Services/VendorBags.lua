@@ -77,12 +77,25 @@ local function hasTradeTimer(bag, slot)
 end
 
 -- Trade timers read before, by the item's own GUID (the code review, 2026-10-27: every pass read a
--- tooltip per bound piece of gear): false for an item read without one, which never gets one (the
--- timer starts as the item drops), for good; else the time (GetTime) until which its timer is taken
--- as running, TRADE_RECHECK seconds after it was read (the line's remaining time is the client's
--- words, not read). Gear without a GUID, and grey junk, are read on every pass.
+-- tooltip per bound piece of gear), for this session only (never saved): false for an item read
+-- without one, which never gets one (the timer starts as the item drops), for good; else the time
+-- (GetTime) until which its timer is taken as running, TRADE_RECHECK seconds after it was read (the
+-- line's remaining time is the client's words, not read). A wrong "no timer" would let tradeable raid
+-- loot be sold or disenchanted, so it is kept only when the client has the item's data loaded
+-- (C_Item.IsItemDataCached on its ItemLocation, live and forever) and the tooltip came back with
+-- more than the name; otherwise the item is read again on the next pass. Gear without a GUID, and
+-- grey junk, are read on every pass.
 local tradeSeen = {}
 B.TRADE_RECHECK = 60
+
+-- Whether the client has the data of the item in `bag`/`slot` loaded; false where it cannot say.
+local function dataLoaded(bag, slot)
+  if not (_G.ItemLocation and ItemLocation.CreateFromBagAndSlot and C_Item and C_Item.IsItemDataCached) then
+    return false
+  end
+  local ok, cached = try(function() return C_Item.IsItemDataCached(ItemLocation:CreateFromBagAndSlot(bag, slot)) end)
+  return ok and cached == true
+end
 
 local function tradeTimerOf(bag, slot, guid)
   local seen = guid and tradeSeen[guid]
@@ -92,7 +105,7 @@ local function tradeTimerOf(bag, slot, guid)
   local has, read = hasTradeTimer(bag, slot)
   if guid and read then
     if not has then
-      tradeSeen[guid] = false
+      if dataLoaded(bag, slot) then tradeSeen[guid] = false end
     elseif type(now) == "number" then
       tradeSeen[guid] = now + B.TRADE_RECHECK
     end

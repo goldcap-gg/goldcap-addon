@@ -6,7 +6,7 @@ local helper = require("spec.spec_helper")
 -- EquipmentManager_GetLocationData result), checked with wowsrc.py on live 12.1.5 and forever.
 describe("VendorBags", function()
   local GC, B, saved, bags, items, flags, purchase, refundable, sets, setsFail, tooltips, tipReads, errors
-  local infoAsked, levels, clock
+  local infoAsked, levels, clock, uncached
   local KEYS = { "C_Container", "C_Item", "C_EquipmentSet", "EquipmentManager_GetLocationData",
     "C_TooltipInfo", "Enum", "ItemLocation", "BIND_TRADE_TIME_REMAINING", "GetTime" }
 
@@ -25,7 +25,7 @@ describe("VendorBags", function()
     saved = {}
     for _, k in ipairs(KEYS) do saved[k] = _G[k] end
     bags, items, flags, purchase, refundable, sets, setsFail, tooltips, errors = {}, {}, {}, {}, {}, {}, false, {}, {}
-    tipReads, infoAsked, levels, clock = 0, {}, {}, 1000
+    tipReads, infoAsked, levels, clock, uncached = 0, {}, {}, 1000, {}
     _G.GetTime = function() return clock end
     _G.Enum = { BagSlotFlags = { ExcludeJunkSell = 64 } }
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
@@ -54,6 +54,8 @@ describe("VendorBags", function()
         return "Item " .. id, "link", it.quality or 0, 1, 1, "t", "s", 20, it.equip or "", 1, it.sell, it.class or 15, it.subclass or 0, 0, it.expansion or 0, nil, it.reagent == true
       end,
       CanBeRefunded = function(loc) boom("refund"); return refundable[loc.bag .. ":" .. loc.slot] == true end,
+      -- ItemDocumentation.lua: IsItemDataCached(itemLocation), live and forever.
+      IsItemDataCached = function(loc) return not uncached[loc.bag .. ":" .. loc.slot] end,
       -- ItemDocumentation.lua: actualItemLevel, previewLevel, sparseItemLevel; MayReturnNothing.
       GetDetailedItemLevelInfo = function(link)
         local level = levels[link]
@@ -279,6 +281,23 @@ describe("VendorBags", function()
       assert.is_false(out[2].tradeTimer)
       B.Read()
       assert.equal(11, tipReads)
+    end)
+
+    -- A wrong "no timer" would let tradeable raid loot be sold or disenchanted: it is kept only for
+    -- an item whose data the client has loaded (C_Item.IsItemDataCached on its item location).
+    it("never keeps 'no timer' for an item whose data is not loaded, and reads it again next time", function()
+      _G.C_Item.GetItemGUID = function() return "Item-1" end
+      put(0, 1, 50, { isBound = true, quality = 4 })
+      items[50] = { class = 2 }
+      tooltips["0:1"] = { lines = { { leftText = "Item 50" }, { leftText = "Soulbound" } } }
+      uncached["0:1"] = true
+      assert.is_false((one()).tradeTimer)
+      assert.is_false((one()).tradeTimer)
+      assert.equal(2, tipReads)
+      uncached["0:1"] = nil
+      one()
+      one()
+      assert.equal(3, tipReads)
     end)
 
     -- A read that could not see the tooltip (fail closed) is no answer: it is never kept.
