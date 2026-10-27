@@ -1088,9 +1088,34 @@ describe("craft queue view", function()
     local asked = TS.callsOf("RequestLoadItemDataByID")
     assert.equal(111, asked[#asked].args[1])
     assert.is_true(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+    -- A load that failed changes nothing: no repaint, no new request.
+    local before = #asked
     TS.opts.names[111] = "Item B"
+    fire("GET_ITEM_INFO_RECEIVED", 111, false)
+    assert.equal(GC.L["Item %d"]:format(111), cellsOf(v)[2].name)
+    assert.equal(before, #TS.callsOf("RequestLoadItemDataByID"))
     fire("GET_ITEM_INFO_RECEIVED", 111, true)
     assert.equal("Item B", cellsOf(v)[2].name)
+    -- Every cell named: the view stops listening for item loads.
+    assert.is_false(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+  end)
+
+  -- Item loads fire for every item the game loads: the view listens only while a cell waits.
+  it("listens for item loads only while a cell waits for its item's name", function()
+    load({ filtered = { 3, 9 } })
+    assert.is_false(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 2)
+    showQueue()
+    assert.is_false(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+    -- The Tonic's Item B has no name yet; the queue emptied, nothing waits any more.
+    TS.opts.names[111] = nil
+    GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+    QV.Refresh()
+    assert.is_true(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+    GC.CraftQueue.Remove("Name-Realm", 3)
+    GC.CraftQueue.Remove("Name-Realm", 9)
+    QV.Refresh()
+    assert.is_false(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
   end)
 
   -- Under Missing, only what the bags and the banks do not cover.

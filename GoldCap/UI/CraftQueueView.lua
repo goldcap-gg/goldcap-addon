@@ -539,8 +539,19 @@ local function cellsOf(needs, missing, costs, items, mailed)
 end
 
 -- The items a cell names whose names the client has not loaded yet: GET_ITEM_INFO_RECEIVED for one
--- of them draws the view again (QV.OnEvent).
+-- of them draws the view again (QV.OnEvent). The view listens for that event only while one waits:
+-- it fires for every item the game loads.
 local unnamed = {}
+
+local function listenForNames()
+  local events = QV._events
+  if not events then return end
+  if next(unnamed) ~= nil then
+    pcall(events.RegisterEvent, events, "GET_ITEM_INFO_RECEIVED")
+  else
+    pcall(events.UnregisterEvent, events, "GET_ITEM_INFO_RECEIVED")
+  end
+end
 
 -- A cell `width` wide: its icon with its crafting quality and count, and its words wrapped right of
 -- the icon, the mailbox's and the price's lines hung under the name. Answers how tall the words
@@ -700,6 +711,7 @@ local function paintMissing(v, missing, needs, mailed)
     y = y + inside + 2 * LAYOUT.CELL_PAD
   end
   for i = #cells + 1, #v.cells do v.cells[i]:Hide() end
+  listenForNames()
 
   local shown = 0
   for _, row in ipairs(missing) do
@@ -805,6 +817,9 @@ function QV.Refresh()
     v.empty:SetPoint("TOPLEFT", v.content, "TOPLEFT", 0, 0)
     v.empty:Show()
     v.missing:Hide()
+    -- No cell is drawn, so none waits for a name.
+    for id in pairs(unnamed) do unnamed[id] = nil end
+    listenForNames()
     y = heightOf(v.empty, 12)
   else
     v.empty:Hide()
@@ -870,8 +885,8 @@ local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = tr
 --- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
 --- brings the craft queue list in step (SyncBuyList), and the panel's top with the view.
 --- TRADE_SKILL_CRAFT_BEGIN, each finished cast and the run's ends: the line being crafted, what its
---- run has made, busy or live again. GET_ITEM_INFO_RECEIVED: the name of an item a cell could only
---- give by its id.
+--- run has made, busy or live again. GET_ITEM_INFO_RECEIVED, registered only while a cell waits for
+--- one (listenForNames): the name of an item a cell could only give by its id.
 ---
 --- While the mailbox is open the bags are not counted: a take can reach the bags before the read of
 --- the inbox that sees it gone, and for that moment the units count twice. The list would shrink
@@ -911,9 +926,11 @@ function QV.OnEvent(event, ...)
   elseif event == "TRADE_SKILL_CRAFT_BEGIN" or RUN_ENDS[event] then
     QV.Queue()
   elseif event == "GET_ITEM_INFO_RECEIVED" then
-    local itemID = ...
-    if unnamed[itemID] then
+    -- A load that failed changes nothing: the cell keeps its id, and nothing asks again.
+    local itemID, success = ...
+    if success and unnamed[itemID] then
       unnamed[itemID] = nil
+      listenForNames()
       QV.Queue()
     end
   end
@@ -925,7 +942,7 @@ if type(CreateFrame) == "function" then
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_INTERRUPTED", "player")
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_FAILED", "player")
   for _, event in ipairs({ "OWNED_AUCTIONS_UPDATED", "BAG_UPDATE_DELAYED", "MAIL_CLOSED", "TRADE_SKILL_CRAFT_BEGIN",
-    "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE", "GET_ITEM_INFO_RECEIVED" }) do
+    "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
     pcall(events.RegisterEvent, events, event)
   end
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)

@@ -61,11 +61,10 @@ describe("crafting strings", function()
     end
   end)
 
-  -- The Italian client and the rest of the file call reagents "Reagenti".
+  -- The Italian client and the rest of the file call reagents "Reagenti", in crafting and in BUY.
   it("calls reagents Reagenti in Italian", function()
-    for _, key in ipairs(KEYS) do
-      local value = GC.Locales.itIT[key] or ""
-      assert.is_nil(value:lower():find("component", 1, true), value)
+    for _, value in pairs(GC.Locales.itIT) do
+      if type(value) == "string" then assert.is_nil(value:lower():find("component", 1, true), value) end
     end
   end)
 
