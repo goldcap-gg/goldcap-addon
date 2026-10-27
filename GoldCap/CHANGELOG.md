@@ -63,13 +63,13 @@
   beside the bank opens it again.
 - Mail, in retail WoW: Send to alts, a GoldCap window beside the mail frame at a mailbox. It lists
   the groups you follow on goldcap.gg that have something in your bags. Pick once which of your
-  characters sells each group, and GoldCap remembers it for this realm. Keep is the same count as
-  in the Hoard, and what it keeps stays in your bags. Send all sends everything in one press, and
-  the groups for one character share mails of up to 12 stacks. The postage shows first. A name you
-  type that is not one of your characters is asked about once before the first mail goes. If one
-  character's mail does not go, the others' still do, and GoldCap says whose did not. Gold is never
-  sent, and bound items and items you can still return for a refund stay in your bags. Close it
-  with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
+  characters sells each group, and GoldCap remembers it for this realm and faction. Keep is the same
+  count as in the Hoard, and what it keeps stays in your bags. Send all sends everything in one
+  press, and the groups for one character share mails of up to 12 stacks. The postage shows first. A
+  name you type that is not one of your characters is asked about once before the first mail goes.
+  If one character's mail does not go, the others' still do, and GoldCap says whose did not. Gold is
+  never sent, and bound items and items you can still return for a refund stay in your bags. Close
+  it with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
   yet.
 - In retail WoW, a GoldCap button by the minimap opens the deals board and, for an enchanter,
   Disenchant, and counts what is queued to disenchant. Its tooltip says how many of those are worth
