@@ -83,9 +83,34 @@ function D.CanDisenchant(stack)
   return D.Eligible(stack) and not D.NoDisenchant(stack.itemID)
 end
 
--- Loot of one quality and expansion alike: "q3:x10"; an expansion the reader could not tell is "x?".
+-- The first expansion whose gear disenchants alike at every item level (Dragonflight, ItemSparse
+-- ExpansionID 9); before it, what an item gives depends on its item level band.
+D.LEVELLESS_FROM = 9
+-- The item level band's width, in item levels.
+D.LEVEL_STEP = 5
+
+-- Loot alike (the code review, 2026-10-27): the quality, the expansion ("x?" where the reader could
+-- not tell it), armor ("a"), weapon ("w") or profession tool ("p"), and before Dragonflight the item
+-- level band ("i340" for 340 to 344; "i?" where the reader could not tell the level): "q3:x10:a",
+-- "q2:x7:w:i340". No yield of anyone's is shipped: every kind is learned from the player's own casts.
 function D.KindOf(stack)
-  return "q" .. tostring(stack.quality) .. ":x" .. (type(stack.expansion) == "number" and stack.expansion or "?")
+  local expansion = type(stack.expansion) == "number" and stack.expansion or nil
+  local body = stack.classID == WEAPON and "w" or stack.classID == PROFESSION and "p" or "a"
+  local kind = "q" .. tostring(stack.quality) .. ":x" .. (expansion or "?") .. ":" .. body
+  if expansion and expansion < D.LEVELLESS_FROM then
+    local level = type(stack.itemLevel) == "number" and stack.itemLevel > 0 and stack.itemLevel or nil
+    kind = kind .. ":i" .. (level and math.floor(level / D.LEVEL_STEP) * D.LEVEL_STEP or "?")
+  end
+  return kind
+end
+
+-- The kind a yield was learned under before armor, weapons and item levels counted ("q3:x10"),
+-- for a kind from Dragonflight on, where only the quality and the expansion count; nil before it,
+-- where such a yield mixed what cannot be told apart and lapses.
+local function olderKind(kind)
+  local older, expansion = kind:match("^(q[^:]+:x(%d+)):[awp]$")
+  if older and tonumber(expansion) >= D.LEVELLESS_FROM then return older end
+  return nil
 end
 
 -- A store a newer GoldCap wrote is read, never written.
@@ -132,10 +157,15 @@ function D.Learn(db, kind, mats)
   return true
 end
 
--- { [itemID] = average units a cast gave }, and the casts behind it; nil and 0 when none.
+-- { [itemID] = average units a cast gave }, and the casts behind it; nil and 0 when none. A kind
+-- from Dragonflight on that was never learned reads what its older kind learned (olderKind).
 function D.Yield(db, kind)
   local kinds = kindsOf(db, false)
   local k = kinds and kinds[kind]
+  if kinds and type(k) ~= "table" and type(kind) == "string" then
+    local older = olderKind(kind)
+    k = older and kinds[older]
+  end
   local n = type(k) == "table" and tonumber(k.n) or 0
   if n < 1 or type(k.mats) ~= "table" then return nil, 0 end
   local out = {}

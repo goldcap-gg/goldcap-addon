@@ -58,9 +58,37 @@ describe("Disenchant", function()
     end)
   end)
 
-  it("names a kind by quality and expansion", function()
-    assert.equal("q3:x10", D.KindOf(gear({ quality = 3 })))
-    assert.equal("q2:x?", D.KindOf(gear({ expansion = false })))
+  -- What disenchanting gives (the code review, 2026-10-27): before Dragonflight (ItemSparse
+  -- ExpansionID below 9) it depends on the item level band and on armor against weapon; from
+  -- Dragonflight on, a kind is its quality and expansion, armor and weapons kept apart too.
+  -- Profession tools are a kind of their own.
+  it("names a kind by quality, expansion and armor or weapon, and before Dragonflight by item level in fives", function()
+    assert.equal("q3:x10:a", D.KindOf(gear({ quality = 3 })))
+    assert.equal("q3:x10:w", D.KindOf(gear({ quality = 3, classID = 2 })))
+    assert.equal("q3:x10:p", D.KindOf(gear({ quality = 3, classID = 19 })))
+    assert.equal("q2:x7:a:i340", D.KindOf(gear({ expansion = 7, itemLevel = 342 })))
+    assert.equal("q2:x7:a:i345", D.KindOf(gear({ expansion = 7, itemLevel = 345 })))
+    assert.equal("q2:x7:w:i340", D.KindOf(gear({ expansion = 7, itemLevel = 344, classID = 2 })))
+    assert.equal("q2:x0:a:i60", D.KindOf(gear({ expansion = 0, itemLevel = 63 })))
+    assert.equal("q2:x8:a:i?", D.KindOf(gear({ expansion = 8 })))
+    assert.equal("q2:x9:a", D.KindOf(gear({ expansion = 9, itemLevel = 400 })))
+    assert.equal("q2:x?:a", D.KindOf(gear({ expansion = false })))
+  end)
+
+  -- Yields learned before the kinds told armor from weapons ("q3:x10") still read from Dragonflight
+  -- on, where only the quality and the expansion count; before it they lapse: the item level bands
+  -- they mixed cannot be told apart.
+  it("reads a yield learned under the older kinds from Dragonflight on, never before it", function()
+    local db = {}
+    D.Learn(db, "q3:x10", { [1] = 2 })
+    D.Learn(db, "q3:x7", { [1] = 5 })
+    assert.equal(2, (D.Yield(db, "q3:x10:a"))[1])
+    assert.equal(2, (D.Yield(db, "q3:x10:w"))[1])
+    assert.is_nil((D.Yield(db, "q3:x7:a:i340")))
+    D.Learn(db, "q3:x10:a", { [1] = 4 })
+    assert.equal(4, (D.Yield(db, "q3:x10:a"))[1])
+    assert.equal(2, (D.Yield(db, "q3:x10:w"))[1])
+    assert.equal(2, (D.Yield(db, "q3:x10"))[1])
   end)
 
   describe("yields", function()
