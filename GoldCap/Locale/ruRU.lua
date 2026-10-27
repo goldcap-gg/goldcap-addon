@@ -1774,6 +1774,7 @@ GC.Locales.ruRU = {
   ["Type a character name"] = "Введите имя персонажа",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Письмо можно отправить только персонажу этого реалма или связанного с ним.",
+  ["Mail goes only to a character of your faction."] = "Письмо можно отправить только персонажу своей фракции.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Почтовый ящик не ответил. Проверьте сумки и вкладку «Отправить письмо».",
   ["Stopped: something is on your cursor."] = "Остановлено: на курсоре что-то есть.",

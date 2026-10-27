@@ -1704,6 +1704,7 @@ GC.Locales.itIT = {
   ["Type a character name"] = "Scrivi il nome di un personaggio",
   ["Mail goes only to a character on this realm or a connected one."] =
     "La posta arriva solo ai personaggi di questo reame o di uno collegato.",
+  ["Mail goes only to a character of your faction."] = "La posta arriva solo ai personaggi della tua fazione.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La cassetta postale non ha risposto. Controlla le borse e la scheda Invia posta.",
   ["Stopped: something is on your cursor."] = "Interrotto: hai qualcosa sul cursore.",

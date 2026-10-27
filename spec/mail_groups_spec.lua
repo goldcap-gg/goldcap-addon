@@ -60,6 +60,7 @@ describe("mail groups", function()
 
   before_each(function()
     GC = helper.loadModule("Core/BankGroups.lua")
+    helper.loadModule("Core/Alts.lua", GC)
     helper.loadModule("Core/MailGroups.lua", GC)
     M = GC.MailGroups
   end)
@@ -299,6 +300,62 @@ describe("mail groups", function()
       assert.is_false(M.SetRecipient(db, "Tarren", "Herbs", 5))
       assert.is_false(M.Trust(db, ""))
       assert.is_nil(db.mailTo)
+    end)
+
+    -- Characters of opposite factions cannot mail each other (the code review, 2026-10-27): a choice
+    -- is kept for the faction that made it (mailTo.byFaction, beside the old `realms`), a recipient
+    -- recorded of the other faction (Core/Alts.lua) never counts, and an old save reads only for its
+    -- recipient's own faction.
+    describe("by faction", function()
+      local db
+      local function rec(name, faction)
+        GC.Alts.Record(db, { name = name, realm = "Tarren", class = "MAGE", level = 80, faction = faction }, 1)
+      end
+      before_each(function()
+        db = {}
+        rec("Mule", "Alliance")
+        rec("Grunt", "Horde")
+      end)
+
+      it("keeps each faction's own choice on one realm", function()
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", "Mule-Tarren", "Alliance"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", "Grunt-Tarren", "Horde"))
+        assert.equal("Mule-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+        assert.equal("Grunt-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        assert.is_nil(db.mailTo.realms.Tarren)
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", nil, "Horde"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        assert.equal("Mule-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+        assert.is_nil(M.RecipientOf(db, "Kazzak", "Herbs", "Alliance"))
+      end)
+
+      it("never counts a recipient recorded of the other faction", function()
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", "Mule-Tarren", "Horde"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        -- A name GoldCap never saw log in: its faction is not known, so the choice stands.
+        assert.is_true(M.SetRecipient(db, "Tarren", "Ore", "Stranger-Tarren", "Horde"))
+        assert.equal("Stranger-Tarren", M.RecipientOf(db, "Tarren", "Ore", "Horde"))
+      end)
+
+      it("reads an old save for its recipient's faction only, until that faction chooses again", function()
+        db.mailTo = { v = 1, realms = { Tarren = { Herbs = "Mule-Tarren", Ore = "Stranger-Tarren" } }, trusted = {} }
+        assert.equal("Mule-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        -- Whose faction the old entry was for cannot be told: it reads for neither.
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Ore", "Alliance"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Ore", "Horde"))
+        -- The Horde chooses: the old entry stays for the Alliance.
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", "Grunt-Tarren", "Horde"))
+        assert.equal("Mule-Tarren", db.mailTo.realms.Tarren.Herbs)
+        assert.equal("Mule-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+        -- The Alliance forgets: its old entry goes with it, so it never comes back.
+        assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", nil, "Alliance"))
+        assert.is_nil(M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+        assert.is_nil(db.mailTo.realms.Tarren.Herbs)
+        assert.equal("Grunt-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Horde"))
+        assert.equal("Stranger-Tarren", db.mailTo.realms.Tarren.Ore)
+      end)
     end)
 
     it("leaves a newer GoldCap's table as it is, read-only", function()

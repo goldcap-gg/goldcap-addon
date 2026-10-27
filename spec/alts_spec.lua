@@ -49,6 +49,19 @@ describe("alts", function()
     end)
   end)
 
+  -- Whose side a character is on, for Send to alts: characters of opposite factions cannot mail
+  -- each other.
+  describe("FactionOf", function()
+    it("answers a recorded character's faction, and nil for one never recorded", function()
+      local saved = {}
+      M.Record(saved, { name = "Orcy", realm = "Tarren", class = "SHAMAN", level = 80, faction = "Horde" }, 1)
+      assert.equal("Horde", M.FactionOf(saved, "Orcy-Tarren"))
+      assert.is_nil(M.FactionOf(saved, "Stranger-Tarren"))
+      assert.is_nil(M.FactionOf({}, "Orcy-Tarren"))
+      assert.is_nil(M.FactionOf(saved, nil))
+    end)
+  end)
+
   describe("Recipients", function()
     before_each(function()
       M.Record(db, me, 100)

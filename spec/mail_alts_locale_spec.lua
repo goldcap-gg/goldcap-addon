@@ -12,6 +12,8 @@ local KEYS = {
   "Postage is %s and this character has %s.",
   -- The recipient menu while none of the account's other characters is known yet.
   "Your other characters show here once each has logged in with GoldCap.",
+  -- A typed name of a character recorded on the other faction (the code review, 2026-10-27).
+  "Mail goes only to a character of your faction.",
 }
 
 -- A refused mail no longer stops the run: its old stop text is gone from every language.

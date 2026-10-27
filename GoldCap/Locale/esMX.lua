@@ -1711,6 +1711,7 @@ GC.Locales.esMX = {
   ["Type a character name"] = "Escribe un nombre de personaje",
   ["Mail goes only to a character on this realm or a connected one."] =
     "El correo solo llega a personajes de este reino o de uno conectado.",
+  ["Mail goes only to a character of your faction."] = "El correo solo llega a personajes de tu facción.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "El buzón no respondió. Revisa tus bolsas y la pestaña Enviar correo.",
   ["Stopped: something is on your cursor."] = "Detenido: tienes algo en el cursor.",

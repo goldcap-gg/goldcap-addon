@@ -16,12 +16,18 @@ local _, GC = ...
 -- small groups share one. Postage is POSTAGE copper a stack (measured on retail 12.1.5,
 -- 2026-10-26: 1 stack 30, 3 stacks 90).
 --
--- The alt of a group is saved in GC.db.mailTo = { v = 1, realms = { [home realm] = { [group key] =
--- "Name-Realm" } }, trusted = { ["Name-Realm"] = true } }: one alt a group per home realm (a group
--- is sold on one realm), and the alts the player has confirmed once. Created lazily with the first
--- recipient or trust and not through DEFAULTS, so a client that never loads this file keeps its
--- SavedVariables as they were. A save with a newer `v` is read-only: nothing writes to it and
--- every group has no recipient.
+-- The alt of a group is saved in GC.db.mailTo = { v = 1, byFaction = { [home realm] = { [faction] =
+-- { [group key] = "Name-Realm" } } }, realms = { [home realm] = { [group key] = "Name-Realm" } },
+-- trusted = { ["Name-Realm"] = true } }: one alt a group per home realm (a group is sold on one
+-- realm) and faction (characters of opposite factions cannot mail each other: the code review,
+-- 2026-10-27), and the alts the player has confirmed once. `realms` is the older save, from before
+-- the faction counted: written now only for a sender whose faction is not known, and read for a
+-- sender only when its recipient is recorded of the sender's faction (Core/Alts.lua's FactionOf).
+-- A recipient recorded of the other faction never counts, wherever it is saved. `byFaction` is a
+-- table of its own, not a level inside `realms`, since a group's key can be its name ("Horde").
+-- Created lazily with the first recipient or trust and not through DEFAULTS, so a client that never
+-- loads this file keeps its SavedVariables as they were. A save with a newer `v` is read-only:
+-- nothing writes to it and every group has no recipient.
 GC.MailGroups = {}
 local M = GC.MailGroups
 
@@ -59,35 +65,99 @@ local function table_(db)
   return db.mailTo
 end
 
---- The alt ("Name-Realm") that sells the group `key` on `homeRealm`, or nil.
-function M.RecipientOf(db, homeRealm, key)
-  local saved = type(db) == "table" and db.mailTo or nil
-  if not ours(saved) then return nil end
+-- The faction `full` was recorded with (Core/Alts.lua), or nil when it was never recorded.
+local function factionOf(db, full)
+  return GC.Alts and GC.Alts.FactionOf and GC.Alts.FactionOf(db, full) or nil
+end
+
+-- The older save's entry for `key` on `homeRealm`, or nil.
+local function oldEntry(saved, homeRealm, key)
   local realm = saved.realms[homeRealm]
   local full = type(realm) == "table" and realm[key] or nil
   return text(full) and full or nil
 end
 
---- Sets the alt of the group `key` on `homeRealm`, nil to forget it. True when it is set (or
---- already forgotten with nothing saved); false for a realm or group with no name, a recipient that
---- is neither nil nor a name, or a newer GoldCap's table.
-function M.SetRecipient(db, homeRealm, key, full)
+local function forgetOld(saved, homeRealm, key)
+  local realm = saved.realms[homeRealm]
+  if type(realm) ~= "table" then return end
+  realm[key] = nil
+  if next(realm) == nil then saved.realms[homeRealm] = nil end
+end
+
+-- `faction`'s own choices on `homeRealm`, made when `create`.
+local function ownOf(saved, homeRealm, faction, create)
+  local by = saved.byFaction
+  if type(by) ~= "table" then
+    if not create then return nil end
+    by = {}
+    saved.byFaction = by
+  end
+  if type(by[homeRealm]) ~= "table" then
+    if not create then return nil end
+    by[homeRealm] = {}
+  end
+  if type(by[homeRealm][faction]) ~= "table" then
+    if not create then return nil end
+    by[homeRealm][faction] = {}
+  end
+  return by[homeRealm][faction]
+end
+
+--- The alt ("Name-Realm") that sells the group `key` on `homeRealm` for a sender of `faction`, or
+--- nil: the faction's own choice, else the older save's entry when its recipient is recorded of
+--- that faction; never one recorded of the other faction. Without a `faction` (not known), the
+--- older save's entry as it is.
+function M.RecipientOf(db, homeRealm, key, faction)
+  local saved = type(db) == "table" and db.mailTo or nil
+  if not ours(saved) then return nil end
+  if not text(faction) then return oldEntry(saved, homeRealm, key) end
+  local own = ownOf(saved, homeRealm, faction, false)
+  local full = own and own[key]
+  if text(full) then
+    local side = factionOf(db, full)
+    return (side == nil or side == faction) and full or nil
+  end
+  full = oldEntry(saved, homeRealm, key)
+  return full and factionOf(db, full) == faction and full or nil
+end
+
+--- Sets the alt of the group `key` on `homeRealm` for a sender of `faction`, nil to forget it; the
+--- older save's entry goes too when it read for that faction, so it never comes back. Without a
+--- `faction` (not known), the older save's entry. True when it is set (or already forgotten with
+--- nothing saved); false for a realm or group with no name, a recipient that is neither nil nor a
+--- name, or a newer GoldCap's table.
+function M.SetRecipient(db, homeRealm, key, full, faction)
   if type(db) ~= "table" or not text(homeRealm) or not text(key) then return false end
   if full ~= nil and not text(full) then return false end
   if newer(db.mailTo) then return false end
-  if full == nil then
-    if not ours(db.mailTo) then return true end
-    local realm = db.mailTo.realms[homeRealm]
-    if type(realm) == "table" then
-      realm[key] = nil
-      if next(realm) == nil then db.mailTo.realms[homeRealm] = nil end
+  if full == nil and not ours(db.mailTo) then return true end
+  local saved = table_(db)
+  if not saved then return false end
+  if not text(faction) then
+    if full == nil then
+      forgetOld(saved, homeRealm, key)
+    else
+      if type(saved.realms[homeRealm]) ~= "table" then saved.realms[homeRealm] = {} end
+      saved.realms[homeRealm][key] = full
     end
     return true
   end
-  local saved = table_(db)
-  if not saved then return false end
-  if type(saved.realms[homeRealm]) ~= "table" then saved.realms[homeRealm] = {} end
-  saved.realms[homeRealm][key] = full
+  local old = oldEntry(saved, homeRealm, key)
+  if old and factionOf(db, old) == faction then forgetOld(saved, homeRealm, key) end
+  if full == nil then
+    local own = ownOf(saved, homeRealm, faction, false)
+    if own then
+      own[key] = nil
+      if next(own) == nil then
+        local realm = saved.byFaction[homeRealm]
+        realm[faction] = nil
+        if next(realm) == nil then saved.byFaction[homeRealm] = nil end
+        if next(saved.byFaction) == nil then saved.byFaction = nil end
+      end
+    end
+    return true
+  end
+  ownOf(saved, homeRealm, faction, true)[key] = full
   return true
 end
 

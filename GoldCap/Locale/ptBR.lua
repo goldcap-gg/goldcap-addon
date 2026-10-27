@@ -1702,6 +1702,7 @@ GC.Locales.ptBR = {
   ["Type a character name"] = "Digite um nome de personagem",
   ["Mail goes only to a character on this realm or a connected one."] =
     "O correio só vai para personagens deste reino ou de um reino conectado.",
+  ["Mail goes only to a character of your faction."] = "O correio só vai para personagens da sua facção.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "A caixa de correio não respondeu. Confira as bolsas e a aba Enviar Correio.",
   ["Stopped: something is on your cursor."] = "Parado: há algo no cursor.",

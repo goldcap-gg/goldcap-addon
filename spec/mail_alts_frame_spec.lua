@@ -135,7 +135,10 @@ describe("Send to alts window", function()
   local function record(name, realm, class, faction, seen)
     GC.Alts.Record(GC.db, { name = name, realm = realm, class = class, level = 80, faction = faction }, seen)
   end
-  local function sendTo(key, full) GC.MailGroups.SetRecipient(GC.db, "Tarren", key, full) end
+  -- This (Alliance) character's choice for `key`, as the window saves it.
+  local function sendTo(key, full) GC.MailGroups.SetRecipient(GC.db, "Tarren", key, full, "Alliance") end
+  -- Who sells `key` for this character's faction (Alliance unless a case logs in on the other).
+  local function recipient(key, faction) return GC.MailGroups.RecipientOf(GC.db, "Tarren", key, faction or "Alliance") end
 
   before_each(function()
     saved = {}
@@ -966,14 +969,39 @@ describe("Send to alts window", function()
   it("saves the character chosen for this realm, and sends there", function()
     event("MAIL_SHOW")
     choose(openMenu(rowOf("Herbs")), "Kaz-Kazzak")
-    assert.equal("Kaz-Kazzak", GC.MailGroups.RecipientOf(GC.db, "Tarren", "Herbs"))
+    assert.equal("Kaz-Kazzak", recipient("Herbs"))
     assert.equal("Kaz-Kazzak", textOf(rowOf("Herbs").to.text))
     assert.equal("Herbs to Kaz-Kazzak, Ore to Mirelle, Potions to Thornwick. 4 stacks.", textOf(top().line))
     choose(openMenu(rowOf("Herbs")), "This character")
-    assert.equal("Me-Tarren", GC.MailGroups.RecipientOf(GC.db, "Tarren", "Herbs"))
+    assert.equal("Me-Tarren", recipient("Herbs"))
     choose(openMenu(rowOf("Herbs")), "Nobody yet")
-    assert.is_nil(GC.MailGroups.RecipientOf(GC.db, "Tarren", "Herbs"))
+    assert.is_nil(recipient("Herbs"))
     assert.equal("Who sells it?", textOf(rowOf("Herbs").to.text))
+  end)
+
+  -- Characters of opposite factions cannot mail each other (the code review, 2026-10-27): a Horde
+  -- character on this realm inherits none of the Alliance's choices and plans no mail to them, and
+  -- each faction keeps its own choice.
+  it("plans no mail to an alt of the other faction, and keeps each faction's own choice", function()
+    _G.UnitName = function() return "Orcy" end
+    _G.UnitClass = function() return "Shaman", "SHAMAN" end
+    _G.UnitFactionGroup = function() return "Horde" end
+    record("Grunt", "Tarren", "WARRIOR", "Horde", now)
+    event("MAIL_SHOW")
+    for _, key in ipairs({ "Herbs", "Ore", "Potions" }) do
+      assert.equal("Who sells it?", textOf(rowOf(key).to.text), key)
+    end
+    assert.equal(0, #MA._reading.plan.mails)
+    choose(openMenu(rowOf("Herbs")), "Grunt")
+    assert.equal("Grunt-Tarren", recipient("Herbs", "Horde"))
+    assert.equal("Mirelle-Tarren", recipient("Herbs", "Alliance"))
+    assert.equal(1, #MA._reading.plan.mails)
+    assert.equal("Grunt", MA._reading.plan.mails[1].to)
+    -- A typed name of a character recorded on the other side is refused, saying why.
+    choose(openMenu(rowOf("Ore")), "Type a name")
+    local full, why = asked.opts.read("Mirelle")
+    assert.is_nil(full)
+    assert.equal("Mail goes only to a character of your faction.", why)
   end)
 
   it("takes a typed Name or Name-Realm in the kit's popup", function()
@@ -997,7 +1025,7 @@ describe("Send to alts window", function()
     assert.is_nil(full)
     assert.equal("Mail goes only to a character on this realm or a connected one.", why)
     asked.opts.onCommit("Stranger-Tarren")
-    assert.equal("Stranger-Tarren", GC.MailGroups.RecipientOf(GC.db, "Tarren", "Potions"))
+    assert.equal("Stranger-Tarren", recipient("Potions"))
     assert.equal("Stranger", textOf(rowOf("Potions").to.text))
   end)
 

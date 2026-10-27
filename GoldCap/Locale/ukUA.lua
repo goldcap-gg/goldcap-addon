@@ -1775,6 +1775,7 @@ GC.Locales.ukUA = {
   ["Type a character name"] = "Введіть ім'я персонажа",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Лист можна надіслати лише персонажу цього реалму або пов'язаного з ним.",
+  ["Mail goes only to a character of your faction."] = "Лист можна надіслати лише персонажу своєї фракції.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Поштова скринька не відповіла. Перевірте сумки та вкладку «Надіслати лист».",
   ["Stopped: something is on your cursor."] = "Зупинено: на курсорі щось є.",

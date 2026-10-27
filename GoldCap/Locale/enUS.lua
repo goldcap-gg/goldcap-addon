@@ -1692,6 +1692,7 @@ GC.Locales.enUS = {
   ["Type a character name"] = "Type a character name",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Mail goes only to a character on this realm or a connected one.",
+  ["Mail goes only to a character of your faction."] = "Mail goes only to a character of your faction.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "The mailbox did not answer. Check your bags and the Send Mail tab.",
   ["Stopped: something is on your cursor."] = "Stopped: something is on your cursor.",

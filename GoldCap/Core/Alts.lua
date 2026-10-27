@@ -53,6 +53,14 @@ function M.IsMine(db, full)
   return ours(saved) and saved.chars[full] ~= nil or false
 end
 
+--- The faction ("Alliance", "Horde") `full` ("Name-Realm") was recorded with, or nil for a name never
+--- recorded: characters of opposite factions cannot mail each other.
+function M.FactionOf(db, full)
+  local saved = type(db) == "table" and db.alts or nil
+  local c = ours(saved) and type(full) == "string" and saved.chars[full] or nil
+  return type(c) == "table" and text(c.faction) and c.faction or nil
+end
+
 --- Whether `full` is a recorded character seen within RECENT of `now`. False for one not seen for
 --- longer, one saved with no `seen`, and a name that is not recorded.
 function M.Recent(db, full, now)

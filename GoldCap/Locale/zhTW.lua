@@ -1604,6 +1604,7 @@ GC.Locales.zhTW = {
     "如果名字不是你的角色，寄出第一封郵件前會確認一次。",
   ["Type a character name"] = "請輸入角色名",
   ["Mail goes only to a character on this realm or a connected one."] = "郵件只能寄給本伺服器或連結伺服器的角色。",
+  ["Mail goes only to a character of your faction."] = "郵件只能寄給同陣營的角色。",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] = "信箱沒有回應。請檢查背包和寄送郵件分頁。",
   ["Stopped: something is on your cursor."] = "已停止：游標上有東西。",
   ["Stopped: the Send Mail tab already holds items."] = "已停止：寄送郵件分頁裡已有物品。",

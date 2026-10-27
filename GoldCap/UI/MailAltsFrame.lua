@@ -212,7 +212,7 @@ local function readBags()
   reading.plan = GC.MailGroups.Plan(stacks, {
     groupOf = GC.GroupRules.GroupOf,
     keepFor = function(key) return GC.BankGroups.KeepFor(GC.db, key) end,
-    recipientOf = function(key) return home and GC.MailGroups.RecipientOf(GC.db, home, key) or nil end,
+    recipientOf = function(key) return home and GC.MailGroups.RecipientOf(GC.db, home, key, me.faction) or nil end,
     mailName = function(full) return me and GC.Alts.MailName(full, me, connected) or nil end,
     isMe = function(full) return me ~= nil and full == me.full end,
   })
@@ -653,11 +653,12 @@ local function closePopups()
   end
 end
 
--- Who sells the group `key` on this realm, `full` or nil to forget it; the window reads again.
+-- Who sells the group `key` on this realm for this character's faction, `full` or nil to forget it;
+-- the window reads again.
 local function setRecipient(key, full)
   local me = MA._reading and MA._reading.me
   if not me then return end
-  GC.MailGroups.SetRecipient(GC.db, me.realm, key, full)
+  GC.MailGroups.SetRecipient(GC.db, me.realm, key, full, me.faction)
   MA._armed = nil
   MA.Refresh(true)
 end
@@ -665,7 +666,8 @@ end
 -- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character, in any
 -- case (Core/Alts.lua's Full takes the client's spelling of the realm and the recorded one of a
 -- character of the player's). A realm this character cannot mail (Core/Alts.lua's MailName) is
--- refused there, saying so, rather than saved and then ringed on its card as if no one were chosen.
+-- refused there, saying so, rather than saved and then ringed on its card as if no one were chosen;
+-- so is a character recorded of the other faction (Core/Alts.lua's FactionOf), which no mail reaches.
 local function askName(chip, row)
   if not GC.BuyCapEditor then return end
   GC.BuyCapEditor.Open(chip, {
@@ -678,6 +680,10 @@ local function askName(chip, row)
       if not full then return nil end
       if full ~= me.full and not GC.Alts.MailName(full, me, connected) then
         return nil, GC.L["Mail goes only to a character on this realm or a connected one."]
+      end
+      local side = GC.Alts.FactionOf(GC.db, full)
+      if side and me.faction and side ~= me.faction then
+        return nil, GC.L["Mail goes only to a character of your faction."]
       end
       return full
     end,

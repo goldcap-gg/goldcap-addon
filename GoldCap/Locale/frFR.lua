@@ -1708,6 +1708,7 @@ GC.Locales.frFR = {
   ["Type a character name"] = "Saisis un nom de personnage",
   ["Mail goes only to a character on this realm or a connected one."] =
     "Le courrier ne va qu'à un personnage de ce royaume ou d'un royaume connecté.",
+  ["Mail goes only to a character of your faction."] = "Le courrier ne va qu'à un personnage de ta faction.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La boîte aux lettres n'a pas répondu. Vérifie tes sacs et l'onglet Envoyer un message.",
   ["Stopped: something is on your cursor."] = "Arrêté : tu as quelque chose sur le curseur.",
