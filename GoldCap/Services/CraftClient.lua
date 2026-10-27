@@ -329,7 +329,8 @@ local run
 -- CC.PENDING seconds of GetTime at most.
 local pending
 
--- The player's last cast that began (UNIT_SPELLCAST_START): { guid, spellID }.
+-- The player's last cast that began (UNIT_SPELLCAST_START): { guid, spellID }. Forgotten when a
+-- run ends, so a later run of the same recipe whose cast was never seen begin is not told by it.
 local began
 
 --- How long a press is taken for a craft that is about to begin, in seconds.
@@ -354,7 +355,7 @@ local function held()
 end
 
 local function ended()
-  run, pending = nil, nil
+  run, pending, began = nil, nil, nil
 end
 
 -- Whether a failed or interrupted cast is the run's own: one with the GUID of the run's cast. A cast
@@ -403,7 +404,7 @@ function CC.OnEvent(event, ...)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
       if run and readable(spellID) and spellID == run.recipeID then
         run.done = run.done + 1
-        if run.done >= run.count then run = nil end
+        if run.done >= run.count then ended() end
       end
     elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
       if (run or held()) and ownCast(guid, spellID) then ended() end
