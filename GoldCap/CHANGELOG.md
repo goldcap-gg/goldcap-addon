@@ -122,26 +122,32 @@
   window or at a large font size, and the cards scroll when they do not all fit.
 - Crafting, in retail WoW: under a recipe's reagents, GoldCap shows what the reagents you picked
   cost, what one craft sells for after the auction house cut, and the profit. A reagent GoldCap
-  has no price for is named instead of a number. When a recipe has too many reagents to leave
-  room, or the window is minimized, the same lines show in the GoldCap panel beside the window.
-- Crafting: a GoldCap panel beside the profession window lists the recipes you know that make a
-  profit, best profit per craft first, and says about how many of each item sell a day, or that it
-  sells less than once a day. Under the list it counts the recipes that make no profit now.
+  has no price for is named instead of a number.
+- Crafting: a GoldCap panel beside the profession window names the profession you have open. This
+  recipe shows the recipe you picked with its item and crafting quality, what its reagents cost,
+  what one craft sells for after the cut and its profit, also when the window is minimized. Worth
+  crafting lists the recipes you know that make a profit, best profit per craft first, each with
+  its item's icon and crafting quality and about how many sell a day, or Slow seller when it sells
+  less than once a day. Click a recipe to open it in the profession window, or press + to add one
+  craft to the queue. Under the list it counts the recipes that make no profit now.
 - Crafting: add a recipe to a craft queue with a count, or restock it to a number you hold in your
-  bags, bank, mailbox and on the auction house. The queue shows which reagents are missing, and
-  Make a BUY list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent
-  a vendor sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take
-  off changes it, so BUY never buys again what a craft already used. Each character keeps its own
-  queue and its own list, named after the character.
+  bags, bank, mailbox and on the auction house. Each line of the Queue shows the item with its
+  crafting quality and a bar of how far along it is. Missing shows each reagent the queue still
+  needs with its icon and about what it costs to buy, with the total at the top. Make a BUY list
+  puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor sells
+  under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off changes it,
+  so BUY never buys again what a craft already used. Each character keeps its own queue and its own
+  list, named after the character.
 - Crafting, in retail WoW: each line of the craft queue has a Craft button while that recipe's
   profession window is open. One press crafts as many as your reagents allow, up to what the line
-  still needs, one after another, and moving stops it. When the button is greyed out, hover it to
-  see why.
+  still needs, one after another, and moving stops it. While it crafts, the line reads Crafting
+  with how many are made and how many are left, and the other Craft buttons wait until it is done.
+  When the button is greyed out, hover it to see why.
 - BUY, in retail WoW: what waits in your mailbox counts as what you have. What you buy at the
   auction house counts from the moment you buy it, so BUY does not offer it again while it waits
   in the mailbox. Items another player sent you count once you have opened the mailbox. A line's
-  tooltip says how many are in the mailbox. The craft queue counts them too, and under Missing it
-  names the reagents that wait in the mailbox, so you can take them out before you craft.
+  tooltip says how many are in the mailbox. The craft queue counts them too, and Missing says how
+  many of each reagent wait in your mailbox, so you can take them out before you craft.
 
 ## 0.22.0 (2026-10-21)
 
