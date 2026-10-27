@@ -527,6 +527,23 @@ describe("MailPress", function()
       assert.same({ { "attach", 1, 5, 3 }, { "send", "Alt-Realm", "S" } }, log)
     end)
 
+    it("never splits for a stack removed from the mail while an earlier part waits", function()
+      bags[key(0, 1)] = { link = "item:1", isLocked = false, count = 4 }
+      bags[key(0, 2)] = { link = "item:2", isLocked = false, count = 2 }
+      local m = { { to = "Alt-Realm", subject = "S", stacks = {
+        { itemID = 1, bag = 0, slot = 1, count = 3, split = 4, link = "item:1" },
+        { itemID = 2, bag = 0, slot = 2, count = 1, split = 2, link = "item:2" },
+      } } }
+      machine:Press(m)
+      assert.same({ { 1, 3 } }, splitLog)
+      -- The second part's group was set not to be sent (UI/MailAltsFrame.lua's setSkipped).
+      m[1].stacks[2] = nil
+      table.remove(timers, 1).fn()
+      table.remove(timers, 1).fn()
+      assert.same({ { 1, 3 } }, splitLog)
+      assert.same({ { "attach", 1, 5, 3 }, { "send", "Alt-Realm", "S" } }, log)
+    end)
+
     it("stops and puts the part back when the split leaves it on the cursor", function()
       stuck = true
       machine:Press(splitMail())

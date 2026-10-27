@@ -161,7 +161,13 @@ local function prepare(self, token, prep)
   while true do
     local stack = prep.stacks[prep.idx]
     if not stack then break end
-    if not stack.split then
+    -- A stack the player set not to be sent while this mail waits has left the mail: never split
+    -- for it (the re-review, 2026-10-27).
+    local still = false
+    for _, s in ipairs(prep.mail.stacks) do still = still or s == stack end
+    if not still then
+      prep.idx = prep.idx + 1
+    elseif not stack.split then
       prep.list[#prep.list + 1] = { stack = stack, from = stack }
       prep.idx = prep.idx + 1
     else
