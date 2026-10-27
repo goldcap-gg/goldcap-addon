@@ -246,13 +246,8 @@ function M.Full(db, typed, me, connected)
   return recorded(db, name, realm) or key(M.UpperFirst(name), realm)
 end
 
--- One guarded client read: its first value, or nil when the call is missing or fails.
-local function read(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, value = pcall(fn, ...)
-  if ok then return value end
-  return nil
-end
+-- One guarded client read (Core/Util.lua's Ask).
+local read = GC.Util.Ask
 
 --- What the event frame does at PLAYER_LOGIN and PLAYER_LEVEL_UP: reads the character and time
 --- and records them. A read that fails leaves a field nil, which Record refuses.

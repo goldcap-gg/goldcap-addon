@@ -56,6 +56,13 @@ function helper.loadModule(relPath, GC)
     local localeChunk = assert(loadfile("GoldCap/Locale/Core.lua"))
     localeChunk("GoldCap", GC)
   end
+  -- Core/Util.lua loads before every other file of GoldCap's in both TOCs (after the locale), and
+  -- modules take its helpers at load (GC.Util.Ask). Same reasoning as the locale above. A spec that
+  -- brought its own GC.Util keeps it.
+  if relPath ~= "Core/Util.lua" and relPath ~= "Locale/Core.lua" and GC.Util == nil then
+    local utilChunk = assert(loadfile("GoldCap/Core/Util.lua"))
+    utilChunk("GoldCap", GC)
+  end
   -- Core/PurchaseCall.lua loads before every UI file in both TOCs; the purchase clicks in
   -- UI/SniperFrame.lua and UI/BuyFrame.lua go through it. Same reasoning as the locale above.
   if relPath:match("^UI/") and GC.PurchaseCall == nil then

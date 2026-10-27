@@ -35,12 +35,8 @@ local PILL_H, PILL_MIN = 14, 14
 
 local button
 
-local function ask(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, value = pcall(fn, ...)
-  if ok then return value end
-  return nil
-end
+-- One guarded client call (Core/Util.lua's Ask).
+local ask = GC.Util.Ask
 
 local function store()
   if type(GC.db) ~= "table" then return {} end

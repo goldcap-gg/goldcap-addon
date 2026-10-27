@@ -13,6 +13,16 @@ GC.Util = {}
 -- a copper amount, a price, a total, a deposit, or any other sum that can pass 214,748g goes
 -- through this, not a bare string.format; counts, levels, percentages and indexes stay on %d,
 -- since none of those can reach that range.
+--- One guarded client call: its first answer (false kept as false), or nil when `fn` is not a
+--- function or raises. The one copy for every file that reads the client so (the code review,
+--- 2026-10-27).
+function GC.Util.Ask(fn, ...)
+  if type(fn) ~= "function" then return nil end
+  local ok, value = pcall(fn, ...)
+  if ok then return value end
+  return nil
+end
+
 function GC.Util.IntText(n)
   return ("%.0f"):format(n)
 end

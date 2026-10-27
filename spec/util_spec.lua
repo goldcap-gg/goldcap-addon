@@ -7,6 +7,19 @@ describe("Util", function()
     GC = helper.loadModule("Core/Util.lua")
   end)
 
+  -- One guarded client call (the code review, 2026-10-27: six files carried a copy): its first
+  -- answer, false kept as false; nil when the function is missing or raises.
+  describe("Ask", function()
+    it("answers a call's first value, and nil for a missing or failing function", function()
+      local U = GC.Util
+      assert.equal(3, U.Ask(function(a, b) return a + b, "second" end, 1, 2))
+      assert.is_false(U.Ask(function() return false end))
+      assert.is_nil(U.Ask(nil, 1))
+      assert.is_nil(U.Ask("not a function"))
+      assert.is_nil(U.Ask(function() error("boom") end))
+    end)
+  end)
+
   describe("ApplyDefaults", function()
     it("fills missing keys recursively without clobbering existing", function()
       local dst = { settings = { tooltip = false } }

@@ -175,13 +175,8 @@ DF._kept = { list = {}, bySlot = {} }
 local frame
 local refresh
 
--- One guarded client call: its first answer, or nil when it is missing or fails.
-local function ask(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, value = pcall(fn, ...)
-  if ok then return value end
-  return nil
-end
+-- One guarded client call (Core/Util.lua's Ask).
+local ask = GC.Util.Ask
 
 -- A spell cast's payload can be secret in some content (Midnight's rules): such a value is never
 -- compared, it reads as nothing.

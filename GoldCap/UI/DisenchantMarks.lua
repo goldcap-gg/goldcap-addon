@@ -41,12 +41,8 @@ local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 
 local overlays = setmetatable({}, { __mode = "k" })
 
-local function ask(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, value = pcall(fn, ...)
-  if ok then return value end
-  return nil
-end
+-- One guarded client call (Core/Util.lua's Ask).
+local ask = GC.Util.Ask
 
 -- What the plan marks: "bag:slot" -> { row, first = true | nil, coin = true | nil }.
 local function wanted(plan)

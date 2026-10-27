@@ -84,13 +84,9 @@ local function locationOf(bag, slot)
   return ItemLocation:CreateFromBagAndSlot(bag, slot)
 end
 
--- A client call's answer, false kept as false (a refusal is an answer), nil when it errors.
-local function ask(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, answer = pcall(fn, ...)
-  if not ok then return nil end
-  return answer
-end
+-- A client call's answer, false kept as false (a refusal is an answer), nil when it errors
+-- (Core/Util.lua's Ask).
+local ask = GC.Util.Ask
 
 -- `bankType`'s bank has a tab to put things in: a deposit into none goes nowhere.
 local function hasTabs(bankType)

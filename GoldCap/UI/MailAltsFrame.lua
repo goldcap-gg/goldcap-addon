@@ -123,13 +123,8 @@ local frame, handle
 local armSeq = 0
 local paint
 
--- One guarded client call: its first answer (false kept as false), or nil when it is missing or fails.
-local function ask(fn, ...)
-  if type(fn) ~= "function" then return nil end
-  local ok, value = pcall(fn, ...)
-  if ok then return value end
-  return nil
-end
+-- One guarded client call (Core/Util.lua's Ask).
+local ask = GC.Util.Ask
 
 -- ---------------------------------------------------------------------------------------------
 -- What the window remembers
