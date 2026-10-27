@@ -107,7 +107,8 @@ local SELF_ALPHA = 0.6
 -- groups a run sent in full in this visit, by key, as the run's plan had them; why the last run
 -- stopped, in words; the button armed for a typed name ({ id, full, to, token }); the names trusted
 -- for this session that a newer GoldCap's save could not keep; the X for this session while
--- GC.db.mailAlts is a newer GoldCap's. The cards, pooled by place.
+-- GC.db.mailAlts is a newer GoldCap's; whether the cards of the groups set not to be sent are drawn
+-- (the line under the list, for this visit). The cards, pooled by place.
 MA._open = false
 MA._reading = nil
 MA._run = nil
@@ -115,6 +116,7 @@ MA._sent = {}
 MA._stopped = nil
 MA._armed = nil
 MA._trustedHere = {}
+MA._showSkipped = false
 MA._closedHere = nil
 MA._rows = {}
 MA.machine = nil
@@ -210,6 +212,7 @@ local function readBags()
     recipientOf = function(key) return home and GC.MailGroups.RecipientOf(GC.db, home, key, me.faction) or nil end,
     mailName = function(full) return me and GC.Alts.MailName(full, me, connected) or nil end,
     isMe = function(full) return me ~= nil and full == me.full end,
+    skipped = function(key) return home ~= nil and GC.MailGroups.Skipped(GC.db, home, key, me.faction) end,
   })
   return reading
 end
@@ -341,15 +344,17 @@ local function runLine(run, names)
   return table.concat(parts, " ")
 end
 
--- With nothing to send: why. No followed group; a group with no one chosen to sell it; a group this
--- character sells; else every group keeps what is in the bags.
+-- With nothing to send: why. No followed group; a group with no one chosen to sell it; every group
+-- set not to be sent; a group this character sells; else every group keeps what is in the bags.
 local function whyNothing(reading)
   if not reading.hasGroups then return GC.L["Follow groups on goldcap.gg to send them to your alts here."] end
-  local self = false
+  local self, skipped = false, 0
   for _, row in ipairs(reading.plan.rows) do
     if row.state == "pick" then return GC.L["Choose who it goes to, once. GoldCap remembers."] end
     self = self or row.state == "self"
+    if row.state == "skipped" then skipped = skipped + 1 end
   end
+  if skipped > 0 and skipped == #reading.plan.rows then return GC.L["Every group here is set not to be sent."] end
   if self then return GC.L["This character sells them, so they stay."] end
   return GC.L["Your groups have nothing in your bags beyond what they keep."]
 end
@@ -653,6 +658,39 @@ local function setRecipient(key, full)
   MA.Refresh(true)
 end
 
+-- The group `key` is set not to be sent from this realm (`on`) or sent again. A skip made while a run
+-- goes takes the group out of the mails still to go: its stacks leave them, a mail left with none is
+-- skipped by the machine as empty, and the one in flight and those sent are as they were. The window
+-- reads again.
+local function setSkipped(key, on)
+  local me = MA._reading and MA._reading.me
+  if not (me and me.faction) then return end
+  if not GC.MailGroups.SetSkipped(GC.db, me.realm, key, me.faction, on) then return end
+  local run = MA._run
+  if on and run then
+    local gone = {}
+    for _, row in ipairs(run.plan.rows) do
+      if row.key == key then
+        for _, stack in ipairs(row.send) do gone[stack] = true end
+      end
+    end
+    for _, mail in ipairs(run.mails) do
+      if not run.done[mail] and mail ~= run.current then
+        local kept = {}
+        for _, stack in ipairs(mail.stacks) do
+          if not gone[stack] then kept[#kept + 1] = stack end
+        end
+        for i = 1, #mail.stacks do mail.stacks[i] = kept[i] end
+        for i = #mail.keys, 1, -1 do
+          if mail.keys[i] == key then table.remove(mail.keys, i) end
+        end
+      end
+    end
+  end
+  MA._armed = nil
+  MA.Refresh(true)
+end
+
 -- A name typed in the kit's popup: Name, or Name-Realm for a connected realm's character, in any
 -- case (Core/Alts.lua's Full takes the client's spelling of the realm and the recorded one of a
 -- character of the player's). A realm this character cannot mail (Core/Alts.lua's MailName) is
@@ -713,7 +751,8 @@ local function altLine(alt, reading)
 end
 
 -- Who sells a group, from its chip: the characters this one can mail, this character, a name typed
--- by hand, or nobody yet; saved for this realm. With none of the others known yet (each is recorded
+-- by hand, or nobody yet; saved for this realm; then, with this character's faction known, to set the
+-- group not to be sent from this realm or sent again. With none of the others known yet (each is recorded
 -- as it logs in with GoldCap), a grey line says so.
 local function fillMenu(root, chip, row)
   local reading = MA._reading
@@ -734,6 +773,12 @@ local function fillMenu(root, chip, row)
   end
   root:CreateButton(GC.Util.ClientText(GC.L["Type a name"]), function() askName(chip, row) end)
   root:CreateButton(GC.Util.ClientText(GC.L["Nobody yet"]), function() setRecipient(row.key, nil) end)
+  if me and me.faction then
+    root:CreateDivider()
+    local skipped = row.state == "skipped"
+    root:CreateButton(GC.Util.ClientText(skipped and GC.L["Send this group again"] or GC.L["Don't send this group"]),
+      function() setSkipped(row.key, not skipped) end)
+  end
 end
 
 local function onRecipientClick(chip)
@@ -1140,7 +1185,9 @@ local function paintRecipient(chip, row, reading)
   chip.data = row
   local me = reading.me
   local text, c, atlas, ring
-  if row.to and me and row.to == me.full then
+  if row.state == "skipped" then
+    text, c, ring = GC.L["Not sent"], K.text3, K.windowBorder
+  elseif row.to and me and row.to == me.full then
     text, c, ring = GC.L["This character"], K.text2, K.windowBorder
   elseif row.to then
     local class = reading.classOf[row.to]
@@ -1170,11 +1217,12 @@ local function paintRecipient(chip, row, reading)
   return x
 end
 
--- A card's line: how many stacks go, or why none do.
+-- A card's line: how many stacks go, or why none do (or that the group is set not to be sent).
 local function lineOf(row)
   if row.state == "send" then
     return #row.send == 1 and GC.L["1 stack"] or GC.L["%d stacks"]:format(#row.send)
   end
+  if row.state == "skipped" then return GC.L["Not sent from this realm."] end
   if row.state == "pick" then return GC.L["Choose who it goes to, once. GoldCap remembers."] end
   if row.state == "self" then return GC.L["This character sells them, so they stay."] end
   return GC.L["Nothing to send beyond what it keeps."]
@@ -1364,12 +1412,13 @@ local function paintRow(row, view, reading, width)
   -- The line and the "+N" back after the ask, or gone for it: redrawn whole.
   if below ~= (row.below == true) then restamp(row) end
   row.below = below
-  -- Its glass: gold while a mail of it is in flight; a group this character sells, faded.
+  -- Its glass: gold while a mail of it is in flight; a group this character sells or one set not to be
+  -- sent, faded.
   local fill, ring = K.glassBottom, K.hairline
   if status == "sending" then fill, ring = RUN_FILL, RUN_RING end
   row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4])
   row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
-  row:SetAlpha(data.state == "self" and not status and SELF_ALPHA or 1)
+  row:SetAlpha((data.state == "self" or data.state == "skipped") and not status and SELF_ALPHA or 1)
   row:SetHeight(height)
   return height
 end
@@ -1381,28 +1430,70 @@ end
 
 -- The cards to paint: while a run goes, the plan it was pressed with and how each group stands in
 -- the run; else the plan read now, a group a run of this visit sent in full saying Sent while nothing
--- more of it is to send.
+-- more of it is to send. A group set not to be sent has no card unless the line under the list has
+-- been pressed (MA._showSkipped), and then its card comes after the others. Answers the cards and how
+-- many groups set not to be sent there are.
 local function viewRows(reading)
   local out, run = {}, MA._run
   if run then
     for _, row in ipairs(run.plan.rows) do out[#out + 1] = { row = row, status = runStatus(run, row.key) } end
-    return out
-  end
-  local here = {}
-  for _, row in ipairs(reading.plan.rows) do
-    here[row.key] = true
-    local sent = MA._sent[row.key]
-    if sent and row.state == "nothing" then
-      out[#out + 1] = { row = sent, status = "sent" }
-    else
-      out[#out + 1] = { row = row }
+  else
+    local here = {}
+    for _, row in ipairs(reading.plan.rows) do
+      here[row.key] = true
+      local sent = MA._sent[row.key]
+      if sent and row.state == "nothing" then
+        out[#out + 1] = { row = sent, status = "sent" }
+      else
+        out[#out + 1] = { row = row }
+      end
+    end
+    for key, row in pairs(MA._sent) do
+      if not here[key] then out[#out + 1] = { row = row, status = "sent" } end
     end
   end
-  for key, row in pairs(MA._sent) do
-    if not here[key] then out[#out + 1] = { row = row, status = "sent" } end
-  end
   table.sort(out, byName)
-  return out
+  local shown, hidden = {}, {}
+  for _, view in ipairs(out) do
+    local list = view.row.state == "skipped" and not view.status and hidden or shown
+    list[#list + 1] = view
+  end
+  if MA._showSkipped then
+    for _, view in ipairs(hidden) do shown[#shown + 1] = view end
+  end
+  return shown, #hidden
+end
+
+-- The quiet line under the last card: "Show 2 groups not sent", then "Hide the groups not sent".
+-- Its words wrap inside it and it grows to hold them. Answers its height and the gap above it.
+local function paintToggle(hidden, y, width)
+  local button = frame.toggle
+  if not button then
+    button = GC.Theme.Button(frame.content, "ghost", "plaque")
+    button:SetScript("OnClick", function()
+      MA._showSkipped = not MA._showSkipped
+      paint()
+    end)
+    track(frame, button.text)
+    frame.toggle = button
+  end
+  local label = MA._showSkipped and GC.L["Hide the groups not sent"]
+    or hidden == 1 and GC.L["Show 1 group not sent"] or GC.L["Show %d groups not sent"]:format(hidden)
+  button:SetWidth(width)
+  button:SetLabel(label)
+  local text, room = button.text, width - 2 * M.BUTTON_PAD
+  text:ClearAllPoints()
+  text:SetWordWrap(true)
+  text:SetMaxLines(0)
+  text:SetJustifyH("CENTER")
+  text:SetWidth(room)
+  text:SetPoint("LEFT", button, "LEFT", M.BUTTON_PAD, 0)
+  local height = math.max(M.BUTTON_H, math.ceil(heightOf(text, M.BUTTON_H)) + 2 * M.WRAP_PAD)
+  button:SetHeight(height)
+  button:ClearAllPoints()
+  button:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -y)
+  button:Show()
+  return height + M.ROW_GAP
 end
 
 -- The window, top to bottom: the header; the top card; with any card, the section's heading, the
@@ -1427,8 +1518,8 @@ paint = function()
   frame.top:SetSize(head, cardH)
   y = y + cardH
 
-  local views = viewRows(reading)
-  local any = #views > 0
+  local views, hidden = viewRows(reading)
+  local any = #views > 0 or hidden > 0
   for _, part in ipairs({ frame.section, frame.scroll, frame.footer }) do part:SetShown(any) end
   local cy = 0
   for i, view in ipairs(views) do
@@ -1443,6 +1534,11 @@ paint = function()
     if not wasUp and frame:IsShown() then restamp(row) end
   end
   for i = #views + 1, #MA._rows do MA._rows[i]:Hide() end
+  if hidden > 0 then
+    cy = cy + paintToggle(hidden, cy, inner)
+  elseif frame.toggle then
+    frame.toggle:Hide()
+  end
   if not any then
     frame:SetHeight(y + L.PAD)
     return
@@ -1514,6 +1610,7 @@ end
 local function newVisit()
   if MA.machine and MA.machine:IsRunning() then MA.machine:Stop("closed") end
   MA._run, MA._sent, MA._stopped, MA._armed, MA._reading = nil, {}, nil, nil, nil
+  MA._showSkipped = false
 end
 
 -- BAG_UPDATE_DELAYED: the window reads and paints once on the next frame, never inside the client's

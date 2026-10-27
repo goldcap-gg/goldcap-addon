@@ -14,6 +14,10 @@ local KEYS = {
   "Your other characters show here once each has logged in with GoldCap.",
   -- A typed name of a character recorded on the other faction (the code review, 2026-10-27).
   "Mail goes only to a character of your faction.",
+  -- A group set not to be sent (hide-groups, 2026-10-27).
+  "Don't send this group", "Send this group again", "Not sent", "Not sent from this realm.",
+  "Show 1 group not sent", "Show %d groups not sent", "Hide the groups not sent",
+  "Every group here is set not to be sent.",
 }
 
 -- A refused mail no longer stops the run: its old stop text is gone from every language.

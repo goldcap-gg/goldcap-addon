@@ -944,7 +944,7 @@ describe("Send to alts window", function()
     assert.same({
       "title: Who sells Herbs?", "title: Your characters on this realm",
       "Mirelle  gets Herbs, Ore", "Kaz-Kazzak  seen yesterday", "Thornwick  gets Potions",
-      "This character", "Type a name", "Nobody yet",
+      "This character", "Type a name", "Nobody yet", "Don't send this group",
     }, menuTexts(m))
     for _, child in ipairs(m.children) do
       if child.text and helper.plain(child.text):find("^Mirelle") then
@@ -961,7 +961,7 @@ describe("Send to alts window", function()
     local m = openMenu(rowOf("Herbs"))
     assert.same({
       "title: Who sells Herbs?", "title: Your other characters show here once each has logged in with GoldCap.",
-      "This character", "Type a name", "Nobody yet",
+      "This character", "Type a name", "Nobody yet", "Don't send this group",
     }, menuTexts(m))
     assert.truthy(m.children[2].title:find("|c", 1, true), "the hint is grey")
   end)
@@ -1035,5 +1035,118 @@ describe("Send to alts window", function()
     event("MAIL_CLOSED")
     assert.is_true(closedFor[keep])
     assert.is_true(closedFor[to])
+  end)
+
+  -- ---------------------------------------------------------------------------------------------
+  -- A group set not to be sent
+  -- ---------------------------------------------------------------------------------------------
+
+  local function skip(key, on)
+    assert.is_true(GC.MailGroups.SetSkipped(GC.db, "Tarren", key, "Alliance", on ~= false))
+  end
+  local function skipped(key) return GC.MailGroups.Skipped(GC.db, "Tarren", key, "Alliance") end
+  local function toggle() return MA._frame.toggle end
+
+  it("offers Don't send this group, and Send this group again on a skipped card", function()
+    event("MAIL_SHOW")
+    choose(openMenu(rowOf("Potions")), "Don't send this group")
+    assert.is_true(skipped("Potions"))
+    assert.same({ "Herbs", "Ore" }, rowKeys())
+    skip("Potions")
+    MA.Refresh(true)
+    press(toggle())
+    local m = openMenu(rowOf("Potions"))
+    assert.equal("Send this group again", menuTexts(m)[#menuTexts(m)])
+    choose(m, "Send this group again")
+    assert.is_false(skipped("Potions"))
+    assert.same({ "Herbs", "Ore", "Potions" }, rowKeys())
+    assert.is_false(shown(toggle()))
+  end)
+
+  it("does not offer it while this character's faction is unknown", function()
+    _G.UnitFactionGroup = function() return nil end
+    event("MAIL_SHOW")
+    local texts = menuTexts(openMenu(rowOf("Herbs")))
+    assert.equal("Nobody yet", texts[#texts])
+  end)
+
+  it("does not draw a skipped card, and plans no mail for it", function()
+    skip("Potions")
+    event("MAIL_SHOW")
+    assert.same({ "Herbs", "Ore" }, rowKeys())
+    assert.equal("skipped", MA._reading.plan.rows[3].state)
+    assert.equal(1, #MA._reading.plan.mails)
+    assert.equal("Mirelle", MA._reading.plan.mails[1].to)
+    assert.equal("Herbs and Ore to Mirelle in one mail. 3 stacks.", textOf(top().line))
+  end)
+
+  it("shows the groups not sent behind a line under the last card, for this visit", function()
+    skip("Potions")
+    event("MAIL_SHOW")
+    assert.equal("Show 1 group not sent", toggle().label)
+    assert.is_true(shown(MA._frame.section))
+    press(toggle())
+    assert.equal("Hide the groups not sent", toggle().label)
+    assert.same({ "Herbs", "Ore", "Potions" }, rowKeys())
+    local potions = rowOf("Potions")
+    assert.equal("Not sent", textOf(potions.to.text))
+    assert.equal("Not sent from this realm.", textOf(potions.line))
+    assert.is_false(shown(potions.send))
+    assert.is_true(shown(potions.icons[1].edge))
+    assert.equal(0.6, potions:GetAlpha())
+    assert.equal(1, rowOf("Herbs"):GetAlpha())
+    local under, last = at(toggle()), at(potions)
+    assert.is_true(-under[5] >= -last[5] + potions:GetHeight())
+    press(toggle())
+    assert.equal("Show 1 group not sent", toggle().label)
+    assert.same({ "Herbs", "Ore" }, rowKeys())
+    press(toggle())
+    event("MAIL_CLOSED")
+    event("MAIL_SHOW")
+    assert.same({ "Herbs", "Ore" }, rowKeys())
+    assert.equal("Show 1 group not sent", toggle().label)
+  end)
+
+  it("counts the groups not sent, and says so when every group is", function()
+    for _, key in ipairs({ "Herbs", "Ore", "Potions" }) do skip(key) end
+    event("MAIL_SHOW")
+    assert.same({}, rowKeys())
+    assert.equal("Show 3 groups not sent", toggle().label)
+    assert.is_true(shown(toggle()) and shown(MA._frame.section))
+    assert.equal("Nothing to send now", textOf(top().title))
+    assert.equal("Every group here is set not to be sent.", textOf(top().line))
+    assert.is_false(shown(top().send))
+  end)
+
+  it("keeps asking who sells a group that is not skipped, whatever the skipped ones are", function()
+    skip("Potions")
+    sendTo("Herbs", nil)
+    sendTo("Ore", nil)
+    event("MAIL_SHOW")
+    assert.equal("Choose who it goes to, once. GoldCap remembers.", textOf(top().line))
+  end)
+
+  it("sends a skipped group again once someone is chosen to sell it", function()
+    skip("Potions")
+    event("MAIL_SHOW")
+    press(toggle())
+    choose(openMenu(rowOf("Potions")), "Mirelle")
+    assert.is_false(skipped("Potions"))
+    assert.equal("Mirelle", textOf(rowOf("Potions").to.text))
+    assert.equal(1, #MA._reading.plan.mails)
+    assert.equal(4, MA._reading.plan.stacks)
+  end)
+
+  it("takes a group skipped during a run out of the mails still to go", function()
+    event("MAIL_SHOW")
+    press(top().send)
+    assert.equal(1, #post:calls("SendMail"))
+    choose(openMenu(rowOf("Potions")), "Don't send this group")
+    assert.is_true(skipped("Potions"))
+    post:succeed()
+    event("MAIL_SEND_SUCCESS")
+    fire(GC.MailPress.STEP)
+    assert.equal(1, #post:calls("SendMail"))
+    assert.is_nil(MA._run)
   end)
 end)

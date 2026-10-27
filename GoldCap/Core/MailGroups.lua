@@ -28,6 +28,9 @@ local _, GC = ...
 -- Created lazily with the first recipient or trust and not through DEFAULTS, so a client that never
 -- loads this file keeps its SavedVariables as they were. A save with a newer `v` is read-only:
 -- nothing writes to it and every group has no recipient.
+--
+-- `skip = { [home realm] = { [faction] = { [group key] = true } } }` holds the groups set not to be
+-- sent, scoped as the recipient is, made by the first write and pruned when emptied.
 GC.MailGroups = {}
 local M = GC.MailGroups
 
@@ -126,7 +129,7 @@ end
 --- `faction` (not known), the older save's entry. True when it is set (or already forgotten with
 --- nothing saved); false for a realm or group with no name, a recipient that is neither nil nor a
 --- name, or a newer GoldCap's table.
-function M.SetRecipient(db, homeRealm, key, full, faction)
+local function setRecipient(db, homeRealm, key, full, faction)
   if type(db) ~= "table" or not text(homeRealm) or not text(key) then return false end
   if full ~= nil and not text(full) then return false end
   if newer(db.mailTo) then return false end
@@ -158,6 +161,54 @@ function M.SetRecipient(db, homeRealm, key, full, faction)
     return true
   end
   ownOf(saved, homeRealm, faction, true)[key] = full
+  return true
+end
+
+function M.SetRecipient(db, homeRealm, key, full, faction)
+  local ok = setRecipient(db, homeRealm, key, full, faction)
+  -- Choosing who sells a group means it is sent again.
+  if ok and full ~= nil and text(faction) then M.SetSkipped(db, homeRealm, key, faction, false) end
+  return ok
+end
+
+--- Whether the group `key` is set not to be sent from `homeRealm` by a sender of `faction`. Scoped
+--- as the recipient is: a group can have a seller on one realm and none on another. False without
+--- a realm, a faction or a key.
+function M.Skipped(db, homeRealm, key, faction)
+  if not text(homeRealm) or not text(key) or not text(faction) then return false end
+  local saved = type(db) == "table" and db.mailTo or nil
+  if not ours(saved) or type(saved.skip) ~= "table" then return false end
+  local realm = saved.skip[homeRealm]
+  local side = type(realm) == "table" and realm[faction] or nil
+  return type(side) == "table" and side[key] == true
+end
+
+--- Sets the group `key` not to be sent (`on`) or to be sent again, for `homeRealm` and `faction`.
+--- False, with nothing written, for a realm, faction or key that is not a name or a newer
+--- GoldCap's table. Turning it off prunes the tables it empties.
+function M.SetSkipped(db, homeRealm, key, faction, on)
+  if type(db) ~= "table" or not text(homeRealm) or not text(key) or not text(faction) then
+    return false
+  end
+  if on then
+    local saved = table_(db)
+    if not saved then return false end
+    if type(saved.skip) ~= "table" then saved.skip = {} end
+    if type(saved.skip[homeRealm]) ~= "table" then saved.skip[homeRealm] = {} end
+    if type(saved.skip[homeRealm][faction]) ~= "table" then saved.skip[homeRealm][faction] = {} end
+    saved.skip[homeRealm][faction][key] = true
+    return true
+  end
+  if newer(db.mailTo) then return false end
+  local saved = db.mailTo
+  if not ours(saved) or type(saved.skip) ~= "table" then return true end
+  local realm = saved.skip[homeRealm]
+  local side = type(realm) == "table" and realm[faction] or nil
+  if type(side) ~= "table" then return true end
+  side[key] = nil
+  if next(side) == nil then realm[faction] = nil end
+  if next(realm) == nil then saved.skip[homeRealm] = nil end
+  if next(saved.skip) == nil then saved.skip = nil end
   return true
 end
 
@@ -259,7 +310,9 @@ end
 --- stays, to, mailName, state }. `send` is the group's stacks that leave the bags, `items` those
 --- summed per item { itemID, name, count } by name, `stays` what the bags keep and why (Plan's),
 --- `to` the group's alt ("Name-Realm") or nil and `mailName` what SendMail takes for them or nil.
---- `state` is "nothing" with nothing to send (all kept or staying, whoever the alt is), else "self"
+--- `state` is "skipped" for a group set not to be sent (`opts.skipped`), whatever else holds: it is
+--- never cut into `mails`, `stacks` or `postage`, its `send`, `items` and `stays` are still filled.
+--- Else "nothing" with nothing to send (all kept or staying, whoever the alt is), "self"
 --- when the alt is this character, "pick" with no alt or one this character cannot mail from here,
 --- and "send" otherwise.
 ---
@@ -269,7 +322,8 @@ end
 ---
 --- `opts`: `groupOf(itemID)` and `keepFor(key)` and `moving`, as Plan takes them; `recipientOf(key)`
 --- the group's alt or nil, `mailName(full)` what to mail them (Core/Alts.lua's MailName, nil when
---- this character cannot), `isMe(full)` whether `full` is this character.
+--- this character cannot), `isMe(full)` whether `full` is this character, `skipped(key)` whether the
+--- group is set not to be sent.
 function M.Plan(bagStacks, opts)
   local groups = GC.BankGroups.Plan(bagStacks, nil,
     { groupOf = opts.groupOf, keepFor = opts.keepFor, moving = opts.moving })
@@ -278,7 +332,9 @@ function M.Plan(bagStacks, opts)
     local to = opts.recipientOf(group.key)
     local mailName = to and opts.mailName(to) or nil
     local state
-    if #group.toBank == 0 then
+    if opts.skipped and opts.skipped(group.key) then
+      state = "skipped"
+    elseif #group.toBank == 0 then
       state = "nothing"
     elseif to and opts.isMe(to) then
       state = "self"

@@ -1776,6 +1776,14 @@ GC.Locales.ukUA = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "Лист можна надіслати лише персонажу цього реалму або пов'язаного з ним.",
   ["Mail goes only to a character of your faction."] = "Лист можна надіслати лише персонажу своєї фракції.",
+  ["Don't send this group"] = "Не надсилати цю групу",
+  ["Send this group again"] = "Знову надсилати цю групу",
+  ["Not sent"] = "Не надсилається",
+  ["Not sent from this realm."] = "З цього ігрового світу не надсилається.",
+  ["Show 1 group not sent"] = "Показати 1 групу без надсилання",
+  ["Show %d groups not sent"] = "Показати групи без надсилання: %d",
+  ["Hide the groups not sent"] = "Сховати групи без надсилання",
+  ["Every group here is set not to be sent."] = "Усі групи тут позначені як ті, що не надсилаються.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Поштова скринька не відповіла. Перевірте сумки та вкладку «Надіслати лист».",
   ["Stopped: something is on your cursor."] = "Зупинено: на курсорі щось є.",

@@ -1705,6 +1705,14 @@ GC.Locales.itIT = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "La posta arriva solo ai personaggi di questo reame o di uno collegato.",
   ["Mail goes only to a character of your faction."] = "La posta arriva solo ai personaggi della tua fazione.",
+  ["Don't send this group"] = "Non inviare questo gruppo",
+  ["Send this group again"] = "Invia di nuovo questo gruppo",
+  ["Not sent"] = "Non inviato",
+  ["Not sent from this realm."] = "Non inviato da questo reame.",
+  ["Show 1 group not sent"] = "Mostra 1 gruppo non inviato",
+  ["Show %d groups not sent"] = "Mostra %d gruppi non inviati",
+  ["Hide the groups not sent"] = "Nascondi i gruppi non inviati",
+  ["Every group here is set not to be sent."] = "Ogni gruppo qui è impostato per non essere inviato.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La cassetta postale non ha risposto. Controlla le borse e la scheda Invia posta.",
   ["Stopped: something is on your cursor."] = "Interrotto: hai qualcosa sul cursore.",

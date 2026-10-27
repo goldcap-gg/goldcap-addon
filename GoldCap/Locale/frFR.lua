@@ -1709,6 +1709,14 @@ GC.Locales.frFR = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "Le courrier ne va qu'à un personnage de ce royaume ou d'un royaume connecté.",
   ["Mail goes only to a character of your faction."] = "Le courrier ne va qu'à un personnage de ta faction.",
+  ["Don't send this group"] = "Ne pas envoyer ce groupe",
+  ["Send this group again"] = "Envoyer de nouveau ce groupe",
+  ["Not sent"] = "Non envoyé",
+  ["Not sent from this realm."] = "Non envoyé depuis ce royaume.",
+  ["Show 1 group not sent"] = "Afficher 1 groupe non envoyé",
+  ["Show %d groups not sent"] = "Afficher %d groupes non envoyés",
+  ["Hide the groups not sent"] = "Masquer les groupes non envoyés",
+  ["Every group here is set not to be sent."] = "Tous les groupes ici sont réglés pour ne pas être envoyés.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "La boîte aux lettres n'a pas répondu. Vérifie tes sacs et l'onglet Envoyer un message.",
   ["Stopped: something is on your cursor."] = "Arrêté : tu as quelque chose sur le curseur.",

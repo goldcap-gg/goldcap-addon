@@ -369,4 +369,86 @@ describe("mail groups", function()
       assert.is_true(M.Writable({}))
     end)
   end)
+
+  -- A group set not to be sent: per home realm and faction, as the recipient is.
+  describe("skipped groups", function()
+    it("round trips per realm and faction, and leaves the others as they were", function()
+      local db = {}
+      assert.is_false(M.Skipped(db, "Tarren", "Herbs", "Alliance"))
+      assert.is_nil(db.mailTo)
+      assert.is_true(M.SetSkipped(db, "Tarren", "Herbs", "Alliance", true))
+      assert.is_true(M.Skipped(db, "Tarren", "Herbs", "Alliance"))
+      assert.is_false(M.Skipped(db, "Tarren", "Herbs", "Horde"))
+      assert.is_false(M.Skipped(db, "Kazzak", "Herbs", "Alliance"))
+      assert.is_false(M.Skipped(db, "Tarren", "Ore", "Alliance"))
+      assert.same({ Tarren = { Alliance = { Herbs = true } } }, db.mailTo.skip)
+      assert.is_true(M.SetSkipped(db, "Tarren", "Herbs", "Horde", true))
+      assert.is_true(M.SetSkipped(db, "Tarren", "Herbs", "Alliance", false))
+      assert.is_false(M.Skipped(db, "Tarren", "Herbs", "Alliance"))
+      assert.is_true(M.Skipped(db, "Tarren", "Herbs", "Horde"))
+      assert.is_true(M.SetSkipped(db, "Tarren", "Herbs", "Horde", false))
+      assert.is_nil(db.mailTo.skip, "emptied tables are pruned")
+    end)
+
+    it("writes nothing for a realm, faction or group that is not a name", function()
+      local db = {}
+      assert.is_false(M.SetSkipped(db, "Tarren", "Herbs", nil, true))
+      assert.is_false(M.SetSkipped(db, "Tarren", "Herbs", "", true))
+      assert.is_false(M.SetSkipped(db, nil, "Herbs", "Alliance", true))
+      assert.is_false(M.SetSkipped(db, "", "Herbs", "Alliance", true))
+      assert.is_false(M.SetSkipped(db, "Tarren", "", "Alliance", true))
+      assert.is_nil(db.mailTo)
+      assert.is_false(M.Skipped({ mailTo = { v = 1, realms = {}, trusted = {}, skip = { Tarren = { [""] = { Herbs = true } } } } },
+        "Tarren", "Herbs", ""))
+    end)
+
+    it("is forgotten when someone is chosen to sell the group, for that realm and faction only", function()
+      local db = {}
+      M.SetSkipped(db, "Tarren", "Herbs", "Alliance", true)
+      M.SetSkipped(db, "Tarren", "Herbs", "Horde", true)
+      M.SetSkipped(db, "Kazzak", "Herbs", "Alliance", true)
+      M.SetSkipped(db, "Tarren", "Ore", "Alliance", true)
+      assert.is_true(M.SetRecipient(db, "Tarren", "Herbs", "Mirelle-Tarren", "Alliance"))
+      assert.is_false(M.Skipped(db, "Tarren", "Herbs", "Alliance"))
+      assert.is_true(M.Skipped(db, "Tarren", "Herbs", "Horde"))
+      assert.is_true(M.Skipped(db, "Kazzak", "Herbs", "Alliance"))
+      assert.is_true(M.Skipped(db, "Tarren", "Ore", "Alliance"))
+      assert.equal("Mirelle-Tarren", M.RecipientOf(db, "Tarren", "Herbs", "Alliance"))
+    end)
+
+    it("stays read-only in a newer GoldCap's save", function()
+      local db = { mailTo = { v = 2, realms = {}, trusted = {}, skip = { Tarren = { Alliance = { Herbs = true } } } } }
+      assert.is_false(M.SetSkipped(db, "Tarren", "Herbs", "Alliance", false))
+      assert.is_false(M.SetSkipped(db, "Tarren", "Ore", "Alliance", true))
+      assert.is_true(db.mailTo.skip.Tarren.Alliance.Herbs)
+      assert.is_nil(db.mailTo.skip.Tarren.Alliance.Ore)
+      assert.is_false(M.Skipped(db, "Tarren", "Herbs", "Alliance"))
+    end)
+
+    it("leaves a skipped group out of the mails, the stacks and the postage", function()
+      local bags = { stack(1, 0, 1, 10), stack(3, 0, 2, 10), stack(4, 0, 3, 10) }
+      local to = { Herbs = "Mirelle-Tarren", Ore = "Mirelle-Tarren", Cloth = "Mirelle-Tarren" }
+      local p = plan(bags, to, nil, { skipped = function(key) return key == "Ore" end })
+      local ore = row(p, "Ore")
+      assert.equal("skipped", ore.state)
+      assert.equal(1, #ore.send)
+      assert.equal(1, #ore.items)
+      assert.equal(1, #p.mails)
+      assert.equal(2, p.stacks)
+      assert.equal(2 * M.POSTAGE, p.postage)
+      assert.same({ "Cloth", "Herbs" }, p.mails[1].keys)
+      assert.same({}, M.MailsFor(p, "Ore"))
+      assert.equal("send", row(p, "Herbs").state)
+    end)
+
+    it("is skipped whatever else holds: no one chosen, this character, nothing to send", function()
+      local bags = { stack(1, 0, 1, 10), stack(3, 0, 2, 10), stack(4, 0, 3, 10) }
+      local all = function() return true end
+      local p = plan(bags, { Ore = "Me-Tarren" }, { Cloth = 10 }, { skipped = all })
+      for _, key in ipairs({ "Herbs", "Ore", "Cloth" }) do assert.equal("skipped", row(p, key).state, key) end
+      assert.same({}, p.mails)
+      assert.equal(0, p.stacks)
+      assert.equal(0, p.postage)
+    end)
+  end)
 end)

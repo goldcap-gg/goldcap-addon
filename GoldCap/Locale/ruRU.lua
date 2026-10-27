@@ -1775,6 +1775,14 @@ GC.Locales.ruRU = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "Письмо можно отправить только персонажу этого реалма или связанного с ним.",
   ["Mail goes only to a character of your faction."] = "Письмо можно отправить только персонажу своей фракции.",
+  ["Don't send this group"] = "Не отправлять эту группу",
+  ["Send this group again"] = "Снова отправлять эту группу",
+  ["Not sent"] = "Не отправляется",
+  ["Not sent from this realm."] = "С этого игрового мира не отправляется.",
+  ["Show 1 group not sent"] = "Показать 1 группу без отправки",
+  ["Show %d groups not sent"] = "Показать группы без отправки: %d",
+  ["Hide the groups not sent"] = "Скрыть группы без отправки",
+  ["Every group here is set not to be sent."] = "Все группы здесь отмечены как не отправляемые.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Почтовый ящик не ответил. Проверьте сумки и вкладку «Отправить письмо».",
   ["Stopped: something is on your cursor."] = "Остановлено: на курсоре что-то есть.",

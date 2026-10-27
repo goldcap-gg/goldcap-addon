@@ -1708,6 +1708,14 @@ GC.Locales.deDE = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "Briefe gehen nur an Charaktere auf diesem Realm oder einem verbundenen.",
   ["Mail goes only to a character of your faction."] = "Briefe gehen nur an Charaktere deiner Fraktion.",
+  ["Don't send this group"] = "Diese Gruppe nicht senden",
+  ["Send this group again"] = "Diese Gruppe wieder senden",
+  ["Not sent"] = "Nicht gesendet",
+  ["Not sent from this realm."] = "Von diesem Realm wird nichts gesendet.",
+  ["Show 1 group not sent"] = "1 nicht gesendete Gruppe zeigen",
+  ["Show %d groups not sent"] = "%d nicht gesendete Gruppen zeigen",
+  ["Hide the groups not sent"] = "Nicht gesendete Gruppen ausblenden",
+  ["Every group here is set not to be sent."] = "Jede Gruppe hier ist auf Nicht senden gestellt.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "Der Briefkasten hat nicht geantwortet. Sieh in deinen Taschen und im Reiter Brief senden nach.",
   ["Stopped: something is on your cursor."] = "Gestoppt: Du hast etwas am Mauszeiger.",

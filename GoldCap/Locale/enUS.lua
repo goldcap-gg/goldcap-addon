@@ -1693,6 +1693,14 @@ GC.Locales.enUS = {
   ["Mail goes only to a character on this realm or a connected one."] =
     "Mail goes only to a character on this realm or a connected one.",
   ["Mail goes only to a character of your faction."] = "Mail goes only to a character of your faction.",
+  ["Don't send this group"] = "Don't send this group",
+  ["Send this group again"] = "Send this group again",
+  ["Not sent"] = "Not sent",
+  ["Not sent from this realm."] = "Not sent from this realm.",
+  ["Show 1 group not sent"] = "Show 1 group not sent",
+  ["Show %d groups not sent"] = "Show %d groups not sent",
+  ["Hide the groups not sent"] = "Hide the groups not sent",
+  ["Every group here is set not to be sent."] = "Every group here is set not to be sent.",
   ["The mailbox did not answer. Check your bags and the Send Mail tab."] =
     "The mailbox did not answer. Check your bags and the Send Mail tab.",
   ["Stopped: something is on your cursor."] = "Stopped: something is on your cursor.",
