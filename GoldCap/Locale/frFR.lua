@@ -1751,6 +1751,7 @@ GC.Locales.frFR = {
     "Compos, c'est ce que tes propres désenchantements de tels objets ont donné, aux prix du jour. Jamais dans la liste : les objets d'un ensemble d'équipement, ceux que tu peux encore rendre ou échanger, ceux d'un groupe que tu suis et ceux que tu gardes. Clic sur une ligne pour que l'objet soit le prochain désenchanté. Clic droit sur une ligne pour garder l'objet.",
   ["Nothing in your bags to disenchant."] = "Rien à désenchanter dans tes sacs.",
   ["Worth disenchanting: %d"] = "Rentable à désenchanter : %d",
+  ["Not learned yet: %d"] = "Pas encore appris : %d",
   ["The auction house pays more: %d"] = "L'hôtel des ventes paie plus : %d",
   ["A vendor pays more: %d"] = "Un marchand paie plus : %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

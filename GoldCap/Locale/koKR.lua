@@ -1674,6 +1674,7 @@ GC.Locales.koKR = {
     "재료는 이런 아이템을 직접 마력 추출해서 얻은 것을 오늘 가격으로 계산한 값입니다. 목록에 넣지 않는 것: 장비 구성에 든 아이템, 아직 환불하거나 거래할 수 있는 아이템, 팔로우 중인 그룹의 아이템, 보관하는 아이템. 줄을 클릭하면 그 아이템을 다음에 추출합니다. 줄을 우클릭하면 그 아이템을 보관합니다.",
   ["Nothing in your bags to disenchant."] = "가방에 마력 추출할 것이 없습니다.",
   ["Worth disenchanting: %d"] = "마력 추출이 이득: %d",
+  ["Not learned yet: %d"] = "아직 배우지 않음: %d",
   ["The auction house pays more: %d"] = "경매장이 더 이득: %d",
   ["A vendor pays more: %d"] = "상점이 더 이득: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

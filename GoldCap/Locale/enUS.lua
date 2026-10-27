@@ -1731,6 +1731,7 @@ GC.Locales.enUS = {
     "Mats is what your own disenchants of such items gave, at today's prices. Never on the list: items in an equipment set, items you can still return or trade, items in a group you follow, and items you keep. Click a line to disenchant it next. Right-click a line to keep an item.",
   ["Nothing in your bags to disenchant."] = "Nothing in your bags to disenchant.",
   ["Worth disenchanting: %d"] = "Worth disenchanting: %d",
+  ["Not learned yet: %d"] = "Not learned yet: %d",
   ["The auction house pays more: %d"] = "The auction house pays more: %d",
   ["A vendor pays more: %d"] = "A vendor pays more: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

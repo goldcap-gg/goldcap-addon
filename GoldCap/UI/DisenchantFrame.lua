@@ -884,19 +884,22 @@ local function showRowTip(row)
 end
 
 --- What the last plan counts, for the GoldCap minimap button (UI/MinimapButton.lua): the items
---- worth disenchanting, and those left out for the auction house and for a vendor; nil for a
---- character that does not know Disenchant, and while no plan was read (at login, before the first
---- paint), so that nothing is claimed of bags not read. `readNow` (the button's tooltip and menu):
---- with none read yet, one is read now, out of combat only.
+--- queued to disenchant, those left out for the auction house and for a vendor, and of the queue
+--- those whose learned mats pay more than a vendor (worth disenchanting) and those not learned yet
+--- (Core/Disenchant.lua's QueueCounts); kept and refused items are not counted. Nil for a character
+--- that does not know Disenchant, and while no plan was read (at login, before the first paint), so
+--- that nothing is claimed of bags not read. `readNow` (the button's tooltip and menu): with none
+--- read yet, or the bags changed since (`stale`, waiting for countSoon's timer), one is read now,
+--- out of combat only.
 function DF.Counts(readNow)
   if not DF.Known() then return nil end
-  if not DF._plan then
-    if not readNow or inCombat() then return nil end
-    DF._plan = readPlan()
+  if (not DF._plan or DF._stale) and readNow and not inCombat() then
+    DF._plan, DF._stale = readPlan(), nil
   end
-  -- Kept and refused items are not counted.
   local plan = DF._plan
-  return #plan.queue, #plan.left, #(plan.leftVendor or {})
+  if not plan then return nil end
+  local worth, learning = D.QueueCounts(plan.queue)
+  return #plan.queue, #plan.left, #(plan.leftVendor or {}), worth, learning
 end
 
 -- The GoldCap minimap button, told whenever the plan was read or the character's spells changed.
@@ -910,6 +913,25 @@ end
 local function counting()
   local button = GC.MinimapButton
   return button ~= nil and button.Shown ~= nil and button.Shown() == true
+end
+
+-- With the window and Blizzard's bags closed, the bags changed and only the minimap button counts:
+-- they are read at most once every COUNT_SECONDS, one timer for every change meanwhile (the code
+-- review, 2026-10-27: a full read at every BAG_UPDATE_DELAYED while looting, mailing or posting);
+-- sooner when the button's tooltip or menu asks (DF.Counts' readNow) or Blizzard's bags open (their
+-- OnShow paints). The timer's paint reads only while the change is still unread, never in combat
+-- (refresh keeps it for the fight's end).
+DF.COUNT_SECONDS = 10
+
+local function countSoon()
+  DF._stale = true
+  if DF._countWaits then return end
+  if not (C_Timer and C_Timer.After) then return refresh() end
+  DF._countWaits = true
+  C_Timer.After(DF.COUNT_SECONDS, function()
+    DF._countWaits = nil
+    if DF._stale then refresh() end
+  end)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1854,7 +1876,7 @@ refresh = function()
   DF._replace = nil
   local bags = bagFrame()
   if not (up or bags or counting()) then return paintMarks(nil) end
-  DF._plan = readPlan()
+  DF._plan, DF._stale = readPlan(), nil
   paintMarks(bags)
   tellButton()
   if up then
@@ -2059,10 +2081,11 @@ end
 
 --- The window's events, as its own event frame below hears them. PLAYER_LOGIN: the key binding's
 --- label in the player's language (chosen at ADDON_LOADED, after every file loaded), the window
---- built for an enchanter, and a paint on the next frame (the minimap button's count). SPELLS_CHANGED:
---- built once Disenchant is learned; a paint, which closes the window once the spell is gone.
---- BAG_UPDATE_DELAYED: a paint on the next frame, while the window, Blizzard's bags or the minimap
---- button show.
+--- built for an enchanter, and the minimap button's first count (countSoon). SPELLS_CHANGED: built
+--- once Disenchant is learned; a paint, which closes the window once the spell is gone (with only
+--- the minimap button counting, its count told at once and read by countSoon). BAG_UPDATE_DELAYED:
+--- a paint on the next frame while the window or Blizzard's bags show; while only the minimap
+--- button counts, countSoon.
 --- PLAYER_REGEN_DISABLED: the button pointed at nothing while the client still allows it (see
 --- disarmForCombat), and the fight remembered. PLAYER_REGEN_ENABLED: what combat held, a paint of an
 --- open window (the button is armed again), and the window built for an enchanter who logged in
@@ -2073,12 +2096,21 @@ function DF.OnEvent(event, ...)
   if event == "PLAYER_LOGIN" then
     _G["BINDING_NAME_" .. DF.BINDING] = GC.L["Disenchant next"]
     prepare()
-    if DF.Known() then schedule() end
+    if DF.Known() then countSoon() end
   elseif event == "SPELLS_CHANGED" then
     prepare()
-    if (frame and frame:IsShown()) or bagFrame() or counting() then schedule() end
+    if (frame and frame:IsShown()) or bagFrame() then
+      schedule()
+    elseif counting() then
+      tellButton()
+      if DF.Known() then countSoon() end
+    end
   elseif event == "BAG_UPDATE_DELAYED" or event == "EQUIPMENT_SETS_CHANGED" then
-    if (frame and frame:IsShown()) or ((bagFrame() or counting()) and DF.Known()) then schedule() end
+    if (frame and frame:IsShown()) or (bagFrame() and DF.Known()) then
+      schedule()
+    elseif counting() and DF.Known() then
+      countSoon()
+    end
   elseif event == "PLAYER_REGEN_DISABLED" then
     disarmForCombat()
     DF._fight = true

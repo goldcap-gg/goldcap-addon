@@ -267,6 +267,17 @@ local function group(row)
   return row.mats > row.vendor and 1 or 3
 end
 
+--- Of a plan's `queue`: how many rows' learned mats pay more than a vendor (or no vendor buys
+--- them), and how many rows' mats are not learned yet. The rest pay just what a vendor does.
+function D.QueueCounts(queue)
+  local worth, learning = 0, 0
+  for _, row in ipairs(queue or {}) do
+    local g = group(row)
+    if g == 1 then worth = worth + 1 elseif g == 2 then learning = learning + 1 end
+  end
+  return worth, learning
+end
+
 local function before(a, b)
   local ga, gb = group(a), group(b)
   if ga ~= gb then return ga < gb end

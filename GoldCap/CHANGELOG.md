@@ -72,9 +72,10 @@
   with the X, and a small button beside the mailbox opens it again. WoW: Forever does not have it
   yet.
 - In retail WoW, a GoldCap button by the minimap opens the deals board and, for an enchanter,
-  Disenchant, and counts the gear worth disenchanting. Drag it to move it round the minimap. Hide
-  this button in its menu hides it, and /gc minimap brings it back. WoW: Forever does not have it
-  yet.
+  Disenchant, and counts what is queued to disenchant. Its tooltip says how many of those are worth
+  disenchanting and how many GoldCap has not learned yet. Drag it to move it round the minimap.
+  Hide this button in its menu hides it, and /gc minimap brings it back. WoW: Forever does not have
+  it yet.
 - Disenchant, in retail WoW, for an enchanter: a window that names the next piece of gear worth
   disenchanting and disenchants it with one press. Open it from the GoldCap button by the minimap,
   with /gc disenchant, or with a key: bind one in Key Bindings, GoldCap, Disenchant next. Click a line

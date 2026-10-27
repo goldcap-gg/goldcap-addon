@@ -1641,6 +1641,7 @@ GC.Locales.zhCN = {
     "材料是你亲自分解这类物品所得，按今天的价格计算。永远不会列入：装备方案中的物品、还能退还或交易的物品、你关注的分组里的物品，以及你保留的物品。点击一行即可把该物品排到下一个分解。右键点击一行即可保留该物品。",
   ["Nothing in your bags to disenchant."] = "背包里没有可分解的物品。",
   ["Worth disenchanting: %d"] = "值得分解：%d",
+  ["Not learned yet: %d"] = "尚未学到：%d",
   ["The auction house pays more: %d"] = "拍卖行更值钱：%d",
   ["A vendor pays more: %d"] = "卖给商人更值钱：%d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

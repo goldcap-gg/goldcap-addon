@@ -24,6 +24,8 @@ local KEYS = {
   -- The minimap button's tooltip, the card with everything left out, and /gc disenchant on a
   -- character without the spell.
   "Worth disenchanting: %d", "The auction house pays more: %d", "A vendor pays more: %d",
+  -- The queued items whose mats GoldCap has not learned yet (the code review, 2026-10-27).
+  "Not learned yet: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua): its menu, its tooltip's last line,
   -- what it says once hidden and its line under the /gc help line.
   "Deals board", "Disenchant (%d)", "Hide this button", "Click for GoldCap. Drag to move it.",

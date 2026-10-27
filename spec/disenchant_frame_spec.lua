@@ -362,7 +362,7 @@ describe("Disenchant window", function()
     put(gear(0, 3, 503, { quality = 3, vendorUnit = 10000 }))
     openBags()
     assert.is_true(told > 0)
-    assert.same({ 1, 1, 1 }, { DF.Counts() })
+    assert.same({ 1, 1, 1, 1, 0 }, { DF.Counts() })
     local before = told
     S.enterCombat()
     event("PLAYER_REGEN_DISABLED")
@@ -383,29 +383,92 @@ describe("Disenchant window", function()
     assert.is_nil(DF.Counts(true))
     assert.equal(0, reads)
     S.leaveCombat()
-    assert.same({ 1, 0, 0 }, { DF.Counts(true) })
+    assert.same({ 1, 0, 0, 0, 1 }, { DF.Counts(true) })
     assert.equal(1, reads)
-    assert.same({ 1, 0, 0 }, { DF.Counts(true) })
+    assert.same({ 1, 0, 0, 0, 1 }, { DF.Counts(true) })
     assert.equal(1, reads)
   end)
 
-  -- With Blizzard's bags closed (or a bag addon's in their place) the button still counts: while it
-  -- shows, a change in the bags reads them for an enchanter, out of combat, and never for anyone else.
-  it("reads the bags for the minimap button's count while it shows, with the bags closed", function()
+  -- The pill counts the queue; the tooltip says worth disenchanting only of the items whose learned
+  -- mats pay more than a vendor (or that no vendor buys), and apart, how many GoldCap has not
+  -- learned yet (the code review, 2026-10-27): Counts answers queue, auction house, vendor, worth,
+  -- not learned.
+  it("counts apart the queued items whose mats pay more and those not learned yet", function()
+    GC.MinimapButton = { Refresh = function() end, Shown = function() return false end }
+    learned()
+    put(gear(0, 1, 503, { quality = 3, vendorUnit = 10000 }))
+    put(gear(0, 2, 504, { quality = 4, vendorUnit = 10000 }))
+    put(gear(0, 3, 505, { vendorUnit = 1 }))
+    openBags()
+    assert.same({ 3, 0, 0, 2, 1 }, { DF.Counts() })
+  end)
+
+  -- With Blizzard's bags and the window closed (or a bag addon's bags in their place) the button
+  -- still counts, but at most once every COUNT_SECONDS, one timer for every change meanwhile; at once
+  -- when its tooltip or menu asks (Counts' readNow) or Blizzard's bags open; never in combat; and
+  -- never while it is hidden (the code review, 2026-10-27).
+  it("counts with the bags closed at most once every 10 seconds, at once when asked, never in combat", function()
     local shown = true
     GC.MinimapButton = { Refresh = function() end, Shown = function() return shown end }
+    local function waiting()
+      local n = 0
+      for _, t in ipairs(timers) do
+        if not t.done and t.seconds == DF.COUNT_SECONDS then n = n + 1 end
+      end
+      return n
+    end
+    assert.equal(10, DF.COUNT_SECONDS)
     put(gear(0, 1, 501))
     event("PLAYER_LOGIN")
     nextFrame()
-    assert.same({ 1, 0, 0 }, { DF.Counts() })
+    assert.equal(0, reads)
+    fire(DF.COUNT_SECONDS)
+    assert.equal(1, reads)
+    assert.same({ 1, 0, 0, 0, 1 }, { DF.Counts() })
     put(gear(0, 2, 502))
     event("BAG_UPDATE_DELAYED")
+    event("EQUIPMENT_SETS_CHANGED")
+    event("BAG_UPDATE_DELAYED")
     nextFrame()
-    assert.same({ 2, 0, 0 }, { DF.Counts() })
+    assert.equal(1, reads)
+    assert.equal(1, waiting())
+    assert.same({ 1, 0, 0, 0, 1 }, { DF.Counts() })
+    fire(DF.COUNT_SECONDS)
+    assert.equal(2, reads)
+    assert.same({ 2, 0, 0, 0, 2 }, { DF.Counts() })
+    -- Asked, by a hover or the menu: at once, and the timer then finds nothing to read.
+    put(gear(0, 3, 503))
+    event("BAG_UPDATE_DELAYED")
+    assert.same({ 3, 0, 0, 0, 3 }, { DF.Counts(true) })
+    assert.equal(3, reads)
+    fire(DF.COUNT_SECONDS)
+    assert.equal(3, reads)
+    -- In combat nothing is read, not even when asked: the last count stands until the fight is over.
+    put(gear(0, 4, 504))
+    S.enterCombat()
+    event("PLAYER_REGEN_DISABLED")
+    event("BAG_UPDATE_DELAYED")
+    fire(DF.COUNT_SECONDS)
+    assert.same({ 3, 0, 0, 0, 3 }, { DF.Counts(true) })
+    assert.equal(3, reads)
+    S.leaveCombat()
+    event("PLAYER_REGEN_ENABLED")
+    nextFrame()
+    assert.equal(4, reads)
+    -- Blizzard's bags opening read at once.
+    put(gear(0, 5, 505))
+    event("BAG_UPDATE_DELAYED")
+    openBags()
+    assert.equal(5, reads)
+    bags:Hide()
+    W.state(bags).hooks.OnHide(bags)
+    nextFrame()
+    -- Hidden, the button asks for nothing.
     shown = false
     local before = reads
     event("BAG_UPDATE_DELAYED")
     nextFrame()
+    fire(DF.COUNT_SECONDS)
     assert.equal(before, reads)
   end)
 

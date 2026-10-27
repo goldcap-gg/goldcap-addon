@@ -1748,6 +1748,7 @@ GC.Locales.deDE = {
     "Material ist, was deine eigenen Entzauberungen solcher Gegenstände ergaben, zu heutigen Preisen. Nie auf der Liste: Gegenstände in einem Ausrüstungsset, Gegenstände, die du noch zurückgeben oder handeln kannst, Gegenstände in einer Gruppe, der du folgst, und Gegenstände, die du behältst. Klick auf eine Zeile entzaubert den Gegenstand als Nächstes. Rechtsklick auf eine Zeile behält den Gegenstand.",
   ["Nothing in your bags to disenchant."] = "Nichts in deinen Taschen zum Entzaubern.",
   ["Worth disenchanting: %d"] = "Entzaubern lohnt sich: %d",
+  ["Not learned yet: %d"] = "Noch nicht gelernt: %d",
   ["The auction house pays more: %d"] = "Das Auktionshaus zahlt mehr: %d",
   ["A vendor pays more: %d"] = "Ein Händler zahlt mehr: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

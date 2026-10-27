@@ -85,13 +85,14 @@ describe("GoldCap minimap button", function()
     GC.Sniper = { Toggle = function() toggled[#toggled + 1] = "deals" end }
     GC.DisenchantFrame = {
       Known = function() return knows end,
-      -- Nil for a character without Disenchant, and while no plan was read: asked to (`readNow`),
-      -- the window reads one then, out of combat.
+      -- Queued, auction house, vendor, worth disenchanting, not learned yet; nil for a character
+      -- without Disenchant, and while no plan was read: asked to (`readNow`), the window reads one
+      -- then, out of combat.
       Counts = function(readNow)
         if not knows then return nil end
         if not planned and readNow and not fighting then planned = true end
         if not planned then return nil end
-        return counts[1], counts[2], counts[3]
+        return counts[1], counts[2], counts[3], counts[4] or 0, counts[5] or 0
       end,
       Toggle = function() toggled[#toggled + 1] = "disenchant" end,
       Refresh = function() repainted = repainted + 1 end,
@@ -226,37 +227,47 @@ describe("GoldCap minimap button", function()
       "button:Hide this button" }, entries())
     assert.is_false(button().pill:IsShown())
     fighting = false
+    counts = { 2, 0, 0, 2, 0 }
     hover()
-    assert.same({ "GoldCap", "Nothing in your bags to disenchant.", "Click for GoldCap. Drag to move it." }, tipTexts())
+    assert.same({ "GoldCap", "Worth disenchanting: 2", "Click for GoldCap. Drag to move it." }, tipTexts())
+    -- The count read for the tooltip shows on the button at once.
+    assert.is_true(button().pill:IsShown())
+    assert.equal("2", helper.plain(W.state(button().count).text))
   end)
 
   -- The old entry's tooltip was painted again on every paint; so is this one, while it shows.
   it("repaints its tooltip when the count changes while it shows, and leaves a hidden one hidden", function()
-    counts = { 2, 0, 0 }
+    counts = { 2, 0, 0, 2, 0 }
     login()
     hover()
-    counts = { 5, 1, 0 }
+    counts = { 5, 1, 0, 5, 0 }
     MB.Refresh()
     assert.same({ "GoldCap", "Worth disenchanting: 5", "The auction house pays more: 1",
       "Click for GoldCap. Drag to move it." }, tipTexts())
     assert.is_true(tip.shown)
     W.state(button()).scripts.OnLeave(button())
-    counts = { 1, 0, 0 }
+    counts = { 1, 0, 0, 1, 0 }
     MB.Refresh()
     assert.is_false(tip.shown)
     assert.equal("Worth disenchanting: 5", tipTexts()[2])
   end)
 
-  it("says in its tooltip what is worth disenchanting and how to use it", function()
+  -- Honest counts (the code review, 2026-10-27): the pill and the menu count the queue, but the
+  -- tooltip says worth disenchanting only of the items whose learned mats pay more, and apart how
+  -- many GoldCap has not learned yet.
+  it("says in its tooltip what is worth disenchanting, what is not learned yet, and how to use it", function()
     local K = GC.Kit.Tokens.color
-    counts = { 2, 1, 3 }
+    counts = { 6, 1, 3, 2, 3 }
     login()
     local b = button()
+    assert.equal("6", helper.plain(W.state(b.count).text))
     W.state(b).scripts.OnEnter(b)
     local texts = {}
     for i, l in ipairs(tip.lines) do texts[i] = l.text end
-    assert.same({ "GoldCap", "Worth disenchanting: 2", "The auction house pays more: 1", "A vendor pays more: 3",
-      "Click for GoldCap. Drag to move it." }, texts)
+    assert.same({ "GoldCap", "Worth disenchanting: 2", "Not learned yet: 3", "The auction house pays more: 1",
+      "A vendor pays more: 3", "Click for GoldCap. Drag to move it." }, texts)
+    click()
+    assert.is_not_nil(buttonNamed("Disenchant (6)"))
     local last = tip.lines[#tip.lines]
     assert.same({ K.text3[1], K.text3[2], K.text3[3] }, { last.r, last.g, last.b })
     counts = { 0, 0, 0 }

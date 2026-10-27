@@ -5,7 +5,7 @@ local _, GC = ...
 -- It replaces that entry. A left click opens a menu: the deals board (what the addon compartment's
 -- entry opens, which stays as it is), Disenchant for an enchanter, and Hide this button; a left drag
 -- moves it round the minimap's edge. For a character that knows Disenchant it counts, in a gold pill,
--- the items worth disenchanting (UI/DisenchantFrame.lua's Counts), painted whenever the window's plan
+-- the items queued to disenchant (UI/DisenchantFrame.lua's Counts), painted whenever the window's plan
 -- is read (DisenchantFrame calls Refresh), in combat too: nothing here is protected.
 --
 -- Its look is Blizzard's own round map button's (Blizzard_WorldMap/Blizzard_WorldMapTemplates.xml,
@@ -111,23 +111,46 @@ local function onDragStop(self)
   place(angleOf())
 end
 
--- Its tooltip: GoldCap; for an enchanter how many are worth disenchanting and, when some, how many
--- the auction house and a vendor pay more for (with none of them, that nothing is in the bags); then
--- how to use it, in grey. Before any plan was read the window reads one (out of combat); in combat
--- then, no count is claimed.
+-- The count's pill from the Disenchant window's last plan: the items queued to disenchant, for a
+-- character that knows Disenchant, only above 0.
+local function paintPill()
+  local n = counts()
+  local on = type(n) == "number" and n > 0
+  button.pill:SetShown(on)
+  button.count:SetShown(on)
+  if not on then return end
+  -- Cleared and set again: a one-line FontString shown again can come back undrawn (the addon
+  -- notes, "Text").
+  button.count:SetText("")
+  button.count:SetText(tostring(n))
+  local w = math.max(PILL_MIN, math.ceil(button.count:GetStringWidth() or 0) + 6)
+  button.pill:ClearAllPoints()
+  button.pill:SetPoint("CENTER", button, "TOPRIGHT", -5, -5)
+  button.pill:SetSize(w, PILL_H)
+  button.count:ClearAllPoints()
+  button.count:SetPoint("CENTER", button.pill, "CENTER", 0, 0)
+end
+
+-- Its tooltip: GoldCap; for an enchanter how many are worth disenchanting (their learned mats pay
+-- more than a vendor), how many GoldCap has not learned yet, and how many the auction house and a
+-- vendor pay more for (with none of them, that nothing is in the bags); then how to use it, in grey.
+-- The window reads its bags at once if they changed or none were read (out of combat), and the pill
+-- follows; in combat then, no count is claimed.
 local function showTip(self)
   local tooltip = _G.GameTooltip
   if not tooltip then return end
+  local n, ah, vendor, worth, learning = counts(true)
+  paintPill()
   tooltip:SetOwner(self, "ANCHOR_LEFT")
   local text = GC.Util.ClientText
   local K = GC.Kit.Tokens.color
   tooltip:AddLine("GoldCap", K.goldText[1], K.goldText[2], K.goldText[3])
-  local n, ah, vendor = counts(true)
   local c = K.text1
   if n and n + ah + vendor == 0 then
     tooltip:AddLine(text(GC.L["Nothing in your bags to disenchant."]), c[1], c[2], c[3])
   elseif n then
-    tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(n)), c[1], c[2], c[3])
+    tooltip:AddLine(text(GC.L["Worth disenchanting: %d"]:format(worth)), c[1], c[2], c[3])
+    if learning > 0 then tooltip:AddLine(text(GC.L["Not learned yet: %d"]:format(learning)), c[1], c[2], c[3]) end
     if ah > 0 then tooltip:AddLine(text(GC.L["The auction house pays more: %d"]:format(ah)), c[1], c[2], c[3]) end
     if vendor > 0 then tooltip:AddLine(text(GC.L["A vendor pays more: %d"]:format(vendor)), c[1], c[2], c[3]) end
   end
@@ -165,6 +188,7 @@ local function openMenu(self)
     root:CreateButton(text(GC.L["Deals board"]), function() GC.Sniper.Toggle() end)
     if knows() then
       local n = counts(true)
+      paintPill()
       local label = n and n > 0 and GC.L["Disenchant (%d)"]:format(n) or GC.L["Disenchant"]
       root:CreateButton(text(label), function() GC.DisenchantFrame.Toggle() end)
     end
@@ -234,26 +258,12 @@ local function repaintTip()
   if tooltip and tooltip.IsOwned and tooltip:IsOwned(button) and tooltip:IsShown() then showTip(button) end
 end
 
---- Paints the count from the Disenchant window's last plan: the items worth disenchanting, for a
+--- Paints the count from the Disenchant window's last plan: the items queued to disenchant, for a
 --- character that knows Disenchant, only above 0; and the tooltip again while it shows.
 function MB.Refresh()
   if not button then return end
+  paintPill()
   repaintTip()
-  local n = counts()
-  local on = type(n) == "number" and n > 0
-  button.pill:SetShown(on)
-  button.count:SetShown(on)
-  if not on then return end
-  -- Cleared and set again: a one-line FontString shown again can come back undrawn (the addon
-  -- notes, "Text").
-  button.count:SetText("")
-  button.count:SetText(tostring(n))
-  local w = math.max(PILL_MIN, math.ceil(button.count:GetStringWidth() or 0) + 6)
-  button.pill:ClearAllPoints()
-  button.pill:SetPoint("CENTER", button, "TOPRIGHT", -5, -5)
-  button.pill:SetSize(w, PILL_H)
-  button.count:ClearAllPoints()
-  button.count:SetPoint("CENTER", button.pill, "CENTER", 0, 0)
 end
 
 --- PLAYER_LOGIN: built unless the player hid it (GC.db exists by then).

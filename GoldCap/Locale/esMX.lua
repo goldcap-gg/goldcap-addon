@@ -1751,6 +1751,7 @@ GC.Locales.esMX = {
     "Materiales es lo que te dieron tus propios desencantamientos de objetos así, a precios de hoy. Nunca en la lista: objetos de un conjunto de equipo, objetos que todavía puedes devolver o intercambiar, objetos de un grupo que sigues y objetos que guardas. Haz clic en una línea para desencantar el objeto a continuación. Haz clic derecho en una línea para guardar el objeto.",
   ["Nothing in your bags to disenchant."] = "No hay nada en tus bolsas para desencantar.",
   ["Worth disenchanting: %d"] = "Vale la pena desencantar: %d",
+  ["Not learned yet: %d"] = "Todavía sin aprender: %d",
   ["The auction house pays more: %d"] = "La casa de subastas paga más: %d",
   ["A vendor pays more: %d"] = "Un vendedor paga más: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).

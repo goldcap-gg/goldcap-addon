@@ -1745,6 +1745,7 @@ GC.Locales.itIT = {
     "Materiali è ciò che hanno dato i tuoi disincantamenti di oggetti simili, ai prezzi di oggi. Mai nella lista: oggetti di un set di equipaggiamento, oggetti che puoi ancora rendere o scambiare, oggetti di un gruppo che segui e oggetti che tieni. Clic su una riga per rendere l'oggetto il prossimo da disincantare. Clic destro su una riga per tenere l'oggetto.",
   ["Nothing in your bags to disenchant."] = "Niente da disincantare nelle tue borse.",
   ["Worth disenchanting: %d"] = "Conviene disincantare: %d",
+  ["Not learned yet: %d"] = "Non ancora appreso: %d",
   ["The auction house pays more: %d"] = "La casa d'aste paga di più: %d",
   ["A vendor pays more: %d"] = "Un venditore paga di più: %d",
   -- GoldCap's button on the minimap (UI/MinimapButton.lua).
