@@ -315,8 +315,10 @@ end
 
 -- One row, its parts centred down it: the icon at the left, the "+" at the right, left of it the
 -- profit over the pace chip, both as wide as their text, and the name and the math wrapped in what
--- is left. `ctx`: the recipe the window shows (`open`) and whether the "+" can queue (`canAdd`).
--- Answers the row's height, as tall as its wrapped text.
+-- is left. When that would leave the name less than NAME_MIN (a wide profit or pace, a large font),
+-- the profit and the pace go under the math instead, and the name and the math take the whole
+-- width, so nothing runs under the column. `ctx`: the recipe the window shows (`open`) and whether
+-- the "+" can queue (`canAdd`). Answers the row's height, as tall as its wrapped text.
 local function paintRow(row, data, ctx)
   local frame, recipe = row.frame, data.recipe
   local isOpen = data.recipeID == ctx.open
@@ -336,21 +338,28 @@ local function paintRow(row, data, ctx)
   local right = LAYOUT.ROW_W - LAYOUT.ROW_PAD - (ctx.canAdd and (LAYOUT.ADD + LAYOUT.COL_GAP) or 0)
   local colW = math.max(textWidth(row.profit), pace and row.pace:GetWidth() or 0)
   local left = LAYOUT.ROW_PAD + LAYOUT.ROW_ICON + LAYOUT.COL_GAP
-  local width = math.max(LAYOUT.NAME_MIN, right - colW - LAYOUT.COL_GAP - left)
+  local beside = right - colW - LAYOUT.COL_GAP - left >= LAYOUT.NAME_MIN
+  local width = beside and (right - colW - LAYOUT.COL_GAP - left) or (right - left)
   row.name:SetWidth(width)
   row.math:SetWidth(width)
-  local textH = heightOf(row.name, 14) + LAYOUT.LINE_GAP + heightOf(row.math, 12)
   local colH = heightOf(row.profit, 13) + (pace and (LAYOUT.LINE_GAP + LAYOUT.PACE_H) or 0)
-  local inside = math.max(LAYOUT.ROW_ICON, LAYOUT.ADD, textH, colH)
+  local textH = heightOf(row.name, 14) + LAYOUT.LINE_GAP + heightOf(row.math, 12)
+  if not beside then textH = textH + LAYOUT.LINE_GAP + colH end
+  local inside = math.max(LAYOUT.ROW_ICON, LAYOUT.ADD, textH, beside and colH or 0)
   row.name:ClearAllPoints()
   row.name:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -(LAYOUT.ROW_PAD_Y + math.floor((inside - textH) / 2)))
   row.math:ClearAllPoints()
   row.math:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
   row.profit:ClearAllPoints()
-  row.profit:SetPoint("TOPRIGHT", frame, "TOPRIGHT", right - LAYOUT.ROW_W,
-    -(LAYOUT.ROW_PAD_Y + math.floor((inside - colH) / 2)))
   row.pace:ClearAllPoints()
-  row.pace:SetPoint("TOPRIGHT", row.profit, "BOTTOMRIGHT", 0, -LAYOUT.LINE_GAP)
+  if beside then
+    row.profit:SetPoint("TOPRIGHT", frame, "TOPRIGHT", right - LAYOUT.ROW_W,
+      -(LAYOUT.ROW_PAD_Y + math.floor((inside - colH) / 2)))
+    row.pace:SetPoint("TOPRIGHT", row.profit, "BOTTOMRIGHT", 0, -LAYOUT.LINE_GAP)
+  else
+    row.profit:SetPoint("TOPLEFT", row.math, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+    row.pace:SetPoint("TOPLEFT", row.profit, "BOTTOMLEFT", 0, -LAYOUT.LINE_GAP)
+  end
   local height = inside + 2 * LAYOUT.ROW_PAD_Y
   frame:SetHeight(height)
   row.data = data
@@ -616,9 +625,10 @@ local function paintCard(f)
     return
   end
   local inner = LAYOUT.INNER - 2 * LAYOUT.CARD_PAD
-  -- What this allocation makes, as the window says, else what the recipe makes.
+  -- What this allocation makes, as the window says, else what the recipe makes. The window's
+  -- item comes with its link, which says crafted gear's quality (Theme.QualityAtlas).
   local item = open.output or recipe.output
-  HF.Row.PaintIcon(card.slot, item, CC.IconOf(item), nil, nil, { pip = true })
+  HF.Row.PaintIcon(card.slot, item, CC.IconOf(item), nil, nil, { pip = true, link = open.output and open.link or nil })
   setText(card.kicker, GC.Util.Upper(GC.L["This recipe"]))
   setText(card.name, recipe.name)
   local queued = char and queuedText(char, recipe.recipeID) or nil

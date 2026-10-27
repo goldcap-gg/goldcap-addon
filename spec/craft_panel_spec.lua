@@ -159,11 +159,14 @@ describe("craft panel", function()
       assert.equal("Professions-Icon-Quality-Tier2-Small", W.state(first.slot.pip).atlas)
       assert.equal(5002, W.state(second.slot.icon).file)
       assert.is_false(second.slot.pip:IsShown())
-      -- Crafted gear's quality comes from the crafted-quality call, the reagent call having none.
+      -- Crafted gear carries its quality on each copy's link, and a row has none in hand: the
+      -- crafted-quality call is never asked for a bare id, whatever a client would answer.
       TS.opts.crafted = { [902] = 3 }
       P.Refresh()
-      assert.is_true(second.slot.pip:IsShown())
-      assert.equal("Professions-Icon-Quality-Tier3-Small", W.state(second.slot.pip).atlas)
+      assert.is_false(second.slot.pip:IsShown())
+      for _, call in ipairs(TS.callsOf("GetItemCraftedQualityByItemInfo")) do
+        assert.is_not.equal("number", type(call.args[1]))
+      end
       -- How fast it sells: green with how many a day, amber under one a day, nothing unknown.
       assert.is_true(first.pace:IsShown())
       assert.equal(GC.L["about %s a day"]:format("12"), first.pace.text:GetText())
@@ -268,6 +271,28 @@ describe("craft panel", function()
       assert.equal(GC.L["about %s a day"]:format("12"), row.pace.text:GetText())
       assert.is_true(row.pace:GetWidth() >= row.pace.text:GetUnboundedStringWidth())
       GC.ActivateLocale(nil)
+    end)
+
+    -- A profit or pace too wide to leave the name its least room: the two go under the name and
+    -- its math, which take the row's whole width, so nothing runs under the column.
+    it("puts the profit and the pace under a name they would leave too little room beside them", function()
+      load()
+      prices()
+      VALUES[901] = commodity(2000, 123456789012)
+      show()
+      local wide, plain = P._rows[1].widget, P._rows[2].widget
+      assert.equal(GC.L["about %s a day"]:format(GC.Util.Grouped(123456789012)), wide.pace.text:GetText())
+      -- The row's text runs from right of the icon to left of the "+": 282 less 6 + 24 + 6 at the
+      -- left and 6 + 18 + 6 at the right.
+      assert.equal(216, wide.name:GetWidth())
+      assert.equal(216, wide.math:GetWidth())
+      assert.same({ "TOPLEFT", wide.math, "BOTTOMLEFT", 0, -2 }, { wide.profit:GetPoint(1) })
+      assert.same({ "TOPLEFT", wide.profit, "BOTTOMLEFT", 0, -2 }, { wide.pace:GetPoint(1) })
+      local textH = wide.name:GetStringHeight() + 2 + wide.math:GetStringHeight() + 2 + wide.profit:GetStringHeight() + 2 + 14
+      assert.is_true(wide.frame:GetHeight() >= textH)
+      -- A row whose column leaves room keeps it beside the name.
+      assert.equal("TOPRIGHT", (plain.profit:GetPoint(1)))
+      assert.is_true(plain.name:GetWidth() < 216)
     end)
 
     it("tints the row of the recipe open in Blizzard's window gold, with a gold border", function()
@@ -433,6 +458,16 @@ describe("craft panel", function()
       assert.equal(card, above)
       _, above = f.body:GetPoint(1)
       assert.equal(f.switch, above)
+    end)
+
+    -- What this allocation makes comes with its link (GetRecipeOutputItemData's hyperlink): crafted
+    -- gear's quality is asked with it.
+    it("draws the quality of crafted gear the window says it makes, from that item's link", function()
+      local link = "|cffa335ee|Hitem:902::::::::80:::::::::|h[B]|h|r"
+      local f = loadOpen({ open = { recipeID = 2, allocations = {}, output = 902, link = link }, craftedLinks = { [link] = 3 } })
+      assert.equal(5002, W.state(f.card.slot.icon).file)
+      assert.is_true(f.card.slot.pip:IsShown())
+      assert.equal("Professions-Icon-Quality-Tier3-Small", W.state(f.card.slot.pip).atlas)
     end)
 
     it("prices the reagents the player picked, and follows another pick", function()

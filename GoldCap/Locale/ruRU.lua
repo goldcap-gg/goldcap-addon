@@ -1575,6 +1575,10 @@ GC.Locales.ruRU = {
   ["about %s"] = "около %s",
   ["%s is not sold on the auction house"] = "%s не продаётся на аукционе",
   ["Nothing is missing for the queue"] = "Для очереди всего хватает",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "Покупать нечего. Перед крафтом заберите то, что ждёт в почте.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "Часть реагентов ждёт в почте. Заберите их перед крафтом.",
   ["Make a BUY list"] = "Создать список BUY",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "Вкладка BUY на аукционе покупает то, чего не хватает, а список следует за очередью.",

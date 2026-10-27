@@ -317,6 +317,32 @@ local function newLine(v)
   return line
 end
 
+-- Whether a recipe takes any reagent of `rows` (Missing's rows, or the mailbox's): an item of one
+-- of its slots in a row's ids, or a slot's currency.
+local function takesAny(recipe, rows)
+  for _, slot in ipairs(type(recipe.slots) == "table" and recipe.slots or {}) do
+    for _, row in ipairs(rows or {}) do
+      if slot.currency and slot.currency == row.currency then return true end
+      for _, id in ipairs(slot.ids or {}) do
+        for _, other in ipairs(row.ids or {}) do
+          if id == other then return true end
+        end
+      end
+    end
+  end
+  return false
+end
+
+-- Why the reagents do not make one craft: what is short waits in the mailbox, when the recipe needs
+-- nothing still to buy and some of its reagents wait there (Blizzard's Create takes reagents from
+-- the bags and the banks alone), else Missing says what to get.
+local function shortWhy(recipe, ctx)
+  if not takesAny(recipe, ctx.missing) and takesAny(recipe, ctx.mailed) then
+    return GC.L["Some reagents wait in your mailbox. Take them out before you craft."]
+  end
+  return GC.L["Not enough reagents for one craft. Missing below says what to get."]
+end
+
 -- The line's Craft button, by its state:
 -- - busy while the client crafts the line's recipe: "Crafting", ringed in gold, saying on hover that
 --   it is being crafted;
@@ -354,7 +380,7 @@ local function paintCraft(line, row, ctx)
     reason = where and GC.L["Open %s to craft it here."]:format(where)
       or GC.L["Open this recipe's profession to craft it here."]
   elseif n <= 0 then
-    reason = GC.L["Not enough reagents for one craft. Missing below says what to get."]
+    reason = shortWhy(row.entry.recipe, ctx)
   end
   line.craftWhy = reason or busyWhy
   if not line.craftWhy then line.craftCount = n end
@@ -512,6 +538,10 @@ local function cellsOf(needs, missing, costs, items, mailed)
   return cells
 end
 
+-- The items a cell names whose names the client has not loaded yet: GET_ITEM_INFO_RECEIVED for one
+-- of them draws the view again (QV.OnEvent).
+local unnamed = {}
+
 -- A cell `width` wide: its icon with its crafting quality and count, and its words wrapped right of
 -- the icon, the mailbox's and the price's lines hung under the name. Answers how tall the words
 -- stand.
@@ -520,7 +550,9 @@ local function paintCell(cell, data, width)
   HF.Row.PaintIcon(cell.slot, data.itemID, CC.IconOf(data.itemID), data.buy + data.mail, nil, { pip = true })
   cell:SetWidth(width)
   local textW = width - CELL_TEXT_X - LAYOUT.CELL_PAD
-  setText(cell.name, CC.MissingName({ itemID = data.itemID }))
+  local name, known = CC.MissingName({ itemID = data.itemID })
+  if not known then unnamed[data.itemID] = true end
+  setText(cell.name, name)
   cell.name:SetWidth(textW)
   -- How far under the name the next line starts.
   local below = 0
@@ -629,9 +661,13 @@ local function paintMissing(v, missing, needs, mailed)
   local card = v.missing
   local inner = contentWidth() - 2 * LAYOUT.M_PAD
   local costs, total, unpriced, items = Q.MissingCost(missing, CC.UnitOf, CC.VendorOf)
+  local cells = cellsOf(needs, missing, costs, items, mailed)
   local y = LAYOUT.M_PAD + paintHead(v, total, unpriced, inner)
+  -- Nothing to buy: nothing at all is missing, or what is short waits in the mailbox (its cells
+  -- follow), which a craft does not take from.
   if #missing == 0 then
-    setText(v.none, GC.L["Nothing is missing for the queue"])
+    setText(v.none, #cells > 0 and GC.L["Nothing to buy. Take what waits in your mailbox before you craft."]
+      or GC.L["Nothing is missing for the queue"])
     v.none:SetWidth(inner)
     y = stack(card, v.none, y + LAYOUT.M_GAP)
   else
@@ -639,7 +675,7 @@ local function paintMissing(v, missing, needs, mailed)
   end
 
   -- Two to a row, each row as tall as its taller cell.
-  local cells = cellsOf(needs, missing, costs, items, mailed)
+  for id in pairs(unnamed) do unnamed[id] = nil end
   local cellW = math.floor((inner - LAYOUT.CELL_GAP) / 2)
   for i = 1, #cells, 2 do
     local row, inside = {}, LAYOUT.CELL_ICON
@@ -743,7 +779,7 @@ function QV.Refresh()
   local rows, missing, listedAt, needs, mailed = work(char)
   QV._rows = rows
   local ctx = runOf(rows)
-  ctx.listedAt = listedAt
+  ctx.listedAt, ctx.missing, ctx.mailed = listedAt, missing, mailed
   local y = 0
   for i, row in ipairs(rows) do
     local line = v.lines[i] or newLine(v)
@@ -834,7 +870,8 @@ local RUN_ENDS = { UNIT_SPELLCAST_INTERRUPTED = true, UNIT_SPELLCAST_FAILED = tr
 --- (Core/MailStock.lua): a reagent's other quality or a crafted item there is held too. Each one
 --- brings the craft queue list in step (SyncBuyList), and the panel's top with the view.
 --- TRADE_SKILL_CRAFT_BEGIN, each finished cast and the run's ends: the line being crafted, what its
---- run has made, busy or live again.
+--- run has made, busy or live again. GET_ITEM_INFO_RECEIVED: the name of an item a cell could only
+--- give by its id.
 ---
 --- While the mailbox is open the bags are not counted: a take can reach the bags before the read of
 --- the inbox that sees it gone, and for that moment the units count twice. The list would shrink
@@ -873,6 +910,12 @@ function QV.OnEvent(event, ...)
     panelChanged()
   elseif event == "TRADE_SKILL_CRAFT_BEGIN" or RUN_ENDS[event] then
     QV.Queue()
+  elseif event == "GET_ITEM_INFO_RECEIVED" then
+    local itemID = ...
+    if unnamed[itemID] then
+      unnamed[itemID] = nil
+      QV.Queue()
+    end
   end
 end
 
@@ -882,7 +925,7 @@ if type(CreateFrame) == "function" then
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_INTERRUPTED", "player")
   pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_FAILED", "player")
   for _, event in ipairs({ "OWNED_AUCTIONS_UPDATED", "BAG_UPDATE_DELAYED", "MAIL_CLOSED", "TRADE_SKILL_CRAFT_BEGIN",
-    "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
+    "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE", "GET_ITEM_INFO_RECEIVED" }) do
     pcall(events.RegisterEvent, events, event)
   end
   events:SetScript("OnEvent", function(_, event, ...) QV.OnEvent(event, ...) end)

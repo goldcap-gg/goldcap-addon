@@ -41,8 +41,6 @@ local ICON_EDGE = { 0, 0, 0, 0.75 }
 -- An icon whose item has moved in the run: shaded in the window's own dark under the check, as
 -- the board draws it.
 local MOVED_SHADE = { K.windowBottom[1], K.windowBottom[2], K.windowBottom[3], 0.6 }
--- A dim icon: desaturated, and this grey on top of it.
-local DIM_TINT = 0.5
 -- The boards' gold on a row: while its run goes (Window, mode running), checked (ManyGroups), and a
 -- folder with any group checked.
 local RUN_FILL = { K.gold[1], K.gold[2], K.gold[3], 0.07 }
@@ -209,19 +207,14 @@ end
 
 -- `mark`: the run's for the item (UI/HoardList.lua's RunState), "moving", "moved" or nil. `opts`
 -- (optional): `pip`, the item's crafting quality top left over the icon, nothing for an item
--- without one; `dim`, the icon and its pip shaded as a disabled one, apart from the moved shade.
+-- without one; `link`, the item's link, with which crafted gear's quality is asked
+-- (Theme.QualityAtlas).
 local function paintIcon(slot, itemID, file, count, mark, opts)
   local quality = GC.Theme.QualityColor(itemID)
   local c = quality and { quality.r, quality.g, quality.b, 1 } or ICON_EDGE
   if mark == "moving" then c = K.goldText end
   slot.edge:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
   slot.icon:SetTexture(file or 134400) -- the question mark, while the client has no icon for it yet
-  local dim = opts and opts.dim
-  local tint = dim and DIM_TINT or 1
-  for _, part in ipairs({ slot.icon, slot.pip }) do
-    part:SetDesaturated(dim and true or false)
-    part:SetVertexColor(tint, tint, tint, 1)
-  end
   slot.edge:Show()
   slot.icon:Show()
   if slot.count then
@@ -231,7 +224,7 @@ local function paintIcon(slot, itemID, file, count, mark, opts)
   slot.ring:SetShown(mark == "moving")
   slot.shade:SetShown(mark == "moved")
   slot.mark:SetShown(mark == "moved")
-  local atlas = opts and opts.pip and GC.Theme.QualityAtlas(itemID)
+  local atlas = opts and opts.pip and GC.Theme.QualityAtlas(itemID, opts.link)
   if atlas then slot.pip:SetAtlas(atlas) end
   slot.pip:SetShown(atlas ~= nil)
 end

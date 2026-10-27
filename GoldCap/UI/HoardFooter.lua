@@ -149,8 +149,8 @@ end
 HFF.PricesNow = pricesNow
 
 --- The price line NewPriceLine built on `f`, along f's foot from `x` in and `y` up, `w` wide with
---- its dot: the words wrapped right of the dot, the dot level with their first line in the kit's
---- green while the prices are fresh, amber after or with none. The Disenchant window's foot and the
+--- its dot: the words wrapped right of the dot, the dot level with their last line (both stand on
+--- the foot) in the kit's green while the prices are fresh, amber after or with none. The Disenchant window's foot and the
 --- crafting panel's. Answers its height.
 function HFF.PaintPriceLine(f, x, y, w)
   local text, fresh = pricesNow()

@@ -1442,6 +1442,10 @@ GC.Locales.koKR = {
   ["about %s"] = "약 %s",
   ["%s is not sold on the auction house"] = "%s은(는) 경매장에서 팔지 않습니다",
   ["Nothing is missing for the queue"] = "대기열에 부족한 재료가 없습니다",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "구매할 것이 없습니다. 제작하기 전에 우편함에 있는 것을 꺼내세요.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "일부 재료가 우편함에 있습니다. 제작하기 전에 꺼내세요.",
   ["Make a BUY list"] = "BUY 목록 만들기",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "경매장 BUY 탭이 부족한 것을 사며, 목록은 대기열을 따라갑니다.",

@@ -1576,6 +1576,10 @@ GC.Locales.ukUA = {
   ["about %s"] = "близько %s",
   ["%s is not sold on the auction house"] = "%s не продається на аукціоні",
   ["Nothing is missing for the queue"] = "Для черги всього вистачає",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "Купувати нічого. Перед крафтом заберіть те, що чекає в пошті.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "Частина реагентів чекає в пошті. Заберіть їх перед крафтом.",
   ["Make a BUY list"] = "Створити список BUY",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "Вкладка BUY на аукціоні купує те, чого бракує, а список іде за чергою.",

@@ -1410,6 +1410,10 @@ GC.Locales.zhTW = {
   ["about %s"] = "約 %s",
   ["%s is not sold on the auction house"] = "%s 不在拍賣場出售",
   ["Nothing is missing for the queue"] = "佇列所需材料齊全",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "無需購買。製造前先取出信箱中的物品。",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "部分材料在信箱中。製造前先取出來。",
   ["Make a BUY list"] = "建立 BUY 清單",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "拍賣場的 BUY 分頁會購買缺少的東西，清單隨佇列更新。",

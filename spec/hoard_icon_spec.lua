@@ -24,12 +24,10 @@ describe("shared item icon", function()
 
   local function shown(w) return W.state(w).shown end
 
-  it("paints as before without options: no pip, no dimming", function()
+  it("paints as before without options: no pip", function()
     local slot = HF.Row.NewIcon(row, 30, true)
     HF.Row.PaintIcon(slot, 7, 555, 4, nil)
     assert.is_false(shown(slot.pip))
-    assert.is_false(W.state(slot.icon).desaturated)
-    assert.same({ 1, 1, 1, 1 }, W.state(slot.icon).vertex)
     assert.is_false(shown(slot.shade))
   end)
 
@@ -42,6 +40,19 @@ describe("shared item icon", function()
     assert.same({ "TOPLEFT", slot.edge, "TOPLEFT", 0, 0 }, W.state(slot.pip).points[1])
   end)
 
+  -- Crafted gear's quality is on the copy's link: a pip for it only with the link in hand.
+  it("draws a crafted item's pip from the link it is given", function()
+    local link = "|cffa335ee|Hitem:8::::::::80:::::::::|h[Gear]|h|r"
+    _G.C_TradeSkillUI.GetItemCraftedQualityByItemInfo = function(info) return info == link and 3 or nil end
+    _G.C_TooltipInfo.GetHyperlink = function() return { lines = { { leftText = "|A:Crafted-Tier3:20:20|a" } } } end
+    local slot = HF.Row.NewIcon(row, 30)
+    HF.Row.PaintIcon(slot, 8, 556, nil, nil, { pip = true })
+    assert.is_false(shown(slot.pip))
+    HF.Row.PaintIcon(slot, 8, 556, nil, nil, { pip = true, link = link })
+    assert.is_true(shown(slot.pip))
+    assert.equal("Crafted-Tier3", W.state(slot.pip).atlas)
+  end)
+
   it("hides the pip for an item without a quality, and again on the next paint", function()
     local slot = HF.Row.NewIcon(row, 30)
     HF.Row.PaintIcon(slot, 7, 555, nil, nil, { pip = true })
@@ -50,27 +61,6 @@ describe("shared item icon", function()
     HF.Row.PaintIcon(slot, 7, 555, nil, nil, { pip = true })
     HF.Row.PaintIcon(slot, 7, 555)
     assert.is_false(shown(slot.pip))
-  end)
-
-  it("shades a dim icon as a disabled one, apart from the moved shade", function()
-    local slot = HF.Row.NewIcon(row, 30)
-    HF.Row.PaintIcon(slot, 7, 555, nil, nil, { dim = true })
-    assert.is_true(W.state(slot.icon).desaturated)
-    assert.same({ 0.5, 0.5, 0.5, 1 }, W.state(slot.icon).vertex)
-    assert.is_false(shown(slot.shade))
-    HF.Row.PaintIcon(slot, 7, 555)
-    assert.is_false(W.state(slot.icon).desaturated)
-    assert.same({ 1, 1, 1, 1 }, W.state(slot.icon).vertex)
-  end)
-
-  it("dims the pip with the icon", function()
-    local slot = HF.Row.NewIcon(row, 30)
-    HF.Row.PaintIcon(slot, 7, 555, nil, nil, { pip = true, dim = true })
-    assert.is_true(W.state(slot.pip).desaturated)
-    assert.same({ 0.5, 0.5, 0.5, 1 }, W.state(slot.pip).vertex)
-    HF.Row.PaintIcon(slot, 7, 555, nil, nil, { pip = true })
-    assert.is_false(W.state(slot.pip).desaturated)
-    assert.same({ 1, 1, 1, 1 }, W.state(slot.pip).vertex)
   end)
 
   it("hides the pip with the icon", function()

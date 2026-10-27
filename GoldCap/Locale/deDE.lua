@@ -1508,6 +1508,10 @@ GC.Locales.deDE = {
   ["about %s"] = "etwa %s",
   ["%s is not sold on the auction house"] = "%s gibt es nicht im Auktionshaus",
   ["Nothing is missing for the queue"] = "Für die Warteschlange fehlt nichts",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "Nichts zu kaufen. Nimm vor dem Herstellen, was im Briefkasten liegt.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "Einige Reagenzien liegen im Briefkasten. Nimm sie vor dem Herstellen heraus.",
   ["Make a BUY list"] = "BUY-Liste erstellen",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "Der BUY-Tab am Auktionshaus kauft, was fehlt, und die Liste folgt der Warteschlange.",

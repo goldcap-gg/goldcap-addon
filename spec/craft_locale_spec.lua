@@ -34,6 +34,8 @@ local KEYS = {
   "Missing", "about %s to buy", "%d have no price yet", "1 has no price yet", "%d in your mailbox", "about %s",
   "%s is not sold on the auction house", "Nothing is missing for the queue", "Make a BUY list",
   "The BUY tab at the auction house buys what is missing, and the list follows the queue.", "Craft queue",
+  "Nothing to buy. Take what waits in your mailbox before you craft.",
+  "Some reagents wait in your mailbox. Take them out before you craft.",
   "BUY list %s is ready in the BUY tab at the auction house", "Currency %d",
 }
 
@@ -56,6 +58,14 @@ describe("crafting strings", function()
         assert.is_string(value, ("%s has no %q"):format(code, key))
         assert.is_true(value ~= "", ("%s: %q is empty"):format(code, key))
       end
+    end
+  end)
+
+  -- The Italian client and the rest of the file call reagents "Reagenti".
+  it("calls reagents Reagenti in Italian", function()
+    for _, key in ipairs(KEYS) do
+      local value = GC.Locales.itIT[key] or ""
+      assert.is_nil(value:lower():find("component", 1, true), value)
     end
   end)
 

@@ -605,6 +605,7 @@ describe("craft queue view", function()
       queued()
       press(1)
       cast("UNIT_SPELLCAST_START", "Cast-1", 3)
+      TS.casting = { guid = "Cast-1", spellID = 3 }
       begin(3, 5)
       -- An action refused mid-cast (another key, Blizzard's own Create) fails with its own GUID.
       cast("UNIT_SPELLCAST_FAILED", "Cast-2", 3)
@@ -1050,12 +1051,46 @@ describe("craft queue view", function()
     crafted(3, 2)
     assert.same({ { 101, 6 } }, linesOf(run))
     assert.equal(0, buyRun(run)[101])
-    -- The queue says the same: nothing missing, and Make a BUY list has nothing to add. What waits
-    -- in the mailbox has its cell under Missing, since a craft takes reagents from the bags.
+    -- The queue says the same: nothing to buy, and Make a BUY list has nothing to add. What waits
+    -- in the mailbox has its cell under Missing, since a craft takes reagents from the bags, and the
+    -- line over the cells says to take it, never that nothing is missing.
     local v = showQueue()
     assert.same({ { name = "Item A", count = "6", mail = GC.L["%d in your mailbox"]:format(6) } }, cellsOf(v))
-    assert.equal("Nothing is missing for the queue", v.none:GetText())
+    assert.equal(GC.L["Nothing to buy. Take what waits in your mailbox before you craft."], v.none:GetText())
     assert.is_false(v.buy:IsEnabled())
+    -- The line's Craft is dimmed for it, and says the mailbox is why.
+    local why = GC.L["Some reagents wait in your mailbox. Take them out before you craft."]
+    assert.equal(why, line(1).craftWhy)
+    assert.equal(why, line(1).note:GetText())
+  end)
+
+  -- Something to buy as well: Missing says what to get, as before.
+  it("keeps saying Missing has what to get when a reagent is to buy as well as in the mailbox", function()
+    load({ counts = {} })
+    visitedMailbox()
+    GC.CraftQueue.Add("Name-Realm", snapshot(3), 5)
+    local box = Mailbox.new({
+      { sender = "Friend", subject = "Mats", canReply = true, items = { [1] = { itemID = 101, count = 4 } } },
+    })
+    readMailbox(box, true)
+    mailClosed()
+    showQueue()
+    assert.equal(GC.L["Not enough reagents for one craft. Missing below says what to get."], line(1).craftWhy)
+  end)
+
+  -- A reagent the client has not loaded yet has no name: the cell asks for it and is drawn again
+  -- when it comes (GET_ITEM_INFO_RECEIVED), never left as "Item 111".
+  it("names a reagent once the client has loaded it", function()
+    load({ filtered = { 9 }, names = { [101] = "Item A", [102] = "Item A", [103] = "Item A" } })
+    GC.CraftQueue.Add("Name-Realm", snapshot(9), 1)
+    local v = showQueue()
+    assert.equal(GC.L["Item %d"]:format(111), cellsOf(v)[2].name)
+    local asked = TS.callsOf("RequestLoadItemDataByID")
+    assert.equal(111, asked[#asked].args[1])
+    assert.is_true(QV._events:IsEventRegistered("GET_ITEM_INFO_RECEIVED"))
+    TS.opts.names[111] = "Item B"
+    fire("GET_ITEM_INFO_RECEIVED", 111, true)
+    assert.equal("Item B", cellsOf(v)[2].name)
   end)
 
   -- Under Missing, only what the bags and the banks do not cover.

@@ -187,8 +187,10 @@ function CC.OpenRecipe()
       if type(slot) == "table" and type(slot.slotIndex) == "number" and #list > 0 then alloc[slot.slotIndex] = list end
     end
     local data = ts().GetRecipeOutputItemData(info.recipeID, tx:CreateCraftingReagentInfoTbl(), tx:GetAllocationItemGUID())
-    return { recipeID = info.recipeID, level = form:GetCurrentRecipeLevel(),
-      output = type(data) == "table" and data.itemID or nil, alloc = alloc, learned = info.learned == true }
+    local output = type(data) == "table" and data.itemID or nil
+    local link = output and type(data.hyperlink) == "string" and data.hyperlink or nil
+    return { recipeID = info.recipeID, level = form:GetCurrentRecipeLevel(), output = output, link = link,
+      alloc = alloc, learned = info.learned == true }
   end)
   return ok and open or nil
 end
@@ -329,9 +331,11 @@ local run
 -- CC.PENDING seconds of GetTime at most.
 local pending
 
--- The player's last cast that began (UNIT_SPELLCAST_START): { guid, spellID }. Forgotten when a
--- run ends, so a later run of the same recipe whose cast was never seen begin is not told by it.
-local began
+-- The player's last cast that began (UNIT_SPELLCAST_START): its GUID and its spell, nil when it
+-- could not be read. Forgotten when a run ends, so a later run of the same recipe whose cast was
+-- never seen begin is not told by it. Two values, not a table: every cast the player makes begins
+-- here, in combat too.
+local beganGUID, beganSpell
 
 --- How long a press is taken for a craft that is about to begin, in seconds.
 CC.PENDING = 1
@@ -355,16 +359,28 @@ local function held()
 end
 
 local function ended()
-  run, pending, began = nil, nil, nil
+  run, pending, beganGUID, beganSpell = nil, nil, nil, nil
+end
+
+-- Whether the player is casting a trade skill now (UnitCastingInfo's isTradeskill, never a secret).
+-- True when the client cannot say, so a run is kept.
+local function castingCraft()
+  local info = _G.UnitCastingInfo
+  if type(info) ~= "function" then return true end
+  local ok, isTradeskill = pcall(function() return select(6, info("player")) end)
+  return not ok or isTradeskill == true
 end
 
 -- Whether a failed or interrupted cast is the run's own: one with the GUID of the run's cast. A cast
 -- GoldCap cannot tell (its beginning never seen, or a secret GUID) is taken for it, as Blizzard's
--- crafting page takes any.
+-- crafting page takes any. One with another GUID is a press refused while the craft is cast, unless
+-- it is of the run's recipe and nothing is being cast: the client's next cast of the run failed
+-- before it began (the reagents the window picks ran out), which ends the run.
 local function ownCast(guid, spellID)
   if run then
-    if not (began and began.spellID == run.recipeID) or not readable(guid) then return true end
-    return guid == began.guid
+    if beganSpell ~= run.recipeID or not readable(guid) then return true end
+    if guid == beganGUID then return true end
+    return readable(spellID) and spellID == run.recipeID and not castingCraft()
   end
   -- A press not begun: its own cast failed, before it ever began.
   return not readable(spellID) or spellID == pending.recipeID
@@ -375,6 +391,12 @@ end
 --- for crafting, so a second press calls nothing.
 function CC.Started(recipeID, count)
   if type(recipeID) ~= "number" or type(count) ~= "number" or count < 1 then return end
+  -- TRADE_SKILL_CRAFT_BEGIN is a synchronous event and may have fired inside the call: the run
+  -- began already, and it is as long as the press asked for.
+  if run and run.recipeID == recipeID then
+    run.count = math.max(run.count, count)
+    return
+  end
   pending = { recipeID = recipeID, count = count, at = now() }
 end
 
@@ -400,7 +422,11 @@ function CC.OnEvent(event, ...)
     local unit, guid, spellID = ...
     if readable(unit) and unit ~= "player" then return end
     if event == "UNIT_SPELLCAST_START" then
-      began = readable(guid) and readable(spellID) and { guid = guid, spellID = spellID } or nil
+      if readable(guid) and readable(spellID) then
+        beganGUID, beganSpell = guid, spellID
+      else
+        beganGUID, beganSpell = nil, nil
+      end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
       if run and readable(spellID) and spellID == run.recipeID then
         run.done = run.done + 1
@@ -435,21 +461,26 @@ if type(CreateFrame) == "function" then
   CC._events = events
 end
 
---- A reagent or crafted item by name, for a sentence: { itemID } or { currencyID }.
+--- A reagent or crafted item by name, for a sentence: { itemID } or { currencyID }. The second
+--- value is false when the client has no name for it yet: for an item, the client is asked to load
+--- it (C_Item.RequestLoadItemDataByID), and GET_ITEM_INFO_RECEIVED says when it has.
 function CC.MissingName(m)
-  if type(m) ~= "table" then return "" end
+  if type(m) ~= "table" then return "", false end
   if type(m.currencyID) == "number" then
     local ci = _G.C_CurrencyInfo
     local ok, info = false, nil
     if type(ci) == "table" and type(ci.GetCurrencyInfo) == "function" then ok, info = pcall(ci.GetCurrencyInfo, m.currencyID) end
-    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
-    return GC.L["Currency %d"]:format(m.currencyID)
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name, true end
+    return GC.L["Currency %d"]:format(m.currencyID), false
   end
   local item = _G.C_Item
   local ok, name = false, nil
   if type(item) == "table" and type(item.GetItemNameByID) == "function" then ok, name = pcall(item.GetItemNameByID, m.itemID) end
-  if ok and type(name) == "string" and name ~= "" then return name end
-  return GC.L["Item %d"]:format(tonumber(m.itemID) or 0)
+  if ok and type(name) == "string" and name ~= "" then return name, true end
+  if type(item) == "table" and type(m.itemID) == "number" then
+    pcall(function() item.RequestLoadItemDataByID(m.itemID) end)
+  end
+  return GC.L["Item %d"]:format(tonumber(m.itemID) or 0), false
 end
 
 --- An item's icon, a file id (C_Item.GetItemIconByID); nil while the client has none for it.

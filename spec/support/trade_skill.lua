@@ -22,13 +22,17 @@
 --     baseProfession = { professionID, professionName } (GetBaseProfessionInfo), recasts = n
 --     (GetRemainingRecasts, a spec sets TS.opts.recasts as a run goes on),
 --     open = { recipeID, level, allocations = { [slotIndex] = { { itemID, q }, ... } }, output, guid,
---       recraft = bool (the transaction's IsRecraft) } | nil,
+--       recraft = bool (the transaction's IsRecraft), link = the output's hyperlink
+--       (GetRecipeOutputItemData's) } | nil,
 --     counts = { [itemID] = n }, names = { [itemID] = name }, currencies = { [currencyID] = name },
 --     currencyHeld = { [currencyID] = quantity }, icons = { [itemID] = fileID } (GetItemIconByID),
 --     qualities = { [itemID] = Enum.ItemQuality } (GetItemQualityByID), tiers = { [itemID] = crafting
 --     quality } (GetItemReagentQualityByItemInfo, and the tier's atlas on the item's tooltip line),
---     crafted = { [itemID] = crafting quality } (GetItemCraftedQualityByItemInfo: crafted gear, which
---     the reagent call has no number for; its atlas on the tooltip line too),
+--     crafted = { [itemID] = crafting quality } (GetItemCraftedQualityByItemInfo asked with a bare
+--     id, as a client might answer one; its atlas on the item's tooltip line too),
+--     craftedLinks = { [hyperlink] = crafting quality } (GetItemCraftedQualityByItemInfo asked with an
+--     item's link, as Blizzard's crafting order forms ask it; the tier's atlas on that link's tooltip,
+--     C_TooltipInfo.GetHyperlink),
 --     owned = { OwnedAuctionInfo, ... },
 --     external = { guild, guildMember, linked, npc, runeforging },
 --     absent = { [name] = true },
@@ -40,7 +44,8 @@ local W = require("spec.support.wow_frames")
 local TS = { calls = {} }
 
 local GLOBALS = { "C_TradeSkillUI", "ProfessionsFrame", "EventRegistry", "C_Item", "C_CurrencyInfo",
-  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString", "C_TooltipInfo", "CreateColor", "GetTime" }
+  "C_AuctionHouse", "Enum", "C_Timer", "GetCoinTextureString", "C_TooltipInfo", "CreateColor", "GetTime",
+  "UnitCastingInfo" }
 
 local function strict(label, t, absent)
   return setmetatable(t, { __index = function(_, key)
@@ -156,14 +161,20 @@ function TS.install(opts)
         local byQuality = r and r.qualityOutputs or {}
         return byQuality[qualityID] and { itemID = byQuality[qualityID] } or nil
       end
-      if opts.open and opts.open.recipeID == id and opts.open.output then return { itemID = opts.open.output } end
+      if opts.open and opts.open.recipeID == id and opts.open.output then
+        return { itemID = opts.open.output, hyperlink = opts.open.link }
+      end
       return r and r.schematic and { itemID = r.schematic.outputItemID } or nil
     end,
     GetRecipeQualityItemIDs = function(id) return recipes[id] and recipes[id].quality or nil end,
     -- An item's crafting quality (1 to 3 here): a reagent's, and crafted gear's of the second
     -- call; nil for an item without one.
     GetItemReagentQualityByItemInfo = function(id) return (opts.tiers or {})[id] end,
-    GetItemCraftedQualityByItemInfo = function(id) return (opts.crafted or {})[id] end,
+    GetItemCraftedQualityByItemInfo = function(info)
+      record("GetItemCraftedQualityByItemInfo", info)
+      if type(info) == "string" then return (opts.craftedLinks or {})[info] end
+      return (opts.crafted or {})[info]
+    end,
     GetCraftableCount = function(id, level)
       record("GetCraftableCount", id, level)
       return recipes[id] and recipes[id].craftable or 0
@@ -248,6 +259,7 @@ function TS.install(opts)
     GetItemNameByID = function(id) return (opts.names or {})[id] end,
     GetItemIconByID = function(id) return (opts.icons or {})[id] end,
     GetItemQualityByID = function(id) return (opts.qualities or {})[id] end,
+    RequestLoadItemDataByID = function(id) record("RequestLoadItemDataByID", id) end,
   })
   -- TooltipData (TooltipInfoDocumentation.lua): an item of a crafting quality carries its tier's
   -- atlas in a line's text, which UI/Theme.lua's QualityAtlas reads.
@@ -258,7 +270,22 @@ function TS.install(opts)
       if tier then lines[1] = { leftText = ("|A:Professions-Icon-Quality-Tier%d-Small:20:20|a"):format(tier) } end
       return { lines = lines }
     end,
+    GetHyperlink = function(link)
+      local tier = (opts.craftedLinks or {})[link]
+      local lines = {}
+      if tier then lines[1] = { leftText = ("|A:Professions-Icon-Quality-Tier%d-Small:20:20|a"):format(tier) } end
+      return { lines = lines }
+    end,
   })
+  -- UnitCastingInfo("player") while TS.casting = { guid, spellID } stands (a spec sets it as a cast
+  -- goes): name, displayName, textureID, startTimeMs, endTimeMs, isTradeskill, castID,
+  -- notInterruptible, castingSpellID (UnitDocumentation.lua). Nothing otherwise.
+  TS.casting = nil
+  _G.UnitCastingInfo = function(unit)
+    local c = TS.casting
+    if unit ~= "player" or not c then return nil end
+    return "Craft", "Craft", 0, 0, 0, true, c.guid, false, c.spellID
+  end
   -- Blizzard_SharedXMLBase/Color.lua: a ColorMixin carrying r, g, b, a (the window's glass
   -- gradient, UI/Kit/Card.lua's T.Window, hands two of them to SetGradient).
   _G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a or 1 } end

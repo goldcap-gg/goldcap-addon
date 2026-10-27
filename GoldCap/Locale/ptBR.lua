@@ -1503,6 +1503,10 @@ GC.Locales.ptBR = {
   ["about %s"] = "cerca de %s",
   ["%s is not sold on the auction house"] = "%s não é vendido na casa de leilões",
   ["Nothing is missing for the queue"] = "Não falta nada para a fila",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "Nada a comprar. Pegue o que está na sua caixa de correio antes de produzir.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "Alguns reagentes estão na sua caixa de correio. Retire-os antes de produzir.",
   ["Make a BUY list"] = "Criar lista do BUY",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "A aba BUY da casa de leilões compra o que falta, e a lista acompanha a fila.",

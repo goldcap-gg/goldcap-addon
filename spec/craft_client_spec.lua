@@ -163,8 +163,9 @@ describe("craft client", function()
 
   it("reads the allocation and the crafted item the window shows", function()
     load({ recipes = { [7] = potion() }, open = { recipeID = 7, level = 2, output = 901, guid = "Item-1-2",
+      link = "|Hitem:901::|h[Potion]|h",
       allocations = { [1] = { { itemID = 101, q = 2 }, { itemID = 102, q = 1 } }, [2] = { { itemID = 300, q = 1 } } } } })
-    assert.same({ recipeID = 7, level = 2, output = 901, learned = true,
+    assert.same({ recipeID = 7, level = 2, output = 901, link = "|Hitem:901::|h[Potion]|h", learned = true,
       alloc = { [1] = { { itemID = 101, q = 2 }, { itemID = 102, q = 1 } }, [2] = { { itemID = 300, q = 1 } } } },
       CC.OpenRecipe())
     local out = TS.callsOf("GetRecipeOutputItemData")
@@ -427,6 +428,7 @@ describe("craft client", function()
       load({})
       TS.opts.recasts = 2
       cast("UNIT_SPELLCAST_START", "Cast-1", 7)
+      TS.casting = { guid = "Cast-1", spellID = 7 }
       fire("TRADE_SKILL_CRAFT_BEGIN", 7)
       -- A press refused while the craft is cast (another action is in progress) fails with a GUID
       -- of its own, as Blizzard's cast bar knows (CastingBarFrame.lua, HandleInterruptOrSpellFailed).
@@ -463,6 +465,38 @@ describe("craft client", function()
       assert.same({ 7, 2, 2 }, { CC.Repeating() })
       cast("UNIT_SPELLCAST_FAILED", SECRET, SECRET)
       assert.is_nil(CC.Repeating())
+    end)
+
+    -- The client stops a run early when a recast fails (the reagents the window picks ran out): that
+    -- recast never began, so its failure carries a GUID of its own, and the player casts nothing.
+    it("ends a run whose next cast fails while the player casts nothing", function()
+      load({})
+      TS.opts.recasts = 4
+      cast("UNIT_SPELLCAST_START", "Cast-1", 7)
+      TS.casting = { guid = "Cast-1", spellID = 7 }
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 7)
+      TS.casting = nil
+      -- Another spell refused between two casts is not the run's.
+      cast("UNIT_SPELLCAST_FAILED", "Cast-8", 99)
+      assert.same({ 7, 4, 5 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_FAILED", "Cast-2", 7)
+      assert.is_nil(CC.Repeating())
+    end)
+
+    -- TRADE_SKILL_CRAFT_BEGIN is a synchronous event: it may fire inside CraftRecipe, before the
+    -- press says how many it asked for.
+    it("takes the press's count for a run that began before the press said it", function()
+      load({})
+      TS.opts.recasts = 0
+      fire("TRADE_SKILL_CRAFT_BEGIN", 7)
+      CC.Started(7, 5)
+      assert.same({ 7, 5, 5 }, { CC.Repeating() })
+      cast("UNIT_SPELLCAST_SUCCEEDED", "Cast-1", 7)
+      assert.same({ 7, 4, 5 }, { CC.Repeating() })
+      -- A press of another recipe is a press of its own.
+      CC.Started(8, 2)
+      assert.same({ 7, 4, 5 }, { CC.Repeating() })
     end)
 
     it("forgets an ended run's cast, so a later run whose cast it never saw begin still ends on its failure", function()

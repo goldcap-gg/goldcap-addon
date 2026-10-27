@@ -1493,6 +1493,10 @@ GC.Locales.enUS = {
   ["about %s"] = "about %s",
   ["%s is not sold on the auction house"] = "%s is not sold on the auction house",
   ["Nothing is missing for the queue"] = "Nothing is missing for the queue",
+  ["Nothing to buy. Take what waits in your mailbox before you craft."] =
+    "Nothing to buy. Take what waits in your mailbox before you craft.",
+  ["Some reagents wait in your mailbox. Take them out before you craft."] =
+    "Some reagents wait in your mailbox. Take them out before you craft.",
   ["Make a BUY list"] = "Make a BUY list",
   ["The BUY tab at the auction house buys what is missing, and the list follows the queue."] =
     "The BUY tab at the auction house buys what is missing, and the list follows the queue.",
