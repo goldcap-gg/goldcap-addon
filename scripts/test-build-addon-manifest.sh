@@ -93,12 +93,18 @@ mirror_runs_only_on_addon_tags() {
     || { echo "mirror job is not limited to refs/tags/addon-v*" >&2; return 1; }
 }
 
+# The box's SSH answers only on the tailnet: the mirror joins it before its first SSH step.
+mirror_joins_the_tailnet_before_ssh() {
+  awk '/^  mirror:/{f=1;next} f&&/^  [a-z]/{exit} f&&/tailscale\/github-action@/{ts=1} f&&/appleboy\/(ssh|scp)-action@/{if(!ts){bad=1}; ssh=1} END{exit !(ts && ssh && !bad)}' "$workflow" \
+    || { echo "mirror job reaches SSH before joining the tailnet" >&2; return 1; }
+}
+
 artifact_upload_cannot_block_the_discord_post_on_a_tag() {
   awk '/upload-artifact@/{f=1;next} f&&/continue-on-error: .*startsWith\(github.ref, .refs\/tags\/.\)/{ok=1} f&&/^      - /{exit} END{exit !ok}' "$workflow" \
     || { echo "package's upload-artifact step can fail the job on a tag" >&2; return 1; }
 }
 
-for t in mirror_runs_only_on_addon_tags artifact_upload_cannot_block_the_discord_post_on_a_tag good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
+for t in mirror_runs_only_on_addon_tags mirror_joins_the_tailnet_before_ssh artifact_upload_cannot_block_the_discord_post_on_a_tag good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
          foreign_top_folder_fails appdata_folder_fails executable_fails missing_toc_fails; do
   "$t"
   echo "ok $t"

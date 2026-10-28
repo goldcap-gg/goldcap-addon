@@ -126,12 +126,14 @@ jobs:
           description: ${{ steps.notes.outputs.body }}
 
   # Puts the release zip and a signed addon.json on goldcap.gg/downloads/addon/, where
-  # the Companion looks for the addon to install and update. It needs four repository
-  # secrets: SSH_HOST, SSH_USER and SSH_PRIVATE_KEY (the deploy login the Companion's own
-  # release workflow uses; SSH_PORT is optional) and TAURI_SIGNING_PRIVATE_KEY (the
-  # Companion's updater key, with TAURI_SIGNING_PRIVATE_KEY_PASSWORD if it has one).
-  # Without all four it builds the manifest unsigned, warns, and uploads nothing; the
-  # release above is not affected either way.
+  # the Companion looks for the addon to install and update. It needs six repository
+  # secrets, the same values the Companion's own release workflow holds: SSH_HOST, SSH_USER
+  # and SSH_PRIVATE_KEY (the deploy login; SSH_PORT is optional), TS_OAUTH_CLIENT_ID and
+  # TS_OAUTH_SECRET (the box's SSH answers only on the tailnet, as deploy.yml and the
+  # Companion's release reach it), and TAURI_SIGNING_PRIVATE_KEY (the Companion's updater
+  # key, with TAURI_SIGNING_PRIVATE_KEY_PASSWORD if it has one). Without all six it builds
+  # the manifest unsigned, warns, and uploads nothing; the release above is not affected
+  # either way.
   #
   # A job of its own, not steps of `package`, on purpose: `gh run rerun --failed` after
   # a failed upload here reruns only this job. Steps inside `package` would rerun the
@@ -160,11 +162,14 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
         run: |
-          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ] && [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ] && [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] \
+              && [ -n "$TS_OAUTH_CLIENT_ID" ] && [ -n "$TS_OAUTH_SECRET" ]; then
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::addon mirror skipped: repository secrets SSH_HOST, SSH_USER, SSH_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY are not all set"
+            echo "::warning::addon mirror skipped: repository secrets SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET and TAURI_SIGNING_PRIVATE_KEY are not all set"
             echo "have=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -188,6 +193,27 @@ jobs:
           path: out/*
           retention-days: 7
           if-no-files-found: error
+
+      # Same tailnet-only SSH path as deploy.yml and the Companion's release: the box's
+      # public port 22 is closed.
+      - name: Connect to Tailscale
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # The first addon release makes the folder; later ones find it there.
+      - name: Ensure the addon folder exists on the VPS
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: mkdir -p /opt/wow-auction/downloads/addon
 
       # The zip goes up first, so addon.json never names a file that is not there yet.
       - name: Upload the zip
