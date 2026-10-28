@@ -499,7 +499,7 @@ end
 -- After a paint: the queue's first item while the window shows and no cast of its own goes.
 local function arm()
   local row
-  if frame and frame:IsShown() and not castingNow() and DF._plan then row = DF._plan.queue[1] end
+  if frame and frame:IsShown() and not castingNow() and DF._plan then row = DF._plan.next end
   setArmed(row)
 end
 
@@ -550,7 +550,7 @@ end
 
 --- Skip: the item named next is left for this visit, and the next one armed.
 function DF.Skip()
-  local row = DF._plan and DF._plan.queue[1]
+  local row = DF._plan and DF._plan.next
   if not row or castingNow() then return end
   local visit = DF._visit
   visit.skipped[row.id] = true
@@ -623,9 +623,9 @@ function DF.Standing(button, itemID)
   local function standsHere(stack)
     return stack.itemID == itemID and holds(stack)
   end
-  for i, row in ipairs(plan.queue) do
+  for _, row in ipairs(plan.queue) do
     if row.slotKey == key and standsHere(row.stack) then
-      return { state = i == 1 and "next" or "listed", mats = row.mats, n = row.n or 0 }
+      return { state = row == plan.next and "next" or "listed", mats = row.mats, n = row.n or 0 }
     end
   end
   for _, row in ipairs(plan.left) do
@@ -1245,7 +1245,7 @@ end
 -- the queue's items needs, so Disenchant stands still from one press to the next. Answers its height.
 local function paintCard(plan, w)
   local card, visit, casting = frame.card, DF._visit, castingNow()
-  local row = casting and casting.row or plan.queue[1]
+  local row = casting and casting.row or plan.next
   local x, inner = M.CARD_PAD, w - 2 * M.CARD_PAD
   local total = #visit.done + #plan.queue
   local counterW = 0
@@ -1462,7 +1462,8 @@ local function setBold(fs, bold)
   T.TrackFont(fs, { role = bold and "uiBold" or "ui", path = path, size = 10 })
 end
 
--- A line of "In this order": `data` is a plan row; `state` "done" (this visit), "casting" or nil.
+-- A line of "In this order": `data` is a plan row; `state` "done" (this visit), "casting", "next" (the
+-- item the card names, in its own place in the order, ringed as the casting line is) or nil.
 -- Answers its height.
 local function paintRow(row, data, state, inner, colW)
   local stack = data.stack
@@ -1492,7 +1493,7 @@ local function paintRow(row, data, state, inner, colW)
     fs:SetPoint("RIGHT", row, "LEFT", inner - M.ROW_PAD - (i - 1) * (colW + M.COL_GAP), 0)
   end
   local casting = state == "casting"
-  local fill, ring = casting and ROW_CAST_FILL or K.glassBottom, casting and ROW_CAST_RING or K.hairline
+  local fill, ring = casting and ROW_CAST_FILL or K.glassBottom, (casting or state == "next") and ROW_CAST_RING or K.hairline
   row.bg:SetVertexColor(fill[1], fill[2], fill[3], fill[4] or 1)
   row.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4] or 1)
   row:SetAlpha(state == "done" and DONE_ALPHA or 1)
@@ -1527,6 +1528,7 @@ local function paintOrder(plan, inner, top)
   for _, data in ipairs(visit.done) do lines[#lines + 1] = { data = data, state = "done" } end
   for _, data in ipairs(plan.queue) do
     local state = casting and casting.row.id == data.id and "casting" or nil
+    if not casting and data == plan.next then state = "next" end
     lines[#lines + 1] = { data = data, state = state }
   end
   local any = #lines > 0

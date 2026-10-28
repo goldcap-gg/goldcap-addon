@@ -32,7 +32,7 @@ local M = GC.DisenchantMarks
 -- In UI units: the badge (its purple disc), its dark disc (RING less on every side, the ring being
 -- what shows between them), the spell's icon and the coin on it, and how far out of its corner a
 -- badge stands; how far the overlay stands above its button. RING_DIM: the slot ring's alpha on a
--- queued slot other than the first.
+-- queued slot other than the next one (Plan's `next`).
 local BADGE, RING, ICON, COIN, OUT, LIFT = 18, 1.5, 12, 11, 2, 4
 local RING_DIM = 0.55
 local PURPLE = { 176 / 255, 100 / 255, 240 / 255, 1 }
@@ -48,7 +48,7 @@ local ask = GC.Util.Ask
 local function wanted(plan)
   local want = {}
   if type(plan) ~= "table" then return want end
-  for i, row in ipairs(plan.queue or {}) do want[row.slotKey] = { row = row, first = i == 1 } end
+  for _, row in ipairs(plan.queue or {}) do want[row.slotKey] = { row = row, first = row == plan.next } end
   for _, row in ipairs(plan.left or {}) do want[row.slotKey] = { row = row, coin = true } end
   return want
 end

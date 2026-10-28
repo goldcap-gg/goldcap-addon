@@ -303,7 +303,9 @@ end
 -- The result: queue: mats rows (gain over the vendor largest first), mats unknown (how GoldCap
 -- learns; the cheapest to a vendor first), then rows whose mats pay just what a vendor does; left:
 -- what the auction house pays more for; leftVendor: what a vendor pays more for than its known mats
--- (smallest loss first). The chosen item (`first`) stands first in the queue wherever it would be.
+-- (smallest loss first). The chosen item (`first`) joins the queue where it sorts, from a left list
+-- too, and is `next`; with none chosen `next` is the queue's first. The queue's order never changes
+-- for a choice (owner, 2026-10-28: "список меняется при нажатии, не очень удобно").
 -- It, a skip and Disenchant anyway hold an item by D.IdOf, so a sort of the bags never moves them to
 -- another item, an identical one included. A row's `vendor` is nil for an item no vendor buys.
 -- opts: { db, priceOf(itemID) -> copper|nil, inGroup(itemID) -> bool, now, skipped = { [id] = true },
@@ -331,6 +333,7 @@ function D.Plan(stacks, opts)
       local anyway = o.anyway[row.id] == true
       if first ~= nil and first == row.id then
         chosen = row
+        queue[#queue + 1] = row
       elseif row.ah and row.ah > (row.vendor or 0) and row.ah > (row.mats or 0) and not anyway then
         left[#left + 1] = row
       elseif row.mats and row.vendor and row.vendor > row.mats and not anyway then
@@ -343,12 +346,12 @@ function D.Plan(stacks, opts)
   table.sort(queue, before)
   table.sort(left, before)
   table.sort(leftVendor, before)
-  if chosen then table.insert(queue, 1, chosen) end
   local yields, matsTotal = {}, 0
   for _, row in ipairs(queue) do
     local avg = D.Yield(o.db, D.KindOf(row.stack))
     for id, units in pairs(avg or {}) do yields[id] = (yields[id] or 0) + units end
     matsTotal = matsTotal and row.mats and matsTotal + row.mats or nil
   end
-  return { queue = queue, left = left, leftVendor = leftVendor, yields = yields, matsTotal = matsTotal }
+  return { queue = queue, next = chosen or queue[1], left = left, leftVendor = leftVendor, yields = yields,
+    matsTotal = matsTotal }
 end
