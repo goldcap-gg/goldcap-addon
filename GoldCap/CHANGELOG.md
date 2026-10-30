@@ -1,5 +1,9 @@
 # GoldCap
 
+## 0.23.1 (2026-10-30)
+
+- The download no longer carries two developer scripts that the game never loads.
+
 ## 0.23.0 (2026-10-30)
 
 - Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their

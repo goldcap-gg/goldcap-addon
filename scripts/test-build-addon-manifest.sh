@@ -104,7 +104,23 @@ artifact_upload_cannot_block_the_discord_post_on_a_tag() {
     || { echo "package's upload-artifact step can fail the job on a tag" >&2; return 1; }
 }
 
-for t in mirror_runs_only_on_addon_tags mirror_joins_the_tailnet_before_ssh artifact_upload_cannot_block_the_discord_post_on_a_tag good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
+# The packager's topdir is the repo root, so every file and folder up there ships inside the zip
+# unless .pkgmeta ignores it. 0.23.0 shipped this scripts/ folder that way, and the mirror then
+# refused to sign a zip with an executable in it.
+every_root_entry_but_the_addon_is_ignored() {
+  local ignored entry missing=""
+  ignored=$(awk '/^ignore:/{f=1;next} f&&/^[^ ]/{f=0} f&&/^  - /{sub(/^  - /,""); print}' "$here/../.pkgmeta")
+  for entry in $(git -C "$here/.." ls-tree --name-only HEAD); do
+    [ "$entry" = GoldCap ] && continue
+    case $'\n'"$ignored"$'\n' in
+      *$'\n'"$entry"$'\n'*) ;;
+      *) missing="$missing $entry" ;;
+    esac
+  done
+  [ -z "$missing" ] || { echo "not ignored by .pkgmeta, would ship in the zip:$missing" >&2; return 1; }
+}
+
+for t in every_root_entry_but_the_addon_is_ignored mirror_runs_only_on_addon_tags mirror_joins_the_tailnet_before_ssh artifact_upload_cannot_block_the_discord_post_on_a_tag good_zip_produces_manifest tag_matches_passes tag_mismatch_fails non_numeric_version_fails \
          foreign_top_folder_fails appdata_folder_fails executable_fails missing_toc_fails; do
   "$t"
   echo "ok $t"
