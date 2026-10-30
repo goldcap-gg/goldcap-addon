@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.23.0 (unreleased)
+## 0.23.0 (2026-10-30)
 
 - Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
   deals show on DEALS with a GROUP tag, their discount and their profit, sorted by profit with your
