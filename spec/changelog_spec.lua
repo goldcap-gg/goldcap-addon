@@ -22,6 +22,14 @@ describe("CHANGELOG.md", function()
     return out
   end
 
+  -- The release these lines were written for: a patch on top (0.23.1) is not the place for them.
+  local function release(version)
+    for _, section in ipairs(sections()) do
+      if section.heading:find("^" .. version:gsub("%.", "%%.") .. " ") then return section end
+    end
+    error("no " .. version .. " section")
+  end
+
   local function firstForever()
     local all = sections()
     for i = #all, 1, -1 do
@@ -58,10 +66,10 @@ describe("CHANGELOG.md", function()
   -- WoW: Forever loads none of the files behind these (spec/camelot_toc_spec.lua's RETAIL_ONLY), and
   -- the same post goes to its players. A line about one says "in retail WoW" after its area, or
   -- follows a line of the same area that does.
-  it("says retail WoW on every line of the newest release about a feature WoW: Forever does not load", function()
+  it("says retail WoW on every line of 0.23.0 about a feature WoW: Forever does not load", function()
     local RETAIL_ONLY = { "a group you follow are posted", "CANCEL button", "POSTING setting", "the Vendor card",
       "^%- Crafting", "^%- Bank" }
-    local section = sections()[1]
+    local section = release("0.23.0")
     local lastArea, lastRetail
     local checked = 0
     for _, bullet in ipairs(section.bullets) do
@@ -86,10 +94,10 @@ describe("CHANGELOG.md", function()
   -- every group, and the Bank lines say that a stack which has to stay in the bags is named with why.
   it("says that GoldCap Hoard beside the bank stores a whole group in one press and names a stack that stays", function()
     local said = {}
-    for _, bullet in ipairs(sections()[1].bullets) do
+    for _, bullet in ipairs(release("0.23.0").bullets) do
       if bullet:find("^%- Bank") then said[#said + 1] = bullet end
     end
-    assert.is_true(#said > 0, "the newest release has no Bank line")
+    assert.is_true(#said > 0, "0.23.0 has no Bank line")
     local first, all = said[1], table.concat(said, "\n")
     assert.is_truthy(first:find("^%- Bank, in retail WoW: GoldCap Hoard, a window beside the bank"), first)
     assert.is_truthy(first:find("Store puts a group in the bank", 1, true), first)

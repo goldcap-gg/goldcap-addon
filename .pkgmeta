@@ -22,6 +22,7 @@ ignore:
   - CHANGELOG.md
   - LICENSE
   - README.md
+  - scripts
   - spec
   - .busted
   - .github
