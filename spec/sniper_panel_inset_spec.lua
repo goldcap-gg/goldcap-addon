@@ -603,6 +603,46 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       assert.is_false(rec.qty.shown)
       assert.is_true(rec.reconcile.shown)
     end)
+
+    -- A realm lot (CheckVerdict's `details` false, 2026-10-25): its transcript rows are about
+    -- commodities and stood empty, so the panel keeps the facts and offers no toggle, whatever
+    -- Details the player saved. The saved choice is left standing for the next commodity.
+    it("keeps the facts and hides SHOW DETAILS when the verdict has no transcript", function()
+      local d = realDialog(true)
+      local rec = watchAll(d)
+      local toggle = watch(d.detailsToggle)
+      local DG = getUpvalue(getUpvalue(d.applyDetailsState, "layoutBlocks"), "DG")
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      d.layoutBlocks({ reconcile = false, actionable = true })
+      local withToggle = d.fixedHeightClosed
+      assert.is_true(toggle.shown)
+
+      d.layoutBlocks({ reconcile = false, actionable = true, details = false })
+
+      assert.is_true(rec.facts.shown)
+      assert.is_false(rec.grid.shown)
+      assert.is_false(toggle.shown)
+      assert.equal(withToggle - DG.TOGGLE_BLOCK_H, d.fixedHeightClosed)
+      assert.equal(d.fixedHeightClosed, d.fixedHeightOpen)
+      assert.equal(d.fixedHeightClosed, d.fixedHeight)
+      assert.is_true(d.detailsOpen)
+
+      -- The next commodity lot opens the transcript the player saved.
+      d.layoutBlocks({ reconcile = false, actionable = true })
+      assert.is_true(rec.grid.shown)
+      assert.is_true(toggle.shown)
+    end)
+
+    -- One realm item has nothing to choose a quantity of: "1 (whole lot)" was a row saying so.
+    it("drops the quantity block when the verdict has no quantity to choose", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks({ reconcile = false, actionable = true, qty = false })
+
+      assert.is_false(rec.qty.shown)
+      assert.equal(rec.hero.top - rec.hero.height, rec.facts.top)
+    end)
   end)
 
   -- Item 10 (addon polish batch): the F5 guard itself (openDialog's own createDialog closure,

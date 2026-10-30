@@ -156,6 +156,21 @@ describe("Welcome", function()
     end)
   end)
 
+  describe("SayAtLogin", function()
+    it("speaks at every login while the window would ask the player to do something", function()
+      assert.is_true(W.SayAtLogin({ seen = true, nextAt = NOW + 86400 }, { tone = "warn", cta = "install" }))
+      assert.is_true(W.SayAtLogin({}, { tone = "bad", cta = "run" }))
+      assert.is_true(W.SayAtLogin(nil, { tone = "bad", cta = "update" }))
+    end)
+
+    it("stays quiet with nothing to ask, and after Don't remind me", function()
+      assert.is_false(W.SayAtLogin({}, { kind = "app", tone = "good" }))
+      assert.is_false(W.SayAtLogin({}, { kind = "crowd_quiet", tone = "warn" }))
+      assert.is_false(W.SayAtLogin({ quiet = true }, { tone = "bad", cta = "install" }))
+      assert.is_false(W.SayAtLogin({}, nil))
+    end)
+  end)
+
   describe("marks", function()
     it("waits three days after showing bad prices and a week after warn", function()
       local w = { firstRun = true }

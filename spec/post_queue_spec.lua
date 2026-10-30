@@ -493,6 +493,46 @@ describe("PostQueue", function()
     end)
   end)
 
+  -- The Sell tab's GROUPS row (owner, 2026-10-25: post one group, the way TSM posts a group): the
+  -- queue holds the picked group's items alone, and picking the group is the choice to sell them,
+  -- so each is on POST's walk unless the player unmarked it.
+  describe("with a group picked", function()
+    local function threeOres()
+      local quotes = {}
+      for id = 1, 3 do setQuote(quotes, id, 10000, 10) end
+      return build({
+        bagStock = { stock("commodity:1", 1, "Ore One", 4), stock("commodity:2", 2, "Ore Two", 4),
+          stock("commodity:3", 3, "Ore Three", 4) },
+        quotes = quotes,
+      })
+    end
+    local GROUP_OF = { ["commodity:1"] = "ores", ["commodity:2"] = "ores", ["commodity:3"] = "herbs" }
+    local function inOres(key) return GROUP_OF[key] == "ores" end
+
+    it("queues the group's items alone, each selling unless the player unmarked it", function()
+      local entries, skipped, notSelling = GC.PostQueue.Build(threeOres(),
+        { marks = { ["commodity:2"] = false }, group = "ores", inGroup = inOres })
+      assert.equal(1, #entries)
+      assert.equal("commodity:1", entries[1].positionKey) -- no choice of its own: the group's
+      assert.same({}, skipped)
+      assert.equal(1, #notSelling)
+      assert.equal("commodity:2", notSelling[1].positionKey) -- unmarked: the player's choice wins
+      -- Ore Three is in no list: its row is not on the deck.
+      for _, list in ipairs({ entries, skipped, notSelling }) do
+        assert.is_nil(findEntry(list, "commodity:3"))
+      end
+    end)
+
+    it("leaves the selling list as it was with no group picked", function()
+      local marks = { ["commodity:1"] = true }
+      assert.same({ GC.PostQueue.Build(threeOres(), { marks = marks }) },
+        { GC.PostQueue.Build(threeOres(), { marks = marks, inGroup = inOres }) })
+      assert.is_false(GC.PostQueue.Selling(findPosition(threeOres(), "commodity:2"), {}))
+      assert.is_true(GC.PostQueue.Selling(findPosition(threeOres(), "commodity:2"), {}, true))
+      assert.is_false(GC.PostQueue.Selling(findPosition(threeOres(), "commodity:2"), { ["commodity:2"] = false }, true))
+    end)
+  end)
+
   it("is unchanged without options", function()
     local quotes = {}
     setQuote(quotes, 1, 51, 10)

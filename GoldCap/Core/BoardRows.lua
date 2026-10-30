@@ -8,7 +8,7 @@ local _, GC = ...
 -- on a row again once a verdict exists.
 GC.BoardRows = {}
 
-local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, WATCH = 3, PENDING = 4, UNVERIFIED = 5 }
+local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, GROUP = 2.5, WATCH = 3, PENDING = 4, UNVERIFIED = 5 }
 
 -- SAFE only once the live Check actually approved it; anything else WITH a verdict is a
 -- refusal. Without a verdict there are two different states, and conflating them was a lie:
@@ -27,8 +27,14 @@ local BUCKET_RANK = { CAP = 0, SAFE = 1, GOLD = 2, WATCH = 3, PENDING = 4, UNVER
 -- other gate passed, so it is a deal the character cannot pay for yet, not a bad one -- ranked
 -- under the buys and over the refusals. Owner report 2026-09-24: with no gold on the character
 -- every row went to Hidden and the market read as having no deals.
+--
+-- GROUP is a deal from a group the player follows on goldcap.gg (owner, 2026-10-25: DEALS is for
+-- deals, and the groups' rows sat over every one of them at 0% and a dash). It is a deal like any
+-- other, measured and ranked by its profit: a commodity's, whose live book was read, under the
+-- buys and over the refusals; a realm lot's with the realm rows, whose sale speed nothing measured
+-- either (Rank).
 function GC.BoardRows.Bucket(verdict, pending)
-  if verdict and verdict.cap then return "CAP" end
+  if verdict and verdict.cap then return verdict.followed and "GROUP" or "CAP" end
   if verdict and verdict.buyable then return "SAFE" end
   if verdict and verdict.needsGold then return "GOLD" end
   if verdict then return "WATCH" end
@@ -39,7 +45,9 @@ end
 -- The bucket as a plain ascending number, so a header-click sort can order by it directly
 -- instead of keeping a second copy of this ordering.
 function GC.BoardRows.Rank(verdict, pending)
-  return BUCKET_RANK[GC.BoardRows.Bucket(verdict, pending)]
+  local bucket = GC.BoardRows.Bucket(verdict, pending)
+  if bucket == "GROUP" and not verdict.buyable then return BUCKET_RANK.WATCH end
+  return BUCKET_RANK[bucket]
 end
 
 -- What the row's verdict cell says. SHORT, deliberately: it is one column on a row, and the
@@ -52,6 +60,10 @@ end
 -- second copy of that fact in a cell this narrow cost more than it said.
 function GC.BoardRows.Label(verdict, pending)
   local bucket = GC.BoardRows.Bucket(verdict, pending)
+  -- A group the player follows on goldcap.gg: its deal price, not one the player typed. The
+  -- group's name is on the item cell, as an alert group's is. GROUP fits the chip's eleven
+  -- characters in every language.
+  if bucket == "GROUP" then return GC.L["GROUP"] end
   if bucket == "CAP" then
     return GC.L["YOUR PRICE"]
   elseif bucket == "SAFE" then
@@ -119,7 +131,8 @@ function GC.BoardRows.ProfitTone(deal, verdict)
   return "refused"
 end
 
--- Board sort order: CAP, SAFE, a deal that needs gold, WATCH, pending, then everything else, by
+-- Board sort order: CAP, SAFE, a deal that needs gold, a followed group's commodity deal, WATCH (a
+-- group's realm lot with it), pending, then everything else, by
 -- the profit the row shows (Figures) descending within each bucket. Pins are partitioned ahead of
 -- this by the caller (renderList), unchanged.
 function GC.BoardRows.Compare(dealA, verdictA, pendingA, dealB, verdictB, pendingB)

@@ -86,6 +86,73 @@ describe("Caps.Adopt", function()
     assert.same({ 0, 0 }, { GC.Caps.Dropped() })
   end)
 
+  -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows on
+  -- goldcap.gg carries k (true from the Companion, 1 from a raw wire copy). It is marked
+  -- `followed`; an alert cap keeps exactly the shape it always had, with no new key at all.
+  it("marks a followed group's cap and leaves an alert cap's shape as it was", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs", "Consumables" },
+      caps = { { i = 5, c = 800, g = 1, k = true, u = 1000, r = 1 },
+        { i = 7, c = 600, l = 610, g = 2, m = true } },
+      rules = { { n = "Herbs", p = "gather", d = 24, fp = 80 } } }
+    assert.is_true(GC.Caps.Adopt())
+    assert.same({ c = 800, l = 0, group = "Herbs", manual = false, followed = true, usual = 1000, price = 800 },
+      GC.Caps.For(5))
+    assert.same({ c = 600, l = 610, group = "Consumables", manual = true }, GC.Caps.For(7))
+
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+      caps = { { i = 5, c = 800, g = 1, k = 1 }, { i = 6, c = 900, k = "yes" }, { i = 8, c = 900, k = 2 } } }
+    GC.Caps.Adopt()
+    assert.is_true(GC.Caps.For(5).followed)
+    assert.is_nil(GC.Caps.For(6).followed)
+    assert.is_nil(GC.Caps.For(8).followed)
+  end)
+
+  -- A followed group's price is the most a lot may cost to be one of its deals, held to a resale
+  -- that pays after the 5% cut at the lower of its usual price and the market's (owner,
+  -- 2026-10-25: DEALS is for deals). The group's own price stays for the panel to name.
+  it("DealLimit holds a group's price to a resale that pays", function()
+    assert.equal(800, GC.Caps.DealLimit(800, 1000, nil))   -- 80% of usual resells at a profit
+    assert.equal(800, GC.Caps.DealLimit(800, 1000, 1200))  -- a dearer market changes nothing
+    assert.equal(664, GC.Caps.DealLimit(800, 1000, 700))   -- the market fell: 700 * 0.95 = 665
+    assert.equal(800, GC.Caps.DealLimit(800, nil, nil))    -- nothing to hold it to
+    assert.equal(474, GC.Caps.DealLimit(800, nil, 500))
+  end)
+
+  it("Adopt holds a followed cap to the market the addon knows, and an alert cap to nothing", function()
+    helper.loadModule("Core/DealMath.lua", GC)
+    GC.Data = { GetItemValue = function(itemID) return ({ [5] = { mv = 700 }, [7] = { mv = 100 } })[itemID] end }
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs", "Mine" },
+      caps = { { i = 5, c = 800, g = 1, k = true, u = 1000 }, { i = 7, c = 600, g = 2 } } }
+    GC.Caps.Adopt()
+    assert.equal(664, GC.Caps.For(5).c)
+    assert.equal(800, GC.Caps.For(5).price)
+    assert.equal(665, GC.Caps.TriggerFor(5))
+    assert.equal(600, GC.Caps.For(7).c) -- the player's own price is theirs
+    assert.is_nil(GC.Caps.For(7).price)
+
+    -- The panel names the group's own price; the lot is held to the limit.
+    local cap = GC.Caps.For(5)
+    assert.is_nil(GC.Caps.DecideRealm(cap, { { auctionID = 1, buyout = 700, quantity = 1 } }))
+    local decision = GC.Caps.DecideRealm(cap, { { auctionID = 2, buyout = 600, quantity = 1 } })
+    assert.equal(800, decision.capUnit)
+    local commodity = GC.Caps.DecideCommodity(cap, { { unitPrice = 600, quantity = 2 }, { unitPrice = 700, quantity = 5 } },
+      { maxQuantity = 100, budget = math.huge })
+    assert.equal(2, commodity.quantity) -- the dearer level would sell at a loss
+    assert.equal(800, commodity.capUnit)
+  end)
+
+  it("Adopt reports a change when only the follow mark moves", function()
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+      caps = { { i = 5, c = 800, g = 1 } } }
+    GC.Caps.Adopt()
+    assert.is_false(GC.Caps.Adopt())
+    _G.GoldCap_AppRuns.caps[1].k = true
+    assert.is_true(GC.Caps.Adopt())
+    assert.is_false(GC.Caps.Adopt())
+    _G.GoldCap_AppRuns.caps[1].k = nil
+    assert.is_true(GC.Caps.Adopt())
+  end)
+
   it("an absent or unsupported file clears the set", function()
     _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, caps = { { i = 1, c = 1 } } }
     GC.Caps.Adopt()

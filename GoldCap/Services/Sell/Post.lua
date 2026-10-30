@@ -1,15 +1,16 @@
--- The Sell tab's post, cancel and removal: what each click checks and pins before the protected
--- call its handler makes (UI/Sell/Dock.lua's onPostClick and onRepostClick -- nothing here makes
--- one), the timeouts that give a row back, the answers that come late, and the auction house's
--- created, error and queued events. The only widget it touches is the clicked row's own button,
--- through the button's methods, and never on the way to a protected call. Moved from
--- UI/SellFrame.lua as it was.
+-- The Sell tab's post and removal: what each click checks and pins before the protected call its
+-- handler makes (UI/Sell/Dock.lua's onPostClick -- nothing here makes one), the timeouts that give
+-- a row back, the answers that come late, and the auction house's created, error and queued
+-- events. A lot's cancel is Services/Sell/Cancel.lua, on this same GC.SellPost. The only widget it
+-- touches is the clicked row's own button, through the button's methods, and never on the way to
+-- a protected call. Moved from UI/SellFrame.lua as it was.
 local _, GC = ...
 
 local S, View = GC.SellState, GC.SellView
 local Quotes, Bags, Compose, Owned, Walk, Post = GC.SellQuotes, GC.SellBags, GC.SellCompose, GC.SellOwned,
   GC.SellWalk, GC.SellPost
-local exact, safeMultiply, overrideKey = GC.SellUtil.exact, GC.SellUtil.safeMultiply, GC.SellUtil.overrideKey
+local exact, safeMultiply, overrideKey, effectivePostUnit = GC.SellUtil.exact, GC.SellUtil.safeMultiply,
+  GC.SellUtil.overrideKey, GC.SellUtil.effectivePostUnit
 local activeScope, exactRenderEntry, itemName = GC.SellUtil.activeScope, GC.SellUtil.exactRenderEntry,
   GC.SellUtil.itemName
 
@@ -26,30 +27,14 @@ local function postDuration()
   if value == 1 or value == 2 or value == 3 then return value end
   return 2
 end
--- REPOST_ARM_SECONDS is the deposit guard: how long after the first click a confirming second
--- click does not count. It was 3, and three seconds of a greyed-out button that still reads
--- "Cancel lot?" is indistinguishable from a broken control -- reported from a live client as
--- "it glows like that for ages and then may not press at all". One second still defeats what
--- the guard is actually for, an accidental double-click, which lands inside half of it.
---
--- REPOST_TIMEOUT_SECONDS is the other half of that report. At 10 it gave a player seven usable
--- seconds to read "lose its deposit" and decide, after which the arm silently reverted to
--- "Repost" and the next click armed it all over again. Twenty leaves nineteen, and the window
--- still closes rather than staying armed across a render or a walk.
-local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 1, 20
--- The in-flight cancel is a SERVER round trip and gets its own, longer watchdog. It used to
--- share REPOST_TIMEOUT_SECONDS, so a cancel the auction house took more than ten seconds to
--- confirm was announced as "Cancel timed out" -- over a lot that had in fact been cancelled.
--- That is the worst thing this control can say: it tells the player the opposite of what
--- happened to their gold. Waiting longer before giving up is the honest side to err on.
-local REPOST_CANCEL_TIMEOUT_SECONDS = 30
+local POST_TIMEOUT_SECONDS = 8
 -- Removing a manual cost has no deposit at stake, so it skips REPOST_ARM_SECONDS' forced delay
+-- (Services/Sell/Cancel.lua)
 -- before the second click counts -- that delay exists to stop an accidental double-click from
 -- burning a deposit, and there is no deposit here. The confirmation window still expires, the
 -- same way a repost's does.
 local REMOVE_TIMEOUT_SECONDS = 8
 local postTimeoutToken
-local repostArmToken = 0
 local removeArmToken = 0
 
 local function restorePostRow(row)
@@ -61,19 +46,13 @@ local function restorePostRow(row)
   end
 end
 
-local function restoreRepostRow(row)
-  if not row then return end
-  row.repostStage, row.repostReady = nil, nil
-  if row.action then row.action:Enable(); row.action.helpKey = "Cancel lot"; row.action:SetLabel(GC.L["Cancel lot"]) end
-end
-
 local function restoreRemoveRow(row)
   if not row then return end
   row.removeStage = nil
   if row.action then row.action:Enable(); row.action.helpKey = "Remove"; row.action:SetLabel(GC.L["Remove"]) end
 end
 
-local function flushDeferredRender()
+function Post.FlushDeferredRender()
   if S.deferredRender and not S.postingRow and not S.repostingRow and not S.removingRow then View.render() end
 end
 
@@ -82,7 +61,7 @@ function Post.DisarmPost()
   S.postingRow, S.postingPin = nil, nil
   postTimeoutToken = (postTimeoutToken or 0) + 1
   restorePostRow(row)
-  flushDeferredRender()
+  Post.FlushDeferredRender()
   -- "Posting…" and "Click Confirm to post" in the dock were about this post and go with it; an
   -- outcome (Posted, the auction house's refusal) is noted by the caller after this and stays
   -- its few seconds. The dock's POST lets go of its spinner here too, whatever else repaints.
@@ -90,21 +69,12 @@ function Post.DisarmPost()
   View.paintQueue()
 end
 
-function Post.DisarmRepost()
-  local row = S.repostingRow
-  S.repostingRow, S.repostPin = nil, nil
-  repostArmToken = (repostArmToken or 0) + 1
-  restoreRepostRow(row)
-  flushDeferredRender()
-  View.paintCancel()
-end
-
 function Post.DisarmRemove()
   local row = S.removingRow
   S.removingRow, S.removePin = nil, nil
   removeArmToken = (removeArmToken or 0) + 1
   restoreRemoveRow(row)
-  flushDeferredRender()
+  Post.FlushDeferredRender()
 end
 
 -- How long the dock keeps a post's outcome, in seconds: a moment for a post that went up, long
@@ -249,6 +219,21 @@ end
 -- -- { confirm = true, pin = pin } or { pin = S.postingPin } -- or nil when the click ends here,
 -- having already said why. On the way to a returned call it only reads and writes plain fields:
 -- the button, the dock and the spinner wait for the handler, after the call.
+-- The quote a post is made against: the fresh live one, or an empty book for an item the auction
+-- house ANSWERED has nothing listed, recently (Walk.RestedEmptyFresh: an answer, not a timeout).
+-- Waiting for a live price there waited forever (owner, 2026-10-21). An empty book has no price of
+-- its own, nobody being there to undercut, so the post lists at the seller's number. One table per
+-- answer, so the Confirm finds the very quote its post was armed on.
+local function postQuote(position)
+  local quote = Quotes.Fresh(position)
+  if quote then return quote end
+  local quoteID = position.quoteKey or position.itemID
+  if not Walk.RestedEmptyFresh(quoteID, time()) then return nil end
+  local rest = S.emptyAnswers[quoteID]
+  rest.book = rest.book or { empty = true, at = rest.at }
+  return rest.book
+end
+
 function Post.PreparePost(row)
   -- A post already on its way answers every further press with nothing. Its buttons are
   -- disabled, but the keybinding reaches here through onQueueClick whatever they look like --
@@ -271,7 +256,7 @@ function Post.PreparePost(row)
     return
   end
   local position = row.position
-  local quote = Quotes.Fresh(position)
+  local quote = postQuote(position)
   if not quote then
     if S.postingRow == row then Post.DisarmPost() end
     -- Same silent first click as Repost had: without this the button looks
@@ -340,7 +325,13 @@ function Post.PreparePost(row)
   -- the choice. The override branch there skips both.
   local chosenKey = overrideKey(position)
   local chosenQty = chosenKey and S.quantityOverrides[chosenKey] or nil
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true },
+  -- An empty book is priced by the seller alone: the number in the box, typed or recommended.
+  local unit = quote.unit
+  if quote.empty then
+    unit = effectivePostUnit(position)
+    if not unit then View.status(GC.L["Nothing listed on the AH right now"]); return end
+  end
+  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = unit, fresh = true },
     { overrideUnit = chosenKey and S.priceOverrides[chosenKey] or nil, overrideQuantity = chosenQty })
   if not plan then
     View.status(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
@@ -392,7 +383,11 @@ function Post.PreparePost(row)
   -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
   -- post cannot disagree about what they are doing. A duration changed in the settings panel
   -- between the two clicks must not let a post start at one duration and confirm at another.
-  local duration = postDuration()
+  -- A followed group's rule names its own duration (Core/GroupRules.lua's index, 1 to 3): a plain
+  -- field read off the position, like everything else pinned here.
+  local ruleDuration = position.ruleDurationIndex
+  local duration = (ruleDuration == 1 or ruleDuration == 2 or ruleDuration == 3) and ruleDuration
+    or postDuration()
   S.postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
@@ -425,159 +420,6 @@ end
 -- creation can only be its own (GC.Sell.OnAuctionCreated books it then, and only then).
 function Post.Sent(pin)
   pin.sent, pin.clean = true, GC.Sell._Certain()
-end
-
--- Everything a Cancel lot click does before the protected call. A first click arms (the deposit
--- warning, REPOST_ARM_SECONDS before a confirm counts, the timeout) and returns nil; the
--- confirming click checks the pin against a fresh read of the player's own auctions, marks the
--- row "cancelling" and returns the pin and its scope for onRepostClick to cancel. Plain reads
--- and writes only on the way there.
-function Post.PrepareCancel(row, auctionID)
-  local position = row.position
-  if S.repostingRow and S.repostingRow ~= row then
-    Post.DisarmRepost()
-    View.status(GC.L["Previous repost selection cleared"])
-    return
-  end
-  -- A cancel already on the wire is not a click target. Only nil (nothing armed) and "armed"
-  -- are: a second click while the stage was "cancelling" fell straight past the armed branch
-  -- below into the arm branch at the bottom and re-armed the very lot whose cancel the server
-  -- was still working on.
-  if row.repostStage ~= nil and row.repostStage ~= "armed" then
-    View.status(GC.L["Cancelling lot…"])
-    return
-  end
-  local quote = Quotes.Fresh(position)
-  if not quote then
-    if S.repostingRow == row then Post.DisarmRepost() end
-    -- Previously this refreshed the quote and returned in silence, so a first click looked like
-    -- a dead button. Say what is happening; the click that follows is the one that arms.
-    View.status(GC.L["Fetching a fresh price for this lot. Press Repost again in a moment"])
-    Walk.RefreshFor(position); return
-  end
-  if row.repostStage == "armed" then
-    if not row.repostReady then return end
-    local pin = S.repostPin
-    if not exactRenderEntry(row, pin) then
-      Post.DisarmRepost()
-      View.status(GC.L["Repost confirmation expired"])
-      return
-    end
-    local scope, scopeKey = pin and activeScope(pin.position) or nil, nil
-    if scope then
-      if GC.Acquisitions and GC.Acquisitions.ScopeKey then
-        scopeKey = GC.Acquisitions.ScopeKey(pin.positionKey, scope)
-      else
-        scopeKey = table.concat({ scope.region, scope.char, pin.positionKey }, "\1")
-      end
-    end
-    if not (C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots) then
-      Post.DisarmRepost()
-      View.status(GC.L["Repost confirmation expired"])
-      return
-    end
-    -- A fresh, plain read of the server's own owned-auctions list -- auctionID, quantity, unit
-    -- price -- and nothing else. Bag stock plays no part in whether a lot can be cancelled
-    -- (final review C2), so this click no longer calls Compose.Positions()/Bags.Scan() at all:
-    -- that used to run classifyBagItem -> C_AuctionHouse.IsSellItemValid on a bag location built
-    -- fresh, right here, from the Blizzard mixin method cacheBagLocation's own comment (in Bags.lua,
-    -- above Bags.LiveState) names -- for every unbound non-commodity bag stack, ahead of the protected
-    -- CancelAuction in onRepostClick (UI/Sell/Dock.lua). Owned.Classify's own
-    -- GetItemKeyInfo call is a plain C API, not a mixin method.
-    local freshLots = GC.SellPositions.NormalizeOwnedLots(
-      Owned.Classify(C_AuctionHouse.GetOwnedAuctions() or {}), time())
-    S.ownedLots = freshLots
-    local current
-    for _, candidate in ipairs(freshLots) do
-      if candidate.auctionID == pin.auctionID and candidate.positionKey == pin.positionKey
-          and candidate.itemID == pin.itemID and candidate.quantity == pin.quantity
-          and candidate.unitPrice == pin.listedUnit then
-        current = candidate
-        break
-      end
-    end
-    if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
-        or pin.position ~= position or pin.positionKey ~= position.positionKey
-        or pin.scopeKey ~= position.scopeKey or pin.itemID ~= position.itemID
-        or not current
-        or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit
-        or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
-      Post.DisarmRepost()
-      View.status(GC.L["Repost confirmation expired"])
-      return
-    end
-    -- Plain field write only, before the call: row.repostStage = "cancelling" is what the
-    -- re-entrancy guard at the top of this function reads. row.action:Disable() -- GoldCap Lua,
-    -- runs its own OnDisable script -- moves after the call, with the recompose in
-    -- Post.Cancelling (final review C3's "related" note on this same shape).
-    row.repostStage = "cancelling"
-    return pin, scope
-  end
-  local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, { unit = quote.unit, fresh = true })
-  local scope, scopeKey = activeScope(position)
-  if not plan or not scope or type(row.renderEntryID) ~= "string" or row.renderEntryID == ""
-      or plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey
-      or plan.scopeKey ~= scopeKey or plan.itemID ~= position.itemID
-      or not exact(plan.auctionID) or plan.auctionID <= 0 or plan.auctionID ~= auctionID
-      or not exact(plan.quantity) or plan.quantity <= 0
-      or not exact(plan.unitPrice) or plan.unitPrice <= 0 then
-    View.status(GC.L["Cannot repost this lot"])
-    return
-  end
-  local lot
-  for _, candidate in ipairs(position.ownedLots or {}) do if candidate.auctionID == plan.auctionID then lot = candidate break end end
-  if not lot or lot.quantity ~= plan.quantity or not exact(lot.unitPrice) or lot.unitPrice <= 0 then
-    View.status(GC.L["Cannot repost this lot"])
-    return
-  end
-  S.repostingRow, S.repostPin = row, { scopeKey = plan.scopeKey, positionKey = plan.positionKey, auctionID = plan.auctionID,
-    itemID = plan.itemID, quantity = plan.quantity, listedUnit = lot.unitPrice,
-    quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, row = row, action = row.action,
-    position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
-  row.repostStage, row.repostReady = "armed", false
-  row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
-  View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])
-  repostArmToken = repostArmToken + 1
-  local token = repostArmToken
-  if C_Timer and C_Timer.After then
-    C_Timer.After(REPOST_ARM_SECONDS, function()
-      if token == repostArmToken and S.repostingRow == row and row.repostStage == "armed" then
-        row.repostReady = true; row.action:Enable()
-        -- The cancel control mirrors this arm (see paintCancelButton); without this repaint it
-        -- would stay disabled after the delay even though the row's own button just enabled.
-        View.paintCancel()
-      end
-    end)
-    C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
-      if token == repostArmToken and S.repostingRow == row and row.repostStage == "armed" then
-        Post.DisarmRepost()
-        View.status(GC.L["Repost confirmation expired"])
-      end
-    end)
-  end
-end
-
--- What a sent cancel owes the tab, run by onRepostClick straight after the call, once the
--- button is disabled.
-function Post.Cancelling(row, pin, scope)
-  -- Full recompose and its paints, now that the protected call is behind us: rebuilds
-  -- `positions` from the fresh ownedLots already set above (and a fresh bag scan, safe here --
-  -- no protected call follows in this click), and repaints the deck switch, queue and cancel
-  -- buttons this click used to paint through Compose.Positions(true) before the call.
-  Compose.Positions()
-  if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
-    GC.Data.MarkOwnedLotCancelled(GC.db, pin.auctionID, scope, time())
-  end
-  View.status(GC.L["Cancelling lot…"])
-  if C_Timer and C_Timer.After then
-    local token = repostArmToken
-    C_Timer.After(REPOST_CANCEL_TIMEOUT_SECONDS, function()
-      if token == repostArmToken and S.repostingRow == row and row.repostStage == "cancelling" then
-        Post.DisarmRepost()
-        View.status(GC.L["Cancel timed out"])
-      end
-    end)
-  end
 end
 
 -- The "What you paid" affordance for a hand-entered cost: a mistaken "Set cost" entry used to
@@ -954,17 +796,4 @@ function Post.WalkAway()
   if S.postingRow and S.postingRow.postStage == "confirm" then Post.DisarmPost() end
   if S.repostingRow and S.repostingRow.repostStage == "armed" then Post.DisarmRepost() end
   if S.removingRow and S.removingRow.removeStage == "armed" then Post.DisarmRemove() end
-end
-
--- Straight after a click that reached onRepostClick -- the lot's own button, the row's, the
--- dock's. If that click SENT the cancel, the pin has done its job: record the lot, let the arm
--- go (which releases every held render) and show the tab without it. See GC.Sell.cancelledLots
--- for why nothing here waits for the server. onRepostClick itself is untouched.
-function Post.CancelSent()
-  if not (S.repostingRow and S.repostingRow.repostStage == "cancelling" and S.repostPin) then return end
-  GC.Sell.cancelledLots[S.repostPin.auctionID] = { at = time() }
-  S.refresh.ownedWanted = true -- ask for the listings again as soon as the throttle allows
-  Post.DisarmRepost()
-  GC.Sell.OnOwnedAuctions()
-  View.status(GC.L["Cancelling lot…"])
 end

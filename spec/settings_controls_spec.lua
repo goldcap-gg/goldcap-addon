@@ -28,6 +28,7 @@ describe("Settings controls", function()
     function r:GetHeight() return self.height or 0 end
     function r:SetJustifyH(j) self.justify = j end
     function r:SetWordWrap(v) self.wordWrap = v end
+    function r:SetNonSpaceWrap(v) self.nonSpaceWrap = v end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue or "" end
     function r:SetLabel(t) self.label = t end
@@ -119,6 +120,19 @@ describe("Settings controls", function()
     function r:SetThumbTexture(t) self.thumb = t end
     function r:SetValue(v) self.value = v end
     function r:GetValue() return self.value or 0 end
+    function r:SetScrollChild(child) self.scrollChild = child end
+    -- FontString:GetStringHeight as the client answers it: 14px a line, a line holding 6px a
+    -- character, the text wrapped to the string's own width when it wraps and has one.
+    if kind == "FontString" then
+      function r:GetStringHeight()
+        local n = #(self.textValue or "")
+        if n == 0 then return 0 end
+        if self.wordWrap and (self.width or 0) > 0 then return math.ceil(n * 6 / self.width) * 14 end
+        return 14
+      end
+      -- ...and GetUnboundedStringWidth the same way: the text on one line, 6px a character.
+      function r:GetUnboundedStringWidth() return #(self.textValue or "") * 6 end
+    end
     return r
   end
 
@@ -355,6 +369,11 @@ describe("Settings controls", function()
 
     after_each(function() _G.GetBuildInfo = nil end)
 
+    it("builds no VENDOR card", function()
+      GC.SettingsUI.Toggle()
+      assert.is_nil(cardTitles(_G.GoldCapSniperFrame)["VENDOR"])
+    end)
+
     it("labels the three segments 2H/8H/24H instead of 12H/24H/48H", function()
       GC.db.settings.sniper.postDuration = 2
       GC.SettingsUI.Toggle()
@@ -417,6 +436,43 @@ describe("Settings controls", function()
         assert.is_true(labels["Sound on SAFE deal"])
         assert.is_true(labels["Auto-scan on next AH visit"])
       end)
+
+    -- Followed groups (plan 2026-10-22, task 12): the cancel threshold is retail only, and the
+    -- POSTING card keeps its two rows there. So is the default price (2026-10-25).
+    it("Forever POSTING has no cancel threshold row and no default price", function()
+      GC.SettingsUI.Toggle()
+      local labels = {}
+      walk(_G.GoldCapSniperFrame, function(node)
+        if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+      end)
+      assert.is_nil(labels["Min. undercut to cancel (%)"])
+      assert.is_nil(labels["Default price"])
+      assert.equal(24 + 2 * 26 + 6, cardByTitle(_G.GoldCapSniperFrame, "POSTING").height)
+    end)
+
+    -- The note is a row of its own: three lines at the 640 minimum, and Max units per buy under
+    -- them rather than drawn over the third.
+    it("moves Max units per buy under the vendor-wallet note, however many lines it takes", function()
+      GC.SettingsUI.Toggle()
+      local card = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+      card.width = 256
+      card.scripts.OnSizeChanged(card, 256, card.height)
+      local wallet, note, units
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == "Max wallet per buy %" then wallet = child end
+        if child.kind == "FontString" and child.textValue
+            and child.textValue:find("While this stays at the default 5%", 1, true) then note = child end
+        if child.kind == "FontString" and child.textValue == "Max units per buy" then units = child end
+      end
+      assert.equal(256 - 2 * 12, note.width)
+      local lines = note:GetStringHeight() / 14
+      assert.is_true(lines > 1)
+      local function topOf(node)
+        for _, p in ipairs(node.points) do if p[1] == "TOPLEFT" then return p[3] end end
+      end
+      assert.equal(topOf(wallet) - 26, topOf(note))
+      assert.equal(topOf(note) - (lines * 14 + 6), topOf(units))
+    end)
 
     it("shows the vendor-wallet carve-out as a grey note under Max wallet per buy %", function()
       GC.SettingsUI.Toggle()
@@ -573,6 +629,88 @@ describe("Settings controls", function()
     assert.is_nil(labels["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
   end)
 
+  -- Followed groups (plan 2026-10-22, task 12): "cancel only when undercut by more than N%",
+  -- a whole percent from 0 to 20. Kept out of GC.DEFAULTS, so an unset save reads 0.
+  it("retail POSTING has the cancel threshold row", function()
+    GC.SettingsUI.Toggle()
+    local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
+    -- Duration, Default price and the line under it, Buy cap, the cancel threshold.
+    assert.equal(24 + 5 * 26 + 6, posting.height)
+    local box = fieldOf(posting, "Min. undercut to cancel (%)")
+    assert.equal("0", box.editBox:GetText())
+    box.editBox:SetText("25")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(20, GC.db.settings.sniper.cancelUndercutPct)
+    box.editBox:SetText("-3")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(0, GC.db.settings.sniper.cancelUndercutPct)
+    box.editBox:SetText("5")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(5, GC.db.settings.sniper.cancelUndercutPct)
+    -- Its label wraps instead of being cut: it is the card's last row, with room under it.
+    local label
+    walk(posting, function(node)
+      if node.kind == "FontString" and node.textValue == "Min. undercut to cancel (%)" then label = node end
+    end)
+    assert.is_true(label.wordWrap)
+  end)
+
+  -- The seller's default price (owner, 2026-10-25): GOLDCAP, MATCH, UNDERCUT or MARKET, beside its
+  -- label while the four fit there, else on lines of their own under it, never cut. Unset is
+  -- GoldCap's own, and GOLDCAP writes nothing.
+  it("retail POSTING picks the default price, its buttons beside the label or under it", function()
+    GC.SettingsUI.Toggle()
+    local posting = cardByTitle(_G.GoldCapSniperFrame, "POSTING")
+    local label
+    walk(posting, function(node)
+      if node.kind == "FontString" and node.textValue == "Default price" then label = node end
+    end)
+    assert.is_not_nil(label)
+    local buttons = {}
+    for _, text in ipairs({ "GOLDCAP", "MATCH", "UNDERCUT", "MARKET" }) do
+      buttons[#buttons + 1] = assert(buttonIn(posting, text), text)
+    end
+    assert.is_nil(buttonIn(posting, "COST"))
+    local function at(node)
+      for _, p in ipairs(node.points) do if p[1] == "TOPLEFT" then return p[2], p[3] end end
+    end
+    assert.equal("active", buttons[1].variant)
+
+    -- Wide: "Default price" (78) and the four (4 x 48 + 3 x 2) fit on its row, at the right edge.
+    posting.width = 400
+    posting.scripts.OnSizeChanged(posting, 400, posting.height)
+    local x, y = at(buttons[1])
+    assert.equal(400 - 12 - 198, x)
+    assert.equal(-(24 + 26), y)
+
+    -- The 640 minimum: under the label, from the card's left edge, on one line.
+    posting.width = 256
+    posting.scripts.OnSizeChanged(posting, 256, posting.height)
+    x, y = at(buttons[1])
+    assert.equal(12, x)
+    assert.equal(-(24 + 26 + 24), y)
+    x, y = at(buttons[4])
+    assert.equal(12 + 3 * 50, x)
+    assert.equal(-(24 + 26 + 24), y)
+
+    -- Narrower still: the line breaks, and nothing is drawn past the edge.
+    posting.width = 150
+    posting.scripts.OnSizeChanged(posting, 150, posting.height)
+    x, y = at(buttons[3])
+    assert.equal(12, x)
+    assert.equal(-(24 + 26 + 24 + 24), y)
+
+    buttons[2].scripts.OnClick(buttons[2])
+    assert.equal("match", GC.db.settings.sniper.defaultPrice)
+    assert.equal("active", buttons[2].variant)
+    assert.equal("ghost", buttons[1].variant)
+    buttons[4].scripts.OnClick(buttons[4])
+    assert.equal("market", GC.db.settings.sniper.defaultPrice)
+    buttons[1].scripts.OnClick(buttons[1])
+    assert.is_nil(GC.db.settings.sniper.defaultPrice)
+    assert.equal("active", buttons[1].variant)
+  end)
+
   it("minimumRoi field round-trips UI percent 10..200 to a stored fraction 0.10..2.00, clamped at both ends", function()
     GC.db.settings.sniper.minimumRoi = 0.15
     GC.SettingsUI.Toggle()
@@ -677,6 +815,183 @@ describe("Settings controls", function()
     local resetBtn = buttonIn(whatCounts, "DEFAULTS")
     resetBtn.scripts.OnClick(resetBtn)
     assert.equal(2, settingsChangedCalls)
+  end)
+
+  -- Grey junk is the game's own Sell All Junk button's, so the card has no toggle for it.
+  it("the VENDOR card holds the Better at vendor toggle and Forget kept items, which empties vendorKeep only", function()
+    GC.db.settings.sniper.vendorWorth = true
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    assert.is_not_nil(toggleOf(card, "Better at vendor"))
+    local labels = {}
+    for _, child in ipairs(card.children) do
+      if child.kind == "FontString" and child.textValue then labels[#labels + 1] = child.textValue end
+    end
+    assert.same({ "VENDOR", "Better at vendor" }, labels)
+    local forget = buttonIn(card, "Forget kept items")
+    assert.is_not_nil(forget)
+    assert.is_false(forget.enabled) -- nothing kept yet
+
+    GC.db.vendorKeep = { [123] = true, [456] = true }
+    GC.SettingsUI.Toggle() -- close and reopen: the panel re-reads its state on show
+    GC.SettingsUI.Toggle()
+    assert.is_true(forget.enabled)
+    forget.scripts.OnClick(forget)
+    assert.same({}, GC.db.vendorKeep)
+    assert.is_true(GC.db.settings.sniper.vendorWorth)
+    assert.is_false(forget.enabled)
+  end)
+
+  -- Nothing is cut with "...". The VENDOR labels fit one line at the narrowest window and the
+  -- largest scale (spec/button_label_width_spec.lua); should one still need two, its row wraps,
+  -- the rows under it move down and the card grows, on every resize.
+  it("the VENDOR rows wrap and grow instead of cutting a label", function()
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    local function labelIn(text)
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == text then return child end
+      end
+      error("no label " .. text)
+    end
+    -- The TOPLEFT offset a widget was last placed at (the short SetPoint form: point, x, y).
+    local function top(node)
+      for _, p in ipairs(node.points) do
+        if p[1] == "TOPLEFT" then return type(p[2]) == "number" and p[3] or p[5] end
+      end
+    end
+    local worth = labelIn("Better at vendor")
+    local forget = buttonIn(card, "Forget kept items")
+    assert.is_true(worth.wordWrap)
+    for _, p in ipairs(worth.points) do assert.not_equal("RIGHT", p[1]) end -- its height is its own
+
+    card.width = 259 -- the left column at the 640 minimum
+    card.scripts.OnSizeChanged(card, 259, card.height)
+    assert.equal(191, worth.width)
+    assert.same({ -24, -47 }, { top(worth), top(forget) })
+    assert.equal(82, card.height)
+
+    card.width = 120 -- 52px of row: the label takes two lines
+    card.scripts.OnSizeChanged(card, 120, card.height)
+    assert.same({ -24, -55 }, { top(worth), top(forget) })
+    assert.equal(90, card.height)
+  end)
+
+  -- No Settings label is cut with "..." (group-rules review M11: most labels were, at the 640
+  -- minimum in most languages, and at the largest font scale in English too; M7: the cancel
+  -- threshold's wrapped label ran past its card). Every row's label wraps in what its control
+  -- leaves it, a word wider than that breaks, and its row grows: the rows under it, the card and
+  -- the scroll child follow. The fake measures 6px a character and 14px a line.
+  describe("every row label", function()
+    local ROWS = {
+      ["WHAT COUNTS AS A DEAL"] = { "Min profit per buy (gold)", "Min return per buy %", "Max wallet per buy %",
+        "Max units per buy" },
+      ["RISK CHECKS"] = { "Dump-trend cap %", "Spike-trend threshold %", "Wall absorb window (hours)" },
+      ["POSTING"] = { "Duration", "Buy cap (% of usual price)", "Min. undercut to cancel (%)" },
+      ["AUTOMATION & ALERTS"] = { "Sound on SAFE deal", "Auto-scan on next AH visit", "Post above the cheapest",
+        "Stop and open the buy window on your price" },
+      ["DISPLAY"] = { "Font scale", "Window position & size", "Language" },
+    }
+
+    local function labelIn(card, text)
+      for _, child in ipairs(card.children) do
+        if child.kind == "FontString" and child.textValue == text then return child end
+      end
+      error("no label " .. text)
+    end
+    -- The TOPLEFT or TOPRIGHT offset a widget was last placed at (the short SetPoint form).
+    local function top(node, point)
+      for _, p in ipairs(node.points) do
+        if p[1] == (point or "TOPLEFT") then return type(p[2]) == "number" and p[3] or p[5] end
+      end
+    end
+    local function scrollChild(panel)
+      local scroll
+      walk(panel, function(node) if node.kind == "ScrollFrame" then scroll = node end end)
+      return scroll.scrollChild
+    end
+    local function layOut(card, width)
+      card.width = width
+      card.scripts.OnSizeChanged(card, width, card.height)
+    end
+
+    it("wraps, breaks a long word and is bound by its width alone", function()
+      GC.SettingsUI.Toggle()
+      for title, labels in pairs(ROWS) do
+        local card = cardByTitle(_G.GoldCapSniperFrame, title)
+        for _, text in ipairs(labels) do
+          local label = labelIn(card, text)
+          assert.is_true(label.wordWrap, text)
+          assert.is_true(label.nonSpaceWrap, text)
+          for _, p in ipairs(label.points) do assert.not_equal("RIGHT", p[1], text) end
+        end
+      end
+    end)
+
+    it("takes the room its control leaves, and its row grows for a second line", function()
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      -- 256 is a card at the 640 minimum. "Stop and open the buy window on your price" needs two
+      -- lines in the 188 a toggle leaves; the rest of AUTOMATION & ALERTS one.
+      local automation = cardByTitle(panel, "AUTOMATION & ALERTS")
+      layOut(automation, 256)
+      local stop = labelIn(automation, "Stop and open the buy window on your price")
+      assert.equal(256 - 12 - 36 - 8 - 12, stop.width)
+      assert.equal(-(24 + 3 * 26), top(stop))
+      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+
+      -- DISPLAY: "Font scale" in the 58 the slider leaves and "Window position & size" in the 104
+      -- the reset button leaves take two lines; the button and the language row move down.
+      local display = cardByTitle(panel, "DISPLAY")
+      layOut(display, 256)
+      assert.equal(256 - 12 - 166 - 8 - 12, labelIn(display, "Font scale").width)
+      assert.equal(256 - 12 - 120 - 8 - 12, labelIn(display, "Window position & size").width)
+      assert.equal(-(24 + 34), top(labelIn(display, "Window position & size")))
+      assert.equal(-(24 + 34) + 3, top(buttonIn(display, "RESET WINDOW"), "TOPRIGHT"))
+      assert.equal(-(24 + 34 + 34), top(labelIn(display, "Language")))
+      assert.equal(24 + 34 + 34 + 26 + 6, display.height)
+
+      -- M7: the cancel threshold's label wraps inside POSTING, which grows for it. Default price
+      -- takes its label's line and a line of buttons under it (24 + 26), and its rule three lines
+      -- (48).
+      local posting = cardByTitle(panel, "POSTING")
+      layOut(posting, 256)
+      assert.equal(256 - 12 - 64 - 8 - 12, labelIn(posting, "Min. undercut to cancel (%)").width)
+      assert.equal(24 + 26 + (24 + 26) + 48 + 26 + 34 + 6, posting.height)
+
+      -- The scroll child follows the taller column.
+      local left, right = 7, 7
+      for i, title in ipairs({ "WHAT COUNTS AS A DEAL", "RISK CHECKS", "VENDOR" }) do
+        left = left + (i > 1 and 12 or 0) + cardByTitle(panel, title).height
+      end
+      for i, title in ipairs({ "POSTING", "AUTOMATION & ALERTS", "DISPLAY" }) do
+        right = right + (i > 1 and 12 or 0) + cardByTitle(panel, title).height
+      end
+      assert.equal(math.max(left, right) + GC.Theme.pad.m, scrollChild(panel).height)
+    end)
+
+    it("lays every card out again when the font scale changes", function()
+      local hooks = {}
+      GC.Theme.OnRescale = function(fn) hooks[#hooks + 1] = fn end
+      GC.SettingsUI.Toggle()
+      local automation = cardByTitle(settingsPanel(), "AUTOMATION & ALERTS")
+      automation.width = 256
+      for _, fn in ipairs(hooks) do fn(1.3) end
+      assert.equal(188, labelIn(automation, "Stop and open the buy window on your price").width)
+      assert.equal(24 + 3 * 26 + 34 + 6, automation.height)
+    end)
+  end)
+
+  it("writes the Better at vendor toggle to settings.sniper", function()
+    GC.db.settings.sniper.vendorWorth = true
+    GC.db.vendorKeep = {}
+    GC.SettingsUI.Toggle()
+    local card = cardByTitle(_G.GoldCapSniperFrame, "VENDOR")
+    local toggle = toggleOf(card, "Better at vendor")
+    toggle.checkButton.scripts.OnClick(toggle.checkButton)
+    assert.is_false(GC.db.settings.sniper.vendorWorth)
   end)
 
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()
@@ -811,5 +1126,42 @@ describe("Settings controls", function()
     assert.is_false(settingsPanel():IsShown())
     assert.equal("ghost", gear.variant)
     assert.equal(1, refreshRailActiveCalls)
+  end)
+  describe("the settings cards", function()
+    -- The cards scroll under the header, so the window keeps its 470 and a column taller than the
+    -- drawer is reached by scrolling.
+    it("sits in the scroll child, which is as tall as the taller column", function()
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+      local source = file:read("*a")
+      file:close()
+      assert.equal(470, tonumber(source:match("WIN%.RESIZE_MIN_HEIGHT = (%d+)")))
+      GC.SettingsUI.Toggle()
+      local panel = settingsPanel()
+      local scroll
+      walk(panel, function(node) if node.kind == "ScrollFrame" then scroll = node end end)
+      assert.is_not_nil(scroll, "the cards are not in a scroll frame")
+      assert.equal(panel, scroll.parent)
+      local content = scroll.scrollChild
+      local left, right = {}, {}
+      for _, title in ipairs({ "WHAT COUNTS AS A DEAL", "RISK CHECKS", "VENDOR" }) do
+        left[#left + 1] = cardByTitle(panel, title)
+      end
+      -- RISK CHECKS and VENDOR stack, each on its own anchor.
+      assert.equal(left[2], left[3].points[1][2])
+      for _, title in ipairs({ "POSTING", "AUTOMATION & ALERTS", "DISPLAY" }) do
+        right[#right + 1] = cardByTitle(panel, title)
+      end
+      local function column(cards)
+        local height = 7
+        for i, c in ipairs(cards) do
+          assert.equal(content, c.parent)
+          height = height + (i > 1 and 12 or 0) + c.height
+        end
+        return height
+      end
+      assert.equal(math.max(column(left), column(right)) + GC.Theme.pad.m, content.height)
+      -- The bar shows only when there is something to scroll.
+      assert.is_true(scroll.scrollBarHideable)
+    end)
   end)
 end)

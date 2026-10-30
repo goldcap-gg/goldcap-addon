@@ -203,6 +203,9 @@ local function expiryBucket(now, daysLeft)
   if expiresAt ~= expiresAt or expiresAt == math.huge or expiresAt > MAX_EXACT then return nil end
   return math.floor(expiresAt / BUCKET_SECONDS)
 end
+-- Core/MailStock.lua keys the attachments it has seen by the same bucket.
+GC.Ledger.ExpiryBucket = expiryBucket
+GC.Ledger.BUCKET_SECONDS = BUCKET_SECONDS
 
 local function valueFingerprint(fields)
   local copy = {}
@@ -235,6 +238,8 @@ end
 -- twins are split by the snapshot multiset (`used` in planSnapshot), and a
 -- collected mail's occurrence is retired before its value-twin can arrive.
 local BUCKET_MATCH_TOLERANCE = 13
+-- Core/MailStock.lua matches the attachments it has seen within the same tolerance.
+GC.Ledger.BUCKET_MATCH_TOLERANCE = BUCKET_MATCH_TOLERANCE
 
 local function occurrenceMatches(occurrence, identity, bucket, invoiceClass, context)
   return occurrenceIsActive(occurrence) and occurrence.identity == identity
@@ -455,8 +460,64 @@ local function noInvoicePatterns(formats)
   return patterns
 end
 
-local function readInboxMail(api, index, context, now, noInvoice)
-  local headerOk, _, _, sender, subject, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)
+-- The two lapsed-auction subjects that bring a lot back, for SELL's unsold rounds
+-- (Core/MailReturns.lua): `subjects` is the scan's noInvoiceSubjects, keyed by the client's own
+-- names (expired = AUCTION_EXPIRED_MAIL_SUBJECT, cancelled = AUCTION_REMOVED_MAIL_SUBJECT). An
+-- outbid mail brings back gold, not a lot.
+local function returnPatterns(subjects)
+  if type(subjects) ~= "table" then return {} end
+  local kinds = {}
+  for _, reason in ipairs({ "expired", "cancelled" }) do
+    if type(subjects[reason]) == "string" then
+      kinds[#kinds + 1] = { reason = reason, patterns = noInvoicePatterns({ subjects[reason] }) }
+    end
+  end
+  return kinds
+end
+
+local ATTACHMENT_SLOTS = 16
+
+-- The lot a lapsed-auction mail brought back: a list of { itemID, count, reason, expiresAt }, one
+-- per item it holds (a lot is one item, in as many stacks as the auction house split it into), or
+-- {} for a mail of no lot, or false while the client has not loaded every attachment yet.
+-- `itemCount` is the header's own count of the attachments; a slot emptied by a take leaves a
+-- hole, so the slots are read until that many are found.
+local function returnedLot(api, index, subject, now, daysLeft, itemCount, kinds)
+  local reason
+  for _, kind in ipairs(kinds) do
+    for _, pattern in ipairs(kind.patterns) do
+      if subject:find(pattern) then reason = kind.reason; break end
+    end
+    if reason then break end
+  end
+  if not reason then return {} end
+  local bucket = expiryBucket(now, daysLeft)
+  if not bucket or not exactNonNegative(itemCount) then return false end
+  local counts, order, found = {}, {}, 0
+  for slot = 1, ATTACHMENT_SLOTS do
+    if found >= itemCount then break end
+    local ok, _, itemID, _, count = pcall(api.GetInboxItem, index, slot)
+    if ok and itemID ~= nil then
+      if type(itemID) ~= "number" then return false end
+      found = found + 1
+      if not counts[itemID] then order[#order + 1] = itemID end
+      counts[itemID] = (counts[itemID] or 0) + (type(count) == "number" and count or 1)
+    end
+  end
+  if found < itemCount then return false end
+  local lots = {}
+  for _, itemID in ipairs(order) do
+    lots[#lots + 1] = { itemID = itemID, count = counts[itemID], reason = reason,
+      expiresAt = bucket * BUCKET_SECONDS }
+  end
+  return lots
+end
+
+-- `kinds` (returnPatterns) is given only by ScanInbox, and only where the returns log is loaded:
+-- then a lapsed auction's lot comes back as the third value (returnedLot).
+local function readInboxMail(api, index, context, now, noInvoice, kinds)
+  local headerOk, _, _, sender, subject, _, _, daysLeft, attachments, _, _, _, canReply =
+    pcall(api.GetInboxHeaderInfo, index)
   if not headerOk then return nil, "incomplete" end
   local invoiceOk, invoiceType, itemName, _, bid, buyout, deposit, consignment,
     moneyDelay, _, _, itemCount = pcall(api.GetInboxInvoiceInfo, index)
@@ -470,7 +531,9 @@ local function readInboxMail(api, index, context, now, noInvoice)
     if canReply == true then return nil, "ignored" end
     if type(subject) == "string" then
       for _, pattern in ipairs(noInvoice or {}) do
-        if subject:find(pattern) then return nil, "ignored" end
+        if subject:find(pattern) then
+          return nil, "ignored", kinds and returnedLot(api, index, subject, now, daysLeft, attachments, kinds)
+        end
       end
     end
     return nil, "incomplete"
@@ -509,6 +572,14 @@ local function readInboxMail(api, index, context, now, noInvoice)
   }
 end
 
+-- Whether a scan can record anything at all: a ledger, and a character and a region to record
+-- under.
+local function canRecord(context)
+  return db ~= nil and type(context) == "table"
+    and type(context.char) == "string" and context.char ~= ""
+    and type(context.region) == "string" and context.region ~= ""
+end
+
 -- Whether this mailbox visit has shown any row yet. Mail probe, retail 2026-10-11:
 -- GetInboxNumItems() reads 0 at MAIL_SHOW on every visit and the rows arrive 0.2 to 0.3 s later,
 -- so an empty pass before the first row is the inbox not loaded yet, never an empty inbox. That
@@ -517,14 +588,28 @@ end
 -- after rows were seen is the player having emptied the inbox, and still retires them.
 local inboxRowsSeen = false
 
+-- The item a new sale mail sold, for SELL's unsold rounds (Core/SellRounds.lua): the position the
+-- sale was applied to when ReconcileSale placed it, else the one item this character listed under
+-- the mail's name (farmed goods have no purchase to place the sale on). `listed` is the scan's
+-- own cache, so the listing index is built at most once per scan. nil when neither names it.
+local function soldItemID(stored, reconciled, context, listed)
+  if type(reconciled) == "table" and reconciled.status == "applied" and reconciled.positionKey then
+    local id = GC.SoldView.PositionItemID(reconciled.positionKey)
+    if id then return id end
+  end
+  if listed.index == nil then
+    listed.index = GC.SoldView.ListedIndex(GC.Acquisitions and GC.Acquisitions.GetActivities
+      and GC.Acquisitions.GetActivities(context) or {})
+  end
+  return GC.SoldView.ListedItemID(listed.index, stored.itemName, context.char, context.region)
+end
+
 -- Walks the inbox and records every auction invoice it can read.  Occurrence
 -- reconciliation deliberately waits until every row in the snapshot is known
 -- good; a partial read is informative only to the mailbox UI and cannot erase
 -- durable presence state. `opening` is true for the pass MAIL_SHOW runs.
 function GC.Ledger.ScanInbox(api, context, now, opening)
-  if not db or type(context) ~= "table"
-      or type(context.char) ~= "string" or context.char == ""
-      or type(context.region) ~= "string" or context.region == "" then return 0 end
+  if not canRecord(context) then return 0 end
   now = now or time()
   local ok, count, total = pcall(api.GetInboxNumItems)
   if not ok or not exactNonNegative(count) then return 0 end
@@ -543,28 +628,53 @@ function GC.Ledger.ScanInbox(api, context, now, opening)
   local mails, complete = {}, true
   if count == 0 and not inboxRowsSeen then complete = false end
   if count > 0 then inboxRowsSeen = true end
-  -- The inbox shows at most 50 mails, and the second return counts them all: a mail past the
-  -- shown ones is out of view, not gone.
-  if exactNonNegative(total) and total > count then complete = false end
+  -- The inbox shows at most 100 mails (MAX_INBOX_SIZE in Blizzard_MailFrame/MailFrame.lua), and
+  -- the second return counts them all: a mail past the shown ones is out of view, not gone.
+  local allShown = not (exactNonNegative(total) and total > count)
+  if not allShown then complete = false end
   local noInvoice = noInvoicePatterns(api.noInvoiceSubjects)
+  -- The lots that came back, for SELL's unsold rounds: this scan sees every lapsed-auction mail
+  -- whoever takes it, so the returns log is written here and nowhere else. Retail only: where
+  -- Core/MailReturns.lua is not loaded (WoW: Forever) no attachment is read.
+  local kinds = GC.MailReturns and returnPatterns(api.noInvoiceSubjects) or nil
+  local lots, lotsRead = {}, true
   for index = 1, count do
-    local mail, state = readInboxMail(api, index, context, now, noInvoice)
+    local mail, state, lot = readInboxMail(api, index, context, now, noInvoice, kinds)
     if state == "incomplete" then complete = false end
     if mail then mail.index = index; mails[#mails + 1] = mail end
+    if lot == false then
+      lotsRead = false
+    elseif lot then
+      for _, one in ipairs(lot) do lots[#lots + 1] = one end
+    end
   end
+  -- Before the invoices, and stamped with the same `now` as a new sale below: a lot and a sale of
+  -- one item first read in the same pass leave a round (SellRounds counts a return stamped in the
+  -- same second as the item's last sale as after it: a batch's unsold lots expire after its sales).
+  if kinds then GC.MailReturns.Observe(lots, context, now, complete and lotsRead) end
+  -- What waits in the mailbox, which BUY and the craft queue count as held (Core/MailStock.lua,
+  -- retail only). Every pass goes to it: it keeps its own visit, and its own rule for an empty one.
+  if GC.MailStock then GC.MailStock.Observe(api, count, total, context.char, now, opening) end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
   commitOccurrencePlan(plan, context, complete)
 
-  local created = 0
+  local created, listed = 0, {}
   for _, mail in ipairs(plan.mails) do
     local stored, isNew, appendError = GC.Ledger.Append(mail.entry)
     if not appendError and stored then
       if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
         GC.Acquisitions.ReconcileBuy(stored)
       end
+      local reconciled
       if stored.kind == "sale" and GC.Acquisitions and GC.Acquisitions.ReconcileSale then
-        GC.Acquisitions.ReconcileSale(stored)
+        reconciled = GC.Acquisitions.ReconcileSale(stored)
+      end
+      -- A new sale ends the item's run of unsold rounds: a followed flip group's next post
+      -- starts at the usual price again. Retail only (both modules are guarded).
+      if isNew and stored.kind == "sale" and GC.SellRounds and GC.SoldView then
+        local soldID = soldItemID(stored, reconciled, context, listed)
+        if soldID then GC.SellRounds.Sold(soldID, stored.at) end
       end
       if isNew then
         created = created + 1

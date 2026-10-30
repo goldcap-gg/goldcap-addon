@@ -333,7 +333,10 @@ end
 function GC.Flips.CommodityDeposit(itemID, quantity)
   local ah = _G.C_AuctionHouse
   if type(ah) ~= "table" or type(ah.CalculateCommodityDeposit) ~= "function" then return nil end
-  return ah.CalculateCommodityDeposit(itemID, GC.Flips.PostDurationIndex(), quantity)
+  -- A followed group's duration for the item comes first (Core/GroupRules.lua's plain table).
+  local duration = GC.GroupRules and GC.GroupRules.durationByItem[itemID]
+  if duration ~= 1 and duration ~= 2 and duration ~= 3 then duration = GC.Flips.PostDurationIndex() end
+  return ah.CalculateCommodityDeposit(itemID, duration, quantity)
 end
 
 -- Overcut v2 (docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). The

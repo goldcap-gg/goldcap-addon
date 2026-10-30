@@ -50,6 +50,10 @@ GC.DEFAULTS = {
   -- post-next key list (Core/PostQueue.lua's Selling). Account-wide: an item sold on one character
   -- is sold on all of them. Same empty-table ApplyDefaults contract as `flips` above.
   sellMarks = {},
+  -- itemID -> true: items the player chose "Never sell this" for on the Sell to vendor card.
+  -- Account-wide; an entry for an item no longer owned is harmless. Same empty-table
+  -- ApplyDefaults contract as `sellMarks` above.
+  vendorKeep = {},
   -- Live observations: bounded facts about the book the client just saw, for the companion
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.
@@ -119,6 +123,10 @@ GC.DEFAULTS = {
       -- default because the measurement says so; off posts at the cheapest ask instead.
       -- ApplyDefaults fills it in on existing saves.
       overcut = true,
+      -- The Sell to vendor card (UI/VendorSellCard.lua, retail only): sell unbound items a vendor
+      -- pays as much for as the auction house would after its cut. On; the VENDOR card in
+      -- Settings turns it off. Grey items are the game's own Sell All Junk button's.
+      vendorWorth = true,
       -- Whether the deals list shows rows the background live check has refused. Off by
       -- default: the point of checking in the background is that the list stops offering
       -- flips a Check has already ruled out. Owned by the Deals toolbar's own toggle (see
@@ -304,8 +312,9 @@ pcall(function() frame:RegisterEvent("AUCTION_CANCELED") end)
 frame:RegisterEvent("MAIL_SHOW")
 frame:RegisterEvent("MAIL_INBOX_UPDATE")
 -- Sniper v3 §3: MAIL_CLOSED has no ledger use (there's nothing left to scan once the mailbox
--- closes) -- registered purely so the Sniper's Auto mode can resume once the player's done
--- with mail. MAIL_SHOW is forwarded to the Sniper too, below, alongside its existing ledger use.
+-- closes) -- registered so the Sniper's Auto mode can resume once the player's done with mail,
+-- and so Core/MailStock.lua's visit ends. MAIL_SHOW is forwarded to the Sniper too, below,
+-- alongside its existing ledger use.
 frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 -- BAG_UPDATE_DELAYED, not BAG_UPDATE: the delayed form fires once after a burst of container
@@ -315,10 +324,12 @@ frame:RegisterEvent("BAG_UPDATE_DELAYED")
 -- Each in its own pcall, like AUCTION_CANCELED above: an event a client does not know must not take
 -- the rest of the registrations with it.
 -- CURSOR_CHANGED tells Core/VendorBuys.lua that a picked-up merchant item was dropped or put back.
-for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED" }) do
+-- MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL stops the Sell to vendor card's run (UI/VendorSellCard.lua).
+for _, merchantEvent in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "CURSOR_CHANGED",
+    "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" }) do
   pcall(frame.RegisterEvent, frame, merchantEvent)
 end
--- At a bank: what to carry between realms through the Warband Bank (UI/BankRoute.lua, retail only).
+-- At a bank: the GoldCap Hoard (UI/HoardFrame.lua) through UI/BankRoute.lua's handlers, retail only.
 -- A move into or out of a Warband Bank tab is PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED; one in the bags,
 -- BAG_UPDATE_DELAYED. Each in its own pcall, like the merchant events above.
 for _, bankEvent in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" }) do
@@ -329,6 +340,8 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
 -- resolves an id it did not have cached yet. Core/ItemNames.lua.
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+-- Seconds after the first loading screen of a load before the Companion's chat line (UI/WelcomeFrame.lua).
+local LOGIN_LINE_DELAY = 5
 frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 -- Craft capture (Core/CraftCapture.lua). UNIT_SPELLCAST_SENT, not _SUCCEEDED: the materials
 -- leave the bags during the craft, so the snapshot this opens a session with has to be taken
@@ -430,6 +443,20 @@ local function ensureCraftTicker()
   if C_Timer and C_Timer.NewTicker then craftTicker = C_Timer.NewTicker(1, pumpCraftCapture) end
 end
 
+-- The client's one commodity purchase is somebody else's: Core/PurchaseCapture.lua saw a Start
+-- that was not ours (Blizzard's own buy window, or another addon). Its quote names no attempt, and
+-- both windows would read it as the answer to a Start of their own: the Deals window, still
+-- draining a Start it had cancelled, sent Cancel on it, so a purchase in Blizzard's window only
+-- refreshed until that drain ran out, 20 seconds on (owner, 2026-10-23). So neither window is
+-- offered it; each drops, without a Cancel, what it still waited on there. True when it was so.
+local function foreignQuote()
+  local capture = GC.PurchaseCapture
+  if not (capture and capture.SessionIsForeign and capture.SessionIsForeign()) then return false end
+  if GC.Buy and GC.Buy._OnForeignPurchase then GC.Buy._OnForeignPurchase() end
+  if GC.Sniper._OnForeignPurchase then GC.Sniper._OnForeignPurchase() end
+  return true
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -516,7 +543,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
       GC.Sniper._RebuildKeyTargets()
     end
+    -- The followed groups' selling rules ride in the same file (Core/GroupRules.lua, retail only).
+    if GC.GroupRules then GC.GroupRules.Adopt() end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    -- SELL's unsold rounds for followed groups (Core/SellRounds.lua, retail only).
+    if GC.SellRounds then GC.SellRounds.Init(GC.db) end
+    if GC.MailReturns then GC.MailReturns.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
     -- ready once the database is.
@@ -741,6 +773,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
         GC.Sniper._RebuildKeyTargets()
       end
+      if GC.GroupRules then GC.GroupRules.Adopt() end
       -- The BUY tab too: a new session cannot answer for the last one, so what the last one left
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end
@@ -868,14 +901,17 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- holds the slot (it released it on the way out), so an ownership gate made that whole path
     -- unreachable and handed those successes to the Sniper. GC.Buy.mayOwnTerminal is where the
     -- "can this be ours" question now lives, slot included.
+    --
+    -- A quote that answers somebody else's Start goes to neither window (foreignQuote).
     local unitPrice, totalPrice = ...
-    if not (GC.Buy and GC.Buy.OnCommodityPriceUpdated
+    if not foreignQuote() and not (GC.Buy and GC.Buy.OnCommodityPriceUpdated
         and GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)) then
       if GC.Sniper.OnCommodityPriceUpdated then GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice) end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
-    if not (GC.Buy and GC.Buy.OnCommodityPriceUnavailable and GC.Buy.OnCommodityPriceUnavailable()) then
+    if not foreignQuote() and not (GC.Buy and GC.Buy.OnCommodityPriceUnavailable
+        and GC.Buy.OnCommodityPriceUnavailable()) then
       if GC.Sniper.OnCommodityPriceUnavailable then GC.Sniper.OnCommodityPriceUnavailable() end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end
@@ -959,9 +995,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GetInboxInvoiceInfo = GetInboxInvoiceInfo,
         GetInboxItem = GetInboxItem,
         -- The client's own subjects for the auction mails that never carry an invoice; a
-        -- global this client lacks is simply absent, and its mails stay "not loaded yet".
-        noInvoiceSubjects = { AUCTION_EXPIRED_MAIL_SUBJECT, AUCTION_REMOVED_MAIL_SUBJECT,
-          AUCTION_OUTBID_MAIL_SUBJECT },
+        -- global this client lacks is simply absent, and its mails stay "not loaded yet". Keyed,
+        -- so the scan can tell a lot that came back (expired, cancelled) for the returns log.
+        noInvoiceSubjects = { expired = AUCTION_EXPIRED_MAIL_SUBJECT, cancelled = AUCTION_REMOVED_MAIL_SUBJECT,
+          outbid = AUCTION_OUTBID_MAIL_SUBJECT },
       }, GC.Ledger.Context(), nil, event == "MAIL_SHOW")
     end
     -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
@@ -974,6 +1011,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnMailClosed then
       GC.Sniper.OnMailClosed()
     end
+    -- The visit Core/MailStock.lua counts the mailbox over ends here (retail only).
+    if GC.MailStock then GC.MailStock.Closed() end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
     -- The Deals board's "not enough gold" line reads the wallet (UI/SniperFrame.lua).
@@ -1018,16 +1057,23 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
     -- A sale or a buyback at a vendor changes what the vendor note counts.
     if GC.MerchantNote then GC.MerchantNote.OnBagsChanged() end
-    -- An item put into or taken out of the Warband Bank, by a press or by hand.
+    -- ... and what the Sell to vendor card would sell.
+    if GC.VendorSellCard then GC.VendorSellCard.OnBagsChanged() end
+    -- An item put into or taken out of a bank, by a press or by hand.
     if GC.BankRoute then GC.BankRoute.OnBagsChanged() end
   elseif event == "CURSOR_CHANGED" then
     if GC.VendorBuys then GC.VendorBuys.OnCursorChanged(time()) end
   elseif event == "MERCHANT_SHOW" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantShow() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantShow() end
   elseif event == "MERCHANT_UPDATE" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantUpdate() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantUpdate() end
   elseif event == "MERCHANT_CLOSED" then
     if GC.BuyVendorPanel then GC.BuyVendorPanel.OnMerchantClosed() end
+    if GC.VendorSellCard then GC.VendorSellCard.OnMerchantClosed() end
+  elseif event == "MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL" then
+    if GC.VendorSellCard then GC.VendorSellCard.OnTradeTimerConfirm() end
   elseif event == "BANKFRAME_OPENED" then
     if GC.BankRoute then GC.BankRoute.OnBankOpened() end
   elseif event == "BANKFRAME_CLOSED" then
@@ -1049,6 +1095,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.ForeverRoad then GC.ForeverRoad.OnEnteringWorld() end
     if GC.ForeverLoot then GC.ForeverLoot.MaybeIntro() end
+    -- The Companion's line in chat (UI/WelcomeFrame.lua), once a load, a few seconds after the
+    -- loading screen so the client's own login lines do not bury it.
+    if not GC._saidAtLogin and GC.WelcomeUI and GC.WelcomeUI.SayAtLogin then
+      GC._saidAtLogin = true
+      C_Timer.After(LOGIN_LINE_DELAY, function() pcall(GC.WelcomeUI.SayAtLogin) end)
+    end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
@@ -1087,6 +1139,11 @@ function GC.OnSlash(msg)
     handler(rest)
   else
     GC.Print("v" .. GC.version .. GC.L[" · commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
+    -- Where the minimap button is loaded (UI/MinimapButton.lua, retail only), how to show or hide
+    -- it: besides the line printed as it hides, the only place a player learns the command.
+    if GC.slashHandlers.minimap then
+      GC.Print(GC.L["/goldcap minimap shows or hides the GoldCap button by the minimap."])
+    end
   end
 end
 

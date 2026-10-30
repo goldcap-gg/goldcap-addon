@@ -137,6 +137,24 @@ describe("BuyCapEditor", function()
     assert.is_false(f:IsShown())
   end)
 
+  -- A window that goes away takes its question with it, and only its own (the bank by group card's
+  -- keep count, when the bank closes).
+  it("closes for the frame it opened under, and for no other, without committing", function()
+    local f = GC.BuyCapEditor._frame
+    local other, mine = region("Frame"), region("Frame")
+    GC.BuyCapEditor.CloseFor(other)
+    assert.is_true(f:IsShown())
+    GC.BuyCapEditor.Open(mine, { title = "x", current = 1, onCommit = function(c) committed = c end })
+    GC.BuyCapEditor.CloseFor(other)
+    assert.is_true(f:IsShown())
+    GC.BuyCapEditor.CloseFor(mine)
+    assert.is_false(f:IsShown())
+    assert.equal("untouched", committed)
+    GC.BuyCapEditor.Open(other, { title = "x", current = 1, onCommit = function() end })
+    GC.BuyCapEditor.CloseFor(mine)
+    assert.is_true(f:IsShown())
+  end)
+
   it("Enter commits like Set", function()
     local f = GC.BuyCapEditor._frame
     f.box:SetText("2s"); f.box.scripts.OnEnterPressed(f.box)
@@ -166,6 +184,26 @@ describe("BuyCapEditor", function()
       f.box.scripts.OnEnterPressed(f.box)
       assert.equal("Herbs", named)
       assert.is_false(f:IsShown())
+    end)
+
+    -- The Send to alts window's typed name: read answers nil and why, and the popup says that why;
+    -- nil alone keeps the popup's own invalid text.
+    it("stays open on the reason read gives for refusing a name", function()
+      local named = "untouched"
+      GC.BuyCapEditor.Open(region("Frame"), { text = "", invalid = "Type a name",
+        read = function(text)
+          if text == "Far" then return nil, "Not from here" end
+          if text == "" then return nil end
+          return text
+        end,
+        onCommit = function(text) named = text end })
+      local f = GC.BuyCapEditor._frame
+      f.box:SetText("Far"); f.box.scripts.OnEnterPressed(f.box)
+      assert.equal("Not from here", f.preview:GetText())
+      assert.is_true(f:IsShown())
+      f.box:SetText(""); f.box.scripts.OnEnterPressed(f.box)
+      assert.equal("Type a name", f.preview:GetText())
+      assert.equal("untouched", named)
     end)
 
     it("keeps the name as it was on Escape", function()

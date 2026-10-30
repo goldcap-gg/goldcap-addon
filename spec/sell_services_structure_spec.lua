@@ -47,13 +47,14 @@ describe("Services/Sell", function()
         if entry == helper.SELL_FILES[1] then first = i end
         if entry == "Core/QuoteCache.lua" then cache = i end
         if not ui and entry:match("^UI/") then ui = i end
-        if entry:match("^Services/") then count = count + 1 end
+        -- Services/Sell/ only: Services/CraftClient.lua (retail crafting) is a service of its own.
+        if entry:match("^Services/Sell/") then count = count + 1 end
       end
       assert.is_not_nil(first, toc .. " does not load " .. helper.SELL_FILES[1])
       local block = {}
       for i = first, first + #helper.SELL_FILES - 1 do block[#block + 1] = entries[i] end
       assert.same(helper.SELL_FILES, block, toc)
-      assert.equal(#helper.SELL_FILES, count, toc .. " loads a Services file helper.SELL_FILES does not list")
+      assert.equal(#helper.SELL_FILES, count, toc .. " loads a Services/Sell file helper.SELL_FILES does not list")
       assert.is_true(cache < first, toc .. ": Core/QuoteCache.lua must load before the services")
       assert.is_true(first + #helper.SELL_FILES - 1 < ui, toc .. ": the services must load before any UI file")
     end
@@ -74,6 +75,17 @@ describe("Services/Sell", function()
       end
       assert.is_true(count < 1000, ("%s has %d lines"):format(path, count))
       assert.is_true(locals < 150, ("%s has %d top-level locals"):format(path, locals))
+    end
+  end)
+
+  -- Post.lua sat one line under the limit above; a lot's cancel, from its arm to the answer it
+  -- owes the tab once sent, is its own file, so either half has room for the next change.
+  it("keeps a lot's cancel in Services/Sell/Cancel.lua, apart from the post", function()
+    local post, cancel = read("GoldCap/Services/Sell/Post.lua"), read("GoldCap/Services/Sell/Cancel.lua")
+    for _, header in ipairs({ "function Post.PrepareCancel(row, auctionID, now)", "function Post.Cancelling(row, pin, scope)",
+        "function Post.CancelSent()", "function Post.DisarmRepost()" }) do
+      assert.is_nil(post:find(header, 1, true), "Services/Sell/Post.lua still holds " .. header)
+      assert.is_truthy(cancel:find(header, 1, true), "Services/Sell/Cancel.lua does not hold " .. header)
     end
   end)
 

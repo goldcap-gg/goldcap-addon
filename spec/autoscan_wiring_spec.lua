@@ -334,4 +334,17 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
 
     assert.is_falsy(autoScan:PauseReasons().sell)
   end)
+
+  -- SCAN pressed on Blizzard's Buy pane after the player's own search there (owner 2026-10-23):
+  -- the press hands the list to GoldCap before it arms the pass, or the pass waits behind that
+  -- search with Auto until the auction house closes.
+  it("SCAN releases the player's own list before it starts the pass", function()
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua"))
+    local text = file:read("*a")
+    file:close()
+    local body = helper.functionBody(text, "local function onFullScanClick()")
+    local release = assert(body:find("tab.ReleaseBrowseList()", 1, true))
+    local start = assert(body:find("startFullScan()", 1, true))
+    assert.is_true(release < start)
+  end)
 end)

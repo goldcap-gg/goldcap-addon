@@ -170,8 +170,8 @@ local function bodyText(s)
   return GC.L["GoldCap knows only what your own scans of this auction house found. With GoldCap Companion you also get the scans of every GoldCap player here: more items with a price, and newer prices."]
 end
 
--- The tabs, then the carry list at a bank (UI/BankRoute.lua): retail only, as goldcap.gg works
--- out where flips sell for retail realms alone.
+-- The tabs, then the GoldCap Hoard at a bank (UI/HoardFrame.lua): retail only, as is the bank code
+-- it stands on (UI/BankRoute.lua).
 local FEATURES = {
   { icon = "deals", name = "DEALS" },
   { icon = "sell", name = "SELL" },
@@ -510,6 +510,45 @@ function GC.WelcomeUI.MaybeShow()
   if not mode then return end
   open(mode, false, status)
   GC.Welcome.MarkShown(w, status, now)
+end
+
+-- The chat line's link: Blizzard's own link type for an addon (LinkTypes.AddOn, "addon", in both
+-- games' Blizzard_SharedXML/LinkUtil.lua), whose click reaches EventRegistry's "SetItemRef" for the
+-- addon to answer (Blizzard_UIPanels_Game/Shared/ItemRefHandlersShared.lua). A chat link cannot open
+-- a browser, so it opens this window, its link ready to copy. In the colour the game's own spell
+-- links wear.
+local LINK_ID = "addon:GoldCap:companion"
+local LINK = "|cff71d5ff|H" .. LINK_ID .. "|h[GoldCap Companion]|h|r"
+
+-- The chat line for a state that asks something of the player, the link last.
+local function loginText(s)
+  local k = s.kind
+  if k == "bundled" then
+    return GC.L["No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: %s"]:format(LINK)
+  elseif k == "manual" or k == "manual_stale" then
+    return GC.L["Your pasted prices are %s old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: %s"]:format(ago(s.age), LINK)
+  elseif (k == "app_stale" or k == "crowd_stale") and s.age then
+    return GC.L["GoldCap Companion has not sent prices for %s. Check that it is running, its icon sits next to the clock: %s"]:format(ago(s.age), LINK)
+  elseif k == "error" then
+    return GC.L["Could not read what the Companion wrote. Update GoldCap and GoldCap Companion: %s"]:format(LINK)
+  elseif k == "own" then
+    return GC.L["GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: %s"]:format(LINK)
+  end
+  return GC.L["No prices from other players for this auction house yet. If GoldCap Companion is not running, start it: %s"]:format(LINK)
+end
+
+--- Coming into the world (Core/Init.lua, once a load): one line in chat while the window would ask
+--- something of the player (Core/Welcome.lua's SayAtLogin), its link opening the window.
+function GC.WelcomeUI.SayAtLogin()
+  local status = readStatus(time())
+  if not GC.Welcome.SayAtLogin(GC.db and GC.db.welcome, status) then return end
+  GC.Print(loginText(status))
+end
+
+if type(_G.EventRegistry) == "table" and _G.EventRegistry.RegisterCallback then
+  _G.EventRegistry:RegisterCallback("SetItemRef", function(_, link)
+    if link == LINK_ID then GC.CompanionUI.Show() end
+  end, GC.WelcomeUI)
 end
 
 GC.slashHandlers.companion = function() GC.CompanionUI.Show() end

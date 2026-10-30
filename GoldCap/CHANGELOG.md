@@ -1,5 +1,160 @@
 # GoldCap
 
+## 0.23.0 (2026-10-30)
+
+- Groups you follow on goldcap.gg come to the addon through the latest GoldCap Companion. Their
+  deals show on DEALS with a GROUP tag, their discount and their profit, sorted by profit with your
+  other deals. A group's deal shows only when reselling it makes a profit after the auction house
+  cut, at the group's usual price or the market's price, whichever is lower.
+- Without GoldCap Companion, or with it stopped, one line in chat at login says what it would
+  change for you. Click its link to open the Companion window with the download link ready to
+  copy. Don't remind me in that window turns the line off too.
+- Sell: an item nobody else has on the auction house can be posted. Post kept waiting for a live
+  price that never came and said "Pricing…" on every press. Once the auction house answers that
+  nothing is listed, Post lists at your price, the one you typed or GoldCap's, and the panel says
+  nothing is listed instead of waiting for an answer.
+- Sell: items the auction house does not accept, such as holiday candy that expires, no longer
+  show up as ready to post. Posting one used to wait a minute for an answer that never came.
+- Sell, in retail WoW: items from a group you follow are posted by its rules: how many at a time,
+  for how long, never under the group's floor price, and a little cheaper each time a flip comes
+  back unsold. The row shows the group, and its tooltip the rule.
+- Sell, in retail WoW: the CANCEL button asks once for the whole queue and shows the deposits you
+  lose, then cancels one lot per press. It cancels only the lots you confirmed: one that joins the
+  queue later is asked about again.
+- Sell, in retail WoW: a GROUPS row under the toolbar lists the groups you follow that have
+  something in your bags to post. Pick one and the list and POST go through that group alone, with
+  every item of it on the list without a mark, and a line under POST counts how many are done. MY
+  GROUPS does every group you follow, and ALL brings back the rest of your bags. The item panel
+  names a group's floor price above its advice.
+- Settings, in retail WoW: Default price in POSTING sets the price every item opens at on Sell:
+  GoldCap's own, the cheapest lot's, a little under it, or the market price. A group's floor price
+  still holds, and a price under what you paid still shows in red.
+- At a vendor, in retail WoW: a Sell to vendor card under the other GoldCap cards lists unbound
+  items a vendor pays at least as much for as the auction house would after its cut, and sells them
+  for you. It goes by an auction house price from the last 24 hours that came through the Companion
+  or an import, never by the prices built into the addon. Grey junk stays with the game's own Sell
+  All Junk button, so the card shows only when it has something else to sell. A press sells at
+  most 12 stacks, so everything it sold is still in the vendor's Buyback tab, and the card says how
+  many more are left. While it sells, its button reads Stop. Right click a line and choose Never
+  sell this to keep an item for good. WoW: Forever does not have the card yet.
+- In retail WoW the note beside the vendor window about items that fetch more on the auction house
+  no longer shows: the Sell to vendor card never lists those items.
+- Sell to vendor never sells items you can still return, tradeable raid loot, items in an
+  equipment set, items in bags you set to ignore junk selling, items you marked as ones you sell,
+  bound items, crafting reagents, weapons, armor or profession tools.
+- Bank, in retail WoW: GoldCap Hoard, a window beside the bank. It lists the groups you follow on
+  goldcap.gg with their items, how many of them are in your bags and in the bank, and what they are
+  worth. Store puts a group in the bank and Take out brings it back to your bags; Store all and
+  Take all out do every group, and ticking several groups moves just those. A bar in the group's
+  line shows the move as it goes, and Stop stops it. Groups that belong together on goldcap.gg sit
+  in a folder. With many groups, search them by group or item name and show only those with
+  something to move at this bank.
+- Bank: three tiles at the top of the Hoard do the right thing in one press. Prices are up takes
+  out what sells above its usual price right now, For your crafts takes out the reagents your
+  craft queue is missing, and Put away stores what you are not selling. Hover a tile to see what
+  it will move.
+- Bank: Make room puts everything from your bags into the bank but your hearthstone, and Put back
+  brings those items back later, even after a reload. Both work with no group followed: the Hoard
+  opens beside the bank all the same and says where to find groups.
+- Bank: pick your bank or the Warband Bank at the top of the Hoard. You can set how many of each
+  item stay in your bags, and Store leaves exactly that many, splitting a stack when it has to,
+  which needs one free bag slot. A stack that has to stay, because that bank does not take it or, for
+  the Warband Bank, because you can still return it for a refund, is named with why. The flips to
+  carry to another realm show in the Hoard too. Close it with the X, and a small Hoard button
+  beside the bank opens it again.
+- Mail, in retail WoW: Send to alts, a GoldCap window beside the mail frame at a mailbox. It lists
+  the groups you follow on goldcap.gg that have something in your bags. Pick once which of your
+  characters sells each group, and GoldCap remembers it for this realm and faction. Keep is the same
+  count as in the Hoard: exactly that many of each item stay in your bags, and GoldCap splits a stack
+  to send the rest, which needs one free bag slot. Send all sends everything in one
+  press, and the groups for one character share mails of up to 12 stacks. The postage shows first. A
+  name you type that is not one of your characters is asked about once before the first mail goes.
+  If one character's mail does not go, the others' still do, and GoldCap says whose did not. Gold is
+  never sent, and bound items and items you can still return for a refund stay in your bags. A
+  group's menu can set it not to be sent from this realm, and a line under the list shows such
+  groups again. Close it with the X, and a small button beside the mailbox opens it again. WoW:
+  Forever does not have it yet.
+- In retail WoW, a GoldCap button by the minimap opens the deals board and, for an enchanter,
+  Disenchant, and counts what is queued to disenchant. Its tooltip says how many of those are worth
+  disenchanting and how many GoldCap has not learned yet. Drag it to move it round the minimap.
+  Hide this button in its menu hides it, and /gc minimap brings it back. WoW: Forever does not have
+  it yet.
+- Disenchant, in retail WoW, for an enchanter: a window that names the next piece of gear worth
+  disenchanting and disenchants it with one press. Open it from the GoldCap button by the minimap,
+  with /gc disenchant, or with a key: bind one in Key Bindings, GoldCap, Disenchant next. Click a line
+  to disenchant that item next. Each line says whether the mats or a vendor pays more, and an item the
+  auction house or a vendor pays more for is left out, with Disenchant anyway beside it. Mats is
+  what your own disenchants of such items gave, at today's prices, so the window learns as you go.
+  Never on the list: items in an equipment set, items you can still return or trade, items in a
+  group you follow, items you keep (right click a line), and items the game would not disenchant.
+  In your bags a purple ring marks each item on the list, the next one brightest, a coin marks one
+  the auction house pays more for, and the item tooltip says where an item stands. In combat the
+  Disenchant button and its key do nothing.
+- DEALS: after your own search on the auction house's Buy tab, Auto waits so it does not replace
+  your results, and its button reads AUTO · WAITING: YOUR AH SEARCH. Click that button or SCAN and
+  Auto carries on at once, on the Items board too, with what you typed still in the search box.
+  Switching Auto on carries on the same way.
+- DEALS: while GoldCap checks prices, the list on the auction house's Buy tab shows its searches
+  and changes on its own. A panel over that list now says so while the GoldCap window is open.
+  Search, pick a category or click the star to use the list yourself, and GoldCap leaves it to you
+  until you click AUTO or SCAN.
+- DEALS, Items board: the AUTO button no longer says it is paused while the board keeps checking
+  its items. It says Auto is scanning, or what holds it.
+- DEALS, Items board: a row takes two lines at most. Under the item's name it says how soon the
+  item sells, or how often it sold this week, and Not collected when your account lacks it. Hover
+  the row for the rest: its sales on all realms, whether this realm is among the cheapest to buy
+  it on, and where it sells for more. When a long name needs both lines, the line under it moves
+  to the tooltip too. Rare finds rows say where this realm's price stands, with their sales in
+  the tooltip.
+- DEALS, Items board: GoldCap's buy window shows only what GoldCap knows about a realm item: what
+  you pay, its price across the region, how often it sold this week and where it sells for more.
+  SHOW DETAILS is gone there, its rows stayed empty for these items, and a single item has no
+  quantity row. A deal from a group you follow names the group and its price, not your price.
+- DEALS, Items board: when the lot you buy is the cheapest on your realm, the row no longer gives
+  that same price as the price to sell it at here. It says how soon it sells here, and points you
+  to another of your realms only when that pays more than the region's price.
+- DEALS, Items board: hovering a row shows one window. The windows that compare the item with what
+  you wear show only while you hold Shift, as anywhere in the game.
+- Buying in the auction house's own window goes through on the first press while GoldCap's buy
+  window has a price open, or just after you closed it: GoldCap no longer cancels that purchase.
+- BUY: a TSM group pasted into Import is named after the group, not after one of its subgroups. A
+  group with subgroups can also come in as one list per subgroup, each named "Group: Subgroup".
+- Settings, in retail WoW: a new POSTING setting cancels a lot only when someone undercuts you by
+  more than a set percent.
+- Settings, in retail WoW: the Vendor card turns the Sell to vendor card off with Better at vendor,
+  and forgets the items you kept.
+- Settings: no setting's name is cut short any more. A long one takes a second line in a narrow
+  window or at a large font size, and the cards scroll when they do not all fit.
+- Crafting, in retail WoW: under a recipe's reagents, GoldCap shows what the reagents you picked
+  cost, what one craft sells for after the auction house cut, and the profit. A reagent GoldCap
+  has no price for is named instead of a number.
+- Crafting, in retail WoW: a GoldCap panel beside the profession window names the profession you
+  have open. This recipe shows the recipe you picked with its item and crafting quality, what its
+  reagents cost, what one craft sells for after the cut and its profit, also when the window is
+  minimized. Worth crafting lists the recipes you know that make a profit, best profit per craft
+  first, each with its item's icon and crafting quality and about how many sell a day, or Slow
+  seller when it sells less than once a day. Click a recipe to open it in the profession window, or
+  press + to add one craft to the queue. Under the list it counts the recipes that make no profit
+  now.
+- Crafting, in retail WoW: add a recipe to a craft queue with a count, or restock it to a number you
+  hold in your bags, bank, mailbox and on the auction house. Each line of the Queue shows the item
+  with its crafting quality and a bar of how far along it is. Missing shows each reagent the queue
+  still needs with its icon and about what it costs to buy, with the total at the top. Make a BUY
+  list puts what the queue needs on your Craft queue list in the BUY tab, with a reagent a vendor
+  sells under AT A VENDOR. The list keeps up with the queue: what you craft, add or take off changes
+  it, so BUY never buys again what a craft already used. Each character keeps its own queue and its
+  own list, named after the character.
+- Crafting, in retail WoW: each line of the craft queue has a Craft button while that recipe's
+  profession window is open. One press crafts as many as your reagents allow, up to what the line
+  still needs, one after another, and moving stops it. While it crafts, the line reads Crafting
+  with how many are made and how many are left, and the other Craft buttons wait until it is done.
+  When the button is greyed out, hover it to see why.
+- BUY, in retail WoW: what waits in your mailbox counts as what you have. What you buy at the
+  auction house counts from the moment you buy it, so BUY does not offer it again while it waits
+  in the mailbox. Items another player sent you count once you have opened the mailbox. A line's
+  tooltip says how many are in the mailbox. The craft queue counts them too, and Missing says how
+  many of each reagent wait in your mailbox, so you can take them out before you craft.
+
 ## 0.22.0 (2026-10-21)
 
 - Deals, Items board: each flip says which of your realms to sell it on, for how much and how soon

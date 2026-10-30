@@ -207,6 +207,17 @@ describe("SellRoute", function()
       assert.same({}, plan.takeOut)
     end)
 
+    -- The GoldCap Hoard's carry card moves a stack through the window's press, which needs the
+    -- stack as the reader read it (its link, its count), not only where it sits.
+    it("keeps each stack of a row as it was read, in the order of its slots", function()
+      local first, second = item(100, 0, 1, { link = "item:100" }), item(100, 2, 5, { link = "item:100" })
+      local plan = GC.SellRoute.CarryPlan({ first, second }, { item(200, 12, 4) }, opts())
+      assert.equal(first, plan.putIn[1].stacks[1])
+      assert.equal(second, plan.putIn[1].stacks[2])
+      assert.equal(2, #plan.putIn[1].stacks)
+      assert.equal(1, #plan.takeOut[1].stacks)
+    end)
+
     it("takes out what sells best here", function()
       local plan = GC.SellRoute.CarryPlan({}, { item(200, 12, 4, { count = 3 }), item(100, 12, 5) }, opts())
       assert.equal(1, #plan.takeOut)
@@ -312,6 +323,49 @@ describe("SellRoute", function()
       assert.equal("about 1 day", GC.SellRoute.FactText({ id = "betterOn", realm = "X", copper = 1, days = 1.2 }, 1):match("about 1 day"))
       assert.equal("top 5 of 24", GC.SellRoute.FactText({ id = "cheapRealms", count = 24 }, 1))
       assert.is_nil(GC.SellRoute.FactText({ id = "cheapRealms", count = 24 }, 2))
+    end)
+  end)
+  -- Glaive Tosser (owner, 2026-10-25): "Sell here for 24,999g" over a lot bought for 24,999g at
+  -- +17,291g. goldcap.gg prices a realm down to its cheapest lot, and here that lot is the one
+  -- being bought: the spot keeps its pace, takes the region's price for every comparison, and no
+  -- line names a price for it.
+  describe("AtLot", function()
+    local spots = { { realmId = 2, list = 30000000, days = 1 }, { realmId = 1, list = 24999000, days = 2 } }
+
+    it("prices this realm's spot at the region's price when its price is the lot being bought", function()
+      local at = GC.SellRoute.AtLot(spots, 1, 24999000, 44516000)
+      assert.equal(1, at[1].realmId) -- best net first again
+      assert.is_true(at[1].atLot)
+      assert.equal(44516000, at[1].list)
+      assert.equal(2, at[1].days)
+      assert.equal(24999000, spots[2].list) -- the payload's own table is untouched
+      -- Without a region price it keeps its own, marked all the same.
+      assert.equal(24999000, GC.SellRoute.AtLot(spots, 1, 24999000, nil)[2].list)
+      assert.is_true(GC.SellRoute.AtLot(spots, 1, 24999000, nil)[2].atLot)
+    end)
+
+    it("leaves the spots as they are for a lot under this realm's price, or with no lot", function()
+      assert.equal(spots, GC.SellRoute.AtLot(spots, 1, 20000000, 44516000))
+      assert.equal(spots, GC.SellRoute.AtLot(spots, 1, nil, 44516000))
+      assert.equal(spots, GC.SellRoute.AtLot(spots, 3, 24999000, 44516000))
+    end)
+
+    it("says how soon it sells here, with no price, and no longer sends it to another realm", function()
+      local mine = { [1] = true, [2] = "Kazzak" }
+      local nameOf = function(id) return id == 2 and "Kazzak" or nil end
+      -- What the board said: the lot's own price made Kazzak's 30,000g look worth the trip.
+      assert.same({ "Sell on Kazzak for " .. GC.Util.FormatMoney(30000000) .. ", sells in about 1 day" },
+        GC.SellRoute.Lines(GC.SellRoute.Pick(spots, mine, 1), nameOf))
+      local pick = GC.SellRoute.Pick(GC.SellRoute.AtLot(spots, 1, 24999000, 44516000), mine, 1)
+      assert.same({ "Sells here in about 2 days" }, GC.SellRoute.Lines(pick, nameOf))
+      assert.equal("Sells here in about 2 days", GC.SellRoute.RowText(pick, nameOf))
+    end)
+
+    it("words the Check's Sell on fact without the price", function()
+      local fact = { id = "sellOn", here = true, atLot = true, copper = 44516000, days = 2 }
+      assert.equal("this realm · about 2 days", GC.SellRoute.FactText(fact, 1))
+      assert.equal("this realm", GC.SellRoute.FactText(fact, 2))
+      assert.is_nil(GC.SellRoute.FactText(fact, 3))
     end)
   end)
 end)

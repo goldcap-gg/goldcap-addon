@@ -4,7 +4,7 @@ local W = require("spec.support.wow_frames")
 -- The welcome window (UI/WelcomeFrame.lua) drawn on API-shaped doubles: what each state puts in
 -- front of the player, when it opens by itself, and the link box that cannot open a browser.
 describe("welcome window", function()
-  local GC, restore, savedTime, savedMac
+  local GC, restore, savedTime, savedMac, said, registered
   local NOW = 1800000000
   local DAY = 86400
   local URL = "https://goldcap.gg/downloads"
@@ -38,7 +38,15 @@ describe("welcome window", function()
     _G.UIParent = W.CreateFrame("Frame")
     _G.UISpecialFrames = {}
     _G.ChatFontNormal = {}
+    -- EventRegistry:RegisterCallback(event, func, owner): the client calls func(owner, ...) on
+    -- TriggerEvent (Blizzard_SharedXMLBase/CallbackRegistry.lua).
+    registered = {}
+    _G.EventRegistry = {
+      RegisterCallback = function(_, event, func, owner) registered[event] = { func = func, owner = owner } end,
+    }
     GC = helper.loadModule("Core/Util.lua")
+    said = {}
+    GC.Print = function(msg) said[#said + 1] = msg end
     helper.loadModule("UI/Theme.lua", GC)
     GC.Theme.RefreshFonts("enUS")
     helper.loadModule("Core/Welcome.lua", GC)
@@ -57,6 +65,7 @@ describe("welcome window", function()
     restore()
     _G.time, _G.IsMacClient = savedTime, savedMac
     _G.CreateColor, _G.UIParent, _G.UISpecialFrames, _G.ChatFontNormal = nil, nil, nil, nil
+    _G.EventRegistry = nil
     _G.GoldCapWelcome, _G.GoldCap_AppData = nil, nil
   end)
 
@@ -278,6 +287,51 @@ describe("welcome window", function()
     W.state(f).scripts.OnKeyDown(f, "ESCAPE")
     assert.is_true(shown(f))
     _G.InCombatLockdown = nil
+  end)
+
+  -- At login (Core/Init.lua, once a load): one chat line while the window would ask something, its
+  -- link Blizzard's own addon link, whose click opens the window with the download link selected.
+  local LINK = "|cff71d5ff|Haddon:GoldCap:companion|h[GoldCap Companion]|h|r"
+  local function click(link)
+    local entry = registered.SetItemRef
+    entry.func(entry.owner, link, "[GoldCap Companion]", "LeftButton", {})
+  end
+
+  it("says in chat at login what the Companion would change, with a link that opens the window", function()
+    client({ bundledTs = NOW - 12 * DAY, welcome = { seen = true, nextAt = NOW + DAY } })
+    GC.WelcomeUI.SayAtLogin()
+    assert.same({ "No fresh prices for your realm, so DEALS finds no deals. GoldCap Companion brings them and keeps them fresh: " .. LINK }, said)
+    assert.is_nil(window())
+    click("addon:GoldCap:companion")
+    assert.is_true(shown(window()))
+    local edit = window().card.box.edit
+    assert.equal(URL, W.state(edit).text)
+    assert.is_true(edit:HasFocus())
+    assert.is_true(W.state(edit).highlighted)
+  end)
+
+  it("words the line by the player's case", function()
+    client({ origin = "manual", importedTs = NOW - 3 * DAY })
+    GC.WelcomeUI.SayAtLogin()
+    client({ origin = "app", importedTs = NOW - 2 * DAY })
+    GC.WelcomeUI.SayAtLogin()
+    client({ forever = true })
+    GC.WelcomeUI.SayAtLogin()
+    assert.same({
+      "Your pasted prices are 3d old. GoldCap Companion fetches fresh ones every 30 minutes and brings your groups from goldcap.gg: " .. LINK,
+      "GoldCap Companion has not sent prices for 2d. Check that it is running, its icon sits next to the clock: " .. LINK,
+      "GoldCap Companion adds every GoldCap player's scans of this auction house to yours, for more items with a price and newer prices: " .. LINK,
+    }, said)
+  end)
+
+  it("says nothing at login with fresh prices or after Don't remind me, and ignores other addons' links", function()
+    client({ origin = "app", importedTs = NOW - 3600 })
+    GC.WelcomeUI.SayAtLogin()
+    client({ bundledTs = NOW - 12 * DAY, welcome = { quiet = true } })
+    GC.WelcomeUI.SayAtLogin()
+    assert.same({}, said)
+    click("addon:SomeoneElse:open")
+    assert.is_nil(window())
   end)
 
   it("opens nothing before the save is loaded, and nothing on top of itself", function()

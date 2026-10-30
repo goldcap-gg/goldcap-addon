@@ -263,8 +263,63 @@ local function addBlock(tooltip, itemID, now, heading, shown)
   end
 end
 
+-- What a kind's mats fetch, roughly: whole gold from a gold up, whole silver under it, "~" for an
+-- estimate (the window's Mats column reads so too).
+local function roughMats(copper)
+  if copper >= 10000 then
+    copper = math.floor(copper / 10000) * 10000
+  elseif copper >= 100 then
+    copper = math.floor(copper / 100) * 100
+  end
+  return "~" .. GC.Util.Money(copper)
+end
+
+-- A bag item's place in the Disenchant window (GC.DisenchantFrame.Standing's answer: { state, mats,
+-- n }) as one line in GoldCap's two columns: "Disenchant", and what its kind gives with where it
+-- stands ("~10g, next"; "kept"; "cannot be disenchanted"; "not learned yet", "no price yet" before
+-- there is a figure). Nothing for no standing. No auction house figure: the lines above are the
+-- tooltip's own; where Mats comes from, the window's footer says.
+function GC.Tooltip.DisenchantLines(standing)
+  local state = type(standing) == "table" and standing.state or nil
+  local value
+  if state == "kept" then
+    value = GC.L["kept"]
+  elseif state == "cant" then
+    value = GC.L["cannot be disenchanted"]
+  elseif state == "next" or state == "listed" or state == "left" or state == "leftVendor" then
+    if type(standing.mats) == "number" then
+      value = roughMats(standing.mats)
+    else
+      value = (standing.n or 0) > 0 and GC.L["no price yet"] or GC.L["not learned yet"]
+    end
+    -- What follows for where the item stands in the window: next, or why it is left out.
+    local why = state == "next" and GC.L["%s, next"] or state == "left" and GC.L["%s, AH pays more"]
+      or state == "leftVendor" and GC.L["%s, vendor pays more"] or nil
+    if why then value = why:format(value) end
+  else
+    return nil
+  end
+  return { { left = GC.L["Disenchant"], right = value } }
+end
+
+local function addDisenchant(tooltip, owner, itemID)
+  local frame = GC.DisenchantFrame
+  if type(owner) ~= "table" or not (frame and frame.Standing) then return end
+  local lines = GC.Tooltip.DisenchantLines(frame.Standing(owner, itemID))
+  if not lines then return end
+  local tip = GC.Util.ClientText
+  for _, ln in ipairs(lines) do
+    tooltip:AddDoubleLine(tip(ln.left), tip(ln.right), 0.65, 0.82, 1, 1, 1, 1)
+  end
+end
+
+-- Tooltips of GoldCap's own windows that carry its lines as GameTooltip does, their owner read
+-- the same way (UI/DisenchantFrame.lua's item tooltip, which never compares on its own).
+GC.Tooltip.Carriers = {}
+
 local function onTooltip(tooltip, data)
-  if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
+  local carrier = GC.Tooltip.Carriers[tooltip] == true
+  if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip and not carrier then return end
   if not (GC.db and GC.db.settings and GC.db.settings.tooltip) then return end
   -- Three ways a tooltip names its item, tried in that order. A hyperlink (or a bag item's
   -- guid) is the usual one -- but an AUCTION HOUSE item-group row, the browse list's single
@@ -286,7 +341,7 @@ local function onTooltip(tooltip, data)
   -- is none for this one -- so this says the same, rather than print the merged one under it.
   -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept
   -- outlived a row hidden under the cursor, and every item tooltip after it lost its value.
-  local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
+  local owner = (tooltip == GameTooltip or carrier) and tooltip.GetOwner and tooltip:GetOwner() or nil
   -- A BUY line's row draws GoldCap's lines for its item itself (UI/BuyFrame.lua's showLineTooltip):
   -- the market figure that line is priced and capped against, and whose it is. This block's figure
   -- is not always that one, and its Source line would say the same thing twice. Read off the owner
@@ -316,6 +371,7 @@ local function onTooltip(tooltip, data)
   else
     addBlock(tooltip, itemID, now, nil, shown)
   end
+  addDisenchant(tooltip, owner, itemID)
 end
 
 -- Guarded so the file also loads under busted (no WoW globals there)

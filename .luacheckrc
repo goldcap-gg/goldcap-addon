@@ -14,6 +14,8 @@ globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLe
 
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
+  -- A board row's item tooltip without the comparison windows (UI/SniperFrame.lua's _ShowItemTooltip).
+  "GameTooltip_SuppressAutomaticCompareItem",
   -- BUY 2.0 week 2: the merchant (UI/BuyVendorPanel.lua).
   "BuyMerchantItem", "GetMerchantNumItems", "GetMerchantItemID", "GetMerchantItemMaxStack",
   "C_MerchantFrame", "MerchantFrame",
@@ -34,6 +36,9 @@ read_globals = {
   -- Sniper v3 §3 AutoScan wiring: the machine's own clock domain, and the native AH frame
   -- whose SearchBar/SetDisplayMode are hooked for player-search detection.
   "GetTime", "AuctionHouseFrame",
+  -- GC.Util.CursorBusy (Core/Util.lua): the cursor carries an item, or a spell waits for an item
+  -- target, so a container call (a sale, a bank move) would do something else.
+  "GetCursorInfo", "SpellIsTargeting",
   -- HOT-deal alert for alt-tabbed players (pingNewHotDeals): flashes the OS taskbar/dock icon.
   "FlashClientIcon",
   -- Blizzard's tab helpers. UI/AuctionHouseTab.lua calls TabResize/SelectTab on
@@ -62,12 +67,27 @@ read_globals = {
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
   "AUCTION_EXPIRED_MAIL_SUBJECT", "AUCTION_REMOVED_MAIL_SUBJECT", "AUCTION_OUTBID_MAIL_SUBJECT",
+  -- The Collect button (UI/MailCollect.lua): the take calls, the inbox refresh, the mailbox
+  -- frame it sits beside, C_Mail, and the client's own two refusal messages.
+  "TakeInboxMoney", "TakeInboxItem", "CheckInbox", "MailFrame", "C_Mail", "ERR_INV_FULL",
+  "ERR_ITEM_MAX_COUNT",
   -- The tooltip's counts: grouped in thousands with the player's locale's separator.
   "BreakUpLargeNumbers",
   -- WoW: Forever scan passport (Core/ForeverScan.lua's realDriver): the faction the fold is
   -- keyed by, alongside region and realm.
   "UnitFactionGroup",
+  -- The account's characters (Core/Alts.lua): who is logged in, read at login and a level up.
+  "GetNormalizedRealmName", "UnitClass", "UnitLevel",
   -- A purchase click's plan runs fenced off from the call it answers (Core/PurchaseCall.lua),
   -- and /gc taint reports whether that click stayed secure.
   "securecallfunction", "issecure",
+  -- Crafting in the profession window (retail): Blizzard's callback registry the profession window
+  -- announces a selected recipe and a changed allocation through, the window itself, and a
+  -- currency reagent's name.
+  "EventRegistry", "ProfessionsFrame", "C_CurrencyInfo",
+  -- Send to alts (UI/MailAltsFrame.lua): the Send Mail calls and frames, the cursor it empties,
+  -- the connected realms the name box completes, and a character's class icon and colour.
+  "ClickSendMailItemButton", "HasSendMailItem", "SetSendMailCOD", "SetSendMailMoney", "SendMail",
+  "ClearCursor", "SendMailFrame", "SendMailNameEditBox", "MailFrameTab_OnClick",
+  "GetAutoCompleteRealms", "C_AutoComplete", "GetClassAtlas", "GetClassColor",
 }

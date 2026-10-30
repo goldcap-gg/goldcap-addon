@@ -39,6 +39,23 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(3, hookCalls)
   end)
 
+  -- A Start replaces the client's one commodity purchase: after Blizzard's own buy window starts
+  -- one, every quote answers theirs until one of GoldCap's windows starts again (Core/Init.lua's
+  -- foreignQuote keeps those quotes from both windows).
+  it("says the commodity purchase is somebody else's from their Start until one of ours", function()
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+    fire("StartCommoditiesPurchase", 42, 3)
+    assert.is_true(GC.PurchaseCapture.SessionIsForeign())
+    ownsCommodity = true
+    fire("StartCommoditiesPurchase", 42, 3)
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+    ownsCommodity = false
+    fire("StartCommoditiesPurchase", 7, 1)
+    assert.is_true(GC.PurchaseCapture.SessionIsForeign())
+    GC.PurchaseCapture.Reset()
+    assert.is_false(GC.PurchaseCapture.SessionIsForeign())
+  end)
+
   it("records a normal commodity only after confirm and success", function()
     fire("StartCommoditiesPurchase", 42, 3)
     GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
@@ -327,5 +344,42 @@ describe("Passive normal-AH purchase capture", function()
     GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
     assert.equal(0, #GC.Acquisitions.GetAll())
     assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
+  -- Retail delivers every purchase by mail: one made on Blizzard's own buy page is counted as
+  -- waiting in the mailbox (Core/MailStock.lua) the moment it succeeds, priced or not, and one that
+  -- did not go through is not. Where the file is not loaded (WoW: Forever) nothing is kept.
+  it("counts a purchase that succeeded as waiting in the mailbox", function()
+    GC.db = {}
+    helper.loadModule("Core/MailStock.lua", GC)
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    fire("StartCommoditiesPurchase", 42, 2)
+    fire("ConfirmCommoditiesPurchase", 42, 2)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    fire("StartCommoditiesPurchase", 42, 4)
+    fire("ConfirmCommoditiesPurchase", 42, 4)
+    GC.PurchaseCapture.OnCommodityPriceUnavailable()
+    fire("StartCommoditiesPurchase", 42, 6)
+    fire("ConfirmCommoditiesPurchase", 42, 6)
+    GC.PurchaseCapture.OnCommodityPurchaseFailed()
+    results[1] = { auctionID = 9001, quantity = 2, buyoutAmount = 100000 }
+    GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10, itemSuffix = 0, battlePetSpeciesID = 0 })
+    fire("PlaceBid", 9001, 100000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    assert.equal(5, GC.MailStock.Count("A-R", 42))
+    assert.equal(1, GC.MailStock.Count("A-R", 77))
+  end)
+
+  it("keeps no mailbox where Core/MailStock.lua is not loaded", function()
+    GC.db = {}
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_nil(GC.db.mailStock)
   end)
 end)

@@ -7,6 +7,46 @@ describe("Util", function()
     GC = helper.loadModule("Core/Util.lua")
   end)
 
+  -- One guarded client call (the code review, 2026-10-27: six files carried a copy): its first
+  -- answer, false kept as false; nil when the function is missing or raises.
+  describe("Ask", function()
+    it("answers a call's first value, and nil for a missing or failing function", function()
+      local U = GC.Util
+      assert.equal(3, U.Ask(function(a, b) return a + b, "second" end, 1, 2))
+      assert.is_false(U.Ask(function() return false end))
+      assert.is_nil(U.Ask(nil, 1))
+      assert.is_nil(U.Ask("not a function"))
+      assert.is_nil(U.Ask(function() error("boom") end))
+    end)
+  end)
+
+  -- The client's own answer whether the mailbox is open (C_PlayerInteractionManager's
+  -- IsInteractingWithNpcOfType(Enum.PlayerInteractionType.MailInfo), live and forever): true or
+  -- false, nil where it cannot say. One copy for the Send to alts window, the craft queue and the
+  -- Deals board's mail pause, which each decide what an unknown answer means.
+  describe("MailboxOpen", function()
+    local saved
+    before_each(function() saved = { _G.Enum, _G.C_PlayerInteractionManager } end)
+    after_each(function() _G.Enum, _G.C_PlayerInteractionManager = saved[1], saved[2] end)
+
+    it("answers the client, and nil where it cannot", function()
+      local U = GC.Util
+      local open = true
+      _G.Enum = { PlayerInteractionType = { MailInfo = 17 } }
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function(kind) return kind == 17 and open end }
+      assert.is_true(U.MailboxOpen())
+      open = false
+      assert.is_false(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() error("no") end }
+      assert.is_nil(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = nil
+      assert.is_nil(U.MailboxOpen())
+      _G.C_PlayerInteractionManager = { IsInteractingWithNpcOfType = function() return true end }
+      _G.Enum = {}
+      assert.is_nil(U.MailboxOpen())
+    end)
+  end)
+
   describe("ApplyDefaults", function()
     it("fills missing keys recursively without clobbering existing", function()
       local dst = { settings = { tooltip = false } }
@@ -231,6 +271,33 @@ describe("Util", function()
     -- Whitespace goes first, so a space inside an amount is harmless.
     it("reads a spaced unit", function() assert.equal(500, GC.Util.ParseMoney("5 s")) end)
     it("refuses a non-string", function() assert.is_nil(GC.Util.ParseMoney(nil)) end)
+  end)
+
+  -- Asked before every container move: a click while the cursor is busy casts or drops instead.
+  describe("CursorBusy", function()
+    local spell, cursor
+    before_each(function()
+      spell, cursor = function() return false end, function() return nil end
+      _G.SpellIsTargeting = function() return spell() end
+      _G.GetCursorInfo = function() return cursor() end
+    end)
+    after_each(function() _G.SpellIsTargeting, _G.GetCursorInfo = nil, nil end)
+
+    it("is free with no spell waiting and nothing on the cursor", function()
+      assert.is_false(GC.Util.CursorBusy())
+    end)
+    it("is busy while a spell waits for an item or the cursor carries something", function()
+      spell = function() return true end
+      assert.is_true(GC.Util.CursorBusy())
+      spell, cursor = function() return false end, function() return "item", 2589 end
+      assert.is_true(GC.Util.CursorBusy())
+    end)
+    it("counts an error from either read as busy", function()
+      spell = function() error("no") end
+      assert.is_true(GC.Util.CursorBusy())
+      spell, cursor = function() return false end, function() error("no") end
+      assert.is_true(GC.Util.CursorBusy())
+    end)
   end)
 end)
 

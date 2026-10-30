@@ -701,6 +701,40 @@ describe("Auction House tab", function()
       assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
     end)
 
+    -- The player pressed SCAN, or a pass went out while our tab was up: the list is ours again.
+    it("is given back once a browse query of ours replaces the player's list", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      GC.AuctionHouseTab.addonBrowse = true
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.addonBrowse = false
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      -- ...and the player's next search holds Auto again.
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "herb" })
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is given back when the player presses SCAN", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Owner 2026-10-26: AUTO pressed right after a search read AUTO · WAITING FOR YOU for a few
+    -- seconds before it scanned: the search box's ten-second grace still held it.
+    it("ends the search box's grace with it, unless the box still has the cursor", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.NoteSearchFocus(false)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(clock))
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsSearching(clock))
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.ReleaseBrowseList()
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(clock))
+    end)
+
     it("is false while another pane, or our own dock, is up", function()
       _G.C_AuctionHouse.SendBrowseQuery({})
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
@@ -775,6 +809,123 @@ describe("Auction House tab", function()
       _G.C_AuctionHouse.SendBrowseQuery({})
       assert.equal(1, sent)
       assert.equal(1, told)
+    end)
+  end)
+
+  -- Owner 2026-10-26: beside the floating window the Buy pane's list changed by itself every few
+  -- seconds. Blizzard's list redraws on every browse answer, whoever asked, and every keys batch and
+  -- browse query of ours answers there; a veil over it says whose searches those are, and the
+  -- player's own browse takes the list back.
+  describe("the veil over the Buy list", function()
+    local results
+    local function label()
+      local fs = { points = {} }
+      function fs:SetPoint(...) self.points[#self.points + 1] = { ... } end
+      function fs:ClearAllPoints() self.points = {} end
+      function fs:SetText(t) self.text = t end
+      function fs:GetHeight() return 14 end
+      function fs.SetWidth() end
+      function fs.SetJustifyH() end
+      function fs.SetTextColor() end
+      function fs.SetWordWrap() end
+      return fs
+    end
+    local function veilFrame()
+      for _, w in ipairs(created) do
+        if w.parent == results then return w end
+      end
+      return nil
+    end
+    before_each(function()
+      _G.C_AuctionHouse = { SendBrowseQuery = function() end, SearchForFavorites = function() end }
+      GC.Sniper._OnPlayerBrowse = function() end
+      GC.L = setmetatable({}, { __index = function(_, key) return key end })
+      GC.Theme = {
+        color = { bg = { 0, 0, 0 }, border = { 1, 1, 1, 0.1 }, gold = { 1, 0.8, 0.3 }, fgMuted = { 0.8, 0.8, 0.8 } },
+        Card = function(parent)
+          local w = _G.CreateFrame("Frame", nil, parent)
+          function w:SetAllPoints(target) self.over = target end
+          function w:SetFrameLevel(n) self.level = n end
+          function w:EnableMouse(on) self.mouse = on end
+          function w:EnableMouseWheel(on) self.wheel = on end
+          return w
+        end,
+        Label = label,
+      }
+      results = { GetFrameLevel = function() return 3 end }
+      ah.BrowseResultsFrame = results
+      ah.SearchBar = { StartFavoritesSearch = function() _G.C_AuctionHouse.SearchForFavorites({}) end }
+      ah.SetBrowseSortOrder = function() end
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+    end)
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    it("is not up before GoldCap has searched", function()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+    end)
+
+    it("covers the list, above its rows, taking the pointer and the wheel, once a keys batch goes out", function()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+      local v = veilFrame()
+      assert.equal(results, v.over)
+      assert.is_true(v.level > 3)
+      assert.is_true(v.mouse)
+      assert.is_true(v.wheel)
+      assert.equal("GoldCap is checking prices here", v.title.text)
+      assert.is_truthy(v.body.text:find("click the star", 1, true))
+    end)
+
+    it("goes up for a browse query of ours, and the player's own search takes it down", function()
+      GC.AuctionHouseTab.addonBrowse = true
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+    end)
+
+    it("is taken down by the player's Favorites search and by the auction house closing", function()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      ah.SearchBar:StartFavoritesSearch()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      GC.AuctionHouseTab.OnAuctionHouseClosed()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+    end)
+
+    it("is up only while the GoldCap window shows, and back when it opens over a list still ours", function()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+      GC.Sniper.shown = false
+      GC.AuctionHouseTab.OnWindowHidden()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+      GC.Sniper.shown = true
+      GC.AuctionHouseTab.OnWindowShown()
+      assert.is_true(GC.AuctionHouseTab._VeilShown())
+      -- The player's own search meanwhile gave the list back: opening the window brings no veil.
+      ah.SearchBar:StartFavoritesSearch()
+      GC.Sniper.shown = false
+      GC.AuctionHouseTab.OnWindowHidden()
+      GC.Sniper.shown = true
+      GC.AuctionHouseTab.OnWindowShown()
+      assert.is_false(GC.AuctionHouseTab._VeilShown())
+    end)
+
+    it("builds once however many searches go out", function()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      GC.AuctionHouseTab.NoteAddonBrowse()
+      local count = 0
+      for _, w in ipairs(created) do
+        if w.parent == results then count = count + 1 end
+      end
+      assert.equal(1, count)
     end)
   end)
 

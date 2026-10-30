@@ -103,6 +103,9 @@ describe("Sniper pin feedback and empty state", function()
       function row:SetAlpha() end
       return row
     end)
+    -- At the auction house: away from it the empty state only says to open it
+    -- (spec/sniper_boards_spec.lua).
+    set(GC.Sniper._UpdateEmptyState, "ahOpen", true)
     return GC, status, emptyText
   end
 

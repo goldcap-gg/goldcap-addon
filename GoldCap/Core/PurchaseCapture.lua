@@ -8,6 +8,11 @@ local attemptNumber = 0
 local sessionStartedAt = 0
 local hooksInstalled = false
 local commodityAttempt
+-- Whether the client's one commodity purchase on the server is now somebody else's: the last
+-- StartCommoditiesPurchase was made by Blizzard's own buy window or another addon, not by the
+-- Deals window or the BUY tab. A Start replaces whatever purchase was there before, so until one
+-- of ours starts again every quote that comes answers theirs (GC.PurchaseCapture.SessionIsForeign).
+local foreignSession = false
 local itemResults = {}
 local itemAttempts = {}
 
@@ -69,6 +74,14 @@ local function recordExact(attempt)
   })
 end
 
+-- A purchase that succeeded is on its way to the mailbox, where retail delivers every one: BUY and
+-- the craft queue count it as held from now on (Core/MailStock.lua, retail only).
+local function toMailbox(attempt)
+  if not GC.MailStock then return end
+  local context = attempt.context or currentContext()
+  GC.MailStock.Bought(context and context.char, attempt.itemID, attempt.quantity)
+end
+
 local function hasCompleteItemIdentity(itemKey)
   return type(itemKey) == "table" and isPositiveInteger(itemKey.itemID)
     and isExactInteger(itemKey.itemLevel) and isExactInteger(itemKey.itemSuffix)
@@ -94,8 +107,10 @@ end
 local function onCommodityStart(itemID, quantity)
   if ownsCommodity(itemID, quantity) then
     commodityAttempt = nil
+    foreignSession = false
     return
   end
+  foreignSession = true
   if not isPositiveInteger(itemID) or not isPositiveInteger(quantity) then
     return
   end
@@ -190,6 +205,7 @@ function GC.PurchaseCapture.OnPurchaseCompleted(auctionID)
   else
     recordPending(attempt, "item purchase exact evidence unavailable")
   end
+  toMailbox(attempt)
 end
 
 -- After Confirm, a price update is the server re-quoting: nothing was bought, Blizzard's own buy
@@ -220,7 +236,10 @@ function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
   if not attempt.confirmed then
     -- Re-quoted after Confirm and not confirmed again, yet something went through: which price
     -- it paid is not known, so the mail settles it.
-    if attempt.requoted then recordPending(attempt, "commodity purchase re-quoted after confirm") end
+    if attempt.requoted then
+      recordPending(attempt, "commodity purchase re-quoted after confirm")
+      toMailbox(attempt)
+    end
     return
   end
   if isPositiveInteger(attempt.finalTotal) then
@@ -228,13 +247,23 @@ function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
   else
     recordPending(attempt, "commodity purchase exact total unavailable")
   end
+  toMailbox(attempt)
 end
 
 function GC.PurchaseCapture.OnCommodityPurchaseFailed()
   commodityAttempt = nil
 end
 
+--- True while the last commodity Start this auction house visit was not GoldCap's (see
+--- `foreignSession`): Core/Init.lua then keeps the quotes that come from both purchase windows,
+--- which would read them as answers to their own Start and Cancel them, and tells each window to
+--- drop what it was still waiting on there.
+function GC.PurchaseCapture.SessionIsForeign()
+  return foreignSession
+end
+
 function GC.PurchaseCapture.Reset()
+  foreignSession = false
   commodityAttempt = nil
   itemResults = {}
   itemAttempts = {}

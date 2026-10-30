@@ -292,7 +292,22 @@ describe("CheckVerdict", function()
         sellThroughBps = NONE, liquidityConfidence = NONE, listings = NONE }))
       assert.equal(2, #v.facts)
       assert.equal(750000, factById(v, "youPayFlat").copper)
-      assert.equal(1000000, factById(v, "snapshotValue").copper)
+      assert.equal(1000000, factById(v, "regionPrice").copper)
+      assert.equal("muted", factById(v, "regionPrice").tone)
+    end)
+
+    -- Owner, 2026-10-25: SHOW DETAILS on a realm lot opened ten rows of a commodity's figures,
+    -- every one a dash. A realm lot's panel offers none; a commodity's keeps them.
+    it("offers no SHOW DETAILS on a realm lot", function()
+      assert.is_false(GC.CheckVerdict.Build(realmDecision(), market(), { realm = true }).details)
+      assert.is_true(GC.CheckVerdict.Build(decision(), market()).details)
+    end)
+
+    it("says how often it sold this week across the region, when goldcap.gg counted it", function()
+      local v = GC.CheckVerdict.Build(realmDecision(), market(), { sold = { sales7d = 18, realms = 11, ref = 1 } })
+      assert.same({ sales7d = 18, realms = 11 }, v.sold)
+      assert.is_nil(GC.CheckVerdict.Build(realmDecision(), market(), { sold = { sales7d = 0, realms = 0 } }).sold)
+      assert.is_nil(GC.CheckVerdict.Build(decision(), market(), { sold = { sales7d = 18, realms = 11 } }).sold)
     end)
 
     -- No region reference means no candidate, so the "Your call" tone must not apply: there is
@@ -331,6 +346,15 @@ describe("CheckVerdict", function()
           { route = { target = { here = true, copper = 19000000, days = 0.6 } } })
         assert.same({ id = "sellOn", here = true, copper = 19000000, days = 0.6, tone = "plain" }, factById(v, "sellOn"))
         assert.equal(3, #v.facts)
+      end)
+
+      -- No realm of the player's to sell it on: the cheap row and the better realm both fit.
+      it("names the cheapest realms and a better one when there is no realm of the player's to sell on", function()
+        local route = { cheapRealms = 52, suggest = { realm = "Blackmoore", copper = 778100000, days = 2 } }
+        local v = GC.CheckVerdict.Build(realmDecision(), market(), { route = route })
+        local ids = {}
+        for _, fact in ipairs(v.facts) do ids[#ids + 1] = fact.id end
+        assert.same({ "youPayFlat", "regionPrice", "cheapRealms", "betterOn" }, ids)
       end)
 
       it("names a realm with no character on it when this one is not among the cheapest", function()
@@ -408,7 +432,28 @@ describe("CheckVerdict", function()
 
     it("keeps the market's own value beside the cap when there is one, as a reference", function()
       local v = GC.CheckVerdict.Build(commodityCap(), market())
-      assert.equal("muted", factById(v, "snapshotValue").tone)
+      assert.equal("muted", factById(v, "regionPrice").tone)
+      assert.is_nil(factById(v, "snapshotValue"))
+    end)
+
+    -- Owner, 2026-10-25: a followed group's row said "the price you set on goldcap.gg" and
+    -- repeated it in Reason. It is the group's price, and the panel names the group.
+    it("names a followed group's price as the group's, and the group where the tone's word goes", function()
+      local v = GC.CheckVerdict.Build(commodityCap({ followed = true }), market(), { group = "Plate Transmog" })
+      assert.equal("cap", v.tone)
+      assert.equal("Plate Transmog", v.group)
+      assert.equal("capGroup", v.sentence)
+      assert.is_true(v.hero.group)
+      assert.equal(2000000, factById(v, "groupPrice").copper)
+      assert.is_nil(factById(v, "yourPrice"))
+      local own = GC.CheckVerdict.Build(commodityCap(), market(), { group = "Test caps" })
+      assert.is_nil(own.group)
+      assert.is_nil(own.sentence)
+      assert.is_nil(own.hero.group)
+      assert.is_string(GC.CheckVerdict.TONE_SENTENCE.capGroup)
+      assert.is_string(GC.CheckVerdict.HERO_CAPTION.cap_group)
+      assert.is_string(GC.CheckVerdict.FACT_LABEL.groupPrice)
+      assert.is_string(GC.CheckVerdict.FACT_LABEL.regionPrice)
     end)
 
     it("has its words in every table the panel reads", function()

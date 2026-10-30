@@ -2,6 +2,31 @@ local _, GC = ...
 
 GC.Util = {}
 
+--- One guarded client call: its first answer (false kept as false), or nil when `fn` is not a
+--- function or raises. The one copy for every file that reads the client so (the code review,
+--- 2026-10-27).
+function GC.Util.Ask(fn, ...)
+  if type(fn) ~= "function" then return nil end
+  local ok, value = pcall(fn, ...)
+  if ok then return value end
+  return nil
+end
+
+--- Whether the client says the mailbox is open now (C_PlayerInteractionManager's
+--- IsInteractingWithNpcOfType(Enum.PlayerInteractionType.MailInfo), in both games): true or false,
+--- nil where it cannot say. Walking from the mailbox straight to an auctioneer can shut it with no
+--- MAIL_CLOSED (in game 2026-09-23), so whoever acts on the mail events asks this too, and decides
+--- what an unknown answer means (Core/MailStock.lua's IsOpenNow, UI/MailAltsFrame.lua, the Deals
+--- board's mail pause in UI/SniperFrame.lua). Here, not in Core/MailStock.lua, because the Deals
+--- board runs in WoW: Forever too, which does not load that file.
+function GC.Util.MailboxOpen()
+  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
+  if not (type(manager) == "table" and type(kinds) == "table" and kinds.MailInfo ~= nil) then return nil end
+  local open = GC.Util.Ask(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
+  if type(open) ~= "boolean" then return nil end
+  return open
+end
+
 -- WoW's string.format converts a %d/%i/%x/%c argument to a 32-bit integer and raises "integer
 -- overflow attempting to store N" for anything outside +-2^31 (2,147,483,647 copper is about
 -- 214,748g, and retail prices pass that routinely) -- a 1.5M-gold Forever troll listing crashed
@@ -473,6 +498,21 @@ function GC.Util.Upper(text)
     :gsub("\209([\128-\143])", function(c) return "\208" .. string.char(c:byte() + 32) end)
     :gsub("\209([\144-\159])", function(c) return "\208" .. string.char(c:byte() - 16) end)
     :gsub("\210\145", "\210\144"))
+end
+
+-- Whether a container click now would do something other than what the addon means: the cursor
+-- carries something, or a spell waits for an item target (Disenchant, an enchant scroll, a vellum).
+-- GetCursorInfo is nil then, and C_Container.UseContainerItem casts that spell on the item instead
+-- of selling, depositing or withdrawing it: Blizzard's own bag click calls it for exactly that
+-- (live Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua:1340-1342), and shows the sell cursor
+-- over a bag item only while SpellIsTargeting() is false (same file, :1559). Every container move
+-- asks it first: the Sell to vendor card's machine (UI/VendorSellCard.lua) and the bank route's
+-- MoveStack (UI/BankRoute.lua). An error from either read counts as busy.
+function GC.Util.CursorBusy()
+  local okSpell, targeting = pcall(SpellIsTargeting)
+  if not okSpell or targeting then return true end
+  local ok, kind = pcall(GetCursorInfo)
+  return not ok or kind ~= nil
 end
 
 -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints

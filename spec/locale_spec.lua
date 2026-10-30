@@ -432,4 +432,131 @@ describe("locale layer", function()
       for key, text in pairs(strings) do assert.equal(text, loc.Locales[code][key], code .. " " .. key) end
     end
   end)
+  -- Followed groups (plan 2026-10-22): every key the groups' DEALS chip, SELL's rules and the
+  -- cancel run added, in all twelve files, read whole and with no long dash.
+  it("carries the group rules keys in all twelve languages", function()
+    local keys = {
+      -- DEALS (task 7)
+      "GROUP", "Listed at or under the deal price of a group you follow (%s)",
+      -- the rule in words (task 8)
+      "1 at a time", "all you have", "%d h", "not under %d%% of usual", "not under the cost to craft",
+      "%d%% cheaper each time it comes back",
+      -- SELL's row, mark and dock (task 11)
+      "Group you follow: %s", "Marked for you: it is in a group you follow.", "under group floor",
+      "the market is under your group's floor. Type a price to post anyway",
+      -- cancel by the group's floor and the threshold (task 12)
+      "Min. undercut to cancel (%)",
+      "Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued.",
+      "small undercut", "relisting would go under your group's floor. Hold",
+      "undercut by less than your cancel setting. Hold",
+      -- the cancel run (task 13)
+      "Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first.",
+      "Cancel %d lots? One press per lot, CONFIRM first.", "Cancel 1 lot? You lose its %s deposit. Press CONFIRM.",
+      "Cancel 1 lot? Press CONFIRM.", "CANCEL NEXT (%d)",
+      "Press again to cancel the next lot", "Stopped: 20 seconds without a press",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+      -- The DEALS chip is a fixed width: eleven characters at most in every language.
+      local chars = 0
+      for _ in strings["GROUP"]:gmatch("[^\128-\191]") do chars = chars + 1 end
+      assert.is_true(chars <= 11, code .. " GROUP is too long for the chip")
+      -- The run's arm names the button the way the button says it.
+      for _, key in ipairs({ "Cancel %d lots? You lose %s in deposits. One press per lot, CONFIRM first.",
+          "Cancel %d lots? One press per lot, CONFIRM first.", "Cancel 1 lot? You lose its %s deposit. Press CONFIRM.",
+          "Cancel 1 lot? Press CONFIRM." }) do
+        assert.is_truthy(strings[key]:find(strings["CONFIRM"], 1, true), code .. " names CONFIRM its own way: " .. key)
+      end
+    end
+  end)
+
+  -- The Sell tab's GROUPS row and the default price (owner, 2026-10-25).
+  it("carries the Sell groups and default price keys in all twelve languages", function()
+    local keys = {
+      "GROUPS", "ALL %d", "MY GROUPS %d", "MY GROUPS", "Post goes through your groups only",
+      "Post goes through %s only", "Nothing left in this group",
+      "Everything from this group in your bags is posted. Pick ALL to see the rest of your bags.",
+      "Posting your groups: %d of %d done", "Posting %s: %d of %d done", "your default from Settings",
+      "%s never posts under %s", "Default price",
+      "Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red.",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+      -- The empty group names the ALL chip, and the heading the POST button, the way they read.
+      local all = strings["ALL %d"]:gsub("%s*%%d", "")
+      assert.is_truthy(strings["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."]
+        :find(all, 1, true), code .. " names ALL its own way")
+      assert.equal(strings["MY GROUPS"], (strings["MY GROUPS %d"]:gsub("%s*%%d", "")), code .. " MY GROUPS")
+      for _, key in ipairs({ "Post goes through your groups only", "Post goes through %s only" }) do
+        assert.is_truthy(strings[key]:lower():find(strings["POST"]:lower(), 1, true), code .. " names POST its own way: " .. key)
+      end
+    end
+  end)
+
+  -- The Items board's line under a flip's name (owner, 2026-10-25: two lines a row at most).
+  it("carries the Items board row keys in all twelve languages", function()
+    local keys = {
+      "Sells here within a day", "Sells here in about 1 day", "Sells here in about %d days",
+      "Sells on %s within a day", "Sells on %s in about 1 day", "Sells on %s in about %d days",
+      "Sold once in 7 days", "Sold %d times in 7 days",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
+
+  -- The Check on an Items lot and on a followed group's deal (owner, 2026-10-25).
+  it("carries the Check panel's realm and group keys in all twelve languages", function()
+    local keys = {
+      "after the 5% cut, if it sells at the region's price",
+      "a unit, at or under the group's price of %s",
+      "From a group you follow on goldcap.gg. Whether it resells is yours to judge.",
+      "Region price", "Group's price",
+      "at or under the group's price. Click Buy to purchase",
+      "price checked a moment ago. Whether it sells is your call",
+    }
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      local strings = loc.Locales[code]
+      for _, key in ipairs(keys) do
+        local text = strings[key]
+        assert.is_string(text, code .. " lacks: " .. key)
+        assert.is_true(#text > 0, code .. " is empty: " .. key)
+        assert.is_nil(text:find("\226\128\166", 1, true), code .. " cuts short: " .. key)
+        assert.is_nil(text:find("\226\128\148", 1, true), code .. " em dash: " .. key)
+        assert.is_nil(text:find("\226\128\147", 1, true), code .. " en dash: " .. key)
+      end
+    end
+  end)
 end)

@@ -49,6 +49,34 @@ describe("BoardRows", function()
       assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true, buyable = false, status = "WATCH" }))
     end)
 
+    -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows reads
+    -- GROUP; the group's own name is on the row's item cell, as an alert group's is.
+    it("Label says GROUP for a followed cap", function()
+      assert.equal("GROUP", GC.BoardRows.Label({ cap = true, followed = true }))
+      assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true }))
+      assert.equal("GROUP", GC.BoardRows.Bucket({ cap = true, followed = true }))
+    end)
+
+    -- A followed group's deal is a deal like any other (owner, 2026-10-25: the groups' rows sat
+    -- over every deal at 0% and a dash): it no longer leads the board. A commodity's, whose live
+    -- book was read, ranks under the buys and over the refusals; a realm lot's with the realm
+    -- rows. Each by the profit it shows.
+    it("ranks a followed group's deal by what it is, not over every deal", function()
+      local rank = GC.BoardRows.Rank
+      local commodity = { cap = true, followed = true, buyable = true }
+      local realm = { cap = true, followed = true, status = "WATCH" }
+      assert.is_true(rank({ cap = true }) < rank({ buyable = true })) -- the player's own price still leads
+      assert.is_true(rank({ buyable = true }) < rank(commodity))
+      assert.is_true(rank({ needsGold = 1000 }) < rank(commodity))
+      assert.is_true(rank(commodity) < rank({ status = "WATCH" }))
+      assert.equal(rank({ status = "WATCH" }), rank(realm))
+
+      local flip = { itemID = 1, unitPrice = 100, qty = 1, estProfit = 263023 }
+      local group = { itemID = 2, unitPrice = 100, qty = 1, cap = 50, estProfit = 1900 }
+      assert.is_true(GC.BoardRows.Compare(flip, { status = "WATCH" }, false, group, realm, false))
+      assert.is_false(GC.BoardRows.Compare(group, realm, false, flip, { status = "WATCH" }, false))
+    end)
+
     it("reads SAFE +<money> from the verdict's stressProfit", function()
       local label = GC.BoardRows.Label({ buyable = true, stressProfit = 50000 })
       assert.equal("SAFE +5g", label)

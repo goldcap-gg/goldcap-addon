@@ -9,7 +9,8 @@ local _, GC = ...
 --     list. The accepted tokens are TSM's own (`DecodeGroupExportHelper`, as goldcap.gg reads them
 --     in packages/tsm's parseItemList): `i:<id>` or a bare id, either with bonus ids after a colon
 --     (the base item is kept), `p:<species>` (a battle pet: skipped and counted), `group:<path>`
---     (a group: the first one names the list). TSM 4.10's packed export (letters, digits and
+--     (a group: the last step of its paths' common prefix names the list, and a string with
+--     two or more groups under that prefix can also be read as one list per group). TSM 4.10's packed export (letters, digits and
 --     parentheses only, deflated) is not read: Lua 5.1 has no inflate, and goldcap.gg/list can
 --     turn one into the plain string.
 --   Auctionator: its shopping list export (Source/Shopping/ImportExport.lua,
@@ -49,29 +50,106 @@ local function split(text, sep)
   end
 end
 
+-- A group path as its steps. TSM writes a sub-group's path with backticks ("Leveling`Alchemy"),
+-- and a literal comma inside a name as two ("Herbs``Ore").
+local function pathSteps(path)
+  local steps = {}
+  for _, step in ipairs(split((path:gsub("``", "\1")), "`")) do
+    step = trim((step:gsub("\1", ",")))
+    if step ~= "" then steps[#steps + 1] = step end
+  end
+  return steps
+end
+
+-- The steps every path starts with. A path is `{}` for items that come before any group. The
+-- prefix ends at the first step that differs, so it never has a hole for `#` to read past.
+local function commonPrefix(paths)
+  local prefix = nil
+  for _, steps in ipairs(paths) do
+    if not prefix then
+      prefix = { unpack(steps) }
+    else
+      for i = 1, #prefix do
+        if prefix[i] ~= steps[i] then
+          for j = #prefix, i, -1 do prefix[j] = nil end
+          break
+        end
+      end
+    end
+  end
+  return prefix or {}
+end
+
+-- One list per distinct path that holds items, named after the root and the steps below it. An item
+-- named in two groups belongs to the last one. Nil unless two or more paths hold items.
+local function bySubgroup(seq, prefix)
+  local owner = {}
+  for _, entry in ipairs(seq) do owner[entry.id] = entry.key end
+  local order, lists = {}, {}
+  for _, entry in ipairs(seq) do
+    if owner[entry.id] == entry.key then
+      local list = lists[entry.key]
+      if not list then
+        local below = {}
+        for i = #prefix + 1, #entry.steps do below[#below + 1] = entry.steps[i] end
+        local name = #below > 0 and table.concat(below, ": ") or nil
+        if #prefix > 0 then name = name and (prefix[#prefix] .. ": " .. name) or prefix[#prefix] end
+        list = { name = name, items = {}, seen = {} }
+        lists[entry.key] = list
+        order[#order + 1] = list
+      end
+      if not list.seen[entry.id] then
+        list.seen[entry.id] = true
+        list.items[#list.items + 1] = { itemID = entry.id, qty = 1 }
+      end
+    end
+  end
+  if #order < 2 then return nil end
+  for _, list in ipairs(order) do list.seen = nil end
+  return order
+end
+
 local function parseTsm(text)
   if text:find("^", 1, true) then return nil end
-  local items, skipped, name = {}, { pets = 0, groups = 0 }, nil
+  local items, skipped = {}, { pets = 0, groups = 0 }
+  local paths, seq, current = {}, {}, { steps = {}, key = "" }
+  local started = false
   for _, raw in ipairs(split(text, ",")) do
     local tok = trim(raw)
     if tok ~= "" then
       local t = tsmToken(tok)
       if not t then return nil end
-      if t.id then
-        items[#items + 1] = { itemID = t.id, qty = 1 }
-      elseif t.pet then
-        skipped.pets = skipped.pets + 1
+      if t.id or t.pet then
+        -- Something before the first group has no group: the paths then share nothing.
+        if not started then
+          started = true
+          paths[#paths + 1] = current.steps
+        end
+        if t.id then
+          items[#items + 1] = { itemID = t.id, qty = 1 }
+          seq[#seq + 1] = { id = t.id, key = current.key, steps = current.steps }
+        else
+          skipped.pets = skipped.pets + 1
+        end
       else
         skipped.groups = skipped.groups + 1
-        -- A sub-group's path is written with backticks ("Leveling`Alchemy"): the last step is
-        -- the group the player exported.
-        if not name and t.group ~= "" then name = t.group:match("([^`]+)$") end
+        started = true
+        local steps = pathSteps(t.group)
+        if #steps > 0 then
+          current = { steps = steps, key = table.concat(steps, "\0") }
+          paths[#paths + 1] = steps
+        end
       end
     end
   end
   if #items == 0 and skipped.pets == 0 and skipped.groups == 0 then return nil end
-  if name then name = trim(name) end
-  return { format = "tsm", lists = { { name = name ~= "" and name or nil, items = items } }, skipped = skipped }
+  -- The list is named after the last step of the paths' common prefix: goldcap.gg's Copy for TSM
+  -- writes every subgroup under the group's own name, and that name is the group.
+  local prefix = commonPrefix(paths)
+  local name = prefix[#prefix]
+  local parsed = { format = "tsm", lists = { { name = name, items = items } }, skipped = skipped }
+  parsed.subgroups = bySubgroup(seq, prefix)
+  return parsed
 end
 
 -- Lua 5.1's tonumber on a field, as Auctionator reads it: a whole positive count, or nil.
@@ -123,7 +201,8 @@ local function parseAuctionator(text)
 end
 
 --- Reads a TSM item or group string, or an Auctionator shopping list export. Returns
---- { format = "tsm"|"auctionator", lists = { { name = string|nil, items = { { itemID, qty } or
+--- { format = "tsm"|"auctionator", subgroups = like lists, TSM only, present when two or more groups
+--- hold items, lists = { { name = string|nil, items = { { itemID, qty } or
 --- { name, qty } } } }, skipped = { pets, groups } }, or nil and why: "empty", "tsm_packed" (TSM's
 --- deflated export, which this cannot unpack) or "unknown".
 function GC.ListStrings.Parse(text)

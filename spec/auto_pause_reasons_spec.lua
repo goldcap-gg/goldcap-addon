@@ -79,7 +79,109 @@ describe("Auto says why it is not scanning", function()
     busy = false
     GC.Sniper._BrowseOwned = function() return true end
     autoScan:Tick(200)
-    assert.equal("AUTO · WAITING: YOUR LIST", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
+    assert.equal("AUTO · WAITING: YOUR AH SEARCH", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
+  end)
+
+  -- Owner 2026-10-26: "AUTO · PAUSED: ITEMS BOARD" in amber while the Items board kept searching,
+  -- and the Buy list beside it changed every few seconds. On that board Auto's pass stands aside
+  -- and the board's own poll does the asking, so the chip says Auto is at work, or what holds the
+  -- poll, and its tooltip says what Auto does there.
+  describe("on the Items board", function()
+    local GC, feedAuto, autoScan, autoButtonText
+    before_each(function()
+      GC, feedAuto, autoScan, autoButtonText = loadSniper()
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+      feedAuto("toggleOn")
+      feedAuto("pause:items")
+    end)
+
+    it("reads as Auto at work, with the live light, not as a pause", function()
+      assert.equal("PAUSED", autoScan:State())
+      local text, held, working = autoButtonText(autoScan:State(), autoScan:PauseReasons())
+      assert.equal("AUTO · SCANNING", text)
+      assert.is_false(held)
+      assert.is_true(working)
+      assert.same({ GC.L["On the Items board, Auto keeps checking the items this board watches, round after round. Switch to Commodities and it scans the commodity market again."] },
+        GC.Sniper._AutoHelp())
+    end)
+
+    it("says what holds the board's poll: the player's own search, or the player at work", function()
+      GC.Sniper._BrowseOwned = function() return true end
+      local text, held = autoButtonText(autoScan:State(), autoScan:PauseReasons())
+      assert.equal("AUTO · WAITING: YOUR AH SEARCH", text)
+      assert.is_true(held)
+      assert.equal(GC.L["Waiting so that a scan does not replace the results of your own search on the auction house's Buy list. Click AUTO or SCAN and it carries on."],
+        GC.Sniper._AutoHelp()[1])
+
+      GC.Sniper._BrowseOwned = function() return false end
+      GC.AuctionHouseTab.PlayerIsBusy = function() return true end
+      assert.equal("AUTO · WAITING FOR YOU", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+    end)
+
+    it("names any other pause first, and reads a closed auction house as plain AUTO", function()
+      feedAuto("pause:mail")
+      assert.equal("AUTO · PAUSED: MAILBOX OPEN", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+      feedAuto("resume:mail")
+      feedAuto("pause:buy")
+      assert.equal("AUTO · PAUSED: BUY TAB", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+      feedAuto("resume:buy")
+      feedAuto("ahClosed")
+      assert.equal("AUTO", (autoButtonText(autoScan:State(), autoScan:PauseReasons())))
+    end)
+  end)
+
+  -- Owner 2026-10-26: after one search on Blizzard's Buy list the chip read AUTO · WAITING: YOUR AH
+  -- SEARCH, a click on it switched Auto off, the next one back on behind the same search, and
+  -- nothing short of closing the auction house started it again. A click on that chip now carries
+  -- on: the Buy list goes back to GoldCap, and Auto stays on.
+  describe("a click on AUTO while it waits for the player's own search", function()
+    local GC, feedAuto, autoScan, owned, released
+    before_each(function()
+      GC, feedAuto, autoScan = loadSniper()
+      owned, released = true, 0
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return false end,
+        ReleaseBrowseList = function() released = released + 1; owned = false end }
+      GC.Sniper._BrowseOwned = function() return owned end
+      feedAuto("toggleOn")
+    end)
+
+    it("gives the list back on Commodities, and Auto carries on", function()
+      autoScan:Tick(101)
+      assert.equal("WAITING", autoScan:State())
+      assert.equal("browse", GC.Sniper._autoHeld)
+
+      assert.is_true(GC.Sniper._CarryOnPastPlayerSearch())
+
+      assert.equal(1, released)
+      assert.is_not.equal("OFF", autoScan:State())
+    end)
+
+    it("gives the list back on the Items board", function()
+      feedAuto("pause:items")
+      assert.is_true(GC.Sniper._CarryOnPastPlayerSearch())
+      assert.equal(1, released)
+    end)
+
+    it("leaves any other click a switch", function()
+      owned = false
+      feedAuto("pause:items")
+      assert.is_false(GC.Sniper._CarryOnPastPlayerSearch())
+      feedAuto("pause:mail")
+      assert.is_false(GC.Sniper._CarryOnPastPlayerSearch())
+      assert.equal(0, released)
+    end)
+
+    it("is what the click asks before switching Auto off, and switching it on takes the list too", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local text = f:read("*a")
+      f:close()
+      local from = assert(text:find("local function onAutoToggleClick()", 1, true))
+      local body = text:sub(from, assert(text:find('autoBtn:SetScript("OnClick", onAutoToggleClick)', from, true)))
+      local on = assert(body:find('feedAuto("toggleOn")', 1, true))
+      assert.is_truthy(body:sub(1, on):find("tab.ReleaseBrowseList()", 1, true))
+      local carry = assert(body:find("elseif not GC.Sniper._CarryOnPastPlayerSearch() then", 1, true))
+      assert.is_true(carry < assert(body:find('feedAuto("toggleOff")', 1, true)))
+    end)
   end)
 
   -- Reported 2026-10-17: a player posted through Auctionator's Selling tab, came back to Deals

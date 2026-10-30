@@ -173,12 +173,15 @@ end
 local function fitItem(c)
   local right = controlsWidth(c)
   local x = DOCK.PAD + (c.dockIcon:IsShown() and DOCK.ICON + 8 or 0)
+  -- The group's line, when there is one (paintProgress), runs under the posting row, which stands
+  -- that much higher.
+  local strip = c.groupProgress:IsShown() and DOCK.STRIP_H or 0
   local function place(top)
     c.queueLabel:ClearAllPoints()
     c.queueLabel:SetPoint("TOPLEFT", c, "BOTTOMLEFT", x, top)
     c.queueLabel:SetPoint("TOPRIGHT", c, "BOTTOMRIGHT", -right, top)
   end
-  place(DOCK.H)
+  place(DOCK.H + strip)
   for _, line in ipairs({ c.dockSub, c.dockStatus }) do
     line:ClearAllPoints()
     line:SetPoint("TOPLEFT", c.queueLabel, "BOTTOMLEFT", 0, -2)
@@ -196,11 +199,58 @@ local function fitItem(c)
   end
   h = math.ceil(h)
   local height = math.max(DOCK.H, h + 2 * DOCK.PAD)
-  local mid = height / 2
+  local mid = height / 2 + strip
   place(math.floor(mid + h / 2))
   c.dockIcon:ClearAllPoints()
   c.dockIcon:SetPoint("LEFT", c, "BOTTOMLEFT", DOCK.PAD, mid)
-  UI.Dock.SetHeight(height)
+  c.queueButton:ClearAllPoints()
+  c.queueButton:SetPoint("RIGHT", c, "BOTTOMRIGHT", -DOCK.PAD, DOCK.CTRL_Y + strip)
+  UI.Dock.SetHeight(height + strip)
+end
+
+-- How far POST's walk has got through the group the GROUPS row picked, this visit: the items of
+-- it posted or passed over, and the items of it still on the walk (queued, or held back and still
+-- stopped at), as "Posting Herbs: 1 of 4 done" and a bar under the posting row (the 2026-10-25
+-- design). Nothing picked, or nothing of the group to walk, and the line is not there.
+local function paintProgress(c)
+  local done, total = 0, 0
+  if S.group then
+    local seen = {}
+    for _, visit in ipairs({ S.postedThisVisit, S.passedThisVisit }) do
+      for key in pairs(visit) do
+        if not seen[key] and GC.Sell.InPickedGroup(key) then seen[key], done = true, done + 1 end
+      end
+    end
+    total = done
+    for _, list in ipairs({ S.queueEntries or {}, S.queueSkipped or {} }) do
+      for _, entry in ipairs(list) do
+        if not seen[entry.positionKey] then total = total + 1 end
+      end
+    end
+  end
+  if total == 0 then
+    c.groupProgress:Hide(); c.groupBar:Hide(); c.groupBarFill:Hide(); c.groupRule:Hide()
+    return
+  end
+  c.groupProgress:SetText(S.group == "mine" and (GC.L["Posting your groups: %d of %d done"]):format(done, total)
+    or (GC.L["Posting %s: %d of %d done"]):format(S.groupName or S.group, done, total))
+  local y = DOCK.STRIP_H / 2 + 2
+  c.groupProgress:ClearAllPoints()
+  c.groupProgress:SetPoint("LEFT", c, "BOTTOMLEFT", DOCK.PAD, y)
+  c.groupBar:ClearAllPoints()
+  c.groupBar:SetPoint("LEFT", c.groupProgress, "RIGHT", 10, 0)
+  c.groupRule:ClearAllPoints()
+  c.groupRule:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", DOCK.PAD, DOCK.STRIP_H + 2)
+  c.groupRule:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -DOCK.PAD, DOCK.STRIP_H + 2)
+  c.groupProgress:Show(); c.groupBar:Show(); c.groupRule:Show()
+  -- A bar's fill is as long as the share done, and not there at none: a texture 0 wide is drawn
+  -- at its own size by the client.
+  if done > 0 then
+    c.groupBarFill:SetWidth(math.max(2, math.floor(DOCK.BAR_W * done / total)))
+    c.groupBarFill:Show()
+  else
+    c.groupBarFill:Hide()
+  end
 end
 
 -- The player's own post's news under the item's name, in the stock line's place, for as long as
@@ -286,6 +336,24 @@ function PostPanel.Build()
   c.queueLabel:SetJustifyH("LEFT"); c.queueLabel:SetWordWrap(true)
   c.dockSub = Theme.Num(c, 9)
   c.dockSub:SetJustifyH("LEFT"); c.dockSub:SetWordWrap(true)
+
+  -- Under the posting row while a group is picked (paintProgress): how far the walk has got, a bar
+  -- of it in the tab's gold, and a rule between it and the row.
+  c.groupProgress = Theme.Num(c, 9)
+  c.groupProgress:SetJustifyH("LEFT")
+  setColor(c.groupProgress, Theme.color.fgMuted)
+  c.groupBar = c:CreateTexture(nil, "ARTWORK")
+  c.groupBar:SetColorTexture(1, 1, 1, 0.08)
+  c.groupBar:SetSize(DOCK.BAR_W, 4)
+  c.groupBarFill = c:CreateTexture(nil, "OVERLAY")
+  local gc = Theme.color.gold
+  c.groupBarFill:SetColorTexture(gc[1], gc[2], gc[3], 1)
+  c.groupBarFill:SetHeight(4)
+  c.groupBarFill:SetPoint("LEFT", c.groupBar, "LEFT", 0, 0)
+  c.groupRule = c:CreateTexture(nil, "ARTWORK")
+  c.groupRule:SetColorTexture(1, 1, 1, 0.06)
+  c.groupRule:SetHeight(1)
+  c.groupProgress:Hide(); c.groupBar:Hide(); c.groupBarFill:Hide(); c.groupRule:Hide()
   PostPanel.Layout()
 end
 
@@ -335,6 +403,7 @@ function PostPanel.Hide()
   letGo(c.priceBox); letGo(c.qtyBox)
   c.queueLabel:Hide()
   c.dockStatus:Show()
+  c.groupProgress:Hide(); c.groupBar:Hide(); c.groupBarFill:Hide(); c.groupRule:Hide()
   PostPanel.position, PostPanel.key = nil, nil
   UI.Dock.SetHeight(DOCK.H)
 end
@@ -355,6 +424,7 @@ function PostPanel.Paint(row, nextRow, hint)
   end
   local p = row and row.position or nil
   PostPanel.position, PostPanel.key = p, p and overrideKey(p) or nil
+  paintProgress(c)
   if not p then
     hideItem(c)
     letGo(c.priceBox); letGo(c.qtyBox)

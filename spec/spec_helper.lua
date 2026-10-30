@@ -19,12 +19,12 @@ helper.KIT_FILES = { "UI/Kit/Tokens.lua", "UI/Kit/Icons.lua", "UI/Kit/Fonts.lua"
 --- Services/Sell/*.lua, in the order both TOCs load them: one block after Core/QuoteCache.lua and
 --- before the first UI file (spec/sell_services_structure_spec.lua holds the TOCs to this list).
 helper.SELL_FILES = { "Services/Sell/State.lua", "Services/Sell/Quotes.lua", "Services/Sell/Bags.lua", "Services/Sell/Compose.lua",
-  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua",
+  "Services/Sell/Owned.lua", "Services/Sell/Walk.lua", "Services/Sell/Post.lua", "Services/Sell/Cancel.lua",
   "Services/Sell/Session.lua" }
 
 --- The Sell tab's view, in the order both TOCs load it: one block right after UI/SellViewModel.lua
 --- and before UI/SoldFrame.lua (spec/sell_ui_structure_spec.lua holds the TOCs to this list).
-helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua", "UI/Sell/PostPanel.lua" }
+helper.SELL_UI_FILES = { "UI/Sell/Frame.lua", "UI/Sell/Book.lua", "UI/Sell/Row.lua", "UI/Sell/Tooltips.lua", "UI/Sell/Inspector.lua", "UI/Sell/List.lua", "UI/Sell/CostDialog.lua", "UI/Sell/Toolbar.lua", "UI/Sell/Dock.lua", "UI/Sell/PostPanel.lua" }
 
 -- An amount in the Sell view's own coins (GC.Sell._FormatAmount), written the short way a spec
 -- reads best: helper.money("1g90s") is "1[gold] 90[silver]", helper.money("2450g") is
@@ -55,6 +55,13 @@ function helper.loadModule(relPath, GC)
   if relPath ~= "Locale/Core.lua" and GC.L == nil then
     local localeChunk = assert(loadfile("GoldCap/Locale/Core.lua"))
     localeChunk("GoldCap", GC)
+  end
+  -- Core/Util.lua loads before every other file of GoldCap's in both TOCs (after the locale), and
+  -- modules take its helpers at load (GC.Util.Ask). Same reasoning as the locale above. A spec that
+  -- brought its own GC.Util keeps it.
+  if relPath ~= "Core/Util.lua" and relPath ~= "Locale/Core.lua" and GC.Util == nil then
+    local utilChunk = assert(loadfile("GoldCap/Core/Util.lua"))
+    utilChunk("GoldCap", GC)
   end
   -- Core/PurchaseCall.lua loads before every UI file in both TOCs; the purchase clicks in
   -- UI/SniperFrame.lua and UI/BuyFrame.lua go through it. Same reasoning as the locale above.

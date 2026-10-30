@@ -66,8 +66,13 @@ jobs:
       # it warned and moved on, so a dry run produced no zip to look at, which
       # is the only thing a dry run is for. if-no-files-found: error so the
       # next way this breaks is red instead of quiet.
+      # The `mirror` job below takes the zip from here. On a tag this step runs after the
+      # packager has published, so a hiccup of the artifact service must not fail the job:
+      # that would skip the Discord post and make `gh run rerun --failed` publish the same
+      # version to CurseForge a second time. The mirror job then fails alone, and is rerun
+      # alone. A dry run keeps the failure, it is what tells that no zip was built.
       - uses: actions/upload-artifact@v7
-        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: ${{ startsWith(github.ref, 'refs/tags/') }}
         with:
           name: goldcap-addon
           path: .release/*.zip
@@ -119,3 +124,142 @@ jobs:
           # INTO a block scalar would carry its own newlines past the block's
           # indentation and break the YAML.
           description: ${{ steps.notes.outputs.body }}
+
+  # Puts the release zip and a signed addon.json on goldcap.gg/downloads/addon/, where
+  # the Companion looks for the addon to install and update. It needs six repository
+  # secrets, the same values the Companion's own release workflow holds: SSH_HOST, SSH_USER
+  # and SSH_PRIVATE_KEY (the deploy login; SSH_PORT is optional), TS_OAUTH_CLIENT_ID and
+  # TS_OAUTH_SECRET (the box's SSH answers only on the tailnet, as deploy.yml and the
+  # Companion's release reach it), and TAURI_SIGNING_PRIVATE_KEY (the Companion's updater
+  # key, with TAURI_SIGNING_PRIVATE_KEY_PASSWORD if it has one). Without all six it builds
+  # the manifest unsigned, warns, and uploads nothing; the release above is not affected
+  # either way.
+  #
+  # A job of its own, not steps of `package`, on purpose: `gh run rerun --failed` after
+  # a failed upload here reruns only this job. Steps inside `package` would rerun the
+  # packager with it and publish the same version to CurseForge and Wago a second time,
+  # which they accept as a duplicate.
+  #
+  # Tags only: a workflow_dispatch rehearsal packages an untagged commit, whose version
+  # is a `git describe` string the script rightly refuses, and must never sign a dev build.
+  mirror:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/addon-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: goldcap-addon
+          path: release
+
+      - name: Check publishing secrets
+        id: mirror
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ] && [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] \
+              && [ -n "$TS_OAUTH_CLIENT_ID" ] && [ -n "$TS_OAUTH_SECRET" ]; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::addon mirror skipped: repository secrets SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET and TAURI_SIGNING_PRIVATE_KEY are not all set"
+            echo "have=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and sign addon.json
+        env:
+          # The tag must agree with the TOC; a dry run has no tag to compare.
+          ADDON_TAG: ${{ startsWith(github.ref, 'refs/tags/addon-v') && github.ref_name || '' }}
+          # Without the key the script writes the manifest unsigned and says so.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.mirror.outputs.have == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.mirror.outputs.have == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          zips=(release/*.zip)
+          [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one addon zip in release/, found ${#zips[@]}"; exit 1; }
+          bash scripts/build-addon-manifest.sh "${zips[0]}" out
+          cat out/addon.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon-manifest
+          path: out/*
+          retention-days: 7
+          if-no-files-found: error
+
+      # Same tailnet-only SSH path as deploy.yml and the Companion's release: the box's
+      # public port 22 is closed.
+      - name: Connect to Tailscale
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # The first addon release makes the folder; later ones find it there.
+      - name: Ensure the addon folder exists on the VPS
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: mkdir -p /opt/wow-auction/downloads/addon
+
+      # The zip goes up first, so addon.json never names a file that is not there yet.
+      - name: Upload the zip
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "out/GoldCap-addon-v*.zip"
+          target: /opt/wow-auction/downloads/addon
+          strip_components: 1
+          overwrite: true
+
+      - name: Upload the manifest
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "out/addon.json,out/addon.json.sig"
+          target: /opt/wow-auction/downloads/addon
+          strip_components: 1
+          overwrite: true
+
+      # pipefail: GitHub's default shell is `bash -e` without it, so a failed curl at the
+      # head of a pipe would be hidden. The cache-busting query keeps the check on the
+      # origin, as the Companion's release workflow does: /downloads/ is served with
+      # max-age=300.
+      - name: Smoke test
+        if: startsWith(github.ref, 'refs/tags/addon-v') && steps.mirror.outputs.have == 'true'
+        run: |
+          set -euo pipefail
+          bust="cb=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          base="https://goldcap.gg/downloads/addon"
+          ver="${GITHUB_REF_NAME#addon-v}"
+          json=$(curl -fsS -H 'Cache-Control: no-cache' "$base/addon.json?$bust")
+          got=$(jq -r .version <<< "$json")
+          [ "$got" = "$ver" ] || { echo "::error::addon.json says $got, expected $ver"; exit 1; }
+          curl -fsSI -H 'Cache-Control: no-cache' "$base/addon.json.sig?$bust" | head -n 1
+          want=$(jq -r .sha256 <<< "$json")
+          url=$(jq -r .url <<< "$json")
+          curl -fsS -H 'Cache-Control: no-cache' "$url?$bust" -o served.zip
+          have=$(sha256sum served.zip | cut -d' ' -f1)
+          [ "$have" = "$want" ] || { echo "::error::served zip is $have, addon.json says $want"; exit 1; }
+          echo "addon $ver is live: $url"

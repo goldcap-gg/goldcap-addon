@@ -95,6 +95,76 @@ describe("Reagent quality markup", function()
     assert.equal("|A:new-expansion-quality-mark:14:14|a", GC.Theme.QualityMarkup(1))
   end)
 
+  -- Blizzard asks a reagent's quality of GetItemReagentQualityByItemInfo (the auction house's
+  -- commodity rows, Blizzard_AuctionHouseSharedTemplates.lua) and crafted gear's of
+  -- GetItemCraftedQualityByItemInfo with the item's link (Blizzard_ProfessionsCustomerOrdersForm.lua,
+  -- Blizzard_ProfessionsCrafterOrderView.lua): gear carries its quality per copy, in the link, and
+  -- every copy shares one item id. So the crafted-quality call is asked only with a link in hand,
+  -- never for a bare id, which every item name in GoldCap passes.
+  describe("an item crafted at a quality", function()
+    local GEAR_2 = "|cff0070dd|Hitem:1::::::::80:::::::::|h[Gear]|h|r"
+    local GEAR_3 = "|cffa335ee|Hitem:1::::::::80::::1:9999:::::|h[Gear]|h|r"
+    local asked
+
+    local function crafted(byLink)
+      asked = {}
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return nil end,
+        GetItemCraftedQualityByItemInfo = function(info)
+          asked[#asked + 1] = info
+          if type(info) == "number" then return 2 end
+          return byLink[info]
+        end,
+      }
+      _G.C_TooltipInfo = {
+        GetItemByID = function() return { lines = { { leftText = "Quality: |A:crafted-by-id:20:20|a" } } } end,
+        GetHyperlink = function(link)
+          local tier = byLink[link]
+          return { lines = tier and { { leftText = ("Quality: |A:crafted-quality-%d:20:20|a"):format(tier) } } or {} }
+        end,
+      }
+    end
+
+    it("never asks the crafted-quality call for a bare item id", function()
+      crafted({ [GEAR_2] = 2 })
+      assert.is_nil(GC.Theme.QualityAtlas(1))
+      assert.equal("", GC.Theme.QualityMarkup(1))
+      assert.equal("Gear", GC.Theme.WithQuality("Gear", 1))
+      assert.same({}, asked)
+    end)
+
+    it("asks it with the item's link when the reagent call has none, and draws that link's pip", function()
+      crafted({ [GEAR_2] = 2, [GEAR_3] = 3 })
+      assert.equal("crafted-quality-2", GC.Theme.QualityAtlas(1, GEAR_2))
+      -- Another copy of the same item, of another quality: its own pip, never the first one's.
+      assert.equal("crafted-quality-3", GC.Theme.QualityAtlas(1, GEAR_3))
+      assert.same({ GEAR_2, GEAR_3 }, asked)
+    end)
+
+    it("keeps the reagent call's answer and never asks the other one, link or not", function()
+      asked = 0
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return 1 end,
+        GetItemCraftedQualityByItemInfo = function() asked = asked + 1; return nil end,
+      }
+      tooltip({ { leftText = "Quality: |A:reagent-quality-1:20:20|a" } })
+      assert.equal("reagent-quality-1", GC.Theme.QualityAtlas(1, GEAR_2))
+      assert.equal(0, asked)
+    end)
+
+    it("says nothing for a link the crafted call has no number for, or when it is missing or throws", function()
+      crafted({})
+      assert.is_nil(GC.Theme.QualityAtlas(1, GEAR_2))
+      _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() return nil end }
+      assert.is_nil(GC.Theme.QualityAtlas(2, GEAR_2))
+      _G.C_TradeSkillUI = {
+        GetItemReagentQualityByItemInfo = function() return nil end,
+        GetItemCraftedQualityByItemInfo = function() error("nope") end,
+      }
+      assert.is_nil(GC.Theme.QualityAtlas(3, GEAR_2))
+    end)
+  end)
+
   it("survives an API that throws rather than taking the row down with it", function()
     _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() error("nope") end }
     assert.equal("", GC.Theme.QualityMarkup(1))
@@ -132,5 +202,21 @@ describe("Reagent quality markup", function()
       _G.C_Item = { GetItemQualityByID = function() error("nope") end }
       assert.equal("Ore", GC.Theme.WithQuality("Ore", 1))
     end)
+  end)
+
+  it("names the atlas itself for a caller that draws it, from the same cache", function()
+    local reads = 0
+    _G.C_TooltipInfo = { GetItemByID = function() reads = reads + 1
+      return { lines = { { leftText = "|A:quality-mark-2:20:20|a" } } } end }
+    assert.equal("quality-mark-2", GC.Theme.QualityAtlas(1))
+    assert.equal("|A:quality-mark-2:14:14|a", GC.Theme.QualityMarkup(1))
+    assert.equal(1, reads)
+  end)
+
+  it("names no atlas for an item without a quality tier", function()
+    tooltip({ { leftText = "|A:quality-mark-2:20:20|a" } })
+    _G.C_TradeSkillUI.GetItemReagentQualityByItemInfo = function() return nil end
+    assert.is_nil(GC.Theme.QualityAtlas(1))
+    assert.is_nil(GC.Theme.QualityAtlas("x"))
   end)
 end)

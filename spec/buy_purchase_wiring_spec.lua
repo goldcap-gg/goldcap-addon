@@ -171,9 +171,12 @@ describe("BUY purchase wiring", function()
     -- it did not take them. Gated on slot ownership instead, the branch that books the late
     -- success of a confirm BUY gave up on is unreachable: BUY released the slot on its way out,
     -- so the event went to the Sniper -- where it could even eat the Sniper's own stranded record.
-    for _, method in ipairs({ "OnCommodityPriceUpdated", "OnCommodityPriceUnavailable",
-                              "OnCommodityPurchaseSucceeded", "OnCommodityPurchaseFailed" }) do
+    -- A quote for somebody else's Start goes to neither window first (foreignQuote), the rest as before.
+    for _, method in ipairs({ "OnCommodityPurchaseSucceeded", "OnCommodityPurchaseFailed" }) do
       assert.is_truthy(init:find("if not (GC.Buy and GC.Buy." .. method, 1, true), method)
+    end
+    for _, method in ipairs({ "OnCommodityPriceUpdated", "OnCommodityPriceUnavailable" }) do
+      assert.is_truthy(init:find("if not foreignQuote() and not (GC.Buy and GC.Buy." .. method, 1, true), method)
     end
     -- Comments stripped first, the way spec/ui_widget_field_spec.lua does it: the line ABOVE the
     -- routing explains why the old gate is gone, and would otherwise match here.

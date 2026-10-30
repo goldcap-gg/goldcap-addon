@@ -299,6 +299,32 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     for _, id in ipairs(walk) do assert.are_not.equal("item:222:619:0:0", id) end
   end)
 
+  -- A commodity the auction house will not take -- holiday candy that expires ("You cannot auction
+  -- items with a limited duration") -- had a TO POST row, and its post went out and was never
+  -- answered: the server drops it without a word, so the dock listened for a minute and then held
+  -- the item. Blizzard's own Sell slot refuses it on the spot (probe 21.10).
+  it("asks the auction house about a commodity stack too, and leaves out one it refuses", function()
+    GC.Sniper.IsAHOpen = function() return true end
+    kinds[37584] = true
+    kinds[2589] = true
+    stack(1, 37584, 4, PLAIN, { itemName = "Soothing Spearmint Candy" })
+    stack(2, 2589, 20, PLAIN, { itemName = "Linen Cloth" })
+    local displayErrors = {}
+    _G.C_AuctionHouse.IsSellItemValid = function(location, displayError)
+      displayErrors[#displayErrors + 1] = displayError
+      return location.slot ~= 1
+    end
+    compose()
+    assert.is_nil(positionOf("commodity:37584"))
+    assert.is_truthy(positionOf("commodity:2589"))
+    for _, row in ipairs(GC.SellUI.rows) do
+      assert.is_false(row:IsShown() and row.kind == "waitItem")
+    end
+    for _, id in ipairs(GC.SellWalk.Queue()) do assert.are_not.equal("commodity:37584", id) end
+    assert.is_true(#displayErrors > 0)
+    for _, displayError in ipairs(displayErrors) do assert.is_false(displayError) end
+  end)
+
   -- /gc sellstate names a variant by its exact key: two item levels of one piece read as the same
   -- line by item ID alone (final review M7).
   it("names an unpriced variant by its exact key in /gc sellstate", function()

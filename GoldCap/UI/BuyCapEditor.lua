@@ -111,16 +111,16 @@ local function build()
     return copper
   end
   local function commit()
-    local copper
+    local copper, why
     if not frame.asks then
       copper = true
     elseif frame.read then
-      copper = frame.read(frame.box:GetText() or "")
+      copper, why = frame.read(frame.box:GetText() or "")
     else
       copper = GC.Util.ParseMoney(frame.box:GetText() or "")
     end
     if not copper then
-      frame.preview:SetText(frame.invalid or GC.L["Could not read that amount. Type it like 12g 50s."])
+      frame.preview:SetText(why or frame.invalid or GC.L["Could not read that amount. Type it like 12g 50s."])
       local r = T.color.red
       frame.preview:SetTextColor(r[1], r[2], r[3], 1)
       layout()
@@ -144,9 +144,11 @@ end
 -- and onCommit gets whatever was typed), `opts.box = false` asks only yes or no (onCommit(true)),
 -- `opts.setLabel` names the button that commits, `opts.danger` paints it red, and `opts.over` lays
 -- the popup over the anchor rather than under it. With `opts.text`, `opts.read(text)` may answer
--- what onCommit gets -- nil keeps the popup open on `opts.invalid` (the BUY search's "how many").
+-- what onCommit gets -- nil keeps the popup open on `opts.invalid` (the BUY search's "how many"),
+-- or on the words read answers second, when it says why (Send to alts' typed name).
 function GC.BuyCapEditor.Open(anchor, opts)
   if not frame then build() end
+  frame.anchor = anchor
   frame.onCommit = opts.onCommit
   frame.asks = opts.box ~= false
   frame.read = opts.text and (opts.read or function(text) return text end) or nil
@@ -183,7 +185,13 @@ end
 
 function GC.BuyCapEditor.Close()
   if not frame then return end
-  frame.onCommit = nil
+  frame.onCommit, frame.anchor = nil, nil
   if frame.box.ClearFocus then frame.box:ClearFocus() end
   frame:Hide()
+end
+
+-- Closes the box, without committing, if it is open under `anchor`: a window that goes away takes
+-- its own question with it and leaves another's alone (the bank by group card's keep count).
+function GC.BuyCapEditor.CloseFor(anchor)
+  if frame and frame.anchor == anchor and frame:IsShown() then GC.BuyCapEditor.Close() end
 end

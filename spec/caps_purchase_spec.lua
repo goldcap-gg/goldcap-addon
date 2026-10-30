@@ -581,6 +581,24 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal("at or under your price. Click Buy to purchase", d.written[#d.written])
     end)
 
+    -- The Check (2026-10-25): a cap from a group the player follows is that group's price, not
+    -- theirs, and the status line over Buy says whose it is.
+    it("says the group's price over Buy for a group the player follows", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      decision.followed = true
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+
+      applyRequeryResult(row, 42, { isCommodity = false, decision = decision })
+
+      assert.equal("ready", row.purchaseStage)
+      assert.equal("at or under the group's price. Click Buy to purchase", d.written[#d.written])
+    end)
+
     -- Caps fixes 5g: the diagnostic Status row read WATCH -- the shape a realm purchase is carried
     -- in (onDialogPrimaryClick buys a realm lot on status WATCH plus a candidate), not what
     -- decided it. It names the player's own price, as the board's own chip does.
@@ -933,11 +951,42 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.is_truthy(text:find('row:SetScript("OnSizeChanged", function(self, width)\n    GC.Sniper._FitRowName(self)', 1, true))
         -- And the tooltip names the group for any cap row, with or without a fresh verdict: the
         -- note is its own branch, never gated on a cap verdict.
-        local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+        -- The row's tooltip is drawRowTooltip, which OnEnter calls and the compare key redraws.
+        local enterAt = assert(text:find("local function drawRowTooltip(self)", 1, true))
         local enter = text:sub(enterAt)
         local note = assert(enter:find("local capNote = GC.Sniper._CapNote(self.deal)", 1, true))
         assert.is_truthy(enter:find("    if capNote then\n", note, true))
         assert.is_nil(enter:find("verdict.cap and capNote", 1, true))
+      end)
+
+      -- Followed groups (plan 2026-10-22, task 7): a cap from a group the player follows is
+      -- that group's deal price, not one the player set, and the tooltip says so. The chip on
+      -- the row reads GROUP instead of YOUR PRICE.
+      it("_CapNote names a group you follow", function()
+        local GC = loadSniper()
+        assert.equal("Listed at or under the deal price of a group you follow (Herbs)",
+          GC.Sniper._CapNote({ cap = 800, capGroup = "Herbs", capFollowed = true }))
+        assert.equal((GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format("Herbs"),
+          GC.Sniper._CapNote({ cap = 800, capGroup = "Herbs" }))
+
+        _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+          caps = { { i = 42, c = 2000000, g = 1, k = true } } }
+        GC.Caps.Adopt()
+        capLive(GC, 42, TWO_LEVELS)
+        assert.equal("Listed at or under the deal price of a group you follow (Herbs)",
+          GC.Sniper._CapNote(boardDeal(GC, 42)))
+        local row = fakeRow()
+        function row.tierChip:SetLabel(text) self.text = text end
+        getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+        assert.equal("GROUP", row.tierChip.text)
+      end)
+
+      it("_CapArmText names the group's price for a group you follow, else yours", function()
+        local GC = loadSniper()
+        assert.equal("at or under the group's price. Click Buy to purchase",
+          GC.Sniper._CapArmText({ cap = true, followed = true }))
+        assert.equal("at or under your price. Click Buy to purchase", GC.Sniper._CapArmText({ cap = true }))
+        assert.equal("at or under your price. Click Buy to purchase", GC.Sniper._CapArmText(nil))
       end)
 
       it("says in the row's tooltip what YOUR PRICE means, group included", function()
@@ -985,6 +1034,78 @@ describe("Live price caps -- buying at the player's own price", function()
       getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, capDeal)
 
       assert.equal("-", row.profitText.text)
+    end)
+
+    -- A followed group's row on DEALS (owner, 2026-10-25: 0% and a dash on every one). It is
+    -- measured against the lower of the group's usual price and the market's, so DISC and PROFIT
+    -- say what the deal is worth; with neither known they say nothing, as a YOUR PRICE row does.
+    it("measures a followed group's row against the lower of its usual price and the market", function()
+      local GC = loadSniper()
+      local function follow(mv)
+        GC.Data.GetItemValue = function() return mv and { mv = mv } or nil end
+        _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Herbs" },
+          caps = { { i = 42, c = 1600000, g = 1, k = true, u = 2000000 } } }
+        GC.Caps.Adopt()
+        return GC.Caps.DecideCommodity(GC.Caps.For(42), { { unitPrice = 1000000, quantity = 10 } },
+          { maxQuantity = 10, budget = math.huge })
+      end
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      local build = getUpvalue(evaluate, "buildCapDeal")
+      local setRowDeal = getUpvalue(refreshRowsOf(GC), "setRowDeal")
+
+      -- No market known: the usual price, 200g. 10 x 190g back against 100g each.
+      local row = fakeRow()
+      setRowDeal(row, build(42, true, follow(nil), GC.Caps.For(42)))
+      assert.equal("50%", row.discountText.text)
+      assert.equal("+" .. GC.Util.FormatMoney(10 * 1900000 - 10000000), row.profitText.text)
+
+      -- The market is under it at 150g: that is what the units would sell into.
+      row = fakeRow()
+      setRowDeal(row, build(42, true, follow(1500000), GC.Caps.For(42)))
+      assert.equal("33%", row.discountText.text)
+      assert.equal("+" .. GC.Util.FormatMoney(10 * 1425000 - 10000000), row.profitText.text)
+
+      -- A dearer market changes nothing: the usual price is the lower.
+      row = fakeRow()
+      setRowDeal(row, build(42, true, follow(3000000), GC.Caps.For(42)))
+      assert.equal("50%", row.discountText.text)
+
+      -- The player's own price with no market: nothing to measure, so both cells say nothing.
+      adoptCap(GC, 42, 2000000)
+      GC.Data.GetItemValue = function() return nil end
+      local mine = GC.Caps.DecideCommodity(GC.Caps.For(42), { { unitPrice = 1000000, quantity = 10 } },
+        { maxQuantity = 10, budget = math.huge })
+      row = fakeRow()
+      setRowDeal(row, build(42, true, mine, GC.Caps.For(42)))
+      assert.equal("-", row.discountText.text)
+      assert.equal("-", row.profitText.text)
+    end)
+
+    -- Gear a followed group lists far under its usual price is left off, as a flip is: the price,
+    -- not a find (Rock Furrow Boots at 1,577g against 711,760g, 2026-10-25). The player's own
+    -- price is theirs to keep.
+    it("leaves a followed group's gear more than 80% under its usual price off the board", function()
+      local GC = loadSniper()
+      helper.loadModule("Core/ItemsBoard.lua", GC)
+      _G.C_Item = _G.C_Item or {}
+      local savedInstant = _G.C_Item.GetItemInfoInstant
+      finally(function() _G.C_Item.GetItemInfoInstant = savedInstant end)
+      _G.C_Item.GetItemInfoInstant = function() return 42, nil, nil, "INVTYPE_FEET", nil, 4, 4 end
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Plate Transmog" },
+        caps = { { i = 42, c = 711760000, l = 0, g = 1, k = true, u = 1779400000 } } }
+      GC.Caps.Adopt()
+      local lots = { { auctionID = 9, buyout = 15770000, quantity = 1 } }
+      local evaluate = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+      setUpvalue(evaluate, "driver", {
+        itemResult = function() return {} end,
+        itemLots = function() return lots end,
+      })
+      evaluate(42)
+      assert.is_nil(GC.Sniper._realmDeals[42])
+
+      lots = { { auctionID = 10, buyout = 600000000, quantity = 1 } } -- a third of its usual price
+      evaluate(42)
+      assert.is_truthy(GC.Sniper._realmDeals[42])
     end)
 
     it("sorts by that same total", function()

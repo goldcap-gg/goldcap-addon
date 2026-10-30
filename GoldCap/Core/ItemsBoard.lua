@@ -61,6 +61,15 @@ function GC.ItemsBoard.FlipText(flip)
   return (GC.L["Sold %d times in 7 days on %d realms"]):format(flip.sales7d, flip.realms or 0)
 end
 
+--- The same, short, for the line under a flip's name when goldcap.gg names no realm to sell it on
+--- (UI/SniperFrame.lua's _RowNotes): FlipText's realms are the row's tooltip. nil with no sale.
+function GC.ItemsBoard.SoldText(flip)
+  local n = type(flip) == "table" and flip.sales7d or nil
+  if type(n) ~= "number" or n <= 0 then return nil end
+  if n == 1 then return GC.L["Sold once in 7 days"] end
+  return (GC.L["Sold %d times in 7 days"]):format(n)
+end
+
 -- Armor and weapons come at many item levels under one item id, and a flip is measured against one
 -- price for all of them: the region's (T), and once goldcap.gg has switched, the median it sold for
 -- (F). Neither is the level of THIS realm's cheapest listing (ClickUp 869ffmwbk), so a piece far

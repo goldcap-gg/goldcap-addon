@@ -80,6 +80,12 @@ function Compose.Positions(skipPaint)
   -- every keyless batch of a fully-sold item into its own repair row.
   local identityEvidence = GC.Acquisitions and GC.Acquisitions.GetIdentityEvidence
     and GC.Acquisitions.GetIdentityEvidence(scope) or {}
+  -- Followed groups: the lots that came back unsold since the last compose count as rounds before
+  -- the positions are priced (Core/SellRounds.lua). The returns log is the mail module's; a
+  -- client without it has no returns. Retail only.
+  if GC.SellRounds then
+    GC.SellRounds.Ingest(GC.MailReturns and GC.MailReturns.Entries() or (GC.db and GC.db.mailReturns), time())
+  end
   S.positions = GC.SellPositions.Build({ acquisitions = batches, identityEvidence = identityEvidence,
     pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = S.ownedLots,
@@ -94,10 +100,18 @@ function Compose.Positions(skipPaint)
     -- this tab has twice shipped a bug where the price shown and the price sent were two
     -- different numbers.
     chosenUnits = S.priceOverrides,
+    -- The seller's default price (Settings, POSTING): what every item opens at in place of
+    -- GoldCap's own, for the same reason a typed price travels here.
+    defaultPrice = GC.Sell.DefaultPrice(),
     -- WoW: Forever only (Core/SellPositions.lua's decoratePosition): the player's own scan is
     -- the market there, so the projection prices bag stock from it while the live walk is still
     -- waiting on the throttle. Posting and cancelling are untouched -- they still wait for fresh.
     scanProjects = GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled() or nil,
+    -- Followed groups: each item's selling rule and its unsold rounds (Core/GroupRules.lua,
+    -- Core/SellRounds.lua), as functions so Core/SellPositions.lua stays pure. Retail only: on
+    -- WoW: Forever neither module loads and no position has a rule.
+    rules = GC.GroupRules and { ruleFor = GC.GroupRules.RuleFor,
+      roundsFor = GC.SellRounds and GC.SellRounds.Rounds or function() return 0 end } or nil,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose
@@ -118,7 +132,12 @@ function Compose.Positions(skipPaint)
   Compose.Queue()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
-    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions)
+    -- The player's cancel threshold (Settings, POSTING): a whole percent, 0 to 20. Unset is 0,
+    -- which is the queue as it always was. Not in DEFAULTS, so WoW: Forever's save never holds it.
+    local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
+    local pct = sniper and sniper.cancelUndercutPct
+    pct = (type(pct) == "number" and pct == pct) and math.max(0, math.min(20, math.floor(pct))) or 0
+    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions, { undercutPct = pct })
   else
     S.cancelEntries, S.cancelSkipped = {}, {}
   end
@@ -218,7 +237,8 @@ end
 -- marks)? For the row's mark and the list's two sections. Asked once a row on every render, so
 -- it reads the marks straight from the saved data rather than building _QueueOpts each time.
 function GC.Sell.IsSelling(position)
-  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil)
+  return GC.PostQueue ~= nil and GC.PostQueue.Selling(position, type(GC.db) == "table" and GC.db.sellMarks or nil,
+    S.group ~= nil)
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

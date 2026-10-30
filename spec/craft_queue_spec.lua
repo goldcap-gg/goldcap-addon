@@ -1,0 +1,338 @@
+local helper = require("spec.spec_helper")
+
+-- Core/CraftQueue.lua: the per-character craft queue in GC.db.craft and its arithmetic -- crafts
+-- left, what is held and listed, what the queue needs and is missing, and the BUY lines that buy
+-- exactly that.
+describe("craft queue", function()
+  local GC, Q
+
+  local function recipe(id, slots, outputs, per)
+    return { recipeID = id, name = "Recipe " .. id, per = per or 1, output = (outputs or { 900 })[1],
+      outputs = outputs or { 900 }, slots = slots or { { slotIndex = 1, q = 2, ids = { 101, 102, 103 } } } }
+  end
+
+  local function counts(t) return function(id) return t[id] or 0 end end
+  local function unit(t) return function(id) return t[id] end end
+
+  before_each(function()
+    GC = helper.loadModule("Core/CraftMath.lua")
+    helper.loadModule("Core/CraftQueue.lua", GC)
+    GC.db = {}
+    Q = GC.CraftQueue
+  end)
+
+  it("creates the craft store on the first write, one per character", function()
+    assert.same({}, Q.Entries("A-R"))
+    assert.is_nil(GC.db.craft)
+    Q.Add("A-R", recipe(1), 2)
+    assert.equal(1, GC.db.craft.v)
+    assert.same({}, Q.Entries("B-R"))
+    assert.equal(1, #Q.Entries("A-R"))
+  end)
+
+  it("leaves a store a newer GoldCap wrote untouched", function()
+    GC.db.craft = { v = 2, chars = {} }
+    assert.is_nil(Q.Add("A-R", recipe(1), 2))
+    assert.is_nil(Q.Restock("A-R", recipe(1), 5))
+    Q.FoldListed("A-R", { { itemKey = { itemID = 900 }, quantity = 1, status = 0 } }, 100)
+    assert.is_false(Q.SetBuyList("A-R", "game-1"))
+    assert.same({ v = 2, chars = {} }, GC.db.craft)
+    assert.is_false(Q.Writable())
+    GC.db.craft = { v = 2, chars = { ["A-R"] = { entries = {}, buyList = "game-1" } } }
+    assert.is_nil(Q.BuyList("A-R"))
+  end)
+
+  it("is writable when no store exists yet or it is this version's", function()
+    assert.is_true(Q.Writable())
+    Q.Add("A-R", recipe(1), 1)
+    assert.is_true(Q.Writable())
+  end)
+
+  it("adds crafts to a recipe already counted", function()
+    Q.Add("A-R", recipe(1), 3)
+    Q.Add("A-R", recipe(1), 2)
+    local entries = Q.Entries("A-R")
+    assert.equal(1, #entries)
+    assert.equal(5, entries[1].count)
+  end)
+
+  it("keeps the newest snapshot of a recipe it already holds", function()
+    Q.Add("A-R", recipe(1), 1)
+    local fresh = recipe(1, nil, { 900, 901 })
+    Q.Add("A-R", fresh, 1)
+    assert.same({ 900, 901 }, Q.Entries("A-R")[1].recipe.outputs)
+  end)
+
+  it("refuses a count that is not a whole number above zero", function()
+    assert.is_nil(Q.Add("A-R", recipe(1), 0))
+    assert.is_nil(Q.Add("A-R", recipe(1), 1.5))
+    assert.is_nil(GC.db.craft)
+  end)
+
+  it("turns a restock into a count when crafts are added, and a count into a restock", function()
+    Q.Restock("A-R", recipe(1), 20)
+    Q.Add("A-R", recipe(1), 3)
+    local e = Q.Entries("A-R")[1]
+    assert.equal(3, e.count)
+    assert.is_nil(e.restock)
+    Q.Restock("A-R", recipe(1), 10)
+    e = Q.Entries("A-R")[1]
+    assert.equal(10, e.restock)
+    assert.is_nil(e.count)
+    assert.equal(1, #Q.Entries("A-R"))
+  end)
+
+  it("keeps a recipe's place in the queue when its kind changes", function()
+    Q.Add("A-R", recipe(1), 1)
+    Q.Add("A-R", recipe(2), 1)
+    Q.Restock("A-R", recipe(1), 5)
+    local entries = Q.Entries("A-R")
+    assert.same({ 1, 2 }, { entries[1].recipe.recipeID, entries[2].recipe.recipeID })
+  end)
+
+  it("takes the recipe off at restock 0", function()
+    Q.Restock("A-R", recipe(1), 5)
+    Q.Restock("A-R", recipe(1), 0)
+    assert.same({}, Q.Entries("A-R"))
+  end)
+
+  it("takes a recipe off the queue", function()
+    Q.Add("A-R", recipe(1), 1)
+    Q.Add("A-R", recipe(2), 1)
+    Q.Remove("A-R", 1)
+    local entries = Q.Entries("A-R")
+    assert.equal(1, #entries)
+    assert.equal(2, entries[1].recipe.recipeID)
+  end)
+
+  it("counts what is held in every quality plus what is listed", function()
+    local e = { recipe = recipe(1, nil, { 900, 901 }), restock = 10 }
+    assert.equal(9, Q.Held(e, counts({ [900] = 3, [901] = 2 }), { [900] = 4 }))
+    assert.equal(5, Q.Held(e, counts({ [900] = 3, [901] = 2 }), nil))
+  end)
+
+  it("crafts a restock up to its target in whole crafts", function()
+    local e = { recipe = recipe(1, nil, nil, 2), restock = 20 }
+    assert.equal(7, Q.CraftsNeeded(e, 7))
+    assert.equal(0, Q.CraftsNeeded(e, 25))
+    assert.equal(4, Q.CraftsNeeded({ recipe = recipe(1), count = 4 }, 100))
+  end)
+
+  it("sums what several recipes need of the same reagent", function()
+    local a = { recipe = recipe(1, { { slotIndex = 1, q = 2, ids = { 101, 102, 103 } } }), count = 2 }
+    local b = { recipe = recipe(2, { { slotIndex = 3, q = 3, ids = { 101, 102, 103 } } }), count = 1 }
+    local c = { recipe = recipe(3, { { slotIndex = 1, q = 9, ids = { 201 } } }), restock = 1 }
+    local crafts = { [a] = 2, [b] = 1, [c] = 0 }
+    local needs = Q.Needs({ a, b, c }, function(e) return crafts[e] end)
+    assert.same({ { ids = { 101, 102, 103 }, q = 7 } }, needs)
+  end)
+
+  it("keeps a currency reagent as its own need", function()
+    local a = { recipe = recipe(1, { { slotIndex = 1, q = 1, ids = { 101 } }, { slotIndex = 2, q = 5, currency = 3008 } }), count = 2 }
+    assert.same({ { ids = { 101 }, q = 2 }, { currency = 3008, q = 10 } }, Q.Needs({ a }, function() return 2 end))
+  end)
+
+  it("counts every quality of a reagent as held", function()
+    local rows = Q.Missing({ { ids = { 101, 102, 103 }, q = 10 } }, counts({ [101] = 3, [102] = 2 }))
+    assert.same({ { ids = { 101, 102, 103 }, need = 10, have = 5, missing = 5 } }, rows)
+    assert.same({}, Q.Missing({ { ids = { 101, 102, 103 }, q = 4 } }, counts({ [103] = 5 })))
+  end)
+
+  it("counts what the player holds of a currency reagent, and misses only the shortfall", function()
+    local needs = { { currency = 3008, q = 10 } }
+    assert.same({}, Q.Missing(needs, counts({}), counts({ [3008] = 10 })))
+    assert.same({}, Q.Missing(needs, counts({}), counts({ [3008] = 25 })))
+    assert.same({ { currency = 3008, need = 10, have = 4, missing = 6 } }, Q.Missing(needs, counts({}), counts({ [3008] = 4 })))
+    -- No way to count it: held as none.
+    assert.same({ { currency = 3008, need = 10, have = 0, missing = 10 } }, Q.Missing(needs, counts({})))
+  end)
+
+  -- The lines of the craft queue's BUY list: everything the queue needs, as BUY reads a line (it
+  -- buys the need less what it sees held of that one item, Core/BuyRun.lua).
+  it("BuyLines asks for the whole need less what is held of the other qualities", function()
+    local needs = { { ids = { 101, 102, 103 }, q = 6 } }
+    local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })
+    assert.same({ { i = 103, q = 6 } }, (Q.BuyLines(needs, prices, counts({ [103] = 1 }))))
+    assert.same({ { i = 103, q = 3 } }, (Q.BuyLines(needs, prices, counts({ [101] = 3 }))))
+    -- Held of the bought quality stays on the line, which BUY then reads as done.
+    assert.same({ { i = 103, q = 6 } }, (Q.BuyLines(needs, prices, counts({ [103] = 9 }))))
+    -- Other qualities cover it: no line.
+    assert.same({}, (Q.BuyLines(needs, prices, counts({ [101] = 2, [102] = 4 }))))
+  end)
+
+  it("marks a reagent a vendor sells as a vendor stop with the vendor's price", function()
+    local needs = { { ids = { 101, 102 }, q = 4 }, { ids = { 201 }, q = 2 } }
+    local prices = unit({ [101] = 50, [102] = 900, [201] = 300 })
+    local vendor = function(id) return id == 101 and 50 or nil end
+    assert.same({ { i = 101, q = 4, v = true, vu = 50 }, { i = 201, q = 2 } },
+      (Q.BuyLines(needs, prices, counts({}), vendor)))
+  end)
+
+  it("buys the lowest quality when no quality has a price, and leaves a currency out", function()
+    local needs = { { ids = { 101, 102 }, q = 4 }, { currency = 3008, q = 2 } }
+    local lines, notBuyable = Q.BuyLines(needs, unit({}), counts({}))
+    assert.same({ { i = 101, q = 4 } }, lines)
+    assert.same({ { currency = 3008 } }, notBuyable)
+  end)
+
+  it("counts the crafts asked for since the entry was made, which a craft does not lower", function()
+    Q.Add("A-R", recipe(1), 3)
+    Q.Add("A-R", recipe(1), 2)
+    local e = Q.Entries("A-R")[1]
+    assert.same({ 5, 5 }, { e.count, e.total })
+    Q.OnCraftSucceeded("A-R", 1)
+    assert.same({ 4, 5 }, { e.count, e.total })
+    Q.Add("A-R", recipe(1), 1)
+    assert.same({ 5, 6 }, { e.count, e.total })
+  end)
+
+  it("starts the total at the count over a restock target", function()
+    Q.Restock("A-R", recipe(1), 20)
+    local e = Q.Add("A-R", recipe(1), 3)
+    assert.same({ 3, 3, nil }, { e.count, e.total, e.restock })
+    assert.same({ e }, Q.Entries("A-R"))
+  end)
+
+  it("reads an entry an older save made without a total as total = count", function()
+    GC.db.craft = { v = 1, chars = { ["A-R"] = { entries = { { recipe = recipe(1), count = 4 } }, listed = {} } } }
+    assert.same({ 0, 4 }, { Q.Progress(Q.Entries("A-R")[1], 0) })
+    Q.Add("A-R", recipe(1), 2)
+    local e = Q.Entries("A-R")[1]
+    assert.same({ 6, 6 }, { e.count, e.total })
+    GC.db.craft.chars["A-R"].entries[1] = { recipe = recipe(1), count = 4 }
+    Q.OnCraftSucceeded("A-R", 1)
+    assert.same({ 1, 4 }, { Q.Progress(Q.Entries("A-R")[1], 0) })
+  end)
+
+  it("keeps the total at least the count when an older GoldCap raised the count past it", function()
+    GC.db.craft = { v = 1, chars = { ["A-R"] = { entries = { { recipe = recipe(1), count = 7, total = 5 } }, listed = {} } } }
+    local e = Q.Add("A-R", recipe(1), 2)
+    assert.same({ 9, 9 }, { e.count, e.total })
+  end)
+
+  it("reports progress: crafts made of a count, held against a restock target", function()
+    assert.same({ 2, 5 }, { Q.Progress({ recipe = recipe(1), count = 3, total = 5 }, 99) })
+    assert.same({ 0, 5 }, { Q.Progress({ recipe = recipe(1), count = 5 }, 0) })
+    assert.same({ 7, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 7) })
+    assert.same({ 20, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, 31) })
+    -- A count raised past its total by an older GoldCap: nothing done yet, the count is the total.
+    assert.same({ 0, 7 }, { Q.Progress({ recipe = recipe(1), count = 7, total = 5 }, 0) })
+    assert.same({ 0, 20 }, { Q.Progress({ recipe = recipe(1), restock = 20 }, nil) })
+  end)
+
+  describe("MissingCost", function()
+    it("prices the item BuyLines would buy, times what is missing", function()
+      local needs = { { ids = { 101, 102, 103 }, q = 6 } }
+      local prices = unit({ [101] = 500, [102] = 450, [103] = 400 })
+      local missing = Q.Missing(needs, counts({ [103] = 1 }))
+      local costs, total, unpriced, items = Q.MissingCost(missing, prices)
+      assert.same({ 5 * 400 }, costs)
+      assert.same({ 2000, 0 }, { total, unpriced })
+      assert.equal(103, Q.BuyLines(needs, prices, counts({ [103] = 1 }))[1].i)
+      -- And says which item that is, for a cell to draw.
+      assert.same({ 103 }, items)
+    end)
+
+    it("prices a vendor item at the vendor's price", function()
+      local missing = { { ids = { 101, 102 }, need = 4, have = 0, missing = 4 } }
+      local costs, total = Q.MissingCost(missing, unit({ [101] = 900, [102] = 800 }),
+        function(id) return id == 102 and 50 or nil end)
+      assert.same({ 200 }, costs)
+      assert.equal(200, total)
+      -- A vendor that sells the item the auction house has no price for.
+      costs = Q.MissingCost(missing, unit({}), function(id) return id == 101 and 30 or nil end)
+      assert.same({ 120 }, costs)
+    end)
+
+    it("leaves an unpriced row out of the total and counts it, and ignores a currency", function()
+      local missing = {
+        { ids = { 101 }, need = 2, have = 0, missing = 2 },
+        { ids = { 201, 202 }, need = 3, have = 1, missing = 2 },
+        { currency = 3008, need = 5, have = 0, missing = 5 },
+      }
+      local costs, total, unpriced, items = Q.MissingCost(missing, unit({ [101] = 70 }))
+      assert.same({ 140 }, costs)
+      assert.is_nil(costs[2])
+      assert.is_nil(costs[3])
+      assert.same({ 140, 1 }, { total, unpriced })
+      -- An unpriced row still names what BUY would buy of it: its lowest quality.
+      assert.same({ 101, 201 }, items)
+    end)
+
+    it("answers nothing priced for nothing missing", function()
+      assert.same({ {}, 0, 0, {} }, { Q.MissingCost({}, unit({})) })
+      assert.same({ {}, 0, 0, {} }, { Q.MissingCost(nil, unit({})) })
+    end)
+  end)
+
+  it("remembers each character's craft queue BUY list", function()
+    assert.is_nil(Q.BuyList("A-R"))
+    assert.is_nil(GC.db.craft)
+    assert.is_true(Q.SetBuyList("A-R", "game-3"))
+    assert.equal("game-3", Q.BuyList("A-R"))
+    assert.equal("game-3", GC.db.craft.chars["A-R"].buyList)
+    assert.is_nil(Q.BuyList("B-R"))
+    assert.is_false(Q.SetBuyList("A-R", ""))
+    assert.is_false(Q.SetBuyList(nil, "game-4"))
+    assert.equal("game-3", Q.BuyList("A-R"))
+  end)
+
+  it("FoldListed counts live auctions and never sold ones", function()
+    Q.FoldListed("A-R", {
+      { itemKey = { itemID = 900 }, quantity = 4, status = 0 },
+      { itemKey = { itemID = 900 }, quantity = 2, status = 1 },
+    }, 1234)
+    local listed, at = Q.Listed("A-R")
+    assert.equal(4, listed[900])
+    assert.equal(1234, at)
+    Q.FoldListed("A-R", {}, 1300)
+    listed, at = Q.Listed("A-R")
+    assert.same({}, listed)
+    assert.equal(1300, at)
+  end)
+
+  it("takes a read older than the longest auction, 48 hours, as no read", function()
+    -- What sold and was collected since cannot be told from it.
+    Q.FoldListed("A-R", { { itemKey = { itemID = 900 }, quantity = 4, status = 0 } }, 1000)
+    local listed, at = Q.Listed("A-R", 1000 + 48 * 3600)
+    assert.same({ [900] = 4 }, listed)
+    assert.equal(1000, at)
+    listed, at = Q.Listed("A-R", 1000 + 48 * 3600 + 1)
+    assert.same({}, listed)
+    assert.is_nil(at)
+  end)
+
+  it("knows nothing listed before the auction house was seen", function()
+    local listed, at = Q.Listed("A-R")
+    assert.same({}, listed)
+    assert.is_nil(at)
+    assert.is_nil(GC.db.craft)
+  end)
+
+  it("a finished craft takes one off a counted recipe", function()
+    Q.Add("A-R", recipe(1), 2)
+    Q.Restock("A-R", recipe(2), 5)
+    assert.is_true(Q.OnCraftSucceeded("A-R", 1))
+    assert.equal(1, Q.Entries("A-R")[1].count)
+    assert.is_true(Q.OnCraftSucceeded("A-R", 1))
+    local entries = Q.Entries("A-R")
+    assert.equal(1, #entries)
+    assert.equal(2, entries[1].recipe.recipeID)
+    assert.is_false(Q.OnCraftSucceeded("A-R", 2))
+    assert.is_false(Q.OnCraftSucceeded("A-R", 99))
+    assert.is_false(Q.OnCraftSucceeded("Other-R", 2))
+    assert.same(5, Q.Entries("A-R")[1].restock)
+  end)
+
+  it("reads a count the player typed", function()
+    assert.equal(12, Q.ParseCount("12"))
+    assert.equal(3, Q.ParseCount(" 3 "))
+    assert.is_nil(Q.ParseCount("0"))
+    assert.equal(0, Q.ParseCount("0", true))
+    assert.is_nil(Q.ParseCount("2.5"))
+    assert.is_nil(Q.ParseCount("abc"))
+    assert.is_nil(Q.ParseCount("10000"))
+    assert.equal(9999, Q.ParseCount("9999"))
+    assert.is_nil(Q.ParseCount(nil))
+  end)
+end)

@@ -310,9 +310,11 @@ end
 -- being answered from memory.
 local QUALITY_CACHE = {}
 
-local function atlasFromTooltip(itemID)
-  if not (C_TooltipInfo and C_TooltipInfo.GetItemByID) then return nil end
-  local ok, data = pcall(C_TooltipInfo.GetItemByID, itemID)
+-- `read` is C_TooltipInfo's GetItemByID (an item id) or GetHyperlink (an item's link).
+local function atlasFromTooltip(read, arg)
+  local fn = C_TooltipInfo and C_TooltipInfo[read]
+  if not fn then return nil end
+  local ok, data = pcall(fn, arg)
   if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
   for _, line in ipairs(data.lines) do
     for _, text in ipairs({ line.leftText, line.rightText }) do
@@ -327,27 +329,50 @@ local function atlasFromTooltip(itemID)
   return nil
 end
 
-local function atlasForQuality(itemID)
-  local cached = QUALITY_CACHE[itemID]
+-- Cached by what was read: an item id, or a link (a crafted copy's quality is its own).
+local function atlasForQuality(read, arg)
+  local cached = QUALITY_CACHE[arg]
   if cached ~= nil then return cached end
-  local atlas = atlasFromTooltip(itemID)
+  local atlas = atlasFromTooltip(read, arg)
   if atlas then
-    QUALITY_CACHE[itemID] = atlas
+    QUALITY_CACHE[arg] = atlas
   end
   -- Nothing is remembered when the tooltip has no answer yet -- that is
   -- temporary, so the next call is free to try again once it warms up.
   return atlas
 end
 
+-- Whether the client's `name` call gives `arg` a crafting quality: one that is missing or throws
+-- answers nothing.
+local function hasQuality(name, arg)
+  local api = C_TradeSkillUI
+  local call = type(api) == "table" and api[name] or nil
+  if not call then return false end
+  local ok, quality = pcall(call, arg)
+  return ok and type(quality) == "number"
+end
+
+--- The atlas the client draws for `itemID`'s crafting quality, or nil when the item has no quality
+-- tier (most items do not) or the client will not say what to draw. A reagent's quality is asked
+-- by the item id, as the auction house's commodity rows ask it (GetItemReagentQualityByItemInfo,
+-- Blizzard_AuctionHouseSharedTemplates.lua). Crafted gear carries its quality on each copy, in the
+-- link, and every copy shares the id: it is asked only with the copy's `link` in hand, as
+-- Blizzard's crafting order forms ask it (GetItemCraftedQualityByItemInfo(link),
+-- Blizzard_ProfessionsCustomerOrdersForm.lua, Blizzard_ProfessionsCrafterOrderView.lua), and its pip
+-- read from that link's tooltip. A bare id never asks it.
+function T.QualityAtlas(itemID, link)
+  if type(itemID) ~= "number" then return nil end
+  if hasQuality("GetItemReagentQualityByItemInfo", itemID) then return atlasForQuality("GetItemByID", itemID) end
+  if type(link) == "string" and link ~= "" and hasQuality("GetItemCraftedQualityByItemInfo", link) then
+    return atlasForQuality("GetHyperlink", link)
+  end
+  return nil
+end
+
 --- The quality of `itemID` as an inline atlas escape, or "" when the item has no
 -- quality tier (most items do not) or the client will not say what to draw.
 function T.QualityMarkup(itemID, size)
-  if type(itemID) ~= "number" then return "" end
-  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
-  if not api then return "" end
-  local ok, quality = pcall(api, itemID)
-  if not ok or type(quality) ~= "number" then return "" end
-  local atlas = atlasForQuality(itemID)
+  local atlas = T.QualityAtlas(itemID)
   if not atlas then return "" end
   size = size or 14
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)

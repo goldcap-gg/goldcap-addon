@@ -509,6 +509,41 @@ local function build(sniperFrame)
     headerRule:SetHeight(1)
   end
 
+  -- Under the rule the cards scroll, so a column taller than the drawer still reaches its last
+  -- card at the window's smallest height, and a new card no longer raises that height
+  -- (WIN.RESIZE_MIN_HEIGHT in UI/SniperFrame.lua). The kit's scroll, as the Sold tab and the Sell
+  -- inspector have it: Blizzard's UIPanelScrollFrameTemplate under Theme.QuietScrollBar. Its bar
+  -- hangs 6px right of the frame and is 16px wide (Blizzard_SharedXML/SecureScrollTemplates.xml),
+  -- so the frame stops 22px short of the panel's right edge and the bar lands in that margin; it
+  -- is hidden while everything fits (scrollBarHideable, read by ScrollFrame_OnScrollRangeChanged).
+  -- The cards hang off the scroll child: its width is the frame's, its height the taller column's
+  -- (fitContent below).
+  local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end
+  scroll.scrollBarHideable = true
+  if scroll.ScrollBar then scroll.ScrollBar:Hide() end
+  scroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -41)
+  scroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 0)
+  local content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(1, 1)
+  scroll:SetScrollChild(content)
+
+  -- Each column's cards, top to bottom, stacked 12px apart from 7px under the scroll frame's top
+  -- (48px under the panel's, where they always started).
+  local columns = { left = {}, right = {} }
+  local function fitContent()
+    local width = scroll:GetWidth() or 0
+    if width > 0 then content:SetWidth(width) end
+    local tallest = 0
+    for _, cards in pairs(columns) do
+      local height = 7
+      for i, c in ipairs(cards) do height = height + (i > 1 and 12 or 0) + (c:GetHeight() or 0) end
+      tallest = math.max(tallest, height)
+    end
+    content:SetHeight(tallest + Theme.pad.m)
+  end
+  scroll:HookScript("OnSizeChanged", fitContent)
+
   local refreshers = {}
 
   -- Hover explanation shared by a row's label and its control (edit box / toggle / duration
@@ -542,6 +577,8 @@ local function build(sniperFrame)
   local function defaultLine(key, opts)
     local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
     local stored = d and d[key]
+    -- A key kept out of DEFAULTS on purpose says its code default instead (opts.defaultValue).
+    if stored == nil and opts.defaultValue then stored = opts.defaultValue() end
     local text = "?"
     if stored ~= nil then
       local ui = opts.toUI and opts.toUI(stored) or stored
@@ -561,7 +598,8 @@ local function build(sniperFrame)
   end
 
   -- One card per settings group. Rows are laid out from the card's own top so the
-  -- two columns can stack independently; height = 24 (title band) + n*STEP + 6.
+  -- two columns can stack independently; height = 24 (title band) + n*STEP + 6 while every label
+  -- holds one line, more when one wraps (flowCard).
   -- `withDefaultsButton` adds a small kit button (ghost/badge, like the duration segments) to
   -- the title band, right-aligned, that resets every field THIS card built back to
   -- GC.DEFAULTS -- only the two left cards (numeric-only) carry one; fieldRow below is what
@@ -572,6 +610,7 @@ local function build(sniperFrame)
     local t = Theme.Num(c, 9); t:SetJustifyH("LEFT"); t:SetPoint("TOPLEFT", Theme.pad.m, -8)
     t:SetText(cardTitle); t:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     function c.rowY(i) return -(24 + (i - 1) * STEP) end
+    c.rows = {}
     if withDefaultsButton then
       c.resets, c.displays = {}, {}
       local resetBtn = Theme.Button(c, "ghost", "badge")
@@ -590,16 +629,102 @@ local function build(sniperFrame)
     return c
   end
 
-  -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning panel-left to
-  -- panel-CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
+  -- A row of a card: its label, and the control right of it (`width` px wide, its top `dy` px
+  -- off the label's), in the order the rows are added. A row with no control is a note across the
+  -- card.
+  local function addRow(c, label, control, width, dy)
+    c.rows[#c.rows + 1] = { label = label, control = control, width = width or 0, dy = dy or 0 }
+  end
+
+  -- A label and a row of buttons, each as wide as its words (flowCard): beside the label at the
+  -- card's right edge while they fit there, else on lines of their own under it, as many as the
+  -- card's width needs. Default price's four fit beside a label in no language at the narrowest
+  -- window.
+  local function addButtonsRow(c, label, buttons)
+    c.rows[#c.rows + 1] = { label = label, buttons = buttons }
+  end
+
+  -- Lays a card's rows out from its width (M11: labels were cut with "..." at the smallest
+  -- window, in most languages, and at the largest font scale in English too). Every label wraps
+  -- in what its control leaves it, a word wider than that breaks rather than being cut, and a row
+  -- is as tall as its label needs, never under the STEP rhythm. The label is bound by the width
+  -- alone, never by a RIGHT anchor to its control, which would pin it to the control's height.
+  -- The rows under a taller one move down, the card grows, and so does its column (fitContent).
+  -- `c.footer` (VENDOR's Forget kept items) spans the card under the last row. Before the card
+  -- has a width the labels keep one line, until its first OnSizeChanged.
+  local function flowCard(c, width)
+    width = width or c:GetWidth() or 0
+    local y = 24
+    for _, row in ipairs(c.rows) do
+      local label = row.label
+      if row.buttons then
+        local total = 0
+        for i, b in ipairs(row.buttons) do
+          if b.FitLabels then b:FitLabels({ b.label or "" }, 40) end
+          total = total + (b:GetWidth() or 40) + (i > 1 and 2 or 0)
+        end
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+        label:SetWordWrap(true)
+        local words = label.GetUnboundedStringWidth and label:GetUnboundedStringWidth() or 0
+        -- Beside the label, or under it from the card's left edge (before the card has a width,
+        -- beside it until its first OnSizeChanged).
+        local beside = width <= 0 or 2 * Theme.pad.m + words + Theme.pad.s + total <= width
+        local x, labelTop = Theme.pad.m, y
+        if beside then
+          if width > 0 then label:SetWidth(width - 2 * Theme.pad.m - total - Theme.pad.s) end
+          x = width - Theme.pad.m - total
+        else
+          if width > 0 then label:SetWidth(width - 2 * Theme.pad.m) end
+          y = y + math.max(ROW_H, math.ceil(label:GetStringHeight())) + 4
+        end
+        for _, b in ipairs(row.buttons) do
+          local w = b:GetWidth() or 40
+          -- A line further down whenever the next would pass the card's right edge.
+          if not beside and x > Theme.pad.m and x + w > width - Theme.pad.m then
+            x, y = Theme.pad.m, y + ROW_H + 4
+          end
+          b:ClearAllPoints()
+          b:SetPoint("TOPLEFT", x, -y)
+          x = x + w + 2
+        end
+        -- Beside, the row is as tall as its label needs, as every row is; under it, one line of
+        -- buttons more.
+        y = beside and (labelTop + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)) or (y + STEP)
+      else
+        local room = width - 2 * Theme.pad.m - (row.control and row.width + Theme.pad.s or 0)
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", Theme.pad.m, -y)
+        if room > 0 then label:SetWidth(room) end
+        label:SetWordWrap(true)
+        if label.SetNonSpaceWrap then label:SetNonSpaceWrap(true) end
+        if row.control then
+          row.control:ClearAllPoints()
+          row.control:SetPoint("TOPRIGHT", -Theme.pad.m, -y + row.dy)
+        end
+        y = y + math.max(STEP, math.ceil(label:GetStringHeight()) + STEP - ROW_H)
+      end
+    end
+    if c.footer then
+      c.footer:ClearAllPoints()
+      c.footer:SetPoint("TOPLEFT", Theme.pad.m, -y + 3)
+      c.footer:SetPoint("TOPRIGHT", -Theme.pad.m, -y + 3)
+      y = y + STEP
+    end
+    c:SetHeight(y + 6)
+  end
+
+  -- Left column: WHAT COUNTS AS A DEAL above RISK CHECKS, both spanning the scroll child's left
+  -- edge to its CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
   -- moved out of the UI entirely (Core/DealMath.lua still reads their keys/defaults for row
   -- ordering; only the settings surface for them is gone) because nobody outside this codebase
   -- could say what "HOT -- min sold/day = 3" meant. What is left is the three numbers that
   -- decide whether a buy happens at all, and the three that decide when the engine stops
   -- trusting the data it is looking at.
-  local whatCounts = card(panel, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
-  whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
-  whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  local whatCounts = card(content, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
+  whatCounts:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -7)
+  whatCounts:SetPoint("RIGHT", content, "CENTER", -7, 0)
+  columns.left[#columns.left + 1] = whatCounts
 
   -- Task S: RISK CHECKS (dumpTrendPct/spikeTrendPct/wallAbsorbHours) never built at all in Forever --
   -- every one of them feeds either SniperDecision.Evaluate's retail exit-price math or
@@ -609,27 +734,45 @@ local function build(sniperFrame)
   -- skipping it leaves no gap to reflow (whatCounts is simply the whole left column).
   local brakes
   if not isForeverClient() then
-    brakes = card(panel, GC.L["RISK CHECKS"], 3, true)
+    brakes = card(content, GC.L["RISK CHECKS"], 3, true)
     brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
-    brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+    brakes:SetPoint("RIGHT", content, "CENTER", -7, 0)
+    columns.left[#columns.left + 1] = brakes
   end
 
-  -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
-  -- panel-right.
-  local posting = card(panel, GC.L["POSTING"], 2)
-  posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
-  posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  -- VENDOR (whether the Sell to vendor card lists anything, and the items kept for good): retail
+  -- only, as the card itself is (UI/VendorSellCard.lua is not in the Forever TOC). It stacks under
+  -- RISK CHECKS (under WHAT COUNTS where that is absent), never on the same anchor. VENDOR is 82
+  -- while its label holds one line, which spec/button_label_width_spec.lua pins (flowCard).
+  local vendor
+  if not isForeverClient() then
+    vendor = card(content, GC.L["VENDOR"], 2)
+    vendor:SetPoint("TOPLEFT", brakes or whatCounts, "BOTTOMLEFT", 0, -12)
+    vendor:SetPoint("RIGHT", content, "CENTER", -7, 0)
+    columns.left[#columns.left + 1] = vendor
+  end
+
+  -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning the scroll child's
+  -- CENTER+7 to its right edge.
+  -- Three rows on retail: the cancel threshold (row 3, below) is retail only, like the groups
+  -- whose floors it sits beside.
+  local posting = card(content, GC.L["POSTING"], isForeverClient() and 2 or 3)
+  posting:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -7)
+  posting:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = posting
 
   -- Task S (V2: two rows fewer in Forever, not one -- Post above the cheapest joined
   -- capStopAndOpen, both built below only on retail) -- DISPLAY is anchored off AUTOMATION's own
   -- BOTTOMRIGHT, so a shorter card here reflows it up with no gap.
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
+  local automation = card(content, GC.L["AUTOMATION & ALERTS"], isForeverClient() and 2 or 4)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
-  automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  automation:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = automation
 
-  local display = card(panel, GC.L["DISPLAY"], 3)
+  local display = card(content, GC.L["DISPLAY"], 3)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
-  display:SetPoint("LEFT", panel, "CENTER", 7, 0)
+  display:SetPoint("LEFT", content, "CENTER", 7, 0)
+  columns.right[#columns.right + 1] = display
 
   local function fieldRow(cardFrame, i, labelText, key, opts, sentence)
     local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
@@ -637,10 +780,9 @@ local function build(sniperFrame)
 
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, FIELD_W)
 
     local refreshField = bindNumberField(box, key, opts)
     refreshers[#refreshers + 1] = refreshField
@@ -672,10 +814,9 @@ local function build(sniperFrame)
     local labelText = GC.L["Min profit per buy (copper)"]
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, FIELD_W)
 
     local KEY = "foreverMinimumProfitCopper"
     local refreshField = bindNumberField(box, KEY, {
@@ -706,8 +847,8 @@ local function build(sniperFrame)
     toUI = function(v) return v / 10000 end,
     toStorage = function(v) return v * 10000 end, unit = "g" }
 
-  -- Task S: WHAT COUNTS AS A DEAL keeps four slots in both clients so the card is one height
-  -- everywhere (no reflow inside it) -- Forever just fills them differently: its own min-profit
+  -- Task S: WHAT COUNTS AS A DEAL keeps four rows in both clients (each as tall as its text needs,
+  -- flowCard) -- Forever just fills them differently: its own min-profit
   -- row, Max wallet, a grey note about the vendor-row wallet carve-out (Core/ForeverDeals.lua's
   -- BuyLimits), then Max units. Min return per buy % (minimumRoi) is retail-Evaluate-only --
   -- GC.SniperDecision.EvaluateCeiling/EvaluateCeilingLot (the whole of a Forever Check) never
@@ -729,13 +870,14 @@ local function build(sniperFrame)
     -- price, so retail's 5% share left nothing to buy at low level -- while this field stays at
     -- that shipped 5%, a vendor row gets half the wallet instead. A player who has already
     -- changed it gets exactly what they typed, unclamped by this carve-out.
+    -- A row of its own: it runs to three lines across the card, and the row under it moves down
+    -- for them rather than being drawn over.
     local note = Theme.Num(whatCounts, 9)
     note:SetPoint("TOPLEFT", Theme.pad.m, whatCounts.rowY(3))
-    note:SetPoint("TOPRIGHT", -Theme.pad.m, whatCounts.rowY(3))
     note:SetJustifyH("LEFT")
-    note:SetWordWrap(true)
     note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     note:SetText(GC.L["While this stays at the default 5%, a vendor-priced lead may spend up to half your wallet instead."])
+    addRow(whatCounts, note)
   end
   -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the
   -- ROI floor above. A ceiling and not a target: what a buy actually takes is still set by how
@@ -788,12 +930,12 @@ local function build(sniperFrame)
 
     local label = Theme.Label(posting, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
-    label:SetPoint("RIGHT", hShort, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
     -- relabeled to the shorter "Duration" (no spec pins on the string).
     label:SetText(GC.L["Duration"])
+    -- The three segments and their two 2px gaps, placed by the rightmost one.
+    addRow(posting, label, hLong, 3 * 40 + 2 * 2)
 
     refreshers[#refreshers + 1] = bindDurationSegments({ hShort, hMid, hLong })
 
@@ -809,6 +951,57 @@ local function build(sniperFrame)
       GC.L["Default: %s"]:format(defaultHours .. " h"))
   end
 
+  -- The seller's default price (owner, 2026-10-25): what every item on the Sell tab opens at, the
+  -- item panel's chips chosen once -- GOLDCAP, MATCH, UNDERCUT or MARKET, never COST, which is
+  -- selling for nothing. GC.Sell.DefaultPrice reads it and Core/SellPositions.lua's
+  -- decoratePosition prices by it, a group's floor and GoldCap's own still holding. Retail only,
+  -- beside the groups whose floors it keeps to, and not in GC.DEFAULTS: unset is GoldCap's own
+  -- price (the precedent cancelUndercutPct set). The rule in words under the buttons, as the
+  -- design draws it, and on hover like every row.
+  if not isForeverClient() then
+    local labelText = GC.L["Default price"]
+    local sentence = GC.L["Every item opens at this price. A group's floor still holds, and a price under what you paid still shows in red."]
+    local label = Theme.Label(posting, 12)
+    label:SetJustifyH("LEFT")
+    label:SetText(labelText)
+    local choices = { { "goldcap", GC.L["GOLDCAP"] }, { "match", GC.L["MATCH"] },
+      { "under", GC.L["UNDERCUT"] }, { "market", GC.L["MARKET"] } }
+    local buttons = {}
+    local function paintChoice()
+      local c = cfg()
+      local current = c and c.defaultPrice or "goldcap"
+      for i, b in ipairs(buttons) do b:SetVariant(choices[i][1] == current and "active" or "ghost") end
+    end
+    for i, choice in ipairs(choices) do
+      local b = Theme.Button(posting, "ghost", "badge")
+      b:SetSize(48, ROW_H)
+      b:SetLabel(choice[2])
+      b:SetScript("OnClick", function()
+        local c = cfg()
+        if not c then return end
+        c.defaultPrice = choice[1] ~= "goldcap" and choice[1] or nil
+        paintChoice()
+        -- The Sell tab prices by it at once, where it is built: every row, the dock and the queue.
+        if GC.SellView and GC.SellView.attached and GC.SellView.attached() and GC.SellCompose
+            and GC.SellCompose.Positions then
+          GC.SellCompose.Positions()
+          GC.SellView.render()
+        end
+      end)
+      buttons[i] = b
+    end
+    addButtonsRow(posting, label, buttons)
+    refreshers[#refreshers + 1] = paintChoice
+    local note = Theme.Num(posting, 9)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    note:SetText(sentence)
+    addRow(posting, note)
+    local widgets = { label }
+    for _, b in ipairs(buttons) do widgets[#widgets + 1] = b end
+    attachExplanation(widgets, labelText, sentence, GC.L["Default: %s"]:format(GC.L["GOLDCAP"]))
+  end
+
   -- Buy runs (Core/AppRuns.lua / Core/BuyRun.lua): how far over a line's usual price the BUY
   -- tab will still buy. Same settings.sniper table every other numeric field here reads, per
   -- Core/Init.lua's own comment on buyCapPct.
@@ -820,16 +1013,25 @@ local function build(sniperFrame)
   fieldRow(posting, 2, GC.L["Buy cap (% of usual price)"], "buyCapPct", { min = 100, max = 300, unit = "%" },
     GC.L["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."])
 
+  -- The cancel queue's threshold (Core/CancelQueue.lua's undercutPct, read by
+  -- Services/Sell/Compose.lua). Retail only, beside the followed groups it goes with. Deliberately
+  -- not in GC.DEFAULTS, the precedent foreverMinProfitRow set: an unset key is 0 in code, and a
+  -- save that never had it stays as it was.
+  if not isForeverClient() then
+    fieldRow(posting, 3, GC.L["Min. undercut to cancel (%)"], "cancelUndercutPct",
+      { min = 0, max = 20, unit = "%", defaultValue = function() return 0 end },
+      GC.L["Cancel only when someone undercuts you by more than this percent. At 0 any undercut counts. Lots far below their value are always queued."])
+  end
+
   local function toggleRow(cardFrame, i, labelText, key, sentence)
     local box = makeToggle(cardFrame)
     box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
 
     local label = Theme.Label(cardFrame, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
-    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
     label:SetText(labelText)
+    addRow(cardFrame, label, box, box:GetWidth())
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
     attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
@@ -875,14 +1077,35 @@ local function build(sniperFrame)
       GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
   end
 
-  -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
-  -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px
-  -- at 1.3x. Budget at the 640 minimum: 12 (pad.m) + label + 8 (pad.s) + 48 (readout) +
-  -- 8 (pad.s) + 110 (slider track) + 12 (pad.m) = 259 -> label gets 61px, which ellipsizes at
-  -- 1.3x scale and fits at 1.0x.
+  -- VENDOR's label is short in every language, the whole rule in the hover sentence, and
+  -- spec/button_label_width_spec.lua holds it to one line of its row at the largest font scale
+  -- in the narrowest window. Should it still need more, it wraps like every row (flowCard), and
+  -- Forget kept items, the card's footer, moves down with it.
+  if vendor then
+    toggleRow(vendor, 1, GC.L["Better at vendor"], "vendorWorth",
+      GC.L["Sell to vendor lists unbound items a vendor pays as much for as the auction house would after its cut, judged only by an auction house price from the last 24 hours, never by the prices built into the addon. Grey items are left to the vendor window's own Sell All Junk button."])
+
+    local forget = Theme.Button(vendor, "ghost", "plaque")
+    forget:SetHeight(26)
+    forget:SetLabel(GC.L["Forget kept items"])
+    vendor.footer = forget
+
+    local function paintForget()
+      if next(GC.db and GC.db.vendorKeep or {}) ~= nil then forget:Enable() else forget:Disable() end
+    end
+    forget:SetScript("OnClick", function()
+      if GC.db then GC.db.vendorKeep = {} end
+      paintForget()
+      if GC.VendorSellCard and GC.VendorSellCard.Refresh then GC.VendorSellCard.Refresh() end
+    end)
+    refreshers[#refreshers + 1] = paintForget
+  end
+
+  -- I1: this label once ran straight into the readout at the 640 minimum. Budget there: 12
+  -- (pad.m) + label + 8 (pad.s) + 48 (readout) + 8 (pad.s) + 110 (slider track) + 12 (pad.m) =
+  -- the card (256) -> the label gets 58px, and wraps in them (flowCard).
   local scaleLabel = Theme.Label(display, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
-  scaleLabel:SetWordWrap(false)
   scaleLabel:SetText(GC.L["Font scale"])
 
   local slider, sliderTrack = makeSlider(display, 110, 0.9, 1.3, 0.05)
@@ -892,13 +1115,13 @@ local function build(sniperFrame)
   scaleReadout:SetWidth(48)
   scaleReadout:SetPoint("RIGHT", sliderTrack, "LEFT", -Theme.pad.s, 0)
 
-  scaleLabel:SetPoint("RIGHT", scaleReadout, "LEFT", -Theme.pad.s, 0)
+  -- The track places the row's controls (the readout hangs off it), 8px under the label's top.
+  addRow(display, scaleLabel, sliderTrack, 110 + Theme.pad.s + 48, -8)
 
   refreshers[#refreshers + 1] = bindFontSlider(slider, scaleReadout)
 
   local windowLabel = Theme.Label(display, 12)
   windowLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(2))
-  windowLabel:SetWordWrap(false)
   windowLabel:SetText(GC.L["Window position & size"])
 
   local resetBtn = Theme.Button(display, "ghost", "plaque")
@@ -907,7 +1130,7 @@ local function build(sniperFrame)
   resetBtn:SetLabel(GC.L["RESET WINDOW"])
   resetBtn:SetScript("OnClick", resetWindow)
 
-  windowLabel:SetPoint("RIGHT", resetBtn, "LEFT", -Theme.pad.s, 0)
+  addRow(display, windowLabel, resetBtn, 120, 3)
 
   -- Language. A twelve-way choice is not a segment group, and this addon embeds no dropdown
   -- library -- MenuUtil is the engine's own menu framework (Patch 11.0, the replacement for
@@ -918,14 +1141,13 @@ local function build(sniperFrame)
   -- rather read their own language too, but that is the side effect, not the reason.
   local langLabel = Theme.Label(display, 12)
   langLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(3))
-  langLabel:SetWordWrap(false)
   langLabel:SetText(GC.L["Language"])
 
   local langBtn = Theme.Button(display, "ghost", "plaque")
   langBtn:SetSize(120, 26)
   langBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(3) + 3)
 
-  langLabel:SetPoint("RIGHT", langBtn, "LEFT", -Theme.pad.s, 0)
+  addRow(display, langLabel, langBtn, 120, 3)
 
   local function localeSetting()
     return (GC.db and GC.db.settings and GC.db.settings.locale) or "auto"
@@ -972,6 +1194,29 @@ local function build(sniperFrame)
   end)
 
   refreshers[#refreshers + 1] = displayLanguage
+
+  -- Every card flows its rows again whenever its width changes, and every card on a font scale
+  -- change (the kit re-fonts before it calls this, so the labels measure at the new size); the
+  -- scroll child follows each time. A frame resized while hidden does not reliably say so, so
+  -- all of it runs again on every show.
+  local function layout()
+    fitContent()
+    for _, cards in pairs(columns) do
+      for _, c in ipairs(cards) do flowCard(c) end
+    end
+    fitContent()
+  end
+  for _, cards in pairs(columns) do
+    for _, c in ipairs(cards) do
+      c:HookScript("OnSizeChanged", function(_, width)
+        flowCard(c, width)
+        fitContent()
+      end)
+    end
+  end
+  Theme.OnRescale(layout)
+  refreshers[#refreshers + 1] = layout
+  layout()
 
   -- Re-syncs every control from GC.db.settings.sniper (and Theme.Scale()) each time the overlay
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto

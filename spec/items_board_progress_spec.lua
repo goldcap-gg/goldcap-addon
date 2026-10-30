@@ -224,6 +224,41 @@ describe("the Items board says when it is looking", function()
     assert.is_truthy(emptyText(api):find("Checking 150", 1, true))
   end)
 
+  -- Owner 2026-10-26. The player's own search on Blizzard's Buy list holds every batch of this
+  -- board's, and the waiting label says to press SCAN; SCAN here did nothing until the auction
+  -- house closed. And every batch is an answer the Buy list beside the window will show.
+  describe("with the auction house tab", function()
+    local api, tab
+    before_each(function()
+      api = loadSniper(150)
+      tab = { owned = true, veiled = 0 }
+      tab.PlayerOwnsBrowseList = function() return tab.owned end
+      tab.ReleaseBrowseList = function() tab.owned = false end
+      tab.PlayerIsBusy = function() return false end
+      tab.NoteAddonSearch = function() end
+      tab.NoteAddonBrowse = function() tab.veiled = tab.veiled + 1 end
+      api.GC.AuctionHouseTab = tab
+    end)
+
+    it("makes SCAN take the Buy list back from the player's own search", function()
+      api.GC.Sniper._SetBoard("items")
+      assert.same({}, sent)
+
+      api.click()
+
+      assert.is_false(tab.owned)
+      assert.same({ 100 }, sent)
+    end)
+
+    it("tells the tab that the Buy list shows GoldCap's searches, batch by batch", function()
+      tab.owned = false
+      api.GC.Sniper._SetBoard("items")
+      assert.equal(1, tab.veiled)
+      api.answer(); api.next()
+      assert.equal(2, tab.veiled)
+    end)
+  end)
+
   it("says nothing of a look on the Commodities board, or with the auction house closed", function()
     local api = loadSniper(150)
     assert.is_nil(api.GC.Sniper._ItemsChecking())

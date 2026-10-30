@@ -87,6 +87,11 @@ GC.SellState = {
   -- The item the player put in the dock by clicking its row, by positionKey; nil while the dock
   -- shows the walk's next. Once posted or passed it moves to the item after it (UI.Dock.MoveOn).
   dockKey = nil,
+  -- The followed group the GROUPS row (UI/Sell/Toolbar.lua) narrows the posting deck and POST's
+  -- walk to: nil for all of it, "mine" for every followed group's items, else one group's key
+  -- (Core/GroupRules.lua's GroupOf), with its name as the chip showed it. Kept until the auction
+  -- house is closed (GC.Sell.Reset).
+  group = nil, groupName = nil,
   -- "post" and "listed" are the two DECKS this tab is built on (SellViewModel.Deck). "cancelqueue"
   -- is a transient FOCUS state the CANCEL control sets for a single render, so its head entry
   -- lands on row 1 -- a deck is what the switch paints, a focus state is not.
@@ -213,6 +218,11 @@ local function postQuantity(position)
   local key = overrideKey(position)
   local chosen = key and GC.SellState.quantityOverrides[key] or nil
   if exact(chosen) and chosen > 0 and chosen < most then return chosen, most, true end
+  -- A followed group's "1 at a time" is where the count starts when nothing is typed.
+  local ruleQty = position.rulePostQty
+  if not (exact(chosen) and chosen > 0) and exact(ruleQty) and ruleQty > 0 and ruleQty < most then
+    return ruleQty, most, false
+  end
   return most, most, false
 end
 
@@ -269,15 +279,50 @@ function GC.Sell._QuoteItemKey(id)
   return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
 end
 
+-- The followed group a position's item is in, its key and its name (Core/GroupRules.lua's
+-- GroupOf, read by the item ID its key starts with: "commodity:<id>", "item:<id>:..."), or nil:
+-- in no group, a key naming no item, or WoW: Forever, where GroupRules does not load.
+function GC.Sell.GroupKeyOf(positionKey)
+  local itemID = type(positionKey) == "string" and tonumber(positionKey:match("^%a+:(%d+)")) or nil
+  if not (itemID and GC.GroupRules and GC.GroupRules.GroupOf) then return nil end
+  local key, name = GC.GroupRules.GroupOf(itemID)
+  return key, name
+end
+
+-- Whether a position is in what the GROUPS row picked (GC.SellState.group): everything with
+-- nothing picked, any followed group's item under "mine", else that one group's items.
+function GC.Sell.InPickedGroup(positionKey)
+  local picked = GC.SellState.group
+  if picked == nil then return true end
+  local key = GC.Sell.GroupKeyOf(positionKey)
+  if picked == "mine" then return key ~= nil end
+  return key == picked
+end
+
+-- The seller's default price (Settings, POSTING, retail only like the row that sets it): "match",
+-- "under" or "market", which every item opens at in place of GoldCap's own price
+-- (Core/SellPositions.lua's decoratePosition); nil, GoldCap's own, for anything else. Not in
+-- GC.DEFAULTS, so a save that never chose one holds nothing (the precedent cancelUndercutPct set).
+function GC.Sell.DefaultPrice()
+  local settings = type(GC.db) == "table" and GC.db.settings
+  local sniper = type(settings) == "table" and settings.sniper
+  local id = type(sniper) == "table" and sniper.defaultPrice or nil
+  if id == "match" or id == "under" or id == "market" then return id end
+  return nil
+end
+
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
 -- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
 -- holds back what a vendor pays at least as much for (below_vendor). `quantities` are the
 -- numbers the seller typed into "how many" (quantityOverrides), so the queue lists and values
--- what each Post will actually send. Before the saved data is
--- loaded there are no marks and no list: every position is queued, as before the selling list.
+-- what each Post will actually send. `group` and `inGroup` are what the GROUPS row picked: the
+-- queue holds that group's items alone, each selling unless the player unmarked it. Before the
+-- saved data is loaded there are no marks and no list: every position is queued, as before the
+-- selling list.
 -- Read-only lookups: it runs inside Compose.Positions, which the Cancel click also calls.
 function GC.Sell._QueueOpts()
-  local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides }
+  local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides,
+    group = GC.SellState.group, inGroup = GC.Sell.InPickedGroup }
   if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
       and GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit

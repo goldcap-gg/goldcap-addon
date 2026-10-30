@@ -47,6 +47,9 @@ describe("TOC load order", function()
         GetVerticalScrollRange = function() return 0 end,
         SetWordWrap = function() end,
         SetMaxLines = function() end,
+        -- Settings' VENDOR card lays its rows out from its labels' heights (flowVendor), once
+        -- during construction.
+        GetStringHeight = function() return 0 end,
         -- Deals empty-state panel (createFrame's f.emptyText): a multi-line FontString with
         -- explicit line spacing, set once at construction.
         SetSpacing = function() end,
@@ -322,6 +325,19 @@ describe("TOC load order", function()
       GC.OnSlash("  SNIPER  now please ")
       GC.Sniper.Toggle = realToggle
       assert.equal(2, toggleCalls)
+    end
+    -- A word GoldCap does not know prints the help line; in retail a second line names /goldcap
+    -- minimap (UI/MinimapButton.lua, retail only: the Forever TOC does not load it), the only other
+    -- place a player learns how to bring a hidden minimap button back.
+    do
+      local said = {}
+      local realPrint = GC.Print
+      GC.Print = function(msg) said[#said + 1] = msg end
+      GC.OnSlash("nonsense")
+      GC.Print = realPrint
+      local retail = tocPath == "GoldCap/GoldCap.toc"
+      assert.equal(retail and 2 or 1, #said)
+      if retail then assert.truthy(said[2]:find("/goldcap minimap", 1, true)) end
     end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --

@@ -29,5 +29,10 @@ GC.Kit.Icons = {
     mail = 21,
     trend = 22,
     lightning = 23,
+    arrowDown = 24,
+    arrowUp = 25,
+    pencil = 26,
+    bank = 27,
+    send = 28,
   },
 }

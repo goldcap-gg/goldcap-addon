@@ -1,0 +1,530 @@
+local _, GC = ...
+
+-- The one reader of the retail profession window for GoldCap's crafting: recipe snapshots, the
+-- character's known recipes, the open recipe's reagents as the player allocated them, prices,
+-- counts and owned auctions. Everything the crafting panel and strip know about the client comes
+-- through here; Core/CraftMath.lua and Core/CraftQueue.lua stay pure.
+--
+-- Read-only. Nothing here crafts, buys or changes Blizzard's frames: the form and its transaction
+-- are read through the methods Blizzard's own code reads them with
+-- (ProfessionsRecipeSchematicFormMixin, ProfessionsRecipeTransactionMixin), every read under pcall,
+-- and any failure is "nothing to show", never an error in the player's face.
+--
+-- Every API here is in Blizzard's source for live 12.1.5 (wowsrc.py): the documented
+-- C_TradeSkillUI reads, and GetFilteredRecipeIDs, IsTradeSkillGuild, IsTradeSkillGuildMember and
+-- IsTradeSkillLinked, which Blizzard_Professions calls undocumented. GetAllRecipeIDs is only on the
+-- wiki: it is asked for only when GetFilteredRecipeIDs is not there.
+GC.CraftClient = GC.CraftClient or {}
+local CC = GC.CraftClient
+
+-- Enum values from TradeSkillUITypesDocumentation.lua and ProfessionConstantsDocumentation.lua,
+-- read from the client's Enum when it carries them.
+local function enum(group, name, fallback)
+  local e = _G.Enum
+  local g = type(e) == "table" and e[group] or nil
+  local v = type(g) == "table" and g[name] or nil
+  return type(v) == "number" and v or fallback
+end
+
+-- Snapshots of this session, by recipe id: a recipe's slots do not change while the game runs.
+-- A refusal is remembered too (false), but only when the client answered: a recipe the client
+-- has not loaded yet is asked again next time.
+local snapshots = {}
+
+local function ts() return _G.C_TradeSkillUI end
+
+local function call(name, ...)
+  local api = ts()
+  local fn = type(api) == "table" and api[name] or nil
+  if type(fn) ~= "function" then return false end
+  return pcall(fn, ...)
+end
+
+local function refuses(info, schematic)
+  return schematic.recipeType ~= enum("TradeskillRecipeType", "Item", 1)
+    or info.isRecraft == true or info.isSalvageRecipe == true or info.isEnchantingRecipe == true
+    or info.isGatheringRecipe == true or info.isDummyRecipe == true
+    or type(schematic.outputItemID) ~= "number"
+end
+
+-- The slots a craft cannot do without: required Basic reagents and required Modifying ones (a
+-- spark). Finishing and Automatic reagents, optional slots and slots the form hides are left out.
+-- nil when one of them has a reagent that needs a count of its own (variableQuantities,
+-- ProfessionsUtil's GetQuantityRequired): every count here is the slot's quantityRequired.
+local function slotsOf(schematic)
+  local basic, modifying = enum("CraftingReagentType", "Basic", 1), enum("CraftingReagentType", "Modifying", 0)
+  local slots = {}
+  for _, s in ipairs(type(schematic.reagentSlotSchematics) == "table" and schematic.reagentSlotSchematics or {}) do
+    if type(s) == "table" and s.required == true and s.hiddenInCraftingForm ~= true
+        and (s.reagentType == basic or s.reagentType == modifying) and type(s.quantityRequired) == "number" then
+      if type(s.variableQuantities) == "table" and #s.variableQuantities > 0 then return nil end
+      local ids, currency = {}, nil
+      for _, r in ipairs(type(s.reagents) == "table" and s.reagents or {}) do
+        if type(r) == "table" and type(r.itemID) == "number" then
+          ids[#ids + 1] = r.itemID
+        elseif type(r) == "table" and type(r.currencyID) == "number" then
+          currency = currency or r.currencyID
+        end
+      end
+      if #ids > 0 then
+        slots[#slots + 1] = { slotIndex = s.slotIndex, q = s.quantityRequired, ids = ids }
+      elseif currency then
+        slots[#slots + 1] = { slotIndex = s.slotIndex, q = s.quantityRequired, currency = currency }
+      end
+    end
+  end
+  return slots
+end
+
+--- A recipe as GoldCap prices it ({ recipeID, name, per, output, outputs, slots }), or nil for a
+--- recipe that makes no item to sell (salvage, recraft, enchant, gathering, a dummy, no output) or
+--- one whose required reagent needs a count of its own.
+function CC.Snapshot(recipeID)
+  if type(recipeID) ~= "number" then return nil end
+  local known = snapshots[recipeID]
+  if known ~= nil then return known or nil end
+  local okI, info = call("GetRecipeInfo", recipeID)
+  local okS, schematic = call("GetRecipeSchematic", recipeID, false)
+  if not (okI and okS and type(info) == "table" and type(schematic) == "table") then return nil end
+  local slots = not refuses(info, schematic) and slotsOf(schematic) or nil
+  if not slots then
+    snapshots[recipeID] = false
+    return nil
+  end
+  local outputs = {}
+  local set = GC.CraftCapture and GC.CraftCapture.OutputIDs
+    and GC.CraftCapture.OutputIDs(ts(), recipeID, schematic.outputItemID) or { [schematic.outputItemID] = true }
+  for id in pairs(set) do outputs[#outputs + 1] = id end
+  table.sort(outputs)
+  local recipe = {
+    recipeID = recipeID,
+    name = info.name or schematic.name or tostring(recipeID),
+    per = math.max(1, tonumber(schematic.quantityMin) or 1),
+    output = schematic.outputItemID,
+    outputs = outputs,
+    slots = slots,
+  }
+  snapshots[recipeID] = recipe
+  return recipe
+end
+
+-- A ranked recipe (older expansions) answers for every rank the character learned, chained by
+-- nextRecipeID. Blizzard's list shows the chain once, and the rank crafted is the highest learned
+-- (Professions.GetFirstRecipe, GetHighestLearnedRecipe): a rank whose next rank is learned too is
+-- not a recipe of its own.
+local function higherRankLearned(info)
+  if type(info.nextRecipeID) ~= "number" then return false end
+  local ok, nextInfo = call("GetRecipeInfo", info.nextRecipeID)
+  return ok and type(nextInfo) == "table" and nextInfo.learned == true
+end
+
+--- The recipes this character has learned in the profession the window shows, as the window
+--- lists them (the player's search and filters included), that GoldCap can price. A ranked
+--- recipe once, at the highest rank learned.
+function CC.KnownRecipes()
+  local api = ts()
+  if type(api) ~= "table" then return {} end
+  local ok, ids
+  if type(api.GetFilteredRecipeIDs) == "function" then
+    ok, ids = pcall(api.GetFilteredRecipeIDs)
+  elseif type(api.GetAllRecipeIDs) == "function" then
+    ok, ids = pcall(api.GetAllRecipeIDs)
+  end
+  if not ok or type(ids) ~= "table" then return {} end
+  local okP, prof = call("GetChildProfessionInfo")
+  local skillLine = okP and type(prof) == "table" and prof.professionID or nil
+  if type(skillLine) ~= "number" then return {} end
+  local out = {}
+  for _, id in ipairs(ids) do
+    local okL, inLine = call("IsRecipeInSkillLine", id, skillLine)
+    local okR, info = call("GetRecipeInfo", id)
+    if okL and inLine == true and okR and type(info) == "table" and info.learned == true
+        and not higherRankLearned(info) and CC.Snapshot(id) then
+      out[#out + 1] = id
+    end
+  end
+  return out
+end
+
+--- The crafting page's recipe form, or nil before Blizzard_Professions has loaded.
+function CC.Form()
+  local frame = _G.ProfessionsFrame
+  local page = type(frame) == "table" and frame.CraftingPage or nil
+  local form = type(page) == "table" and page.SchematicForm or nil
+  return type(form) == "table" and form or nil
+end
+
+--- What the window shows for the selected recipe: { recipeID, level, output, alloc, learned },
+--- alloc the reagents allocated per slot ({ { itemID, q }, ... }, a slot with nothing allocated
+--- absent), output the item the window says this allocation makes, learned true only when the
+--- character knows the recipe (Blizzard's list shows unlearned recipes too). nil when the recipes
+--- page is not on screen, or a recraft is open.
+function CC.OpenRecipe()
+  local form = CC.Form()
+  if not form then return nil end
+  local ok, open = pcall(function()
+    if not form:IsVisible() then return nil end
+    local info = form:GetRecipeInfo()
+    if type(info) ~= "table" or type(info.recipeID) ~= "number" or info.isRecraft == true then return nil end
+    local tx = form:GetTransaction()
+    if type(tx) ~= "table" then return nil end
+    -- Recrafting an item opens its normal recipe (info.isRecraft false) with a recraft
+    -- transaction, whose slots and output are the recraft's: the transaction says which it is
+    -- (ProfessionsRecipeTransactionMixin:IsRecraft, Blizzard_ProfessionsTransaction.lua).
+    if tx:IsRecraft() then return nil end
+    local alloc = {}
+    for _, tbl in tx:Enumerate() do
+      local slot = type(tbl) == "table" and tbl.reagentSlotSchematic or nil
+      local list = {}
+      if type(tbl) == "table" and type(tbl.allocations) == "table" then
+        for _, a in tbl.allocations:Enumerate() do
+          local reagent, q = a:GetReagent(), a:GetQuantity()
+          if type(reagent) == "table" and type(reagent.itemID) == "number" and type(q) == "number" and q > 0 then
+            list[#list + 1] = { itemID = reagent.itemID, q = q }
+          end
+        end
+      end
+      if type(slot) == "table" and type(slot.slotIndex) == "number" and #list > 0 then alloc[slot.slotIndex] = list end
+    end
+    local data = ts().GetRecipeOutputItemData(info.recipeID, tx:CreateCraftingReagentInfoTbl(), tx:GetAllocationItemGUID())
+    local output = type(data) == "table" and data.itemID or nil
+    local link = output and type(data.hyperlink) == "string" and data.hyperlink or nil
+    return { recipeID = info.recipeID, level = form:GetCurrentRecipeLevel(), output = output, link = link,
+      alloc = alloc, learned = info.learned == true }
+  end)
+  return ok and open or nil
+end
+
+--- What a vendor charges for one of an item, as a BUY list the player holds says (nil: none does).
+function CC.VendorOf(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local vendor = GC.AppRuns and GC.AppRuns.VendorUnitFor and GC.AppRuns.VendorUnitFor(itemID) or nil
+  return type(vendor) == "number" and vendor or nil
+end
+
+--- What one of a reagent costs: the vendor price a BUY list carries for it, else the market price
+--- GoldCap trusts for a cost (the order Core/Init.lua's craft capture prices a reagent in).
+function CC.UnitOf(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local vendor = CC.VendorOf(itemID)
+  if vendor then return vendor end
+  local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  local unit = GC.Tooltip.TrustedHeadline(v)
+  return type(unit) == "number" and math.floor(unit) or nil
+end
+
+--- What one of a crafted item sells for on the market, and how many sell a day (nil: unknown).
+function CC.SellOf(itemID)
+  if type(itemID) ~= "number" then return nil end
+  local v = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  local unit = GC.Tooltip.TrustedHeadline(v)
+  if type(unit) ~= "number" then return nil end
+  return math.floor(unit), type(v) == "table" and type(v.sold) == "number" and v.sold or nil
+end
+
+--- Core/CraftMath.lua's Profit at these prices. `open` counts only when it is this recipe's.
+function CC.ProfitOf(recipe, open)
+  if type(open) == "table" and type(recipe) == "table" and open.recipeID ~= nil and open.recipeID ~= recipe.recipeID then
+    open = nil
+  end
+  return GC.CraftMath.Profit(recipe, CC.UnitOf, function(id) return (CC.SellOf(id)) end, open)
+end
+
+--- How many of an item the character holds in bags, bank, reagent bank and warband bank together,
+--- and what waits for it in the mailbox (Core/MailStock.lua): the count the BUY tab buys against
+--- (UI/BuyFrame.lua's haveOf), so the queue's Missing, its BUY list and a restock say what BUY does.
+--- `char` is the character whose mailbox counts, read once by a caller that counts many items
+--- (CC.Char() when it is not given).
+function CC.CountOf(itemID, char)
+  if type(itemID) ~= "number" then return 0 end
+  local item = _G.C_Item
+  local fn = type(item) == "table" and item.GetItemCount or nil
+  local held = 0
+  if type(fn) == "function" then
+    local ok, n = pcall(fn, itemID, true, false, true, true)
+    held = ok and type(n) == "number" and n or 0
+  end
+  local stock = GC.MailStock
+  return held + (stock and stock.Count(char or CC.Char(), itemID) or 0)
+end
+
+--- How much of a currency the character holds (0 when the client does not know it): the count
+--- Blizzard's own form reads for a currency reagent (ProfessionsUtil.GetReagentQuantityInPossession).
+function CC.CurrencyCount(currencyID)
+  local ci = _G.C_CurrencyInfo
+  local fn = type(ci) == "table" and ci.GetCurrencyInfo or nil
+  if type(fn) ~= "function" or type(currencyID) ~= "number" then return 0 end
+  local ok, info = pcall(fn, currencyID)
+  local n = ok and type(info) == "table" and info.quantity or nil
+  return type(n) == "number" and n or 0
+end
+
+--- How many crafts of a recipe the character's reagents allow (0 when the client cannot say).
+function CC.Craftable(recipeID, level)
+  local ok, n = call("GetCraftableCount", recipeID, level)
+  return ok and type(n) == "number" and n or 0
+end
+
+--- Whether a recipe can be crafted from the window as it stands: the player's own profession window
+--- is up on the skill line the recipe is in, the same reading KnownRecipes makes. With the window
+--- shut, C_TradeSkillUI.CraftRecipe crafts nothing and says nothing (probe A3, retail 12.1.5,
+--- 2026-10-26). When it cannot, the second value names that skill line, for a sentence.
+function CC.CraftableHere(recipeID)
+  local frame = _G.ProfessionsFrame
+  if type(frame) == "table" and frame.IsShown and frame:IsShown() and CC.IsOwnList() then
+    local okP, prof = call("GetChildProfessionInfo")
+    local line = okP and type(prof) == "table" and prof.professionID or nil
+    local okL, inLine = false, false
+    if type(line) == "number" then okL, inLine = call("IsRecipeInSkillLine", recipeID, line) end
+    if okL and inLine == true then return true end
+  end
+  local okI, info = call("GetProfessionInfoByRecipeID", recipeID)
+  local name = okI and type(info) == "table" and info.professionName or nil
+  return false, (type(name) == "string" and name ~= "") and name or nil
+end
+
+--- The name and icon of the profession whose window is open (the child profession, else the base
+--- one, as ProfessionInfo names it), the icon the way Blizzard_ProfessionsFrame.lua sets its
+--- portrait. nil when the client names none; the icon alone is nil when the client has none.
+function CC.Profession()
+  for _, name in ipairs({ "GetChildProfessionInfo", "GetBaseProfessionInfo" }) do
+    local ok, prof = call(name)
+    if ok and type(prof) == "table" and type(prof.professionID) == "number" and prof.professionID > 0
+        and type(prof.professionName) == "string" and prof.professionName ~= "" then
+      local okT, icon = call("GetTradeSkillTexture", prof.professionID)
+      return prof.professionName, okT and icon or nil
+    end
+  end
+  return nil
+end
+
+--- Opens a recipe in Blizzard's profession window, as its recipe tracker does
+--- (Blizzard_ProfessionsRecipeTracker.lua). Call it straight from the player's click. Nothing
+--- happens for a recipe the open window cannot craft (CC.CraftableHere). True when it was asked.
+function CC.Open(recipeID)
+  if type(recipeID) ~= "number" or not CC.CraftableHere(recipeID) then return false end
+  return (call("OpenRecipe", recipeID))
+end
+
+--- A recipe's name as the client gives it, else its id as text.
+function CC.RecipeName(recipeID)
+  local ok, info = call("GetRecipeInfo", recipeID)
+  local name = ok and type(info) == "table" and info.name or nil
+  return (type(name) == "string" and name ~= "") and name or tostring(recipeID)
+end
+
+-- The run of crafts the client is making, as GoldCap counts it: { recipeID, count, done }, the
+-- casts it was asked for and those finished. Blizzard's crafting page begins each cast of a run
+-- with TRADE_SKILL_CRAFT_BEGIN (recipeSpellID) and ends the run where its page cleans up
+-- (Blizzard_ProfessionsCrafting.lua, ProfessionsCraftingPageMixin:OnEvent): the cast stopped
+-- (not a scrap), the window closed, or the player's cast interrupted or failed. Only the run's
+-- own cast's failure is taken, as Blizzard's cast bar takes it (CastingBarFrame.lua,
+-- HandleInterruptOrSpellFailed: castID == self.castID): a press refused while the craft is cast
+-- fails with a GUID of its own. Finished casts are the player's UNIT_SPELLCAST_SUCCEEDED of the
+-- recipe (a recipe's spell is the recipe), so what is made and what is left never wait for the
+-- client's own count. A run GoldCap's press started is as long as the press asked for
+-- (CC.Started); one Blizzard's Create started, as long as the client says at its first cast
+-- (GetRemainingRecasts counts the casts after this one, Blizzard_ProfessionsCrafting.lua:667).
+local run
+
+-- A press GoldCap made that the client has not begun yet: { recipeID, count, at }, held for
+-- CC.PENDING seconds of GetTime at most.
+local pending
+
+-- The player's last cast that began (UNIT_SPELLCAST_START): its GUID and its spell, nil when it
+-- could not be read. Forgotten when a run ends, so a later run of the same recipe whose cast was
+-- never seen begin is not told by it. Two values, not a table: every cast the player makes begins
+-- here, in combat too.
+local beganGUID, beganSpell
+
+--- How long a press is taken for a craft that is about to begin, in seconds.
+CC.PENDING = 1
+
+local function now()
+  local clock = _G.GetTime
+  return type(clock) == "function" and clock() or 0
+end
+
+-- In a restricted context the client hands secret values, which addon code may not compare.
+local function readable(v)
+  local secret = _G.issecretvalue
+  if type(secret) ~= "function" then return true end
+  local ok, yes = pcall(secret, v)
+  return ok and not yes
+end
+
+local function held()
+  if pending and now() - pending.at >= CC.PENDING then pending = nil end
+  return pending
+end
+
+local function ended()
+  run, pending, beganGUID, beganSpell = nil, nil, nil, nil
+end
+
+-- Whether the player is casting a trade skill now (UnitCastingInfo's isTradeskill, never a secret).
+-- True when the client cannot say, so a run is kept.
+local function castingCraft()
+  local info = _G.UnitCastingInfo
+  if type(info) ~= "function" then return true end
+  local ok, isTradeskill = pcall(function() return select(6, info("player")) end)
+  return not ok or isTradeskill == true
+end
+
+-- Whether a failed or interrupted cast is the run's own: one with the GUID of the run's cast. A cast
+-- GoldCap cannot tell (its beginning never seen, or a secret GUID) is taken for it, as Blizzard's
+-- crafting page takes any. One with another GUID is a press refused while the craft is cast, unless
+-- it is of the run's recipe and nothing is being cast: the client's next cast of the run failed
+-- before it began (the reagents the window picks ran out), which ends the run.
+local function ownCast(guid, spellID)
+  if run then
+    if beganSpell ~= run.recipeID or not readable(guid) then return true end
+    if guid == beganGUID then return true end
+    return readable(spellID) and spellID == run.recipeID and not castingCraft()
+  end
+  -- A press not begun: its own cast failed, before it ever began.
+  return not readable(spellID) or spellID == pending.recipeID
+end
+
+--- The player pressed a Craft of GoldCap's for `count` crafts of a recipe, after the call that
+--- crafts them: until the client begins the craft (about a second at most), the recipe is taken
+--- for crafting, so a second press calls nothing.
+function CC.Started(recipeID, count)
+  if type(recipeID) ~= "number" or type(count) ~= "number" or count < 1 then return end
+  -- TRADE_SKILL_CRAFT_BEGIN is a synchronous event and may have fired inside the call: the run
+  -- began already, and it is as long as the press asked for.
+  if run and run.recipeID == recipeID then
+    run.count = math.max(run.count, count)
+    return
+  end
+  pending = { recipeID = recipeID, count = count, at = now() }
+end
+
+function CC.OnEvent(event, ...)
+  if event == "TRADE_SKILL_CRAFT_BEGIN" then
+    local recipeSpellID = ...
+    if type(recipeSpellID) ~= "number" then return end
+    -- The next cast of the run going.
+    if run and run.recipeID == recipeSpellID then return end
+    local press = held()
+    local count = press and press.recipeID == recipeSpellID and press.count or nil
+    if not count then
+      local ok, remaining = call("GetRemainingRecasts")
+      count = (ok and type(remaining) == "number" and remaining or 0) + 1
+    end
+    run, pending = { recipeID = recipeSpellID, count = count, done = 0 }, nil
+  elseif event == "UPDATE_TRADESKILL_CAST_STOPPED" then
+    local isScrapping = ...
+    if not isScrapping then ended() end
+  elseif event == "TRADE_SKILL_CLOSE" then
+    ended()
+  else
+    local unit, guid, spellID = ...
+    if readable(unit) and unit ~= "player" then return end
+    if event == "UNIT_SPELLCAST_START" then
+      if readable(guid) and readable(spellID) then
+        beganGUID, beganSpell = guid, spellID
+      else
+        beganGUID, beganSpell = nil, nil
+      end
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+      if run and readable(spellID) and spellID == run.recipeID then
+        run.done = run.done + 1
+        if run.done >= run.count then ended() end
+      end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+      if (run or held()) and ownCast(guid, spellID) then ended() end
+    end
+  end
+end
+
+--- The recipe being crafted, the crafts of the run still to make (the one being cast included) and
+--- the run's length, while a craft is going or a press of GoldCap's is about to begin one; nil
+--- otherwise.
+function CC.Repeating()
+  if run then return run.recipeID, run.count - run.done, run.count end
+  local press = held()
+  if press then return press.recipeID, press.count, press.count end
+  return nil
+end
+
+if type(CreateFrame) == "function" then
+  local events = CreateFrame("Frame")
+  for _, event in ipairs({ "TRADE_SKILL_CRAFT_BEGIN", "UPDATE_TRADESKILL_CAST_STOPPED", "TRADE_SKILL_CLOSE" }) do
+    pcall(events.RegisterEvent, events, event)
+  end
+  for _, event in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_SPELLCAST_FAILED" }) do
+    pcall(events.RegisterUnitEvent, events, event, "player")
+  end
+  events:SetScript("OnEvent", function(_, event, ...) CC.OnEvent(event, ...) end)
+  CC._events = events
+end
+
+--- A reagent or crafted item by name, for a sentence: { itemID } or { currencyID }. The second
+--- value is false when the client has no name for it yet: for an item, the client is asked to load
+--- it (C_Item.RequestLoadItemDataByID), and GET_ITEM_INFO_RECEIVED says when it has.
+function CC.MissingName(m)
+  if type(m) ~= "table" then return "", false end
+  if type(m.currencyID) == "number" then
+    local ci = _G.C_CurrencyInfo
+    local ok, info = false, nil
+    if type(ci) == "table" and type(ci.GetCurrencyInfo) == "function" then ok, info = pcall(ci.GetCurrencyInfo, m.currencyID) end
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name, true end
+    return GC.L["Currency %d"]:format(m.currencyID), false
+  end
+  local item = _G.C_Item
+  local ok, name = false, nil
+  if type(item) == "table" and type(item.GetItemNameByID) == "function" then ok, name = pcall(item.GetItemNameByID, m.itemID) end
+  if ok and type(name) == "string" and name ~= "" then return name, true end
+  if type(item) == "table" and type(m.itemID) == "number" then
+    pcall(function() item.RequestLoadItemDataByID(m.itemID) end)
+  end
+  return GC.L["Item %d"]:format(tonumber(m.itemID) or 0), false
+end
+
+--- An item's icon, a file id (C_Item.GetItemIconByID); nil while the client has none for it.
+function CC.IconOf(itemID)
+  local item = _G.C_Item
+  local fn = type(item) == "table" and item.GetItemIconByID or nil
+  if type(fn) ~= "function" or type(itemID) ~= "number" then return nil end
+  local ok, icon = pcall(fn, itemID)
+  return ok and icon or nil
+end
+
+-- Blizzard's Professions.IsViewingExternalCraftingList (a guild's, a guild member's or a linked
+-- list) plus an NPC's crafting and runeforging: none of these is the character's own to craft from.
+local EXTERNAL = { "IsTradeSkillGuild", "IsTradeSkillGuildMember", "IsTradeSkillLinked", "IsNPCCrafting", "IsRuneforging" }
+
+--- True when the window lists the character's own recipes. A function the client lacks counts
+--- as not external.
+function CC.IsOwnList()
+  local api = ts()
+  if type(api) ~= "table" then return false end
+  for _, name in ipairs(EXTERNAL) do
+    local fn = api[name]
+    if type(fn) == "function" then
+      local ok, yes = pcall(fn)
+      if ok and yes == true then return false end
+    end
+  end
+  return true
+end
+
+--- "Name-Realm" of the character at the keyboard, or nil.
+function CC.Char()
+  local ctx = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+  local char = type(ctx) == "table" and ctx.char or nil
+  return type(char) == "string" and char ~= "" and char or nil
+end
+
+--- Reads the character's own auctions into the craft store's listed counts. False when there is
+--- no character or the read failed.
+function CC.ReadListed()
+  local char = CC.Char()
+  if not char then return false end
+  local ok = pcall(function()
+    GC.CraftQueue.FoldListed(char, _G.C_AuctionHouse.GetOwnedAuctions(), time())
+  end)
+  return ok
+end

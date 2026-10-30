@@ -88,6 +88,13 @@ describe("ItemsBoard", function()
     assert.is_nil(GC.ItemsBoard.FlipText(nil))
   end)
 
+  it("says it short for the line under a flip's name", function()
+    assert.equal("Sold 6 times in 7 days", GC.ItemsBoard.SoldText({ sales7d = 6, realms = 3 }))
+    assert.equal("Sold once in 7 days", GC.ItemsBoard.SoldText({ sales7d = 1, realms = 1 }))
+    assert.is_nil(GC.ItemsBoard.SoldText({ sales7d = 0 }))
+    assert.is_nil(GC.ItemsBoard.SoldText(nil))
+  end)
+
   describe("MarkText", function()
     it("marks what the account lacks, by what kind of collectible it is", function()
       for _, kind in ipairs({ "appearance", "pet", "toy", "mount" }) do

@@ -127,8 +127,19 @@ function Welcome.MarkOpened(w, status, now)
   if w.nextAt == nil then w.nextAt = (now or 0) + interval(status) end
 end
 
---- "Don't remind me": the window never opens by itself again. /gc companion still opens it.
+--- "Don't remind me": the window never opens by itself again, and nothing is said in chat at
+--- login. /gc companion still opens it.
 function Welcome.Quiet(w)
   if type(w) ~= "table" then return end
   w.quiet = true
+end
+
+--- Whether to say a line in chat as the player comes into the world (once a load, UI/WelcomeFrame.lua
+--- words it by the status's kind): only while the window would ask something of the player (the
+--- status's cta: install the Companion, start it, update it) and they have not asked it to stop
+--- reminding them. TSM says its own at every login (owner, 2026-10-25: so more players get the
+--- Companion).
+function Welcome.SayAtLogin(w, status)
+  if type(status) ~= "table" or not status.cta then return false end
+  return not (type(w) == "table" and w.quiet)
 end

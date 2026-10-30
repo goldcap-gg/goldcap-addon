@@ -99,6 +99,30 @@ describe("kit button", function()
     assert.is_true(W.state(b.ring).shown)
   end)
 
+  -- A run's Stop (the GoldCap Hoard's): the loss colour as a faint tint and its words, no glow, as
+  -- warn carries its own colour without a fill that shouts.
+  it("draws Stop in a faint loss tint with loss words and no glow", function()
+    local K = GC.Kit.Tokens.color
+    local b = button("primary", "badge")
+    b:SetGlow(false)
+    b:SetVariant("stop")
+    assert.same({ K.loss[1], K.loss[2], K.loss[3], 0.1 }, W.state(b.bg).vertex)
+    assert.same({ K.loss[1], K.loss[2], K.loss[3], 1 }, W.state(b.text).color)
+    assert.is_false(W.state(b.glow).shown)
+    b:SetVariant("active")
+    assert.same({ K.goldText[1], K.goldText[2], K.goldText[3], 1 }, W.state(b.text).color)
+  end)
+
+  -- What goes to another of the player's characters (the GoldCap Hoard's carry cards): the kit's
+  -- "yours" blue as a faint tint and its words, as stop wears the loss colour.
+  it("draws yours in a faint blue tint with blue words and no glow", function()
+    local K = GC.Kit.Tokens.color
+    local b = button("yours", "badge")
+    assert.same({ K.yours[1], K.yours[2], K.yours[3], 0.14 }, W.state(b.bg).vertex)
+    assert.same({ K.yours[1], K.yours[2], K.yours[3], 1 }, W.state(b.text).color)
+    assert.is_nil(b.glow)
+  end)
+
   it("draws a middle dot and an arrow in a label as written: the Fira faces have them", function()
     local b = button("primary", "plaque")
     b:SetLabel("AUTO · SCANNING → 12g")

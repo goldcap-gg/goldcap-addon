@@ -703,6 +703,77 @@ describe("AppRuns", function()
       assert.is_nil(GC.db.runsArchived[run.code])
     end)
 
+    -- The craft queue's list (UI/CraftQueueView.lua) is rewritten from the queue: SetLines.
+    describe("SetLines", function()
+      local function pairsOf(run)
+        local out = {}
+        for n, line in ipairs(run.lines) do out[n] = { line.i, line.q } end
+        return out
+      end
+
+      it("replaces the lines in place, one per item, and keeps the code, the name and the caps", function()
+        local run = GC.AppRuns.NewList("Craft queue", { { i = 1, q = 4 }, { i = 2, q = 2 } })
+        GC.db.runLineCaps = { [run.code] = { [1] = 900 } }
+        run.updatedAt = 5
+        local same, changed = GC.AppRuns.SetLines(run.code, { { i = 1, q = 3 }, { i = 3, q = 1 }, { i = 3, q = 1 } })
+        assert.equal(run, same)
+        assert.is_true(changed)
+        assert.equal(run, GC.AppRuns.Get(run.code))
+        assert.same({ { 1, 3 }, { 3, 2 } }, pairsOf(run))
+        assert.equal("Craft queue", run.name)
+        assert.same({ [1] = 900 }, GC.db.runLineCaps[run.code])
+        -- The BUY tab rebuilds a list whose updatedAt moved (UI/BuyFrame.lua's ensureRun).
+        assert.is_true(run.updatedAt > 5)
+      end)
+
+      it("changes nothing when the lines are the same, and empties a list without removing it", function()
+        local run = GC.AppRuns.NewList(nil, { { i = 1, q = 4, v = true, vu = 50 } })
+        run.updatedAt = 5
+        local _, changed = GC.AppRuns.SetLines(run.code, { { i = 1, q = 4, v = true, vu = 50 } })
+        assert.is_false(changed)
+        assert.equal(5, run.updatedAt)
+        _, changed = GC.AppRuns.SetLines(run.code, { { i = 1, q = 4 } })
+        assert.is_true(changed)
+        _, changed = GC.AppRuns.SetLines(run.code, {})
+        assert.is_true(changed)
+        assert.equal(run, GC.AppRuns.Get(run.code))
+        assert.same({}, run.lines)
+      end)
+
+      it("never rewrites a pasted list or a goldcap.gg one", function()
+        GC.db.runs.p = { code = "p", origin = "paste", updatedAt = 1, lines = { { i = 1, q = 1 } } }
+        GC.db.runs.a = { code = "a", origin = "app", updatedAt = 1, lines = { { i = 1, q = 1 } } }
+        assert.is_nil(GC.AppRuns.SetLines("p", { { i = 2, q = 1 } }))
+        assert.is_nil(GC.AppRuns.SetLines("a", { { i = 2, q = 1 } }))
+        assert.is_nil(GC.AppRuns.SetLines("nosuch", { { i = 2, q = 1 } }))
+        assert.same({ { i = 1, q = 1 } }, GC.db.runs.p.lines)
+        assert.same({ { i = 1, q = 1 } }, GC.db.runs.a.lines)
+      end)
+
+      -- BUY buys a line's need less the larger of what it sees held and what it bought for the
+      -- list (Core/BuyRun.lua). A line that asks for fewer asks for none of the units that went:
+      -- a craft used them. Counted as bought, they would keep BUY from buying what is still short.
+      it("takes what a line no longer asks for off what every character bought for it", function()
+        local run = GC.AppRuns.NewList(nil, { { i = 1, q = 10 }, { i = 2, q = 4 }, { i = 3, q = 5 } })
+        GC.db.buyProgress = {
+          ["A-R"] = { [run.code] = { [1] = { bought = 6, spent = 600, boughtAt = 9 }, [2] = { bought = 4, spent = 80 },
+            [3] = { bought = 2, spent = 20 } } },
+          ["B-R"] = { [run.code] = { [1] = { bought = 3, spent = 300 } }, other = { [1] = { bought = 7, spent = 70 } } },
+        }
+        GC.AppRuns.SetLines(run.code, { { i = 1, q = 6 }, { i = 3, q = 9 } })
+        local a, b = GC.db.buyProgress["A-R"][run.code], GC.db.buyProgress["B-R"]
+        -- Item 1 asks for 4 fewer: 6 bought is 2 now, its cost in proportion.
+        assert.same({ bought = 2, spent = 200, boughtAt = 9 }, a[1])
+        -- Item 2 went: nothing bought for it is left.
+        assert.is_nil(a[2])
+        -- Item 3 asks for more: what was bought for it stands.
+        assert.same({ bought = 2, spent = 20 }, a[3])
+        assert.is_nil(b[run.code][1])
+        -- Another list's progress is not this list's.
+        assert.same({ bought = 7, spent = 70 }, b.other[1])
+      end)
+    end)
+
     it("survives a companion sync with its favourite, its place and its caps", function()
       local run = GC.AppRuns.NewList()
       GC.AppRuns.AddLine(run.code, 2589, 1)
