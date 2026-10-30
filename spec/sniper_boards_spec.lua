@@ -302,7 +302,9 @@ describe("Deals boards: commodities and items", function()
   end)
 
   describe("the empty state", function()
-    local function emptyText(api)
+    -- At the auction house unless a case says otherwise: away from it the board says only that.
+    local function emptyText(api, away)
+      set(api.GC.Sniper.OnAuctionHouseShow, "ahOpen", not away)
       api.GC.Sniper._UpdateEmptyState(0)
       return api.emptyText
     end
@@ -352,6 +354,21 @@ describe("Deals boards: commodities and items", function()
       local text = emptyText(api)
       assert.is_truthy(text:find("No deals yet.", 1, true))
       assert.is_nil(text:find("gear, pets", 1, true))
+    end)
+
+    -- Owner 2026-10-29: the Deals board opened from the minimap away from the auction house
+    -- found nothing and said "press Scan", which does nothing there.
+    it("sends the player to the auction house when the window is open away from it", function()
+      local api = loadSniper()
+      local open = "Open the auction house and GoldCap scans it for you"
+      assert.is_truthy(emptyText(api, true):find(open, 1, true))
+      api.GC.Sniper._SetBoard("items")
+      api.GC.Sniper._keyPoll:SetTargets({ 900 })
+      assert.is_truthy(emptyText(api, true):find(open, 1, true))
+
+      -- Without prices the import story still comes first, wherever the window is.
+      api.GC.Data.OriginState = function() return "none" end
+      assert.is_truthy(emptyText(api, true):find("no realm prices yet", 1, true))
     end)
   end)
 end)

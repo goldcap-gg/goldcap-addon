@@ -2503,6 +2503,15 @@ function GC.Sniper._UpdateEmptyState(shownCount)
     label:Show()
     return
   end
+  -- Opened away from the auction house (the minimap menu, /goldcap): no scan runs and no key
+  -- is polled until it opens, so "press Scan" or "keeps checking" would not be true here
+  -- (owner 2026-10-29, Deals board from the minimap). Without prices the import story below
+  -- still comes first: it holds wherever the window is.
+  if not ahOpen and GC.Data.OriginState() ~= "none" then
+    label:SetText(GC.L["Open the auction house and GoldCap scans it for you; SCAN on the Deals tab scans again."])
+    label:Show()
+    return
+  end
   if board == "items" and GC.Data.OriginState() ~= "none" then
     -- Count(), not the store: an empty poll set means the import carries no region reference
     -- for anything this board could watch, which is a different problem from a full poll set
