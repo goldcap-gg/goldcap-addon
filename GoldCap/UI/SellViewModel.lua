@@ -112,12 +112,13 @@ function GC.SellViewModel.Deck(positions, deck, chips)
     local include = belongs(position)
     -- Both chips ask POST-deck questions: a live lot is already priced and already paid for, so
     -- neither narrows anything there. Applying them anyway would silently empty the deck. The
-    -- picked group is the posting deck's too: it narrows what POST walks (Core/PostQueue.lua).
+    -- picked group narrows both decks: what POST walks (Core/PostQueue.lua) and what CANCEL does
+    -- (Compose.CancelQueue).
     if include and deck ~= "listed" then
       if chips.ready and not isReady(position) then include = false end
       if chips.noCost and not needsCost(position) then include = false end
-      if chips.inGroup and not chips.inGroup(position.positionKey) then include = false end
     end
+    if include and chips.inGroup and not chips.inGroup(position.positionKey) then include = false end
     if include then picked[#picked + 1] = position end
   end
   return GC.SellViewModel.Order and GC.SellViewModel.Order(picked) or picked

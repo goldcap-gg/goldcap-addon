@@ -1586,6 +1586,9 @@ GC.Locales.koKR = {
   ["Post goes through %s only"] = "등록은 %s만 차례로 진행합니다",
   ["Nothing left in this group"] = "이 그룹에 남은 것이 없음",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "가방에 있던 이 그룹의 아이템은 모두 등록했습니다. 나머지 가방을 보려면 전체를 고르세요.",
+  ["Nothing of this group is listed"] = "이 그룹은 등록된 경매가 없음",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "이 그룹의 아이템 중 진행 중인 경매가 없습니다. 모든 경매를 보려면 전체를 고르세요.",
   ["Posting your groups: %d of %d done"] = "내 그룹 등록 중: %d/%d 완료",
   ["Posting %s: %d of %d done"] = "%s 등록 중: %d/%d 완료",
   ["your default from Settings"] = "설정의 기본 가격",

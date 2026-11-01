@@ -1652,6 +1652,9 @@ GC.Locales.frFR = {
   ["Post goes through %s only"] = "VENDRE ne parcourt que %s",
   ["Nothing left in this group"] = "Plus rien dans ce groupe",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Tout ce que tes sacs contenaient de ce groupe est en vente. Choisis TOUT pour voir le reste de tes sacs.",
+  ["Nothing of this group is listed"] = "Rien de ce groupe n'est en vente",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Aucun objet de ce groupe n'a d'enchère en cours. Choisis TOUT pour voir toutes tes enchères.",
   ["Posting your groups: %d of %d done"] = "Mise en vente de tes groupes : %d sur %d faits",
   ["Posting %s: %d of %d done"] = "Mise en vente de %s : %d sur %d faits",
   ["your default from Settings"] = "ton prix par défaut des Réglages",

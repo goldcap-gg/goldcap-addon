@@ -130,18 +130,7 @@ function Compose.Positions(skipPaint)
   end
   sellableCount = sellable
   Compose.Queue()
-  -- The cancel twin, same degradation contract for fixtures loaded without the module.
-  if GC.CancelQueue and GC.CancelQueue.Build then
-    -- The player's cancel threshold (Settings, POSTING): a whole percent, 0 to 20. Unset is 0,
-    -- which is the queue as it always was. Not in DEFAULTS, so WoW: Forever's save never holds it.
-    local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
-    local pct = sniper and sniper.cancelUndercutPct
-    pct = (type(pct) == "number" and pct == pct) and math.max(0, math.min(20, math.floor(pct))) or 0
-    S.cancelEntries, S.cancelSkipped = GC.CancelQueue.Build(S.positions, { undercutPct = pct })
-  else
-    S.cancelEntries, S.cancelSkipped = {}, {}
-  end
-  View.paintCancel()
+  Compose.CancelQueue()
   -- The deck switch's two counts are read straight off `positions`, so they have to be
   -- repainted whenever `positions` moves. `container.paintDeckSwitch` (now behind View.paintDeck)
   -- was exported for exactly this and then never called by anybody: the switch was painted once
@@ -159,6 +148,34 @@ end
 -- Core/PostQueue.lua (GoldCap.toc), but a handful of older fixtures in this spec suite load the
 -- Sell view (helper.loadSell) without it, and a missing queue module must degrade to "nothing
 -- queued," never a crash.
+-- The cancel twin of Compose.Queue, same degradation contract for fixtures loaded without the
+-- module, and narrowed the same way to the group the GROUPS row picked (owner, 2026-11-02: CANCEL
+-- one group's lots).
+function Compose.CancelQueue()
+  if GC.CancelQueue and GC.CancelQueue.Build then
+    -- The player's cancel threshold (Settings, POSTING): a whole percent, 0 to 20. Unset is 0,
+    -- which is the queue as it always was. Not in DEFAULTS, so WoW: Forever's save never holds it.
+    local sniper = GC.db and GC.db.settings and GC.db.settings.sniper
+    local pct = sniper and sniper.cancelUndercutPct
+    pct = (type(pct) == "number" and pct == pct) and math.max(0, math.min(20, math.floor(pct))) or 0
+    local entries, skipped = GC.CancelQueue.Build(S.positions, { undercutPct = pct })
+    if S.group then
+      local function picked(list)
+        local out = {}
+        for _, entry in ipairs(list) do
+          if GC.Sell.InPickedGroup(entry.positionKey) then out[#out + 1] = entry end
+        end
+        return out
+      end
+      entries, skipped = picked(entries), picked(skipped)
+    end
+    S.cancelEntries, S.cancelSkipped = entries, skipped
+  else
+    S.cancelEntries, S.cancelSkipped = {}, {}
+  end
+  View.paintCancel()
+end
+
 function Compose.Queue()
   if GC.PostQueue and GC.PostQueue.Build then
     S.queueEntries, S.queueSkipped, S.notSelling = GC.PostQueue.Build(S.positions, GC.Sell._QueueOpts())

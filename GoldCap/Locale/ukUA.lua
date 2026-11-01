@@ -1719,6 +1719,9 @@ GC.Locales.ukUA = {
   ["Post goes through %s only"] = "ВИСТАВИТИ йде лише групою %s",
   ["Nothing left in this group"] = "У цій групі нічого не залишилося",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Усе з цієї групи у ваших сумках виставлено. Оберіть УСІ, щоб побачити решту в сумках.",
+  ["Nothing of this group is listed"] = "З цієї групи нічого не виставлено",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Жоден предмет цієї групи не має лота на аукціоні. Оберіть УСІ, щоб побачити всі лоти.",
   ["Posting your groups: %d of %d done"] = "Виставляємо ваші групи: готово %d з %d",
   ["Posting %s: %d of %d done"] = "Виставляємо %s: готово %d з %d",
   ["your default from Settings"] = "ваша типова з налаштувань",

@@ -1638,6 +1638,9 @@ GC.Locales.enUS = {
   ["Post goes through %s only"] = "Post goes through %s only",
   ["Nothing left in this group"] = "Nothing left in this group",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Everything from this group in your bags is posted. Pick ALL to see the rest of your bags.",
+  ["Nothing of this group is listed"] = "Nothing of this group is listed",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "None of this group's items has a live lot. Pick ALL to see every lot.",
   ["Posting your groups: %d of %d done"] = "Posting your groups: %d of %d done",
   ["Posting %s: %d of %d done"] = "Posting %s: %d of %d done",
   ["your default from Settings"] = "your default from Settings",

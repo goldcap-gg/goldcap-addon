@@ -16,6 +16,8 @@
 - Sell: prices are checked again once a minute instead of every few seconds, and the item at the
   bottom, the one POST posts next, is kept up to date in between. Closing and reopening the
   auction house keeps the prices it already read instead of reading them all again.
+- Sell, MY LOTS: the group buttons work here too. Pick a group to see only its lots, and CANCEL
+  cancels only that group's lots.
 
 ## 0.23.2 (2026-11-06)
 

@@ -1718,6 +1718,9 @@ GC.Locales.ruRU = {
   ["Post goes through %s only"] = "ВЫСТАВИТЬ идёт только по группе %s",
   ["Nothing left in this group"] = "В этой группе ничего не осталось",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Всё из этой группы в ваших сумках выставлено. Выберите ВСЕ, чтобы увидеть остальное в сумках.",
+  ["Nothing of this group is listed"] = "Из этой группы ничего не выставлено",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Ни у одного предмета этой группы нет лота на аукционе. Выберите ВСЕ, чтобы увидеть все лоты.",
   ["Posting your groups: %d of %d done"] = "Выставляем ваши группы: готово %d из %d",
   ["Posting %s: %d of %d done"] = "Выставляем %s: готово %d из %d",
   ["your default from Settings"] = "ваша по умолчанию из настроек",

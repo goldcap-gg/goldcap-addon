@@ -1554,6 +1554,9 @@ GC.Locales.zhTW = {
   ["Post goes through %s only"] = "上架只依次處理 %s",
   ["Nothing left in this group"] = "這個分組已沒有剩餘道具",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "背包裡這個分組的道具都已上架。選擇全部可查看背包裡的其餘道具。",
+  ["Nothing of this group is listed"] = "這個分組沒有在售的道具",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "這個分組的道具都沒有在拍賣。選擇全部可查看所有拍賣。",
   ["Posting your groups: %d of %d done"] = "正在上架你的分組：已完成 %d/%d",
   ["Posting %s: %d of %d done"] = "正在上架 %s：已完成 %d/%d",
   ["your default from Settings"] = "你在設定中的預設價",

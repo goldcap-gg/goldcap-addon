@@ -133,8 +133,12 @@ local GROUP_CHIP_IDS = { "all", "mine" }
 local function groupChips()
   local counts, names, order = {}, {}, {}
   local total = { all = 0, mine = 0 }
+  -- Counted on the deck on screen: MY LOTS counts the items with a live lot.
+  local onDeck = activeDeck() == "listed"
+    and function(position) return (type(position.listedQty) == "number" and position.listedQty or 0) > 0 end
+    or toPost
   for _, position in ipairs(S.positions) do
-    if toPost(position) then
+    if onDeck(position) then
       total.all = total.all + 1
       local key, name = GC.Sell.GroupKeyOf(position.positionKey)
       if key then
@@ -168,16 +172,15 @@ end
 
 -- The GROUPS row (owner, 2026-10-25: post one group, the way TSM posts a group), under row 1. A
 -- picked chip narrows the posting deck and POST's walk to it (GC.Sell.InPickedGroup,
--- Core/PostQueue.lua) until the auction house is closed. The chips wrap onto as many lines as the
--- width needs, each as wide as its words, and the headings, the list and the item panel move down
--- under them (UI.ListTop). On MY LOTS they dim, as READY and NO COST do: they narrow the posting
--- deck. Painted with every render: an item posted, or a group followed on goldcap.gg, changes them.
+-- Core/PostQueue.lua) until the auction house is closed, and on MY LOTS the lots and what CANCEL
+-- cancels (owner, 2026-11-02). The chips wrap onto as many lines as the width needs, each as wide
+-- as its words, and the headings, the list and the item panel move down under them (UI.ListTop).
+-- Painted with every render: an item posted, or a group followed on goldcap.gg, changes them.
 function Toolbar.PaintGroups()
   local container = UI.container
   if not (container and container.groupChips) then return end
   local G = UI.GROUPS
   local chips, shown = groupChips()
-  local onPostDeck = S.filterMode ~= "listed" and S.filterMode ~= "cancelqueue"
   local label = container.groupsLabel
   local width = UI.rowWidth or 0
   local x0 = 0
@@ -198,10 +201,12 @@ function Toolbar.PaintGroups()
         local id = self.groupId
         S.group = id ~= "all" and id or nil
         S.groupName = self.groupName
-        -- A different group is a different list, as a deck change is: settled fresh, the queue
-        -- built again for it, and an item put in the dock from another group let go.
-        S.rowPlaces, S.dockKey = {}, nil
+        -- A different group is a different list, as a deck change is: settled fresh, both queues
+        -- built again for it, an item put in the dock from another group let go, and a CANCEL run
+        -- armed on the lots of another let go too.
+        S.rowPlaces, S.dockKey, S.cancelRun = {}, nil, nil
         GC.SellCompose.Queue()
+        GC.SellCompose.CancelQueue()
         Toolbar.PaintDeckSwitch()
         UI.List.RenderRows()
       end)
@@ -220,8 +225,8 @@ function Toolbar.PaintGroups()
     x = x + w + G.GAP
     local picked = (S.group or "all") == chip.id
     -- SetVariant before Enable/Disable, as everywhere in the kit.
-    button:SetVariant(picked and onPostDeck and "active" or "ghost")
-    if onPostDeck then button:Enable() else button:Disable() end
+    button:SetVariant(picked and "active" or "ghost")
+    button:Enable()
     button:Show()
   end
   for i = #chips + 1, #container.groupChips do container.groupChips[i]:Hide() end

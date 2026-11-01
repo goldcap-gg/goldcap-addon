@@ -1648,6 +1648,9 @@ GC.Locales.itIT = {
   ["Post goes through %s only"] = "VENDI scorre solo %s",
   ["Nothing left in this group"] = "Non resta niente in questo gruppo",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Tutto ciò che avevi di questo gruppo nelle borse è in vendita. Scegli TUTTI per vedere il resto delle borse.",
+  ["Nothing of this group is listed"] = "Niente di questo gruppo è in vendita",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Nessun oggetto di questo gruppo ha un'asta attiva. Scegli TUTTI per vedere tutte le aste.",
   ["Posting your groups: %d of %d done"] = "Vendita dei tuoi gruppi: %d di %d fatti",
   ["Posting %s: %d of %d done"] = "Vendita di %s: %d di %d fatti",
   ["your default from Settings"] = "il tuo predefinito dalle Impostazioni",

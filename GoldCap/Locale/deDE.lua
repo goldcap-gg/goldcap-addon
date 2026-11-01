@@ -1651,6 +1651,9 @@ GC.Locales.deDE = {
   ["Post goes through %s only"] = "EINSTELLEN geht nur %s durch",
   ["Nothing left in this group"] = "In dieser Gruppe ist nichts mehr übrig",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Alles aus dieser Gruppe in deinen Taschen ist eingestellt. Wähle ALLE, um den Rest deiner Taschen zu sehen.",
+  ["Nothing of this group is listed"] = "Nichts aus dieser Gruppe ist eingestellt",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Kein Gegenstand dieser Gruppe hat eine laufende Auktion. Wähle ALLE, um alle Auktionen zu sehen.",
   ["Posting your groups: %d of %d done"] = "Deine Gruppen einstellen: %d von %d erledigt",
   ["Posting %s: %d of %d done"] = "%s einstellen: %d von %d erledigt",
   ["your default from Settings"] = "dein Standard aus den Einstellungen",

@@ -892,15 +892,32 @@ describe("Sell tab, the posting queue control", function()
         assert.is_false(container.queueButton.enabled)
       end)
 
-      it("dims the chips on MY LOTS, as READY and NO COST", function()
+      -- On MY LOTS a group narrows the lots and what CANCEL cancels (owner, 2026-11-02: cancel
+      -- only one group's lots). They used to dim there, as READY and NO COST do.
+      it("narrows MY LOTS to a picked group, counted by the items with a live lot", function()
         ready()
-        container.deckButtons.listed.scripts.OnClick(container.deckButtons.listed)
-        for _, button in ipairs(container.groupChips) do
-          if button.shown then
-            assert.is_false(button.enabled)
-            assert.equal("ghost", button.variant)
-          end
+        for _, position in ipairs(GC.SellState.positions) do
+          if position.positionKey == "commodity:23427" then position.listedQty = 3 end
         end
+        container.deckButtons.listed.scripts.OnClick(container.deckButtons.listed)
+        assert.same({ "ALL 1", "MY GROUPS 1", "ORES 1" }, chips())
+        assert.is_true(chip("ORES 1").enabled)
+        pick("ORES 1")
+        assert.equal("ores", GC.SellState.group)
+        assert.equal("active", chip("ORES 1").variant)
+      end)
+
+      it("cancels only the picked group's lots", function()
+        GC.CancelQueue = { Build = function()
+          return { { positionKey = "commodity:23427" }, { positionKey = "commodity:99001" } },
+            { { positionKey = "commodity:99001" } }
+        end }
+        GC.SellCompose.CancelQueue()
+        assert.equal(2, #GC.SellState.cancelEntries)
+        GC.SellState.group = "ores"
+        GC.SellCompose.CancelQueue()
+        assert.same({ { positionKey = "commodity:23427" } }, GC.SellState.cancelEntries)
+        assert.same({}, GC.SellState.cancelSkipped)
       end)
 
       it("forgets the pick when the auction house is closed", function()
