@@ -359,7 +359,7 @@ function GC.Sell.Show()
   -- has always called Refresh() unconditionally, and Refresh()'s own Compose.Positions()+
   -- List.RenderRows() pass now runs for real the instant Walk.Shown() is true. An explicit
   -- flushDeferredRender() call here would render this same pass a second time.
-  GC.Sell.Refresh()
+  GC.Sell.Refresh(nil, true)
   -- Mid-post the render is held, so coming back to the tab re-sets the dock's line and the
   -- busy labels with the text they already hold -- a no-op the client does not redraw on a
   -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and

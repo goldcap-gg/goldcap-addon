@@ -1123,11 +1123,11 @@ describe("Sell protected action state", function()
     assert.equal(0, calls.cacheSet)
     assert.same({ 42, 42 }, sent)
     assert.equal("waiting_result", refresh.phase)
-    -- Once, not twice: closing the auction house clears the SESSION quote cache and leaves the
-    -- persisted mirror alone, so the next visit opens with the prices it already knew instead
-    -- of re-walking every position from a dash. See sell_quote_persistence_spec.lua's Reset
-    -- tests for the store's own half of that contract.
-    assert.equal(1, calls.cacheClear)
+    -- Not at all: closing the auction house keeps the session's quotes, each with its age, and
+    -- the persisted mirror, so the next visit opens with the books it already read instead of
+    -- reading every one again (owner, 2026-11-02). See sell_quote_persistence_spec.lua's Reset
+    -- tests for the rest of that contract.
+    assert.equal(0, calls.cacheClear)
     assert.same(afterClose, { post = calls.post, confirm = calls.confirm,
       cancel = calls.cancel, activity = calls.activity })
   end)

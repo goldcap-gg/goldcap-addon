@@ -627,6 +627,12 @@ function Dock.Current()
   return current, wrap
 end
 
+-- What the pricing walk keeps fresh between its passes (Services/Sell/Walk.lua).
+GC.SellView.dockPosition = function()
+  local current = Dock.Current()
+  return current and current.position or nil
+end
+
 -- The dock leaving its item, posted or passed over (Services/Sell/Post.lua, Compose.lua): it goes
 -- on to the item after it, not back to the top, and the item's panel, if open, goes along with it
 -- (owner, 2026-10-11: posting the third item shut its panel and put the first in the dock). Read

@@ -2797,7 +2797,9 @@ describe("Sell widget geometry and manual cost", function()
     local resetTimer = timers[#timers]
     GC.Sell.Reset()
     resetTimer.callback()
-    assert.equal("", tostring(quotes[42] or ""))
+    -- The close keeps the quote with its age (Reset), and the timer armed before it does nothing.
+    assert.same({ unit = 160, at = 200 }, quotes[42])
+    assert.equal(0, protectedCalls)
   end)
 
   -- renderRows used to have no visibility check at all: composePositions()+renderRows() run

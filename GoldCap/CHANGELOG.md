@@ -13,6 +13,9 @@
 - Sell: the item's panel shows what your price makes over what you paid (such as +100%) beside
   the price, and it changes as you change the price. It was only on the row, which the panel
   covers in a narrow window.
+- Sell: prices are checked again once a minute instead of every few seconds, and the item at the
+  bottom, the one POST posts next, is kept up to date in between. Closing and reopening the
+  auction house keeps the prices it already read instead of reading them all again.
 
 ## 0.23.2 (2026-11-06)
 

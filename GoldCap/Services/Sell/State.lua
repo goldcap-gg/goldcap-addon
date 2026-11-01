@@ -107,6 +107,9 @@ GC.SellState = {
   -- item in a slot the walk then stepped over -- and a queue rebuilt by Walk.Begin, which is
   -- what the owned-auctions phase ends in, dropped it outright. Walk.Advance drains this before
   -- the queue's own next step, so the row the player is standing on is answered first.
+  -- `passEndedAt` is when the last whole pass ended, which times the next (Walk.lua's
+  -- scheduleNextWalk) and survives the auction house closing; `fullPass` marks the walk running as
+  -- one; `visit` is a Refresh for the auction house opening or the tab being shown (Walk.Begin).
   refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil,
     drain = {}, priority = {} },
   walkRepeatToken = 0, watchdogToken = 0, quoteExpiryGeneration = 0,
@@ -166,6 +169,7 @@ GC.SellView = {
   leave = nothing,       -- UI.List.Leave(positionKey): a row posted whole fades out and the list closes up
   attached = function() return false end, -- GC.Sell.Attach has built the tab
   isShown = nothing,     -- the tab's own shown flag; nil until it is built
+  dockPosition = nothing, -- the position the dock's POST would post now (UI.Dock.Current)
 }
 
 local MAX_EXACT = 9007199254740991

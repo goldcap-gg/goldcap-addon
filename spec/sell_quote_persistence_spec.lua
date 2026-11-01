@@ -172,7 +172,7 @@ describe("Sell quote persistence across a reload", function()
       assert.same(stored, GC.db.sellQuotes)
     end)
 
-    it("clears the live cache and arms seeding again, so the next visit refills from the store", function()
+    it("keeps the live cache, each quote with its age, and arms seeding again", function()
       local now = { value = 100000 }
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
@@ -185,11 +185,11 @@ describe("Sell quote persistence across a reload", function()
       assert.equal(1500, GC.SellState.quotes[42].unit)
 
       GC.Sell.Reset()
-      -- The live cache is genuinely gone: a quote is a claim about an order book, and there is
-      -- no order book once the session is over.
-      assert.is_nil(GC.SellState.quotes[42])
-      -- ...but the next compose puts the remembered price back, rather than starting from a
-      -- dash and re-walking every item.
+      -- Kept, with the age it had: reopening the auction house a moment later read every book
+      -- again when this was wiped (owner, 2026-11-02). Its age is what keeps it from backing a
+      -- post once it is old (Quotes.Fresh).
+      assert.same({ unit = 1500, at = now.value - 100, bookless = true }, GC.SellState.quotes[42])
+      assert.is_false(GC.SellState.quotesSeeded)
       compose()
       assert.equal(1500, GC.SellState.quotes[42].unit)
     end)

@@ -12547,7 +12547,7 @@ function GC.Sniper.Toggle()
     refreshStaleText() -- B: keep the banner current even if it's been a while since the last AH visit
     -- D: bag counts (and therefore the Sell tab badge) may be stale from whenever the window
     -- was last open -- cheap to recompute on every show regardless of which tab is active.
-    GC.Sell.Refresh()
+    GC.Sell.Refresh(nil, true)
     updateSellTabLabel()
   end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.Refresh then
@@ -12857,7 +12857,7 @@ function GC.Sniper.OnAuctionHouseShow()
   refreshStaleText() -- B: refresh on every AH show, not just once at window creation
   -- D: bag counts (mail may have been fetched since the last visit) and the Sell tab badge --
   -- refreshed regardless of which tab is active, same reasoning as GC.Sniper.Toggle() above.
-  GC.Sell.Refresh()
+  GC.Sell.Refresh(nil, true)
   updateSellTabLabel()
   if frame.status then
     if mode == "fullscan" and #scanDeals > 0 then

@@ -13,10 +13,14 @@ local QUOTE_REWALK_AGE, EMPTY_ANSWER_AGE = GC.Sell.QUOTE_REWALK_AGE, GC.Sell.EMP
 -- How long a yielded pricing walk (purchase in flight, throttle window closed) waits before
 -- asking again from the same queue position -- see Walk.Advance's retryLater.
 local QUOTE_RETRY_SECONDS = 2
--- Gap between automatic re-pricing passes while the tab is open and the auction
--- house is up. Prices stay live on their own instead of waiting for Refresh --
--- which is also why PROFIT / UNIT no longer reads Unknown until you press it.
-local WALK_REPEAT_SECONDS = 5
+-- Gap between automatic re-pricing passes while the tab is open and the auction house is up, from
+-- the end of one pass to the start of the next. Prices stay live on their own instead of waiting
+-- for Refresh. It was 5 seconds, and with every quote owed again at QUOTE_REWALK_AGE the tab never
+-- stopped pricing: BOOKS ran again a few seconds after each pass (owner, 2026-11-02: once a minute
+-- is plenty). The item in the dock is kept fresh between passes on its own (keepDockFresh).
+local WALK_REPEAT_SECONDS = 60
+-- How often the wait between passes looks at the dock's item.
+local DOCK_CHECK_SECONDS = 5
 -- A phase that answers no event is a wedge: Refresh used to refuse to run while
 -- one was in flight, so a single unanswered owned-auctions query or item-key
 -- lookup made the button dead for the rest of the session.
@@ -238,15 +242,41 @@ end
 -- press fetched. Without it the market column ages out and PROFIT / UNIT falls
 -- back to Unknown until the player presses Refresh, which is the sort of chore a
 -- program should not be delegating.
+--
+-- The item POST is about to post is asked about again once its quote is owed one (QUOTE_REWALK_AGE),
+-- so the press finds a quote young enough to post on (SELL_QUOTE_ACTION_AGE) between passes a
+-- minute apart. Not while the player is busy on the auction house, and not an item the walk would
+-- not ask about either: no stock, an answer of nothing listed that still stands, an unresolved item.
+local function keepDockFresh()
+  local position = View.dockPosition()
+  local quoteID = type(position) == "table" and (position.quoteKey or position.itemID) or nil
+  if not quoteID or (position.bagQty or 0) <= 0 then return end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return end
+  local commodity = type(position.positionKey) == "string" and position.positionKey:find("commodity:", 1, true) == 1
+  if position.unresolved and not commodity then return end
+  local now = time()
+  if Walk.RestedEmptyFresh(quoteID, now) then return end
+  local held = S.quotes[quoteID]
+  local owed = type(held) ~= "table" or held.bulk == true or held.bookless == true
+    or type(held.at) ~= "number" or now - held.at > QUOTE_REWALK_AGE
+  if owed then Walk.RefreshFor(position) end
+end
+
 local function scheduleNextWalk()
   S.walkRepeatToken = S.walkRepeatToken + 1
   local token = S.walkRepeatToken
   if not (C_Timer and C_Timer.After) then return end
-  C_Timer.After(WALK_REPEAT_SECONDS, function()
+  local function tick()
     if token ~= S.walkRepeatToken or not Walk.Live() then return end
-    if S.refresh.phase ~= "done" and S.refresh.phase ~= "idle" and S.refresh.phase ~= "error" then return end
-    GC.Sell.Refresh(true)
-  end)
+    local phase = S.refresh.phase
+    local settled = phase == "done" or phase == "idle" or phase == "error"
+    if settled and time() >= (S.refresh.passEndedAt or 0) + WALK_REPEAT_SECONDS then
+      return GC.Sell.Refresh(true)
+    end
+    if settled then keepDockFresh() end
+    C_Timer.After(DOCK_CHECK_SECONDS, tick)
+  end
+  C_Timer.After(DOCK_CHECK_SECONDS, tick)
 end
 
 -- Let go of a request we are no longer waiting for, leaving a tombstone so its
@@ -269,6 +299,8 @@ function Walk.MarkProgress()
 end
 
 local function finishQuoteWalk()
+  -- The next pass is timed from the end of this one; a one-item ask (Walk.RefreshFor) is not a pass.
+  if S.refresh.fullPass then S.refresh.passEndedAt, S.refresh.fullPass = time(), nil end
   S.refresh.phase = "done"
   S.refresh.pending, S.refresh.awaiting = nil, nil
   local skipped = S.refresh.skipped or 0
@@ -344,6 +376,7 @@ function Walk.ArmWatchdog()
     if time() - (S.refresh.progressAt or 0) >= PHASE_WATCHDOG_SECONDS then
       Walk.Abandon()
       S.refresh.phase = "error"
+      if S.refresh.fullPass then S.refresh.passEndedAt, S.refresh.fullPass = time(), nil end
       View.status(GC.L["Auction House did not answer. Press Refresh"])
       scheduleNextWalk()
       return
@@ -565,6 +598,21 @@ function Walk.Begin()
   S.refresh.awaitingPriority = nil
   S.refresh.skipped = 0
   S.refresh.waitingNoted = false
+  S.refresh.fullPass = true
+  -- A visit (the auction house opened again, the tab shown) within a minute of the last pass asks
+  -- only about rows with no book yet: the books on screen stand, and the next pass keeps its time.
+  -- Reopening the auction house used to read every book again (owner, 2026-11-02).
+  local visit = S.refresh.visit
+  S.refresh.visit = nil
+  if visit and S.refresh.passEndedAt and time() - S.refresh.passEndedAt < WALK_REPEAT_SECONDS then
+    S.refresh.fullPass = nil
+    local bookless = {}
+    for _, quoteID in ipairs(S.refresh.queue) do
+      local held = S.quotes[quoteID]
+      if type(held) ~= "table" or held.bulk == true or held.bookless == true then bookless[#bookless + 1] = quoteID end
+    end
+    S.refresh.queue = bookless
+  end
   -- refresh.priority deliberately survives: it holds the items a CLICK asked about, and this
   -- rebuild is exactly what used to throw them away.
   if #S.refresh.queue == 0 and #S.refresh.priority == 0 then return finishQuoteWalk() end
@@ -709,7 +757,7 @@ function Walk.RefreshFor(position)
   View.status(GC.L["Checking this item's price…"])
   if S.refresh.phase == "idle" or S.refresh.phase == "done" or S.refresh.phase == "error" then
     S.refresh.generation = S.refresh.generation + 1
-    S.refresh.queue, S.refresh.index = {}, 0
+    S.refresh.queue, S.refresh.index, S.refresh.fullPass = {}, 0, nil
     S.refresh.pending, S.refresh.awaiting, S.refresh.awaitingPriority = nil, nil, nil
     S.refresh.phase = "pricing"
     Walk.MarkProgress()

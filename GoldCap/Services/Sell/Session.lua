@@ -27,7 +27,8 @@ end
 -- Whatever was in flight is let go of behind a drain tombstone, exactly the way
 -- Reset already did it, so a late terminal event is consumed rather than
 -- credited to this run.
-function GC.Sell.Refresh(automatic)
+-- `visit`: the auction house opening or the tab being shown, not a press (Walk.Begin).
+function GC.Sell.Refresh(automatic, visit)
   if automatic and S.refresh.phase ~= "idle" and S.refresh.phase ~= "done" and S.refresh.phase ~= "error" then
     return
   end
@@ -39,6 +40,7 @@ function GC.Sell.Refresh(automatic)
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
   S.refresh.generation = S.refresh.generation + 1
   S.refresh.phase, S.refresh.queue, S.refresh.index = "owned", {}, 0
+  S.refresh.visit = not automatic and visit == true or nil
   Walk.MarkProgress()
   if not automatic then
     -- A manual press means "ask for real": remembered no-listing answers are wiped so every
@@ -121,18 +123,17 @@ function GC.Sell.Reset()
   -- The CANCEL button's run (UI/Sell/Dock.lua) ends with the visit: its confirm was for the lots
   -- on screen then, and a press after reopening arms again.
   S.cancelRun = nil
-  GC.QuoteCache.Clear(S.quotes)
-  -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
-  -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
-  -- it is the live session ending. Wiping the store there defeated the whole point of keeping
-  -- one: every visit re-priced every position from a dash, and the tab spent its first half
-  -- minute saying "—" about prices it had known thirty seconds earlier (reported in game,
-  -- "ЦІНИ 4/17" on a list of seventeen). The store already carries its own age limit
-  -- (QUOTE_PERSIST_MAX_AGE, three days) and every row it seeds is drawn with its real age, so
-  -- nothing here can pass an old price off as a live one.
+  -- The quotes STAY, books and all, and so does the persisted mirror. Reset's only caller is the
+  -- auction house closing (UI/SniperFrame.lua), which is not the player asking to forget anything.
+  -- Wiping the store defeated the whole point of keeping one: every visit re-priced every position
+  -- from a dash (reported in game, "ЦІНИ 4/17" on a list of seventeen). Wiping the session's
+  -- quotes did the same to the books: reopening the auction house read every one again a moment
+  -- after the last pass (owner, 2026-11-02). Every quote carries its age: the walk owes a real
+  -- answer to anything older than QUOTE_REWALK_AGE, and nothing older than SELL_QUOTE_ACTION_AGE
+  -- backs a post (Quotes.Fresh), so nothing here can pass an old price off as a live one.
   --
-  -- Seeding is armed again with it: Quotes.Seed runs once per session, and without
-  -- this the next compose would find an empty live cache and no permission to refill it.
+  -- Seeding is armed again: Quotes.Seed runs once per session, and fills only what this session
+  -- holds no quote for.
   S.quotesSeeded = false
   S.quoteExpiryGeneration = S.quoteExpiryGeneration + 1
   S.walkRepeatToken = S.walkRepeatToken + 1
