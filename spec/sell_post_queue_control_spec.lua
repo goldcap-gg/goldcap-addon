@@ -609,6 +609,9 @@ describe("Sell tab, the posting queue control", function()
       assert.equal("commodity:99001", list[2])
       assert.matches("^NOT SELLING 1", helper.plain(list[3]))
       assert.equal("commodity:23427", list[4])
+      -- The pricing walk reads the books in this drawn order (Walk.Queue), not the settled one.
+      local drawnAt = GC.SellState.drawnPlaces
+      assert.is_true(drawnAt["commodity:99001"] < drawnAt["commodity:23427"])
     end)
 
     it("counts what Deals bought as marked without a click, and says why", function()

@@ -487,6 +487,25 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 43, 50 }, refreshState(GC).queue)
   end)
 
+  -- The SELLING split draws a marked row of ore above an unmarked helm worth more, which settled
+  -- first: walking by the settled place read the helm's book while the ore at the top had none
+  -- (owner, 2026-11-01).
+  it("asks in the order the rows are drawn, not the order they settled in", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 50, positionKey = "commodity:50", listedQty = 9 },
+        { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5 },
+      }
+    end
+    GC.SellState.rowPlaces["commodity:42"], GC.SellState.rowPlaces["commodity:43"] = 1, 2
+    GC.SellState.drawnPlaces = { ["commodity:43"] = 1, ["commodity:42"] = 2 }
+    GC.Sell.Refresh(true)
+    assert.same({ 43, 42, 50 }, refreshState(GC).queue)
+  end)
+
   -- The button counted the whole queue -- both decks -- over a list showing one of them:
   -- "BOOKS 4/27" above ten rows. It counts the rows of the deck on screen.
   describe("the Refresh button's progress", function()

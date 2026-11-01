@@ -213,6 +213,19 @@ function GC.SellViewModel.Settle(positions, places)
   return ordered
 end
 
+--- Where each row is drawn, top to bottom: position key to its index in the list as rendered.
+--
+-- The pricing walk asks about the rows in this order (Walk.Queue). The SELLING split and MY LOTS's
+-- sections move rows away from the place Settle gave them, and walking by that place read the book
+-- of a NOT SELLING helm before those of the ore and cloth at the top of the list (owner, 2026-11-01).
+function GC.SellViewModel.DrawnPlaces(drawn)
+  local places = {}
+  for index, position in ipairs(drawn or {}) do
+    if type(position.positionKey) == "string" then places[position.positionKey] = index end
+  end
+  return places
+end
+
 -- MY LOTS in three sections: lots worth cancelling, lots priced far under the market, and lots
 -- to leave alone -- the three answers a seller opens the deck for. Cut from the cancel queue's
 -- own entries (GC.CancelQueue.Build; `urgent` is its word for an underpriced lot) rather than

@@ -130,9 +130,14 @@ function Walk.Queue()
   -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
   -- its first seconds on rows of the other deck while the ones being looked at waited.
   local need, weight, onScreen, place = {}, {}, {}, {}
+  -- The place a row is DRAWN at (S.drawnPlaces, kept by the list's render), not the one it settled
+  -- at: the SELLING split draws a marked row above an unmarked one worth more, and walking by the
+  -- settled place read a NOT SELLING helm's book while the ore at the top had none (owner,
+  -- 2026-11-01). Before the list has been drawn at all, the settled place.
+  local places = S.drawnPlaces or S.rowPlaces
   for index, position in ipairs(actionable) do
     onScreen[position] = S.refresh.onDeck(position)
-    place[position] = S.rowPlaces[position.positionKey] or math.huge
+    place[position] = places[position.positionKey] or math.huge
     local age = position.quoteAge
     need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
       and math.huge or age

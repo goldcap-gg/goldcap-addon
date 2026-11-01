@@ -100,6 +100,8 @@ GC.SellState = {
   -- when the PLAYER asks for a new order -- Refresh, a deck change, a chip -- never by a quote
   -- landing, an owned-auction scan or the walk's own repeat. Those change numbers, not places.
   rowPlaces = {},
+  -- `drawnPlaces` (nil until the list is first drawn) is where each row is drawn, which the SELLING
+  -- split and MY LOTS's sections move away from rowPlaces; the pricing walk asks in that order.
   -- `priority` holds items a CLICK asked about while a pass was already running (Post/Repost on a
   -- row whose quote had aged out). Deliberately outside `queue`: splicing into that array put the
   -- item in a slot the walk then stepped over -- and a queue rebuilt by Walk.Begin, which is

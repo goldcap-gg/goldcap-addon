@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.23.3 (unreleased)
+
+- Sell: the auction house's listings are read from the top of the list down, so what POST is about
+  to post, such as what you just bought on DEALS, gets its place in line and its price book first.
+  Rows you are not selling used to be read first when they were worth more.
+
 ## 0.23.2 (2026-11-06)
 
 - WoW: Forever: DEALS now finds items listed well under their market price, not only items listed
@@ -45,6 +51,7 @@
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 - WoW: Forever: the line next to AUTO keeps the message about the deal you are buying, instead of
   going back to the board's figures a few seconds later.
+||||||| parent of 65626f68 (fix: Sell reads the books in the order the rows are drawn)
 
 ## 0.23.1 (2026-10-30)
 
