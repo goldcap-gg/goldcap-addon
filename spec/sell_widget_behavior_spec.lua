@@ -683,7 +683,9 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("43", dock(GC).priceBox.text) -- 430000 copper, in gold, as the box takes it
       assert.equal("YOUR PRICE", row.drawerPriceHead.text)
       assert.equal(helper.money("43g"), row.priceFigure.text)
-      assert.equal("GoldCap's · ×5", row.priceNote.text)
+      -- With what the price makes over what one cost: the panel covers the row's YOU GET, and a
+      -- narrow window's dock has none (owner, 2026-11-02).
+      assert.equal("GoldCap's · ×5 · " .. GC.Util.Colored(GC.Theme.color.green, "+2%"), row.priceNote.text)
     end)
 
     -- How many (owner, 2026-10-10: ten in the bags, five to sell, and one Post listed all ten).
@@ -723,7 +725,7 @@ describe("Sell widget geometry and manual cost", function()
         local row = priceRow(GC)
         local d = dock(GC)
         assert.equal("2", d.qtyBox.text)
-        assert.equal("GoldCap's · ×2", row.priceNote.text)
+        assert.matches("GoldCap's · ×2 · ", row.priceNote.text, 1, true)
         assert.equal(helper.money("81g70s"), listRow(GC).cells.gross.text) -- 43g x 2, less the cut
         assert.equal("ghost", d.qtyMax.variant)
         assert.equal(GC.Theme.color.gold[1], d.qtyHead.color[1])
@@ -805,7 +807,7 @@ describe("Sell widget geometry and manual cost", function()
         local row = priceRow(GC, { bagQty = 1, exposureQty = 1, knownQty = 1, knownCost = 400000 })
         assert.is_false(dock(GC).qtyBoxBg.shown)
         assert.is_false(dock(GC).qtyMax.shown)
-        assert.equal("GoldCap's · ×1", row.priceNote.text)
+        assert.matches("GoldCap's · ×1 · ", row.priceNote.text, 1, true)
       end)
     end)
 
@@ -851,7 +853,8 @@ describe("Sell widget geometry and manual cost", function()
       local after = priceRow(GC)
       assert.equal("45", dock(GC).priceBox.text)
       assert.equal(helper.money("45g"), after.priceFigure.text)
-      assert.matches("yours", after.priceNote.text, 1, true)
+      -- The margin follows the typed price: +2% at GoldCap's 43g, +7% at 45g.
+      assert.equal("yours · ×5 · " .. GC.Util.Colored(GC.Theme.color.green, "+7%"), after.priceNote.text)
       assert.equal(GC.Theme.color.gold[1], dock(GC).priceHead.color[1])
     end)
 

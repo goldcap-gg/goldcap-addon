@@ -337,7 +337,12 @@ function INSP.paintHead(row, p, d)
       -- Whose price, and over how many -- the number the dock's POST lists, not the one in the
       -- bags. The seller's default from Settings is theirs, chosen once for every item.
       local whose = chosen and GC.L["yours"] or defaultId and GC.L["your default from Settings"] or GC.L["GoldCap's"]
-      row.priceNote:SetText(("%s · ×%d"):format(whose, (postQuantity(p))))
+      local note = ("%s · ×%d"):format(whose, (postQuantity(p)))
+      -- And what the price makes over what one cost, the row's line under YOU GET: this panel
+      -- covers that column, and a narrow window's dock drops its own (owner, 2026-11-02).
+      local margin, tone = UI.fmt.margin(unit, risk.paidUnit)
+      if margin then note = note .. " · " .. GC.Util.Colored(tone, margin) end
+      row.priceNote:SetText(note)
       setColor(row.priceNote, Theme.color.fgDim)
     else
       row.priceNote:SetText(GC.L["no live price yet"])

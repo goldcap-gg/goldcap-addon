@@ -10,6 +10,9 @@
 - Sell: at the same price the auction house sells the newest listing first, so a post at the
   cheapest price is first in line. THE BOOK and "N ahead" no longer count the units already at
   your price as ahead of you, and the hint about a wall says to match its price, not to go under it.
+- Sell: the item's panel shows what your price makes over what you paid (such as +100%) beside
+  the price, and it changes as you change the price. It was only on the row, which the panel
+  covers in a narrow window.
 
 ## 0.23.2 (2026-11-06)
 
