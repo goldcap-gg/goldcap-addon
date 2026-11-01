@@ -955,9 +955,9 @@ GC.Locales.enUS = {
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["waiting..."] = "waiting...",
   ["wall"] = "wall",
-  ["wall %s at %s: price under it to sell first"] =
-    "wall %s at %s: price under it to sell first",
-  ["wall %s at %s above you"] = "wall %s at %s above you",
+  ["wall %s at %s: match its price to sell first"] =
+    "wall %s at %s: match its price to sell first",
+  ["wall %s at %s behind you"] = "wall %s at %s behind you",
   ["watching %s closely, re-checked every few seconds"] = "watching %s closely, re-checked every few seconds",
   ["whole-market data not in use: %s"] = "whole-market data not in use: %s",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =

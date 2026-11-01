@@ -646,10 +646,10 @@ function Row.PaintPosition(row, entry, ctx)
   -- cheapest; the lit one is where this price lands -- gold for a price about to be
   -- posted, the watch blue for a lot already standing there, the same two colours the
   -- book itself uses for the same two facts.
-  -- On TO POST the price is about to be posted and joins any level at the same price, so
-  -- that level counts as ahead -- what THE BOOK's marker says (SellViewModel.UnitsAhead).
+  -- Units under the price, what THE BOOK's marker says (SellViewModel.UnitsAhead): at an equal
+  -- price the newest listing sells first, so a post is first at its price.
   local standing = rowUnit and GC.SellViewModel.Standing
-    and GC.SellViewModel.Standing(p, rowUnit, not onListedDeck) or nil
+    and GC.SellViewModel.Standing(p, rowUnit) or nil
   local lit = onListedDeck and Theme.color.watch or Theme.color.gold
   for slot, mark in ipairs(row.standMarks) do
     if not standing then

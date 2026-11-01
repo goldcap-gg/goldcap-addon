@@ -163,21 +163,26 @@ describe("Sell order book", function()
       assert.is_nil(b.yourRow)
     end)
 
-    it("counts the units at your exact price as ahead of you, and never your own", function()
+    -- At an equal price the newest listing sells first (live tape, 2026-10-17): the units already
+    -- at your exact price are behind a post, and the marker goes above their level. It counted
+    -- them: "26k ahead" at 2g57 over 13k units at 2g57 (owner, 2026-11-02).
+    it("counts only the units under your price as ahead of you, and never your own", function()
       local levels = {
         { unitPrice = 1000, quantity = 10 },
         { unitPrice = 1100, quantity = 20, ownerQty = 5 },
         { unitPrice = 1200, quantity = 30 },
       }
-      assert.equal(25, GC.SellViewModel.UnitsAhead(levels, 1100))
+      assert.equal(10, GC.SellViewModel.UnitsAhead(levels, 1100))
       assert.equal(10, GC.SellViewModel.UnitsAhead(levels, 1099))
+      assert.equal(25, GC.SellViewModel.UnitsAhead(levels, 1101))
       assert.equal(55, GC.SellViewModel.UnitsAhead(levels, 5000))
       assert.equal(0, GC.SellViewModel.UnitsAhead(levels, 999))
       assert.is_nil(GC.SellViewModel.UnitsAhead({}, 1000))
       assert.is_nil(GC.SellViewModel.UnitsAhead(levels, nil))
       local b = GC.SellViewModel.Expansion(position({ levels = levels, postRecommendation = { unit = 1100 } })).book
-      assert.equal(25, b.ahead)
-      assert.equal(25, b.rows[b.yourRow].ahead)
+      assert.equal("1000 yours 1100 1200", kinds(b))
+      assert.equal(10, b.ahead)
+      assert.equal(10, b.rows[b.yourRow].ahead)
     end)
 
     -- A wall is a level holding a big share of the day: pricing under it sells first, at or
@@ -269,8 +274,8 @@ describe("Sell order book", function()
       }
       local d = GC.SellViewModel.Expansion(position({ levels = levels, coverage = "COMPLETE",
         postRecommendation = { unit = 1100, mode = "overcut", ahead = 300, capBy = "reach" } }))
-      assert.equal(2321, d.book.ahead)
-      assert.is_truthy(d.factsText:find("within the day's reach · 2.3k units ahead of you", 1, true), d.factsText)
+      assert.equal(300, d.book.ahead)
+      assert.is_truthy(d.factsText:find("within the day's reach · 300 units ahead of you", 1, true), d.factsText)
     end)
 
     -- "~Xh to reach you" and "clears in" answer one sale: the queue ahead, then your own units
@@ -304,7 +309,7 @@ describe("Sell order book", function()
       assert.equal(all.hoursToReach, few.hoursToReach)
     end)
 
-    -- Your own older lots at or under the price sell before the new post: the times count them
+    -- Your own lots under the price sell before the new post: the times count them
     -- in the queue, though the marker's "N ahead" -- what competes with you -- does not. And
     -- "yours ×N" is every unit of yours the book read, not only the levels drawn (final review M6).
     it("times the queue with your own older lots in it, and counts all of yours", function()
@@ -328,7 +333,7 @@ describe("Sell order book", function()
           { unitPrice = 1200, quantity = 42000 } },
         postRecommendation = { unit = 1000, mode = "chosen" },
         recommendation = { unit = 1100, mode = "overcut", ahead = 300, capBy = "reach" } }))
-      assert.equal(300, d.book.ahead)
+      assert.equal(0, d.book.ahead)
       assert.is_nil((d.factsText or ""):find("ahead of you", 1, true))
     end)
 

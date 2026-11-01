@@ -834,8 +834,9 @@ GC.Locales.zhTW = {
   ["waiting for previous search result to settle"] = "等待前一次搜尋結果",
   ["waiting..."] = "等待中...",
   ["wall"] = "牆",
-  ["wall %s at %s: price under it to sell first"] = "%s 件的牆在 %s：定價低於它才能先賣出",
-  ["wall %s at %s above you"] = "%s 件的牆在 %s，高於你的價格",
+  ["wall %s at %s: match its price to sell first"] =
+    "%s 件的牆在 %s：定價與它相同即可先賣出",
+  ["wall %s at %s behind you"] = "%s 件的牆在 %s，排在你後面",
   ["watching %s closely, re-checked every few seconds"] = "密切關注 %s，每幾秒重新檢查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最壞情況下，把全部 %d 件按現在掛著的價格賣回去",

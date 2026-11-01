@@ -7,6 +7,9 @@
   Rows you are not selling used to be read first when they were worth more.
 - Sell: picking a group, switching between TO POST and MY LOTS, or searching moves the rows you
   now see to the front of the listings still to read, instead of after everything else.
+- Sell: at the same price the auction house sells the newest listing first, so a post at the
+  cheapest price is first in line. THE BOOK and "N ahead" no longer count the units already at
+  your price as ahead of you, and the hint about a wall says to match its price, not to go under it.
 
 ## 0.23.2 (2026-11-06)
 

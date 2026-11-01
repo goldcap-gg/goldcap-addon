@@ -1445,8 +1445,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(wall.tag.shown)
       assert.same({ RED[1], RED[2], RED[3], 0.8 }, wall.bar.fill.vertexColor)
       assert.is_false(drawer.bookLines[4].tag.shown)
-      assert.matches("wall 420 at " .. helper.money("11g50s") .. ": price under it to sell first", drawer.drawerFacts.text, 1, true)
-      assert.matches("wall 400 at " .. helper.money("11g70s") .. " above you", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 420 at " .. helper.money("11g50s") .. ": match its price to sell first", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 400 at " .. helper.money("11g70s") .. " behind you", drawer.drawerFacts.text, 1, true)
 
     end)
 
@@ -3075,13 +3075,13 @@ describe("Sell widget geometry and manual cost", function()
       return p
     end
 
-    -- A price about to be posted joins the tail of the level at the same price: at an equal
-    -- price the auction house sells the older listing first, so those 240 are ahead too -- the
-    -- count THE BOOK's marker shows for the same price (SellViewModel.UnitsAhead). It said 120.
-    it("says how much stock is queued at or under the price and lights the level it lands on", function()
+    -- A price about to be posted is the newest listing at its price, and the auction house sells
+    -- the newest first: the 240 already at it are behind, the 120 under it ahead -- the count THE
+    -- BOOK's marker shows (SellViewModel.UnitsAhead).
+    it("says how much stock is queued under the price and lights the level it lands on", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock() })
-      assert.equal("360 ahead", rows[1].priceStand.text)
+      assert.equal("120 ahead", rows[1].priceStand.text)
       assert.is_true(rows[1].priceStand.shown)
       local GOLD = GC.Theme.color.gold
       assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[1].standMarks[3].colorTexture)
@@ -3094,9 +3094,9 @@ describe("Sell widget geometry and manual cost", function()
       local rows = topRows(GC, { stock({ postRecommendation = { unit = 178900 } }) })
       assert.equal("first in line", rows[1].priceStand.text)
       assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
-      -- Matching the cheapest joins its tail: its 35 sell first. This used to say first in line.
+      -- Matching the cheapest is first in line too: the newest listing at a price sells first.
       rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
-      assert.equal("35 ahead", rows[1].priceStand.text)
+      assert.equal("first in line", rows[1].priceStand.text)
     end)
 
     it("leaves the standing empty rather than claiming an empty queue when there is no book", function()

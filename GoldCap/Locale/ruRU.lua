@@ -874,9 +874,9 @@ GC.Locales.ruRU = {
   ["waiting for previous search result to settle"] = "ждём завершения предыдущего поиска",
   ["waiting..."] = "ожидание...",
   ["wall"] = "стена",
-  ["wall %s at %s: price under it to sell first"] =
-    "стена %s шт. по %s: ставьте ниже, чтобы продать раньше",
-  ["wall %s at %s above you"] = "стена %s шт. по %s выше вас",
+  ["wall %s at %s: match its price to sell first"] =
+    "стена %s шт. по %s: поставьте ту же цену, чтобы продать раньше",
+  ["wall %s at %s behind you"] = "стена %s шт. по %s позади вас",
   ["watching %s closely, re-checked every few seconds"] =
     "пристально следим за %s, перепроверка каждые несколько секунд",
   ["worst case, selling all %d back into the price standing there now"] =

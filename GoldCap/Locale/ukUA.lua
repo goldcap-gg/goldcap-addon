@@ -888,9 +888,9 @@ GC.Locales.ukUA = {
     "чекаємо, поки завершиться попередній пошук",
   ["waiting..."] = "очікування…",
   ["wall"] = "стіна",
-  ["wall %s at %s: price under it to sell first"] =
-    "стіна %s шт. по %s: ставте нижче, щоб продати раніше",
-  ["wall %s at %s above you"] = "стіна %s шт. по %s вище за вас",
+  ["wall %s at %s: match its price to sell first"] =
+    "стіна %s шт. по %s: поставте ту саму ціну, щоб продати раніше",
+  ["wall %s at %s behind you"] = "стіна %s шт. по %s позаду вас",
   ["watching %s closely, re-checked every few seconds"] =
     "пильно стежимо за %s, перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =

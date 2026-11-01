@@ -904,9 +904,9 @@ GC.Locales.itIT = {
     "in attesa del risultato di ricerca precedente",
   ["waiting..."] = "in attesa…",
   ["wall"] = "muro",
-  ["wall %s at %s: price under it to sell first"] =
-    "muro di %s a %s: stai sotto per vendere prima",
-  ["wall %s at %s above you"] = "muro di %s a %s sopra di te",
+  ["wall %s at %s: match its price to sell first"] =
+    "muro di %s a %s: metti il suo stesso prezzo per vendere prima",
+  ["wall %s at %s behind you"] = "muro di %s a %s dietro di te",
   ["watching %s closely, re-checked every few seconds"] =
     "%s sorvegliato da vicino, ricontrollato ogni pochi secondi",
   ["worst case, selling all %d back into the price standing there now"] =

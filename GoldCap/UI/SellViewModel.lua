@@ -279,8 +279,8 @@ local BOOK_ROWS = 8
 -- this). A book of this many may have been cut there: a price past its last level has at least
 -- all of it ahead, and an unknown amount more.
 GC.SellViewModel.BOOK_READ_MAX = 100
--- A level holding this share of a day's sales or more is a wall: priced under it, a post sells
--- first; at or over it, the post waits for the whole wall to clear.
+-- A level holding this share of a day's sales or more is a wall: priced at or under it, a post
+-- sells first; over it, the post waits for the whole wall to clear.
 local WALL_SHARE = 0.25
 -- ...and never fewer units than this. At 4 sold a day a quarter of the day is one unit, and
 -- every 2-unit level of a slow book was a red "wall" (review M3).
@@ -295,10 +295,13 @@ local function ownUnits(level, units)
   return 0
 end
 
---- Units a post at `unit` waits behind: every unit listed at or under that price that is not
--- the player's own. At an equal price the auction house sells the older listing first, so the
--- units already at the exact price are ahead too. THE BOOK's marker, the strategy line under
--- the price and a TO POST row's standing all say this one count. nil with no book or no price.
+--- Units a post at `unit` waits behind: every unit listed under that price that is not the
+-- player's own. At an equal price the auction house sells the NEWEST listing first (measured on
+-- the live tape, 2026-10-17: an older lot at the fill's price stayed untouched 4 946 times, a
+-- newer one once), so a post is first at its own price until somebody lists there after it.
+-- It counted the level at the exact price too: "26k ahead" at 2g57 over 13k units at 2g57, and
+-- "12k ahead" a copper lower (owner, 2026-11-02). THE BOOK's marker, the strategy line under the
+-- price and a TO POST row's standing all say this one count. nil with no book or no price.
 function GC.SellViewModel.UnitsAhead(levels, unit)
   if type(levels) ~= "table" or type(unit) ~= "number" or unit <= 0 then return nil end
   local ahead, seen = 0, 0
@@ -306,7 +309,7 @@ function GC.SellViewModel.UnitsAhead(levels, unit)
     local level = levels[i]
     if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
       seen = seen + 1
-      if level.unitPrice <= unit then
+      if level.unitPrice < unit then
         local units = type(level.quantity) == "number" and level.quantity or 0
         ahead = ahead + math.max(0, units - ownUnits(level, units))
       end
@@ -321,12 +324,12 @@ end
 
 -- Which levels THE BOOK draws for a commodity with a price of the player's: the cheapest
 -- ones, a gap line for what is skipped, the levels just under the price, a marker for the price
--- itself (after the levels at an equal price -- it would join their tail), and the levels
--- above. Eight lines in all. Room the levels under the price do not need goes to those above.
+-- itself (before the levels at an equal price: the newest post at a price sells first), and the
+-- levels above. Eight lines in all. Room the levels under the price do not need goes to those above.
 local function ladder(valid, yours)
   local k = #valid + 1
   for i = 1, #valid do
-    if valid[i].unit > yours then k = i break end
+    if valid[i].unit >= yours then k = i break end
   end
   local below, aboveAvail = k - 1, #valid - k + 1
   local above = math.min(2, aboveAvail)
@@ -416,7 +419,7 @@ local function book(position, postQty)
       end
       if valid[i].wall then
         local wall = { unit = valid[i].unit, units = competing }
-        if valid[i].unit <= yours then wallBelow = wall
+        if valid[i].unit < yours then wallBelow = wall
         elseif not wallAbove then wallAbove = wall end
       end
     end
@@ -434,12 +437,12 @@ local function book(position, postQty)
       if outlook then return outlook.days * 24 end
       return queued / sold * 24
     end
-    -- The queue the post joins holds the player's own older lots at or under the price too: they
-    -- sell first. The marker's "N ahead" is what competes and leaves them out; the times cannot
-    -- (final review M6).
+    -- The queue the post joins holds the player's own lots under the price too: they sell first.
+    -- The marker's "N ahead" is what competes and leaves them out; the times cannot (final
+    -- review M6). Their lots at the same price are older, so they sell after it.
     local mineAhead = 0
     for i = 1, #valid do
-      if valid[i].unit <= yours then mineAhead = mineAhead + valid[i].ownerUnits end
+      if valid[i].unit < yours then mineAhead = mineAhead + valid[i].ownerUnits end
     end
     if sold and ahead and not pastRead then
       if ahead + mineAhead > 0 then hoursToReach = hours(ahead + mineAhead) end
@@ -481,11 +484,9 @@ end
 -- price sits above everything the auction house returned. nil when there is no book or no
 -- price: an absent answer must not read as "nobody is ahead of you".
 --
--- `joining`: the price is about to be POSTED on a commodity, so it joins the tail of a level at
--- the same price and that level is ahead of it too (GC.SellViewModel.UnitsAhead) -- the count
--- THE BOOK's marker shows. A lot already standing at its price, or a realm item's lot, is not
--- joining anything: strictly cheaper, as before.
-function GC.SellViewModel.Standing(position, unit, joining)
+-- Strictly cheaper for a price about to be posted too, the count THE BOOK's marker shows
+-- (GC.SellViewModel.UnitsAhead): the newest listing at a price sells first.
+function GC.SellViewModel.Standing(position, unit)
   local levels = type(position) == "table" and type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 or type(unit) ~= "number" or unit <= 0 then return nil end
   local ahead, slot, seen = 0, nil, 0
@@ -502,7 +503,6 @@ function GC.SellViewModel.Standing(position, unit, joining)
     end
   end
   if seen == 0 then return nil end
-  if joining and isCommodity(position) then ahead = GC.SellViewModel.UnitsAhead(levels, unit) end
   return { ahead = ahead, slot = slot or seen + 1 }
 end
 
@@ -606,20 +606,12 @@ function GC.SellViewModel.Expansion(position, postQty)
   -- the cheap quarter is the fallback wording for an import that carries no reach figure yet.
   -- Both spelled out rather than picking a key into a variable: a key has to be a literal at
   -- the lookup or the locale contract scanner cannot see it (the addon's engineering notes).
-  -- The count is THE BOOK's own (UnitsAhead): at or under the price, less the player's own --
-  -- the engine's `ahead` counts strictly below, so the line and the marker could say two
-  -- numbers about one price. The engine's figure stands in only where there is no book to count.
+  -- The count is THE BOOK's own (Standing): under the price, less the player's own -- the
+  -- engine's `ahead` leaves the player's own in, so the line and the marker could say two numbers
+  -- about one price. The engine's figure stands in only where there is no book to count.
   if isOvercut then
-    -- A realm item counts the way its row does: strictly under the price, less the player's own
-    -- (Standing, not joining) -- lots at an equal price are not a queue there (review M7).
-    local ahead
-    if isCommodity(position) then
-      ahead = GC.SellViewModel.UnitsAhead(position.levels, rec.unit)
-    else
-      local standing = GC.SellViewModel.Standing(position, rec.unit)
-      ahead = standing and standing.ahead
-    end
-    ahead = ahead or rec.ahead
+    local standing = GC.SellViewModel.Standing(position, rec.unit)
+    local ahead = standing and standing.ahead or rec.ahead
     ahead = GC.Util and GC.Util.FormatCount and GC.Util.FormatCount(ahead) or tostring(ahead)
     if rec.capBy == "reach" then
       facts[#facts + 1] =

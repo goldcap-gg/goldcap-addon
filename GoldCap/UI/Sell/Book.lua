@@ -132,18 +132,19 @@ local function standWords(book)
   return (GC.L["~%dd to reach you"]):format(math.floor(hours / 24 + 0.5))
 end
 
--- The walls around a commodity's price, for the facts line: the nearest at or under it and the
--- first above it. Empty for a book with no price of the player's, or no walls.
+-- The walls around a commodity's price, for the facts line: the nearest under it and the first
+-- at or above it, which a post at the price sells ahead of. Empty for a book with no price of the
+-- player's, or no walls.
 local function wallWords(book)
   local words = {}
   local function amount(wall)
     return GC.Util.FormatCount(wall.units) or tostring(wall.units), formatCell(wall.unit)
   end
   if book.commodity and book.wallBelow then
-    words[#words + 1] = (GC.L["wall %s at %s: price under it to sell first"]):format(amount(book.wallBelow))
+    words[#words + 1] = (GC.L["wall %s at %s: match its price to sell first"]):format(amount(book.wallBelow))
   end
   if book.commodity and book.wallAbove then
-    words[#words + 1] = (GC.L["wall %s at %s above you"]):format(amount(book.wallAbove))
+    words[#words + 1] = (GC.L["wall %s at %s behind you"]):format(amount(book.wallAbove))
   end
   return words
 end

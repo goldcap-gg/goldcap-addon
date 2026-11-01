@@ -902,9 +902,9 @@ GC.Locales.ptBR = {
   ["waiting for previous search result to settle"] = "esperando o resultado da busca anterior",
   ["waiting..."] = "aguarde...",
   ["wall"] = "muro",
-  ["wall %s at %s: price under it to sell first"] =
-    "muro de %s a %s: anuncie abaixo dele para vender antes",
-  ["wall %s at %s above you"] = "muro de %s a %s acima de você",
+  ["wall %s at %s: match its price to sell first"] =
+    "muro de %s a %s: anuncie pelo mesmo preço para vender antes",
+  ["wall %s at %s behind you"] = "muro de %s a %s atrás de você",
   ["watching %s closely, re-checked every few seconds"] =
     "acompanhando %s de perto, reconferido a cada poucos segundos",
   ["worst case, selling all %d back into the price standing there now"] =

@@ -904,9 +904,9 @@ GC.Locales.frFR = {
     "en attente du résultat de recherche précédent",
   ["waiting..."] = "en attente…",
   ["wall"] = "mur",
-  ["wall %s at %s: price under it to sell first"] =
-    "mur de %s à %s: passe en dessous pour vendre d'abord",
-  ["wall %s at %s above you"] = "mur de %s à %s au-dessus de toi",
+  ["wall %s at %s: match its price to sell first"] =
+    "mur de %s à %s: mets le même prix pour vendre d'abord",
+  ["wall %s at %s behind you"] = "mur de %s à %s derrière toi",
   ["watching %s closely, re-checked every few seconds"] =
     "%s surveillé de près, revérifié toutes les quelques secondes",
   ["worst case, selling all %d back into the price standing there now"] =

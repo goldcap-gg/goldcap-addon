@@ -906,9 +906,9 @@ GC.Locales.esES = {
     "esperando el resultado de la búsqueda anterior",
   ["waiting..."] = "en espera…",
   ["wall"] = "muro",
-  ["wall %s at %s: price under it to sell first"] =
-    "muro de %s a %s: pon el precio por debajo para vender antes",
-  ["wall %s at %s above you"] = "muro de %s a %s por encima de ti",
+  ["wall %s at %s: match its price to sell first"] =
+    "muro de %s a %s: pon su mismo precio para vender antes",
+  ["wall %s at %s behind you"] = "muro de %s a %s detrás de ti",
   ["watching %s closely, re-checked every few seconds"] =
     "vigilando %s de cerca, se recomprueba cada pocos segundos",
   ["worst case, selling all %d back into the price standing there now"] =
