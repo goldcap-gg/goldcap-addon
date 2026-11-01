@@ -506,6 +506,54 @@ describe("Sell refresh state fence", function()
     assert.same({ 43, 42, 50 }, refreshState(GC).queue)
   end)
 
+  -- Picking a group mid-pass: the pass was built for the whole list, and the group's rows waited
+  -- behind every other book ("BOOKS 32/40" over a group of five, owner 2026-11-02).
+  describe("a list drawn anew mid-pass", function()
+    local function fourInBags(GC)
+      GC.SellPositions.Build = function()
+        local list = {}
+        for _, id in ipairs({ 41, 42, 43, 44 }) do
+          list[#list + 1] = { itemID = id, positionKey = "commodity:" .. id, bagQty = 5 }
+        end
+        return list
+      end
+      GC.SellState.drawnPlaces = { ["commodity:41"] = 1, ["commodity:42"] = 2, ["commodity:43"] = 3,
+        ["commodity:44"] = 4 }
+    end
+
+    it("asks next about the rows now drawn, in their order", function()
+      local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+      local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+      fourInBags(GC)
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      assert.same({ 41 }, sent.keys)
+      GC.SellWalk.Follow({ { positionKey = "commodity:44" }, { positionKey = "commodity:43" } })
+      GC.Sell.OnCommoditySearchResults(41)
+      GC.Sell.OnCommoditySearchResults(44)
+      GC.Sell.OnCommoditySearchResults(43)
+      assert.same({ 41, 44, 43, 42 }, sent.keys)
+    end)
+
+    it("keeps the item it waits on a key for in its slot", function()
+      local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+      local keyed = false
+      local GC = load(now, sent, cache, function(id)
+        if id == 41 and not keyed then return nil end
+        return { isCommodity = true }
+      end)
+      fourInBags(GC)
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      assert.equal("waiting_key", refreshState(GC).phase)
+      GC.SellWalk.Follow({ { positionKey = "commodity:44" }, { positionKey = "commodity:43" } })
+      keyed = true
+      GC.Sell.OnItemKeyInfo(41)
+      GC.Sell.OnCommoditySearchResults(41)
+      GC.Sell.OnCommoditySearchResults(44)
+      GC.Sell.OnCommoditySearchResults(43)
+      assert.same({ 41, 44, 43, 42 }, sent.keys)
+    end)
+  end)
+
   -- The button counted the whole queue -- both decks -- over a list showing one of them:
   -- "BOOKS 4/27" above ten rows. It counts the rows of the deck on screen.
   describe("the Refresh button's progress", function()

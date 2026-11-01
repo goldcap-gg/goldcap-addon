@@ -124,8 +124,6 @@ describe("Sell widget geometry and manual cost", function()
         -- renders, and a stand-in that handed the list straight back would let every test here
         -- pass against an order that still jumps.
         Settle = realViewModel.SellViewModel.Settle,
-        -- The drawn order the pricing walk follows, real for the same reason.
-        DrawnPlaces = realViewModel.SellViewModel.DrawnPlaces,
         -- And for the same reason again: Standing is the arithmetic behind the line under a
         -- row's price, and a stand-in would let that line say anything.
         Standing = realViewModel.SellViewModel.Standing,

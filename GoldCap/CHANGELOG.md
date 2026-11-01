@@ -5,6 +5,8 @@
 - Sell: the auction house's listings are read from the top of the list down, so what POST is about
   to post, such as what you just bought on DEALS, gets its place in line and its price book first.
   Rows you are not selling used to be read first when they were worth more.
+- Sell: picking a group, switching between TO POST and MY LOTS, or searching moves the rows you
+  now see to the front of the listings still to read, instead of after everything else.
 
 ## 0.23.2 (2026-11-06)
 

@@ -130,7 +130,7 @@ function Walk.Queue()
   -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
   -- its first seconds on rows of the other deck while the ones being looked at waited.
   local need, weight, onScreen, place = {}, {}, {}, {}
-  -- The place a row is DRAWN at (S.drawnPlaces, kept by the list's render), not the one it settled
+  -- The place a row is DRAWN at (S.drawnPlaces, kept by Walk.Follow), not the one it settled
   -- at: the SELLING split draws a marked row above an unmarked one worth more, and walking by the
   -- settled place read a NOT SELLING helm's book while the ore at the top had none (owner,
   -- 2026-11-01). Before the list has been drawn at all, the settled place.
@@ -165,6 +165,32 @@ function Walk.Queue()
     end
   end
   return result
+end
+
+-- The list was drawn: where each row sits now, and the part of this pass not yet asked put in
+-- that order. A group, a deck, a chip or a search changes what is drawn, and the pass, built once
+-- for the whole list, read every other row's book first: "BOOKS 32/40" over a group of five with
+-- two still bookless (owner, 2026-11-02).
+function Walk.Follow(drawn)
+  local places = {}
+  for index, position in ipairs(drawn or {}) do
+    if type(position.positionKey) == "string" then places[position.positionKey] = index end
+  end
+  S.drawnPlaces = places
+  local queue = S.refresh.queue
+  -- A queue item waiting on its key is queue[index + 1], and sending it counts that slot: it stays.
+  local from = S.refresh.index + ((S.refresh.awaiting ~= nil and not S.refresh.awaitingPriority) and 2 or 1)
+  if from >= #queue then return end
+  local rank, tail = {}, {}
+  for order, quoteID in ipairs(Walk.Queue()) do rank[quoteID] = order end
+  for at = from, #queue do tail[#tail + 1] = { id = queue[at], at = at } end
+  -- Rows no longer due keep their turn, after the rest.
+  table.sort(tail, function(left, right)
+    local l, r = rank[left.id] or math.huge, rank[right.id] or math.huge
+    if l ~= r then return l < r end
+    return left.at < right.at
+  end)
+  for offset, entry in ipairs(tail) do queue[from + offset - 1] = entry.id end
 end
 
 function Walk.ScheduleExpiry()
