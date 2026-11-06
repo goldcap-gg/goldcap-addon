@@ -906,10 +906,6 @@ GC.Locales.zhTW = {
     "低於商人價",
   ["Under market"] =
     "低於市場價",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · %s 或更低購買，商人收購價 %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · %s 或更低購買，拍賣場估價 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "以 %s 或更低購買：商人每件收購價 %s。這次購買可賺 %s。",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

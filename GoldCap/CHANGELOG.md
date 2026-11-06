@@ -5,6 +5,8 @@
 - WoW: Forever: DEALS now finds items listed well under their market price, not only items listed
   under what a vendor pays for them. Until now it looked for these only among items you had carried
   in your bags.
+- WoW: Forever: a DEALS row is one or two lines tall. The price to buy at and the price it is
+  measured against are in the row's tooltip, not after the item's name.
 
 ## 0.23.1 (2026-10-30)
 

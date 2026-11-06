@@ -985,10 +985,6 @@ GC.Locales.frFR = {
     "Sous PNJ",
   ["Under market"] =
     "Sous marché",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · achetez à %s ou moins, le marchand paie %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · achetez à %s ou moins, valeur HV %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Achetez à %s ou moins : un marchand paie %s l'unité. Cet achat rapporte %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

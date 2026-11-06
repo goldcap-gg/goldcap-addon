@@ -1511,8 +1511,10 @@ local function setRowDeal(row, deal)
   -- beside it ran the cell out of room -- "x400 Test caps · yo..." (in game 2026-09-23). Only
   -- when the cell has room for it, too: a name the client had to cut drops the group, which the
   -- row's tooltip names either way (GC.Sniper._CapNote).
-  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup)
-    or GC.Sniper._ForeverSuffix(deal)
+  -- A WoW: Forever row adds nothing here: its kind is on the chip, and the price to buy at and its
+  -- reference are in the tooltip (GC.Sniper._ForeverNote). After the name they made every row four
+  -- lines tall (owner, 2026-11-06).
+  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
   -- The notes are asked again at every stamp: the one after the item loads is the first whose
   -- collection answer can be more than "unknown".
   local function stampName(named)
@@ -6262,19 +6264,10 @@ function GC.Sniper._CapArmText(decision)
   return GC.L["at or under your price. Click Buy to purchase"]
 end
 
--- WoW: Forever rows (Core/ForeverDeals.lua): the kind, the dim instruction after the name, and
--- the whole sentence. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
+-- WoW: Forever rows (Core/ForeverDeals.lua): the kind, and the whole sentence for the tooltip. `kind` is "vendor" (under what a vendor pays: exact profit) or "market"
 -- (far under the scan's AH value: a resale nobody has measured the speed of).
 function GC.Sniper._ForeverLabel(kind)
   return kind == "market" and GC.L["Under market"] or GC.L["Below vendor"]
-end
-
-function GC.Sniper._ForeverSuffix(deal)
-  if not (deal and deal.forever and deal.ceiling and deal.refUnit) then return "" end
-  local text = deal.forever == "market"
-    and GC.L[" · buy at %s or less, AH value %s"] or GC.L[" · buy at %s or less, vendor pays %s"]
-  return ("|cff8c8a85%s|r"):format(text:format(GC.Util.FormatMoney(deal.ceiling),
-    GC.Util.FormatMoney(deal.refUnit)))
 end
 
 function GC.Sniper._ForeverNote(kind, ceiling, ref, profit)

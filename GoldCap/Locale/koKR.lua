@@ -930,10 +930,6 @@ GC.Locales.koKR = {
     "상인가 이하",
   ["Under market"] =
     "시세 이하",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · %s 이하에 구매, 상인가 %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · %s 이하에 구매, 경매장 시세 %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "%s 이하로 구매: 상인이 개당 %s를 쳐줍니다. 이 구매로 %s의 이익이 납니다.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

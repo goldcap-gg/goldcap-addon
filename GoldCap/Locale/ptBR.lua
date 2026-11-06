@@ -982,10 +982,6 @@ GC.Locales.ptBR = {
     "Abaixo NPC",
   ["Under market"] =
     "Sob mercado",
-  [" · buy at %s or less, vendor pays %s"] =
-    " · compre a %s ou menos, vendedor paga %s",
-  [" · buy at %s or less, AH value %s"] =
-    " · compre a %s ou menos, valor no leilão %s",
   ["Buy at or under %s: a vendor pays %s each. This buy makes %s."] =
     "Compre a %s ou menos: um vendedor paga %s cada. Esta compra rende %s.",
   ["Buy at or under %s: the AH value, what the cheapest tenth of the units listed ask, is %s. Resale speed is unknown, so this is riskier than a vendor deal. This buy makes about %s after the 5%% cut and the deposit."] =

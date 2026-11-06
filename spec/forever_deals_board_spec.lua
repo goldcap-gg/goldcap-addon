@@ -209,18 +209,21 @@ describe("WoW: Forever", function()
     assert.is_nil(api.emptyText)
   end)
 
-  it("names the kind on the chip and says what to do after the name", function()
+  -- Owner, WoW: Forever 2026-11-06: "buy at 16s09c or less, AH value 22s99c" after every name
+  -- made each row four lines tall. The row names its kind on the chip and nothing after the
+  -- name; the price to buy at and the reference stay in the row's tooltip (GC.Sniper._ForeverNote).
+  it("names the kind on the chip and adds nothing after the name", function()
     local api = loadSniper()
     local setRowDeal = upvalue(api.refreshRows, "setRowDeal")
     local row = fakeRow()
     setRowDeal(row, foreverRow(2589, "commodities"))
     assert.equal("Below vendor", row.tierChip.label)
-    assert.is_truthy(row._nameParts[2]:find("buy at 12c or less, vendor pays 13c", 1, true))
+    assert.equal("", row._nameParts[2])
     local market = foreverRow(2592, "commodities", "market")
     market.refUnit = 100
     setRowDeal(row, market)
     assert.equal("Under market", row.tierChip.label)
-    assert.is_truthy(row._nameParts[2]:find("AH value 100c", 1, true))
+    assert.equal("", row._nameParts[2])
   end)
 
   it("keeps the kind on the chip once a live Check says SAFE; a refusal still speaks", function()
