@@ -874,9 +874,9 @@ GC.Locales.ruRU = {
   ["waiting for previous search result to settle"] = "ждём завершения предыдущего поиска",
   ["waiting..."] = "ожидание...",
   ["wall"] = "стена",
-  ["wall %s at %s: price under it to sell first"] =
-    "стена %s шт. по %s: ставьте ниже, чтобы продать раньше",
-  ["wall %s at %s above you"] = "стена %s шт. по %s выше вас",
+  ["wall %s at %s: match its price to sell first"] =
+    "стена %s шт. по %s: поставьте ту же цену, чтобы продать раньше",
+  ["wall %s at %s behind you"] = "стена %s шт. по %s позади вас",
   ["watching %s closely, re-checked every few seconds"] =
     "пристально следим за %s, перепроверка каждые несколько секунд",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -1718,6 +1718,9 @@ GC.Locales.ruRU = {
   ["Post goes through %s only"] = "ВЫСТАВИТЬ идёт только по группе %s",
   ["Nothing left in this group"] = "В этой группе ничего не осталось",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Всё из этой группы в ваших сумках выставлено. Выберите ВСЕ, чтобы увидеть остальное в сумках.",
+  ["Nothing of this group is listed"] = "Из этой группы ничего не выставлено",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Ни у одного предмета этой группы нет лота на аукционе. Выберите ВСЕ, чтобы увидеть все лоты.",
   ["Posting your groups: %d of %d done"] = "Выставляем ваши группы: готово %d из %d",
   ["Posting %s: %d of %d done"] = "Выставляем %s: готово %d из %d",
   ["your default from Settings"] = "ваша по умолчанию из настроек",
@@ -1890,4 +1893,16 @@ GC.Locales.ruRU = {
   ["Disenchant it again"] = "Распылять снова",
   ["GoldCap could not disenchant these"] = "GoldCap не смог распылить эти предметы",
   ["Try again"] = "Попробовать снова",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Отменить лот и потерять залог: %s. Нажмите ещё раз для подтверждения",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "залог, теряемый при отмене, может оказаться больше выигрыша от перевыставления. Придержите",
+  ["deposit"] = "залог",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "залог %s",
+  ["not worth the deposit"] = "не окупает залог",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "Этот предмет выставляется только по целому серебру. Укажите цену без меди",
 }

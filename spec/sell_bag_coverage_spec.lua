@@ -437,6 +437,69 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.equal(18000000, positionOf("item:240158:190:0:0").displayMarketUnit)
   end)
 
+  -- The owner's save, WoW: Forever (2026-11-06): a scroll's item row grouped 2,774 lots at 1s, the
+  -- player's one among them. An item row has no numOwnerItems, so the whole row read as the
+  -- player's, and the 2s row behind it was the market. It counts its sellers, though: every one
+  -- but the player holds at least one lot of it.
+  describe("an item row holding the player's lot", function()
+    local function scroll(rowOwners)
+      kinds[222] = false
+      stack(1, 222, 1, "item:%d::::::::10:::::::::")
+      slotKeys["0:1"] = key(222, 10)
+      results["222:10:0:0"] = {
+        { buyoutAmount = 100, quantity = 2774, containsOwnerItem = true, totalNumberOfOwners = rowOwners },
+        { buyoutAmount = 200, quantity = 38, containsOwnerItem = false, totalNumberOfOwners = 6 },
+      }
+      compose()
+      GC.Sell.Refresh(true)
+      GC.Sell.OnItemSearchResults(222, key(222, 10))
+      return GC.SellState.quotes["item:222:10:0:0"]
+    end
+
+    it("counts its other sellers as competition in WoW: Forever", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      local quote = scroll(40)
+      assert.equal(2774 - 39, quote.levels[1].ownerQty)
+      assert.is_nil(quote.levels[2].ownerQty)
+      assert.equal(100, quote.unit)
+    end)
+
+    it("stays the player's own when nobody else sells in it", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      local quote = scroll(1)
+      assert.is_nil(quote.levels[1].ownerQty)
+      assert.equal(200, quote.unit)
+    end)
+
+    it("is read as it always was on retail", function()
+      local quote = scroll(40)
+      assert.is_nil(quote.levels[1].ownerQty)
+      assert.equal(200, quote.unit)
+    end)
+  end)
+
+  -- WoW: Forever (2026-11-06): an item's deposit is quoted for the stack itself, the one bag slot
+  -- POST posts from (C_AuctionHouse.CalculateItemDeposit takes its ItemLocation).
+  it("names the deposit an item's post puts up, from its own bag slot, in WoW: Forever", function()
+    GC.ForeverScan = { Enabled = function() return true end }
+    local asked
+    _G.C_AuctionHouse.CalculateItemDeposit = function(location, duration, quantity)
+      asked = { location.bag, location.slot, duration, quantity }
+      return 120
+    end
+    kinds[222] = false
+    stack(1, 222, 1, "item:%d::::::::5:::::::::")
+    slotKeys["0:1"] = key(222, 5)
+    results["222:5:0:0"] = { { buyoutAmount = 50000, quantity = 1 } }
+    compose()
+    GC.Sell.Refresh(true)
+    GC.Sell.OnItemSearchResults(222, key(222, 5))
+    compose()
+    assert.equal("item:222:5:0:0", GC.SellUI.PostPanel.position.positionKey)
+    assert.is_truthy(container.dockSub.text:find("deposit " .. GC.Util.Money(120), 1, true), container.dockSub.text)
+    assert.same({ 0, 1, 2, 1 }, asked)
+  end)
+
   it("hands the searched ItemKey on with the item search results", function()
     local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
     local init = f:read("*a")
@@ -623,6 +686,30 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     row.scripts.OnEnter(row)
     _G.GameTooltip = nil
     assert.is_nil(row.goldcapVariant)
+  end)
+
+  -- WoW: Forever (2026-11-06): an item ID has one item level there, and its ItemKey states it for
+  -- gear and bags alike (item:828:5:0:0, Small Blue Pouch, on the owner's save). Its row names no
+  -- level, and it keeps the item's own AH value, while the search stays on the stack's own key.
+  it("keeps the item's own market value for a level key in WoW: Forever", function()
+    _G.C_Item.GetItemInfoInstant = function(id) if id == 222 then return 222, "", "", "", 0, 4, 1 end end
+    GC.ForeverScan = { Enabled = function() return true end }
+    GC.Data.GetItemValue = function(id) return id == 222 and { mv = 30000, source = "scan" } or nil end
+    kinds[222] = false
+    -- A Forever link: the bonus-ID count (field 14) is empty, so the slot's ItemKey keys it.
+    stack(1, 222, 1, "item:%d::::::::5:::::::::", { itemName = "Small Blue Pouch" })
+    slotKeys["0:1"] = key(222, 5)
+    compose()
+    local p = positionOf("item:222:5:0:0")
+    assert.equal("item:222:5:0:0", p.quoteKey)
+    assert.is_nil(p.variantKind)
+    assert.equal(30000, p.marketValue)
+    local row
+    for _, candidate in ipairs(GC.SellUI.rows) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.is_nil(row.cells.item.text:find("ilvl", 1, true))
+    GC.ForeverScan = nil
   end)
 
   it("still names the item level on armor", function()

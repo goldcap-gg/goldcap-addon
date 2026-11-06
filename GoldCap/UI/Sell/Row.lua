@@ -26,11 +26,13 @@ local ROW_TAG_TEXT = {
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
   below_vendor = "vendor pays more",
+  below_deposit = "not worth the deposit",
   posted_this_visit = "posted",
   skipped_this_visit = "skipped",
   below_rule_floor = "under group floor",
   below_floor = "under group floor",
   small_undercut = "small undercut",
+  deposit = "hold",
 }
 
 local rowTag
@@ -92,6 +94,9 @@ end
 -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
 -- row names its level -- a pet's, its pet level -- from its own key.
 function ROW.variantSuffix(position)
+  -- No variant, no level to name: WoW: Forever keys an item by its one level, which tells it from
+  -- nothing (Core/SellPositions.lua). Elsewhere such a key has no level to name anyway.
+  if not position.variantKind then return "" end
   -- A level that is the item's only one (a schematic) says nothing about the stack.
   if position.variantKind == "level" and not GC.SellViewModel.LevelVariant(position) then return "" end
   local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))
@@ -646,10 +651,10 @@ function Row.PaintPosition(row, entry, ctx)
   -- cheapest; the lit one is where this price lands -- gold for a price about to be
   -- posted, the watch blue for a lot already standing there, the same two colours the
   -- book itself uses for the same two facts.
-  -- On TO POST the price is about to be posted and joins any level at the same price, so
-  -- that level counts as ahead -- what THE BOOK's marker says (SellViewModel.UnitsAhead).
+  -- Units under the price, what THE BOOK's marker says (SellViewModel.UnitsAhead): at an equal
+  -- price the newest listing sells first, so a post is first at its price.
   local standing = rowUnit and GC.SellViewModel.Standing
-    and GC.SellViewModel.Standing(p, rowUnit, not onListedDeck) or nil
+    and GC.SellViewModel.Standing(p, rowUnit) or nil
   local lit = onListedDeck and Theme.color.watch or Theme.color.gold
   for slot, mark in ipairs(row.standMarks) do
     if not standing then

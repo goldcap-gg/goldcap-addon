@@ -22,6 +22,7 @@ describe("GC.Sell.Reset", function()
     S.bagLocationCache["commodity:42"] = { bag = 0, slot = 1 }
     S.quotes[42] = { unit = 100, at = 1 }
     S.quotesSeeded = true
+    S.refresh.passEndedAt = 50
     GC.Sell._lateAnswers = { { pin = {}, at = 1 } }
     GC.Sell._owedUntil = 99
     local generation, expiry = S.refresh.generation, S.quoteExpiryGeneration
@@ -60,7 +61,10 @@ describe("GC.Sell.Reset", function()
     assert.is_nil(next(S.emptyAnswers))
     assert.is_nil(next(S.ownedAwaitingKind))
     assert.is_nil(next(S.bagLocationCache))
-    assert.is_nil(S.quotes[42])
+    -- The books stay, each with its age, and so does the time of the last pass: reopening the
+    -- auction house read every book again when these went (owner, 2026-11-02).
+    assert.same({ unit = 100, at = 1 }, S.quotes[42])
+    assert.equal(50, S.refresh.passEndedAt)
     assert.is_false(S.quotesSeeded)
     assert.same({}, GC.Sell._lateAnswers)
     assert.is_nil(GC.Sell._owedUntil)

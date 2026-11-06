@@ -487,6 +487,140 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 43, 50 }, refreshState(GC).queue)
   end)
 
+  -- The SELLING split draws a marked row of ore above an unmarked helm worth more, which settled
+  -- first: walking by the settled place read the helm's book while the ore at the top had none
+  -- (owner, 2026-11-01).
+  it("asks in the order the rows are drawn, not the order they settled in", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 50, positionKey = "commodity:50", listedQty = 9 },
+        { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5 },
+      }
+    end
+    GC.SellState.rowPlaces["commodity:42"], GC.SellState.rowPlaces["commodity:43"] = 1, 2
+    GC.SellState.drawnPlaces = { ["commodity:43"] = 1, ["commodity:42"] = 2 }
+    GC.Sell.Refresh(true)
+    assert.same({ 43, 42, 50 }, refreshState(GC).queue)
+  end)
+
+  -- Picking a group mid-pass: the pass was built for the whole list, and the group's rows waited
+  -- behind every other book ("BOOKS 32/40" over a group of five, owner 2026-11-02).
+  describe("a list drawn anew mid-pass", function()
+    local function fourInBags(GC)
+      GC.SellPositions.Build = function()
+        local list = {}
+        for _, id in ipairs({ 41, 42, 43, 44 }) do
+          list[#list + 1] = { itemID = id, positionKey = "commodity:" .. id, bagQty = 5 }
+        end
+        return list
+      end
+      GC.SellState.drawnPlaces = { ["commodity:41"] = 1, ["commodity:42"] = 2, ["commodity:43"] = 3,
+        ["commodity:44"] = 4 }
+    end
+
+    it("asks next about the rows now drawn, in their order", function()
+      local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+      local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+      fourInBags(GC)
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      assert.same({ 41 }, sent.keys)
+      GC.SellWalk.Follow({ { positionKey = "commodity:44" }, { positionKey = "commodity:43" } })
+      GC.Sell.OnCommoditySearchResults(41)
+      GC.Sell.OnCommoditySearchResults(44)
+      GC.Sell.OnCommoditySearchResults(43)
+      assert.same({ 41, 44, 43, 42 }, sent.keys)
+    end)
+
+    it("keeps the item it waits on a key for in its slot", function()
+      local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+      local keyed = false
+      local GC = load(now, sent, cache, function(id)
+        if id == 41 and not keyed then return nil end
+        return { isCommodity = true }
+      end)
+      fourInBags(GC)
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      assert.equal("waiting_key", refreshState(GC).phase)
+      GC.SellWalk.Follow({ { positionKey = "commodity:44" }, { positionKey = "commodity:43" } })
+      keyed = true
+      GC.Sell.OnItemKeyInfo(41)
+      GC.Sell.OnCommoditySearchResults(41)
+      GC.Sell.OnCommoditySearchResults(44)
+      GC.Sell.OnCommoditySearchResults(43)
+      assert.same({ 41, 44, 43, 42 }, sent.keys)
+    end)
+  end)
+
+  -- The repeat was 5 seconds, and with every quote owed again at 30 the tab never stopped
+  -- pricing: BOOKS ran again a few seconds after each pass, and reopening the auction house read
+  -- every book again (owner, 2026-11-02: once a minute is plenty).
+  describe("the minute between passes", function()
+    local function start(now, sent, cache, timers)
+      _G.C_Timer = { After = function(seconds, callback) timers[#timers + 1] = { seconds = seconds, callback = callback } end }
+      local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+      -- The real cache: these tests read what the quotes hold and how old they are.
+      helper.loadModule("Core/QuoteCache.lua", GC)
+      GC.SellView.isShown = function() return true end
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      GC.Sell.OnCommoditySearchResults(42)
+      return GC
+    end
+    -- The wait's own tick: the newest timer of DOCK_CHECK_SECONDS.
+    local function tick(timers)
+      for i = #timers, 1, -1 do
+        if timers[i].seconds == 5 then return timers[i].callback() end
+      end
+      error("no tick armed")
+    end
+
+    it("starts the next pass a minute after the last one ended", function()
+      local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+      local GC = start(now, sent, cache, timers)
+      assert.equal(100, refreshState(GC).passEndedAt)
+      now.value = 140
+      tick(timers)
+      assert.same({ 42 }, sent.keys)
+      now.value = 161
+      tick(timers)
+      assert.same({ 42, 42 }, sent.keys)
+    end)
+
+    it("asks a reopened auction house only about rows with no book, inside the minute", function()
+      local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+      local GC = start(now, sent, cache, timers)
+      GC.Sell.Reset()
+      GC.SellPositions.Build = function()
+        return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+          { itemID = 43, positionKey = "commodity:43", bagQty = 5 } }
+      end
+      now.value = 140
+      GC.Sell.Refresh(nil, true); GC.Sell.OnOwnedAuctions()
+      GC.Sell.OnCommoditySearchResults(43)
+      assert.same({ 42, 43 }, sent.keys)
+      assert.equal(100, refreshState(GC).passEndedAt)
+      -- A press is the player asking: every book owed one is read.
+      GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+      assert.same({ 42, 43, 42 }, sent.keys)
+    end)
+
+    it("keeps the dock's item fresh between passes without moving the next one", function()
+      local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+      local GC = start(now, sent, cache, timers)
+      GC.SellView.dockPosition = function() return GC.SellState.positions[1] end
+      now.value = 120
+      tick(timers)
+      assert.same({ 42 }, sent.keys)
+      now.value = 135
+      tick(timers)
+      assert.same({ 42, 42 }, sent.keys)
+      GC.Sell.OnCommoditySearchResults(42)
+      assert.equal(100, refreshState(GC).passEndedAt)
+    end)
+  end)
+
   -- The button counted the whole queue -- both decks -- over a list showing one of them:
   -- "BOOKS 4/27" above ten rows. It counts the rows of the deck on screen.
   describe("the Refresh button's progress", function()

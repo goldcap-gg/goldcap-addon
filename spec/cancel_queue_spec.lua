@@ -306,4 +306,133 @@ describe("CancelQueue", function()
       end
     end)
   end)
+
+  -- WoW: Forever (2026-11-06): a cancel loses the lot's deposit, and the advice spent it on a copper.
+  -- The owner's save: 7 Stringy Wolf Meat bought at 30c, listed at 40c, a 39c lot under them, and
+  -- the lots that sold paid a 99c deposit. Build gets what a cancel loses as `cancelForfeit`
+  -- (Services/Sell/Cancel.lua's GC.Sell.LotForfeit, Forever only); retail passes none.
+  describe("in WoW: Forever, weighing the deposit a cancel loses", function()
+    local MEAT = "commodity:2672"
+    local savedAH
+
+    before_each(function()
+      -- Forever's book carries copper: the relist price is 39c, not a silver.
+      savedAH = _G.C_AuctionHouse
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+
+    after_each(function() _G.C_AuctionHouse = savedAH end)
+
+    local function meat(lots, forfeit)
+      local owned = {}
+      for i, unit in ipairs(lots) do owned[i] = lot(MEAT, 7, unit, 776 + i) end
+      return build({
+        acquisitions = { batch("acq:9", 7 * #lots, 210 * #lots, 2672, MEAT) },
+        ownedLots = owned,
+        quotes = { [2672] = { unit = 39, at = 9, levels = { { unitPrice = 39, quantity = 5 },
+          { unitPrice = 40, quantity = 7, ownerQty = 7, ownerItem = true }, { unitPrice = 45, quantity = 30 } } } },
+        statsByItemID = { [2672] = { mv = 41, source = "scan" } },
+        cancelForfeit = forfeit,
+      })
+    end
+
+    it("holds a 1c undercut that would cost a 99c deposit", function()
+      local positions = meat({ 40 }, function() return 99 end)
+      assert.same({ action = "hold", reason = "deposit" },
+        { action = positions[1].recommendation.action, reason = positions[1].recommendation.reason })
+      assert.equal(39, positions[1].recommendation.rec.unit)
+      assert.is_false(positions[1].ownedLots[1].cancelWorth)
+      assert.equal(99, positions[1].ownedLots[1].cancelForfeit)
+      local entries, skipped = GC.CancelQueue.Build(positions, { undercutPct = 0 })
+      assert.equal(0, #entries)
+      assert.equal("deposit", findSkip(skipped, MEAT).reason)
+    end)
+
+    it("leaves retail's advice as it was: no forfeit, the same lot is a repost at the queue's head", function()
+      local positions = meat({ 40 })
+      assert.equal("repost", positions[1].recommendation.action)
+      assert.is_nil(positions[1].ownedLots[1].cancelWorth)
+      local entries = GC.CancelQueue.Build(positions, { undercutPct = 0 })
+      assert.equal(1, #entries)
+      assert.equal(777, entries[1].auctionID)
+    end)
+
+    it("queues an undercut worth more than the deposit", function()
+      -- (200 - 39) x 7 = 1127c moved for a 99c deposit.
+      local positions = meat({ 200 }, function() return 99 end)
+      assert.equal("repost", positions[1].recommendation.action)
+      assert.is_true(positions[1].ownedLots[1].cancelWorth)
+      local entries = GC.CancelQueue.Build(positions)
+      assert.equal(1, #entries)
+      assert.equal(200, entries[1].listedUnit)
+    end)
+
+    it("needs the undercut to be MORE than the deposit, not equal to it", function()
+      -- (40 - 39) x 7 = 7c against a 7c forfeit.
+      local positions = meat({ 40 }, function() return 7 end)
+      assert.equal("deposit", positions[1].recommendation.reason)
+      assert.is_true(meat({ 40 }, function() return 6 end)[1].ownedLots[1].cancelWorth)
+    end)
+
+    it("holds when the client cannot quote what the cancel loses", function()
+      local positions = meat({ 200 }, function() return nil end)
+      assert.equal("hold", positions[1].recommendation.action)
+      assert.equal("deposit", positions[1].recommendation.reason)
+      assert.is_nil(positions[1].ownedLots[1].cancelForfeit)
+      assert.equal("deposit", findSkip(select(2, GC.CancelQueue.Build(positions)), MEAT).reason)
+    end)
+
+    it("weighs each lot: the one worth it is queued, the one that is not stays", function()
+      local asked = {}
+      local positions = meat({ 40, 200 }, function(owned) asked[#asked + 1] = owned.auctionID; return 99 end)
+      table.sort(asked)
+      assert.same({ 777, 778 }, asked)
+      assert.equal("repost", positions[1].recommendation.action)
+      local entries, skipped = GC.CancelQueue.Build(positions)
+      assert.equal(1, #entries)
+      assert.equal(778, entries[1].auctionID)
+      assert.equal(0, #skipped)
+    end)
+
+    it("still pulls a lot far below its value, whatever its deposit", function()
+      -- 10c against a 41c value: urgent, and no undercut for the deposit to weigh.
+      local positions = meat({ 10 }, function() return 99 end)
+      assert.is_true(positions[1].facts.underpriced) -- fixture honesty check
+      -- Nothing over the market was weighed, so the advice is left as it was.
+      assert.equal("repost", positions[1].recommendation.action)
+      local entries = GC.CancelQueue.Build(positions)
+      assert.equal(1, #entries)
+      assert.is_true(entries[1].urgent)
+    end)
+
+    -- An item relists at whole silver only, on Forever too (a green posted at 1s 10c never went
+    -- up, owner, 2026-11-06), so the undercut a cancel is weighed on is the one a relist on that
+    -- grid makes. A Small Blue Pouch listed at 4s over one troll lot at 1s, worth 3s: the floor
+    -- is 2s 25c and the relist is 3s, so the cancel wins back 1s, not the 1s 75c a 2s 25c relist
+    -- would have claimed.
+    local POUCH = "item:828:5:0:0"
+    local function pouch(forfeit)
+      return build({
+        acquisitions = { batch("acq:p", 1, 50, 828, POUCH) },
+        ownedLots = { { itemID = 828, positionKey = POUCH, quantity = 1, unitPrice = 400, auctionID = 901,
+          firstSeenAt = 1 } },
+        quotes = { [828] = { unit = 100, at = 9, levels = { { unitPrice = 100, quantity = 1 } } } },
+        statsByItemID = { [828] = { mv = 300, source = "scan" } },
+        cancelForfeit = forfeit,
+      })[1]
+    end
+
+    it("weighs an item's cancel against a relist on whole silver", function()
+      local held = pouch(function() return 150 end)
+      assert.equal(225, held.postFloor) -- fixture honesty check
+      assert.equal(300, held.recommendation.rec.unit)
+      assert.same({ action = "hold", reason = "deposit" },
+        { action = held.recommendation.action, reason = held.recommendation.reason })
+      assert.is_false(held.ownedLots[1].cancelWorth)
+      -- (400 - 300) x 1 = 1s is still more than a 99c forfeit.
+      local worth = pouch(function() return 99 end)
+      assert.equal("repost", worth.recommendation.action)
+      assert.is_true(worth.ownedLots[1].cancelWorth)
+    end)
+  end)
 end)

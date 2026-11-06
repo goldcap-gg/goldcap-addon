@@ -56,16 +56,13 @@ describe("Sell standing", function()
     assert.is_nil(GC.SellViewModel.Standing({ levels = { { quantity = 5 } } }, 100))
   end)
 
-  -- A price about to be POSTED joins the tail of any level at the same price: the auction house
-  -- sells the older listing first. The row's line says what THE BOOK's marker says.
-  it("counts a level at the same price as ahead of a commodity post that would join it", function()
+  -- A commodity post at an equal price is the newest listing there, and the auction house sells
+  -- the newest first (live tape, 2026-10-17): the level at its price is behind it, not ahead.
+  it("counts no level at the same price as ahead of a commodity post", function()
     local position = { positionKey = "commodity:42", levels = BOOK }
-    assert.equal(360, GC.SellViewModel.Standing(position, 1815, true).ahead)
-    assert.equal(3, GC.SellViewModel.Standing(position, 1815, true).slot)
-    assert.equal(35, GC.SellViewModel.Standing(position, 1790, true).ahead)
-    -- A lot already standing there is not joining anything: strict, as before.
     assert.equal(120, GC.SellViewModel.Standing(position, 1815).ahead)
-    -- Nor is a realm item's lot a queue.
-    assert.equal(120, GC.SellViewModel.Standing({ positionKey = "item:42:600:0:0", levels = BOOK }, 1815, true).ahead)
+    assert.equal(3, GC.SellViewModel.Standing(position, 1815).slot)
+    assert.equal(0, GC.SellViewModel.Standing(position, 1790).ahead)
+    assert.equal(GC.SellViewModel.UnitsAhead(BOOK, 1815), GC.SellViewModel.Standing(position, 1815).ahead)
   end)
 end)

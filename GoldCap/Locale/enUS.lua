@@ -955,9 +955,9 @@ GC.Locales.enUS = {
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["waiting..."] = "waiting...",
   ["wall"] = "wall",
-  ["wall %s at %s: price under it to sell first"] =
-    "wall %s at %s: price under it to sell first",
-  ["wall %s at %s above you"] = "wall %s at %s above you",
+  ["wall %s at %s: match its price to sell first"] =
+    "wall %s at %s: match its price to sell first",
+  ["wall %s at %s behind you"] = "wall %s at %s behind you",
   ["watching %s closely, re-checked every few seconds"] = "watching %s closely, re-checked every few seconds",
   ["whole-market data not in use: %s"] = "whole-market data not in use: %s",
   ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
@@ -1638,6 +1638,9 @@ GC.Locales.enUS = {
   ["Post goes through %s only"] = "Post goes through %s only",
   ["Nothing left in this group"] = "Nothing left in this group",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Everything from this group in your bags is posted. Pick ALL to see the rest of your bags.",
+  ["Nothing of this group is listed"] = "Nothing of this group is listed",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "None of this group's items has a live lot. Pick ALL to see every lot.",
   ["Posting your groups: %d of %d done"] = "Posting your groups: %d of %d done",
   ["Posting %s: %d of %d done"] = "Posting %s: %d of %d done",
   ["your default from Settings"] = "your default from Settings",
@@ -1809,4 +1812,16 @@ GC.Locales.enUS = {
   ["Disenchant it again"] = "Disenchant it again",
   ["GoldCap could not disenchant these"] = "GoldCap could not disenchant these",
   ["Try again"] = "Try again",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Cancel this lot and lose its %s deposit. Click again to confirm",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "the deposit a cancel loses may be more than relisting wins back. Hold",
+  ["deposit"] = "deposit",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "deposit %s",
+  ["not worth the deposit"] = "not worth the deposit",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "This item posts at whole silver only. Set a price without copper",
 }

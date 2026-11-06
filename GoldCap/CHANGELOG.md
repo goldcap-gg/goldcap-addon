@@ -1,5 +1,36 @@
 # GoldCap
 
+## 0.23.3 (2026-11-06)
+
+- Sell: the auction house's listings are read from the top of the list down, so what POST is about
+  to post, such as what you just bought on DEALS, gets its place in line and its price book first.
+  Rows you are not selling used to be read first when they were worth more.
+- Sell: picking a group, switching between TO POST and MY LOTS, or searching moves the rows you
+  now see to the front of the listings still to read, instead of after everything else.
+- Sell: at the same price the auction house sells the newest listing first, so a post at the
+  cheapest price is first in line. THE BOOK and "N ahead" no longer count the units already at
+  your price as ahead of you, and the hint about a wall says to match its price, not to go under it.
+- Sell: the item's panel shows what your price makes over what you paid (such as +100%) beside
+  the price, and it changes as you change the price. It was only on the row, which the panel
+  covers in a narrow window.
+- Sell: prices are checked again once a minute instead of every few seconds, and the item at the
+  bottom, the one POST posts next, is kept up to date in between. Closing and reopening the
+  auction house keeps the prices it already read instead of reading them all again.
+- Sell, MY LOTS: the group buttons work here too. Pick a group to see only its lots, and CANCEL
+  cancels only that group's lots.
+- WoW: Forever: an item, not a commodity like ore or cloth, is priced on whole silver, the only
+  price the auction house takes for it. A post with copper in its price failed without a word. At
+  1s, the lowest price, Sell matches the cheapest listing instead of undercutting it.
+- WoW: Forever: Sell cancels a lot to beat a cheaper listing only when what it wins back is more
+  than the deposit the cancel loses. A 1c undercut used to cost a deposit many times that.
+- WoW: Forever: gear, bags, scrolls and recipes get their auction house value and a price floor on
+  Sell, so one cheap listing no longer sets the price of yours.
+- WoW: Forever: your lot is no longer called far below the market when it shares a row of the
+  auction house with other sellers' lots at the same price.
+- WoW: Forever: POST shows the deposit a post puts up, and holds back a post whose gain over a
+  vendor would not cover it. An item you pick yourself still posts, with the reason in red.
+- A sold auction no longer shows in MY LOTS as a lot still listed, priced at the whole sale.
+
 ## 0.23.2 (2026-11-06)
 
 - WoW: Forever: DEALS now finds items listed well under their market price, not only items listed
@@ -45,6 +76,7 @@
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 - WoW: Forever: the line next to AUTO keeps the message about the deal you are buying, instead of
   going back to the board's figures a few seconds later.
+||||||| parent of 65626f68 (fix: Sell reads the books in the order the rows are drawn)
 
 ## 0.23.1 (2026-10-30)
 

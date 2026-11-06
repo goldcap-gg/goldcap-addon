@@ -24,8 +24,20 @@ local function quoteDriver()
       -- bags at 1,800g read as 12g (player report, 2026-09-26).
       local unit = info and (commodity and info.unitPrice or info.buyoutAmount)
       if unit and unit > 0 then
+        local ownerQty = info.numOwnerItems
+        -- An item row has no numOwnerItems (ItemSearchResultInfo, both games), so a row holding
+        -- the player's lot read as the player's alone and was skipped whole. WoW: Forever groups
+        -- thousands of identical non-commodity lots that way: a scroll's 2,774 lots at 1s, the
+        -- player's one among them, were skipped, and the 2s level behind them priced that lot
+        -- "far below market", with an urgent cancel (owner's save, 2026-11-06). The row does
+        -- count its sellers, and every other one holds at least one of its lots: that much is
+        -- competition. Retail is left as it was.
+        if not commodity and ownerQty == nil and info.containsOwnerItem == true and GC.Sell.OnForever()
+            and exact(info.totalNumberOfOwners) and info.totalNumberOfOwners > 1 then
+          ownerQty = math.max(0, (info.quantity or 0) - (info.totalNumberOfOwners - 1))
+        end
         levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
-          ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
+          ownerItem = info.containsOwnerItem == true, ownerQty = ownerQty }
       end
     end
     -- Whether the read stopped short of the whole book: more rows than it takes, or an answer

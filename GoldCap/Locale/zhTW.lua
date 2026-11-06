@@ -834,8 +834,9 @@ GC.Locales.zhTW = {
   ["waiting for previous search result to settle"] = "等待前一次搜尋結果",
   ["waiting..."] = "等待中...",
   ["wall"] = "牆",
-  ["wall %s at %s: price under it to sell first"] = "%s 件的牆在 %s：定價低於它才能先賣出",
-  ["wall %s at %s above you"] = "%s 件的牆在 %s，高於你的價格",
+  ["wall %s at %s: match its price to sell first"] =
+    "%s 件的牆在 %s：定價與它相同即可先賣出",
+  ["wall %s at %s behind you"] = "%s 件的牆在 %s，排在你後面",
   ["watching %s closely, re-checked every few seconds"] = "密切關注 %s，每幾秒重新檢查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最壞情況下，把全部 %d 件按現在掛著的價格賣回去",
@@ -1553,6 +1554,9 @@ GC.Locales.zhTW = {
   ["Post goes through %s only"] = "上架只依次處理 %s",
   ["Nothing left in this group"] = "這個分組已沒有剩餘道具",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "背包裡這個分組的道具都已上架。選擇全部可查看背包裡的其餘道具。",
+  ["Nothing of this group is listed"] = "這個分組沒有在售的道具",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "這個分組的道具都沒有在拍賣。選擇全部可查看所有拍賣。",
   ["Posting your groups: %d of %d done"] = "正在上架你的分組：已完成 %d/%d",
   ["Posting %s: %d of %d done"] = "正在上架 %s：已完成 %d/%d",
   ["your default from Settings"] = "你在設定中的預設價",
@@ -1716,4 +1720,14 @@ GC.Locales.zhTW = {
   ["Disenchant it again"] = "重新分解",
   ["GoldCap could not disenchant these"] = "GoldCap 無法分解這些物品",
   ["Try again"] = "重試",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] = "取消這批並損失押金 %s。再按一次確認",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] = "取消損失的押金可能多於重新上架賺回的。先保留",
+  ["deposit"] = "押金",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "押金 %s",
+  ["not worth the deposit"] = "不值押金",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "該物品只能以整銀上架。請設定不含銅的價格",
 }

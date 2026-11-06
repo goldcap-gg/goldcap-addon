@@ -316,6 +316,27 @@ function Bags.ResolveLocation(position)
   return cached.location
 end
 
+-- What listing `quantity` of this position costs up front, at the duration the player posts at,
+-- as the client quotes it: C_AuctionHouse.CalculateCommodityDeposit for a commodity, as Blizzard's
+-- commodity sell frame asks, and CalculateItemDeposit for an item, which takes the stack itself, so
+-- only once the last paint pinned one of this position's stacks (Bags.ResolveLocation). nil when
+-- the client does not say, or no stack of an item is in the bags. Never on the way to a protected
+-- call: a compose, a paint, or a click that makes none.
+function Bags.Deposit(position, quantity)
+  if type(position) ~= "table" or not exact(quantity) or quantity <= 0 then return nil end
+  local ok, deposit
+  if type(position.positionKey) == "string" and position.positionKey:match("^commodity:") then
+    if not (GC.Flips and GC.Flips.CommodityDeposit) then return nil end
+    ok, deposit = pcall(GC.Flips.CommodityDeposit, position.itemID, quantity)
+  else
+    local location = Bags.ResolveLocation(position)
+    if not (location and C_AuctionHouse and C_AuctionHouse.CalculateItemDeposit and GC.Flips) then return nil end
+    ok, deposit = pcall(C_AuctionHouse.CalculateItemDeposit, location, GC.Flips.PostDurationIndex(), quantity)
+  end
+  if ok and exact(deposit) then return deposit end
+  return nil
+end
+
 -- BAG_UPDATE_DELAYED (Core/Init.lua), while this tab is on screen: re-pins every position's
 -- cached bag location to where its stack sits now. Without it a stack moved, split, used or sold
 -- after the last Sell paint stayed pinned at its old slot, and Post answered "No exact bag stack"

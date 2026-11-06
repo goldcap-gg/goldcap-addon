@@ -888,9 +888,9 @@ GC.Locales.ukUA = {
     "чекаємо, поки завершиться попередній пошук",
   ["waiting..."] = "очікування…",
   ["wall"] = "стіна",
-  ["wall %s at %s: price under it to sell first"] =
-    "стіна %s шт. по %s: ставте нижче, щоб продати раніше",
-  ["wall %s at %s above you"] = "стіна %s шт. по %s вище за вас",
+  ["wall %s at %s: match its price to sell first"] =
+    "стіна %s шт. по %s: поставте ту саму ціну, щоб продати раніше",
+  ["wall %s at %s behind you"] = "стіна %s шт. по %s позаду вас",
   ["watching %s closely, re-checked every few seconds"] =
     "пильно стежимо за %s, перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -1719,6 +1719,9 @@ GC.Locales.ukUA = {
   ["Post goes through %s only"] = "ВИСТАВИТИ йде лише групою %s",
   ["Nothing left in this group"] = "У цій групі нічого не залишилося",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Усе з цієї групи у ваших сумках виставлено. Оберіть УСІ, щоб побачити решту в сумках.",
+  ["Nothing of this group is listed"] = "З цієї групи нічого не виставлено",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Жоден предмет цієї групи не має лота на аукціоні. Оберіть УСІ, щоб побачити всі лоти.",
   ["Posting your groups: %d of %d done"] = "Виставляємо ваші групи: готово %d з %d",
   ["Posting %s: %d of %d done"] = "Виставляємо %s: готово %d з %d",
   ["your default from Settings"] = "ваша типова з налаштувань",
@@ -1892,4 +1895,16 @@ GC.Locales.ukUA = {
   ["Disenchant it again"] = "Розпилювати знову",
   ["GoldCap could not disenchant these"] = "GoldCap не зміг розпилити ці предмети",
   ["Try again"] = "Спробувати знову",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Скасувати цей лот і втратити заставу: %s. Натисніть ще раз для підтвердження",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "застава, яку втрачає скасування, може виявитися більшою за виграш від перевиставлення. Притримайте",
+  ["deposit"] = "застава",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "застава %s",
+  ["not worth the deposit"] = "не окупає заставу",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "Цей предмет виставляється лише за ціле срібло. Вкажіть ціну без міді",
 }

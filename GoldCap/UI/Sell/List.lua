@@ -28,6 +28,7 @@ function GC.Sell._EmptyDeck()
       GC.L["Nothing on this deck matches that search. Clear the box to see everything."]
   end
   if S.filterMode == "listed" or S.filterMode == "cancelqueue" then
+    if S.group then return "sell", GC.L["Nothing of this group is listed"], GC.L["None of this group's items has a live lot. Pick ALL to see every lot."] end
     return "sell", GC.L["No auctions up"],
       GC.L["No live auctions on this character. What you post shows up here, with what to cancel and what to leave."]
   end
@@ -666,6 +667,7 @@ local function renderRows()
   local sectionOf
   if S.filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered)
   elseif S.filterMode == "post" and sellingList then filtered, sectionOf = ROW.bySelling(filtered) end
+  Walk.Follow(filtered) -- the pricing walk asks about the rest of its pass in the drawn order
   UI.Dock.UpdateSummary(headerDeck)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter

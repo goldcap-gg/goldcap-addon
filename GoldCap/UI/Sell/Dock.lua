@@ -148,6 +148,9 @@ local QUEUE_SKIP_TEXT = {
   -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for
   -- it after the AH's cut.
   below_vendor = "a vendor pays more: sell it there",
+  -- WoW: Forever only (Core/PostQueue.lua's below_deposit): the tooltip's own verdict, in its
+  -- own words, for the whole post.
+  below_deposit = "Not worth the deposit on the AH",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall. Hold",
@@ -158,13 +161,22 @@ local QUEUE_SKIP_TEXT = {
   below_rule_floor = "the market is under your group's floor. Type a price to post anyway",
   below_floor = "relisting would go under your group's floor. Hold",
   small_undercut = "undercut by less than your cancel setting. Hold",
+  -- WoW: Forever only (Core/SellPositions.lua's deposit weighing). It says may, because a
+  -- deposit the client cannot quote holds the lot too.
+  deposit = "the deposit a cancel loses may be more than relisting wins back. Hold",
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.
+-- An unmarked row's reason too (S.notSelling, Core/PostQueue.lua's Build keeps it): a click on
+-- its row puts it in the dock as well, and its row already said "not worth the deposit" while the
+-- dock read as a plain post (owner, WoW: Forever 2026-11-06: an unmarked staff, 1s deposit on a 2s
+-- sale). The rows read both lists (UI/Sell/List.lua's heldBackReason); so does the dock.
 function Dock.HeldBackText(positionKey)
-  for _, skip in ipairs(S.queueSkipped or {}) do
-    if skip.positionKey == positionKey then
-      return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+  for _, list in ipairs({ S.queueSkipped or {}, S.notSelling or {} }) do
+    for _, skip in ipairs(list) do
+      if skip.positionKey == positionKey and skip.reason then
+        return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+      end
     end
   end
 end
@@ -625,6 +637,12 @@ function Dock.Current()
     end
   end
   return current, wrap
+end
+
+-- What the pricing walk keeps fresh between its passes (Services/Sell/Walk.lua).
+GC.SellView.dockPosition = function()
+  local current = Dock.Current()
+  return current and current.position or nil
 end
 
 -- The dock leaving its item, posted or passed over (Services/Sell/Post.lua, Compose.lua): it goes

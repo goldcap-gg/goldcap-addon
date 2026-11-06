@@ -904,9 +904,9 @@ GC.Locales.frFR = {
     "en attente du résultat de recherche précédent",
   ["waiting..."] = "en attente…",
   ["wall"] = "mur",
-  ["wall %s at %s: price under it to sell first"] =
-    "mur de %s à %s: passe en dessous pour vendre d'abord",
-  ["wall %s at %s above you"] = "mur de %s à %s au-dessus de toi",
+  ["wall %s at %s: match its price to sell first"] =
+    "mur de %s à %s: mets le même prix pour vendre d'abord",
+  ["wall %s at %s behind you"] = "mur de %s à %s derrière toi",
   ["watching %s closely, re-checked every few seconds"] =
     "%s surveillé de près, revérifié toutes les quelques secondes",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -1652,6 +1652,9 @@ GC.Locales.frFR = {
   ["Post goes through %s only"] = "VENDRE ne parcourt que %s",
   ["Nothing left in this group"] = "Plus rien dans ce groupe",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "Tout ce que tes sacs contenaient de ce groupe est en vente. Choisis TOUT pour voir le reste de tes sacs.",
+  ["Nothing of this group is listed"] = "Rien de ce groupe n'est en vente",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "Aucun objet de ce groupe n'a d'enchère en cours. Choisis TOUT pour voir toutes tes enchères.",
   ["Posting your groups: %d of %d done"] = "Mise en vente de tes groupes : %d sur %d faits",
   ["Posting %s: %d of %d done"] = "Mise en vente de %s : %d sur %d faits",
   ["your default from Settings"] = "ton prix par défaut des Réglages",
@@ -1827,4 +1830,16 @@ GC.Locales.frFR = {
   ["Disenchant it again"] = "Désenchanter de nouveau",
   ["GoldCap could not disenchant these"] = "GoldCap n'a pas pu désenchanter ceux-ci",
   ["Try again"] = "Réessayer",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] =
+    "Annuler ce lot et perdre sa caution de %s. Clique à nouveau pour confirmer",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "la caution perdue en annulant peut dépasser ce que la remise en vente te rapporte. Garde-le",
+  ["deposit"] = "caution",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "caution %s",
+  ["not worth the deposit"] = "ne vaut pas la caution",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "Cet objet ne se met en vente qu'en argent entier. Indique un prix sans cuivre",
 }

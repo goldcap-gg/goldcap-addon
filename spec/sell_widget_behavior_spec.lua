@@ -655,9 +655,10 @@ describe("Sell widget geometry and manual cost", function()
   -- the panel of the item they clicked, with that item in the dock.
   describe("the price control in an expanded row", function()
     local function priceRow(GC, over)
-      GC.SellUI.expanded = { ["commodity:42"] = true }
+      local key = over and over.positionKey or "commodity:42"
+      GC.SellUI.expanded = { [key] = true }
       -- A click on the row puts the item in the dock as it opens the panel (UI/Sell/Row.lua).
-      GC.SellState.dockKey = "commodity:42"
+      GC.SellState.dockKey = key
       GC.SellViewModel.Expansion = function()
         return { batches = {}, ownedLots = {}, note = "FIFO allocations",
           book = { rows = {}, levels = 3, totalUnits = 300, widest = 100,
@@ -683,7 +684,9 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("43", dock(GC).priceBox.text) -- 430000 copper, in gold, as the box takes it
       assert.equal("YOUR PRICE", row.drawerPriceHead.text)
       assert.equal(helper.money("43g"), row.priceFigure.text)
-      assert.equal("GoldCap's · ×5", row.priceNote.text)
+      -- With what the price makes over what one cost: the panel covers the row's YOU GET, and a
+      -- narrow window's dock has none (owner, 2026-11-02).
+      assert.equal("GoldCap's · ×5 · " .. GC.Util.Colored(GC.Theme.color.green, "+2%"), row.priceNote.text)
     end)
 
     -- How many (owner, 2026-10-10: ten in the bags, five to sell, and one Post listed all ten).
@@ -723,7 +726,7 @@ describe("Sell widget geometry and manual cost", function()
         local row = priceRow(GC)
         local d = dock(GC)
         assert.equal("2", d.qtyBox.text)
-        assert.equal("GoldCap's · ×2", row.priceNote.text)
+        assert.matches("GoldCap's · ×2 · ", row.priceNote.text, 1, true)
         assert.equal(helper.money("81g70s"), listRow(GC).cells.gross.text) -- 43g x 2, less the cut
         assert.equal("ghost", d.qtyMax.variant)
         assert.equal(GC.Theme.color.gold[1], d.qtyHead.color[1])
@@ -805,7 +808,7 @@ describe("Sell widget geometry and manual cost", function()
         local row = priceRow(GC, { bagQty = 1, exposureQty = 1, knownQty = 1, knownCost = 400000 })
         assert.is_false(dock(GC).qtyBoxBg.shown)
         assert.is_false(dock(GC).qtyMax.shown)
-        assert.equal("GoldCap's · ×1", row.priceNote.text)
+        assert.matches("GoldCap's · ×1 · ", row.priceNote.text, 1, true)
       end)
     end)
 
@@ -851,7 +854,8 @@ describe("Sell widget geometry and manual cost", function()
       local after = priceRow(GC)
       assert.equal("45", dock(GC).priceBox.text)
       assert.equal(helper.money("45g"), after.priceFigure.text)
-      assert.matches("yours", after.priceNote.text, 1, true)
+      -- The margin follows the typed price: +2% at GoldCap's 43g, +7% at 45g.
+      assert.equal("yours · ×5 · " .. GC.Util.Colored(GC.Theme.color.green, "+7%"), after.priceNote.text)
       assert.equal(GC.Theme.color.gold[1], dock(GC).priceHead.color[1])
     end)
 
@@ -869,6 +873,24 @@ describe("Sell widget geometry and manual cost", function()
       local after = priceRow(GC, { postRecommendation = { unit = 12290 }, knownCost = 0 })
       assert.equal("90c", dock(GC).priceBox.text)
       assert.matches("yours", after.priceNote.text, 1, true)
+      _G.C_AuctionHouse = nil
+    end)
+
+    -- An item (non-commodity) on WoW: Forever posts at whole silver only: the client takes
+    -- copper, but a green posted at 1s 10c never went up and its deposit was not taken (owner,
+    -- 2026-11-06). Its box reads the same coin text and never shows copper: a floor of 2s 25c
+    -- reads 3s, and a copper the seller types comes back as the next whole silver, the price Post
+    -- sends, as a typed copper does in retail's box.
+    it("keeps an item's price on whole silver on WoW: Forever, typed or not", function()
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+      local GC = load(700, { calls = {} })
+      local item = { positionKey = "item:42:0:0:0", postRecommendation = { unit = 225 }, knownCost = 0 }
+      local row = priceRow(GC, item)
+      assert.equal("3s", dock(GC).priceBox.text)
+      assert.is_nil(row.priceFigure.text:find("Copper", 1, true))
+      typePrice(GC, "1s10c")
+      priceRow(GC, item)
+      assert.equal("2s", dock(GC).priceBox.text)
       _G.C_AuctionHouse = nil
     end)
 
@@ -1059,18 +1081,19 @@ describe("Sell widget geometry and manual cost", function()
     -- it through the same step SilverUp/SilverDown already use (Core/Flips.lua), so every price
     -- this drawer can hand back agrees.
     it("undercuts by the auction house's own price step, not a hardcoded silver", function()
-      local function underSource(competing)
+      local function underSource(competing, key)
+        key = key or "commodity:42"
         local GC = load(700, { calls = {} })
         GC.SellViewModel.Expansion = function()
           return { batches = {}, ownedLots = {}, note = "FIFO allocations",
             book = { rows = {}, levels = 1, totalUnits = 10, widest = 10,
               cheapestCompeting = competing, yourUnit = nil, yourRow = nil } }
         end
-        local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        local p = { itemID = 42, itemName = "Ore", positionKey = key, coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0,
           bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
           postRecommendation = { unit = 430000 } }
-        GC.SellUI.expanded = { ["commodity:42"] = true }
+        GC.SellUI.expanded = { [key] = true }
         local rows = topRows(GC, { p })
         for _, row in ipairs(rows) do
           if row.kind == "drawer" then return row.priceChips[3].priceSource end
@@ -1089,6 +1112,14 @@ describe("Sell widget geometry and manual cost", function()
       -- A competing ask at or below one step still yields no UNDERCUT price, on either grid.
       _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
       assert.is_nil(underSource(1))
+
+      -- An item steps a whole silver on WoW: Forever too (a green posted at 1s 10c never went
+      -- up, owner, 2026-11-06): 99c under an item's 1s ask is a post that silently fails, and
+      -- there is no whole silver under it, so UNDERCUT has no price there, as on retail.
+      assert.is_nil(underSource(100, "item:42:0:0:0"))
+      assert.equal(200, underSource(300, "item:42:0:0:0"))
+      assert.equal(99, underSource(100))
+      _G.C_AuctionHouse = nil
     end)
 
     -- The first chip is the way back: it carries no price, it clears the seller's own, and it
@@ -1445,8 +1476,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(wall.tag.shown)
       assert.same({ RED[1], RED[2], RED[3], 0.8 }, wall.bar.fill.vertexColor)
       assert.is_false(drawer.bookLines[4].tag.shown)
-      assert.matches("wall 420 at " .. helper.money("11g50s") .. ": price under it to sell first", drawer.drawerFacts.text, 1, true)
-      assert.matches("wall 400 at " .. helper.money("11g70s") .. " above you", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 420 at " .. helper.money("11g50s") .. ": match its price to sell first", drawer.drawerFacts.text, 1, true)
+      assert.matches("wall 400 at " .. helper.money("11g70s") .. " behind you", drawer.drawerFacts.text, 1, true)
 
     end)
 
@@ -2794,7 +2825,9 @@ describe("Sell widget geometry and manual cost", function()
     local resetTimer = timers[#timers]
     GC.Sell.Reset()
     resetTimer.callback()
-    assert.equal("", tostring(quotes[42] or ""))
+    -- The close keeps the quote with its age (Reset), and the timer armed before it does nothing.
+    assert.same({ unit = 160, at = 200 }, quotes[42])
+    assert.equal(0, protectedCalls)
   end)
 
   -- renderRows used to have no visibility check at all: composePositions()+renderRows() run
@@ -3075,13 +3108,13 @@ describe("Sell widget geometry and manual cost", function()
       return p
     end
 
-    -- A price about to be posted joins the tail of the level at the same price: at an equal
-    -- price the auction house sells the older listing first, so those 240 are ahead too -- the
-    -- count THE BOOK's marker shows for the same price (SellViewModel.UnitsAhead). It said 120.
-    it("says how much stock is queued at or under the price and lights the level it lands on", function()
+    -- A price about to be posted is the newest listing at its price, and the auction house sells
+    -- the newest first: the 240 already at it are behind, the 120 under it ahead -- the count THE
+    -- BOOK's marker shows (SellViewModel.UnitsAhead).
+    it("says how much stock is queued under the price and lights the level it lands on", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock() })
-      assert.equal("360 ahead", rows[1].priceStand.text)
+      assert.equal("120 ahead", rows[1].priceStand.text)
       assert.is_true(rows[1].priceStand.shown)
       local GOLD = GC.Theme.color.gold
       assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[1].standMarks[3].colorTexture)
@@ -3094,9 +3127,9 @@ describe("Sell widget geometry and manual cost", function()
       local rows = topRows(GC, { stock({ postRecommendation = { unit = 178900 } }) })
       assert.equal("first in line", rows[1].priceStand.text)
       assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
-      -- Matching the cheapest joins its tail: its 35 sell first. This used to say first in line.
+      -- Matching the cheapest is first in line too: the newest listing at a price sells first.
       rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
-      assert.equal("35 ahead", rows[1].priceStand.text)
+      assert.equal("first in line", rows[1].priceStand.text)
     end)
 
     it("leaves the standing empty rather than claiming an empty queue when there is no book", function()

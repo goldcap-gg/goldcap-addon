@@ -30,6 +30,28 @@ local REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 1, 20
 local REPOST_CANCEL_TIMEOUT_SECONDS = 30
 local repostArmToken = 0
 
+-- WoW: Forever only, nil elsewhere: what cancelling `lot` (one of GC.SellPositions' owned lots)
+-- loses. First its deposit, which the auction house keeps ("You will lose your initial deposit by
+-- canceling this auction.", CANCEL_AUCTION_CONFIRMATION). C_AuctionHouse.GetCancelCost is not
+-- that deposit but what comes on top of it ("Canceling this auction will cost you your deposit
+-- and:", CANCEL_AUCTION_CONFIRMATION_MONEY, shown once it is over 0; Auctionator reads it as a bid
+-- standing on the lot), so the two are added. The client keeps no record of a live lot's deposit
+-- (OwnedAuctionInfo carries none), so it is quoted again at the duration the player posts at,
+-- which is the one GoldCap posted it at; a lot posted at another is off by the difference. nil
+-- when the deposit cannot be quoted: an item lot with no stack of it in the bags. A cancel fee the
+-- client will not read counts as none, which is every buyout-only lot, and GoldCap posts no other.
+function GC.Sell.LotForfeit(lot)
+  if type(lot) ~= "table" or not GC.Sell.OnForever() then return nil end
+  local deposit = GC.SellBags.Deposit({ positionKey = lot.positionKey, itemID = lot.itemID }, lot.quantity)
+  if not deposit then return nil end
+  local fee = 0
+  if exact(lot.auctionID) and C_AuctionHouse and C_AuctionHouse.GetCancelCost then
+    local ok, cost = pcall(C_AuctionHouse.GetCancelCost, lot.auctionID)
+    if ok and exact(cost) then fee = cost end
+  end
+  return deposit + fee
+end
+
 local function restoreRepostRow(row)
   if not row then return end
   row.repostStage, row.repostReady = nil, nil
@@ -156,7 +178,15 @@ function Post.PrepareCancel(row, auctionID, now)
   if now then row.repostStage, row.repostReady = "armed", true; return Post.PrepareCancel(row, auctionID) end
   row.repostStage, row.repostReady = "armed", false
   row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
-  View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])
+  -- With the amount where the client can quote it (WoW: Forever, GC.Sell.LotForfeit): "lose its
+  -- deposit" said nothing about 99c on seven units listed at 40c (2026-11-06). Arming only: this
+  -- click makes no protected call.
+  local forfeit = GC.Sell.LotForfeit(lot)
+  if forfeit then
+    View.status((GC.L["Cancel this lot and lose its %s deposit. Click again to confirm"]):format(GC.Util.Money(forfeit)))
+  else
+    View.status(GC.L["Cancel this lot and lose its deposit. Click again to confirm"])
+  end
   repostArmToken = repostArmToken + 1
   local token = repostArmToken
   if C_Timer and C_Timer.After then

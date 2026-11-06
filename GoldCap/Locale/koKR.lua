@@ -855,8 +855,9 @@ GC.Locales.koKR = {
   ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
   ["waiting..."] = "대기 중...",
   ["wall"] = "벽",
-  ["wall %s at %s: price under it to sell first"] = "%s개 벽 (%s): 그보다 낮게 올려야 먼저 팔립니다",
-  ["wall %s at %s above you"] = "%s개 벽 (%s): 내 가격보다 위",
+  ["wall %s at %s: match its price to sell first"] =
+    "%s개 벽 (%s): 같은 가격에 올리면 먼저 팔립니다",
+  ["wall %s at %s behind you"] = "%s개 벽 (%s): 내 뒤",
   ["watching %s closely, re-checked every few seconds"] =
     "%s을(를) 자세히 주시 중. 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -1585,6 +1586,9 @@ GC.Locales.koKR = {
   ["Post goes through %s only"] = "등록은 %s만 차례로 진행합니다",
   ["Nothing left in this group"] = "이 그룹에 남은 것이 없음",
   ["Everything from this group in your bags is posted. Pick ALL to see the rest of your bags."] = "가방에 있던 이 그룹의 아이템은 모두 등록했습니다. 나머지 가방을 보려면 전체를 고르세요.",
+  ["Nothing of this group is listed"] = "이 그룹은 등록된 경매가 없음",
+  ["None of this group's items has a live lot. Pick ALL to see every lot."] =
+    "이 그룹의 아이템 중 진행 중인 경매가 없습니다. 모든 경매를 보려면 전체를 고르세요.",
   ["Posting your groups: %d of %d done"] = "내 그룹 등록 중: %d/%d 완료",
   ["Posting %s: %d of %d done"] = "%s 등록 중: %d/%d 완료",
   ["your default from Settings"] = "설정의 기본 가격",
@@ -1750,4 +1754,15 @@ GC.Locales.koKR = {
   ["Disenchant it again"] = "다시 마력 추출",
   ["GoldCap could not disenchant these"] = "GoldCap이 추출하지 못한 아이템",
   ["Try again"] = "다시 시도",
+  -- WoW: Forever's cancel and its deposit (Services/Sell/Cancel.lua, Core/SellPositions.lua, 2026-11-06)
+  ["Cancel this lot and lose its %s deposit. Click again to confirm"] = "이 물량을 취소하고 등록비 %s을(를) 잃습니다. 다시 클릭하면 확정됩니다",
+  ["the deposit a cancel loses may be more than relisting wins back. Hold"] =
+    "취소로 잃는 등록비가 재등록으로 되찾는 금액보다 클 수 있습니다. 보류하세요",
+  ["deposit"] = "등록비",
+  -- WoW: Forever: a post's deposit (UI/Sell/PostPanel.lua) and below_deposit (Core/PostQueue.lua), 2026-11-06
+  ["deposit %s"] = "등록비 %s",
+  ["not worth the deposit"] = "등록비만큼의 가치 없음",
+  -- WoW: Forever: an item's price is whole silver, the Post click's net (Services/Sell/Post.lua), 2026-11-06
+  ["This item posts at whole silver only. Set a price without copper"] =
+    "이 아이템은 은 단위로만 등록됩니다. 동 없이 가격을 정하세요",
 }

@@ -100,11 +100,16 @@ GC.SellState = {
   -- when the PLAYER asks for a new order -- Refresh, a deck change, a chip -- never by a quote
   -- landing, an owned-auction scan or the walk's own repeat. Those change numbers, not places.
   rowPlaces = {},
+  -- `drawnPlaces` (nil until the list is first drawn) is where each row is drawn, which the SELLING
+  -- split and MY LOTS's sections move away from rowPlaces; the pricing walk asks in that order.
   -- `priority` holds items a CLICK asked about while a pass was already running (Post/Repost on a
   -- row whose quote had aged out). Deliberately outside `queue`: splicing into that array put the
   -- item in a slot the walk then stepped over -- and a queue rebuilt by Walk.Begin, which is
   -- what the owned-auctions phase ends in, dropped it outright. Walk.Advance drains this before
   -- the queue's own next step, so the row the player is standing on is answered first.
+  -- `passEndedAt` is when the last whole pass ended, which times the next (Walk.lua's
+  -- scheduleNextWalk) and survives the auction house closing; `fullPass` marks the walk running as
+  -- one; `visit` is a Refresh for the auction house opening or the tab being shown (Walk.Begin).
   refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil,
     drain = {}, priority = {} },
   walkRepeatToken = 0, watchdogToken = 0, quoteExpiryGeneration = 0,
@@ -164,6 +169,7 @@ GC.SellView = {
   leave = nothing,       -- UI.List.Leave(positionKey): a row posted whole fades out and the list closes up
   attached = function() return false end, -- GC.Sell.Attach has built the tab
   isShown = nothing,     -- the tab's own shown flag; nil until it is built
+  dockPosition = nothing, -- the position the dock's POST would post now (UI.Dock.Current)
 }
 
 local MAX_EXACT = 9007199254740991
@@ -196,15 +202,19 @@ local function overrideKey(position)
 end
 
 -- What Post would list this position at right now: the seller's own number when they have
--- given one, otherwise whatever GoldCap worked out. Both go through the SAME silver-grid
--- rounding BuildPostPlan applies, so the figure in the box is the figure that gets sent.
+-- given one, otherwise whatever GoldCap worked out. Both go through the SAME grid rounding
+-- BuildPostPlan applies, for the lot's kind, so the figure in the box is the figure that gets
+-- sent: on WoW: Forever a copper price typed for an item rounds up to the next whole silver
+-- there, as any typed copper does on retail (a green at 1s 10c never went up, owner, 2026-11-06).
 local function effectivePostUnit(position)
   local key = overrideKey(position)
   local chosen = key and GC.SellState.priceOverrides[key] or nil
   local rec = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
   local unit = chosen or rec
   if not exact(unit) or unit <= 0 then return nil, chosen ~= nil end
-  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit)) or unit, chosen ~= nil
+  local isCommodity = GC.SellPositions and GC.SellPositions.IsCommodity
+  local commodity = isCommodity and isCommodity(position) or false
+  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit, commodity)) or unit, chosen ~= nil
 end
 
 -- How many units Post would list for this position right now, the most it could, and whether
@@ -311,6 +321,13 @@ function GC.Sell.DefaultPrice()
   return nil
 end
 
+-- WoW: Forever, the way this tab has always told it (Core/ForeverScan.lua's Enabled, set at
+-- ADDON_LOADED from the interface number): the one place the Sell services ask, so what differs
+-- there reaches Core as an option and Core never asks which game it is.
+function GC.Sell.OnForever()
+  return GC.ForeverScan ~= nil and type(GC.ForeverScan.Enabled) == "function" and GC.ForeverScan.Enabled() == true
+end
+
 -- What the POST queue is built with (Core/PostQueue.lua's Build): the player's selling list, the
 -- marks kept in the saved data (GC.Sell.SetSelling), and in WoW: Forever the vendor's price, so it
 -- holds back what a vendor pays at least as much for (below_vendor). `quantities` are the
@@ -323,9 +340,13 @@ end
 function GC.Sell._QueueOpts()
   local opts = { marks = type(GC.db) == "table" and GC.db.sellMarks or nil, quantities = GC.SellState.quantityOverrides,
     group = GC.SellState.group, inGroup = GC.Sell.InPickedGroup }
-  if GC.ForeverScan and GC.ForeverScan.Enabled and GC.ForeverScan.Enabled()
-      and GC.ForeverValue and GC.ForeverValue.VendorUnit then
+  if GC.Sell.OnForever() and GC.ForeverValue and GC.ForeverValue.VendorUnit then
     opts.vendorUnit = GC.ForeverValue.VendorUnit
+  end
+  -- ...and the deposit a post puts up, so it holds back a post the deposit is not worth
+  -- (below_deposit, 2026-11-06). Retail's queue is left as it was.
+  if GC.Sell.OnForever() and GC.SellBags and GC.SellBags.Deposit then
+    opts.depositFor = GC.SellBags.Deposit
   end
   return opts
 end

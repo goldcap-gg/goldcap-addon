@@ -143,4 +143,115 @@ describe("Sell tab, a variant's market is its own", function()
     }, 10)
     assert.is_nil(lots[1].variant)
   end)
+
+  -- WoW: Forever (2026-11-06): an item ID has one item level there, and its ItemKey states it for
+  -- every non-commodity, gear or not (the owner's save: item:828:5:0:0, Small Blue Pouch). Read as
+  -- a level variant, every one of them lost its AH value and its floor. Compose passes
+  -- `oneLevelPerItem` only there.
+  describe("in WoW: Forever, where an item ID has one item level", function()
+    local POUCH = "item:828:5:0:0"
+    local savedAH
+
+    before_each(function()
+      savedAH = _G.C_AuctionHouse
+      _G.C_AuctionHouse = { SupportsCopperValues = function() return true end }
+    end)
+
+    after_each(function() _G.C_AuctionHouse = savedAH end)
+
+    -- One troll lot at 1s over the real shelf, 157 at 3s and 300 at 4s; the scan's value is 3s.
+    local function pouch(oneLevel, key)
+      key = key or POUCH
+      return find(build({
+        bagStock = { { positionKey = key, itemID = 828, itemName = "Small Blue Pouch", quantity = 1,
+          isCommodity = false, quoteKey = key, stacks = { { bag = 0, slot = 1, quantity = 1 } } } },
+        quotes = { [key] = { unit = 100, at = 1000, levels = { { unitPrice = 100, quantity = 1 },
+          { unitPrice = 300, quantity = 157 }, { unitPrice = 400, quantity = 300 } } } },
+        statsByItemID = { [828] = { mv = 300, source = "scan", kind = "own_scan" } },
+        oneLevelPerItem = oneLevel,
+      }), key)
+    end
+
+    it("values a level-keyed item from its own item ID, and holds it at the floor over one troll lot", function()
+      local p = pouch(true)
+      assert.is_nil(p.variantKind)
+      assert.equal(300, p.marketValue)
+      assert.equal(225, p.postFloor)
+      -- The floor is 2s 25c and the pouch is an item: an item posts at whole silver only, on
+      -- WoW: Forever too (a green posted at 1s 10c never went up, owner, 2026-11-06), so it holds
+      -- at 3s, the next whole silver up, and so does the price Post sends.
+      assert.equal(300, p.postRecommendation.unit)
+      assert.equal("floor", p.postRecommendation.mode)
+      local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 828, exactQty = 1, positionKey = POUCH },
+        { unit = 100, fresh = true })
+      assert.equal(300, plan.unitPrice)
+      -- Still searched by the stack's own key, the one the client answers for.
+      assert.equal(POUCH, p.quoteKey)
+      assert.is_nil((GC.SellViewModel.Expansion(p).factsText or ""):find("no market figure", 1, true))
+    end)
+
+    it("keeps retail's level variant as it was", function()
+      local p = pouch(nil)
+      assert.equal("level", p.variantKind)
+      assert.is_nil(p.marketValue)
+      assert.is_nil(p.postFloor)
+      assert.equal(100, p.postRecommendation.unit)
+    end)
+
+    it("keeps a suffix variant on its own book, with no market figure", function()
+      local key = "item:828:5:1234:0"
+      local p = pouch(true, key)
+      assert.equal("level", p.variantKind)
+      assert.is_nil(p.marketValue)
+      assert.is_nil(p.postFloor)
+    end)
+
+    -- The owner's save (2026-11-06): one scroll (211785) listed at 1s, nothing left in the bags.
+    -- A Forever link carries no bonus IDs, so the lot is no variant, and the position went back
+    -- to the bare item ID's quote (2s there) while the fold had 2,812 of 2,921 lots at 1s.
+    local SCROLL = "item:211785:10:0:0"
+    local function scrollLot(oneLevel)
+      local lots = GC.SellPositions.NormalizeOwnedLots({
+        { auctionID = 6929041, itemKey = { itemID = 211785, itemLevel = 10, itemSuffix = 0, battlePetSpeciesID = 0 },
+          itemLink = "|cffffffff|Hitem:211785::::::::10:::::::::|h[Scroll]|h|r", quantity = 1,
+          buyoutAmount = 100, isCommodity = false, timeLeftSeconds = 27000 },
+      }, 900)
+      return find(build({
+        ownedLots = lots, oneLevelPerItem = oneLevel,
+        -- Under the lot's own key, its row of 2,774 at 1s counts other sellers' lots (Quotes.lua).
+        quotes = { [SCROLL] = { unit = 100, at = 1000, fresh = true, levels = {
+            { unitPrice = 100, quantity = 2774, ownerItem = true, ownerQty = 2735 },
+            { unitPrice = 200, quantity = 38 } } },
+          [211785] = { unit = 200, at = 1000, fresh = true, levels = {
+            { unitPrice = 100, quantity = 2774, ownerItem = true }, { unitPrice = 200, quantity = 38 } } } },
+        statsByItemID = { [211785] = { mv = 100, source = "scan", kind = "own_scan", ts = 700 } },
+      }), SCROLL)
+    end
+
+    it("prices a lot with nothing left in the bags by its own key", function()
+      helper.loadModule("Core/CancelQueue.lua", GC)
+      local p = scrollLot(true)
+      assert.is_nil(p.ownedLots[1].variant)
+      assert.equal(SCROLL, p.quoteKey)
+      assert.equal(100, p.freshMarketUnit)
+      assert.is_false(p.facts.underpriced)
+      assert.same({}, (GC.CancelQueue.Build({ p }, {})))
+    end)
+
+    it("keeps retail's lot-only item on its bare item ID", function()
+      local p = scrollLot(nil)
+      assert.is_nil(p.quoteKey)
+      assert.equal(200, p.freshMarketUnit)
+    end)
+
+    it("leaves a lot-only item with a bare key on its item ID", function()
+      local lots = GC.SellPositions.NormalizeOwnedLots({
+        { auctionID = 5, itemKey = { itemID = 4306, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 },
+          itemLink = "|cffffffff|Hitem:4306:::::::::::::::::|h[Silk Cloth]|h|r", quantity = 1,
+          buyoutAmount = 100, isCommodity = false },
+      }, 900)
+      local p = find(build({ ownedLots = lots, oneLevelPerItem = true }), "item:4306:0:0:0")
+      assert.is_nil(p.quoteKey)
+    end)
+  end)
 end)

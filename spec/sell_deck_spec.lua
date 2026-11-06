@@ -78,6 +78,16 @@ describe("Sell decks", function()
       keys(GC.SellViewModel.Deck({ partial, unknown, complete }, "post", { noCost = true })))
   end)
 
+  -- A picked group narrows both decks: POST walks it, and on MY LOTS CANCEL cancels only its
+  -- lots (owner, 2026-11-02).
+  it("narrows both decks to the picked group", function()
+    local herb = position("commodity:1", { bagQty = 5, listedQty = 5 })
+    local ore = position("commodity:2", { bagQty = 5, listedQty = 5 })
+    local inHerbs = function(key) return key == "commodity:1" end
+    assert.same({ "commodity:1" }, keys(GC.SellViewModel.Deck({ herb, ore }, "post", { inGroup = inHerbs })))
+    assert.same({ "commodity:1" }, keys(GC.SellViewModel.Deck({ herb, ore }, "listed", { inGroup = inHerbs })))
+  end)
+
   it("ignores both chips on LISTED rather than silently emptying it", function()
     -- A live lot is already priced and already paid for, so neither chip asks it a question it
     -- can answer. Applying them anyway would blank the deck for no reason the player could see.
