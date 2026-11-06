@@ -121,8 +121,8 @@ GC.Locales.esMX = {
   ["At your pace you reach it at level %d."] = "A tu ritmo lo consigues en el nivel %d.",
   ["At your pace you will be %s short at level 40."] = "A tu ritmo te faltarán %s en el nivel 40.",
   ["At your price"] = "A tu precio",
-  ["Auction House did not answer. Press Refresh"] =
-    "La casa de subastas no respondió. Pulsa Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "La casa de subastas no respondió. GoldCap vuelve a preguntar solo.",
   ["Auction House is not open"] = "La casa de subastas no está abierta",
   ["Auto-scan on next AH visit"] = "Escaneo automático en la próxima visita a la CS",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -204,8 +204,12 @@ GC.Locales.esMX = {
   ["Don't skip"] = "No omitir",
   ["Everything here is bought"] = "Aquí está todo comprado",
   ["From goldcap.gg: manage it there"] = "De goldcap.gg: gestiónala allí",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "De tu escaneo de hace %s. Solo cuenta %s. Cámbialo con /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "De tu escaneo de hace %s: en cada hueco, la pieza que más aporta con el oro que llevas, o una más barata casi igual de buena. Solo cuenta %s. Cámbialo con /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Todo lo que en la casa de subastas supera tu equipo cuesta más oro del que llevas.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Huecos cuyas mejoras cuestan más de lo que llevas: %d.",
   ["Gear upgrades on the auction house"] = "Mejoras de equipo en la casa de subastas",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap ahora cuenta lo que sueltan las criaturas que despojas, sin nombres, para las probabilidades de botín en goldcap.gg. El Companion lo compartirá cuando esa parte salga. Escribe /gc loot off para detenerlo.",
@@ -802,7 +806,8 @@ GC.Locales.esMX = {
     "importación manual. Companion lo mantiene al día: /goldcap companion",
   ["market %s"] = "mercado %s",
   ["needs %s"] = "exige %s",
-  ["needs a fresh price. Press Refresh"] = "necesita un precio nuevo. Pulsa Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "necesita un precio actual. Pulsa ACTUALIZAR",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sin confirmación del servidor. La compra puede haberse completado igualmente, revisa tu correo. Cerrar esto no la deshará.",
   ["no cost"] = "sin costo",

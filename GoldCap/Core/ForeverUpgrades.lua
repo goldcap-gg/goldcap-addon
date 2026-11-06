@@ -1,8 +1,11 @@
 local _, GC = ...
 
--- WoW: Forever's AH Upgrade Finder (plan 3e, growth spec D8): for each equipment slot, the
--- cheapest piece in the player's last full scan (Core/ForeverGear.lua's lots) that this character
--- can use, now or one or two levels on, and that scores higher than what it wears.
+-- WoW: Forever's AH Upgrade Finder (plan 3e, growth spec D8): for each equipment slot, the piece in
+-- the player's last full scan (Core/ForeverGear.lua's lots) that this character can use, now or one
+-- or two levels on, that beats what it wears by the most, among those it can pay for with the gold
+-- it carries; a cheaper one instead when it gives nearly as much (NEAR_BEST). It used to be the
+-- cheapest piece that beat the worn one at all, which on the owner's save (2026-11-06) offered "+1
+-- armour" for 1s in every slot while greens with agility sat a silver or two dearer.
 --
 -- A score is the piece's own stats -- the client's GetItemStats, never a guess -- times the
 -- class's stat weights, which the player sees in the window and changes with /gc weights. A piece
@@ -18,7 +21,12 @@ GC.ForeverUpgrades = GC.ForeverUpgrades or {}
 local C = {
   LEVEL_AHEAD = 2,         -- "for later": a required level up to this many above the character's
   MIN_GAIN_SHARE = 0.05,   -- an upgrade beats the worn piece by at least 5% of its score
-  TOOLTIP_CHECKS = 5,      -- tooltip reads per slot, cheapest first
+  -- ...and by at least this many points of the character's top primary stat (its largest weight
+  -- among STR/AGI/STA/INT/SPI): +1 agility for a rogue, +2 strength, +100 armour. A white piece
+  -- worn has almost no score, so 5% of it let "+3 armour" for 6s through (owner's save, 2026-11-06).
+  MIN_GAIN_POINTS = 1,
+  NEAR_BEST = 0.9,         -- a cheaper piece with at least 90% of the best one's gain is taken instead
+  TOOLTIP_CHECKS = 5,      -- tooltip reads per slot and per pass, strongest first
   REQUEST_PER_BUILD = 100, -- item-data requests per build
 }
 GC.ForeverUpgrades.C = C
@@ -230,6 +238,12 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   local level = tonumber(driver.level()) or 1
   local class = driver.classFile()
   local Score, loading = GC.ForeverUpgrades.Score, {}
+  local topPrimary = 0
+  for _, token in ipairs({ "STR", "AGI", "STA", "INT", "SPI" }) do
+    local w = weights[token]
+    if type(w) == "number" and w > topPrimary then topPrimary = w end
+  end
+  local minGain = C.MIN_GAIN_POINTS * topPrimary
 
   -- What the character wears, per slot. false: worn, but its stats not answered yet -- the group is
   -- skipped rather than compared against a guess.
@@ -293,11 +307,18 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
   -- skipUsable path.
   local function usableCandidate(c)
     if skipUsable then return c.known == true end
-    local u = driver.usable(c.itemString)
-    return u == true or (u == nil and c.known)
+    if c.usable == nil then
+      local u = driver.usable(c.itemString)
+      c.usable = u == true or (u == nil and c.known == true)
+    end
+    return c.usable
   end
 
-  local byGroup = {}
+  -- The gold the character carries: a piece dearer than that is not offered. nil (a driver with no
+  -- money read) offers every price.
+  local money = type(driver.money) == "function" and tonumber(driver.money()) or nil
+
+  local byGroup, dearer = {}, {}
   for itemID, encoded in pairs(gear.items) do
     local equipLoc, classID, subclassID = driver.instant(itemID)
     local group = GROUP_OF[equipLoc]
@@ -318,9 +339,10 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
               local score, parts = Score(stats, weights)
               local b = base(group, equipLoc)
               local gain = b and score - b.score or 0
-              if b and score > 0 and gain > 0 and gain >= C.MIN_GAIN_SHARE * b.score then
-                byGroup[group] = byGroup[group] or {}
-                table.insert(byGroup[group], { group = group, itemID = itemID, itemString = str,
+              if b and score > 0 and gain > 0 and gain >= math.max(C.MIN_GAIN_SHARE * b.score, minGain) then
+                local into = (money and lot.unit > money) and dearer or byGroup
+                into[group] = into[group] or {}
+                table.insert(into[group], { group = group, itemID = itemID, itemString = str,
                   link = link or str, unit = lot.unit, gain = gain, diffs = GC.ForeverUpgrades.Diff(parts, b.parts),
                   later = minLevel > level and minLevel or nil, known = allowed == true })
               end
@@ -331,39 +353,65 @@ function GC.ForeverUpgrades.Build(gear, driver, weights, skipUsable)
     end
   end
 
+  -- One pass (usable now, or later): the strongest candidate the player can use -- strongest first,
+  -- up to TOOLTIP_CHECKS tooltip reads -- then the cheapest usable one with NEAR_BEST of its gain.
+  -- skipUsable: no tooltip call to cap, so every candidate may be looked at.
+  local function byGain(a, b)
+    if a.gain ~= b.gain then return a.gain > b.gain end
+    if a.unit ~= b.unit then return a.unit < b.unit end
+    return a.itemString < b.itemString
+  end
+  local function byPrice(a, b)
+    if a.unit ~= b.unit then return a.unit < b.unit end
+    if a.gain ~= b.gain then return a.gain > b.gain end
+    return a.itemString < b.itemString
+  end
+  local function strongestUsable(list)
+    table.sort(list, byGain)
+    local checks = 0
+    for _, c in ipairs(list) do
+      if not skipUsable and checks >= C.TOOLTIP_CHECKS then break end
+      checks = checks + 1
+      if usableCandidate(c) then return c end
+    end
+    return nil
+  end
+  local function pickFrom(list)
+    local best = strongestUsable(list)
+    if not best then return nil end
+    local near = {}
+    for _, c in ipairs(list) do
+      if c.unit < best.unit and c.gain >= C.NEAR_BEST * best.gain then near[#near + 1] = c end
+    end
+    table.sort(near, byPrice)
+    local checks = 0
+    for _, c in ipairs(near) do
+      if c.usable == nil and not skipUsable then
+        if checks >= C.TOOLTIP_CHECKS then break end
+        checks = checks + 1
+      end
+      if usableCandidate(c) then return c end
+    end
+    return best
+  end
+
+  out.dearer = 0
   for _, g in ipairs(GC.ForeverUpgrades.GROUPS) do
-    local list = byGroup[g.key]
-    if list then
-      table.sort(list, function(a, b)
-        if a.unit ~= b.unit then return a.unit < b.unit end
-        if a.gain ~= b.gain then return a.gain > b.gain end
-        return a.itemString < b.itemString
-      end)
-      -- skipUsable: no tooltip call to cap, so every candidate is looked at (still cheapest-gain
-      -- first, from the sort above) rather than only the first TOOLTIP_CHECKS.
-      local pick, checks = nil, 0
-      for _, c in ipairs(list) do
-        if not c.later and (skipUsable or checks < C.TOOLTIP_CHECKS) then
-          if not skipUsable then checks = checks + 1 end
-          if usableCandidate(c) then pick = c; break end
-        end
-      end
-      if not pick then
-        -- M4 (final review): the same tooltip check usable-now picks get, not the class table
-        -- alone -- otherwise a profession-required piece a class table says nothing against (an
-        -- engineering item, say) could be offered "at level N" on class rules alone.
-        local laterChecks = 0
-        for _, c in ipairs(list) do
-          if c.later and (skipUsable or laterChecks < C.TOOLTIP_CHECKS) then
-            if not skipUsable then laterChecks = laterChecks + 1 end
-            if usableCandidate(c) then pick = c; break end
-          end
-        end
-      end
-      if pick then
-        pick.labelKey, pick.known = g.labelKey, nil
-        out.rows[#out.rows + 1] = pick
-      end
+    local now, later = {}, {}
+    for _, c in ipairs(byGroup[g.key] or {}) do
+      if c.later then later[#later + 1] = c else now[#now + 1] = c end
+    end
+    -- M4 (final review): a level-ahead piece gets the same tooltip check a usable-now one does, not
+    -- the class table alone -- a profession-required piece the table says nothing against (an
+    -- engineering item, say) could otherwise be offered "at level N" on class rules alone.
+    local pick = pickFrom(now) or pickFrom(later)
+    if pick then
+      pick.labelKey, pick.known, pick.usable = g.labelKey, nil, nil
+      out.rows[#out.rows + 1] = pick
+    elseif dearer[g.key] and strongestUsable(dearer[g.key]) then
+      -- A slot whose every upgrade this character can use costs more than the gold carried: the
+      -- window says so. The same usability check a shown piece gets.
+      out.dearer = out.dearer + 1
     end
   end
 
@@ -472,6 +520,10 @@ local function realDriver(getStats)
     end,
     usable = function(s) return GC.ForeverUpgrades.TooltipUsable(s) end,
     requestLoad = function(itemID) pcall(item.RequestLoadItemDataByID, itemID) end,
+    money = function()
+      local ok, m = pcall(_G.GetMoney)
+      return ok and tonumber(m) or nil
+    end,
     -- I1: the client's own answer, when it has the call; Build falls back to Classic's rule
     -- (rogue always, warrior/hunter from level 20) when this is absent or errors.
     canDualWield = function()

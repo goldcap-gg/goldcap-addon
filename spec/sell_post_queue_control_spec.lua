@@ -130,6 +130,19 @@ describe("Sell tab, the posting queue control", function()
     render()
   end
 
+  -- Owner, 2026-11-06: on DEALS the shared line read "Auction House did not answer. Press Refresh",
+  -- Sell's pricing watchdog speaking over a board with no such button.
+  it("keeps what Sell says off the window's shared line while another tab is up, and in its dock", function()
+    root.status:SetText("deals 3 · items 1")
+    container:Hide()
+    GC.SellView.status("The auction house did not answer. GoldCap asks again on its own.")
+    assert.equal("deals 3 · items 1", root.status.text)
+    assert.equal("The auction house did not answer. GoldCap asks again on its own.", GC.Sell._lastStatus)
+    container:Show()
+    GC.SellView.status("Post confirmation expired")
+    assert.equal("Post confirmation expired", root.status.text)
+  end)
+
   it("names the item POST posts, with what is in the bags", function()
     GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
     ready()
@@ -219,7 +232,7 @@ describe("Sell tab, the posting queue control", function()
     assert.equal(0, #GC.SellState.queueEntries)
     local first = container.queueLabel.text
     assert.is_true(first == "Eternium Ore" or first == "Widget")
-    assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
+    assert.equal("needs a fresh price. Press REFRESH", container.dockSub.text)
     assert.same({ 1, 0, 0, 1 }, container.dockSub.color)
     -- POST asks for the price, as the row's Post does.
     assert.is_true(button.enabled)
@@ -227,7 +240,7 @@ describe("Sell tab, the posting queue control", function()
     local second = container.queueLabel.text
     assert.is_true(second == "Eternium Ore" or second == "Widget")
     assert.is_not.equal(first, second)
-    assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
+    assert.equal("needs a fresh price. Press REFRESH", container.dockSub.text)
     container.skipButton.scripts.OnClick(container.skipButton)
     assert.is_false(button.enabled)
     assert.equal("POST", button.label)
@@ -750,7 +763,7 @@ describe("Sell tab, the posting queue control", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       ready()
       assert.equal("Widget", container.queueLabel.text)
-      assert.equal("needs a fresh price. Press Refresh", container.dockSub.text)
+      assert.equal("needs a fresh price. Press REFRESH", container.dockSub.text)
     end)
 
     -- ...nor once the walk has been down the list.

@@ -8,7 +8,9 @@ describe("Upgrades window", function()
   local function region(kind, parent)
     local r = { kind = kind, parent = parent, shown = true, scripts = {}, textures = {} }
     function r:SetSize(w, h) self.w, self.h = w, h end
-    function r:SetPoint() end
+    function r:SetHeight(h) self.h = h end
+    function r:SetPoint(...) self.point = { ... } end
+    function r:ClearAllPoints() self.point = nil end
     function r:SetAllPoints() end
     function r:SetFrameStrata(s) self.strata = s end
     function r:SetToplevel(v) self.toplevel = v end
@@ -20,7 +22,10 @@ describe("Upgrades window", function()
     function r:GetText() return self.text end
     function r:SetWidth() end
     function r:SetJustifyH() end
-    function r:SetWordWrap() end
+    function r:SetJustifyV() end
+    function r:SetWordWrap(v) self.wrap = v end
+    -- A wrapped line every 30 characters, 12 high: enough to tell a long text from a short one.
+    function r:GetStringHeight() return 12 * math.max(1, math.ceil(#(self.text or "") / 30)) end
     function r:SetColorTexture(...) self.color = { ... } end
     function r:Show() self.shown = true end
     function r:Hide() self.shown = false end
@@ -76,7 +81,8 @@ describe("Upgrades window", function()
         diffs = { ITEM_MOD_STRENGTH_SHORT = 1 }, later = 22 },
     } }, 1000)
     local f = U._Build()
-    assert.equal("From your scan 1m ago. Counts only Strength 1. Change with /gc weights.", f.header:GetText())
+    assert.equal("From your scan 1m ago: in each slot, the piece that adds the most for the gold you carry, "
+      .. "or a cheaper one nearly as good. Counts only Strength 1. Change with /gc weights.", f.header:GetText())
     local r1, r2 = f.rows[1], f.rows[2]
     assert.equal("Head", r1.slot:GetText())
     assert.equal("|Hitem:101|h[Cap]|h", r1.item:GetText())
@@ -110,6 +116,37 @@ describe("Upgrades window", function()
     U.Render({ rows = {}, loading = 3, at = 1, weights = {} }, 1)
     assert.equal("Nothing on the auction house beats what you wear at your level. "
       .. "Items still loading: 3. Open this again in a moment.", f.header:GetText())
+    U.Render({ rows = {}, loading = 0, at = 1, weights = {}, dearer = 2 }, 1)
+    assert.equal("Everything on the auction house that beats your gear costs more than the gold you carry.",
+      f.header:GetText())
+  end)
+
+  it("names the slots whose upgrades cost more than the gold carried", function()
+    U.Render({ at = 900, weights = { STR = 1 }, loading = 0, dearer = 3, rows = {
+      { labelKey = "INVTYPE_HEAD", link = "L", itemString = "item:1", unit = 1, diffs = {} } } }, 1000)
+    local text = U._Build().header:GetText()
+    assert.is_truthy(text:find("Slots where the upgrades cost more than you carry: 3.", 1, true))
+  end)
+
+  -- Owner, 2026-11-06: "+1 к силе, +1 к ловкости,..." -- a cell cut what a piece adds.
+  it("wraps every text instead of cutting it, and grows each row and the window to fit", function()
+    U.Render({ at = 900, weights = { STR = 1 }, loading = 0, rows = {
+      { labelKey = "INVTYPE_HEAD", link = "Cap", itemString = "item:1", unit = 1,
+        diffs = { ITEM_MOD_STRENGTH_SHORT = 1 } },
+      { labelKey = "INVTYPE_HEAD", link = "A very long name of a staff that takes two lines", itemString = "item:2",
+        unit = 1, diffs = { ITEM_MOD_STRENGTH_SHORT = 1 } },
+    } }, 1000)
+    local f = U._Build()
+    local r1, r2 = f.rows[1], f.rows[2]
+    assert.is_true(r1.slot.wrap); assert.is_true(r1.item.wrap); assert.is_true(r1.gain.wrap)
+    assert.is_false(r1.price.wrap)                          -- coins: one line, the column fits three
+    assert.equal(U.C.ROW_H, r1.h)
+    assert.equal(30, r2.h)                                  -- two lines of 12, and the cell's padding
+    local headerH = f.header:GetStringHeight()
+    local top = U.C.HEADER_Y + headerH + U.C.GAP
+    assert.equal(-top, r1.point[5])
+    assert.equal(-(top + r1.h), r2.point[5])                -- stacked under the taller first row
+    assert.equal(top + r1.h + r2.h + U.C.PAD_BOTTOM, f.h)
   end)
 
   it("repaints once, a moment after item data arrives, and only while shown", function()
@@ -128,6 +165,37 @@ describe("Upgrades window", function()
     U.Hide()
     U.OnItemInfo()
     assert.equal(1, #timers)
+  end)
+
+  it("repaints once a moment after the gold carried or a worn piece changes, only while shown", function()
+    local timers, builds = {}, 0
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    GC.ForeverUpgrades.Current = function() builds = builds + 1; return { rows = {}, loading = 0, noScan = true } end
+    U.OnChange()                                    -- never opened: nothing
+    assert.equal(0, #timers)
+    U.Show()
+    U.OnChange()
+    U.OnChange()
+    assert.equal(1, #timers)
+    timers[1]()
+    assert.equal(2, builds)
+    U.Hide()
+    U.OnChange()
+    assert.equal(1, #timers)
+  end)
+
+  it("never lets gold or gear repaints use up the cap on chasing an item that does not load", function()
+    local timers = {}
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    GC.ForeverUpgrades.Current = function() return { rows = {}, loading = 1, loadingIds = { [42] = true } } end
+    U.Show()
+    for _ = 1, U.C.STALE_LIMIT + 2 do                -- buying on the auction house: PLAYER_MONEY after PLAYER_MONEY
+      U.OnChange()
+      timers[#timers]()
+    end
+    local before = #timers
+    U.OnItemInfo(42)                                 -- the item it waits for still gets its repaint
+    assert.equal(before + 1, #timers)
   end)
 
   -- Final review M1: an id nobody was waiting for must not itself trigger a rebuild, and an id

@@ -120,7 +120,8 @@ GC.Locales.zhCN = {
   ["At your pace you reach it at level %d."] = "按你的速度，你会在 %d 级攒够。",
   ["At your pace you will be %s short at level 40."] = "按你的速度，到 40 级时还差 %s。",
   ["At your price"] = "达到你的价格",
-  ["Auction House did not answer. Press Refresh"] = "拍卖行没有响应。请按 Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "拍卖行没有回应。GoldCap 会自动再次询问。",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -197,7 +198,12 @@ GC.Locales.zhCN = {
   ["Don't skip"] = "不再跳过",
   ["Everything here is bought"] = "这里的都买齐了",
   ["From goldcap.gg: manage it there"] = "来自 goldcap.gg：请在那里管理",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] = "来自你 %s 前的扫描。只计算 %s。用 /gc weights 修改。",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "来自你 %s 前的扫描：每个栏位显示你身上的金币买得起、提升最多的装备，或几乎一样好但更便宜的装备。只计算 %s。用 /gc weights 修改。",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "拍卖行上比你身上更好的装备，价格都超过你身上的金币。",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "升级装备超过你身上金币的栏位：%d 个。",
   ["Gear upgrades on the auction house"] = "拍卖行上的装备升级",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap 现在会统计你拾取的掉落（不含任何名字），用于 goldcap.gg 的掉落率。该部分发布后由 Companion 分享。输入 /gc loot off 可停止。",
@@ -739,7 +745,8 @@ GC.Locales.zhCN = {
     "手动导入。Companion 会自动更新：/goldcap companion",
   ["market %s"] = "市场 %s",
   ["needs %s"] = "需要 %s",
-  ["needs a fresh price. Press Refresh"] = "需要最新价格。请按 Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "需要最新价格。请点击刷新",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "服务器没有返回确认。购买仍可能已完成，请检查邮件。关闭此窗口不会撤销它。",
   ["no cost"] = "无成本",

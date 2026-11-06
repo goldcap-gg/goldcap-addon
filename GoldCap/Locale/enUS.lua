@@ -129,7 +129,8 @@ GC.Locales.enUS = {
   ["At your pace you reach it at level %d."] = "At your pace you reach it at level %d.",
   ["At your pace you will be %s short at level 40."] = "At your pace you will be %s short at level 40.",
   ["At your price"] = "At your price",
-  ["Auction House did not answer. Press Refresh"] = "Auction House did not answer. Press Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "The auction house did not answer. GoldCap asks again on its own.",
   ["Auction House is not open"] = "Auction House is not open",
   ["Auto-scan on next AH visit"] = "Auto-scan on next AH visit",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -167,8 +168,12 @@ GC.Locales.enUS = {
   ["Don't skip"] = "Don't skip",
   ["Everything else checks out. With more gold on this character, this is a buy."] = "Everything else checks out. With more gold on this character, this is a buy.",
   ["Everything here is bought"] = "Everything here is bought",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "From your scan %s ago. Counts only %s. Change with /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Everything on the auction house that beats your gear costs more than the gold you carry.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Slots where the upgrades cost more than you carry: %d.",
   ["GOLDCAP"] = "GOLDCAP",
   ["Gear upgrades on the auction house"] = "Gear upgrades on the auction house",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
@@ -839,7 +844,8 @@ GC.Locales.enUS = {
   ["weak"] = "weak",
   ["manual import"] = "manual import",
   ["manual import. Companion keeps this fresh: /goldcap companion"] = "manual import. Companion keeps this fresh: /goldcap companion",
-  ["needs a fresh price. Press Refresh"] = "needs a fresh price. Press Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "needs a fresh price. Press REFRESH",
   ["no answer %ds ago, resting"] = "no answer %ds ago, resting",
   ["no answer from the auction house"] = "no answer from the auction house",
   ["no answer. Check your mail"] = "no answer. Check your mail",

@@ -110,7 +110,8 @@ GC.Locales.ruRU = {
   ["At your pace you reach it at level %d."] = "В вашем темпе вы накопите к %d уровню.",
   ["At your pace you will be %s short at level 40."] = "В вашем темпе на 40 уровне не хватит %s.",
   ["At your price"] = "По вашей цене",
-  ["Auction House did not answer. Press Refresh"] = "Аукцион не ответил. Нажмите Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "Аукцион не ответил. GoldCap сам спросит ещё раз.",
   ["Auction House is not open"] = "Аукцион не открыт",
   ["Auto-scan on next AH visit"] = "Автоскан при следующем визите на АД",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -189,8 +190,12 @@ GC.Locales.ruRU = {
   ["Could not read that amount. Type it like 12g 50s."] = "Не удалось прочитать сумму. Введите так: 12g 50s.",
   ["Don't skip"] = "Не пропускать",
   ["Everything here is bought"] = "Здесь всё куплено",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "По вашему скану %s назад. Учитывает только %s. Изменить: /gc weights.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "По вашему скану %s назад: в каждом слоте вещь, которая даёт больше всего за ваше золото, или почти такая же, но дешевле. Учитывает только %s. Изменить: /gc weights.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "Всё, что на аукционе лучше вашей экипировки, стоит больше, чем у вас золота.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "Слотов, где улучшения дороже вашего золота: %d.",
   ["Gear upgrades on the auction house"] = "Улучшения экипировки на аукционе",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap теперь считает, что выпадает из добычи, без имён, для шансов выпадения на goldcap.gg. Companion начнёт это передавать, когда эта часть выйдет. Введите /gc loot off, чтобы отключить.",
@@ -769,7 +774,8 @@ GC.Locales.ruRU = {
     "ручной импорт. Companion обновляет это сам: /goldcap companion",
   ["market %s"] = "рынок %s",
   ["needs %s"] = "нужно %s",
-  ["needs a fresh price. Press Refresh"] = "нужна свежая цена. Нажмите Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "нужна свежая цена. Нажмите ОБНОВИТЬ",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил. Покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
   ["no cost"] = "нет закупа",

@@ -38,7 +38,7 @@ local function paintRefreshButton()
   if not button then return end
   local phase = S.refresh.phase
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
-  local label = "REFRESH"
+  local label = GC.L["REFRESH"] -- the name the messages tell the player to press, in their language
   if busy then
     -- "PRICING 10/24", not a bare "10/24". This button sits at the end of a row of filter
     -- chips, so a naked ratio reads as one more filter -- and the owner reasonably asked why

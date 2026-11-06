@@ -377,7 +377,7 @@ function Walk.ArmWatchdog()
       Walk.Abandon()
       S.refresh.phase = "error"
       if S.refresh.fullPass then S.refresh.passEndedAt, S.refresh.fullPass = time(), nil end
-      View.status(GC.L["Auction House did not answer. Press Refresh"])
+      View.status(GC.L["The auction house did not answer. GoldCap asks again on its own."])
       scheduleNextWalk()
       return
     end

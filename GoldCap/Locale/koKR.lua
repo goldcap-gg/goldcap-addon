@@ -119,7 +119,8 @@ GC.Locales.koKR = {
   ["At your pace you reach it at level %d."] = "지금 속도라면 %d레벨에 모읍니다.",
   ["At your pace you will be %s short at level 40."] = "지금 속도라면 40레벨에 %s 부족합니다.",
   ["At your price"] = "내 가격 도달",
-  ["Auction House did not answer. Press Refresh"] = "경매장이 응답하지 않았습니다. Refresh를 누르세요",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "경매장이 응답하지 않았습니다. GoldCap이 알아서 다시 요청합니다.",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -198,8 +199,12 @@ GC.Locales.koKR = {
   ["Don't skip"] = "건너뛰지 않기",
   ["Everything here is bought"] = "여기서는 모두 구매함",
   ["From goldcap.gg: manage it there"] = "goldcap.gg 목록: 거기서 관리하세요",
-  ["From your scan %s ago. Counts only %s. Change with /gc weights."] =
-    "%s 전 스캔 기준. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
+  ["From your scan %s ago: in each slot, the piece that adds the most for the gold you carry, or a cheaper one nearly as good. Counts only %s. Change with /gc weights."] =
+    "%s 전 스캔 기준: 슬롯마다 가진 골드로 살 수 있는 것 중 가장 많이 올려 주는 장비, 또는 거의 같으면서 더 싼 장비입니다. %s만 계산합니다. /gc weights로 바꿀 수 있습니다.",
+  ["Everything on the auction house that beats your gear costs more than the gold you carry."] =
+    "경매장에서 착용 장비보다 나은 것은 모두 가진 골드보다 비쌉니다.",
+  ["Slots where the upgrades cost more than you carry: %d."] =
+    "가진 골드보다 비싼 업그레이드만 있는 슬롯: %d개.",
   ["Gear upgrades on the auction house"] = "경매장의 장비 업그레이드",
   ["GoldCap now counts what drops from what you loot, with no names, for drop rates on goldcap.gg. The Companion shares it once that part is released. Type /gc loot off to stop."] =
     "GoldCap이 이제 전리품에서 무엇이 나오는지 이름 없이 집계해 goldcap.gg의 드롭 확률에 씁니다. 해당 기능이 출시되면 Companion이 공유합니다. 끄려면 /gc loot off를 입력하세요.",
@@ -756,7 +761,8 @@ GC.Locales.koKR = {
     "수동 가져오기. Companion이 자동 갱신합니다: /goldcap companion",
   ["market %s"] = "시세 %s",
   ["needs %s"] = "%s 필요",
-  ["needs a fresh price. Press Refresh"] = "최신 가격이 필요합니다. Refresh를 누르세요",
+  ["needs a fresh price. Press REFRESH"] =
+    "최신 가격이 필요합니다. 새로고침을 누르세요",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "서버 확인이 없습니다. 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
   ["no cost"] = "원가 없음",
