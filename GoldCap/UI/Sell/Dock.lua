@@ -167,10 +167,16 @@ local QUEUE_SKIP_TEXT = {
 }
 
 -- Why the queue held a position back, in the words above; nil when it did not.
+-- An unmarked row's reason too (S.notSelling, Core/PostQueue.lua's Build keeps it): a click on
+-- its row puts it in the dock as well, and its row already said "not worth the deposit" while the
+-- dock read as a plain post (owner, WoW: Forever 2026-11-06: an unmarked staff, 1s deposit on a 2s
+-- sale). The rows read both lists (UI/Sell/List.lua's heldBackReason); so does the dock.
 function Dock.HeldBackText(positionKey)
-  for _, skip in ipairs(S.queueSkipped or {}) do
-    if skip.positionKey == positionKey then
-      return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+  for _, list in ipairs({ S.queueSkipped or {}, S.notSelling or {} }) do
+    for _, skip in ipairs(list) do
+      if skip.positionKey == positionKey and skip.reason then
+        return QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]] or nil
+      end
     end
   end
 end

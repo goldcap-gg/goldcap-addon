@@ -323,5 +323,19 @@ describe("Sell tab with followed groups' rules", function()
         GC.SellUI.Dock.HeldBackText("commodity:10"))
       assert.is_truthy(herbRow().itemStock:GetText():find("under group floor", 1, true))
     end)
+
+    -- WoW: Forever 2026-11-06: an unmarked row's reason lives in S.notSelling; its row said why,
+    -- the dock read as a plain post.
+    it("Dock explains why an unmarked item would not go up", function()
+      ready(12000)
+      local S = GC.SellState
+      local saved = { skipped = S.queueSkipped, rest = S.notSelling }
+      S.queueSkipped = {}
+      S.notSelling = { { positionKey = "item:7", itemID = 7, reason = "below_deposit" },
+        { positionKey = "item:8", itemID = 8 } }
+      assert.equal("Not worth the deposit on the AH", GC.SellUI.Dock.HeldBackText("item:7"))
+      assert.is_nil(GC.SellUI.Dock.HeldBackText("item:8")) -- unmarked, but nothing holds it
+      S.queueSkipped, S.notSelling = saved.skipped, saved.rest
+    end)
   end)
 end)

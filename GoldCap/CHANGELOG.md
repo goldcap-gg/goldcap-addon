@@ -28,7 +28,7 @@
 - WoW: Forever: your lot is no longer called far below the market when it shares a row of the
   auction house with other sellers' lots at the same price.
 - WoW: Forever: POST shows the deposit a post puts up, and holds back a post whose gain over a
-  vendor would not cover it.
+  vendor would not cover it. An item you pick yourself still posts, with the reason in red.
 - A sold auction no longer shows in MY LOTS as a lot still listed, priced at the whole sale.
 
 ## 0.23.2 (2026-11-06)
