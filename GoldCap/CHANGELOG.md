@@ -92,7 +92,6 @@
   moved to the end of the COMMODITIES and ITEMS row, and a long message takes a second line.
 - WoW: Forever: the line next to AUTO keeps the message about the deal you are buying, instead of
   going back to the board's figures a few seconds later.
-||||||| parent of 65626f68 (fix: Sell reads the books in the order the rows are drawn)
 
 ## 0.23.1 (2026-10-30)
 
