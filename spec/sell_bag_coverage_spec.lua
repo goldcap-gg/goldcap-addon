@@ -437,6 +437,47 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.equal(18000000, positionOf("item:240158:190:0:0").displayMarketUnit)
   end)
 
+  -- The owner's save, WoW: Forever (2026-11-06): a scroll's item row grouped 2,774 lots at 1s, the
+  -- player's one among them. An item row has no numOwnerItems, so the whole row read as the
+  -- player's, and the 2s row behind it was the market. It counts its sellers, though: every one
+  -- but the player holds at least one lot of it.
+  describe("an item row holding the player's lot", function()
+    local function scroll(rowOwners)
+      kinds[222] = false
+      stack(1, 222, 1, "item:%d::::::::10:::::::::")
+      slotKeys["0:1"] = key(222, 10)
+      results["222:10:0:0"] = {
+        { buyoutAmount = 100, quantity = 2774, containsOwnerItem = true, totalNumberOfOwners = rowOwners },
+        { buyoutAmount = 200, quantity = 38, containsOwnerItem = false, totalNumberOfOwners = 6 },
+      }
+      compose()
+      GC.Sell.Refresh(true)
+      GC.Sell.OnItemSearchResults(222, key(222, 10))
+      return GC.SellState.quotes["item:222:10:0:0"]
+    end
+
+    it("counts its other sellers as competition in WoW: Forever", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      local quote = scroll(40)
+      assert.equal(2774 - 39, quote.levels[1].ownerQty)
+      assert.is_nil(quote.levels[2].ownerQty)
+      assert.equal(100, quote.unit)
+    end)
+
+    it("stays the player's own when nobody else sells in it", function()
+      GC.ForeverScan = { Enabled = function() return true end }
+      local quote = scroll(1)
+      assert.is_nil(quote.levels[1].ownerQty)
+      assert.equal(200, quote.unit)
+    end)
+
+    it("is read as it always was on retail", function()
+      local quote = scroll(40)
+      assert.is_nil(quote.levels[1].ownerQty)
+      assert.equal(200, quote.unit)
+    end)
+  end)
+
   it("hands the searched ItemKey on with the item search results", function()
     local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
     local init = f:read("*a")

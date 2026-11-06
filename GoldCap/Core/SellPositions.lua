@@ -123,6 +123,15 @@ local function lotIsVariant(auction)
   return bonusCount ~= nil and bonusCount > 0
 end
 
+-- Whether an item position key "item:id:level:suffix:pet" names more than the bare item: the
+-- key the bag side prices by its own search (GC.Sell._SlotKey's plain test, the other way round).
+local function keyedItem(positionKey)
+  if type(positionKey) ~= "string" then return false end
+  local level, suffix, pet = positionKey:match("^item:%d+:(%d+):(%d+):(%d+)$")
+  if not level then return false end
+  return tonumber(level) > 0 or tonumber(suffix) > 0 or tonumber(pet) > 0
+end
+
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
   local lots = {}
   for _, auction in ipairs(auctionInfos or {}) do
@@ -749,7 +758,14 @@ function GC.SellPositions.Build(args)
       addLot(position, lot)
       -- A variant's lot keeps the position on its own market search once the bags are empty:
       -- the bare key answers with the item's cheapest variant, another item's price (review I3).
-      if lot.variant then position.quoteKey = position.quoteKey or positionKey end
+      -- WoW: Forever (`oneLevelPerItem`, 2026-11-06): its links carry no bonus IDs, so no lot
+      -- there reads as a variant, and a lot with nothing left in the bags went back to the bare
+      -- item ID's search while the stack it came from was priced by its own key (a scroll,
+      -- item:211785:10:0:0, on the owner's save). A key with a level, suffix or species keeps
+      -- that search, the same one its bag stack had.
+      local keyed = args.oneLevelPerItem == true and lot.isCommodity ~= true
+        and keyedItem(positionKey)
+      if lot.variant or keyed then position.quoteKey = position.quoteKey or positionKey end
       -- A caged pet's own name is in its battle-pet link; the item is "Pet Cage" for every one,
       -- and a posted pet with nothing left in the bags read that way on MY LOTS (review N3).
       if type(lot.itemLink) == "string" and lot.itemLink:find("battlepet:", 1, true) then
