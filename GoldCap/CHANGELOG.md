@@ -12,6 +12,9 @@
   only have upgrades that cost more than you carry.
 - WoW: Forever, /gc upgrades: long item names and stat lists wrap onto a second line instead of
   being cut off, and the window updates when you put on a piece or your gold changes.
+- Sell: when the auction house does not answer, the message says GoldCap asks again on its own
+  instead of telling you to press a Refresh button, and it no longer shows on the DEALS tab. The
+  button on Sell reads REFRESH in your language when it is not busy.
 
 ## 0.23.3 (2026-11-06)
 

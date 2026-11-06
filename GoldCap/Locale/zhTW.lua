@@ -121,7 +121,8 @@ GC.Locales.zhTW = {
   ["At your pace you reach it at level %d."] = "照你的速度，你會在 %d 級存夠。",
   ["At your pace you will be %s short at level 40."] = "照你的速度，到 40 級時還差 %s。",
   ["At your price"] = "達到你的價格",
-  ["Auction House did not answer. Press Refresh"] = "拍賣場沒有回應。請按 Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "拍賣場沒有回應。GoldCap 會自動再次詢問。",
   ["Auction House is not open"] = "拍賣場未開啟",
   ["Auto-scan on next AH visit"] = "下次進入拍賣場時自動掃描",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -745,7 +746,8 @@ GC.Locales.zhTW = {
     "手動匯入。Companion 會自動更新：/goldcap companion",
   ["market %s"] = "市場 %s",
   ["needs %s"] = "需要 %s",
-  ["needs a fresh price. Press Refresh"] = "需要最新價格。請按 Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "需要最新價格。請點擊重新整理",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "伺服器沒有回覆確認。購買仍可能已完成，請檢查信箱。關閉此視窗不會取消它。",
   ["no cost"] = "無成本",

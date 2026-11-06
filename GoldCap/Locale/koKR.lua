@@ -119,7 +119,8 @@ GC.Locales.koKR = {
   ["At your pace you reach it at level %d."] = "지금 속도라면 %d레벨에 모읍니다.",
   ["At your pace you will be %s short at level 40."] = "지금 속도라면 40레벨에 %s 부족합니다.",
   ["At your price"] = "내 가격 도달",
-  ["Auction House did not answer. Press Refresh"] = "경매장이 응답하지 않았습니다. Refresh를 누르세요",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "경매장이 응답하지 않았습니다. GoldCap이 알아서 다시 요청합니다.",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -760,7 +761,8 @@ GC.Locales.koKR = {
     "수동 가져오기. Companion이 자동 갱신합니다: /goldcap companion",
   ["market %s"] = "시세 %s",
   ["needs %s"] = "%s 필요",
-  ["needs a fresh price. Press Refresh"] = "최신 가격이 필요합니다. Refresh를 누르세요",
+  ["needs a fresh price. Press REFRESH"] =
+    "최신 가격이 필요합니다. 새로고침을 누르세요",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "서버 확인이 없습니다. 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
   ["no cost"] = "원가 없음",

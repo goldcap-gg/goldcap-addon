@@ -110,7 +110,8 @@ GC.Locales.ruRU = {
   ["At your pace you reach it at level %d."] = "В вашем темпе вы накопите к %d уровню.",
   ["At your pace you will be %s short at level 40."] = "В вашем темпе на 40 уровне не хватит %s.",
   ["At your price"] = "По вашей цене",
-  ["Auction House did not answer. Press Refresh"] = "Аукцион не ответил. Нажмите Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "Аукцион не ответил. GoldCap сам спросит ещё раз.",
   ["Auction House is not open"] = "Аукцион не открыт",
   ["Auto-scan on next AH visit"] = "Автоскан при следующем визите на АД",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -773,7 +774,8 @@ GC.Locales.ruRU = {
     "ручной импорт. Companion обновляет это сам: /goldcap companion",
   ["market %s"] = "рынок %s",
   ["needs %s"] = "нужно %s",
-  ["needs a fresh price. Press Refresh"] = "нужна свежая цена. Нажмите Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "нужна свежая цена. Нажмите ОБНОВИТЬ",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил. Покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
   ["no cost"] = "нет закупа",

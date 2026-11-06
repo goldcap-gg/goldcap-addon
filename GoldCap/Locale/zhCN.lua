@@ -120,7 +120,8 @@ GC.Locales.zhCN = {
   ["At your pace you reach it at level %d."] = "按你的速度，你会在 %d 级攒够。",
   ["At your pace you will be %s short at level 40."] = "按你的速度，到 40 级时还差 %s。",
   ["At your price"] = "达到你的价格",
-  ["Auction House did not answer. Press Refresh"] = "拍卖行没有响应。请按 Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "拍卖行没有回应。GoldCap 会自动再次询问。",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -744,7 +745,8 @@ GC.Locales.zhCN = {
     "手动导入。Companion 会自动更新：/goldcap companion",
   ["market %s"] = "市场 %s",
   ["needs %s"] = "需要 %s",
-  ["needs a fresh price. Press Refresh"] = "需要最新价格。请按 Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "需要最新价格。请点击刷新",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "服务器没有返回确认。购买仍可能已完成，请检查邮件。关闭此窗口不会撤销它。",
   ["no cost"] = "无成本",

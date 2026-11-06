@@ -31,7 +31,11 @@ local function paintQueueButton() end
 local function paintCancelButton() end
 
 local function setStatus(text)
-  if UI.window and UI.window.status then UI.window.status:SetText(text) end
+  -- The window's status line is shared with Deals: a message Sell gives while the player is on
+  -- another tab (its pricing watchdog, a timer) stays in Sell's own dock. On Deals it read as being
+  -- about the board ("Auction House did not answer. Press Refresh", owner 2026-11-06).
+  local onSell = UI.container and UI.container.IsShown and UI.container:IsShown()
+  if UI.window and UI.window.status and onSell ~= false then UI.window.status:SetText(text) end
   GC.Sell._lastStatus = text
   -- Said, and not yet said beside a button: a refused press reads this (onPostClick).
   Dock.unanswered = text
@@ -142,7 +146,7 @@ end
 -- language. The table has to close with a `}` on its own line: that is where the
 -- contract spec's scanner stops.
 local QUEUE_SKIP_TEXT = {
-  no_fresh_price = "needs a fresh price. Press Refresh",
+  no_fresh_price = "needs a fresh price. Press REFRESH",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
   -- WoW: Forever only (Core/PostQueue.lua's below_vendor): a vendor pays at least as much for

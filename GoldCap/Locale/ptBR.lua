@@ -118,8 +118,8 @@ GC.Locales.ptBR = {
   ["At your pace you reach it at level %d."] = "No seu ritmo você chega lá no nível %d.",
   ["At your pace you will be %s short at level 40."] = "No seu ritmo vão faltar %s no nível 40.",
   ["At your price"] = "No seu preço",
-  ["Auction House did not answer. Press Refresh"] =
-    "A casa de leilões não respondeu. Clique em Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "A casa de leilões não respondeu. O GoldCap pergunta de novo sozinho.",
   ["Auction House is not open"] = "A casa de leilões não está aberta",
   ["Auto-scan on next AH visit"] = "Escaneamento automático na próxima visita à CL",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -802,7 +802,8 @@ GC.Locales.ptBR = {
     "importação manual. O Companion mantém isso atualizado: /goldcap companion",
   ["market %s"] = "mercado %s",
   ["needs %s"] = "exige %s",
-  ["needs a fresh price. Press Refresh"] = "precisa de um preço novo. Clique em Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "precisa de um preço atual. Clique em ATUALIZAR",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sem confirmação do servidor. A compra ainda pode ter passado, confira seu correio. Fechar isto não desfaz.",
   ["no cost"] = "sem custo",

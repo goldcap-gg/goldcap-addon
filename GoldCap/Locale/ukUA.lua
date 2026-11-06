@@ -114,7 +114,8 @@ GC.Locales.ukUA = {
   ["At your pace you reach it at level %d."] = "У вашому темпі ви назбираєте до %d рівня.",
   ["At your pace you will be %s short at level 40."] = "У вашому темпі на 40 рівні бракуватиме %s.",
   ["At your price"] = "За вашою ціною",
-  ["Auction House did not answer. Press Refresh"] = "Аукціон не відповів. Натисніть Refresh",
+  ["The auction house did not answer. GoldCap asks again on its own."] =
+    "Аукціон не відповів. GoldCap сам запитає ще раз.",
   ["Auction House is not open"] = "Аукціон не відкрито",
   ["Auto-scan on next AH visit"] = "Автосканування при наступному візиті на АД",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
@@ -783,7 +784,8 @@ GC.Locales.ukUA = {
     "ручний імпорт. Companion оновлює це сам: /goldcap companion",
   ["market %s"] = "ринок %s",
   ["needs %s"] = "треба %s",
-  ["needs a fresh price. Press Refresh"] = "потрібна свіжа ціна. Натисніть Refresh",
+  ["needs a fresh price. Press REFRESH"] =
+    "потрібна свіжа ціна. Натисніть ОНОВИТИ",
   ["no confirmation from the server. The buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив. Купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
   ["no cost"] = "без закупу",
