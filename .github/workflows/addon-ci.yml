@@ -19,11 +19,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: leafo/gh-actions-lua@35bcb06abec04ec87df82e08caa84d545348536e # v10
-        with:
-          luaVersion: "5.1"
-      - uses: leafo/gh-actions-luarocks@e65774a6386cb4f24e293dca7fc4ff89165b64c5 # v4
-      - run: luarocks install busted
+      # Lua 5.1 and LuaRocks from Ubuntu's own packages. leafo/gh-actions-lua downloads Lua from
+      # lua.org, which timed out on every run of the evening of 2026-11-06 (and on 0.23.2's) and
+      # failed this job before a single test ran.
+      - run: sudo apt-get update -q && sudo apt-get install -y -q lua5.1 liblua5.1-0-dev luarocks
+      - run: sudo luarocks --lua-version=5.1 install busted
       - run: busted
 
   # The release announcement carries its own copy of the CurseForge URL — a
